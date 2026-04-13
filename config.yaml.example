@@ -1,0 +1,11 @@
+model:
+  provider: minimax  # 或 openai
+  model: abab5.5-chat  # MiniMax 模型，或 gpt-3.5-turbo (OpenAI)
+  api_key: "your-api-key-here"
+  base_url: "https://api.minimaxi.com/v1"  # 或 https://api.openai.com/v1 (OpenAI)
+  max_retries: 2
+  timeout_seconds: 30
+
+app:
+  max_history_turns: 10
+  system_prompt: "You are a helpful assistant."
