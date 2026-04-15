@@ -16,4 +16,5 @@ class ModelConfig:
 class AppConfig:
     model: ModelConfig = field(default_factory=ModelConfig)
     max_history_turns: int = 10
+    max_turns: int = 20
     system_prompt: str = "You are a helpful assistant."
