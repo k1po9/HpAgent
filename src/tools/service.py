@@ -1,9 +1,10 @@
-from typing import Any, Optional
-from .config import ToolConfig
+from typing import Any, Optional, Callable, Awaitable
+from src.core.config import ToolConfig
 from .protocol import Tool, Skill
 from .registry import NativeToolRegistry, MCPToolRegistry, SkillRegistry
 from .factory import ToolFactory
 from .validator import ParamValidator
+import time
 
 
 class ToolService:
@@ -24,6 +25,56 @@ class ToolService:
         if self.config.enable_mcp:
             tools.extend(self.mcp_registry.list_definitions())
         return tools
+    
+    def list_definitions(self) -> list[dict]:
+        return self.list_all_tools()
+    
+    async def route(
+        self,
+        tool_calls: list[dict],
+        turn_index: int,
+        on_event: Optional[Callable[..., Awaitable[None]]] = None,
+    ) -> list[dict]:
+        results = []
+        for tc in tool_calls:
+            tool = self.get_tool(tc["name"])
+            if not tool:
+                results.append(self._error_result(tc["id"], f"Tool not found: {tc['name']}"))
+                continue
+
+            if on_event:
+                await on_event({
+                    "type": "tool_call_started",
+                    "tool_name": tc["name"],
+                    "call_id": tc["id"],
+                    "input": tc["input"]
+                })
+
+            try:
+                output = await tool.execute(**tc["input"])
+                results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tc["id"],
+                    "content": str(output),
+                })
+            except Exception as e:
+                results.append(self._error_result(tc["id"], str(e)))
+
+            if on_event:
+                await on_event({
+                    "type": "tool_call_completed",
+                    "tool_name": tc["name"],
+                    "call_id": tc["id"]
+                })
+        return results
+
+    def _error_result(self, call_id: str, error: str) -> dict:
+        return {
+            "type": "tool_result",
+            "tool_use_id": call_id,
+            "content": f"Error: {error}",
+            "is_error": True,
+        }
     
     def register_native(self, tool: Tool) -> None:
         self.native_registry.register(tool)

@@ -1,4 +1,3 @@
-from .config import ToolConfig
 from .protocol import Tool, Skill, ToolType
 from .service import ToolService
 from .factory import ToolFactory

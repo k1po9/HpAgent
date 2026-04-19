@@ -10,6 +10,18 @@ class StopReason(str, Enum):
     REFUSAL = "refusal"
     ERROR = "error"
 
+def map_openai_finish_reason(oa_reason: str) -> StopReason:
+    mapping = {
+        "stop": StopReason.END_TURN,
+        "tool_calls": StopReason.TOOL_USE,
+        "function_call": StopReason.TOOL_USE,
+        "length": StopReason.MAX_TOKENS,
+        "content_filter": StopReason.REFUSAL,
+        # 其他/异常统一归为 error
+        None: StopReason.ERROR,
+        "": StopReason.ERROR,
+    }
+    return mapping.get(oa_reason, StopReason.ERROR)
 
 class EventType(str, Enum):
     LOOP_STARTED = "loop_started"
@@ -28,3 +40,4 @@ class ExecutionEvent:
     turn_index: int
     timestamp: float
     data: dict[str, Any] = field(default_factory=dict)
+

@@ -1,9 +1,9 @@
 import yaml
 import os
 from pathlib import Path
-from src.core.config import AppConfig, ModelConfig
+from src.core.config import AppConfig, ModelConfig, LoopConfig, ToolConfig
+from src.tools import ToolService
 from src.context.session_store import SessionStore
-from src.execution.llm_executor import ModelExecutor
 from src.channels.console_channel import ConsoleChannel
 
 
@@ -25,8 +25,21 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         timeout_seconds=config_data.get("model", {}).get("timeout_seconds", 30),
     )
 
+    tool_config = ToolConfig(
+        enable_native=True,
+        enable_mcp=False,
+        enable_skills=True,
+        validate_before_execute=True,
+    )
+
+    loop_config = LoopConfig(
+        max_turns=config_data.get("app", {}).get("max_turns", 20),
+    )
+
     app_config = AppConfig(
         model=model_config,
+        loop=loop_config,
+        tool=tool_config,
         max_history_turns=config_data.get("app", {}).get("max_history_turns", 10),
         system_prompt=config_data.get("app", {}).get(
             "system_prompt", "You are a helpful assistant."
@@ -49,13 +62,13 @@ def main():
         return
 
     session_store = SessionStore()
-    model_executor = ModelExecutor(config.model)
-    channel = ConsoleChannel(config, session_store, model_executor)
+    tool_service = ToolService(config.tool)
+    channel = ConsoleChannel(config, session_store, tool_service)
 
     try:
         channel.start()
     finally:
-        model_executor.close()
+        pass
 
 
 if __name__ == "__main__":

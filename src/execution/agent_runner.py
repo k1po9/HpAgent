@@ -7,10 +7,9 @@ from src.context.session_store import SessionStore
 from src.context.context_builder import build_context
 from src.execution.harness.loop import AgentLoop, LoopConfig
 from src.execution.harness.events import ExecutionEvent, EventType
-from src.execution.tools.registry import ToolRegistry
-from src.execution.tools.router import ToolRouter
-from src.execution.model.client import ModelClient
 from src.response.payload_builder import build_reply_payload
+from src.model.client import ModelClient
+from src.tools.service import ToolService
 
 
 logger = logging.getLogger(__name__)
@@ -29,22 +28,17 @@ class AgentRunner:
         self,
         config: AppConfig,
         session_store: SessionStore,
-        tool_registry: Optional[ToolRegistry] = None,
+        tool_service: ToolService,
     ):
         self.config = config
         self.session_store = session_store
-        self.tool_registry = tool_registry or ToolRegistry()
+        self.tool_service = tool_service
 
-        self.model_client = ModelClient(
-            api_key=config.model.api_key,
-            base_url=config.model.base_url,
-            model=config.model.model,
-        )
-        self.tool_router = ToolRouter(self.tool_registry)
+        self.model_client = ModelClient(config.model)
         self.loop = AgentLoop(
             model_client=self.model_client,
-            tool_router=self.tool_router,
-            config=LoopConfig(max_turns=config.max_turns),
+            tool_service=self.tool_service,
+            loop_config=self.config.loop,
         )
 
     async def run(
@@ -52,13 +46,11 @@ class AgentRunner:
         context: TemplateContext,
         on_event: Optional[Callable[[ExecutionEvent], Awaitable[None]]] = None,
     ) -> AgentRunResult:
+    
         messages = context.conversation_history.copy()
-        if context.body:
-            messages.append({"role": "user", "content": context.body})
 
         final_text, events = await self.loop.run(
             messages=messages,
-            tools=self.tool_registry.list_definitions(),
             on_event=on_event,
         )
 
@@ -77,16 +69,22 @@ class AgentRunner:
 
 
 def run_reply_agent(
-    user_message: str,
-    session_key: str,
     config: AppConfig,
     session_store: SessionStore,
-    model_executor=None,
+    user_message: str,
+    tool_service: ToolService,
+    session_key: str = "default",
+    on_event: Optional[Callable[[ExecutionEvent], Awaitable[None]]] = None,
 ) -> ReplyPayload:
     """
-    兼容第一版的主流程函数。
-    如果传入 model_executor，则使用第一版逻辑。
-    否则使用新的 AgentRunner。
+    运行回复代理，根据用户消息生成回复。
+
+    :param config: 配置对象
+    :param session_store: 会话存储对象
+    :param user_message: 用户消息
+    :param tool_service: 工具服务对象
+    :param session_key: 会话密钥
+    :return: ReplyPayload 对象
     """
     try:
         context = build_context(
@@ -97,19 +95,10 @@ def run_reply_agent(
             max_history_turns=config.max_history_turns,
         )
 
-        if model_executor:
-            model_response = model_executor.generate(context)
-            session_store.append_turn(
-                session_key=session_key,
-                user_msg=user_message,
-                assistant_msg=model_response,
-            )
-            return build_reply_payload(model_response, is_error=False)
-        else:
-            runner = AgentRunner(config, session_store)
-            import asyncio
-            result = asyncio.run(runner.run(context))
-            return result.payload
+        runner = AgentRunner(config, session_store, tool_service)
+        import asyncio
+        result = asyncio.run(runner.run(context, on_event))
+        return result.payload
 
     except Exception as e:
         logger.error(f"Unexpected error: {e}")

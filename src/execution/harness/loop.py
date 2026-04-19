@@ -2,27 +2,23 @@ from dataclasses import dataclass
 from typing import Callable, Awaitable, Optional
 import time
 from .events import ExecutionEvent, EventType, StopReason
-from ..tools.router import ToolRouter
-from ..model.client import ModelClient, ModelResponse
-
-
-@dataclass
-class LoopConfig:
-    max_turns: int = 20
+from ...core.config import LoopConfig
+from ...model.client import ModelClient, ModelResponse
+from ...tools.service import ToolService
 
 
 class AgentLoop:
-    def __init__(self, model_client: ModelClient, tool_router: ToolRouter, config: LoopConfig):
+    def __init__(self, model_client: ModelClient, tool_service: ToolService, loop_config: LoopConfig):
         self.model_client = model_client
-        self.tool_router = tool_router
-        self.config = config
+        self.tool_service = tool_service
+        self.config = loop_config
 
     async def run(
         self,
         messages: list[dict],
-        tools: list[dict],
         on_event: Optional[Callable[[ExecutionEvent], Awaitable[None]]] = None,
     ) -> tuple[str, list[ExecutionEvent]]:
+    
         turn = 0
         events = []
         current_messages = messages.copy()
@@ -32,7 +28,7 @@ class AgentLoop:
                 type=EventType.LOOP_STARTED,
                 turn_index=0,
                 timestamp=time.time(),
-                data={"tools_count": len(tools)}
+                data={"tools_count": len(self.tool_service.list_all_tools())}
             ))
 
         while turn < self.config.max_turns:
@@ -55,12 +51,12 @@ class AgentLoop:
                         type=EventType.TEXT_DELTA,
                         turn_index=turn,
                         timestamp=time.time(),
-                        data={"text": delta}
+                        data={"content": delta}
                     ))
 
-            response = await self.model_client.chat(
+            response = await self.model_client.generate(
                 messages=current_messages,
-                tools=tools if tools else None,
+                tool_service=self.tool_service,
                 stream=True,
                 on_text_delta=on_text_delta,
             )
@@ -86,7 +82,7 @@ class AgentLoop:
                 
                 return response.content or "", events
             elif response.stop_reason == StopReason.TOOL_USE and response.tool_calls:
-                tool_results = await self.tool_router.route(
+                tool_results = await self.tool_service.route(
                     response.tool_calls, turn, on_event
                 )
                 current_messages.append({"role": "user", "content": tool_results})
