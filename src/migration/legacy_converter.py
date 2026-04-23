@@ -1,14 +1,14 @@
 from typing import Dict, List, Any, Optional
 from ..common.types import Event, EventType, ChannelType
-from ..session.event_store import EventStore
+from ..session.session_manager import SessionManager
 from ..session.models import Session, SessionStatus
 import time
 import uuid
 
 
 class LegacySessionConverter:
-    def __init__(self, event_store: EventStore):
-        self._event_store = event_store
+    def __init__(self, session_manager: SessionManager):
+        self._session_manager = session_manager
 
     def convert_session(self, legacy_session: Dict[str, Any], target_session_id: Optional[str] = None) -> str:
         session_id = target_session_id or legacy_session.get("session_key", str(uuid.uuid4()))
@@ -29,9 +29,9 @@ class LegacySessionConverter:
     async def _create_session_sync(self, session: Session) -> None:
         from ..common.types import SessionMetadata
         metadata = SessionMetadata(session_id=session.session_id, creator_id=session.creator_id, channel_type=ChannelType(session.channel_type), tags=session.tags, created_at=session.created_at, status="active")
-        await self._event_store.create_session(metadata)
+        await self._session_manager.create_session(metadata)
         start_event = Event(session_id=session.session_id, event_type=EventType.SESSION_START, content={"creator_id": session.creator_id, "channel_type": session.channel_type}, metadata={"legacy_migration": True})
-        await self._event_store.emit_event(start_event)
+        await self._session_manager.emit_event(start_event)
 
     def _convert_conversation_history(self, session_id: str, conversation_history: List[Dict[str, Any]]) -> None:
         for msg in conversation_history:
@@ -50,4 +50,4 @@ class LegacySessionConverter:
             asyncio.run(self._emit_event_sync(event))
 
     async def _emit_event_sync(self, event: Event) -> None:
-        await self._event_store.emit_event(event)
+        await self._session_manager.emit_event(event)

@@ -9,6 +9,7 @@ class ResourcePool(IResources):
     def __init__(self, credential_manager=None):
         self._credential_manager = credential_manager
         self._model_clients: Dict[str, Any] = {}
+        self._fallback_groups: Dict[str, List[str]] = {}
         self._storage_path: Optional[str] = None
 
     def set_credential_manager(self, credential_manager):
@@ -17,14 +18,27 @@ class ResourcePool(IResources):
     def set_storage_path(self, path: str):
         self._storage_path = path
 
-    async def get_model_client(self, model_name: str, config: Dict[str, Any]) -> Any:
-        client_key = f"{model_name}:{json.dumps(config, sort_keys=True)}"
-        if client_key in self._model_clients:
-            return self._model_clients[client_key]
+    async def initialize_models(self) -> None:
+        if not self._credential_manager:
+            return
+        endpoints = self._credential_manager.get_model_endpoint_list()
+        if not endpoints:
+            return
+
         from ..model.client import ModelClient
-        client = ModelClient(config=config)
-        self._model_clients[client_key] = client
-        return client
+        client_ids = []
+        for ep in endpoints:
+            client_id = f"{ep.provider}:{ep.model}"
+            client = ModelClient(config={
+                "api_key": ep.api_key,
+                "base_url": ep.base_url,
+                "model": ep.model,
+            })
+            self._model_clients[client_id] = {"client": client, "priority": 0}
+            client_ids.append(client_id)
+
+        if client_ids:
+            self._fallback_groups["default"] = client_ids
 
     async def get_credential(self, resource_id: str, scope: List[str]) -> str:
         if not self._credential_manager:
@@ -60,3 +74,37 @@ class ResourcePool(IResources):
                 raise ModelAPIError(reason=str(e), status_code=e.response.status_code)
             except Exception as e:
                 raise ModelAPIError(reason=str(e))
+
+    # =============================== Model Management ===========================
+    async def register_model(self, model_id: str, client: Any, priority: int = 0) -> None:
+        self._model_clients[model_id] = {"client": client, "priority": priority}
+
+    async def configure_fallback(self, group_name: str, primary: str, *fallbacks: str) -> None:
+        self._fallback_groups[group_name] = [primary] + list(fallbacks)
+
+    async def generate(
+        self,
+        messages: List[Dict[str, Any]],
+        model_selector: str = "default",        
+        tools: Optional[List[Dict[str, Any]]] = None,
+        stream: bool = False,
+    ) -> Any:
+        candidate_ids = self._fallback_groups.get(model_selector, [model_selector])
+        last_error = None
+
+        for model_id in candidate_ids:
+            model_info = self._model_clients.get(model_id)
+            if not model_info:
+                continue
+            client = model_info["client"]
+            try:
+                return await client.generate(messages=messages, tools=tools, stream=stream)
+            except (ModelAPIError, ConnectionError, TimeoutError) as e:
+                last_error = e
+                continue
+            except Exception:
+                raise
+
+        if last_error:
+            raise ModelAPIError(f"All models in group '{model_selector}' failed.") from last_error
+        raise ModelAPIError(f"No models available for selector '{model_selector}'.")

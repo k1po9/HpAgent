@@ -6,50 +6,55 @@ import time
 
 
 class EventType(str, Enum):
-    USER_MESSAGE = "user_message"
-    MODEL_MESSAGE = "model_message"
-    TOOL_CALL = "tool_call"
-    TOOL_RESULT = "tool_result"
-    ERROR = "error"
-    CONFIG_CHANGE = "config_change"
-    SESSION_START = "session_start"
-    SESSION_COMPLETE = "session_complete"
-    SESSION_ARCHIVED = "session_archived"
-    LOOP_STARTED = "loop_started"
-    LOOP_COMPLETED = "loop_completed"
-    TURN_COMPLETED = "turn_completed"
+    """事件类型枚举"""
+    USER_MESSAGE = "user_message"      # 用户发送的消息
+    MODEL_MESSAGE = "model_message"    # 模型生成的回复
+    TOOL_CALL = "tool_call"            # 模型请求调用工具
+    TOOL_RESULT = "tool_result"        # 工具执行返回的结果
+    ERROR = "error"                    # 系统错误事件
+    CONFIG_CHANGE = "config_change"    # 配置变更事件
+    SESSION_START = "session_start"    # 会话开始
+    SESSION_COMPLETE = "session_complete"  # 会话正常结束
+    SESSION_ARCHIVED = "session_archived"  # 会话被归档
+    LOOP_STARTED = "loop_started"      # 推理循环开始
+    LOOP_COMPLETED = "loop_completed"  # 推理循环完成
+    TURN_COMPLETED = "turn_completed"  # 单轮交互完成
 
 
 class ChannelType(str, Enum):
-    TELEGRAM = "telegram"
-    DISCORD = "discord"
-    SLACK = "slack"
-    WECHAT = "wechat"
-    WEB = "web"
-    CONSOLE = "console"
+    """消息渠道类型枚举"""
+    TELEGRAM = "telegram"   # Telegram 平台
+    DISCORD = "discord"     # Discord 平台
+    SLACK = "slack"         # Slack 平台
+    WECHAT = "wechat"       # 微信平台
+    WEB = "web"             # Web 页面
+    CONSOLE = "console"     # 控制台终端
 
 
 class StopReason(str, Enum):
-    END_TURN = "end_turn"
-    TOOL_USE = "tool_use"
-    MAX_TOKENS = "max_tokens"
-    REFUSAL = "refusal"
-    ERROR = "error"
+    """模型停止生成的原因枚举"""
+    END_TURN = "end_turn"       # 模型主动结束回复
+    TOOL_USE = "tool_use"       # 模型请求调用工具，暂停生成
+    MAX_TOKENS = "max_tokens"   # 达到最大 token 限制
+    REFUSAL = "refusal"         # 模型拒绝回答
+    ERROR = "error"             # 生成过程发生错误
 
 
 class ErrorSeverity(str, Enum):
-    RECOVERABLE = "recoverable"
-    FATAL = "fatal"
+    """错误严重级别枚举"""
+    RECOVERABLE = "recoverable"  # 可恢复错误，系统可继续运行
+    FATAL = "fatal"              # 致命错误，系统无法继续
 
 
 @dataclass
 class Event:
-    event_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    session_id: str = ""
-    timestamp: float = field(default_factory=time.time)
-    event_type: EventType = EventType.USER_MESSAGE
-    content: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    """系统内部通用事件，用于在各组件间传递信息"""
+    event_id: str = field(default_factory=lambda: str(uuid.uuid4()))   # 事件唯一标识
+    session_id: str = ""                                               # 所属会话 ID
+    timestamp: float = field(default_factory=time.time)                # 事件发生时间戳
+    event_type: EventType = EventType.USER_MESSAGE                     # 事件类型
+    content: Dict[str, Any] = field(default_factory=dict)              # 事件核心数据
+    metadata: Dict[str, Any] = field(default_factory=dict)             # 事件的附加元数据
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -78,14 +83,15 @@ class Event:
 
 @dataclass
 class UnifiedMessage:
-    message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    session_id: str = ""
-    sender_id: str = ""
-    channel_type: ChannelType = ChannelType.CONSOLE
-    content: str = ""
-    timestamp: float = field(default_factory=time.time)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    media_urls: List[str] = field(default_factory=list)
+    """统一消息格式，将不同渠道的消息标准化为统一结构"""
+    message_id: str = field(default_factory=lambda: str(uuid.uuid4()))  # 消息唯一标识
+    session_id: str = ""                                                # 所属会话 ID
+    sender_id: str = ""                                                 # 发送者标识（用户 ID）
+    channel_type: ChannelType = ChannelType.CONSOLE                     # 消息来源渠道
+    content: str = ""                                                   # 消息文本内容
+    timestamp: float = field(default_factory=time.time)                 # 消息发送时间戳
+    metadata: Dict[str, Any] = field(default_factory=dict)              # 消息附加元数据
+    media_urls: List[str] = field(default_factory=list)                 # 附件/媒体文件 URL 列表
 
     def to_event(self) -> Event:
         return Event(
@@ -104,9 +110,10 @@ class UnifiedMessage:
 
 @dataclass
 class ToolCall:
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    name: str = ""
-    arguments: Dict[str, Any] = field(default_factory=dict)
+    """模型发起的工具调用请求"""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))  # 工具调用唯一标识
+    name: str = ""                                              # 工具名称
+    arguments: Dict[str, Any] = field(default_factory=dict)     # 工具调用参数（JSON 格式）
 
     def to_dict(self) -> Dict[str, Any]:
         return {"id": self.id, "name": self.name, "arguments": self.arguments}
@@ -122,10 +129,11 @@ class ToolCall:
 
 @dataclass
 class ToolResult:
-    tool_call_id: str
-    status: str
-    content: Any = ""
-    error: Optional[str] = None
+    """工具执行后返回的结果"""
+    tool_call_id: str          # 对应的工具调用 ID
+    status: str                # 执行状态（如 success / failure）
+    content: Any = ""          # 工具执行返回的数据
+    error: Optional[str] = None  # 执行失败时的错误信息
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -138,20 +146,22 @@ class ToolResult:
 
 @dataclass
 class ModelResponse:
-    content: Optional[str] = None
-    tool_calls: Optional[List[ToolCall]] = None
-    stop_reason: StopReason = StopReason.END_TURN
-    usage: Optional[Dict[str, Any]] = None
+    """大语言模型的完整响应"""
+    content: Optional[str] = None                              # 模型生成的文本回复
+    tool_calls: Optional[List[ToolCall]] = None                # 模型请求调用的工具列表
+    stop_reason: StopReason = StopReason.END_TURN              # 模型停止生成的原因
+    usage: Optional[Dict[str, Any]] = None                     # token 用量统计（如 prompt_tokens, completion_tokens）
 
 
 @dataclass
 class SessionMetadata:
-    session_id: str
-    creator_id: str = ""
-    channel_type: ChannelType = ChannelType.CONSOLE
-    tags: List[str] = field(default_factory=list)
-    created_at: float = field(default_factory=time.time)
-    status: str = "active"
+    """会话元数据，记录会话的基本信息和状态"""
+    session_id: str                                          # 会话唯一标识
+    creator_id: str = ""                                     # 会话创建者 ID
+    channel_type: ChannelType = ChannelType.CONSOLE          # 会话所属渠道
+    tags: List[str] = field(default_factory=list)            # 会话标签列表，用于分类和检索
+    created_at: float = field(default_factory=time.time)     # 会话创建时间戳
+    status: str = "active"                                   # 会话状态（如 active / archived / completed）
 
     def to_dict(self) -> Dict[str, Any]:
         return {

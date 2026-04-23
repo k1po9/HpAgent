@@ -1,14 +1,14 @@
 from typing import Dict, List, Any, Optional
 import json
 from pathlib import Path
-from ..session.event_store import EventStore
+from ..session.session_manager import SessionManager
 from .legacy_converter import LegacySessionConverter
 
 
 class MigrationRunner:
-    def __init__(self, event_store: EventStore):
-        self._event_store = event_store
-        self._converter = LegacySessionConverter(event_store)
+    def __init__(self, session_manager: SessionManager):
+        self._session_manager = session_manager
+        self._converter = LegacySessionConverter(session_manager)
 
     def migrate_from_file(self, input_path: str, output_session_id: Optional[str] = None) -> str:
         with open(input_path, "r", encoding="utf-8") as f:

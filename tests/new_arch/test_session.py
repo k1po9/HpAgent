@@ -1,24 +1,18 @@
 import pytest
 import asyncio
-from src.new_arch.session.event_store import EventStore
-from src.new_arch.session.session_manager import SessionManager
-from src.new_arch.common.types import Event, EventType, SessionMetadata, ChannelType
-from src.new_arch.common.errors import SessionNotFoundError
+from src.session.session_manager import SessionManager
+from src.common.types import Event, EventType, SessionMetadata, ChannelType
+from src.common.errors import SessionNotFoundError
 
 
 @pytest.fixture
-def event_store():
-    return EventStore()
-
-
-@pytest.fixture
-def session_manager(event_store):
-    return SessionManager(event_store)
+def session_manager():
+    return SessionManager()
 
 
 @pytest.mark.asyncio
 async def test_create_session(session_manager):
-    session_id = await session_manager.create_session(
+    session_id = await session_manager.create_session_with_id(
         creator_id="test_user",
         channel_type=ChannelType.CONSOLE,
         tags=["test"],
@@ -34,7 +28,7 @@ async def test_create_session(session_manager):
 
 @pytest.mark.asyncio
 async def test_append_user_message(session_manager):
-    session_id = await session_manager.create_session()
+    session_id = await session_manager.create_session_with_id()
 
     event_id = await session_manager.append_user_message(
         session_id=session_id,
@@ -52,7 +46,7 @@ async def test_append_user_message(session_manager):
 
 @pytest.mark.asyncio
 async def test_append_model_message(session_manager):
-    session_id = await session_manager.create_session()
+    session_id = await session_manager.create_session_with_id()
 
     await session_manager.append_model_message(
         session_id=session_id,
@@ -70,14 +64,14 @@ async def test_append_model_message(session_manager):
 
 
 @pytest.mark.asyncio
-async def test_session_not_found(event_store):
+async def test_session_not_found(session_manager):
     with pytest.raises(SessionNotFoundError):
-        await event_store.get_events("nonexistent_session")
+        await session_manager.get_events("nonexistent_session")
 
 
 @pytest.mark.asyncio
 async def test_rewind_session(session_manager):
-    session_id = await session_manager.create_session()
+    session_id = await session_manager.create_session_with_id()
 
     await session_manager.append_user_message(session_id, "First message")
     await session_manager.append_model_message(session_id, "First response")
@@ -94,8 +88,8 @@ async def test_rewind_session(session_manager):
 
 @pytest.mark.asyncio
 async def test_list_active_sessions(session_manager):
-    await session_manager.create_session(creator_id="user1")
-    await session_manager.create_session(creator_id="user2")
+    await session_manager.create_session_with_id(creator_id="user1")
+    await session_manager.create_session_with_id(creator_id="user2")
 
     sessions = await session_manager.list_active_sessions(limit=10)
     assert len(sessions) == 2
@@ -103,7 +97,7 @@ async def test_list_active_sessions(session_manager):
 
 @pytest.mark.asyncio
 async def test_complete_session(session_manager):
-    session_id = await session_manager.create_session()
+    session_id = await session_manager.create_session_with_id()
 
     await session_manager.append_user_message(session_id, "Hello")
     await session_manager.complete_session(session_id)

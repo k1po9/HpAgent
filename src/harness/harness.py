@@ -6,11 +6,12 @@ from ..common.interfaces import ISession, IHarness
 from ..common.errors import SessionNotFoundError
 from .context_builder import HarnessContextBuilder
 from ..resources.resource_pool import ResourcePool
+from ..resources.credentials import ModelEndpoint
 from ..sandbox.sandbox_manager import SandboxManager
 
 
 class Harness(IHarness):
-    def __init__(self, session_store: ISession, resource_pool: ResourcePool, sandbox_manager: SandboxManager, system_prompt: str = "You are a helpful AI assistant.", max_turns: int = 20):
+    def __init__(self, session_store: ISession, resource_pool: ResourcePool, sandbox_manager: SandboxManager, system_prompt: str = "You are a helpful AI assistant.", max_turns: int = 20, default_model: str = "main"):
         self._session_store = session_store
         self._resource_pool = resource_pool
         self._sandbox_manager = sandbox_manager
@@ -24,11 +25,13 @@ class Harness(IHarness):
             events = await self._session_store.get_events(session_id)
             if not events:
                 return ModelResponse(content="Session has no events.", stop_reason=StopReason.END_TURN)
+            
             tools = await self._get_available_tools()
             context = self._context_builder.build(events, self._max_turns)
             model_response = await self._call_model_internal(context, tools)
             response_event = Event(session_id=session_id, event_type=EventType.MODEL_MESSAGE, content={"text": model_response.content, "tool_calls": [tc.to_dict() for tc in model_response.tool_calls] if model_response.tool_calls else []}, metadata={"stop_reason": model_response.stop_reason.value, "usage": model_response.usage or {}})
             await self._session_store.emit_event(response_event)
+            
             return model_response
 
     async def build_context(self, events: List[Event]) -> List[Dict[str, Any]]:
@@ -72,9 +75,11 @@ class Harness(IHarness):
         return tools
 
     async def _call_model_internal(self, messages: List[Dict[str, Any]], tools: List[Dict[str, Any]]) -> ModelResponse:
-        model_config = {"api_key": self._resource_pool._credential_manager.get_decrypted_credential("model_api") if self._resource_pool._credential_manager else "", "base_url": "https://api.openai.com/v1", "model": "gpt-4o-mini"}
-        model_client = await self._resource_pool.get_model_client(model_config["model"], model_config)
-        return await model_client.generate(messages=messages, tools=tools if tools else None, stream=False)
+        return await self._resource_pool.generate(
+            messages=messages,
+            tools=tools if tools else None,
+            stream=False,
+        )
 
     def _get_sandbox_for_tool(self, tool_name: str) -> Optional[str]:
         for sandbox_info in self._sandbox_manager.list_sandboxes():
