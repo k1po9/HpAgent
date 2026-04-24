@@ -13,83 +13,295 @@
 
 ---
 
-## 🚀 快速开始
+## 🏛️ 架构总览
 
-### 方式1：一键启动（推荐）
-
-```powershell
-.\run.ps1
 ```
-
-脚本会自动：
-- ✅ 检测或创建虚拟环境
-- ✅ 安装所有依赖
-- ✅ 验证配置文件
-- ✅ 启动应用
-
-### 方式2：手动启动
-
-```powershell
-# 创建虚拟环境
-python -m venv .venv
-
-# 激活虚拟环境
-.\.venv\Scripts\Activate.ps1
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 运行应用
-python -m src.main
-
-# 运行测试
-.\.venv\Scripts\python.exe -m pytest tests/ -v
+┌─────────────────────────────────────────────────────────────────────┐
+│                           应用入口层                                 │
+│                           main.py                                   │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                          渠道层 (Channels)                          │
+│                     ConsoleChannel / WebChannel                     │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                       编排层 (Orchestration)                        │
+│    ┌─────────────┐    ┌─────────────┐    ┌─────────────────────┐   │
+│    │ Orchestrator│───▶│ TaskManager │    │ RetryPolicy         │   │
+│    └─────────────┘    └─────────────┘    └─────────────────────┘   │
+│         │                                                           │
+│         ▼                                                           │
+│    ┌─────────────────────────────────────────────────────────────┐  │
+│    │              任务状态机 (pending → running → completed)     │  │
+│    └─────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                    ┌───────────────┴───────────────┐
+                    ▼                               ▼
+┌─────────────────────────────────┐  ┌─────────────────────────────────┐
+│        执行层 (Harness)          │  │      会话层 (Session)           │
+│  ┌─────────────────────────────┐ │  │  ┌─────────────────────────────┐│
+│  │    HarnessContextBuilder   │ │  │  │    SessionManager            ││
+│  │    (上下文构建)             │ │  │  │    (会话生命周期管理)         ││
+│  └─────────────────────────────┘ │  │  └─────────────────────────────┘│
+│  ┌─────────────────────────────┐ │  │  ┌─────────────────────────────┐│
+│  │    ModelClient             │ │  │  │  FileSessionRepository     ││
+│  │    (模型调用)               │ │  │  │  FileEventRepository       ││
+│  └─────────────────────────────┘ │  │  └─────────────────────────────┘│
+│  ┌─────────────────────────────┐ │  │                                 │
+│  │    ToolRouter              │ │  │                                 │
+│  │    (工具路由)               │ │  │                                 │
+│  └─────────────────────────────┘ │  │                                 │
+└─────────────────────────────────┘  └─────────────────────────────────┘
+                    │                               │
+                    └───────────────┬───────────────┘
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      资源层 (Resources)                              │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────┐ │
+│  │  ResourcePool   │  │ CredentialManager│  │   ModelEndpoint     │ │
+│  │  (模型客户端池)  │  │  (凭证管理)      │  │   (模型端点配置)    │ │
+│  └─────────────────┘  └─────────────────┘  └─────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                     沙箱层 (Sandbox)                                 │
+│  ┌──────────────────────────────────────────────────────────────┐  │
+│  │                      SandboxManager                          │  │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │  │
+│  │  │  Sandbox 1  │  │  Sandbox 2  │  │  Sandbox N  │  ...     │  │
+│  │  │  ├─Tools    │  │  ├─Tools    │  │  ├─Tools    │           │  │
+│  │  │  │  └Registry│  │  │  └Registry│  │  │  └Registry│           │  │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘           │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ⚙️ 配置
+## 📦 模块组成
 
-### 1. 复制配置模板
-
-```bash
-copy config.yaml.example config.yaml
+### 1. common - 公共基础设施
+```
+common/
+├── types.py      # 核心数据类型：Event, UnifiedMessage, ToolCall, ToolResult, ModelResponse
+├── interfaces.py # 接口定义：ISession, IResources, ISandbox, IHarness, IOrchestration
+└── errors.py     # 错误定义：AgentError, SessionNotFoundError, SandboxNotFoundError
 ```
 
-### 2. 编辑 config.yaml
+**职责**：定义全系统通用的类型、接口和错误类型，是其他所有模块的基础依赖。
 
-```yaml
-model:
-  provider: minimax  # 或 openai
-  model: MiniMax-M2.7
-  api_key: "your-api-key-here"
-  base_url: "https://api.minimaxi.com/v1"
-  max_retries: 2
-  timeout_seconds: 30
+---
 
-app:
-  max_history_turns: 10
-  system_prompt: "You are a helpful assistant."
+### 2. session - 会话管理
+```
+session/
+├── models.py          # 数据模型：Session, EventRecord, SessionStatus
+├── repositories.py    # 持久化层：FileSessionRepository, FileEventRepository
+└── session_manager.py # 会话管理器（实现 ISession 接口）
 ```
 
-### 3. API 配置示例
+**职责**：
+- 管理会话生命周期（创建、归档、列表）
+- 事件日志存储与回溯
+- 支持会话回滚（rewind_session）
 
-**MiniMax:**
-```yaml
-model:
-  provider: minimax
-  model: MiniMax-M2.7
-  api_key: "your-minimax-key"
-  base_url: "https://api.minimaxi.com/v1"
+---
+
+### 3. resources - 资源管理
+```
+resources/
+├── credentials.py     # 凭证管理：CredentialManager
+├── resource_pool.py   # 资源池：ResourcePool（模型客户端池 + 请求代理）
+└── __init__.py
 ```
 
-**OpenAI:**
-```yaml
-model:
-  provider: openai
-  model: gpt-3.5-turbo
-  api_key: "your-openai-key"
-  base_url: "https://api.openai.com/v1"
+**职责**：
+- 管理模型 API 凭证
+- 维护多个模型客户端（支持 fallback）
+- 提供统一的模型调用入口
+- 代理外部资源请求
+
+---
+
+### 4. model - 模型调用
+```
+model/
+└── client.py  # ModelClient（实现与 LLM API 的通信）
+```
+
+**职责**：
+- 封装 HTTP 调用到 LLM API
+- 处理流式/非流式响应
+- 解析 tool_calls 格式
+
+---
+
+### 5. sandbox - 工具执行环境
+```
+sandbox/
+├── sandbox.py         # 单个沙箱实例
+├── sandbox_manager.py # 沙箱管理器（创建/销毁/列表）
+├── channels/          # 渠道层
+│   ├── base.py        # IChannel 接口
+│   └── console.py     # 控制台渠道实现
+└── tools/             # 工具系统
+    ├── base.py        # BaseTool 抽象类 + ToolDefinition
+    ├── registry.py    # ToolRegistry（工具注册与执行）
+    └── factory.py     # ToolFactory（工具创建工厂）
+```
+
+**职责**：
+- 管理多个独立的工具执行沙箱
+- 工具注册、发现、调用
+- 支持 Native/MCP/Skill 三种工具类型
+
+---
+
+### 6. harness - 核心推理循环
+```
+harness/
+├── harness.py          # Harness（实现 IHarness 接口）
+└── context_builder.py   # HarnessContextBuilder（事件 → 消息格式转换）
+```
+
+**职责**：
+- 核心执行引擎，驱动整个推理循环
+- 构建上下文（将事件历史转换为模型消息格式）
+- 调用模型 API
+- 路由工具调用到对应沙箱
+
+---
+
+### 7. orchestration - 任务编排
+```
+orchestration/
+├── orchestrator.py   # Orchestrator（实现 IOrchestration 接口）
+└── retry_policy.py   # RetryPolicy（重试策略配置）
+```
+
+**职责**：
+- 任务接收与状态管理
+- 协调 Session、Harness、Sandbox 三大组件
+- 异常恢复与任务重试
+- 并发任务调度
+
+---
+
+### 8. migration - 迁移工具
+```
+migration/
+├── legacy_converter.py  # 旧架构转换器
+└── migration_runner.py  # 迁移执行器
+```
+
+**职责**：支持从旧架构平滑迁移到新架构。
+
+---
+
+## 🔄 数据流通时序图
+
+### 完整请求处理流程
+
+```
+用户输入          ConsoleChannel       Orchestrator         SessionManager        Harness           ResourcePool       SandboxManager       Sandbox
+   │                    │                    │                     │                    │                   │                    │                   │
+   │ ────消息──────────▶│                    │                     │                    │                   │                    │                   │
+   │                    │ ──receive_request──▶│                     │                    │                   │                    │                   │
+   │                    │                    │ ──get_or_create──────▶│                    │                    │                    │                   │
+   │                    │                    │◀────────session_id───│                    │                    │                    │                   │
+   │                    │                    │ ──emit_event─────────▶│                    │                    │                    │                   │
+   │                    │                    │◀────────event_id──────│                    │                    │                    │                   │
+   │                    │◀─────task_id────────│                     │                    │                    │                    │                   │
+   │                    │                    │                     │                    │                    │                    │                   │
+   │                    │ ──process_session─▶│                     │                    │                    │                    │                   │
+   │                    │                    │ ──get_events─────────▶│                    │                    │                   │                   │
+   │                    │                    │◀────────events────────│                    │                    │                    │                   │
+   │                    │                    │                     │ ──wake────────────▶│                    │                    │                   │
+   │                    │                    │                     │                    │                    │                    │                   │
+   │                    │                    │                     │ ◀─list_tools────────────────────────────▶│                    │                   │
+   │                    │                    │                     │                    │                    │                    │                   │
+   │                    │                    │                     │ ◀─build context────                     │                    │                   │
+   │                    │                    │                     │                    │                    │                    │                   │
+   │                    │                    │                     │ ──generate────────────────────────────▶│                    │                   │
+   │                    │                    │                     │                    │◀─────ModelResponse─│                    │                   │
+   │                    │                    │                     │ ◀─ModelResponse────│                    │                    │                   │
+   │                    │                    │                     │                    │                    │                    │                   │
+   │                    │                    │                     │ (if tool_calls)    │                    │                    │                   │
+   │                    │                    │                     │ ──route_tool_call───▶│                    │                    │                   │
+   │                    │                    │                     │                    │ ◀─get_sandbox────────────────────────▶│                   │
+   │                    │                    │                     │                    │                    │ ──execute────────────────────────────────▶│
+   │                    │                    │                     │                    │                    │                    │◀────ToolResult────│
+   │                    │                    │                     │◀─ToolResult────────│                    │                    │                   │
+   │                    │                    │                     │                    │                    │                    │                   │
+   │                    │                    │◀────result─────────│                     │                    │                    │                   │
+   │                    │◀────response───────│                     │                    │                    │                    │                   │
+   │                    │                    │                     │                    │                    │                    │                   │
+   ▼                    ▼                    ▼                     ▼                    ▼                   ▼                    ▼                   ▼
+```
+
+### 单轮工具调用流程
+
+```
+┌─────────┐    ┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌─────────┐
+│  User   │    │  Harness    │    │  Sandbox    │    │ ToolRegistry │    │  Tool   │
+│ Message │    │             │    │  Manager    │    │              │     │         │
+└────┬────┘    └──────┬──────┘    └──────┬───────┘    └───────┬──────┘    └────┬────┘
+     │                │                  │                  │                 │
+     │ wake()         │                  │                  │                 │
+     │───────────────▶│                  │                  │                 │
+     │                │                  │                  │                 │
+     │                │ list_tools()     │                  │                 │
+     │                │─────────────────────────────▶        │                 │
+     │                │◀─────────────────────────────        │                 │
+     │                │                  │                  │                 │
+     │                │ call_model()     │                  │                 │
+     │                │─────────────────▶│                  │                 │
+     │                │◀─────────────────│                  │                 │
+     │                │                  │                  │                 │
+     │ (tool_calls)   │                  │                  │                 │
+     │                │ route_tool_call()│                  │                 │
+     │                │─────────────────▶│                  │                 │
+     │                │                  │                  │                 │
+     │                │                  │ get_sandbox()    │                 │
+     │                │                  │─────────▶        │                 │
+     │                │                  │                  │                 │
+     │                │                  │ execute()        │                 │
+     │                │                  │────────────────────────────▶      │
+     │                │                  │                  │         │      │
+     │                │                  │                  │         ▼      │
+     │                │                  │                  │     (execute)  │
+     │                │                  │                  │         │      │
+     │                │                  │◀────────────────────────────     │
+     │                │◀─────────────────│                  │                 │
+     │                │                  │                  │                 │
+     ▼                ▼                  ▼                  ▼                 ▼
+```
+
+---
+
+## 🔄 事件驱动模型
+
+系统使用事件驱动的设计模式，所有状态变化都通过 Event 传递：
+
+```
+EventType 枚举:
+├── USER_MESSAGE      # 用户发送的消息
+├── MODEL_MESSAGE     # 模型生成的回复  
+├── TOOL_CALL         # 模型请求调用工具
+├── TOOL_RESULT       # 工具执行返回的结果
+├── ERROR             # 系统错误事件
+├── SESSION_START     # 会话开始
+├── SESSION_COMPLETE  # 会话正常结束
+├── SESSION_ARCHIVED  # 会话被归档
+├── LOOP_STARTED      # 推理循环开始
+├── LOOP_COMPLETED    # 推理循环完成
+└── TURN_COMPLETED    # 单轮交互完成
 ```
 
 ---
@@ -99,102 +311,17 @@ model:
 ```
 HpAgent/
 ├── src/
-│   ├── core/              # 核心类型定义
-│   │   ├── types.py       # TemplateContext, ReplyPayload
-│   │   └── config.py      # 配置类
-│   ├── context/           # 上下文管理
-│   │   ├── session_store.py      # 会话存储（内存）
-│   │   └── context_builder.py    # 构建上下文
-│   ├── execution/         # 执行层
-│   │   ├── llm_executor.py       # LLM 调用
-│   │   └── agent_runner.py       # 核心编排器
-│   ├── response/          # 回复处理
-│   │   └── payload_builder.py    # 回复构建
-│   ├── channels/         # 渠道层
-│   │   └── console_channel.py    # 控制台渠道
-│   └── main.py           # 入口
+│   ├── common/           # 公共类型、接口、错误定义
+│   ├── session/          # 会话管理、事件存储
+│   ├── resources/        # 资源池、凭证管理
+│   ├── model/            # 模型调用客户端
+│   ├── sandbox/          # 沙箱管理、工具执行环境
+│   ├── harness/          # 核心推理循环
+│   ├── orchestration/    # 任务编排、状态机
+│   ├── migration/        # 迁移工具
+│   └── main.py           # 应用入口
 ├── tests/                # 单元测试
-├── .venv/               # 虚拟环境
-├── config.yaml          # 配置文件
-├── requirements.txt     # 依赖列表
-└── run.ps1             # 启动脚本
+├── config.yaml           # 配置文件
+├── requirements.txt      # 依赖列表
+└── run.ps1              # 启动脚本
 ```
-
----
-
-## 🧪 测试
-
-```powershell
-# 运行所有测试
-.\.venv\Scripts\python.exe -m pytest tests/ -v
-
-# 运行特定测试文件
-.\.venv\Scripts\python.exe -m pytest tests/test_agent_runner.py -v
-
-# 运行单个测试
-.\.venv\Scripts\python.exe -m pytest tests/test_agent_runner.py::TestAgentRunner::test_successful_reply_flow -v
-```
-
----
-
-## 🔧 常用命令
-
-| 命令 | 说明 |
-|------|------|
-| `.\run.ps1` | 一键启动（推荐） |
-| `.\.venv\Scripts\python.exe -m src.main` | 直接运行 |
-| `.\.venv\Scripts\python.exe -m pytest tests/ -v` | 运行测试 |
-| `.\.venv\Scripts\pip list` | 查看已安装包 |
-| `.\.venv\Scripts\pip install -U httpx pyyaml` | 升级依赖 |
-
----
-
-## ❓ 常见问题
-
-### Q: 如何获取 API 密钥？
-- **MiniMax**: [MiniMax 开放平台](https://www.minimaxi.com/)
-- **OpenAI**: [OpenAI API](https://platform.openai.com/)
-
-### Q: 虚拟环境在哪？
-项目根目录的 `.venv` 文件夹。
-
-### Q: 如何更新依赖？
-```powershell
-.\.venv\Scripts\pip install -U httpx pyyaml pytest
-```
-
-### Q: 如何重新创建虚拟环境？
-```powershell
-Remove-Item -Recurse -Force .venv
-.\run.ps1
-```
-
----
-
-## 🎯 扩展点
-
-项目设计预留了以下扩展点：
-
-- **多渠道支持**：通过 `TemplateContext.provider` 标识来源
-- **流式输出**：修改 `LLMExecutor.generate` 返回生成器
-- **命令系统**：在 `context_builder` 中识别 `/` 开头消息
-- **模型回退**：实现 `run_with_fallback` 支持多模型
-- **持久化存储**：实现 `RedisSessionStore`、`FileSessionStore`
-- **工具调用**：扩展 `LLMExecutor` 支持 function calling
-- **记忆压缩**：在 `context_builder` 中插入压缩钩子
-
----
-
-## 📚 技术栈
-
-- Python 3.11+
-- httpx - HTTP 客户端
-- PyYAML - 配置管理
-- pytest - 测试框架
-- dataclass - 数据结构
-
----
-
-## 📄 许可证
-
-MIT License
