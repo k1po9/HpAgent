@@ -1,0 +1,41 @@
+version: "3.8"
+
+services:
+  # ==================== 主服务：HpAgent ====================
+  hpagent:
+    build: ./src
+    image: hpagent:latest
+    container_name: hpagent
+    # ---- Sysbox 运行时 ----
+    runtime: sysbox-runc
+    # ---- 开发模式：挂载代码，修改即时生效 ----
+    volumes:
+      - ./src:/app          # 把本地 src/ 挂载到容器的 /app，覆盖镜像内的旧代码
+    # ---- 网络 ----
+    networks:
+      - app-network
+    # ---- 重启策略 ----
+    restart: unless-stopped
+
+  # ==================== 前端通信：NapCat ====================
+  napcat:
+    image: mlikiowa/napcat-docker:latest
+    container_name: napcat
+    environment:
+      - NAPCAT_UID=${UID:-1000}   # 如果没设 UID，默认用 1000
+      - NAPCAT_GID=${GID:-1000}
+      - TZ=Asia/Shanghai
+    ports:
+      - "6099:6099"    # WebUI
+    volumes:
+      # NapCat 的配置和缓存数据保存在当前目录下的 napcat/ 文件夹
+      - ./channel/napcat/data:/app/.napcat
+      - ./channel/napcat/cache:/app/data/cache
+    networks:
+      - app-network
+    restart: unless-stopped
+
+# ==================== 网络 ====================
+networks:
+  app-network:
+    driver: bridge

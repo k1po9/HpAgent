@@ -1,5 +1,14 @@
 # HpAgent - OpenClaw 风格自动回复框架
 
+```sh
+docker run -d \
+  --name hpagent \
+  --restart=unless-stopped \
+  --runtime=sysbox-runc \
+  -v ~/code/HpAgent:/app \
+  hpagent:latest
+```
+
 基于 OpenClaw 自动回复框架的核心设计模式，使用 Python 3.11+ 实现的对话回复引擎。
 
 ## ✨ 特性
