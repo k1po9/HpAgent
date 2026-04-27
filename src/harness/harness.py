@@ -11,13 +11,12 @@ from sandbox.sandbox_manager import SandboxManager
 
 
 class Harness(IHarness):
-    def __init__(self, session_store: ISession, resource_pool: ResourcePool, sandbox_manager: SandboxManager, system_prompt: str = "You are a helpful AI assistant.", max_turns: int = 20, default_model: str = "main"):
+    def __init__(self, session_store: ISession, resource_pool: ResourcePool, sandbox_manager: SandboxManager, max_turns: int = 20, default_model: str = "main"):
         self._session_store = session_store
         self._resource_pool = resource_pool
         self._sandbox_manager = sandbox_manager
         self._context_builder = HarnessContextBuilder(system_prompt)
         self._max_turns = max_turns
-        self._system_prompt = system_prompt
         self._lock = RLock()
 
     async def wake(self, session_id: str) -> ModelResponse:

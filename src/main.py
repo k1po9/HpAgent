@@ -21,7 +21,6 @@ class AppConfig:
     base_url: str
     model: str
     max_history_turns: int
-    system_prompt: str
     max_turns: int
 
 
@@ -40,7 +39,6 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         base_url=model_config["base_url"],
         model=model_config["model"],
         max_history_turns=app_config["max_history_turns"],
-        system_prompt=app_config["system_prompt"],
         max_turns=app_config["max_turns"],
     )
 
@@ -80,7 +78,6 @@ class AgentApplication:
             session_store=self.session_manager,
             resource_pool=self.resource_pool,
             sandbox_manager=self.sandbox_manager,
-            system_prompt=self.config.system_prompt,
             max_turns=self.config.max_turns,
         )
 
