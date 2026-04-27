@@ -4,7 +4,7 @@ import uuid
 import time
 from .sandbox import Sandbox
 from .tools.base import BaseTool
-from ..common.errors import SandboxNotFoundError
+from common.errors import SandboxNotFoundError
 
 
 class SandboxManager:

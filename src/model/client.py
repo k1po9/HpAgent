@@ -1,8 +1,8 @@
 from typing import Dict, Any, Optional, List, Callable, Awaitable
 import httpx
 import json
-from ..common.types import ModelResponse, StopReason, ToolCall
-from ..common.errors import ModelAPIError
+from common.types import ModelResponse, StopReason, ToolCall
+from common.errors import ModelAPIError
 
 
 class ModelClient:
@@ -16,9 +16,9 @@ class ModelClient:
         self._tools = tools
 
     async def generate(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None, stream: bool = False, on_text_delta: Optional[Callable[[str], Awaitable[None]]] = None) -> ModelResponse:
-        url = f"{self.base_url}/chat/completions"
+        url = f"{self.base_url}/messages"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
-        payload = {"model": self.model, "messages": messages, "temperature": 0.7}
+        payload = {"model": self.model, "messages": messages, "max_tokens": 2048}
         effective_tools = tools if tools is not None else self._tools
         if effective_tools:
             payload["tools"] = effective_tools
@@ -77,14 +77,28 @@ class ModelClient:
         return ModelResponse(content=content if content else None, tool_calls=tool_calls if tool_calls else None, stop_reason=StopReason.TOOL_USE if tool_calls else stop_reason)
 
     def _parse_non_stream(self, result: dict) -> ModelResponse:
-        message = result.get("choices", [{}])[0].get("message", {})
-        content = message.get("content", "")
+        content_text = ""
         tool_calls = None
-        if message.get("tool_calls"):
-            tool_calls = [ToolCall(id=tc.get("id", ""), name=tc.get("function", {}).get("name", ""), arguments=tc.get("function", {}).get("arguments", {})) for tc in message.get("tool_calls", [])]
-        finish_reason = result.get("choices", [{}])[0].get("finish_reason", "stop")
-        stop_reason = StopReason.TOOL_USE if tool_calls else self._map_finish_reason(finish_reason)
-        return ModelResponse(content=content or None, tool_calls=tool_calls, stop_reason=stop_reason)
+        
+        content_list = result.get("content", [])
+        if content_list and isinstance(content_list, list):
+            for item in content_list:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    content_text = item.get("text", "")
+                    break
+        
+        stop_reason_str = result.get("stop_reason", "end")
+        stop_reason = self._map_anthropic_stop_reason(stop_reason_str)
+        
+        return ModelResponse(content=content_text or None, tool_calls=tool_calls, stop_reason=stop_reason)
+
+    def _map_anthropic_stop_reason(self, reason: str) -> StopReason:
+        mapping = {
+            "end": StopReason.END_TURN,
+            "max_tokens": StopReason.MAX_TOKENS,
+            "stop": StopReason.END_TURN,
+        }
+        return mapping.get(reason, StopReason.ERROR)
 
     def _map_finish_reason(self, reason: str) -> StopReason:
         mapping = {"stop": StopReason.END_TURN, "length": StopReason.MAX_TOKENS, "content_filter": StopReason.REFUSAL, "function_call": StopReason.TOOL_USE}

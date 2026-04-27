@@ -6,11 +6,11 @@ from typing import Dict, List, Optional, Any
 import time
 import uuid
 
-from ..common.types import Event, SessionMetadata, ChannelType, EventType
-from ..common.interfaces import ISession
-from ..common.errors import SessionNotFoundError, ValidationError
-from .models import Session, EventRecord, SessionStatus
-from .repositories import FileSessionRepository, FileEventRepository
+from common.types import Event, SessionMetadata, ChannelType, EventType
+from common.interfaces import ISession
+from common.errors import SessionNotFoundError, ValidationError
+from session.models import Session, EventRecord, SessionStatus
+from session.repositories import FileSessionRepository, FileEventRepository
 
 
 class SessionManager(ISession):

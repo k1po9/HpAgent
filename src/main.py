@@ -4,42 +4,44 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 
-from src.session import SessionManager
-from src.resources import ResourcePool, CredentialManager, ModelEndpoint
-from src.sandbox import SandboxManager
-from src.sandbox.channels import ConsoleChannel
-from src.sandbox.tools.factory import ToolFactory
-from src.harness import Harness, HarnessContextBuilder
-from src.orchestration import Orchestrator
-from src.common.types import ChannelType, UnifiedMessage
-from src.common.errors import AgentError
+from session import SessionManager
+from resources import ResourcePool, CredentialManager, ModelEndpoint
+from sandbox import SandboxManager
+from sandbox.channels import ConsoleChannel, NapCatChannel
+from sandbox.tools.factory import ToolFactory
+from harness import Harness, HarnessContextBuilder
+from orchestration import Orchestrator
+from common.types import ChannelType, UnifiedMessage
+from common.errors import AgentError
 
 
 @dataclass
 class AppConfig:
-    api_key: str = "sk-cp-5JEOvwVXJ2ZQKmTaZ58k4YCzcQec5gWAqpZvl8xAl2ALaHO9RMthWAo7Yg2hfmj9KEj-LUDIO3WSZSU2J4d0nxRMbv37d602rdjehWOj0Dyk8QjKl_030tM"
-    base_url: str = "https://api.minimaxi.com/anthropic"
-    model: str = "MiniMax-M2.7"
-    max_history_turns: int = 10
-    system_prompt: str = "You are a helpful AI assistant."
-    max_turns: int = 20
+    api_key: str
+    base_url: str
+    model: str
+    max_history_turns: int
+    system_prompt: str
+    max_turns: int
 
 
 def load_config(config_path: str = "config.yaml") -> AppConfig:
     config_file = Path(config_path)
     if not config_file.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
+
     with open(config_file, "r", encoding="utf-8") as f:
         config_data = yaml.safe_load(f)
+
     model_config = config_data.get("model", {})
     app_config = config_data.get("app", {})
     return AppConfig(
-        api_key=model_config.get("api_key", ""),
-        base_url=model_config.get("base_url", ""),
-        model=model_config.get("model", "MiniMax-M2.7"),
-        max_history_turns=app_config.get("max_history_turns", 10),
-        system_prompt=app_config.get("system_prompt", "You are a helpful AI assistant."),
-        max_turns=app_config.get("max_turns", 20),
+        api_key=model_config["api_key"],
+        base_url=model_config["base_url"],
+        model=model_config["model"],
+        max_history_turns=app_config["max_history_turns"],
+        system_prompt=app_config["system_prompt"],
+        max_turns=app_config["max_turns"],
     )
 
 
@@ -53,6 +55,7 @@ class AgentApplication:
         self.harness: Optional[Harness] = None
         self.orchestrator: Optional[Orchestrator] = None
         self.console_channel: Optional[ConsoleChannel] = None
+        self.napcat_channel: Optional[NapCatChannel] = None
         self._initialized = False
 
     async def initialize_async(self):
@@ -89,6 +92,7 @@ class AgentApplication:
             resource_pool=self.resource_pool,
         )
         self.console_channel = ConsoleChannel()
+        self.napcat_channel = NapCatChannel()
         self.orchestrator.provision_sandbox([t.name for t in tools], {})
         self._initialized = True
 
@@ -105,7 +109,7 @@ class AgentApplication:
                 channel_type=message.channel_type,
                 content=process_result.get("content", ""),
             )
-            await self.console_channel.send_message(response_message)
+            await self.napcat_channel.send_message(response_message)
         except AgentError as e:
             print(f"Agent error: {e}")
         except Exception as e:
@@ -119,15 +123,19 @@ async def main_async():
         print(f"Error: {e}")
         print("Please create a config.yaml file with your settings.")
         return
+
     app = AgentApplication(config)
     try:
         await app.initialize_async()
     except ValueError as e:
         print(f"Error: {e}")
         return
-    print("\n=== HpAgent Console (New Architecture) ===")
-    print("Type 'exit' to quit.\n")
-    await app.console_channel.start_interactive(app.handle_message)
+
+    print("\n=== HpAgent NapCat Channel ===")
+    await app.napcat_channel.start_monitor(app.handle_message)
+    print("Listening for NapCat connections on ws://0.0.0.0:8082")
+    print("Press Ctrl+C to quit.\n")
+    await asyncio.Future()
 
 
 def main():

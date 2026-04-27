@@ -1,8 +1,8 @@
 from typing import Dict, Any, Optional, List
 import httpx
 import json
-from ..common.interfaces import IResources
-from ..common.errors import ModelAPIError, ValidationError
+from common.interfaces import IResources
+from common.errors import ModelAPIError, ValidationError
 
 
 class ResourcePool(IResources):
@@ -25,7 +25,7 @@ class ResourcePool(IResources):
         if not endpoints:
             return
 
-        from ..model.client import ModelClient
+        from model.client import ModelClient
         client_ids = []
         for ep in endpoints:
             client_id = f"{ep.provider}:{ep.model}"

@@ -1,8 +1,8 @@
 from typing import Dict, List, Any, Optional
 import json
 from pathlib import Path
-from ..session.session_manager import SessionManager
-from .legacy_converter import LegacySessionConverter
+from session.session_manager import SessionManager
+from migration.legacy_converter import LegacySessionConverter
 
 
 class MigrationRunner:

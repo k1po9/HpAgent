@@ -1,7 +1,7 @@
 from typing import Dict, List, Any, Optional
-from ..common.types import Event, EventType, ChannelType
-from ..session.session_manager import SessionManager
-from ..session.models import Session, SessionStatus
+from common.types import Event, EventType, ChannelType
+from session.session_manager import SessionManager
+from session.models import Session, SessionStatus
 import time
 import uuid
 
@@ -27,7 +27,7 @@ class LegacySessionConverter:
         return session_id
 
     async def _create_session_sync(self, session: Session) -> None:
-        from ..common.types import SessionMetadata
+        from common.types import SessionMetadata
         metadata = SessionMetadata(session_id=session.session_id, creator_id=session.creator_id, channel_type=ChannelType(session.channel_type), tags=session.tags, created_at=session.created_at, status="active")
         await self._session_manager.create_session(metadata)
         start_event = Event(session_id=session.session_id, event_type=EventType.SESSION_START, content={"creator_id": session.creator_id, "channel_type": session.channel_type}, metadata={"legacy_migration": True})

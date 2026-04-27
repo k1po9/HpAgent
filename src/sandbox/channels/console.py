@@ -1,9 +1,12 @@
 from typing import Any, Optional
-from .base import BaseChannel, ChannelMessage
-from ...common.types import ChannelType, UnifiedMessage
+from sandbox.channels.base import BaseChannel, ChannelMessage
+from common.types import ChannelType, UnifiedMessage
 
 
 class ConsoleChannel(BaseChannel):
+    """
+    控制台协议通道：通过标准输入和输出与用户交互。
+    """
     def __init__(self):
         super().__init__(ChannelType.CONSOLE)
         self._input_queue = []

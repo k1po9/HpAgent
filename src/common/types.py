@@ -23,10 +23,7 @@ class EventType(str, Enum):
 
 class ChannelType(str, Enum):
     """消息渠道类型枚举"""
-    TELEGRAM = "telegram"   # Telegram 平台
-    DISCORD = "discord"     # Discord 平台
-    SLACK = "slack"         # Slack 平台
-    WECHAT = "wechat"       # 微信平台
+    NAPCAT = "napcat"       # NapCat 协议通道
     WEB = "web"             # Web 页面
     CONSOLE = "console"     # 控制台终端
 

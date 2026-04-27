@@ -1,9 +1,9 @@
 from typing import List, Dict, Any
-from ..common.types import Event, EventType
+from common.types import Event, EventType
 
 
 class HarnessContextBuilder:
-    def __init__(self, system_prompt: str = "You are a helpful AI assistant."):
+    def __init__(self, system_prompt: str):
         self._system_prompt = system_prompt
 
     def build(self, events: List[Event], max_turns: int = 20) -> List[Dict[str, Any]]:
@@ -23,7 +23,7 @@ class HarnessContextBuilder:
     def _extract_user_content(self, event: Event) -> str:
         content = event.content
         if isinstance(content, dict):
-            return content.get("text", content.get("content", ""))
+            return str(event.metadata) + content.get("content", "")
         return str(content)
 
     def _extract_model_content(self, event: Event) -> str:

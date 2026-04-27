@@ -8,9 +8,11 @@ services:
     container_name: hpagent
     # ---- Sysbox 运行时 ----
     runtime: sysbox-runc
+    ports:
+      - "8082:8082"    # WebUI
     # ---- 开发模式：挂载代码，修改即时生效 ----
-    volumes:
-      - ./src:/app          # 把本地 src/ 挂载到容器的 /app，覆盖镜像内的旧代码
+    # volumes:
+    #  - ./src:/app          # 把本地 src/ 挂载到容器的 /app，覆盖镜像内的旧代码
     # ---- 网络 ----
     networks:
       - app-network

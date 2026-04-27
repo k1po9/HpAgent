@@ -4,8 +4,8 @@ import uuid
 import time
 from .tools.base import BaseTool, ToolResult
 from .tools.registry import ToolRegistry
-from ..common.interfaces import ISandbox
-from ..common.errors import ToolNotFoundError
+from common.interfaces import ISandbox
+from common.errors import ToolNotFoundError
 
 
 class Sandbox(ISandbox):

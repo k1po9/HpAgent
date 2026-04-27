@@ -3,8 +3,8 @@ from typing import Dict, Any, Optional, Callable, Awaitable
 from dataclasses import dataclass, field
 import uuid
 import time
-from ...common.types import ChannelType, UnifiedMessage
-from ...common.interfaces import IChannel
+from common.types import ChannelType, UnifiedMessage
+from common.interfaces import IChannel
 
 
 @dataclass

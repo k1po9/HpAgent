@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Any
 from threading import RLock
-from .base import BaseTool, ToolDefinition, ToolResult
-from ...common.errors import ToolNotFoundError
+from sandbox.tools.base import BaseTool, ToolDefinition, ToolResult
+from common.errors import ToolNotFoundError
 
 
 class ToolRegistry:

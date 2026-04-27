@@ -1,13 +1,13 @@
 from typing import Dict, Any, Optional, List, Callable, Awaitable
 from threading import RLock
 import time
-from ..common.types import Event, EventType, ModelResponse, ToolCall, ToolResult, StopReason
-from ..common.interfaces import ISession, IHarness
-from ..common.errors import SessionNotFoundError
-from .context_builder import HarnessContextBuilder
-from ..resources.resource_pool import ResourcePool
-from ..resources.credentials import ModelEndpoint
-from ..sandbox.sandbox_manager import SandboxManager
+from common.types import Event, EventType, ModelResponse, ToolCall, ToolResult, StopReason
+from common.interfaces import ISession, IHarness
+from common.errors import SessionNotFoundError
+from harness.context_builder import HarnessContextBuilder
+from resources.resource_pool import ResourcePool
+from resources.credentials import ModelEndpoint
+from sandbox.sandbox_manager import SandboxManager
 
 
 class Harness(IHarness):

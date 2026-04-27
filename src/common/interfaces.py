@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-from .types import Event, ToolCall, ToolResult, UnifiedMessage, SessionMetadata, ModelResponse
+from common.types import Event, ToolCall, ToolResult, UnifiedMessage, SessionMetadata, ModelResponse
 
 
 class ISession(ABC):
