@@ -1,8 +1,15 @@
 import asyncio
+import logging
 import yaml
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
+
+logger = logging.getLogger("HpAgent")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 
 from session import SessionManager
 from resources import ResourcePool, CredentialManager, ModelEndpoint
@@ -90,10 +97,14 @@ class AgentApplication:
         )
         self.console_channel = ConsoleChannel()
         self.napcat_channel = NapCatChannel()
-        self.orchestrator.provision_sandbox([t.name for t in tools], {})
+        await self.orchestrator.provision_sandbox([t.name for t in tools], {})
         self._initialized = True
 
     async def handle_message(self, message: UnifiedMessage):
+        if not message.metadata or message.metadata.get("post_type") != "message":
+            return
+        if not message.content or not message.content.strip():
+            return
         if not self._initialized:
             raise AgentError("Application not initialized. Call initialize() first.")
         try:
@@ -102,9 +113,10 @@ class AgentApplication:
             process_result = await self.orchestrator.process_session(session_id)
             response_message = UnifiedMessage(
                 session_id=session_id,
-                sender_id="assistant",
+                sender_id=message.sender_id,
                 channel_type=message.channel_type,
                 content=process_result.get("content", ""),
+                metadata=message.metadata,
             )
             await self.napcat_channel.send_message(response_message)
         except AgentError as e:

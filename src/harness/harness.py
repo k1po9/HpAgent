@@ -15,7 +15,7 @@ class Harness(IHarness):
         self._session_store = session_store
         self._resource_pool = resource_pool
         self._sandbox_manager = sandbox_manager
-        self._context_builder = HarnessContextBuilder(system_prompt)
+        self._context_builder = HarnessContextBuilder()
         self._max_turns = max_turns
         self._lock = RLock()
 

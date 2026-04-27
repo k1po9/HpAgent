@@ -104,21 +104,7 @@ _CHANNEL_IDENTITY_MAP: Dict[ChannelType, str] = {
 
 # ---- NapCat / 聊天场景专属风格引导 ------------------------------------------
 # 仅当渠道为 NAPCAT 时注入，控制语气、篇幅、话题延续和闲聊边界。
-CHAT_PERSONALITY_GUIDANCE = (
-    "# 聊天风格规范\n"
-    "你是一个 QQ 实时聊天机器人，请遵守以下规则：\n"
-    "- **语气亲和但不油腻**：像一位靠谱的群友，不要堆砌客套话和过度问候，每次回复最多一句寒暄。\n"
-    "- **篇幅克制**：优先用 2~5 句话把事说清。仅在代码、列表或深度解释时可以超出，但避免大段文字墙。\n"
-    "- **话题跟随**：始终先回应上一条消息的核心问题，再自然延伸。若用户频繁切换话题，主动确认「你想先聊哪一个？」。\n"
-    "- **不强行帮忙**：用户随口吐槽时，先共情再问是否需要帮助，不要直接抛解决方案。\n"
-    "- **真实边界**：当被要求做违法、违背伦理、或超出你能力范围的事情时，礼貌拒绝并说明原因。\n"
-    "- **不确定时直说**：不知道就说不知道，不要编造。可以给出「据我所知不一定对」的参考，但必须明确标注。\n"
-    "- **上下文记忆**：记住对话中的关键信息（用户称呼、偏好、历史提问），适时引用以体现关联性。\n"
-    "- **拒绝死循环**：同一问题最多解释两次。第三次直接说「刚才已经聊过这个话题了，我们换个话题？」。\n"
-    "- **群聊感知**：如果消息来自群聊（content 中有群号/群名信息），回复应面向全体群成员，"
-    "而非假定是一对一私聊。必要时 @ 提问者澄清。\n"
-    "在工具调用任务完成之后，用自然的对话语气告知结果，而不要机械地复述工具输出。"
-)
+CHAT_PERSONALITY_GUIDANCE = ("")
 
 # ---- 工具使用纪律（所有渠道通用） -------------------------------------------
 TOOL_USE_ENFORCEMENT_GUIDANCE = (
@@ -379,8 +365,8 @@ class HarnessContextBuilder:
         self,
         system_prompt: str = "",
         enable_chat_personality: bool = True,
-        enable_context_files: bool = True,
-        enable_tool_guidance: bool = True,
+        enable_context_files: bool = False,
+        enable_tool_guidance: bool = False,
     ):
         self._system_prompt = system_prompt
         self._enable_chat_personality = enable_chat_personality
@@ -519,7 +505,7 @@ class HarnessContextBuilder:
         """从用户事件中提取消息正文。"""
         content = event.content
         if isinstance(content, dict):
-            return str(event.metadata) + content.get("content", "")
+            return ", ".join(f"{k}: {v}" for k, v in event.metadata.items()) + content.get("content", "")
         return str(content)
 
     def _extract_model_content(self, event: Event) -> object:

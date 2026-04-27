@@ -221,6 +221,8 @@ class NapCatChannel(BaseChannel):
             websocket: WebSocket连接，用于发送回复
             raw_message: 原始消息字符串
         """
+        if not raw_message.strip():
+            return
         try:
             channel_message = await self.normalize_message(raw_message)
             if not channel_message:

@@ -7,9 +7,9 @@ from common.errors import ModelAPIError
 
 class ModelClient:
     def __init__(self, config: Dict[str, Any]):
-        self.api_key = config.get("api_key", "")
-        self.base_url = config.get("base_url", "https://api.openai.com/v1").rstrip("/")
-        self.model = config.get("model", "gpt-4o-mini")
+        self.api_key = config["api_key"]
+        self.base_url = config["base_url"].rstrip("/")
+        self.model = config["model"]
         self._tools: List[Dict[str, Any]] = []
 
     def set_tools(self, tools: List[Dict[str, Any]]) -> None:
@@ -19,9 +19,6 @@ class ModelClient:
         url = f"{self.base_url}/messages"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         payload = {"model": self.model, "messages": messages, "max_tokens": 2048}
-        effective_tools = tools if tools is not None else self._tools
-        if effective_tools:
-            payload["tools"] = effective_tools
         if stream:
             payload["stream"] = True
         async with httpx.AsyncClient(timeout=30.0) as client:

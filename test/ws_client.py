@@ -11,47 +11,47 @@ EVENTS = [
         "sender": {"user_id": 111111},
         "raw_message": "你好机器人"
     },
-    {
-        "post_type": "message",
-        "message_type": "group",
-        "sub_type": "normal",
-        "group_id": 123456789,
-        "sender": {"user_id": 222222},
-        "raw_message": "群里的测试消息"
-    },
+    # {
+    #     "post_type": "message",
+    #     "message_type": "group",
+    #     "sub_type": "normal",
+    #     "group_id": 123456789,
+    #     "sender": {"user_id": 222222},
+    #     "raw_message": "群里的测试消息"
+    # },
 
-    # ---- 通知事件 ----
-    {
-        "post_type": "notice",
-        "notice_type": "group_increase",
-        "sub_type": "approve",
-        "group_id": 123456789,
-        "operator_id": 333333,
-        "user_id": 444444
-    },
-    {
-        "post_type": "notice",
-        "notice_type": "poke",
-        "user_id": 555555,
-        "target_id": 666666
-    },
+    # # ---- 通知事件 ----
+    # {
+    #     "post_type": "notice",
+    #     "notice_type": "group_increase",
+    #     "sub_type": "approve",
+    #     "group_id": 123456789,
+    #     "operator_id": 333333,
+    #     "user_id": 444444
+    # },
+    # {
+    #     "post_type": "notice",
+    #     "notice_type": "poke",
+    #     "user_id": 555555,
+    #     "target_id": 666666
+    # },
 
-    # ---- 请求事件 ----
-    {
-        "post_type": "request",
-        "request_type": "friend",
-        "user_id": 777777,
-        "comment": "请加我好友",
-        "flag": "abc123"
-    },
+    # # ---- 请求事件 ----
+    # {
+    #     "post_type": "request",
+    #     "request_type": "friend",
+    #     "user_id": 777777,
+    #     "comment": "请加我好友",
+    #     "flag": "abc123"
+    # },
 
-    # ---- 元事件 ----
-    {
-        "post_type": "meta_event",
-        "meta_event_type": "heartbeat",
-        "self_id": 100000,
-        "status": {"online": True, "good": True}
-    }
+    # # ---- 元事件 ----
+    # {
+    #     "post_type": "meta_event",
+    #     "meta_event_type": "heartbeat",
+    #     "self_id": 100000,
+    #     "status": {"online": True, "good": True}
+    # }
 ]
 
 async def send_and_listen():
