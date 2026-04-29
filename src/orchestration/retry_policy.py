@@ -1,3 +1,13 @@
+"""
+RetryPolicy / RetryExecutor — DEPRECATED since Temporal refactoring.
+
+Replaced by Temporal's native RetryPolicy, configured per-activity via
+workflow.execute_activity(..., retry_policy=temporalio.common.RetryPolicy(...)).
+
+Kept for backward compatibility with --legacy mode.
+"""
+from __future__ import annotations
+import warnings
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
@@ -46,6 +56,11 @@ class RetryPolicy:
 
 class RetryExecutor:
     def __init__(self, policy: RetryPolicy):
+        warnings.warn(
+            "RetryExecutor is deprecated. Use Temporal RetryPolicy in Activity calls.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._policy = policy
         self._attempt_times: Dict[str, list] = {}
 

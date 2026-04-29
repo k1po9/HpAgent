@@ -1,8 +1,9 @@
 import asyncio
 import logging
+import sys
 import yaml
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 logger = logging.getLogger("HpAgent")
@@ -29,6 +30,8 @@ class AppConfig:
     model: str
     max_history_turns: int
     max_turns: int
+    use_temporal: bool = True
+    temporal_host: str = "localhost:7233"
 
 
 def load_config(config_path: str = "config.yaml") -> AppConfig:
@@ -125,7 +128,7 @@ class AgentApplication:
             print(f"Unexpected error: {e}")
 
 
-async def main_async():
+async def main_async(use_legacy: bool = False):
     try:
         config = load_config()
     except FileNotFoundError as e:
@@ -133,6 +136,35 @@ async def main_async():
         print("Please create a config.yaml file with your settings.")
         return
 
+    if use_legacy:
+        config.use_temporal = False
+
+    if config.use_temporal:
+        await _run_temporal_mode(config)
+    else:
+        await _run_legacy_mode(config)
+
+
+async def _run_temporal_mode(config: AppConfig) -> None:
+    """Start HpAgent with Temporal as the orchestration engine."""
+    from temporal_worker import start_worker
+
+    worker_config = {
+        "api_key": config.api_key,
+        "base_url": config.base_url,
+        "model": config.model,
+        "temporal_host": config.temporal_host,
+    }
+
+    print("\n=== HpAgent (Temporal Mode) ===")
+    print(f"Temporal Server: {config.temporal_host}")
+    print(f"Task Queue: hpagent-task-queue")
+    print("Starting Temporal Worker + NapCat channel...\n")
+    await start_worker(worker_config)
+
+
+async def _run_legacy_mode(config: AppConfig) -> None:
+    """Original single-process mode (kept as fallback)."""
     app = AgentApplication(config)
     try:
         await app.initialize_async()
@@ -140,7 +172,7 @@ async def main_async():
         print(f"Error: {e}")
         return
 
-    print("\n=== HpAgent NapCat Channel ===")
+    print("\n=== HpAgent (Legacy Mode) ===")
     await app.napcat_channel.start_monitor(app.handle_message)
     print("Listening for NapCat connections on ws://0.0.0.0:8082")
     print("Press Ctrl+C to quit.\n")
@@ -148,7 +180,8 @@ async def main_async():
 
 
 def main():
-    asyncio.run(main_async())
+    use_legacy = "--legacy" in sys.argv
+    asyncio.run(main_async(use_legacy=use_legacy))
 
 
 if __name__ == "__main__":    

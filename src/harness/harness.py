@@ -1,3 +1,15 @@
+"""
+Harness — DEPRECATED since Temporal refactoring.
+
+Replaced by:
+  - call_model_activity (src/activities/agent_activities.py)
+  - execute_tool_activity (src/activities/agent_activities.py)
+  - build_context_activity (src/activities/agent_activities.py)
+
+Kept for backward compatibility with --legacy mode.
+"""
+from __future__ import annotations
+import warnings
 from typing import Dict, Any, Optional, List, Callable, Awaitable
 from threading import RLock
 import time
@@ -12,6 +24,11 @@ from sandbox.sandbox_manager import SandboxManager
 
 class Harness(IHarness):
     def __init__(self, session_store: ISession, resource_pool: ResourcePool, sandbox_manager: SandboxManager, max_turns: int = 20, default_model: str = "main"):
+        warnings.warn(
+            "Harness is deprecated. Use Temporal Activities instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._session_store = session_store
         self._resource_pool = resource_pool
         self._sandbox_manager = sandbox_manager

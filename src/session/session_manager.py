@@ -1,6 +1,9 @@
 """
 会话管理器（实现 ISession 接口）
 负责会话生命周期管理、事件校验与业务逻辑，持久化委托给仓库层
+
+注意：自 Temporal 重构后，SessionManager 进入维护模式。
+      新代码应使用 TemporalSessionManager，通过 Temporal Workflow Queries 读取事件。
 """
 from typing import Dict, List, Optional, Any
 import time
@@ -332,3 +335,97 @@ class SessionManager(ISession):
         return await self.list_sessions(
             limit=limit, offset=offset, status="active"
         )
+
+
+class TemporalSessionManager(ISession):
+    """
+    Temporal-aware session manager — reads events from Workflow Queries
+    instead of the file-based repository.
+
+    Implements ISession so it drops into any code that depends on that interface.
+    Write operations (emit_event, create_session) are no-ops because Temporal
+    manages event history automatically.
+    """
+
+    def __init__(self, temporal_client=None):
+        self._temporal_client = temporal_client
+        self._sessions: Dict[str, Dict[str, Any]] = {}
+
+    # ── Read operations (delegated to Temporal Queries) ──
+
+    async def get_events(
+        self,
+        session_id: str,
+        offset: int = 0,
+        limit: Optional[int] = None,
+        event_types: Optional[List[str]] = None,
+    ) -> List[Event]:
+        """Fetch events from a running AgentWorkflow via Query."""
+        if not self._temporal_client:
+            return []
+        try:
+            handle = self._temporal_client.get_workflow_handle(
+                f"hpagent-{session_id}"
+            )
+            all_events = await handle.query("get_events")
+        except Exception:
+            return []
+
+        if event_types:
+            all_events = [
+                e for e in all_events
+                if e.get("type", "").upper() in [et.upper() for et in event_types]
+            ]
+        result = all_events[offset:]
+        if limit is not None:
+            result = result[:limit]
+        return [
+            Event(
+                event_id=e.get("event_id", ""),
+                session_id=session_id,
+                timestamp=e.get("timestamp", 0),
+                event_type=EventType(e.get("type", "user_message")),
+                content=e.get("content", {}),
+                metadata=e.get("metadata", {}),
+            )
+            for e in result
+        ]
+
+    async def list_sessions(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        status: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> List[SessionMetadata]:
+        """List locally tracked session handles."""
+        sessions = list(self._sessions.values())
+        sessions.sort(key=lambda s: s.get("created_at", 0), reverse=True)
+        return [
+            SessionMetadata(
+                session_id=s["session_id"],
+                creator_id=s.get("creator_id", ""),
+                channel_type=ChannelType(s.get("channel_type", "console")),
+                tags=s.get("tags", []),
+                created_at=s.get("created_at", time.time()),
+                status=s.get("status", "active"),
+            )
+            for s in sessions[offset: offset + limit]
+        ]
+
+    # ── Write operations (no-ops — Temporal manages state) ──
+
+    async def create_session(self, metadata: SessionMetadata) -> str:
+        self._sessions[metadata.session_id] = metadata.to_dict()
+        return metadata.session_id
+
+    async def emit_event(self, event: Event) -> str:
+        return event.event_id
+
+    async def rewind_session(self, session_id: str, target_event_id: str) -> Dict[str, Any]:
+        return {"session_id": session_id, "rewound_to_event_id": target_event_id, "removed_events_count": 0}
+
+    async def archive_session(self, session_id: str) -> bool:
+        if session_id in self._sessions:
+            self._sessions[session_id]["status"] = "archived"
+        return True

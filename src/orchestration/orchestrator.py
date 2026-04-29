@@ -1,3 +1,15 @@
+"""
+Orchestrator — DEPRECATED since Temporal refactoring.
+
+Replaced by:
+  - AgentWorkflow (src/workflows/agent_workflow.py) for orchestration logic
+  - Temporal Activities (src/activities/agent_activities.py) for model/tool calls
+  - TemporalSessionManager (src/session/session_manager.py) for event queries
+
+Kept for backward compatibility with --legacy mode.
+"""
+from __future__ import annotations
+import warnings
 from typing import Dict, Any, Optional, List
 from threading import RLock
 import uuid
@@ -15,8 +27,17 @@ class Orchestrator(IOrchestration):
     """
     Orchestrator 是有状态的，负责维护每个请求的任务生命周期。
     它不直接执行模型调用，而是把实际工作委托给 Harness，自己专注于任务状态机和异常恢复。
+
+    .. deprecated::
+        Temporal AgentWorkflow + Activities 取代了 Orchestrator 的所有核心功能。
+        请使用 temporal_worker.start_worker() 以 Temporal 模式启动。
     """
     def __init__(self, session_manager: SessionManager, harness: Harness, sandbox_manager: SandboxManager, resource_pool: ResourcePool):
+        warnings.warn(
+            "Orchestrator is deprecated. Use AgentWorkflow (Temporal) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._session_manager = session_manager      # 会话存储/管理
         self._harness = harness                      # 模型调用 + 工具路由
         self._sandbox_manager = sandbox_manager      # 工具执行环境
@@ -49,14 +70,14 @@ class Orchestrator(IOrchestration):
         with self._lock:
             session_id = await self._get_or_create_session(message)
             event = Event(
-                session_id=session_id, 
-                event_type=EventType.USER_MESSAGE, 
+                session_id=session_id,
+                event_type=EventType.USER_MESSAGE,
                 content={
-                    "message_id": message.message_id, 
-                    "sender_id": message.sender_id, 
-                    "channel_type": message.channel_type.value if hasattr(message.channel_type, 'value') else str(message.channel_type), 
-                    "content": message.content, 
-                    "media_urls": message.media_urls}, 
+                    "message_id": message.message_id,
+                    "sender_id": message.sender_id,
+                    "channel_type": message.channel_type.value if hasattr(message.channel_type, 'value') else str(message.channel_type),
+                    "content": message.content,
+                    "media_urls": message.media_urls},
                 metadata=message.metadata
             )
             await self._session_manager.emit_event(event)
