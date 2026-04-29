@@ -1,325 +1,61 @@
-# HpAgent - 智能对话代理框架
-
-## 项目概述
-
-HpAgent 是一个基于 OpenClaw 自动回复框架核心设计模式实现的智能对话代理系统，使用 Python 3.11+ 开发。该框架采用分层架构设计，将入口层、上下文构建层、执行层和回复处理层进行了清晰的分离，通过依赖注入模式实现各组件的解耦，便于测试、扩展和替换核心组件。系统支持多渠道消息接入、灵活的工具调用机制、完善的会话管理和模型降级策略，能够满足不同场景下的智能对话需求。
-
----
-
-## 核心特性
-
-- **分层架构设计**：采用清晰的层次化架构，从底层的资源管理到顶层的渠道接入，每一层都有明确的职责边界，通过接口进行解耦，使得系统易于理解和维护。
-
-- **依赖注入模式**：所有外部依赖均通过构造函数参数传入，避免了硬编码依赖问题，这种设计模式使得单元测试时可以轻松替换真实的依赖对象为 Mock 对象，大大提高了代码的可测试性。
-
-- **多渠道支持**：框架内置了多种消息渠道的适配器，包括控制台渠道（ConsoleChannel）、Web 渠道和 NapCat 渠道（QQ 机器人协议），通过统一的接口定义，可以方便地扩展新的渠道接入方式。
-
-- **灵活的工具体系**：支持三种类型的工具——原生工具（Native）、MCP 协议工具和 Skill 技能工具。工具系统采用注册表模式管理，支持动态注册和卸载，可以根据不同场景灵活配置工具集合。
-
-- **会话状态管理**：完整的会话生命周期管理支持，包括会话创建、事件记录、会话回滚（rewind）和归档功能，所有会话数据支持文件系统持久化存储。
-
-- **模型降级策略**：通过 ResourcePool 组件管理多个模型客户端，支持配置模型降级链，当主模型不可用时自动切换到备用模型，提高了系统的可用性。
-
-- **完善的错误处理**：定义了层次化的错误类型体系，包括 SessionNotFoundError、SandboxNotFoundError、ToolNotFoundError 等，支持错误恢复策略判断，可恢复错误会触发重试机制，致命错误则中止执行。
-
----
-
-## 架构设计
-
-### 整体架构分层
-
-HpAgent 采用经典的分层架构设计，从上到下依次为应用入口层、渠道层、编排层、执行层、会话层、资源层和沙箱层。每一层只依赖于其下方的层，这种单向依赖原则保证了系统的稳定性和可维护性。当需要添加新功能时，只需要关注相应的层次进行扩展，而不会影响到其他层次的代码。
-
-应用入口层（Application Layer）负责系统的初始化和启动，是整个系统的入口点。该层主要完成配置加载、组件初始化和渠道启动等工作。在 main.py 中定义了 AgentApplication 类，它是整个应用的核心容器，负责协调各个组件的初始化顺序和生命周期管理。
-
-渠道层（Channel Layer）负责与外部消息源的对接，屏蔽不同消息渠道的协议差异。框架定义了 IChannel 接口抽象，所有渠道实现都必须遵循该接口。HarnessContextBuilder 根据消息来源的渠道类型动态选择合适的系统提示词，实现了渠道感知的上下文构建。每个渠道适配器负责将原始消息转换为统一的 UnifiedMessage 格式，同时也负责将系统回复发送回相应的渠道。
-
-编排层（Orchestration Layer）是系统的核心调度中心，负责协调各组件的工作。Orchestrator 类实现了 IOrchestration 接口，维护着任务状态机和异常恢复逻辑。该层不直接执行模型调用，而是将实际工作委托给 Harness，自身专注于任务流程控制。当收到用户请求时，Orchestrator 负责创建会话、记录事件、触发推理循环，并协调处理工具调用的执行。
-
-执行层（Harness Layer）是核心推理引擎所在，负责驱动整个推理循环的执行。Harness 类实现了 IHarness 接口，是系统最核心的组件之一。它从 SessionManager 获取历史事件，构建上下文后调用模型 API，并根据模型响应决定是否执行工具调用。Harness 内部维护着一个读写锁，保证了在多线程环境下的线程安全性。
-
-会话层（Session Layer）负责管理会话的完整生命周期。SessionManager 实现了 ISession 接口，是会话管理的核心组件。它委托持久化操作给底层的 Repository 层，自身则专注于业务逻辑处理。会话数据被持久化到文件系统，包括会话元数据和事件日志两部分，支持会话的历史回溯和回滚操作。
-
-资源层（Resources Layer）负责管理系统所需的各种外部资源，最主要的是模型 API 凭证和模型客户端。CredentialManager 管理着模型端点的配置信息和 API 密钥，支持密钥的加密存储和安全访问。ResourcePool 维护着多个模型客户端实例，支持按优先级排序和降级调用，是模型调用的统一入口。
-
-沙箱层（Sandbox Layer）是工具执行的环境载体，每个 Sandbox 实例都是一个独立的工具执行空间。SandboxManager 负责沙箱的创建、销毁和生命周期管理，支持配置沙箱的空闲超时时间。Sandbox 内部通过 ToolRegistry 管理着一组工具实例，工具可以是原生工具、MCP 工具或 Skill 工具。
-
-### 核心接口体系
-
-接口设计是 HpAgent 架构的基石，通过接口抽象实现了组件间的解耦。框架定义了六个核心接口，分别对应不同的功能领域。
-
-ISession 接口定义了会话管理的标准操作集合，包括 create_session（创建会话）、emit_event（发送事件）、get_events（获取事件列表）、rewind_session（回滚会话）、archive_session（归档会话）和 list_sessions（列出会话）等方法。这些方法覆盖了会话生命周期的各个阶段，为上层组件提供了统一的会话操作入口。
-
-IResources 接口定义了资源管理的标准操作，包括 initialize_models（初始化模型）、register_model（注册模型）、configure_fallback（配置降级链）、generate（生成响应）和 proxy_request（代理请求）等方法。通过这个接口，Harness 可以透明地使用底层的模型资源，而不需要关心模型的具体实现细节。
-
-ISandbox 接口定义了沙箱的标准操作，包括 execute（执行工具）、list_tools（列出工具）和 health_check（健康检查）等方法。这个接口将工具执行的具体实现封装起来，使得 Harness 可以通过统一的接口调用任意沙箱中的工具。
-
-IHarness 接口定义了推理引擎的标准操作，包括 wake（唤醒推理）、build_context（构建上下文）、call_model（调用模型）、route_tool_call（路由工具调用）和 handle_error（错误处理）等方法。这个接口是编排层与执行层之间的契约，使得 Orchestrator 可以通过统一的方式驱动 Harness 执行推理任务。
-
-IOrchestration 接口定义了编排层的标准操作，包括 receive_request（接收请求）、allocate_harness（分配 Harness）、provision_sandbox（配置沙箱）、destroy_sandbox（销毁沙箱）、retry_task（重试任务）和 cancel_task（取消任务）等方法。这个接口是渠道层与编排层之间的契约，渠道组件通过这个接口向系统提交用户请求。
-
-IChannel 接口定义了渠道的标准操作，包括 normalize_message（规范化消息）、send_message（发送消息）、start_monitor（启动监控）和 stop_monitor（停止监控）等方法。这个接口是外部消息源与框架之间的契约，不同的渠道适配器只需要实现这个接口就可以接入框架。
-
-### 事件驱动架构
-
-HpAgent 采用了事件驱动架构来组织系统的数据流和组件交互。Event 是框架中最核心的数据结构之一，它贯穿整个请求处理流程。每一个用户消息、模型回复、工具调用和工具结果都被封装为 Event 记录到会话中。这种设计带来了几个重要的优势：首先，所有交互都被完整记录下来，便于后续的问题排查和会话回放；其次，基于事件历史可以轻松实现上下文窗口限制和会话回滚功能；最后，事件日志为系统监控和数据分析提供了基础数据。
-
-EventType 枚举定义了所有支持的事件类型，包括 USER_MESSAGE（用户消息）、MODEL_MESSAGE（模型消息）、TOOL_CALL（工具调用）、TOOL_RESULT（工具结果）、ERROR（错误）、SESSION_START（会话开始）、SESSION_COMPLETE（会话完成）、SESSION_ARCHIVED（会话归档）、LOOP_STARTED（推理循环开始）、LOOP_COMPLETED（推理循环完成）和 TURN_COMPLETED（单轮交互完成）等。这些事件类型覆盖了系统运行的各个方面，为完整的事件追踪提供了支持。
-
-UnifiedMessage 是框架定义的消息标准格式，用于在渠道层和编排层之间传递消息。它包含了消息的基本属性，如消息 ID、会话 ID、发送者 ID、渠道类型、内容和时间戳等。渠道适配器负责将原始消息转换为 UnifiedMessage 格式，而 Orchestrator 在接收到 UnifiedMessage 后会创建一个对应的事件记录保存到会话中。
-
----
-
-## 模块详解
-
-### common 模块 - 公共基础设施
-
-common 模块是整个框架的基础，所有其他模块都依赖于它提供的类型定义、接口抽象和错误处理机制。该模块包含三个核心文件：types.py 定义了所有核心数据类型，interfaces.py 定义了核心接口，errors.py 定义了错误类型体系。
-
-types.py 文件定义的核心类型包括：Event（事件）、UnifiedMessage（统一消息）、ToolCall（工具调用）、ToolResult（工具结果）、ModelResponse（模型响应）、SessionMetadata（会话元数据）等。这些类型都采用 dataclass 装饰器定义，提供了自动的属性生成、类型提示和序列化支持。Event 类是最核心的类型，它包含事件 ID、会话 ID、时间戳、事件类型、内容和元数据等字段，所有事件都被持久化存储以支持会话回溯。ToolCall 和 ToolResult 用于封装工具调用相关的数据，ToolDefinition 则用于描述工具的元信息。ModelResponse 封装了模型的完整响应，包括文本内容、工具调用列表、停止原因和 token 用量等信息。
-
-interfaces.py 文件定义了六个核心接口。ISession 接口的每个方法都设计得非常明确，create_session 负责创建新会话，emit_event 负责向会话追加事件记录，get_events 支持分页和事件类型过滤，rewind_session 支持将会话回滚到指定的事件点，archive_session 标记会话为归档状态，list_sessions 支持按状态和标签筛选会话。IResources 接口的设计考虑了模型多样性的需求，register_model 方法支持注册多个模型，configure_fallback 方法支持配置模型降级链，generate 方法是统一的模型调用入口，内部会自动处理模型选择和降级逻辑。ISandbox 接口的实现需要考虑线程安全性，因为一个沙箱可能同时被多个推理循环使用。IHarness 接口的方法设计遵循了单一职责原则，每个方法只负责一个具体的任务。IOrchestration 接口的方法设计体现了编排层的核心职责——协调各组件的工作，处理异常情况，并维护任务状态。IChannel 接口的实现需要处理各种底层协议的细节，如连接管理、消息解析等。
-
-errors.py 文件定义了一套完整的错误类型体系。ErrorCode 枚举定义了所有错误代码，如 SESSION_NOT_FOUND、SANDBOX_NOT_FOUND、TOOL_NOT_FOUND 等。AgentError 是所有业务错误的基类，它包含错误代码、错误消息、可恢复性标志和详细信息。具体的错误类如 SessionNotFoundError、SandboxNotFoundError 等都继承自 AgentError，并预设了合适的默认参数。错误类的设计充分考虑了可恢复性的判断，可恢复错误会触发重试机制，致命错误则直接中止执行。
-
-### session 模块 - 会话管理
-
-session 模块负责管理会话的完整生命周期，包括会话创建、事件记录、会话查询、会话回滚和会话归档等功能。该模块采用了仓库模式（Repository Pattern）来分离业务逻辑和持久化逻辑，SessionManager 负责业务逻辑处理，而具体的持久化操作委托给 FileSessionRepository 和 FileEventRepository。
-
-models.py 文件定义了会话相关的数据模型。Session 类表示一个会话实体，包含会话 ID、创建者 ID、渠道类型、标签列表、状态、创建时间和最后更新时间等字段。SessionStatus 枚举定义了会话的可能状态，包括 ACTIVE（活跃）、ARCHIVED（归档）和 COMPLETED（完成）。EventRecord 类表示一个事件记录，是 Event 的持久化形式，包含事件索引、事件类型和事件内容等字段，事件索引用于支持高效的区间查询。
-
-repositories.py 文件实现了文件系统持久化层。FileSessionRepository 负责会话元数据的持久化，它将每个会话存储为一个 JSON 文件，文件名即为会话 ID，便于快速定位和读取。FileEventRepository 负责事件日志的持久化，它为每个会话维护一个事件日志文件，新事件追加到文件末尾。两个仓库实现都考虑了并发访问的安全性，使用了文件锁机制来防止数据竞争。
-
-session_manager.py 文件是会话管理的核心，实现了 ISession 接口的所有方法。create_session 方法用于创建新会话，它会检查会话 ID 的唯一性，创建会话对象并保存到仓库。emit_event 方法用于向会话追加事件，它会验证会话状态和事件的有效性，创建事件记录并追加到仓库，同时更新会话的最后修改时间。get_events 方法支持灵活的事件查询，包括分页查询和事件类型过滤，返回的事件列表按照时间顺序排列。rewind_session 方法实现了会话回滚功能，它会删除指定事件之后的所有事件记录，更新会话的最后修改时间，并返回被删除的事件数量。archive_session 方法将会话状态标记为归档，归档后的会话不再接受新事件，但仍然可以查询历史记录。list_sessions 方法支持按状态和标签筛选会话，并支持分页返回。此外，SessionManager 还提供了一些便利方法，如 create_session_with_id 自动生成会话 ID 并发送 SESSION_START 事件，list_active_sessions 快速查询所有活跃会话等。
-
-### resources 模块 - 资源管理
-
-resources 模块负责管理系统所需的各种外部资源，最主要的是模型 API 凭证和模型客户端。该模块的设计目标是为上层组件提供透明的资源访问能力，屏蔽底层资源管理的复杂性。
-
-credentials.py 文件实现了凭证管理系统。Credential 类表示一个凭证实体，包含资源 ID、凭证类型、加密值、权限范围、创建时间和过期时间等字段，is_expired 方法用于判断凭证是否过期，has_scope 方法用于检查凭证是否具有特定的权限范围。ModelEndpoint 类表示一个模型端点配置，包含提供商名称、API 密钥、基础 URL 和模型名称等字段。CredentialManager 是凭证管理的核心类，它内部维护着凭证存储和模型端点列表。register_model_chain 方法用于注册模型端点列表，API 密钥会被加密存储以确保安全性，方法内部会清空旧的配置并建立新的关联。issue_temp_token 方法用于生成临时访问令牌，validate_token 方法用于验证令牌的有效性。get_model_endpoint_list 方法返回完整的模型端点列表，API 密钥会从加密存储中解密后填充。
-
-resource_pool.py 文件实现了资源池管理。ResourcePool 实现了 IResources 接口，是模型调用的统一入口。initialize_models 方法负责初始化已注册的模型端点，为每个端点创建一个 ModelClient 实例并存储到内部字典中。register_model 方法用于手动注册模型客户端，支持设置优先级。configure_fallback 方法用于配置模型降级链，传入模型 ID 列表，按顺序尝试调用直到成功。generate 方法是核心的模型调用方法，它会根据 model_selector 查找对应的降级链，然后按顺序尝试调用每个模型，直到成功或全部失败。该方法内部会捕获模型调用异常，实现透明的降级逻辑。proxy_request 方法支持代理外部资源请求，用于访问需要认证的外部服务。
-
-### model 模块 - 模型调用
-
-model 模块封装了与 LLM API 的通信细节，提供了统一的模型调用接口。该模块的设计考虑了多种模型提供商的支持，目前主要支持兼容 OpenAI 格式的 API。
-
-client.py 文件实现了 ModelClient 类，它封装了 HTTP 调用到 LLM API 的全过程。构造函数接收配置参数，包括 API 密钥、基础 URL 和模型名称。generate 方法是核心的模型调用接口，接收消息列表、工具定义和流式标志，返回 ModelResponse 对象。在实现上，该方法使用 httpx 库进行异步 HTTP 请求，支持流式响应处理。set_tools 方法用于设置工具定义，工具信息会在后续的模型调用中使用。
-
-_parse_non_stream 方法用于解析非流式响应，它从响应体中提取文本内容和停止原因。对于支持多模态内容的模型，该方法会遍历内容列表，提取文本类型的消息。_parse_stream 方法用于解析流式响应，它逐行读取响应流，实时提取文本片段和工具调用信息，支持通过回调函数实时处理文本输出。_parse_anthropic_stop_reason 和 _map_finish_reason 方法用于将提供商特定的停止原因映射为框架的标准枚举值。
-
-### sandbox 模块 - 工具执行环境
-
-sandbox 模块是工具执行的环境载体，采用了沙箱隔离模式来保障工具执行的稳定性和安全性。该模块的设计考虑了扩展性，支持多种类型的工具和多个沙箱实例的并发管理。
-
-sandbox_manager.py 文件实现了沙箱管理器。SandboxManager 负责沙箱的创建、销毁和生命周期管理。它内部维护着一个沙箱字典，使用沙箱 ID 作为键。create_sandbox 方法用于创建新沙箱，接收工具列表和资源字典作为参数，返回沙箱 ID。get_sandbox 方法用于获取指定沙箱实例，如果沙箱不存在则抛出 SandboxNotFoundError。destroy_sandbox 方法用于销毁沙箱，会调用沙箱的清理方法并从字典中删除。list_sandboxes 方法返回所有沙箱的信息列表，包括沙箱 ID、状态、工具数量等。cleanup_idle_sandboxes 方法实现了空闲沙箱的自动清理功能，会检查每个沙箱的最后使用时间，清理超过空闲阈值的沙箱。health_check_all 方法对所有沙箱执行健康检查，返回沙箱 ID 到健康状态的映射。
-
-sandbox.py 文件实现了单个沙箱实例。Sandbox 实现了 ISandbox 接口，它是一个独立的工具执行环境。每个沙箱拥有自己的工具注册表、资源配置和状态管理。execute 方法是工具执行的核心入口，它会验证工具的存在性，调用工具的 execute 方法，并更新最后使用时间。list_tools 方法返回沙箱中所有工具的定义列表，用于向模型暴露可用的工具。register_tool 和 unregister_tool 方法支持动态的添加工具和移除工具。get_info 方法返回沙箱的详细信息，包括状态、创建时间、工具列表等。destroy 方法用于清理沙箱资源，将状态标记为销毁并清空工具注册表。
-
-tools 子模块实现了完整的工具系统，包括工具基类、工具注册表和工具工厂三个核心组件。
-
-base.py 文件定义了工具的基础设施。ToolType 枚举定义了支持的工具类型，包括 NATIVE（原生工具）、MCP（MCP 协议工具）和 SKILL（技能工具）。ToolDefinition 数据类用于描述工具的元信息，包括名称、描述、参数定义和工具类型，提供 to_openai_format 方法用于生成 OpenAI 格式的工具定义。ToolResult 数据类用于封装工具执行结果，包括成功标志、输出内容和错误信息。BaseTool 是所有工具的抽象基类，定义了 name、description、parameters 三个抽象属性和 execute 抽象方法，子类必须实现这些属性和方法。get_definition 和 get_openai_format 方法提供了便捷的元信息获取方式。
-
-registry.py 文件实现了工具注册表。ToolRegistry 采用注册表模式管理一组工具实例，支持工具的注册、注销、查询和执行。register 方法用于注册工具，如果工具名称已存在则覆盖。unregister 方法用于注销工具，成功返回 True，工具不存在返回 False。get 方法用于获取指定工具，如果工具不存在则抛出 ToolNotFoundError。has 方法用于检查工具是否存在。list_all 方法返回所有工具实例列表。list_definitions 方法返回所有工具的定义列表，格式为 OpenAI 工具格式。execute 方法是工具执行的核心方法，它从注册表中获取工具实例，调用其 execute 方法，并处理执行过程中的异常，将异常转换为 ToolResult 形式返回。clear 方法用于清空注册表。
-
-factory.py 文件实现了工具工厂，提供了一组预定义的工具实例。create_default_tools 方法返回默认的工具列表，这些工具在系统初始化时被加载到沙箱中。
-
-channels 子模块实现了渠道适配器系统，提供了多种消息渠道的接入支持。
-
-base.py 文件定义了 IChannel 接口，是所有渠道适配器必须实现的契约。normalize_message 方法将原始消息转换为 UnifiedMessage 格式。send_message 方法将回复消息发送到对应的渠道。start_monitor 方法启动消息监控，持续接收新的消息并通过回调函数处理。stop_monitor 方法停止消息监控，清理相关资源。
-
-console.py 文件实现了控制台渠道适配器，用于 CLI 环境下的消息交互。
-
-napcat.py 文件实现了 NapCat 渠道适配器，用于 QQ 机器人的消息交互。
-
-### harness 模块 - 核心推理循环
-
-harness 模块是系统的核心执行引擎，负责驱动整个推理循环的执行。该模块的设计目标是提供一个可测试、可替换的推理执行单元，它封装了上下文构建、模型调用和工具路由等核心逻辑。
-
-harness.py 文件实现了 Harness 类，是框架中最核心的组件之一。Harness 的构造函数接收四个核心依赖：session_store（会话存储，实现 ISession 接口）、resource_pool（资源池，实现 IResources 接口）、sandbox_manager（沙箱管理器）和 max_turns（最大轮次限制）。这些依赖通过参数传入而不是在内部创建，实现了依赖注入模式。
-
-wake 方法是推理循环的入口点，它协调了获取事件、构建上下文、调用模型和记录响应等步骤。首先获取会话的所有历史事件，如果会话为空则直接返回空响应。然后获取所有可用的工具定义，构建上下文后调用模型。模型响应会被封装为事件记录保存到会话中。如果模型响应中包含工具调用请求，wake 方法会处理这些工具调用并继续推理循环。整个方法使用读写锁保护，确保了线程安全性。
-
-build_context 方法是对上下文构建器的封装，直接委托给 HarnessContextBuilder 处理。call_model 方法是对模型调用的封装，将消息和工具传递给资源池。route_tool_call 方法实现了工具调用的路由功能，它根据工具名称查找对应的沙箱，然后委托沙箱执行工具。如果找不到可用的沙箱或工具执行失败，会返回包含错误信息的 ToolResult。handle_error 方法负责错误处理，它根据错误类型判断恢复策略，可恢复错误返回"retry"策略，致命错误返回"abort"策略。
-
-_get_available_tools 方法收集所有活跃沙箱中注册的工具定义，返回完整的工具列表供模型使用。_call_model_internal 方法是内部的模型调用方法，它调用资源池的 generate 方法并处理响应。_get_sandbox_for_tool 方法根据工具名称查找包含该工具的沙箱，如果没有找到则返回 None。_is_recoverable 方法判断错误类型是否可恢复，目前定义为网络错误、超时、模型 API 错误和工具执行失败等类型。
-
-context_builder.py 文件实现了上下文构建器，负责将历史事件转换为模型可用的消息格式。该模块的设计考虑了渠道感知特性，可以根据消息来源渠道动态选择合适的系统提示词。
-
-系统提示词模块定义了各种渠道的身份声明。NAPCAT_AGENT_IDENTITY 定义了 QQ 聊天助手的身份和规则，包括名称、核心能力、对话规则等。CONSOLE_AGENT_IDENTITY 定义了 CLI 助手的身份，强调了终端环境下的输出格式要求。WEB_AGENT_IDENTITY 定义了 Web 助手的身份，支持 Markdown 格式的丰富输出。DEFAULT_AGENT_IDENTITY 是渠道未识别时的默认身份声明。这些提示词字符串被组织在 _CHANNEL_IDENTITY_MAP 字典中，通过渠道类型作为键进行快速查找。
-
-HarnessContextBuilder 类是上下文构建的核心。构造函数接收自定义的系统提示词和多个布尔开关参数，控制不同功能模块的启用状态。build 方法是主要的接口方法，接收事件列表、最大轮次限制和可选的渠道类型参数。方法内部首先检测消息来源渠道（如果未指定则自动检测），然后构建系统提示词，接着将历史事件转换为模型消息格式，最后限制消息数量在最大轮次范围内。
-
-_build_system_prompt 方法负责构建完整的系统提示词。它根据渠道类型选择基础身份声明，然后根据配置开关添加聊天风格、工具使用纪律、环境检测和上下文文件等内容片段。所有片段按特定顺序拼接，形成完整的系统提示词。
-
-_context_files_discovery 方法实现了项目上下文文件的自动发现功能。它会递归扫描项目目录，识别常见的配置文件（如 package.json、requirements.txt、pyproject.toml 等）和代码文件，支持根据语言类型或文件名模式过滤文件。发现的上下文文件信息会被添加到系统提示词中，为模型提供项目背景信息。
-
-_normalize_events_to_messages 方法将事件列表转换为模型消息格式。它遍历事件列表，根据事件类型映射为对应的角色：用户消息映射为 user 角色，模型消息映射为 assistant 角色，工具调用和工具结果映射为 tool 角色。每个消息包含角色、内容和时间戳等字段。工具调用消息会额外包含工具调用 ID，用于关联工具结果。
-
-_estimate_message_count 方法估算转换后的消息数量，用于在添加到历史之前进行截断。_truncate_messages 方法实现消息截断逻辑，它从最新的用户消息开始保留，依次向前追加模型消息和用户消息，直到达到最大轮次限制。如果保留的消息数量不足一半，会向前追加更多消息以保持对话的完整性。
-
-### orchestration 模块 - 任务编排
-
-orchestration 模块是系统的调度中心，负责协调各组件的工作和处理异常情况。该模块的设计目标是提供清晰的任务管理能力，支持任务的创建、状态跟踪、重试和取消等操作。
-
-orchestrator.py 文件实现了 Orchestrator 类，是任务编排的核心组件。Orchestrator 实现了 IOrchestration 接口，维护着任务状态机和异常恢复逻辑。它接收四个核心依赖：session_manager（会话管理器）、harness（推理引擎）、sandbox_manager（沙箱管理器）和 resource_pool（资源池）。
-
-receive_request 方法是请求处理的入口点，它接收统一消息格式的输入。首先调用 _get_or_create_session 方法获取或创建会话，然后创建对应的事件记录保存到会话中，最后创建任务并返回任务信息给调用方。方法内部使用读写锁保护，确保了线程安全性。
-
-process_session 方法负责处理会话的推理循环。它首先获取会话的所有事件，然后调用 harness 的 wake 方法触发推理。如果模型响应中包含工具调用，会依次路由每个工具调用。这个方法会被渠道组件在接收到消息后调用。
-
-retry_task 方法实现了任务重试功能。它创建新的任务记录，记录原始失败事件的 ID，然后调用事件仓库的回滚功能将会话回滚到失败点。新任务会从回滚点开始重新执行。
-
-cancel_task 方法实现了任务取消功能。它遍历所有活跃任务，找到属于指定会话的任务并标记为取消状态。
-
-provision_sandbox 方法用于配置新的沙箱实例。它调用工具工厂创建默认工具，然后委托沙箱管理器创建沙箱，返回沙箱 ID。destroy_sandbox 方法委托沙箱管理器销毁指定的沙箱。
-
-_get_or_create_session 方法实现了按发送者自动关联会话的逻辑。它遍历现有会话，找到创建者 ID 匹配的活跃会话并返回。如果找不到匹配的会话，则创建一个新的会话。
-
-get_task_status 和 get_active_tasks_count 方法提供了任务状态的查询接口，便于外部组件监控系统运行状态。
-
-retry_policy.py 文件定义了重试策略配置。重试策略包括最大重试次数、重试间隔、退避策略等参数。这些参数可以根据错误类型进行个性化配置，对于可恢复错误采用较短的重试间隔和较少的重试次数，对于暂时性错误采用指数退避策略。
-
----
-
-## 数据流与交互模式
-
-### 完整请求处理流程
-
-当用户发送一条消息时，系统会经历以下处理流程：首先，渠道适配器接收原始消息，调用 normalize_message 方法将其转换为 UnifiedMessage 格式。然后，渠道适配器调用 Orchestrator 的 receive_request 方法提交请求。Orchestrator 在接收到请求后，会获取或创建一个会话，创建 USER_MESSAGE 事件并保存到会话中，同时创建一个任务记录用于跟踪处理进度。接下来，渠道适配器调用 Orchestrator 的 process_session 方法触发推理循环。process_session 方法会调用 Harness 的 wake 方法，进入核心推理流程。
-
-Harness 在 wake 方法中首先从会话获取所有历史事件，然后调用 HarnessContextBuilder 构建上下文。上下文构建过程中，系统会根据消息来源渠道选择合适的身份声明，将历史事件转换为模型消息格式，并添加必要的系统提示词。接下来，Harness 从沙箱管理器获取所有可用的工具定义，将上下文和工具定义传递给资源池调用模型 API。模型响应被封装为 MODEL_MESSAGE 事件保存到会话中。
-
-如果模型响应中包含工具调用请求（stop_reason 为 TOOL_USE），Harness 会进入工具调用处理流程。它为每个工具调用请求创建一个 TOOL_CALL 事件，然后根据工具名称查找包含该工具的沙箱。找到沙箱后，Harness 调用沙箱的 execute 方法执行工具。工具执行结果被封装为 TOOL_RESULT 事件保存到会话中。工具调用和结果形成一轮完整的交互，会作为下一轮模型调用的上下文输入。这个过程会循环进行，直到模型响应表示结束（stop_reason 为 END_TURN 或其他结束原因）或达到最大轮次限制。
-
-整个流程完成后，Orchestrator 返回处理结果给渠道适配器。渠道适配器根据渠道类型将响应格式化为目标格式，然后发送给用户。
-
-### 工具调用路由机制
-
-工具调用路由是连接模型推理和工具执行的关键环节。当模型决定调用工具时，Harness 的 route_tool_call 方法被触发。该方法首先通过 _get_sandbox_for_tool 方法查找包含目标工具的沙箱。查找逻辑是遍历所有活跃沙箱，检查每个沙箱的工具注册表是否包含目标工具。如果找到匹配的沙箱，则调用该沙箱的 execute 方法执行工具。
-
-每个沙箱维护着自己独立的工具注册表，这意味着同一个工具可以在多个沙箱中注册，也可以在不同的沙箱中注册不同版本的同名工具。这种设计提供了灵活的部署选项：可以在不同的沙箱中隔离不同类别的工具（如文件操作、网络请求、数据库访问等），也可以为不同类型的会话分配不同的工具集。
-
-工具执行是异步进行的，每个工具的 execute 方法都是一个异步函数。工具执行过程中可能抛出异常，Harness 会捕获这些异常并转换为包含错误信息的 ToolResult 返回给调用方。工具执行的结果会被保存到会话中，作为后续模型调用的上下文输入。
-
-### 会话状态管理
-
-会话状态管理是系统数据持久化的核心。会话数据分为两部分：会话元数据和事件日志。会话元数据包括会话 ID、创建者 ID、渠道类型、标签列表、状态和创建/更新时间等信息，存储在 FileSessionRepository 中。事件日志记录了会话中的所有交互事件，包括用户消息、模型回复、工具调用和工具结果等，存储在 FileEventRepository 中。
-
-事件被组织为有序的列表，每个事件都有唯一的事件 ID 和时间戳。这种设计支持了多种查询模式：按偏移量和限制值进行分页查询，按事件类型进行过滤查询，按事件 ID 进行精确查找（用于回滚）。事件日志采用追加写入模式，新事件总是添加到列表末尾，这种模式保证了写入性能的最优化。
-
-会话回滚（rewind）是基于事件日志实现的重要功能。当需要将会话回滚到某个状态时，系统会根据目标事件 ID 找到对应的事件索引，然后截断事件日志中该索引之后的所有事件。这个过程不会修改原始事件数据，而是创建新的截断版本。这种设计支持了操作历史保留了修改痕迹，便于问题排查和审计。
-
-### 并发控制与线程安全
-
-系统在多个层次实现了线程安全控制。在 Orchestrator 层面，所有对共享状态（如活跃任务字典）的访问都使用读写锁（RLock）保护。读写锁的特性是允许并发读取，但写入时会独占访问。这种设计在读多写少的场景下提供了良好的并发性能。
-
-在 SandboxManager 层面，沙箱字典的访问同样使用读写锁保护。由于沙箱的创建和销毁操作相对稀少，而沙箱的信息查询操作频繁发生，读写锁是合适的选择。
-
-在 SessionManager 层面，事件写入使用了文件锁机制防止并发写入冲突。每次写入事件前会获取文件锁，写入完成后释放锁。这种设计确保了即使在多进程环境下，也不会发生事件日志的写入混乱。
-
-在 Harness 层面，wake 方法整体使用读写锁保护，防止同一会话的并发推理。这种设计简化了并发控制的复杂度，保证了推理过程的串行执行，避免了状态不一致的问题。
-
----
-
-## 配置管理
-
-系统采用 YAML 配置文件管理所有运行时参数，配置文件通常命名为 config.yaml。配置文件的结构分为几个主要部分：model 部分定义了模型相关的配置，包括 API 密钥（api_key）、基础 URL（base_url）和模型名称（model）。app 部分定义了应用级别的配置，包括最大历史轮次（max_history_turns）和最大推理轮次（max_turns）。各渠道也可以有自己的配置节，如 napcat、console 等，定义渠道特定的参数。
-
-配置文件加载由 main.py 中的 load_config 函数完成。该函数使用 PyYAML 库解析配置文件，将 YAML 格式转换为 Python 字典，然后根据配置结构创建 AppConfig 数据类实例。如果配置文件不存在或格式错误，函数会抛出相应的异常。
-
-在系统初始化过程中，AgentApplication 类会使用加载的配置初始化各个组件。CredentialManager 使用模型配置注册模型端点，Harness 使用 max_turns 配置初始化推理引擎。这种集中化的配置管理使得修改系统行为变得简单，只需编辑配置文件即可，无需修改代码。
-
----
-
-## 错误处理与恢复
-
-系统定义了一套完整的错误类型体系，用于分类和处理运行过程中可能出现的各种异常情况。错误类继承自 AgentError 基类，每个错误类都包含错误代码、错误消息、可恢复性标志和详细信息等属性。
-
-SessionNotFoundError 表示会话不存在，通常在尝试向不存在的会话添加事件或查询不存在的会话时抛出。由于会话 ID 是系统运行的基础，该错误被标记为不可恢复，抛出后会导致请求失败。
-
-SandboxNotFoundError 表示沙箱不存在，通常在尝试获取不存在的沙箱时抛出。该错误被标记为可恢复，系统可以尝试重新创建沙箱或选择其他沙箱来处理请求。
-
-ToolNotFoundError 表示工具不存在，通常在尝试调用未注册的工具时抛出。该错误被标记为可恢复，可以尝试动态注册工具或通知管理员补充工具定义。
-
-ToolExecutionError 表示工具执行失败，可能由工具内部的异常或超时等原因导致。该错误被标记为可恢复，可以尝试重新执行或更换替代工具。
-
-ModelAPIError 表示模型 API 调用失败，可能由网络问题、服务不可用或请求格式错误等原因导致。该错误被标记为可恢复，系统会尝试调用降级链中的下一个模型。
-
-ValidationError 表示参数验证失败，通常由于输入数据不符合预期格式或范围导致。该错误被标记为不可恢复，表明请求本身存在问题。
-
-错误恢复策略在 Harness 的 _is_recoverable 方法中定义。该方法维护着一组可恢复的错误类型标识，包括 network_error、timeout、model_api_error 和 tool_execution_failed。当 handle_error 方法被调用时，会根据错误类型判断恢复策略，可恢复错误返回"retry"策略，否则返回"abort"策略。Orchestrator 根据恢复策略决定是触发重试还是终止任务。
-
----
-
-## Temporal Workflow 重构建议
-
-基于当前架构的分析，以下是为集成 Temporal Workflow 提供的重构建议。这些建议旨在最小化对现有代码的改动，同时充分利用 Temporal 的工作流和活动机制提升系统的可靠性、可观测性和任务管理能力。
-
-### 工作流设计
-
-可以将每个用户会话映射为一个 Temporal 工作流实例。工作流负责管理整个会话的生命周期，包括接收用户消息、驱动推理循环、处理工具调用和生成回复。现有代码中 Orchestrator 的 receive_request 和 process_session 方法的核心逻辑可以迁移到工作流的执行逻辑中。
-
-工具调用是工作流中最适合迁移为活动的部分。每次工具执行（Sandbox.execute）可以作为一个独立的活动。活动的执行结果（成功或失败）会被 Temporal 自动持久化，即使工作流在执行过程中崩溃，也可以在恢复后继续从断点执行。这种设计特别适合处理长时间的复杂推理链，因为 Temporal 提供了内置的持久化和重试机制。
-
-建议将以下操作设计为活动：模型调用（generate）、工具执行（execute）、会话事件写入（emit_event）、沙箱分配（provision_sandbox）和沙箱释放（destroy_sandbox）。这些操作的共性是需要与外部系统交互，可能失败，需要重试机制支持。
-
-### 状态管理
-
-当前系统使用会话层管理状态，事件被持久化到文件系统。引入 Temporal 后，可以将状态管理迁移到 Temporal 的工作流状态中。工作流执行历史（Workflow Execution History）会自动记录所有事件和活动结果，无需额外实现文件系统持久化层。
-
-对于需要在工作流间共享的全局状态（如沙箱列表、模型配置），可以继续使用 SessionManager 和 ResourcePool 管理。Temporal 提供了 Signal 机制支持外部触发的状态变更，可以用于实现动态工具注册、模型配置更新等功能。
-
-### 错误处理与重试
-
-Temporal 提供了内置的重试策略配置，支持为每个活动设置独立的重试参数。可以根据错误的可恢复性为不同活动配置不同的重试策略：模型调用和工具执行可以配置指数退避重试，文件写入操作可以配置固定间隔重试。
-
-对于不可恢复的错误，工作流可以直接进入失败状态，错误信息会被记录到 Temporal 的执行历史中。配合 Temporal 的查询（Query）功能，可以实现实时的任务状态监控。
-
-### 信号与查询
-
-Temporal 的 Signal 机制可以用于实现实时消息注入。当渠道适配器接收到新消息时，可以向对应的工作流发送 Signal，而不是直接调用工作流方法。这种设计解耦了消息接收和工作流执行，提高了系统的响应性。
-
-Temporal 的 Query 机制可以用于实现任务状态查询。外部组件可以查询任意工作流的当前状态、已执行的推理轮次、已调用的工具列表等信息。这种设计提供了比当前基于文件系统的状态查询更高效的方案。
-
-### 定时任务
-
-当前系统使用独立的 cron 模块处理定时任务。引入 Temporal 后，可以使用 Temporal 的 Schedule 功能管理定时任务，实现定时触发、并发控制和错误处理的一体化管理。Schedule 可以配置多个工作流模板，支持动态参数传入，实现灵活的定时执行策略。
-
----
-
-## 部署与运行
-
-系统支持 Docker 容器化部署。项目提供了 Dockerfile 和 docker-compose.yml 配置文件。Dockerfile 使用多阶段构建，先编译依赖再打包运行镜像，镜像体积小且安全。docker-compose.yml 配置了服务依赖关系和端口映射，简化了本地开发环境的启动。
-
-运行前需要准备 config.yaml 配置文件，配置模型 API 凭证和必要的运行参数。首次运行时，系统会自动初始化会话存储目录和创建必要的文件。如果配置了 NapCat 渠道，系统会尝试连接到配置的 WebSocket 端点，开始监听 QQ 消息。
-
-系统提供了完整的日志输出，包括各个组件的运行状态和错误信息。日志级别可以通过 logging 配置调整，默认级别为 INFO。通过分析日志可以监控系统的运行状态，定位和排查问题。
-
----
-
-## 扩展指南
-
-### 添加新渠道
-
-添加新渠道需要创建新的渠道适配器类，实现 IChannel 接口定义的所有方法。适配器类需要处理底层协议细节，如连接管理、消息解析和格式转换等。normalize_message 方法的实现最为关键，它决定了原始消息如何被转换为框架的 UnifiedMessage 格式。
-
-渠道适配器创建完成后，需要在 AgentApplication 的初始化方法中创建实例并启动消息监控。start_monitor 方法通常会启动一个异步任务，持续监听消息并通过回调函数处理。
-
-### 添加新工具
-
-添加新工具需要继承 BaseTool 抽象类，实现 name、description、parameters 和 execute 等属性和方法。execute 方法的签名接收工具参数字典，返回 ToolResult 对象或可以直接序列化的结果。
-
-新工具创建后，需要将其注册到工具注册表中。可以在 ToolFactory 的 create_default_tools 方法中添加对新工具的创建，也可以动态调用 Sandbox 的 register_tool 方法注册。
-
-对于复杂工具，可以考虑拆分为多个简单工具的组合。模型可以根据场景需要选择调用哪些工具，实现更精细的控制。
-
-### 添加新模型提供商
-
-添加新模型提供商需要实现一个新的模型客户端类，封装与提供商 API 的通信细节。客户端类需要提供与 ModelClient 兼容的接口，主要包括构造函数接收配置参数和 generate 方法执行模型调用。
-
-新客户端创建后，需要在 CredentialManager 中注册对应的端点配置，在 ResourcePool 中注册新的客户端实例。如果新提供商使用不同的响应格式，需要实现相应的解析逻辑。
-
----
-
-本架构文档基于 HpAgent v0.x 版本编写，描述了系统的核心设计决策和实现细节。随着系统的发展，部分设计可能会进行调整和优化。建议在阅读源码时结合本文档进行理解，同时关注项目的更新日志以获取最新的架构变化信息。
+# HpAgent — 智能对话代理框架
+
+基于 Anthropic Managed Agent "手脑分离" (hand-brain separation) 架构的智能对话代理系统，使用 Temporal Workflow 作为编排引擎。
+
+## 架构哲学：四层手脑分离
+
+```
+Orchestrator (指挥)  →  调度协调大脑与双手
+    ↓
+Harness (大脑)       →  纯无状态执行器：组装上下文、调用模型、路由工具
+Session (记忆)       →  持有全部用户历史事件，由 Temporal Event Sourcing 持久化
+Sandbox (双手)       →  所有外部操作、工具执行、渠道 I/O 均通过沙箱代理
+```
+
+- **Harness (大脑)**：纯无状态执行器，不含任何持久化或调度逻辑。通过 Temporal Activities 将每个非确定性操作（模型调用、工具执行、上下文构建、渠道 I/O）分解为独立的无状态函数。
+- **Session (记忆)**：持有全部对话历史。在 Temporal 模式下，事件历史由 Workflow Event Sourcing 自动持久化；也提供 `SessionManager` 文件系统实现用于兼容。
+- **Sandbox (双手)**：所有外部操作和工具执行必须通过沙箱代理。每个沙箱拥有独立的工具注册表和资源配额。渠道（Console、NapCat）也是沙箱的一部分。
+- **Orchestrator (指挥)**：`OrchestrationWorkflow` 是确定性编排核心，协调上述三层完成 agentic loop（构建上下文 → 调用模型 → 执行工具 → 发送回复）。
+
+## 项目结构
+
+```
+src/
+├── main.py                     # 入口：加载配置，启动 Orchestration Worker
+├── orchestration/              # 指挥层
+│   ├── workflow.py             #   OrchestrationWorkflow — 确定性编排核心
+│   └── worker.py               #   Worker 启动：初始化依赖、连接 Temporal、启动渠道监听
+├── harness/                    # 大脑层（纯无状态）
+│   ├── activities.py           #   Temporal Activities：模型调用、工具执行、上下文构建、渠道 I/O
+│   └── context_builder.py      #   上下文构建器：渠道感知 prompt 组装
+├── session/                    # 记忆层
+│   ├── session_manager.py      #   SessionManager（文件） / TemporalSessionManager（Workflow Query）
+│   ├── models.py               #   数据模型：Session, EventRecord
+│   └── repositories.py         #   持久化仓库
+├── sandbox/                    # 双手层
+│   ├── sandbox.py              #   沙箱实例：工具执行环境
+│   ├── sandbox_manager.py      #   沙箱生命周期管理
+│   ├── channels/               #   渠道（Console, NapCat）
+│   └── tools/                  #   工具体系（原生, MCP, Skill）
+├── resources/                  # 外部资源访问
+│   ├── resource_pool.py        #   模型调用统一入口（降级链）
+│   ├── credentials.py          #   凭证管理
+│   └── model_client.py         #   低层 HTTP 客户端
+└── common/                     # 公共基础设施
+    ├── types.py                #   核心数据类型
+    ├── interfaces.py           #   核心接口（ISession, IResources, ISandbox, IChannel, ITool）
+    └── errors.py               #   错误类型体系
+```
+
+## 快速开始
+
+1. 创建 `src/config.yaml`（参考上述 AppConfig 结构）
+2. 启动 Temporal Server：`temporal server start-dev`
+3. 启动 HpAgent：`cd src && python main.py`
+
+## 技术栈
+
+- **Python 3.11+** — 异步优先（asyncio）
+- **Temporal** — 工作流编排引擎，提供持久化执行、自动重试、事件溯源
+- **httpx** — 异步 HTTP 客户端
+- **websockets** — NapCat WebSocket 通信

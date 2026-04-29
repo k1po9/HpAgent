@@ -360,7 +360,7 @@ class TemporalSessionManager(ISession):
         limit: Optional[int] = None,
         event_types: Optional[List[str]] = None,
     ) -> List[Event]:
-        """Fetch events from a running AgentWorkflow via Query."""
+        """Fetch events from a running OrchestrationWorkflow via Query."""
         if not self._temporal_client:
             return []
         try:

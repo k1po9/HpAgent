@@ -23,7 +23,7 @@ class NapCatChannel(BaseChannel):
         self._server_task: Optional[asyncio.Task] = None
         self._connected_clients = set()
 
-    async def normalize_message(self, raw_message: Any) -> UnifiedMessage:
+    async def normalize_message(self, raw_message: Any) -> Optional[UnifiedMessage]:
         """
         将 NapCat/OneBot v11 WebSocket 上报事件标准化为统一消息格式。
         

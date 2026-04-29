@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-from common.types import Event, ToolCall, ToolResult, UnifiedMessage, SessionMetadata, ModelResponse
+from common.types import Event, UnifiedMessage, SessionMetadata
 
 
 class ISession(ABC):
+    """Session memory interface — stores and retrieves event history."""
     @abstractmethod
     async def create_session(self, metadata: SessionMetadata) -> str: ...
     @abstractmethod
@@ -19,6 +20,7 @@ class ISession(ABC):
 
 
 class IResources(ABC):
+    """External resource access interface."""
     @abstractmethod
     async def initialize_models(self) -> None: ...
     @abstractmethod
@@ -34,6 +36,7 @@ class IResources(ABC):
 
 
 class ISandbox(ABC):
+    """Sandbox interface — all external operations proxied through sandboxes (the hands)."""
     @abstractmethod
     async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> Any: ...
     @abstractmethod
@@ -42,35 +45,8 @@ class ISandbox(ABC):
     async def health_check(self) -> bool: ...
 
 
-class IHarness(ABC):
-    @abstractmethod
-    async def wake(self, session_id: str) -> ModelResponse: ...
-    @abstractmethod
-    async def build_context(self, events: List[Event]) -> List[Dict[str, Any]]: ...
-    @abstractmethod
-    async def call_model(self, context: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> ModelResponse: ...
-    @abstractmethod
-    async def route_tool_call(self, tool_call: ToolCall) -> ToolResult: ...
-    @abstractmethod
-    async def handle_error(self, error: Dict[str, Any]) -> Dict[str, Any]: ...
-
-
-class IOrchestration(ABC):
-    @abstractmethod
-    async def receive_request(self, message: UnifiedMessage) -> Dict[str, Any]: ...
-    @abstractmethod
-    async def allocate_harness(self, session_id: str, model_requirements: Dict[str, Any]) -> str: ...
-    @abstractmethod
-    async def provision_sandbox(self, tools: List[str], resources: Dict[str, Any]) -> str: ...
-    @abstractmethod
-    async def destroy_sandbox(self, sandbox_id: str) -> bool: ...
-    @abstractmethod
-    async def retry_task(self, session_id: str, failed_event_id: str) -> str: ...
-    @abstractmethod
-    async def cancel_task(self, session_id: str) -> bool: ...
-
-
 class IChannel(ABC):
+    """Channel interface — message ingress/egress for sandbox hands."""
     @abstractmethod
     async def normalize_message(self, raw_message: Any) -> UnifiedMessage: ...
     @abstractmethod

@@ -34,3 +34,7 @@ ENV/
 *.swo
 *~
 .DS_Store
+*.deb
+*.log
+channel/
+.claude/

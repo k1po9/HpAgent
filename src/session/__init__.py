@@ -1,17 +1,19 @@
 """
-Session 模块 - 数据层实现
+Session — the memory layer.
 
-提供：
-- SessionManager: ISession 接口实现
-- Session, EventRecord: 数据模型
-- FileSessionRepository, FileEventRepository: 持久化仓库
+Provides:
+  - SessionManager:          File-backed ISession implementation (legacy).
+  - TemporalSessionManager:  Temporal-backed ISession implementation (reads via Workflow Queries).
+  - Session, EventRecord:    Data models.
+  - FileSessionRepository, FileEventRepository: Persistence repositories.
 """
-from .session_manager import SessionManager
+from .session_manager import SessionManager, TemporalSessionManager
 from .models import Session, EventRecord, SessionStatus
 from .repositories import FileSessionRepository, FileEventRepository
 
 __all__ = [
     "SessionManager",
+    "TemporalSessionManager",
     "Session",
     "EventRecord",
     "SessionStatus",

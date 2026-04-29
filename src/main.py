@@ -1,10 +1,17 @@
+"""
+HpAgent — main entrypoint.
+
+Boot sequence:
+  1. Load config.yaml
+  2. Delegate to Orchestration Worker (Temporal mode)
+     → src/orchestration/worker.py
+"""
 import asyncio
 import logging
 import sys
 import yaml
 from pathlib import Path
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 
 logger = logging.getLogger("HpAgent")
 logging.basicConfig(
@@ -12,15 +19,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 
-from session import SessionManager
-from resources import ResourcePool, CredentialManager, ModelEndpoint
-from sandbox import SandboxManager
-from sandbox.channels import ConsoleChannel, NapCatChannel
-from sandbox.tools.factory import ToolFactory
-from harness import Harness, HarnessContextBuilder
-from orchestration import Orchestrator
-from common.types import ChannelType, UnifiedMessage
-from common.errors import AgentError
+from orchestration.worker import start_worker
 
 
 @dataclass
@@ -30,7 +29,6 @@ class AppConfig:
     model: str
     max_history_turns: int
     max_turns: int
-    use_temporal: bool = True
     temporal_host: str = "localhost:7233"
 
 
@@ -48,106 +46,19 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
         api_key=model_config["api_key"],
         base_url=model_config["base_url"],
         model=model_config["model"],
-        max_history_turns=app_config["max_history_turns"],
-        max_turns=app_config["max_turns"],
+        max_history_turns=app_config.get("max_history_turns", 20),
+        max_turns=app_config.get("max_turns", 20),
+        temporal_host=app_config.get("temporal_host", "localhost:7233"),
     )
 
 
-class AgentApplication:
-    def __init__(self, config: AppConfig):
-        self.config = config
-        self.session_manager = SessionManager()
-        self.credential_manager = CredentialManager()
-        self.resource_pool = ResourcePool(self.credential_manager)
-        self.sandbox_manager = SandboxManager()
-        self.harness: Optional[Harness] = None
-        self.orchestrator: Optional[Orchestrator] = None
-        self.console_channel: Optional[ConsoleChannel] = None
-        self.napcat_channel: Optional[NapCatChannel] = None
-        self._initialized = False
-
-    async def initialize_async(self):
-        if self._initialized:
-            return
-        if not self.config.api_key:
-            raise ValueError("API key is not set in config.yaml")
-
-        self.credential_manager.register_model_chain(
-            [
-                ModelEndpoint(
-                    provider="anthropic",
-                    api_key=self.config.api_key,
-                    base_url=self.config.base_url,
-                    model=self.config.model,
-                ),
-            ]
-        )
-        await self.resource_pool.initialize_models()
-
-        self.harness = Harness(
-            session_store=self.session_manager,
-            resource_pool=self.resource_pool,
-            sandbox_manager=self.sandbox_manager,
-            max_turns=self.config.max_turns,
-        )
-
-        tools = ToolFactory.create_default_tools()
-        self.orchestrator = Orchestrator(
-            session_manager=self.session_manager,
-            harness=self.harness,
-            sandbox_manager=self.sandbox_manager,
-            resource_pool=self.resource_pool,
-        )
-        self.console_channel = ConsoleChannel()
-        self.napcat_channel = NapCatChannel()
-        await self.orchestrator.provision_sandbox([t.name for t in tools], {})
-        self._initialized = True
-
-    async def handle_message(self, message: UnifiedMessage):
-        if not message.metadata or message.metadata.get("post_type") != "message":
-            return
-        if not message.content or not message.content.strip():
-            return
-        if not self._initialized:
-            raise AgentError("Application not initialized. Call initialize() first.")
-        try:
-            result = await self.orchestrator.receive_request(message)
-            session_id = result["session_id"]
-            process_result = await self.orchestrator.process_session(session_id)
-            response_message = UnifiedMessage(
-                session_id=session_id,
-                sender_id=message.sender_id,
-                channel_type=message.channel_type,
-                content=process_result.get("content", ""),
-                metadata=message.metadata,
-            )
-            await self.napcat_channel.send_message(response_message)
-        except AgentError as e:
-            print(f"Agent error: {e}")
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-
-
-async def main_async(use_legacy: bool = False):
+async def main_async():
     try:
         config = load_config()
     except FileNotFoundError as e:
         print(f"Error: {e}")
         print("Please create a config.yaml file with your settings.")
         return
-
-    if use_legacy:
-        config.use_temporal = False
-
-    if config.use_temporal:
-        await _run_temporal_mode(config)
-    else:
-        await _run_legacy_mode(config)
-
-
-async def _run_temporal_mode(config: AppConfig) -> None:
-    """Start HpAgent with Temporal as the orchestration engine."""
-    from temporal_worker import start_worker
 
     worker_config = {
         "api_key": config.api_key,
@@ -156,33 +67,16 @@ async def _run_temporal_mode(config: AppConfig) -> None:
         "temporal_host": config.temporal_host,
     }
 
-    print("\n=== HpAgent (Temporal Mode) ===")
+    print("\n=== HpAgent ===")
     print(f"Temporal Server: {config.temporal_host}")
-    print(f"Task Queue: hpagent-task-queue")
-    print("Starting Temporal Worker + NapCat channel...\n")
+    print("Task Queue: hpagent-task-queue")
+    print("Starting Orchestration Worker + NapCat channel...\n")
     await start_worker(worker_config)
 
 
-async def _run_legacy_mode(config: AppConfig) -> None:
-    """Original single-process mode (kept as fallback)."""
-    app = AgentApplication(config)
-    try:
-        await app.initialize_async()
-    except ValueError as e:
-        print(f"Error: {e}")
-        return
-
-    print("\n=== HpAgent (Legacy Mode) ===")
-    await app.napcat_channel.start_monitor(app.handle_message)
-    print("Listening for NapCat connections on ws://0.0.0.0:8082")
-    print("Press Ctrl+C to quit.\n")
-    await asyncio.Future()
-
-
 def main():
-    use_legacy = "--legacy" in sys.argv
-    asyncio.run(main_async(use_legacy=use_legacy))
+    asyncio.run(main_async())
 
 
-if __name__ == "__main__":    
+if __name__ == "__main__":
     main()

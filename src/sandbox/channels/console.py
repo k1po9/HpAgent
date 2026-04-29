@@ -9,7 +9,6 @@ class ConsoleChannel(BaseChannel):
     """
     def __init__(self):
         super().__init__(ChannelType.CONSOLE)
-        self._input_queue = []
         self._running = False
 
     async def normalize_message(self, raw_message: Any) -> UnifiedMessage:

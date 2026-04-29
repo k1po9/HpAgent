@@ -25,7 +25,7 @@ class ResourcePool(IResources):
         if not endpoints:
             return
 
-        from model.client import ModelClient
+        from .model_client import ModelClient
         client_ids = []
         for ep in endpoints:
             client_id = f"{ep.provider}:{ep.model}"
