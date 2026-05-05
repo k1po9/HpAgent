@@ -38,6 +38,7 @@ class SessionManager(ISession):
 
         session = Session(
             session_id=metadata.session_id,
+            account_id=metadata.account_id,
             creator_id=metadata.creator_id,
             channel_type=(
                 metadata.channel_type.value
@@ -166,12 +167,13 @@ class SessionManager(ISession):
                 s for s in sessions if any(tag in s.tags for tag in tags)
             ]
 
-        sessions.sort(key=lambda s: s.created_at, reverse=True)
+        sessions.sort(key=lambda s: s.updated_at, reverse=True)
         paged = sessions[offset : offset + limit]
 
         return [
             SessionMetadata(
                 session_id=s.session_id,
+                account_id=s.account_id,
                 creator_id=s.creator_id,
                 channel_type=(
                     ChannelType(s.channel_type)
@@ -195,11 +197,13 @@ class SessionManager(ISession):
         channel_type: ChannelType = ChannelType.CONSOLE,
         tags: Optional[list] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        account_id: str = "",
     ) -> str:
         """创建新会话（自动生成 session_id 并发送 SESSION_START 事件）"""
         session_id = str(uuid.uuid4())
         session_metadata = SessionMetadata(
             session_id=session_id,
+            account_id=account_id,
             creator_id=creator_id,
             channel_type=channel_type,
             tags=tags or [],
@@ -214,6 +218,7 @@ class SessionManager(ISession):
             event_type=EventType.SESSION_START,
             content={
                 "creator_id": creator_id,
+                "account_id": account_id,
                 "channel_type": (
                     channel_type.value
                     if hasattr(channel_type, "value")
@@ -365,7 +370,7 @@ class TemporalSessionManager(ISession):
             return []
         try:
             handle = self._temporal_client.get_workflow_handle(
-                f"hpagent-{session_id}"
+                f"agent-{session_id}"
             )
             all_events = await handle.query("get_events")
         except Exception:

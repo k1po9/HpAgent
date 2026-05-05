@@ -15,7 +15,11 @@ class SandboxManager:
 
     def create_sandbox(self, tools: Optional[List[BaseTool]] = None, resources: Optional[Dict[str, Any]] = None, sandbox_id: Optional[str] = None) -> str:
         with self._lock:
-            sandbox = Sandbox(sandbox_id=sandbox_id or str(uuid.uuid4()), tools=tools, resources=resources)
+            sandbox = Sandbox(
+                sandbox_id=sandbox_id or str(uuid.uuid4()), 
+                tools=tools, 
+                resources=resources
+            )
             self._sandboxes[sandbox.sandbox_id] = sandbox
             return sandbox.sandbox_id
 

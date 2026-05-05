@@ -83,7 +83,8 @@ class UnifiedMessage:
     """统一消息格式，将不同渠道的消息标准化为统一结构"""
     message_id: str = field(default_factory=lambda: str(uuid.uuid4()))  # 消息唯一标识
     session_id: str = ""                                                # 所属会话 ID
-    sender_id: str = ""                                                 # 发送者标识（用户 ID）
+    account_id: str = ""                                                # 统一用户账号 ID
+    sender_id: str = ""                                                 # 发送者标识（渠道用户 ID）
     channel_type: ChannelType = ChannelType.CONSOLE                     # 消息来源渠道
     content: str = ""                                                   # 消息文本内容
     timestamp: float = field(default_factory=time.time)                 # 消息发送时间戳
@@ -96,6 +97,7 @@ class UnifiedMessage:
             event_type=EventType.USER_MESSAGE,
             content={
                 "message_id": self.message_id,
+                "account_id": self.account_id,
                 "sender_id": self.sender_id,
                 "channel_type": self.channel_type.value if isinstance(self.channel_type, Enum) else self.channel_type,
                 "content": self.content,
@@ -154,7 +156,8 @@ class ModelResponse:
 class SessionMetadata:
     """会话元数据，记录会话的基本信息和状态"""
     session_id: str                                          # 会话唯一标识
-    creator_id: str = ""                                     # 会话创建者 ID
+    account_id: str = ""                                     # 统一用户账号 ID
+    creator_id: str = ""                                     # 会话创建者 ID（渠道 sender_id）
     channel_type: ChannelType = ChannelType.CONSOLE          # 会话所属渠道
     tags: List[str] = field(default_factory=list)            # 会话标签列表，用于分类和检索
     created_at: float = field(default_factory=time.time)     # 会话创建时间戳
@@ -163,6 +166,7 @@ class SessionMetadata:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "session_id": self.session_id,
+            "account_id": self.account_id,
             "creator_id": self.creator_id,
             "channel_type": self.channel_type.value if isinstance(self.channel_type, Enum) else self.channel_type,
             "tags": self.tags,

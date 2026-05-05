@@ -1,5 +1,4 @@
 from typing import Dict, Any, Optional, List, Callable, Awaitable
-import httpx
 import json
 from common.types import ModelResponse, StopReason, ToolCall
 from common.errors import ModelAPIError
@@ -16,6 +15,7 @@ class ModelClient:
         self._tools = tools
 
     async def generate(self, messages: List[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None, stream: bool = False, on_text_delta: Optional[Callable[[str], Awaitable[None]]] = None) -> ModelResponse:
+        import httpx
         url = f"{self.base_url}/messages"
         headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
         payload = {"model": self.model, "messages": messages, "max_tokens": 2048}
@@ -34,7 +34,7 @@ class ModelClient:
             except Exception as e:
                 raise ModelAPIError(reason=str(e))
 
-    async def _parse_stream(self, response: httpx.Response, on_text_delta: Optional[Callable[[str], Awaitable[None]]]) -> ModelResponse:
+    async def _parse_stream(self, response: Any, on_text_delta: Optional[Callable[[str], Awaitable[None]]]) -> ModelResponse:
         content = ""
         tool_calls: List[ToolCall] = []
         stop_reason = StopReason.END_TURN

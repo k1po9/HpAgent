@@ -14,21 +14,21 @@ from common.types import Event, ChannelType, EventType, UnifiedMessage
 _context_builder = None
 _resource_pool = None
 _sandbox_manager = None
-_channel = None
+_channel_router = None
 
 
 def inject(
     context_builder=None,
     resource_pool=None,
     sandbox_manager=None,
-    channel=None,
+    channel_router=None,
 ) -> None:
     """Inject shared dependencies before Worker starts. Called once at boot."""
-    global _context_builder, _resource_pool, _sandbox_manager, _channel
+    global _context_builder, _resource_pool, _sandbox_manager, _channel_router
     _context_builder = context_builder
     _resource_pool = resource_pool
     _sandbox_manager = sandbox_manager
-    _channel = channel
+    _channel_router = channel_router
 
 
 @activity.defn
@@ -98,8 +98,8 @@ async def send_response_activity(
     content: str,
     user_message: Dict[str, Any],
 ) -> bool:
-    """Deliver the final assistant response through the channel."""
-    if _channel is None:
+    """Deliver the final assistant response through the channel router."""
+    if _channel_router is None:
         return False
 
     ch_type = user_message.get("channel_type", "console")
@@ -111,9 +111,10 @@ async def send_response_activity(
 
     msg = UnifiedMessage(
         session_id=user_message.get("session_id", ""),
+        account_id=user_message.get("account_id", ""),
         sender_id=user_message.get("sender_id", ""),
         channel_type=ch_type,
         content=content,
         metadata=user_message.get("metadata", {}),
     )
-    return await _channel.send_message(msg)
+    return await _channel_router.send(msg)

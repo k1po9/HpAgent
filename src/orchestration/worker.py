@@ -3,11 +3,17 @@ Orchestration Worker — boots the Temporal Worker that executes the Orchestrati
 
 Boot sequence:
   1. Load config
-  2. Initialize dependencies (ResourcePool, SandboxManager, ContextBuilder, Channel)
+  2. Initialize dependencies (AccountService, SessionManager, ResourcePool,
+     SandboxManager, ContextBuilder, ChannelRouter)
   3. Inject dependencies into Harness Activities (the brain's decomposed operations)
   4. Connect to Temporal Server
   5. Start Worker polling the task queue, executing Workflows + Activities
   6. Start channel listeners → each message starts/signals an OrchestrationWorkflow
+
+Cross-client memory:
+  - AccountService resolves channel-type+sender-id → unified account_id
+  - workflow_id = "agent-{account_id}" (shared across QQ and Web)
+  - ChannelRouter routes responses to the correct channel
 """
 import asyncio
 import logging
@@ -16,15 +22,25 @@ from typing import Optional, Callable, Awaitable, Dict, Any
 from temporalio.client import Client
 from temporalio.worker import Worker
 
-from harness.activities import inject, build_context_activity, get_available_tools_activity, call_model_activity, execute_tool_activity, send_response_activity
+from harness.activities import (
+    inject,
+    build_context_activity,
+    get_available_tools_activity,
+    call_model_activity,
+    execute_tool_activity,
+    send_response_activity,
+)
 from orchestration.workflow import OrchestrationWorkflow
-from harness.context_builder import ContextBuilder
+from harness.context_builder import HarnessContextBuilder as ContextBuilder
 from resources.resource_pool import ResourcePool
 from resources.credentials import CredentialManager, ModelEndpoint
 from sandbox.sandbox_manager import SandboxManager
 from sandbox.tools.factory import ToolFactory
 from sandbox.channels.napcat import NapCatChannel
-from common.types import UnifiedMessage, ChannelType
+from sandbox.channels.router import ChannelRouter
+from account.account_service import AccountService
+from session.session_manager import SessionManager
+from common.types import UnifiedMessage, ChannelType, SessionMetadata
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
 
@@ -50,7 +66,19 @@ async def init_dependencies(config: dict) -> tuple:
 
     context_builder = ContextBuilder()
 
-    return resource_pool, sandbox_manager, context_builder
+    account_service = AccountService()
+    session_manager = SessionManager()
+
+    channel_router = ChannelRouter()
+
+    return (
+        resource_pool,
+        sandbox_manager,
+        context_builder,
+        account_service,
+        session_manager,
+        channel_router,
+    )
 
 
 async def start_worker(config: dict) -> None:
@@ -59,20 +87,27 @@ async def start_worker(config: dict) -> None:
 
     The Worker handles the OrchestrationWorkflow and Harness Activities
     on the hpagent-task-queue. Channel listeners feed incoming messages
-    into new OrchestrationWorkflow executions.
+    into new/existing OrchestrationWorkflow executions keyed by account_id.
     """
-    pool, sandbox_mgr, ctx_builder = await init_dependencies(config)
+    (
+        pool,
+        sandbox_mgr,
+        ctx_builder,
+        account_service,
+        session_manager,
+        channel_router,
+    ) = await init_dependencies(config)
 
     # Inject into Harness Activities (brain operations)
     inject(
         context_builder=ctx_builder,
         resource_pool=pool,
         sandbox_manager=sandbox_mgr,
-        channel=None,
+        channel_router=channel_router,
     )
 
     # Connect to Temporal Server
-    temporal_host = config.get("temporal_host", "localhost:7233")
+    temporal_host = config["temporal_host"]
     client = await Client.connect(temporal_host)
 
     # Start Worker
@@ -91,46 +126,77 @@ async def start_worker(config: dict) -> None:
 
     # ── Channel: NapCat ──
     napcat = NapCatChannel()
+    channel_router.register(ChannelType.NAPCAT, napcat)
 
-    async def handle_napcat_message(message: UnifiedMessage) -> None:
-        """Start a new OrchestrationWorkflow for each incoming NapCat message."""
+    async def handle_message(message: UnifiedMessage) -> None:
+        """Route incoming message: resolve account → find session → start/signal Workflow."""
         if not message.content or not message.content.strip():
             return
+
+        ch_type = (
+            message.channel_type.value
+            if hasattr(message.channel_type, "value")
+            else str(message.channel_type)
+        )
+
+        # 1. Channel-specific ID → unified account ID
+        account_id = await account_service.resolve(ch_type, message.sender_id)
+
+        # 2. Find or create active session for this account
+        active_sessions = await session_manager.list_active_sessions(limit=1)
+        session_id = ""
+        for s in active_sessions:
+            if hasattr(s, "account_id") and s.account_id == account_id:
+                session_id = s.session_id
+                break
+
+        if not session_id:
+            session_id = await session_manager.create_session_with_id(
+                creator_id=message.sender_id,
+                channel_type=message.channel_type,
+                account_id=account_id,
+            )
+
+        # 3. workflow_id based on unified account — QQ and Web share the same workflow
+        workflow_id = f"agent-{account_id}"
+
+        # 4. Build message dict with full context
         user_message = {
             "content": message.content,
             "sender_id": message.sender_id,
-            "channel_type": message.channel_type.value
-                if hasattr(message.channel_type, "value") else str(message.channel_type),
-            "session_id": message.session_id,
+            "channel_type": ch_type,
+            "session_id": session_id,
+            "account_id": account_id,
             "metadata": message.metadata,
             "timestamp": message.timestamp,
         }
-        workflow_id = f"hpagent-{message.sender_id}"
+
+        from temporalio.exceptions import WorkflowAlreadyStartedError
         try:
-            handle = client.get_workflow_handle(workflow_id)
-            logger.info(f"Signaling existing orchestration {workflow_id}")
-        except Exception:
-            logger.info(f"Starting new orchestration {workflow_id}")
-            await client.start_workflow(
+            # 先尝试启动新工作流
+            handle = await client.start_workflow(
                 OrchestrationWorkflow.run,
                 user_message,
                 id=workflow_id,
                 task_queue="hpagent-task-queue",
             )
-
-    # Inject channel for send_response_activity
-    inject(
-        context_builder=ctx_builder,
-        resource_pool=pool,
-        sandbox_manager=sandbox_mgr,
-        channel=napcat,
-    )
+            logger.info(f"Started new orchestration {workflow_id}")
+        except WorkflowAlreadyStartedError:
+            # 已存在运行中的工作流 → 获取句柄并发送信号
+            handle = client.get_workflow_handle(workflow_id)
+            await handle.signal(OrchestrationWorkflow.new_message, user_message)
+            logger.info(f"Signaled existing orchestration {workflow_id}")
+        except Exception as e:
+            logger.exception(f"Failed to start or signal workflow {workflow_id}")
+            # 可选：通知用户错误
+            pass
+            
 
     # Run Worker + channel listener concurrently
     async with worker:
-        await napcat.start_monitor(handle_napcat_message)
+        await napcat.start_monitor(handle_message)
         logger.info(
             "Orchestration Worker started on task_queue='hpagent-task-queue', "
-            f"NapCat listening on ws://0.0.0.0:8082"
+            "NapCat listening on ws://0.0.0.0:8082"
         )
         await asyncio.Future()

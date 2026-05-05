@@ -458,6 +458,10 @@ class HarnessContextBuilder:
         if style:
             parts.append(style)
 
+        cross_channel = self._build_cross_channel_hint(events)
+        if cross_channel:
+            parts.append(cross_channel)
+
         if self._enable_tool_guidance:
             parts.append(TOOL_USE_ENFORCEMENT_GUIDANCE)
 
@@ -489,6 +493,21 @@ class HarnessContextBuilder:
             return CHAT_PERSONALITY_GUIDANCE
         if channel == ChannelType.CONSOLE:
             return CONSOLE_STYLE_GUIDANCE
+        return ""
+
+    def _build_cross_channel_hint(self, events: List[Event]) -> str:
+        """检测是否存在跨渠道对话，若有则追加提示。"""
+        channels = set()
+        for e in events:
+            if e.event_type == EventType.USER_MESSAGE:
+                ch = e.content.get("channel_type", "") if isinstance(e.content, dict) else ""
+                if ch:
+                    channels.add(ch)
+        if len(channels) > 1:
+            return (
+                "注意：用户正在通过多个客户端（{}）与你对话。"
+                "对话历史可能来自不同渠道，请无缝衔接上下文。"
+            ).format(", ".join(sorted(channels)))
         return ""
 
     def _build_environment_hints(self) -> str:

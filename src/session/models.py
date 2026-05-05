@@ -15,8 +15,9 @@ class SessionStatus(str, Enum):
 class Session:
     """会话实体，表示一次完整的对话交互"""
     session_id: str                                                # 会话唯一标识
+    account_id: str = ""                                           # 统一用户账号 ID（跨渠道关联）
     status: SessionStatus = SessionStatus.ACTIVE                   # 会话当前状态
-    creator_id: str = ""                                           # 会话创建者 ID
+    creator_id: str = ""                                           # 会话创建者 ID（渠道 sender_id）
     channel_type: str = "console"                                  # 会话来源渠道（与 ChannelType 对应）
     tags: List[str] = field(default_factory=list)                  # 会话标签，用于分类和检索
     created_at: float = field(default_factory=time.time)           # 会话创建时间戳
@@ -26,6 +27,7 @@ class Session:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "session_id": self.session_id,
+            "account_id": self.account_id,
             "status": self.status.value if isinstance(self.status, Enum) else self.status,
             "creator_id": self.creator_id,
             "channel_type": self.channel_type,
@@ -42,6 +44,7 @@ class Session:
             status = SessionStatus(status)
         return cls(
             session_id=data["session_id"],
+            account_id=data.get("account_id", ""),
             status=status or SessionStatus.ACTIVE,
             creator_id=data.get("creator_id", ""),
             channel_type=data.get("channel_type", "console"),

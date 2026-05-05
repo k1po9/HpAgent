@@ -29,10 +29,10 @@ class AppConfig:
     model: str
     max_history_turns: int
     max_turns: int
-    temporal_host: str = "localhost:7233"
+    temporal_host: str
 
 
-def load_config(config_path: str = "config.yaml") -> AppConfig:
+def load_config(config_path: str = "../config/config.yaml") -> AppConfig:
     config_file = Path(config_path)
     if not config_file.exists():
         raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -40,15 +40,15 @@ def load_config(config_path: str = "config.yaml") -> AppConfig:
     with open(config_file, "r", encoding="utf-8") as f:
         config_data = yaml.safe_load(f)
 
-    model_config = config_data.get("model", {})
-    app_config = config_data.get("app", {})
+    model_config = config_data["model"]
+    app_config = config_data["app"]
     return AppConfig(
         api_key=model_config["api_key"],
         base_url=model_config["base_url"],
         model=model_config["model"],
-        max_history_turns=app_config.get("max_history_turns", 20),
-        max_turns=app_config.get("max_turns", 20),
-        temporal_host=app_config.get("temporal_host", "localhost:7233"),
+        max_history_turns=app_config["max_history_turns"],
+        max_turns=app_config["max_turns"],
+        temporal_host=app_config["temporal_host"],
     )
 
 
@@ -70,7 +70,6 @@ async def main_async():
     print("\n=== HpAgent ===")
     print(f"Temporal Server: {config.temporal_host}")
     print("Task Queue: hpagent-task-queue")
-    print("Starting Orchestration Worker + NapCat channel...\n")
     await start_worker(worker_config)
 
 

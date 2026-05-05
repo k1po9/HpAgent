@@ -38,7 +38,7 @@ class CredentialManager:
     def __init__(self):
         self._credentials: Dict[str, Credential] = {}
         self._temp_tokens: Dict[str, Dict[str, Any]] = {}
-        # 修正：使用列表存储模型端点元数据（不存储原始 API Key）
+        # 使用列表存储模型端点元数据（不存储原始 API Key）
         self._model_endpoints: List[ModelEndpoint] = []
         self._lock = RLock()
 

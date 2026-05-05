@@ -1,43 +1,104 @@
-version: "3.8"
-
 services:
   # ==================== 主服务：HpAgent ====================
-  hpagent:
-    build: ./src
-    image: hpagent:latest
-    container_name: hpagent
-    # ---- Sysbox 运行时 ----
-    runtime: sysbox-runc
+  hpagent:  # 服务名称，用于容器间通信
+    build: ./src  # 从 ./src 目录构建Docker镜像
+    image: hpagent:latest  # 构建后的镜像名
+    container_name: hpagent  # 容器固定名称，便于管理
+    runtime: sysbox-runc  # 使用Sysbox运行时，实现轻量级容器内嵌套容器
     ports:
-      - "8082:8082"    # WebUI
-    # ---- 开发模式：挂载代码，修改即时生效 ----
+      - "8082:8082"  # 映射主机8082到容器8082端口
     # volumes:
-    #  - ./src:/app          # 把本地 src/ 挂载到容器的 /app，覆盖镜像内的旧代码
-    # ---- 网络 ----
+    #  - ./src:/app  # 挂载本地代码到容器（开发模式使用）
     networks:
-      - app-network
-    # ---- 重启策略 ----
-    restart: unless-stopped
+      - app-network  # 加入 app-network 网络
+    restart: unless-stopped  # 容器异常退出时自动重启
 
   # ==================== 前端通信：NapCat ====================
-  napcat:
-    image: mlikiowa/napcat-docker:latest
-    container_name: napcat
-    environment:
-      - NAPCAT_UID=${UID:-1000}   # 如果没设 UID，默认用 1000
-      - NAPCAT_GID=${GID:-1000}
-      - TZ=Asia/Shanghai
+  napcat:  # QQ机器人通信服务
+    image: mlikiowa/napcat-docker:latest  # NapCat官方镜像
+    container_name: napcat  # 容器名称
+    environment:  # 环境变量配置
+      - NAPCAT_UID=${UID:-1000}  # QQ运行用户ID
+      - NAPCAT_GID=${GID:-1000}  # QQ运行组ID
+      - TZ=Asia/Shanghai  # 时区设为上海
+    extra_hosts:  # 配置额外主机名解析，解决NapCat无法解析主机名的问题
+      - "host.docker.internal:host-gateway"
     ports:
-      - "6099:6099"    # WebUI
+      - "6099:6099"  # NapCat WebUI端口
+    volumes:  # 数据持久化挂载
+      - ./channel/napcat/data:/app/.napcat  # 配置文件目录
+      - ./channel/napcat/cache:/app/data/cache  # 缓存目录
+    networks:
+      - app-network  # 加入 app-network 网络
+    restart: unless-stopped  # 自动重启策略
+
+  # PostgreSQL 数据库（Temporal 内部使用）
+  temporal-postgresql:
+    image: postgres:16
+    container_name: temporal-postgresql
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: temporal
     volumes:
-      # NapCat 的配置和缓存数据保存在当前目录下的 napcat/ 文件夹
-      - ./channel/napcat/data:/app/.napcat
-      - ./channel/napcat/cache:/app/data/cache
+      - temporal-pgdata:/var/lib/postgresql/data
     networks:
       - app-network
     restart: unless-stopped
+
+  # PostgreSQL 数据库（HpAgent 应用数据：accounts, sessions, events）
+  hpagent-postgresql:
+    image: postgres:16
+    container_name: hpagent-postgresql
+    environment:
+      POSTGRES_USER: hpagent
+      POSTGRES_PASSWORD: hpagent
+      POSTGRES_DB: hpagent
+    volumes:
+      - hpagent-pgdata:/var/lib/postgresql/data
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Temporal 服务
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: temporal
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=temporal-postgresql
+    ports:
+      - "7233:7233"
+    depends_on:
+      - temporal-postgresql
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Temporal Web UI
+  temporal-web:
+    image: temporalio/ui:latest
+    container_name: temporal-web
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    ports:
+      - "8088:8088"
+    depends_on:
+      - temporal
+    networks:
+      - app-network
+    restart: unless-stopped
+
+# 声明 volume
+volumes:
+  temporal-pgdata:
+  hpagent-pgdata:
+
 
 # ==================== 网络 ====================
 networks:
-  app-network:
-    driver: bridge
+  app-network:  # 自定义bridge网络，实现容器互联
+    driver: bridge  # 桥接网络模式

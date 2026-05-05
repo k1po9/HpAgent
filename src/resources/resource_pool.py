@@ -1,12 +1,12 @@
 from typing import Dict, Any, Optional, List
-import httpx
 import json
+from .credentials import CredentialManager
 from common.interfaces import IResources
 from common.errors import ModelAPIError, ValidationError
 
 
 class ResourcePool(IResources):
-    def __init__(self, credential_manager=None):
+    def __init__(self, credential_manager: CredentialManager = None):
         self._credential_manager = credential_manager
         self._model_clients: Dict[str, Any] = {}
         self._fallback_groups: Dict[str, List[str]] = {}
@@ -56,6 +56,7 @@ class ResourcePool(IResources):
             raise ValidationError("authorization", "Invalid or expired token")
         request_headers = headers or {}
         request_headers.pop("Authorization", None)
+        import httpx
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 if method.upper() == "GET":

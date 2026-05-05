@@ -227,7 +227,7 @@ class NapCatChannel(BaseChannel):
             channel_message = await self.normalize_message(raw_message)
             if not channel_message:
                 return
-            logger.info(f"Received event: {channel_message}")
+            # logger.info(f"Received event: {channel_message}")
 
             if self._callback:
                 await self._callback(channel_message)
@@ -237,7 +237,7 @@ class NapCatChannel(BaseChannel):
                 sender_id = channel_message.sender_id
                 content = channel_message.content
 
-                logger.info(f"Received {message_type} message from {sender_id}: {content}")
+                logger.info(f"Received {message_type} message from {sender_id}: \n{content}\n\n")
 
         except json.JSONDecodeError:
             logger.warning(f"Received invalid JSON message: {raw_message}")
@@ -294,7 +294,6 @@ class NapCatChannel(BaseChannel):
                 await asyncio.Future()
 
         self._server_task = asyncio.create_task(start_server())
-        logger.info(f"NapCat channel started monitoring on {self._host}:{self._port}")
         return True
 
     async def stop_monitor(self) -> bool:
