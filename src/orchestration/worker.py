@@ -1,19 +1,19 @@
 """
-Orchestration Worker — boots the Temporal Worker that executes the OrchestrationWorkflow.
+Orchestration Worker —— Temporal Worker 启动与依赖初始化。
 
-Boot sequence:
-  1. Load config
-  2. Initialize dependencies (AccountService, SessionManager, ResourcePool,
-     SandboxManager, ContextBuilder, ChannelRouter)
-  3. Inject dependencies into Harness Activities (the brain's decomposed operations)
-  4. Connect to Temporal Server
-  5. Start Worker polling the task queue, executing Workflows + Activities
-  6. Start channel listeners → each message starts/signals an OrchestrationWorkflow
+启动序列（共 6 步）:
+  1. 加载 config.yaml → AppConfig
+  2. 初始化所有依赖 (AccountService / TemporalSessionManager / ResourcePool /
+     SandboxManager / ContextBuilder / ChannelRouter)
+  3. 将依赖注入到 Harness Activities（大脑拆解后的无状态操作）
+  4. 连接到 Temporal Server
+  5. 启动 Worker，轮询 hpagent-task-queue，执行 Workflow + Activities
+  6. 启动渠道监听器 → 每条消息启动或 signal 一个 OrchestrationWorkflow
 
-Cross-client memory:
-  - AccountService resolves channel-type+sender-id → unified account_id
-  - workflow_id = "agent-{account_id}" (shared across QQ and Web)
-  - ChannelRouter routes responses to the correct channel
+跨客户端记忆:
+  - AccountService.resolve() → channel_type + sender_id → 统一 account_id
+  - workflow_id = f"agent-{account_id}"（QQ 和 Web 共享同一个 Workflow）
+  - ChannelRouter 根据 msg.channel_type 路由响应到正确渠道
 """
 import asyncio
 import logging
@@ -39,14 +39,29 @@ from sandbox.tools.factory import ToolFactory
 from sandbox.channels.napcat import NapCatChannel
 from sandbox.channels.router import ChannelRouter
 from account.account_service import AccountService
-from session.session_manager import SessionManager
+from session.session_manager import TemporalSessionManager
 from common.types import UnifiedMessage, ChannelType, SessionMetadata
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
 
 
 async def init_dependencies(config: dict) -> tuple:
-    """Initialize all shared dependencies and return them for injection."""
+    """初始化所有共享依赖并返回供注入。
+
+    依赖清单:
+      - CredentialManager: 管理模型 API 密钥（加密存储 + 临时 token）
+      - ResourcePool:    模型调用池（退避链）
+      - SandboxManager:  沙箱管理（工具注册 + 生命周期）
+      - ContextBuilder:  上下文构建器（事件 → LLM messages）
+      - AccountService:  渠道 ID → 统一账号 ID 解析
+      - TemporalSessionManager: 会话管理（通过 Workflow Queries 读取）
+      - ChannelRouter:   多渠道响应路由
+
+    Returns:
+        (resource_pool, sandbox_manager, context_builder, account_service,
+         session_manager, channel_router)
+    """
+    # ── 凭据管理: 注册模型 API 密钥 ──
     credential_manager = CredentialManager()
     credential_manager.register_model_chain([
         ModelEndpoint(
@@ -57,18 +72,25 @@ async def init_dependencies(config: dict) -> tuple:
         ),
     ])
 
+    # ── 资源池: 加载模型客户端 ──
     resource_pool = ResourcePool(credential_manager)
     await resource_pool.initialize_models()
 
+    # ── 沙箱: 创建默认沙箱并注册内置工具 ──
     sandbox_manager = SandboxManager()
     default_tools = ToolFactory.create_default_tools()
     sandbox_manager.create_sandbox(tools=default_tools)
 
+    # ── 上下文构建器 ──
     context_builder = ContextBuilder()
 
+    # ── 账号服务 ──
     account_service = AccountService()
-    session_manager = SessionManager()
 
+    # ── 会话管理: 使用 TemporalSessionManager（通过 Workflow Query 读事件） ──
+    session_manager = TemporalSessionManager()
+
+    # ── 渠道路由器 ──
     channel_router = ChannelRouter()
 
     return (
@@ -82,12 +104,14 @@ async def init_dependencies(config: dict) -> tuple:
 
 
 async def start_worker(config: dict) -> None:
-    """
-    Full startup: init deps → connect Temporal → start Worker + channel listeners.
+    """完整启动流程: 初始化依赖 → 连接 Temporal → 启动 Worker + 渠道监听。
 
-    The Worker handles the OrchestrationWorkflow and Harness Activities
-    on the hpagent-task-queue. Channel listeners feed incoming messages
-    into new/existing OrchestrationWorkflow executions keyed by account_id.
+    Worker 在 hpagent-task-queue 上执行:
+      - Workflow: OrchestrationWorkflow（agentic loop 编排）
+      - Activities: 5 个 Harness Activity（大脑操作）
+
+    渠道监听器将所有进入的消息通过 account_id 路由到
+    对应的新/已有 OrchestrationWorkflow 实例。
     """
     (
         pool,
@@ -98,7 +122,7 @@ async def start_worker(config: dict) -> None:
         channel_router,
     ) = await init_dependencies(config)
 
-    # Inject into Harness Activities (brain operations)
+    # 注入依赖到 Harness Activities（模块级单例）
     inject(
         context_builder=ctx_builder,
         resource_pool=pool,
@@ -106,11 +130,11 @@ async def start_worker(config: dict) -> None:
         channel_router=channel_router,
     )
 
-    # Connect to Temporal Server
+    # ── 连接到 Temporal Server ──
     temporal_host = config["temporal_host"]
     client = await Client.connect(temporal_host)
 
-    # Start Worker
+    # ── 创建并启动 Worker ──
     worker = Worker(
         client,
         task_queue="hpagent-task-queue",
@@ -124,25 +148,35 @@ async def start_worker(config: dict) -> None:
         ],
     )
 
-    # ── Channel: NapCat ──
+    # ── 注册 NapCat 渠道 ──
     napcat = NapCatChannel()
     channel_router.register(ChannelType.NAPCAT, napcat)
 
     async def handle_message(message: UnifiedMessage) -> None:
-        """Route incoming message: resolve account → find session → start/signal Workflow."""
+        """渠道消息回调: 解析账号 → 查找会话 → 启动/Signal Workflow。
+
+        处理流程:
+          1. 渠道空消息过滤
+          2. channel_type + sender_id → account_id（AccountService）
+          3. 查找该 account 的活跃会话（TemporalSessionManager）
+          4. 无活跃会话 → 创建新会话
+          5. workflow_id = f"agent-{account_id}"
+          6. 尝试 start_workflow；若已存在（WorkflowAlreadyStartedError）→ signal
+        """
         if not message.content or not message.content.strip():
             return
 
+        # 统一 channel_type 格式（兼容 Enum 和字符串）
         ch_type = (
             message.channel_type.value
             if hasattr(message.channel_type, "value")
             else str(message.channel_type)
         )
 
-        # 1. Channel-specific ID → unified account ID
+        # 1. 渠道 ID → 统一 account ID
         account_id = await account_service.resolve(ch_type, message.sender_id)
 
-        # 2. Find or create active session for this account
+        # 2. 查找或创建活跃会话
         active_sessions = await session_manager.list_active_sessions(limit=1)
         session_id = ""
         for s in active_sessions:
@@ -157,10 +191,10 @@ async def start_worker(config: dict) -> None:
                 account_id=account_id,
             )
 
-        # 3. workflow_id based on unified account — QQ and Web share the same workflow
+        # 3. workflow_id 基于统一账号 —— QQ 和 Web 共享同一个 Workflow
         workflow_id = f"agent-{account_id}"
 
-        # 4. Build message dict with full context
+        # 4. 构造 Workflow 入参
         user_message = {
             "content": message.content,
             "sender_id": message.sender_id,
@@ -173,7 +207,7 @@ async def start_worker(config: dict) -> None:
 
         from temporalio.exceptions import WorkflowAlreadyStartedError
         try:
-            # 先尝试启动新工作流
+            # 尝试启动新 Workflow
             handle = await client.start_workflow(
                 OrchestrationWorkflow.run,
                 user_message,
@@ -182,21 +216,19 @@ async def start_worker(config: dict) -> None:
             )
             logger.info(f"Started new orchestration {workflow_id}")
         except WorkflowAlreadyStartedError:
-            # 已存在运行中的工作流 → 获取句柄并发送信号
+            # Workflow 已在运行 → 通过 signal 入队新消息
             handle = client.get_workflow_handle(workflow_id)
             await handle.signal(OrchestrationWorkflow.new_message, user_message)
             logger.info(f"Signaled existing orchestration {workflow_id}")
         except Exception as e:
             logger.exception(f"Failed to start or signal workflow {workflow_id}")
-            # 可选：通知用户错误
-            pass
-            
 
-    # Run Worker + channel listener concurrently
+    # ── 并发运行 Worker + 渠道监听 ──
     async with worker:
         await napcat.start_monitor(handle_message)
         logger.info(
             "Orchestration Worker started on task_queue='hpagent-task-queue', "
             "NapCat listening on ws://0.0.0.0:8082"
         )
+        # asyncio.Future() 永不完成 → Worker 一直运行
         await asyncio.Future()

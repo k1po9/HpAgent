@@ -1,0 +1,15 @@
+# config/dynamicconfig/development-sql.yaml
+frontend.enableClientVersionCheck:
+  - value: true
+frontend.workerVersioningDataAPIs:
+  - value: true
+frontend.workerVersioningWorkflowAPIs:
+  - value: true
+system.enableEagerWorkflowStart:
+  - value: true
+frontend.enableUpdateWorkflowExecution:
+  - value: true
+frontend.enableUpdateWorkflowExecutionAsyncAccepted:
+  - value: true
+component.worker.buildIdScavenger.enabled:
+  - value: true
