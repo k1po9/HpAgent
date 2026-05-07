@@ -1,14 +1,21 @@
 """
 Orchestration Worker —— Temporal Worker 启动与依赖初始化。
 
-启动序列（共 6 步）:
+启动序列（共 7 步）:
   1. 加载 config.yaml → AppConfig
-  2. 初始化所有依赖 (AccountService / TemporalSessionManager / ResourcePool /
+  2. 初始化 Redis 连接（按需）
+  3. 初始化 nsjail 沙箱配置
+  4. 初始化所有依赖 (AccountService / TemporalSessionManager / ResourcePool /
      SandboxManager / ContextBuilder / ChannelRouter)
-  3. 将依赖注入到 Harness Activities（大脑拆解后的无状态操作）
-  4. 连接到 Temporal Server
-  5. 启动 Worker，轮询 hpagent-task-queue，执行 Workflow + Activities
-  6. 启动渠道监听器 → 每条消息启动或 signal 一个 OrchestrationWorkflow
+  5. 将依赖注入到 Harness Activities（大脑拆解后的无状态操作）
+  6. 连接到 Temporal Server
+  7. 启动 Worker，轮询 hpagent-task-queue，执行 Workflow + Activities
+  8. 启动渠道监听器 → 每条消息启动或 signal 一个 OrchestrationWorkflow
+
+v6 变更:
+  - 新增 Redis 连接初始化（用于工具执行结果持久化）
+  - 新增 NsjailConfig 配置（用于 nsjail 子进程隔离执行）
+  - SandboxManager 接受 nsjail 配置 + Redis 客户端
 
 跨客户端记忆:
   - AccountService.resolve() → channel_type + sender_id → 统一 account_id
@@ -17,6 +24,7 @@ Orchestration Worker —— Temporal Worker 启动与依赖初始化。
 """
 import asyncio
 import logging
+import os
 from typing import Optional, Callable, Awaitable, Dict, Any
 
 from temporalio.client import Client
@@ -29,12 +37,14 @@ from harness.activities import (
     call_model_activity,
     execute_tool_activity,
     send_response_activity,
+    get_tool_result_activity,
 )
 from orchestration.workflow import OrchestrationWorkflow
 from harness.context_builder import HarnessContextBuilder as ContextBuilder
 from resources.resource_pool import ResourcePool
 from resources.credentials import CredentialManager, ModelEndpoint
 from sandbox.sandbox_manager import SandboxManager
+from sandbox.nsjail import NsjailConfig
 from sandbox.tools.factory import ToolFactory
 from sandbox.channels.napcat import NapCatChannel
 from sandbox.channels.router import ChannelRouter
@@ -50,16 +60,18 @@ async def init_dependencies(config: dict) -> tuple:
 
     依赖清单:
       - CredentialManager: 管理模型 API 密钥（加密存储 + 临时 token）
-      - ResourcePool:    模型调用池（退避链）
-      - SandboxManager:  沙箱管理（工具注册 + 生命周期）
-      - ContextBuilder:  上下文构建器（事件 → LLM messages）
-      - AccountService:  渠道 ID → 统一账号 ID 解析
+      - ResourcePool:      模型调用池（退避链）
+      - redis_cache:       Redis 缓存客户端（None 时回退为不持久化）
+      - nsjail_config:     nsjail 沙箱配置
+      - SandboxManager:    沙箱管理（工具注册 + nsjail 执行 + 生命周期）
+      - ContextBuilder:    上下文构建器（事件 → LLM messages）
+      - AccountService:    渠道 ID → 统一账号 ID 解析
       - TemporalSessionManager: 会话管理（通过 Workflow Queries 读取）
-      - ChannelRouter:   多渠道响应路由
+      - ChannelRouter:     多渠道响应路由
 
     Returns:
         (resource_pool, sandbox_manager, context_builder, account_service,
-         session_manager, channel_router)
+         session_manager, channel_router, redis_cache)
     """
     # ── 凭据管理: 注册模型 API 密钥 ──
     credential_manager = CredentialManager()
@@ -76,8 +88,47 @@ async def init_dependencies(config: dict) -> tuple:
     resource_pool = ResourcePool(credential_manager)
     await resource_pool.initialize_models()
 
+    # ── Redis 连接（按需启用） ──
+    redis_cache = None
+    redis_url = config.get("redis_url", os.getenv("REDIS_URL", ""))
+    if redis_url:
+        try:
+            import redis.asyncio as aioredis
+            from storage.redis import RedisCache
+            redis_client = aioredis.from_url(redis_url, decode_responses=False)
+            redis_cache = RedisCache(redis_client)
+            logger.info("Redis connected for sandbox result persistence: %s", redis_url)
+        except Exception as e:
+            logger.warning("Failed to connect Redis (%s), sandbox results will not be persisted: %s", redis_url, e)
+
+    # ── nsjail 沙箱配置 ──
+    nsjail_config = NsjailConfig(
+        nsjail_binary=config.get("nsjail_binary", "/usr/bin/nsjail"),
+        chroot_path=config.get("sandbox_chroot", "/"),
+        work_dir=config.get("sandbox_work_dir", "/work"),
+        runner_script=config.get("sandbox_runner", "/work/runner.py"),
+        python_binary=config.get("sandbox_python", "/usr/bin/python3"),
+        time_limit=config.get("sandbox_timeout", 30),
+        memory_limit_mb=config.get("sandbox_memory_mb", 256),
+        cpu_limit_seconds=config.get("sandbox_cpu_seconds", 10),
+        max_processes=config.get("sandbox_max_procs", 32),
+        max_files=config.get("sandbox_max_files", 64),
+        disable_proc=config.get("sandbox_disable_proc", True),
+        disable_network=config.get("sandbox_disable_network", True),
+        readonly_root=config.get("sandbox_readonly_root", True),
+    )
+    logger.info(
+        "Nsjail configured: binary=%s, chroot=%s, timeout=%ds",
+        nsjail_config.nsjail_binary,
+        nsjail_config.chroot_path,
+        nsjail_config.time_limit,
+    )
+
     # ── 沙箱: 创建默认沙箱并注册内置工具 ──
-    sandbox_manager = SandboxManager()
+    sandbox_manager = SandboxManager(
+        nsjail_config=nsjail_config,
+        redis_cache=redis_cache,
+    )
     default_tools = ToolFactory.create_default_tools()
     sandbox_manager.create_sandbox(tools=default_tools)
 
@@ -100,6 +151,7 @@ async def init_dependencies(config: dict) -> tuple:
         account_service,
         session_manager,
         channel_router,
+        redis_cache,
     )
 
 
@@ -108,7 +160,7 @@ async def start_worker(config: dict) -> None:
 
     Worker 在 hpagent-task-queue 上执行:
       - Workflow: OrchestrationWorkflow（agentic loop 编排）
-      - Activities: 5 个 Harness Activity（大脑操作）
+      - Activities: 6 个 Harness Activity（含 nsjail 工具执行 + Redis 持久化）
 
     渠道监听器将所有进入的消息通过 account_id 路由到
     对应的新/已有 OrchestrationWorkflow 实例。
@@ -120,6 +172,7 @@ async def start_worker(config: dict) -> None:
         account_service,
         session_manager,
         channel_router,
+        redis_cache,
     ) = await init_dependencies(config)
 
     # 注入依赖到 Harness Activities（模块级单例）
@@ -128,6 +181,7 @@ async def start_worker(config: dict) -> None:
         resource_pool=pool,
         sandbox_manager=sandbox_mgr,
         channel_router=channel_router,
+        redis_cache=redis_cache,
     )
 
     # ── 连接到 Temporal Server ──
@@ -145,6 +199,7 @@ async def start_worker(config: dict) -> None:
             call_model_activity,
             execute_tool_activity,
             send_response_activity,
+            get_tool_result_activity,
         ],
     )
 
@@ -166,17 +221,14 @@ async def start_worker(config: dict) -> None:
         if not message.content or not message.content.strip():
             return
 
-        # 统一 channel_type 格式（兼容 Enum 和字符串）
         ch_type = (
             message.channel_type.value
             if hasattr(message.channel_type, "value")
             else str(message.channel_type)
         )
 
-        # 1. 渠道 ID → 统一 account ID
         account_id = await account_service.resolve(ch_type, message.sender_id)
 
-        # 2. 查找或创建活跃会话
         active_sessions = await session_manager.list_active_sessions(limit=1)
         session_id = ""
         for s in active_sessions:
@@ -191,10 +243,8 @@ async def start_worker(config: dict) -> None:
                 account_id=account_id,
             )
 
-        # 3. workflow_id 基于统一账号 —— QQ 和 Web 共享同一个 Workflow
         workflow_id = f"agent-{account_id}"
 
-        # 4. 构造 Workflow 入参
         user_message = {
             "content": message.content,
             "sender_id": message.sender_id,
@@ -207,7 +257,6 @@ async def start_worker(config: dict) -> None:
 
         from temporalio.exceptions import WorkflowAlreadyStartedError
         try:
-            # 尝试启动新 Workflow
             handle = await client.start_workflow(
                 OrchestrationWorkflow.run,
                 user_message,
@@ -216,7 +265,6 @@ async def start_worker(config: dict) -> None:
             )
             logger.info(f"Started new orchestration {workflow_id}")
         except WorkflowAlreadyStartedError:
-            # Workflow 已在运行 → 通过 signal 入队新消息
             handle = client.get_workflow_handle(workflow_id)
             await handle.signal(OrchestrationWorkflow.new_message, user_message)
             logger.info(f"Signaled existing orchestration {workflow_id}")
@@ -230,5 +278,4 @@ async def start_worker(config: dict) -> None:
             "Orchestration Worker started on task_queue='hpagent-task-queue', "
             "NapCat listening on ws://0.0.0.0:8082"
         )
-        # asyncio.Future() 永不完成 → Worker 一直运行
         await asyncio.Future()

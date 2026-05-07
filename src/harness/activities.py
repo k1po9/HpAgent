@@ -5,18 +5,21 @@ Temporal Activities —— Harness 层拆解后的大脑操作。
 由 Temporal Workflow 通过 execute_activity 调用。
 Activities 自身无状态 —— 全部依赖在 Worker 启动时通过 inject() 注入。
 
-5 个 Activity 对应 agentic loop 的 5 个步骤：
-  1. build_context_activity     → 事件历史 → LLM messages 列表
-  2. get_available_tools_activity → 从所有活跃沙箱收集工具定义
-  3. call_model_activity         → 调用 LLM（含退避）
-  4. execute_tool_activity       → 在沙箱中执行工具
-  5. send_response_activity      → 通过 ChannelRouter 发送最终回复
+6 个 Activity:
+  1. build_context_activity        → 事件历史 → LLM messages 列表
+  2. get_available_tools_activity  → 从所有活跃沙箱收集工具定义
+  3. call_model_activity           → 调用 LLM（含退避）
+  4. execute_tool_activity         → 通过 nsjail 子进程执行工具 + Redis 持久化
+  5. send_response_activity        → 通过 ChannelRouter 发送最终回复
+  6. get_tool_result_activity      → 从 Redis 查询历史执行结果
 
 注入机制（inject 函数）：
   为避免闭包变量问题，使用模块级全局变量 _context_builder 等，
   在 Worker 启动时调用 inject() 一次性注入。
 """
 from typing import List, Dict, Any, Optional
+import time
+import uuid
 
 from temporalio import activity
 
@@ -30,6 +33,7 @@ _context_builder = None      # HarnessContextBuilder 实例
 _resource_pool = None        # ResourcePool 实例
 _sandbox_manager = None      # SandboxManager 实例
 _channel_router = None       # ChannelRouter 实例
+_redis_cache = None          # RedisCache 实例（None 时不持久化）
 
 
 def inject(
@@ -37,17 +41,18 @@ def inject(
     resource_pool=None,
     sandbox_manager=None,
     channel_router=None,
+    redis_cache=None,
 ) -> None:
     """在 Worker 启动前注入共享依赖（仅调用一次）。
 
-    这 4 个依赖会被所有 5 个 Activity 使用。
     Temporal Activity 要求函数无闭包状态，因此使用模块级变量而非闭包捕获。
     """
-    global _context_builder, _resource_pool, _sandbox_manager, _channel_router
+    global _context_builder, _resource_pool, _sandbox_manager, _channel_router, _redis_cache
     _context_builder = context_builder
     _resource_pool = resource_pool
     _sandbox_manager = sandbox_manager
     _channel_router = channel_router
+    _redis_cache = redis_cache
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -125,7 +130,6 @@ async def call_model_activity(
         tools=tools if tools else None,
         stream=False,
     )
-    # 将 ModelResponse dataclass 转换为 JSON 可序列化的 dict（Temporal 要求）
     return {
         "content": response.content,
         "tool_calls": [
@@ -137,7 +141,7 @@ async def call_model_activity(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Activity 4: 执行工具 —— 在沙箱中执行指定工具
+# Activity 4: 执行工具 —— 通过 nsjail 子进程隔离执行 + Redis 持久化
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @activity.defn
@@ -145,17 +149,21 @@ async def execute_tool_activity(
     tool_name: str,
     arguments: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """在沙箱中执行工具并返回结果。
+    """在沙箱中通过 nsjail 子进程执行工具并持久化结果到 Redis。
 
-    遍历所有活跃沙箱，找到第一个注册了该工具的沙箱并执行。
-    如果所有沙箱都没有该工具，返回错误。
+    流程:
+      1. 遍历活跃沙箱，找到注册了该工具的沙箱
+      2. 沙箱内部通过 NsjailExecutor 启动 nsjail 子进程执行
+      3. 解析 runner.py 的 JSON 输出
+      4. 将结果写入 Redis（如已配置）
+      5. 返回结果字典
 
     Args:
         tool_name: 工具名称（如 "calculator"）。
         arguments: 工具参数字典。
 
     Returns:
-        {"output": Any, "error": str|None}
+        {"output": Any, "error": str|None, "execution_id": str|None}
     """
     for sandbox_info in _sandbox_manager.list_sandboxes():
         if sandbox_info["status"] != "active":
@@ -163,10 +171,14 @@ async def execute_tool_activity(
         sandbox = _sandbox_manager.get_sandbox(sandbox_info["sandbox_id"])
         if sandbox.has_tool(tool_name):
             result = await sandbox.execute(tool_name, arguments)
-            if hasattr(result, "to_dict"):
-                return result.to_dict()
-            return {"output": str(result), "error": None}
-    return {"output": None, "error": f"Tool '{tool_name}' not found"}
+            response = result.to_dict() if hasattr(result, "to_dict") else {"output": str(result), "error": None}
+
+            # 附加 execution_id（由 NsjailExecutor 生成并写入 metadata）
+            if hasattr(result, "metadata") and result.metadata:
+                response["execution_id"] = result.metadata.get("execution_id")
+
+            return response
+    return {"output": None, "error": f"Tool '{tool_name}' not found", "execution_id": None}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -193,7 +205,6 @@ async def send_response_activity(
     if _channel_router is None:
         return False
 
-    # 兼容字符串和枚举两种 channel_type 格式
     ch_type = user_message.get("channel_type", "console")
     if isinstance(ch_type, str):
         try:
@@ -210,3 +221,25 @@ async def send_response_activity(
         metadata=user_message.get("metadata", {}),
     )
     return await _channel_router.send(msg)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Activity 6: 查询工具执行结果 —— 从 Redis 获取历史执行记录
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@activity.defn
+async def get_tool_result_activity(execution_id: str) -> Optional[Dict[str, Any]]:
+    """从 Redis 查询指定 execution_id 的历史执行结果。
+
+    供 Workflow 在需要回溯工具执行上下文时调用。
+
+    Args:
+        execution_id: 执行 ID（由 execute_tool_activity 返回）。
+
+    Returns:
+        结果字典（含 tool_name / arguments / result / timestamp / elapsed_ms），
+        或 None（已过期/未配置 Redis）。
+    """
+    if _redis_cache is None:
+        return None
+    return await _redis_cache.get_json(f"sandbox:result:{execution_id}")
