@@ -50,6 +50,7 @@ from sandbox.channels.napcat import NapCatChannel
 from sandbox.channels.router import ChannelRouter
 from account.account_service import AccountService
 from session.session_manager import TemporalSessionManager
+from workspace.manager import WorkspaceManager
 from common.types import UnifiedMessage, ChannelType, SessionMetadata
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
@@ -124,10 +125,21 @@ async def init_dependencies(config: dict) -> tuple:
         nsjail_config.time_limit,
     )
 
+    # ── 工作区: 多用户持久化工作目录 ──
+    from pathlib import Path
+    workspace_root = config.get("workspace_root", "users_workspace")
+    workspace_db = config.get("workspace_db", "")
+    workspace_manager = WorkspaceManager(
+        root=Path(workspace_root),
+        db_path=workspace_db or None,
+    )
+    logger.info("WorkspaceManager initialized: root=%s", workspace_manager.root)
+
     # ── 沙箱: 创建默认沙箱并注册内置工具 ──
     sandbox_manager = SandboxManager(
         nsjail_config=nsjail_config,
         redis_cache=redis_cache,
+        workspace_manager=workspace_manager,
     )
     default_tools = ToolFactory.create_default_tools()
     sandbox_manager.create_sandbox(tools=default_tools)
@@ -152,6 +164,7 @@ async def init_dependencies(config: dict) -> tuple:
         session_manager,
         channel_router,
         redis_cache,
+        workspace_manager,
     )
 
 
@@ -173,6 +186,7 @@ async def start_worker(config: dict) -> None:
         session_manager,
         channel_router,
         redis_cache,
+        workspace_manager,
     ) = await init_dependencies(config)
 
     # 注入依赖到 Harness Activities（模块级单例）
@@ -182,6 +196,7 @@ async def start_worker(config: dict) -> None:
         sandbox_manager=sandbox_mgr,
         channel_router=channel_router,
         redis_cache=redis_cache,
+        workspace_manager=workspace_manager,
     )
 
     # ── 连接到 Temporal Server ──
@@ -257,6 +272,21 @@ async def start_worker(config: dict) -> None:
 
         from temporalio.exceptions import WorkflowAlreadyStartedError
         try:
+            # 为新 Workflow 创建会话工作区并挂载到 nsjail
+            workspace_manager.ensure_user(account_id)
+            ws_session = workspace_manager.create_session(
+                user_uuid=account_id,
+                session_id=session_id,
+                task_summary=message.content[:100],
+            )
+            sandbox_mgr.create_session_sandbox(
+                user_uuid=account_id,
+                session_id=session_id,
+                tools=ToolFactory.create_default_tools(),
+            )
+            user_message["workspace_user_uuid"] = account_id
+            user_message["workspace_session_id"] = session_id
+
             handle = await client.start_workflow(
                 OrchestrationWorkflow.run,
                 user_message,

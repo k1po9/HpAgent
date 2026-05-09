@@ -77,10 +77,22 @@ class NsjailConfig:
     disable_proc: bool = True       # 禁用 /proc 挂载（防止信息泄漏）
     disable_network: bool = True    # 禁用 lo 接口（防止网络访问）
 
+    # ── 工作区绑载挂载 ──
+    bind_mounts: list[str] = field(default_factory=list)
+    # 格式: ["/host/path:/jail/path:rw", "/host/skills:/skills:ro"]
+    # rw 的通过 --bindmount 挂载，ro 的通过 --bindmount_ro 挂载
+
     # ── 日志 ──
     really_quiet: bool = True       # 抑制 nsjail 自身的日志输出
 
-    def build_command(self, tool_name: str, arguments: dict) -> list[str]:
+    def build_command(
+        self,
+        tool_name: str,
+        arguments: dict,
+        *,
+        extra_bind_mounts: Optional[list[str]] = None,
+        override_work_dir: Optional[str] = None,
+    ) -> list[str]:
         """将配置编译为完整的 nsjail 命令行参数列表。
 
         Args:
@@ -116,15 +128,32 @@ class NsjailConfig:
         if self.really_quiet:
             cmd.append("--really_quiet")
 
+        # ── 绑载挂载: 工作区 + 技能目录 ──
+        all_mounts = list(self.bind_mounts)
+        if extra_bind_mounts:
+            all_mounts.extend(extra_bind_mounts)
+        for mount_spec in all_mounts:
+            # 格式: "/host/path:/jail/path" 或 "/host/path:/jail/path:rw" 或 "...:ro"
+            parts = mount_spec.rsplit(":", 1)
+            if len(parts) == 3 and parts[2] == "ro":
+                cmd += ["--bindmount_ro", f"{parts[0]}:{parts[1]}"]
+            else:
+                cmd += ["--bindmount", mount_spec if ":" in mount_spec else mount_spec]
+
         # 被 nsjail 执行的命令及其参数
+        work_dir = override_work_dir or self.work_dir
         args_json = json.dumps(arguments, ensure_ascii=False)
         cmd += [
             "--",
-            self.python_binary,
-            self.runner_script,
+            str(self.python_binary),
+            str(self.runner_script),
             tool_name,
             args_json,
         ]
+        # 如果覆盖了 work_dir，同步更新 --cwd
+        if override_work_dir:
+            cwd_idx = cmd.index("--cwd") + 1
+            cmd[cwd_idx] = work_dir
         return cmd
 
 
@@ -164,12 +193,14 @@ class NsjailExecutor:
         arguments: dict,
         *,
         persist: bool = True,
+        extra_bind_mounts: Optional[list[str]] = None,
+        work_dir: Optional[str] = None,
     ) -> ToolResult:
         """通过 nsjail 子进程执行工具调用。
 
         完整流程:
           1. 生成 execution_id
-          2. 构建 nsjail 命令
+          2. 构建 nsjail 命令（含可选的 workspace bind mounts）
           3. 异步执行子进程
           4. 解析 stdout JSON
           5. 可选持久化到 Redis
@@ -179,15 +210,22 @@ class NsjailExecutor:
             tool_name: 工具名称（如 "calculator"）。
             arguments: 工具参数字典。
             persist: 是否将结果写入 Redis（默认 True）。
+            extra_bind_mounts: 额外的 bind mount 参数列表。
+            work_dir: 覆盖默认工作目录（用于 per-session workspace）。
 
         Returns:
             ToolResult 实例。
         """
         execution_id = str(uuid.uuid4())
         start_time = time.time()
-        cmd = self.config.build_command(tool_name, arguments)
+        cmd = self.config.build_command(
+            tool_name,
+            arguments,
+            extra_bind_mounts=extra_bind_mounts,
+            override_work_dir=work_dir,
+        )
 
-        logger.debug("nsjail exec [%s]: %s", execution_id, " ".join(cmd))
+        logger.debug("nsjail exec [%s]: %s", execution_id, " ".join(str(a) for a in cmd))
 
         try:
             proc = await asyncio.create_subprocess_exec(

@@ -34,6 +34,7 @@ _resource_pool = None        # ResourcePool 实例
 _sandbox_manager = None      # SandboxManager 实例
 _channel_router = None       # ChannelRouter 实例
 _redis_cache = None          # RedisCache 实例（None 时不持久化）
+_workspace_manager = None    # WorkspaceManager 实例（None 时不启用工作区）
 
 
 def inject(
@@ -42,17 +43,19 @@ def inject(
     sandbox_manager=None,
     channel_router=None,
     redis_cache=None,
+    workspace_manager=None,
 ) -> None:
     """在 Worker 启动前注入共享依赖（仅调用一次）。
 
     Temporal Activity 要求函数无闭包状态，因此使用模块级变量而非闭包捕获。
     """
-    global _context_builder, _resource_pool, _sandbox_manager, _channel_router, _redis_cache
+    global _context_builder, _resource_pool, _sandbox_manager, _channel_router, _redis_cache, _workspace_manager
     _context_builder = context_builder
     _resource_pool = resource_pool
     _sandbox_manager = sandbox_manager
     _channel_router = channel_router
     _redis_cache = redis_cache
+    _workspace_manager = workspace_manager
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -243,3 +246,100 @@ async def get_tool_result_activity(execution_id: str) -> Optional[Dict[str, Any]
     if _redis_cache is None:
         return None
     return await _redis_cache.get_json(f"sandbox:result:{execution_id}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Activity 7: 准备会话工作区 —— 确保用户目录和会话沙箱就绪
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@activity.defn
+async def prepare_workspace_activity(
+    user_uuid: str,
+    session_id: str,
+    task_summary: str = "",
+) -> Dict[str, Any]:
+    """确保会话工作区已初始化，创建对应的 nsjail 沙箱。
+
+    此 Activity 在 agentic loop 开始前调用一次，保证:
+      1. 用户工作目录存在
+      2. 会话子目录结构完整
+      3. 对应的 nsjail 沙箱已创建并绑载 workspace
+
+    Args:
+        user_uuid: 用户 UUID。
+        session_id: 会话 ID。
+        task_summary: 初始任务描述。
+
+    Returns:
+        {"user_uuid": str, "session_id": str, "workspace_path": str, "ok": bool}
+    """
+    if _workspace_manager is None:
+        return {"ok": False, "error": "WorkspaceManager not configured"}
+
+    try:
+        _workspace_manager.ensure_user(user_uuid)
+        session = _workspace_manager.create_session(
+            user_uuid=user_uuid,
+            session_id=session_id,
+            task_summary=task_summary,
+        )
+        _sandbox_manager.create_session_sandbox(
+            user_uuid=user_uuid,
+            session_id=session_id,
+        )
+        workspace_path = str(
+            _workspace_manager.get_session_work_dir(user_uuid, session_id)
+        )
+        return {
+            "ok": True,
+            "user_uuid": user_uuid,
+            "session_id": session_id,
+            "workspace_path": workspace_path,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Activity 8: 结束会话工作区 —— 更新会话状态并注册产出物
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@activity.defn
+async def finalize_workspace_activity(
+    session_id: str,
+    status: str = "completed",
+    task_summary: str = "",
+    artifacts: Optional[List[Dict[str, str]]] = None,
+) -> Dict[str, Any]:
+    """结束会话并注册产出物。
+
+    Args:
+        session_id: 会话 ID。
+        status: 结束状态 ("completed" / "failed")。
+        task_summary: 最终任务摘要。
+        artifacts: 产出物列表 [{"file_path": "...", "file_type": "..."}, ...]。
+
+    Returns:
+        {"ok": bool, "artifacts_count": int}
+    """
+    if _workspace_manager is None:
+        return {"ok": False, "error": "WorkspaceManager not configured"}
+
+    try:
+        from workspace.models import SessionStatus
+        ws_status = SessionStatus.COMPLETED if status == "completed" else SessionStatus.FAILED
+        _workspace_manager.end_session(session_id, ws_status, task_summary)
+
+        count = 0
+        if artifacts:
+            for art in artifacts:
+                _workspace_manager.register_artifact(
+                    session_id=session_id,
+                    file_path=art.get("file_path", ""),
+                    file_type=art.get("file_type", ""),
+                )
+                count += 1
+
+        return {"ok": True, "artifacts_count": count}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
