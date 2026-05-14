@@ -281,8 +281,6 @@ class NapCatChannel(BaseChannel):
                 client.send(json.dumps(payload))
                 for client in self._connected_clients
             ]
-            # 根据实际风控要求调整延迟，此处保留简单等待
-            await asyncio.sleep(2)
             await asyncio.gather(*send_tasks)
             logger.info(f"Sent message to NapCat clients: {message.content}")
             return True

@@ -32,11 +32,15 @@ class ModelClient:
     def __init__(self, config: Dict[str, Any]):
         """
         Args:
-            config: {"api_key": str, "base_url": str, "model": str}
+            config: {"api_key": str, "base_url": str, "model": str,
+                     "max_tokens": int (optional, default 2048),
+                     "timeout": float (optional, default 30.0)}
         """
         self.api_key = config["api_key"]
-        self.base_url = config["base_url"].rstrip("/")    # 去掉尾部斜杠，拼接 /messages
+        self.base_url = config["base_url"].rstrip("/")
         self.model = config["model"]
+        self._max_tokens = config.get("max_tokens", 2048)
+        self._timeout = config.get("timeout", 30.0)
         self._tools: List[Dict[str, Any]] = []
 
     def set_tools(self, tools: List[Dict[str, Any]]) -> None:
@@ -71,15 +75,17 @@ class ModelClient:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
-        payload = {
+        payload: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
-            "max_tokens": 2048,
+            "max_tokens": self._max_tokens,
         }
+        if tools:
+            payload["tools"] = tools
         if stream:
             payload["stream"] = True
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
             try:
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()

@@ -38,3 +38,7 @@ ENV/
 *.log
 channel/
 .claude/
+
+# 运行时数据（用户工作区、会话备份）
+users_workspace/
+src/data/

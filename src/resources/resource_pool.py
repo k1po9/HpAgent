@@ -61,11 +61,18 @@ class ResourcePool(IResources):
         client_ids = []
         for ep in endpoints:
             client_id = f"{ep.provider}:{ep.model}"
-            client = ModelClient(config={
+            client_cfg: Dict[str, Any] = {
                 "api_key": ep.api_key,
                 "base_url": ep.base_url,
                 "model": ep.model,
-            })
+            }
+            # 从 extra 字段传递 max_tokens / timeout
+            if ep.extra:
+                if "max_tokens" in ep.extra:
+                    client_cfg["max_tokens"] = ep.extra["max_tokens"]
+                if "timeout" in ep.extra:
+                    client_cfg["timeout"] = ep.extra["timeout"]
+            client = ModelClient(config=client_cfg)
             self._model_clients[client_id] = {"client": client, "priority": 0}
             client_ids.append(client_id)
 
@@ -154,6 +161,16 @@ class ResourcePool(IResources):
             *fallbacks: 备用模型 ID 序列（按优先级降序）。
         """
         self._fallback_groups[group_name] = [primary] + list(fallbacks)
+
+    def configure_fallback_group(self, group_name: str, model_ids: List[str]) -> None:
+        """批量配置退避链（从列表直接设置）。
+
+        Args:
+            group_name: 退避组名称（如 "chat"、"embedding"）。
+            model_ids: 有序的模型 ID 列表。
+        """
+        if model_ids:
+            self._fallback_groups[group_name] = list(model_ids)
 
     async def generate(
         self,

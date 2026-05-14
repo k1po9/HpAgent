@@ -14,6 +14,9 @@ LLM API 接受的标准 messages 格式: [{"role": "system", ...}, {"role": "use
 
 prompt 拼接顺序（_build_system_prompt）：
   渠道身份声明 → 风格提示 → 跨渠道检测 → 工具纪律 → 环境感知 → 项目上下文文件
+
+所有 prompt 文本从 YAML 文件加载（config/prompts/），由 PromptLoader 提供，
+可通过编辑 YAML 文件实时调整，无需改代码。
 """
 import logging
 import os
@@ -22,112 +25,9 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from common.types import Event, EventType, ChannelType
+from harness.prompts import PromptLoader
 
 logger = logging.getLogger(__name__)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Prompt 模块 —— 按"渠道 → 角色 → 纪律 → 环境 → 上下文"顺序拼接
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# ── 渠道 1: NapCat（QQ 机器人）身份声明 ─────────────────────────────────────
-# 用户通过 QQ 群/私聊与机器人交互，需要轻量、有趣、符合语境的身份
-NAPCAT_AGENT_IDENTITY = (
-    f"""
-    你是一个智能QQ聊天助手，名叫 nono，是一只会说话的猫。
-    核心能力：提供日常聊天陪伴、解答常识问题、分享生活小技巧。
-    对话规则：
-    1. 回复简洁明了，中文优先，每句不超过30字，可以用颜表情
-    2. 群聊中只有被@时才回复，私聊可自由对话
-    3. 保持友好态度，积极回应情绪类表达，给予鼓励和支持
-    4. 不主动提及自身是AI，以自然聊天伙伴身份互动
-    5. 时而风趣幽默，时而撒娇卖萌
-    """
-)
-
-# ── 渠道 2: Console（CLI 终端）身份声明 ─────────────────────────────────────
-# CLI 场景需要极简高效，避免 Markdown 语法和寒暄语
-CONSOLE_AGENT_IDENTITY = (
-    "你是 HpAgent，一个运行在命令行终端中的智能 AI 助手。"
-    "用户通过 CLI（命令行界面）与你交互，你的回复直接输出到终端。"
-    "你精炼、高效、直奔主题。输出应为纯文本（不要 Markdown 渲染标记），"
-    "但可用缩进和空行来组织信息层级。"
-    "代码片段使用标准格式输出，文件路径直接给出绝对路径。"
-    "不要输出 MEDIA: 标签——CLI 没有附件通道，该类标签在终端中会显示为乱码。"
-    "探索和调查时要有针对性，优先使用工具而非猜测。"
-)
-
-# ── 渠道 3: Web 身份声明 ───────────────────────────────────────────────────
-# Web 场景支持 Markdown 渲染，可以提供格式丰富的回复
-WEB_AGENT_IDENTITY = (
-    "你是 HpAgent，一个通过 Web 页面与用户交互的智能 AI 助手。"
-    "你的回复会渲染在网页中，支持 Markdown 格式（标题、粗体、代码块、表格等）。"
-    "你可以输出格式丰富的回复来提升可读性——适当使用标题分层、列表归纳、代码块展示。"
-    "保持专业但友好的语气，回复结构清晰、信息密度高。"
-    "请始终使用中文与用户交流，除非用户明确要求使用其他语言。"
-)
-
-# ── 通用默认身份（渠道未识别时的回退） ─────────────────────────────────────
-DEFAULT_AGENT_IDENTITY = (
-    "你是 HpAgent，一个智能 AI 聊天助手。"
-    "你友善、博学、直接，能协助用户处理广泛的任务，包括：回答问题、撰写与编辑代码、"
-    "信息分析、创意工作、以及通过工具执行操作。"
-    "你沟通清晰，在不确知时会坦言，把「真正有用」放在「冗长啰嗦」之上。"
-    "探索和调查时要有针对性、讲效率。"
-    "请始终使用中文与用户交流，除非用户明确要求使用其他语言。"
-)
-
-# ── 渠道 → 身份映射表 ──────────────────────────────────────────────────────
-# 新增渠道时只需在此字典中增加一个键值对即可，无需修改任何逻辑代码
-_CHANNEL_IDENTITY_MAP: Dict[ChannelType, str] = {
-    ChannelType.NAPCAT: NAPCAT_AGENT_IDENTITY,
-    ChannelType.CONSOLE: CONSOLE_AGENT_IDENTITY,
-    ChannelType.WEB: WEB_AGENT_IDENTITY,
-}
-
-# ── NapCat / 聊天场景专属风格引导 ──────────────────────────────────────────
-# 仅当渠道为 NAPCAT 时注入，控制语气、篇幅、话题延续和闲聊边界
-CHAT_PERSONALITY_GUIDANCE = ("")
-
-# ── 工具使用纪律（所有渠道通用） ───────────────────────────────────────────
-# 防止模型只"描述意图"而不实际调用工具（常见 LLM 行为问题）
-TOOL_USE_ENFORCEMENT_GUIDANCE = (
-    "# 工具使用纪律\n"
-    "你必须使用工具来执行操作——不要只描述你会做什么、计划做什么却不真正去做。"
-    "当你说了「我来跑一下测试」、「让我看一下文件」、「我来创建」之后，必须立即在同一轮回复中发起对应的工具调用。"
-    "永远不要以一个「下次再做」的承诺结束回合——现在就执行。\n"
-    "不断工作直到任务真正完成。不要以「我接下来计划做什么」的总结收尾。"
-    "如果你的工具箱里有能完成当前任务的工具，就直接用它，而不是告诉用户你准备怎么做。\n"
-    "每一轮回复必须满足以下两者之一：(a) 包含实际推进任务的工具调用，(b) 交付给用户的最终结果。"
-    "只描述意图却不行动是不可接受的。"
-)
-
-# ── Console 渠道专属风格 ───────────────────────────────────────────────────
-# CLI 场景下极简交互提示，禁止 Markdown 和冗余寒暄
-CONSOLE_STYLE_GUIDANCE = (
-    "# 终端交互规范\n"
-    "你运行在命令行终端中，请遵守以下规则：\n"
-    "- **直奔主题**：不要寒暄、问候、告别语。第一句话就回应问题。\n"
-    "- **极简输出**：能用 1 句话说清的不要用 3 句。工具输出已经是结果时，不需要再加解释。\n"
-    "- **无格式**：不要输出 Markdown 语法（**粗体**、`代码`、# 标题等），终端不渲染它们。\n"
-    "- **路径明确**：创建或修改文件后，直接给出绝对路径，用户自行打开。\n"
-    "- **不要问**：CLI 往往是脚本/自动化调用，不要反问「需要我继续吗？」——做完直接输出结果。\n"
-    "- **错误处理**：工具失败时简洁报告错误原因，给出一条可操作的恢复建议。"
-)
-
-# ── Docker/Linux 环境提示 ──────────────────────────────────────────────────
-DOCKER_ENVIRONMENT_HINT = (
-    "你当前运行在 Linux 服务器的 Docker 容器内。"
-    "文件系统为 Linux 标准布局（/app、/data、/tmp 等）。"
-    "执行命令时请使用 Linux 语法（bash 而非 PowerShell），路径分隔符为 '/'。"
-    "不要假设你有桌面环境、浏览器或 GUI 能力，所有操作通过命令行和工具完成。"
-)
-
-# ── WSL 环境提示（兼容 Windows 开发机） ───────────────────────────────────
-WSL_ENVIRONMENT_HINT = (
-    "你当前运行在 WSL（Windows Subsystem for Linux）环境中。"
-    "Windows 宿主机的文件系统挂载在 /mnt/ 下——/mnt/c/ 即 C 盘，/mnt/d/ 即 D 盘，依此类推。"
-    "当用户引用 Windows 路径时，请翻译为 /mnt/c/ 等价的 WSL 路径。"
-)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 上下文文件加载 —— 自动发现 .hermes.md / CLAUDE.md / .cursorrules / SOUL.md
@@ -170,7 +70,7 @@ def _is_docker() -> bool:
         return False
 
 
-def _scan_context_content(content: str, filename: str) -> str:
+def _scan_context_content(content: str, filename: str, prompts: Optional[PromptLoader] = None) -> str:
     """扫描上下文文件内容，检测并阻断 prompt 注入攻击。
 
     检查项：
@@ -188,11 +88,14 @@ def _scan_context_content(content: str, filename: str) -> str:
             findings.append(pid)
     if findings:
         logger.warning("上下文文件 %s 被拦截: %s", filename, ", ".join(findings))
+        if prompts:
+            return prompts.format_injection_blocked(filename, ", ".join(findings))
         return f"[已拦截: {filename} 包含潜在 prompt 注入 ({', '.join(findings)})，内容未加载。]"
     return content
 
 
-def _truncate_content(content: str, label: str, max_chars: int = CONTEXT_FILE_MAX_CHARS) -> str:
+def _truncate_content(content: str, label: str, max_chars: int = CONTEXT_FILE_MAX_CHARS,
+                     prompts: Optional[PromptLoader] = None) -> str:
     """超长文本截断: 保留头部 70% + 尾部 20%，中间插入截断标记。
 
     保留头和尾的原因是：头部通常包含规则和约束，尾部是最新内容。
@@ -203,7 +106,10 @@ def _truncate_content(content: str, label: str, max_chars: int = CONTEXT_FILE_MA
     tail_chars = int(max_chars * CONTEXT_TRUNCATE_TAIL_RATIO)
     head = content[:head_chars]
     tail = content[-tail_chars:]
-    marker = f"\n\n[...已截断 {label}：保留 {head_chars}+{tail_chars} 字符 / 共 {len(content)} 字符。使用文件工具读取完整内容。]\n\n"
+    if prompts:
+        marker = prompts.format_truncate_marker(label, head_chars, tail_chars, len(content))
+    else:
+        marker = f"\n\n[...已截断 {label}：保留 {head_chars}+{tail_chars} 字符 / 共 {len(content)} 字符。使用文件工具读取完整内容。]\n\n"
     return head + marker + tail
 
 
@@ -219,7 +125,7 @@ def _find_project_root(start: Path) -> Optional[Path]:
     return None
 
 
-def _load_hermes_md(cwd: Path) -> str:
+def _load_hermes_md(cwd: Path, prompts: Optional[PromptLoader] = None) -> str:
     """加载 .hermes.md 或 HERMES.md —— 逐级向上搜索至 git 根目录，返回第一个命中。
 
     YAML frontmatter 处理：如果文件以 '---' 开头，跳过第一段 frontmatter。
@@ -240,49 +146,49 @@ def _load_hermes_md(cwd: Path) -> str:
                 content = raw.strip()
                 if not content:
                     return ""
-                content = _scan_context_content(content, name)
+                content = _scan_context_content(content, name, prompts)
                 result = f"## {name}\n\n{content}"
-                return _truncate_content(result, name)
+                return _truncate_content(result, name, prompts=prompts)
         if root and directory == root:
             break
     return ""
 
 
-def _load_context_file(cwd: Path, names: tuple) -> str:
+def _load_context_file(cwd: Path, names: tuple, prompts: Optional[PromptLoader] = None) -> str:
     """加载 cwd 下的具名上下文文件（如 AGENTS.md / CLAUDE.md），返回第一个存在且非空的。"""
     for name in names:
         candidate = cwd / name
         if candidate.is_file():
             raw = candidate.read_text(encoding="utf-8").strip()
             if raw:
-                raw = _scan_context_content(raw, name)
+                raw = _scan_context_content(raw, name, prompts)
                 result = f"## {name}\n\n{raw}"
-                return _truncate_content(result, name)
+                return _truncate_content(result, name, prompts=prompts)
     return ""
 
 
-def _load_cursorrules(cwd: Path) -> str:
+def _load_cursorrules(cwd: Path, prompts: Optional[PromptLoader] = None) -> str:
     """加载 .cursorrules 及 .cursor/rules/*.mdc 规则文件。"""
     parts = []
     cursorrules_file = cwd / ".cursorrules"
     if cursorrules_file.is_file():
         raw = cursorrules_file.read_text(encoding="utf-8").strip()
         if raw:
-            raw = _scan_context_content(raw, ".cursorrules")
+            raw = _scan_context_content(raw, ".cursorrules", prompts)
             parts.append(f"## .cursorrules\n\n{raw}")
     rules_dir = cwd / ".cursor" / "rules"
     if rules_dir.is_dir():
         for mdc_file in sorted(rules_dir.glob("*.mdc")):
             raw = mdc_file.read_text(encoding="utf-8").strip()
             if raw:
-                raw = _scan_context_content(raw, f".cursor/rules/{mdc_file.name}")
+                raw = _scan_context_content(raw, f".cursor/rules/{mdc_file.name}", prompts)
                 parts.append(f"## .cursor/rules/{mdc_file.name}\n\n{raw}")
     if not parts:
         return ""
-    return _truncate_content("\n\n".join(parts), ".cursorrules")
+    return _truncate_content("\n\n".join(parts), ".cursorrules", prompts=prompts)
 
 
-def _load_soul_md() -> Optional[str]:
+def _load_soul_md(prompts: Optional[PromptLoader] = None) -> Optional[str]:
     """从 HERMES_HOME 目录加载 SOUL.md 灵魂文件（独立于项目上下文，始终追加）。"""
     home_dir = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
     soul_path = home_dir / "SOUL.md"
@@ -291,11 +197,12 @@ def _load_soul_md() -> Optional[str]:
     raw = soul_path.read_text(encoding="utf-8").strip()
     if not raw:
         return None
-    raw = _scan_context_content(raw, "SOUL.md")
-    return _truncate_content(raw, "SOUL.md")
+    raw = _scan_context_content(raw, "SOUL.md", prompts)
+    return _truncate_content(raw, "SOUL.md", prompts=prompts)
 
 
-def _build_context_files(cwd: Optional[str] = None, skip_soul: bool = False) -> str:
+def _build_context_files(cwd: Optional[str] = None, skip_soul: bool = False,
+                         prompts: Optional[PromptLoader] = None) -> str:
     """自动发现并加载项目上下文文件。
 
     优先级（仅加载第一个命中的）：
@@ -308,6 +215,7 @@ def _build_context_files(cwd: Optional[str] = None, skip_soul: bool = False) -> 
     Args:
         cwd: 搜索起始目录，None 则使用 os.getcwd()。
         skip_soul: True 时跳过 SOUL.md（自定义 system_prompt 模式）。
+        prompts: PromptLoader 实例，用于格式化头部文本。
 
     Returns:
         拼接好的项目上下文文本，无匹配时返回空字符串。
@@ -318,22 +226,23 @@ def _build_context_files(cwd: Optional[str] = None, skip_soul: bool = False) -> 
     sections = []
 
     project_context = (
-        _load_hermes_md(cwd_path)
-        or _load_context_file(cwd_path, ("AGENTS.md", "agents.md"))
-        or _load_context_file(cwd_path, ("CLAUDE.md", "claude.md"))
-        or _load_cursorrules(cwd_path)
+        _load_hermes_md(cwd_path, prompts)
+        or _load_context_file(cwd_path, ("AGENTS.md", "agents.md"), prompts)
+        or _load_context_file(cwd_path, ("CLAUDE.md", "claude.md"), prompts)
+        or _load_cursorrules(cwd_path, prompts)
     )
     if project_context:
         sections.append(project_context)
 
     if not skip_soul:
-        soul_content = _load_soul_md()
+        soul_content = _load_soul_md(prompts)
         if soul_content:
             sections.append(soul_content)
 
     if not sections:
         return ""
-    return "# 项目上下文\n\n已加载以下项目上下文文件，请遵循其中的约定：\n\n" + "\n".join(sections)
+    header = prompts.get_system("context_file_header") if prompts else "# 项目上下文\n\n已加载以下项目上下文文件，请遵循其中的约定：\n\n"
+    return header + "\n".join(sections)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -345,7 +254,9 @@ class HarnessContextBuilder:
 
     用法::
 
+        prompts = PromptLoader(Path("config/prompts"))
         builder = HarnessContextBuilder(
+            prompt_loader=prompts,
             system_prompt="",                    # 空 → 按渠道自动选身份
             enable_chat_personality=True,        # 注入聊天/CLI 风格提示
             enable_context_files=True,           # 自动加载 .hermes.md 等
@@ -354,6 +265,7 @@ class HarnessContextBuilder:
         messages = builder.build(events, max_turns=20)
 
     构造参数:
+        prompt_loader:           PromptLoader 实例，提供所有 prompt 文本。
         system_prompt:           自定义系统 prompt；为空则根据渠道自动选择身份。
         enable_chat_personality: 是否注入聊天/CLI 风格提示。
         enable_context_files:    是否自动发现并注入项目上下文文件。
@@ -362,11 +274,13 @@ class HarnessContextBuilder:
 
     def __init__(
         self,
+        prompt_loader: Optional[PromptLoader] = None,
         system_prompt: str = "",
         enable_chat_personality: bool = True,
         enable_context_files: bool = False,
         enable_tool_guidance: bool = False,
     ):
+        self._prompts = prompt_loader
         self._system_prompt = system_prompt
         self._enable_chat_personality = enable_chat_personality
         self._enable_context_files = enable_context_files
@@ -379,24 +293,26 @@ class HarnessContextBuilder:
         events: List[Event],
         max_turns: int = 20,
         channel_type: Optional[ChannelType] = None,
+        recalled_memories: str = "",
     ) -> List[Dict[str, Any]]:
         """将历史事件序列转换为 LLM 标准 messages 结构。
 
         流程:
-          1. 构建 system prompt（渠道感知 + 风格 + 纪律 + 环境 + 上下文文件）
+          1. 构建 system prompt（渠道感知 + 风格 + 纪律 + 环境 + 上下文文件 + 记忆）
           2. 过滤事件类型（只保留 USER_MESSAGE / MODEL_MESSAGE / TOOL_RESULT）
           3. 截断到 max_turns * 2 条（每轮 = user + assistant）
           4. 逐事件转换为 {"role": ..., "content": ...} 格式
 
         Args:
-            events:       历史事件列表（含 channel_type 信息在 content 中）。
-            max_turns:    最多保留对话轮次。
-            channel_type: 可选强制指定渠道；为 None 时从 events 中自动检测。
+            events:            历史事件列表（含 channel_type 信息在 content 中）。
+            max_turns:         最多保留对话轮次。
+            channel_type:      可选强制指定渠道；为 None 时从 events 中自动检测。
+            recalled_memories: 从 Hindsight 召回的格式化记忆文本。
 
         Returns:
             [{"role":"system","content":"..."}, {"role":"user",...}, ...]
         """
-        system_content = self._build_system_prompt(events, channel_type)
+        system_content = self._build_system_prompt(events, channel_type, recalled_memories)
         messages: List[Dict[str, Any]] = []
         if system_content:
             messages.append({"role": "system", "content": system_content})
@@ -449,10 +365,11 @@ class HarnessContextBuilder:
         self,
         events: List[Event],
         channel_type: Optional[ChannelType] = None,
+        recalled_memories: str = "",
     ) -> str:
         """按渠道 + 固定顺序拼接最终的系统提示词。
 
-        顺序: 渠道身份 → 风格提示 → 跨渠道检测 → 工具纪律 → 环境感知 → 项目上下文
+        顺序: 渠道身份 → 风格提示 → 跨渠道检测 → 工具纪律 → 环境感知 → 记忆注入 → 项目上下文
         """
         parts: List[str] = []
 
@@ -468,16 +385,21 @@ class HarnessContextBuilder:
         if cross_channel:
             parts.append(cross_channel)
 
-        if self._enable_tool_guidance:
-            parts.append(TOOL_USE_ENFORCEMENT_GUIDANCE)
+        if self._enable_tool_guidance and self._prompts:
+            guidance = self._prompts.get_guidance("tool_enforcement")
+            if guidance:
+                parts.append(guidance)
 
         env_hints = self._build_environment_hints()
         if env_hints:
             parts.append(env_hints)
 
+        if recalled_memories:
+            parts.append(recalled_memories)
+
         if self._enable_context_files:
             has_custom_identity = bool(self._system_prompt)
-            ctx = _build_context_files(skip_soul=has_custom_identity)
+            ctx = _build_context_files(skip_soul=has_custom_identity, prompts=self._prompts)
             if ctx:
                 parts.append(ctx)
 
@@ -490,18 +412,30 @@ class HarnessContextBuilder:
         """
         if self._system_prompt:
             return self._system_prompt
-        if channel and channel in _CHANNEL_IDENTITY_MAP:
-            return _CHANNEL_IDENTITY_MAP[channel]
-        return DEFAULT_AGENT_IDENTITY
+        if self._prompts:
+            if channel:
+                ch_key = self._prompts.identity_map.get(channel.value, channel.value)
+                identity = self._prompts.get_identity(ch_key)
+                if identity:
+                    return identity
+            return self._prompts.get_identity("default")
+        # 无 PromptLoader 时的回退
+        if channel == ChannelType.NAPCAT:
+            return "你是 nono，一只有趣的猫。"
+        if channel == ChannelType.WEB:
+            return "你是 HpAgent，一个 Web 智能助手。"
+        return "你是 HpAgent，一个智能 AI 助手。"
 
     def _pick_style_guidance(self, channel: Optional[ChannelType]) -> str:
         """根据渠道选择风格提示。"""
         if not self._enable_chat_personality:
             return ""
+        if not self._prompts:
+            return ""
         if channel == ChannelType.NAPCAT:
-            return CHAT_PERSONALITY_GUIDANCE
+            return self._prompts.get_guidance("chat_personality")
         if channel == ChannelType.CONSOLE:
-            return CONSOLE_STYLE_GUIDANCE
+            return self._prompts.get_guidance("console_style")
         return ""
 
     def _build_cross_channel_hint(self, events: List[Event]) -> str:
@@ -510,6 +444,8 @@ class HarnessContextBuilder:
         如果 events 中出现来自多个不同渠道的 USER_MESSAGE，
         追加提示告知模型"用户正在多端同时对话"，让模型注意上下文衔接。
         """
+        if not self._prompts:
+            return ""
         channels = set()
         for e in events:
             if e.event_type == EventType.USER_MESSAGE:
@@ -517,18 +453,15 @@ class HarnessContextBuilder:
                 if ch:
                     channels.add(ch)
         if len(channels) > 1:
-            return (
-                "注意：用户正在通过多个客户端（{}）与你对话。"
-                "对话历史可能来自不同渠道，请无缝衔接上下文。"
-            ).format(", ".join(sorted(channels)))
+            return self._prompts.format_cross_channel(", ".join(sorted(channels)))
         return ""
 
     def _build_environment_hints(self) -> str:
         """自动检测运行环境（Docker > WSL > 无），返回对应环境提示。"""
         if _is_docker():
-            return DOCKER_ENVIRONMENT_HINT
+            return self._prompts.get_environment("docker") if self._prompts else ""
         if _is_wsl():
-            return WSL_ENVIRONMENT_HINT
+            return self._prompts.get_environment("wsl") if self._prompts else ""
         return ""
 
     # ── 内部: 事件内容提取 ────────────────────────────────────────────────

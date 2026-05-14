@@ -3,79 +3,18 @@
 
 设计意图：
   每一层对外暴露一个抽象接口，具体实现可以自由替换：
-    - ISession: 会话记忆层 —— 支持 File / Temporal / PostgreSQL 三种实现
     - IResources: 资源管理层 —— 模型 API 凭据 + 退避链路
     - ISandbox: 沙箱执行层 —— 工具调用 + 健康检查
     - IChannel: 渠道通信层 —— NapCat / Web / Console 三种渠道
     - ITool: 工具定义层 —— 每个工具的名称、描述、参数和执行逻辑
 
 上层代码只依赖这些接口，不依赖具体实现类。
+
+会话（Session）由 Temporal Workflow 管理，无需接口抽象层。
 """
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from common.types import Event, UnifiedMessage, SessionMetadata
-
-
-class ISession(ABC):
-    """会话记忆接口 —— 存储和检索对话事件历史。
-
-    实现类:
-      - TemporalSessionManager: 通过 Temporal Workflow Queries 读取事件（当前使用）
-      - (未来) 基于 storage.InfraContainer 的 PG/File 双后端 SessionManager
-    """
-
-    @abstractmethod
-    async def create_session(self, metadata: SessionMetadata) -> str:
-        """创建新会话，返回 session_id。"""
-        ...
-
-    @abstractmethod
-    async def emit_event(self, event: Event) -> str:
-        """向会话追加一条事件，返回 event_id。"""
-        ...
-
-    @abstractmethod
-    async def get_events(
-        self,
-        session_id: str,
-        offset: int = 0,
-        limit: Optional[int] = None,
-        event_types: Optional[List[str]] = None,
-    ) -> List[Event]:
-        """查询会话事件历史。
-
-        Args:
-            session_id: 会话 ID。
-            offset: 偏移量（跳过的条数）。
-            limit: 返回条数上限，None 表示不限制。
-            event_types: 可选过滤，只返回指定类型的事件（如 ["user_message", "model_message"]）。
-        """
-        ...
-
-    @abstractmethod
-    async def rewind_session(self, session_id: str, target_event_id: str) -> Dict[str, Any]:
-        """回滚会话到指定事件（删除该事件之后的所有事件）。
-
-        Returns:
-            包含 removed_events_count 的字典。
-        """
-        ...
-
-    @abstractmethod
-    async def archive_session(self, session_id: str) -> bool:
-        """归档会话（标记为 archived 状态，不可再写入新事件）。"""
-        ...
-
-    @abstractmethod
-    async def list_sessions(
-        self,
-        limit: int = 50,
-        offset: int = 0,
-        status: Optional[str] = None,
-        tags: Optional[List[str]] = None,
-    ) -> List[SessionMetadata]:
-        """列出会话，支持分页和按状态/标签过滤。"""
-        ...
 
 
 class IResources(ABC):

@@ -1,0 +1,55 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# HpAgent 模型 API 统一配置
+# 所有模型提供商、API 密钥、模型降级链均在此文件定义。
+#
+# 结构:
+#   providers:         API 提供商凭证（base_url + api_key）
+#   models.<category>: 按类别的模型降级链（从上到下 = 优先 → 回退）
+#
+# 类别:
+#   chat:      文本对话模型（HpAgent 主流程）
+#   embedding: 向量化模型（Hindsight 记忆系统）
+#   image:     图像生成模型
+#   reasoning: 深度推理模型（复杂任务时的回退）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── API 提供商 ────────────────────────────────────────────────────────────────
+providers:
+  minimax:
+    base_url: "https://api.minimaxi.com/anthropic/v1"
+    api_key: "${MINIMAX_API_KEY}"
+
+  # 可继续添加更多提供商:
+  # azure:
+  #   base_url: "https://YOUR_RESOURCE.openai.azure.com"
+  #   api_key: ""
+
+# ── 文本对话模型 ──────────────────────────────────────────────────────────────
+# HpAgent 主流程使用的模型链：从上到下依次尝试，失败后降级到下一个
+chat:
+  - provider: minimax
+    model: "MiniMax-M2.7"
+    max_tokens: 2048
+    timeout: 30.0
+
+# ── 向量化模型 ────────────────────────────────────────────────────────────────
+# Hindsight 长期记忆系统用于文本转向量
+embedding:
+  - provider: minimax
+    model: "embo-01"
+    timeout: 30.0
+
+
+# ── 图像生成模型 ──────────────────────────────────────────────────────────────
+image:
+  - provider: openai
+    model: "dall-e-3"
+    timeout: 60.0
+
+# ── 深度推理模型 ──────────────────────────────────────────────────────────────
+# 处理复杂多步骤任务时的可选回退（需更长超时）
+reasoning:
+  - provider: minimax
+    model: "MiniMax-M2.7"
+    max_tokens: 4096
+    timeout: 60.0

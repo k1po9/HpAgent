@@ -1,87 +1,107 @@
 services:
-  # ==================== 主服务：HpAgent ====================
-  hpagent:  # 服务名称，用于容器间通信
-    build: ./src  # 从 ./src 目录构建Docker镜像
-    image: hpagent:latest  # 构建后的镜像名
-    container_name: hpagent  # 容器固定名称，便于管理
-    runtime: sysbox-runc  # 使用Sysbox运行时，实现轻量级容器内嵌套容器
+  # ==================== HpAgent 主服务 ====================
+  hpagent:
+    build: ./src
+    image: hpagent:latest
     ports:
-      - "8082:8082"  # 映射主机8082到容器8082端口
-    # volumes:
-    #  - ./src:/app  # 挂载本地代码到容器（开发模式使用）
+      - "8082:8082"
+    environment:
+      - TEMPORAL_HOST=temporal:7233
+      - HINDSIGHT_URL=http://hindsight:8888
+      - WORKSPACE_ROOT=/data/workspace
+      - REDIS_URL=redis://redis:6379
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+    volumes:
+      - hpagent-workspace:/data/workspace
+      - hpagent-sessions:/app/data/sessions
+      - ./config:/app/config:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+      hindsight:
+        condition: service_healthy
     networks:
-      - app-network  # 加入 app-network 网络
-    restart: unless-stopped  # 容器异常退出时自动重启
+      - app-network
+    restart: unless-stopped
+    # nsjail 需要创建 PID/cgroup/network namespace，必须 privileged
+    privileged: true
 
-  # ==================== 前端通信：NapCat ====================
-  napcat:  # QQ机器人通信服务
-    image: mlikiowa/napcat-docker:latest  # NapCat官方镜像
-    container_name: napcat  # 容器名称
-    environment:  # 环境变量配置
-      - NAPCAT_UID=${UID:-1000}  # QQ运行用户ID
-      - NAPCAT_GID=${GID:-1000}  # QQ运行组ID
-      - TZ=Asia/Shanghai  # 时区设为上海
-    extra_hosts:  # 配置额外主机名解析，解决NapCat无法解析主机名的问题
-      - "host.docker.internal:host-gateway"
+  # ==================== Redis 会话存储 ====================
+  redis:
+    image: redis:7-alpine
     ports:
-      - "6099:6099"  # NapCat WebUI端口
-    volumes:  # 数据持久化挂载
-      - ./channel/napcat/data:/app/.napcat  # 配置文件目录
-      - ./channel/napcat/cache:/app/data/cache  # 缓存目录
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
-      - app-network  # 加入 app-network 网络
-    restart: unless-stopped  # 自动重启策略
+      - app-network
+    restart: unless-stopped
 
-  # PostgreSQL 数据库（Temporal 内部使用）
-  temporal-postgresql:
-    image: postgres:16
-    container_name: temporal-postgresql
+  # ==================== NapCat QQ 机器人 ====================
+  napcat:
+    image: mlikiowa/napcat-docker:latest
+    environment:
+      - NAPCAT_UID=1000
+      - NAPCAT_GID=1000
+      - TZ=Asia/Shanghai
+    ports:
+      - "6099:6099"
+    volumes:
+      - ./channel/napcat/data:/app/.napcat       # QQ 登录凭证持久化
+      - ./channel/napcat/cache:/app/data/cache   # 缓存数据持久化
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # ==================== Temporal + 数据库 ====================
+  temporal-postgres:
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: temporal
       POSTGRES_PASSWORD: temporal
       POSTGRES_DB: temporal
     volumes:
       - temporal-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     networks:
       - app-network
     restart: unless-stopped
 
-  # PostgreSQL 数据库（HpAgent 应用数据：accounts, sessions, events）
-  hpagent-postgresql:
-    image: postgres:16
-    container_name: hpagent-postgresql
-    environment:
-      POSTGRES_USER: hpagent
-      POSTGRES_PASSWORD: hpagent
-      POSTGRES_DB: hpagent
-    volumes:
-      - hpagent-pgdata:/var/lib/postgresql/data
-    networks:
-      - app-network
-    restart: unless-stopped
-
-  # Temporal 服务
   temporal:
-    image: temporalio/auto-setup:latest
-    container_name: temporal
+    image: temporalio/auto-setup:1.26.2
     environment:
       - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=temporal
-      - POSTGRES_SEEDS=temporal-postgresql
+      - POSTGRES_SEEDS=temporal-postgres
     ports:
       - "7233:7233"
     depends_on:
-      - temporal-postgresql
+      temporal-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "tctl", "--address", "localhost:7233", "cluster", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     networks:
       - app-network
     restart: unless-stopped
 
-  # Temporal Web UI
   temporal-web:
-    image: temporalio/ui:latest
-    container_name: temporal-web
+    image: temporalio/ui:2.34.0
     environment:
       - TEMPORAL_ADDRESS=temporal:7233
     ports:
@@ -92,13 +112,45 @@ services:
       - app-network
     restart: unless-stopped
 
-# 声明 volume
+  # ==================== Hindsight 长期记忆 ====================
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:latest
+    environment:
+      # LLM（对话总结/记忆整合 — 如全用本地可留空，但部分功能会降级）
+      - HINDSIGHT_API_LLM_API_KEY=${HINDSIGHT_LLM_API_KEY:-sk-xxx}
+      - HINDSIGHT_API_LLM_MODEL=${HINDSIGHT_LLM_MODEL:-gpt-4o-mini}
+      # ── 本地 BGE-M3 Embedding（核心：无需云 API key） ──
+      - HINDSIGHT_API_EMBEDDINGS_PROVIDER=local
+      - HINDSIGHT_API_EMBEDDINGS_LOCAL_MODEL=BAAI/bge-m3
+      - HINDSIGHT_API_EMBEDDINGS_LOCAL_NORMALIZE_EMBEDDINGS=true
+      # ── 本地 BGE Reranker（检索精度提升 30%+） ──
+      - HINDSIGHT_API_RERANKER_PROVIDER=local
+      - HINDSIGHT_API_RERANKER_LOCAL_MODEL=BAAI/bge-reranker-v2-m3
+      - HINDSIGHT_API_RERANKER_LOCAL_TOP_N=10
+      - HINDSIGHT_API_RERANKER_LOCAL_RETURN_TOP_N=5
+      # ── 国内 Hugging Face 镜像加速 ──
+      - HF_ENDPOINT=https://hf-mirror.com
+    ports:
+      - "8001:8888"
+    volumes:
+      - hindsight-data:/home/hindsight/.pg0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 120s   # 首次启动需下载模型，给 2 分钟
+    networks:
+      - app-network
+    restart: unless-stopped
+
 volumes:
   temporal-pgdata:
-  hpagent-pgdata:
+  hindsight-data:
+  hpagent-workspace:
+  hpagent-sessions:
+  redis-data:
 
-
-# ==================== 网络 ====================
 networks:
-  app-network:  # 自定义bridge网络，实现容器互联
-    driver: bridge  # 桥接网络模式
+  app-network:
+    driver: bridge
