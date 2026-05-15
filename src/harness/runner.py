@@ -21,7 +21,7 @@ from common.types import (
     ToolResult,
 )
 from session.store import SessionStore
-from src.sandbox.channels.router import ChannelRouter
+from sandbox.channels.router import ChannelRouter
 
 logger = logging.getLogger("HpAgent.HarnessRunner")
 

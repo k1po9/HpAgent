@@ -8,13 +8,15 @@ services:
     environment:
       - TEMPORAL_HOST=temporal:7233
       - HINDSIGHT_URL=http://hindsight:8888
-      - WORKSPACE_ROOT=/data/workspace
+      - WORKSPACE_ROOT=/app/data/workspace
       - REDIS_URL=redis://redis:6379
       - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
-      - hpagent-workspace:/data/workspace
-      - hpagent-sessions:/app/data/sessions
-      - ./config:/app/config:ro
+      - ./data/workspace:/app/data/workspace   # 用户工作区（宿主机可见）
+      - ./data/sessions:/app/data/sessions     # 会话 JSONL 备份（宿主机可见）
+      - ./data/logs:/app/data/logs             # 日志文件（宿主机可见）
+      - ./config:/app/config:ro                # 配置文件（只读）
     depends_on:
       redis:
         condition: service_healthy
@@ -54,8 +56,8 @@ services:
     ports:
       - "6099:6099"
     volumes:
-      - ./channel/napcat/data:/app/.napcat       # QQ 登录凭证持久化
-      - ./channel/napcat/cache:/app/data/cache   # 缓存数据持久化
+      - ./data/napcat/data:/app/.napcat       # QQ 登录凭证持久化
+      - ./data/napcat/cache:/app/data/cache   # 缓存数据持久化
     networks:
       - app-network
     restart: unless-stopped
@@ -147,8 +149,6 @@ services:
 volumes:
   temporal-pgdata:
   hindsight-data:
-  hpagent-workspace:
-  hpagent-sessions:
   redis-data:
 
 networks:

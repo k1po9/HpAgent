@@ -11,8 +11,14 @@ RUN sed -i 's/deb.debian.org/mirror.iscas.ac.cn/g' /etc/apt/sources.list.d/debia
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
-    nsjail \
     && rm -rf /var/lib/apt/lists/*
+
+# 安装 nsjail（从官方 GitHub 下载静态二进制文件）
+ARG NSJAIL_MIRROR=https://ghfast.top/
+RUN curl -L --retry 3 --retry-delay 10 \
+    -o /usr/local/bin/nsjail \
+    ${NSJAIL_MIRROR}https://github.com/google/nsjail/releases/download/3.4/nsjail-3.4-x86_64 \
+    && chmod +x /usr/local/bin/nsjail
 
 WORKDIR /app
 

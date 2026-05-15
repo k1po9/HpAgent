@@ -39,6 +39,8 @@ ENV/
 channel/
 .claude/
 
-# 运行时数据（用户工作区、会话备份）
+# 运行时数据（日志 / 会话 / 工作区 / QQ 凭证）
+data/
+
+# 旧版运行时目录（逐步迁移）
 users_workspace/
-src/data/

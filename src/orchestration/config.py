@@ -187,7 +187,7 @@ class SandboxConfig:
 @dataclass
 class WorkspaceConfig:
     """用户工作区配置。"""
-    root: str = "users_workspace"
+    root: str = "data/workspace"
     db_path: str = ""
     cleanup_max_age_days: int = 30
 

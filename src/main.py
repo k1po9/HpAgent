@@ -18,14 +18,18 @@ HpAgent —— 主入口，负责加载配置并启动智能体服务。
 """
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
+# ── 日志必须在所有模块导入之前配置 ──
+from common.logging import setup_logging
+
+_log_level = getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
+_log_dir = Path(os.getenv("LOG_DIR", "data/logs"))
+setup_logging(level=_log_level, log_dir=_log_dir)
+
 logger = logging.getLogger("HpAgent")
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
 
 from orchestration.config import AppConfig
 from orchestration.worker import start_worker
@@ -33,24 +37,28 @@ from orchestration.worker import start_worker
 
 async def main_async():
     """异步主流程: 加载配置 → 启动 Worker。"""
-    config_path = Path(__file__).resolve().parent.parent / "config" / "config.yaml"
+    # Docker: /app/main.py → /app/config/，本地: src/main.py → ../config/
+    _base = Path(__file__).resolve().parent
+    config_path = _base / "config" / "config.yaml"
+    if not config_path.exists():
+        config_path = _base.parent / "config" / "config.yaml"
 
     try:
         config = AppConfig.from_yaml(str(config_path))
     except FileNotFoundError:
-        print(f"Error: Config file not found: {config_path}")
-        print("Create config/config.yaml from the template.")
+        logger.error("Config file not found: %s", config_path)
         return
 
-    print("\n=== HpAgent ===")
+    logger.info("=== HpAgent ===")
     if config.models.chat:
-        print(f"Model (chat): {config.models.chat[0].provider}:{config.models.chat[0].model}")
+        logger.info("Model (chat): %s:%s", config.models.chat[0].provider, config.models.chat[0].model)
     if config.models.embedding:
-        print(f"Model (embedding): {config.models.embedding[0].provider}:{config.models.embedding[0].model}")
-    print(f"Temporal: {config.temporal.host}")
-    print(f"Redis: {'enabled' if config.redis.url else 'disabled'}")
-    print(f"Hindsight: {'enabled' if config.hindsight.enabled else 'disabled'}")
-    print(f"Sandbox: time={config.sandbox.time_limit}s, mem={config.sandbox.memory_limit_mb}MB")
+        logger.info("Model (embedding): %s:%s", config.models.embedding[0].provider, config.models.embedding[0].model)
+    logger.info("Temporal: %s", config.temporal.host)
+    logger.info("Redis: %s", "enabled" if config.redis.url else "disabled")
+    logger.info("Hindsight: %s", "enabled" if config.hindsight.enabled else "disabled")
+    logger.info("Sandbox: time=%ds mem=%dMB", config.sandbox.time_limit, config.sandbox.memory_limit_mb)
+    logger.info("Log dir: %s", _log_dir)
     await start_worker(config)
 
 
