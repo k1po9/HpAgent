@@ -61,48 +61,6 @@ class StoreError(Exception):
         super().__init__(f"[{code.value}] {message}")
 
 
-def normalize_db_error(err: Exception, entity: str, operation: str) -> StoreError:
-    """将 PostgreSQL 驱动异常（asyncpg）映射为标准化的 StoreError。
-
-    这是数据库后端的"异常翻译层"：
-      - UniqueViolationError    → DUPLICATE      （重复键）
-      - ForeignKeyViolationError → INVALID_DATA   （引用不存在的记录）
-      - NotNullViolationError   → INVALID_DATA    （必填字段为空）
-      - 连接相关异常             → CONNECTION_FAILED
-      - 其他未知异常             → CONNECTION_FAILED（保守处理，触发重试逻辑）
-
-    Args:
-        err: asyncpg 抛出的原始异常。
-        entity: 发生错误的实体名（如表名或操作对象），用于构造可读消息。
-        operation: 当前执行的操作名（如 "insert" / "update" / "delete"）。
-
-    Returns:
-        对应的 StoreError 实例，code 和 message 均已填充。
-    """
-    try:
-        import asyncpg.exceptions as pg_exc
-    except ImportError:
-        # 如果 asyncpg 未安装（如在开发环境跑文件存储），直接返回通用错误
-        return StoreError(
-            StoreErrorCode.CONNECTION_FAILED,
-            f"{entity} {operation} failed: {err}",
-            err,
-        )
-
-    # 逐类型匹配：从最具体到最通用
-    if isinstance(err, pg_exc.UniqueViolationError):
-        return StoreError(StoreErrorCode.DUPLICATE, f"{entity} duplicate on {operation}", err)
-    if isinstance(err, pg_exc.ForeignKeyViolationError):
-        return StoreError(StoreErrorCode.INVALID_DATA, f"{entity} references non-existent record on {operation}", err)
-    if isinstance(err, pg_exc.NotNullViolationError):
-        return StoreError(StoreErrorCode.INVALID_DATA, f"{entity} missing required field on {operation}", err)
-    if isinstance(err, (pg_exc.ConnectionDoesNotExistError, pg_exc.CannotConnectNowError)):
-        return StoreError(StoreErrorCode.CONNECTION_FAILED, f"{entity} {operation} failed: database connection error", err)
-
-    # 兜底：未识别的异常统一视为连接失败
-    return StoreError(StoreErrorCode.CONNECTION_FAILED, f"{entity} {operation} failed: {err}", err)
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # 数据类型
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -185,7 +143,7 @@ class FileStore(Protocol):
     路径约定：
       - 所有路径为 POSIX 风格相对路径（如 "sessions/abc.json"）。
       - 根目录由实现方在构造函数中指定，协议不关心根目录位置。
-      - 路径遍历漏洞由具体实现防御（参见 AioFileStore._resolve）。
+      - 路径遍历漏洞由具体实现防御。
     """
 
     async def read(self, path: str) -> str:

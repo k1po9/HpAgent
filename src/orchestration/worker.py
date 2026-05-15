@@ -158,9 +158,6 @@ async def init_dependencies(config: AppConfig):
         workspace_manager=workspace_manager,
         max_idle_seconds=config.sandbox.max_idle_seconds,
     )
-    default_tools = ToolFactory.create_default_tools()
-    sandbox_manager.create_sandbox(tools=default_tools)
-
     # ── Prompt 加载器 ──
     prompt_loader = PromptLoader(Path("config/prompts"))
     logger.info("PromptLoader initialized from config/prompts/")
@@ -194,7 +191,6 @@ async def init_dependencies(config: AppConfig):
         resource_pool=resource_pool,
         sandbox_manager=sandbox_manager,
         channel_router=channel_router,
-        workspace_manager=workspace_manager,
         max_tool_turns=config.agent.max_tool_turns,
     )
 

@@ -30,9 +30,9 @@ Channels —— 渠道适配层，将不同消息平台的消息统一为 Unifie
   3. 在 ChannelRouter 注册: router.register(ChannelType.WEB, web_channel)
   4. 在 worker.py 中初始化并注册
 """
-from .base import BaseChannel, ChannelMessage
+from .base import BaseChannel
 from .console import ConsoleChannel
 from .napcat import NapCatChannel
 from .router import ChannelRouter
 
-__all__ = ["BaseChannel", "ChannelMessage", "ConsoleChannel", "NapCatChannel", "ChannelRouter"]
+__all__ = ["BaseChannel", "ConsoleChannel", "NapCatChannel", "ChannelRouter"]

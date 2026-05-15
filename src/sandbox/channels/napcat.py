@@ -38,7 +38,7 @@ from typing import Any, Optional, Callable, Awaitable
 
 import websockets
 
-from sandbox.channels.base import BaseChannel, ChannelMessage
+from sandbox.channels.base import BaseChannel
 from common.types import ChannelType, UnifiedMessage
 
 logger = logging.getLogger("HpAgent")
@@ -116,7 +116,6 @@ class NapCatChannel(BaseChannel):
 
         sender_id = ""
         content = ""
-        channel_type = ChannelType.NAPCAT
 
         # ═══════════════════════════════════════════════════════════════
         # 消息事件（message）—— 核心交互事件
@@ -213,14 +212,12 @@ class NapCatChannel(BaseChannel):
             metadata["detail_type"] = post_type
             logger.warning(f"Unknown post_type: {post_type}, treating as generic event")
 
-        channel_message = ChannelMessage(
+        return UnifiedMessage(
             sender_id=sender_id,
             content=content,
-            channel_type=channel_type,
+            channel_type=ChannelType.NAPCAT,
             metadata=metadata,
         )
-
-        return channel_message.to_unified_message(session_id="")
 
     async def send_message(self, message: UnifiedMessage) -> bool:
         """向已连接的 NapCat 客户端发送消息。

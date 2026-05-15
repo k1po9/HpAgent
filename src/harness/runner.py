@@ -42,7 +42,6 @@ class HarnessRunner:
         resource_pool=None,
         sandbox_manager=None,
         channel_router: Optional[ChannelRouter] = None,
-        workspace_manager=None,
         max_tool_turns: int = 20,
     ):
         self._session = session_store
@@ -50,7 +49,6 @@ class HarnessRunner:
         self._model = resource_pool
         self._sandbox = sandbox_manager
         self._channel = channel_router
-        self._workspace = workspace_manager
         self._max_tool_turns = max_tool_turns
 
     # ═══════════════════════════════════════════════════════════════════════════

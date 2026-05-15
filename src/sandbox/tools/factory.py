@@ -196,7 +196,6 @@ class ToolFactory:
         """创建文件读取工具 —— 读取本地文件内容。
 
         安全注意: 当前未做路径沙箱限制，生产环境需限制可读目录。
-        建议集成 storage/file.py 的 AioFileStore 进行路径安全校验。
 
         Returns:
             file_read 工具实例。

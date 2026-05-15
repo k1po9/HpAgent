@@ -23,7 +23,7 @@ Sandbox —— 手层（Hands Layer），负责所有外部操作的实际执行
   nsjail.py            nsjail 集成 —— NsjailConfig + NsjailExecutor
   runner.py            in-jail 工具执行脚本（在 nsjail 命名空间内运行）
   channels/            渠道适配层
-    ├── base.py        渠道基类（BaseChannel / ChannelMessage）
+    ├── base.py        渠道基类（BaseChannel）
     ├── console.py     控制台渠道（stdin/stdout 交互）
     ├── napcat.py      NapCat QQ 渠道（WebSocket 连接 OneBot v11）
     └── router.py      渠道路由器（按 ChannelType 分发消息）
