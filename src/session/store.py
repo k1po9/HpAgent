@@ -97,8 +97,8 @@ class SessionStore:
                     session_id.encode(),
                     ttl=self._DEFAULT_TTL,
                 )
-            except Exception:
-                logger.warning("Redis write failed for create_session(%s)", session_id)
+            except Exception as e:
+                logger.warning("DEGRADATION: Redis write failed (%s) → falling back to memory", e)
         else:
             self._mem_sessions[session_id] = session
             self._mem_active[account_id] = session_id
@@ -111,8 +111,8 @@ class SessionStore:
                 data = await self._cache.get_json(self._META_KEY.format(session_id))
                 if data:
                     return Session.from_dict(data)
-            except Exception:
-                logger.warning("Redis read failed for get_session(%s)", session_id)
+            except Exception as e:
+                logger.warning("DEGRADATION: Redis read failed (%s) → falling back to memory", e)
             return None
         return self._mem_sessions.get(session_id)
 
@@ -123,8 +123,8 @@ class SessionStore:
                 raw = await self._cache.get(self._ACTIVE_KEY.format(account_id))
                 if raw:
                     return raw.decode() if isinstance(raw, bytes) else raw
-            except Exception:
-                logger.warning("Redis read failed for get_active_session_id(%s)", account_id)
+            except Exception as e:
+                logger.warning("DEGRADATION: Redis get_active_session_id failed (%s) → falling back to memory", e)
             return None
         return self._mem_active.get(account_id)
 
@@ -142,8 +142,8 @@ class SessionStore:
                     session.to_dict(),
                     ttl=self._DEFAULT_TTL,
                 )
-            except Exception:
-                logger.warning("Redis write failed for update_status(%s)", session_id)
+            except Exception as e:
+                logger.warning("DEGRADATION: Redis update_status failed (%s) → falling back to memory", e)
         else:
             self._mem_sessions[session_id] = session
 
@@ -157,8 +157,8 @@ class SessionStore:
         if self._cache:
             try:
                 await self._cache.delete(self._ACTIVE_KEY.format(session.account_id))
-            except Exception:
-                logger.warning("Redis delete failed for archive(%s)", session_id)
+            except Exception as e:
+                logger.warning("DEGRADATION: Redis archive delete failed (%s) → falling back to memory", e)
         else:
             self._mem_active.pop(session.account_id, None)
 
@@ -182,8 +182,8 @@ class SessionStore:
                 count = await self._redis.rpush(key, *data)
                 await self._redis.expire(key, self._DEFAULT_TTL)
                 return count
-            except Exception:
-                logger.warning("Redis rpush failed for append_events(%s)", session_id)
+            except Exception as e:
+                logger.warning("DEGRADATION: Redis rpush failed (%s) → events stored in memory only", e)
                 return 0
 
         lst = self._mem_events.setdefault(session_id, [])
@@ -204,8 +204,8 @@ class SessionStore:
                 if offset:
                     raw = raw[:-offset] if offset < len(raw) else []
                 return [Event.from_dict(json.loads(r)) for r in raw]
-            except Exception:
-                logger.warning("Redis lrange failed for get_events(%s)", session_id)
+            except Exception as e:
+                logger.warning("DEGRADATION: Redis lrange failed (%s) → events read from memory only", e)
                 return []
 
         lst = self._mem_events.get(session_id, [])
@@ -234,7 +234,7 @@ class SessionStore:
             )
             return items, formatted
         except Exception as e:
-            logger.warning("Hindsight recall failed: %s", e)
+            logger.warning("DEGRADATION: Hindsight recall failed (%s) → memory disabled for this turn", e)
             return [], ""
 
     async def retain_memories(
@@ -256,7 +256,7 @@ class SessionStore:
             try:
                 count = await self._hindsight.retain(events, account_id, session_id)
             except Exception as e:
-                logger.warning("Hindsight retain failed: %s", e)
+                logger.warning("DEGRADATION: Hindsight retain failed (%s) → events saved to file backup only", e)
 
         # 同步备份到本地文件（与 Hindsight 同时写入）
         await self._backup_to_file(session_id, None, events)
@@ -269,7 +269,7 @@ class SessionStore:
         try:
             return await self._hindsight.reflect(account_id)
         except Exception as e:
-            logger.warning("Hindsight reflect failed: %s", e)
+            logger.warning("DEGRADATION: Hindsight reflect failed (%s) → summary unavailable", e)
             return 0
 
     # ═══════════════════════════════════════════════════════════════════════════

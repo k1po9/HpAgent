@@ -117,7 +117,7 @@ async def init_dependencies(config: AppConfig):
             redis_cache = RedisCache(redis_client, default_ttl=config.redis.default_ttl)
             logger.info("Redis connected: %s", redis_url)
         except Exception as e:
-            logger.warning("Redis unavailable (%s), session storage disabled", e)
+            logger.warning("DEGRADATION: Redis unavailable (%s) → falling back to in-memory storage", e)
 
     # ── nsjail ──
     nsjail_config = _build_nsjail_config(config.sandbox)
@@ -149,7 +149,7 @@ async def init_dependencies(config: AppConfig):
             )
             logger.info("HindsightClient initialized: base_url=%s", hindsight_client.base_url)
         except Exception as e:
-            logger.warning("HindsightClient init failed, memory disabled: %s", e)
+            logger.warning("DEGRADATION: Hindsight unavailable (%s) → long-term memory disabled", e)
 
     # ── 沙箱管理器 ──
     sandbox_manager = SandboxManager(
@@ -168,8 +168,8 @@ async def init_dependencies(config: AppConfig):
     # ── 上下文构建器 ──
     context_builder = HarnessContextBuilder(prompt_loader=prompt_loader)
 
-    # ── 账号服务 ──
-    account_service = AccountService()
+    # ── 账号服务（JSON 文件持久化: data/accounts.json） ──
+    account_service = AccountService(data_dir=Path("data"))
 
     # ── 渠道路由器 ──
     channel_router = ChannelRouter()

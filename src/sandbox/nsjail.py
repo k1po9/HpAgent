@@ -185,7 +185,7 @@ class NsjailExecutor:
     def _ensure_nsjail(self) -> None:
         """验证 nsjail 二进制和 runner 脚本是否可访问。"""
         if not os.path.isfile(self.config.nsjail_binary):
-            logger.warning("nsjail binary not found: %s", self.config.nsjail_binary)
+            logger.warning("DEGRADATION: nsjail binary not found at %s → sandbox isolation disabled, tools will run in-process", self.config.nsjail_binary)
 
     async def execute(
         self,
@@ -354,7 +354,7 @@ class NsjailExecutor:
                 ttl=3600,
             )
         except Exception as e:
-            logger.warning("Failed to persist result to Redis: %s", e)
+            logger.warning("DEGRADATION: Redis result persist failed (%s) → execution result not cached", e)
 
     async def retrieve_result(self, execution_id: str) -> dict | None:
         """从 Redis 检索历史执行结果。

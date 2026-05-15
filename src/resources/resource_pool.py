@@ -11,11 +11,14 @@ ResourcePool —— 模型调用池，实现 IResources 接口。
   - generate(model_selector="default") 时先尝试 anthropic:claude，
     失败自动切换到 openai:gpt4。
 """
+import logging
 from typing import Dict, Any, Optional, List
 import json
 from .credentials import CredentialManager
 from common.interfaces import IResources
 from common.errors import ModelAPIError, ValidationError
+
+logger = logging.getLogger("HpAgent.ResourcePool")
 
 
 class ResourcePool(IResources):
@@ -214,7 +217,11 @@ class ResourcePool(IResources):
                     messages=messages, tools=tools, stream=stream
                 )
             except (ModelAPIError, ConnectionError, TimeoutError) as e:
-                # 可恢复错误 → 记录并尝试下一个
+                # 可恢复错误 → 记录降级并尝试下一个
+                logger.warning(
+                    "DEGRADATION: model %s failed (%s) → trying next in chain [%s]",
+                    model_id, e, model_selector,
+                )
                 last_error = e
                 continue
             except Exception:
