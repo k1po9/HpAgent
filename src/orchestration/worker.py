@@ -19,6 +19,7 @@ import dataclasses
 import logging
 import os
 from pathlib import Path
+from types import List, Dict
 
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
@@ -63,7 +64,7 @@ def _build_nsjail_config(sandbox: SandboxConfig) -> NsjailConfig:
     return NsjailConfig(**kwargs)
 
 
-async def init_dependencies(config: AppConfig):
+async def init_dependencies(config: AppConfig) -> tuple[HarnessRunner, AccountService, ChannelRouter, SandboxManager, WorkspaceManager]:
     """初始化所有共享依赖并组装 HarnessRunner。
 
     Returns:
@@ -166,7 +167,7 @@ async def init_dependencies(config: AppConfig):
     context_builder = HarnessContextBuilder(prompt_loader=prompt_loader)
 
     # ── 账号服务（JSON 文件持久化: data/accounts.json） ──
-    account_service = AccountService(data_dir=Path("data"))
+    account_service = AccountService(data_dir=Path(".hpagent/data"))
 
     # ── 渠道路由器 ──
     channel_router = ChannelRouter()
@@ -184,6 +185,31 @@ async def init_dependencies(config: AppConfig):
         config.session.backup_dir,
     )
 
+    # ── Multi-Agent Executor (mode=multi 时加载) ──
+    multi_agent_executor = None
+    if config.agent.mode == "multi":
+        import yaml as _yaml
+        agents_path = Path(config.agent.multi_agent.agents_config)
+        if not agents_path.is_absolute():
+            agents_path = Path(__file__).resolve().parent.parent / agents_path
+        if agents_path.exists():
+            with open(agents_path, "r", encoding="utf-8") as _f:
+                agents_raw = _yaml.safe_load(_f) or {}
+            agents_list = agents_raw.get("agents", [])
+            from agent.runner import MultiAgentExecutor
+            multi_agent_executor = MultiAgentExecutor(
+                resource_pool=resource_pool,
+                agents_config=agents_list,
+                strategy=config.agent.multi_agent.strategy,
+                max_review_rounds=config.agent.multi_agent.max_review_rounds,
+            )
+            logger.info(
+                "MultiAgentExecutor: strategy=%s agents=%d",
+                config.agent.multi_agent.strategy, len(agents_list),
+            )
+        else:
+            logger.warning("Agents config not found: %s, falling back to single-agent", agents_path)
+
     # ── HarnessRunner ──
     harness_runner = HarnessRunner(
         session_store=session_store,
@@ -192,6 +218,8 @@ async def init_dependencies(config: AppConfig):
         sandbox_manager=sandbox_manager,
         channel_router=channel_router,
         max_tool_turns=config.agent.max_tool_turns,
+        agent_mode=config.agent.mode,
+        multi_agent_executor=multi_agent_executor,
     )
 
     logger.info("HarnessRunner assembled: all dependencies wired")

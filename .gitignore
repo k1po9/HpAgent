@@ -41,6 +41,7 @@ channel/
 
 # 运行时数据（日志 / 会话 / 工作区 / QQ 凭证）
 data/
+.hpagent/
 
 # 旧版运行时目录（逐步迁移）
 users_workspace/

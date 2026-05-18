@@ -187,7 +187,7 @@ class SandboxConfig:
 @dataclass
 class WorkspaceConfig:
     """用户工作区配置。"""
-    root: str = "data/workspace"
+    root: str = ".hpagent/data/workspace"
     db_path: str = ""
     cleanup_max_age_days: int = 30
 
@@ -204,8 +204,16 @@ class HindsightConfig:
 @dataclass
 class SessionConfig:
     """会话存储配置。"""
-    backup_dir: str = "data/sessions"
+    backup_dir: str = ".hpagent/data/sessions"
     redis_ttl: int = 86400
+
+
+@dataclass
+class MultiAgentConfig:
+    """多Agent模式配置。"""
+    strategy: str = "supervisor"       # supervisor | council | workflow
+    max_review_rounds: int = 10
+    agents_config: str = "config/agents.yaml"
 
 
 @dataclass
@@ -217,6 +225,8 @@ class AgentConfig:
     event_fetch_limit: int = 100
     activity_timeout: int = 120
     archive_timeout: int = 10
+    mode: str = "single"               # "single" | "multi"
+    multi_agent: MultiAgentConfig = field(default_factory=MultiAgentConfig)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -308,20 +318,33 @@ class AppConfig:
         使用该 dataclass 的默认构造。
         """
         def _populate(dataclass_type, source: dict | None, prefix: str):
-            """用 source dict 中的 key → dataclass 字段映射填充实例。"""
-            defaults = {f.name: f.default if f.default is not dataclasses.MISSING
-                        else f.default_factory() if f.default_factory is not dataclasses.MISSING
-                        else None
-                        for f in dataclasses.fields(dataclass_type)}
+            """用 source dict 中的 key → dataclass 字段映射填充实例。
+
+            支持嵌套 dataclass：当 source 中某个字段的值是 dict 且默认值
+            是 dataclass 实例时，递归调用 _populate。
+            """
+            defaults = {}
+            for f in dataclasses.fields(dataclass_type):
+                if f.default is not dataclasses.MISSING:
+                    defaults[f.name] = f.default
+                elif f.default_factory is not dataclasses.MISSING:
+                    defaults[f.name] = f.default_factory()
+                else:
+                    defaults[f.name] = None
+
             if source is None:
                 source = {}
-            # 收集 source 中匹配字段名的值
             kwargs = {}
             for field_name, default_val in defaults.items():
                 if field_name in source:
-                    kwargs[field_name] = source[field_name]
-                elif isinstance(default_val, (int, float, str, bool, type(None))):
-                    kwargs[field_name] = default_val
+                    raw_val = source[field_name]
+                    # Recursively populate nested dataclass fields
+                    if isinstance(raw_val, dict) and dataclasses.is_dataclass(default_val):
+                        kwargs[field_name] = _populate(
+                            type(default_val), raw_val, f"{prefix}.{field_name}"
+                        )
+                    else:
+                        kwargs[field_name] = raw_val
                 else:
                     kwargs[field_name] = default_val
             # 对未知 key 发出警告

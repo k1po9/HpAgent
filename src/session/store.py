@@ -37,7 +37,7 @@ class SessionStore:
 
     Usage::
 
-        store = SessionStore(redis_cache, hindsight_client, backup_dir=Path("data/sessions"))
+        store = SessionStore(redis_cache, hindsight_client, backup_dir=Path(".hpagent/data/sessions"))
         await store.create_session("agent-u1", "u1", "napcat")
         await store.append_events("agent-u1", user_event, model_event)
         events = await store.get_events("agent-u1", limit=40)

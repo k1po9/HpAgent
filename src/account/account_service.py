@@ -23,12 +23,12 @@ class AccountService:
 
     用法::
 
-        svc = AccountService(data_dir=Path("data"))
+        svc = AccountService(data_dir=Path(".hpagent/data"))
         account_id = await svc.resolve("napcat", "123456")  # QQ → UUID
         await svc.bind_channel(account_id, "web", "user_abc")
     """
 
-    def __init__(self, data_dir: Path | str = Path("data")):
+    def __init__(self, data_dir: Path | str = Path(".hpagent/data")):
         self._data_dir = Path(data_dir)
         self._file = self._data_dir / "accounts.json"
         self._accounts: Dict[str, Account] = {}

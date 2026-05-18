@@ -43,6 +43,8 @@ class HarnessRunner:
         sandbox_manager=None,
         channel_router: Optional[ChannelRouter] = None,
         max_tool_turns: int = 20,
+        agent_mode: str = "single",
+        multi_agent_executor: Any = None,
     ):
         self._session = session_store
         self._ctx = context_builder
@@ -50,6 +52,8 @@ class HarnessRunner:
         self._sandbox = sandbox_manager
         self._channel = channel_router
         self._max_tool_turns = max_tool_turns
+        self._agent_mode = agent_mode
+        self._multi_agent_executor = multi_agent_executor
 
     # ═══════════════════════════════════════════════════════════════════════════
     # 主入口: process_turn
@@ -103,88 +107,123 @@ class HarnessRunner:
         final_content = ""
         turns_taken = 0
 
-        # ── Agentic loop ──
-        while turns_taken < self._max_tool_turns:
-            turns_taken += 1
-
-            # 召回长期记忆
-            memories_items, memories_text = await self._session.recall_memories(
+        # ── Multi-Agent Path ────────────────────────────────────────────
+        if self._agent_mode == "multi" and self._multi_agent_executor is not None:
+            # Recall memories once for the orchestrator
+            _mem_items, memories_text = await self._session.recall_memories(
                 query=user_content,
                 account_id=account_id,
                 session_id=session_id,
                 top_n=5,
             )
 
-            # 构建上下文(metadata 未使用)
-            context = self._build_context(events, channel_type, memories_text)
-
-            # 获取工具列表
-            tools = self._get_tools()
-
-            # 调用模型
-            response = await self._model.generate(
-                model_selector="chat",
-                messages=context,
-                tools=tools if tools else None,
-                stream=False,
+            final_content, turns_taken = await self._multi_agent_executor.execute(
+                goal=user_content,
+                history_events=events,
+                memories_text=memories_text,
             )
 
-            final_content = response.content or ""
-
-            # 追加模型回复事件
+            # Record model event for the final synthesized response
             model_event = Event(
                 session_id=session_id,
                 event_type=EventType.MODEL_MESSAGE,
                 content={
-                    "text": response.content or "",
-                    "tool_calls": [
-                        tc.to_dict() for tc in (response.tool_calls or [])
-                    ],
-                    "stop_reason": (
-                        response.stop_reason.value
-                        if hasattr(response.stop_reason, "value")
-                        else str(response.stop_reason)
-                    ),
+                    "text": final_content,
+                    "tool_calls": [],
+                    "stop_reason": "end_turn",
                 },
             )
             events.append(model_event)
             await self._session.append_events(session_id, model_event)
 
-            # 处理工具调用
-            if response.tool_calls:
-                assistant_turn = {
-                    "role": "assistant",
-                    "content": response.content or "",
-                    "tool_calls": [
-                        {"name": tc.name, "arguments": tc.arguments}
-                        for tc in response.tool_calls
-                    ],
-                }
-                turn_events.append(assistant_turn)
+            turn_events.append({
+                "role": "assistant",
+                "content": final_content,
+            })
 
-                for tc in response.tool_calls:
-                    result = await self._execute_tool(tc.name, tc.arguments)
-                    tool_event = Event(
-                        session_id=session_id,
-                        event_type=EventType.TOOL_RESULT,
-                        content={
-                            "tool_call_id": tc.id,
-                            "tool_name": tc.name,
-                            "result": result.get("output"),
-                            "error": result.get("error"),
-                        },
-                    )
-                    events.append(tool_event)
-                    await self._session.append_events(session_id, tool_event)
+        # ── Single-Agent Path (existing ReAct loop, unchanged) ───────────
+        else:
+            while turns_taken < self._max_tool_turns:
+                turns_taken += 1
 
-                # 工具结果注入后继续循环，让模型看到结果
-                continue
-            else:
-                turn_events.append({
-                    "role": "assistant",
-                    "content": final_content,
-                })
-                break  # 无工具调用，本轮结束
+                # 召回长期记忆
+                memories_items, memories_text = await self._session.recall_memories(
+                    query=user_content,
+                    account_id=account_id,
+                    session_id=session_id,
+                    top_n=5,
+                )
+
+                # 构建上下文(metadata 未使用)
+                context = self._build_context(events, channel_type, memories_text)
+
+                # 获取工具列表
+                tools = self._get_tools()
+
+                # 调用模型
+                response = await self._model.generate(
+                    model_selector="chat",
+                    messages=context,
+                    tools=tools if tools else None,
+                    stream=False,
+                )
+
+                final_content = response.content or ""
+
+                # 追加模型回复事件
+                model_event = Event(
+                    session_id=session_id,
+                    event_type=EventType.MODEL_MESSAGE,
+                    content={
+                        "text": response.content or "",
+                        "tool_calls": [
+                            tc.to_dict() for tc in (response.tool_calls or [])
+                        ],
+                        "stop_reason": (
+                            response.stop_reason.value
+                            if hasattr(response.stop_reason, "value")
+                            else str(response.stop_reason)
+                        ),
+                    },
+                )
+                events.append(model_event)
+                await self._session.append_events(session_id, model_event)
+
+                # 处理工具调用
+                if response.tool_calls:
+                    assistant_turn = {
+                        "role": "assistant",
+                        "content": response.content or "",
+                        "tool_calls": [
+                            {"name": tc.name, "arguments": tc.arguments}
+                            for tc in response.tool_calls
+                        ],
+                    }
+                    turn_events.append(assistant_turn)
+
+                    for tc in response.tool_calls:
+                        result = await self._execute_tool(tc.name, tc.arguments)
+                        tool_event = Event(
+                            session_id=session_id,
+                            event_type=EventType.TOOL_RESULT,
+                            content={
+                                "tool_call_id": tc.id,
+                                "tool_name": tc.name,
+                                "result": result.get("output"),
+                                "error": result.get("error"),
+                            },
+                        )
+                        events.append(tool_event)
+                        await self._session.append_events(session_id, tool_event)
+
+                    # 工具结果注入后继续循环，让模型看到结果
+                    continue
+                else:
+                    turn_events.append({
+                        "role": "assistant",
+                        "content": final_content,
+                    })
+                    break  # 无工具调用，本轮结束
 
         # 发送响应
         await self._send_response(final_content, user_message)

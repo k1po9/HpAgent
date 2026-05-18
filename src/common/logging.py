@@ -3,11 +3,11 @@ Centralized logging setup —— 双 sink：控制台（stderr）+ 结构化 JSO
 
 Usage:
     from common.logging import setup_logging
-    setup_logging(level=logging.DEBUG, log_dir=Path("data/logs"))
+    setup_logging(level=logging.DEBUG, log_dir=Path(".hpagent/data/logs"))
 
 Log files:
-    data/logs/hpagent.jsonl     全量结构化 JSON（每行一条记录，默认 DEBUG）
-    data/logs/hpagent-error.log 仅 ERROR+，快速定位故障
+    .hpagent/data/logs/hpagent.jsonl     全量结构化 JSON（每行一条记录，默认 DEBUG）
+    .hpagent/data/logs/hpagent-error.log 仅 ERROR+，快速定位故障
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class _JsonFormatter(logging.Formatter):
 
 def setup_logging(
     level: int = logging.INFO,
-    log_dir: Path | str = Path("data/logs"),
+    log_dir: Path | str = Path(".hpagent/data/logs"),
 ) -> None:
     """配置全局日志系统。
 

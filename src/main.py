@@ -26,7 +26,7 @@ from pathlib import Path
 from common.logging import setup_logging
 
 _log_level = getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
-_log_dir = Path(os.getenv("LOG_DIR", "data/logs"))
+_log_dir = Path(os.getenv("LOG_DIR", ".hpagent/data/logs"))
 setup_logging(level=_log_level, log_dir=_log_dir)
 
 logger = logging.getLogger("HpAgent")
@@ -52,8 +52,6 @@ async def main_async():
     logger.info("=== HpAgent ===")
     if config.models.chat:
         logger.info("Model (chat): %s:%s", config.models.chat[0].provider, config.models.chat[0].model)
-    if config.models.embedding:
-        logger.info("Model (embedding): %s:%s", config.models.embedding[0].provider, config.models.embedding[0].model)
     logger.info("Temporal: %s", config.temporal.host)
     logger.info("Redis: %s", "enabled" if config.redis.url else "disabled")
     logger.info("Hindsight: %s", "enabled" if config.hindsight.enabled else "disabled")
