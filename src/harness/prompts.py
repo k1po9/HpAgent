@@ -14,10 +14,7 @@ prompt 内容可随时通过编辑 YAML 文件调整，无需改代码。
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Dict, Optional
-
-import yaml
+from typing import Dict
 
 logger = logging.getLogger("HpAgent.PromptLoader")
 
@@ -29,45 +26,29 @@ DEFAULT_IDENTITY = (
 
 
 class PromptLoader:
-    """从 YAML 目录加载所有 Agent prompt。
+    """Agent prompt 查询接口，数据来自 AppConfig.prompts。
 
     用法::
 
-        loader = PromptLoader(Path("config/prompts"))
+        loader = PromptLoader(config.prompts)
         identity = loader.get_identity("console")
         style = loader.get_guidance("console_style")
         env_hint = loader.get_environment("docker")
     """
 
-    def __init__(self, prompts_dir: Path):
-        self._dir = Path(prompts_dir)
-        self._identities: Dict[str, str] = {}
-        self._guidance: Dict[str, str] = {}
-        self._environment: Dict[str, str] = {}
-        self._system: Dict[str, str] = {}
-        self._reload()
+    def __init__(self, prompts_config=None):
+        """从 PromptsConfig 初始化。
 
-    def _reload(self) -> None:
-        """加载所有 prompt YAML 文件。"""
-        self._load_file("identities.yaml", self._identities)
-        self._load_file("guidance.yaml", self._guidance)
-        self._load_file("environment.yaml", self._environment)
-        self._load_file("system.yaml", self._system)
-
-    def _load_file(self, filename: str, target: Dict[str, str]) -> None:
-        path = self._dir / filename
-        if not path.exists():
-            logger.warning("Prompt file not found: %s, using defaults", path)
-            return
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data: dict = yaml.safe_load(f) or {}
-            for k, v in data.items():
-                if isinstance(v, str):
-                    target[k] = v.strip()
-            logger.debug("Loaded %d prompts from %s", len(data), filename)
-        except Exception as e:
-            logger.warning("Failed to load %s: %s", path, e)
+        Args:
+            prompts_config: PromptsConfig 实例。None 时使用空默认值。
+        """
+        # 延迟导入避免循环依赖
+        from orchestration.config import PromptsConfig
+        cfg = prompts_config if prompts_config is not None else PromptsConfig()
+        self._identities: Dict[str, str] = dict(cfg.identities)
+        self._guidance: Dict[str, str] = dict(cfg.guidance)
+        self._environment: Dict[str, str] = dict(cfg.environment)
+        self._system: Dict[str, str] = dict(cfg.system)
 
     # ── 渠道身份 ──────────────────────────────────────────────────────────
 

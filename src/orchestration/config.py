@@ -230,6 +230,88 @@ class AgentConfig:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Prompt 配置 —— 从 config/prompts/*.yaml 加载
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class PromptsConfig:
+    """所有 Agent prompt 模板的统一容器。
+
+    从 config/prompts/ 目录加载四个 YAML 文件：
+      - identities.yaml  → channel_map + 各渠道人设
+      - guidance.yaml    → 风格引导 + 工具纪律
+      - environment.yaml → 运行环境提示 (docker/wsl)
+      - system.yaml      → 系统级提示 (跨渠道/上下文文件/记忆/截断)
+    """
+    identities: Dict[str, str] = field(default_factory=dict)
+    guidance: Dict[str, str] = field(default_factory=dict)
+    environment: Dict[str, str] = field(default_factory=dict)
+    system: Dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_dir(cls, prompts_dir: Path) -> "PromptsConfig":
+        """从目录加载所有 prompt YAML 文件。
+
+        Args:
+            prompts_dir: prompts/ 目录路径。
+
+        Returns:
+            PromptsConfig，缺失文件时对应字段为空 dict。
+        """
+        import yaml
+
+        def _load(filename: str) -> Dict[str, str]:
+            path = prompts_dir / filename
+            if not path.exists():
+                logger.warning("Prompt file not found: %s", path)
+                return {}
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data: dict = yaml.safe_load(f) or {}
+                return {k: v.strip() for k, v in data.items() if isinstance(v, str)}
+            except Exception as e:
+                logger.warning("Failed to load %s: %s", path, e)
+                return {}
+
+        return cls(
+            identities=_load("identities.yaml"),
+            guidance=_load("guidance.yaml"),
+            environment=_load("environment.yaml"),
+            system=_load("system.yaml"),
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Agent 定义 —— 从 config/agents.yaml 加载（多Agent模式）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class AgentEntry:
+    """单个 Agent 的能力定义。"""
+    tag: str = ""
+    model_selector: str = "chat"
+    system_prompt: str = ""
+    tools: list = field(default_factory=list)
+    tool_executor: Any = None
+    max_tool_turns: int = 5
+    cost_tier: str = "default"
+    priority: int = 0
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "AgentEntry":
+        return cls(
+            tag=data.get("tag", ""),
+            model_selector=data.get("model_selector", "chat"),
+            system_prompt=data.get("system_prompt", ""),
+            tools=data.get("tools", []),
+            tool_executor=data.get("tool_executor"),
+            max_tool_turns=data.get("max_tool_turns", 5),
+            cost_tier=data.get("cost_tier", "default"),
+            priority=data.get("priority", 0),
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # 顶层配置
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -237,7 +319,8 @@ class AgentConfig:
 class AppConfig:
     """应用配置根结构。
 
-    模型配置独立于 config/models.yaml，由 ModelsConfig.from_yaml() 加载。
+    从 config.yaml + models.yaml + prompts/*.yaml + agents.yaml 一次性加载。
+    所有配置统一存放在此 dataclass 中，Worker 通过属性访问。
     """
     models: ModelsConfig = field(default_factory=ModelsConfig)
     temporal: TemporalConfig = field(default_factory=TemporalConfig)
@@ -247,6 +330,8 @@ class AppConfig:
     hindsight: HindsightConfig = field(default_factory=HindsightConfig)
     session: SessionConfig = field(default_factory=SessionConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
+    prompts: PromptsConfig = field(default_factory=PromptsConfig)
+    agents: List[AgentEntry] = field(default_factory=list)
 
     # ══════════════════════════════════════════════════════════════════════
     # YAML 加载
@@ -289,14 +374,33 @@ class AppConfig:
 
         config = cls._from_dict(raw)
 
+        config_dir = config_file.parent
+
         # 加载模型配置
         if not models_path:
-            models_path = str(config_file.parent / "models.yaml")
+            models_path = str(config_dir / "models.yaml")
         mp = Path(models_path)
         if mp.exists():
             config.models = ModelsConfig.from_yaml(str(mp))
         else:
             logger.warning("Models config not found: %s, using defaults", mp)
+
+        # 加载 Prompt 配置
+        prompts_dir = config_dir / "prompts"
+        if prompts_dir.exists():
+            config.prompts = PromptsConfig.from_dir(prompts_dir)
+            logger.info("Prompts loaded from %s", prompts_dir)
+        else:
+            logger.warning("Prompts dir not found: %s, using defaults", prompts_dir)
+
+        # 加载 Agent 定义（多Agent模式）
+        agents_path = config_dir / "agents.yaml"
+        if agents_path.exists():
+            with open(agents_path, "r", encoding="utf-8") as _f:
+                agents_raw = yaml.safe_load(_f) or {}
+            for item in agents_raw.get("agents", []):
+                config.agents.append(AgentEntry.from_dict(item))
+            logger.info("Agents loaded: %d from %s", len(config.agents), agents_path)
 
         config._apply_env_overrides(_os.environ)
         return config

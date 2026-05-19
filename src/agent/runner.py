@@ -129,7 +129,7 @@ class MultiAgentExecutor:
                 max_tool_turns=entry.get("max_tool_turns", 5),
             )
 
-        # ResourcePoolAdapter: 将 ResourcePool.generate() 适配为 CallLLM 协议
+        # ResourcePoolAdapter: 将 ResourcePool.generate() 适配为 CallLLM 协议，供编排器调用
         call_llm = ResourcePoolAdapter(self._pool, model_selector="chat")
 
         # 按策略构建编排器

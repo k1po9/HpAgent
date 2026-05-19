@@ -1,7 +1,7 @@
-"""Compensation registry — instance-based, NOT global singleton.
+"""补偿注册表 —— 基于实例，不是全局单例。
 
-Design decision: each Orchestrator instance owns its CompensationRegistry,
-preventing task_type collisions when Orchestrators are recursively composed.
+设计决策：每个 Orchestrator 实例拥有自己的 CompensationRegistry，
+以防在递归组合时出现 task_type 冲突。
 """
 
 from __future__ import annotations
@@ -14,29 +14,29 @@ from .types import Task
 
 
 class CompensationHandler(ABC):
-    """Handler for rolling back side effects of a completed task."""
+    """用于回滚已完成任务副作用的处理器。"""
 
     @abstractmethod
     async def compensate(self, task: Task, context: ExecutionContext) -> None:
-        """Execute compensation logic for the given task."""
+        """为指定任务执行补偿逻辑。"""
         ...
 
 
 class CompensationRegistry:
-    """Per-Orchestrator-instance compensation handler registry.
+    """每个 Orchestrator 实例的补偿处理器注册表。
 
-    NOT a global singleton — each Orchestrator has its own instance.
-    This prevents task_type collisions in recursive composition.
+    不是全局单例——每个 Orchestrator 都有自己的实例。
+    这可以避免在递归组合中出现 task_type 冲突。
     """
 
     def __init__(self) -> None:
         self._handlers: dict[str, CompensationHandler] = {}
 
     def register(self, task_type: str, handler: CompensationHandler) -> None:
-        """Register a compensation handler for a task type."""
+        """为某个任务类型注册补偿处理器。"""
         self._handlers[task_type] = handler
 
     def get(self, task_type: str) -> Optional[CompensationHandler]:
-        """Get the compensation handler for a task type."""
+        """获取指定任务类型的补偿处理器。"""
         return self._handlers.get(task_type)
 

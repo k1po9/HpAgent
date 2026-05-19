@@ -10,7 +10,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
+
+from resources.resource_pool import ResourcePool
 
 from .bus import InMemoryMessageBus
 from .context import ExecutionContext
@@ -44,7 +46,8 @@ class ResourcePoolAdapter:
     """将 ResourcePool.generate() 适配为 CallLLM 协议。
 
     ResourcePool.generate(messages, model_selector, tools, stream) → ModelResponse
-    CallLLM = (messages: list[dict], tools: list[dict] | None) → Awaitable[str]
+    CallLLM = (messages: list[dict], tools: list[dict] | None) → Awaitable[Any]
+    （返回具有 content 和 tool_calls 属性的响应对象）
 
     用法:
         pool = ResourcePool(credential_manager)
@@ -55,7 +58,7 @@ class ResourcePoolAdapter:
 
     def __init__(
         self,
-        resource_pool: Any,  # ResourcePool (lazy to avoid import at module level)
+        resource_pool: Optional[ResourcePool],  # ResourcePool（延迟导入以避免在模块级别产生循环依赖或额外开销）
         model_selector: str = "default",
     ) -> None:
         self._pool = resource_pool
@@ -63,14 +66,13 @@ class ResourcePoolAdapter:
 
     async def __call__(
         self, messages: list[dict], tools: list[dict] | None = None
-    ) -> str:
-        response = await self._pool.generate(
+    ) -> Any:
+        return await self._pool.generate(
             messages=messages,
             model_selector=self._model_selector,
             tools=tools,
             stream=False,
         )
-        return response.content or ""
 
 
 def build_supervisor(
@@ -96,7 +98,9 @@ def build_supervisor(
     reviewer = RealLLMReviewer(
         call_llm, system_prompt=reviewer_system_prompt, max_rounds=max_review_rounds
     )
-    strategy = SupervisorControlStrategy(planner, reviewer)
+
+    agent_tags = set(agents.keys()) if agents else {"default"}
+    strategy = SupervisorControlStrategy(planner, reviewer, agent_tags)
 
     registry = InMemoryAgentRegistry()
     for tag, agent in (agents or {}).items():

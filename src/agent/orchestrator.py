@@ -1,18 +1,18 @@
-"""Orchestrator — pure mechanical scheduling engine.
+"""Orchestrator —— 纯调度引擎（机械式调度）。
 
-Design decisions (from 5-round architecture review):
-  - Batch-parallel execution via asyncio.gather (NOT serial while loop)
-  - All strategy decisions flow through BatchOutcome (single decision channel)
-  - Handoff injection is pure mechanical (no policy judgment)
-  - Compensation runs AFTER the while loop (not dead code after break)
-  - Timeout preserves already-completed results (asyncio.Task + future.done())
-  - BaseException (KeyboardInterrupt etc.) is NOT swallowed
-  - Compensation includes HANDED_OFF tasks (not just COMPLETED)
+设计决策（来自五轮架构评审）：
+    - 通过 asyncio.gather 实现批量并行执行（而非串行 while 循环）
+    - 所有策略决策通过 BatchOutcome（单一决策通道）传递
+    - handoff 注入为纯机械操作（不包含策略判断）
+    - 补偿在主循环退出后执行（而不是在 break 后成为死代码）
+    - 超时处理保留已完成的结果（使用 asyncio.Task + future.done()）
+    - 不吞噬 BaseException（如 KeyboardInterrupt）
+    - 补偿包含 HANDED_OFF 任务（不只是 COMPLETED）
 
-Invariants:
-  - pending task_ids do NOT appear in results (unless in retry state)
-  - result task_ids do NOT appear in pending (unless marked for retry)
-  - get_ready_batch receives all executed task results (including failed)
+不变量：
+    - pending 中的 task_id 不应出现在 results 中（除非处于重试状态）
+    - results 中的 task_id 不应出现在 pending 中（除非被标记为重试）
+    - get_ready_batch 会接收到所有已执行的任务结果（包括失败）
 """
 
 from __future__ import annotations
@@ -37,11 +37,10 @@ logger = logging.getLogger(__name__)
 
 
 class Orchestrator:
-    """Pure mechanical scheduling engine.
+    """纯调度引擎。
 
-    Drives the execution loop: fetch ready batch → parallel execute → process results →
-    collect strategy decision via BatchOutcome → apply → repeat.
-    Contains ZERO policy judgment logic.
+    驱动执行循环：获取就绪批次 → 并行执行 → 处理结果 → 通过 BatchOutcome 收集策略决策 → 应用 → 重复。
+    不包含任何策略判断逻辑。
     """
 
     def __init__(
@@ -57,7 +56,7 @@ class Orchestrator:
         self.compensation_registry = compensation_registry
 
     async def run(self, goal: str, context: ExecutionContext) -> dict[str, TaskResult]:
-        """Execute a top-level goal and return all task results."""
+        """执行顶层目标并返回所有任务结果。"""
         plan = await self.strategy.initialize_plan(goal, context)
         results: dict[str, TaskResult] = {}
         pending: set[str] = set(plan.tasks.keys())
@@ -70,15 +69,15 @@ class Orchestrator:
             if not ready_batch:
                 break
 
-            # ── Parallel execution with timeout ──────────────────────────
+            # ── 带超时的并行执行 ──────────────────────────
             batch_results_map = await self._execute_batch(ready_batch, context)
 
-            # ── Mechanical result processing (NO policy judgment) ─────────
+            # ── 机械式结果处理（无策略判断） ─────────
             for task, result in zip(ready_batch, batch_results_map):
                 results[task.task_id] = result
                 pending.discard(task.task_id)
 
-                # Handoff: pure mechanical injection
+                # Handoff：纯机械注入
                 if result.handoff_request:
                     if result.status == TaskStatus.FAILED:
                         raise RuntimeError(
@@ -96,7 +95,7 @@ class Orchestrator:
                     plan.tasks[handoff_task.task_id] = handoff_task
                     pending.add(handoff_task.task_id)
 
-            # ── Single decision channel: strategy.on_batch_completed ──────
+            # ── 单一决策通道：strategy.on_batch_completed ──────
             outcome = await self.strategy.on_batch_completed(results, plan, context)
             results.update(outcome.injected_results)
             for new_task in outcome.new_tasks:
@@ -109,7 +108,7 @@ class Orchestrator:
                 terminated = True
                 break
 
-        # ── Compensation after loop exit (NOT dead code after break) ──────
+        # ── 循环退出后执行补偿（不是 break 后的死代码） ──────
         if terminated and self.compensation_registry:
             await self._execute_compensations(plan, results, context)
 
@@ -119,10 +118,9 @@ class Orchestrator:
     async def _execute_batch(
         self, tasks: list[Task], context: ExecutionContext
     ) -> list[TaskResult]:
-        """Execute a batch of tasks in parallel with timeout protection.
+        """并行执行一批任务并提供超时保护。
 
-        Uses asyncio.Task to track individual futures — on timeout, already-completed
-        results are preserved (not overwritten).
+        使用 asyncio.Task 跟踪各个 future —— 发生超时时，已完成的结果会被保留（不被覆盖）。
         """
         futures = [
             asyncio.ensure_future(self._execute_with_lifecycle(task, context))
@@ -136,12 +134,12 @@ class Orchestrator:
                 timeout=timeout,
             )
         except asyncio.TimeoutError:
-            logger.error("Batch execution timed out after %ss", timeout)
+            logger.error("批次执行在 %ss 后超时", timeout)
             for f in futures:
                 if not f.done():
                     f.cancel()
 
-        # Collect results — preserve completed, mark timed-out as FAILED
+        # 收集结果 —— 保留已完成的，超时的标记为 FAILED
         results: list[TaskResult] = []
         for task, future in zip(tasks, futures):
             if future.done() and not future.cancelled():
@@ -167,7 +165,7 @@ class Orchestrator:
     async def _execute_with_lifecycle(
         self, task: Task, context: ExecutionContext
     ) -> TaskResult:
-        """Resolve agent and execute task."""
+        """解析代理并执行任务。"""
         agent = await self.registry.find_best(task.required_capability)
         if not agent:
             return TaskResult(
@@ -183,10 +181,10 @@ class Orchestrator:
         return await agent.execute(task, context)
 
     def _normalize_result(self, task: Task, raw: Any) -> TaskResult:
-        """Normalize raw execution result to TaskResult.
+        """将原始执行结果规范化为 TaskResult。
 
-        BaseException subclasses (KeyboardInterrupt, SystemExit) are re-raised.
-        Regular Exceptions are converted to FAILED TaskResult with error info.
+        BaseException 子类（KeyboardInterrupt、SystemExit 等）会被重新抛出。
+        普通 Exception 会被转换为带错误信息的 FAILED TaskResult。
         """
         if isinstance(raw, BaseException) and not isinstance(raw, Exception):
             raise raw
@@ -209,7 +207,7 @@ class Orchestrator:
         results: dict[str, TaskResult],
         context: ExecutionContext,
     ) -> None:
-        """Execute compensations in reverse order for COMPLETED and HANDED_OFF tasks."""
+        """对 COMPLETED 和 HANDED_OFF 任务按相反顺序执行补偿。"""
         if self.compensation_registry is None:
             return
 

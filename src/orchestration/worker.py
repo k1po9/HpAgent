@@ -19,7 +19,7 @@ import dataclasses
 import logging
 import os
 from pathlib import Path
-from types import List, Dict
+from typing import List, Dict
 
 from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
@@ -137,6 +137,10 @@ async def init_dependencies(config: AppConfig) -> tuple[HarnessRunner, AccountSe
     )
     logger.info("WorkspaceManager initialized: root=%s", workspace_manager.root)
 
+    # ── Prompt 加载器 ──
+    prompt_loader = PromptLoader(config.prompts)
+    logger.info("PromptLoader initialized from AppConfig.prompts")
+
     # ── Hindsight ──
     from memory.hindsight_client import HindsightClient
     hindsight_client = None
@@ -159,10 +163,6 @@ async def init_dependencies(config: AppConfig) -> tuple[HarnessRunner, AccountSe
         workspace_manager=workspace_manager,
         max_idle_seconds=config.sandbox.max_idle_seconds,
     )
-    # ── Prompt 加载器 ──
-    prompt_loader = PromptLoader(Path("config/prompts"))
-    logger.info("PromptLoader initialized from config/prompts/")
-
     # ── 上下文构建器 ──
     context_builder = HarnessContextBuilder(prompt_loader=prompt_loader)
 
@@ -187,28 +187,21 @@ async def init_dependencies(config: AppConfig) -> tuple[HarnessRunner, AccountSe
 
     # ── Multi-Agent Executor (mode=multi 时加载) ──
     multi_agent_executor = None
-    if config.agent.mode == "multi":
-        import yaml as _yaml
-        agents_path = Path(config.agent.multi_agent.agents_config)
-        if not agents_path.is_absolute():
-            agents_path = Path(__file__).resolve().parent.parent / agents_path
-        if agents_path.exists():
-            with open(agents_path, "r", encoding="utf-8") as _f:
-                agents_raw = _yaml.safe_load(_f) or {}
-            agents_list = agents_raw.get("agents", [])
-            from agent.runner import MultiAgentExecutor
-            multi_agent_executor = MultiAgentExecutor(
-                resource_pool=resource_pool,
-                agents_config=agents_list,
-                strategy=config.agent.multi_agent.strategy,
-                max_review_rounds=config.agent.multi_agent.max_review_rounds,
-            )
-            logger.info(
-                "MultiAgentExecutor: strategy=%s agents=%d",
-                config.agent.multi_agent.strategy, len(agents_list),
-            )
-        else:
-            logger.warning("Agents config not found: %s, falling back to single-agent", agents_path)
+    if config.agent.mode == "multi" and config.agents:
+        from agent.runner import MultiAgentExecutor
+        agents_list = [dataclasses.asdict(a) for a in config.agents]
+        multi_agent_executor = MultiAgentExecutor(
+            resource_pool=resource_pool,
+            agents_config=agents_list,
+            strategy=config.agent.multi_agent.strategy,
+            max_review_rounds=config.agent.multi_agent.max_review_rounds,
+        )
+        logger.info(
+            "MultiAgentExecutor: strategy=%s agents=%d",
+            config.agent.multi_agent.strategy, len(config.agents),
+        )
+    elif config.agent.mode == "multi":
+        logger.warning("No agents defined in config, falling back to single-agent")
 
     # ── HarnessRunner ──
     harness_runner = HarnessRunner(

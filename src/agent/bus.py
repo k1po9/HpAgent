@@ -1,6 +1,6 @@
-"""InMemoryMessageBus — pure communication pipe.
+"""InMemoryMessageBus — 纯通信通道。
 
-No orchestration semantics. Handoff has been removed from this layer.
+不包含编排语义。本层已移除交接（handoff）逻辑。
 """
 
 from __future__ import annotations
@@ -12,9 +12,9 @@ from .interfaces import MessageBus
 
 
 class InMemoryMessageBus(MessageBus):
-    """Process-local message bus backed by asyncio.Queue.
+    """进程内消息总线，基于 asyncio.Queue 实现。
 
-    Routes messages by capability tag matching.
+    通过能力（capability）标签匹配来路由消息。
     """
 
     def __init__(self) -> None:
@@ -23,15 +23,15 @@ class InMemoryMessageBus(MessageBus):
         self._broadcast_queues: list[asyncio.Queue] = []
 
     async def send(self, target_capability: str, message: Any) -> None:
-        """Send a message to all subscribers of a capability."""
+        """向所有订阅特定能力的队列发送消息。"""
         queues = self._subscribers.get(target_capability, [])
         for queue in queues:
             await queue.put(message)
 
     async def broadcast(self, message: Any, capabilities: list[str] | None = None) -> list[Any]:
-        """Broadcast to all (or filtered) subscribers and collect replies.
+        """广播消息给所有（或指定能力的）订阅者并收集回复。
 
-        For Council mode — sends a message and waits for replies.
+        在 Council 模式下使用 —— 发送消息并等待回复。
         """
         if capabilities:
             targets = []
@@ -51,7 +51,7 @@ class InMemoryMessageBus(MessageBus):
         return replies
 
     async def listen(self, agent_capability: str) -> AsyncIterator[Any]:
-        """Subscribe to messages for a capability. Yields messages as they arrive."""
+        """订阅某能力的消息。按到达顺序产出消息。"""
         queue: asyncio.Queue = asyncio.Queue()
         self._subscribers.setdefault(agent_capability, []).append(queue)
         self._broadcast_queues.append(queue)

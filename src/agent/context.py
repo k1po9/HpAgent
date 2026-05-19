@@ -1,9 +1,9 @@
-"""Execution context — layered state management with concurrent-safety.
+"""执行上下文 — 分层状态管理，具备并发安全性。
 
-Design decisions (from 5-round architecture review):
-  - SessionState + SharedMemory + RuntimeConfig split (not a single global_context dict)
-  - SharedMemory provides CAS primitive for race-condition prevention
-  - trace_id for full-link observability
+设计决策（来自五轮架构评审）：
+    - 将 SessionState、SharedMemory 和 RuntimeConfig 分离（而非单一的 global_context dict）
+    - SharedMemory 提供 CAS 原语以防止竞态条件
+    - 使用 trace_id 以实现全链路可观测性
 """
 
 from __future__ import annotations
@@ -16,17 +16,17 @@ from typing import Any
 
 @dataclass
 class SessionState:
-    """User session — conversation history, user identity."""
+    """用户会话 — 会话历史、用户身份。"""
     user_id: str = ""
     conversation_history: list = field(default_factory=list)
 
 
 class SharedMemory:
-    """Concurrent-safe key-value store shared across agents.
+    """在代理间共享的并发安全键值存储。
 
-    Supports namespace isolation and atomic CAS operations.
-    In asyncio's single-threaded model, dict writes are safe but logical races
-    (read-check-write) require CAS.
+    支持命名空间隔离和原子 CAS 操作。
+    在 asyncio 的单线程模型中，dict 的写入操作是线程安全的，但存在读-检查-写的逻辑竞态，
+    需要使用 CAS 来避免此类竞态。
     """
 
     def __init__(self) -> None:
@@ -44,7 +44,7 @@ class SharedMemory:
             self._namespaces[namespace][key] = value
 
     async def compare_and_set(self, namespace: str, key: str, expected: Any, new_value: Any) -> bool:
-        """Atomic CAS — prevents race-condition writes."""
+        """原子 CAS —— 防止竞态写入。"""
         async with self._lock:
             current = self._namespaces.get(namespace, {}).get(key)
             if current == expected:
@@ -63,13 +63,13 @@ class SharedMemory:
             return False
 
     def snapshot(self) -> dict[str, dict]:
-        """Return a shallow copy of all namespaces (not under lock — caller must ensure safety)."""
+        """返回所有命名空间的浅拷贝（未在锁下进行——调用方需确保并发安全）。"""
         return {ns: dict(items) for ns, items in self._namespaces.items()}
 
 
 @dataclass
 class RuntimeConfig:
-    """Runtime configuration — timeout, retry, model selection."""
+    """运行时配置 —— 超时、重试、模型选择。"""
     timeout_seconds: int = 300
     max_retries: int = 3
     model_name: str = "default"
@@ -77,7 +77,7 @@ class RuntimeConfig:
 
 @dataclass
 class ExecutionContext:
-    """Layered execution context passed through the entire orchestration."""
+    """分层执行上下文，贯穿整个编排流程。"""
     session: SessionState = field(default_factory=SessionState)
     shared_memory: SharedMemory = field(default_factory=SharedMemory)
     config: RuntimeConfig = field(default_factory=RuntimeConfig)

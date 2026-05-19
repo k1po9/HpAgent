@@ -1,13 +1,13 @@
-"""Recursive composition — OrchestratorAsAgent wraps any Orchestrator as a BaseAgent.
+"""递归组合 —— 将任意 Orchestrator 封装为 BaseAgent 的 OrchestratorAsAgent。
 
-This is the key to nested orchestration patterns:
-  Supervisor(Workflow(TaskA, TaskB), Council(TaskC, TaskD))
+这是实现嵌套编排模式的关键：
+    Supervisor(Workflow(TaskA, TaskB), Council(TaskC, TaskD))
 
-Design decisions (from 5-round architecture review):
-  - OrchestratorAsAgent checks sub-task failures (not always returning COMPLETED)
-  - allow_partial controls whether partial failure returns FAILED or COMPLETED
-  - ResultAggregator handles sub-result aggregation
-  - CompensationRegistry is per-instance (recursive safety already ensured in Phase 1)
+设计决策（来自五轮架构评审）：
+    - OrchestratorAsAgent 会检查子任务失败（并非总是返回 COMPLETED）
+    - allow_partial 控制在部分失败时返回 FAILED 还是 COMPLETED
+    - ResultAggregator 负责子结果的聚合
+    - CompensationRegistry 为实例级别（第 1 阶段已保证递归安全）
 """
 
 from __future__ import annotations
@@ -20,10 +20,10 @@ from .types import CapabilitySpec, ErrorInfo, Task, TaskResult, TaskStatus
 
 
 class OrchestratorAsAgent(BaseAgent):
-    """Wraps an Orchestrator as a BaseAgent for recursive composition.
+    """将 Orchestrator 封装为 BaseAgent 以实现递归组合。
 
-    Any Orchestrator (with any Strategy) can be wrapped and scheduled
-    by a parent Orchestrator as if it were a plain Agent.
+    任意 Orchestrator（配合任意 Strategy）都可以被封装并由父级 Orchestrator 调度，
+    表现得像普通的 Agent 一样。
     """
 
     def __init__(
@@ -45,16 +45,16 @@ class OrchestratorAsAgent(BaseAgent):
     async def execute(
         self, task: Task, context: ExecutionContext
     ) -> TaskResult:
-        """Execute the task by delegating to the inner Orchestrator.
+        """通过委托给内部 Orchestrator 来执行任务。
 
-        Returns:
-          - COMPLETED: all sub-tasks succeeded (or allow_partial is True and some failed)
-          - FAILED: some sub-tasks failed and allow_partial is False
+        返回：
+            - COMPLETED：所有子任务成功（或 allow_partial 为 True 且部分失败）
+            - FAILED：部分子任务失败且 allow_partial 为 False
         """
-        # Delegate to inner orchestrator
+        # 委托给内部 orchestrator
         sub_results = await self._orchestrator.run(task.goal, context)
 
-        # Check for sub-task failures
+        # 检查子任务失败情况
         failed = [
             tid for tid, r in sub_results.items()
             if r.status == TaskStatus.FAILED

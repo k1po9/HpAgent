@@ -22,6 +22,7 @@ from common.types import (
 )
 from session.store import SessionStore
 from sandbox.channels.router import ChannelRouter
+from agent.runner import MultiAgentExecutor
 
 logger = logging.getLogger("HpAgent.HarnessRunner")
 
@@ -44,7 +45,7 @@ class HarnessRunner:
         channel_router: Optional[ChannelRouter] = None,
         max_tool_turns: int = 20,
         agent_mode: str = "single",
-        multi_agent_executor: Any = None,
+        multi_agent_executor: Optional[MultiAgentExecutor] = None,
     ):
         self._session = session_store
         self._ctx = context_builder
@@ -109,7 +110,7 @@ class HarnessRunner:
 
         # ── Multi-Agent Path ────────────────────────────────────────────
         if self._agent_mode == "multi" and self._multi_agent_executor is not None:
-            # Recall memories once for the orchestrator
+            # recall memory
             _mem_items, memories_text = await self._session.recall_memories(
                 query=user_content,
                 account_id=account_id,

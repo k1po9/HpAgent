@@ -1,10 +1,9 @@
-"""Adapter: wraps existing HarnessRunner as a BaseAgent (ReActAgent).
+"""适配器：将现有的 HarnessRunner 封装为 BaseAgent（ReActAgent）。
 
-This bridges the single-agent HarnessRunner (src/harness/runner.py) into
-the multi-agent architecture. The HarnessRunner's process_turn() maps to
-BaseAgent.execute().
+该适配器将单代理的 HarnessRunner（src/harness/runner.py）桥接到多代理架构中。
+HarnessRunner 的 process_turn() 对应为 BaseAgent.execute()。
 
-For Phase 1 tests, HarnessRunner is optional — mock agents are used.
+在第 1 阶段测试中，HarnessRunner 是可选的——可以使用模拟（mock）代理。
 """
 
 from __future__ import annotations
@@ -33,7 +32,7 @@ class ReActAgent(BaseAgent):
 
     def __init__(
         self,
-        harness_runner: Any = None,  # HarnessRunner (lazy import to avoid circular dep)
+        harness_runner: Any = None,  # HarnessRunner（延迟导入以避免循环依赖）
         capability_spec: CapabilitySpec | None = None,
     ) -> None:
         self._harness = harness_runner
@@ -52,7 +51,7 @@ class ReActAgent(BaseAgent):
 
         try:
             if self._harness is None:
-                # No harness — return mock result (for Phase 1 testing)
+                # 无 HarnessRunner —— 返回模拟结果（用于第 1 阶段测试）
                 return TaskResult(
                     task_id=task.task_id,
                     status=TaskStatus.COMPLETED,
@@ -63,7 +62,7 @@ class ReActAgent(BaseAgent):
                     trace_id=context.trace_id,
                 )
 
-            # Map Task to HarnessRunner.process_turn(user_message) shape
+            # 将 Task 映射为 HarnessRunner.process_turn(user_message) 的消息形态
             user_msg = {
                 "content": task.goal,
                 "sender_id": context.session.user_id or "agent",
@@ -71,7 +70,7 @@ class ReActAgent(BaseAgent):
                 "session_id": context.trace_id,
                 "account_id": context.session.user_id or "",
             }
-            # Merge task input_data into the message
+            # 将 task.input_data 合并到消息中
             if task.input_data:
                 user_msg.update(task.input_data)
 

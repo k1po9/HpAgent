@@ -28,18 +28,7 @@ ToolExecutor = Any
 
 
 class LLMAgent(BaseAgent):
-    """轻量 Agent，直调 ResourcePool。
-
-    用法::
-
-        agent = LLMAgent(
-            resource_pool=pool,
-            model_selector="chat",
-            system_prompt="你是一个有用的助手。",
-            capability_spec=CapabilitySpec(tags={"default"}),
-        )
-        result = await agent.execute(task, context)
-    """
+    """轻量 Agent，直调 ResourcePool，多agent系统中的基本单位。"""
 
     def __init__(
         self,

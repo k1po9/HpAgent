@@ -99,9 +99,8 @@ class SessionStore:
                 )
             except Exception as e:
                 logger.warning("DEGRADATION: Redis write failed (%s) → falling back to memory", e)
-        else:
-            self._mem_sessions[session_id] = session
-            self._mem_active[account_id] = session_id
+        self._mem_sessions[session_id] = session
+        self._mem_active[account_id] = session_id
         return session
 
     async def get_session(self, session_id: str) -> Optional[Session]:
@@ -113,7 +112,6 @@ class SessionStore:
                     return Session.from_dict(data)
             except Exception as e:
                 logger.warning("DEGRADATION: Redis read failed (%s) → falling back to memory", e)
-            return None
         return self._mem_sessions.get(session_id)
 
     async def get_active_session_id(self, account_id: str) -> Optional[str]:
@@ -125,7 +123,6 @@ class SessionStore:
                     return raw.decode() if isinstance(raw, bytes) else raw
             except Exception as e:
                 logger.warning("DEGRADATION: Redis get_active_session_id failed (%s) → falling back to memory", e)
-            return None
         return self._mem_active.get(account_id)
 
     async def update_status(self, session_id: str, status: SessionStatus) -> None:
@@ -144,8 +141,7 @@ class SessionStore:
                 )
             except Exception as e:
                 logger.warning("DEGRADATION: Redis update_status failed (%s) → falling back to memory", e)
-        else:
-            self._mem_sessions[session_id] = session
+        self._mem_sessions[session_id] = session
 
     async def archive(self, session_id: str) -> None:
         """归档会话：标记状态 + 清理活跃指针 + 写入最终备份。"""
@@ -159,8 +155,7 @@ class SessionStore:
                 await self._cache.delete(self._ACTIVE_KEY.format(session.account_id))
             except Exception as e:
                 logger.warning("DEGRADATION: Redis archive delete failed (%s) → falling back to memory", e)
-        else:
-            self._mem_active.pop(session.account_id, None)
+        self._mem_active.pop(session.account_id, None)
 
         # 最终备份：写入会话元数据摘要
         events = await self.get_events(session_id, limit=10000)
@@ -184,7 +179,6 @@ class SessionStore:
                 return count
             except Exception as e:
                 logger.warning("DEGRADATION: Redis rpush failed (%s) → events stored in memory only", e)
-                return 0
 
         lst = self._mem_events.setdefault(session_id, [])
         lst.extend(events)
@@ -206,7 +200,6 @@ class SessionStore:
                 return [Event.from_dict(json.loads(r)) for r in raw]
             except Exception as e:
                 logger.warning("DEGRADATION: Redis lrange failed (%s) → events read from memory only", e)
-                return []
 
         lst = self._mem_events.get(session_id, [])
         start = max(0, len(lst) - limit - offset)

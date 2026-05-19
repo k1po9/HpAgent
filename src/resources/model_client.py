@@ -10,6 +10,7 @@ ModelClient —— 单个模型 API 的 HTTP 客户端。
 
 当前实现主要针对 Anthropic 兼容 API（content 为数组格式）。
 """
+from asyncio.log import logger
 from typing import Dict, Any, Optional, List, Callable, Awaitable
 import json
 from common.types import ModelResponse, StopReason, ToolCall
@@ -81,13 +82,25 @@ class ModelClient:
             "max_tokens": self._max_tokens,
         }
         if tools:
-            payload["tools"] = tools
+            payload["tools"] = self._normalize_tools(tools)
         if stream:
             payload["stream"] = True
+
+        # import json as _json
+        # logger.info("ModelClient request: model=%s tools=%d msgs=%d",
+        #              self.model, len(tools or []), len(messages))
+        # logger.info("ModelClient messages preview: %s",
+        #              _json.dumps(messages, ensure_ascii=False, default=str)[:3000])
 
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             try:
                 response = await client.post(url, json=payload, headers=headers)
+                if response.status_code >= 400:
+                    logger.error(
+                        "ModelClient HTTP %d: body=%s",
+                        response.status_code,
+                        response.text[:1000],
+                    )
                 response.raise_for_status()
                 if stream:
                     return await self._parse_stream(response, on_text_delta)
@@ -99,6 +112,28 @@ class ModelClient:
                 )
             except Exception as e:
                 raise ModelAPIError(reason=str(e))
+
+    @staticmethod
+    def _normalize_tools(tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """将 OpenAI 格式工具定义转换为 Anthropic 格式。
+
+        OpenAI: {"type": "function", "function": {"name": ..., "description": ..., "parameters": ...}}
+        Anthropic: {"name": ..., "description": ..., "input_schema": ...}
+
+        已是 Anthropic 格式的工具原样返回。
+        """
+        normalized: List[Dict[str, Any]] = []
+        for tool in tools:
+            if "function" in tool:
+                fn = tool["function"]
+                normalized.append({
+                    "name": fn.get("name", ""),
+                    "description": fn.get("description", ""),
+                    "input_schema": fn.get("parameters", {}),
+                })
+            else:
+                normalized.append(tool)
+        return normalized
 
     async def _parse_stream(
         self,
@@ -169,21 +204,30 @@ class ModelClient:
           [{"type": "text", "text": "..."}, {"type": "tool_use", ...}]
         """
         content_text = ""
-        tool_calls = None
+        tool_calls: list[ToolCall] = []
 
         content_list = result.get("content", [])
         if content_list and isinstance(content_list, list):
             for item in content_list:
-                if isinstance(item, dict) and item.get("type") == "text":
+                if not isinstance(item, dict):
+                    continue
+                if item.get("type") == "text":
                     content_text = item.get("text", "")
-                    break
+                elif item.get("type") == "tool_use":
+                    tool_calls.append(ToolCall(
+                        id=item.get("id", ""),
+                        name=item.get("name", ""),
+                        arguments=item.get("input", {}),
+                    ))
 
         stop_reason_str = result.get("stop_reason", "end")
         stop_reason = self._map_anthropic_stop_reason(stop_reason_str)
+        if tool_calls and stop_reason == StopReason.END_TURN:
+            stop_reason = StopReason.TOOL_USE
 
         return ModelResponse(
             content=content_text or None,
-            tool_calls=tool_calls,
+            tool_calls=tool_calls if tool_calls else None,
             stop_reason=stop_reason,
         )
 
@@ -191,8 +235,10 @@ class ModelClient:
         """Anthropic API stop_reason → StopReason 枚举。"""
         mapping = {
             "end": StopReason.END_TURN,
+            "end_turn": StopReason.END_TURN,
             "max_tokens": StopReason.MAX_TOKENS,
             "stop": StopReason.END_TURN,
+            "tool_use": StopReason.TOOL_USE,
         }
         return mapping.get(reason, StopReason.ERROR)
 
