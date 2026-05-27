@@ -34,6 +34,7 @@ NapCatChannel —— NapCat QQ 协议通道，通过 WebSocket 连接 OneBot v11
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Optional, Callable, Awaitable
 
 import websockets
@@ -42,6 +43,18 @@ from sandbox.channels.base import BaseChannel
 from common.types import ChannelType, UnifiedMessage
 
 logger = logging.getLogger("HpAgent")
+
+
+def _to_iso_timestamp(unix_ts: int | float) -> str:
+    """Unix 秒级时间戳 → ISO 8601 字符串。"""
+    return datetime.fromtimestamp(unix_ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _safe_str(value: Any, default: str = "") -> str:
+    """安全转为字符串，处理 None/空值。"""
+    if value is None:
+        return default
+    return str(value)
 
 
 class NapCatChannel(BaseChannel):
@@ -112,6 +125,9 @@ class NapCatChannel(BaseChannel):
             "post_type": post_type,
             "detail_type": None,
             "sub_type": None,
+            "sender_name": "",
+            "message_id": data.get("message_id"),
+            "iso_timestamp": _to_iso_timestamp(data["time"]) if data.get("time") else "",
         }
 
         sender_id = ""
@@ -125,8 +141,20 @@ class NapCatChannel(BaseChannel):
             metadata["detail_type"] = message_type
             metadata["sub_type"] = data.get("sub_type", "")
 
-            sender_id = str(data.get("sender", {}).get("user_id", ""))
+            sender = data.get("sender", {})
+            sender_id = _safe_str(sender.get("user_id"))
             content = data.get("raw_message", "") or data.get("message", "")
+            metadata["sender_name"] = _safe_str(sender.get("card") or sender.get("nickname"))
+
+            # @机器人 检测: 解析 message 段中的 at 类型
+            metadata["is_at_bot"] = False
+            message_segments = data.get("message", [])
+            self_id = str(data.get("self_id", ""))
+            if isinstance(message_segments, list) and self_id:
+                for seg in message_segments:
+                    if seg.get("type") == "at" and str(seg.get("data", {}).get("qq")) == self_id:
+                        metadata["is_at_bot"] = True
+                        break
 
             # 群聊消息: 额外保存 group_id 用于回复路由
             if message_type == "group":

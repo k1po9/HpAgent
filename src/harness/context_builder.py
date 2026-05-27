@@ -18,6 +18,7 @@ prompt 拼接顺序（_build_system_prompt）：
 所有 prompt 文本从 YAML 文件加载（config/prompts/），由 PromptLoader 提供，
 可通过编辑 YAML 文件实时调整，无需改代码。
 """
+import functools
 import logging
 import os
 import re
@@ -54,16 +55,16 @@ _CONTEXT_INVISIBLE_CHARS = {
 }
 
 
+@functools.lru_cache(maxsize=1)
 def _is_wsl() -> bool:
-    """检测是否在 WSL 环境中运行 —— 读取 /proc/version 检查是否含 'microsoft'。"""
     try:
         return "microsoft" in Path("/proc/version").read_text().lower()
     except Exception:
         return False
 
 
+@functools.lru_cache(maxsize=1)
 def _is_docker() -> bool:
-    """检测是否在 Docker 容器中运行 —— 检查 /.dockerenv 文件是否存在。"""
     try:
         return Path("/.dockerenv").exists()
     except Exception:
@@ -277,8 +278,8 @@ class HarnessContextBuilder:
         prompt_loader: Optional[PromptLoader] = None,
         system_prompt: str = "",
         enable_chat_personality: bool = True,
-        enable_context_files: bool = False,
-        enable_tool_guidance: bool = False,
+        enable_context_files: bool = True,
+        enable_tool_guidance: bool = True,
     ):
         self._prompts = prompt_loader
         self._system_prompt = system_prompt

@@ -40,8 +40,11 @@ channel/
 .claude/
 
 # 运行时数据（日志 / 会话 / 工作区 / QQ 凭证）
+.data/
 data/
-.hpagent/
 
 # 旧版运行时目录（逐步迁移）
 users_workspace/
+
+# 代码分析工具缓存
+.understand-anything/

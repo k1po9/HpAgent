@@ -5,11 +5,15 @@ Temporal 只做编排（何时调用），HarnessRunner 做执行（如何调用
 每条 Activity 是无状态的：依赖在 Worker 启动时通过 inject() 注入。
 
 Activity 清单:
-  1. process_turn_activity   → HarnessRunner.process_turn()
-  2. archive_session_activity → SessionStore.archive()
-  3. reflect_activity         → HarnessRunner.reflect()
+  1. process_turn_activity     → HarnessRunner.process_turn()
+  2. archive_session_activity   → SessionStore.archive()
+  3. reflect_activity           → HarnessRunner.reflect()
+  4. reflect_batch_activity     → HarnessRunner.reflect() (批量)
+  5. metrics_report_activity    → HarnessRunner.get_metrics()
 """
-from typing import Dict, Any, Optional
+import json
+import logging
+from typing import Dict, Any, List, Optional
 
 from temporalio import activity
 
@@ -91,3 +95,49 @@ async def reflect_activity(account_id: str) -> Dict[str, Any]:
         {"insights": int}
     """
     return await _harness.reflect(account_id)
+
+
+@activity.defn
+async def reflect_batch_activity(account_ids: List[str]) -> Dict[str, Any]:
+    """批量触发所有活跃账号的记忆反思。
+
+    由 Temporal Schedule 定期触发的 ReflectWorkflow 调用。
+    遍历 account_ids，逐个调用 HarnessRunner.reflect()。
+
+    Args:
+        account_ids: 账号 ID 列表。
+
+    Returns:
+        {"results": {account_id: insights}, "total": int}
+    """
+    results: Dict[str, int] = {}
+    for aid in account_ids:
+        try:
+            r = await _harness.reflect(aid)
+            results[aid] = r.get("insights", 0)
+        except Exception:
+            results[aid] = -1
+    return {"results": results, "total": len(account_ids)}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Activity 4: 指标报告 —— 输出结构化可观测性数据
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@activity.defn
+async def metrics_report_activity() -> Dict[str, Any]:
+    """采集并输出 Hindsight 客户端可观测性指标。
+
+    由 Temporal Schedule 定期触发（建议每 30 分钟）。
+    输出结构化 JSON 日志供监控系统采集。
+
+    Returns:
+        HindsightMetrics.snapshot() 的完整指标快照。
+    """
+    metrics = await _harness.get_metrics()
+    _metrics_logger = logging.getLogger("HpAgent.Metrics")
+    _metrics_logger.info(
+        "HindsightMetrics|%s",
+        json.dumps(metrics, ensure_ascii=False, default=str),
+    )
+    return metrics

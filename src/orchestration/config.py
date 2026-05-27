@@ -32,6 +32,7 @@ class ProviderEntry:
     """API 提供商凭证。"""
     base_url: str = ""
     api_key: str = ""
+    api_format: str = "anthropic"  # "anthropic" | "openai"
 
 
 @dataclass
@@ -41,6 +42,32 @@ class ModelEntry:
     model: str = ""
     max_tokens: int = 2048
     timeout: float = 30.0
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 工具体系扩展配置 —— 从 config/models.yaml 加载
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class ToolRagConfig:
+    """工具 RAG 检索配置。"""
+    enabled: bool = True
+    top_k: int = 8
+    persist_path: str = "tools/vectors"
+
+
+@dataclass
+class McpConfig:
+    """MCP Server 配置。"""
+    config_path: str = "tools/definitions/mcp/servers.yaml"
+    auto_connect: bool = False
+
+
+@dataclass
+class SkillsConfig:
+    """Skills 配置。"""
+    config_path: str = "tools/skills/"
+    enabled: bool = True
 
 
 @dataclass
@@ -64,6 +91,9 @@ class ModelsConfig:
     embedding: List[ModelEntry] = field(default_factory=list)
     image: List[ModelEntry] = field(default_factory=list)
     reasoning: List[ModelEntry] = field(default_factory=list)
+    tool_rag: ToolRagConfig = field(default_factory=ToolRagConfig)
+    mcp: McpConfig = field(default_factory=McpConfig)
+    skills: SkillsConfig = field(default_factory=SkillsConfig)
 
     def has_category(self, name: str) -> bool:
         """检查指定类别是否配置了模型。"""
@@ -83,6 +113,7 @@ class ModelsConfig:
             base_url=provider.base_url,
             model=entry.model,
             extra={
+                "api_format": provider.api_format,
                 "max_tokens": entry.max_tokens,
                 "timeout": entry.timeout,
             },
@@ -118,6 +149,7 @@ class ModelsConfig:
                 providers[key] = ProviderEntry(
                     base_url=_os2.path.expandvars(val.get("base_url", "")),
                     api_key=_os2.path.expandvars(val.get("api_key", "")),
+                    api_format=val.get("api_format", "anthropic"),
                 )
 
         # 解析 models 各分类
@@ -138,12 +170,29 @@ class ModelsConfig:
                     ))
             return result
 
+        tool_rag_raw = raw.get("tool_rag") or {}
+        mcp_raw = raw.get("mcp") or {}
+        skills_raw = raw.get("skills") or {}
+
         return cls(
             providers=providers,
             chat=_parse_entries("chat"),
             embedding=_parse_entries("embedding"),
             image=_parse_entries("image"),
             reasoning=_parse_entries("reasoning"),
+            tool_rag=ToolRagConfig(
+                enabled=tool_rag_raw.get("enabled", True),
+                top_k=tool_rag_raw.get("top_k", 8),
+                persist_path=tool_rag_raw.get("persist_path", "tools/vectors"),
+            ),
+            mcp=McpConfig(
+                config_path=mcp_raw.get("config_path", "tools/definitions/mcp/servers.yaml"),
+                auto_connect=mcp_raw.get("auto_connect", False),
+            ),
+            skills=SkillsConfig(
+                config_path=skills_raw.get("config_path", "tools/skills/"),
+                enabled=skills_raw.get("enabled", True),
+            ),
         )
 
 
@@ -187,7 +236,7 @@ class SandboxConfig:
 @dataclass
 class WorkspaceConfig:
     """用户工作区配置。"""
-    root: str = ".hpagent/data/workspace"
+    root: str = ".data/workspace"
     db_path: str = ""
     cleanup_max_age_days: int = 30
 
@@ -196,15 +245,43 @@ class WorkspaceConfig:
 class HindsightConfig:
     """Hindsight 长期记忆服务配置。"""
     enabled: bool = True
-    base_url: str = "http://hindsight:8000"
+    base_url: str = "http://hindsight:8888"
     api_key: str = ""
     timeout: float = 30.0
+    retain_mission: str = (
+        "Extract and preserve structured, reusable knowledge from multi-turn "
+        "conversations across QQ/NapCat, Console, and Web channels.\n\n"
+        "Extraction categories:\n"
+        "- world: Stable facts the user states (personal info, technical facts, domain knowledge)\n"
+        "- experience: The user's stated preferences, past events, decisions made\n"
+        "- observation: Behavioral patterns inferred from how the user interacts\n\n"
+        "Guidelines:\n"
+        "1. Preserve original context: use the provided context field (channel type, group name, sender) "
+        "to enrich extracted facts with provenance\n"
+        "2. Prefer specificity over generality: 'uses Python 3.12 with FastAPI for backend APIs' > 'uses Python'\n"
+        "3. Detect contradictions: when new information conflicts with existing memories, mark both and let reflect resolve\n"
+        "4. Respect tags: extracted memories inherit the document's tags (user, session, group, scope, channel) "
+        "for correct isolation boundaries\n"
+        "5. Timestamp-aware: use the provided timestamp for temporal reasoning (recency, trend detection)\n"
+        "6. Skip ephemera: ignore greetings, one-word replies, tool-call artifacts, and purely functional exchanges"
+    )
+    reflect_mission: str = (
+        "Periodically analyze accumulated memories for a given user to produce higher-level insights.\n\n"
+        "Analysis tasks:\n"
+        "1. Pattern discovery: identify recurring themes, preferences, and behavioral patterns across sessions\n"
+        "2. Contradiction resolution: detect conflicting memories and resolve based on recency, specificity, "
+        "and source reliability\n"
+        "3. Knowledge abstraction: distill multiple related observations into compact, reusable knowledge entries\n"
+        "4. Staleness detection: flag memories that are likely outdated (user stopped using a tool, changed role, etc.)\n"
+        "5. Cross-session linking: connect related facts from different sessions/channels that belong to the same user\n\n"
+        "Output: synthesized insights that improve future recall relevance and reduce noise."
+    )
 
 
 @dataclass
 class SessionConfig:
     """会话存储配置。"""
-    backup_dir: str = ".hpagent/data/sessions"
+    backup_dir: str = ".data/sessions"
     redis_ttl: int = 86400
 
 
@@ -226,8 +303,8 @@ class AgentConfig:
     activity_timeout: int = 120
     archive_timeout: int = 10
     mode: str = "single"               # "single" | "multi"
+    reflect_interval_hours: int = 6    # 记忆反思间隔（小时）
     multi_agent: MultiAgentConfig = field(default_factory=MultiAgentConfig)
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Prompt 配置 —— 从 config/prompts/*.yaml 加载
@@ -402,13 +479,33 @@ class AppConfig:
                 config.agents.append(AgentEntry.from_dict(item))
             logger.info("Agents loaded: %d from %s", len(config.agents), agents_path)
 
+        # 将相对路径解析为项目根目录下的绝对路径
+        # config_dir = {project_root}/config/，因此 project_root = config_dir.parent
+        config._resolve_data_paths(config_dir.parent)
+
         config._apply_env_overrides(_os.environ)
         return config
+
+    def _resolve_data_paths(self, project_root: Path) -> None:
+        """将数据目录的相对路径解析为绝对路径。
+
+        默认值（如 .data/workspace）是相对于项目根目录的，
+        不是相对于 cwd。容器模式下 WORKSPACE_ROOT 等环境变量会随后覆盖。
+        """
+        _root = project_root.resolve()
+        ws = Path(self.workspace.root)
+        if not ws.is_absolute():
+            self.workspace.root = str(_root / ws)
+        sess = Path(self.session.backup_dir)
+        if not sess.is_absolute():
+            self.session.backup_dir = str(_root / sess)
 
     def _apply_env_overrides(self, environ: dict) -> None:
         """用环境变量覆盖 YAML 中的值（Docker Compose 传入）。"""
         if environ.get("TEMPORAL_HOST"):
             self.temporal.host = environ["TEMPORAL_HOST"]
+        if environ.get("TEMPORAL_TASK_QUEUE"):
+            self.temporal.task_queue = environ["TEMPORAL_TASK_QUEUE"]
         if environ.get("HINDSIGHT_URL"):
             self.hindsight.base_url = environ["HINDSIGHT_URL"]
         if environ.get("WORKSPACE_ROOT"):

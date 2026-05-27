@@ -1,0 +1,18 @@
+# MCP Server 配置 —— Streamable HTTP 传输模式
+#
+# 每个 server 通过 HTTP POST 连接远程 MCP 端点。
+# 启动时 list_tools 并缓存，运行时工具列表不变。
+#
+# 字段说明:
+#   url:             MCP Streamable HTTP 端点（必填）
+#   headers:         自定义 HTTP 头，支持 ${ENV_VAR} 占位符（可选）
+#   request_timeout: 请求超时秒数（默认 60）
+#   disabled:        设为 true 跳过此 server
+#   description:     服务描述
+
+servers:
+
+  # ── ModelScope 示例 ──────────────────────────────────────────
+  # fetch:
+  #   url: "https://mcp.api-inference.modelscope.net/bd2ee534d32643/mcp"
+  #   description: "ModelScope fetch MCP server"

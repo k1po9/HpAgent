@@ -1,0 +1,1075 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workspace 模块 —— 多用户持久化工作目录管理</title>
+<style>
+  /* ============================================================
+     CSS Reset & Variables
+     ============================================================ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d1117; --bg-alt: #161b22; --bg-card: #1c2129;
+    --border: #30363d; --border-accent: #58a6ff;
+    --text: #e6edf3; --text-dim: #8b949e; --text-bright: #f0f6fc;
+    --accent: #58a6ff; --accent-2: #7ee787; --accent-3: #f0883e;
+    --danger: #f85149; --purple: #bc8cff;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg); color: var(--text);
+    line-height: 1.6;
+  }
+
+  /* ============================================================
+     Navigation
+     ============================================================ */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(13,17,23,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem; height: 52px;
+    display: flex; align-items: center; gap: 1.5rem;
+    font-size: 0.875rem;
+  }
+  nav .logo { font-weight: 700; color: var(--text-bright); font-size: 1rem; margin-right: auto; }
+  nav a {
+    color: var(--text-dim); text-decoration: none;
+    transition: color 0.15s; white-space: nowrap;
+  }
+  nav a:hover { color: var(--accent); }
+  nav .badge {
+    background: var(--accent); color: #000; font-weight: 600;
+    padding: 0.15em 0.55em; border-radius: 99px; font-size: 0.7rem;
+  }
+
+  /* ============================================================
+     Hero
+     ============================================================ */
+  .hero {
+    margin-top: 52px; padding: 4rem 2rem 3rem;
+    text-align: center;
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero h1 {
+    font-size: 2.6rem; font-weight: 800; color: var(--text-bright);
+    letter-spacing: -0.03em;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero .tagline {
+    margin-top: 0.75rem; color: var(--text-dim); font-size: 1.15rem;
+    max-width: 620px; margin-inline: auto;
+  }
+  .hero .meta {
+    margin-top: 1.5rem; display: flex; gap: 1rem; justify-content: center;
+    flex-wrap: wrap;
+  }
+  .hero .meta .chip {
+    background: var(--bg-alt); border: 1px solid var(--border);
+    padding: 0.3em 0.8em; border-radius: 99px;
+    font-size: 0.8rem; color: var(--text-dim);
+  }
+  .hero .meta .chip b { color: var(--accent-2); }
+
+  /* ============================================================
+     Main Layout
+     ============================================================ */
+  main { max-width: 960px; margin: 0 auto; padding: 2rem 2rem 4rem; }
+
+  section { margin-bottom: 3rem; }
+
+  /* ============================================================
+     Step Cards (numbered learning flow)
+     ============================================================ */
+  .step {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 2rem;
+    margin-bottom: 1.5rem;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .step:hover { border-color: var(--border-accent); }
+  .step .step-num {
+    position: absolute; top: -16px; left: 24px;
+    background: var(--accent); color: #000;
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 0.9rem;
+  }
+  .step h3 {
+    font-size: 1.25rem; color: var(--text-bright);
+    margin-bottom: 0.5rem; margin-top: 0.25rem;
+  }
+  .step h4 {
+    font-size: 1rem; color: var(--accent-2); margin: 1.25rem 0 0.5rem;
+  }
+  .step p { color: var(--text-dim); margin-bottom: 0.75rem; }
+
+  /* ============================================================
+     Code Blocks
+     ============================================================ */
+  pre {
+    background: #0d1117; border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem 1.25rem;
+    overflow-x: auto; font-family: var(--font-mono);
+    font-size: 0.85rem; line-height: 1.55;
+    margin: 0.75rem 0;
+  }
+  code.inline {
+    font-family: var(--font-mono); font-size: 0.88em;
+    background: var(--bg-alt); padding: 0.15em 0.45em;
+    border-radius: 4px; color: var(--accent-2);
+    word-break: break-word;
+  }
+
+  /* Syntax highlighting */
+  .kw { color: #ff7b72; }   .str { color: #a5d6ff; }
+  .cmt { color: #8b949e; }  .fn { color: #d2a8ff; }
+  .num { color: #79c0ff; }  .type { color: #ffa657; }
+  .self { color: #ffa657; } .op { color: #ff7b72; }
+
+  /* ============================================================
+     API Tables
+     ============================================================ */
+  .api-table {
+    width: 100%; border-collapse: collapse; font-size: 0.875rem;
+    margin: 0.75rem 0 1.25rem;
+  }
+  .api-table th {
+    text-align: left; background: var(--bg-alt);
+    color: var(--text-dim); font-weight: 600;
+    padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border);
+    font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .api-table td {
+    padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .api-table tr:last-child td { border-bottom: none; }
+  .api-table .sig { font-family: var(--font-mono); font-size: 0.82rem; color: var(--text-bright); }
+  .api-table .ret { color: var(--accent-3); font-family: var(--font-mono); font-size: 0.82rem; }
+  .api-table .desc { color: var(--text-dim); font-size: 0.83rem; }
+
+  /* ============================================================
+     Info boxes
+     ============================================================ */
+  .info {
+    background: rgba(88,166,255,0.08); border-left: 3px solid var(--accent);
+    border-radius: 0 8px 8px 0; padding: 0.75rem 1rem;
+    margin: 1rem 0; font-size: 0.88rem;
+  }
+  .info.tip {
+    background: rgba(126,231,135,0.08); border-left-color: var(--accent-2);
+  }
+  .info.warn {
+    background: rgba(240,136,62,0.08); border-left-color: var(--accent-3);
+  }
+  .info strong { color: var(--text-bright); }
+
+  /* ============================================================
+     Tree view
+     ============================================================ */
+  .tree {
+    font-family: var(--font-mono); font-size: 0.85rem;
+    line-height: 1.75; color: var(--text-dim);
+    background: #0d1117; border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem 1.25rem;
+    margin: 0.75rem 0; overflow-x: auto;
+  }
+  .tree .dir { color: var(--accent); }
+  .tree .file { color: var(--text); }
+  .tree .cmt { color: var(--text-dim); }
+  .tree .hl { color: var(--accent-2); }
+
+  /* ============================================================
+     Flow diagram (CSS)
+     ============================================================ */
+  .flow {
+    display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center;
+    justify-content: center; padding: 1.5rem 1rem;
+    margin: 1rem 0;
+  }
+  .flow .box {
+    background: var(--bg-card); border: 1.5px solid var(--border);
+    border-radius: 8px; padding: 0.6rem 1rem;
+    font-size: 0.85rem; font-weight: 600; color: var(--text-bright);
+    white-space: nowrap;
+  }
+  .flow .box.accent { border-color: var(--accent); color: var(--accent); }
+  .flow .box.green { border-color: var(--accent-2); color: var(--accent-2); }
+  .flow .arrow { color: var(--text-dim); font-size: 1.2rem; }
+
+  /* ============================================================
+     Accordion (expandable sections)
+     ============================================================ */
+  .accordion { margin: 1rem 0; }
+  .accordion summary {
+    cursor: pointer; padding: 0.65rem 1rem;
+    background: var(--bg-alt); border: 1px solid var(--border);
+    border-radius: 8px; font-weight: 600;
+    color: var(--text-bright); font-size: 0.92rem;
+    list-style: none;
+    transition: background 0.15s;
+  }
+  .accordion summary::-webkit-details-marker { display: none; }
+  .accordion summary::before { content: '+ '; color: var(--accent); font-family: var(--font-mono); }
+  .accordion details[open] > summary::before { content: '− '; }
+  .accordion summary:hover { background: var(--bg-card); }
+  .accordion .content {
+    padding: 1rem; border: 1px solid var(--border);
+    border-top: none; border-radius: 0 0 8px 8px;
+  }
+
+  /* ============================================================
+     Footer
+     ============================================================ */
+  footer {
+    text-align: center; padding: 2rem;
+    color: var(--text-dim); font-size: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ============================================================
+     Responsive
+     ============================================================ */
+  @media (max-width: 720px) {
+    .hero h1 { font-size: 1.8rem; }
+    nav { padding: 0 1rem; gap: 0.75rem; font-size: 0.78rem; }
+    main { padding: 1rem; }
+    .step { padding: 1.25rem; }
+    .api-table { font-size: 0.78rem; }
+  }
+
+  /* ============================================================
+     Tabs
+     ============================================================ */
+  .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+  .tabs button {
+    background: none; border: none; color: var(--text-dim);
+    padding: 0.5rem 1rem; cursor: pointer; font-size: 0.85rem;
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+  .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tabs button:hover { color: var(--text-bright); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     NAVIGATION
+     ============================================================ -->
+<nav>
+  <div class="logo">HpAgent / workspace</div>
+  <a href="#overview">概述</a>
+  <a href="#models">数据模型</a>
+  <a href="#manager">Manager API</a>
+  <a href="#db">数据库层</a>
+  <a href="#integration">集成</a>
+  <span class="badge">v1.0</span>
+</nav>
+
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<header class="hero">
+  <h1><span>workspace</span> 模块</h1>
+  <p class="tagline">
+    多用户持久化工作目录管理 —— 为每个用户提供独立的本地工作区，支持多步骤、中间结果可见的 Agent 任务
+  </p>
+  <div class="meta">
+    <div class="chip">文件数 <b>4</b></div>
+    <div class="chip">对外类 <b>5</b></div>
+    <div class="chip">存储引擎 <b>SQLite + 文件系统</b></div>
+    <div class="chip">线程安全 <b>是</b></div>
+  </div>
+</header>
+
+<!-- ============================================================
+     MAIN CONTENT
+     ============================================================ -->
+<main>
+
+<!-- ============================================================
+     STEP 1: Overview
+     ============================================================ -->
+<section id="overview">
+  <div class="step">
+    <div class="step-num">1</div>
+    <h3>模块全景 —— 它解决什么问题？</h3>
+    <p>
+      想象一下：你有几百个用户，每个用户同时进行多个 Agent 任务。每个任务都可能产生临时文件、对话记录、工具执行日志和最终产出物。
+      <strong>如果没有 Workspace 模块</strong>，这些文件会散落在各处，你无法知道哪个文件属于谁、哪个文件是哪个会话产生的、哪些文件可以安全删除。
+    </p>
+    <p>
+      <strong>Workspace 模块就是解决这个问题的。</strong>它借鉴了 MLflow "元数据与制品分离"的设计哲学：
+    </p>
+    <ul style="color: var(--text-dim); margin: 0.5rem 0 1rem 1.5rem;">
+      <li><strong style="color:var(--text-bright)">文件系统</strong> —— 存放所有实际文件（对话记录、执行日志、产出物）</li>
+      <li><strong style="color:var(--text-bright)">SQLite</strong> —— 存放元数据索引（用户、会话、产出物索引）</li>
+    </ul>
+
+    <div class="info tip">
+      <strong>关键设计理念：</strong>扫描文件系统很慢。所以每次会话创建/文件生成时，同时在 SQLite 中写入一条索引记录。查询"某会话的所有产出物"只需一次 SQL，无需遍历目录。
+    </div>
+
+    <h4>模块文件结构</h4>
+    <table class="api-table">
+      <tr><th>文件</th><th>职责</th></tr>
+      <tr>
+        <td class="sig">__init__.py</td>
+        <td class="desc">公开接口声明 —— 只导出 5 个类</td>
+      </tr>
+      <tr>
+        <td class="sig">models.py</td>
+        <td class="desc">纯数据 dataclass —— User / Session / Artifact / SessionStatus</td>
+      </tr>
+      <tr>
+        <td class="sig">db.py</td>
+        <td class="desc">SQLite 封装 —— WorkspaceDB，所有元数据的唯一读写入口</td>
+      </tr>
+      <tr>
+        <td class="sig">manager.py</td>
+        <td class="desc">业务逻辑层 —— WorkspaceManager，编排目录创建、会话生命周期、nsjail 集成</td>
+      </tr>
+    </table>
+
+    <h4>数据流全景</h4>
+    <div class="flow">
+      <div class="box accent">Agent Runner</div>
+      <div class="arrow">→</div>
+      <div class="box">WorkspaceManager</div>
+      <div class="arrow">→</div>
+      <div class="box green">文件系统<br><small style="font-weight:400">用户目录 + 会话文件</small></div>
+      <div class="arrow">→</div>
+      <div class="box green">SQLite<br><small style="font-weight:400">元数据索引</small></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STEP 2: Directory Structure
+     ============================================================ -->
+<section>
+  <div class="step">
+    <div class="step-num">2</div>
+    <h3>目录结构 —— 每个文件的"家"</h3>
+    <p>
+      在深入 API 之前，先理解物理布局。下面是一个完整展开的用户工作区目录树：
+    </p>
+    <div class="tree">
+<span class="dir">users_workspace/</span>                    <span class="cmt">&lt;-- WorkspaceManager.root</span>
+<span class="dir">└── &lt;user_uuid&gt;/</span>                      <span class="cmt">&lt;-- _user_dir(uuid)</span>
+<span class="dir">    ├── skills/</span>                         <span class="cmt">&lt;-- 用户自定义技能（跨 session 持久化）</span>
+<span class="dir">    ├── sessions/</span>
+<span class="dir">    │   └── &lt;session_id&gt;/</span>                <span class="cmt">&lt;-- _session_dir(uuid, sid)</span>
+<span class="dir">    │       ├── <span class="hl">session.yaml</span></span>             <span class="cmt">&lt;-- 会话配置 & 状态</span>
+<span class="dir">    │       ├── conversation/</span>
+<span class="file">    │       │   ├── messages.jsonl</span>        <span class="cmt">&lt;-- 对话记录（JSONL）</span>
+<span class="file">    │       │   └── summary.md</span>            <span class="cmt">&lt;-- 对话摘要</span>
+<span class="dir">    │       ├── execution/</span>
+<span class="file">    │       │   ├── <span class="hl">plan.yaml</span></span>           <span class="cmt">&lt;-- 工具执行计划</span>
+<span class="dir">    │       │   └── logs/</span>                 <span class="cmt">&lt;-- 执行日志目录</span>
+<span class="dir">    │       ├── workspace/</span>                 <span class="cmt">&lt;-- nsjail 绑定挂载区（读写）</span>
+<span class="dir">    │       │   ├── input/</span>               <span class="cmt">&lt;-- 输入文件</span>
+<span class="dir">    │       │   ├── scratch/</span>             <span class="cmt">&lt;-- Agent 临时工作区</span>
+<span class="dir">    │       │   └── output/</span>              <span class="cmt">&lt;-- 最终产出物</span>
+<span class="dir">    │       └── resources/</span>                 <span class="cmt">&lt;-- 外部资源引用清单</span>
+<span class="file">    │           └── resource_manifest.yaml</span>
+<span class="dir">    ├── persistent/</span>                       <span class="cmt">&lt;-- 用户长期资产（不被清理）</span>
+<span class="file">    └── user_profile.yaml</span>                  <span class="cmt">&lt;-- 用户偏好配置</span>
+    </div>
+
+    <div class="info warn">
+      <strong>重要：</strong><code class="inline">sessions/</code> 目录中的过期会话会被清理，但
+      <code class="inline">persistent/</code> 和 <code class="inline">skills/</code> 不受影响 —— 它们是用户的长期资产。
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STEP 3: Data Models
+     ============================================================ -->
+<section id="models">
+  <div class="step">
+    <div class="step-num">3</div>
+    <h3>数据模型 —— 四个核心类型</h3>
+    <p>
+      所有模型都是 <b style="color: var(--purple)">纯数据 dataclass</b>，不含任何 IO 逻辑。
+      这种设计让你可以在测试中直接构造对象，无需模拟文件系统。
+    </p>
+
+    <!-- SessionStatus -->
+    <h4>3.1 <code class="inline">SessionStatus</code> —— 会话状态枚举</h4>
+    <pre><span class="kw">class</span> <span class="type">SessionStatus</span>(<span class="type">StrEnum</span>):
+    <span class="str">ACTIVE</span>    = <span class="str">"active"</span>      <span class="cmt"># 进行中 —— Agent 可读写 workspace</span>
+    <span class="str">COMPLETED</span> = <span class="str">"completed"</span>   <span class="cmt"># 正常结束 —— 产出物保留</span>
+    <span class="str">FAILED</span>    = <span class="str">"failed"</span>      <span class="cmt"># 异常终止 —— 保留现场供排查</span>
+    <span class="str">DELETED</span>   = <span class="str">"deleted"</span>     <span class="cmt"># 已清理 —— 仅剩 DB 记录</span></pre>
+
+    <div class="flow">
+      <div class="box accent">ACTIVE</div>
+      <div class="arrow">→</div>
+      <div class="box green">COMPLETED</div>
+      <div class="arrow">→</div>
+      <div class="box" style="border-color:var(--danger);color:var(--danger)">DELETED</div>
+    </div>
+    <div class="flow" style="margin-top:0">
+      <div class="box accent">ACTIVE</div>
+      <div class="arrow">→</div>
+      <div class="box" style="border-color:var(--accent-3);color:var(--accent-3)">FAILED</div>
+      <div class="arrow">→</div>
+      <div class="box" style="border-color:var(--danger);color:var(--danger)">DELETED</div>
+    </div>
+
+    <!-- User -->
+    <h4>3.2 <code class="inline">User</code> —— 用户信息</h4>
+    <div class="tabs" id="user-tabs">
+      <button class="active" onclick="switchTab('user', 'def')">定义</button>
+      <button onclick="switchTab('user', 'example')">示例</button>
+    </div>
+    <div class="tab-panel active" id="user-def">
+      <table class="api-table">
+        <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+        <tr><td class="sig">uuid</td><td class="ret">str</td><td class="desc">用户唯一标识（UUID 字符串）</td></tr>
+        <tr><td class="sig">username</td><td class="ret">str</td><td class="desc">可读用户名（可选）</td></tr>
+        <tr><td class="sig">profile_path</td><td class="ret">str</td><td class="desc">user_profile.yaml 相对路径</td></tr>
+        <tr><td class="sig">persistent_dir</td><td class="ret">str</td><td class="desc">persistent/ 目录相对路径</td></tr>
+        <tr><td class="sig">created_at</td><td class="ret">str</td><td class="desc">ISO 8601 创建时间戳</td></tr>
+      </table>
+    </div>
+    <div class="tab-panel" id="user-example">
+      <pre>user = User(
+    uuid=<span class="str">"550e8400-e29b-41d4-a716-446655440000"</span>,
+    username=<span class="str">"alice"</span>,
+    profile_path=<span class="str">"user_profile.yaml"</span>,
+    persistent_dir=<span class="str">"persistent"</span>,
+    created_at=<span class="str">"2026-05-25T10:30:00Z"</span>,
+)</pre>
+    </div>
+
+    <!-- Session -->
+    <h4>3.3 <code class="inline">Session</code> —— 会话元数据</h4>
+    <div class="tabs" id="session-tabs">
+      <button class="active" onclick="switchTab('session', 'def')">定义</button>
+      <button onclick="switchTab('session', 'example')">示例</button>
+    </div>
+    <div class="tab-panel active" id="session-def">
+      <table class="api-table">
+        <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+        <tr><td class="sig">session_id</td><td class="ret">str</td><td class="desc">会话唯一标识，如 sess_1717000000000_abc12345</td></tr>
+        <tr><td class="sig">user_uuid</td><td class="ret">str</td><td class="desc">所属用户 UUID</td></tr>
+        <tr><td class="sig">status</td><td class="ret">SessionStatus</td><td class="desc">当前状态，默认 ACTIVE</td></tr>
+        <tr><td class="sig">task_summary</td><td class="ret">str</td><td class="desc">任务摘要（Agent 自动生成或用户指定）</td></tr>
+        <tr><td class="sig">session_dir</td><td class="ret">str</td><td class="desc">sessions/&lt;id&gt;/ 相对路径</td></tr>
+        <tr><td class="sig">plan_file</td><td class="ret">str</td><td class="desc">execution/plan.yaml 相对路径</td></tr>
+        <tr><td class="sig">conversation_file</td><td class="ret">str</td><td class="desc">conversation/messages.jsonl 相对路径</td></tr>
+        <tr><td class="sig">output_dir</td><td class="ret">str</td><td class="desc">workspace/output/ 相对路径</td></tr>
+        <tr><td class="sig">tags</td><td class="ret">list[str]</td><td class="desc">标签列表（检索和分类用）</td></tr>
+        <tr><td class="sig">metadata_json</td><td class="ret">str</td><td class="desc">附加元数据 JSON（预留扩展）</td></tr>
+        <tr><td class="sig">created_at</td><td class="ret">str</td><td class="desc">ISO 8601 创建时间戳</td></tr>
+        <tr><td class="sig">updated_at</td><td class="ret">str</td><td class="desc">ISO 8601 最后更新时间戳</td></tr>
+      </table>
+    </div>
+    <div class="tab-panel" id="session-example">
+      <pre>session = Session(
+    session_id=<span class="str">"sess_1717000000000_a1b2c3d4"</span>,
+    user_uuid=<span class="str">"550e8400-..."</span>,
+    status=SessionStatus.ACTIVE,
+    task_summary=<span class="str">"分析 data.csv 并生成可视化图表"</span>,
+    session_dir=<span class="str">"sessions/sess_1717000000000_a1b2c3d4"</span>,
+    plan_file=<span class="str">"sessions/.../execution/plan.yaml"</span>,
+    conversation_file=<span class="str">"sessions/.../conversation/messages.jsonl"</span>,
+    output_dir=<span class="str">"sessions/.../workspace/output"</span>,
+    tags=[<span class="str">"data-analysis"</span>, <span class="str">"visualization"</span>],
+    created_at=<span class="str">"2026-05-25T10:30:00Z"</span>,
+    updated_at=<span class="str">"2026-05-25T10:30:00Z"</span>,
+)</pre>
+    </div>
+
+    <!-- Artifact -->
+    <h4>3.4 <code class="inline">Artifact</code> —— 产出物索引</h4>
+    <div class="tabs" id="artifact-tabs">
+      <button class="active" onclick="switchTab('artifact', 'def')">定义</button>
+      <button onclick="switchTab('artifact', 'example')">示例</button>
+    </div>
+    <div class="tab-panel active" id="artifact-def">
+      <table class="api-table">
+        <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+        <tr><td class="sig">artifact_id</td><td class="ret">str</td><td class="desc">产出物唯一标识（UUID）</td></tr>
+        <tr><td class="sig">session_id</td><td class="ret">str</td><td class="desc">所属会话 ID</td></tr>
+        <tr><td class="sig">file_path</td><td class="ret">str</td><td class="desc">相对 workspace/ 的文件路径</td></tr>
+        <tr><td class="sig">file_type</td><td class="ret">str</td><td class="desc">MIME 类型或扩展名</td></tr>
+        <tr><td class="sig">file_size</td><td class="ret">int</td><td class="desc">文件大小（字节）</td></tr>
+        <tr><td class="sig">checksum</td><td class="ret">str</td><td class="desc">SHA-256 校验和</td></tr>
+        <tr><td class="sig">created_at</td><td class="ret">str</td><td class="desc">ISO 8601 创建时间戳</td></tr>
+      </table>
+    </div>
+    <div class="tab-panel" id="artifact-example">
+      <pre>artifact = Artifact(
+    artifact_id=<span class="str">"abc-123-def-456"</span>,
+    session_id=<span class="str">"sess_1717000000000_a1b2c3d4"</span>,
+    file_path=<span class="str">"output/chart.png"</span>,
+    file_type=<span class="str">"image/png"</span>,
+    file_size=<span class="num">245760</span>,
+    checksum=<span class="str">"sha256:abcd1234..."</span>,
+    created_at=<span class="str">"2026-05-25T10:35:00Z"</span>,
+)</pre>
+    </div>
+
+    <div class="info">
+      <strong>为什么 models 是纯 dataclass？</strong><br>
+      把数据和行为分离，测试时可以 <code class="inline">User(uuid="test", ...)</code> 直接构造，
+      不需要 mock 文件系统或数据库。所有的 IO 行为都在 manager 和 db 层。
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STEP 4: WorkspaceManager API
+     ============================================================ -->
+<section id="manager">
+  <div class="step">
+    <div class="step-num">4</div>
+    <h3>WorkspaceManager —— 核心 API（对外 10 个公共方法）</h3>
+    <p>
+      <code class="inline">WorkspaceManager</code> 是你在业务代码中唯一需要直接使用的类。
+      它假设你已经理解用户/会话/产出物的概念（步骤 1-3），现在你只需要知道"什么时候调用哪个方法"。
+    </p>
+
+    <h4>4.1 初始化</h4>
+    <pre><span class="kw">class</span> <span class="type">WorkspaceManager</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(<span class="self">self</span>, root: Path, db_path: Optional[str] = <span class="kw">None</span>)</pre>
+    <table class="api-table">
+      <tr><th>参数</th><th>类型</th><th>说明</th></tr>
+      <tr><td class="sig">root</td><td class="ret">Path</td><td class="desc">工作区根目录 — 所有用户数据都在它下面</td></tr>
+      <tr><td class="sig">db_path</td><td class="ret">Optional[str]</td><td class="desc">SQLite 文件路径，默认 root/workspace.db</td></tr>
+    </table>
+    <pre>wm = WorkspaceManager(root=Path(<span class="str">"users_workspace"</span>))</pre>
+
+    <!-- USER MANAGEMENT -->
+    <h4>4.2 用户管理（1 个方法）</h4>
+    <table class="api-table">
+      <tr><th style="width:40%">方法签名</th><th style="width:20%">返回值</th><th style="width:40%">用途</th></tr>
+      <tr>
+        <td class="sig">ensure_user(user_uuid, username="")</td>
+        <td class="ret">User</td>
+        <td class="desc">
+          <strong>幂等创建用户</strong> —— 首次调用时创建完整目录骨架 + DB 记录 + user_profile.yaml。
+          后续调用直接返回已有对象。<br>
+          <em style="color:var(--text-dim)">这是所有操作的前置步骤。</em>
+        </td>
+      </tr>
+    </table>
+    <div class="info tip">
+      <strong>使用模式：</strong>你不应该自己构造 <code class="inline">User</code> 对象。始终通过
+      <code class="inline">wm.ensure_user(uuid)</code> 获取。
+    </div>
+
+    <!-- SESSION LIFECYCLE -->
+    <h4>4.3 会话生命周期（4 个方法）</h4>
+    <table class="api-table">
+      <tr><th style="width:40%">方法签名</th><th style="width:20%">返回值</th><th style="width:40%">用途</th></tr>
+      <tr>
+        <td class="sig">create_session(user_uuid, session_id=None, *, task_summary="", tags=None)</td>
+        <td class="ret">Session</td>
+        <td class="desc">
+          <strong>创建新会话。</strong>自动生成 session_id（时间戳+随机数避免碰撞），
+          创建全部 7 个子目录，写入 session.yaml / plan.yaml / messages.jsonl / summary.md / resource_manifest.yaml。
+        </td>
+      </tr>
+      <tr>
+        <td class="sig">end_session(session_id, status, task_summary="")</td>
+        <td class="ret">None</td>
+        <td class="desc">
+          <strong>结束会话。</strong>更新 session.yaml 的 status 和 ended_at 字段，
+          同步更新 DB 中的状态。
+        </td>
+      </tr>
+      <tr>
+        <td class="sig">get_session(session_id)</td>
+        <td class="ret">Optional[Session]</td>
+        <td class="desc"><strong>按 ID 查询单个会话。</strong></td>
+      </tr>
+      <tr>
+        <td class="sig">list_sessions(user_uuid, limit=50, offset=0)</td>
+        <td class="ret">list[Session]</td>
+        <td class="desc"><strong>分页列出用户的所有会话。</strong>按创建时间倒序。</td>
+      </tr>
+    </table>
+
+    <div class="info">
+      <strong>session_id 的自动生成规则：</strong><br>
+      <code class="inline">sess_{毫秒时间戳}_{8位随机hex}</code> ，例如
+      <code class="inline">sess_1717000000000_a1b2c3d4</code>。<br>
+      时间戳在前是为了让目录列表天然按时间有序；碰撞概率极低（同一毫秒内需有 2^32 次碰撞）。
+    </div>
+
+    <!-- CLEANUP -->
+    <h4>4.4 会话清理（1 个方法）</h4>
+    <table class="api-table">
+      <tr><th style="width:40%">方法签名</th><th style="width:20%">返回值</th><th style="width:40%">用途</th></tr>
+      <tr>
+        <td class="sig">cleanup_expired_sessions(max_age_days=30, dry_run=False)</td>
+        <td class="ret">int</td>
+        <td class="desc">
+          <strong>清理过期会话。</strong>找出所有 completed/failed 且超过 max_age_days 天未更新的会话，
+          删除其目录，更新 DB 状态为 DELETED。<br>
+          <em style="color:var(--text-dim)">dry_run=True 时只返回数量，不实际删除。</em>
+        </td>
+      </tr>
+    </table>
+
+    <!-- NSJAIL -->
+    <h4>4.5 nsjail 集成（3 个方法）</h4>
+    <table class="api-table">
+      <tr><th style="width:40%">方法签名</th><th style="width:20%">返回值</th><th style="width:40%">用途</th></tr>
+      <tr>
+        <td class="sig">get_nsjail_mounts(user_uuid, session_id)</td>
+        <td class="ret">list[str]</td>
+        <td class="desc">
+          <strong>生成 nsjail bind mount 参数。</strong><br>
+          workspace/ → <code class="inline">/work</code>（读写）<br>
+          skills/ → <code class="inline">/skills</code>（只读）
+        </td>
+      </tr>
+      <tr>
+        <td class="sig">get_session_work_dir(user_uuid, session_id)</td>
+        <td class="ret">Path</td>
+        <td class="desc"><strong>返回工作区宿主绝对路径。</strong>供 nsjail --chroot 或直接文件访问。</td>
+      </tr>
+      <tr>
+        <td class="sig">get_session_output_dir(user_uuid, session_id)</td>
+        <td class="ret">Path</td>
+        <td class="desc"><strong>返回 output/ 宿主绝对路径。</strong>产物的最终存放位置。</td>
+      </tr>
+    </table>
+
+    <!-- ARTIFACTS -->
+    <h4>4.6 产出物管理（2 个方法）</h4>
+    <table class="api-table">
+      <tr><th style="width:40%">方法签名</th><th style="width:20%">返回值</th><th style="width:40%">用途</th></tr>
+      <tr>
+        <td class="sig">register_artifact(session_id, file_path, file_type="")</td>
+        <td class="ret">Optional[Artifact]</td>
+        <td class="desc">
+          <strong>注册产出物。</strong>在 DB 中记录文件路径和类型（不复制文件）。
+          如果文件存在则自动计算文件大小。
+        </td>
+      </tr>
+      <tr>
+        <td class="sig">list_artifacts(session_id)</td>
+        <td class="ret">list[Artifact]</td>
+        <td class="desc"><strong>列出会话所有产出物。</strong></td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================
+     STEP 5: Internal Path Helpers
+     ============================================================ -->
+<section>
+  <div class="step">
+    <div class="step-num">5</div>
+    <h3>内部路径工具 —— 所有路径的计算规则</h3>
+    <p>
+      模块中所有路径都是通过这两个私有方法计算的，它们是<strong>单一真相来源</strong>：
+    </p>
+    <pre><span class="kw">def</span> <span class="fn">_user_dir</span>(<span class="self">self</span>, user_uuid: str) -> Path:
+    <span class="kw">return</span> <span class="self">self</span>.root / user_uuid
+
+<span class="kw">def</span> <span class="fn">_session_dir</span>(<span class="self">self</span>, user_uuid: str, session_id: str) -> Path:
+    <span class="kw">return</span> <span class="self">self</span>._user_dir(user_uuid) / <span class="str">"sessions"</span> / session_id</pre>
+
+    <div class="info warn">
+      <strong>为什么这是关键设计？</strong><br>
+      如果每个方法各自拼接路径（如 <code class="inline">root + "/" + uuid + "/sessions/" + sid</code>），
+      一旦目录结构调整，你需要修改 N 处。现在只需修改这两个函数。
+    </div>
+    <p style="margin-top:1rem">对应的常量定义在类顶部：</p>
+    <pre><span class="cmt"># 子目录名常量</span>
+DIR_SKILLS      = <span class="str">"skills"</span>
+DIR_SESSIONS    = <span class="str">"sessions"</span>
+DIR_WORKSPACE   = <span class="str">"workspace"</span>
+DIR_INPUT       = <span class="str">"input"</span>
+DIR_SCRATCH     = <span class="str">"scratch"</span>
+DIR_OUTPUT      = <span class="str">"output"</span>
+DIR_PERSISTENT  = <span class="str">"persistent"</span>
+<span class="cmt"># 等等...</span></pre>
+  </div>
+</section>
+
+<!-- ============================================================
+     STEP 6: Database Layer
+     ============================================================ -->
+<section id="db">
+  <div class="step">
+    <div class="step-num">6</div>
+    <h3>数据库层 —— WorkspaceDB</h3>
+    <p>
+      <code class="inline">WorkspaceDB</code> 封装了所有 SQLite 操作。通常你不需要直接使用它 ——
+      WorkspaceManager 已经为你调用了所有必要的方法。但理解它的接口有助于调试和扩展。
+    </p>
+
+    <h4>6.1 数据库设计</h4>
+    <div class="accordion">
+      <details>
+        <summary>查看完整 DDL</summary>
+        <div class="content">
+          <pre><span class="cmt">-- WAL 模式 + 外键约束</span>
+<span class="kw">PRAGMA</span> journal_mode=WAL;
+<span class="kw">PRAGMA</span> foreign_keys=ON;
+
+<span class="kw">CREATE TABLE</span> users (
+    uuid <span class="type">TEXT PRIMARY KEY</span>,
+    username <span class="type">TEXT</span> <span class="kw">NOT NULL DEFAULT</span> <span class="str">''</span>,
+    profile_path <span class="type">TEXT</span>,
+    persistent_dir <span class="type">TEXT</span>,
+    created_at <span class="type">TEXT</span> <span class="kw">DEFAULT</span> (<span class="fn">datetime</span>(<span class="str">'now'</span>))
+);
+
+<span class="kw">CREATE TABLE</span> sessions (
+    session_id <span class="type">TEXT PRIMARY KEY</span>,
+    user_uuid <span class="type">TEXT REFERENCES</span> users(uuid) <span class="kw">ON DELETE CASCADE</span>,
+    status <span class="type">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">'active'</span>,
+    task_summary <span class="type">TEXT</span>,
+    session_dir <span class="type">TEXT</span>, plan_file <span class="type">TEXT</span>,
+    conversation_file <span class="type">TEXT</span>, output_dir <span class="type">TEXT</span>,
+    tags <span class="type">TEXT DEFAULT</span> <span class="str">'[]'</span>,
+    metadata_json <span class="type">TEXT DEFAULT</span> <span class="str">'{}'</span>,
+    created_at <span class="type">TEXT</span>, updated_at <span class="type">TEXT</span>
+);
+
+<span class="kw">CREATE TABLE</span> artifacts (
+    artifact_id <span class="type">TEXT PRIMARY KEY</span>,
+    session_id <span class="type">TEXT REFERENCES</span> sessions(session_id) <span class="kw">ON DELETE CASCADE</span>,
+    file_path <span class="type">TEXT</span>, file_type <span class="type">TEXT</span>,
+    file_size <span class="type">INTEGER</span>, checksum <span class="type">TEXT</span>,
+    created_at <span class="type">TEXT</span>
+);</pre>
+        </div>
+      </details>
+    </div>
+
+    <h4>6.2 完整 API（按表分组）</h4>
+    <div class="tabs" id="db-tabs">
+      <button class="active" onclick="switchTab('db', 'users')">users</button>
+      <button onclick="switchTab('db', 'sessions')">sessions</button>
+      <button onclick="switchTab('db', 'artifacts')">artifacts</button>
+    </div>
+    <div class="tab-panel active" id="db-users">
+      <table class="api-table">
+        <tr><th>方法</th><th>返回值</th><th>说明</th></tr>
+        <tr><td class="sig">upsert_user(user: User)</td><td class="ret">None</td><td class="desc">INSERT OR UPDATE —— 幂等写入</td></tr>
+        <tr><td class="sig">get_user(user_uuid: str)</td><td class="ret">Optional[User]</td><td class="desc">按 UUID 查询</td></tr>
+      </table>
+    </div>
+    <div class="tab-panel" id="db-sessions">
+      <table class="api-table">
+        <tr><th>方法</th><th>返回值</th><th>说明</th></tr>
+        <tr><td class="sig">insert_session(session)</td><td class="ret">None</td><td class="desc">插入新会话</td></tr>
+        <tr><td class="sig">update_session_status(sid, status, summary)</td><td class="ret">None</td><td class="desc">更新状态 + 摘要，自动更新 updated_at</td></tr>
+        <tr><td class="sig">get_session(session_id)</td><td class="ret">Optional[Session]</td><td class="desc">按 ID 查询</td></tr>
+        <tr><td class="sig">list_sessions(user_uuid, limit, offset)</td><td class="ret">list[Session]</td><td class="desc">分页查询用户会话（按时间倒序）</td></tr>
+        <tr><td class="sig">delete_session(session_id)</td><td class="ret">None</td><td class="desc">级联删除（artifacts 同步删除）</td></tr>
+      </table>
+    </div>
+    <div class="tab-panel" id="db-artifacts">
+      <table class="api-table">
+        <tr><th>方法</th><th>返回值</th><th>说明</th></tr>
+        <tr><td class="sig">insert_artifact(artifact)</td><td class="ret">None</td><td class="desc">插入产出物记录</td></tr>
+        <tr><td class="sig">list_artifacts(session_id)</td><td class="ret">list[Artifact]</td><td class="desc">列出会话的所有产出物</td></tr>
+        <tr><td class="sig">delete_artifacts(session_id)</td><td class="ret">int</td><td class="desc">删除会话的所有产出物，返回删除数</td></tr>
+      </table>
+    </div>
+
+    <h4>6.3 线程安全策略</h4>
+    <div class="info">
+      <strong>每操作一个连接。</strong><br>
+      不使用共享连接或连接池。每个公开方法内部调用 <code class="inline">_connect()</code> 创建新连接，
+      操作完立即关闭。sqlite3 在 <code class="inline">check_same_thread=False</code> + WAL 模式下支持多线程并发读，
+      写入通过 5 秒超时重试解决偶发冲突。当前 MVP 单 Worker 场景下几乎不会触发。
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STEP 7: End-to-End Usage
+     ============================================================ -->
+<section>
+  <div class="step">
+    <div class="step-num">7</div>
+    <h3>端到端使用示例 —— 把一切串起来</h3>
+    <p>下面是一个完整的生命周期，从初始化到清理：</p>
+
+    <pre><span class="cmt"># ============================================================</span>
+<span class="cmt"># 1. 初始化</span>
+<span class="cmt"># ============================================================</span>
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+<span class="kw">from</span> src.workspace <span class="kw">import</span> WorkspaceManager, SessionStatus
+
+wm = WorkspaceManager(root=Path(<span class="str">"users_workspace"</span>))
+
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># 2. 确保用户存在（幂等）</span>
+<span class="cmt"># ============================================================</span>
+user = wm.ensure_user(
+    user_uuid=<span class="str">"alice-1234-5678"</span>,
+    username=<span class="str">"Alice"</span>,
+)
+
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># 3. 创建会话</span>
+<span class="cmt"># ============================================================</span>
+session = wm.create_session(
+    user_uuid=<span class="str">"alice-1234-5678"</span>,
+    task_summary=<span class="str">"分析销售数据并生成月度报告"</span>,
+    tags=[<span class="str">"report"</span>, <span class="str">"monthly"</span>],
+)
+<span class="kw">print</span>(<span class="str">f"会话创建: </span><span class="str">{session.session_id}</span><span class="str">"</span>)
+
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># 4. 获取 nsjail 挂载参数（传给沙箱）</span>
+<span class="cmt"># ============================================================</span>
+mounts = wm.get_nsjail_mounts(
+    <span class="str">"alice-1234-5678"</span>, session.session_id
+)
+<span class="cmt"># => ["/path/.../workspace:/work", "/path/.../skills:/skills"]</span>
+
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># 5. Agent 执行任务 ...（在 nsjail 沙箱中进行）</span>
+<span class="cmt"># ============================================================</span>
+
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># 6. 注册产出物</span>
+<span class="cmt"># ============================================================</span>
+artifact = wm.register_artifact(
+    session_id=session.session_id,
+    file_path=<span class="str">"output/monthly_report.pdf"</span>,
+    file_type=<span class="str">"application/pdf"</span>,
+)
+
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># 7. 结束会话</span>
+<span class="cmt"># ============================================================</span>
+wm.end_session(
+    session.session_id,
+    status=SessionStatus.COMPLETED,
+    task_summary=<span class="str">"成功生成月度销售报告"</span>,
+)
+
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># 8. 查询历史</span>
+<span class="cmt"># ============================================================</span>
+sessions = wm.list_sessions(<span class="str">"alice-1234-5678"</span>)
+<span class="kw">for</span> s <span class="kw">in</span> sessions:
+    <span class="kw">print</span>(<span class="str">f"</span><span class="str">{s.session_id}</span><span class="str">: </span><span class="str">{s.status}</span><span class="str"> - </span><span class="str">{s.task_summary}</span><span class="str">"</span>)
+    artifacts = wm.list_artifacts(s.session_id)
+    <span class="kw">for</span> a <span class="kw">in</span> artifacts:
+        <span class="kw">print</span>(<span class="str">f"  产出: </span><span class="str">{a.file_path}</span><span class="str"> (</span><span class="str">{a.file_size}</span><span class="str"> bytes)</span><span class="str">"</span>)
+
+<span class="cmt"># ============================================================</span>
+<span class="cmt"># 9. 定期清理（可设为 cron job）</span>
+<span class="cmt"># ============================================================</span>
+cleaned = wm.cleanup_expired_sessions(max_age_days=<span class="num">30</span>)
+<span class="kw">print</span>(<span class="str">f"清理了 </span><span class="str">{cleaned}</span><span class="str"> 个过期会话"</span>)</pre>
+  </div>
+</section>
+
+<!-- ============================================================
+     STEP 8: Integration Points
+     ============================================================ -->
+<section id="integration">
+  <div class="step">
+    <div class="step-num">8</div>
+    <h3>模块集成 —— 谁在调用 Workspace？</h3>
+    <p>Workspace 模块不独立存在，它被以下模块使用：</p>
+
+    <div class="flow">
+      <div class="box accent">src/orchestration/worker.py</div>
+      <div class="arrow">→</div>
+      <div class="box">create_session()<br>end_session()</div>
+    </div>
+    <div class="flow">
+      <div class="box accent">src/sandbox/nsjail.py</div>
+      <div class="arrow">→</div>
+      <div class="box">get_nsjail_mounts()<br>get_session_work_dir()</div>
+    </div>
+    <div class="flow">
+      <div class="box accent">src/harness/runner.py</div>
+      <div class="arrow">→</div>
+      <div class="box">register_artifact()<br>list_artifacts()</div>
+    </div>
+
+    <h4>集成点详细说明</h4>
+    <table class="api-table">
+      <tr><th>调用方</th><th>调用的方法</th><th>场景</th></tr>
+      <tr>
+        <td class="sig">orchestration/worker.py</td>
+        <td class="sig">create_session / end_session</td>
+        <td class="desc">Worker 启动任务时创建会话，任务完成时结束会话</td>
+      </tr>
+      <tr>
+        <td class="sig">sandbox/nsjail.py</td>
+        <td class="sig">get_nsjail_mounts / get_session_work_dir</td>
+        <td class="desc">构建 nsjail 沙箱参数，将 workspace/ 挂载到容器的 /work</td>
+      </tr>
+      <tr>
+        <td class="sig">harness/runner.py</td>
+        <td class="sig">register_artifact / list_artifacts</td>
+        <td class="desc">Agent 产出文件后注册索引，最终汇总时列出所有产出</td>
+      </tr>
+      <tr>
+        <td class="sig">account/account_service.py</td>
+        <td class="sig">ensure_user</td>
+        <td class="desc">用户注册/登录时调用，确保工作目录已初始化</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================
+     STEP 9: Design Decisions
+     ============================================================ -->
+<section>
+  <div class="step">
+    <div class="step-num">9</div>
+    <h3>设计决策 —— 为什么这样设计？</h3>
+
+    <div class="accordion">
+      <details>
+        <summary>为什么用 SQLite 而不是纯文件系统？</summary>
+        <div class="content">
+          <p>如果纯靠文件系统，列举"Alice 的所有会话"需要遍历目录树，列举"某会话的所有产出物"需要扫描 output/ 目录。当会话数量达到数百个时，这些操作会变得很慢。</p>
+          <p>SQLite 的 B-Tree 索引让这些查询始终保持 O(log n)，而且它是嵌入式数据库，不需要额外部署服务。</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="accordion">
+      <details>
+        <summary>为什么使用每个操作新建连接，而不是连接池？</summary>
+        <div class="content">
+          <p>Python 的 sqlite3 模块不支持跨线程共享连接（会抛 ProgrammingError）。虽然在 WAL 模式下可以通过 check_same_thread=False 绕过，但更好的做法是每操作一个连接 —— 它足够轻量（文件级别），且避免了并发写入时的锁竞争问题。</p>
+          <p>当前 MVP 是单 Worker 模式，性能不是瓶颈。如果未来需要更高并发，应该切换到 PostgreSQL 而非优化 SQLite 连接管理。</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="accordion">
+      <details>
+        <summary>YAML 为什么用原子写入（.tmp + os.replace）？</summary>
+        <div class="content">
+          <p>防止写入过程中进程崩溃导致文件损坏。写入流程：</p>
+          <pre>1. yaml.dump(data) → content (内存中的字符串)
+2. file_store.write(path + <span class="str">".tmp"</span>, content) → 写入临时文件
+3. os.replace(tmp_path, target_path) → 原子 rename</pre>
+          <p><code class="inline">os.replace</code> 是 POSIX 原子操作，保证不会出现"文件存在但内容不完整"的中间状态。</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="accordion">
+      <details open>
+        <summary>session_id 为什么以时间戳开头？</summary>
+        <div class="content">
+          <p>两个好处：</p>
+          <ol style="margin-left:1.5rem;color:var(--text-dim)">
+            <li><strong>文件系统天然有序</strong> —— 在文件管理器中默认按名称排序时，会话自动按创建时间排列</li>
+            <li><strong>碰撞概率极低</strong> —— 毫秒时间戳 + 8位随机hex = 2^32 种可能/毫秒，实际场景下几乎不可能碰撞</li>
+          </ol>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STEP 10: Summary
+     ============================================================ -->
+<section>
+  <div class="step">
+    <div class="step-num">10</div>
+    <h3>总结 —— 对外接口速查表</h3>
+    <p>以下是 workspace 模块对外暴露的<strong>全部</strong>公开接口：</p>
+
+    <table class="api-table">
+      <tr><th>导出</th><th>类型</th><th>所属文件</th><th>一句话</th></tr>
+      <tr>
+        <td class="sig">SessionStatus</td><td class="ret">StrEnum</td><td class="desc">models.py</td>
+        <td class="desc">ACTIVE / COMPLETED / FAILED / DELETED</td>
+      </tr>
+      <tr>
+        <td class="sig">User</td><td class="ret">dataclass</td><td class="desc">models.py</td>
+        <td class="desc">用户信息：uuid, username, 路径, 时间戳</td>
+      </tr>
+      <tr>
+        <td class="sig">Session</td><td class="ret">dataclass</td><td class="desc">models.py</td>
+        <td class="desc">会话元数据：12 个字段覆盖完整的会话状态</td>
+      </tr>
+      <tr>
+        <td class="sig">Artifact</td><td class="ret">dataclass</td><td class="desc">models.py</td>
+        <td class="desc">产出物索引：文件路径 + 类型 + 大小 + 校验和</td>
+      </tr>
+      <tr>
+        <td class="sig">WorkspaceManager</td><td class="ret">class</td><td class="desc">manager.py</td>
+        <td class="desc">核心类：10 个公共方法覆盖用户/会话/产出物/nsjail/清理</td>
+      </tr>
+    </table>
+
+    <div class="info tip">
+      <strong>WorkspaceManager 10 个公共方法：</strong><br>
+      ① <code class="inline">ensure_user()</code> ② <code class="inline">create_session()</code>
+      ③ <code class="inline">end_session()</code> ④ <code class="inline">get_session()</code>
+      ⑤ <code class="inline">list_sessions()</code> ⑥ <code class="inline">cleanup_expired_sessions()</code><br>
+      ⑦ <code class="inline">get_nsjail_mounts()</code> ⑧ <code class="inline">get_session_work_dir()</code>
+      ⑨ <code class="inline">get_session_output_dir()</code> ⑩ <code class="inline">register_artifact()</code>
+      + <code class="inline">list_artifacts()</code>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  HpAgent Workspace Module Documentation &middot; Generated 2026-05-25 &middot; 4 files, 5 public types, 11 public methods
+</footer>
+
+<!-- ============================================================
+     JavaScript: Tab switching
+     ============================================================ -->
+<script>
+function switchTab(group, tab) {
+  const panels = document.querySelectorAll('.tab-panel[id^="' + group + '-"]');
+  panels.forEach(p => p.classList.remove('active'));
+
+  const buttons = document.querySelectorAll('#' + group + '-tabs button');
+  buttons.forEach(b => b.classList.remove('active'));
+
+  const targetPanel = document.getElementById(group + '-' + tab);
+  if (targetPanel) targetPanel.classList.add('active');
+
+  const targetButton = document.querySelector('#' + group + '-tabs button[onclick*="' + tab + '"]');
+  if (targetButton) targetButton.classList.add('active');
+}
+
+// Smooth scroll for nav links
+document.querySelectorAll('nav a[href^="#"]').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+
+</body>
+</html>

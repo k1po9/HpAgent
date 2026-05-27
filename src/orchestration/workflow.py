@@ -10,6 +10,7 @@ Workflow 只负责:
   3. 状态查询：get_status()
   4. 结束归档：archive_session_activity()
 """
+import asyncio
 from datetime import timedelta
 from typing import List, Dict, Any
 
@@ -32,6 +33,7 @@ class OrchestrationWorkflow:
         self._total_turns = 0
         self._completed = False
         self._pending_messages: List[Dict[str, Any]] = []
+        self._idle_timeout_minutes = 1
 
     @workflow.run
     async def run(self, user_message: Dict[str, Any]) -> Dict[str, Any]:
@@ -56,16 +58,26 @@ class OrchestrationWorkflow:
 
         # 主循环 —— 等待 signal 入队的新消息
         while True:
-            await workflow.wait_condition(
-                lambda: bool(self._pending_messages) or self._completed
-            )
+            try:
+                await asyncio.wait_for(
+                    workflow.wait_condition(
+                        lambda: bool(self._pending_messages) or self._completed
+                    ),
+                    timeout=timedelta(minutes=self._idle_timeout_minutes).total_seconds(),
+                )
+            except asyncio.TimeoutError:
+                workflow.logger.info("Session %s idle for %d minute, auto-closing", self._session_id, self._idle_timeout_minutes)
+                break
+            
             if self._completed:
                 break
+            
             if self._pending_messages:
                 next_msg = self._pending_messages.pop(0)
                 final_content = await self._process_turn(next_msg)
 
         # 退出前归档会话
+        from orchestration.worker import archive_session_activity
         await workflow.execute_activity(
             "archive_session_activity",
             args=[self._session_id],
@@ -136,3 +148,47 @@ class OrchestrationWorkflow:
             "account_id": self._account_id,
             "session_id": self._session_id,
         }
+
+
+@workflow.defn
+class ReflectWorkflow:
+    """定期记忆反思 Workflow —— 由 Temporal Schedule 定期触发。
+
+    调用 reflect_batch_activity 批量触发所有活跃账号的 Hindsight 深度推理。
+    """
+
+    @workflow.run
+    async def run(self, account_ids: List[str]) -> Dict[str, Any]:
+        if not account_ids:
+            return {"results": {}, "total": 0}
+        result = await workflow.execute_activity(
+            "reflect_batch_activity",
+            args=[account_ids],
+            start_to_close_timeout=timedelta(seconds=120),
+            retry_policy=RetryPolicy(
+                initial_interval=timedelta(seconds=5),
+                maximum_attempts=2,
+            ),
+        )
+        return result
+
+
+@workflow.defn
+class MetricsReportWorkflow:
+    """定期指标报告 Workflow —— 由 Temporal Schedule 定期触发。
+
+    调用 metrics_report_activity 采集 Hindsight 可观测性指标并以结构化 JSON 日志输出。
+    """
+
+    @workflow.run
+    async def run(self) -> Dict[str, Any]:
+        result = await workflow.execute_activity(
+            "metrics_report_activity",
+            args=[],
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=RetryPolicy(
+                initial_interval=timedelta(seconds=5),
+                maximum_attempts=2,
+            ),
+        )
+        return result

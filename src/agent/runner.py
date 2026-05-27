@@ -113,8 +113,10 @@ class MultiAgentExecutor:
         """从配置构建编排器。"""
         # 创建 Agent 实例
         agents: dict[str, LLMAgent] = {}
+
         for entry in self._agents_config:
             tag = entry["tag"]
+            executor = entry.get("tool_executor")
             agents[tag] = LLMAgent(
                 resource_pool=self._pool,
                 model_selector=entry.get("model_selector", "chat"),
@@ -125,7 +127,7 @@ class MultiAgentExecutor:
                     cost_tier=entry.get("cost_tier", "default"),
                 ),
                 tools=entry.get("tools"),
-                tool_executor=entry.get("tool_executor"),
+                tool_executor=executor,
                 max_tool_turns=entry.get("max_tool_turns", 5),
             )
 

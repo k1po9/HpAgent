@@ -4,18 +4,19 @@ services:
     build: ./src
     image: hpagent:latest
     ports:
-      - "8082:8082"
+      - "8082:8082"                   # 宿主机调试：ws://localhost:8082
     environment:
+      # 容器内通信（Docker DNS 自动解析服务名）
       - TEMPORAL_HOST=temporal:7233
       - HINDSIGHT_URL=http://hindsight:8888
-      - WORKSPACE_ROOT=/app/data/workspace
+      - WORKSPACE_ROOT=/app/.data/data/workspace
       - REDIS_URL=redis://redis:6379
       - MINIMAX_API_KEY=${MINIMAX_API_KEY}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
-      - ./data/workspace:/app/data/workspace   # 用户工作区（宿主机可见）
-      - ./data/sessions:/app/data/sessions     # 会话 JSONL 备份（宿主机可见）
-      - ./data/logs:/app/data/logs             # 日志文件（宿主机可见）
+      - ./.data/data/workspace:/app/.data/data/workspace   # 用户工作区
+      - ./.data/data/sessions:/app/.data/data/sessions     # 会话备份
+      - ./.data/data/logs:/app/.data/data/logs             # 日志文件
       - ./config:/app/config:ro                # 配置文件（只读）
     depends_on:
       redis:
@@ -24,6 +25,8 @@ services:
         condition: service_healthy
       hindsight:
         condition: service_healthy
+      embeddings:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -34,7 +37,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6379:6379"                   # 宿主机调试：redis://localhost:6379
     volumes:
       - redis-data:/data
     healthcheck:
@@ -56,8 +59,8 @@ services:
     ports:
       - "6099:6099"
     volumes:
-      - ./data/napcat/data:/app/.napcat       # QQ 登录凭证持久化
-      - ./data/napcat/cache:/app/data/cache   # 缓存数据持久化
+      - ./.data/data/napcat/data:/app/.napcat       # QQ 登录凭证持久化
+      - ./.data/data/napcat/cache:/app/data/cache   # 缓存数据持久化
     networks:
       - app-network
     restart: unless-stopped
@@ -83,13 +86,14 @@ services:
   temporal:
     image: temporalio/auto-setup:1.26.2
     environment:
+      - BIND_ON_IP=0.0.0.0              # 使 tctl healthcheck 能通过 localhost 连接
       - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=temporal-postgres
     ports:
-      - "7233:7233"
+      - "7233:7233"                   # 宿主机调试：localhost:7233
     depends_on:
       temporal-postgres:
         condition: service_healthy
@@ -114,41 +118,123 @@ services:
       - app-network
     restart: unless-stopped
 
+  # ==================== Hindsight 专用 PostgreSQL（pgvector） ====================
+  hindsight-postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: hindsight
+      POSTGRES_PASSWORD: hindsight
+      POSTGRES_DB: hindsight
+    volumes:
+      - hindsight-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hindsight -d hindsight"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - app-network
+    restart: unless-stopped
+
   # ==================== Hindsight 长期记忆 ====================
   hindsight:
-    image: ghcr.io/vectorize-io/hindsight:latest
+    image: ghcr.io/vectorize-io/hindsight:0.6.1
     environment:
-      # LLM（对话总结/记忆整合 — 如全用本地可留空，但部分功能会降级）
-      - HINDSIGHT_API_LLM_API_KEY=${HINDSIGHT_LLM_API_KEY:-sk-xxx}
-      - HINDSIGHT_API_LLM_MODEL=${HINDSIGHT_LLM_MODEL:-gpt-4o-mini}
-      # ── 本地 BGE-M3 Embedding（核心：无需云 API key） ──
-      - HINDSIGHT_API_EMBEDDINGS_PROVIDER=local
-      - HINDSIGHT_API_EMBEDDINGS_LOCAL_MODEL=BAAI/bge-m3
-      - HINDSIGHT_API_EMBEDDINGS_LOCAL_NORMALIZE_EMBEDDINGS=true
-      # ── 本地 BGE Reranker（检索精度提升 30%+） ──
+      # ── 外部 PostgreSQL（替代内嵌 pg0，避免重启数据损坏） ──
+      - HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:hindsight@hindsight-postgres:5432/hindsight
+      # LLM（对话总结/记忆提取 — MiniMax OpenAI 兼容接口）
+      - HINDSIGHT_API_LLM_PROVIDER=${HINDSIGHT_API_LLM_PROVIDER}
+      - HINDSIGHT_API_LLM_BASE_URL=${HINDSIGHT_API_LLM_BASE_URL}
+      - HINDSIGHT_API_LLM_API_KEY=${HINDSIGHT_API_LLM_API_KEY}
+      - HINDSIGHT_API_LLM_MODEL=${HINDSIGHT_API_LLM_MODEL}
+      # ── 外部 TEI Embedding（BGE-M3 统一服务，与 HpAgent 共享） ──
+      - HINDSIGHT_API_EMBEDDINGS_PROVIDER=tei
+      - HINDSIGHT_API_EMBEDDINGS_TEI_URL=http://embeddings:8080
+      # ── 本地 BGE Reranker（TEI 不支持 reranking，保留本地加载） ──
       - HINDSIGHT_API_RERANKER_PROVIDER=local
       - HINDSIGHT_API_RERANKER_LOCAL_MODEL=BAAI/bge-reranker-v2-m3
       - HINDSIGHT_API_RERANKER_LOCAL_TOP_N=10
       - HINDSIGHT_API_RERANKER_LOCAL_RETURN_TOP_N=5
+      # ── 跳过 LLM 验证（避免启动时卡在 API 连通性检查） ──
+      - HINDSIGHT_API_SKIP_LLM_VERIFICATION=true
+      # ── 模型加载超时（覆盖镜像内硬编码的 300s → 600s） ──
+      - HINDSIGHT_API_STARTUP_WAIT_SECONDS=600
       # ── 国内 Hugging Face 镜像加速 ──
       - HF_ENDPOINT=https://hf-mirror.com
     ports:
-      - "8001:8888"
+      - "8001:8888"                   # 宿主机调试：http://localhost:8001
+      - "9999:9999"                   # webui
     volumes:
-      - hindsight-data:/home/hindsight/.pg0
+      - ./scripts/start-all.sh:/app/start-all.sh:ro  # 覆盖镜像内硬编码 300s 超时的启动脚本
+      - hindsight-cache:/home/hindsight/.cache   # 模型缓存（BGE-M3 / Reranker）
+    depends_on:
+      hindsight-postgres:
+        condition: service_healthy
+      embeddings:
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      start_period: 120s   # 首次启动需下载模型，给 2 分钟
+      retries: 30
+      start_period: 600s  # Reranker 模型首次下载+加载
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # ==================== BGE-M3 Embedding 服务（TEI） ====================
+  # Hindsight + HpAgent 共用此服务，一份模型一份内存
+  #
+  # 为什么需要 init 容器:
+  #   TEI (Rust) 的下载器强制要求 HTTP Content-Range 响应头，但 hf-mirror.com
+  #   的 CDN 不支持，导致 "Header content-range is missing" 错误。
+  #   Python huggingface_hub 则对此容错（Range 不可用时回退到普通下载），
+  #   所以用 Python 镜像提前下载模型到共享 volume，TEI 启动时直接使用本地缓存。
+
+  embeddings-init:
+    image: python:3.11-slim
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        pip install -q huggingface_hub
+        python -c "
+        import os
+        os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+        from huggingface_hub import snapshot_download
+        snapshot_download('BAAI/bge-m3', cache_dir='/data', ignore_patterns=['*.DS_Store', '.DS_Store'])
+        print('BGE-M3 download complete')
+        "
+    volumes:
+      - embeddings-cache:/data
+    networks:
+      - app-network
+    restart: "no"
+
+  embeddings:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    command: --model-id BAAI/bge-m3 --port 8080
+    environment:
+      - HF_ENDPOINT=https://hf-mirror.com
+    volumes:
+      - embeddings-cache:/data
+    depends_on:
+      embeddings-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 300s  # 只需加载，无需下载
     networks:
       - app-network
     restart: unless-stopped
 
 volumes:
   temporal-pgdata:
-  hindsight-data:
+  hindsight-pgdata:
+  hindsight-cache:
+  embeddings-cache:
   redis-data:
 
 networks:

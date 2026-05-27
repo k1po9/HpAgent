@@ -23,12 +23,12 @@ class AccountService:
 
     用法::
 
-        svc = AccountService(data_dir=Path(".hpagent/data"))
+        svc = AccountService(data_dir=Path(".data/data"))
         account_id = await svc.resolve("napcat", "123456")  # QQ → UUID
         await svc.bind_channel(account_id, "web", "user_abc")
     """
 
-    def __init__(self, data_dir: Path | str = Path(".hpagent/data")):
+    def __init__(self, data_dir: Path | str = Path(".data/data")):
         self._data_dir = Path(data_dir)
         self._file = self._data_dir / "accounts.json"
         self._accounts: Dict[str, Account] = {}
@@ -96,6 +96,10 @@ class AccountService:
 
     def get_account(self, account_id: str) -> Optional[Account]:
         return self._accounts.get(account_id)
+
+    def list_all_ids(self) -> list[str]:
+        """返回所有已注册账号的 ID 列表。"""
+        return list(self._accounts.keys())
 
     def find_by_binding(
         self, channel_type: str, channel_user_id: str

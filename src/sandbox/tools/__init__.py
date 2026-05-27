@@ -1,48 +1,22 @@
 """
-Tools —— 工具系统，定义 LLM 可调用的工具和执行框架。
+Tools Layer —— 基于 LangChain 生态的 HpAgent 工具体系。
 
-============================================================================
-工具类型（ToolType）
-============================================================================
+公共 API:
+  ToolRegistry    — 三槽位工具注册中心（native / mcp / skill）
+  ToolResult      — HpAgent 统一工具执行返回值
+  ToolFileStore   — JSON/YAML 工具定义文件存储
+  ToolVectorStore — ChromaDB 工具向量存储
+  ToolRetriever   — 语义检索器（按用户意图动态注入工具）
 
-  NATIVE  — 原生工具：直接在 Python 中实现（如计算器、文件读取）
-  MCP     — MCP 工具：通过 Model Context Protocol 连接外部工具服务
-  SKILL   — 技能工具：组合多个工具形成的高级能力
-
-============================================================================
-核心类
-============================================================================
-
-  BaseTool       — 工具抽象基类（定义 name / description / parameters / execute）
-  ToolResult     — 工具执行结果（success / output / error / metadata）
-  ToolDefinition — 工具定义（可转换为 OpenAI function calling 格式）
-  ToolRegistry   — 工具注册表（线程安全的增删查执行）
-  ToolFactory    — 工具工厂（DynamicTool 动态创建 + 内置工具）
-  DynamicTool    — 动态工具（通过函数引用构造，无需定义新类）
-
-============================================================================
-工具定义格式
-============================================================================
-
-  OpenAI function calling 格式:
-    {
-      "type": "function",
-      "function": {
-        "name": "calculator",
-        "description": "Evaluate a mathematical expression",
-        "parameters": {
-          "type": "object",
-          "properties": {"expression": {"type": "string"}},
-          "required": ["expression"]
-        }
-      }
-    }
+Builtin tools:
+  calculator_tool
+  file_read_tool
+  web_search_tool
 """
-from .base import BaseTool, ToolResult, ToolDefinition, ToolType
-from .registry import ToolRegistry
-from .factory import ToolFactory, DynamicTool
+from sandbox.tools.types import ToolResult
+from sandbox.tools.registry import ToolRegistry
 
 __all__ = [
-    "BaseTool", "ToolResult", "ToolDefinition", "ToolType",
-    "ToolRegistry", "ToolFactory", "DynamicTool",
+    "ToolResult",
+    "ToolRegistry",
 ]

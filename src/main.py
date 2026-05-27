@@ -22,11 +22,19 @@ import os
 import sys
 from pathlib import Path
 
-# ── 日志必须在所有模块导入之前配置 ──
+# ── 项目根目录检测（日志在所有模块导入之前配置）──
+# Docker: /app/main.py → /app/，本地: src/main.py → ../
+_base = Path(__file__).resolve().parent
+_config_dir = _base / "config"
+if not _config_dir.exists():
+    _config_dir = _base.parent / "config"
+_project_root = _config_dir.parent
+
+# ── 日志配置（数据路径锚定到项目根目录）──
 from common.logging import setup_logging
 
 _log_level = getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO)
-_log_dir = Path(os.getenv("LOG_DIR", ".hpagent/data/logs"))
+_log_dir = Path(os.getenv("LOG_DIR", str(_project_root / ".data/logs")))
 setup_logging(level=_log_level, log_dir=_log_dir)
 
 logger = logging.getLogger("HpAgent")
@@ -37,11 +45,7 @@ from orchestration.worker import start_worker
 
 async def main_async():
     """异步主流程: 加载配置 → 启动 Worker。"""
-    # Docker: /app/main.py → /app/config/，本地: src/main.py → ../config/
-    _base = Path(__file__).resolve().parent
-    config_path = _base / "config" / "config.yaml"
-    if not config_path.exists():
-        config_path = _base.parent / "config" / "config.yaml"
+    config_path = _config_dir / "config.yaml"
 
     try:
         config = AppConfig.from_yaml(str(config_path))
@@ -57,6 +61,8 @@ async def main_async():
     logger.info("Hindsight: %s", "enabled" if config.hindsight.enabled else "disabled")
     logger.info("Sandbox: time=%ds mem=%dMB", config.sandbox.time_limit, config.sandbox.memory_limit_mb)
     logger.info("Log dir: %s", _log_dir)
+
+    # config 有 prompt、agent、model、temporal、redis、hindsight、sandbox 等字段，包含所有运行时参数
     await start_worker(config)
 
 

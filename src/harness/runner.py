@@ -18,11 +18,14 @@ from common.types import (
     EventType,
     ChannelType,
     UnifiedMessage,
-    ToolResult,
+    ToolResult as CommonToolResult,
 )
 from session.store import SessionStore
 from sandbox.channels.router import ChannelRouter
 from agent.runner import MultiAgentExecutor
+from harness.context_builder import HarnessContextBuilder
+from resources.resource_pool import ResourcePool
+from sandbox.sandbox_manager import SandboxManager
 
 logger = logging.getLogger("HpAgent.HarnessRunner")
 
@@ -39,9 +42,9 @@ class HarnessRunner:
     def __init__(
         self,
         session_store: SessionStore,
-        context_builder=None,
-        resource_pool=None,
-        sandbox_manager=None,
+        context_builder: Optional[HarnessContextBuilder] = None,
+        resource_pool: Optional[ResourcePool] = None,
+        sandbox_manager: Optional[SandboxManager] = None,
         channel_router: Optional[ChannelRouter] = None,
         max_tool_turns: int = 20,
         agent_mode: str = "single",
@@ -110,12 +113,17 @@ class HarnessRunner:
 
         # ── Multi-Agent Path ────────────────────────────────────────────
         if self._agent_mode == "multi" and self._multi_agent_executor is not None:
-            # recall memory
+            # recall memory (with channel-aware isolation)
             _mem_items, memories_text = await self._session.recall_memories(
                 query=user_content,
                 account_id=account_id,
                 session_id=session_id,
                 top_n=5,
+                tags_match="any_strict",
+                query_timestamp=metadata.get("iso_timestamp", ""),
+                group_id=str(metadata.get("group_id", "")),
+                scope=metadata.get("detail_type", ""),
+                channel_type=channel_type_str,
             )
 
             final_content, turns_taken = await self._multi_agent_executor.execute(
@@ -147,21 +155,28 @@ class HarnessRunner:
             while turns_taken < self._max_tool_turns:
                 turns_taken += 1
 
-                # 召回长期记忆
+                # 召回长期记忆（渠道感知的标签隔离）
                 memories_items, memories_text = await self._session.recall_memories(
                     query=user_content,
                     account_id=account_id,
                     session_id=session_id,
                     top_n=5,
+                    tags_match="any_strict",
+                    query_timestamp=metadata.get("iso_timestamp", ""),
+                    group_id=str(metadata.get("group_id", "")),
+                    scope=metadata.get("detail_type", ""),
+                    channel_type=channel_type_str,
                 )
 
-                # 构建上下文(metadata 未使用)
+                # 构建上下文
                 context = self._build_context(events, channel_type, memories_text)
 
-                # 获取工具列表
-                tools = self._get_tools()
+                # 获取工具列表（支持 RAG 动态注入）
+                tools = await self._get_tools(user_content, session_id)
 
                 # 调用模型
+                for turn in context:
+                    logger.info("Context turn: %s", turn)
                 response = await self._model.generate(
                     model_selector="chat",
                     messages=context,
@@ -203,7 +218,7 @@ class HarnessRunner:
                     turn_events.append(assistant_turn)
 
                     for tc in response.tool_calls:
-                        result = await self._execute_tool(tc.name, tc.arguments)
+                        result = await self._execute_tool(tc.name, tc.arguments, session_id)
                         tool_event = Event(
                             session_id=session_id,
                             event_type=EventType.TOOL_RESULT,
@@ -229,8 +244,19 @@ class HarnessRunner:
         # 发送响应
         await self._send_response(final_content, user_message)
 
-        # 提取长期记忆（异步，不阻塞响应）
-        await self._session.retain_memories(turn_events, account_id, session_id)
+        # 提取长期记忆（异步提交，不阻塞 Temporal Activity 完成）
+        await self._session.retain_memories(
+            turn_events, account_id, session_id,
+            channel_type=channel_type_str,
+            group_id=str(metadata.get("group_id", "")),
+            sender_name=metadata.get("sender_name", ""),
+            iso_timestamp=metadata.get("iso_timestamp", ""),
+            scope=metadata.get("detail_type", ""),
+        )
+
+        # 每 10 轮输出一次可观测性指标快照（结构化日志，供监控采集）
+        if turns_taken > 0 and turns_taken % 10 == 0 and self._session._hindsight:
+            self._session._hindsight.log_metrics()
 
         return {
             "content": final_content,
@@ -277,48 +303,41 @@ class HarnessRunner:
             max_turns=20,
         )
 
-    def _get_tools(self) -> List[Dict[str, Any]]:
-        """从活跃沙箱收集工具定义列表。"""
+    async def _get_tools(self, user_content: str = "", session_id: str = "") -> List[Dict[str, Any]]:
         if self._sandbox is None:
             return []
-        tools = []
-        for info in self._sandbox.list_sandboxes():
-            if info.get("status") != "active":
-                continue
-            try:
-                sandbox = self._sandbox.get_sandbox(info["sandbox_id"])
-                tools.extend(sandbox.list_tools())
-            except Exception:
-                continue
-        return tools
+        try:
+            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            if sandbox._registry._retriever is not None and user_content:
+                return await sandbox._registry.retrieve_for_llm(
+                    query=user_content, top_k=8
+                )
+            return sandbox.list_tools()
+        except Exception:
+            return []
 
     async def _execute_tool(
-        self, tool_name: str, arguments: Dict[str, Any]
+        self, tool_name: str, arguments: Dict[str, Any], session_id: str = ""
     ) -> Dict[str, Any]:
-        """在活跃沙箱中执行工具。"""
         if self._sandbox is None:
             return {"output": None, "error": "SandboxManager not configured"}
-
-        for info in self._sandbox.list_sandboxes():
-            if info.get("status") != "active":
-                continue
-            try:
-                sandbox = self._sandbox.get_sandbox(info["sandbox_id"])
-                if sandbox.has_tool(tool_name):
-                    result = await sandbox.execute(tool_name, arguments)
-                    if hasattr(result, "to_dict"):
-                        return result.to_dict()
-                    return {"output": str(result), "error": None}
-            except Exception as e:
-                logger.warning("Tool execution failed: %s(%s) → %s", tool_name, arguments, e)
-                return {"output": None, "error": str(e)}
-
-        return {"output": None, "error": f"Tool '{tool_name}' not found"}
+        try:
+            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            result = await sandbox.execute(tool_name, arguments)
+            return result.to_dict()
+        except Exception as e:
+            return {"output": None, "error": str(e)}
 
     async def reflect(self, account_id: str) -> Dict[str, Any]:
         """触发长期记忆深度推理。"""
         count = await self._session.reflect(account_id)
         return {"insights": count}
+
+    async def get_metrics(self) -> Dict[str, Any]:
+        """返回 Hindsight 客户端可观测性指标快照。"""
+        if self._session._hindsight:
+            return self._session._hindsight.get_metrics()
+        return {}
 
     async def _send_response(
         self,

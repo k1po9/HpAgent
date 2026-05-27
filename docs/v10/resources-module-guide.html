@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resources 模块架构文档 — HpAgent v10</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --dim: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d2991d;
+    --red: #f85149;
+    --purple: #a371f7;
+    --code-bg: #1c2128;
+    --method: #79c0ff;
+    --class: #ffa657;
+    --field: #a5d6ff;
+    --static: #d2a8ff;
+    --private: #8b949e;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    display: flex; min-height: 100vh;
+  }
+
+  /* ── Sidebar ── */
+  nav {
+    width: 280px; min-width: 280px; background: var(--surface); border-right: 1px solid var(--border);
+    padding: 24px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  }
+  nav h1 { font-size: 16px; color: var(--accent); margin-bottom: 8px; }
+  nav .subtitle { font-size: 12px; color: var(--dim); margin-bottom: 24px; }
+  nav .section { margin-bottom: 20px; }
+  nav .section-title { font-size: 11px; text-transform: uppercase; color: var(--dim); letter-spacing: 1px; margin-bottom: 8px; }
+  nav a {
+    display: block; color: var(--text); text-decoration: none; font-size: 13px;
+    padding: 5px 12px; border-radius: 6px; transition: background .15s;
+  }
+  nav a:hover { background: rgba(88,166,255,.1); }
+  nav a.active { background: rgba(88,166,255,.15); color: var(--accent); }
+  nav .badge {
+    display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 8px;
+    margin-left: 6px; font-weight: 600;
+  }
+  .badge-class { background: rgba(255,166,87,.2); color: var(--class); }
+  .badge-func { background: rgba(167,113,247,.2); color: var(--purple); }
+
+  /* ── Main ── */
+  main {
+    flex: 1; padding: 40px 48px; max-width: 1100px; overflow-y: auto;
+  }
+  main h2 { font-size: 24px; border-bottom: 1px solid var(--border); padding-bottom: 12px; margin-bottom: 24px; margin-top: 48px; }
+  main h2:first-of-type { margin-top: 0; }
+  main h3 { font-size: 18px; color: var(--accent); margin: 28px 0 12px; }
+  main h4 { font-size: 14px; color: var(--dim); margin: 16px 0 8px; text-transform: uppercase; letter-spacing: 1px; }
+  main p, main li { font-size: 14px; margin-bottom: 8px; }
+  main ul { padding-left: 24px; margin-bottom: 16px; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+
+  /* ── Code ── */
+  pre { background: var(--code-bg); border-radius: 8px; padding: 16px; overflow-x: auto; font-size: 13px; line-height: 1.5; border: 1px solid var(--border); margin-bottom: 16px; }
+  code { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 13px; }
+  .inline-code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+
+  /* ── Tree ── */
+  .file-tree { font-family: monospace; font-size: 13px; line-height: 2; }
+  .file-tree .dir { color: var(--accent); }
+  .file-tree .file { color: var(--text); cursor: pointer; }
+  .file-tree .file:hover { text-decoration: underline; }
+  .file-tree .comment { color: var(--dim); }
+
+  /* ── Structure Outline ── */
+  .outline { border-left: 2px solid var(--border); padding-left: 16px; margin: 12px 0; }
+  .outline-item { margin: 6px 0; font-size: 13px; }
+  .outline-item.class::before { content: "⬡ "; color: var(--class); }
+  .outline-item.method::before { content: "↳ "; color: var(--method); }
+  .outline-item.static::before { content: "◆ "; color: var(--static); }
+  .outline-item.private::before { content: "· "; color: var(--private); }
+  .outline-item.field::before { content: "○ "; color: var(--field); }
+  .outline-item.func::before { content: "ƒ "; color: var(--purple); }
+  .sig { color: var(--dim); font-size: 12px; }
+  .tag {
+    display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 4px;
+    margin-left: 6px; font-weight: 600;
+  }
+  .tag-async { background: rgba(63,185,80,.2); color: var(--green); }
+  .tag-sync { background: rgba(210,153,29,.2); color: var(--yellow); }
+  .tag-dead { background: rgba(248,81,73,.15); color: var(--red); text-decoration: line-through; }
+  .tag-static { background: rgba(210,168,255,.15); color: var(--static); }
+
+  /* ── Flow Diagram ── */
+  .flow { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; font-size: 13px; padding: 16px 0; }
+  .flow-node {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 16px; text-align: center; white-space: nowrap;
+  }
+  .flow-node.entry { border-color: var(--green); }
+  .flow-node.core { border-color: var(--accent); }
+  .flow-node.io { border-color: var(--purple); }
+  .flow-arrow { color: var(--dim); font-size: 18px; }
+
+  /* ── Detail sections ── */
+  .detail { display: none; }
+  .detail.open { display: block; }
+  .toggle { cursor: pointer; user-select: none; }
+  .toggle::before { content: "▸ "; color: var(--dim); display: inline-block; transition: transform .2s; }
+  .toggle.open::before { content: "▾ "; color: var(--accent); }
+
+  /* ── Stats bar ── */
+  .stats {
+    display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 24px;
+  }
+  .stat { text-align: center; }
+  .stat-num { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 11px; color: var(--dim); text-transform: uppercase; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    body { flex-direction: column; }
+    nav { width: 100%; min-width: 0; height: auto; position: static; }
+    main { padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════ SIDEBAR ════════════ -->
+<nav>
+  <h1>Resources 模块</h1>
+  <div class="subtitle">HpAgent v10 · 架构文档</div>
+
+  <div class="section">
+    <div class="section-title">总览</div>
+    <a href="#overview" class="active">模块概览</a>
+    <a href="#architecture">架构分层</a>
+    <a href="#call-chain">调用链路</a>
+    <a href="#stats">统计面板</a>
+  </div>
+
+  <div class="section">
+    <div class="section-title">核心文件</div>
+    <a href="#file-interfaces">interfaces.py <span class="badge badge-class">ABC</span></a>
+    <a href="#file-credentials">credentials.py <span class="badge badge-class">2 类</span></a>
+    <a href="#file-model-client">model_client.py <span class="badge badge-class">1 类</span></a>
+    <a href="#file-resource-pool">resource_pool.py <span class="badge badge-class">1 类</span></a>
+  </div>
+
+  <div class="section">
+    <div class="section-title">辅助文件</div>
+    <a href="#file-embedding">embedding.py <span class="badge badge-func">1 工厂</span></a>
+    <a href="#file-init">__init__.py <span class="badge badge-func">导出</span></a>
+  </div>
+
+  <div class="section">
+    <div class="section-title">变更历史</div>
+    <a href="#changelog">v10 重构记录</a>
+  </div>
+</nav>
+
+<!-- ════════════ MAIN ════════════ -->
+<main>
+
+<!-- ══ OVERVIEW ══ -->
+<h2 id="overview">模块概览</h2>
+
+<div class="stats" id="stats">
+  <div class="stat"><div class="stat-num">6</div><div class="stat-label">源文件</div></div>
+  <div class="stat"><div class="stat-num">5</div><div class="stat-label">核心类</div></div>
+  <div class="stat"><div class="stat-num">2</div><div class="stat-label">数据类</div></div>
+  <div class="stat"><div class="stat-num">1</div><div class="stat-label">ABC 接口</div></div>
+  <div class="stat"><div class="stat-num">~550</div><div class="stat-label">总行数</div></div>
+</div>
+
+<p>
+  <strong>Resources</strong> 是 HpAgent 的<em>外部资源访问层</em>，负责管理模型 API 凭据、多模型 HTTP 调用、退避链调度以及 Embedding 向量化。
+  对外暴露 <span class="inline-code">IResources</span> 抽象接口，上层通过 <span class="inline-code">ResourcePool</span> 统一调度模型调用。
+</p>
+
+<div class="card">
+  <h4>文件目录树</h4>
+  <div class="file-tree">
+    <div class="dir">src/resources/</div>
+    <div>├── <span class="file" onclick="document.getElementById('file-init').scrollIntoView()">__init__.py</span>          <span class="comment"># 模块导出 & 文档</span></div>
+    <div>├── <span class="file" onclick="document.getElementById('file-credentials').scrollIntoView()">credentials.py</span>     <span class="comment"># 凭据加密存储 & 模型端点管理</span></div>
+    <div>├── <span class="file" onclick="document.getElementById('file-model-client').scrollIntoView()">model_client.py</span>    <span class="comment"># 单模型 HTTP 客户端 (Anthopic + OpenAI)</span></div>
+    <div>├── <span class="file" onclick="document.getElementById('file-resource-pool').scrollIntoView()">resource_pool.py</span>    <span class="comment"># 多模型调度池 & 退避链</span></div>
+    <div>└── <span class="file" onclick="document.getElementById('file-embedding').scrollIntoView()">embedding.py</span>        <span class="comment"># Embedding 向量化客户端</span></div>
+    <br>
+    <div class="dir">src/common/</div>
+    <div>└── <span class="file" onclick="document.getElementById('file-interfaces').scrollIntoView()">interfaces.py</span>      <span class="comment"># IResources ABC 定义</span></div>
+  </div>
+</div>
+
+<!-- ══ ARCHITECTURE ══ -->
+<h2 id="architecture">架构分层</h2>
+
+<div class="card">
+  <h4>三层依赖关系</h4>
+  <pre>
+┌─────────────────────────────────────────────────────┐
+│                  调用方 (Worker / Agent)              │
+│                  只依赖 IResources 接口               │
+└──────────────────────┬──────────────────────────────┘
+                       │
+         ┌─────────────▼─────────────┐
+         │    IResources (ABC)        │  ← interfaces.py
+         │  · initialize_models()     │
+         │  · configure_fallback_grp()│
+         │  · generate()              │
+         └─────────────┬─────────────┘
+                       │ 实现
+         ┌─────────────▼─────────────┐
+         │     ResourcePool           │  ← resource_pool.py
+         │  退避链调度 · 模型路由      │
+         └──────┬──────────┬─────────┘
+                │          │
+    ┌───────────▼──┐  ┌───▼──────────────┐
+    │ ModelClient  │  │ CredentialManager │  ← model_client.py
+    │ HTTP 调用     │  │ 凭据加密存储       │     credentials.py
+    │ 格式转换      │  │ 端点列表管理       │
+    └──────┬───────┘  └──────────────────┘
+           │
+    ┌──────▼───────┐
+    │ EmbeddingClient│  ← embedding.py
+    │ 向量化 (独立)   │
+    └──────────────┘</pre>
+</div>
+
+<!-- ══ CALL CHAIN ══ -->
+<h2 id="call-chain">调用链路</h2>
+
+<div class="card">
+  <h4>一次模型调用的完整路径</h4>
+  <div class="flow" style="flex-wrap:wrap; gap:8px;">
+    <div class="flow-node entry">Worker 启动</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node entry">CredentialManager<br>.register_model_chain()</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node core">ResourcePool<br>.initialize_models()</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node core">ResourcePool<br>.configure_fallback_group()</div>
+  </div>
+  <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border);">
+    <div class="flow" style="flex-wrap:wrap; gap:8px;">
+      <div class="flow-node entry">Agent / Harness</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node core">ResourcePool.generate()</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node core">退避链: 逐个尝试 ModelClient</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node io">ModelClient.generate()</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node io">httpx → LLM API</div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-node io">解析 → ModelResponse</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FILE: interfaces.py                                           -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="file-interfaces">interfaces.py <span style="font-weight:400;color:var(--dim);font-size:16px;">— ABC 抽象接口</span></h2>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h3 style="margin:0;">IResources</h3>
+    <span style="font-size:12px;color:var(--dim);">common/interfaces.py:19</span>
+  </div>
+  <p style="margin-top:8px;">外部资源访问的统一抽象，<strong>ResourcePool</strong> 是其唯一实现。上层代码只依赖此接口。</p>
+
+  <div class="outline">
+    <div class="outline-item method"><span class="tag tag-async">async</span> <strong>initialize_models()</strong> <span class="sig">→ None</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">Worker 启动时加载所有端点并注册到客户端池</div>
+
+    <div class="outline-item method"><span class="tag tag-async">async</span> <strong>configure_fallback_group</strong>(group_name, model_ids) <span class="sig">→ None</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">配置退避链：有序模型 ID 列表，失败时按序切换</div>
+
+    <div class="outline-item method"><span class="tag tag-async">async</span> <strong>generate</strong>(messages, model_selector, tools, stream) <span class="sig">→ Any</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">模型调用入口。model_selector 可以是退避组名或具体 model_id</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0;">ISandbox & IChannel</h3>
+  <p style="margin-top:8px;color:var(--dim);">同文件中还定义了沙箱接口和渠道接口，与 Resources 模块无直接耦合，此处不展开。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FILE: credentials.py                                          -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="file-credentials">credentials.py <span style="font-weight:400;color:var(--dim);font-size:16px;">— 凭据管理 & 端点配置</span></h2>
+
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+<div class="card">
+  <h3>Credential <span class="tag tag-static">dataclass</span></h3>
+  <p style="color:var(--dim);font-size:12px;">加密凭据实体，仅由 _register_credential 内部构造</p>
+  <div class="outline">
+    <div class="outline-item field">resource_id: str</div>
+    <div class="outline-item field">credential_type: str</div>
+    <div class="outline-item field">encrypted_value: str</div>
+    <div class="outline-item field">scope: list</div>
+    <div class="outline-item field">created_at: float</div>
+    <div class="outline-item field">expires_at: Optional[float]</div>
+    <div class="outline-item field">metadata: dict</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>ModelEndpoint <span class="tag tag-static">dataclass</span></h3>
+  <p style="color:var(--dim);font-size:12px;">LLM 服务地址的配置信息</p>
+  <div class="outline">
+    <div class="outline-item field">provider: str <span class="sig"># "openai" | "anthropic"</span></div>
+    <div class="outline-item field">api_key: str <span class="sig"># 存储时置空，读取时解密填充</span></div>
+    <div class="outline-item field">base_url: Optional[str]</div>
+    <div class="outline-item field">model: Optional[str]</div>
+    <div class="outline-item field">extra: dict <span class="sig"># api_format / max_tokens / timeout 等</span></div>
+  </div>
+</div>
+</div>
+
+<div class="card">
+  <h3>CredentialManager <span class="tag tag-class">class</span></h3>
+  <p style="color:var(--dim);font-size:12px;">API 密钥加密存储 + 端点列表管理，线程安全 (RLock)</p>
+
+  <div class="outline">
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">公开方法</div>
+    <div class="outline-item method"><span class="tag tag-sync">sync</span> <strong>register_model_chain</strong>(endpoints: List[ModelEndpoint])</div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">注册有序端点列表（清空旧配置 + 加密存储 api_key + 保存脱敏副本）</div>
+
+    <div class="outline-item method"><span class="tag tag-sync">sync</span> <strong>get_model_endpoint_list</strong>() <span class="sig">→ List[ModelEndpoint]</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">返回解密后完整端点列表，保持注册顺序，供 ResourcePool 退避链使用</div>
+
+    <div class="outline-item method"><span class="tag tag-sync">sync</span> <strong>get_credential</strong>(resource_id) <span class="sig">→ Optional[Credential]</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">按 resource_id 查询凭据（不解密）</div>
+
+    <div class="outline-item method"><span class="tag tag-sync">sync</span> <strong>get_decrypted_credential</strong>(resource_id) <span class="sig">→ Optional[str]</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">按 resource_id 查询并解密凭据明文</div>
+
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">内部方法</div>
+    <div class="outline-item private"><strong>_register_credential</strong>(resource_id, credential_type, value, scope, expires_at, metadata)</div>
+    <div class="outline-item private"><strong>_encrypt</strong>(value) / <strong>_decrypt</strong>(value) <span class="sig">— 占位实现</span></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FILE: model_client.py                                         -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="file-model-client">model_client.py <span style="font-weight:400;color:var(--dim);font-size:16px;">— 单模型 HTTP 客户端</span></h2>
+
+<div class="card" style="margin-bottom:16px;">
+  <div style="display:flex;gap:16px;flex-wrap:wrap;">
+    <span><strong>支持 API 格式:</strong></span>
+    <span style="color:var(--green);">Anthropic Messages API</span>
+    <span style="color:var(--dim);">|</span>
+    <span style="color:var(--green);">OpenAI Chat Completions API</span>
+    <span style="color:var(--dim);">|</span>
+    <span style="color:var(--green);">SSE 流式</span>
+    <span style="color:var(--dim);">|</span>
+    <span style="color:var(--green);">非流式</span>
+  </div>
+</div>
+
+<div class="card">
+  <h3>ModelClient <span class="tag tag-class">class</span></h3>
+
+  <div class="outline">
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">构造 & 公开接口</div>
+    <div class="outline-item field"><strong>api_key, base_url, model, api_format</strong> <span class="sig">— 实例属性</span></div>
+    <div class="outline-item field private">_max_tokens: int (default 2048)</div>
+    <div class="outline-item field private">_timeout: float (default 30.0)</div>
+    <div class="outline-item field static">_ANTHROPIC_VERSION = "2023-06-01"</div>
+    <div class="outline-item method"><span class="tag tag-async">async</span> <strong>generate</strong>(messages, tools, stream, on_text_delta) <span class="sig">→ ModelResponse</span></div>
+
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">请求构建 (private)</div>
+    <div class="outline-item private"><strong>_build_url</strong>() <span class="sig">→ str</span></div>
+    <div class="outline-item private"><strong>_build_headers</strong>() <span class="sig">→ dict</span></div>
+    <div class="outline-item private"><strong>_build_payload</strong>(messages, tools, stream) <span class="sig">→ dict</span></div>
+
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">工具格式转换 (static)</div>
+    <div class="outline-item static"><span class="tag tag-static">static</span> <strong>_tools_to_anthropic</strong>(tools) <span class="sig">→ list</span></div>
+    <div class="outline-item static"><span class="tag tag-static">static</span> <strong>_tools_to_openai</strong>(tools) <span class="sig">→ list</span></div>
+
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">非流式解析</div>
+    <div class="outline-item private"><strong>_parse_non_stream</strong>(result) <span class="sig">→ ModelResponse</span> <span class="sig">— 调度到 Anthropic / OpenAI 解析器</span></div>
+    <div class="outline-item private"><strong>_parse_anthropic_response</strong>(result)</div>
+    <div class="outline-item private"><strong>_parse_openai_response</strong>(result)</div>
+
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">流式解析 (SSE)</div>
+    <div class="outline-item private"><span class="tag tag-async">async</span> <strong>_parse_stream</strong>(response, on_text_delta) <span class="sig">— 调度</span></div>
+    <div class="outline-item private"><span class="tag tag-async">async</span> <strong>_parse_anthropic_stream</strong>(response, on_text_delta)</div>
+    <div class="outline-item private"><span class="tag tag-async">async</span> <strong>_parse_openai_stream</strong>(response, on_text_delta)</div>
+
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">Stop 原因映射 (static)</div>
+    <div class="outline-item static"><span class="tag tag-static">static</span> <strong>_map_anthropic_stop_reason</strong>(reason) <span class="sig">→ StopReason</span></div>
+    <div class="outline-item static"><span class="tag tag-static">static</span> <strong>_map_openai_finish_reason</strong>(reason) <span class="sig">→ StopReason</span></div>
+  </div>
+</div>
+
+<div class="card">
+  <h4>工具格式转换对照</h4>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:13px;">
+    <div>
+      <strong>OpenAI → Anthropic</strong>
+      <pre style="margin-top:8px;">{"type":"function","function":{"name":"f","parameters":{}}}
+→ {"name":"f","description":"","input_schema":{}}</pre>
+    </div>
+    <div>
+      <strong>Anthropic → OpenAI</strong>
+      <pre style="margin-top:8px;">{"name":"f","description":"d","input_schema":{}}
+→ {"type":"function","function":{"name":"f","description":"d","parameters":{}}}</pre>
+    </div>
+  </div>
+  <p style="font-size:12px;color:var(--dim);margin-top:8px;">双向转换均支持 <strong>幂等性</strong>：输入已是目标格式则原样返回。</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FILE: resource_pool.py                                        -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="file-resource-pool">resource_pool.py <span style="font-weight:400;color:var(--dim);font-size:16px;">— 多模型调度池 & 退避链</span></h2>
+
+<div class="card">
+  <h3>ResourcePool <span class="tag tag-class">class</span> <span style="font-weight:400;color:var(--dim);">(implements IResources)</span></h3>
+
+  <div class="outline">
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">状态字段</div>
+    <div class="outline-item field private">_credential_manager: CredentialManager</div>
+    <div class="outline-item field private">_model_clients: Dict[str, {"client": ModelClient, "priority": int}]</div>
+    <div class="outline-item field private">_fallback_groups: Dict[str, List[str]] <span class="sig"># group → [model_id, ...]</span></div>
+
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">生命周期方法</div>
+    <div class="outline-item method"><span class="tag tag-async">async</span> <strong>initialize_models</strong>() <span class="sig">→ None</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">从 CredentialManager 加载端点 → 创建 ModelClient → 构建默认退避组</div>
+
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">退避链配置</div>
+    <div class="outline-item method"><span class="tag tag-sync">sync</span> <strong>configure_fallback_group</strong>(group_name, model_ids)</div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">批量配置退避链（仅此方法被外部调用）。Worker 调用时传入 "chat" / "default" 等分组。</div>
+
+    <div style="color:var(--dim);font-size:11px;text-transform:uppercase;margin-top:8px;">核心调用</div>
+    <div class="outline-item method"><span class="tag tag-async">async</span> <strong>generate</strong>(messages, model_selector, tools, stream) <span class="sig">→ ModelResponse</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">
+      退避逻辑：<br>
+      ① 解析 model_selector → 退避组或单模型 ID<br>
+      ② 按序尝试候选模型<br>
+      ③ ModelAPIError / ConnectionError / TimeoutError → 记录降级日志，尝试下一个<br>
+      ④ 其他异常（TypeError 等）→ 直接抛出，不隐藏<br>
+      ⑤ 全部失败 → 抛出 ModelAPIError
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h4>退避链示例</h4>
+  <pre># Worker 配置
+resource_pool.configure_fallback_group("chat", [
+    "anthropic:claude-sonnet-4-6",
+    "openai:gpt-4o",
+])
+resource_pool.configure_fallback_group("default", all_ids)
+
+# 调用
+response = await pool.generate(
+    messages=[{"role":"user","content":"..."}],
+    model_selector="chat",    # 使用 chat 退避组
+    tools=[...],
+)</pre>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FILE: embedding.py                                            -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="file-embedding">embedding.py <span style="font-weight:400;color:var(--dim);font-size:16px;">— Embedding 向量化客户端</span></h2>
+
+<div class="card">
+  <h3>EmbeddingClient <span class="tag tag-class">class</span></h3>
+  <p style="color:var(--dim);font-size:12px;">OpenAI 兼容的轻量级 embedding 客户端。独立于 ResourcePool 体系，由 retriever 工具直接使用。</p>
+  <div class="outline">
+    <div class="outline-item field private">_base_url, _api_key, _model, _timeout</div>
+    <div class="outline-item method"><span class="tag tag-sync">sync</span> <strong>embed_texts</strong>(texts: List[str]) <span class="sig">→ List[List[float]]</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">同步入口 — 内部做 async bridge（检测 event loop 状态）</div>
+    <div class="outline-item private"><span class="tag tag-async">async</span> <strong>_embed_async</strong>(texts) <span class="sig">→ List[List[float]]</span></div>
+    <div style="color:var(--dim);font-size:12px;margin-left:24px;">调用 OpenAI 兼容的 POST /v1/embeddings 端点</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>create_embedding_client <span class="tag tag-func">工厂函数</span></h3>
+  <p style="color:var(--dim);font-size:12px;">从 ModelsConfig 数据类创建 EmbeddingClient。解析 embedding 退避链首项 + provider 配置 + ${ENV_VAR} 占位符。</p>
+  <pre>Worker → create_embedding_client(config.models) → EmbeddingClient
+                          │
+                          ├─ models_config.embedding[0]   → provider, model, timeout
+                          └─ models_config.providers[name] → base_url, api_key</pre>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- FILE: __init__.py                                             -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="file-init">__init__.py <span style="font-weight:400;color:var(--dim);font-size:16px;">— 模块导出</span></h2>
+
+<div class="card">
+  <pre>from .resource_pool import ResourcePool
+from .credentials import CredentialManager, ModelEndpoint
+from .model_client import ModelClient
+
+__all__ = ["ResourcePool", "CredentialManager", "ModelEndpoint", "ModelClient"]</pre>
+  <p style="font-size:12px;color:var(--dim);margin-top:8px;">
+    EmbeddingClient 和 create_embedding_client 不在此导出 —— 它们属于独立子系统，由 worker 直接 import。
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- CHANGELOG                                                     -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+<h2 id="changelog">v10 重构记录</h2>
+
+<div class="card">
+  <h4>已移除的死代码 (总计 ~140 行)</h4>
+  <table style="width:100%;font-size:13px;border-collapse:collapse;">
+    <thead><tr style="text-align:left;border-bottom:1px solid var(--border);">
+      <th style="padding:4px 8px;">文件</th><th style="padding:4px 8px;">移除项</th><th style="padding:4px 8px;">原因</th>
+    </tr></thead>
+    <tbody>
+      <tr><td style="padding:4px 8px;color:var(--accent);">model_client.py</td><td style="padding:4px 8px;"><code>set_tools()</code> + <code>self._tools</code></td><td style="padding:4px 8px;color:var(--dim);">tools 始终通过 generate(tools=...) 传入</td></tr>
+      <tr><td style="padding:4px 8px;color:var(--accent);">resource_pool.py</td><td style="padding:4px 8px;"><code>set_storage_path()</code></td><td style="padding:4px 8px;color:var(--dim);">预留字段，从未使用</td></tr>
+      <tr><td style="padding:4px 8px;color:var(--accent);">resource_pool.py</td><td style="padding:4px 8px;"><code>set_credential_manager()</code></td><td style="padding:4px 8px;color:var(--dim);">CM 仅在 __init__ 注入，无运行时替换</td></tr>
+      <tr><td style="padding:4px 8px;color:var(--accent);">resource_pool.py</td><td style="padding:4px 8px;"><code>register_model()</code></td><td style="padding:4px 8px;color:var(--dim);">绕过凭据系统的手动注册路径，无调用方</td></tr>
+      <tr><td style="padding:4px 8px;color:var(--accent);">resource_pool.py</td><td style="padding:4px 8px;"><code>get_credential()</code> + <code>proxy_request()</code></td><td style="padding:4px 8px;color:var(--dim);">完整的代理 HTTP + 临时 token 链路，无调用方</td></tr>
+      <tr><td style="padding:4px 8px;color:var(--accent);">resource_pool.py</td><td style="padding:4px 8px;"><code>configure_fallback()</code></td><td style="padding:4px 8px;color:var(--dim);">与 configure_fallback_group 功能重复，无调用方</td></tr>
+      <tr><td style="padding:4px 8px;color:var(--accent);">credentials.py</td><td style="padding:4px 8px;"><code>issue_temp_token()</code> / <code>validate_token()</code> / <code>revoke_token()</code> + <code>_temp_tokens</code></td><td style="padding:4px 8px;color:var(--dim);">整个临时 token 系统仅服务于已移除的 proxy_request</td></tr>
+      <tr><td style="padding:4px 8px;color:var(--accent);">credentials.py</td><td style="padding:4px 8px;"><code>Credential.is_expired()</code> / <code>has_scope()</code></td><td style="padding:4px 8px;color:var(--dim);">仅被 issue_temp_token 调用</td></tr>
+      <tr><td style="padding:4px 8px;color:var(--accent);">interfaces.py</td><td style="padding:4px 8px;"><code>register_model</code> / <code>get_credential</code> / <code>proxy_request</code> (abstract)</td><td style="padding:4px 8px;color:var(--dim);">3 个抽象方法，无任何代码分发调用</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <h4>已简化</h4>
+  <ul>
+    <li><code>register_credential</code> → <code>_register_credential</code> — 仅内部调用，改为私有</li>
+    <li><code>create_embedding_client</code> — 移除 dataclass/dict 双路径兼容（调用方始终传 dataclass），由 80 行减至 ~20 行</li>
+    <li><code>IResources.generate</code> 签名修正 — messages 在前、model_selector 在后，与实现一致</li>
+    <li>接口 <code>configure_fallback</code> → <code>configure_fallback_group</code>，与实际调用对齐</li>
+  </ul>
+</div>
+
+</main>
+
+<script>
+// ── Active nav link on scroll ──
+const sections = document.querySelectorAll('h2[id]');
+const navLinks = document.querySelectorAll('nav a[href^="#"]');
+
+function updateActive() {
+  let current = '';
+  sections.forEach(s => {
+    if (window.scrollY >= s.offsetTop - 100) current = '#' + s.id;
+  });
+  navLinks.forEach(a => {
+    a.classList.toggle('active', a.getAttribute('href') === current);
+  });
+}
+window.addEventListener('scroll', updateActive);
+
+// ── Smooth scroll for all nav links ──
+navLinks.forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    navLinks.forEach(l => l.classList.remove('active'));
+    a.classList.add('active');
+  });
+});
+
+// ── Toggle details ──
+document.querySelectorAll('.toggle').forEach(el => {
+  el.addEventListener('click', () => {
+    el.classList.toggle('open');
+    const target = document.getElementById(el.dataset.target);
+    if (target) target.classList.toggle('open');
+  });
+});
+</script>
+
+</body>
+</html>

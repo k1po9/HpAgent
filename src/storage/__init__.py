@@ -1,13 +1,15 @@
 """
-存储基础设施层 —— Redis 缓存 + 发布/订阅。
+存储基础设施层 —— Redis 缓存 + 本地文件存储。
 
-当前仅使用 Redis 后端。存储协议定义在 protocols.py 中保留为架构参考。
+所有持久化操作通过 protocols.py 定义的接口进行。
+当前实现: RedisCache (KeyValueStore), LocalFileStore (FileStore)。
 """
 from .protocols import Handler
-from .redis import RedisCache, RedisPubSub
+from .redis import RedisCache
+from .file_store import LocalFileStore
 
 __all__ = [
     "Handler",
     "RedisCache",
-    "RedisPubSub",
+    "LocalFileStore",
 ]

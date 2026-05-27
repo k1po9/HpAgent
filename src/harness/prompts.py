@@ -19,7 +19,7 @@ from typing import Dict
 logger = logging.getLogger("HpAgent.PromptLoader")
 
 DEFAULT_IDENTITY = (
-    "你是 HpAgent，一个智能 AI 聊天助手。"
+    "你是一个智能 AI 聊天助手。"
     "你友善、博学、直接，能协助用户处理广泛的任务。"
     "请始终使用中文与用户交流，除非用户明确要求使用其他语言。"
 )

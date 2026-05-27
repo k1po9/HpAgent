@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session 模块架构</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg-card: #161b22; --bg-hover: #1c2129;
+    --border: #30363d; --text: #e6edf3; --text-dim: #8b949e;
+    --accent: #58a6ff; --green: #7ee787; --orange: #f0883e;
+    --purple: #bc8cff; --red: #f85149;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.6}
+
+  /* ── Nav ── */
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;height:48px;
+      background:rgba(13,17,23,0.95);backdrop-filter:blur(10px);
+      border-bottom:1px solid var(--border);display:flex;align-items:center;
+      padding:0 1.5rem;gap:1.5rem;font-size:.85rem}
+  nav .logo{font-weight:700;color:var(--text);margin-right:auto}
+  nav a{color:var(--text-dim);text-decoration:none;transition:color .15s}
+  nav a:hover{color:var(--accent)}
+  nav .badge{background:var(--green);color:#000;padding:.1em .5em;border-radius:99px;font-size:.7rem;font-weight:600}
+
+  /* ── Hero ── */
+  .hero{margin-top:48px;padding:2.5rem 1.5rem 2rem;text-align:center;
+        background:linear-gradient(180deg, var(--bg-card), var(--bg));
+        border-bottom:1px solid var(--border)}
+  .hero h1{font-size:2.2rem;font-weight:800;letter-spacing:-.02em}
+  .hero h1 span{color:var(--accent)}
+  .hero p{color:var(--text-dim);margin-top:.5rem;font-size:.95rem}
+  .hero .stats{display:flex;gap:1.5rem;justify-content:center;margin-top:1.2rem;flex-wrap:wrap}
+  .hero .stats .stat{background:var(--bg-card);border:1px solid var(--border);
+      border-radius:8px;padding:.6rem 1.2rem;text-align:center;min-width:90px}
+  .hero .stats .stat .num{font-size:1.5rem;font-weight:700;color:var(--green)}
+  .hero .stats .stat .lbl{font-size:.7rem;color:var(--text-dim);text-transform:uppercase}
+
+  main{max-width:1000px;margin:0 auto;padding:1.5rem}
+
+  /* ── File Grid ── */
+  .file-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;margin-bottom:2rem}
+  .file-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;
+             padding:1rem;cursor:pointer;transition:all .2s;text-align:center}
+  .file-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .file-card.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .file-card .icon{font-size:1.6rem;margin-bottom:.4rem}
+  .file-card .name{font-family:var(--mono);font-size:.85rem;font-weight:600;color:var(--text)}
+  .file-card .lines{font-size:.7rem;color:var(--text-dim);margin-top:.25rem}
+  .file-card .role{font-size:.72rem;color:var(--accent);margin-top:.15rem}
+
+  /* ── Detail Panel ── */
+  #detail{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;
+          padding:1.5rem;margin-bottom:2rem;display:none}
+  #detail.visible{display:block}
+  #detail h2{font-size:1.25rem;color:var(--text);margin-bottom:.25rem}
+  #detail h2 span{color:var(--text-dim);font-weight:400;font-size:.85rem}
+  #detail .file-desc{color:var(--text-dim);margin-bottom:1.2rem;font-size:.85rem}
+
+  /* ── Outline tree ── */
+  .outline{font-family:var(--mono);font-size:.82rem;line-height:1.8}
+  .outline .pkg{color:var(--purple)}
+  .outline .cls{color:var(--accent);font-weight:600}
+  .outline .fn{color:var(--green)}
+  .outline .const{color:var(--orange)}
+  .outline .field{color:var(--text-dim)}
+  .outline .cmt{color:var(--text-dim);font-style:italic}
+  .outline .indent{margin-left:1.5rem}
+
+  /* ── API Tables ── */
+  .api-table{width:100%;border-collapse:collapse;font-size:.82rem;margin:.75rem 0}
+  .api-table th{text-align:left;background:var(--bg);color:var(--text-dim);
+                padding:.4rem .6rem;border-bottom:1px solid var(--border);
+                font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+  .api-table td{padding:.4rem .6rem;border-bottom:1px solid var(--border);vertical-align:top}
+  .api-table .sig{font-family:var(--mono);color:var(--text)}
+  .api-table .ret{color:var(--green);font-family:var(--mono);font-size:.78rem}
+  .api-table .desc{color:var(--text-dim);font-size:.8rem}
+
+  /* ── Code ── */
+  pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;
+      padding:.8rem 1rem;overflow-x:auto;font-family:var(--mono);font-size:.8rem;
+      line-height:1.55;margin:.5rem 0}
+  .kw{color:var(--red)} .str{color:#a5d6ff} .cm{color:var(--text-dim)}
+  .ty{color:var(--orange)} .fn2{color:var(--purple)} .num{color:var(--accent)}
+
+  /* ── Flow ── */
+  .flow{display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:center;padding:1rem;margin:.8rem 0}
+  .flow .box{background:var(--bg-card);border:1.5px solid var(--border);
+             border-radius:8px;padding:.5rem .9rem;font-size:.82rem;font-weight:600;
+             white-space:nowrap}
+  .flow .box.a{border-color:var(--accent);color:var(--accent)}
+  .flow .box.g{border-color:var(--green);color:var(--green)}
+  .flow .box.p{border-color:var(--purple);color:var(--purple)}
+  .flow .box.o{border-color:var(--orange);color:var(--orange)}
+  .flow .arr{color:var(--text-dim);font-size:1.1rem}
+
+  /* ── Tabs ── */
+  .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin:.8rem 0}
+  .tabs button{background:none;border:none;color:var(--text-dim);padding:.4rem .8rem;
+               cursor:pointer;font-size:.8rem;border-bottom:2px solid transparent;transition:all .15s}
+  .tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .tabs button:hover{color:var(--text)}
+  .tab-panel{display:none}
+  .tab-panel.active{display:block}
+
+  /* ── Info cards ── */
+  .info{background:rgba(88,166,255,.06);border-left:3px solid var(--accent);
+        border-radius:0 8px 8px 0;padding:.6rem .9rem;margin:.6rem 0;font-size:.82rem}
+  .info.g{border-left-color:var(--green);background:rgba(126,231,135,.06)}
+
+  /* ── Dependency diagram ── */
+  .dep-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1rem 0}
+  @media(max-width:640px){.dep-grid{grid-template-columns:1fr}}
+  .dep-card{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.8rem}
+  .dep-card h4{font-size:.85rem;color:var(--accent);margin-bottom:.5rem}
+  .dep-card ul{list-style:none;font-size:.8rem;color:var(--text-dim)}
+  .dep-card ul li::before{content:'→ ';color:var(--green)}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">HpAgent / session</div>
+  <a href="#files">文件组成</a>
+  <a href="#flow">数据流</a>
+  <a href="#deps">依赖关系</a>
+  <a href="#exports">导出接口</a>
+  <span class="badge">5 files</span>
+</nav>
+
+<header class="hero">
+  <h1><span>session</span> 模块</h1>
+  <p>会话领域实体 + Redis 事件流存储 + 长期记忆 + 工作区目录初始化 + SQLite 元数据</p>
+  <div class="stats">
+    <div class="stat"><div class="num">5</div><div class="lbl">文件</div></div>
+    <div class="stat"><div class="num">3</div><div class="lbl">公开类</div></div>
+    <div class="stat"><div class="num">2</div><div class="lbl">公开函数</div></div>
+    <div class="stat"><div class="num">601</div><div class="lbl">总行数</div></div>
+  </div>
+</header>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION: File Cards -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="files">
+<h3 style="margin-bottom:.8rem">文件组成 <span style="font-weight:400;color:var(--text-dim);font-size:.85rem">— 点击展开详情</span></h3>
+
+<div class="file-grid">
+  <div class="file-card active" onclick="showFile('init')">
+    <div class="icon">📦</div>
+    <div class="name">__init__.py</div>
+    <div class="lines">17 行</div>
+    <div class="role">公开接口声明</div>
+  </div>
+  <div class="file-card" onclick="showFile('models')">
+    <div class="icon">🧬</div>
+    <div class="name">models.py</div>
+    <div class="lines">91 行</div>
+    <div class="role">领域实体定义</div>
+  </div>
+  <div class="file-card" onclick="showFile('store')">
+    <div class="icon">💾</div>
+    <div class="name">store.py</div>
+    <div class="lines">428 行</div>
+    <div class="role">会话存储核心</div>
+  </div>
+  <div class="file-card" onclick="showFile('workspace')">
+    <div class="icon">📁</div>
+    <div class="name">workspace.py</div>
+    <div class="lines">123 行</div>
+    <div class="role">工作目录初始化</div>
+  </div>
+  <div class="file-card" onclick="showFile('db')">
+    <div class="icon">🗄️</div>
+    <div class="name">db.py</div>
+    <div class="lines">104 行</div>
+    <div class="role">SQLite 元数据</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- DETAIL PANELS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+
+<!-- __init__.py -->
+<div id="detail-init" class="visible" style="display:block">
+<h2>__init__.py <span>— 公开接口声明</span></h2>
+<p class="file-desc">模块入口。只做导出，零逻辑。</p>
+
+<div class="tabs" id="t-init">
+  <button class="active" onclick="switchTab('init','outline')">结构大纲</button>
+  <button onclick="switchTab('init','api')">导出清单</button>
+  <button onclick="switchTab('init','code')">源码</button>
+</div>
+
+<div class="tab-panel active" id="init-outline">
+<div class="outline">
+<span class="cmt">"""Session —— 会话领域实体 + 存储 + 工作区管理。"""</span><br>
+<br>
+<span class="pkg">from .models</span> <span class="kw">import</span> <span class="cls">Session</span>, <span class="cls">SessionStatus</span><br>
+<span class="pkg">from .store</span> <span class="kw">import</span> <span class="cls">SessionStore</span><br>
+<span class="pkg">from .workspace</span> <span class="kw">import</span> <span class="fn">init_user</span>, <span class="fn">init_session</span><br>
+<span class="pkg">from .db</span> <span class="kw">import</span> <span class="cls">WorkspaceDB</span><br>
+<br>
+<span class="kw">__all__</span> = [<br>
+<span class="indent"><span class="str">"Session"</span>, <span class="str">"SessionStatus"</span>,  </span><br>
+<span class="indent"><span class="str">"SessionStore"</span>,  </span><br>
+<span class="indent"><span class="str">"init_user"</span>, <span class="str">"init_session"</span>,  </span><br>
+<span class="indent"><span class="str">"WorkspaceDB"</span>,  </span><br>
+]
+</div>
+</div>
+
+<div class="tab-panel" id="init-api">
+<table class="api-table">
+<tr><th>导出</th><th>类型</th><th>来源文件</th><th>用途</th></tr>
+<tr><td class="sig">Session</td><td class="ret">dataclass</td><td>models.py</td><td class="desc">会话实体（15 字段 + 序列化方法）</td></tr>
+<tr><td class="sig">SessionStatus</td><td class="ret">StrEnum</td><td>models.py</td><td class="desc">ACTIVE / COMPLETED</td></tr>
+<tr><td class="sig">SessionStore</td><td class="ret">class</td><td>store.py</td><td class="desc">Redis 事件流 + Hindsight 记忆 + JSONL 备份</td></tr>
+<tr><td class="sig">init_user</td><td class="ret">function</td><td>workspace.py</td><td class="desc">幂等创建用户目录骨架 + user_profile.yaml</td></tr>
+<tr><td class="sig">init_session</td><td class="ret">function</td><td>workspace.py</td><td class="desc">创建会话目录 + session.yaml + SQLite 记录</td></tr>
+<tr><td class="sig">WorkspaceDB</td><td class="ret">class</td><td>db.py</td><td class="desc">SQLite upsert_user + insert_session</td></tr>
+</table>
+</div>
+
+<div class="tab-panel" id="init-code">
+<pre><span class="cm"># __init__.py (17 lines)</span>
+<span class="kw">from</span> .models <span class="kw">import</span> Session, SessionStatus
+<span class="kw">from</span> .store <span class="kw">import</span> SessionStore
+<span class="kw">from</span> .workspace <span class="kw">import</span> init_user, init_session
+<span class="kw">from</span> .db <span class="kw">import</span> WorkspaceDB
+
+__all__ = [
+    <span class="str">"Session"</span>, <span class="str">"SessionStatus"</span>,
+    <span class="str">"SessionStore"</span>,
+    <span class="str">"init_user"</span>, <span class="str">"init_session"</span>,
+    <span class="str">"WorkspaceDB"</span>,
+]</pre>
+</div>
+</div>
+
+<!-- models.py -->
+<div id="detail-models" style="display:none">
+<h2>models.py <span>— 领域实体定义</span></h2>
+<p class="file-desc">纯数据层。只有 1 个枚举 + 1 个 dataclass + 2 个序列化方法。零 IO 依赖。</p>
+
+<div class="tabs" id="t-models">
+  <button class="active" onclick="switchTab('models','outline')">结构大纲</button>
+  <button onclick="switchTab('models','session')">Session 字段表</button>
+  <button onclick="switchTab('models','code')">源码</button>
+</div>
+
+<div class="tab-panel active" id="models-outline">
+<div class="outline">
+<span class="cmt">"""Session 领域实体。"""</span><br>
+<br>
+<span class="cls">class SessionStatus</span>(str, Enum):<br>
+<span class="indent"><span class="field">ACTIVE</span> = <span class="str">"active"</span></span><br>
+<span class="indent"><span class="field">COMPLETED</span> = <span class="str">"completed"</span></span><br>
+<br>
+<span class="cls">@dataclass</span><br>
+<span class="cls">class Session:</span><br>
+<span class="indent"><span class="cmt"># ── 15 个字段 ──</span></span><br>
+<span class="indent"><span class="field">session_id</span>: str</span><br>
+<span class="indent"><span class="field">account_id</span>: str</span><br>
+<span class="indent"><span class="field">status</span>: SessionStatus</span><br>
+<span class="indent"><span class="field">creator_id</span>: str</span><br>
+<span class="indent"><span class="field">channel_type</span>: str</span><br>
+<span class="indent"><span class="field">task_summary</span>: str</span><br>
+<span class="indent"><span class="field">session_dir</span>: str  &nbsp;<span class="cmt">← 文件路径类字段</span></span><br>
+<span class="indent"><span class="field">plan_file</span>: str</span><br>
+<span class="indent"><span class="field">conversation_file</span>: str</span><br>
+<span class="indent"><span class="field">output_dir</span>: str</span><br>
+<span class="indent"><span class="field">tags</span>: list[str]</span><br>
+<span class="indent"><span class="field">created_at</span>: float  &nbsp;<span class="cmt">← Unix 时间戳</span></span><br>
+<span class="indent"><span class="field">updated_at</span>: float</span><br>
+<span class="indent"><span class="field">metadata</span>: dict</span><br>
+<span class="indent"><span class="cmt"># ── 2 个方法 ──</span></span><br>
+<span class="indent"><span class="fn">to_dict</span>() → dict</span><br>
+<span class="indent"><span class="fn">from_dict</span>(data) → Session</span><br>
+</div>
+</div>
+
+<div class="tab-panel" id="models-session">
+<table class="api-table">
+<tr><th>字段</th><th>类型</th><th>默认值</th><th>用途</th></tr>
+<tr><td class="sig">session_id</td><td class="ret">str</td><td>(必填)</td><td class="desc">会话唯一标识</td></tr>
+<tr><td class="sig">account_id</td><td class="ret">str</td><td>""</td><td class="desc">统一用户账号 ID（跨渠道关联）</td></tr>
+<tr><td class="sig">status</td><td class="ret">SessionStatus</td><td>ACTIVE</td><td class="desc">ACTIVE 或 COMPLETED</td></tr>
+<tr><td class="sig">creator_id</td><td class="ret">str</td><td>""</td><td class="desc">渠道原始 sender_id</td></tr>
+<tr><td class="sig">channel_type</td><td class="ret">str</td><td>"console"</td><td class="desc">napcat / console / web</td></tr>
+<tr><td class="sig">task_summary</td><td class="ret">str</td><td>""</td><td class="desc">任务摘要文本</td></tr>
+<tr><td class="sig">session_dir</td><td class="ret">str</td><td>""</td><td class="desc">sessions/&lt;id&gt;/ 相对路径</td></tr>
+<tr><td class="sig">plan_file</td><td class="ret">str</td><td>""</td><td class="desc">execution/plan.yaml 相对路径</td></tr>
+<tr><td class="sig">conversation_file</td><td class="ret">str</td><td>""</td><td class="desc">conversation/messages.jsonl 相对路径</td></tr>
+<tr><td class="sig">output_dir</td><td class="ret">str</td><td>""</td><td class="desc">workspace/output/ 相对路径</td></tr>
+<tr><td class="sig">tags</td><td class="ret">list[str]</td><td>[]</td><td class="desc">检索和分类标签</td></tr>
+<tr><td class="sig">created_at</td><td class="ret">float</td><td>0.0</td><td class="desc">Unix 创建时间戳</td></tr>
+<tr><td class="sig">updated_at</td><td class="ret">float</td><td>0.0</td><td class="desc">Unix 更新时间戳</td></tr>
+<tr><td class="sig">metadata</td><td class="ret">dict</td><td>{}</td><td class="desc">附加元数据</td></tr>
+</table>
+</div>
+
+<div class="tab-panel" id="models-code">
+<pre><span class="cm"># models.py (91 lines)</span>
+<span class="kw">class</span> <span class="ty">SessionStatus</span>(str, Enum):
+    ACTIVE = <span class="str">"active"</span>
+    COMPLETED = <span class="str">"completed"</span>
+
+<span class="ty">@dataclass</span>
+<span class="kw">class</span> <span class="ty">Session</span>:
+    session_id: str
+    account_id: str = <span class="str">""</span>
+    status: SessionStatus = SessionStatus.ACTIVE
+    creator_id: str = <span class="str">""</span>
+    channel_type: str = <span class="str">"console"</span>
+    task_summary: str = <span class="str">""</span>
+    session_dir: str = <span class="str">""</span>
+    plan_file: str = <span class="str">""</span>
+    conversation_file: str = <span class="str">""</span>
+    output_dir: str = <span class="str">""</span>
+    tags: List[str] = field(default_factory=list)
+    created_at: float = <span class="num">0.0</span>
+    updated_at: float = <span class="num">0.0</span>
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    <span class="kw">def</span> <span class="fn2">to_dict</span>(self) -> Dict[str, Any]: ...
+    <span class="kw">@classmethod</span>
+    <span class="kw">def</span> <span class="fn2">from_dict</span>(cls, data) -> <span class="str">"Session"</span>: ...</pre>
+</div>
+</div>
+
+<!-- store.py -->
+<div id="detail-store" style="display:none">
+<h2>store.py <span>— 会话存储核心（428 行）</span></h2>
+<p class="file-desc">模块中最复杂的文件。内部封装 Redis + Hindsight + 文件备份三个后端，所有方法在底层不可用时静默降级。</p>
+
+<div class="tabs" id="t-store">
+  <button class="active" onclick="switchTab('store','outline')">结构大纲</button>
+  <button onclick="switchTab('store','api')">方法清单</button>
+  <button onclick="switchTab('store','redis')">Redis Key 设计</button>
+</div>
+
+<div class="tab-panel active" id="store-outline">
+<div class="outline">
+<span class="cls">class SessionStore:</span><br>
+<span class="indent cmt"># ── 构造 ──</span><br>
+<span class="indent"><span class="fn">__init__</span>(redis_cache, hindsight_client, file_store)</span><br>
+<span class="indent cmt"># ── Session lifecycle (4) ──</span><br>
+<span class="indent"><span class="fn">async create_session</span>(session_id, account_id, channel_type, metadata) → Session</span><br>
+<span class="indent"><span class="fn">async get_session</span>(session_id) → Session | None</span><br>
+<span class="indent"><span class="fn">async get_active_session_id</span>(account_id) → str | None</span><br>
+<span class="indent"><span class="fn">async update_status</span>(session_id, status: SessionStatus) → None</span><br>
+<span class="indent"><span class="fn"></span></span><br>
+<span class="indent"><span class="fn">async archive</span>(session_id) → None  &nbsp;<span class="cmt">← 标记 COMPLETED + 清理活跃指针 + 最终备份</span></span><br>
+<span class="indent cmt"># ── Events (2) ──</span><br>
+<span class="indent"><span class="fn">async append_events</span>(session_id, *events: Event) → int</span><br>
+<span class="indent"><span class="fn">async get_events</span>(session_id, limit=40, offset=0) → list[Event]</span><br>
+<span class="indent cmt"># ── Memory (3) ──</span><br>
+<span class="indent"><span class="fn">async recall_memories</span>(query, account_id, ...) → (items, formatted)</span><br>
+<span class="indent"><span class="fn">async retain_memories</span>(events, account_id, session_id, ...) → int</span><br>
+<span class="indent"><span class="fn">async reflect</span>(account_id) → int</span><br>
+<span class="indent cmt"># ── Internal (2) ──</span><br>
+<span class="indent"><span class="fn">async _record_memory_event</span>(session_id, event_type, content) → None</span><br>
+<span class="indent"><span class="fn">async _backup_to_file</span>(session_id, session, events, is_final) → None</span><br>
+</div>
+</div>
+
+<div class="tab-panel" id="store-api">
+<table class="api-table">
+<tr><th>方法</th><th>类别</th><th>降级策略</th></tr>
+<tr><td class="sig">create_session(sid,aid,ch,meta)</td><td class="ret">lifecycle</td><td class="desc">Redis 失败→内存 dict 回退</td></tr>
+<tr><td class="sig">get_session(sid)</td><td class="ret">lifecycle</td><td class="desc">Redis 失败→内存 dict 回退</td></tr>
+<tr><td class="sig">get_active_session_id(aid)</td><td class="ret">lifecycle</td><td class="desc">Redis 失败→内存 dict 回退</td></tr>
+<tr><td class="sig">update_status(sid, status)</td><td class="ret">lifecycle</td><td class="desc">同步更新 Redis + 内存</td></tr>
+<tr><td class="sig">archive(sid)</td><td class="ret">lifecycle</td><td class="desc">标记 COMPLETED + 清理活跃指针 + 写入最终备份</td></tr>
+<tr><td class="sig">append_events(sid, *events)</td><td class="ret">events</td><td class="desc">Redis RPUSH 失败→仅内存</td></tr>
+<tr><td class="sig">get_events(sid, limit, offset)</td><td class="ret">events</td><td class="desc">Redis LRANGE 失败→仅内存</td></tr>
+<tr><td class="sig">recall_memories(...)</td><td class="ret">memory</td><td class="desc">Hindsight 不可用→返回空列表</td></tr>
+<tr><td class="sig">retain_memories(...)</td><td class="ret">memory</td><td class="desc">Hindsight 失败→仅文件备份</td></tr>
+<tr><td class="sig">reflect(aid)</td><td class="ret">memory</td><td class="desc">Hindsight 不可用→返回 0</td></tr>
+</table>
+</div>
+
+<div class="tab-panel" id="store-redis">
+<pre>Redis Key 设计:
+<span class="str">session:{session_id}:events</span>    → List   <span class="cm">事件流（RPUSH 追加 / LRANGE 读取）</span>
+<span class="str">session:{session_id}:meta</span>      → Hash   <span class="cm">会话元数据（Session.to_dict()）</span>
+<span class="str">account:{account_id}:active</span>    → String <span class="cm">指向活跃 session_id</span>
+
+TTL: 86400s (24h)
+回退: 内存 dict（_mem_events / _mem_sessions / _mem_active）</pre>
+</div>
+</div>
+
+<!-- workspace.py -->
+<div id="detail-workspace" style="display:none">
+<h2>workspace.py <span>— 工作目录初始化</span></h2>
+<p class="file-desc">所有 I/O 通过 LocalFileStore。不感知 nsjail / sandbox / orchestration 等上层模块。</p>
+
+<div class="tabs" id="t-workspace">
+  <button class="active" onclick="switchTab('workspace','outline')">结构大纲</button>
+  <button onclick="switchTab('workspace','api')">函数签名</button>
+  <button onclick="switchTab('workspace','dirs')">创建的目录结构</button>
+</div>
+
+<div class="tab-panel active" id="workspace-outline">
+<div class="outline">
+<span class="cmt"># ── 目录名常量 (8) ──</span><br>
+<span class="const">DIR_SKILLS</span>      = <span class="str">"skills"</span><br>
+<span class="const">DIR_SESSIONS</span>    = <span class="str">"sessions"</span><br>
+<span class="const">DIR_WORKSPACE</span>   = <span class="str">"workspace"</span><br>
+<span class="const">DIR_INPUT</span>       = <span class="str">"input"</span><br>
+<span class="const">DIR_SCRATCH</span>     = <span class="str">"scratch"</span><br>
+<span class="const">DIR_OUTPUT</span>      = <span class="str">"output"</span><br>
+<span class="const">DIR_PERSISTENT</span>  = <span class="str">"persistent"</span><br>
+<span class="cmt"># ── 文件名常量 (2) ──</span><br>
+<span class="const">FILE_SESSION_YAML</span>  = <span class="str">"session.yaml"</span><br>
+<span class="const">FILE_USER_PROFILE</span>  = <span class="str">"user_profile.yaml"</span><br>
+<br>
+<span class="cmt"># ── 公开函数 (2) ──</span><br>
+<span class="fn">init_user</span>(file_store, db, user_uuid, username="") → None<br>
+<span class="fn">init_session</span>(file_store, db, user_uuid, session_id?, *, task_summary, tags) → Session<br>
+<br>
+<span class="cmt"># ── 内部函数 (2) ──</span><br>
+<span class="fn">_write_yaml</span>(file_store, rel_path, data) → None<br>
+<span class="fn">_now_iso</span>() → str<br>
+</div>
+</div>
+
+<div class="tab-panel" id="workspace-api">
+<table class="api-table">
+<tr><th>函数</th><th>参数</th><th>返回值</th><th>副作用</th></tr>
+<tr>
+  <td class="sig">init_user</td>
+  <td class="desc">file_store, db, user_uuid, username</td>
+  <td class="ret">None</td>
+  <td class="desc">创建 skills/ sessions/ persistent/ 目录 + user_profile.yaml + DB upsert</td>
+</tr>
+<tr>
+  <td class="sig">init_session</td>
+  <td class="desc">file_store, db, user_uuid, session_id?, task_summary, tags</td>
+  <td class="ret">Session</td>
+  <td class="desc">创建 workspace/(input/scratch/output/) + session.yaml + DB insert</td>
+</tr>
+</table>
+</div>
+
+<div class="tab-panel" id="workspace-dirs">
+<div class="outline" style="font-size:.9rem;line-height:2">
+<span class="cls">init_user()</span> 创建:<br>
+<span class="indent"><span class="field">skills/</span>          <span class="cmt">用户自定义技能（跨 session）</span></span><br>
+<span class="indent"><span class="field">sessions/</span>        <span class="cmt">会话根目录（空，等待 init_session 填充）</span></span><br>
+<span class="indent"><span class="field">persistent/</span>      <span class="cmt">用户长期资产</span></span><br>
+<span class="indent"><span class="field">user_profile.yaml</span> <span class="cmt">用户偏好配置</span></span><br>
+<br>
+<span class="cls">init_session()</span> 创建:<br>
+<span class="indent"><span class="field">sessions/{id}/session.yaml</span>    <span class="cmt">会话元数据</span></span><br>
+<span class="indent"><span class="field">sessions/{id}/workspace/input/</span>  <span class="cmt">nsjail 挂载→输入文件</span></span><br>
+<span class="indent"><span class="field">sessions/{id}/workspace/scratch/</span><span class="cmt">Agent 临时工作区</span></span><br>
+<span class="indent"><span class="field">sessions/{id}/workspace/output/</span> <span class="cmt">最终产出物</span></span><br>
+</div>
+</div>
+</div>
+
+<!-- db.py -->
+<div id="detail-db" style="display:none">
+<h2>db.py <span>— SQLite 元数据存储</span></h2>
+<p class="file-desc">每个操作新建连接（线程安全），WAL 模式。2 张表，2 个公共方法。</p>
+
+<div class="tabs" id="t-db">
+  <button class="active" onclick="switchTab('db','outline')">结构大纲</button>
+  <button onclick="switchTab('db','schema')">表结构</button>
+  <button onclick="switchTab('db','api')">方法签名</button>
+</div>
+
+<div class="tab-panel active" id="db-outline">
+<div class="outline">
+<span class="cls">class WorkspaceDB:</span><br>
+<span class="indent cmt"># ── 构造 ──</span><br>
+<span class="indent"><span class="fn">__init__</span>(db_path: str)</span><br>
+<span class="indent cmt"># ── 内部 (2) ──</span><br>
+<span class="indent"><span class="fn">_connect</span>() → sqlite3.Connection</span><br>
+<span class="indent"><span class="fn">_ensure_schema</span>() → None</span><br>
+<span class="indent cmt"># ── 公开 (2) ──</span><br>
+<span class="indent"><span class="fn">upsert_user</span>(user_uuid, username, profile_path, persistent_dir) → None</span><br>
+<span class="indent"><span class="fn">insert_session</span>(session: Session) → None</span><br>
+</div>
+<div class="info g" style="margin-top:.8rem">
+<strong>线程安全：</strong>每方法内调用 <code>_connect()</code> 创建新连接，操作完立即关闭。<br>
+WAL 模式支持多线程并发读，写入通过 5 秒超时重试。
+</div>
+</div>
+
+<div class="tab-panel" id="db-schema">
+<pre><span class="cm">-- users 表</span>
+<span class="kw">CREATE TABLE</span> users (
+    uuid           <span class="ty">TEXT PRIMARY KEY</span>,
+    username       <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">''</span>,
+    profile_path   <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">''</span>,
+    persistent_dir <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">''</span>,
+    created_at     <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> (datetime(<span class="str">'now'</span>))
+);
+
+<span class="cm">-- sessions 表</span>
+<span class="kw">CREATE TABLE</span> sessions (
+    session_id       <span class="ty">TEXT PRIMARY KEY</span>,
+    user_uuid        <span class="ty">TEXT</span> <span class="kw">REFERENCES</span> users(uuid) <span class="kw">ON DELETE CASCADE</span>,
+    status           <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">'active'</span>,
+    task_summary     <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">''</span>,
+    session_dir      <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">''</span>,
+    plan_file        <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">''</span>,
+    conversation_file<span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">''</span>,
+    output_dir       <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">''</span>,
+    tags             <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> <span class="str">'[]'</span>,
+    created_at       <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> (datetime(<span class="str">'now'</span>)),
+    updated_at       <span class="ty">TEXT</span> <span class="kw">DEFAULT</span> (datetime(<span class="str">'now'</span>))
+);
+
+<span class="kw">CREATE INDEX</span> idx_sessions_user_created
+    <span class="kw">ON</span> sessions(user_uuid, created_at <span class="kw">DESC</span>);</pre>
+</div>
+
+<div class="tab-panel" id="db-api">
+<table class="api-table">
+<tr><th>方法</th><th>参数</th><th>SQL</th></tr>
+<tr>
+  <td class="sig">upsert_user</td>
+  <td class="desc">user_uuid, username, profile_path, persistent_dir</td>
+  <td class="desc">INSERT ... ON CONFLICT DO UPDATE</td>
+</tr>
+<tr>
+  <td class="sig">insert_session</td>
+  <td class="desc">session: Session</td>
+  <td class="desc">INSERT INTO sessions (9 个字段)</td>
+</tr>
+</table>
+</div>
+</div>
+
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION: Data Flow -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="flow" style="margin-top:2rem">
+<h3 style="margin-bottom:.8rem">数据流 —— 谁调用谁</h3>
+
+<h4 style="color:var(--text-dim);font-size:.85rem;margin:.8rem 0">会话创建流程</h4>
+<div class="flow">
+  <div class="box a">worker.py</div>
+  <div class="arr">→</div>
+  <div class="box g">init_user(fs, db, aid)</div>
+  <div class="arr">→</div>
+  <div class="box o">fs.mkdir_sync</div>
+  <div class="arr">+</div>
+  <div class="box o">db.upsert_user</div>
+</div>
+<div class="flow">
+  <div class="box a">worker.py</div>
+  <div class="arr">→</div>
+  <div class="box g">init_session(fs, db, aid, sid)</div>
+  <div class="arr">→</div>
+  <div class="box o">fs.mkdir_sync</div>
+  <div class="arr">+</div>
+  <div class="box o">fs.write_atomic_sync</div>
+  <div class="arr">+</div>
+  <div class="box o">db.insert_session</div>
+  <div class="arr">→</div>
+  <div class="box g">Session 对象</div>
+</div>
+<div class="flow">
+  <div class="box a">worker.py</div>
+  <div class="arr">→</div>
+  <div class="box g">SandboxManager</div>
+  <div class="arr">→</div>
+  <div class="box p">_build_session_mounts()</div>
+  <div class="arr">→</div>
+  <div class="box o">workspace/ → /work</div>
+</div>
+
+<h4 style="color:var(--text-dim);font-size:.85rem;margin:1.2rem 0 .8rem">会话运行时流程</h4>
+<div class="flow">
+  <div class="box a">harness/runner.py</div>
+  <div class="arr">→</div>
+  <div class="box g">SessionStore</div>
+  <div class="arr">⇄</div>
+  <div class="box o">Redis</div>
+  <div class="arr">⇄</div>
+  <div class="box o">Hindsight</div>
+  <div class="arr">→</div>
+  <div class="box o">JSONL 备份</div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION: Dependencies -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="deps" style="margin-top:2rem">
+<h3 style="margin-bottom:.8rem">内部依赖关系</h3>
+
+<div class="dep-grid">
+  <div class="dep-card">
+    <h4>models.py</h4>
+    <ul>
+      <li>零内部依赖</li>
+      <li>被 store.py 依赖 (Session, SessionStatus)</li>
+      <li>被 workspace.py 依赖 (Session, SessionStatus)</li>
+      <li>被 db.py 依赖 (Session)</li>
+    </ul>
+  </div>
+  <div class="dep-card">
+    <h4>store.py</h4>
+    <ul>
+      <li>依赖 models.py (Session, SessionStatus)</li>
+      <li>依赖 common.types (Event, EventType)</li>
+      <li>被 harness/runner.py 使用</li>
+      <li>被 harness/activities.py 使用</li>
+    </ul>
+  </div>
+  <div class="dep-card">
+    <h4>workspace.py</h4>
+    <ul>
+      <li>依赖 models.py (Session, SessionStatus)</li>
+      <li>依赖 db.py (WorkspaceDB)</li>
+      <li>依赖 storage.file_store (LocalFileStore)</li>
+      <li>被 orchestration/worker.py 使用</li>
+    </ul>
+  </div>
+  <div class="dep-card">
+    <h4>db.py</h4>
+    <ul>
+      <li>依赖 models.py (Session)</li>
+      <li>依赖 sqlite3 (标准库)</li>
+      <li>被 workspace.py 使用 (upsert_user, insert_session)</li>
+      <li>被 orchestration/worker.py 使用 (构造)</li>
+    </ul>
+  </div>
+</div>
+
+<h4 style="color:var(--text-dim);font-size:.85rem;margin:1.2rem 0 .6rem">外部依赖</h4>
+<table class="api-table">
+<tr><th>外部模块</th><th>使用的 session 接口</th><th>使用场景</th></tr>
+<tr><td class="sig">orchestration/worker.py</td><td class="sig">SessionStore, WorkspaceDB, init_user, init_session</td><td class="desc">启动时构造 SessionStore + 消息到达时初始化用户/会话目录</td></tr>
+<tr><td class="sig">harness/runner.py</td><td class="sig">SessionStore</td><td class="desc">agentic loop 中读写事件流、召回/存储长期记忆</td></tr>
+<tr><td class="sig">harness/activities.py</td><td class="sig">SessionStore (via inject)</td><td class="desc">archive_session_activity, reflect_activity</td></tr>
+<tr><td class="sig">sandbox/sandbox_manager.py</td><td class="sig">(无直接依赖)</td><td class="desc">自己计算 bind mount 路径，不再依赖 session 模块</td></tr>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION: Exports -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="exports" style="margin-top:2rem;margin-bottom:3rem">
+<h3 style="margin-bottom:.8rem">对外接口速查</h3>
+
+<table class="api-table">
+<tr><th>接口</th><th>类型</th><th>签名</th></tr>
+<tr>
+  <td class="sig">Session</td>
+  <td class="ret">dataclass</td>
+  <td class="desc"><code>Session(session_id, account_id, status, ...)</code> — 15 个字段</td>
+</tr>
+<tr>
+  <td class="sig">SessionStatus</td>
+  <td class="ret">StrEnum</td>
+  <td class="desc"><code>ACTIVE</code> | <code>COMPLETED</code></td>
+</tr>
+<tr>
+  <td class="sig">SessionStore</td>
+  <td class="ret">class</td>
+  <td class="desc">10 个公共方法：创建/查询/归档会话 + 事件读写 + 记忆召回/存储/反思</td>
+</tr>
+<tr>
+  <td class="sig">init_user</td>
+  <td class="ret">function</td>
+  <td class="desc"><code>(file_store, db, user_uuid, username="") → None</code></td>
+</tr>
+<tr>
+  <td class="sig">init_session</td>
+  <td class="ret">function</td>
+  <td class="desc"><code>(file_store, db, user_uuid, session_id?, task_summary, tags) → Session</code></td>
+</tr>
+<tr>
+  <td class="sig">WorkspaceDB</td>
+  <td class="ret">class</td>
+  <td class="desc">2 个方法：<code>upsert_user(...)</code> + <code>insert_session(session)</code></td>
+</tr>
+</table>
+</section>
+
+</main>
+
+<script>
+// Cache detail panels after first load
+const detailCache = {};
+
+function showFile(name) {
+  // Update card active states
+  document.querySelectorAll('.file-card').forEach(c => c.classList.remove('active'));
+  const card = document.querySelector(`.file-card[onclick*="${name}"]`);
+  if (card) card.classList.add('active');
+
+  // Hide all panels
+  document.querySelectorAll('[id^="detail-"]').forEach(p => { p.style.display = 'none'; p.classList.remove('visible'); });
+
+  // Show target
+  const panel = document.getElementById('detail-' + name);
+  if (panel) {
+    panel.style.display = 'block';
+    panel.classList.add('visible');
+    // Reset tabs to first
+    const tabs = panel.querySelectorAll('.tabs button');
+    const tabPanels = panel.querySelectorAll('.tab-panel');
+    if (tabs.length > 0) { tabs.forEach((t,i) => t.classList.toggle('active', i===0)); }
+    if (tabPanels.length > 0) { tabPanels.forEach((p,i) => p.classList.toggle('active', i===0)); }
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+}
+
+function switchTab(group, tab) {
+  const panel = document.getElementById('detail-' + group);
+  if (!panel) {
+    // Find any visible detail panel
+    const vis = document.querySelector('[id^="detail-"].visible, [id^="detail-"][style*="display:block"]');
+    if (!vis) return;
+    vis.querySelectorAll('.tab-panel[id^="' + group + '-"]').forEach(p => p.classList.remove('active'));
+    vis.querySelectorAll('#' + group + '-tabs button').forEach(b => b.classList.remove('active'));
+    const tp = vis.querySelector('#' + group + '-' + tab);
+    if (tp) tp.classList.add('active');
+    const tb = vis.querySelector('#' + group + '-tabs button[onclick*="' + tab + '"]');
+    if (tb) tb.classList.add('active');
+  } else {
+    panel.querySelectorAll('.tab-panel[id^="' + group + '-"]').forEach(p => p.classList.remove('active'));
+    panel.querySelectorAll('#' + group + '-tabs button').forEach(b => b.classList.remove('active'));
+    const tp = panel.querySelector('#' + group + '-' + tab);
+    if (tp) tp.classList.add('active');
+    const tb = panel.querySelector('#' + group + '-tabs button[onclick*="' + tab + '"]');
+    if (tb) tb.classList.add('active');
+  }
+}
+</script>
+
+</body>
+</html>

@@ -1,157 +1,137 @@
-"""
-ToolRegistry —— 工具注册表，线程安全的工具增删查执行容器。
-
-============================================================================
-设计意图
-============================================================================
-
-  工具注册表是 Sandbox 的核心组件，负责:
-    1. 注册工具（register）: 将 BaseTool 实例按名称索引
-    2. 查找工具（get / has）: 按名称查找工具实例
-    3. 移除工具（unregister）: 动态移除已注册的工具
-    4. 列出工具（list_all / list_definitions）: 获取工具列表或 OpenAI 格式定义
-    5. 执行工具（execute）: 安全执行工具并统一返回 ToolResult
-
-============================================================================
-线程安全
-============================================================================
-
-  所有对 _tools 字典的读写操作都通过 RLock 保护。
-  sandbox.py 中的 Sandbox 也持有锁，双重锁保证了并发场景下的安全性。
-
-============================================================================
-错误处理
-============================================================================
-
-  execute() 方法内部捕获所有异常，包装为 ToolResult(success=False, error=...)
-  不会向上层抛出原始异常，保证编排层不会因工具执行错误而崩溃。
-"""
-from typing import Dict, List, Optional, Any
+"""ToolRegistry —— 三槽位工具注册中心，基于 LangChain BaseTool。"""
 from threading import RLock
-from sandbox.tools.base import BaseTool, ToolDefinition, ToolResult
-from common.errors import ToolNotFoundError
+from typing import Dict, List, Optional
+
+from langchain_core.tools import BaseTool
+
+from sandbox.tools.types import ToolResult
 
 
 class ToolRegistry:
-    """工具注册表 —— 线程安全的工具容器。
+    """工具注册中心 —— 三槽位（native / mcp / skill）+ freeze 封禁。
 
-    Attributes:
-        _tools: 工具名称 → BaseTool 实例的映射。
-        _lock: 可重入锁，保证并发安全。
+    三槽位:
+      _native_tools: 本地 Python 工具
+      _mcp_tools:    MCP 协议工具
+      _skills:       Skills 复合工具
+
+    RAG 层:
+      _retriever: ToolRetriever 实例，支持语义检索动态注入
     """
 
-    def __init__(self):
-        self._tools: Dict[str, BaseTool] = {}
+    def __init__(self, retriever=None):
+        self._native_tools: Dict[str, BaseTool] = {}
+        self._mcp_tools: Dict[str, BaseTool] = {}
+        self._skills: Dict[str, BaseTool] = {}
         self._lock = RLock()
+        self._frozen = False
+        self._retriever = retriever
 
-    # ── 注册 / 注销 ──
+    # ── 注册 / 注销 ─────────────────────────────────────────────
 
-    def register(self, tool: BaseTool) -> None:
-        """注册一个工具实例。
-
-        如果工具名称已存在，会覆盖旧工具（幂等注册）。
-
-        Args:
-            tool: BaseTool 实例。
-        """
+    def register(self, tool: BaseTool, category: str = "native") -> None:
+        if self._frozen:
+            raise RuntimeError("ToolRegistry is frozen")
         with self._lock:
-            self._tools[tool.name] = tool
+            target = {
+                "native": self._native_tools,
+                "mcp": self._mcp_tools,
+                "skill": self._skills,  
+            }[category]
+            target[tool.name] = tool
 
-    def unregister(self, tool_name: str) -> bool:
-        """注销一个工具。
-
-        Args:
-            tool_name: 要移除的工具名称。
-
-        Returns:
-            True 表示移除成功，False 表示工具不存在。
-        """
+    def unregister(self, name: str) -> bool:
         with self._lock:
-            if tool_name in self._tools:
-                del self._tools[tool_name]
-                return True
+            for d in (self._native_tools, self._mcp_tools, self._skills):
+                if name in d:
+                    del d[name]
+                    return True
             return False
 
-    # ── 查询 ──
+    def freeze(self) -> None:
+        self._frozen = True
 
-    def get(self, tool_name: str) -> BaseTool:
-        """按名称获取工具实例。
+    # ── 查询 ────────────────────────────────────────────────────
 
-        Args:
-            tool_name: 工具名称。
-
-        Returns:
-            BaseTool 实例。
-
-        Raises:
-            ToolNotFoundError: 工具未注册。
-        """
+    def get(self, name: str) -> Optional[BaseTool]:
         with self._lock:
-            tool = self._tools.get(tool_name)
-            if not tool:
-                raise ToolNotFoundError(tool_name)
-            return tool
+            for d in (self._native_tools, self._mcp_tools, self._skills):
+                if name in d:
+                    return d[name]
+            return None
 
-    def has(self, tool_name: str) -> bool:
-        """检查工具是否已注册。
+    def has(self, name: str) -> bool:
+        return self.get(name) is not None
 
-        Args:
-            tool_name: 工具名称。
-
-        Returns:
-            True 表示工具已注册。
-        """
+    def get_category(self, name: str) -> Optional[str]:
         with self._lock:
-            return tool_name in self._tools
+            if name in self._native_tools:
+                return "native"
+            if name in self._mcp_tools:
+                return "mcp"
+            if name in self._skills:
+                return "skill"
+        return None
 
     def list_all(self) -> List[BaseTool]:
-        """返回所有已注册工具的列表。"""
         with self._lock:
-            return list(self._tools.values())
+            return (
+                list(self._native_tools.values())
+                + list(self._mcp_tools.values())
+                + list(self._skills.values())
+            )
 
-    def list_definitions(self) -> List[Dict[str, Any]]:
-        """返回所有工具的 OpenAI function calling 格式定义列表。
+    # ── LLM 工具格式输出 ────────────────────────────────────────
 
-        供 call_model_activity 中注入到 LLM 请求的 tools 参数。
-        """
-        with self._lock:
-            return [tool.get_openai_format() for tool in self._tools.values()]
+    def list_for_llm(self) -> List[dict]:
+        """所有工具的 OpenAI function calling 格式。"""
+        tools = self.list_all()
+        result = []
+        for t in tools:
+            if hasattr(t, "to_openai_function"):
+                result.append(t.to_openai_function())
+            else:
+                result.append({
+                    "type": "function",
+                    "function": {
+                        "name": t.name,
+                        "description": t.description,
+                        "parameters": t.args_schema.model_json_schema() if t.args_schema else {},
+                    },
+                })
+        return result
 
-    # ── 执行 ──
+    # ── RAG 动态检索 ────────────────────────────────────────────
 
-    async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> ToolResult:
-        """安全执行指定工具。
+    async def retrieve_for_query(self, query: str, top_k: int = 5) -> List[BaseTool]:
+        if self._retriever is None:
+            return self.list_all()
+        return await self._retriever.retrieve(query, top_k=top_k, registry=self)
 
-        流程:
-          1. 按名称查找工具（不存在则抛出 ToolNotFoundError）
-          2. 调用 tool.execute(**arguments)
-          3. 如果返回值已是 ToolResult，直接返回
-          4. 否则包装为 ToolResult(success=True, output=result)
-          5. 任何异常都被捕获并包装为 ToolResult(success=False, error=...)
+    async def retrieve_for_llm(self, query: str, top_k: int = 5) -> List[dict]:
+        if self._retriever is None:
+            return self.list_for_llm()
+        return await self._retriever.retrieve_for_llm(
+            query, registry=self, top_k=top_k
+        )
 
-        Args:
-            tool_name: 工具名称。
-            arguments: 工具参数字典。
+    # ── 执行 ────────────────────────────────────────────────────
 
-        Returns:
-            ToolResult 实例（保证不抛出原始异常）。
-
-        Raises:
-            ToolNotFoundError: 工具未注册（仅在查找阶段，异常不会被捕获）。
-        """
+    async def execute(self, tool_name: str, arguments: dict) -> ToolResult:
         tool = self.get(tool_name)
+        if tool is None:
+            return ToolResult(success=False, error=f"Tool '{tool_name}' not found")
         try:
-            result = await tool.execute(**arguments)
-            # 如果工具自身返回了 ToolResult，直接使用
+            result = await tool.ainvoke(arguments)
             if isinstance(result, ToolResult):
                 return result
-            # 否则包装为成功结果
-            return ToolResult(success=True, output=result)
+            output = result.content if hasattr(result, "content") else str(result)
+            return ToolResult(success=True, output=output)
         except Exception as e:
-            # 所有执行异常统一包装，不向上泄漏
             return ToolResult(success=False, error=str(e))
 
     def clear(self) -> None:
-        """清空所有已注册工具（用于沙箱销毁时清理）。"""
         with self._lock:
-            self._tools.clear()
+            self._native_tools.clear()
+            self._mcp_tools.clear()
+            self._skills.clear()

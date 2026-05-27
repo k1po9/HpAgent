@@ -52,7 +52,10 @@ class EventType(str, Enum):
     SESSION_ARCHIVED = "session_archived"    # 会话被归档标记
     LOOP_STARTED = "loop_started"            # 推理循环开始（Temporal Activity 边界）
     LOOP_COMPLETED = "loop_completed"        # 推理循环完成
-    TURN_COMPLETED = "turn_completed"        # 单轮交互完成（一次 user → model → tool → response）
+    TURN_COMPLETED = "turn_completed"        # 单轮交互完成
+    MEMORY_RECALL = "memory_recall"          # Hindsight 记忆召回
+    MEMORY_RETAIN = "memory_retain"          # Hindsight 记忆提取存储
+    MEMORY_REFLECT = "memory_reflect"        # Hindsight 深度记忆推理
 
 
 class ChannelType(str, Enum):

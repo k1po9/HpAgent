@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandbox 架构文档 — HpAgent v10</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Reset & Base                                                              */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent: #58a6ff;
+  --accent-emphasis: #1f6feb;
+  --green: #3fb950;
+  --yellow: #d2991d;
+  --red: #f85149;
+  --purple: #a371f7;
+  --orange: #d18616;
+  --cyan: #39d2c0;
+  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --sidebar-width: 320px;
+  --header-height: 48px;
+}
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  overflow: hidden;
+  height: 100vh;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Layout                                                                    */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+#app { display: flex; height: 100vh; }
+#sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#sidebar-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--header-height);
+  flex-shrink: 0;
+}
+#sidebar-header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }
+#tree { flex: 1; overflow-y: auto; padding: 8px 0; font-size: 13px; }
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#main-header {
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  height: var(--header-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#main-header .tabs { display: flex; gap: 4px; }
+#main-header .tab {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  transition: all .15s;
+}
+#main-header .tab:hover { color: var(--text); border-color: var(--text-muted); }
+#main-header .tab.active { background: var(--accent-emphasis); color: #fff; border-color: var(--accent-emphasis); }
+#content { flex: 1; overflow-y: auto; padding: 24px 32px 48px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Tree                                                                      */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.tree-item { user-select: none; }
+.tree-row {
+  display: flex;
+  align-items: center;
+  padding: 3px 12px;
+  cursor: pointer;
+  border-radius: 0;
+  transition: background .1s;
+  gap: 4px;
+}
+.tree-row:hover { background: var(--bg-tertiary); }
+.tree-row.active { background: rgba(88,166,255,.12); color: var(--accent); }
+.tree-toggle {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform .15s;
+}
+.tree-toggle.expanded { transform: rotate(90deg); }
+.tree-toggle.empty { visibility: hidden; }
+.tree-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.tree-icon.dir { color: var(--accent); }
+.tree-icon.py { color: var(--green); }
+.tree-icon.init { color: var(--purple); }
+.tree-icon.yaml { color: var(--yellow); }
+.tree-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tree-children { display: none; }
+.tree-children.open { display: block; }
+.tree-badge {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Content panels                                                            */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.panel { display: none; }
+.panel.active { display: block; }
+.panel h2 {
+  font-size: 20px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.panel h3 {
+  font-size: 15px;
+  margin-top: 24px;
+  margin-bottom: 8px;
+  color: var(--accent);
+}
+.panel p, .panel .desc { color: var(--text-secondary); margin-bottom: 12px; font-size: 14px; }
+.panel .meta { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+
+/* ── Class cards ── */
+.class-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.class-card-header {
+  padding: 10px 16px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.class-card-header .kw { color: var(--purple); font-weight: 400; }
+.class-card-header .inherits { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+.class-card-body { padding: 8px 0; }
+.class-card-section-title {
+  padding: 6px 16px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: .05em;
+}
+.method-row {
+  padding: 4px 16px 4px 28px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+  display: flex;
+  gap: 6px;
+}
+.method-row .async { color: var(--purple); }
+.method-row .def { color: var(--accent); }
+.method-row .name { color: var(--yellow); }
+.method-row .params { color: var(--text-secondary); }
+.method-row .ret { color: var(--text-muted); }
+
+.field-row {
+  padding: 4px 16px 4px 28px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--cyan);
+}
+.field-row .type-hint { color: var(--text-muted); }
+.field-row .default { color: var(--text-secondary); }
+
+.func-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+}
+.func-card-header {
+  padding: 10px 16px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  display: flex;
+  gap: 6px;
+}
+.func-card-body { padding: 10px 16px; font-size: 13px; color: var(--text-secondary); }
+
+/* ── Source block ── */
+.source-block {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.source-block-header {
+  padding: 8px 16px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+}
+.source-block pre {
+  padding: 12px 16px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+  color: var(--text);
+  tab-size: 4;
+}
+.source-block .kw { color: var(--purple); }
+.source-block .str { color: var(--green); }
+.source-block .fn { color: var(--yellow); }
+.source-block .comment { color: var(--text-muted); }
+.source-block .decorator { color: var(--cyan); }
+.source-block .type { color: var(--accent); }
+
+/* ── Tool spec table ── */
+.tool-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.tool-table th {
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+.tool-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.tool-table tr:hover td { background: rgba(88,166,255,.04); }
+.tool-table .tool-name { color: var(--yellow); font-family: var(--font-mono); font-weight: 600; }
+.tool-table .tool-params { font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); }
+.tool-table .tool-desc { color: var(--text-secondary); font-size: 13px; }
+.tool-table .tool-cat { font-size: 11px; padding: 1px 6px; border-radius: 8px; background: var(--accent-emphasis); color: #fff; white-space: nowrap; }
+
+/* ── Architecture diagram ── */
+.arch-diagram {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+.arch-diagram svg { display: block; max-width: 100%; }
+
+/* ── Flow diagram ── */
+.flow-box { fill: var(--bg-tertiary); stroke: var(--border); stroke-width: 1; }
+.flow-box.accent { fill: rgba(88,166,255,.1); stroke: var(--accent); }
+.flow-label { fill: var(--text); font-size: 12px; font-family: var(--font-sans); text-anchor: middle; }
+.flow-sublabel { fill: var(--text-muted); font-size: 10px; font-family: var(--font-sans); text-anchor: middle; }
+.flow-arrow { stroke: var(--text-muted); stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+.flow-arrow.accent { stroke: var(--accent); marker-end: url(#arrowhead-accent); }
+
+/* ── File purpose badge ── */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 6px;
+}
+.badge-core { background: rgba(88,166,255,.15); color: var(--accent); }
+.badge-tool { background: rgba(63,185,80,.15); color: var(--green); }
+.badge-util { background: rgba(210,153,29,.15); color: var(--yellow); }
+.badge-channel { background: rgba(163,113,247,.15); color: var(--purple); }
+.badge-infra { background: rgba(210,129,22,.15); color: var(--orange); }
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.summary-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+.summary-card .num { font-size: 28px; font-weight: 700; color: var(--accent); }
+.summary-card .label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity .3s;
+  pointer-events: none;
+  z-index: 100;
+}
+.toast.show { opacity: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* File detail specific                                                      */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+.source-lines { display: none; }
+.source-lines.open { display: block; }
+.toggle-source {
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: var(--font-sans);
+  padding: 4px 0;
+  margin-top: 8px;
+}
+.toggle-source:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ═════════════════════ SIDEBAR ══════════════════════ -->
+  <nav id="sidebar">
+    <div id="sidebar-header">
+      <span class="dot"></span> src/sandbox/
+    </div>
+    <div id="tree"></div>
+  </nav>
+
+  <!-- ═════════════════════ MAIN ══════════════════════════ -->
+  <div id="main">
+    <div id="main-header">
+      <div class="tabs">
+        <button class="tab active" data-panel="overview">Overview</button>
+        <button class="tab" data-panel="file-detail">File Detail</button>
+        <button class="tab" data-panel="tools">Local Tools</button>
+        <button class="tab" data-panel="exec-flow">Execution Flow</button>
+      </div>
+    </div>
+    <div id="content">
+      <!-- ═══════════ OVERVIEW PANEL ═══════════ -->
+      <div class="panel active" id="panel-overview">
+        <h2>Sandbox 模块架构</h2>
+        <p>Sandbox 是 HpAgent 的"手"层（Hands Layer），负责在隔离的 workspace 环境中执行模型决策的工具调用。在"手脑分离"架构中，编排层（大脑）决策调用哪个工具，沙箱层（手）接收 workspace 路径并按类别路由执行。</p>
+
+        <div class="summary-grid">
+          <div class="summary-card"><div class="num">20</div><div class="label">源文件 (.py)</div></div>
+          <div class="summary-card"><div class="num">19</div><div class="label">类</div></div>
+          <div class="summary-card"><div class="num">6</div><div class="label">本地工具</div></div>
+          <div class="summary-card"><div class="num">3</div><div class="label">工具类别</div></div>
+        </div>
+
+        <h3>设计原则</h3>
+        <table class="tool-table">
+          <tr><th style="width:140px">原则</th><th>说明</th></tr>
+          <tr><td><strong>Workspace 绑定</strong></td><td>Sandbox 从外部接收 workspace 路径；所有本地工具通过闭包绑定该路径，在指定目录下执行文件操作</td></tr>
+          <tr><td><strong>类别路由</strong></td><td>3 类工具各有执行路径：native 进程内执行、mcp 远端调用、skill 流水线展开</td></tr>
+          <tr><td><strong>可选加固</strong></td><td>Nsjail 仅对 Bash 工具启用，其他本地工具始终进程内执行。默认关闭，通过配置开关控制</td></tr>
+          <tr><td><strong>Per-Session 隔离</strong></td><td>每个会话拥有独立的 Sandbox + ToolRegistry，本地工具绑定到专属 workspace 路径</td></tr>
+          <tr><td><strong>路径穿越防护</strong></td><td>所有用户提供的路径通过 safe_resolve() 验证，确保不越出 workspace 根目录</td></tr>
+        </table>
+
+        <h3>模块总览</h3>
+        <svg viewBox="0 0 860 420" style="width:100%; max-width:860px;">
+          <defs>
+            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#8b949e"/></marker>
+            <marker id="arrowhead-accent" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/></marker>
+          </defs>
+          <!-- Orchestration Layer -->
+          <rect x="20" y="20" width="180" height="56" rx="8" class="flow-box accent"/>
+          <text x="110" y="42" class="flow-label">Orchestration Worker</text>
+          <text x="110" y="58" class="flow-sublabel">start_worker / init_dependencies</text>
+          <!-- HarnessRunner -->
+          <rect x="260" y="20" width="180" height="56" rx="8" class="flow-box accent"/>
+          <text x="350" y="42" class="flow-label">HarnessRunner</text>
+          <text x="350" y="58" class="flow-sublabel">process_turn / _execute_tool</text>
+          <!-- SandboxManager -->
+          <rect x="500" y="20" width="180" height="56" rx="8" class="flow-box"/>
+          <text x="590" y="42" class="flow-label">SandboxManager</text>
+          <text x="590" y="58" class="flow-sublabel">池管理 + session→sandbox 映射</text>
+          <!-- Arrows top -->
+          <line x1="200" y1="48" x2="258" y2="48" class="flow-arrow"/>
+          <line x1="440" y1="48" x2="498" y2="48" class="flow-arrow"/>
+          <!-- Sandbox -->
+          <rect x="500" y="130" width="180" height="56" rx="8" class="flow-box"/>
+          <text x="590" y="152" class="flow-label">Sandbox</text>
+          <text x="590" y="168" class="flow-sublabel">execute / list_tools</text>
+          <line x1="590" y1="76" x2="590" y2="128" class="flow-arrow"/>
+          <!-- ToolRegistry -->
+          <rect x="340" y="130" width="140" height="56" rx="8" class="flow-box"/>
+          <text x="410" y="152" class="flow-label">ToolRegistry</text>
+          <text x="410" y="168" class="flow-sublabel">register / get_category</text>
+          <line x1="480" y1="158" x2="498" y2="158" class="flow-arrow"/>
+          <!-- 3 categories -->
+          <rect x="20" y="240" width="130" height="56" rx="8" class="flow-box"/>
+          <text x="85" y="262" class="flow-label">Native (6 tools)</text>
+          <text x="85" y="278" class="flow-sublabel">进程内 · workspace 绑定</text>
+          <rect x="180" y="240" width="130" height="56" rx="8" class="flow-box"/>
+          <text x="245" y="262" class="flow-label">MCP</text>
+          <text x="245" y="278" class="flow-sublabel">远端执行</text>
+          <rect x="340" y="240" width="130" height="56" rx="8" class="flow-box"/>
+          <text x="405" y="262" class="flow-label">Skills</text>
+          <text x="405" y="278" class="flow-sublabel">流水线展开</text>
+          <line x1="410" y1="186" x2="85" y2="238" class="flow-arrow"/>
+          <line x1="410" y1="186" x2="245" y2="238" class="flow-arrow"/>
+          <line x1="410" y1="186" x2="405" y2="238" class="flow-arrow"/>
+          <!-- Nsjail -->
+          <rect x="500" y="240" width="150" height="56" rx="8" class="flow-box"/>
+          <text x="575" y="262" class="flow-label">NsjailExecutor</text>
+          <text x="575" y="278" class="flow-sublabel">可选 · 仅 Bash</text>
+          <line x1="590" y1="186" x2="575" y2="238" class="flow-arrow"/>
+          <!-- Channels -->
+          <rect x="340" y="340" width="180" height="56" rx="8" class="flow-box"/>
+          <text x="430" y="362" class="flow-label">Channels (NapCat/Console)</text>
+          <text x="430" y="378" class="flow-sublabel">消息收发</text>
+          <line x1="410" y1="296" x2="430" y2="338" class="flow-arrow"/>
+        </svg>
+
+        <h3>关键数据流</h3>
+        <div style="font-family:var(--font-mono);font-size:13px;color:var(--text-secondary);line-height:2;">
+          1. <span style="color:var(--accent)">Worker</span> 收到消息 → <span style="color:var(--accent)">SandboxManager.create_session_sandbox()</span> 创建 per-session 沙箱<br>
+          2. <span style="color:var(--accent)">HarnessRunner.process_turn()</span> → 模型决策调用工具<br>
+          3. <span style="color:var(--accent)">HarnessRunner._execute_tool()</span> → <span style="color:var(--accent)">SandboxManager.get_sandbox_for_session(session_id)</span><br>
+          4. <span style="color:var(--accent)">Sandbox.execute(tool_name, arguments)</span> → 查 <span style="color:var(--accent)">ToolRegistry.get_category()</span><br>
+          5. native 工具 <span style="color:var(--green)">→ tool.ainvoke()</span> 进程内执行（workspace 已绑定）<br>
+          6. Bash 工具 + nsjail 启用 <span style="color:var(--yellow)">→ NsjailExecutor.execute()</span> 子进程加固<br>
+          7. 模型看到结果 → 继续推理 或 发送回复
+        </div>
+      </div>
+
+      <!-- ═══════════ FILE DETAIL PANEL ═══════════ -->
+      <div class="panel" id="panel-file-detail">
+        <div id="file-detail-placeholder" style="color:var(--text-muted);text-align:center;padding:60px 0;">
+          ← 从左侧文件树选择一个文件查看详情
+        </div>
+        <div id="file-detail-content" style="display:none;"></div>
+      </div>
+
+      <!-- ═══════════ TOOLS PANEL ═══════════ -->
+      <div class="panel" id="panel-tools">
+        <h2>6 个本地工具 (Native Local Tools)</h2>
+        <p>每个工具通过工厂函数 <code style="color:var(--yellow)">create_*_tool(workspace_root: str) → StructuredTool</code> 创建。工厂函数接收 workspace 根路径，通过闭包将路径绑定到工具内部，确保所有文件操作都在指定 workspace 内执行。</p>
+
+        <table class="tool-table">
+          <thead>
+            <tr><th>工具名</th><th>参数</th><th>描述</th><th style="width:70px">类别</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="tool-name">fs_read</td>
+              <td class="tool-params">path: str<br>offset: int = 1<br>limit: int? = None</td>
+              <td class="tool-desc">读取文件并返回带行号的文本。每行格式为 <code>行号\t内容</code>。文件超过 2000 行时默认仅显示前 500 行，可使用 offset/limit 翻页。文件不存在时提示用 Glob 或检查路径。</td>
+              <td><span class="tool-cat">native</span></td>
+            </tr>
+            <tr>
+              <td class="tool-name">fs_write</td>
+              <td class="tool-params">path: str<br>content: str</td>
+              <td class="tool-desc">创建或完全覆盖文件。自动创建中间目录。返回 <code>{"bytes_written": N}</code>。建议用 fs_edit 做局部修改。</td>
+              <td><span class="tool-cat">native</span></td>
+            </tr>
+            <tr>
+              <td class="tool-name" style="color:var(--accent)">fs_edit ★</td>
+              <td class="tool-params">path: str<br>old_string: str<br>new_string: str</td>
+              <td class="tool-desc"><strong>核心工具。</strong>精确字符串替换，遵循 4 条规则：① 文件必须存在 ② old_string 为空则追加到文件末尾 ③ old_string 必须恰好匹配一次（含空白字符）④ 匹配零次或多次均报错，多次时列出匹配行号。返回 <code>{"replacements": 1}</code>。</td>
+              <td><span class="tool-cat">native</span></td>
+            </tr>
+            <tr>
+              <td class="tool-name">Glob</td>
+              <td class="tool-params">root: str<br>pattern: str</td>
+              <td class="tool-desc">文件名模式匹配。返回相对路径列表，按修改时间降序排列。支持递归通配 <code>**/*.py</code>。最多返回 200 条结果，超出时标记 truncated。</td>
+              <td><span class="tool-cat">native</span></td>
+            </tr>
+            <tr>
+              <td class="tool-name">Grep</td>
+              <td class="tool-params">root: str<br>query: str<br>glob: str? = None<br>regex: bool = False</td>
+              <td class="tool-desc">文件内容搜索。默认字面量匹配，设置 regex=True 启用正则。返回 <code>[{path, line, col, content}]</code>。最多 50 条结果，超出截断。可用 glob 参数过滤文件类型。</td>
+              <td><span class="tool-cat">native</span></td>
+            </tr>
+            <tr>
+              <td class="tool-name">Bash</td>
+              <td class="tool-params">cmd: str<br>cwd: str = ""<br>timeout: int = 120</td>
+              <td class="tool-desc">在 workspace 内执行 Shell 命令。安全约束：cwd 限制在 workspace 内、拦截 <code>rm -rf</code> 等危险模式、stdout 截断至 50KB、最大 timeout 300s。nsjail 启用时自动走 nsjail 加固。</td>
+              <td><span class="tool-cat">native</span></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>共享工具函数</h3>
+        <div class="func-card">
+          <div class="func-card-header"><span class="def">def</span> <span class="name">safe_resolve</span><span class="params">(workspace_root: str, user_path: str) → str</span></div>
+          <div class="func-card-body">将用户提供的相对路径解析为 workspace 下的绝对路径，阻止路径穿越攻击（如 <code>../../../etc/passwd</code>）。</div>
+        </div>
+        <div class="func-card">
+          <div class="func-card-header"><span class="def">def</span> <span class="name">safe_cwd</span><span class="params">(workspace_root: str, cwd: str) → str</span></div>
+          <div class="func-card-body">解析 Bash 工作目录，确保不越出 workspace。空 cwd 默认返回 workspace 根路径。</div>
+        </div>
+        <div class="func-card">
+          <div class="func-card-header"><span class="def">def</span> <span class="name">make_relative</span><span class="params">(workspace_root: str, abs_path: str) → str</span></div>
+          <div class="func-card-body">将 workspace 下的绝对路径转为相对路径，用于工具输出。</div>
+        </div>
+
+        <h3>LOCAL_TOOL_FACTORIES 注册表</h3>
+        <div class="source-block">
+          <div class="source-block-header"><span>src/sandbox/tools/local/__init__.py</span></div>
+          <pre><span class="kw">LOCAL_TOOL_FACTORIES</span> = {
+    <span class="str">"fs_read"</span>:  create_fs_read_tool,
+    <span class="str">"fs_write"</span>: create_fs_write_tool,
+    <span class="str">"fs_edit"</span>:  create_fs_edit_tool,
+    <span class="str">"Glob"</span>:     create_glob_tool,
+    <span class="str">"Grep"</span>:     create_grep_tool,
+    <span class="str">"Bash"</span>:     create_bash_tool,
+}</pre>
+        </div>
+      </div>
+
+      <!-- ═══════════ EXEC FLOW PANEL ═══════════ -->
+      <div class="panel" id="panel-exec-flow">
+        <h2>工具执行流程</h2>
+        <p>从模型发起工具调用到沙箱执行完毕，完整的调用链路：</p>
+
+        <svg viewBox="0 0 580 640" style="width:100%; max-width:580px;">
+          <defs>
+            <marker id="arrow-e" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#8b949e"/></marker>
+            <marker id="arrow-a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#58a6ff"/></marker>
+            <marker id="arrow-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#3fb950"/></marker>
+          </defs>
+
+          <!-- Step 1 -->
+          <rect x="180" y="12" width="220" height="44" rx="8" class="flow-box accent"/>
+          <text x="290" y="32" class="flow-label">LLM 决策调用工具</text>
+          <text x="290" y="46" class="flow-sublabel">response.tool_calls: [{name, arguments}]</text>
+
+          <!-- Step 2 -->
+          <rect x="180" y="84" width="220" height="44" rx="8" class="flow-box"/>
+          <text x="290" y="104" class="flow-label">HarnessRunner._execute_tool()</text>
+          <text x="290" y="118" class="flow-sublabel">传入 tool_name, arguments, session_id</text>
+
+          <!-- Step 3 -->
+          <rect x="180" y="156" width="220" height="44" rx="8" class="flow-box"/>
+          <text x="290" y="176" class="flow-label">SandboxManager.get_sandbox_for_session()</text>
+          <text x="290" y="190" class="flow-sublabel">O(1) 查找 _session_to_sandbox[session_id]</text>
+
+          <!-- Step 4 -->
+          <rect x="180" y="228" width="220" height="44" rx="8" class="flow-box"/>
+          <text x="290" y="248" class="flow-label">Sandbox.execute(tool_name, args)</text>
+          <text x="290" y="262" class="flow-sublabel">查 registry.get_category(tool_name)</text>
+
+          <!-- Decision diamond -->
+          <polygon points="290,310 370,350 290,390 210,350" class="flow-box accent"/>
+          <text x="290" y="346" class="flow-label" style="font-size:10px;">Bash +</text>
+          <text x="290" y="360" class="flow-label" style="font-size:10px;">nsjail?</text>
+
+          <!-- Step 5a -->
+          <rect x="32" y="430" width="200" height="44" rx="8" class="flow-box"/>
+          <text x="132" y="450" class="flow-label">NsjailExecutor.execute()</text>
+          <text x="132" y="464" class="flow-sublabel">nsjail --mode o ... -- bash -c 'cmd'</text>
+
+          <!-- Step 5b -->
+          <rect x="340" y="430" width="200" height="44" rx="8" class="flow-box"/>
+          <text x="440" y="450" class="flow-label">tool.ainvoke(arguments)</text>
+          <text x="440" y="464" class="flow-sublabel">进程内执行（workspace 已绑定）</text>
+
+          <!-- Step 6 -->
+          <rect x="180" y="510" width="220" height="44" rx="8" class="flow-box"/>
+          <text x="290" y="530" class="flow-label">返回 ToolResult</text>
+          <text x="290" y="544" class="flow-sublabel">{success, output, error, suggestion, metadata}</text>
+
+          <!-- Step 7 -->
+          <rect x="180" y="582" width="220" height="44" rx="8" class="flow-box accent"/>
+          <text x="290" y="602" class="flow-label">LLM 看到结果继续推理</text>
+          <text x="290" y="616" class="flow-sublabel">工具结果注入 context → 下一轮 ReAct loop</text>
+
+          <!-- Arrows -->
+          <line x1="290" y1="56" x2="290" y2="82" class="flow-arrow"/>
+          <line x1="290" y1="128" x2="290" y2="154" class="flow-arrow"/>
+          <line x1="290" y1="200" x2="290" y2="226" class="flow-arrow"/>
+          <line x1="290" y1="272" x2="290" y2="308" class="flow-arrow"/>
+          <!-- decision branches -->
+          <line x1="230" y1="350" x2="132" y2="428" class="flow-arrow"/>
+          <text x="148" y="395" class="flow-sublabel" fill="#3fb950">yes</text>
+          <line x1="350" y1="350" x2="440" y2="428" class="flow-arrow"/>
+          <text x="392" y="395" class="flow-sublabel" fill="#8b949e">no</text>
+          <!-- converge -->
+          <line x1="132" y1="474" x2="290" y2="508" class="flow-arrow"/>
+          <line x1="440" y1="474" x2="290" y2="508" class="flow-arrow"/>
+          <line x1="290" y1="554" x2="290" y2="580" class="flow-arrow"/>
+        </svg>
+
+        <h3>类别路由规则</h3>
+        <table class="tool-table">
+          <tr><th style="width:100px">类别</th><th style="width:160px">执行方式</th><th>说明</th></tr>
+          <tr>
+            <td><span class="tool-cat">native</span></td>
+            <td>tool.ainvoke() 进程内</td>
+            <td>本地工具通过闭包已绑定 workspace 路径，直接调用即可。仅 Bash 工具可选走 nsjail 子进程加固。</td>
+          </tr>
+          <tr>
+            <td><span class="tool-cat" style="background:var(--purple)">mcp</span></td>
+            <td>MCP 远端调用</td>
+            <td>通过 MCPToolManager 管理的 HTTP/SSE 会话发送 JSON-RPC 请求到远端 MCP 服务器执行。</td>
+          </tr>
+          <tr>
+            <td><span class="tool-cat" style="background:var(--orange)">skill</span></td>
+            <td>SkillPipeline 展开</td>
+            <td>Skill 定义为多步流水线（steps），每个 step 调用 registry 中的其他工具，逐步执行并聚合结果。</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Data: File tree & metadata                                                */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+const FILES = {
+  "sandbox/__init__.py": {
+    badge: "infra", badgeLabel: "module",
+    desc: "Sandbox 模块入口，重新导出核心类：Sandbox、SandboxManager、NsjailConfig、NsjailExecutor。",
+    classes: [],
+    functions: [],
+    source: `"""Sandbox —— 手层（Hands Layer），模型的工具执行环境。"""
+from .sandbox import Sandbox
+from .sandbox_manager import SandboxManager
+from .nsjail import NsjailConfig, NsjailExecutor
+
+__all__ = ["Sandbox", "SandboxManager", "NsjailConfig", "NsjailExecutor"]`
+  },
+  "sandbox/sandbox.py": {
+    badge: "core", badgeLabel: "核心",
+    desc: "Sandbox 是工具的 workspace 绑定执行环境。接收 workspace 路径 + ToolRegistry，按工具类别路由执行：native → 进程内执行，mcp → 远端调用，skill → 流水线展开。Bash 工具可选通过 NsjailExecutor 加固。",
+    classes: [
+      {
+        name: "Sandbox", inherits: "ISandbox",
+        methods: [
+          {async: true, name: "__init__", params: "(self, workspace_path: str, tool_registry: ToolRegistry, sandbox_id: str = None, nsjail_executor=None)"},
+          {async: true, name: "execute", params: "(self, tool_name: str, arguments: Dict[str, Any]) → ToolResult"},
+          {async: true, name: "list_tools", params: "(self) → List[Dict[str, Any]]"},
+          {async: true, name: "health_check", params: "(self) → bool"},
+          {name: "status", params: "→ str", isProp: true},
+          {name: "created_at", params: "→ float", isProp: true},
+          {name: "last_used", params: "→ float", isProp: true},
+          {name: "workspace_path", params: "→ str", isProp: true},
+          {name: "destroy", params: "(self) → None"},
+          {name: "get_info", params: "(self) → Dict[str, Any]"},
+        ]
+      }
+    ],
+    functions: []
+  },
+  "sandbox/sandbox_manager.py": {
+    badge: "core", badgeLabel: "核心",
+    desc: "SandboxManager 是沙箱池管理器，按会话创建 workspace 绑定的沙箱。核心职责：① create_session_sandbox() 用 LOCAL_TOOL_FACTORIES 创建 workspace 绑定的本地工具，② get_sandbox_for_session() O(1) 查找，③ destroy_sandbox() 销毁，④ cleanup_idle_sandboxes() 空闲回收。每个会话一个 Sandbox，会话结束时销毁。",
+    classes: [
+      {
+        name: "SandboxManager",
+        methods: [
+          {name: "__init__", params: "(self, nsjail_config, redis_cache, data_root, max_idle_seconds, mcp_manager, skill_definitions, retriever)"},
+          {name: "create_session_sandbox", params: "(self, session_id: str, workspace_path: str, user_uuid: str) → str"},
+          {name: "get_sandbox_for_session", params: "(self, session_id: str) → Sandbox"},
+          {name: "get_sandbox", params: "(self, sandbox_id: str) → Sandbox"},
+          {name: "destroy_sandbox", params: "(self, sandbox_id: str) → bool"},
+          {name: "list_sandboxes", params: "(self) → List[Dict[str, Any]]"},
+          {name: "get_sandbox_count", params: "(self) → int"},
+          {name: "cleanup_idle_sandboxes", params: "(self) → int"},
+        ]
+      }
+    ],
+    functions: []
+  },
+  "sandbox/nsjail.py": {
+    badge: "infra", badgeLabel: "可选加固",
+    desc: "Nsjail 可选 OS 级隔离层，仅对 Bash 工具加固。默认关闭。启用后，Bash 命令通过 nsjail 子进程执行：<code>nsjail --mode o ... -- /bin/bash -c '&lt;command&gt;'</code>。其他本地工具始终进程内执行，不走 nsjail。",
+    classes: [
+      {
+        name: "NsjailConfig", inherits: "@dataclass",
+        fields: [
+          {name: "nsjail_binary", type: "str", default: '"/usr/bin/nsjail"'},
+          {name: "chroot_path", type: "str", default: '"/"'},
+          {name: "work_dir", type: "str", default: '"/work"'},
+          {name: "readonly_root", type: "bool", default: "True"},
+          {name: "user", type: "str", default: '"nobody"'},
+          {name: "group", type: "str", default: '"nogroup"'},
+          {name: "time_limit", type: "int", default: "30"},
+          {name: "memory_limit_mb", type: "int", default: "256"},
+          {name: "cpu_limit_seconds", type: "int", default: "10"},
+          {name: "max_processes", type: "int", default: "32"},
+          {name: "max_files", type: "int", default: "64"},
+          {name: "disable_proc", type: "bool", default: "True"},
+          {name: "disable_network", type: "bool", default: "True"},
+          {name: "bind_mounts", type: "list[str]", default: "[]"},
+          {name: "really_quiet", type: "bool", default: "True"},
+        ],
+        methods: [
+          {name: "build_command", params: "(self, bash_cmd: str, *, work_dir: str = None) → list[str]"},
+        ]
+      },
+      {
+        name: "NsjailExecutor",
+        methods: [
+          {name: "__init__", params: "(self, config: NsjailConfig, redis_cache=None)"},
+          {async: true, name: "execute", params: "(self, tool_name: str, arguments: dict) → ToolResult"},
+        ]
+      }
+    ],
+    functions: []
+  },
+  "sandbox/channels/__init__.py": {
+    badge: "channel", badgeLabel: "渠道",
+    desc: "渠道子模块入口，重新导出 BaseChannel、ConsoleChannel、NapCatChannel、ChannelRouter。",
+    classes: [], functions: [],
+    source: `from .base import BaseChannel
+from .console import ConsoleChannel
+from .napcat import NapCatChannel
+from .router import ChannelRouter
+
+__all__ = ["BaseChannel", "ConsoleChannel", "NapCatChannel", "ChannelRouter"]`
+  },
+  "sandbox/channels/base.py": {
+    badge: "channel", badgeLabel: "渠道基类",
+    desc: "BaseChannel 是所有渠道的抽象基类，实现了 IChannel 接口。提供 normalize_message()、send_message()、start_monitor()/stop_monitor() 等标准方法。",
+    classes: [
+      {
+        name: "BaseChannel", inherits: "IChannel, ABC",
+        methods: [
+          {name: "__init__", params: "(self, channel_type: ChannelType)"},
+          {name: "channel_type", params: "→ ChannelType", isProp: true},
+          {async: true, name: "normalize_message", params: "(self, raw_message) → UnifiedMessage", isAbstract: true},
+          {async: true, name: "send_message", params: "(self, message: UnifiedMessage) → bool", isAbstract: true},
+          {async: true, name: "start_monitor", params: "(self, callback_url: str) → bool"},
+          {async: true, name: "stop_monitor", params: "(self) → bool"},
+          {name: "is_monitoring", params: "→ bool", isProp: true},
+        ]
+      }
+    ], functions: []
+  },
+  "sandbox/channels/console.py": {
+    badge: "channel", badgeLabel: "渠道",
+    desc: "ConsoleChannel 提供交互式控制台输入输出，支持 read_input_sync() 同步读取和 start_interactive() 异步交互模式。",
+    classes: [
+      {
+        name: "ConsoleChannel", inherits: "BaseChannel",
+        methods: [
+          {name: "__init__", params: "(self)"},
+          {async: true, name: "normalize_message", params: "(self, raw_message) → UnifiedMessage"},
+          {async: true, name: "send_message", params: "(self, message: UnifiedMessage) → bool"},
+          {async: true, name: "read_input_sync", params: "(self) → Optional[str]"},
+          {async: true, name: "start_interactive", params: "(self, on_message_callback) → None"},
+          {name: "stop", params: "(self) → None"},
+        ]
+      }
+    ], functions: []
+  },
+  "sandbox/channels/napcat.py": {
+    badge: "channel", badgeLabel: "渠道",
+    desc: "NapCatChannel 通过 WebSocket 连接 QQ Bot，负责消息标准化和双向通信。处理群聊/私聊消息，支持 isolation 标签过滤。",
+    classes: [
+      {
+        name: "NapCatChannel", inherits: "BaseChannel",
+        methods: [
+          {name: "__init__", params: "(self)"},
+          {async: true, name: "normalize_message", params: "(self, raw_message) → Optional[UnifiedMessage]"},
+          {async: true, name: "send_message", params: "(self, message: UnifiedMessage) → bool"},
+          {async: true, name: "_handle_message", params: "(self, websocket, raw_message: str)"},
+          {async: true, name: "_main_logic", params: "(self, websocket)"},
+          {async: true, name: "start_monitor", params: "(self, callback) → bool"},
+          {async: true, name: "stop_monitor", params: "(self) → bool"},
+        ]
+      }
+    ],
+    functions: [
+      {name: "_to_iso_timestamp", params: "(unix_ts: int | float) → str"},
+      {name: "_safe_str", params: "(value, default: str = '') → str"},
+    ]
+  },
+  "sandbox/channels/router.py": {
+    badge: "channel", badgeLabel: "渠道",
+    desc: "ChannelRouter 管理多渠道注册和消息路由。支持按 ChannelType 注册 channel 实例，并通过 send() 将消息路由到正确的渠道。",
+    classes: [
+      {
+        name: "ChannelRouter",
+        methods: [
+          {name: "__init__", params: "(self)"},
+          {name: "register", params: "(self, channel_type: ChannelType, channel: IChannel) → None"},
+          {name: "get", params: "(self, channel_type: ChannelType) → Optional[IChannel]"},
+          {async: true, name: "send", params: "(self, message: UnifiedMessage) → bool"},
+        ]
+      }
+    ], functions: []
+  },
+  "sandbox/tools/__init__.py": {
+    badge: "tool", badgeLabel: "工具",
+    desc: "工具子模块入口，重新导出 ToolResult、ToolRegistry。",
+    classes: [], functions: [],
+    source: `from .types import ToolResult
+from .registry import ToolRegistry
+
+__all__ = ["ToolResult", "ToolRegistry"]`
+  },
+  "sandbox/tools/types.py": {
+    badge: "util", badgeLabel: "类型定义",
+    desc: "定义 ToolResult —— HpAgent 工具系统统一返回值。包含 success、output、error、suggestion、metadata 字段。suggestion 字段为 LLM 提供可操作的错误恢复提示。",
+    classes: [
+      {
+        name: "ToolResult", inherits: "@dataclass",
+        fields: [
+          {name: "success", type: "bool", default: "True"},
+          {name: "output", type: "Any", default: "None"},
+          {name: "error", type: "Optional[str]", default: "None"},
+          {name: "suggestion", type: "Optional[str]", default: "None"},
+          {name: "metadata", type: "dict", default: "{}"},
+        ],
+        methods: [
+          {name: "to_dict", params: "(self) → dict"},
+        ]
+      }
+    ], functions: []
+  },
+  "sandbox/tools/registry.py": {
+    badge: "core", badgeLabel: "核心",
+    desc: "ToolRegistry 是三槽位工具注册中心（native / mcp / skill），基于 LangChain BaseTool。支持 freeze 封禁、RAG 语义检索动态注入、以及 OpenAI function calling 格式输出。",
+    classes: [
+      {
+        name: "ToolRegistry",
+        methods: [
+          {name: "__init__", params: "(self, retriever=None)"},
+          {name: "register", params: "(self, tool: BaseTool, category: str) → None"},
+          {name: "unregister", params: "(self, name: str) → bool"},
+          {name: "freeze", params: "(self) → None"},
+          {name: "get", params: "(self, name: str) → Optional[BaseTool]"},
+          {name: "has", params: "(self, name: str) → bool"},
+          {name: "get_category", params: "(self, name: str) → Optional[str]"},
+          {name: "list_all", params: "(self) → List[BaseTool]"},
+          {name: "list_for_llm", params: "(self) → List[dict]"},
+          {async: true, name: "retrieve_for_query", params: "(self, query: str, top_k: int) → List[BaseTool]"},
+          {async: true, name: "retrieve_for_llm", params: "(self, query: str, top_k: int) → List[dict]"},
+          {async: true, name: "execute", params: "(self, tool_name: str, arguments: dict) → ToolResult"},
+          {name: "clear", params: "(self) → None"},
+        ]
+      }
+    ], functions: []
+  },
+  "sandbox/tools/retriever.py": {
+    badge: "infra", badgeLabel: "RAG",
+    desc: "RAG 工具检索器，基于向量存储实现语义搜索。ToolVectorStore 管理 ChromaDB 向量索引，ToolRetriever 执行语义匹配检索，支持按类别过滤和 LLM 格式输出。",
+    classes: [
+      {name: "ToolVectorStore", methods: [
+        {name: "__init__", params: "(self, persist_path: str)"},
+        {name: "index_tools", params: "(self, tools, embedding_client)"},
+        {name: "sync", params: "(self, tools, embedding_client=None)"},
+        {name: "collection", params: "", isProp: true},
+      ]},
+      {name: "ToolRetriever", methods: [
+        {name: "__init__", params: "(self, vector_store, embedding_client)"},
+        {async: true, name: "retrieve", params: "(self, query, top_k, category_filter, registry) → List[BaseTool]"},
+        {async: true, name: "retrieve_for_llm", params: "(self, query, registry, top_k) → List[dict]"},
+      ]}
+    ], functions: []
+  },
+  "sandbox/tools/store.py": {
+    badge: "util", badgeLabel: "持久化",
+    desc: "ToolFileStore 管理工具定义的 JSON 文件持久化存储，支持按类别列表、加载、保存和从定义构建 LangChain StructuredTool。",
+    classes: [
+      {name: "ToolFileStore", methods: [
+        {name: "__init__", params: "(self, base_path: str)"},
+        {name: "list_definitions", params: "(self, category: str) → List[dict]"},
+        {name: "load_tool_definition", params: "(self, name, category) → Optional[dict]"},
+        {name: "save_definition", params: "(self, definition, category) → str"},
+        {name: "build_tool_from_definition", params: "(self, definition, tool_instance) → StructuredTool"},
+        {static: true, name: "_json_type_to_python", params: "(json_type: str)"},
+      ]}
+    ], functions: []
+  },
+  "sandbox/tools/adapters/__init__.py": {
+    badge: "tool", badgeLabel: "适配器",
+    desc: "适配器子模块入口，重新导出 MCPToolManager、CachedTool。",
+    classes: [], functions: [],
+    source: `from .mcp import MCPToolManager, CachedTool
+
+__all__ = ["MCPToolManager", "CachedTool"]`
+  },
+  "sandbox/tools/adapters/mcp.py": {
+    badge: "tool", badgeLabel: "MCP",
+    desc: "MCP (Model Context Protocol) 工具适配器。MCPSession 管理单个 MCP 服务器的 HTTP/SSE 连接和 JSON-RPC 通信。MCPToolManager 管理多个 MCP 服务器的生命周期，将远端工具包装为 LangChain StructuredTool。",
+    classes: [
+      {name: "CachedTool", inherits: "@dataclass",
+        fields: [
+          {name: "name", type: "str"},
+          {name: "description", type: "str"},
+          {name: "input_schema", type: "dict"},
+          {name: "server_name", type: "str"},
+        ], methods: []},
+      {name: "MCPSession", methods: [
+        {name: "__init__", params: "(self, name, url, headers=None, timeout=60.0)"},
+        {async: true, name: "connect", params: "(self)"},
+        {async: true, name: "disconnect", params: "(self)"},
+        {async: true, name: "list_tools", params: "(self) → List[CachedTool]"},
+        {async: true, name: "call_tool", params: "(self, tool_name, arguments) → ToolResult"},
+        {name: "is_connected", params: "→ bool", isProp: true},
+      ]},
+      {name: "MCPToolManager", methods: [
+        {name: "__init__", params: "(self, config_path: str)"},
+        {async: true, name: "load_config", params: "(self) → Dict"},
+        {async: true, name: "connect", params: "(self)"},
+        {async: true, name: "disconnect", params: "(self)"},
+        {name: "get_cached_tools", params: "(self) → List[StructuredTool]"},
+        {name: "server_count", params: "→ int", isProp: true},
+      ]}
+    ],
+    functions: [
+      {name: "_json_type_to_python", params: "(json_type: str)"},
+      {name: "_build_langchain_tool", params: "(cached: CachedTool, session: MCPSession) → StructuredTool"},
+    ]
+  },
+  "sandbox/tools/skills/__init__.py": {
+    badge: "tool", badgeLabel: "Skills",
+    desc: "Skills 子模块入口，重新导出 SkillPipeline、build_skill_tool。",
+    classes: [], functions: [],
+    source: `from .engine import SkillPipeline, build_skill_tool
+
+__all__ = ["SkillPipeline", "build_skill_tool"]`
+  },
+  "sandbox/tools/skills/engine.py": {
+    badge: "tool", badgeLabel: "Skills",
+    desc: "SkillPipeline 将 YAML 定义的 skill 展开为多步工具调用流水线。每个 step 通过 registry 调用对应工具，支持参数模板替换（从 kwargs 或前一步输出中解析）。build_skill_tool() 将 pipeline 包装为 LangChain BaseTool。",
+    classes: [
+      {name: "SkillPipeline", methods: [
+        {name: "__init__", params: "(self, name, description, steps, on_error='stop', timeout_seconds=60.0)"},
+        {async: true, name: "execute", params: "(self, registry, **kwargs) → ToolResult"},
+        {static: true, name: "_resolve_arguments", params: "(arguments: dict, context: dict) → dict"},
+        {name: "name", params: "→ str", isProp: true},
+        {name: "description", params: "→ str", isProp: true},
+      ]}
+    ],
+    functions: [
+      {name: "build_skill_tool", params: "(pipeline: SkillPipeline, registry) → BaseTool"},
+    ]
+  },
+  "sandbox/tools/local/__init__.py": {
+    badge: "tool", badgeLabel: "本地工具",
+    desc: "本地工具子模块入口。导出 LOCAL_TOOL_FACTORIES 字典，映射工具名到工厂函数。每个工厂函数接收 workspace_root 路径，返回 workspace 绑定的 StructuredTool 实例。",
+    classes: [], functions: [],
+    source: `LOCAL_TOOL_FACTORIES = {
+    "fs_read":  create_fs_read_tool,
+    "fs_write": create_fs_write_tool,
+    "fs_edit":  create_fs_edit_tool,
+    "Glob":     create_glob_tool,
+    "Grep":     create_grep_tool,
+    "Bash":     create_bash_tool,
+}`
+  },
+  "sandbox/tools/local/_path_utils.py": {
+    badge: "util", badgeLabel: "安全工具",
+    desc: "路径安全工具集。safe_resolve() 将用户路径限制在 workspace 内，阻止路径穿越攻击。safe_cwd() 解析 Bash 工作目录。make_relative() 将绝对路径转为相对路径。",
+    classes: [], functions: [
+      {name: "safe_resolve", params: "(workspace_root: str, user_path: str) → str"},
+      {name: "safe_cwd", params: "(workspace_root: str, cwd: str) → str"},
+      {name: "make_relative", params: "(workspace_root: str, abs_path: str) → str"},
+    ],
+    source: `def safe_resolve(workspace_root: str, user_path: str) -> str:
+    """Resolve user_path relative to workspace_root, blocking traversal."""
+    full = os.path.normpath(os.path.join(workspace_root, user_path))
+    if not full.startswith(os.path.normpath(workspace_root)):
+        raise ValueError(f"Path traversal blocked: {user_path}")
+    return full
+
+
+def safe_cwd(workspace_root: str, cwd: str) -> str:
+    """Resolve a cwd for Bash, ensuring it stays within workspace."""
+    if not cwd:
+        return workspace_root
+    full = os.path.normpath(os.path.join(workspace_root, cwd))
+    if not full.startswith(os.path.normpath(workspace_root)):
+        raise ValueError(f"cwd escapes workspace: {cwd}")
+    return full
+
+
+def make_relative(workspace_root: str, abs_path: str) -> str:
+    """Convert an absolute path under workspace_root to relative."""
+    return os.path.relpath(abs_path, workspace_root)`
+  },
+  "sandbox/tools/local/fs_read.py": {
+    badge: "tool", badgeLabel: "本地工具",
+    desc: "fs_read —— 读取文件并返回带行号的文本。输出格式：<code>行号\\t内容</code>。文件超过 2000 行时默认仅显示前 500 行。目录路径提示用 Glob。",
+    classes: [{name: "FsReadInput", inherits: "BaseModel",
+      fields: [
+        {name: "path", type: "str"},
+        {name: "offset", type: "int", default: "1"},
+        {name: "limit", type: "int", default: "None"},
+      ], methods: []
+    }],
+    functions: [{name: "create_fs_read_tool", params: "(workspace_root: str) → StructuredTool"}]
+  },
+  "sandbox/tools/local/fs_write.py": {
+    badge: "tool", badgeLabel: "本地工具",
+    desc: "fs_write —— 创建或完全覆盖文件。自动创建中间目录。返回 <code>{"bytes_written": N}</code>。建议用 fs_edit 做局部修改。",
+    classes: [{name: "FsWriteInput", inherits: "BaseModel",
+      fields: [
+        {name: "path", type: "str"},
+        {name: "content", type: "str"},
+      ], methods: []
+    }],
+    functions: [{name: "create_fs_write_tool", params: "(workspace_root: str) → StructuredTool"}]
+  },
+  "sandbox/tools/local/fs_edit.py": {
+    badge: "tool", badgeLabel: "核心工具 ★",
+    desc: "fs_edit —— <strong>核心编辑工具</strong>。精确字符串替换，4 条规则：① 文件必须存在（不存在提示用 fs_write）② old_string 为空 = 追加到末尾 ③ old_string 必须恰好匹配一次（含空白字符）④ 0 次匹配报错建议用 fs_read 或 Grep 查看当前内容；多次匹配列出匹配行号建议增加上下文。返回 <code>{"replacements": 1}</code>。",
+    classes: [{name: "FsEditInput", inherits: "BaseModel",
+      fields: [
+        {name: "path", type: "str"},
+        {name: "old_string", type: "str"},
+        {name: "new_string", type: "str"},
+      ], methods: []
+    }],
+    functions: [{name: "create_fs_edit_tool", params: "(workspace_root: str) → StructuredTool"}]
+  },
+  "sandbox/tools/local/glob_.py": {
+    badge: "tool", badgeLabel: "本地工具",
+    desc: "Glob —— 文件名模式匹配。返回相对路径列表，按修改时间降序排列（最新的在前）。支持递归通配如 <code>**/*.py</code>。最多返回 200 条结果。",
+    classes: [{name: "GlobInput", inherits: "BaseModel",
+      fields: [
+        {name: "root", type: "str"},
+        {name: "pattern", type: "str"},
+      ], methods: []
+    }],
+    functions: [{name: "create_glob_tool", params: "(workspace_root: str) → StructuredTool"}]
+  },
+  "sandbox/tools/local/grep.py": {
+    badge: "tool", badgeLabel: "本地工具",
+    desc: "Grep —— 文件内容搜索。默认字面量匹配（regex=False），设置 regex=True 启用正则。返回 <code>[{path, line, col, content}]</code>。最多 50 条结果。可用 glob 参数过滤文件类型。",
+    classes: [{name: "GrepInput", inherits: "BaseModel",
+      fields: [
+        {name: "root", type: "str"},
+        {name: "query", type: "str"},
+        {name: "glob", type: "str", default: "None"},
+        {name: "regex", type: "bool", default: "False"},
+      ], methods: []
+    }],
+    functions: [{name: "create_grep_tool", params: "(workspace_root: str) → StructuredTool"}]
+  },
+  "sandbox/tools/local/bash.py": {
+    badge: "tool", badgeLabel: "本地工具",
+    desc: "Bash —— 在 workspace 内执行 Shell 命令。安全约束：cwd 限制在 workspace 内、拦截 <code>rm -rf</code> 等危险模式（正则：<code>rm\s+(-[a-zA-Z]*[rf]+|.*\/\*|.*\/\s*$)</code>）、stdout 截断至 50KB、最大 timeout 300s。",
+    classes: [{name: "BashInput", inherits: "BaseModel",
+      fields: [
+        {name: "cmd", type: "str"},
+        {name: "cwd", type: "str", default: '""'},
+        {name: "timeout", type: "int", default: "120"},
+      ], methods: []
+    }],
+    functions: [{name: "create_bash_tool", params: "(workspace_root: str) → StructuredTool"}]
+  },
+  "harness/runner.py": {
+    badge: "core", badgeLabel: "协调器",
+    desc: "HarnessRunner 是无状态协调器，聚合 SessionStore / ContextBuilder / ResourcePool / SandboxManager / ChannelRouter，在 process_turn() 中协调完整的 agentic loop。在 agent_mode=='multi' 时委托给 MultiAgentExecutor。<br><br><strong>关键修复 (v10)：</strong>_execute_tool() 现在通过 SandboxManager.get_sandbox_for_session() → Sandbox.execute() 路由执行，而非绕过沙箱直接调用 ToolRegistry。",
+    classes: [
+      {
+        name: "HarnessRunner",
+        methods: [
+          {name: "__init__", params: "(self, session_store, context_builder, resource_pool, sandbox_manager, channel_router, max_tool_turns, agent_mode, multi_agent_executor)"},
+          {async: true, name: "process_turn", params: "(self, user_message: Dict) → Dict"},
+          {async: true, name: "_ensure_session", params: "(self, session_id, account_id, channel_type)"},
+          {name: "_resolve_channel", params: "(self, raw: str) → Optional[ChannelType]"},
+          {name: "_build_context", params: "(self, events, channel_type, memories_text) → List[Dict]"},
+          {async: true, name: "_get_tools", params: "(self, user_content, session_id) → List[Dict]"},
+          {async: true, name: "_execute_tool", params: "(self, tool_name, arguments, session_id) → Dict"},
+          {async: true, name: "reflect", params: "(self, account_id) → Dict"},
+          {async: true, name: "get_metrics", params: "(self) → Dict"},
+          {async: true, name: "_send_response", params: "(self, content, user_message) → bool"},
+        ]
+      }
+    ], functions: []
+  },
+  "orchestration/worker.py": {
+    badge: "core", badgeLabel: "入口",
+    desc: "Orchestration Worker 是启动入口。启动序列：AppConfig.from_yaml() → init_dependencies() 组装所有依赖 → 连接 Temporal → 启动 Worker + 渠道监听。setup_tools() 返回 (mcp_manager, skill_definitions, retriever) 供 SandboxManager 使用。",
+    classes: [], functions: [
+      {async: true, name: "setup_tools", params: "(config: AppConfig) → (mcp_manager, skill_definitions, retriever)"},
+      {name: "_build_nsjail_config", params: "(sandbox: SandboxConfig) → NsjailConfig"},
+      {async: true, name: "init_dependencies", params: "(config: AppConfig) → (HarnessRunner, AccountService, ChannelRouter, SandboxManager, ...)"},
+      {async: true, name: "start_worker", params: "(config: AppConfig) → None"},
+      {async: true, name: "_setup_reflect_schedule", params: "(client, account_service, config) → None"},
+      {async: true, name: "_setup_metrics_schedule", params: "(client, config) → None"},
+    ]
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Tree building                                                             */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+const treeRoot = document.getElementById('tree');
+
+const TREE_STRUCTURE = {
+  "sandbox": {
+    children: {
+      "__init__.py": null,
+      "sandbox.py": null,
+      "sandbox_manager.py": null,
+      "nsjail.py": null,
+      "channels": {
+        children: {
+          "__init__.py": null,
+          "base.py": null,
+          "console.py": null,
+          "napcat.py": null,
+          "router.py": null,
+        }
+      },
+      "tools": {
+        children: {
+          "__init__.py": null,
+          "types.py": null,
+          "registry.py": null,
+          "retriever.py": null,
+          "store.py": null,
+          "adapters": {
+            children: {
+              "__init__.py": null,
+              "mcp.py": null,
+            }
+          },
+          "skills": {
+            children: {
+              "__init__.py": null,
+              "engine.py": null,
+            }
+          },
+          "local": {
+            children: {
+              "__init__.py": null,
+              "_path_utils.py": null,
+              "fs_read.py": null,
+              "fs_write.py": null,
+              "fs_edit.py": null,
+              "glob_.py": null,
+              "grep.py": null,
+              "bash.py": null,
+            }
+          }
+        }
+      }
+    }
+  },
+  "harness": {
+    children: {
+      "runner.py": null,
+    }
+  },
+  "orchestration": {
+    children: {
+      "worker.py": null,
+    }
+  }
+};
+
+function getFileKey(parts) {
+  return parts.join('/');
+}
+
+function buildTree( structure, parts, depth ) {
+  if (structure === null) return '';
+  const keys = Object.keys(structure.children || structure || {});
+  if (!keys.length) return '';
+
+  let html = '';
+  for (const name of keys) {
+    const childParts = [...parts, name];
+    const fullKey = getFileKey(childParts);
+    const isDir = structure.children && structure.children[name] && typeof structure.children[name] === 'object';
+    const hasChildren = isDir && Object.keys(structure.children[name].children || {}).length > 0;
+
+    const iconType = isDir ? 'dir' : (name === '__init__.py' ? 'init' : 'py');
+    const icon = isDir ? '📁' : (name === '__init__.py' ? '📦' : '🐍');
+
+    html += `<div class="tree-item">`;
+    html += `<div class="tree-row" data-key="${fullKey}" style="padding-left:${12 + depth * 16}px">`;
+    html += `<span class="tree-toggle ${hasChildren ? '' : 'empty'}">▶</span>`;
+    html += `<span class="tree-icon ${iconType}">${icon}</span>`;
+    html += `<span class="tree-name">${name}</span>`;
+    html += `</div>`;
+    if (hasChildren) {
+      html += `<div class="tree-children">`;
+      html += buildTree(structure.children[name], childParts, depth + 1);
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+  return html;
+}
+
+treeRoot.innerHTML = buildTree(TREE_STRUCTURE, [], 0);
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Event handlers                                                            */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+// Tree toggle
+treeRoot.addEventListener('click', (e) => {
+  const row = e.target.closest('.tree-row');
+  if (!row) return;
+
+  // Toggle folder
+  const toggle = row.querySelector('.tree-toggle');
+  if (toggle && !toggle.classList.contains('empty') && e.target === toggle) {
+    toggle.classList.toggle('expanded');
+    const children = row.parentElement.querySelector('.tree-children');
+    if (children) children.classList.toggle('open');
+    return;
+  }
+
+  // Select file
+  const key = row.dataset.key;
+  if (!key) return;
+
+  // Highlight
+  treeRoot.querySelectorAll('.tree-row.active').forEach(r => r.classList.remove('active'));
+  row.classList.add('active');
+
+  // Switch to file detail tab
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.tab[data-panel="file-detail"]').classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-file-detail').classList.add('active');
+
+  renderFileDetail(key);
+
+  // Auto-expand ancestors
+  let parent = row.parentElement;
+  while (parent) {
+    if (parent.classList.contains('tree-children')) {
+      parent.classList.add('open');
+      const toggle = parent.parentElement.querySelector('.tree-toggle');
+      if (toggle) toggle.classList.add('expanded');
+    }
+    parent = parent.parentElement;
+  }
+});
+
+// Tab switching
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('panel-' + tab.dataset.panel).classList.add('active');
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* File detail renderer                                                      */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+function renderFileDetail(key) {
+  const placeholder = document.getElementById('file-detail-placeholder');
+  const content = document.getElementById('file-detail-content');
+  const file = FILES[key];
+
+  if (!file) {
+    placeholder.style.display = 'block';
+    content.style.display = 'none';
+    return;
+  }
+
+  placeholder.style.display = 'none';
+  content.style.display = 'block';
+
+  let html = '';
+
+  // Header
+  const badgeClass = file.badge || 'infra';
+  html += `<h2><span class="badge badge-${badgeClass}">${file.badgeLabel}</span> ${key}</h2>`;
+  html += `<p class="desc">${file.desc}</p>`;
+
+  // Classes
+  if (file.classes && file.classes.length > 0) {
+    for (const cls of file.classes) {
+      html += `<div class="class-card">`;
+      html += `<div class="class-card-header">`;
+      html += `<span class="kw">class</span> ${cls.name}`;
+      if (cls.inherits) html += ` <span class="inherits">(${cls.inherits})</span>`;
+      html += `</div>`;
+      html += `<div class="class-card-body">`;
+
+      // Fields (for dataclasses)
+      if (cls.fields && cls.fields.length > 0) {
+        html += `<div class="class-card-section-title">Fields</div>`;
+        for (const f of cls.fields) {
+          html += `<div class="field-row">`;
+          html += `${f.name}<span class="type-hint">: ${f.type}</span>`;
+          if (f.default !== undefined) html += ` <span class="default">= ${f.default}</span>`;
+          html += `</div>`;
+        }
+      }
+
+      // Methods
+      if (cls.methods && cls.methods.length > 0) {
+        html += `<div class="class-card-section-title">Methods</div>`;
+        for (const m of cls.methods) {
+          html += `<div class="method-row">`;
+          if (m.async) html += `<span class="async">async</span>`;
+          if (m.static) html += `<span class="async" style="color:#8b949e">@staticmethod</span>`;
+          html += `<span class="def">def</span>`;
+          html += `<span class="name">${m.name}</span>`;
+          html += `<span class="params">${m.params}</span>`;
+          if (m.isAbstract) html += ` <span style="color:var(--red);font-size:11px;">abstract</span>`;
+          if (m.isProp) html += ` <span style="color:var(--purple);font-size:11px;">@property</span>`;
+          html += `</div>`;
+        }
+      }
+
+      html += `</div></div>`;
+    }
+  }
+
+  // Standalone functions
+  if (file.functions && file.functions.length > 0) {
+    for (const fn of file.functions) {
+      html += `<div class="func-card">`;
+      html += `<div class="func-card-header">`;
+      if (fn.async) html += `<span class="async">async</span>`;
+      html += `<span class="def">def</span>`;
+      html += `<span class="name">${fn.name}</span>`;
+      html += `<span class="params">${fn.params}</span>`;
+      html += `</div>`;
+      html += `</div>`;
+    }
+  }
+
+  // Source code
+  if (file.source) {
+    html += `<button class="toggle-source" onclick="this.nextElementSibling.classList.toggle('open'); this.textContent = this.textContent.includes('Show') ? 'Hide source' : 'Show source';">Show source</button>`;
+    html += `<div class="source-lines"><div class="source-block">`;
+    html += `<div class="source-block-header"><span>${key}</span></div>`;
+    html += `<pre>${escapeHtml(file.source)}</pre>`;
+    html += `</div></div>`;
+  }
+
+  content.innerHTML = html;
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+/* Toast                                                                     */
+/* ═══════════════════════════════════════════════════════════════════════════ */
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === '1' && !e.ctrlKey && !e.metaKey) {
+    document.querySelector('.tab[data-panel="overview"]').click();
+  } else if (e.key === '2' && !e.ctrlKey && !e.metaKey) {
+    document.querySelector('.tab[data-panel="file-detail"]').click();
+  } else if (e.key === '3' && !e.ctrlKey && !e.metaKey) {
+    document.querySelector('.tab[data-panel="tools"]').click();
+  } else if (e.key === '4' && !e.ctrlKey && !e.metaKey) {
+    document.querySelector('.tab[data-panel="exec-flow"]').click();
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# 每日摘要 Skill 示例
+# 将 web_search + file_read 组合为一个高级能力
+
+name: daily_report
+description: "Generate a daily briefing report — searches news, reads templates, and compiles a formatted summary."
+category: skill
+
+parameters:
+  type: object
+  properties:
+    topic:
+      type: string
+      description: "Report topic or focus area"
+    date:
+      type: string
+      description: "Target date for the report (YYYY-MM-DD)"
+  required: ["topic"]
+
+pipeline:
+  steps:
+    - id: search_news
+      tool: web_search
+      arguments:
+        query: "$topic latest news $date"
+
+    - id: read_template
+      tool: file_read
+      arguments:
+        file_path: "/workspace/templates/report_template.md"
+
+on_error: stop
+timeout_seconds: 60

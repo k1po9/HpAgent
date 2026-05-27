@@ -18,6 +18,12 @@ providers:
   minimax:
     base_url: "https://api.minimaxi.com/anthropic/v1"
     api_key: "${MINIMAX_API_KEY}"
+    api_format: "anthropic"
+
+  local-embed:
+    base_url: "http://embeddings:8080/v1"
+    api_key: ""
+    api_format: "openai"
 
   # 可继续添加更多提供商:
   # azure:
@@ -33,10 +39,10 @@ chat:
     timeout: 30.0
 
 # ── 向量化模型 ────────────────────────────────────────────────────────────────
-# Hindsight 长期记忆系统用于文本转向量
+# Hindsight 长期记忆 + 工具 RAG 共用 TEI BGE-M3 服务
 embedding:
-  - provider: minimax
-    model: "embo-01"
+  - provider: local-embed
+    model: "BAAI/bge-m3"
     timeout: 30.0
 
 
@@ -53,3 +59,19 @@ reasoning:
     model: "MiniMax-M2.7"
     max_tokens: 4096
     timeout: 60.0
+
+# ── 工具 RAG 检索配置 ──────────────────────────────────────────────
+tool_rag:
+  enabled: true               # 启用 RAG 动态注入（按语义检索相关工具）
+  top_k: 8                    # 每轮注入的工具数量
+  persist_path: "tools/vectors"  # ChromaDB 持久化路径
+
+# ── MCP Server 配置 ──────────────────────────────────────────────────
+mcp:
+  config_path: "tools/definitions/mcp/servers.yaml"
+  auto_connect: false
+
+# ── Skills 配置 ─────────────────────────────────────────────────────
+skills:
+  config_path: "tools/skills/"
+  enabled: true

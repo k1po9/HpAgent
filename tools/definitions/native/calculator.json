@@ -1,0 +1,20 @@
+{
+  "name": "calculator",
+  "description": "Evaluate a mathematical expression. Supports +, -, *, /, **, %, and parentheses.",
+  "category": "native",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "expression": {
+        "type": "string",
+        "description": "Mathematical expression to evaluate, e.g. '2+3*4'"
+      }
+    },
+    "required": ["expression"]
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "author": "HpAgent",
+    "tags": ["math", "calculator"]
+  }
+}
