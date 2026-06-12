@@ -56,6 +56,9 @@ class EventType(str, Enum):
     MEMORY_RECALL = "memory_recall"          # Hindsight 记忆召回
     MEMORY_RETAIN = "memory_retain"          # Hindsight 记忆提取存储
     MEMORY_REFLECT = "memory_reflect"        # Hindsight 深度记忆推理
+    CONTEXT_INHERIT = "context_inherit"      # 跨会话上下文继承标记
+    TOOL_RETRIEVAL = "tool_retrieval"        # 工具 RAG 检索结果（审计用）
+    TOOL_SUMMARY = "tool_summary"            # Fast 模型工具输出摘要（审计用）
 
 
 class ChannelType(str, Enum):
@@ -65,6 +68,7 @@ class ChannelType(str, Enum):
     ChannelRouter 根据此枚举值将响应路由到正确的渠道实现。
     """
     NAPCAT = "napcat"       # NapCat/OneBot v11 协议 → QQ 聊天
+    OFFICIAL_QQ = "official_qq"  # 官方 QQ 机器人 API v2 → QQ 聊天
     WEB = "web"             # Web 页面 → 浏览器端
     CONSOLE = "console"     # 控制台终端 → CLI
 

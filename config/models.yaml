@@ -7,6 +7,7 @@
 #   models.<category>: 按类别的模型降级链（从上到下 = 优先 → 回退）
 #
 # 类别:
+#   fast:      轻量快速模型（工具结果摘要、历史压缩、归档总结）
 #   chat:      文本对话模型（HpAgent 主流程）
 #   embedding: 向量化模型（Hindsight 记忆系统）
 #   image:     图像生成模型
@@ -16,13 +17,23 @@
 # ── API 提供商 ────────────────────────────────────────────────────────────────
 providers:
   minimax:
-    base_url: "https://api.minimaxi.com/anthropic/v1"
+    base_url: "${MINIMAX_API_BASE_URL}"
     api_key: "${MINIMAX_API_KEY}"
-    api_format: "anthropic"
+    api_format: "openai"
 
-  local-embed:
-    base_url: "http://embeddings:8080/v1"
-    api_key: ""
+  mimo:
+    base_url: "${MIMO_API_BASE_URL}"
+    api_key: "${MIMO_API_KEY}"
+    api_format: "openai"
+
+  siliconflow:
+    base_url: "${SILICONFLOW_BASE_URL}"
+    api_key: "${SILICONFLOW_API_KEY}"
+    api_format: "openai"
+
+  alibaba:
+    base_url: "${ALIBABA_BAILIAN_BASE_URL}"
+    api_key: "${ALIBABA_BAILIAN_API_KEY}"
     api_format: "openai"
 
   # 可继续添加更多提供商:
@@ -30,20 +41,41 @@ providers:
   #   base_url: "https://YOUR_RESOURCE.openai.azure.com"
   #   api_key: ""
 
+# ── 轻量快速模型 ──────────────────────────────────────────────────────────────
+# 工具结果摘要 / 历史压缩 / 归档总结 / Hindsight retain
+# 原则：低延迟低成本的模型，只做结构化提取和简单总结
+fast:
+  - provider: mimo
+    model: ${MIMO_MODEL}
+    max_tokens: 1024
+    timeout: 15.0
+    extra_body:
+      enable_thinking: false
+  - provider: alibaba
+    model: "${ALIBABA_BAILIAN_FAST_MODEL}"
+    max_tokens: 1024
+    timeout: 20.0
+  - provider: siliconflow
+    model: "${SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL}"
+    max_tokens: 1024
+    timeout: 20.0
+
 # ── 文本对话模型 ──────────────────────────────────────────────────────────────
 # HpAgent 主流程使用的模型链：从上到下依次尝试，失败后降级到下一个
 chat:
-  - provider: minimax
-    model: "MiniMax-M2.7"
-    max_tokens: 2048
+  - provider: mimo
+    model: "${MIMO_PRO_MODEL}"
+    max_tokens: 4096
     timeout: 30.0
+    extra_body:
+      enable_thinking: false
 
 # ── 向量化模型 ────────────────────────────────────────────────────────────────
-# Hindsight 长期记忆 + 工具 RAG 共用 TEI BGE-M3 服务
+# SiliconFlow 云端 BGE-M3
 embedding:
-  - provider: local-embed
-    model: "BAAI/bge-m3"
-    timeout: 30.0
+  - provider: siliconflow
+    model: "${SILICONFLOW_EMBEDDING_MODEL}"
+    timeout: 10.0
 
 
 # ── 图像生成模型 ──────────────────────────────────────────────────────────────
@@ -55,23 +87,61 @@ image:
 # ── 深度推理模型 ──────────────────────────────────────────────────────────────
 # 处理复杂多步骤任务时的可选回退（需更长超时）
 reasoning:
+  - provider: mimo
+    model: "${MIMO_MODEL}"
+    max_tokens: 4096
+    timeout: 60.0
   - provider: minimax
     model: "MiniMax-M2.7"
     max_tokens: 4096
     timeout: 60.0
 
+# ── Rerank 重排序模型 ───────────────────────────────────────────────
+# SiliconFlow BGE Reranker 云端服务（工具检索 + 记忆召回精排）
+rerank:
+  provider: siliconflow
+  model: "${SILICONFLOW_RERANK_MODEL}"
+  timeout: 10.0
+  top_n: 10
+
 # ── 工具 RAG 检索配置 ──────────────────────────────────────────────
 tool_rag:
   enabled: true               # 启用 RAG 动态注入（按语义检索相关工具）
-  top_k: 8                    # 每轮注入的工具数量
+  top_k: 12                    # 每轮注入的工具数量上限
+  max_merged_multiplier: 1.5  # 多路检索合并缓冲系数（max_merged = top_k × multiplier）
+  per_query_min: 3            # 多路检索每查询最少召回数
   persist_path: "tools/vectors"  # ChromaDB 持久化路径
 
 # ── MCP Server 配置 ──────────────────────────────────────────────────
 mcp:
-  config_path: "tools/definitions/mcp/servers.yaml"
-  auto_connect: false
+  config_path: "config/mcp/servers.yaml"
+  auto_connect: true
 
 # ── Skills 配置 ─────────────────────────────────────────────────────
 skills:
   config_path: "tools/skills/"
   enabled: true
+
+# ── 渠道模型参数覆盖 ──────────────────────────────────────────────
+# 每个渠道可覆盖 max_tokens / timeout，缺省使用上方模型链的默认值
+channel_overrides:
+  napcat:
+    max_tokens: 4096
+    timeout: 30.0
+    stream: false
+  official_qq:
+    max_tokens: 4096
+    timeout: 30.0
+    stream: false
+  console:
+    max_tokens: 2048
+    timeout: 60.0
+    stream: false
+  web:
+    max_tokens: 1024
+    timeout: 30.0
+    stream: false
+  default:
+    max_tokens: 1024
+    timeout: 30.0
+    stream: false

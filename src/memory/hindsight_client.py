@@ -101,9 +101,12 @@ class MemoryItem:
 
     @classmethod
     def from_recall_result(cls, data: Dict[str, Any]) -> "MemoryItem":
+        # Hindsight v0.6.1 RecallResult 不含任何评分字段（score/similarity/
+        # relevance/distance 均不存在），服务端按相关度降序返回。
+        # relevance 初始设为 0，由调用方根据列表序位计算合成分数。
         return cls(
             content=data.get("text", ""),
-            relevance=1.0,
+            relevance=0.0,
             memory_type=data.get("type", ""),
             source_session_id=data.get("document_id", ""),
             created_at=data.get("mentioned_at", data.get("occurred_start", "")),
@@ -149,6 +152,9 @@ class HindsightClient:
         prompt_loader=None,
         retain_mission: str = "",
         reflect_mission: str = "",
+        retain_timeout: float = 30.0,
+        recall_timeout: float = 10.0,
+        reflect_timeout: float = 120.0,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
@@ -159,6 +165,9 @@ class HindsightClient:
         self.metrics = HindsightMetrics()
         self._retain_mission = retain_mission
         self._reflect_mission = reflect_mission
+        self.retain_timeout = retain_timeout
+        self.recall_timeout = recall_timeout
+        self.reflect_timeout = reflect_timeout
 
     # ── HTTP helpers ──────────────────────────────────────────────────────
 
@@ -172,24 +181,26 @@ class HindsightClient:
         return f"hpagent-u-{user_id}"
 
     async def _request(
-        self, method: str, path: str, body: Optional[Dict[str, Any]] = None
+        self, method: str, path: str, body: Optional[Dict[str, Any]] = None,
+        timeout: float | None = None,
+        retry_on_5xx: bool = True,
     ) -> Optional[Dict[str, Any]]:
         """发送 HTTP 请求，失败返回 None。
 
         错误分类:
           - 超时: 不重试（已占用时间），记录指标
           - 429 限流: 指数退避重试（最多 2 次）
-          - 5xx 服务端错误: 退避重试（最多 2 次）
+          - 5xx 服务端错误: retry_on_5xx=True 时退避重试，False 时立即降级
           - 4xx 客户端错误: 不重试（参数问题）
           - 连接错误: 标记降级，返回 None
         """
         if not self.enabled:
             return None
+        _timeout = timeout if timeout is not None else self.timeout
         url = f"{self.base_url}{path}"
-        last_status: int | None = None
         for attempt in range(3):
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                async with httpx.AsyncClient(timeout=_timeout) as client:
                     resp = await client.request(
                         method, url, json=body, headers=self._headers()
                     )
@@ -201,7 +212,6 @@ class HindsightClient:
                 return None  # 超时不重试，已占用时间
             except httpx.HTTPStatusError as e:
                 status = e.response.status_code
-                last_status = status
                 if status == 429:
                     if attempt < 2:
                         wait = 2 ** attempt
@@ -212,12 +222,13 @@ class HindsightClient:
                     self.metrics.degraded += 1
                     return None
                 elif status >= 500:
-                    if attempt < 2:
+                    if retry_on_5xx and attempt < 2:
                         wait = 2 ** attempt
                         logger.warning("Hindsight server error %s, retrying in %ds (attempt %d/3)", status, wait, attempt + 1)
                         await asyncio.sleep(wait)
                         continue
-                    logger.warning("DEGRADATION: Hindsight server error %s, exhausted retries", status)
+                    logger.warning("DEGRADATION: Hindsight server error %s, %s", status,
+                                   "exhausted retries" if retry_on_5xx else "no retry (fast-degrade)")
                     self.metrics.degraded += 1
                     return None
                 else:
@@ -232,11 +243,12 @@ class HindsightClient:
                 return None
         return None
 
-    async def _post(self, path: str, body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        return await self._request("POST", path, body)
+    async def _post(self, path: str, body: Dict[str, Any], timeout: float | None = None,
+                    retry_on_5xx: bool = True) -> Optional[Dict[str, Any]]:
+        return await self._request("POST", path, body, timeout=timeout, retry_on_5xx=retry_on_5xx)
 
-    async def _put(self, path: str, body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        return await self._request("PUT", path, body)
+    async def _put(self, path: str, body: Dict[str, Any], timeout: float | None = None) -> Optional[Dict[str, Any]]:
+        return await self._request("PUT", path, body, timeout=timeout)
 
     # ── Bank 管理 ─────────────────────────────────────────────────────────
 
@@ -260,7 +272,7 @@ class HindsightClient:
         )
         if result is not None:
             self._ready_banks.add(bank_id)
-            logger.info("Hindsight bank ensured: %s", bank_id)
+            logger.debug("Hindsight bank ensured: %s", bank_id)
         else:
             logger.warning("Hindsight bank creation failed: %s", bank_id)
         return bank_id in self._ready_banks
@@ -340,6 +352,7 @@ class HindsightClient:
         result = await self._post(
             f"{_API_PREFIX}/{bank_id}/memories",
             {"items": items, "async": async_retain},
+            timeout=self.retain_timeout,
         )
         elapsed_ms = (time_mod.monotonic() - t0) * 1000
         self.metrics.retain_latency_ms.append(elapsed_ms)
@@ -452,6 +465,8 @@ class HindsightClient:
         result = await self._post(
             f"{_API_PREFIX}/{bank_id}/memories/recall",
             body,
+            timeout=self.recall_timeout,
+            retry_on_5xx=False,
         )
         elapsed_ms = (time_mod.monotonic() - t0) * 1000
         self.metrics.recall_latency_ms.append(elapsed_ms)
@@ -463,6 +478,11 @@ class HindsightClient:
             return []
         self.metrics.recall_success += 1
         items = [MemoryItem.from_recall_result(m) for m in raw_items]
+        # Hindsight v0.6.1 不返回 per-item 评分，按序位计算合成相关度：
+        # 列表按相关度降序排列，第 1 条最相关 → relevance 趋近 1.0
+        total = len(items)
+        for i, item in enumerate(items):
+            item.relevance = round((total - i) / total, 4) if total > 1 else 1.0
         return items[:top_n]
 
     @staticmethod
@@ -508,6 +528,7 @@ class HindsightClient:
                 "tags": [],
                 "budget": "low",
             },
+            timeout=self.reflect_timeout,
         )
         if result is None:
             self.metrics.reflect_failure += 1
@@ -542,8 +563,8 @@ class HindsightClient:
 
     async def recall_formatted(
         self,
-        query: str,
-        user_id: str,
+        query: str = "",
+        user_id: str = "",
         session_id: str = "",
         top_n: int = 5,
         tags_match: str = "any_strict",
@@ -552,33 +573,27 @@ class HindsightClient:
         group_id: str = "",
         scope: str = "",
         channel_type: str = "",
+        *,
+        items: List[MemoryItem] | None = None,
     ) -> str:
         """召回记忆并格式化为 prompt 段落。
 
-        Args:
-            query:           检索查询。
-            user_id:         用户 ID。
-            session_id:      会话 ID。
-            top_n:           最大记忆数。
-            tags_match:      标签匹配策略。
-            query_timestamp: ISO 8601 时间锚点。
-            budget:          检索预算。
-            group_id:        群 ID。
-            scope:           对话范围。
-            channel_type:    渠道类型。
+        可通过 items= 传入已召回的记忆列表（避免重复 HTTP 调用）。
+        未传入 items 时自动调用 recall()。
 
         Returns:
             可直接注入 system prompt 的格式化文本，无记忆时返回空字符串。
         """
-        items = await self.recall(
-            query, user_id, session_id, top_n,
-            tags_match=tags_match,
-            query_timestamp=query_timestamp,
-            budget=budget,
-            group_id=group_id,
-            scope=scope,
-            channel_type=channel_type,
-        )
+        if items is None:
+            items = await self.recall(
+                query, user_id, session_id, top_n,
+                tags_match=tags_match,
+                query_timestamp=query_timestamp,
+                budget=budget,
+                group_id=group_id,
+                scope=scope,
+                channel_type=channel_type,
+            )
         if not items:
             return ""
         lines = ["# 相关记忆", ""]

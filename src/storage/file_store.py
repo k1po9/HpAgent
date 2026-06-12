@@ -23,7 +23,7 @@ class LocalFileStore:
 
     用法::
 
-        store = LocalFileStore(root=Path(".data/data/sessions"))
+        store = LocalFileStore(root=Path(".data/active-sessions"))
         content = await store.read("session-abc.jsonl")
         await store.write("session-abc.jsonl", json_line + "\\n")
         files = await store.list(".", pattern="*.jsonl")

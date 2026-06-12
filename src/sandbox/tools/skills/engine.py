@@ -5,9 +5,10 @@ SkillPipeline —— Skills 复合工具编排引擎。
 内部由流水线步骤顺序执行。
 """
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import BaseTool, StructuredTool
+from pydantic import Field, create_model
 
 from sandbox.tools.types import ToolResult
 
@@ -89,14 +90,97 @@ class SkillPipeline:
         return self._description
 
 
-def build_skill_tool(pipeline: SkillPipeline, registry) -> BaseTool:
+def _json_to_python(json_type: str):
+    """将 JSON Schema type 映射为 Python 类型。"""
+    _map = {
+        "string": str,
+        "integer": int,
+        "number": float,
+        "boolean": bool,
+        "array": list,
+        "object": dict,
+    }
+    return _map.get(json_type, str)
+
+
+def build_skill_tool(pipeline: SkillPipeline, registry, parameters: dict = None) -> BaseTool:
     """将 SkillPipeline 包装为 LangChain BaseTool —— LLM 视为普通工具调用。"""
 
     async def _execute_skill(**kwargs) -> ToolResult:
         return await pipeline.execute(registry, **kwargs)
 
+    # 从 YAML parameters 构建 Pydantic 字段
+    fields = {}
+    if parameters:
+        props = parameters.get("properties", {})
+        required_fields = set(parameters.get("required", []))
+        for prop_name, prop_schema in props.items():
+            prop_type = _json_to_python(prop_schema.get("type", "string"))
+            desc = prop_schema.get("description", "")
+            if prop_name in required_fields:
+                fields[prop_name] = (prop_type, Field(description=desc))
+            else:
+                fields[prop_name] = (Optional[prop_type], Field(default=None, description=desc))
+
+    SkillArgs = create_model(
+        f"skill_{pipeline.name}_args".replace("-", "_"),
+        **fields,
+    )
+
     return StructuredTool.from_function(
         name=pipeline.name,
         description=pipeline.description,
+        args_schema=SkillArgs,
         coroutine=_execute_skill,
+        metadata={"category": "skill"},
     )
+
+
+def _build_instruction_tool(name: str, description: str, body: str) -> BaseTool:
+    """构建指令型 skill 工具 —— 调用时返回 SKILL.md body 内容供 LLM 参考。"""
+
+    InstructionArgs = create_model(
+        f"skill_{name}_args".replace("-", "_"),
+    )
+
+    async def _get_instructions(**kwargs) -> ToolResult:
+        return ToolResult(
+            success=True,
+            output=body,
+            metadata={"skill_name": name, "type": "instruction"},
+        )
+
+    return StructuredTool.from_function(
+        name=name,
+        description=description,
+        args_schema=InstructionArgs,
+        coroutine=_get_instructions,
+        metadata={"category": "skill"},
+    )
+
+
+def build_skill_tool_from_definition(skill_def: dict, registry) -> BaseTool:
+    """统一的 skill 工具构建入口 —— 根据 definition type 分发。
+
+    支持两种 skill 类型:
+      - "pipeline":    流水线型（HpAgent 原生格式），多步骤工具编排
+      - "instruction": 指令型（SKILL.md 格式），调用时返回指导内容
+    """
+    skill_type = skill_def.get("type", "pipeline")
+
+    if skill_type == "instruction":
+        return _build_instruction_tool(
+            name=skill_def["name"],
+            description=skill_def.get("description", ""),
+            body=skill_def.get("body", ""),
+        )
+
+    # pipeline 类型（默认）
+    pipeline = SkillPipeline(
+        name=skill_def["name"],
+        description=skill_def.get("description", ""),
+        steps=skill_def.get("pipeline", {}).get("steps", []),
+        on_error=skill_def.get("on_error", "stop"),
+        timeout_seconds=skill_def.get("timeout_seconds", 60.0),
+    )
+    return build_skill_tool(pipeline, registry, skill_def.get("parameters"))

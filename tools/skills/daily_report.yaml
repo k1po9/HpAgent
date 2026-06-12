@@ -1,32 +1,21 @@
-# 每日摘要 Skill 示例
-# 将 web_search + file_read 组合为一个高级能力
-
 name: daily_report
-description: "Generate a daily briefing report — searches news, reads templates, and compiles a formatted summary."
-category: skill
-
+description: "搜索指定主题的最新新闻，读取报告模板，生成格式化日报"
 parameters:
   type: object
   properties:
     topic:
       type: string
-      description: "Report topic or focus area"
-    date:
-      type: string
-      description: "Target date for the report (YYYY-MM-DD)"
+      description: "报告主题或关键词"
   required: ["topic"]
-
 pipeline:
   steps:
-    - id: search_news
-      tool: web_search
+    - id: search
+      tool: tavily-search
       arguments:
-        query: "$topic latest news $date"
-
+        query: "$topic 最新消息"
     - id: read_template
-      tool: file_read
+      tool: fs_read
       arguments:
-        file_path: "/workspace/templates/report_template.md"
-
-on_error: stop
+        path: "/workspace/templates/report_template.md"
+on_error: continue
 timeout_seconds: 60

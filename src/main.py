@@ -30,6 +30,15 @@ if not _config_dir.exists():
     _config_dir = _base.parent / "config"
 _project_root = _config_dir.parent
 
+# ── 加载 .env 环境变量（必须在所有模块导入之前）──
+try:
+    from dotenv import load_dotenv
+    _env_file = _project_root / ".env"
+    if _env_file.exists():
+        load_dotenv(_env_file)
+except ImportError:
+    pass
+
 # ── 日志配置（数据路径锚定到项目根目录）──
 from common.logging import setup_logging
 

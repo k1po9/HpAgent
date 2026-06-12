@@ -34,6 +34,7 @@ NapCatChannel —— NapCat QQ 协议通道，通过 WebSocket 连接 OneBot v11
 import asyncio
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional, Callable, Awaitable
 
@@ -55,6 +56,69 @@ def _safe_str(value: Any, default: str = "") -> str:
     if value is None:
         return default
     return str(value)
+
+
+_CQ_PATTERN = re.compile(r"\[CQ:[^\]]*\]")
+
+
+def _strip_cq_codes(text: str) -> str:
+    """剥离 OneBot CQ 码（如 [CQ:at,qq=xxx]、[CQ:image,...]）。
+
+    避免 CQ 码污染 agent 用户消息、RAG 查询和记忆召回。
+    连续空白合并为一个空格。
+    """
+    cleaned = _CQ_PATTERN.sub("", text)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+    return cleaned or text.strip()
+
+
+def _build_message_content(
+    segments: list, metadata: dict,
+) -> str:
+    """从 OneBot message 段数组构建 agent 可读的消息内容。
+
+    - 文本段: 直接拼接
+    - 图片段: 替换为 "[图片]"，URL 存入 metadata._images
+    - @段:    跳过（已通过 is_at_bot 判断）
+    - 其他段: 跳过
+
+    Returns:
+        str: 可读的消息内容。纯图片时返回 "[图片]" 而非空字符串。
+    """
+    text_parts: list[str] = []
+    images: list[str] = []
+
+    for seg in segments:
+        if not isinstance(seg, dict):
+            continue
+        seg_type = seg.get("type", "")
+        seg_data = seg.get("data", {})
+
+        if seg_type == "text":
+            txt = str(seg_data.get("text", "")).strip()
+            if txt:
+                text_parts.append(txt)
+        elif seg_type == "image":
+            url = str(seg_data.get("url", ""))
+            file_name = str(seg_data.get("file", ""))
+            if url:
+                images.append(url)
+            elif file_name:
+                images.append(file_name)
+            text_parts.append("[图片]")
+        elif seg_type == "at":
+            pass  # @ 由 is_at_bot 单独处理
+        elif seg_type == "face":
+            pass  # 表情 → 跳过
+        elif seg_type == "reply":
+            pass  # 回复引用 → 跳过
+        # 其他未知类型静默跳过
+
+    if images:
+        metadata["_images"] = images
+        metadata["_image_count"] = len(images)
+
+    return " ".join(text_parts).strip()
 
 
 class NapCatChannel(BaseChannel):
@@ -143,13 +207,30 @@ class NapCatChannel(BaseChannel):
 
             sender = data.get("sender", {})
             sender_id = _safe_str(sender.get("user_id"))
-            content = data.get("raw_message", "") or data.get("message", "")
             metadata["sender_name"] = _safe_str(sender.get("card") or sender.get("nickname"))
 
-            # @机器人 检测: 解析 message 段中的 at 类型
-            metadata["is_at_bot"] = False
+            # ── 消息内容构建: 从 segments 结构化解析 ──
+            # 图片 → "[图片]" + URL 入 metadata；文本 → 直接拼接；
+            # @ → 跳过。raw_message 作为兜底（segments 为字符串时）。
             message_segments = data.get("message", [])
+            if isinstance(message_segments, list) and message_segments:
+                content = _build_message_content(message_segments, metadata)
+                # 纯图片时 content 为 "[图片]"，不再被 worker 空消息过滤
+                if not content:
+                    content = _strip_cq_codes(
+                        data.get("raw_message", "")
+                    )
+            else:
+                # 兜底：segments 为 str 或不存在时走旧路径
+                content = _strip_cq_codes(
+                    data.get("raw_message", "") or data.get("message", "")
+                )
+            metadata["_raw_message"] = data.get("raw_message", "")
+
+            # @机器人 检测: 复用上方已解析的 message 段中的 at 类型
+            metadata["is_at_bot"] = False
             self_id = str(data.get("self_id", ""))
+            metadata["self_id"] = self_id
             if isinstance(message_segments, list) and self_id:
                 for seg in message_segments:
                     if seg.get("type") == "at" and str(seg.get("data", {}).get("qq")) == self_id:

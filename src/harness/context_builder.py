@@ -13,237 +13,20 @@ LLM API 接受的标准 messages 格式: [{"role": "system", ...}, {"role": "use
   由 build() 时自动检测并按对应渠道组装身份 prompt。
 
 prompt 拼接顺序（_build_system_prompt）：
-  渠道身份声明 → 风格提示 → 跨渠道检测 → 工具纪律 → 环境感知 → 项目上下文文件
+  渠道身份（含风格） → 跨渠道检测 → 工具纪律 → 环境感知
+    → 记忆注入 → 会话内摘要 → 跨会话上下文
 
 所有 prompt 文本从 YAML 文件加载（config/prompts/），由 PromptLoader 提供，
 可通过编辑 YAML 文件实时调整，无需改代码。
 """
-import functools
 import logging
-import os
-import re
-from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 from common.types import Event, EventType, ChannelType
+from common.token_counter import estimate_tokens
 from harness.prompts import PromptLoader
 
 logger = logging.getLogger(__name__)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# 上下文文件加载 —— 自动发现 .hermes.md / CLAUDE.md / .cursorrules / SOUL.md
-# ═══════════════════════════════════════════════════════════════════════════════
-
-CONTEXT_FILE_MAX_CHARS = 20_000
-CONTEXT_TRUNCATE_HEAD_RATIO = 0.7         # 超长截断时保留文件头部 70%
-CONTEXT_TRUNCATE_TAIL_RATIO = 0.2         # 保留尾部 20%，中间插入截断标记
-
-# prompt 注入检测正则 —— 扫描上下文文件中是否包含常见攻击模式
-_CONTEXT_THREAT_PATTERNS = [
-    (r'ignore\s+(previous|all|above|prior)\s+instructions', "prompt_injection"),
-    (r'do\s+not\s+tell\s+the\s+user', "deception_hide"),
-    (r'system\s+prompt\s+override', "sys_prompt_override"),
-    (r'disregard\s+(your|all|any)\s+(instructions|rules|guidelines)', "disregard_rules"),
-    (r'act\s+as\s+(if|though)\s+you\s+(have\s+no|don\'t\s+have)\s+(restrictions|limits|rules)', "bypass_restrictions"),
-    (r'<!--[^>]*(?:ignore|override|system|secret|hidden)[^>]*-->', "html_comment_injection"),
-]
-
-# 不可见 Unicode 字符集 —— 可能用于隐写注入攻击
-_CONTEXT_INVISIBLE_CHARS = {
-    '​', '‌', '‍', '⁠', '﻿',
-    '‪', '‫', '‬', '‭', '‮',
-}
-
-
-@functools.lru_cache(maxsize=1)
-def _is_wsl() -> bool:
-    try:
-        return "microsoft" in Path("/proc/version").read_text().lower()
-    except Exception:
-        return False
-
-
-@functools.lru_cache(maxsize=1)
-def _is_docker() -> bool:
-    try:
-        return Path("/.dockerenv").exists()
-    except Exception:
-        return False
-
-
-def _scan_context_content(content: str, filename: str, prompts: Optional[PromptLoader] = None) -> str:
-    """扫描上下文文件内容，检测并阻断 prompt 注入攻击。
-
-    检查项：
-      1. 不可见 Unicode 字符（零宽空格、方向控制符等）
-      2. 已知攻击模式（ignore previous instructions、system override 等）
-
-    命中后不加载原始内容，而是返回拦截信息告知模型。
-    """
-    findings = []
-    for char in _CONTEXT_INVISIBLE_CHARS:
-        if char in content:
-            findings.append(f"invisible unicode U+{ord(char):04X}")
-    for pattern, pid in _CONTEXT_THREAT_PATTERNS:
-        if re.search(pattern, content, re.IGNORECASE):
-            findings.append(pid)
-    if findings:
-        logger.warning("上下文文件 %s 被拦截: %s", filename, ", ".join(findings))
-        if prompts:
-            return prompts.format_injection_blocked(filename, ", ".join(findings))
-        return f"[已拦截: {filename} 包含潜在 prompt 注入 ({', '.join(findings)})，内容未加载。]"
-    return content
-
-
-def _truncate_content(content: str, label: str, max_chars: int = CONTEXT_FILE_MAX_CHARS,
-                     prompts: Optional[PromptLoader] = None) -> str:
-    """超长文本截断: 保留头部 70% + 尾部 20%，中间插入截断标记。
-
-    保留头和尾的原因是：头部通常包含规则和约束，尾部是最新内容。
-    """
-    if len(content) <= max_chars:
-        return content
-    head_chars = int(max_chars * CONTEXT_TRUNCATE_HEAD_RATIO)
-    tail_chars = int(max_chars * CONTEXT_TRUNCATE_TAIL_RATIO)
-    head = content[:head_chars]
-    tail = content[-tail_chars:]
-    if prompts:
-        marker = prompts.format_truncate_marker(label, head_chars, tail_chars, len(content))
-    else:
-        marker = f"\n\n[...已截断 {label}：保留 {head_chars}+{tail_chars} 字符 / 共 {len(content)} 字符。使用文件工具读取完整内容。]\n\n"
-    return head + marker + tail
-
-
-def _find_project_root(start: Path) -> Optional[Path]:
-    """向上查找 .git 目录，定位项目根目录。
-
-    用于 .hermes.md 的多级向上搜索 —— 从 cwd 开始，直到 git root。
-    """
-    current = start.resolve()
-    for parent in [current, *current.parents]:
-        if (parent / ".git").exists():
-            return parent
-    return None
-
-
-def _load_hermes_md(cwd: Path, prompts: Optional[PromptLoader] = None) -> str:
-    """加载 .hermes.md 或 HERMES.md —— 逐级向上搜索至 git 根目录，返回第一个命中。
-
-    YAML frontmatter 处理：如果文件以 '---' 开头，跳过第一段 frontmatter。
-    """
-    names = (".hermes.md", "HERMES.md")
-    root = _find_project_root(cwd)
-    current = cwd.resolve()
-    for directory in [current, *current.parents]:
-        for name in names:
-            candidate = directory / name
-            if candidate.is_file():
-                raw = candidate.read_text(encoding="utf-8")
-                # 跳过 YAML frontmatter (--- ... ---)
-                if raw.startswith("---"):
-                    end = raw.find("\n---", 3)
-                    if end != -1:
-                        raw = raw[end + 4:].lstrip("\n")
-                content = raw.strip()
-                if not content:
-                    return ""
-                content = _scan_context_content(content, name, prompts)
-                result = f"## {name}\n\n{content}"
-                return _truncate_content(result, name, prompts=prompts)
-        if root and directory == root:
-            break
-    return ""
-
-
-def _load_context_file(cwd: Path, names: tuple, prompts: Optional[PromptLoader] = None) -> str:
-    """加载 cwd 下的具名上下文文件（如 AGENTS.md / CLAUDE.md），返回第一个存在且非空的。"""
-    for name in names:
-        candidate = cwd / name
-        if candidate.is_file():
-            raw = candidate.read_text(encoding="utf-8").strip()
-            if raw:
-                raw = _scan_context_content(raw, name, prompts)
-                result = f"## {name}\n\n{raw}"
-                return _truncate_content(result, name, prompts=prompts)
-    return ""
-
-
-def _load_cursorrules(cwd: Path, prompts: Optional[PromptLoader] = None) -> str:
-    """加载 .cursorrules 及 .cursor/rules/*.mdc 规则文件。"""
-    parts = []
-    cursorrules_file = cwd / ".cursorrules"
-    if cursorrules_file.is_file():
-        raw = cursorrules_file.read_text(encoding="utf-8").strip()
-        if raw:
-            raw = _scan_context_content(raw, ".cursorrules", prompts)
-            parts.append(f"## .cursorrules\n\n{raw}")
-    rules_dir = cwd / ".cursor" / "rules"
-    if rules_dir.is_dir():
-        for mdc_file in sorted(rules_dir.glob("*.mdc")):
-            raw = mdc_file.read_text(encoding="utf-8").strip()
-            if raw:
-                raw = _scan_context_content(raw, f".cursor/rules/{mdc_file.name}", prompts)
-                parts.append(f"## .cursor/rules/{mdc_file.name}\n\n{raw}")
-    if not parts:
-        return ""
-    return _truncate_content("\n\n".join(parts), ".cursorrules", prompts=prompts)
-
-
-def _load_soul_md(prompts: Optional[PromptLoader] = None) -> Optional[str]:
-    """从 HERMES_HOME 目录加载 SOUL.md 灵魂文件（独立于项目上下文，始终追加）。"""
-    home_dir = Path(os.environ.get("HERMES_HOME", Path.home() / ".hermes"))
-    soul_path = home_dir / "SOUL.md"
-    if not soul_path.is_file():
-        return None
-    raw = soul_path.read_text(encoding="utf-8").strip()
-    if not raw:
-        return None
-    raw = _scan_context_content(raw, "SOUL.md", prompts)
-    return _truncate_content(raw, "SOUL.md", prompts=prompts)
-
-
-def _build_context_files(cwd: Optional[str] = None, skip_soul: bool = False,
-                         prompts: Optional[PromptLoader] = None) -> str:
-    """自动发现并加载项目上下文文件。
-
-    优先级（仅加载第一个命中的）：
-        1. .hermes.md / HERMES.md   （逐级向上搜索至 git 根目录）
-        2. AGENTS.md / agents.md     （仅在 cwd）
-        3. CLAUDE.md / claude.md     （仅在 cwd）
-        4. .cursorrules + .cursor/rules/*.mdc（仅在 cwd）
-    SOUL.md 从 HERMES_HOME 独立加载，始终追加。
-
-    Args:
-        cwd: 搜索起始目录，None 则使用 os.getcwd()。
-        skip_soul: True 时跳过 SOUL.md（自定义 system_prompt 模式）。
-        prompts: PromptLoader 实例，用于格式化头部文本。
-
-    Returns:
-        拼接好的项目上下文文本，无匹配时返回空字符串。
-    """
-    if cwd is None:
-        cwd = os.getcwd()
-    cwd_path = Path(cwd).resolve()
-    sections = []
-
-    project_context = (
-        _load_hermes_md(cwd_path, prompts)
-        or _load_context_file(cwd_path, ("AGENTS.md", "agents.md"), prompts)
-        or _load_context_file(cwd_path, ("CLAUDE.md", "claude.md"), prompts)
-        or _load_cursorrules(cwd_path, prompts)
-    )
-    if project_context:
-        sections.append(project_context)
-
-    if not skip_soul:
-        soul_content = _load_soul_md(prompts)
-        if soul_content:
-            sections.append(soul_content)
-
-    if not sections:
-        return ""
-    header = prompts.get_system("context_file_header") if prompts else "# 项目上下文\n\n已加载以下项目上下文文件，请遵循其中的约定：\n\n"
-    return header + "\n".join(sections)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -259,32 +42,24 @@ class HarnessContextBuilder:
         builder = HarnessContextBuilder(
             prompt_loader=prompts,
             system_prompt="",                    # 空 → 按渠道自动选身份
-            enable_chat_personality=True,        # 注入聊天/CLI 风格提示
-            enable_context_files=True,           # 自动加载 .hermes.md 等
             enable_tool_guidance=True,           # 注入工具使用纪律
         )
         messages = builder.build(events, max_turns=20)
 
     构造参数:
-        prompt_loader:           PromptLoader 实例，提供所有 prompt 文本。
-        system_prompt:           自定义系统 prompt；为空则根据渠道自动选择身份。
-        enable_chat_personality: 是否注入聊天/CLI 风格提示。
-        enable_context_files:    是否自动发现并注入项目上下文文件。
-        enable_tool_guidance:    是否注入工具使用纪律提示。
+        prompt_loader:        PromptLoader 实例，提供所有 prompt 文本。
+        system_prompt:        自定义系统 prompt；为空则根据渠道自动选择身份。
+        enable_tool_guidance: 是否注入工具使用纪律提示。
     """
 
     def __init__(
         self,
         prompt_loader: Optional[PromptLoader] = None,
         system_prompt: str = "",
-        enable_chat_personality: bool = True,
-        enable_context_files: bool = True,
         enable_tool_guidance: bool = True,
     ):
         self._prompts = prompt_loader
         self._system_prompt = system_prompt
-        self._enable_chat_personality = enable_chat_personality
-        self._enable_context_files = enable_context_files
         self._enable_tool_guidance = enable_tool_guidance
 
     # ── 对外接口: build() ──────────────────────────────────────────────────
@@ -295,25 +70,57 @@ class HarnessContextBuilder:
         max_turns: int = 20,
         channel_type: Optional[ChannelType] = None,
         recalled_memories: str = "",
+        *,
+        token_budget: int = 0,
+        generation_headroom: int = 4000,
+        in_session_summary: str = "",
+        extra_context: str = "",
+        remaining_turns: int = 0,
+        max_tool_turns: int = 0,
+        group_context_text: str = "",
     ) -> List[Dict[str, Any]]:
         """将历史事件序列转换为 LLM 标准 messages 结构。
 
-        流程:
-          1. 构建 system prompt（渠道感知 + 风格 + 纪律 + 环境 + 上下文文件 + 记忆）
-          2. 过滤事件类型（只保留 USER_MESSAGE / MODEL_MESSAGE / TOOL_RESULT）
-          3. 截断到 max_turns * 2 条（每轮 = user + assistant）
-          4. 逐事件转换为 {"role": ..., "content": ...} 格式
+        token_budget > 0 时启用 token 感知截断：
+          - system prompt 先扣减预算
+          - 从右向左累加 event token 成本，超出剩余预算时停止
+        token_budget = 0 时走旧路径（max_turns*2 截断），向后兼容。
 
         Args:
-            events:            历史事件列表（含 channel_type 信息在 content 中）。
-            max_turns:         最多保留对话轮次。
-            channel_type:      可选强制指定渠道；为 None 时从 events 中自动检测。
-            recalled_memories: 从 Hindsight 召回的格式化记忆文本。
+            events:             历史事件列表。
+            max_turns:          最多保留对话轮次（token_budget=0 时生效）。
+            channel_type:       可选强制指定渠道。
+            recalled_memories:  从 Hindsight 召回的格式化记忆文本。
+            token_budget:       上下文总 token 预算（0=关闭 token 感知）。
+            generation_headroom: 留给模型输出的 token 空间。
+            in_session_summary: 会话内摘要（P1-1 压缩产物）。
+            extra_context:      额外注入 system prompt 的上下文文本。
 
         Returns:
             [{"role":"system","content":"..."}, {"role":"user",...}, ...]
         """
-        system_content = self._build_system_prompt(events, channel_type, recalled_memories)
+        # 提取 CONTEXT_INHERIT 事件，注入 extra_context
+        context_inherit_parts: list[str] = []
+        for e in events:
+            if e.event_type == EventType.CONTEXT_INHERIT:
+                inherit_text = e.content.get("summary", "") if isinstance(e.content, dict) else ""
+                if inherit_text:
+                    context_inherit_parts.append(inherit_text)
+        if context_inherit_parts:
+            extra_context = (
+                "## 跨会话上下文\n\n以下信息继承自之前的会话：\n"
+                + "\n".join(context_inherit_parts)
+                + ("\n\n" + extra_context if extra_context else "")
+            )
+
+        system_content = self._build_system_prompt(
+            events, channel_type, recalled_memories,
+            in_session_summary=in_session_summary,
+            extra_context=extra_context,
+            remaining_turns=remaining_turns,
+            max_tool_turns=max_tool_turns,
+            group_context_text=group_context_text,
+        )
         messages: List[Dict[str, Any]] = []
         if system_content:
             messages.append({"role": "system", "content": system_content})
@@ -322,8 +129,42 @@ class HarnessContextBuilder:
         filtered_events = [e for e in events if e.event_type in (
             EventType.USER_MESSAGE, EventType.MODEL_MESSAGE, EventType.TOOL_RESULT,
         )]
-        # 滑动窗口截断：保留最近 max_turns 轮
-        if len(filtered_events) > max_turns * 2:
+
+        # 截断路径选择
+        if token_budget > 0:
+            # —— Token 感知截断 ——
+            available = token_budget - generation_headroom
+            if available <= 0:
+                available = token_budget // 2
+
+            sys_est = estimate_tokens(system_content)
+            remaining = available - sys_est
+
+            usable: list[Event] = []
+            running_cost = 0
+            for event in reversed(filtered_events):
+                if event.event_type == EventType.TOOL_RESULT:
+                    text = event.content.get("result", "") if isinstance(event.content, dict) else str(event.content)
+                elif event.event_type == EventType.USER_MESSAGE:
+                    text = event.content.get("content", "") if isinstance(event.content, dict) else str(event.content)
+                elif event.event_type == EventType.MODEL_MESSAGE:
+                    text = event.content.get("text", "") if isinstance(event.content, dict) else str(event.content)
+                else:
+                    text = ""
+
+                cost = estimate_tokens(text) + 4
+                if running_cost + cost > remaining and usable:
+                    break
+                usable.append(event)
+                running_cost += cost
+
+            filtered_events = list(reversed(usable))
+            logger.debug(
+                "Token-aware truncation: budget=%d available=%d sys_est=%d used=%d events=%d",
+                token_budget, available, sys_est, running_cost, len(filtered_events),
+            )
+        elif len(filtered_events) > max_turns * 2:
+            # —— 旧路径：按轮次截断 ——
             filtered_events = filtered_events[-max_turns * 2:]
 
         for event in filtered_events:
@@ -367,10 +208,18 @@ class HarnessContextBuilder:
         events: List[Event],
         channel_type: Optional[ChannelType] = None,
         recalled_memories: str = "",
+        *,
+        in_session_summary: str = "",
+        extra_context: str = "",
+        remaining_turns: int = 0,
+        max_tool_turns: int = 0,
+        group_context_text: str = "",
     ) -> str:
         """按渠道 + 固定顺序拼接最终的系统提示词。
 
-        顺序: 渠道身份 → 风格提示 → 跨渠道检测 → 工具纪律 → 环境感知 → 记忆注入 → 项目上下文
+        顺序: 渠道身份（含风格） → 跨渠道检测 → 工具纪律 → 环境感知
+             → 记忆注入 → 会话内摘要 → 跨会话上下文 → 轮次限制
+             → 群聊近期对话（末尾，紧邻下方 user 消息，方便模型关联）
         """
         parts: List[str] = []
 
@@ -378,16 +227,19 @@ class HarnessContextBuilder:
         identity = self._pick_identity(channel)
         parts.append(identity)
 
-        style = self._pick_style_guidance(channel)
-        if style:
-            parts.append(style)
-
         cross_channel = self._build_cross_channel_hint(events)
         if cross_channel:
             parts.append(cross_channel)
 
         if self._enable_tool_guidance and self._prompts:
-            guidance = self._prompts.get_guidance("tool_enforcement")
+            # 优先加载渠道特定的工具约束（如 tool_enforcement_napcat），
+            # 找不到则回退到通用 tool_enforcement
+            guidance = ""
+            if channel:
+                ch_key = self._prompts.identity_map.get(channel.value, channel.value)
+                guidance = self._prompts.get_guidance(f"tool_enforcement_{ch_key}")
+            if not guidance:
+                guidance = self._prompts.get_guidance("tool_enforcement")
             if guidance:
                 parts.append(guidance)
 
@@ -398,16 +250,39 @@ class HarnessContextBuilder:
         if recalled_memories:
             parts.append(recalled_memories)
 
-        if self._enable_context_files:
-            has_custom_identity = bool(self._system_prompt)
-            ctx = _build_context_files(skip_soul=has_custom_identity, prompts=self._prompts)
-            if ctx:
-                parts.append(ctx)
+        # P1-1: 会话内摘要（在记忆之后）
+        if in_session_summary:
+            parts.append(
+                "## 历史摘要\n\n"
+                "以下为早轮对话的摘要（而非完整记录），仅作背景参考：\n"
+                + in_session_summary
+            )
+
+        # P2-2: 跨会话上下文 / 其他额外注入
+        if extra_context:
+            parts.append(extra_context)
+
+        # 剩余轮次感知：提醒模型规划工具调用节奏
+        if remaining_turns > 0 and max_tool_turns > 0:
+            parts.append(
+                f"## 轮次限制\n\n"
+                f"当前对话最多允许 {max_tool_turns} 轮工具调用，剩余可用轮次：{remaining_turns}。\n"
+                f"请在剩余轮次内完成当前任务。如果剩余轮次较少，优先给出结论而不是继续探索。"
+            )
+
+        # 群聊近期对话放在 system prompt 末尾，紧邻后续的 user 消息
+        # 这样模型能更自然地将群聊内容与当前提问关联
+        if group_context_text:
+            parts.append(
+                "## 群聊近期对话\n\n"
+                "以下是本群最近的消息记录，用于理解当前对话背景：\n"
+                + group_context_text
+            )
 
         return "\n\n".join(parts)
 
     def _pick_identity(self, channel: Optional[ChannelType]) -> str:
-        """根据渠道选择身份声明 prompt。
+        """根据渠道选择身份声明 prompt（含风格引导，已合并至 identities.yaml）。
 
         优先级: 自定义 system_prompt > 渠道映射表 > 默认身份。
         """
@@ -426,18 +301,6 @@ class HarnessContextBuilder:
         if channel == ChannelType.WEB:
             return "你是 HpAgent，一个 Web 智能助手。"
         return "你是 HpAgent，一个智能 AI 助手。"
-
-    def _pick_style_guidance(self, channel: Optional[ChannelType]) -> str:
-        """根据渠道选择风格提示。"""
-        if not self._enable_chat_personality:
-            return ""
-        if not self._prompts:
-            return ""
-        if channel == ChannelType.NAPCAT:
-            return self._prompts.get_guidance("chat_personality")
-        if channel == ChannelType.CONSOLE:
-            return self._prompts.get_guidance("console_style")
-        return ""
 
     def _build_cross_channel_hint(self, events: List[Event]) -> str:
         """检测是否存在跨渠道对话。
@@ -458,12 +321,8 @@ class HarnessContextBuilder:
         return ""
 
     def _build_environment_hints(self) -> str:
-        """自动检测运行环境（Docker > WSL > 无），返回对应环境提示。"""
-        if _is_docker():
-            return self._prompts.get_environment("docker") if self._prompts else ""
-        if _is_wsl():
-            return self._prompts.get_environment("wsl") if self._prompts else ""
-        return ""
+        """返回运行环境提示，由 YAML 配置提供内容。"""
+        return self._prompts.get_environment("docker") if self._prompts else ""
 
     # ── 内部: 事件内容提取 ────────────────────────────────────────────────
 
@@ -508,6 +367,9 @@ class HarnessContextBuilder:
 
         成功 → 返回 result 字符串。
         失败 → 返回 "工具执行失败：{error}"。
+
+        注：截断由 HarnessRunner._apply_truncation 统一处理并保存完整内容，
+        这里仅做安全网截断（50000 字符），防止异常大结果撑爆上下文。
         """
         content = event.content
         if isinstance(content, dict):
@@ -515,5 +377,10 @@ class HarnessContextBuilder:
             error = content.get("error")
             if error:
                 return f"工具执行失败：{error}"
-            return str(result)
+            text = str(result)
+            if len(text) > 50000:
+                return text[:50000] + (
+                    f"\n...[工具输出过长已截断：完整内容 {len(text)} 字符]"
+                )
+            return text
         return str(content)

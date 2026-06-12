@@ -33,6 +33,7 @@ class ProviderEntry:
     base_url: str = ""
     api_key: str = ""
     api_format: str = "anthropic"  # "anthropic" | "openai"
+    extra_body: dict = field(default_factory=dict)  # 注入到 API 请求体的额外字段
 
 
 @dataclass
@@ -52,14 +53,16 @@ class ModelEntry:
 class ToolRagConfig:
     """工具 RAG 检索配置。"""
     enabled: bool = True
-    top_k: int = 8
+    top_k: int = 8                          # 最终返回工具数量上限
+    max_merged_multiplier: float = 1.5      # 多路检索合并缓冲系数（max_merged = top_k * multiplier）
+    per_query_min: int = 3                  # 多路检索每查询最少召回数
     persist_path: str = "tools/vectors"
 
 
 @dataclass
 class McpConfig:
     """MCP Server 配置。"""
-    config_path: str = "tools/definitions/mcp/servers.yaml"
+    config_path: str = "config/mcp/servers.yaml"
     auto_connect: bool = False
 
 
@@ -68,6 +71,33 @@ class SkillsConfig:
     """Skills 配置。"""
     config_path: str = "tools/skills/"
     enabled: bool = True
+
+
+@dataclass
+class ChannelsConfig:
+    """渠道启停配置 —— 控制哪些渠道在 Worker 启动时加载。
+
+    enabled 列表中的渠道名必须对应 ChannelType 枚举值。
+    不在列表中的渠道不会被初始化或连接。
+    """
+    enabled: List[str] = field(default_factory=lambda: ["console"])
+
+
+@dataclass
+class ChannelOverrideConfig:
+    """单个渠道的模型参数覆盖。"""
+    max_tokens: int = 1024
+    timeout: float = 30.0
+    stream: bool = False
+
+
+@dataclass
+class RerankConfig:
+    """Rerank 重排序配置。"""
+    provider: str = ""
+    model: str = "BAAI/bge-reranker-v2-m3"
+    timeout: float = 10.0
+    top_n: int = 10
 
 
 @dataclass
@@ -87,6 +117,7 @@ class ModelsConfig:
     每个类别是一个降级链，从上到下依次尝试，失败后切换下一个。
     """
     providers: Dict[str, ProviderEntry] = field(default_factory=dict)
+    fast: List[ModelEntry] = field(default_factory=list)
     chat: List[ModelEntry] = field(default_factory=list)
     embedding: List[ModelEntry] = field(default_factory=list)
     image: List[ModelEntry] = field(default_factory=list)
@@ -94,6 +125,8 @@ class ModelsConfig:
     tool_rag: ToolRagConfig = field(default_factory=ToolRagConfig)
     mcp: McpConfig = field(default_factory=McpConfig)
     skills: SkillsConfig = field(default_factory=SkillsConfig)
+    rerank: RerankConfig = field(default_factory=RerankConfig)
+    channel_overrides: Dict[str, ChannelOverrideConfig] = field(default_factory=dict)
 
     def has_category(self, name: str) -> bool:
         """检查指定类别是否配置了模型。"""
@@ -116,6 +149,7 @@ class ModelsConfig:
                 "api_format": provider.api_format,
                 "max_tokens": entry.max_tokens,
                 "timeout": entry.timeout,
+                "extra_body": provider.extra_body,
             },
         )
 
@@ -150,6 +184,7 @@ class ModelsConfig:
                     base_url=_os2.path.expandvars(val.get("base_url", "")),
                     api_key=_os2.path.expandvars(val.get("api_key", "")),
                     api_format=val.get("api_format", "anthropic"),
+                    extra_body=val.get("extra_body") or {},
                 )
 
         # 解析 models 各分类
@@ -164,7 +199,7 @@ class ModelsConfig:
                 if isinstance(item, dict):
                     result.append(ModelEntry(
                         provider=item.get("provider", ""),
-                        model=item.get("model", ""),
+                        model=_os2.path.expandvars(item.get("model", "")),
                         max_tokens=item.get("max_tokens", 2048),
                         timeout=item.get("timeout", 30.0),
                     ))
@@ -173,9 +208,21 @@ class ModelsConfig:
         tool_rag_raw = raw.get("tool_rag") or {}
         mcp_raw = raw.get("mcp") or {}
         skills_raw = raw.get("skills") or {}
+        rerank_raw = raw.get("rerank") or {}
+        channel_overrides_raw = raw.get("channel_overrides") or {}
+
+        channel_overrides: Dict[str, ChannelOverrideConfig] = {}
+        for ch_name, ch_cfg in channel_overrides_raw.items():
+            if isinstance(ch_cfg, dict):
+                channel_overrides[ch_name] = ChannelOverrideConfig(
+                    max_tokens=ch_cfg.get("max_tokens", 1024),
+                    timeout=ch_cfg.get("timeout", 30.0),
+                    stream=ch_cfg.get("stream", False),
+                )
 
         return cls(
             providers=providers,
+            fast=_parse_entries("fast"),
             chat=_parse_entries("chat"),
             embedding=_parse_entries("embedding"),
             image=_parse_entries("image"),
@@ -186,13 +233,20 @@ class ModelsConfig:
                 persist_path=tool_rag_raw.get("persist_path", "tools/vectors"),
             ),
             mcp=McpConfig(
-                config_path=mcp_raw.get("config_path", "tools/definitions/mcp/servers.yaml"),
+                config_path=mcp_raw.get("config_path", "config/mcp/servers.yaml"),
                 auto_connect=mcp_raw.get("auto_connect", False),
             ),
             skills=SkillsConfig(
                 config_path=skills_raw.get("config_path", "tools/skills/"),
                 enabled=skills_raw.get("enabled", True),
             ),
+            rerank=RerankConfig(
+                provider=rerank_raw.get("provider", ""),
+                model=_os2.path.expandvars(rerank_raw.get("model", "BAAI/bge-reranker-v2-m3")),
+                timeout=rerank_raw.get("timeout", 10.0),
+                top_n=rerank_raw.get("top_n", 10),
+            ),
+            channel_overrides=channel_overrides,
         )
 
 
@@ -208,6 +262,10 @@ class RedisConfig:
     """Redis 连接配置。url 为空表示不启用 Redis。"""
     url: str = ""
     default_ttl: int = 300
+    # 群聊短期上下文
+    group_context_window: int = 80        # 滑动窗口保留消息数
+    group_context_ttl: int = 86400        # 群上下文 TTL（秒，默认 24h）
+    group_context_density_threshold: float = 2.0  # 密度阈值（msg/min），低于此值允许进度提示
 
 
 @dataclass
@@ -247,7 +305,10 @@ class HindsightConfig:
     enabled: bool = True
     base_url: str = "http://hindsight:8888"
     api_key: str = ""
-    timeout: float = 30.0
+    timeout: float = 30.0          # 默认超时（retain/recall 等轻量操作）
+    retain_timeout: float = 30.0   # 记忆提取（异步提交，通常很快）
+    recall_timeout: float = 3.0    # 语义检索（快速降级，锦上添花不阻塞）
+    reflect_timeout: float = 120.0 # 深度推理（LLM 多轮分析，耗时较长）
     retain_mission: str = (
         "Extract and preserve structured, reusable knowledge from multi-turn "
         "conversations across QQ/NapCat, Console, and Web channels.\n\n"
@@ -281,7 +342,7 @@ class HindsightConfig:
 @dataclass
 class SessionConfig:
     """会话存储配置。"""
-    backup_dir: str = ".data/sessions"
+    backup_dir: str = ".data/active-sessions"
     redis_ttl: int = 86400
 
 
@@ -300,11 +361,26 @@ class AgentConfig:
     max_tool_turns: int = 20
     recall_top_n: int = 5
     event_fetch_limit: int = 100
-    activity_timeout: int = 120
+    activity_timeout: int = 300    # process_turn Activity 超时（秒）
     archive_timeout: int = 10
     mode: str = "single"               # "single" | "multi"
     reflect_interval_hours: int = 6    # 记忆反思间隔（小时）
+    idle_timeout_minutes: int = 5      # 会话空闲自动关闭时间（分钟）
     multi_agent: MultiAgentConfig = field(default_factory=MultiAgentConfig)
+
+    # —— 上下文工程参数 ——
+    context_budget: int = 256000            # 总上下文 token 预算
+    generation_headroom: int = 16000        # 留给模型输出的 token 空间
+    summary_budget: int = 2000              # 运行摘要最大 token
+    memories_budget: int = 2000             # 召回记忆最大 token
+    compress_interval: int = 8              # 每 N 轮触发历史压缩（0=禁用）
+    checkpoint_interval: int = 10           # 每 N 轮写入中间检查点（0=禁用）
+    # 工具结果摘要（替代简单截断）
+    tool_result_summary_enabled: bool = True            # 启用 LLM 摘要替代截断
+    tool_result_summary_threshold: int = 4000           # 超过此字符数触发摘要
+    tool_result_summary_max_chars: int = 1000           # 摘要最大字符数（注入 LLM 的）
+    wal_enabled: bool = True             # 启用 WAL 预写日志
+    inherit_context: bool = True         # 跨会话上下文继承
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Prompt 配置 —— 从 config/prompts/*.yaml 加载
@@ -324,6 +400,7 @@ class PromptsConfig:
     guidance: Dict[str, str] = field(default_factory=dict)
     environment: Dict[str, str] = field(default_factory=dict)
     system: Dict[str, str] = field(default_factory=dict)
+    tool_summary: Dict[str, Any] = field(default_factory=dict)  # tool_summary.yaml (含嵌套 hints dict)
 
     @classmethod
     def from_dir(cls, prompts_dir: Path) -> "PromptsConfig":
@@ -350,11 +427,25 @@ class PromptsConfig:
                 logger.warning("Failed to load %s: %s", path, e)
                 return {}
 
+        def _load_raw(filename: str) -> Dict[str, Any]:
+            """加载 YAML 文件，保留嵌套结构（用于 tool_summary.yaml 等含 dict 的文件）。"""
+            path = prompts_dir / filename
+            if not path.exists():
+                logger.warning("Prompt file not found: %s", path)
+                return {}
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return yaml.safe_load(f) or {}
+            except Exception as e:
+                logger.warning("Failed to load %s: %s", path, e)
+                return {}
+
         return cls(
             identities=_load("identities.yaml"),
             guidance=_load("guidance.yaml"),
             environment=_load("environment.yaml"),
             system=_load("system.yaml"),
+            tool_summary=_load_raw("tool_summary.yaml"),
         )
 
 
@@ -406,6 +497,7 @@ class AppConfig:
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
     hindsight: HindsightConfig = field(default_factory=HindsightConfig)
     session: SessionConfig = field(default_factory=SessionConfig)
+    channels: ChannelsConfig = field(default_factory=ChannelsConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     prompts: PromptsConfig = field(default_factory=PromptsConfig)
     agents: List[AgentEntry] = field(default_factory=list)
@@ -493,12 +585,26 @@ class AppConfig:
         不是相对于 cwd。容器模式下 WORKSPACE_ROOT 等环境变量会随后覆盖。
         """
         _root = project_root.resolve()
+
         ws = Path(self.workspace.root)
         if not ws.is_absolute():
             self.workspace.root = str(_root / ws)
         sess = Path(self.session.backup_dir)
         if not sess.is_absolute():
             self.session.backup_dir = str(_root / sess)
+
+        # models.yaml 中的工具相关路径（同样相对于项目根）
+        mcp_path = Path(self.models.mcp.config_path)
+        if not mcp_path.is_absolute():
+            self.models.mcp.config_path = str(_root / mcp_path)
+
+        skills_path = Path(self.models.skills.config_path)
+        if not skills_path.is_absolute():
+            self.models.skills.config_path = str(_root / skills_path)
+
+        rag_path = Path(self.models.tool_rag.persist_path)
+        if not rag_path.is_absolute():
+            self.models.tool_rag.persist_path = str(_root / rag_path)
 
     def _apply_env_overrides(self, environ: dict) -> None:
         """用环境变量覆盖 YAML 中的值（Docker Compose 传入）。"""
@@ -510,6 +616,8 @@ class AppConfig:
             self.hindsight.base_url = environ["HINDSIGHT_URL"]
         if environ.get("WORKSPACE_ROOT"):
             self.workspace.root = environ["WORKSPACE_ROOT"]
+        if environ.get("REDIS_URL"):
+            self.redis.url = environ["REDIS_URL"]
 
     @classmethod
     def _from_dict(cls, raw: Dict[str, Any]) -> "AppConfig":
@@ -564,5 +672,6 @@ class AppConfig:
             workspace=_populate(WorkspaceConfig, raw.get("workspace"), "workspace"),
             hindsight=_populate(HindsightConfig, raw.get("hindsight"), "hindsight"),
             session=_populate(SessionConfig, raw.get("session"), "session"),
+            channels=_populate(ChannelsConfig, raw.get("channels"), "channels"),
             agent=_populate(AgentConfig, raw.get("agent"), "agent"),
         )

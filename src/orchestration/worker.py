@@ -18,6 +18,7 @@ import asyncio
 import dataclasses
 import logging
 import os
+import uuid
 from pathlib import Path
 from typing import Dict
 
@@ -45,7 +46,9 @@ from resources.resource_pool import ResourcePool
 from resources.credentials import CredentialManager, ModelEndpoint
 from sandbox.sandbox_manager import SandboxManager
 from sandbox.nsjail import NsjailConfig
+from sandbox.git_repo import GitRepoManager
 from sandbox.channels.napcat import NapCatChannel
+from sandbox.channels.official_qq import OfficialQQChannel
 from sandbox.channels.router import ChannelRouter
 from account.account_service import AccountService
 from common.types import UnifiedMessage, ChannelType
@@ -68,6 +71,8 @@ class WorkerDependencies:
     workspace_root: Path
     mcp_manager: object  # MCPToolManager | None，用于 shutdown cleanup
     resource_pool: "ResourcePool"
+    git_repo_manager: "GitRepoManager"
+    group_context: object  # GroupContextStore | None，群聊短期上下文缓存
 
 
 async def setup_tools(config: AppConfig):
@@ -85,11 +90,14 @@ async def setup_tools(config: AppConfig):
         try:
             from sandbox.tools.retriever import ToolVectorStore, ToolRetriever
             from resources.embedding import create_embedding_client
+            from resources.reranker import create_reranker_client
             emb_client = create_embedding_client(config.models)
+            reranker_client = create_reranker_client(config.models)
             vector_store = ToolVectorStore(persist_path=config.models.tool_rag.persist_path)
-            retriever = ToolRetriever(vector_store, emb_client)
-            logger.info("Tool RAG enabled: persist=%s top_k=%d",
-                        config.models.tool_rag.persist_path, config.models.tool_rag.top_k)
+            retriever = ToolRetriever(vector_store, emb_client, reranker_client=reranker_client)
+            logger.info("Tool RAG enabled: persist=%s top_k=%d reranker=%s",
+                        config.models.tool_rag.persist_path, config.models.tool_rag.top_k,
+                        "enabled" if reranker_client else "disabled")
         except Exception as e:
             logger.warning("Tool RAG init failed, falling back to full injection: %s", e)
 
@@ -107,16 +115,33 @@ async def setup_tools(config: AppConfig):
             logger.warning("MCP tools loading failed: %s", e)
             mcp_mgr = None
 
-    # Skills（可选）
+    # Skills（可选）—— 支持两种格式:
+    #   1. *.yaml 直接放在 skills_path 下（HpAgent 原生流水线格式）
+    #   2. */SKILL.md 放在子目录中（agentskills.io 业界标准格式）
     skill_definitions = []
     if config.models.skills.enabled:
         try:
             import yaml
             from pathlib import Path
+            from sandbox.tools.skills.skillmd import parse_skillmd, skillmd_to_definition
+
             skills_path = Path(config.models.skills.config_path)
+
+            # 1. 加载 HpAgent 原生 YAML 格式 (tools/skills/*.yaml)
             for skill_file in skills_path.glob("*.yaml"):
                 skill_def = yaml.safe_load(skill_file.read_text())
+                skill_def.setdefault("type", "pipeline")
                 skill_definitions.append(skill_def)
+
+            # 2. 加载 SKILL.md 业界标准格式 (tools/skills/*/SKILL.md)
+            for skillmd_file in skills_path.glob("*/SKILL.md"):
+                try:
+                    fm, body = parse_skillmd(skillmd_file)
+                    skill_def = skillmd_to_definition(fm, body)
+                    skill_definitions.append(skill_def)
+                except ValueError as e:
+                    logger.warning("SKILL.md parse failed: %s - %s", skillmd_file, e)
+
             logger.info("Skills loaded: %d from %s", len(skill_definitions), skills_path)
         except Exception as e:
             logger.warning("Skills loading failed: %s", e)
@@ -159,7 +184,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     all_endpoints: list[ModelEndpoint] = []
     category_ids: Dict[str, list[str]] = {}
 
-    for category in ("chat", "embedding", "image", "reasoning"):
+    for category in ("fast", "chat", "embedding", "image", "reasoning"):
         chain = config.models.get_chain(category)
         if not chain:
             continue
@@ -187,6 +212,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
 
     # ── 2. Redis ──
     redis_cache = None
+    redis_client = None  # 保留引用，供 GroupContextStore 使用
     redis_url = config.redis.url or os.getenv("REDIS_URL", "")
     if redis_url:
         try:
@@ -197,6 +223,24 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
             logger.info("Redis connected: %s", redis_url)
         except Exception as e:
             logger.warning("DEGRADATION: Redis unavailable (%s) → falling back to in-memory storage", e)
+
+    # ── 2b. 群聊短期上下文缓存（依赖 Redis 客户端）──
+    group_context = None
+    if redis_client:
+        from memory.group_context import GroupContextStore
+        group_context = GroupContextStore(
+            redis_client,
+            window_size=config.redis.group_context_window,
+            ttl_seconds=config.redis.group_context_ttl,
+            density_threshold=config.redis.group_context_density_threshold,
+        )
+        logger.info(
+            "GroupContextStore initialized: window=%d ttl=%ds density_threshold=%.1f",
+            config.redis.group_context_window, config.redis.group_context_ttl,
+            config.redis.group_context_density_threshold,
+        )
+    else:
+        logger.info("GroupContextStore: skipped (no Redis, group context disabled)")
 
     # ── 3. nsjail 配置 ──
     nsjail_config = _build_nsjail_config(config.sandbox)
@@ -227,11 +271,13 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         mcp_manager=mcp_mgr,
         skill_definitions=skill_definitions,
         retriever=retriever,
+        max_merged_multiplier=config.models.tool_rag.max_merged_multiplier,
+        per_query_min=config.models.tool_rag.per_query_min,
     )
 
     # ── 7. Prompt + Hindsight + 上下文构建器 ──
     prompt_loader = PromptLoader(config.prompts)
-    logger.info("PromptLoader initialized from AppConfig.prompts")
+    logger.debug("PromptLoader initialized from AppConfig.prompts")
 
     from memory.hindsight_client import HindsightClient
     hindsight_client = None
@@ -244,6 +290,9 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
                 prompt_loader=prompt_loader,
                 retain_mission=config.hindsight.retain_mission,
                 reflect_mission=config.hindsight.reflect_mission,
+                retain_timeout=config.hindsight.retain_timeout,
+                recall_timeout=config.hindsight.recall_timeout,
+                reflect_timeout=config.hindsight.reflect_timeout,
             )
             logger.info("HindsightClient initialized: base_url=%s", hindsight_client.base_url)
         except Exception as e:
@@ -251,7 +300,6 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
 
     context_builder = HarnessContextBuilder(
         prompt_loader=prompt_loader,
-        enable_context_files=True,
         enable_tool_guidance=True,
     )
 
@@ -267,6 +315,8 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         redis_cache=redis_cache,
         hindsight_client=hindsight_client,
         file_store=backup_store,
+        wal_enabled=config.agent.wal_enabled,
+        checkpoint_enabled=config.agent.checkpoint_interval > 0,
     )
     logger.info(
         "SessionStore: redis=%s hindsight=%s backup=%s",
@@ -293,7 +343,15 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     elif config.agent.mode == "multi":
         logger.warning("No agents defined in config, falling back to single-agent")
 
-    # ── 11. HarnessRunner ──
+    # ── 11. GitRepoManager ──
+    git_repo_manager = GitRepoManager(repos_root=workspace_root)
+    logger.info("GitRepoManager initialized: repos_root=%s", workspace_root)
+
+    # ── 12. HarnessRunner ──
+    channel_overrides = {
+        ch_name: {"max_tokens": ch_cfg.max_tokens, "timeout": ch_cfg.timeout, "stream": ch_cfg.stream}
+        for ch_name, ch_cfg in config.models.channel_overrides.items()
+    }
     harness_runner = HarnessRunner(
         session_store=session_store,
         context_builder=context_builder,
@@ -303,9 +361,36 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         max_tool_turns=config.agent.max_tool_turns,
         agent_mode=config.agent.mode,
         multi_agent_executor=multi_agent_executor,
+        channel_overrides=channel_overrides,
+        git_repo_manager=git_repo_manager,
+        workspace_db=workspace_db,
+        file_store=file_store,
+        # Prompt 配置（工具摘要用）
+        prompts=prompt_loader,
+        # 上下文工程参数
+        context_budget=config.agent.context_budget,
+        generation_headroom=config.agent.generation_headroom,
+        summary_budget=config.agent.summary_budget,
+        memories_budget=config.agent.memories_budget,
+        compress_interval=config.agent.compress_interval,
+        checkpoint_interval=config.agent.checkpoint_interval,
+        tool_result_summary_enabled=config.agent.tool_result_summary_enabled,
+        tool_result_summary_threshold=config.agent.tool_result_summary_threshold,
+        tool_result_summary_max_chars=config.agent.tool_result_summary_max_chars,
+        # 工具 RAG 参数
+        tool_rag_top_k=config.models.tool_rag.top_k,
+        # 群聊上下文
+        group_context=group_context,
     )
 
-    logger.info("HarnessRunner assembled: all dependencies wired")
+    logger.info(
+        "HarnessRunner assembled: all dependencies wired"
+        " | budget=%d headroom=%d compress=%d ckpt=%d wal=%s rag_top_k=%d",
+        harness_runner._context_budget, harness_runner._generation_headroom,
+        harness_runner._compress_interval, harness_runner._checkpoint_interval,
+        "on" if session_store._wal_enabled else "off",
+        harness_runner._tool_rag_top_k,
+    )
     return WorkerDependencies(
         harness_runner=harness_runner,
         account_service=account_service,
@@ -316,6 +401,8 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         workspace_root=workspace_root,
         mcp_manager=mcp_mgr,
         resource_pool=resource_pool,
+        git_repo_manager=git_repo_manager,
+        group_context=group_context,
     )
 
 
@@ -343,9 +430,29 @@ async def start_worker(config: AppConfig) -> None:
         ],
     )
 
-    # ── 渠道注册 ──
-    napcat = NapCatChannel()
-    deps.channel_router.register(ChannelType.NAPCAT, napcat)
+    # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
+    _channel_factories = {
+        ChannelType.NAPCAT: NapCatChannel,
+        ChannelType.OFFICIAL_QQ: OfficialQQChannel,
+    }
+
+    active_channels: list = []
+    for ch_name in config.channels.enabled:
+        try:
+            ch_type = ChannelType(ch_name)
+        except ValueError:
+            logger.warning("Unknown channel in config: %s, skipped", ch_name)
+            continue
+
+        factory = _channel_factories.get(ch_type)
+        if factory is None:
+            logger.warning("No implementation for channel: %s, skipped", ch_name)
+            continue
+
+        channel = factory()
+        deps.channel_router.register(ch_type, channel)
+        active_channels.append(channel)
+        logger.info("Channel registered: %s", ch_name)
 
     async def handle_message(message: UnifiedMessage) -> None:
         if not message.content or not message.content.strip():
@@ -357,8 +464,48 @@ async def start_worker(config: AppConfig) -> None:
             else str(message.channel_type)
         )
 
+        # ── 群聊上下文写入 + @过滤 ──
+        # 所有群消息（无论是否@bot）都写入短期缓存窗口。
+        # 非@消息仅做上下文沉淀，不触发 agentic loop。
+        metadata = message.metadata
+        detail_type = metadata.get("detail_type", "")
+        group_id = str(metadata.get("group_id", ""))
+        is_at_bot = metadata.get("is_at_bot", False)
+
+        if detail_type == "group" and group_id and deps.group_context:
+            # 写入群短期缓存
+            sender_name = metadata.get("sender_name", "")
+            sender_id = message.sender_id
+            raw_msg_id = metadata.get("message_id")
+            msg_id = str(raw_msg_id) if raw_msg_id is not None else ""
+            iso_ts = metadata.get("iso_timestamp", "")
+
+            try:
+                await deps.group_context.append(
+                    group_id=group_id,
+                    sender_name=sender_name,
+                    sender_id=sender_id,
+                    content=message.content,
+                    msg_id=msg_id,
+                    timestamp=iso_ts,
+                )
+            except Exception:
+                logger.warning("Failed to append group context for group %s", group_id)
+
+            # 非@消息：只记录上下文，不触发 agentic loop
+            if not is_at_bot:
+                logger.debug(
+                    "Group non-@ message from %s in %s (len=%d) → context only, skipped",
+                    sender_id, group_id, len(message.content),
+                )
+                return
+
         account_id = await deps.account_service.resolve(ch_type, message.sender_id)
-        session_id = f"session-{account_id}"
+        workflow_id = f"hpagent-{account_id}"
+
+        from temporalio.exceptions import WorkflowAlreadyStartedError
+
+        session_id = f"session-{account_id}-{uuid.uuid4().hex[:8]}"
 
         user_message = {
             "content": message.content,
@@ -368,12 +515,25 @@ async def start_worker(config: AppConfig) -> None:
             "account_id": account_id,
             "metadata": message.metadata,
             "timestamp": message.timestamp,
+            "idle_timeout_minutes": config.agent.idle_timeout_minutes,
+            "activity_timeout": config.agent.activity_timeout,
         }
 
-        # 准备工作区 + 沙箱（基础设施前置，幂等）
-        workspace_path = str(deps.workspace_root / account_id / "sessions" / session_id / "workspace")
         try:
+            # —— 先尝试创建 workflow（轻量 RPC），成功后再初始化本地资源 ——
+            # 这样 WorkflowAlreadyStartedError 时不会产生幽灵 session
+            await client.start_workflow(
+                OrchestrationWorkflow.run,
+                user_message,
+                id=workflow_id,
+                task_queue=config.temporal.task_queue,
+            )
+
+            # workflow 创建成功 → 初始化工作区资源
+            repo_path = str(deps.workspace_root / account_id / "repo")
             init_user(deps.file_store, deps.workspace_db, account_id)
+            await deps.git_repo_manager.ensure_repo(account_id)
+            await deps.git_repo_manager.start_session(account_id, session_id)
             init_session(
                 deps.file_store, deps.workspace_db,
                 user_uuid=account_id,
@@ -382,27 +542,95 @@ async def start_worker(config: AppConfig) -> None:
             )
             deps.sandbox_manager.create_session_sandbox(
                 session_id=session_id,
-                workspace_path=workspace_path,
+                workspace_path=repo_path,
                 user_uuid=account_id,
             )
-        except Exception as e:
-            logger.warning("Workspace/sandbox setup failed for %s: %s", session_id, e)
-
-        from temporalio.exceptions import WorkflowAlreadyStartedError
-        try:
-            await client.start_workflow(
-                OrchestrationWorkflow.run,
-                user_message,
-                id=session_id,
-                task_queue=config.temporal.task_queue,
-            )
             logger.info("Started new session %s (account=%s)", session_id, account_id)
+
         except WorkflowAlreadyStartedError:
-            handle = client.get_workflow_handle(session_id)
-            await handle.signal(OrchestrationWorkflow.new_message, user_message)
-            logger.info("Signaled existing session %s", session_id)
+            # —— 复用已有 workflow：沿用其 session_id，无需新建本地资源 ——
+            handle = client.get_workflow_handle(workflow_id)
+            signaled = False
+            try:
+                status = await handle.query(OrchestrationWorkflow.get_status)
+                session_id = status.get("session_id", f"session-{account_id}")
+
+                # 确保沙箱存在（重启后内存丢失，需重建）
+                sandbox_ok = False
+                try:
+                    deps.sandbox_manager.get_sandbox_for_session(session_id)
+                    sandbox_ok = True
+                except Exception:
+                    pass
+
+                if not sandbox_ok:
+                    try:
+                        repo_path = str(deps.workspace_root / account_id / "repo")
+                        init_user(deps.file_store, deps.workspace_db, account_id)
+                        await deps.git_repo_manager.ensure_repo(account_id)
+                        await deps.git_repo_manager.start_session(account_id, session_id)
+                        init_session(
+                            deps.file_store, deps.workspace_db,
+                            user_uuid=account_id,
+                            session_id=session_id,
+                            task_summary="",
+                        )
+                        deps.sandbox_manager.create_session_sandbox(
+                            session_id=session_id,
+                            workspace_path=repo_path,
+                            user_uuid=account_id,
+                        )
+                        logger.info("Sandbox recreated for signaled session %s", session_id)
+                    except Exception as e:
+                        logger.warning("Sandbox recreation failed for %s: %s", session_id, e)
+
+                # 用已有 workflow 的 session_id 覆盖 payload
+                user_message["session_id"] = session_id
+
+                await handle.signal(OrchestrationWorkflow.new_message, user_message)
+                logger.info("Signaled existing session %s", session_id)
+                signaled = True
+            except Exception as signal_err:
+                # workflow 可能已归档退出（详见 workflow.py 的 drain 竞态窗口），
+                # signal 失败时回退到启动新 workflow
+                logger.info(
+                    "Workflow %s signal failed (%s), starting replacement session",
+                    workflow_id, signal_err,
+                )
+
+            if not signaled:
+                # 启动新 session 替代已结束的 workflow
+                session_id = f"session-{account_id}-{uuid.uuid4().hex[:8]}"
+                user_message["session_id"] = session_id
+
+                repo_path = str(deps.workspace_root / account_id / "repo")
+                init_user(deps.file_store, deps.workspace_db, account_id)
+                await deps.git_repo_manager.ensure_repo(account_id)
+                await deps.git_repo_manager.start_session(account_id, session_id)
+                init_session(
+                    deps.file_store, deps.workspace_db,
+                    user_uuid=account_id,
+                    session_id=session_id,
+                    task_summary=user_message["content"][:100],
+                )
+                deps.sandbox_manager.create_session_sandbox(
+                    session_id=session_id,
+                    workspace_path=repo_path,
+                    user_uuid=account_id,
+                )
+
+                from temporalio.common import WorkflowIDReusePolicy
+                await client.start_workflow(
+                    OrchestrationWorkflow.run,
+                    user_message,
+                    id=workflow_id,
+                    task_queue=config.temporal.task_queue,
+                    id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
+                )
+                logger.info("Started replacement session %s (account=%s)", session_id, account_id)
+
         except Exception as e:
-            logger.exception("Failed to start or signal session %s: %s", session_id, e)
+            logger.exception("Failed to start or signal session %s: %s", e)
 
     # ── 并发运行 Worker + 渠道监听 ──
     sandbox_cleanup_task = asyncio.create_task(
@@ -410,10 +638,13 @@ async def start_worker(config: AppConfig) -> None:
     )
 
     async with worker:
-        await napcat.start_monitor(handle_message)
+        for ch in active_channels:
+            await ch.start_monitor(handle_message)
+
+        channel_names = [ch.channel_type.value for ch in active_channels]
         logger.info(
-            "Orchestration Worker started on task_queue='%s'",
-            config.temporal.task_queue,
+            "Orchestration Worker started on task_queue='%s' (channels: %s)",
+            config.temporal.task_queue, ", ".join(channel_names) if channel_names else "none",
         )
 
         # 设置定期记忆反思 Schedule
@@ -432,11 +663,13 @@ async def start_worker(config: AppConfig) -> None:
     # ── Worker shutdown cleanup ──
     logger.info("Worker shutting down, cleaning up resources...")
 
-    try:
-        await napcat.stop_monitor()
-        logger.info("NapCat monitor stopped")
-    except Exception as e:
-        logger.warning("NapCat stop_monitor failed: %s", e)
+    for ch in active_channels:
+        ch_name = ch.channel_type.value
+        try:
+            await ch.stop_monitor()
+            logger.info("%s monitor stopped", ch_name)
+        except Exception as e:
+            logger.warning("%s stop_monitor failed: %s", ch_name, e)
 
     sandbox_cleanup_task.cancel()
     try:
@@ -481,10 +714,18 @@ async def _setup_reflect_schedule(client, account_service, config) -> None:
         ScheduleSpec,
         ScheduleIntervalSpec,
         ScheduleOverlapPolicy,
+        SchedulePolicy,
     )
 
     schedule_id = "hpagent-reflect-schedule"
     try:
+        # 先清理旧 schedule 再创建（upsert 语义，消除重启时的 "Schedule already running" 警告）
+        try:
+            handle = client.get_schedule_handle(schedule_id)
+            await handle.delete()
+        except Exception:
+            pass
+
         account_ids = account_service.list_all_ids()
         if not account_ids:
             logger.info("Reflect schedule skipped: no accounts registered")
@@ -504,7 +745,7 @@ async def _setup_reflect_schedule(client, account_service, config) -> None:
                         every=timedelta(hours=config.agent.reflect_interval_hours)
                     )]
                 ),
-                policy=ScheduleOverlapPolicy.SKIP,
+                policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
             ),
         )
         logger.info(
@@ -512,7 +753,7 @@ async def _setup_reflect_schedule(client, account_service, config) -> None:
             schedule_id, config.agent.reflect_interval_hours, len(account_ids),
         )
     except Exception as e:
-        logger.warning("Failed to create reflect schedule (may already exist): %s", e)
+        logger.warning("Failed to create reflect schedule: %s", e)
 
 
 async def _setup_metrics_schedule(client, config) -> None:
@@ -528,11 +769,20 @@ async def _setup_metrics_schedule(client, config) -> None:
         ScheduleSpec,
         ScheduleIntervalSpec,
         ScheduleOverlapPolicy,
+        SchedulePolicy,
+        ScheduleState,
     )
     from datetime import timedelta
 
     schedule_id = "hpagent-metrics-schedule"
     try:
+        # 先清理旧 schedule 再创建（upsert 语义）
+        try:
+            handle = client.get_schedule_handle(schedule_id)
+            await handle.delete()
+        except Exception:
+            pass
+
         await client.create_schedule(
             schedule_id,
             Schedule(
@@ -544,10 +794,10 @@ async def _setup_metrics_schedule(client, config) -> None:
                 spec=ScheduleSpec(
                     intervals=[ScheduleIntervalSpec(every=timedelta(minutes=30))]
                 ),
-                policy=ScheduleOverlapPolicy.SKIP,
-                notes="Hindsight 可观测性指标报告 —— 每 30 分钟采集一次",
+                policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
+                state=ScheduleState(note="Hindsight 可观测性指标报告 —— 每 30 分钟采集一次"),
             ),
         )
         logger.info("Metrics report schedule created: id=%s every=30m", schedule_id)
     except Exception as e:
-        logger.warning("Failed to create metrics schedule (may already exist): %s", e)
+        logger.warning("Failed to create metrics schedule: %s", e)

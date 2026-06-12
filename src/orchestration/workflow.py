@@ -33,7 +33,8 @@ class OrchestrationWorkflow:
         self._total_turns = 0
         self._completed = False
         self._pending_messages: List[Dict[str, Any]] = []
-        self._idle_timeout_minutes = 1
+        self._idle_timeout_minutes = 5
+        self._final_content = ""
 
     @workflow.run
     async def run(self, user_message: Dict[str, Any]) -> Dict[str, Any]:
@@ -54,54 +55,109 @@ class OrchestrationWorkflow:
         if not self._account_id or not self._session_id:
             raise ValueError("account_id 和 session_id 不能为空")
 
-        final_content = await self._process_turn(user_message)
+        timeout = user_message.get("idle_timeout_minutes")
+        if isinstance(timeout, (int, float)) and timeout > 0:
+            self._idle_timeout_minutes = timeout
+        elif timeout == 0:
+            self._idle_timeout_minutes = 0  # 0 = 永不超时
+
+        self._final_content = await self._process_turn(user_message)
 
         # 主循环 —— 等待 signal 入队的新消息
         while True:
-            try:
-                await asyncio.wait_for(
-                    workflow.wait_condition(
-                        lambda: bool(self._pending_messages) or self._completed
-                    ),
-                    timeout=timedelta(minutes=self._idle_timeout_minutes).total_seconds(),
+            if self._idle_timeout_minutes == 0:
+                await workflow.wait_condition(
+                    lambda: bool(self._pending_messages) or self._completed
                 )
-            except asyncio.TimeoutError:
-                workflow.logger.info("Session %s idle for %d minute, auto-closing", self._session_id, self._idle_timeout_minutes)
-                break
-            
+            else:
+                try:
+                    await asyncio.wait_for(
+                        workflow.wait_condition(
+                            lambda: bool(self._pending_messages) or self._completed
+                        ),
+                        timeout=timedelta(minutes=self._idle_timeout_minutes).total_seconds(),
+                    )
+                except asyncio.TimeoutError:
+                    workflow.logger.info("Session %s idle for %d minute(s), auto-closing",
+                                        self._session_id, self._idle_timeout_minutes)
+                    break
+
             if self._completed:
                 break
-            
+
             if self._pending_messages:
                 next_msg = self._pending_messages.pop(0)
-                final_content = await self._process_turn(next_msg)
+                self._final_content = await self._process_turn(next_msg)
 
-        # 退出前归档会话
+        # ── 退出前：两阶段清空迟到信号 ──
+        # 阶段 1: 主循环退出后、归档前（覆盖「退出到归档之间」到达的信号）
+        await self._drain_pending()
+
+        # 阶段 2: 归档。archive_session_activity 内部会调 fast 模型生成摘要，
+        # 耗时可能很长（模型超时重试等），归档完成后再检查一次。
         from orchestration.worker import archive_session_activity
         await workflow.execute_activity(
             "archive_session_activity",
             args=[self._session_id],
-            start_to_close_timeout=timedelta(seconds=10),
+            start_to_close_timeout=timedelta(seconds=60),
         )
+
+        # 阶段 3: 归档后二次 drain（覆盖「归档过程中」到达的信号）
+        re_archived = await self._drain_pending()
+        if re_archived:
+            await workflow.execute_activity(
+                "archive_session_activity",
+                args=[self._session_id],
+                start_to_close_timeout=timedelta(seconds=60),
+            )
 
         return {
             "status": "completed",
-            "content": final_content,
+            "content": self._final_content,
             "turns": self._total_turns,
             "account_id": self._account_id,
             "session_id": self._session_id,
         }
 
+    async def _drain_pending(self) -> bool:
+        """等待并消费 _pending_messages 中的迟到 signal。
+
+        Returns:
+            True 如果有消息被消费（调用方可能需要重新归档）。
+        """
+        try:
+            await asyncio.wait_for(
+                workflow.wait_condition(
+                    lambda: bool(self._pending_messages),
+                ),
+                timeout=5.0,
+            )
+        except asyncio.TimeoutError:
+            return False  # 无迟到信号
+
+        drained = False
+        while self._pending_messages:
+            next_msg = self._pending_messages.pop(0)
+            workflow.logger.info(
+                "Session %s: draining late signal",
+                self._session_id,
+            )
+            self._final_content = await self._process_turn(next_msg)
+            drained = True
+        return drained
+
     async def _process_turn(self, user_message: Dict[str, Any]) -> str:
         """处理一条消息 —— 委托给 HarnessRunner.process_turn_activity。"""
         self._total_turns += 1
+
+        timeout_seconds = user_message.get("activity_timeout", 300)
 
         try:
             from orchestration.worker import process_turn_activity
             result = await workflow.execute_activity(
                 "process_turn_activity",
                 args=[user_message],
-                start_to_close_timeout=timedelta(seconds=120),
+                start_to_close_timeout=timedelta(seconds=timeout_seconds),
                 retry_policy=RetryPolicy(
                     initial_interval=timedelta(seconds=1),
                     maximum_interval=timedelta(seconds=60),

@@ -3,11 +3,11 @@ Centralized logging setup —— 双 sink：控制台（stderr）+ 结构化 JSO
 
 Usage:
     from common.logging import setup_logging
-    setup_logging(level=logging.DEBUG, log_dir=Path(".data/data/logs"))
+    setup_logging(level=logging.DEBUG, log_dir=Path(".data/logs"))
 
 Log files:
-    .data/data/logs/hpagent.jsonl     全量结构化 JSON（每行一条记录，默认 DEBUG）
-    .data/data/logs/hpagent-error.log 仅 ERROR+，快速定位故障
+    .data/logs/hpagent.jsonl     全量结构化 JSON（每行一条记录，默认 DEBUG）
+    .data/logs/hpagent-error.log 仅 ERROR+，快速定位故障
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class _JsonFormatter(logging.Formatter):
 
 def setup_logging(
     level: int = logging.INFO,
-    log_dir: Path | str = Path(".data/data/logs"),
+    log_dir: Path | str = Path(".data/logs"),
 ) -> None:
     """配置全局日志系统。
 
@@ -52,6 +52,10 @@ def setup_logging(
 
     # 清除已有 handler（防止重复调用）
     root.handlers.clear()
+
+    # ── 第三方库日志静默 ──
+    for lib in ("httpx", "httpcore", "chromadb", "temporalio", "asyncio"):
+        logging.getLogger(lib).setLevel(logging.WARNING)
 
     # ── 控制台 sink ──
     console = logging.StreamHandler(sys.stderr)

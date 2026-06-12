@@ -12,8 +12,12 @@ Usage:
         api_key="",
         model="BAAI/bge-m3",
     )
-    vectors = client.embed_texts(["calculator: evaluate math expression"])
+    # Async context:
+    vectors = await client.embed(["calculator: evaluate math expression"])
+    # Sync context (no event loop running):
+    vectors = client.embed_sync(["calculator: evaluate math expression"])
 """
+import asyncio
 import logging
 from typing import List
 
@@ -31,36 +35,46 @@ class EmbeddingClient:
         base_url: str = "",
         api_key: str = "",
         model: str = "BAAI/bge-m3",
-        timeout: float = 30.0,
+        timeout: float = 5.0,
     ):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
 
+    @property
+    def model(self) -> str:
+        """当前使用的 embedding 模型名称，用于向量缓存版本追踪。"""
+        return self._model
+
     # ── 公开接口 ──────────────────────────────────────────────────
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        """同步方式向量化文本列表。"""
-        import asyncio
+    async def embed(self, texts: List[str]) -> List[List[float]]:
+        """向量化文本列表（async —— 在异步上下文中使用）。"""
+        try:
+            return await self._embed_async(texts)
+        except Exception as e:
+            logger.warning("Embedding failed: %s, using zero vectors", e)
+            return [[0.0] * 1024 for _ in texts]
+
+    def embed_sync(self, texts: List[str]) -> List[List[float]]:
+        """向量化文本列表（sync —— 仅在无事件循环的同步上下文中使用）。
+
+        如果检测到当前有 asyncio 事件循环在运行，会在独立线程中执行，
+        避免 concurrent.futures.Future.result() 阻塞事件循环。
+        """
+        import concurrent.futures
 
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import concurrent.futures
-                future = concurrent.futures.Future()
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return asyncio.run(self._embed_async(texts))
 
-                async def _run():
-                    try:
-                        result = await self._embed_async(texts)
-                        future.set_result(result)
-                    except Exception as e:
-                        future.set_exception(e)
-
-                loop.create_task(_run())
+            # 事件循环已在运行（Temporal activity 等场景）→ 独立线程
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, self._embed_async(texts))
                 return future.result(timeout=self._timeout)
-            else:
-                return loop.run_until_complete(self._embed_async(texts))
         except Exception as e:
             logger.warning("Embedding failed: %s, using zero vectors", e)
             return [[0.0] * 1024 for _ in texts]
@@ -86,7 +100,6 @@ class EmbeddingClient:
                 resp = await client.post(url, json=body, headers=headers)
                 resp.raise_for_status()
                 data = resp.json()
-                # OpenAI 格式: {"data": [{"embedding": [...], "index": 0}, ...]}
                 items = sorted(data.get("data", []), key=lambda x: x.get("index", 0))
                 return [item["embedding"] for item in items]
         except httpx.HTTPStatusError as e:
@@ -111,7 +124,7 @@ def create_embedding_client(models_config) -> EmbeddingClient:
     entry = embedding_chain[0]
     provider_name = entry.provider
     model = entry.model
-    timeout = getattr(entry, "timeout", 30.0) or 30.0
+    timeout = getattr(entry, "timeout", 5.0) or 5.0
 
     providers = models_config.providers
     provider_cfg = providers.get(provider_name, {})

@@ -11,6 +11,7 @@ ResourcePool —— 模型调用池，实现 IResources 接口。
     失败自动切换到 openai:gpt4。
 """
 import logging
+import time
 from typing import Dict, Any, Optional, List
 from .credentials import CredentialManager
 from common.interfaces import IResources
@@ -55,7 +56,7 @@ class ResourcePool(IResources):
                 "base_url": ep.base_url,
                 "model": ep.model,
             }
-            # 从 extra 字段传递 max_tokens / timeout / api_format
+            # 从 extra 字段传递 api_format / max_tokens / timeout / extra_body
             if ep.extra:
                 if "api_format" in ep.extra:
                     client_cfg["api_format"] = ep.extra["api_format"]
@@ -63,6 +64,8 @@ class ResourcePool(IResources):
                     client_cfg["max_tokens"] = ep.extra["max_tokens"]
                 if "timeout" in ep.extra:
                     client_cfg["timeout"] = ep.extra["timeout"]
+                if "extra_body" in ep.extra and ep.extra["extra_body"]:
+                    client_cfg["extra_body"] = ep.extra["extra_body"]
             client = ModelClient(config=client_cfg)
             self._model_clients[client_id] = {"client": client, "priority": 0}
             client_ids.append(client_id)
@@ -87,6 +90,8 @@ class ResourcePool(IResources):
         model_selector: str = "default",
         tools: Optional[List[Dict[str, Any]]] = None,
         stream: bool = False,
+        max_tokens: Optional[int] = None,
+        latency_budget: Optional[float] = None,
     ) -> Any:
         """按退避链调用模型生成回复。
 
@@ -112,21 +117,52 @@ class ResourcePool(IResources):
         # 解析选择器: 优先查找退避组，找不到则视为单模型 ID
         candidate_ids = self._fallback_groups.get(model_selector, [model_selector])
         last_error = None
+        chain_start = time.monotonic()
+        attempt = 0
 
         for model_id in candidate_ids:
+            attempt += 1
             model_info = self._model_clients.get(model_id)
             if not model_info:
                 continue
             client = model_info["client"]
+            t0 = time.monotonic()
             try:
-                return await client.generate(
-                    messages=messages, tools=tools, stream=stream
+                result = await client.generate(
+                    messages=messages, tools=tools, stream=stream,
+                    max_tokens=max_tokens,
                 )
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                elapsed_s = (time.monotonic() - t0)
+
+                # 延迟预算回退：若当前模型响应慢但后面还有候选，主动超时触发 fallback
+                if latency_budget and elapsed_s > latency_budget:
+                    if attempt < len(candidate_ids):
+                        logger.warning(
+                            "Model %s exceeded latency budget (%.1fs > %.1fs), "
+                            "falling back to next candidate",
+                            model_id, elapsed_s, latency_budget,
+                        )
+                        raise TimeoutError(
+                            f"latency budget exceeded: {elapsed_s:.1f}s > {latency_budget:.1f}s"
+                        )
+
+                chain_elapsed = (time.monotonic() - chain_start) * 1000
+                # [TIMING] 临时日志，标记每次成功调用的耗时
+                logger.info(
+                    "[TIMING] %s attempt=%d/%d model=%s latency=%.0fms chain_total=%.0fms",
+                    model_selector, attempt, len(candidate_ids),
+                    model_id, elapsed_ms, chain_elapsed,
+                )
+                return result
             except (ModelAPIError, ConnectionError, TimeoutError) as e:
-                # 可恢复错误 → 记录降级并尝试下一个
+                elapsed = (time.monotonic() - t0) * 1000
+                chain_elapsed = (time.monotonic() - chain_start) * 1000
                 logger.warning(
-                    "DEGRADATION: model %s failed (%s) → trying next in chain [%s]",
+                    "DEGRADATION: model %s failed (%s) → trying next in chain [%s] "
+                    "(attempt %d/%d, attempt_latency=%.0fms chain_total=%.0fms)",
                     model_id, e, model_selector,
+                    attempt, len(candidate_ids), elapsed, chain_elapsed,
                 )
                 last_error = e
                 continue
@@ -134,8 +170,10 @@ class ResourcePool(IResources):
                 # 不可恢复错误 → 直接抛出
                 raise
 
+        chain_elapsed = (time.monotonic() - chain_start) * 1000
         if last_error:
             raise ModelAPIError(
-                f"All models in group '{model_selector}' failed."
+                f"All models in group '{model_selector}' failed (chain_total=%.0fms)."
+                % chain_elapsed
             ) from last_error
         raise ModelAPIError(f"No models available for selector '{model_selector}'.")

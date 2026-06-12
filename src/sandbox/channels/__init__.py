@@ -33,6 +33,7 @@ Channels —— 渠道适配层，将不同消息平台的消息统一为 Unifie
 from .base import BaseChannel
 from .console import ConsoleChannel
 from .napcat import NapCatChannel
+from .official_qq import OfficialQQChannel
 from .router import ChannelRouter
 
-__all__ = ["BaseChannel", "ConsoleChannel", "NapCatChannel", "ChannelRouter"]
+__all__ = ["BaseChannel", "ConsoleChannel", "NapCatChannel", "OfficialQQChannel", "ChannelRouter"]

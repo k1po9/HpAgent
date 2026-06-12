@@ -42,6 +42,8 @@ class SandboxManager:
         mcp_manager: Any = None,
         skill_definitions: Optional[List[dict]] = None,
         retriever: Any = None,
+        max_merged_multiplier: float = 1.5,
+        per_query_min: int = 3,
     ):
         self._nsjail_config = nsjail_config or NsjailConfig()
         self._redis_cache = redis_cache
@@ -50,6 +52,8 @@ class SandboxManager:
         self._mcp_manager = mcp_manager
         self._skill_definitions = skill_definitions or []
         self._retriever = retriever
+        self._max_merged_multiplier = max_merged_multiplier
+        self._per_query_min = per_query_min
 
         self._sandboxes: Dict[str, Sandbox] = {}
         self._session_to_sandbox: Dict[str, str] = {}
@@ -61,19 +65,12 @@ class SandboxManager:
         workspace_path: str,
         user_uuid: str = "",
     ) -> str:
-        """为会话创建 workspace 绑定的沙箱。
+        """为会话创建 workspace 绑定的沙箱（幂等——已存在则返回现有 ID）。"""
+        with self._lock:
+            if session_id in self._session_to_sandbox:
+                return self._session_to_sandbox[session_id]
 
-        内部:
-          1. 创建 ToolRegistry
-          2. 用 LOCAL_TOOL_FACTORIES 创建 workspace 绑定的本地工具
-          3. 注册共享的 MCP 工具（同一实例引用）
-          4. 注册 Skills 工具
-          5. 创建 Sandbox
-
-        Returns:
-            sandbox_id
-        """
-        registry = ToolRegistry(retriever=self._retriever)
+        registry = ToolRegistry(retriever=self._retriever, per_query_min=self._per_query_min)
 
         for name, factory in LOCAL_TOOL_FACTORIES.items():
             tool = factory(workspace_path)
@@ -87,20 +84,25 @@ class SandboxManager:
                          len(self._mcp_manager.get_cached_tools()))
 
         if self._skill_definitions:
-            from sandbox.tools.skills.engine import SkillPipeline, build_skill_tool
+            from sandbox.tools.skills.engine import build_skill_tool_from_definition
             for skill_def in self._skill_definitions:
-                pipeline = SkillPipeline(
-                    name=skill_def["name"],
-                    description=skill_def.get("description", ""),
-                    steps=skill_def.get("pipeline", {}).get("steps", []),
-                    on_error=skill_def.get("on_error", "stop"),
-                    timeout_seconds=skill_def.get("timeout_seconds", 60.0),
-                )
-                skill_tool = build_skill_tool(pipeline, registry)
+                skill_tool = build_skill_tool_from_definition(skill_def, registry)
                 registry.register(skill_tool, category="skill")
             logger.debug("Session sandbox: %d skills registered", len(self._skill_definitions))
 
         registry.freeze()
+
+        # 首次创建沙箱时同步工具向量库（增量，后续 session 跳过已有工具）
+        if self._retriever is not None:
+            try:
+                self._retriever._store.sync(
+                    registry.list_all(),
+                    embedding_client=self._retriever._embedding,
+                )
+            except Exception as e:
+                import traceback
+                logger.warning("Tool vector sync failed: %s", e)
+                logger.warning("Tool vector sync traceback:\n%s", traceback.format_exc())
 
         sandbox_id = str(uuid.uuid4())
         sandbox = Sandbox(
@@ -108,6 +110,7 @@ class SandboxManager:
             tool_registry=registry,
             sandbox_id=sandbox_id,
             nsjail_executor=None,
+            max_merged_multiplier=self._max_merged_multiplier,
         )
 
         with self._lock:

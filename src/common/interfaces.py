@@ -4,16 +4,13 @@
 设计意图：
   每一层对外暴露一个抽象接口，具体实现可以自由替换：
     - IResources: 资源管理层 —— 模型 API 凭据 + 退避链路
-    - ISandbox: 沙箱执行层 —— 工具调用 + 健康检查
     - IChannel: 渠道通信层 —— NapCat / Web / Console 三种渠道
 
 上层代码只依赖这些接口，不依赖具体实现类。
-
-会话（Session）由 Temporal Workflow 管理，无需接口抽象层。
 """
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
-from common.types import Event, UnifiedMessage, SessionMetadata
+from common.types import UnifiedMessage
 
 
 class IResources(ABC):
@@ -60,41 +57,6 @@ class IResources(ABC):
         Returns:
             ModelResponse 或流式迭代器。
         """
-        ...
-
-
-class ISandbox(ABC):
-    """沙箱接口 —— 所有外部操作（工具执行）通过沙箱代理。
-
-    每个沙箱封装一组工具，对外提供统一的 execute 和 list_tools。
-    架构中的 "双手"（hands）层。
-    """
-
-    @abstractmethod
-    async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> Any:
-        """在沙箱中执行指定工具。
-
-        Args:
-            tool_name: 工具名称。
-            arguments: 工具参数字典。
-
-        Returns:
-            工具执行结果（ToolResult 或原始值）。
-        """
-        ...
-
-    @abstractmethod
-    async def list_tools(self) -> List[Dict[str, Any]]:
-        """列出沙箱中所有可用工具的 OpenAI 格式定义。
-
-        Returns:
-            [{"type": "function", "function": {"name": ..., "description": ..., "parameters": ...}}, ...]
-        """
-        ...
-
-    @abstractmethod
-    async def health_check(self) -> bool:
-        """沙箱健康检查 —— 返回 True 表示可用。"""
         ...
 
 

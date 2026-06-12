@@ -1,0 +1,211 @@
+# MCP Server 统一配置
+# ============================================================
+# 每个 server 块包含：连接参数 + 工具配置（hint / enrich）。
+# 新增 MCP 服务器只需改这一个文件。
+# ============================================================
+#
+# ── 连接字段 ─────────────────────────────────────────────
+# url              str     MCP 端点 URL（HTTP/SSE 模式）
+# description      str     服务描述
+# headers          dict    自定义 HTTP 头，支持 ${ENV_VAR}
+# request_timeout  float   请求超时秒数（默认 60）
+# session_ttl      float   会话过期秒数（HTTP/SSE，默认 100）
+# truncate_limit   int     工具输出截断字符数（null=不截断）
+# disabled         bool    设为 true 跳过此 server
+# required         bool    所有工具始终加载，不参与 RAG 过滤
+# result_transform str     结果后处理变换 key（如 extract_content）
+# ── stdio 传输专用 ────────────────────────────────────────
+# transport        str     设为 "stdio"
+# command          str     可执行文件路径（如 node / python）
+# args             list    命令行参数
+# env              dict    子进程环境变量（增量覆盖）
+# cwd              str     子进程工作目录（默认自动指向项目根）
+# ── 工具配置 ──────────────────────────────────────────────
+# tools.<name>.hint    群聊进度提示（括号表示悄悄话）
+# tools.<name>.enrich  追加到 LLM 工具描述的用法提示
+#
+# ════════════════════════════════════════════════════════
+
+servers:
+
+  # ── tavily 网页搜索 ──────────────────────────────────────
+  tavily-mcp:
+    url: "https://mcp.api-inference.modelscope.net/1cf7c250530c4e/mcp"
+    description: "tavily-websearch-mcp-server"
+    required: true
+    tools:
+      tavily-search:
+        hint: "（爪子敲键盘上网冲浪中 🌊）"
+        enrich: " 用于搜索网页信息。实时性较强的数据（股价、天气、新闻）请优先调用对应专业工具。"
+      tavily-extract:
+        hint: "（正在阅读网页内容 📖）"
+        enrich: " 用于提取/阅读网页正文内容。"
+
+  # china-stock-mcp:
+  #   url: "https://mcp.api-inference.modelscope.net/3d2deab5595c41/mcp"
+  #   description: "china-stock-mcp-server"
+
+  # akshare-one-mcp:
+  #   url: "https://mcp.api-inference.modelscope.net/99b6212ed95046/sse"
+  #   description: "A股行情数据（历史K线/实时行情/财报/新闻/技术指标）"
+  #   request_timeout: 30
+  #   truncate_limit: 4000
+
+  # ── stock-sdk 股票行情 ───────────────────────────────────
+  stock-sdk:
+    transport: "stdio"
+    command: "node"
+    args:
+      - "tools/mcp/stock-sdk/dist/cli.js"
+      - "mcp"
+    description: "国内外股票：A股/港股/美股/基金/期货/期权 行情数据"
+    request_timeout: 30
+    truncate_limit: 4000
+    env:
+      STOCK_SDK_MCP_TOOLS: "core"
+    tools:
+      get_a_share_quotes:
+        hint: "（跑去交易所看了眼A股行情 🏦）"
+        enrich: " 用于查询A股实时行情：股价、收盘价、涨跌幅、市值、PE/PB等。"
+      search:
+        hint: "（在股票池里捞了一下 🔍）"
+        enrich: " 用于根据名称/代码/拼音搜索股票。精准名搜不到时换简称/拼音重试（如搜不到'麦迪股份'就搜'麦迪'）。"
+      get_today_timeline:
+        hint: "（拉开分时图看了一眼 📈）"
+        enrich: " 用于查看A股当日分时走势。"
+      get_history_kline:
+        hint: "（翻了翻历史K线 📊）"
+        enrich: " 用于查看A股历史K线（日/周/月，含复权）：开高低收、涨跌幅。"
+      get_minute_kline:
+        hint: "（打开分钟K线看走势 🕯️）"
+        enrich: " 用于查看A股分钟K线或当日分时。"
+      get_hk_quotes:
+        hint: "（跑去港交所瞄了一眼 🇭🇰）"
+        enrich: " 用于查询港股实时行情。"
+      get_us_quotes:
+        hint: "（跨洋看了眼美股 🇺🇸）"
+        enrich: " 用于查询美股实时行情。"
+      get_fund_quotes:
+        hint: "（翻了翻基金净值 💰）"
+        enrich: " 用于查询公募基金净值（场内/场外）。"
+      get_fund_estimate:
+        hint: "（算了算基金估值 🧮）"
+        enrich: " 用于查询基金当日实时估值。"
+      get_zt_pool:
+        hint: "（翻了翻涨停板 📋）"
+        enrich: " 用于查看涨停板股票列表（涨停/昨日涨停/炸板/跌停）。"
+      get_dragon_tiger_detail:
+        hint: "（偷瞄了龙虎榜 🐉）"
+        enrich: " 用于查看龙虎榜、游资和机构交易席位。"
+      get_northbound_flow_summary:
+        hint: "（看了看北向资金动向 🧭）"
+        enrich: " 用于查看北向资金/南向资金流入流出概况。"
+      get_individual_fund_flow:
+        hint: "（追踪了一下资金流向 💸）"
+        enrich: " 用于查看个股资金流向历史。"
+      get_fund_flow_rank:
+        hint: "（看了资金排行榜 🏆）"
+        enrich: " 用于查看个股资金流向排行。"
+      get_market_status:
+        hint: "（看了看盘面状态 🚦）"
+        enrich: " 用于查看当前A股是否开盘、盘面状态（开盘/午休/收盘）。"
+      is_trading_day:
+        hint: "（查了查是不是交易日 🗓️）"
+        enrich: " 用于判断某日期是否为A股交易日。"
+      get_kline_with_indicators:
+        hint: "（开着技术指标分析K线 🔬）"
+        enrich: " 用于查看带技术指标的历史K线（MA/MACD/BOLL/KDJ/RSI等）。"
+      get_industry_list:
+        hint: "（翻了翻行业板块 🏭）"
+        enrich: " 用于获取行业板块列表。"
+      get_concept_list:
+        hint: "（看了看概念板块 💡）"
+        enrich: " 用于获取概念板块列表。"
+      get_industry_constituents:
+        hint: "（翻了翻行业成分股 🏭）"
+        enrich: " 用于查看行业板块成分股。"
+      get_concept_constituents:
+        hint: "（看了看概念成分股 💡）"
+        enrich: " 用于查看概念板块成分股。"
+      get_futures_kline:
+        hint: "（翻了翻期货行情 📉）"
+        enrich: " 用于查看国内期货K线行情。"
+
+  # ── TickDB 股票行情 ──────────────────────────────────────
+  # tickdb:
+  #   url: "https://mcp.tickdb.ai/"
+  #   description: "TickDB 股票行情数据"
+  #   headers:
+  #     X-TickDB-Key: "if87o9K9D0fqcgMrVFLwsE5Krp8Z8HVT"
+  #   request_timeout: 30
+  #   truncate_limit: 4000
+
+  # ── 高德地图 ──────────────────────────────────────────────
+  amap-maps:
+    url: "https://mcp.api-inference.modelscope.net/e1abf638e8c84e/mcp"
+    description: "高德地图（地理编码/POI/路径规划/地点搜索）"
+    request_timeout: 15
+    tools:
+      maps_geo:
+        hint: "（展开地图看了看 🗺️）"
+        enrich: " 用于地址→坐标转换（地理编码）。"
+      maps_ip_location:
+        hint: "（查了查IP在哪 📍）"
+        enrich: " 用于IP地址归属地查询。"
+      maps_around_search:
+        hint: "（在地图周围找了找 🔍）"
+        enrich: " 用于周边POI搜索。"
+      maps_text_search:
+        hint: "（在地图上搜了一下 📝）"
+        enrich: " 用于关键词地点搜索。"
+      maps_search_detail:
+        hint: "（正在查看地图详情 🏠）"
+        enrich: " 用于查看地点/POI详情。"
+      maps_bicycling:
+        hint: "（正在规划骑行路线 🚲）"
+        enrich: " 用于骑行路径规划。"
+
+  # ── 八字命理 ──────────────────────────────────────────────
+  bazi-mcp:
+    url: "https://mcp.api-inference.modelscope.net/6f5b65c7897c43/mcp"
+    description: "八字/五行/命理推算"
+    tools:
+      getBaziDetail:
+        hint: "（正在排盘推演八字 ☯️）"
+      getSolarTimes:
+        hint: "（正在计算日出日落 🌅）"
+      getChineseCalendar:
+        hint: "（翻了翻老黄历 📜）"
+        enrich: " 用于查询农历日期。"
+      getSolarTerms:
+        hint: "（数了数节气 🍃）"
+        enrich: " 用于查询节气信息。"
+
+  # ── 菜谱查询 ──────────────────────────────────────────────
+  howtocook-mcp:
+    url: "https://mcp.api-inference.modelscope.net/58c96d150d0943/mcp"
+    description: "菜谱查询"
+    tools:
+      mcp_howtocook_whatToEat:
+        hint: "（正在翻菜谱 🍳）"
+
+  # ── 12306 火车票 ──────────────────────────────────────────
+  12306-mcp:
+    url: "https://mcp.api-inference.modelscope.net/9b18d6a824ef4e/mcp"
+    description: "12306 火车票查询"
+    tools:
+      get-tickets:
+        hint: "（正在刷火车票 🚄）"
+        enrich: " 用于查询火车票余票和班次。"
+      get-interline-tickets:
+        hint: "（正在计算中转路线 🔄）"
+        enrich: " 用于查询中转火车票方案。"
+      get-station-code-by-names:
+        hint: "（正在查车站代码 🚉）"
+        enrich: " 用于查询火车站三字码。"
+      get-station-code-of-citys:
+        hint: "（正在查城市车站 🏙️）"
+        enrich: " 用于查询城市所有火车站。"
+
+# ── 兜底提示 ──────────────────────────────────────────────
+_default_hint: "（正在处理中…）"

@@ -1,0 +1,7699 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "e3704bcc21b95506985e311bde0dc37c8317930c",
+  "generatedAt": "2026-05-21T11:19:33.965Z",
+  "files": {
+    "config/agents.yaml": {
+      "filePath": "config/agents.yaml",
+      "contentHash": "690ab924c44df82b9ea120a64789cdee951ad249cf9455797f3d7ffa5f0dd84b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 32,
+      "hasStructuralAnalysis": true
+    },
+    "config/dynamicconfig/development-sql.yaml": {
+      "filePath": "config/dynamicconfig/development-sql.yaml",
+      "contentHash": "4dfee6591b151c585d7772474e94515e76710fb821852941b5de10988448ba59",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 16,
+      "hasStructuralAnalysis": true
+    },
+    "config/models.yaml": {
+      "filePath": "config/models.yaml",
+      "contentHash": "35bf25dc35c53863ea81e1e9449096d1e32b176ea95bd56a4fab6a79c43a1c1a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 57,
+      "hasStructuralAnalysis": true
+    },
+    "config/prompts/environment.yaml": {
+      "filePath": "config/prompts/environment.yaml",
+      "contentHash": "c69576ed903830ab17e37593ca33c7b4bb38869b6e6c00774a636da765527692",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 15,
+      "hasStructuralAnalysis": true
+    },
+    "config/prompts/guidance.yaml": {
+      "filePath": "config/prompts/guidance.yaml",
+      "contentHash": "442209cc6a296f7456ab47ff1ea892444e2186d9ad2a0c10dd2920303465a11f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 34,
+      "hasStructuralAnalysis": true
+    },
+    "config/prompts/identities.yaml": {
+      "filePath": "config/prompts/identities.yaml",
+      "contentHash": "c397a4aec17a4edb828e1b8fab94a8f0189181ed5f1d88653f5f19a77a48cb95",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 55,
+      "hasStructuralAnalysis": true
+    },
+    "config/prompts/system.yaml": {
+      "filePath": "config/prompts/system.yaml",
+      "contentHash": "1837d6b6c866134562e6b1fd713b65aa4c738fc870fe67a1d03a039106b3acc9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 29,
+      "hasStructuralAnalysis": true
+    },
+    "docker-compose.yaml": {
+      "filePath": "docker-compose.yaml",
+      "contentHash": "520d7f0eb6c698105c8a1775c4179a09093848c7fab49e285a87e0040a17d062",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 191,
+      "hasStructuralAnalysis": true
+    },
+    "docs/mistake.md": {
+      "filePath": "docs/mistake.md",
+      "contentHash": "8f6ee36333a36fda42ac68b834c675f08323df8504ef16dd64689640f565d4a1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 103,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v4/architecture-and-data-flow.md": {
+      "filePath": "docs/version/v4/architecture-and-data-flow.md",
+      "contentHash": "ac15ca9bb4dece6ca8c1593b1d5b585750cd70bb3a5c4c49365cb0d379bbea82",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 267,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v4/cross-client-memory-design.md": {
+      "filePath": "docs/version/v4/cross-client-memory-design.md",
+      "contentHash": "8c771b45789e57bf98a34037091ad5622c7e266d534f0b5afe123b209ccf49ee",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 495,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v4/napcat.md": {
+      "filePath": "docs/version/v4/napcat.md",
+      "contentHash": "3685e35638764a0965109788317e29e4ed0b95987cd9b8f9c4c12f0643f5fec4",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 228,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v4/temporal.md": {
+      "filePath": "docs/version/v4/temporal.md",
+      "contentHash": "5745994a4b972cb2b62e7a62f409bc8d6fa6fa0f3b599b6b927c85d9d3d8bbaf",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 502,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v5/architecture-and-data-flow.md": {
+      "filePath": "docs/version/v5/architecture-and-data-flow.md",
+      "contentHash": "390f2ac89e1bc6928aedb086d60140acf700e824c769a8ac8b762e9e4c32981c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 423,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v5/cross-client-memory.md": {
+      "filePath": "docs/version/v5/cross-client-memory.md",
+      "contentHash": "d2d0c2a7f8dd3319827bf81d7fb1956348ac5e40f75f1135e2e5446851b9e4fa",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 310,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v5/durable.md": {
+      "filePath": "docs/version/v5/durable.md",
+      "contentHash": "c55c437fa63d354f1242a1eedcb15ec496a8336a2df5f123de562094d2a27caa",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 566,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v5/storage-layer.md": {
+      "filePath": "docs/version/v5/storage-layer.md",
+      "contentHash": "809f32f6fc38b3b5cd80eecf50c8dc1fff7e11539bb2d1dcb08ba33db1927876",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 250,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v6/01-refactoring-plan.md": {
+      "filePath": "docs/version/v6/01-refactoring-plan.md",
+      "contentHash": "2743a2ddc98e198b1a2373eade4891378d1e2cf5484dc486b91dc734de1a8498",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 373,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v6/02-evaluation.md": {
+      "filePath": "docs/version/v6/02-evaluation.md",
+      "contentHash": "7086c7bf1ff861a8ca50eefaa3d40e132c36527eb5844f0c984683eb1597902b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 157,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v6/03-summary.md": {
+      "filePath": "docs/version/v6/03-summary.md",
+      "contentHash": "38c8491614352b4e397dc8b0813658365b26bccfdfa3cabfc9affa656316a9be",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 247,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v6/04-workspace-evaluation.md": {
+      "filePath": "docs/version/v6/04-workspace-evaluation.md",
+      "contentHash": "c0fee8ca466ef88ca002f7284dbdb283ca72855acfa17c710c40ddd7abf95b21",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 168,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v6/05-workspace-summary.md": {
+      "filePath": "docs/version/v6/05-workspace-summary.md",
+      "contentHash": "1d6b88af10a203cd0d654fff010d352a9bfb88edcd29e2c44252bdeb027e8948",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 220,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v6/06-hindsight-evaluation.md": {
+      "filePath": "docs/version/v6/06-hindsight-evaluation.md",
+      "contentHash": "09dc4d8fd8796da6ca18d42abc008868c0d7cc4b77634da4e509e7553d4a87b5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 207,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v6/07-hindsight-summary.md": {
+      "filePath": "docs/version/v6/07-hindsight-summary.md",
+      "contentHash": "a838bd6a02b4f14a7e583d5fc446272a154c71f8864522d8dbf9e941118f34ed",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 204,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v6/08-architecture.md": {
+      "filePath": "docs/version/v6/08-architecture.md",
+      "contentHash": "11e84f08f36b8d72b1c0a7ef53b7030932f10569407a110588105c26f316c93a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1180,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v8/hindsight-memory-best-practices.md": {
+      "filePath": "docs/version/v8/hindsight-memory-best-practices.md",
+      "contentHash": "bdf1c8cd2188aecdfee1eb4999d5454390e7bdfff03cb128a1ed2960085eebd1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 619,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v8/napcat-api-reference.md": {
+      "filePath": "docs/version/v8/napcat-api-reference.md",
+      "contentHash": "aee9c6d76b3215470b208f460f6756c425d9a90f4bb3e64eacd4cbebac2bc75d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 417,
+      "hasStructuralAnalysis": true
+    },
+    "docs/version/v9/tools-layer.md": {
+      "filePath": "docs/version/v9/tools-layer.md",
+      "contentHash": "268c4c5698ea75a009d97c17f49e2063225da7d9e610e23e3d964c178d01f9ff",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 391,
+      "hasStructuralAnalysis": true
+    },
+    "migrations/001_accounts.sql": {
+      "filePath": "migrations/001_accounts.sql",
+      "contentHash": "2557e5bf8425872a5e1f8c9fe77abe216de62e698c8cb4486cfbbb1b805e3d1b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 40,
+      "hasStructuralAnalysis": true
+    },
+    "README.md": {
+      "filePath": "README.md",
+      "contentHash": "6e0836d96cd860927205ad8ee7747b0b71760b67628cb5a56ff805f1f9af5d57",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 305,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/clear-hindsight.sh": {
+      "filePath": "scripts/clear-hindsight.sh",
+      "contentHash": "7133177d5197d5f1a37266d0cd3c65eee00c930fd3249dae65ffae3876f5b21e",
+      "functions": [
+        {
+          "name": "show_status",
+          "params": [],
+          "exported": false,
+          "lineCount": 12
+        },
+        {
+          "name": "clear_via_api",
+          "params": [],
+          "exported": false,
+          "lineCount": 29
+        },
+        {
+          "name": "clear_via_postgres",
+          "params": [],
+          "exported": false,
+          "lineCount": 30
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": false,
+          "lineCount": 26
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 159,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/dev-reset.sh": {
+      "filePath": "scripts/dev-reset.sh",
+      "contentHash": "b50e3829a2ad1fa66ad5910129cad24de53fd7d0207c54f38b3712b75986fcec",
+      "functions": [
+        {
+          "name": "kill_hpagent",
+          "params": [],
+          "exported": false,
+          "lineCount": 18
+        },
+        {
+          "name": "clean_temporal",
+          "params": [],
+          "exported": false,
+          "lineCount": 34
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 98,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/migrate-memory-format.py": {
+      "filePath": "scripts/migrate-memory-format.py",
+      "contentHash": "4a197b7764c1536a3d98dc3cdeae51af045634c37ec1eedbf1e7c5b9d6cb9b13",
+      "functions": [
+        {
+          "name": "detect_format",
+          "params": [
+            "item"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "migrate_item",
+          "params": [
+            "item",
+            "session_id",
+            "channel_type"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 19
+        },
+        {
+          "name": "_build_context",
+          "params": [
+            "channel_type"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "_cleanup_hindsight_memories",
+          "params": [
+            "base_url",
+            "document_ids",
+            "api_key"
+          ],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 28
+        },
+        {
+          "name": "_collect_old_document_ids",
+          "params": [
+            "records"
+          ],
+          "returnType": "set[str]",
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": true,
+          "lineCount": 114
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "argparse",
+          "specifiers": [
+            "argparse"
+          ]
+        },
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime",
+            "timezone"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "httpx"
+          ]
+        }
+      ],
+      "exports": [
+        "detect_format",
+        "migrate_item",
+        "_build_context",
+        "_cleanup_hindsight_memories",
+        "_collect_old_document_ids",
+        "main"
+      ],
+      "totalLines": 265,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/start-all.sh": {
+      "filePath": "scripts/start-all.sh",
+      "contentHash": "8fb8fd53eb28c609f4aabdb89e5f6c5b38fd37874637178f7fa11d1cfb0b4ab1",
+      "functions": [
+        {
+          "name": "cleanup",
+          "params": [],
+          "exported": false,
+          "lineCount": 39
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 238,
+      "hasStructuralAnalysis": true
+    },
+    "src/__init__.py": {
+      "filePath": "src/__init__.py",
+      "contentHash": "a844b65cd6af3d9a42b3e98f09f9572e6b62963342c6f18dec521b6dcb42c4c3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 71,
+      "hasStructuralAnalysis": true
+    },
+    "src/account/__init__.py": {
+      "filePath": "src/account/__init__.py",
+      "contentHash": "f08291ea63f9e6d3663adeb755d6e3110450ca005a0c9055a2f45fec3994a85e",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".models",
+          "specifiers": [
+            "Account"
+          ]
+        },
+        {
+          "source": ".account_service",
+          "specifiers": [
+            "AccountService"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 19,
+      "hasStructuralAnalysis": true
+    },
+    "src/account/account_service.py": {
+      "filePath": "src/account/account_service.py",
+      "contentHash": "62074a3b4f7e85849ed6bf370820fd61dde26c0427812b308c7b56764d3a5f6f",
+      "functions": [],
+      "classes": [
+        {
+          "name": "AccountService",
+          "methods": [
+            "__init__",
+            "_load",
+            "_save",
+            "resolve",
+            "bind_channel",
+            "get_account",
+            "list_all_ids",
+            "find_by_binding"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 91
+        }
+      ],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Optional"
+          ]
+        },
+        {
+          "source": "account.models",
+          "specifiers": [
+            "Account"
+          ]
+        }
+      ],
+      "exports": [
+        "AccountService"
+      ],
+      "totalLines": 112,
+      "hasStructuralAnalysis": true
+    },
+    "src/account/models.py": {
+      "filePath": "src/account/models.py",
+      "contentHash": "e59266954a5bdab7632a898013de820f3a77f2c0ad5c706e483b9ad544a2c968",
+      "functions": [],
+      "classes": [
+        {
+          "name": "Account",
+          "methods": [
+            "to_dict",
+            "from_dict"
+          ],
+          "properties": [
+            "account_id",
+            "bindings",
+            "created_at",
+            "updated_at"
+          ],
+          "exported": true,
+          "lineCount": 35
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        }
+      ],
+      "exports": [
+        "Account"
+      ],
+      "totalLines": 54,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/__init__.py": {
+      "filePath": "src/agent/__init__.py",
+      "contentHash": "e496f37cfd9b1629de8477ff9cf343dfc0d0ac49c972f156449d09068f3d4a96",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".adapters",
+          "specifiers": [
+            "ReActAgent"
+          ]
+        },
+        {
+          "source": ".bus",
+          "specifiers": [
+            "InMemoryMessageBus"
+          ]
+        },
+        {
+          "source": ".compensation",
+          "specifiers": [
+            "CompensationHandler",
+            "CompensationRegistry"
+          ]
+        },
+        {
+          "source": ".composite",
+          "specifiers": [
+            "OrchestratorAsAgent"
+          ]
+        },
+        {
+          "source": ".context",
+          "specifiers": [
+            "ExecutionContext",
+            "RuntimeConfig",
+            "SessionState",
+            "SharedMemory"
+          ]
+        },
+        {
+          "source": ".factory",
+          "specifiers": [
+            "ResourcePoolAdapter",
+            "build_council",
+            "build_supervisor",
+            "build_workflow"
+          ]
+        },
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "AgentRegistry",
+            "BaseAgent",
+            "ControlStrategy",
+            "MessageBus"
+          ]
+        },
+        {
+          "source": ".llm_agent",
+          "specifiers": [
+            "LLMAgent"
+          ]
+        },
+        {
+          "source": ".orchestrator",
+          "specifiers": [
+            "Orchestrator"
+          ]
+        },
+        {
+          "source": ".registry",
+          "specifiers": [
+            "InMemoryAgentRegistry"
+          ]
+        },
+        {
+          "source": ".runner",
+          "specifiers": [
+            "MultiAgentExecutor"
+          ]
+        },
+        {
+          "source": ".strategies",
+          "specifiers": [
+            "CallLLM",
+            "ConditionEvaluator",
+            "CouncilControlStrategy",
+            "LLMJudge",
+            "LLMPlanner",
+            "LLMReviewer",
+            "MajorityJudge",
+            "RealLLMJudge",
+            "RealLLMPlanner",
+            "RealLLMReviewer",
+            "ResultAggregator",
+            "StubLLMPlanner",
+            "StubLLMReviewer",
+            "SupervisorControlStrategy",
+            "WorkflowControlStrategy"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "AgentHealth",
+            "BatchOutcome",
+            "BranchCondition",
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "ErrorInfo",
+            "ExecutionMetrics",
+            "ExecutionPlan",
+            "HandoffRequest",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 130,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/adapters.py": {
+      "filePath": "src/agent/adapters.py",
+      "contentHash": "a5f11392c6df6660dfec845528ec19a97c3e46721472b202f2b68b09c019ade5",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ReActAgent",
+          "methods": [
+            "__init__",
+            "capability",
+            "execute"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 77
+        }
+      ],
+      "imports": [
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any"
+          ]
+        },
+        {
+          "source": ".context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "BaseAgent"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "CapabilitySpec",
+            "ErrorInfo",
+            "ExecutionMetrics",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "ReActAgent"
+      ],
+      "totalLines": 103,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/bus.py": {
+      "filePath": "src/agent/bus.py",
+      "contentHash": "4909c8e800005a906e249d1adb1fcff05eb52624b3291ca36dc417fa1ec8bc47",
+      "functions": [],
+      "classes": [
+        {
+          "name": "InMemoryMessageBus",
+          "methods": [
+            "__init__",
+            "send",
+            "broadcast",
+            "listen"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 58
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "AsyncIterator"
+          ]
+        },
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "MessageBus"
+          ]
+        }
+      ],
+      "exports": [
+        "InMemoryMessageBus"
+      ],
+      "totalLines": 72,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/compensation.py": {
+      "filePath": "src/agent/compensation.py",
+      "contentHash": "76982a3818348a93b93a1df4c5657c8884fa939a47528798b03ee54a286c50c8",
+      "functions": [],
+      "classes": [
+        {
+          "name": "CompensationHandler",
+          "methods": [
+            "compensate"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "CompensationRegistry",
+          "methods": [
+            "__init__",
+            "register",
+            "get"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 17
+        }
+      ],
+      "imports": [
+        {
+          "source": "abc",
+          "specifiers": [
+            "ABC",
+            "abstractmethod"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Optional"
+          ]
+        },
+        {
+          "source": ".context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "Task"
+          ]
+        }
+      ],
+      "exports": [
+        "CompensationHandler",
+        "CompensationRegistry"
+      ],
+      "totalLines": 43,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/composite.py": {
+      "filePath": "src/agent/composite.py",
+      "contentHash": "e37540d6c71fef1af3e8e06b692f0a1154fc4c95aa06e3cc200900f7ec814228",
+      "functions": [],
+      "classes": [
+        {
+          "name": "OrchestratorAsAgent",
+          "methods": [
+            "__init__",
+            "capability",
+            "execute"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 62
+        }
+      ],
+      "imports": [
+        {
+          "source": ".context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "BaseAgent"
+          ]
+        },
+        {
+          "source": ".orchestrator",
+          "specifiers": [
+            "Orchestrator"
+          ]
+        },
+        {
+          "source": ".strategies",
+          "specifiers": [
+            "ResultAggregator"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "CapabilitySpec",
+            "ErrorInfo",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "OrchestratorAsAgent"
+      ],
+      "totalLines": 84,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/context.py": {
+      "filePath": "src/agent/context.py",
+      "contentHash": "4994512b60b247d8f0aa057e67735c8ca4919247b555edd585bb5cff0a76d0ec",
+      "functions": [],
+      "classes": [
+        {
+          "name": "SessionState",
+          "methods": [],
+          "properties": [
+            "user_id",
+            "conversation_history"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "SharedMemory",
+          "methods": [
+            "__init__",
+            "get",
+            "set",
+            "compare_and_set",
+            "delete",
+            "snapshot"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 44
+        },
+        {
+          "name": "RuntimeConfig",
+          "methods": [],
+          "properties": [
+            "timeout_seconds",
+            "max_retries",
+            "model_name"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "ExecutionContext",
+          "methods": [],
+          "properties": [
+            "session",
+            "shared_memory",
+            "config",
+            "trace_id"
+          ],
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any"
+          ]
+        }
+      ],
+      "exports": [
+        "SessionState",
+        "SharedMemory",
+        "RuntimeConfig",
+        "ExecutionContext"
+      ],
+      "totalLines": 85,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/factory.py": {
+      "filePath": "src/agent/factory.py",
+      "contentHash": "860f6d34a34527042132e56401a7d9229120c897d314a3816869210aac82cc43",
+      "functions": [
+        {
+          "name": "build_supervisor",
+          "params": [
+            "call_llm",
+            "agents",
+            "planner_system_prompt",
+            "reviewer_system_prompt",
+            "max_review_rounds"
+          ],
+          "returnType": "Orchestrator",
+          "exported": true,
+          "lineCount": 33
+        },
+        {
+          "name": "build_council",
+          "params": [
+            "call_llm",
+            "agents",
+            "council_name",
+            "judge_system_prompt",
+            "use_real_judge"
+          ],
+          "returnType": "Orchestrator",
+          "exported": true,
+          "lineCount": 37
+        },
+        {
+          "name": "build_workflow",
+          "params": [
+            "dag_tasks",
+            "dag_dependencies",
+            "agents"
+          ],
+          "returnType": "Orchestrator",
+          "exported": true,
+          "lineCount": 26
+        }
+      ],
+      "classes": [
+        {
+          "name": "ResourcePoolAdapter",
+          "methods": [
+            "__init__",
+            "__call__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 31
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Optional"
+          ]
+        },
+        {
+          "source": "resources.resource_pool",
+          "specifiers": [
+            "ResourcePool"
+          ]
+        },
+        {
+          "source": ".bus",
+          "specifiers": [
+            "InMemoryMessageBus"
+          ]
+        },
+        {
+          "source": ".context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "BaseAgent"
+          ]
+        },
+        {
+          "source": ".orchestrator",
+          "specifiers": [
+            "Orchestrator"
+          ]
+        },
+        {
+          "source": ".registry",
+          "specifiers": [
+            "InMemoryAgentRegistry"
+          ]
+        },
+        {
+          "source": ".strategies",
+          "specifiers": [
+            "CallLLM",
+            "CouncilControlStrategy",
+            "LLMJudge",
+            "LLMPlanner",
+            "LLMReviewer",
+            "MajorityJudge",
+            "RealLLMJudge",
+            "RealLLMPlanner",
+            "RealLLMReviewer",
+            "SupervisorControlStrategy",
+            "WorkflowControlStrategy"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "ExecutionPlan",
+            "Task"
+          ]
+        }
+      ],
+      "exports": [
+        "ResourcePoolAdapter",
+        "build_supervisor",
+        "build_council",
+        "build_workflow"
+      ],
+      "totalLines": 178,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/interfaces.py": {
+      "filePath": "src/agent/interfaces.py",
+      "contentHash": "871595bcfaf0a0e19d6982c1e6d9f798d1b4374f3d04c25a538473fb74f568a9",
+      "functions": [],
+      "classes": [
+        {
+          "name": "BaseAgent",
+          "methods": [
+            "capability",
+            "execute",
+            "initialize",
+            "shutdown",
+            "health_check",
+            "max_concurrency"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 34
+        },
+        {
+          "name": "ControlStrategy",
+          "methods": [
+            "initialize_plan",
+            "get_ready_batch",
+            "on_batch_completed"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 43
+        },
+        {
+          "name": "AgentRegistry",
+          "methods": [
+            "find_best",
+            "get_healthy_agents",
+            "get_availability"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "MessageBus",
+          "methods": [
+            "send",
+            "broadcast",
+            "listen"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 20
+        }
+      ],
+      "imports": [
+        {
+          "source": "abc",
+          "specifiers": [
+            "ABC",
+            "abstractmethod"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "AsyncIterator",
+            "Optional"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "AgentHealth",
+            "BatchOutcome",
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "ExecutionPlan",
+            "Task",
+            "TaskResult"
+          ]
+        }
+      ],
+      "exports": [
+        "BaseAgent",
+        "ControlStrategy",
+        "AgentRegistry",
+        "MessageBus"
+      ],
+      "totalLines": 150,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/llm_agent.py": {
+      "filePath": "src/agent/llm_agent.py",
+      "contentHash": "5b3c1a97249a5bb22f663d391c74affd6c0c00005f09f74f93127cd8085113fd",
+      "functions": [],
+      "classes": [
+        {
+          "name": "LLMAgent",
+          "methods": [
+            "__init__",
+            "capability",
+            "execute",
+            "_build_messages",
+            "_build_context_text",
+            "_format_history",
+            "_run_loop"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 179
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any"
+          ]
+        },
+        {
+          "source": ".context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "BaseAgent"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "CapabilitySpec",
+            "ErrorInfo",
+            "ExecutionMetrics",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "LLMAgent"
+      ],
+      "totalLines": 209,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/orchestrator.py": {
+      "filePath": "src/agent/orchestrator.py",
+      "contentHash": "ba647aee80be18caafcfc16cc6c75558640d501ad998913b7247d5a21a8be4c9",
+      "functions": [],
+      "classes": [
+        {
+          "name": "Orchestrator",
+          "methods": [
+            "__init__",
+            "run",
+            "_execute_batch",
+            "_execute_with_lifecycle",
+            "_normalize_result",
+            "_execute_compensations"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 201
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any"
+          ]
+        },
+        {
+          "source": ".context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "AgentRegistry",
+            "ControlStrategy",
+            "MessageBus"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "BatchOutcome",
+            "ErrorInfo",
+            "ExecutionPlan",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "Orchestrator"
+      ],
+      "totalLines": 240,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/registry.py": {
+      "filePath": "src/agent/registry.py",
+      "contentHash": "4adbaebb8de71556243ffa7b4668f4ef212eac5b253a5ad115c8ca61d8b382cc",
+      "functions": [],
+      "classes": [
+        {
+          "name": "InMemoryAgentRegistry",
+          "methods": [
+            "__init__",
+            "get_healthy_agents",
+            "get_availability",
+            "register_direct",
+            "unregister_direct"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 62
+        }
+      ],
+      "imports": [
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "AgentRegistry",
+            "BaseAgent"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "CapabilityRequirement"
+          ]
+        }
+      ],
+      "exports": [
+        "InMemoryAgentRegistry"
+      ],
+      "totalLines": 75,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/runner.py": {
+      "filePath": "src/agent/runner.py",
+      "contentHash": "04cf955ad5a6c3a02c698214dc5c2c409b80a2dddc103b42fc02f2ad235b0708",
+      "functions": [],
+      "classes": [
+        {
+          "name": "MultiAgentExecutor",
+          "methods": [
+            "__init__",
+            "execute",
+            "_build_orchestrator",
+            "_synthesize"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 174
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any"
+          ]
+        },
+        {
+          "source": ".context",
+          "specifiers": [
+            "ExecutionContext",
+            "RuntimeConfig",
+            "SessionState",
+            "SharedMemory"
+          ]
+        },
+        {
+          "source": ".factory",
+          "specifiers": [
+            "ResourcePoolAdapter",
+            "build_council",
+            "build_supervisor",
+            "build_workflow"
+          ]
+        },
+        {
+          "source": ".llm_agent",
+          "specifiers": [
+            "LLMAgent"
+          ]
+        },
+        {
+          "source": ".orchestrator",
+          "specifiers": [
+            "Orchestrator"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "CapabilitySpec",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "MultiAgentExecutor"
+      ],
+      "totalLines": 216,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/strategies.py": {
+      "filePath": "src/agent/strategies.py",
+      "contentHash": "93912f13661da5b8a092e4dce6c92ea3d24fc9edae419672fc37fd2b9354ddd8",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ConditionEvaluator",
+          "methods": [
+            "evaluate",
+            "check_predicate_sync"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 82
+        },
+        {
+          "name": "ResultAggregator",
+          "methods": [
+            "aggregate"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 49
+        },
+        {
+          "name": "WorkflowControlStrategy",
+          "methods": [
+            "__init__",
+            "initialize_plan",
+            "get_ready_batch",
+            "on_batch_completed",
+            "_dependencies_satisfied",
+            "_branch_allows"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 131
+        },
+        {
+          "name": "LLMPlanner",
+          "methods": [
+            "plan"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "LLMReviewer",
+          "methods": [
+            "review"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "LLMJudge",
+          "methods": [
+            "judge"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "StubLLMPlanner",
+          "methods": [
+            "__init__",
+            "plan"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 24
+        },
+        {
+          "name": "StubLLMReviewer",
+          "methods": [
+            "__init__",
+            "review"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "MajorityJudge",
+          "methods": [
+            "judge"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 27
+        },
+        {
+          "name": "RealLLMPlanner",
+          "methods": [
+            "__init__",
+            "plan",
+            "_tasks_from_tool_calls",
+            "_tasks_from_dict",
+            "_fallback_task",
+            "_parse_json_response"
+          ],
+          "properties": [
+            "ADD_TASK_TOOL"
+          ],
+          "exported": true,
+          "lineCount": 158
+        },
+        {
+          "name": "RealLLMReviewer",
+          "methods": [
+            "__init__",
+            "review",
+            "_parse_response"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 91
+        },
+        {
+          "name": "RealLLMJudge",
+          "methods": [
+            "__init__",
+            "judge",
+            "_parse_response"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 74
+        },
+        {
+          "name": "SupervisorControlStrategy",
+          "methods": [
+            "__init__",
+            "initialize_plan",
+            "get_ready_batch",
+            "on_batch_completed"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 80
+        },
+        {
+          "name": "CouncilControlStrategy",
+          "methods": [
+            "__init__",
+            "initialize_plan",
+            "get_ready_batch",
+            "on_batch_completed"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 83
+        }
+      ],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "abc",
+          "specifiers": [
+            "ABC",
+            "abstractmethod"
+          ]
+        },
+        {
+          "source": "collections",
+          "specifiers": [
+            "Counter"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Awaitable",
+            "Callable"
+          ]
+        },
+        {
+          "source": ".context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "ControlStrategy",
+            "MessageBus"
+          ]
+        },
+        {
+          "source": ".types",
+          "specifiers": [
+            "BatchOutcome",
+            "BranchCondition",
+            "CapabilityRequirement",
+            "ExecutionPlan",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "ConditionEvaluator",
+        "ResultAggregator",
+        "WorkflowControlStrategy",
+        "LLMPlanner",
+        "LLMReviewer",
+        "LLMJudge",
+        "StubLLMPlanner",
+        "StubLLMReviewer",
+        "MajorityJudge",
+        "RealLLMPlanner",
+        "RealLLMReviewer",
+        "RealLLMJudge",
+        "SupervisorControlStrategy",
+        "CouncilControlStrategy"
+      ],
+      "totalLines": 934,
+      "hasStructuralAnalysis": true
+    },
+    "src/agent/types.py": {
+      "filePath": "src/agent/types.py",
+      "contentHash": "524c5d084f1fbdf5a90397cb571b4df3502cd865fb216ccbf68bfe0318c410b4",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TaskStatus",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "AgentHealth",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "CapabilitySpec",
+          "methods": [],
+          "properties": [
+            "tags",
+            "priority",
+            "cost_tier"
+          ],
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "CapabilityRequirement",
+          "methods": [],
+          "properties": [
+            "required_tags",
+            "min_priority",
+            "max_cost",
+            "allow_degraded"
+          ],
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "HandoffRequest",
+          "methods": [],
+          "properties": [
+            "target_capability",
+            "context_to_pass",
+            "reason"
+          ],
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "ErrorInfo",
+          "methods": [],
+          "properties": [
+            "type",
+            "message",
+            "retryable",
+            "partial_output"
+          ],
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "ExecutionMetrics",
+          "methods": [],
+          "properties": [
+            "duration_ms",
+            "token_usage"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "Task",
+          "methods": [],
+          "properties": [
+            "task_id",
+            "goal",
+            "required_capability",
+            "input_data",
+            "task_type",
+            "parent_task_id"
+          ],
+          "exported": true,
+          "lineCount": 21
+        },
+        {
+          "name": "TaskResult",
+          "methods": [],
+          "properties": [
+            "task_id",
+            "status",
+            "output",
+            "error",
+            "metrics",
+            "handoff_request",
+            "trace_id"
+          ],
+          "exported": true,
+          "lineCount": 19
+        },
+        {
+          "name": "BranchCondition",
+          "methods": [],
+          "properties": [
+            "source_task_id",
+            "predicate",
+            "true_target",
+            "false_target"
+          ],
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "ExecutionPlan",
+          "methods": [],
+          "properties": [
+            "tasks",
+            "dependencies",
+            "branches"
+          ],
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "BatchOutcome",
+          "methods": [],
+          "properties": [
+            "injected_results",
+            "new_tasks",
+            "tasks_to_remove",
+            "failed_tasks_to_retry",
+            "should_terminate"
+          ],
+          "exported": true,
+          "lineCount": 21
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "enum",
+          "specifiers": [
+            "Enum"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Optional"
+          ]
+        }
+      ],
+      "exports": [
+        "TaskStatus",
+        "AgentHealth",
+        "CapabilitySpec",
+        "CapabilityRequirement",
+        "HandoffRequest",
+        "ErrorInfo",
+        "ExecutionMetrics",
+        "Task",
+        "TaskResult",
+        "BranchCondition",
+        "ExecutionPlan",
+        "BatchOutcome"
+      ],
+      "totalLines": 250,
+      "hasStructuralAnalysis": true
+    },
+    "src/common/__init__.py": {
+      "filePath": "src/common/__init__.py",
+      "contentHash": "089455aeca78f423787de6f23932c05503065abc8d232a6d307099228ef0d21e",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".types",
+          "specifiers": [
+            "*"
+          ]
+        },
+        {
+          "source": ".interfaces",
+          "specifiers": [
+            "*"
+          ]
+        },
+        {
+          "source": ".errors",
+          "specifiers": [
+            "*"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 39,
+      "hasStructuralAnalysis": true
+    },
+    "src/common/errors.py": {
+      "filePath": "src/common/errors.py",
+      "contentHash": "ad1ec55863169372a1d13b2c9559a6b7e7ae744190fa902961a996b79ae9ecad",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ErrorCode",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 23
+        },
+        {
+          "name": "AgentError",
+          "methods": [
+            "__init__",
+            "to_dict"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 31
+        },
+        {
+          "name": "SessionNotFoundError",
+          "methods": [
+            "__init__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "SandboxNotFoundError",
+          "methods": [
+            "__init__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "ToolNotFoundError",
+          "methods": [
+            "__init__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "ToolExecutionError",
+          "methods": [
+            "__init__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "ModelAPIError",
+          "methods": [
+            "__init__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "ValidationError",
+          "methods": [
+            "__init__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "Optional",
+            "Dict",
+            "Any"
+          ]
+        },
+        {
+          "source": "enum",
+          "specifiers": [
+            "Enum"
+          ]
+        }
+      ],
+      "exports": [
+        "ErrorCode",
+        "AgentError",
+        "SessionNotFoundError",
+        "SandboxNotFoundError",
+        "ToolNotFoundError",
+        "ToolExecutionError",
+        "ModelAPIError",
+        "ValidationError"
+      ],
+      "totalLines": 145,
+      "hasStructuralAnalysis": true
+    },
+    "src/common/interfaces.py": {
+      "filePath": "src/common/interfaces.py",
+      "contentHash": "67afca096ec1765c649108954656a13b9ba380f17f14f9eb768382cd17c5cd9c",
+      "functions": [],
+      "classes": [
+        {
+          "name": "IResources",
+          "methods": [
+            "initialize_models",
+            "register_model",
+            "configure_fallback",
+            "generate",
+            "get_credential",
+            "proxy_request"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 86
+        },
+        {
+          "name": "ISandbox",
+          "methods": [
+            "execute",
+            "list_tools",
+            "health_check"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 33
+        },
+        {
+          "name": "IChannel",
+          "methods": [
+            "normalize_message",
+            "send_message",
+            "start_monitor",
+            "stop_monitor"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 48
+        },
+        {
+          "name": "ITool",
+          "methods": [
+            "name",
+            "description",
+            "parameters",
+            "execute"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 34
+        }
+      ],
+      "imports": [
+        {
+          "source": "abc",
+          "specifiers": [
+            "ABC",
+            "abstractmethod"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Dict",
+            "List",
+            "Optional"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "Event",
+            "UnifiedMessage",
+            "SessionMetadata"
+          ]
+        }
+      ],
+      "exports": [
+        "IResources",
+        "ISandbox",
+        "IChannel",
+        "ITool"
+      ],
+      "totalLines": 227,
+      "hasStructuralAnalysis": true
+    },
+    "src/common/logging.py": {
+      "filePath": "src/common/logging.py",
+      "contentHash": "9381ced588909cb25b64d2246f315054911aa5f1161afda5150b9fc067fdbf30",
+      "functions": [
+        {
+          "name": "setup_logging",
+          "params": [
+            "level",
+            "log_dir"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 56
+        }
+      ],
+      "classes": [
+        {
+          "name": "_JsonFormatter",
+          "methods": [
+            "format"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 15
+        }
+      ],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "logging.handlers",
+          "specifiers": [
+            "TimedRotatingFileHandler"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        }
+      ],
+      "exports": [
+        "_JsonFormatter",
+        "setup_logging"
+      ],
+      "totalLines": 94,
+      "hasStructuralAnalysis": true
+    },
+    "src/common/types.py": {
+      "filePath": "src/common/types.py",
+      "contentHash": "0f6f47660511e79e8a9af707fdb7fdfda3d7c3a1d893ee50eca243c2a89c6f83",
+      "functions": [],
+      "classes": [
+        {
+          "name": "EventType",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "ChannelType",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "StopReason",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "ErrorSeverity",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "Event",
+          "methods": [
+            "to_dict",
+            "from_dict"
+          ],
+          "properties": [
+            "event_id",
+            "session_id",
+            "timestamp",
+            "event_type",
+            "content",
+            "metadata"
+          ],
+          "exported": true,
+          "lineCount": 56
+        },
+        {
+          "name": "UnifiedMessage",
+          "methods": [
+            "to_event"
+          ],
+          "properties": [
+            "message_id",
+            "session_id",
+            "account_id",
+            "sender_id",
+            "channel_type",
+            "content",
+            "timestamp",
+            "metadata",
+            "media_urls"
+          ],
+          "exported": true,
+          "lineCount": 47
+        },
+        {
+          "name": "ToolCall",
+          "methods": [
+            "to_dict",
+            "from_dict"
+          ],
+          "properties": [
+            "id",
+            "name",
+            "arguments"
+          ],
+          "exported": true,
+          "lineCount": 24
+        },
+        {
+          "name": "ToolResult",
+          "methods": [
+            "to_dict"
+          ],
+          "properties": [
+            "tool_call_id",
+            "status",
+            "content",
+            "error"
+          ],
+          "exported": true,
+          "lineCount": 21
+        },
+        {
+          "name": "ModelResponse",
+          "methods": [],
+          "properties": [
+            "content",
+            "tool_calls",
+            "stop_reason",
+            "usage"
+          ],
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "SessionMetadata",
+          "methods": [
+            "to_dict"
+          ],
+          "properties": [
+            "session_id",
+            "account_id",
+            "creator_id",
+            "channel_type",
+            "tags",
+            "created_at",
+            "status"
+          ],
+          "exported": true,
+          "lineCount": 24
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Optional",
+            "List",
+            "Dict",
+            "Any"
+          ]
+        },
+        {
+          "source": "enum",
+          "specifiers": [
+            "Enum"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        }
+      ],
+      "exports": [
+        "EventType",
+        "ChannelType",
+        "StopReason",
+        "ErrorSeverity",
+        "Event",
+        "UnifiedMessage",
+        "ToolCall",
+        "ToolResult",
+        "ModelResponse",
+        "SessionMetadata"
+      ],
+      "totalLines": 293,
+      "hasStructuralAnalysis": true
+    },
+    "src/Dockerfile": {
+      "filePath": "src/Dockerfile",
+      "contentHash": "ee7f2b6b006e519c584e296372e65a56411b1aac4f43d274d04aef7f75561827",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 37,
+      "hasStructuralAnalysis": true
+    },
+    "src/entrypoint.sh": {
+      "filePath": "src/entrypoint.sh",
+      "contentHash": "48302ef4fe4fb037746d3a88ff4cf45d9312b4d1215353099d183165bc91e679",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 6,
+      "hasStructuralAnalysis": true
+    },
+    "src/harness/__init__.py": {
+      "filePath": "src/harness/__init__.py",
+      "contentHash": "d28a7eb07ec6a123aeb656aa456c6e25498e1acc19c582d2ac767a9db1b96e76",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".activities",
+          "specifiers": [
+            "inject",
+            "process_turn_activity",
+            "archive_session_activity",
+            "reflect_activity"
+          ]
+        },
+        {
+          "source": ".context_builder",
+          "specifiers": [
+            "HarnessContextBuilder"
+          ]
+        },
+        {
+          "source": ".runner",
+          "specifiers": [
+            "HarnessRunner"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 36,
+      "hasStructuralAnalysis": true
+    },
+    "src/harness/activities.py": {
+      "filePath": "src/harness/activities.py",
+      "contentHash": "f9c6eff6a90c3cebf5a60b16f121b8bd354527ef75d044fcfcbbe0e1762a3802",
+      "functions": [
+        {
+          "name": "inject",
+          "params": [
+            "harness"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "process_turn_activity",
+          "params": [
+            "user_message"
+          ],
+          "returnType": "Dict[str, Any]",
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "archive_session_activity",
+          "params": [
+            "session_id"
+          ],
+          "returnType": "Dict[str, Any]",
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "reflect_activity",
+          "params": [
+            "account_id"
+          ],
+          "returnType": "Dict[str, Any]",
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "reflect_batch_activity",
+          "params": [
+            "account_ids"
+          ],
+          "returnType": "Dict[str, Any]",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "metrics_report_activity",
+          "params": [],
+          "returnType": "Dict[str, Any]",
+          "exported": true,
+          "lineCount": 16
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Any",
+            "List",
+            "Optional"
+          ]
+        },
+        {
+          "source": "temporalio",
+          "specifiers": [
+            "activity"
+          ]
+        },
+        {
+          "source": "harness.runner",
+          "specifiers": [
+            "HarnessRunner"
+          ]
+        }
+      ],
+      "exports": [
+        "inject",
+        "process_turn_activity",
+        "archive_session_activity",
+        "reflect_activity",
+        "reflect_batch_activity",
+        "metrics_report_activity"
+      ],
+      "totalLines": 144,
+      "hasStructuralAnalysis": true
+    },
+    "src/harness/context_builder.py": {
+      "filePath": "src/harness/context_builder.py",
+      "contentHash": "87050b8b03500017a718866dcd66d7a6d5fff719cd571250d2cb30aed0ddd6fe",
+      "functions": [
+        {
+          "name": "_is_wsl",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "_is_docker",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "_scan_context_content",
+          "params": [
+            "content",
+            "filename",
+            "prompts"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "_truncate_content",
+          "params": [
+            "content",
+            "label",
+            "max_chars",
+            "prompts"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "_find_project_root",
+          "params": [
+            "start"
+          ],
+          "returnType": "Optional[Path]",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "_load_hermes_md",
+          "params": [
+            "cwd",
+            "prompts"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 27
+        },
+        {
+          "name": "_load_context_file",
+          "params": [
+            "cwd",
+            "names",
+            "prompts"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "_load_cursorrules",
+          "params": [
+            "cwd",
+            "prompts"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 19
+        },
+        {
+          "name": "_load_soul_md",
+          "params": [
+            "prompts"
+          ],
+          "returnType": "Optional[str]",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "_build_context_files",
+          "params": [
+            "cwd",
+            "skip_soul",
+            "prompts"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 42
+        }
+      ],
+      "classes": [
+        {
+          "name": "HarnessContextBuilder",
+          "methods": [
+            "__init__",
+            "build",
+            "_detect_channel",
+            "_build_system_prompt",
+            "_pick_identity",
+            "_pick_style_guidance",
+            "_build_cross_channel_hint",
+            "_build_environment_hints",
+            "_extract_user_content",
+            "_extract_model_content",
+            "_extract_tool_result"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 267
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "List",
+            "Dict",
+            "Any",
+            "Optional"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "Event",
+            "EventType",
+            "ChannelType"
+          ]
+        },
+        {
+          "source": "harness.prompts",
+          "specifiers": [
+            "PromptLoader"
+          ]
+        }
+      ],
+      "exports": [
+        "_is_wsl",
+        "_is_docker",
+        "_scan_context_content",
+        "_truncate_content",
+        "_find_project_root",
+        "_load_hermes_md",
+        "_load_context_file",
+        "_load_cursorrules",
+        "_load_soul_md",
+        "_build_context_files",
+        "HarnessContextBuilder"
+      ],
+      "totalLines": 519,
+      "hasStructuralAnalysis": true
+    },
+    "src/harness/prompts.py": {
+      "filePath": "src/harness/prompts.py",
+      "contentHash": "81dd0fec3d1de3b49b8ec2be2df2843ecab1d06df7e7e93ad92b62d5b2a23d1b",
+      "functions": [],
+      "classes": [
+        {
+          "name": "PromptLoader",
+          "methods": [
+            "__init__",
+            "get_identity",
+            "identity_map",
+            "get_guidance",
+            "get_environment",
+            "get_system",
+            "format_cross_channel",
+            "format_truncate_marker",
+            "format_injection_blocked"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 117
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict"
+          ]
+        }
+      ],
+      "exports": [
+        "PromptLoader"
+      ],
+      "totalLines": 145,
+      "hasStructuralAnalysis": true
+    },
+    "src/harness/runner.py": {
+      "filePath": "src/harness/runner.py",
+      "contentHash": "eee265c8a75fa72419ff74276f7470fba06c36da658eb37cab99853b6a365044",
+      "functions": [],
+      "classes": [
+        {
+          "name": "HarnessRunner",
+          "methods": [
+            "__init__",
+            "process_turn",
+            "_resolve_tags_match",
+            "_ensure_session",
+            "_resolve_channel",
+            "_build_context",
+            "_get_tools",
+            "_execute_tool",
+            "reflect",
+            "get_metrics",
+            "_send_response"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 362
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Dict",
+            "List",
+            "Optional"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "Event",
+            "EventType",
+            "ChannelType",
+            "UnifiedMessage",
+            "ToolResult"
+          ]
+        },
+        {
+          "source": "session.store",
+          "specifiers": [
+            "SessionStore"
+          ]
+        },
+        {
+          "source": "sandbox.channels.router",
+          "specifiers": [
+            "ChannelRouter"
+          ]
+        },
+        {
+          "source": "agent.runner",
+          "specifiers": [
+            "MultiAgentExecutor"
+          ]
+        },
+        {
+          "source": "src.harness",
+          "specifiers": [
+            "HarnessContextBuilder"
+          ]
+        },
+        {
+          "source": "src.resources.resource_pool",
+          "specifiers": [
+            "ResourcePool"
+          ]
+        },
+        {
+          "source": "src.sandbox.sandbox_manager",
+          "specifiers": [
+            "SandboxManager"
+          ]
+        }
+      ],
+      "exports": [
+        "HarnessRunner"
+      ],
+      "totalLines": 395,
+      "hasStructuralAnalysis": true
+    },
+    "src/main.py": {
+      "filePath": "src/main.py",
+      "contentHash": "acbb008cf069e6ded581f03c402d0039db95b9ab45f6fd39bcd617fb42b621c0",
+      "functions": [
+        {
+          "name": "main_async",
+          "params": [],
+          "exported": true,
+          "lineCount": 19
+        },
+        {
+          "name": "main",
+          "params": [],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "common.logging",
+          "specifiers": [
+            "setup_logging"
+          ]
+        },
+        {
+          "source": "orchestration.config",
+          "specifiers": [
+            "AppConfig"
+          ]
+        },
+        {
+          "source": "orchestration.worker",
+          "specifiers": [
+            "start_worker"
+          ]
+        }
+      ],
+      "exports": [
+        "main_async",
+        "main"
+      ],
+      "totalLines": 74,
+      "hasStructuralAnalysis": true
+    },
+    "src/memory/__init__.py": {
+      "filePath": "src/memory/__init__.py",
+      "contentHash": "9b48dd8977e005b75b8c230efeff4f84df281acd4328ccbf01d14ad7be5b5e6e",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "memory.hindsight_client",
+          "specifiers": [
+            "HindsightClient",
+            "MemoryItem"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 18,
+      "hasStructuralAnalysis": true
+    },
+    "src/memory/hindsight_client.py": {
+      "filePath": "src/memory/hindsight_client.py",
+      "contentHash": "13f76c8e29ccc6b523472d4548e1826e3d88e59ba57f3ae948ca6f8e5f88dfc0",
+      "functions": [],
+      "classes": [
+        {
+          "name": "HindsightMetrics",
+          "methods": [
+            "snapshot",
+            "reset"
+          ],
+          "properties": [
+            "retain_success",
+            "retain_failure",
+            "retain_latency_ms",
+            "recall_success",
+            "recall_failure",
+            "recall_latency_ms",
+            "reflect_success",
+            "reflect_failure",
+            "degraded"
+          ],
+          "exported": true,
+          "lineCount": 59
+        },
+        {
+          "name": "MemoryItem",
+          "methods": [
+            "from_recall_result",
+            "from_dict"
+          ],
+          "properties": [
+            "content",
+            "relevance",
+            "memory_type",
+            "source_session_id",
+            "created_at"
+          ],
+          "exported": true,
+          "lineCount": 28
+        },
+        {
+          "name": "HindsightClient",
+          "methods": [
+            "__init__",
+            "_headers",
+            "_user_tags",
+            "_request",
+            "_post",
+            "_put",
+            "_ensure_bank",
+            "retain",
+            "_build_context",
+            "_build_tags",
+            "recall",
+            "_build_recall_tags",
+            "reflect",
+            "get_metrics",
+            "log_metrics",
+            "recall_formatted"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 474
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time_mod"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Dict",
+            "List",
+            "Optional"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "httpx"
+          ]
+        }
+      ],
+      "exports": [
+        "HindsightMetrics",
+        "MemoryItem",
+        "HindsightClient"
+      ],
+      "totalLines": 597,
+      "hasStructuralAnalysis": true
+    },
+    "src/orchestration/__init__.py": {
+      "filePath": "src/orchestration/__init__.py",
+      "contentHash": "68fc4d8958204842f8e5565b7f69b8775c82b02102316097c5948d40ec149dd6",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".workflow",
+          "specifiers": [
+            "OrchestrationWorkflow"
+          ]
+        },
+        {
+          "source": ".worker",
+          "specifiers": [
+            "start_worker"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 15,
+      "hasStructuralAnalysis": true
+    },
+    "src/orchestration/config.py": {
+      "filePath": "src/orchestration/config.py",
+      "contentHash": "077116f79564765e952e66445c340743608fe4e00a2fb18a3a9bd138405d5402",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ProviderEntry",
+          "methods": [],
+          "properties": [
+            "base_url",
+            "api_key",
+            "api_format"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "ModelEntry",
+          "methods": [],
+          "properties": [
+            "provider",
+            "model",
+            "max_tokens",
+            "timeout"
+          ],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "ModelsConfig",
+          "methods": [
+            "has_category",
+            "get_chain",
+            "resolve_endpoint",
+            "from_yaml"
+          ],
+          "properties": [
+            "providers",
+            "chat",
+            "embedding",
+            "image",
+            "reasoning"
+          ],
+          "exported": true,
+          "lineCount": 103
+        },
+        {
+          "name": "TemporalConfig",
+          "methods": [],
+          "properties": [
+            "host",
+            "task_queue"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "RedisConfig",
+          "methods": [],
+          "properties": [
+            "url",
+            "default_ttl"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "SandboxConfig",
+          "methods": [],
+          "properties": [
+            "nsjail_binary",
+            "chroot_path",
+            "work_dir",
+            "runner_script",
+            "python_binary",
+            "time_limit",
+            "memory_limit_mb",
+            "cpu_limit_seconds",
+            "max_processes",
+            "max_files",
+            "disable_proc",
+            "disable_network",
+            "readonly_root",
+            "max_idle_seconds",
+            "result_ttl"
+          ],
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "WorkspaceConfig",
+          "methods": [],
+          "properties": [
+            "root",
+            "db_path",
+            "cleanup_max_age_days"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "HindsightConfig",
+          "methods": [],
+          "properties": [
+            "enabled",
+            "base_url",
+            "api_key",
+            "timeout",
+            "retain_mission",
+            "reflect_mission"
+          ],
+          "exported": true,
+          "lineCount": 34
+        },
+        {
+          "name": "SessionConfig",
+          "methods": [],
+          "properties": [
+            "backup_dir",
+            "redis_ttl"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "MultiAgentConfig",
+          "methods": [],
+          "properties": [
+            "strategy",
+            "max_review_rounds",
+            "agents_config"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "AgentConfig",
+          "methods": [],
+          "properties": [
+            "max_history_turns",
+            "max_tool_turns",
+            "recall_top_n",
+            "event_fetch_limit",
+            "activity_timeout",
+            "archive_timeout",
+            "mode",
+            "reflect_interval_hours",
+            "multi_agent"
+          ],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "PromptsConfig",
+          "methods": [
+            "from_dir"
+          ],
+          "properties": [
+            "identities",
+            "guidance",
+            "environment",
+            "system"
+          ],
+          "exported": true,
+          "lineCount": 45
+        },
+        {
+          "name": "AgentEntry",
+          "methods": [
+            "from_dict"
+          ],
+          "properties": [
+            "tag",
+            "model_selector",
+            "system_prompt",
+            "tools",
+            "tool_executor",
+            "max_tool_turns",
+            "cost_tier",
+            "priority"
+          ],
+          "exported": true,
+          "lineCount": 23
+        },
+        {
+          "name": "AppConfig",
+          "methods": [
+            "from_yaml",
+            "_resolve_data_paths",
+            "_apply_env_overrides",
+            "_from_dict"
+          ],
+          "properties": [
+            "models",
+            "temporal",
+            "redis",
+            "sandbox",
+            "workspace",
+            "hindsight",
+            "session",
+            "agent",
+            "prompts",
+            "agents"
+          ],
+          "exported": true,
+          "lineCount": 173
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclasses"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Any"
+          ]
+        }
+      ],
+      "exports": [
+        "ProviderEntry",
+        "ModelEntry",
+        "ModelsConfig",
+        "TemporalConfig",
+        "RedisConfig",
+        "SandboxConfig",
+        "WorkspaceConfig",
+        "HindsightConfig",
+        "SessionConfig",
+        "MultiAgentConfig",
+        "AgentConfig",
+        "PromptsConfig",
+        "AgentEntry",
+        "AppConfig"
+      ],
+      "totalLines": 524,
+      "hasStructuralAnalysis": true
+    },
+    "src/orchestration/worker.py": {
+      "filePath": "src/orchestration/worker.py",
+      "contentHash": "601954906f4ce89926e824523d0c44d4ebe62c37288b04189a0cb59278ae2fa8",
+      "functions": [
+        {
+          "name": "_build_nsjail_config",
+          "params": [
+            "sandbox"
+          ],
+          "returnType": "NsjailConfig",
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "init_dependencies",
+          "params": [
+            "config"
+          ],
+          "returnType": "tuple[HarnessRunner, AccountService, ChannelRouter, SandboxManager, WorkspaceManager]",
+          "exported": true,
+          "lineCount": 161
+        },
+        {
+          "name": "start_worker",
+          "params": [
+            "config"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 109
+        },
+        {
+          "name": "_setup_reflect_schedule",
+          "params": [
+            "client",
+            "account_service",
+            "config"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 45
+        },
+        {
+          "name": "_setup_metrics_schedule",
+          "params": [
+            "client",
+            "config"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 36
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclasses"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "List",
+            "Dict"
+          ]
+        },
+        {
+          "source": "temporalio.client",
+          "specifiers": [
+            "Client"
+          ]
+        },
+        {
+          "source": "temporalio.worker",
+          "specifiers": [
+            "Worker",
+            "UnsandboxedWorkflowRunner"
+          ]
+        },
+        {
+          "source": "orchestration.config",
+          "specifiers": [
+            "AppConfig",
+            "SandboxConfig"
+          ]
+        },
+        {
+          "source": "orchestration.workflow",
+          "specifiers": [
+            "OrchestrationWorkflow",
+            "ReflectWorkflow",
+            "MetricsReportWorkflow"
+          ]
+        },
+        {
+          "source": "harness.activities",
+          "specifiers": [
+            "inject",
+            "process_turn_activity",
+            "archive_session_activity",
+            "reflect_activity",
+            "reflect_batch_activity",
+            "metrics_report_activity"
+          ]
+        },
+        {
+          "source": "harness.context_builder",
+          "specifiers": [
+            "HarnessContextBuilder"
+          ]
+        },
+        {
+          "source": "harness.prompts",
+          "specifiers": [
+            "PromptLoader"
+          ]
+        },
+        {
+          "source": "harness.runner",
+          "specifiers": [
+            "HarnessRunner"
+          ]
+        },
+        {
+          "source": "session.store",
+          "specifiers": [
+            "SessionStore"
+          ]
+        },
+        {
+          "source": "resources.resource_pool",
+          "specifiers": [
+            "ResourcePool"
+          ]
+        },
+        {
+          "source": "resources.credentials",
+          "specifiers": [
+            "CredentialManager",
+            "ModelEndpoint"
+          ]
+        },
+        {
+          "source": "sandbox.sandbox_manager",
+          "specifiers": [
+            "SandboxManager"
+          ]
+        },
+        {
+          "source": "sandbox.nsjail",
+          "specifiers": [
+            "NsjailConfig"
+          ]
+        },
+        {
+          "source": "sandbox.tools.factory",
+          "specifiers": [
+            "ToolFactory"
+          ]
+        },
+        {
+          "source": "sandbox.channels.napcat",
+          "specifiers": [
+            "NapCatChannel"
+          ]
+        },
+        {
+          "source": "sandbox.channels.router",
+          "specifiers": [
+            "ChannelRouter"
+          ]
+        },
+        {
+          "source": "account.account_service",
+          "specifiers": [
+            "AccountService"
+          ]
+        },
+        {
+          "source": "workspace.manager",
+          "specifiers": [
+            "WorkspaceManager"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "UnifiedMessage",
+            "ChannelType"
+          ]
+        }
+      ],
+      "exports": [
+        "_build_nsjail_config",
+        "init_dependencies",
+        "start_worker",
+        "_setup_reflect_schedule",
+        "_setup_metrics_schedule"
+      ],
+      "totalLines": 426,
+      "hasStructuralAnalysis": true
+    },
+    "src/orchestration/workflow.py": {
+      "filePath": "src/orchestration/workflow.py",
+      "contentHash": "ca3b72094a667ba0bb225e53d0a26d69ee1ee523aeb1fc85154cbfbe49a047b2",
+      "functions": [],
+      "classes": [
+        {
+          "name": "OrchestrationWorkflow",
+          "methods": [
+            "__init__",
+            "run",
+            "_process_turn",
+            "new_message",
+            "cancel_session",
+            "get_status"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 128
+        },
+        {
+          "name": "ReflectWorkflow",
+          "methods": [
+            "run"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "MetricsReportWorkflow",
+          "methods": [
+            "run"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 18
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "timedelta"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "List",
+            "Dict",
+            "Any"
+          ]
+        },
+        {
+          "source": "temporalio",
+          "specifiers": [
+            "workflow"
+          ]
+        },
+        {
+          "source": "temporalio.common",
+          "specifiers": [
+            "RetryPolicy"
+          ]
+        },
+        {
+          "source": "temporalio.worker._workflow_instance",
+          "specifiers": [
+            "_WorkflowBeingEvictedError"
+          ]
+        }
+      ],
+      "exports": [
+        "OrchestrationWorkflow",
+        "ReflectWorkflow",
+        "MetricsReportWorkflow"
+      ],
+      "totalLines": 195,
+      "hasStructuralAnalysis": true
+    },
+    "src/requirements.txt": {
+      "filePath": "src/requirements.txt",
+      "contentHash": "37deef138f42b0b1314658732d4b7be259ab60d28f7bef44d7ae27b32a0abe3c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 5,
+      "hasStructuralAnalysis": false
+    },
+    "src/resources/__init__.py": {
+      "filePath": "src/resources/__init__.py",
+      "contentHash": "139c019c74adc85e8e44ad639df36ac911f7e7040fe52d24de32a30d6e282629",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".resource_pool",
+          "specifiers": [
+            "ResourcePool"
+          ]
+        },
+        {
+          "source": ".credentials",
+          "specifiers": [
+            "CredentialManager",
+            "ModelEndpoint"
+          ]
+        },
+        {
+          "source": ".model_client",
+          "specifiers": [
+            "ModelClient"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 14,
+      "hasStructuralAnalysis": true
+    },
+    "src/resources/credentials.py": {
+      "filePath": "src/resources/credentials.py",
+      "contentHash": "46f941fb9504870c33bbda5e593286223983fd5b87272ffb7429f9bafa7f1c5c",
+      "functions": [],
+      "classes": [
+        {
+          "name": "Credential",
+          "methods": [
+            "is_expired",
+            "has_scope"
+          ],
+          "properties": [
+            "resource_id",
+            "credential_type",
+            "encrypted_value",
+            "scope",
+            "created_at",
+            "expires_at",
+            "metadata"
+          ],
+          "exported": true,
+          "lineCount": 30
+        },
+        {
+          "name": "ModelEndpoint",
+          "methods": [],
+          "properties": [
+            "provider",
+            "api_key",
+            "base_url",
+            "model",
+            "extra"
+          ],
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "CredentialManager",
+          "methods": [
+            "__init__",
+            "register_model_chain",
+            "get_model_endpoint_list",
+            "register_credential",
+            "get_credential",
+            "issue_temp_token",
+            "validate_token",
+            "revoke_token",
+            "_encrypt",
+            "_decrypt",
+            "get_decrypted_credential"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 195
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Any",
+            "Optional",
+            "List"
+          ]
+        },
+        {
+          "source": "threading",
+          "specifiers": [
+            "RLock"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        }
+      ],
+      "exports": [
+        "Credential",
+        "ModelEndpoint",
+        "CredentialManager"
+      ],
+      "totalLines": 266,
+      "hasStructuralAnalysis": true
+    },
+    "src/resources/model_client.py": {
+      "filePath": "src/resources/model_client.py",
+      "contentHash": "869c7840edf41fa2bb0c7362d74d4d59c7e58fb0a53d8e2af682303f23023a23",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ModelClient",
+          "methods": [
+            "__init__",
+            "set_tools",
+            "generate",
+            "_build_url",
+            "_build_headers",
+            "_build_payload",
+            "_tools_to_anthropic",
+            "_tools_to_openai",
+            "_parse_non_stream",
+            "_parse_anthropic_response",
+            "_parse_openai_response",
+            "_parse_stream",
+            "_parse_anthropic_stream",
+            "_parse_openai_stream",
+            "_map_anthropic_stop_reason",
+            "_map_openai_finish_reason"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 409
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Any",
+            "Optional",
+            "List",
+            "Callable",
+            "Awaitable"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "ModelResponse",
+            "StopReason",
+            "ToolCall"
+          ]
+        },
+        {
+          "source": "common.errors",
+          "specifiers": [
+            "ModelAPIError"
+          ]
+        }
+      ],
+      "exports": [
+        "ModelClient"
+      ],
+      "totalLines": 434,
+      "hasStructuralAnalysis": true
+    },
+    "src/resources/resource_pool.py": {
+      "filePath": "src/resources/resource_pool.py",
+      "contentHash": "43699f9c149896a1604b56b44c4156078190b4f1544272a4225ba61e642c2de1",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ResourcePool",
+          "methods": [
+            "__init__",
+            "set_credential_manager",
+            "set_storage_path",
+            "initialize_models",
+            "get_credential",
+            "proxy_request",
+            "register_model",
+            "configure_fallback",
+            "configure_fallback_group",
+            "generate"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 214
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Any",
+            "Optional",
+            "List"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": ".credentials",
+          "specifiers": [
+            "CredentialManager"
+          ]
+        },
+        {
+          "source": "common.interfaces",
+          "specifiers": [
+            "IResources"
+          ]
+        },
+        {
+          "source": "common.errors",
+          "specifiers": [
+            "ModelAPIError",
+            "ValidationError"
+          ]
+        }
+      ],
+      "exports": [
+        "ResourcePool"
+      ],
+      "totalLines": 238,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/__init__.py": {
+      "filePath": "src/sandbox/__init__.py",
+      "contentHash": "0e7e540e3a1c15eaad7cca0db9de3ff47e5ebea2043a723e4255a58d7d46c7b2",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".sandbox",
+          "specifiers": [
+            "Sandbox"
+          ]
+        },
+        {
+          "source": ".sandbox_manager",
+          "specifiers": [
+            "SandboxManager"
+          ]
+        },
+        {
+          "source": ".nsjail",
+          "specifiers": [
+            "NsjailConfig",
+            "NsjailExecutor"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 41,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/channels/__init__.py": {
+      "filePath": "src/sandbox/channels/__init__.py",
+      "contentHash": "dbbe4884323988b4195a3f0256edb6909ccdb7e1afac23e47e33f4a729f37d6f",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".base",
+          "specifiers": [
+            "BaseChannel"
+          ]
+        },
+        {
+          "source": ".console",
+          "specifiers": [
+            "ConsoleChannel"
+          ]
+        },
+        {
+          "source": ".napcat",
+          "specifiers": [
+            "NapCatChannel"
+          ]
+        },
+        {
+          "source": ".router",
+          "specifiers": [
+            "ChannelRouter"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 39,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/channels/base.py": {
+      "filePath": "src/sandbox/channels/base.py",
+      "contentHash": "a8569c688405070a3c57608e968cec60f20da206f84cdb075613dcb26c00acfb",
+      "functions": [],
+      "classes": [
+        {
+          "name": "BaseChannel",
+          "methods": [
+            "__init__",
+            "channel_type",
+            "normalize_message",
+            "send_message",
+            "start_monitor",
+            "stop_monitor",
+            "is_monitoring"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 79
+        }
+      ],
+      "imports": [
+        {
+          "source": "abc",
+          "specifiers": [
+            "ABC",
+            "abstractmethod"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Optional",
+            "Callable",
+            "Awaitable"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "ChannelType",
+            "UnifiedMessage"
+          ]
+        },
+        {
+          "source": "common.interfaces",
+          "specifiers": [
+            "IChannel"
+          ]
+        }
+      ],
+      "exports": [
+        "BaseChannel"
+      ],
+      "totalLines": 111,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/channels/console.py": {
+      "filePath": "src/sandbox/channels/console.py",
+      "contentHash": "cc586a23cfe6bb0b9714ac0c140a86b5a29e28533762713ccfa814db09068496",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ConsoleChannel",
+          "methods": [
+            "__init__",
+            "normalize_message",
+            "send_message",
+            "read_input_sync",
+            "start_interactive",
+            "stop"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 107
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Optional"
+          ]
+        },
+        {
+          "source": "sandbox.channels.base",
+          "specifiers": [
+            "BaseChannel"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "ChannelType",
+            "UnifiedMessage"
+          ]
+        }
+      ],
+      "exports": [
+        "ConsoleChannel"
+      ],
+      "totalLines": 132,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/channels/napcat.py": {
+      "filePath": "src/sandbox/channels/napcat.py",
+      "contentHash": "5b5b0a2edf284048f5a028bbb4f10e52a3f3458f65ccaf34304db05228937620",
+      "functions": [
+        {
+          "name": "_to_iso_timestamp",
+          "params": [
+            "unix_ts"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "_safe_str",
+          "params": [
+            "value",
+            "default"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [
+        {
+          "name": "NapCatChannel",
+          "methods": [
+            "__init__",
+            "normalize_message",
+            "send_message",
+            "_handle_message",
+            "_main_logic",
+            "start_monitor",
+            "stop_monitor"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 384
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime",
+            "timezone"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Optional",
+            "Callable",
+            "Awaitable"
+          ]
+        },
+        {
+          "source": "websockets",
+          "specifiers": [
+            "websockets"
+          ]
+        },
+        {
+          "source": "sandbox.channels.base",
+          "specifiers": [
+            "BaseChannel"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "ChannelType",
+            "UnifiedMessage"
+          ]
+        }
+      ],
+      "exports": [
+        "_to_iso_timestamp",
+        "_safe_str",
+        "NapCatChannel"
+      ],
+      "totalLines": 444,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/channels/router.py": {
+      "filePath": "src/sandbox/channels/router.py",
+      "contentHash": "8c1457f1dd13650664cf271fc10e718716a2d4b344a3456a07b20ecbdc3717cc",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ChannelRouter",
+          "methods": [
+            "__init__",
+            "register",
+            "get",
+            "send"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 45
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Optional"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "ChannelType",
+            "UnifiedMessage"
+          ]
+        },
+        {
+          "source": "common.interfaces",
+          "specifiers": [
+            "IChannel"
+          ]
+        }
+      ],
+      "exports": [
+        "ChannelRouter"
+      ],
+      "totalLines": 78,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/nsjail.py": {
+      "filePath": "src/sandbox/nsjail.py",
+      "contentHash": "1ec56c43377fd699d8f7b17999f6c27c7eb205f4f2526211dc8f2bf10e6d7674",
+      "functions": [],
+      "classes": [
+        {
+          "name": "NsjailConfig",
+          "methods": [
+            "build_command"
+          ],
+          "properties": [
+            "nsjail_binary",
+            "chroot_path",
+            "work_dir",
+            "readonly_root",
+            "python_binary",
+            "runner_script",
+            "user",
+            "group",
+            "hostname",
+            "time_limit",
+            "memory_limit_mb",
+            "cpu_limit_seconds",
+            "max_processes",
+            "max_files",
+            "disable_proc",
+            "disable_network",
+            "bind_mounts",
+            "really_quiet"
+          ],
+          "exported": true,
+          "lineCount": 112
+        },
+        {
+          "name": "NsjailExecutor",
+          "methods": [
+            "__init__",
+            "_ensure_nsjail",
+            "execute",
+            "_parse_runner_output",
+            "_persist_result",
+            "retrieve_result"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 215
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Optional"
+          ]
+        },
+        {
+          "source": "sandbox.tools.base",
+          "specifiers": [
+            "ToolResult"
+          ]
+        }
+      ],
+      "exports": [
+        "NsjailConfig",
+        "NsjailExecutor"
+      ],
+      "totalLines": 375,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/runner.py": {
+      "filePath": "src/sandbox/runner.py",
+      "contentHash": "dad8722a70332a7e7f4af785c02464aa405b5fb4768b2435d6265cc7fa3456ba",
+      "functions": [
+        {
+          "name": "_tool_calculator",
+          "params": [
+            "expression"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "_tool_web_search",
+          "params": [
+            "query",
+            "limit"
+          ],
+          "returnType": "dict",
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "_tool_file_read",
+          "params": [
+            "file_path"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "main",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 52
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "traceback",
+          "specifiers": [
+            "traceback"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Callable",
+            "Dict"
+          ]
+        }
+      ],
+      "exports": [
+        "_tool_calculator",
+        "_tool_web_search",
+        "_tool_file_read",
+        "main"
+      ],
+      "totalLines": 157,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/sandbox_manager.py": {
+      "filePath": "src/sandbox/sandbox_manager.py",
+      "contentHash": "552bf684f0fb35d6a0e5d4f18b0a5e46e96da6703edf499c9bbf4224cc2c9127",
+      "functions": [],
+      "classes": [
+        {
+          "name": "SandboxManager",
+          "methods": [
+            "__init__",
+            "create_sandbox",
+            "create_session_sandbox",
+            "get_sandbox_meta",
+            "get_sandbox",
+            "destroy_sandbox",
+            "list_sandboxes",
+            "get_sandbox_count",
+            "cleanup_idle_sandboxes",
+            "health_check_all"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 230
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "List",
+            "Optional",
+            "Any"
+          ]
+        },
+        {
+          "source": "threading",
+          "specifiers": [
+            "RLock"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": ".sandbox",
+          "specifiers": [
+            "Sandbox"
+          ]
+        },
+        {
+          "source": ".nsjail",
+          "specifiers": [
+            "NsjailConfig",
+            "NsjailExecutor"
+          ]
+        },
+        {
+          "source": ".tools.base",
+          "specifiers": [
+            "BaseTool"
+          ]
+        },
+        {
+          "source": "common.errors",
+          "specifiers": [
+            "SandboxNotFoundError"
+          ]
+        }
+      ],
+      "exports": [
+        "SandboxManager"
+      ],
+      "totalLines": 290,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/sandbox.py": {
+      "filePath": "src/sandbox/sandbox.py",
+      "contentHash": "cbf56201b4d09c4c2fb0bc0a3067bc5c578451ac2546760f0ea2f03735338fe0",
+      "functions": [],
+      "classes": [
+        {
+          "name": "Sandbox",
+          "methods": [
+            "__init__",
+            "execute",
+            "list_tools",
+            "health_check",
+            "register_tool",
+            "unregister_tool",
+            "get_tool",
+            "has_tool",
+            "status",
+            "created_at",
+            "last_used",
+            "destroy",
+            "get_info"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 142
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Any",
+            "List",
+            "Optional"
+          ]
+        },
+        {
+          "source": "threading",
+          "specifiers": [
+            "RLock"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": ".tools.base",
+          "specifiers": [
+            "BaseTool",
+            "ToolResult"
+          ]
+        },
+        {
+          "source": ".tools.registry",
+          "specifiers": [
+            "ToolRegistry"
+          ]
+        },
+        {
+          "source": ".nsjail",
+          "specifiers": [
+            "NsjailExecutor"
+          ]
+        },
+        {
+          "source": "common.interfaces",
+          "specifiers": [
+            "ISandbox"
+          ]
+        },
+        {
+          "source": "common.errors",
+          "specifiers": [
+            "ToolNotFoundError"
+          ]
+        }
+      ],
+      "exports": [
+        "Sandbox"
+      ],
+      "totalLines": 183,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/tools/__init__.py": {
+      "filePath": "src/sandbox/tools/__init__.py",
+      "contentHash": "9cbf2bceb1563e05e54549ce4b4d26e3b0cd43404b782c74ce4fcc72d4a6f261",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".base",
+          "specifiers": [
+            "BaseTool",
+            "ToolResult",
+            "ToolDefinition",
+            "ToolType"
+          ]
+        },
+        {
+          "source": ".registry",
+          "specifiers": [
+            "ToolRegistry"
+          ]
+        },
+        {
+          "source": ".factory",
+          "specifiers": [
+            "ToolFactory",
+            "DynamicTool"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 49,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/tools/base.py": {
+      "filePath": "src/sandbox/tools/base.py",
+      "contentHash": "cae87e881470ffef606a77b849a16f1952f4a957c27c1a6a6b05dea9898d7aa2",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ToolType",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "ToolDefinition",
+          "methods": [
+            "to_openai_format"
+          ],
+          "properties": [
+            "name",
+            "description",
+            "parameters",
+            "tool_type",
+            "metadata"
+          ],
+          "exported": true,
+          "lineCount": 30
+        },
+        {
+          "name": "ToolResult",
+          "methods": [
+            "to_dict"
+          ],
+          "properties": [
+            "success",
+            "output",
+            "error",
+            "metadata"
+          ],
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "BaseTool",
+          "methods": [
+            "name",
+            "description",
+            "parameters",
+            "tool_type",
+            "execute",
+            "get_definition",
+            "get_openai_format"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 65
+        }
+      ],
+      "imports": [
+        {
+          "source": "abc",
+          "specifiers": [
+            "ABC",
+            "abstractmethod"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Any",
+            "Optional"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "enum",
+          "specifiers": [
+            "Enum"
+          ]
+        }
+      ],
+      "exports": [
+        "ToolType",
+        "ToolDefinition",
+        "ToolResult",
+        "BaseTool"
+      ],
+      "totalLines": 167,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/tools/factory.py": {
+      "filePath": "src/sandbox/tools/factory.py",
+      "contentHash": "db76cfb0d6cb6ed53f14b40aa6963a22d4362346b4388e91375e3a02304ab9e3",
+      "functions": [],
+      "classes": [
+        {
+          "name": "DynamicTool",
+          "methods": [
+            "__init__",
+            "name",
+            "description",
+            "parameters",
+            "tool_type",
+            "execute"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 61
+        },
+        {
+          "name": "ToolFactory",
+          "methods": [
+            "create_tool",
+            "create_calculator_tool",
+            "create_search_tool",
+            "create_file_read_tool",
+            "create_default_tools"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 141
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Callable",
+            "Awaitable",
+            "Dict"
+          ]
+        },
+        {
+          "source": ".base",
+          "specifiers": [
+            "BaseTool",
+            "ToolType"
+          ]
+        }
+      ],
+      "exports": [
+        "DynamicTool",
+        "ToolFactory"
+      ],
+      "totalLines": 238,
+      "hasStructuralAnalysis": true
+    },
+    "src/sandbox/tools/registry.py": {
+      "filePath": "src/sandbox/tools/registry.py",
+      "contentHash": "48b6b6091960a3ede4920f4251bd41b8843eb9760a4b412733c4f1fb9211dfe4",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ToolRegistry",
+          "methods": [
+            "__init__",
+            "register",
+            "unregister",
+            "get",
+            "has",
+            "list_all",
+            "list_definitions",
+            "execute",
+            "clear"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 123
+        }
+      ],
+      "imports": [
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "List",
+            "Optional",
+            "Any"
+          ]
+        },
+        {
+          "source": "threading",
+          "specifiers": [
+            "RLock"
+          ]
+        },
+        {
+          "source": "sandbox.tools.base",
+          "specifiers": [
+            "BaseTool",
+            "ToolDefinition",
+            "ToolResult"
+          ]
+        },
+        {
+          "source": "common.errors",
+          "specifiers": [
+            "ToolNotFoundError"
+          ]
+        }
+      ],
+      "exports": [
+        "ToolRegistry"
+      ],
+      "totalLines": 158,
+      "hasStructuralAnalysis": true
+    },
+    "src/session/__init__.py": {
+      "filePath": "src/session/__init__.py",
+      "contentHash": "aefd7c04004bcd5ba36a3e633f708fcc60d9e58fe428638f0197a9633bed0ccf",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".models",
+          "specifiers": [
+            "Session",
+            "SessionStatus"
+          ]
+        },
+        {
+          "source": ".store",
+          "specifiers": [
+            "SessionStore"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 19,
+      "hasStructuralAnalysis": true
+    },
+    "src/session/models.py": {
+      "filePath": "src/session/models.py",
+      "contentHash": "746da1692fb5d77352e243cfa687b79c50a03878a323f85ec2e2340d0756ee81",
+      "functions": [],
+      "classes": [
+        {
+          "name": "SessionStatus",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "Session",
+          "methods": [
+            "to_dict",
+            "from_dict"
+          ],
+          "properties": [
+            "session_id",
+            "account_id",
+            "status",
+            "creator_id",
+            "channel_type",
+            "tags",
+            "created_at",
+            "updated_at",
+            "metadata"
+          ],
+          "exported": true,
+          "lineCount": 58
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "Any",
+            "List"
+          ]
+        },
+        {
+          "source": "enum",
+          "specifiers": [
+            "Enum"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        }
+      ],
+      "exports": [
+        "SessionStatus",
+        "Session"
+      ],
+      "totalLines": 88,
+      "hasStructuralAnalysis": true
+    },
+    "src/session/store.py": {
+      "filePath": "src/session/store.py",
+      "contentHash": "0c1675bc085fe1c63dd6ba8e3866499518285989b61fe5503df8084cf91367cd",
+      "functions": [
+        {
+          "name": "_clean_recall_query",
+          "params": [
+            "raw_content"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "_append_line",
+          "params": [
+            "filepath",
+            "line"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "classes": [
+        {
+          "name": "SessionStore",
+          "methods": [
+            "__init__",
+            "create_session",
+            "get_session",
+            "get_active_session_id",
+            "update_status",
+            "archive",
+            "append_events",
+            "get_events",
+            "recall_memories",
+            "retain_memories",
+            "reflect",
+            "_backup_to_file"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 331
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Dict",
+            "List",
+            "Optional"
+          ]
+        },
+        {
+          "source": "common.types",
+          "specifiers": [
+            "Event"
+          ]
+        },
+        {
+          "source": "src.memory.hindsight_client",
+          "specifiers": [
+            "HindsightClient"
+          ]
+        },
+        {
+          "source": ".models",
+          "specifiers": [
+            "Session",
+            "SessionStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "SessionStore",
+        "_clean_recall_query",
+        "_append_line"
+      ],
+      "totalLines": 386,
+      "hasStructuralAnalysis": true
+    },
+    "src/storage/__init__.py": {
+      "filePath": "src/storage/__init__.py",
+      "contentHash": "e8b95085201954d962c879831620fd9fd8734b150240d0045a1164663ff1b6e9",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".protocols",
+          "specifiers": [
+            "Handler"
+          ]
+        },
+        {
+          "source": ".redis",
+          "specifiers": [
+            "RedisCache",
+            "RedisPubSub"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 14,
+      "hasStructuralAnalysis": true
+    },
+    "src/storage/protocols.py": {
+      "filePath": "src/storage/protocols.py",
+      "contentHash": "bad43daf391579ad2f3ae56089300e29e0fa56357c7d80ef1ce92703fef4a6f2",
+      "functions": [],
+      "classes": [
+        {
+          "name": "StoreErrorCode",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "StoreError",
+          "methods": [
+            "__init__"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 23
+        },
+        {
+          "name": "Record",
+          "methods": [],
+          "properties": [
+            "key",
+            "value",
+            "created_at",
+            "updated_at"
+          ],
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "KeyValueStore",
+          "methods": [
+            "get",
+            "set",
+            "delete",
+            "list"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 38
+        },
+        {
+          "name": "FileStore",
+          "methods": [
+            "read",
+            "write",
+            "delete",
+            "list"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 46
+        },
+        {
+          "name": "PubSub",
+          "methods": [
+            "publish",
+            "subscribe",
+            "unsubscribe"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 35
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime",
+            "timezone"
+          ]
+        },
+        {
+          "source": "enum",
+          "specifiers": [
+            "StrEnum"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any",
+            "Awaitable",
+            "Callable",
+            "Protocol",
+            "runtime_checkable"
+          ]
+        }
+      ],
+      "exports": [
+        "StoreErrorCode",
+        "StoreError",
+        "Record",
+        "KeyValueStore",
+        "FileStore",
+        "PubSub"
+      ],
+      "totalLines": 221,
+      "hasStructuralAnalysis": true
+    },
+    "src/storage/redis.py": {
+      "filePath": "src/storage/redis.py",
+      "contentHash": "9f9ba9636918f657428152bc005e086c1afd3401f42c8986edf077b06c63ddb1",
+      "functions": [],
+      "classes": [
+        {
+          "name": "RedisCache",
+          "methods": [
+            "__init__",
+            "get",
+            "set",
+            "delete",
+            "get_json",
+            "set_json"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 63
+        },
+        {
+          "name": "RedisPubSub",
+          "methods": [
+            "__init__",
+            "publish",
+            "subscribe",
+            "unsubscribe",
+            "_listen"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 102
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any"
+          ]
+        },
+        {
+          "source": ".protocols",
+          "specifiers": [
+            "Handler"
+          ]
+        }
+      ],
+      "exports": [
+        "RedisCache",
+        "RedisPubSub"
+      ],
+      "totalLines": 193,
+      "hasStructuralAnalysis": true
+    },
+    "src/workspace/__init__.py": {
+      "filePath": "src/workspace/__init__.py",
+      "contentHash": "0fda188d027635c0030bd5262280579d697b60739e567c4d77aa65e6037aa981",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": ".models",
+          "specifiers": [
+            "User",
+            "Session",
+            "Artifact",
+            "SessionStatus"
+          ]
+        },
+        {
+          "source": ".manager",
+          "specifiers": [
+            "WorkspaceManager"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 49,
+      "hasStructuralAnalysis": true
+    },
+    "src/workspace/db.py": {
+      "filePath": "src/workspace/db.py",
+      "contentHash": "a8d2bba41a4e5db8a07e05a209b25f46163857ce12039e30d36158ffc9fa2efc",
+      "functions": [],
+      "classes": [
+        {
+          "name": "WorkspaceDB",
+          "methods": [
+            "__init__",
+            "_connect",
+            "_ensure_schema",
+            "upsert_user",
+            "get_user",
+            "insert_session",
+            "update_session_status",
+            "get_session",
+            "list_sessions",
+            "delete_session",
+            "insert_artifact",
+            "list_artifacts",
+            "delete_artifacts"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 228
+        }
+      ],
+      "imports": [
+        {
+          "source": "sqlite3",
+          "specifiers": [
+            "sqlite3"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Optional"
+          ]
+        },
+        {
+          "source": ".models",
+          "specifiers": [
+            "User",
+            "Session",
+            "SessionStatus",
+            "Artifact"
+          ]
+        }
+      ],
+      "exports": [
+        "WorkspaceDB"
+      ],
+      "totalLines": 306,
+      "hasStructuralAnalysis": true
+    },
+    "src/workspace/manager.py": {
+      "filePath": "src/workspace/manager.py",
+      "contentHash": "83099609d7c4c64052ed1e58ab8bca4808cecd849be68ede64066451dc12f768",
+      "functions": [],
+      "classes": [
+        {
+          "name": "WorkspaceManager",
+          "methods": [
+            "__init__",
+            "ensure_user",
+            "create_session",
+            "end_session",
+            "get_session",
+            "list_sessions",
+            "cleanup_expired_sessions",
+            "get_nsjail_mounts",
+            "get_session_work_dir",
+            "get_session_output_dir",
+            "register_artifact",
+            "list_artifacts",
+            "_read_yaml",
+            "_write_yaml",
+            "_user_dir",
+            "_session_dir",
+            "_now_iso"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 403
+        }
+      ],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "shutil",
+          "specifiers": [
+            "shutil"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "uuid",
+          "specifiers": [
+            "uuid"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "datetime",
+            "timezone"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Optional"
+          ]
+        },
+        {
+          "source": "yaml",
+          "specifiers": [
+            "yaml"
+          ]
+        },
+        {
+          "source": ".models",
+          "specifiers": [
+            "User",
+            "Session",
+            "SessionStatus",
+            "Artifact"
+          ]
+        },
+        {
+          "source": ".db",
+          "specifiers": [
+            "WorkspaceDB"
+          ]
+        }
+      ],
+      "exports": [
+        "WorkspaceManager"
+      ],
+      "totalLines": 455,
+      "hasStructuralAnalysis": true
+    },
+    "src/workspace/models.py": {
+      "filePath": "src/workspace/models.py",
+      "contentHash": "7761bb88e5bb379d3efb6548a14a7764bf900fb09fc25d9b639bfaac50de3e6a",
+      "functions": [],
+      "classes": [
+        {
+          "name": "SessionStatus",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "User",
+          "methods": [],
+          "properties": [
+            "uuid",
+            "username",
+            "profile_path",
+            "persistent_dir",
+            "created_at"
+          ],
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "Session",
+          "methods": [],
+          "properties": [
+            "session_id",
+            "user_uuid",
+            "status",
+            "task_summary",
+            "session_dir",
+            "plan_file",
+            "conversation_file",
+            "output_dir",
+            "tags",
+            "metadata_json",
+            "created_at",
+            "updated_at"
+          ],
+          "exported": true,
+          "lineCount": 29
+        },
+        {
+          "name": "Artifact",
+          "methods": [],
+          "properties": [
+            "artifact_id",
+            "session_id",
+            "file_path",
+            "file_type",
+            "file_size",
+            "checksum",
+            "created_at"
+          ],
+          "exported": true,
+          "lineCount": 22
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "enum",
+          "specifiers": [
+            "StrEnum"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Optional"
+          ]
+        }
+      ],
+      "exports": [
+        "SessionStatus",
+        "User",
+        "Session",
+        "Artifact"
+      ],
+      "totalLines": 101,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/__init__.py": {
+      "filePath": "test/test_agent/__init__.py",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/conftest.py": {
+      "filePath": "test/test_agent/conftest.py",
+      "contentHash": "034d44428434922485bf307725b67cdf57a310405c9bf68475313e8f428ddea8",
+      "functions": [
+        {
+          "name": "make_agent",
+          "params": [
+            "result_status",
+            "output",
+            "tags"
+          ],
+          "exported": true,
+          "lineCount": 17
+        },
+        {
+          "name": "make_context",
+          "params": [
+            "timeout"
+          ],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext",
+            "RuntimeConfig"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "CapabilitySpec",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "make_agent",
+        "make_context"
+      ],
+      "totalLines": 32,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_adapters.py": {
+      "filePath": "test/test_agent/test_adapters.py",
+      "contentHash": "53c5480be6bdf0ce73c828b9e6b9940f29ff898685299fef506d2bf64631b44c",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestReActAgent",
+          "methods": [
+            "test_execute_without_harness",
+            "test_capability_property",
+            "test_max_concurrency_default"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 23
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.adapters",
+          "specifiers": [
+            "ReActAgent"
+          ]
+        },
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "Task",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "TestReActAgent"
+      ],
+      "totalLines": 33,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_bus.py": {
+      "filePath": "test/test_agent/test_bus.py",
+      "contentHash": "2d3742ecad16b3425b5006454764e37841061d96382863083335dd6ead4c4bc3",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestInMemoryMessageBus",
+          "methods": [
+            "test_send_to_subscriber",
+            "test_broadcast_to_multiple"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 42
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.bus",
+          "specifiers": [
+            "InMemoryMessageBus"
+          ]
+        }
+      ],
+      "exports": [
+        "TestInMemoryMessageBus"
+      ],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_compensation.py": {
+      "filePath": "test/test_agent/test_compensation.py",
+      "contentHash": "91519ab4736c321695e7a447bda9872363f2297e885ffe0cdee8530f44ac68cc",
+      "functions": [],
+      "classes": [
+        {
+          "name": "SpyHandler",
+          "methods": [
+            "__init__",
+            "compensate"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "TestCompensationRegistry",
+          "methods": [
+            "test_instance_isolation",
+            "test_get_nonexistent"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 14
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.compensation",
+          "specifiers": [
+            "CompensationHandler",
+            "CompensationRegistry"
+          ]
+        },
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "Task"
+          ]
+        }
+      ],
+      "exports": [
+        "SpyHandler",
+        "TestCompensationRegistry"
+      ],
+      "totalLines": 33,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_composite.py": {
+      "filePath": "test/test_agent/test_composite.py",
+      "contentHash": "e42adc8f858a4af1e11aff5290e17167e63e667b08fd1c584fd15484e2ef2edf",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestOrchestratorAsAgent",
+          "methods": [
+            "test_single_layer_composition",
+            "test_sub_task_failure_propagates",
+            "test_allow_partial_success"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 115
+        }
+      ],
+      "imports": [
+        {
+          "source": "src.agent.bus",
+          "specifiers": [
+            "InMemoryMessageBus"
+          ]
+        },
+        {
+          "source": "src.agent.composite",
+          "specifiers": [
+            "OrchestratorAsAgent"
+          ]
+        },
+        {
+          "source": "src.agent.orchestrator",
+          "specifiers": [
+            "Orchestrator"
+          ]
+        },
+        {
+          "source": "src.agent.registry",
+          "specifiers": [
+            "InMemoryAgentRegistry"
+          ]
+        },
+        {
+          "source": "src.agent.strategies",
+          "specifiers": [
+            "ResultAggregator"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "BatchOutcome",
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "ExecutionPlan",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        },
+        {
+          "source": ".conftest",
+          "specifiers": [
+            "make_agent",
+            "make_context"
+          ]
+        }
+      ],
+      "exports": [
+        "TestOrchestratorAsAgent"
+      ],
+      "totalLines": 136,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_context.py": {
+      "filePath": "test/test_agent/test_context.py",
+      "contentHash": "fda8d759a340d875a89453bb05301a73ad2a5bba442ad32466a1a85da3ac03c5",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestSharedMemory",
+          "methods": [
+            "test_set_and_get",
+            "test_missing_key_returns_none",
+            "test_namespace_isolation",
+            "test_overwrite",
+            "test_delete",
+            "test_cas_success",
+            "test_cas_failure_on_mismatch",
+            "test_concurrent_writes",
+            "test_concurrent_cas"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 78
+        },
+        {
+          "name": "TestExecutionContext",
+          "methods": [
+            "test_default_construction",
+            "test_custom_config",
+            "test_unique_trace_ids"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 23
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext",
+            "RuntimeConfig",
+            "SessionState",
+            "SharedMemory"
+          ]
+        }
+      ],
+      "exports": [
+        "TestSharedMemory",
+        "TestExecutionContext"
+      ],
+      "totalLines": 111,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_council.py": {
+      "filePath": "test/test_agent/test_council.py",
+      "contentHash": "61f2c19f8b4dcbe8efe8157a59e7ac38e4248d7c8cc9254b4d6d038a01f03b86",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestCouncilStrategy",
+          "methods": [
+            "test_three_agent_council",
+            "test_council_partial_failure",
+            "test_council_all_fail"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 93
+        }
+      ],
+      "imports": [
+        {
+          "source": "src.agent.bus",
+          "specifiers": [
+            "InMemoryMessageBus"
+          ]
+        },
+        {
+          "source": "src.agent.orchestrator",
+          "specifiers": [
+            "Orchestrator"
+          ]
+        },
+        {
+          "source": "src.agent.registry",
+          "specifiers": [
+            "InMemoryAgentRegistry"
+          ]
+        },
+        {
+          "source": "src.agent.strategies",
+          "specifiers": [
+            "CouncilControlStrategy",
+            "MajorityJudge"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        },
+        {
+          "source": ".conftest",
+          "specifiers": [
+            "make_agent",
+            "make_context"
+          ]
+        }
+      ],
+      "exports": [
+        "TestCouncilStrategy"
+      ],
+      "totalLines": 114,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_factory.py": {
+      "filePath": "test/test_agent/test_factory.py",
+      "contentHash": "c019ceac8cd7105cdd7b1391ec655fa9fa50fe0761b71c66c5ed0c4446c3949a",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestResourcePoolAdapter",
+          "methods": [
+            "test_adapter_extracts_content",
+            "test_adapter_handles_none_content"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 26
+        },
+        {
+          "name": "TestBuildSupervisor",
+          "methods": [
+            "test_builds_runnable_orchestrator"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "TestBuildCouncil",
+          "methods": [
+            "test_builds_council_with_real_judge",
+            "test_builds_council_with_majority_judge"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 32
+        },
+        {
+          "name": "TestBuildWorkflow",
+          "methods": [
+            "test_builds_workflow_from_dag"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 19
+        }
+      ],
+      "imports": [
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext",
+            "RuntimeConfig"
+          ]
+        },
+        {
+          "source": "src.agent.factory",
+          "specifiers": [
+            "ResourcePoolAdapter",
+            "build_council",
+            "build_supervisor",
+            "build_workflow"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "CapabilityRequirement",
+            "Task",
+            "TaskStatus"
+          ]
+        },
+        {
+          "source": ".conftest",
+          "specifiers": [
+            "make_agent",
+            "make_context"
+          ]
+        }
+      ],
+      "exports": [
+        "TestResourcePoolAdapter",
+        "TestBuildSupervisor",
+        "TestBuildCouncil",
+        "TestBuildWorkflow"
+      ],
+      "totalLines": 118,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_integration.py": {
+      "filePath": "test/test_agent/test_integration.py",
+      "contentHash": "09c4c4b3adbf9acf5f43f1de29e2979173b1e740764aa1da330bf3ac6b71ebd8",
+      "functions": [
+        {
+          "name": "make_agent",
+          "params": [
+            "tags"
+          ],
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "make_context",
+          "params": [
+            "timeout"
+          ],
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "classes": [
+        {
+          "name": "TestSupervisorEmbedWorkflow",
+          "methods": [
+            "test_supervisor_delegates_to_workflow_agent"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 64
+        },
+        {
+          "name": "FirstResultAggregator",
+          "methods": [
+            "aggregate"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "TestCouncilEmbedWorkflow",
+          "methods": [
+            "test_council_with_workflow_voters"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 65
+        }
+      ],
+      "imports": [
+        {
+          "source": "src.agent.bus",
+          "specifiers": [
+            "InMemoryMessageBus"
+          ]
+        },
+        {
+          "source": "src.agent.composite",
+          "specifiers": [
+            "OrchestratorAsAgent"
+          ]
+        },
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext",
+            "RuntimeConfig"
+          ]
+        },
+        {
+          "source": "src.agent.orchestrator",
+          "specifiers": [
+            "Orchestrator"
+          ]
+        },
+        {
+          "source": "src.agent.registry",
+          "specifiers": [
+            "InMemoryAgentRegistry"
+          ]
+        },
+        {
+          "source": "src.agent.strategies",
+          "specifiers": [
+            "CouncilControlStrategy",
+            "MajorityJudge",
+            "ResultAggregator",
+            "StubLLMPlanner",
+            "StubLLMReviewer",
+            "SupervisorControlStrategy",
+            "WorkflowControlStrategy"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "make_agent",
+        "make_context",
+        "TestSupervisorEmbedWorkflow",
+        "FirstResultAggregator",
+        "TestCouncilEmbedWorkflow"
+      ],
+      "totalLines": 192,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_interfaces.py": {
+      "filePath": "test/test_agent/test_interfaces.py",
+      "contentHash": "e158e6cebd46b416cc39366d45cd4fe14c06482212212a407423f3f025dbbc31",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestBaseAgent",
+          "methods": [
+            "test_cannot_instantiate_directly",
+            "test_concrete_subclass_works",
+            "test_lifecycle_defaults_are_noop"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 34
+        },
+        {
+          "name": "TestControlStrategy",
+          "methods": [
+            "test_cannot_instantiate_directly",
+            "test_on_batch_completed_default_returns_empty"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 21
+        },
+        {
+          "name": "TestAgentRegistry",
+          "methods": [
+            "test_cannot_instantiate_directly"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "TestMessageBus",
+          "methods": [
+            "test_cannot_instantiate_directly"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.interfaces",
+          "specifiers": [
+            "AgentRegistry",
+            "BaseAgent",
+            "ControlStrategy",
+            "MessageBus"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "AgentHealth",
+            "BatchOutcome",
+            "CapabilitySpec",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "TestBaseAgent",
+        "TestControlStrategy",
+        "TestAgentRegistry",
+        "TestMessageBus"
+      ],
+      "totalLines": 89,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_llm_agent.py": {
+      "filePath": "test/test_agent/test_llm_agent.py",
+      "contentHash": "ea5b9d8b0e3638c2bb228dcac1b90aae760c3c7312b1012e3695a5e3ea655f08",
+      "functions": [
+        {
+          "name": "make_context",
+          "params": [],
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "make_mock_pool",
+          "params": [
+            "response_text",
+            "tool_calls_resp"
+          ],
+          "exported": true,
+          "lineCount": 10
+        }
+      ],
+      "classes": [
+        {
+          "name": "TestLLMAgent",
+          "methods": [
+            "test_basic_execution",
+            "test_system_prompt_in_messages",
+            "test_context_injection",
+            "test_history_formatting",
+            "test_capability_spec",
+            "test_default_capability",
+            "test_failure_returns_failed_result",
+            "test_tool_loop_without_executor",
+            "test_tool_loop_with_executor",
+            "test_max_tool_turns_limit"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 181
+        }
+      ],
+      "imports": [
+        {
+          "source": "unittest.mock",
+          "specifiers": [
+            "AsyncMock"
+          ]
+        },
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext",
+            "RuntimeConfig"
+          ]
+        },
+        {
+          "source": "src.agent.llm_agent",
+          "specifiers": [
+            "LLMAgent"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "CapabilitySpec",
+            "Task",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "make_context",
+        "make_mock_pool",
+        "TestLLMAgent"
+      ],
+      "totalLines": 211,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_orchestrator.py": {
+      "filePath": "test/test_agent/test_orchestrator.py",
+      "contentHash": "ed0128550accce97a12921db18785ead2eb02669f55b114740c6d99962dd48dc",
+      "functions": [
+        {
+          "name": "make_context",
+          "params": [
+            "timeout"
+          ],
+          "returnType": "ExecutionContext",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "make_registry",
+          "params": [
+            "agents"
+          ],
+          "returnType": "InMemoryAgentRegistry",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "make_plan",
+          "params": [
+            "tasks",
+            "deps"
+          ],
+          "returnType": "ExecutionPlan",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "task_with_cap",
+          "params": [
+            "task_id",
+            "goal",
+            "tags"
+          ],
+          "returnType": "Task",
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [
+        {
+          "name": "SimpleAgent",
+          "methods": [
+            "__init__",
+            "capability",
+            "execute"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "DummyBus",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "FixedStrategy",
+          "methods": [
+            "__init__",
+            "initialize_plan",
+            "get_ready_batch",
+            "on_batch_completed"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 21
+        },
+        {
+          "name": "TestOrchestratorEmptyPlan",
+          "methods": [
+            "test_empty_plan"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "TestOrchestratorSingleTask",
+          "methods": [
+            "test_single_task_success"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "TestOrchestratorSequentialDAG",
+          "methods": [
+            "test_sequential_execution"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 25
+        },
+        {
+          "name": "TestOrchestratorParallel",
+          "methods": [
+            "test_parallel_execution"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 28
+        },
+        {
+          "name": "TestOrchestratorTimeout",
+          "methods": [
+            "test_timeout_preserves_completed"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 36
+        },
+        {
+          "name": "CustomBaseException",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "TestOrchestratorBaseException",
+          "methods": [
+            "test_base_exception_propagates"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 24
+        },
+        {
+          "name": "TestOrchestratorHandoff",
+          "methods": [
+            "test_handoff_injects_new_task"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 36
+        },
+        {
+          "name": "TestOrchestratorTaskRemoval",
+          "methods": [
+            "test_tasks_removed_by_outcome"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "TestOrchestratorRetry",
+          "methods": [
+            "test_retry_re_adds_to_pending"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 36
+        },
+        {
+          "name": "TestOrchestratorCompensation",
+          "methods": [
+            "test_compensation_on_terminate"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 34
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.bus",
+          "specifiers": [
+            "InMemoryMessageBus"
+          ]
+        },
+        {
+          "source": "src.agent.compensation",
+          "specifiers": [
+            "CompensationHandler",
+            "CompensationRegistry"
+          ]
+        },
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext",
+            "RuntimeConfig"
+          ]
+        },
+        {
+          "source": "src.agent.interfaces",
+          "specifiers": [
+            "BaseAgent",
+            "ControlStrategy",
+            "MessageBus"
+          ]
+        },
+        {
+          "source": "src.agent.orchestrator",
+          "specifiers": [
+            "Orchestrator"
+          ]
+        },
+        {
+          "source": "src.agent.registry",
+          "specifiers": [
+            "InMemoryAgentRegistry"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "BatchOutcome",
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "ErrorInfo",
+            "ExecutionPlan",
+            "HandoffRequest",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "SimpleAgent",
+        "DummyBus",
+        "make_context",
+        "make_registry",
+        "make_plan",
+        "task_with_cap",
+        "FixedStrategy",
+        "TestOrchestratorEmptyPlan",
+        "TestOrchestratorSingleTask",
+        "TestOrchestratorSequentialDAG",
+        "TestOrchestratorParallel",
+        "TestOrchestratorTimeout",
+        "CustomBaseException",
+        "TestOrchestratorBaseException",
+        "TestOrchestratorHandoff",
+        "TestOrchestratorTaskRemoval",
+        "TestOrchestratorRetry",
+        "TestOrchestratorCompensation"
+      ],
+      "totalLines": 421,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_real_llm.py": {
+      "filePath": "test/test_agent/test_real_llm.py",
+      "contentHash": "32e342f29b65a7928ecd14cda22313598500d8f99d5e985c42150d9c45b85db8",
+      "functions": [
+        {
+          "name": "make_context",
+          "params": [],
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "make_mock_llm",
+          "params": [
+            "response_text"
+          ],
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [
+        {
+          "name": "TestRealLLMPlanner",
+          "methods": [
+            "test_parses_simple_plan",
+            "test_parses_markdown_fenced_json",
+            "test_fallback_on_llm_failure",
+            "test_fallback_on_malformed_json",
+            "test_empty_tasks_list_triggers_fallback",
+            "test_custom_default_tags"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 72
+        },
+        {
+          "name": "TestRealLLMReviewer",
+          "methods": [
+            "test_reviewer_says_done",
+            "test_reviewer_injects_new_tasks",
+            "test_fallback_done_on_llm_failure",
+            "test_max_rounds_forces_done"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 56
+        },
+        {
+          "name": "TestRealLLMJudge",
+          "methods": [
+            "test_judge_selects_best",
+            "test_judge_no_consensus_when_empty",
+            "test_fallback_to_majority_on_llm_failure",
+            "test_handles_markdown_fenced_json"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 59
+        }
+      ],
+      "imports": [
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext",
+            "RuntimeConfig"
+          ]
+        },
+        {
+          "source": "src.agent.strategies",
+          "specifiers": [
+            "RealLLMJudge",
+            "RealLLMPlanner",
+            "RealLLMReviewer"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "CapabilityRequirement",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "make_context",
+        "make_mock_llm",
+        "TestRealLLMPlanner",
+        "TestRealLLMReviewer",
+        "TestRealLLMJudge"
+      ],
+      "totalLines": 225,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_registry.py": {
+      "filePath": "test/test_agent/test_registry.py",
+      "contentHash": "9066288588d8277b6b74c4971dbf67e3557fcb23a1d9e9cc7fba606ffa8dd15c",
+      "functions": [],
+      "classes": [
+        {
+          "name": "StubAgent",
+          "methods": [
+            "__init__",
+            "capability",
+            "execute",
+            "max_concurrency"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "TestInMemoryAgentRegistry",
+          "methods": [
+            "test_register_and_find",
+            "test_find_best_returns_none_for_no_match",
+            "test_find_best_prefers_higher_priority",
+            "test_find_best_filters_by_min_priority",
+            "test_healthy_agents",
+            "test_availability"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 58
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.registry",
+          "specifiers": [
+            "InMemoryAgentRegistry"
+          ]
+        },
+        {
+          "source": "src.agent.interfaces",
+          "specifiers": [
+            "BaseAgent"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "Task",
+            "TaskResult"
+          ]
+        }
+      ],
+      "exports": [
+        "StubAgent",
+        "TestInMemoryAgentRegistry"
+      ],
+      "totalLines": 90,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_runner.py": {
+      "filePath": "test/test_agent/test_runner.py",
+      "contentHash": "1926bf1bb9e5827854e6c35f64e4b6d6bab62e53780975e7262d8ecf404d20bb",
+      "functions": [
+        {
+          "name": "make_response",
+          "params": [
+            "text"
+          ],
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [
+        {
+          "name": "TestMultiAgentExecutor",
+          "methods": [
+            "test_execute_single_agent_supervisor",
+            "test_council_strategy",
+            "test_synthesize_fallback",
+            "test_execute_with_history_and_memories"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 166
+        }
+      ],
+      "imports": [
+        {
+          "source": "unittest.mock",
+          "specifiers": [
+            "AsyncMock"
+          ]
+        },
+        {
+          "source": "src.agent.runner",
+          "specifiers": [
+            "MultiAgentExecutor"
+          ]
+        }
+      ],
+      "exports": [
+        "make_response",
+        "TestMultiAgentExecutor"
+      ],
+      "totalLines": 183,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_strategies.py": {
+      "filePath": "test/test_agent/test_strategies.py",
+      "contentHash": "8cfc6cc9a8f7524537930f181e1c0cdf38c17cb359b3b6e58ed13046aea60128",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestConditionEvaluator",
+          "methods": [
+            "test_always",
+            "test_never",
+            "test_all_succeeded",
+            "test_all_succeeded_with_failure",
+            "test_any_failed",
+            "test_task_status_check",
+            "test_empty_predicate_returns_true"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 41
+        },
+        {
+          "name": "TestResultAggregator",
+          "methods": [
+            "test_concat",
+            "test_first",
+            "test_last",
+            "test_merge",
+            "test_empty"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 42
+        },
+        {
+          "name": "TestWorkflowControlStrategy",
+          "methods": [
+            "test_initialize_plan_from_dag",
+            "test_get_ready_batch_all_independent",
+            "test_get_ready_batch_respects_dependencies",
+            "test_get_ready_batch_after_dep_completes",
+            "test_on_batch_completed_all_success",
+            "test_on_batch_completed_with_failure"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 78
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.strategies",
+          "specifiers": [
+            "ConditionEvaluator",
+            "ResultAggregator",
+            "WorkflowControlStrategy"
+          ]
+        },
+        {
+          "source": "src.agent.context",
+          "specifiers": [
+            "ExecutionContext"
+          ]
+        },
+        {
+          "source": "src.agent.interfaces",
+          "specifiers": [
+            "MessageBus"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "BatchOutcome",
+            "CapabilityRequirement",
+            "ExecutionPlan",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "TestConditionEvaluator",
+        "TestResultAggregator",
+        "TestWorkflowControlStrategy"
+      ],
+      "totalLines": 187,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_supervisor.py": {
+      "filePath": "test/test_agent/test_supervisor.py",
+      "contentHash": "373bfa9501a0c72d5ccd5469dcaee212d182124cf80d98e4eea0dc207045390d",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestSupervisorStrategy",
+          "methods": [
+            "test_single_round_planning",
+            "test_multi_round_planning",
+            "test_reviewer_terminates_early"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 64
+        }
+      ],
+      "imports": [
+        {
+          "source": "src.agent.bus",
+          "specifiers": [
+            "InMemoryMessageBus"
+          ]
+        },
+        {
+          "source": "src.agent.orchestrator",
+          "specifiers": [
+            "Orchestrator"
+          ]
+        },
+        {
+          "source": "src.agent.registry",
+          "specifiers": [
+            "InMemoryAgentRegistry"
+          ]
+        },
+        {
+          "source": "src.agent.strategies",
+          "specifiers": [
+            "StubLLMPlanner",
+            "StubLLMReviewer",
+            "SupervisorControlStrategy"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "CapabilityRequirement",
+            "Task",
+            "TaskStatus"
+          ]
+        },
+        {
+          "source": ".conftest",
+          "specifiers": [
+            "make_agent",
+            "make_context"
+          ]
+        }
+      ],
+      "exports": [
+        "TestSupervisorStrategy"
+      ],
+      "totalLines": 84,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_agent/test_types.py": {
+      "filePath": "test/test_agent/test_types.py",
+      "contentHash": "224d0cfb6c8d1472c5fa9bd5e861fe7d869074ab07ea978a239c6706236b1d83",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestTask",
+          "methods": [
+            "test_default_construction",
+            "test_full_construction"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 23
+        },
+        {
+          "name": "TestTaskStatus",
+          "methods": [
+            "test_all_statuses_exist",
+            "test_handed_off_is_separate_from_completed"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "TestHandoffRequest",
+          "methods": [
+            "test_default",
+            "test_full"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 15
+        },
+        {
+          "name": "TestTaskResult",
+          "methods": [
+            "test_failed_task_cannot_handoff",
+            "test_handed_off_status_explicit",
+            "test_trace_id_propagation"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 23
+        },
+        {
+          "name": "TestErrorInfo",
+          "methods": [
+            "test_structured_error"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "TestCapabilityMatching",
+          "methods": [
+            "test_spec_and_requirement_match",
+            "test_spec_insufficient_tags",
+            "test_spec_insufficient_priority"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "TestExecutionPlan",
+          "methods": [
+            "test_default",
+            "test_with_tasks_and_deps"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "TestBranchCondition",
+          "methods": [
+            "test_branch_condition"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "TestBatchOutcome",
+          "methods": [
+            "test_default_noop",
+            "test_termination",
+            "test_new_tasks_injection"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "TestExecutionMetrics",
+          "methods": [
+            "test_defaults"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "src.agent.types",
+          "specifiers": [
+            "BatchOutcome",
+            "BranchCondition",
+            "CapabilityRequirement",
+            "CapabilitySpec",
+            "ErrorInfo",
+            "ExecutionMetrics",
+            "ExecutionPlan",
+            "HandoffRequest",
+            "Task",
+            "TaskResult",
+            "TaskStatus"
+          ]
+        }
+      ],
+      "exports": [
+        "TestTask",
+        "TestTaskStatus",
+        "TestHandoffRequest",
+        "TestTaskResult",
+        "TestErrorInfo",
+        "TestCapabilityMatching",
+        "TestExecutionPlan",
+        "TestBranchCondition",
+        "TestBatchOutcome",
+        "TestExecutionMetrics"
+      ],
+      "totalLines": 186,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_hindsight.py": {
+      "filePath": "test/test_hindsight.py",
+      "contentHash": "a41e7853df841c23d67e4d72f24a819edafe946c9d7fd2246d6d0df7079531e3",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestMemoryItem",
+          "methods": [
+            "test_from_dict_full",
+            "test_from_dict_minimal",
+            "test_from_dict_alt_keys",
+            "test_default_values"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 41
+        },
+        {
+          "name": "TestHindsightClientConfig",
+          "methods": [
+            "test_default_init",
+            "test_custom_init",
+            "test_base_url_strips_trailing_slash",
+            "test_headers_without_api_key",
+            "test_headers_with_api_key"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 34
+        },
+        {
+          "name": "TestHindsightClientDisabled",
+          "methods": [
+            "test_recall_disabled",
+            "test_retain_disabled",
+            "test_reflect_disabled",
+            "test_recall_formatted_disabled"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 22
+        },
+        {
+          "name": "TestRecallFormatted",
+          "methods": [
+            "test_empty_memories",
+            "test_formatted_structure"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "TestHindsightClientNoServer",
+          "methods": [
+            "test_recall_no_server",
+            "test_retain_no_server",
+            "test_reflect_no_server",
+            "test_recall_formatted_no_server"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 35
+        },
+        {
+          "name": "TestMemoryItemSorting",
+          "methods": [
+            "test_sort_by_relevance"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 13
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "memory.hindsight_client",
+          "specifiers": [
+            "HindsightClient",
+            "MemoryItem"
+          ]
+        }
+      ],
+      "exports": [
+        "TestMemoryItem",
+        "TestHindsightClientConfig",
+        "TestHindsightClientDisabled",
+        "TestRecallFormatted",
+        "TestHindsightClientNoServer",
+        "TestMemoryItemSorting"
+      ],
+      "totalLines": 194,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_nsjail.py": {
+      "filePath": "test/test_nsjail.py",
+      "contentHash": "1e1ee2b84949414bcb97186f739af1ab487df82905baa7f5035dadf2056d88c4",
+      "functions": [
+        {
+          "name": "_find_runner",
+          "params": [],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "test_nsjail_config_defaults",
+          "params": [],
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "classes": [
+        {
+          "name": "TestNsjailConfig",
+          "methods": [
+            "test_build_command_basic",
+            "test_build_command_rw_mode",
+            "test_build_command_network_enabled",
+            "test_build_command_proc_enabled",
+            "test_build_command_resource_limits",
+            "test_build_command_json_args_with_special_chars"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 77
+        },
+        {
+          "name": "TestRunnerDirect",
+          "methods": [
+            "_run_runner",
+            "test_calculator_simple",
+            "test_calculator_complex",
+            "test_calculator_error",
+            "test_calculator_no_code_execution",
+            "test_web_search",
+            "test_file_read_nonexistent",
+            "test_unknown_tool",
+            "test_invalid_json_args",
+            "test_missing_args"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 79
+        },
+        {
+          "name": "TestNsjailExecutor",
+          "methods": [
+            "executor",
+            "test_calculator_via_nsjail",
+            "test_calculator_code_injection_blocked",
+            "test_web_search_via_nsjail",
+            "test_unknown_tool_via_nsjail",
+            "test_execution_id_unique",
+            "test_retrieve_result_without_redis"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 69
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "sandbox.nsjail",
+          "specifiers": [
+            "NsjailConfig",
+            "NsjailExecutor"
+          ]
+        }
+      ],
+      "exports": [
+        "_find_runner",
+        "TestNsjailConfig",
+        "TestRunnerDirect",
+        "TestNsjailExecutor",
+        "test_nsjail_config_defaults"
+      ],
+      "totalLines": 272,
+      "hasStructuralAnalysis": true
+    },
+    "test/test_workspace.py": {
+      "filePath": "test/test_workspace.py",
+      "contentHash": "09f38c2d61780ad8a3e32a5a2f9e3ac0f45c141cdc153bdeb061d581ecb4e0e4",
+      "functions": [],
+      "classes": [
+        {
+          "name": "TestWorkspaceDB",
+          "methods": [
+            "db",
+            "test_upsert_and_get_user",
+            "test_get_nonexistent_user",
+            "test_upsert_user_update",
+            "test_insert_and_get_session",
+            "test_update_session_status",
+            "test_list_sessions",
+            "test_insert_and_list_artifacts",
+            "test_delete_session_cascades"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 84
+        },
+        {
+          "name": "TestWorkspaceManager",
+          "methods": [
+            "wm",
+            "test_ensure_user_creates_directories",
+            "test_ensure_user_idempotent",
+            "test_create_session_full_structure",
+            "test_create_session_auto_id",
+            "test_end_session",
+            "test_list_sessions",
+            "test_get_nsjail_mounts",
+            "test_get_session_work_dir",
+            "test_get_session_output_dir",
+            "test_register_artifact",
+            "test_register_artifact_nonexistent_session",
+            "test_cleanup_expired_sessions_dry_run",
+            "test_session_id_uniqueness",
+            "test_multi_user_isolation"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 142
+        },
+        {
+          "name": "TestWorkspaceConfig",
+          "methods": [
+            "test_root_resolves_to_absolute"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "imports": [
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "tempfile",
+          "specifiers": [
+            "tempfile"
+          ]
+        },
+        {
+          "source": "shutil",
+          "specifiers": [
+            "shutil"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "workspace.models",
+          "specifiers": [
+            "User",
+            "Session",
+            "Artifact",
+            "SessionStatus"
+          ]
+        },
+        {
+          "source": "workspace.db",
+          "specifiers": [
+            "WorkspaceDB"
+          ]
+        },
+        {
+          "source": "workspace.manager",
+          "specifiers": [
+            "WorkspaceManager"
+          ]
+        }
+      ],
+      "exports": [
+        "TestWorkspaceDB",
+        "TestWorkspaceManager",
+        "TestWorkspaceConfig"
+      ],
+      "totalLines": 270,
+      "hasStructuralAnalysis": true
+    },
+    "test/ws_client.py": {
+      "filePath": "test/ws_client.py",
+      "contentHash": "4a777af360e89ebbf4fa68481cb14592ebe0919abdc92f4c9a79e2763c47272c",
+      "functions": [
+        {
+          "name": "send_and_listen",
+          "params": [],
+          "exported": true,
+          "lineCount": 16
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "websockets",
+          "specifiers": [
+            "websockets"
+          ]
+        }
+      ],
+      "exports": [
+        "send_and_listen"
+      ],
+      "totalLines": 74,
+      "hasStructuralAnalysis": true
+    }
+  }
+}

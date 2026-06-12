@@ -46,5 +46,5 @@ data/
 # 旧版运行时目录（逐步迁移）
 users_workspace/
 
-# 代码分析工具缓存
-.understand-anything/
+# MCP 服务器（从外部克隆的仓库）
+tools/mcp/

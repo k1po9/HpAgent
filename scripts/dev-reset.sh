@@ -1,24 +1,30 @@
 #!/usr/bin/env bash
-# dev-reset.sh — 一键清理 Temporal 中的残留 workflow，便于本地调试重启
+# dev-reset.sh — 开发调试重置脚本
 #
-# 场景: 你在 VSCode 中调试主程序，停止时 Temporal（Docker）仍保留未完成的
-#       workflow task。下次 F5 启动时，Worker 会立即捡起旧消息继续处理。
-#      运行此脚本可在重启前清空所有残留 workflow。
+# 场景: 宿主机调试 main.py，需要清理残留状态后重新开始。
 #
 # 用法:
-#   ./scripts/dev-reset.sh          # 清理 + 询问是否重启
-#   ./scripts/dev-reset.sh --kill   # 只杀主程序，不清理 Temporal
-#   ./scripts/dev-reset.sh --clean  # 只清理 Temporal，不杀主程序
+#   ./scripts/dev-reset.sh                 # 杀进程 + 清 Temporal workflow（默认）
+#   ./scripts/dev-reset.sh --kill           # 只杀 HpAgent 进程
+#   ./scripts/dev-reset.sh --clean          # 只清 Temporal workflow
+#   ./scripts/dev-reset.sh --clean-workspace # 清 workspace 数据（accounts/repo/sessions/DB）
+#   ./scripts/dev-reset.sh --clean-data     # 清所有 .data/ （workspace + sessions + logs + accounts.json）
+#   ./scripts/dev-reset.sh --full           # 以上全部
 
 set -euo pipefail
 
-COMPOSE_FILE="/root/workspace/HpAgent/docker-compose.yaml"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yaml"
+DATA_DIR="$PROJECT_ROOT/.data"
+WORKSPACE_DIR="$DATA_DIR/workspace"
 TASK_QUEUE="${TEMPORAL_TASK_QUEUE:-hpagent-task-queue}"
 NAMESPACE="${TEMPORAL_NAMESPACE:-default}"
 
 # ──────────────────────────────────────────────
-# 1. 杀掉正在运行的 HpAgent 主程序
+# 工具函数
 # ──────────────────────────────────────────────
+
 kill_hpagent() {
     local pids
     pids=$(pgrep -f "main.py" 2>/dev/null || true)
@@ -26,7 +32,6 @@ kill_hpagent() {
         echo "[dev-reset] Killing HpAgent process(es): $pids"
         kill $pids 2>/dev/null || true
         sleep 1
-        # 如果还没死，强制 kill
         pids=$(pgrep -f "main.py" 2>/dev/null || true)
         if [[ -n "$pids" ]]; then
             echo "[dev-reset] Force killing: $pids"
@@ -38,21 +43,16 @@ kill_hpagent() {
     fi
 }
 
-# ──────────────────────────────────────────────
-# 2. 清理 Temporal 中残留的 workflow
-# ──────────────────────────────────────────────
 clean_temporal() {
     echo "[dev-reset] Cleaning Temporal workflows on task queue: ${TASK_QUEUE} (namespace: ${NAMESPACE}) ..."
 
-    # ✅ 正确：使用 --query 过滤特定任务队列的运行中工作流
-    # 注意：TaskQueue 是 Temporal 内置的搜索属性，大小写敏感
     local wf_ids
     wf_ids=$(docker compose -f "$COMPOSE_FILE" exec -T temporal \
         tctl --address localhost:7233 \
         --namespace "$NAMESPACE" \
         workflow list \
         --query "TaskQueue='${TASK_QUEUE}' AND ExecutionStatus='Running'" \
-        --print_json 2>/dev/null | jq -r '.[].execution.workflowId' || true)
+        --print_json 2>/dev/null | jq -r '.[].execution.workflowId' 2>/dev/null || true)
 
     if [[ -z "$wf_ids" ]]; then
         echo "[dev-reset] No running workflows found on task queue '${TASK_QUEUE}'."
@@ -76,23 +76,110 @@ clean_temporal() {
     echo "[dev-reset] Temporal cleanup done. Terminated $count workflow(s)."
 }
 
+clean_workspace() {
+    echo "[dev-reset] Cleaning workspace data ..."
+    echo "[dev-reset]   Removing: $WORKSPACE_DIR"
+
+    if [[ -d "$WORKSPACE_DIR" ]]; then
+        # 列出将要删除的 account 目录
+        for account_dir in "$WORKSPACE_DIR"/*/; do
+            [[ -d "$account_dir" ]] || continue
+            local aid
+            aid=$(basename "$account_dir")
+            echo "[dev-reset]     account: $aid"
+            if [[ -d "$account_dir/repo/.git" ]]; then
+                echo "[dev-reset]       - git repo (branches: $(cd "$account_dir/repo" && git branch 2>/dev/null | wc -l))"
+            fi
+            if [[ -d "$account_dir/sessions" ]]; then
+                echo "[dev-reset]       - sessions: $(ls "$account_dir/sessions" 2>/dev/null | wc -l)"
+            fi
+        done
+
+        rm -rf "$WORKSPACE_DIR"
+        echo "[dev-reset]   Workspace data removed."
+    else
+        echo "[dev-reset]   Workspace dir does not exist, skipping."
+    fi
+}
+
+clean_all_data() {
+    echo "[dev-reset] Cleaning all .data/ contents ..."
+    echo "[dev-reset]   Removing: $DATA_DIR"
+
+    if [[ -d "$DATA_DIR" ]]; then
+        # 保留目录结构但清空内容
+        rm -rf "$DATA_DIR"/accounts.json 2>/dev/null || true
+        rm -rf "$DATA_DIR"/workspace 2>/dev/null || true
+        rm -rf "$DATA_DIR"/sessions 2>/dev/null || true
+        rm -rf "$DATA_DIR"/logs 2>/dev/null || true
+        echo "[dev-reset]   All .data/ contents removed (napcat/ preserved)."
+    else
+        echo "[dev-reset]   .data/ dir does not exist, skipping."
+    fi
+}
+
+# ──────────────────────────────────────────────
+# 帮助
+# ──────────────────────────────────────────────
+
+usage() {
+    echo "Usage: $0 [OPTION]"
+    echo ""
+    echo "Options:"
+    echo "  (none)             Kill process + clean Temporal workflows (default)"
+    echo "  --kill             只杀 HpAgent 进程"
+    echo "  --clean            只清 Temporal 残留 workflow"
+    echo "  --clean-workspace  清 workspace 数据（accounts/repo/sessions/DB）"
+    echo "  --clean-data       清所有 .data/ （workspace + sessions + logs + accounts.json）"
+    echo "  --full             以上全部"
+    echo ""
+    echo "Data paths:"
+    echo "  project:  $PROJECT_ROOT"
+    echo "  .data:    $DATA_DIR"
+    echo "  compose:  $COMPOSE_FILE"
+    exit 0
+}
+
 # ──────────────────────────────────────────────
 # 主流程
 # ──────────────────────────────────────────────
 
 case "${1:-}" in
+    --help|-h)
+        usage
+        ;;
     --kill)
         kill_hpagent
         ;;
     --clean)
         clean_temporal
         ;;
+    --clean-workspace)
+        kill_hpagent
+        clean_workspace
+        echo ""
+        echo "[dev-reset] Workspace cleaned. Next start will re-init accounts/repos from scratch."
+        ;;
+    --clean-data)
+        kill_hpagent
+        clean_all_data
+        echo ""
+        echo "[dev-reset] .data/ cleaned (napcat/ preserved). Next start will re-init everything."
+        ;;
+    --full)
+        kill_hpagent
+        clean_temporal
+        clean_all_data
+        echo ""
+        echo "[dev-reset] Full reset complete."
+        echo "[dev-reset] Next start: fresh Temporal state + fresh .data/ + fresh workspace."
+        ;;
     *)
         kill_hpagent
         clean_temporal
         echo ""
-        echo "[dev-reset] All clean. You can now press F5 to start debugging."
-        echo "[dev-reset] Tip: set TEMPORAL_TASK_QUEUE=hpagent-task-queue-\$(date +%s) in .vscode/launch.json"
-        echo "[dev-reset]      to get a fresh queue per debug session without needing this script."
+        echo "[dev-reset] All clean. You can now start debugging."
+        echo "[dev-reset] Tip: use '$0 --clean-workspace' to also reset workspace/repos."
+        echo "[dev-reset] Tip: set TEMPORAL_TASK_QUEUE=hpagent-task-queue-\$(date +%s) for isolated debug sessions."
         ;;
 esac

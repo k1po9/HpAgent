@@ -13,6 +13,7 @@ Activity 清单:
 """
 import json
 import logging
+import time
 from typing import Dict, Any, List, Optional
 
 from temporalio import activity
@@ -52,8 +53,18 @@ async def process_turn_activity(user_message: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         {"content": str, "turns": int, "session_id": str, "account_id": str}
     """
-    
-    return await _harness.process_turn(user_message)
+    _activity_logger = logging.getLogger("HpAgent.Activity")
+    sid = user_message.get("session_id", "?")
+    t0 = time.monotonic()
+    try:
+        result = await _harness.process_turn(user_message)
+        return result
+    except Exception:
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        _activity_logger.exception(
+            "process_turn_activity FAILED sid=%s latency=%.0fms", sid, elapsed_ms,
+        )
+        raise
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -62,18 +73,25 @@ async def process_turn_activity(user_message: Dict[str, Any]) -> Dict[str, Any]:
 
 @activity.defn
 async def archive_session_activity(session_id: str) -> Dict[str, Any]:
-    """归档会话。在 Workflow 结束时调用。
+    """完整归档流程：读取事件 → 写 history.jsonl → fast 模型摘要 → 更新 meta.yaml。
+
+    时序: SessionStore.archive() → write_history_jsonl() → generate_summary() → update_meta()
 
     Args:
         session_id: 会话 ID。
 
     Returns:
-        {"ok": bool}
+        {"ok": bool, "task_summary": str, "tags": [...], "event_count": int}
     """
+    session = await _harness._session.get_session(session_id)
+    account_id = session.account_id if session else ""
+    if not account_id:
+        return {"ok": False, "error": f"Session not found: {session_id}"}
     try:
-        await _harness._session.archive(session_id)
-        return {"ok": True}
+        return await _harness.archive_session(session_id, account_id)
     except Exception as e:
+        logger = logging.getLogger("HpAgent.Activity")
+        logger.exception("archive_session_activity FAILED sid=%s", session_id)
         return {"ok": False, "error": str(e)}
 
 

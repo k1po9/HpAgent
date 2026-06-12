@@ -45,6 +45,8 @@ class WorkspaceDB:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
+        from pathlib import Path
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._ensure_schema()
 
     def _connect(self) -> sqlite3.Connection:
@@ -85,7 +87,12 @@ class WorkspaceDB:
                 """INSERT INTO sessions
                    (session_id, user_uuid, status, task_summary, session_dir,
                     plan_file, conversation_file, output_dir, tags)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(session_id) DO UPDATE SET
+                       status=excluded.status,
+                       task_summary=excluded.task_summary,
+                       session_dir=excluded.session_dir,
+                       updated_at=datetime('now')""",
                 (
                     session.session_id,
                     session.account_id,
@@ -97,6 +104,49 @@ class WorkspaceDB:
                     session.output_dir,
                     json.dumps(session.tags),
                 ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_session(self, session_id: str) -> Optional["Session"]:
+        from .models import Session, SessionStatus
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT session_id, user_uuid, status, task_summary, session_dir,"
+                "  plan_file, conversation_file, output_dir, tags,"
+                "  CAST(strftime('%s', created_at) AS REAL),"
+                "  CAST(strftime('%s', updated_at) AS REAL)"
+                " FROM sessions WHERE session_id = ?",
+                (session_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return Session(
+                session_id=row[0],
+                account_id=row[1],
+                status=SessionStatus(row[2]),
+                task_summary=row[3],
+                session_dir=row[4],
+                plan_file=row[5],
+                conversation_file=row[6],
+                output_dir=row[7],
+                tags=json.loads(row[8]) if row[8] else [],
+                created_at=float(row[9]) if row[9] else 0.0,
+                updated_at=float(row[10]) if row[10] else 0.0,
+            )
+        finally:
+            conn.close()
+
+    def complete_session(self, session_id: str) -> None:
+        """标记会话为已完成。"""
+        conn = self._connect()
+        try:
+            conn.execute(
+                "UPDATE sessions SET status='completed', updated_at=datetime('now')"
+                " WHERE session_id = ?",
+                (session_id,),
             )
             conn.commit()
         finally:
