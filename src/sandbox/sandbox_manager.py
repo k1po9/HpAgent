@@ -44,6 +44,8 @@ class SandboxManager:
         retriever: Any = None,
         max_merged_multiplier: float = 1.5,
         per_query_min: int = 3,
+        native_tools_enabled: bool = True,
+        nsjail_enabled: bool = True,
     ):
         self._nsjail_config = nsjail_config or NsjailConfig()
         self._redis_cache = redis_cache
@@ -54,6 +56,8 @@ class SandboxManager:
         self._retriever = retriever
         self._max_merged_multiplier = max_merged_multiplier
         self._per_query_min = per_query_min
+        self._native_tools_enabled = native_tools_enabled
+        self._nsjail_enabled = nsjail_enabled
 
         self._sandboxes: Dict[str, Sandbox] = {}
         self._session_to_sandbox: Dict[str, str] = {}
@@ -64,18 +68,47 @@ class SandboxManager:
         session_id: str,
         workspace_path: str,
         user_uuid: str = "",
+        session_context: Optional[dict] = None,
     ) -> str:
-        """为会话创建 workspace 绑定的沙箱（幂等——已存在则返回现有 ID）。"""
+        """为会话创建 workspace 绑定的沙箱（幂等——已存在则返回现有 ID）。
+
+        Args:
+            session_id: 会话 ID。
+            workspace_path: 工作区路径。
+            user_uuid: 用户 UUID。
+            session_context: 会话上下文 dict，包含 account_id、sender_id、
+                            channel_type、metadata。供提醒工具等绑定用。
+        """
         with self._lock:
             if session_id in self._session_to_sandbox:
                 return self._session_to_sandbox[session_id]
 
         registry = ToolRegistry(retriever=self._retriever, per_query_min=self._per_query_min)
 
-        for name, factory in LOCAL_TOOL_FACTORIES.items():
-            tool = factory(workspace_path)
+        # ── 提醒工具（无条件注册，不依赖 native_tools_enabled） ──
+        reminder_keys = ("create_reminder", "list_reminders", "cancel_reminder")
+        ctx = session_context or {
+            "account_id": user_uuid,
+            "sender_id": "",
+            "channel_type": "",
+            "metadata": {},
+        }
+        for name in reminder_keys:
+            factory = LOCAL_TOOL_FACTORIES.get(name)
+            if factory is None:
+                continue
+            tool = factory(ctx)
             registry.register(tool, category="native")
-        logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
+
+        if self._native_tools_enabled:
+            for name, factory in LOCAL_TOOL_FACTORIES.items():
+                if name in reminder_keys:
+                    continue  # 提醒工具已在上方无条件注册
+                tool = factory(workspace_path)
+                registry.register(tool, category="native")
+            logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
+        else:
+            logger.debug("Session sandbox: native tools disabled")
 
         if self._mcp_manager:
             for tool in self._mcp_manager.get_cached_tools():
@@ -105,11 +138,17 @@ class SandboxManager:
                 logger.warning("Tool vector sync traceback:\n%s", traceback.format_exc())
 
         sandbox_id = str(uuid.uuid4())
+
+        nsjail_executor = None
+        if self._nsjail_enabled and self._nsjail_config:
+            nsjail_executor = NsjailExecutor(self._nsjail_config)
+            logger.debug("Session sandbox: nsjail executor enabled")
+
         sandbox = Sandbox(
             workspace_path=workspace_path,
             tool_registry=registry,
             sandbox_id=sandbox_id,
-            nsjail_executor=None,
+            nsjail_executor=nsjail_executor,
             max_merged_multiplier=self._max_merged_multiplier,
         )
 
@@ -118,8 +157,10 @@ class SandboxManager:
             self._session_to_sandbox[session_id] = sandbox_id
 
         logger.info(
-            "Session sandbox created: %s (session=%s, user=%s, native=%d)",
-            sandbox_id, session_id, user_uuid, len(LOCAL_TOOL_FACTORIES),
+            "Session sandbox created: %s (session=%s, user=%s, native=%s, nsjail=%s)",
+            sandbox_id, session_id, user_uuid,
+            "on" if self._native_tools_enabled else "off",
+            "on" if nsjail_executor else "off",
         )
         return sandbox_id
 

@@ -26,6 +26,7 @@ from temporalio.client import Client
 from temporalio.worker import Worker, UnsandboxedWorkflowRunner
 
 from orchestration.config import AppConfig, SandboxConfig
+from orchestration.scheduler import TaskScheduler
 from orchestration.workflow import OrchestrationWorkflow, ReflectWorkflow, MetricsReportWorkflow
 from harness.activities import (
     inject,
@@ -73,6 +74,7 @@ class WorkerDependencies:
     resource_pool: "ResourcePool"
     git_repo_manager: "GitRepoManager"
     group_context: object  # GroupContextStore | None，群聊短期上下文缓存
+    scheduler: "TaskScheduler" = None
 
 
 async def setup_tools(config: AppConfig):
@@ -243,14 +245,18 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         logger.info("GroupContextStore: skipped (no Redis, group context disabled)")
 
     # ── 3. nsjail 配置 ──
-    nsjail_config = _build_nsjail_config(config.sandbox)
-    logger.info(
-        "Nsjail configured: time=%ds mem=%dMB cpu=%ds net=%s",
-        nsjail_config.time_limit,
-        nsjail_config.memory_limit_mb,
-        nsjail_config.cpu_limit_seconds,
-        "off" if nsjail_config.disable_network else "on",
-    )
+    if config.sandbox.nsjail_enabled:
+        nsjail_config = _build_nsjail_config(config.sandbox)
+        logger.info(
+            "Nsjail configured: time=%ds mem=%dMB cpu=%ds net=%s",
+            nsjail_config.time_limit,
+            nsjail_config.memory_limit_mb,
+            nsjail_config.cpu_limit_seconds,
+            "off" if nsjail_config.disable_network else "on",
+        )
+    else:
+        nsjail_config = None
+        logger.info("Nsjail disabled")
 
     # ── 4. 共享工具基础设施（MCP + Skills + RAG）────
     # 必须在 SandboxManager 之前调用，因为 SandboxManager 需要这些产物
@@ -261,6 +267,11 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     file_store = LocalFileStore(workspace_root)
     workspace_db = WorkspaceDB(config.workspace.db_path or str(workspace_root / "workspace.db"))
     logger.info("Workspace storage initialized: root=%s", workspace_root)
+
+    # ── 5b. 定时调度器 ──
+    scheduler: TaskScheduler = TaskScheduler(data_dir=Path(config.scheduler.data_dir))
+    logger.info("TaskScheduler initialized: data_dir=%s poll_interval=%.1fs",
+                config.scheduler.data_dir, config.scheduler.poll_interval)
 
     # ── 6. 沙箱管理器（依赖 3+4+5）────
     sandbox_manager = SandboxManager(
@@ -273,6 +284,8 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         retriever=retriever,
         max_merged_multiplier=config.models.tool_rag.max_merged_multiplier,
         per_query_min=config.models.tool_rag.per_query_min,
+        native_tools_enabled=config.sandbox.native_tools_enabled,
+        nsjail_enabled=config.sandbox.nsjail_enabled,
     )
 
     # ── 7. Prompt + Hindsight + 上下文构建器 ──
@@ -403,6 +416,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         resource_pool=resource_pool,
         git_repo_manager=git_repo_manager,
         group_context=group_context,
+        scheduler=scheduler,
     )
 
 
@@ -411,6 +425,48 @@ async def start_worker(config: AppConfig) -> None:
     deps = await init_dependencies(config)
 
     inject(harness=deps.harness_runner)
+
+    # ── 注册提醒 handler ──
+    async def _handle_user_reminder(task):
+        """发送用户提醒消息。"""
+        ch_str = task.params.get("channel_type", "napcat")
+        try:
+            ch_type = ChannelType(ch_str)
+        except ValueError:
+            ch_type = ChannelType.NAPCAT
+
+        metadata = task.params.get("metadata", {})
+        content = f"[提醒] {task.params.get('content', '')}"
+
+        # 群聊中 @ 回原用户
+        sender_id = task.params.get("sender_id", "")
+        if metadata.get("detail_type") == "group" and sender_id:
+            content = f"[CQ:at,qq={sender_id}] {content}"
+
+        msg = UnifiedMessage(
+            session_id=f"reminder-{task.id}",
+            account_id=task.params.get("account_id", ""),
+            sender_id=sender_id,
+            channel_type=ch_type,
+            content=content,
+            metadata=metadata,
+        )
+        await deps.channel_router.send(msg)
+
+    deps.scheduler.register_handler("user_reminder", _handle_user_reminder)
+
+    # ── 加载持久化任务 + 注入 scheduler 到 reminder 模块 + 启动轮询 ──
+    scheduler_task = None
+    if config.scheduler.enabled:
+        await deps.scheduler.load()
+        from sandbox.tools.local.reminder import inject_scheduler
+        inject_scheduler(deps.scheduler)
+        scheduler_task = asyncio.create_task(
+            deps.scheduler.poll_loop(interval=config.scheduler.poll_interval)
+        )
+        logger.info("TaskScheduler poll_loop started")
+    else:
+        logger.info("TaskScheduler disabled by config")
 
     # ── 连接 Temporal ──
     client = await Client.connect(config.temporal.host)
@@ -450,6 +506,8 @@ async def start_worker(config: AppConfig) -> None:
             continue
 
         channel = factory()
+        if hasattr(channel, "bot_name"):
+            channel.bot_name = getattr(config.prompts, "bot_name", "bot")
         deps.channel_router.register(ch_type, channel)
         active_channels.append(channel)
         logger.info("Channel registered: %s", ch_name)
@@ -503,6 +561,13 @@ async def start_worker(config: AppConfig) -> None:
         account_id = await deps.account_service.resolve(ch_type, message.sender_id)
         workflow_id = f"hpagent-{account_id}"
 
+        session_context = {
+            "account_id": account_id,
+            "sender_id": message.sender_id,
+            "channel_type": ch_type,
+            "metadata": message.metadata,
+        }
+
         from temporalio.exceptions import WorkflowAlreadyStartedError
 
         session_id = f"session-{account_id}-{uuid.uuid4().hex[:8]}"
@@ -544,6 +609,7 @@ async def start_worker(config: AppConfig) -> None:
                 session_id=session_id,
                 workspace_path=repo_path,
                 user_uuid=account_id,
+                session_context=session_context,
             )
             logger.info("Started new session %s (account=%s)", session_id, account_id)
 
@@ -579,6 +645,7 @@ async def start_worker(config: AppConfig) -> None:
                             session_id=session_id,
                             workspace_path=repo_path,
                             user_uuid=account_id,
+                            session_context=session_context,
                         )
                         logger.info("Sandbox recreated for signaled session %s", session_id)
                     except Exception as e:
@@ -617,6 +684,7 @@ async def start_worker(config: AppConfig) -> None:
                     session_id=session_id,
                     workspace_path=repo_path,
                     user_uuid=account_id,
+                    session_context=session_context,
                 )
 
                 from temporalio.common import WorkflowIDReusePolicy
@@ -676,6 +744,13 @@ async def start_worker(config: AppConfig) -> None:
         await sandbox_cleanup_task
     except asyncio.CancelledError:
         pass
+
+    if scheduler_task is not None:
+        scheduler_task.cancel()
+        try:
+            await scheduler_task
+        except asyncio.CancelledError:
+            pass
 
     if deps.mcp_manager is not None:
         try:

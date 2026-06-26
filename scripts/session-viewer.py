@@ -285,6 +285,18 @@ header span{color:var(--dim);font-size:13px}
 .meta-box h3{font-size:12px;color:var(--dim);margin-bottom:3px}
 .meta-box p{font-size:12px;line-height:1.6}
 .turn-sep{margin:12px 0 4px;text-align:center;font-size:10px;color:var(--dim);border-top:1px dashed var(--border);padding-top:8px}
+/* Input Context Toggle */
+.ic-toggle{cursor:pointer;font-size:10px;color:var(--accent);padding:3px 6px;margin-top:2px;display:inline-block;user-select:none}
+.ic-toggle:hover{text-decoration:underline}
+.ic-panel{display:none;margin:4px 0;border:1px solid var(--border);border-radius:4px;overflow:hidden}
+.ic-panel.on{display:block}
+.ic-msg{border-bottom:1px solid var(--border);font-size:11px}
+.ic-msg:last-child{border-bottom:none}
+.ic-msg-hdr{padding:3px 8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.ic-msg-hdr .role{font-weight:600;font-size:10px}
+.ic-msg-body{padding:4px 8px;font-family:monospace;font-size:10px;white-space:pre-wrap;word-break:break-word;max-height:200px;overflow-y:auto}
+.ic-msg-body.collapsed{max-height:36px;overflow:hidden;cursor:pointer;position:relative}
+.ic-msg-body.collapsed::after{content:'\25B6 展开全部';position:absolute;bottom:0;right:0;color:var(--accent);background:linear-gradient(90deg,transparent,var(--bg) 40%);padding:0 8px;font-size:10px}
 </style>
 </head>
 <body>
@@ -379,10 +391,8 @@ function renderEvent(e,idx){
   const tc={'user_message':'t-user','model_message':'t-model','tool_result':'t-tool','tool_call':'t-tool','tool_retrieval':'t-tool','error':'t-error'}[t]||(t.startsWith('memory')?'t-memory':'t-system');
   const lb={'user_message':'用户消息','model_message':'模型回复','tool_result':'工具结果','tool_call':'工具调用','tool_retrieval':'工具检索','memory_recall':'记忆召回','memory_retain':'记忆保留','memory_reflect':'记忆反思','context_inherit':'上下文继承','error':'错误'}[t]||t;
   const ts=e.timestamp?fmt(e.timestamp):(e._ts_fmt||'');
-
   let body='';
   const c=e.content||{};
-
   if(t==='user_message'){
     body=c.content||'(空)';
   }else if(t==='model_message'){
@@ -411,9 +421,11 @@ function renderEvent(e,idx){
       }
     }
   }else if(t==='memory_recall'){
-    body=`查询: ${c.query||'?'}\n召回: ${c.items_count||0} 条\n延迟: ${c.latency_ms||0}ms\n标签匹配: ${c.tags_match||''}`;
+    body=`查询: ${c.query||'?'}\n`;
+    if(c.original_query && c.original_query!==c.rewritten_query) body+=`原始输入: ${c.original_query}\n`;
+    if(c.rewritten_query && c.rewritten_query!==c.query) body+=`HyDE 改写: ${c.rewritten_query}\n`;
+    body+=`召回: ${c.items_count||0} 条\n延迟: ${c.latency_ms||0}ms\n标签匹配: ${c.tags_match||''}`;
     if(c.error)body+=`\n错误: ${c.error}`;
-    // 展示实际召回的记忆内容
     if(c.items&&c.items.length){
       body+='\n\n—— 召回记忆 ——';
       c.items.forEach((it,i)=>body+=`\n#${i+1} [${it.memory_type||'?'}] (相关度:${(it.relevance||0).toFixed(2)}): ${it.content||''}`);
@@ -434,7 +446,6 @@ function renderEvent(e,idx){
     if(c.tools&&c.tools.length){
       const scores=c.scores||{};
       body+='\n';
-      // 标记 required（始终注入的工具）
       c.tools.forEach((tn,i)=>{
         const sc=scores[tn];
         body+=`\n  ${i+1}. ${tn}${sc!==undefined?' (相关度: '+sc.toFixed(4)+')':''}`;
@@ -446,16 +457,48 @@ function renderEvent(e,idx){
   }else{
     body=typeof c==='object'?JSON.stringify(c,null,2):String(c||'');
   }
-
   if(typeof body!=='string')body=JSON.stringify(body,null,2);
   const trunc=body.length>500;
   const bcls=trunc?'body collapsed':'body';
   const onclick=trunc?'onclick="this.classList.toggle(\'collapsed\')"':'';
-
+  // Input context toggle
+  let icHTML='';
+  if(c.hyde_input_context){
+    icHTML+=renderInputContextHTML(c.hyde_input_context,'hi-'+idx,'HyDE 输入上下文');
+  }
+  if(c.input_context){
+    icHTML+=renderInputContextHTML(c.input_context,'ic-'+idx);
+  }
   return `<div class="event ${cls}" data-et="${t.startsWith('memory')?'memory':['user_message','model_message','tool_result','tool_call','tool_retrieval'].includes(t)?t:'system'}">
     <div class="hdr"><span class="tag ${tc}">${lb}</span><span class="ts">${ts||''}</span><span style="font-size:9px;color:var(--dim)">#${idx+1}</span></div>
     <div class="${bcls}" ${onclick}>${esc(body)}</div>
+    ${icHTML}
   </div>`;
+}
+
+function renderInputContextHTML(ctx, uniqueId, label){
+  if(!ctx||!ctx.messages||!ctx.messages.length)return'';
+  const ms=ctx.messages;
+  const tk=ctx.input_tokens||0;
+  const tc=ctx.tool_count||0;
+  const sel=ctx.model_selector||'';
+  const lb=label||('输入上下文: '+(sel||'?')+' · ~'+tk+' tokens'+(tc?' · '+tc+' tools':''));
+  let h='<div class="ic-toggle" onclick="var p=document.getElementById(\''+uniqueId+'\');p.classList.toggle(\'on\')">📥 '+esc(lb)+'</div>';
+  h+='<div class="ic-panel" id="'+uniqueId+'">';
+  const colors={system:'#8b949e',user:'#3fb950',assistant:'#58a6ff',tool:'#d29922'};
+  ms.forEach(function(m,i){
+    const r=m.role||'unknown';
+    const c=m.content||'';
+    const clr=colors[r]||'#8b949e';
+    const mid=uniqueId+'-m'+i;
+    const msgLen=typeof c==='string'?c.length:JSON.stringify(c).length;
+    const trunc=msgLen>500;
+    h+='<div class="ic-msg"><div class="ic-msg-hdr" style="background:'+clr+'22"><span class="role" style="color:'+clr+'">'+esc(r)+'</span><span style="font-size:9px;color:var(--dim)">~'+msgLen+' chars</span></div>';
+    h+='<div class="ic-msg-body'+(trunc?' collapsed':'')+'" '+(trunc?'onclick="this.classList.toggle(\'collapsed\')"':'')+' id="'+mid+'">'+esc(typeof c==='string'?c:JSON.stringify(c,null,2))+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  return h;
 }
 
 function etype(e){return e.event_type||'';}

@@ -41,31 +41,31 @@ fi
 
 # ── 透明代理设置（iptables REDIRECT + redsocks） ──
 setup_transparent_proxy() {
-    # 用 uid-owner 限定只代理 napcat 用户 (UID 1000) 的流量
+    # 用 uid-owner 限定只代理 napcat 用户 (UID ${NAPCAT_UID:-1000}) 的流量
     # 这样 host 模式下的其他服务不受影响
     iptables -t nat -A OUTPUT \
-        -m owner --uid-owner 1000 \
+        -m owner --uid-owner ${NAPCAT_UID:-1000} \
         -p tcp \
         -d 127.0.0.0/8 \
         -j RETURN 2>/dev/null || true
 
     iptables -t nat -A OUTPUT \
-        -m owner --uid-owner 1000 \
+        -m owner --uid-owner ${NAPCAT_UID:-1000} \
         -p tcp \
         -j REDIRECT --to-port "$REDSOCKS_PORT" 2>/dev/null || true
 
-    echo "[napcat-proxy] iptables REDIRECT rules added (UID 1000 → port ${REDSOCKS_PORT})"
+    echo "[napcat-proxy] iptables REDIRECT rules added (UID ${NAPCAT_UID:-1000} → port ${REDSOCKS_PORT})"
 }
 
 cleanup_transparent_proxy() {
     echo "[napcat-proxy] cleaning up iptables rules..."
     iptables -t nat -D OUTPUT \
-        -m owner --uid-owner 1000 \
+        -m owner --uid-owner ${NAPCAT_UID:-1000} \
         -p tcp \
         -d 127.0.0.0/8 \
         -j RETURN 2>/dev/null || true
     iptables -t nat -D OUTPUT \
-        -m owner --uid-owner 1000 \
+        -m owner --uid-owner ${NAPCAT_UID:-1000} \
         -p tcp \
         -j REDIRECT --to-port "$REDSOCKS_PORT" 2>/dev/null || true
     echo "[napcat-proxy] iptables rules cleaned up"
@@ -73,13 +73,13 @@ cleanup_transparent_proxy() {
 
 if [ "$USE_PROXY" = "true" ]; then
     # 检查 iptables owner 模块是否可用
-    if ! iptables -t nat -A OUTPUT -m owner --uid-owner 1000 -p tcp -j RETURN 2>/dev/null; then
+    if ! iptables -t nat -A OUTPUT -m owner --uid-owner ${NAPCAT_UID:-1000} -p tcp -j RETURN 2>/dev/null; then
         echo "[napcat-proxy] WARN: iptables owner 模块不可用，回退到 proxychains"
-        iptables -t nat -D OUTPUT -m owner --uid-owner 1000 -p tcp -j RETURN 2>/dev/null || true
+        iptables -t nat -D OUTPUT -m owner --uid-owner ${NAPCAT_UID:-1000} -p tcp -j RETURN 2>/dev/null || true
         exec proxychains4 -q -f /etc/proxychains4.conf bash /app/entrypoint.sh "$@"
     fi
     # 撤掉测试规则
-    iptables -t nat -D OUTPUT -m owner --uid-owner 1000 -p tcp -j RETURN 2>/dev/null || true
+    iptables -t nat -D OUTPUT -m owner --uid-owner ${NAPCAT_UID:-1000} -p tcp -j RETURN 2>/dev/null || true
 
     # 生成 redsocks 配置
     sed -i "s/ip = 127.0.0.1;/ip = ${PROXY_HOST};/" /etc/redsocks.conf

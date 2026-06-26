@@ -146,6 +146,7 @@ class NapCatChannel(BaseChannel):
         self._port = 8082
         self._server_task: Optional[asyncio.Task] = None
         self._connected_clients = set()
+        self.bot_name: str = "bot"  # 由 worker 启动时从 identities.yaml 注入
 
     async def normalize_message(self, raw_message: Any) -> Optional[UnifiedMessage]:
         """将 NapCat / OneBot v11 WebSocket 上报事件标准化为统一消息格式。
@@ -227,21 +228,39 @@ class NapCatChannel(BaseChannel):
                 )
             metadata["_raw_message"] = data.get("raw_message", "")
 
-            # @机器人 检测: 复用上方已解析的 message 段中的 at 类型
+            # @机器人 检测: 结构化 at 段 + CQ 码 + 文本 @ 回退
             metadata["is_at_bot"] = False
             self_id = str(data.get("self_id", ""))
             metadata["self_id"] = self_id
+            raw_msg = data.get("raw_message", "")
+            has_at_segment = False
+            # 方式1: 结构化 at segment (type=at, qq=self_id)
             if isinstance(message_segments, list) and self_id:
                 for seg in message_segments:
-                    if seg.get("type") == "at" and str(seg.get("data", {}).get("qq")) == self_id:
-                        metadata["is_at_bot"] = True
-                        break
+                    if seg.get("type") == "at":
+                        has_at_segment = True
+                        if str(seg.get("data", {}).get("qq")) == self_id:
+                            metadata["is_at_bot"] = True
+                            break
+            # 方式2: CQ 码 @ (如 [CQ:at,qq=3823104293])
+            if not metadata["is_at_bot"] and self_id and f"[CQ:at,qq={self_id}]" in raw_msg:
+                metadata["is_at_bot"] = True
+            # 方式3: 无结构化 at 段但 raw 里有 @bot_name → 文本 @
+            if not metadata["is_at_bot"] and not has_at_segment and self.bot_name != "bot":
+                import re
+                if re.search(rf"@\s*{re.escape(self.bot_name)}", raw_msg, re.IGNORECASE):
+                    metadata["is_at_bot"] = True
 
             # 群聊消息: 额外保存 group_id 用于回复路由
             if message_type == "group":
                 group_id = data.get("group_id")
                 if group_id is not None:
                     metadata["group_id"] = group_id
+                if not metadata["is_at_bot"]:
+                    logger.info("Group message not @bot: self_id=%s segments=%s raw=%s",
+                                self_id,
+                                [s for s in (message_segments or []) if isinstance(s, dict)][:3],
+                                (raw_msg or "")[:80])
             # 频道消息: 额外保存 guild_id / channel_id
             elif message_type == "guild":
                 metadata["guild_id"] = data.get("guild_id")

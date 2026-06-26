@@ -4,6 +4,7 @@ from .fs_edit import create_fs_edit_tool
 from .glob_ import create_glob_tool
 from .grep import create_grep_tool
 from .bash import create_bash_tool
+from .reminder import create_reminder_tool, create_list_reminders_tool, create_cancel_reminder_tool
 
 LOCAL_TOOL_FACTORIES = {
     "fs_read": create_fs_read_tool,
@@ -12,6 +13,9 @@ LOCAL_TOOL_FACTORIES = {
     "Glob": create_glob_tool,
     "Grep": create_grep_tool,
     "Bash": create_bash_tool,
+    "create_reminder": create_reminder_tool,
+    "list_reminders": create_list_reminders_tool,
+    "cancel_reminder": create_cancel_reminder_tool,
 }
 
 __all__ = ["LOCAL_TOOL_FACTORIES"]

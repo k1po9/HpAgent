@@ -346,10 +346,16 @@ class SessionStore:
         group_id: str = "",
         scope: str = "",
         channel_type: str = "",
+        original_query: str = "",
+        rewritten_query: str = "",
+        hyde_input_context: list | None = None,
     ):
         """召回长期记忆。返回 (items: list[MemoryItem], formatted: str)。
 
         查询在召回前会被纯净化（去除 @提及和 CQ 码）。
+
+        original_query / rewritten_query / hyde_input_context:
+            HyDE 改写信息，仅用于审计展示（不影响召回逻辑）。
         """
         if not self._hindsight:
             return [], ""
@@ -390,6 +396,9 @@ class SessionStore:
                     })
             await self._record_memory_event(session_id, EventType.MEMORY_RECALL, {
                 "query": clean_query[:200],
+                "original_query": original_query[:200],
+                "rewritten_query": rewritten_query[:200],
+                "hyde_input_context": hyde_input_context,
                 "items_count": items_count,
                 "items": recall_items_snapshot,
                 "formatted": formatted[:500] if formatted else "",

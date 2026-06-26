@@ -269,11 +269,21 @@ class RedisConfig:
 
 
 @dataclass
+class SchedulerConfig:
+    """通用定时任务调度器配置。"""
+    data_dir: str = ".data/scheduler"
+    poll_interval: float = 15.0        # 扫描间隔（秒）
+    enabled: bool = True
+
+
+@dataclass
 class SandboxConfig:
     """沙箱（nsjail）隔离执行配置。
 
     字段名与 sandbox.nsjail.NsjailConfig 一致，可直接展开构造。
     """
+    native_tools_enabled: bool = False   # 本地函数工具（fs_read/write/edit/Glob/Grep/Bash）
+    nsjail_enabled: bool = False         # Nsjail OS 级隔离（仅对 Bash）
     nsjail_binary: str = "/usr/bin/nsjail"
     chroot_path: str = "/"
     work_dir: str = "/work"
@@ -401,6 +411,7 @@ class PromptsConfig:
     environment: Dict[str, str] = field(default_factory=dict)
     system: Dict[str, str] = field(default_factory=dict)
     tool_summary: Dict[str, Any] = field(default_factory=dict)  # tool_summary.yaml (含嵌套 hints dict)
+    bot_name: str = "bot"  # 机器人名称（群聊上下文发送者名 + @检测回退）
 
     @classmethod
     def from_dir(cls, prompts_dir: Path) -> "PromptsConfig":
@@ -440,12 +451,15 @@ class PromptsConfig:
                 logger.warning("Failed to load %s: %s", path, e)
                 return {}
 
+        identities = _load_raw("identities.yaml")
+        bot_name = identities.pop("bot_name", "bot") if isinstance(identities, dict) else "bot"
         return cls(
-            identities=_load("identities.yaml"),
+            identities=identities,
             guidance=_load("guidance.yaml"),
             environment=_load("environment.yaml"),
             system=_load("system.yaml"),
             tool_summary=_load_raw("tool_summary.yaml"),
+            bot_name=str(bot_name),
         )
 
 
@@ -493,6 +507,7 @@ class AppConfig:
     models: ModelsConfig = field(default_factory=ModelsConfig)
     temporal: TemporalConfig = field(default_factory=TemporalConfig)
     redis: RedisConfig = field(default_factory=RedisConfig)
+    scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
     hindsight: HindsightConfig = field(default_factory=HindsightConfig)
@@ -586,6 +601,10 @@ class AppConfig:
         """
         _root = project_root.resolve()
 
+        sched = Path(self.scheduler.data_dir)
+        if not sched.is_absolute():
+            self.scheduler.data_dir = str(_root / sched)
+
         ws = Path(self.workspace.root)
         if not ws.is_absolute():
             self.workspace.root = str(_root / ws)
@@ -666,6 +685,7 @@ class AppConfig:
             return dataclass_type(**{k: v for k, v in kwargs.items() if k in defaults})
 
         return cls(
+            scheduler=_populate(SchedulerConfig, raw.get("scheduler"), "scheduler"),
             temporal=_populate(TemporalConfig, raw.get("temporal"), "temporal"),
             redis=_populate(RedisConfig, raw.get("redis"), "redis"),
             sandbox=_populate(SandboxConfig, raw.get("sandbox"), "sandbox"),

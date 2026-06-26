@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 import yaml
 
+from common.token_counter import estimate_messages_tokens
 from common.types import (
     Event,
     EventType,
@@ -97,6 +98,8 @@ class HarnessRunner:
         self._tools_cache: Dict[str, tuple] = {}
         # 工具进度提示（从 config/tool_hints.yaml 懒加载）
         self._tool_hints: Optional[Dict[str, str]] = None
+        # HyDE 改写上下文（用于审计展示）
+        self._last_hyde_context: Optional[List[Dict[str, str]]] = None
 
     # ═══════════════════════════════════════════════════════════════════════════
     # 主入口: process_turn
@@ -121,6 +124,9 @@ class HarnessRunner:
         user_content = user_message["content"]
         sender_id = user_message["sender_id"]
         metadata = user_message["metadata"]
+
+        # 清理上一轮的 HyDE 上下文，防止跨 turn 泄漏
+        self._last_hyde_context = None
 
         # 确保会话已创建 + 工作区就绪
         await self._ensure_session(session_id, account_id, channel_type_str)
@@ -172,9 +178,14 @@ class HarnessRunner:
 
         # ── Multi-Agent Path ────────────────────────────────────────────
         if self._agent_mode == "multi" and self._multi_agent_executor is not None:
+            # HyDE 改写 query 以提升记忆召回命中率
+            recall_query = await self._rewrite_recall_query(
+                user_content, group_context_text,
+                sender_name=metadata.get("sender_name", ""),
+            )
             # recall memory (with channel-aware isolation)
             _mem_items, memories_text = await self._session.recall_memories(
-                query=user_content,
+                query=recall_query,
                 account_id=account_id,
                 session_id=session_id,
                 top_n=5,
@@ -183,6 +194,9 @@ class HarnessRunner:
                 group_id=str(metadata.get("group_id", "")),
                 scope=metadata.get("detail_type", ""),
                 channel_type=channel_type_str,
+                original_query=user_content,
+                rewritten_query=recall_query,
+                hyde_input_context=getattr(self, '_last_hyde_context', None),
             )
 
             final_content, turns_taken = await self._multi_agent_executor.execute(
@@ -211,9 +225,14 @@ class HarnessRunner:
 
         # ── Single-Agent Path (existing ReAct loop, unchanged) ───────────
         else:
+            # HyDE 改写 query 以提升记忆召回命中率
+            recall_query = await self._rewrite_recall_query(
+                user_content, group_context_text,
+                sender_name=metadata.get("sender_name", ""),
+            )
             # 召回长期记忆（仅在首轮执行一次，渠道感知的标签隔离）
             _mem_items, memories_text = await self._session.recall_memories(
-                query=user_content,
+                query=recall_query,
                 account_id=account_id,
                 session_id=session_id,
                 top_n=5,
@@ -222,6 +241,9 @@ class HarnessRunner:
                 group_id=str(metadata.get("group_id", "")),
                 scope=metadata.get("detail_type", ""),
                 channel_type=channel_type_str,
+                original_query=user_content,
+                rewritten_query=recall_query,
+                hyde_input_context=getattr(self, '_last_hyde_context', None),
             )
 
             while turns_taken < self._max_tool_turns:
@@ -268,6 +290,7 @@ class HarnessRunner:
                             if hasattr(response.stop_reason, "value")
                             else str(response.stop_reason)
                         ),
+                        "input_context": self._snapshot_context(context, tools, "chat"),
                     },
                 )
                 events.append(model_event)
@@ -342,6 +365,7 @@ class HarnessRunner:
                         "text": final_content,
                         "tool_calls": [],
                         "stop_reason": "forced_final",
+                        "input_context": self._snapshot_context(context, None, "chat"),
                     },
                 )
                 events.append(model_event)
@@ -411,6 +435,82 @@ class HarnessRunner:
             return ChannelType(raw)
         except ValueError:
             return None
+
+    async def _rewrite_recall_query(
+        self,
+        user_content: str,
+        group_context_text: str = "",
+        sender_name: str = "",
+    ) -> str:
+        """用 fast LLM 将用户问题改写为 HyDE 文本，提升记忆向量检索命中率。
+
+        原理：用户问题和存储的记忆是两种句式（问句 vs 陈述句），embedding
+        距离大。让 fast LLM 生成一条"假设性记忆"表述，句式同构，召回更准。
+
+        失败时降级返回原始 user_content，不阻塞对话。
+        """
+        prompt_template = ""
+        if self._prompts is not None:
+            try:
+                prompt_template = self._prompts.get_system("hyde_rewrite")
+            except Exception:
+                pass
+        if not prompt_template:
+            # prompt 未配置时直接降级
+            return user_content
+
+        # 构建用户提示 —— 只包含对改写有用的信息
+        parts = []
+        if group_context_text and group_context_text.strip():
+            parts.append(f"群聊近期对话：\n{group_context_text}")
+        if sender_name:
+            parts.append(f"当前说话人：{sender_name}")
+        parts.append(f"用户问题：{user_content}")
+        user_prompt = "\n\n".join(parts)
+
+        try:
+            # 保存 HyDE 输入上下文供审计展示
+            self._last_hyde_context = [
+                {"role": "system", "content": prompt_template},
+                {"role": "user", "content": user_prompt},
+            ]
+            response = await self._model.generate(
+                model_selector="fast",
+                messages=self._last_hyde_context,
+                stream=False,
+            )
+            rewritten = (response.content or "").strip()
+            if rewritten and len(rewritten) >= 2:
+                logger.debug("HyDE rewrite: %r → %r", user_content[:60], rewritten[:120])
+                return rewritten
+        except Exception:
+            logger.warning("HyDE rewrite failed, falling back to raw query")
+
+        return user_content
+
+    def _snapshot_context(
+        self,
+        context: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]] | None = None,
+        model_selector: str = "",
+    ) -> Dict[str, Any]:
+        """将模型输入上下文转为 JSON-safe dict，含 token 估算。
+
+        context 中每条 message 的 content 截断至 8000 字符。
+        """
+        messages: list[dict] = []
+        for msg in context:
+            m = dict(msg)
+            content = m.get("content", "")
+            if isinstance(content, str) and len(content) > 8000:
+                m["content"] = content[:8000] + "... [TRUNCATED]"
+            messages.append(m)
+        return {
+            "messages": messages,
+            "input_tokens": estimate_messages_tokens(messages),
+            "tool_count": len(tools) if tools else 0,
+            "model_selector": model_selector,
+        }
 
     def _build_context(
         self,
@@ -591,12 +691,7 @@ class HarnessRunner:
         self, result_dict: Dict[str, Any], tool_name: str, user_query: str = "",
         session_id: str = "",
     ) -> Dict[str, Any]:
-        """工具输出超过阈值时的语义摘要。
-
-        fast 模型当前环境不稳定（SiliconFlow / Alibaba 均频繁超时），
-        直接走截断，不阻塞工具调用关键路径。
-        后续有可靠 fast 模型时可将 _TOOL_SUMMARY_ENABLED 改回 True 并调低阈值。
-        """
+        """工具输出超过阈值时的语义摘要。"""
         _TOOL_SUMMARY_ENABLED = True
 
         output = result_dict.get("output")
@@ -624,12 +719,14 @@ class HarnessRunner:
                 f"工具输出（{len(output)}字符）：\n{output[:self._tool_result_summary_threshold * 2]}"
             )
 
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+
             response = await self._model.generate(
                 model_selector="fast",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
+                messages=messages,
                 stream=False,
             )
             summary = (response.content or "").strip()
@@ -648,6 +745,7 @@ class HarnessRunner:
                             "original_chars": len(output),
                             "summary_chars": len(summary),
                             "summary": summary,
+                            "input_context": self._snapshot_context(messages, model_selector="fast"),
                         },
                     ))
             else:
@@ -840,7 +938,7 @@ class HarnessRunner:
                 try:
                     await self._group_context.append(
                         group_id=group_id,
-                        sender_name="bot",
+                        sender_name=getattr(self._prompts, "bot_name", "bot"),
                         sender_id=bot_id,
                         content=content[:200],
                     )

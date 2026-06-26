@@ -48,3 +48,6 @@ users_workspace/
 
 # MCP 服务器（从外部克隆的仓库）
 tools/mcp/
+
+# 向量数据库（运行时产物，不应提交）
+tools/vectors/

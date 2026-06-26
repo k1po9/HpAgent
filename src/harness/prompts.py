@@ -50,6 +50,7 @@ class PromptLoader:
         self._environment: Dict[str, str] = dict(cfg.environment)
         self._system: Dict[str, str] = dict(cfg.system)
         self._tool_summary: Dict[str, Any] = dict(cfg.tool_summary)
+        self.bot_name: str = getattr(cfg, "bot_name", "bot")
 
     # ── 渠道身份 ──────────────────────────────────────────────────────────
 

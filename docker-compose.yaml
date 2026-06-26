@@ -4,6 +4,11 @@ services:
     build: ./src
     ports:
       - "8082:8082"                   # 宿主机调试：ws://localhost:8082
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       # 容器内通信（Docker DNS 自动解析服务名）
       - TZ=Asia/Shanghai
@@ -11,11 +16,20 @@ services:
       - HINDSIGHT_URL=http://hindsight:8888
       - WORKSPACE_ROOT=/app/.data/workspace
       - REDIS_URL=redis://redis:6379
+      # ── SiliconFlow（Embedding / Rerank / Fast 模型） ──
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
       - SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL}
       - SILICONFLOW_EMBEDDING_MODEL=${SILICONFLOW_EMBEDDING_MODEL}
       - SILICONFLOW_RERANK_MODEL=${SILICONFLOW_RERANK_MODEL}
+      - SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL=${SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL}
+      # ── 阿里云百炼（Fast 模型） ──
+      - ALIBABA_BAILIAN_API_KEY=${ALIBABA_BAILIAN_API_KEY}
+      - ALIBABA_BAILIAN_BASE_URL=${ALIBABA_BAILIAN_BASE_URL}
+      - ALIBABA_BAILIAN_FAST_MODEL=${ALIBABA_BAILIAN_FAST_MODEL}
+      # ── MiniMax（Chat 模型） ──
       - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+      - MINIMAX_API_BASE_URL=${MINIMAX_API_BASE_URL}
+      # ── Mimo（Chat / Fast 主模型） ──
       - MIMO_API_KEY=${MIMO_API_KEY}
       - MIMO_API_BASE_URL=${MIMO_API_BASE_URL}
       - MIMO_PRO_MODEL=${MIMO_PRO_MODEL}
@@ -39,12 +53,16 @@ services:
     networks:
       - app-network
     restart: unless-stopped
-    # nsjail 需要创建 PID/cgroup/network namespace，必须 privileged
-    privileged: true
+    # privileged: true  # 仅 nsjail 需要，已关闭
 
   # ==================== Redis 会话存储 ====================
   redis:
     image: redis:7-alpine
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       - TZ=Asia/Shanghai
     ports:
@@ -60,39 +78,78 @@ services:
       - app-network
     restart: unless-stopped
 
-  # ==================== NapCat QQ 机器人 ====================
-  # host 网络：避免 Docker bridge NAT 导致长连接被防火墙断开
+  # ==================== NapCat QQ 机器人（代理版） ====================
+  # 启动：docker compose --profile proxy up -d
+  # 停止：docker compose --profile proxy down
   #
-  # ── 切代理模式：注释 image 行，取消下面 3 处注释 ──
-  napcat:
-    image: mlikiowa/napcat-docker:latest
-    # # build: ./src/napcat-proxy              # <─ 1/3 代理模式
-    # # cap_add:
-    # #   - NET_ADMIN                           # <─ 2/3 代理模式（iptables 所需）
+  # 透明代理链路：iptables REDIRECT(UID 1000) → redsocks → SOCKS5(PROXY_HOST:PROXY_PORT)
+  napcat-proxy:
+    profiles: [proxy]
+    build: ./src/napcat-proxy
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    cap_add:
+      - NET_ADMIN
     network_mode: host
-    entrypoint: ["bash", "/cleanup.sh"]               # 清理残留代理规则后启动
     environment:
       - NAPCAT_UID=1000
       - NAPCAT_GID=1000
+      - PROXY_HOST=${PROXY_HOST:-127.0.0.1}
+      - PROXY_PORT=${PROXY_PORT:-1080}
+      - PROXY_OPTIONAL=${PROXY_OPTIONAL:-false}
+      - REDSOCKS_PORT=12345
       - TZ=Asia/Shanghai
-      - ACCOUNT=3823104293
-      - NAPCAT_QUICK_PASSWORD=1879606@Hb
+      - ACCOUNT=${NAPCAT_ACCOUNT}
+      - NAPCAT_QUICK_PASSWORD=${NAPCAT_QUICK_PASSWORD}
       - ENABLE_VNC=false
       - ELECTRON_DISABLE_GPU=1
-      # # - NO_PROXY=localhost,127.0.0.1,::1
-      # # - PROXY_OPTIONAL=false                # <─ 3/3 代理模式（true=代理不可达时降级直连）
-    command: ["-q", "3823104293"]
     volumes:
-      - ./config/napcat-cleanup.sh:/cleanup.sh:ro
-      - ./.data/napcat/QQ:/app/.config/QQ          # QQ NT 设备指纹 + 会话 token 持久化（v4.x 关键）
-      - ./.data/napcat/data:/app/.napcat       # QQ 登录凭证持久化
-      - ./.data/napcat/cache:/app/data/cache   # 缓存数据持久化
-      - ./.data/napcat/config:/app/napcat/config  # 配置文件持久化（passkey 等）
+      - ./.data/napcat/QQ:/app/.config/QQ
+      - ./.data/napcat/data:/app/.napcat
+      - ./.data/napcat/cache:/app/data/cache
+      - ./.data/napcat/config:/app/napcat/config
+    restart: unless-stopped
+
+  # ==================== NapCat QQ 机器人（直连版） ====================
+  # 启动：docker compose --profile direct up -d
+  # 停止：docker compose --profile direct down
+  #
+  # 不走代理，UID 2000 不会被 iptables 规则拦截
+  napcat-direct:
+    profiles: [direct]
+    image: mlikiowa/napcat-docker:latest
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+    network_mode: host
+    environment:
+      - NAPCAT_UID=2000
+      - NAPCAT_GID=2000
+      - TZ=Asia/Shanghai
+      - ACCOUNT=${NAPCAT_ACCOUNT}
+      - NAPCAT_QUICK_PASSWORD=${NAPCAT_QUICK_PASSWORD}
+      - ENABLE_VNC=false
+      - ELECTRON_DISABLE_GPU=1
+    volumes:
+      - ./.data/napcat/QQ:/app/.config/QQ
+      - ./.data/napcat/data:/app/.napcat
+      - ./.data/napcat/cache:/app/data/cache
+      - ./.data/napcat/config:/app/napcat/config
     restart: unless-stopped
 
   # ==================== Temporal + 数据库 ====================
   temporal-postgres:
     image: postgres:16-alpine
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     environment:
       TZ: Asia/Shanghai
       POSTGRES_USER: temporal
@@ -111,6 +168,11 @@ services:
 
   temporal:
     image: temporalio/auto-setup:1.26.2
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       - TZ=Asia/Shanghai
       - BIND_ON_IP=0.0.0.0              # 使 tctl healthcheck 能通过 localhost 连接
@@ -135,6 +197,11 @@ services:
 
   temporal-web:
     image: temporalio/ui:2.34.0
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       - TZ=Asia/Shanghai
       - TEMPORAL_ADDRESS=temporal:7233
@@ -149,6 +216,11 @@ services:
   # ==================== Hindsight 专用 PostgreSQL（pgvector） ====================
   hindsight-postgres:
     image: pgvector/pgvector:pg16
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     environment:
       TZ: Asia/Shanghai
       POSTGRES_USER: hindsight
@@ -180,6 +252,11 @@ services:
   # ==================== Hindsight 长期记忆 ====================
   hindsight:
     image: ghcr.io/vectorize-io/hindsight:0.6.1
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     environment:
       - TZ=Asia/Shanghai
       # ── 外部 PostgreSQL（替代内嵌 pg0，避免重启数据损坏） ──

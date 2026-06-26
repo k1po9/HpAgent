@@ -32,7 +32,7 @@ servers:
   tavily-mcp:
     url: "https://mcp.api-inference.modelscope.net/1cf7c250530c4e/mcp"
     description: "tavily-websearch-mcp-server"
-    required: true
+    required: false
     tools:
       tavily-search:
         hint: "（爪子敲键盘上网冲浪中 🌊）"
