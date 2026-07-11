@@ -11,226 +11,336 @@
 - **透明** —— 过往行为凝练为可回溯的总结，信任建立在可审计的事实之上
 - **专属** —— 对你的理解具象为可预览、可掌控的 Skill 清单
 
-## 架构：五层手脑分离
+## 架构：手脑分离组件架构
 
+HpAgent 当前架构已经从早期的「ReAct 大协调器 + 工具沙箱」演进为更清晰的手脑分离组件体系：
+
+```text
+外部用户
+  -> channels                # 外部窗口：QQ / Console / Web 协议适配
+  -> MessageIngressService   # 门房：消息入站、群聊上下文、@过滤
+  -> ConversationService     # 调度台：账号解析、workflow start/signal、workspace/sandbox 准备
+  -> Temporal Workflow       # 时间编排：排队、signal、空闲归档
+  -> TurnOrchestrator        # 回合导演：编排一轮对话
+      -> TurnMemoryService   # 档案员：事件、记忆、归档、反思、指标
+      -> BrainEngine         # 脑：HyDE 改写、模型调用、BrainDecision
+      -> ActionRuntime       # 手：工具选择、ActionRequest 执行、ActionResult
+      -> ReplyService        # 发言人：最终回复、工具进度、群聊 @
+  -> ChannelRouter
+  -> channels
+  -> 外部用户
 ```
-┌─ main.py ──────────────────────────────────────────────┐
-│  加载配置 → 组装依赖 → 注册 Activity → 启动渠道监听      │
-└────────────────────────────────────────────────────────┘
 
-┌─ orchestration/  编排层（指挥）──────────────────────────┐
-│  workflow.py     Temporal Workflow：agentic loop 确定性编排 │
-│  worker.py       依赖初始化 + 渠道消息 → Workflow 启动/信号 │
-│  config.py       AppConfig 强类型配置（dataclass 层次结构） │
-└────────────────────────────────────────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ harness/ 大脑 │ │ session/ 记忆 │ │ sandbox/ 双手 │
-│              │ │              │ │              │
-│ runner.py    │ │ store.py     │ │ nsjail.py    │
-│ 无状态协调器  │ │ 事件流+召回  │ │ OS 级隔离执行 │
-│              │ │              │ │              │
-│ activities.py│ │ models.py    │ │ channels/    │
-│ 5个Activity  │ │ 领域模型     │ │ 多渠道适配    │
-│              │ │              │ │              │
-│ prompts.py   │ │              │ │ tools/       │
-│ 提示词加载器  │ │              │ │ 工具体系      │
-└──────────────┘ └──────────────┘ └──────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ resources/   │ │ memory/      │ │ workspace/   │
-│ 模型调用池   │ │ 长期记忆     │ │ 多用户工作区  │
-│              │ │              │ │              │
-│ resource_    │ │ hindsight_   │ │ manager.py   │
-│ pool.py      │ │ client.py    │ │ 目录 + DB    │
-│ 退避链调度   │ │ 向量检索     │ │              │
-│              │ │              │ │ db.py        │
-│ model_       │ │              │ │ SQLite 元数据│
-│ client.py    │ │              │ │              │
-│ HTTP 客户端  │ │              │ │ models.py    │
-└──────────────┘ └──────────────┘ └──────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-┌──────────────┐ ┌──────────────┐ ┌──────────────┐
-│ storage/     │ │ account/     │ │ common/      │
-│ 持久化抽象   │ │ 跨渠道账号   │ │ 公共基础设施  │
-│              │ │              │ │              │
-│ redis.py     │ │ account_     │ │ types.py     │
-│ Redis 缓存+  │ │ service.py   │ │ 枚举+数据类  │
-│ PubSub       │ │ QQ/Web →     │ │              │
-│              │ │ account_id   │ │ interfaces.py│
-│ protocols.py │ │              │ │ 核心接口 ABC │
-│ Protocol 定义│ │ models.py    │ │              │
-│              │ │              │ │ errors.py    │
-│ _memory.py   │ │              │ │ 异常体系     │
-│ 内存回退     │ │              │ │              │
-└──────────────┘ └──────────────┘ └──────────────┘
+核心原则：
+
+```text
+TurnOrchestrator 不做专业活，只负责调度专业组件。
+BrainEngine 想，ActionRuntime 做，TurnMemoryService 记，ReplyService 说，channels 听和传。
+```
+
+### 组件总览
+
+```mermaid
+flowchart TD
+    User["用户<br/>QQ / Console / Web"]
+
+    subgraph Transport["Transport Layer：外部窗口"]
+        Channels["channels/<br/>NapCatChannel / OfficialQQChannel / ConsoleChannel"]
+        Router["ChannelRouter"]
+    end
+
+    subgraph Application["Application Layer：业务接待层"]
+        Ingress["MessageIngressService<br/>消息入站 / @过滤 / 群聊上下文写入"]
+        Conversation["ConversationService<br/>账号解析 / Workflow start-signal<br/>workspace / sandbox 初始化"]
+        Reply["ReplyService<br/>最终回复 / 工具进度提示 / 群聊 @ 策略"]
+        TurnMemory["TurnMemoryService<br/>事件记录 / 记忆召回 / 留存 / 归档"]
+    end
+
+    subgraph Orchestration["Orchestration Layer：时间编排层"]
+        Worker["worker.py<br/>依赖组装 / 渠道监听 / Temporal Worker"]
+        Workflow["Temporal Workflow<br/>排队 / signal / 空闲归档"]
+        Activities["Temporal Activities<br/>薄封装"]
+    end
+
+    subgraph Turn["Turn Layer：一轮对话导演"]
+        TurnOrch["TurnOrchestrator<br/>只编排一轮对话"]
+    end
+
+    subgraph Brain["Brain Layer：脑"]
+        BrainEngine["BrainEngine<br/>模型调用 / HyDE 改写 / BrainDecision"]
+        Decision["BrainDecision<br/>content + action_requests"]
+    end
+
+    subgraph Action["Action Layer：手"]
+        ActionRuntime["ActionRuntime<br/>工具选择 / 工具执行 / 结果摘要"]
+        ActionReq["ActionRequest"]
+        ActionRes["ActionResult"]
+    end
+
+    subgraph Memory["Memory & Persistence：记忆"]
+        SessionStore["SessionStore<br/>WAL / Redis / Hindsight"]
+        Redis["Redis"]
+        Hindsight["Hindsight Memory"]
+    end
+
+    subgraph Sandbox["Sandbox Layer：工具间"]
+        SandboxMgr["SandboxManager<br/>按 session 创建 sandbox"]
+        SandboxCore["Sandbox<br/>select_tools / execute"]
+        Tools["ToolRegistry<br/>Native / MCP / Skill tools"]
+    end
+
+    subgraph Resources["Resources：供能层"]
+        ResourcePool["ResourcePool<br/>模型降级链"]
+        Workspace["Workspace / FileStore / GitRepo"]
+    end
+
+    User --> Channels
+    Channels --> Ingress
+    Ingress --> Conversation
+    Conversation --> Workflow
+    Workflow --> Activities
+    Activities --> TurnOrch
+
+    TurnOrch --> TurnMemory
+    TurnMemory --> SessionStore
+    SessionStore --> Redis
+    SessionStore --> Hindsight
+
+    TurnOrch --> BrainEngine
+    BrainEngine --> ResourcePool
+    BrainEngine --> Decision
+    Decision --> TurnOrch
+
+    TurnOrch --> ActionReq
+    ActionReq --> ActionRuntime
+    ActionRuntime --> SandboxMgr
+    SandboxMgr --> SandboxCore
+    SandboxCore --> Tools
+    ActionRuntime --> ActionRes
+    ActionRes --> TurnOrch
+
+    TurnOrch --> Reply
+    Reply --> Router
+    Router --> Channels
+    Channels --> User
+
+    Conversation --> Workspace
+    SandboxMgr --> Workspace
+```
+
+### 一轮对话流程
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as channels
+    participant I as MessageIngressService
+    participant V as ConversationService
+    participant W as Temporal Workflow
+    participant T as TurnOrchestrator
+    participant M as TurnMemoryService
+    participant B as BrainEngine
+    participant A as ActionRuntime
+    participant S as Sandbox
+    participant R as ReplyService
+
+    U->>C: 发消息
+    C->>I: normalize -> UnifiedMessage
+    I->>I: 群聊上下文写入 / @过滤
+    I->>V: handle(message)
+    V->>W: start 或 signal workflow
+    W->>T: process_turn(user_message)
+
+    T->>M: ensure_session / record_user_message
+    T->>M: load_recent_events
+    T->>B: rewrite_recall_query
+    T->>M: recall_memories
+
+    loop ReAct 工具循环
+        T->>A: select_tools
+        A->>S: sandbox.select_tools
+        T->>B: generate_chat_decision
+        B-->>T: BrainDecision(content, action_requests)
+
+        alt 有工具动作
+            T->>R: send_progress
+            T->>A: execute_request(ActionRequest)
+            A->>S: sandbox.execute
+            A-->>T: ActionResult
+            T->>M: record_tool_result
+        else 无工具动作
+            T->>M: record_model_message
+        end
+    end
+
+    T->>R: send_final
+    R->>C: ChannelRouter.send
+    C->>U: 回复用户
+    T->>M: retain_memories
 ```
 
 ## 项目结构
 
-```
+```text
 HpAgent/
 ├── docker-compose.yaml              # 完整服务栈编排
 ├── .env                             # 敏感配置（不会被 git 跟踪）
-├── .gitignore
-├── docs/                            # 设计文档
-│   └── v8/                          #   v8 迭代：记忆模块重新设计
-│       ├── hindsight-memory-best-practices.md   # Hindsight 最佳实践 + NapCat 数据流设计
-│       └── napcat-api-reference.md              # NapCat API 参考（消息/群组/用户/频道）
+├── README.md
 ├── config/
 │   ├── config.yaml                  # 应用配置（Temporal / Redis / Sandbox / Hindsight）
-│   ├── models.yaml                  # 模型提供商 + 降级链（API key 通过 ${ENV_VAR} 注入）
+│   ├── models.yaml                  # 模型提供商 + 降级链
+│   ├── agents.yaml                  # 多 Agent 配置
+│   ├── mcp/                         # MCP 服务配置
 │   └── prompts/                     # LLM 提示词模板
-│       ├── system.yaml              #   系统级角色定义
-│       ├── guidance.yaml            #   行为指导
-│       ├── identities.yaml          #   身份/人格模板
-│       └── environment.yaml         #   运行环境描述
+├── docs/
+│   ├── draw_docs/                   # 系统上下文、源码架构、新架构说明
+│   │   ├── 01_system_context_qq_robot.md
+│   │   ├── 02_src_architecture.md
+│   │   └── new_architecture.md
+│   ├── architecture_progress/       # P0-P10 架构改进施工日志
+│   └── draw/                        # Excalidraw / 图片等架构图资源
+├── tools/                           # 工具定义、Skill、MCP 相关资源
 ├── src/
-│   ├── main.py                      # 入口：加载配置 → 启动 Worker（single/multi agent）
-│   ├── entrypoint.sh                # Docker 容器启动脚本
-│   ├── Dockerfile                   # 镜像构建（Python 3.11 + nsjail）
+│   ├── main.py                      # 入口：加载配置 → 启动 worker
+│   ├── Dockerfile                   # 镜像构建（Python + nsjail）
 │   ├── requirements.txt             # Python 依赖
 │   │
-│   ├── orchestration/               # 编排层（指挥）
-│   │   ├── config.py                #   AppConfig 强类型配置（dataclass）
-│   │   ├── workflow.py              #   OrchestrationWorkflow：确定性编排核心
-│   │   └── worker.py                #   依赖初始化 + Temporal Worker 启动 + 渠道监听
+│   ├── channels/                    # Transport Layer：外部消息渠道
+│   │   ├── base.py                  #   BaseChannel 抽象
+│   │   ├── napcat.py                #   NapCat / OneBot v11 WebSocket
+│   │   ├── official_qq.py           #   QQ 官方 Bot API v2
+│   │   ├── console.py               #   Console 开发渠道
+│   │   └── router.py                #   ChannelRouter：统一发送路由
 │   │
-│   ├── harness/                     # 线束层（大脑）
-│   │   ├── runner.py                #   HarnessRunner：无状态协调器（聚合所有依赖）
-│   │   ├── activities.py            #   5 个 Temporal Activity：模型调用/工具执行/记忆更新
-│   │   ├── context_builder.py       #   事件流 → LLM messages 上下文构建
-│   │   └── prompts.py               #   PromptLoader：从 config/prompts/ 加载模板
+│   ├── application/                 # Application Layer：业务接待服务
+│   │   ├── ingress.py               #   MessageIngressService：入站过滤、群上下文
+│   │   ├── conversation.py          #   ConversationService：账号、workflow、workspace、sandbox 准备
+│   │   ├── memory.py                #   TurnMemoryService：事件/记忆/归档/反思端口
+│   │   └── reply.py                 #   ReplyService：最终回复、工具进度、群聊 @
 │   │
-│   ├── agent/                        # 多 Agent 协作层
-│   │   ├── runner.py                  #   MultiAgentExecutor：多 Agent 编排执行器
-│   │   ├── orchestrator.py            #   AgentOrchestrator：任务分解 + Agent 路由
-│   │   ├── llm_agent.py               #   RealLLMPlanner：工具调用 Agent 实现
-│   │   ├── composite.py               #   复合 Agent 组合模式
-│   │   ├── strategies.py              #   协作策略（sequential/concurrent/review）
-│   │   └── types.py                   #   Agent 相关类型定义
+│   ├── orchestration/               # Orchestration Layer：时间和运行时编排
+│   │   ├── config.py                #   AppConfig 强类型配置
+│   │   ├── workflow.py              #   Temporal Workflow：排队、signal、空闲归档
+│   │   ├── worker.py                #   依赖组装 + Temporal Worker + 渠道监听
+│   │   └── scheduler.py             #   定时提醒调度器
 │   │
-│   ├── session/                     # 会话层（记忆）
-│   │   ├── store.py                 #   SessionStore：事件流 + Hindsight 召回 + JSONL 备份
-│   │   ├── models.py                #   Session / SessionStatus / EventRecord 领域模型
-│   │   └── repositories.py          #   持久化仓库
+│   ├── harness/                     # Turn Layer：一轮对话编排
+│   │   ├── runner.py                #   TurnOrchestrator；HarnessRunner 兼容别名
+│   │   ├── activities.py            #   Temporal Activity 薄封装
+│   │   ├── context_builder.py       #   事件流 + 记忆 → LLM messages
+│   │   └── prompts.py               #   PromptLoader
 │   │
-│   ├── sandbox/                     # 沙箱层（双手）
-│   │   ├── nsjail.py                #   NsjailConfig + NsjailExecutor：OS 级隔离执行
-│   │   ├── runner.py                #   沙箱内工具调度器（在 nsjail 命名空间内运行）
-│   │   ├── sandbox.py               #   Sandbox：工具注册表 + 执行接口
-│   │   ├── sandbox_manager.py       #   沙箱生命周期管理（创建/销毁/空闲回收）
-│   │   ├── channels/                #   渠道适配
-│   │   │   ├── base.py              #     BaseChannel 抽象
-│   │   │   ├── napcat.py            #     NapCat QQ（OneBot v11 WebSocket）
-│   │   │   ├── console.py           #     Console 开发渠道
-│   │   │   └── router.py            #     ChannelRouter：渠道 → 统一消息路由
-│   │   └── tools/                   #   工具体系
-│   │       ├── base.py              #     BaseTool 抽象
-│   │       ├── registry.py          #     ToolRegistry：工具注册表
-│   │       └── factory.py           #     ToolFactory：默认工具集创建
+│   ├── brain/                       # Brain Layer：模型推理边界
+│   │   └── engine.py                #   BrainEngine：HyDE、模型调用、BrainDecision
 │   │
-│   ├── resources/                   # 资源层（模型调用）
-│   │   ├── resource_pool.py         #   多模型注册 + 退避链调度
-│   │   ├── model_client.py          #   单模型异步 HTTP 客户端
-│   │   └── credentials.py           #   凭据管理 + 临时 token
+│   ├── actions/                     # Action Layer：工具行动运行时
+│   │   └── runtime.py               #   ActionRuntime：select_tools / execute_request / ActionResult
 │   │
-│   ├── memory/                      # 长期记忆（Hindsight v0.6.1）
-│   │   └── hindsight_client.py      #   Hindsight HTTP 客户端：retain/recall/reflect
-│   │                                #   v8 增强：完整渠道上下文 → 多维度 tag/metadata/observation
+│   ├── agent/                       # Agent 协议和多 Agent 协作
+│   │   ├── protocol.py              #   BrainDecision / ActionRequest / ActionResult
+│   │   ├── runner.py                #   MultiAgentExecutor
+│   │   ├── orchestrator.py          #   AgentOrchestrator
+│   │   ├── llm_agent.py             #   RealLLMPlanner
+│   │   └── types.py                 #   Agent 相关类型
 │   │
-│   ├── storage/                     # 存储抽象层
-│   │   ├── protocols.py             #   Protocol 定义（KeyValueStore / FileStore / PubSub）
-│   │   ├── redis.py                 #   RedisCache + RedisPubSub
-│   │   ├── _memory.py               #   InMemoryKVStore / _NoopCache（开发回退）
-│   │   ├── file.py                  #   AioFileStore：原子文件写入
-│   │   ├── postgres.py              #   SqlKeyValueStore
-│   │   └── container.py             #   InfraContainer：DI 装配
+│   ├── sandbox/                     # Sandbox Layer：工具间和隔离层
+│   │   ├── sandbox.py               #   Sandbox：工具选择 + 执行接口
+│   │   ├── sandbox_manager.py       #   每 session sandbox 生命周期管理
+│   │   ├── nsjail.py                #   OS 级隔离执行
+│   │   ├── git_repo.py              #   会话工作区 Git 管理
+│   │   ├── tools/                   #   Native / MCP / Skill 工具体系
+│   │   └── channels/                #   旧兼容层，转发到 src/channels/
 │   │
-│   ├── workspace/                   # 多用户工作区
-│   │   ├── manager.py               #   WorkspaceManager：目录骨架 + nsjail bind mount
-│   │   ├── db.py                    #   WorkspaceDB：SQLite 元数据
-│   │   └── models.py                #   User / Session / Artifact 模型
+│   ├── session/                     # 会话与事件存储
+│   │   ├── store.py                 #   SessionStore：WAL / Redis / Hindsight 集成
+│   │   ├── workspace.py             #   history.jsonl / meta.yaml 归档工具
+│   │   ├── db.py                    #   WorkspaceDB
+│   │   └── models.py                #   Session / EventRecord 领域模型
+│   │
+│   ├── memory/                      # 长期记忆辅助组件
+│   │   ├── hindsight_client.py      #   Hindsight HTTP 客户端
+│   │   └── group_context.py         #   群聊短期上下文窗口
+│   │
+│   ├── resources/                   # 模型和资源层
+│   │   ├── resource_pool.py         #   多模型注册 + 降级链调度
+│   │   ├── model_client.py          #   模型 HTTP 客户端
+│   │   ├── embedding.py             #   Embedding 客户端
+│   │   ├── reranker.py              #   Reranker 客户端
+│   │   └── credentials.py           #   凭据管理
 │   │
 │   ├── account/                     # 跨渠道账号
-│   │   ├── account_service.py       #   channel_type + sender_id → account_id
-│   │   └── models.py                #   Account 模型
-│   │
-│   └── common/                      # 公共基础设施
-│       ├── types.py                 #   枚举 + 数据类（UnifiedMessage / ToolResult / Event）
-│       ├── interfaces.py            #   核心接口 ABC（IResources / ISandbox / IChannel / ITool）
-│       └── errors.py                #   统一异常体系
-│
+│   │   └── account_service.py       #   channel_type + sender_id → account_id
+│   ├── storage/                     # 存储抽象
+│   └── common/                      # 公共类型、接口、日志、错误
 └── test/
-    └── test_hindsight.py            # Hindsight 集成测试
 ```
 
 ## 数据流：一条 QQ 消息的生命周期
 
-```
-NapCat QQ 客户端
-    │  WebSocket (JSON)
-    ▼
-NapCatChannel.normalize_message()
-    │  UnifiedMessage
-    ▼
-Worker.handle_message()
-    │  account_service.resolve() → account_id
-    │  session_id = "session-{account_id}"
-    ▼
-Temporal Workflow（启动或 Signal）
-    │  OrchestrationWorkflow.run()
-    ▼
-HarnessRunner.process_turn()          ← 单次 agentic loop
-    │
-    ├─ 1. SessionStore 加载事件流     → 从 Redis / 文件恢复历史
-    ├─ 2. SessionStore 召回长期记忆   → Hindsight 向量检索（渠道标签过滤）
-    ├─ 3. ContextBuilder.build()      → 事件流 → OpenAI messages
-    ├─ 4. ResourcePool.generate()     → 模型调用（退避链）
-    │    └─ multi 模式: MultiAgentExecutor 多 Agent 协作
-    ├─ 5. 如果有 tool_calls:
-    │        SandboxManager → NsjailExecutor.execute()
-    │        在 nsjail 命名空间内运行 runner.py
-    │        结果写回事件流 → 回到步骤 4
-    ├─ 6. SessionStore 提取长期记忆   → Hindsight retain（完整渠道上下文）
-    └─ 7. ChannelRouter.send()        → NapCat → QQ 平台
+```text
+QQ 用户
+  -> QQ 服务器
+  -> NapCat
+  -> channels.NapCatChannel.normalize_message()
+  -> MessageIngressService
+       - 写入群聊短期上下文
+       - 群聊中未 @bot 的消息只沉淀上下文，不触发回复
+  -> ConversationService
+       - AccountService.resolve() -> account_id
+       - 准备 session workspace / git repo / sandbox
+       - start 或 signal Temporal workflow
+  -> Temporal Workflow / Activities
+  -> TurnOrchestrator.process_turn()
+       1. TurnMemoryService.ensure_session / record_user_message
+       2. TurnMemoryService.load_recent_events
+       3. BrainEngine.rewrite_recall_query() 做 HyDE 改写
+       4. TurnMemoryService.recall_memories() 召回长期记忆
+       5. ContextBuilder.build() 构造 LLM messages
+       6. ActionRuntime.select_tools() 动态选择工具
+       7. BrainEngine.generate_chat_decision() 输出 BrainDecision
+       8. 若有 ActionRequest：ActionRuntime.execute_request() -> Sandbox.execute()
+       9. TurnMemoryService.record_model_message / record_tool_result
+      10. ReplyService.send_final() -> ChannelRouter -> NapCat
+      11. TurnMemoryService.retain_memories() 留存长期记忆
 ```
 
 ## 关键设计决策
 
 | 决策 | 说明 |
 |------|------|
-| **手脑分离** | 编排层只做决策，沙箱层执行操作。模型调用走 ResourcePool 退避链，工具调用走 nsjail 隔离 |
-| **多 Agent 协作** | 支持 single/multi 模式。Multi-agent 模式由 MultiAgentExecutor 编排多个 Agent 协作完成任务 |
-| **Temporal Workflow** | agentic loop 作为确定性 Workflow，支持故障恢复、Signal 中断、自动持久化 |
-| **nsjail OS 级隔离** | 每次工具调用在独立 PID/NET/FS 命名空间中执行，Docker 内无需 DinD |
-| **跨渠道统一账号** | AccountService 将 QQ/Web/Console 等多渠道统一到 account_id |
-| **渠道感知记忆** | Hindsight 记忆携带完整渠道上下文（群组/私聊/频道），支持按场景过滤检索 |
-| **存储层协议化** | typing.Protocol 定义 KeyValueStore / FileStore / PubSub，后端可任意替换 |
-| **降级链** | 模型 API 故障时自动切换到备用模型，保证可用性 |
+| **手脑分离** | `BrainEngine` 只负责模型推理和 `BrainDecision`；`ActionRuntime` 只负责工具选择、执行和 `ActionResult`；`TurnOrchestrator` 只编排一轮对话 |
+| **Transport 与 Sandbox 分离** | `channels/` 是 QQ/Console/Web 外部窗口；`sandbox/` 是工具执行和隔离层。旧 `sandbox/channels/` 仅保留兼容转发 |
+| **应用服务拆分** | `MessageIngressService`、`ConversationService`、`ReplyService`、`TurnMemoryService` 分别承接入站、会话、回复、记忆职责 |
+| **Temporal Workflow** | Workflow 负责时间、排队、signal、空闲归档；Activity 是薄封装，业务执行委托给 `TurnOrchestrator` |
+| **工具安全隔离** | `SandboxManager` 按 session 创建 workspace 绑定的 `Sandbox`，工具执行可通过 nsjail 隔离 |
+| **Brain/Action 协议化** | `BrainDecision -> ActionRequest -> ActionRuntime -> ActionResult`，避免回合导演直接拆模型原始 tool_calls |
+| **长期记忆端口化** | `TurnMemoryService` 封装事件记录、记忆召回、留存、归档、反思、指标，降低 Turn 层对 `SessionStore` 细节的了解 |
+| **多模型降级链** | `ResourcePool` 管理 fast/chat/embedding/reranker 等模型链路，故障时自动切换备用模型 |
+| **跨渠道统一账号** | `AccountService` 将 QQ/Web/Console 等多渠道身份统一到 `account_id` |
 | **敏感信息保护** | API key 通过 `${ENV_VAR}` 占位符 + `.env` 文件注入，不进入 git 历史 |
 
-## 记忆模块设计 (v8)
+## 架构文档
 
-Hindsight 长期记忆的完整数据流设计，确保 NapCat 渠道的丰富元数据（发送者昵称、群名片、群名称、消息段类型等）完整传递到记忆层：
+当前 README 只保留项目入口级说明，更详细的设计事实来源见：
 
+- [`docs/draw_docs/01_system_context_qq_robot.md`](docs/draw_docs/01_system_context_qq_robot.md) — QQ 机器人系统上下文图
+- [`docs/draw_docs/02_src_architecture.md`](docs/draw_docs/02_src_architecture.md) — 源码架构设计书
+- [`docs/draw_docs/new_architecture.md`](docs/draw_docs/new_architecture.md) — 最新组件架构图
+- [`docs/architecture_progress/`](docs/architecture_progress/) — P0-P10 架构改进施工日志
+
+## 记忆模块设计
+
+当前记忆链路由两层组成：
+
+```text
+TurnMemoryService
+  -> SessionStore
+      -> Redis WAL / 会话热数据
+      -> Hindsight retain / recall / reflect
+      -> history.jsonl / meta.yaml 归档
 ```
-QQ OneBot JSON
-  → NapCatChannel.normalize_message()   [增强] 提取 sender_name/card/role, group_name, 消息段摘要
-    → UnifiedMessage                    [增强] 新增 12 个渠道富数据字段
-      → Worker.handle_message()         [透传] 映射到 user_message dict
-        → HarnessRunner.process_turn()  [封装] MemoryPayload{channel_context, session_context}
-          → HindsightClient.retain()    [重写] 完整 context/tags/metadata/timestamp/observation_scopes
-            → Hindsight 服务端           → 支持按渠道/群组/时间/范围过滤检索
-```
 
-详细设计见 [`docs/v8/hindsight-memory-best-practices.md`](docs/v8/hindsight-memory-best-practices.md)，NapCat API 数据能力参考 [`docs/v8/napcat-api-reference.md`](docs/v8/napcat-api-reference.md)。
+入站消息会携带渠道上下文（群聊/私聊、sender、group、detail_type 等），在 `retain_memories()` 时进入 Hindsight；新消息到来时，`BrainEngine` 先做 HyDE 查询改写，再由 `TurnMemoryService.recall_memories()` 带渠道标签召回相关长期记忆。
 
 ## Docker 服务栈
 
