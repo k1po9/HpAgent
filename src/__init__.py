@@ -12,8 +12,8 @@ HpAgent —— 带工具调用的智能体（Agent），基于"手脑分离"架�
     └── worker.py            Temporal Worker：依赖初始化 + Activity 注册 + 渠道监听
     ↓
   harness/                   线束层（大脑——无状态协调器）
-    ├── activities.py        3 个 Temporal Activity（薄封装，委托 HarnessRunner）
-    ├── runner.py            HarnessRunner：无状态协调器（完整 agentic loop）
+    ├── activities.py        Temporal Activity 薄封装，委托 TurnOrchestrator
+    ├── runner.py            TurnOrchestrator：单轮对话流程导演（完整 agentic loop）
     ├── context_builder.py   上下文构建器：事件流 → LLM messages
     └── prompts.py           PromptLoader：从 YAML 加载 prompt 模板
     ↓

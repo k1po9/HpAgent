@@ -4,21 +4,20 @@ Orchestration Worker —— Temporal Worker 启动与依赖组装。
 启动序列:
   1. AppConfig.from_yaml() → 加载全量结构化配置
   2. init_dependencies()    → 按 config 组装所有依赖
-  3. inject(harness)         → 注入 HarnessRunner 到 Activities
+  3. inject(turn_orchestrator) → 注入 TurnOrchestrator 到 Activities
   4. 连接 Temporal → 启动 Worker → 渠道监听
 
 架构:
   Temporal Workflow （纯编排）
       ↓ 只调用 Harness Activities
-  HarnessRunner    （无状态协调器）
+  TurnOrchestrator （回合流程导演）
       ↓ 协调
-  SessionStore / ContextBuilder / ResourcePool / SandboxManager / ChannelRouter
+  TurnMemoryService / ContextBuilder / BrainEngine / ActionRuntime / ReplyService
 """
 import asyncio
 import dataclasses
 import logging
 import os
-import uuid
 from pathlib import Path
 from typing import Dict
 
@@ -38,19 +37,24 @@ from harness.activities import (
 )
 from harness.context_builder import HarnessContextBuilder
 from harness.prompts import PromptLoader
-from harness.runner import HarnessRunner
+from harness.runner import TurnOrchestrator
+from actions.runtime import ActionRuntime
+from brain.engine import BrainEngine
+from application.conversation import ConversationService
+from application.ingress import MessageIngressService
+from application.memory import TurnMemoryService
+from application.reply import ReplyService
 from session.store import SessionStore
 from session.db import WorkspaceDB
-from session.workspace import init_user, init_session
 from storage.file_store import LocalFileStore
 from resources.resource_pool import ResourcePool
 from resources.credentials import CredentialManager, ModelEndpoint
 from sandbox.sandbox_manager import SandboxManager
 from sandbox.nsjail import NsjailConfig
 from sandbox.git_repo import GitRepoManager
-from sandbox.channels.napcat import NapCatChannel
-from sandbox.channels.official_qq import OfficialQQChannel
-from sandbox.channels.router import ChannelRouter
+from channels.napcat import NapCatChannel
+from channels.official_qq import OfficialQQChannel
+from channels.router import ChannelRouter
 from account.account_service import AccountService
 from common.types import UnifiedMessage, ChannelType
 
@@ -63,7 +67,7 @@ class WorkerDependencies:
 
     使用 dataclass 而非裸 tuple，避免位置耦合，便于后续扩展。
     """
-    harness_runner: "HarnessRunner"
+    turn_orchestrator: "TurnOrchestrator"
     account_service: "AccountService"
     channel_router: "ChannelRouter"
     sandbox_manager: "SandboxManager"
@@ -75,6 +79,11 @@ class WorkerDependencies:
     git_repo_manager: "GitRepoManager"
     group_context: object  # GroupContextStore | None，群聊短期上下文缓存
     scheduler: "TaskScheduler" = None
+
+    @property
+    def harness_runner(self) -> "TurnOrchestrator":
+        """Backward-compatible alias for older callers."""
+        return self.turn_orchestrator
 
 
 async def setup_tools(config: AppConfig):
@@ -166,7 +175,7 @@ def _build_nsjail_config(sandbox: SandboxConfig) -> NsjailConfig:
 
 
 async def init_dependencies(config: AppConfig) -> WorkerDependencies:
-    """初始化所有共享依赖并组装 HarnessRunner。
+    """初始化所有共享依赖并组装 TurnOrchestrator。
 
     初始化顺序（严格遵守拓扑依赖 DAG）：
       1. CredentialManager → ResourcePool
@@ -179,7 +188,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
       8. AccountService + ChannelRouter
       9. SessionStore（依赖 2+7）
      10. MultiAgentExecutor（条件）
-     11. HarnessRunner（组装所有上述组件）
+     11. TurnOrchestrator（组装所有上述组件）
     """
     # ── 1. 凭据 + 资源池 ──
     credential_manager = CredentialManager()
@@ -360,12 +369,33 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     git_repo_manager = GitRepoManager(repos_root=workspace_root)
     logger.info("GitRepoManager initialized: repos_root=%s", workspace_root)
 
-    # ── 12. HarnessRunner ──
+    # ── 12. 记忆端口 + 大脑 + 行动运行时 + 回复服务 + TurnOrchestrator ──
     channel_overrides = {
         ch_name: {"max_tokens": ch_cfg.max_tokens, "timeout": ch_cfg.timeout, "stream": ch_cfg.stream}
         for ch_name, ch_cfg in config.models.channel_overrides.items()
     }
-    harness_runner = HarnessRunner(
+    memory_service = TurnMemoryService(session_store=session_store)
+    brain_engine = BrainEngine(
+        resource_pool=resource_pool,
+        prompts=prompt_loader,
+    )
+    reply_service = ReplyService(
+        channel_router=channel_router,
+        group_context=group_context,
+        prompts=prompt_loader,
+    )
+    action_runtime = ActionRuntime(
+        sandbox_manager=sandbox_manager,
+        session_store=session_store,
+        resource_pool=resource_pool,
+        prompts=prompt_loader,
+        tool_rag_top_k=config.models.tool_rag.top_k,
+        tool_result_summary_enabled=config.agent.tool_result_summary_enabled,
+        tool_result_summary_threshold=config.agent.tool_result_summary_threshold,
+        tool_result_summary_max_chars=config.agent.tool_result_summary_max_chars,
+    )
+
+    turn_orchestrator = TurnOrchestrator(
         session_store=session_store,
         context_builder=context_builder,
         resource_pool=resource_pool,
@@ -394,18 +424,22 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         tool_rag_top_k=config.models.tool_rag.top_k,
         # 群聊上下文
         group_context=group_context,
+        reply_service=reply_service,
+        action_runtime=action_runtime,
+        brain_engine=brain_engine,
+        memory_service=memory_service,
     )
 
     logger.info(
-        "HarnessRunner assembled: all dependencies wired"
+        "TurnOrchestrator assembled: all dependencies wired"
         " | budget=%d headroom=%d compress=%d ckpt=%d wal=%s rag_top_k=%d",
-        harness_runner._context_budget, harness_runner._generation_headroom,
-        harness_runner._compress_interval, harness_runner._checkpoint_interval,
+        turn_orchestrator._context_budget, turn_orchestrator._generation_headroom,
+        turn_orchestrator._compress_interval, turn_orchestrator._checkpoint_interval,
         "on" if session_store._wal_enabled else "off",
-        harness_runner._tool_rag_top_k,
+        turn_orchestrator._tool_rag_top_k,
     )
     return WorkerDependencies(
-        harness_runner=harness_runner,
+        turn_orchestrator=turn_orchestrator,
         account_service=account_service,
         channel_router=channel_router,
         sandbox_manager=sandbox_manager,
@@ -424,7 +458,7 @@ async def start_worker(config: AppConfig) -> None:
     """完整启动流程: 组装依赖 → 连接 Temporal → 启动 Worker + 渠道监听。"""
     deps = await init_dependencies(config)
 
-    inject(harness=deps.harness_runner)
+    inject(turn_orchestrator=deps.turn_orchestrator)
 
     # ── 注册提醒 handler ──
     async def _handle_user_reminder(task):
@@ -512,193 +546,26 @@ async def start_worker(config: AppConfig) -> None:
         active_channels.append(channel)
         logger.info("Channel registered: %s", ch_name)
 
+    conversation_service = ConversationService(
+        temporal_client=client,
+        workflow_cls=OrchestrationWorkflow,
+        task_queue=config.temporal.task_queue,
+        idle_timeout_minutes=config.agent.idle_timeout_minutes,
+        activity_timeout=config.agent.activity_timeout,
+        account_service=deps.account_service,
+        workspace_root=deps.workspace_root,
+        file_store=deps.file_store,
+        workspace_db=deps.workspace_db,
+        git_repo_manager=deps.git_repo_manager,
+        sandbox_manager=deps.sandbox_manager,
+    )
+    ingress_service = MessageIngressService(
+        group_context=deps.group_context,
+        conversation_service=conversation_service,
+    )
+
     async def handle_message(message: UnifiedMessage) -> None:
-        if not message.content or not message.content.strip():
-            return
-
-        ch_type = (
-            message.channel_type.value
-            if hasattr(message.channel_type, "value")
-            else str(message.channel_type)
-        )
-
-        # ── 群聊上下文写入 + @过滤 ──
-        # 所有群消息（无论是否@bot）都写入短期缓存窗口。
-        # 非@消息仅做上下文沉淀，不触发 agentic loop。
-        metadata = message.metadata
-        detail_type = metadata.get("detail_type", "")
-        group_id = str(metadata.get("group_id", ""))
-        is_at_bot = metadata.get("is_at_bot", False)
-
-        if detail_type == "group" and group_id and deps.group_context:
-            # 写入群短期缓存
-            sender_name = metadata.get("sender_name", "")
-            sender_id = message.sender_id
-            raw_msg_id = metadata.get("message_id")
-            msg_id = str(raw_msg_id) if raw_msg_id is not None else ""
-            iso_ts = metadata.get("iso_timestamp", "")
-
-            try:
-                await deps.group_context.append(
-                    group_id=group_id,
-                    sender_name=sender_name,
-                    sender_id=sender_id,
-                    content=message.content,
-                    msg_id=msg_id,
-                    timestamp=iso_ts,
-                )
-            except Exception:
-                logger.warning("Failed to append group context for group %s", group_id)
-
-            # 非@消息：只记录上下文，不触发 agentic loop
-            if not is_at_bot:
-                logger.debug(
-                    "Group non-@ message from %s in %s (len=%d) → context only, skipped",
-                    sender_id, group_id, len(message.content),
-                )
-                return
-
-        account_id = await deps.account_service.resolve(ch_type, message.sender_id)
-        workflow_id = f"hpagent-{account_id}"
-
-        session_context = {
-            "account_id": account_id,
-            "sender_id": message.sender_id,
-            "channel_type": ch_type,
-            "metadata": message.metadata,
-        }
-
-        from temporalio.exceptions import WorkflowAlreadyStartedError
-
-        session_id = f"session-{account_id}-{uuid.uuid4().hex[:8]}"
-
-        user_message = {
-            "content": message.content,
-            "sender_id": message.sender_id,
-            "channel_type": ch_type,
-            "session_id": session_id,
-            "account_id": account_id,
-            "metadata": message.metadata,
-            "timestamp": message.timestamp,
-            "idle_timeout_minutes": config.agent.idle_timeout_minutes,
-            "activity_timeout": config.agent.activity_timeout,
-        }
-
-        try:
-            # —— 先尝试创建 workflow（轻量 RPC），成功后再初始化本地资源 ——
-            # 这样 WorkflowAlreadyStartedError 时不会产生幽灵 session
-            await client.start_workflow(
-                OrchestrationWorkflow.run,
-                user_message,
-                id=workflow_id,
-                task_queue=config.temporal.task_queue,
-            )
-
-            # workflow 创建成功 → 初始化工作区资源
-            repo_path = str(deps.workspace_root / account_id / "repo")
-            init_user(deps.file_store, deps.workspace_db, account_id)
-            await deps.git_repo_manager.ensure_repo(account_id)
-            await deps.git_repo_manager.start_session(account_id, session_id)
-            init_session(
-                deps.file_store, deps.workspace_db,
-                user_uuid=account_id,
-                session_id=session_id,
-                task_summary=message.content[:100],
-            )
-            deps.sandbox_manager.create_session_sandbox(
-                session_id=session_id,
-                workspace_path=repo_path,
-                user_uuid=account_id,
-                session_context=session_context,
-            )
-            logger.info("Started new session %s (account=%s)", session_id, account_id)
-
-        except WorkflowAlreadyStartedError:
-            # —— 复用已有 workflow：沿用其 session_id，无需新建本地资源 ——
-            handle = client.get_workflow_handle(workflow_id)
-            signaled = False
-            try:
-                status = await handle.query(OrchestrationWorkflow.get_status)
-                session_id = status.get("session_id", f"session-{account_id}")
-
-                # 确保沙箱存在（重启后内存丢失，需重建）
-                sandbox_ok = False
-                try:
-                    deps.sandbox_manager.get_sandbox_for_session(session_id)
-                    sandbox_ok = True
-                except Exception:
-                    pass
-
-                if not sandbox_ok:
-                    try:
-                        repo_path = str(deps.workspace_root / account_id / "repo")
-                        init_user(deps.file_store, deps.workspace_db, account_id)
-                        await deps.git_repo_manager.ensure_repo(account_id)
-                        await deps.git_repo_manager.start_session(account_id, session_id)
-                        init_session(
-                            deps.file_store, deps.workspace_db,
-                            user_uuid=account_id,
-                            session_id=session_id,
-                            task_summary="",
-                        )
-                        deps.sandbox_manager.create_session_sandbox(
-                            session_id=session_id,
-                            workspace_path=repo_path,
-                            user_uuid=account_id,
-                            session_context=session_context,
-                        )
-                        logger.info("Sandbox recreated for signaled session %s", session_id)
-                    except Exception as e:
-                        logger.warning("Sandbox recreation failed for %s: %s", session_id, e)
-
-                # 用已有 workflow 的 session_id 覆盖 payload
-                user_message["session_id"] = session_id
-
-                await handle.signal(OrchestrationWorkflow.new_message, user_message)
-                logger.info("Signaled existing session %s", session_id)
-                signaled = True
-            except Exception as signal_err:
-                # workflow 可能已归档退出（详见 workflow.py 的 drain 竞态窗口），
-                # signal 失败时回退到启动新 workflow
-                logger.info(
-                    "Workflow %s signal failed (%s), starting replacement session",
-                    workflow_id, signal_err,
-                )
-
-            if not signaled:
-                # 启动新 session 替代已结束的 workflow
-                session_id = f"session-{account_id}-{uuid.uuid4().hex[:8]}"
-                user_message["session_id"] = session_id
-
-                repo_path = str(deps.workspace_root / account_id / "repo")
-                init_user(deps.file_store, deps.workspace_db, account_id)
-                await deps.git_repo_manager.ensure_repo(account_id)
-                await deps.git_repo_manager.start_session(account_id, session_id)
-                init_session(
-                    deps.file_store, deps.workspace_db,
-                    user_uuid=account_id,
-                    session_id=session_id,
-                    task_summary=user_message["content"][:100],
-                )
-                deps.sandbox_manager.create_session_sandbox(
-                    session_id=session_id,
-                    workspace_path=repo_path,
-                    user_uuid=account_id,
-                    session_context=session_context,
-                )
-
-                from temporalio.common import WorkflowIDReusePolicy
-                await client.start_workflow(
-                    OrchestrationWorkflow.run,
-                    user_message,
-                    id=workflow_id,
-                    task_queue=config.temporal.task_queue,
-                    id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
-                )
-                logger.info("Started replacement session %s (account=%s)", session_id, account_id)
-
-        except Exception as e:
-            logger.exception("Failed to start or signal session %s: %s", e)
+        await ingress_service.handle(message)
 
     # ── 并发运行 Worker + 渠道监听 ──
     sandbox_cleanup_task = asyncio.create_task(

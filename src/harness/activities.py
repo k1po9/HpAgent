@@ -1,15 +1,15 @@
 """
-Temporal Activities —— 薄封装层，全部委托给 HarnessRunner。
+Temporal Activities —— 薄封装层，全部委托给 TurnOrchestrator。
 
-Temporal 只做编排（何时调用），HarnessRunner 做执行（如何调用）。
+Temporal 只做编排（何时调用），TurnOrchestrator 做一轮对话流程编排。
 每条 Activity 是无状态的：依赖在 Worker 启动时通过 inject() 注入。
 
 Activity 清单:
-  1. process_turn_activity     → HarnessRunner.process_turn()
+  1. process_turn_activity     → TurnOrchestrator.process_turn()
   2. archive_session_activity   → SessionStore.archive()
-  3. reflect_activity           → HarnessRunner.reflect()
-  4. reflect_batch_activity     → HarnessRunner.reflect() (批量)
-  5. metrics_report_activity    → HarnessRunner.get_metrics()
+  3. reflect_activity           → TurnOrchestrator.reflect()
+  4. reflect_batch_activity     → TurnOrchestrator.reflect() (批量)
+  5. metrics_report_activity    → TurnOrchestrator.get_metrics()
 """
 import json
 import logging
@@ -18,22 +18,23 @@ from typing import Dict, Any, List, Optional
 
 from temporalio import activity
 
-from harness.runner import HarnessRunner
+from harness.runner import TurnOrchestrator
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 模块级单例 —— 通过 inject() 在 Worker 启动时注入
 # ═══════════════════════════════════════════════════════════════════════════════
 
-_harness: Optional[HarnessRunner]=None       # HarnessRunner 实例
+_turn_orchestrator: Optional[TurnOrchestrator] = None
 
 
-def inject(harness=None) -> None:
-    """在 Worker 启动前注入 HarnessRunner。
+def inject(turn_orchestrator: Optional[TurnOrchestrator] = None, *, harness=None) -> None:
+    """在 Worker 启动前注入 TurnOrchestrator。
 
+    ``harness=`` 是旧参数名，暂时保留为兼容入口。
     Temporal Activity 要求函数无闭包状态，使用模块级变量。
     """
-    global _harness
-    _harness = harness
+    global _turn_orchestrator
+    _turn_orchestrator = turn_orchestrator if turn_orchestrator is not None else harness
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -44,7 +45,7 @@ def inject(harness=None) -> None:
 async def process_turn_activity(user_message: Dict[str, Any]) -> Dict[str, Any]:
     """处理一条用户消息的完整 agentic loop。
 
-    HarnessRunner 内部完成:
+    TurnOrchestrator 内部完成:
       recall → context → model → tools → ... → response → retain
 
     Args:
@@ -57,7 +58,7 @@ async def process_turn_activity(user_message: Dict[str, Any]) -> Dict[str, Any]:
     sid = user_message.get("session_id", "?")
     t0 = time.monotonic()
     try:
-        result = await _harness.process_turn(user_message)
+        result = await _turn_orchestrator.process_turn(user_message)
         return result
     except Exception:
         elapsed_ms = (time.monotonic() - t0) * 1000
@@ -83,12 +84,11 @@ async def archive_session_activity(session_id: str) -> Dict[str, Any]:
     Returns:
         {"ok": bool, "task_summary": str, "tags": [...], "event_count": int}
     """
-    session = await _harness._session.get_session(session_id)
-    account_id = session.account_id if session else ""
+    account_id = await _turn_orchestrator.get_session_account(session_id)
     if not account_id:
         return {"ok": False, "error": f"Session not found: {session_id}"}
     try:
-        return await _harness.archive_session(session_id, account_id)
+        return await _turn_orchestrator.archive_session(session_id, account_id)
     except Exception as e:
         logger = logging.getLogger("HpAgent.Activity")
         logger.exception("archive_session_activity FAILED sid=%s", session_id)
@@ -104,7 +104,7 @@ async def reflect_activity(account_id: str) -> Dict[str, Any]:
     """触发深度记忆推理与知识抽象。
 
     由 Temporal Schedule 定期触发（建议每 6 小时）。
-    HarnessRunner 委托给 SessionStore → Hindsight。
+    TurnOrchestrator 委托给 SessionStore → Hindsight。
 
     Args:
         account_id: 统一账号 ID。
@@ -112,7 +112,7 @@ async def reflect_activity(account_id: str) -> Dict[str, Any]:
     Returns:
         {"insights": int}
     """
-    return await _harness.reflect(account_id)
+    return await _turn_orchestrator.reflect(account_id)
 
 
 @activity.defn
@@ -120,7 +120,7 @@ async def reflect_batch_activity(account_ids: List[str]) -> Dict[str, Any]:
     """批量触发所有活跃账号的记忆反思。
 
     由 Temporal Schedule 定期触发的 ReflectWorkflow 调用。
-    遍历 account_ids，逐个调用 HarnessRunner.reflect()。
+    遍历 account_ids，逐个调用 TurnOrchestrator.reflect()。
 
     Args:
         account_ids: 账号 ID 列表。
@@ -131,7 +131,7 @@ async def reflect_batch_activity(account_ids: List[str]) -> Dict[str, Any]:
     results: Dict[str, int] = {}
     for aid in account_ids:
         try:
-            r = await _harness.reflect(aid)
+            r = await _turn_orchestrator.reflect(aid)
             results[aid] = r.get("insights", 0)
         except Exception:
             results[aid] = -1
@@ -152,7 +152,7 @@ async def metrics_report_activity() -> Dict[str, Any]:
     Returns:
         HindsightMetrics.snapshot() 的完整指标快照。
     """
-    metrics = await _harness.get_metrics()
+    metrics = await _turn_orchestrator.get_metrics()
     _metrics_logger = logging.getLogger("HpAgent.Metrics")
     _metrics_logger.info(
         "HindsightMetrics|%s",

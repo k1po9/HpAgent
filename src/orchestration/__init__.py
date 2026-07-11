@@ -2,7 +2,7 @@
 Orchestration —— 纯编排层。
 
 Temporal Workflow 不持有任何业务数据，只做循环控制 + 信号路由。
-Agentic loop 全部在 HarnessRunner 内部完成。
+单轮 agentic loop 由 TurnOrchestrator 编排。
 
 模块结构：
   - workflow.py: OrchestrationWorkflow —— 纯编排（循环 / 信号 / 查询）

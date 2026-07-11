@@ -2,7 +2,7 @@
 OrchestrationWorkflow —— Temporal Workflow 纯编排层。
 
 Workflow 不再持有任何业务数据（self._events 已移除）。
-所有对话数据存储在 Redis（SessionStore），由 HarnessRunner 读写。
+所有对话数据存储在 Redis（SessionStore），由 TurnOrchestrator 读写。
 
 Workflow 只负责:
   1. 循环控制：收到消息 → process_turn_activity → 等待下一信号
@@ -147,7 +147,7 @@ class OrchestrationWorkflow:
         return drained
 
     async def _process_turn(self, user_message: Dict[str, Any]) -> str:
-        """处理一条消息 —— 委托给 HarnessRunner.process_turn_activity。"""
+        """处理一条消息 —— 委托给 TurnOrchestrator 的 process_turn_activity。"""
         self._total_turns += 1
 
         timeout_seconds = user_message.get("activity_timeout", 300)
@@ -182,7 +182,7 @@ class OrchestrationWorkflow:
 
         Worker 检测到同一 account_id 的 Workflow 已运行时调用。
         消息入队 pending_messages，wait_condition 被唤醒后取出处理。
-        事件写入由 HarnessRunner 在 process_turn 中完成。
+        事件写入由 TurnOrchestrator 在 process_turn 中完成。
         """
         self._pending_messages.append(user_message)
 
