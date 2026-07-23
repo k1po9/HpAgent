@@ -225,7 +225,7 @@ HpAgent/
 │   │   └── scheduler.py             #   定时提醒调度器
 │   │
 │   ├── harness/                     # Turn Layer：一轮对话编排
-│   │   ├── runner.py                #   TurnOrchestrator；HarnessRunner 兼容别名
+│   │   ├── runner.py                #   TurnOrchestrator：单轮对话流程导演
 │   │   ├── activities.py            #   Temporal Activity 薄封装
 │   │   ├── context_builder.py       #   事件流 + 记忆 → LLM messages
 │   │   └── prompts.py               #   PromptLoader

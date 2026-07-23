@@ -94,7 +94,7 @@ class NsjailExecutor:
         self._redis_cache = redis_cache
         if not os.path.isfile(self.config.nsjail_binary):
             logger.warning(
-                "DEGRADATION: nsjail binary not found at %s → Bash will run in-process",
+                "DEGRADATION: nsjail binary not found at %s → Bash execution will fail closed",
                 self.config.nsjail_binary,
             )
 

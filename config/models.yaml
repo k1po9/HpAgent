@@ -21,10 +21,10 @@ providers:
     api_key: "${MINIMAX_API_KEY}"
     api_format: "openai"
 
-  mimo:
-    base_url: "${MIMO_API_BASE_URL}"
-    api_key: "${MIMO_API_KEY}"
-    api_format: "openai"
+  # mimo:
+  #   base_url: "${MIMO_API_BASE_URL}"
+  #   api_key: "${MIMO_API_KEY}"
+  #   api_format: "openai"
 
   siliconflow:
     base_url: "${SILICONFLOW_BASE_URL}"
@@ -45,12 +45,19 @@ providers:
 # 工具结果摘要 / 历史压缩 / 归档总结 / Hindsight retain
 # 原则：低延迟低成本的模型，只做结构化提取和简单总结
 fast:
-  - provider: mimo
-    model: ${MIMO_MODEL}
+  - provider: minimax
+    model: ${MINIMAX_FLAGSHIP_MODEL}
     max_tokens: 1024
     timeout: 15.0
     extra_body:
-      enable_thinking: false
+      thinking:
+        type: disabled
+  # - provider: mimo
+  #   model: ${MIMO_MODEL}
+  #   max_tokens: 1024
+  #   timeout: 15.0
+  #   extra_body:
+  #     enable_thinking: false
   - provider: alibaba
     model: "${ALIBABA_BAILIAN_FAST_MODEL}"
     max_tokens: 1024
@@ -63,12 +70,19 @@ fast:
 # ── 文本对话模型 ──────────────────────────────────────────────────────────────
 # HpAgent 主流程使用的模型链：从上到下依次尝试，失败后降级到下一个
 chat:
-  - provider: mimo
-    model: "${MIMO_PRO_MODEL}"
+  - provider: minimax
+    model: "${MINIMAX_FLAGSHIP_MODEL}"
     max_tokens: 4096
     timeout: 30.0
     extra_body:
-      enable_thinking: false
+      thinking:
+        type: disabled
+  # - provider: mimo
+  #   model: "${MIMO_PRO_MODEL}"
+  #   max_tokens: 4096
+  #   timeout: 30.0
+  #   extra_body:
+  #     enable_thinking: false
 
 # ── 向量化模型 ────────────────────────────────────────────────────────────────
 # SiliconFlow 云端 BGE-M3
@@ -87,14 +101,17 @@ image:
 # ── 深度推理模型 ──────────────────────────────────────────────────────────────
 # 处理复杂多步骤任务时的可选回退（需更长超时）
 reasoning:
-  - provider: mimo
-    model: "${MIMO_MODEL}"
-    max_tokens: 4096
-    timeout: 60.0
   - provider: minimax
-    model: "MiniMax-M2.7"
+    model: ${MINIMAX_FLAGSHIP_MODEL}
     max_tokens: 4096
     timeout: 60.0
+    extra_body:
+      thinking:
+        type: adaptive
+  # - provider: mimo
+  #   model: "${MIMO_MODEL}"
+  #   max_tokens: 4096
+  #   timeout: 60.0
 
 # ── Rerank 重排序模型 ───────────────────────────────────────────────
 # SiliconFlow BGE Reranker 云端服务（工具检索 + 记忆召回精排）

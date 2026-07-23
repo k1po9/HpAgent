@@ -9,7 +9,7 @@ from src.agent.types import CapabilityRequirement, CapabilitySpec, Task, TaskSta
 
 class TestReActAgent:
     async def test_execute_without_harness(self):
-        """ReActAgent with no HarnessRunner returns mock result."""
+        """ReActAgent with no TurnOrchestrator returns mock result."""
         agent = ReActAgent(
             harness_runner=None,
             capability_spec=CapabilitySpec(tags={"chat"}, priority=0),

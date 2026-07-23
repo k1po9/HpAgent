@@ -1,6 +1,6 @@
 # 02 — HpAgent 源码架构设计书
 
-> 对应绘图文件: `docs/draw/02_src_architecture.excalidraw`（待创建）
+> 对应绘图文件: `docs/draw/02_src_architecture/component_diagram.excalidraw`
 
 **本文档是项目的唯一设计事实来源，所有架构理解应以此为准。**
 
@@ -135,7 +135,7 @@ HpAgent 不直接访问 PostgreSQL（Temporal 和 Hindsight 使用各自的 Post
 |------|------|
 | **构建** | `src/Dockerfile`，基于 `python:3.11-slim`，安装 nsjail 3.4 静态二进制 + Node.js（stock-sdk MCP 所需） |
 | **入口** | `entrypoint.sh` → `python -u -m main` |
-| **职责** | 加载 YAML 配置 → 构建全量依赖图（ResourcePool、SessionStore、SandboxManager、HarnessRunner、ChannelRouter）→ 注册 Temporal Activity 和 Workflow → 启动消息监听 → 进入 asyncio 事件循环 |
+| **职责** | 加载 YAML 配置 → 构建全量依赖图（ResourcePool、SessionStore、SandboxManager、TurnOrchestrator、ChannelRouter）→ 注册 Temporal Activity 和 Workflow → 启动消息监听 → 进入 asyncio 事件循环 |
 | **协议** | 作为 WebSocket **服务端**监听 0.0.0.0:8082（NapCat 作为客户端连接）；作为 gRPC **客户端**连接 Temporal 7233；作为 HTTP **客户端**调用 Hindsight 和 LLM API；作为 TCP **客户端**连接 Redis |
 | **依赖** | `depends_on: [redis, temporal, hindsight]`，均以 `condition: service_healthy` 严格等待 |
 | **卷挂载** | `.data/` (rw, 运行时数据), `config/` (ro, 配置), `tools/` (rw, 工具定义 + ChromaDB) |
@@ -274,7 +274,7 @@ Layer 5: 多 Agent 协作层
 
 | 属性 | 说明 |
 |------|------|
-| **职责** | 系统的组装工厂。按顺序构建所有运行依赖：① 日志初始化 → ② CredentialManager + ResourcePool -> 模型降级链配置 → ③ SessionStore (Redis + Hindsight + WAL) → ④ ToolVectorStore + ToolRetriever (ChromaDB) → ⑤ MCP ToolManager → ⑥ ToolRegistry + SandboxManager → ⑦ 渠道注册 (NapCat/Official/Console) → ⑧ HarnessRunner 组装 → ⑨ Temporal Worker 启动 |
+| **职责** | 系统的组装工厂。按顺序构建所有运行依赖：① 日志初始化 → ② CredentialManager + ResourcePool -> 模型降级链配置 → ③ SessionStore (Redis + Hindsight + WAL) → ④ ToolVectorStore + ToolRetriever (ChromaDB) → ⑤ MCP ToolManager → ⑥ ToolRegistry + SandboxManager → ⑦ 渠道注册 (NapCat/Official/Console) → ⑧ TurnOrchestrator 组装 → ⑨ Temporal Worker 启动 |
 | **对外接口** | `start_worker(config)` → 异步函数，阻塞运行直到信号终止 |
 | **核心抽象** | `_channel_factories: dict[ChannelType, Callable]` 渠道注册表；`handle_message(UnifiedMessage)` 消息回调闭包 |
 | **依赖** | 几乎依赖所有其他包（harness、session、sandbox、resources、account、common），是本项目耦合度最高的文件 |
@@ -306,7 +306,7 @@ Layer 5: 多 Agent 协作层
 | 属性 | 说明 |
 |------|------|
 | **职责** | 作为「大脑」，协调单次对话回合的完整流程：HyDE 查询改写 → 记忆召回 → 系统提示词/记忆/群上下文拼接 → LLM 推理 → 工具执行循环 → 回复发送 → 记忆留存。它是纯协调器，不持有持久化状态 |
-| **对外接口** | `HarnessRunner.process_turn(session_id, user_message, event_history)` → 返回 LLM 响应文本 |
+| **对外接口** | `TurnOrchestrator.process_turn(session_id, user_message, event_history)` → 返回 LLM 响应文本 |
 | **核心抽象** | `_rewrite_recall_query()` — HyDE 改写（将用户问题转换为声明式语句以提升向量检索命中率）；`_get_tools()` → `Sandbox.select_tools()` — 工具 RAG 选择；`_execute_tool()` → `Sandbox.execute()` — 工具执行路由；`_send_response()` → `ChannelRouter.send()` — 回复路由；`archive_session()`、`reflect()` — 生命周期管理 |
 | **依赖** | `SessionStore`、`SandboxManager`、`ChannelRouter`、`ResourcePool`、`HarnessContextBuilder`、`MultiAgentExecutor`（条件分支，多 Agent 模式） |
 
@@ -314,8 +314,8 @@ Layer 5: 多 Agent 协作层
 
 | 属性 | 说明 |
 |------|------|
-| **职责** | 5 个 `@activity.defn` 异步函数：`process_turn_activity`、`archive_session_activity`、`reflect_activity`、`reflect_batch_activity`、`metrics_report_activity`。每个函数仅做参数转发到 `_harness`（通过 `inject()` 设置的模块级 HarnessRunner） |
-| **核心抽象** | 模块级单例注入：`inject(harness: HarnessRunner)` → 设置 `_harness`；Temporal Activity 通过装饰器注册，支持超时和重试策略 |
+| **职责** | 5 个 `@activity.defn` 异步函数：`process_turn_activity`、`archive_session_activity`、`reflect_activity`、`reflect_batch_activity`、`metrics_report_activity`。每个函数仅做参数转发到 `_turn_orchestrator`（通过 `inject()` 设置的模块级 TurnOrchestrator） |
+| **核心抽象** | 模块级单例注入：`inject(turn_orchestrator: TurnOrchestrator)` → 设置 `_turn_orchestrator`；Temporal Activity 通过装饰器注册，支持超时和重试策略 |
 | **依赖** | `temporalio`、`harness/runner.py` |
 
 **`harness/context_builder.py`** — 上下文构建器
@@ -502,12 +502,12 @@ Layer 5: 多 Agent 协作层
 | | `WorkflowControlStrategy` | 静态 DAG 执行，适用于预定义流程 |
 | 编排引擎 | `Orchestrator` | 接收 `ExecutionPlan` → 按策略调度 → 收集 `TaskResult` |
 | 工厂 | `build_supervisor()` / `build_council()` / `build_workflow()` | 一行构建已配置的 Orchestrator |
-| 执行器 | `MultiAgentExecutor` | 桥接 HarnessRunner 和多 Agent 系统 |
+| 执行器 | `MultiAgentExecutor` | 桥接 TurnOrchestrator 和多 Agent 系统 |
 | 通信 | `InMemoryMessageBus` | Agent 间消息传递（内存实现） |
 | 补偿 | `CompensationRegistry` | 任务失败时的补偿/回滚处理器注册表 |
-| 适配 | `ReActAgent` | 将 HarnessRunner 包装为 `BaseAgent` 接口 |
+| 适配 | `ReActAgent` | 将 TurnOrchestrator 包装为 `BaseAgent` 接口 |
 
-**当前状态**：`agent/` 包在单 Agent（QQ 渠道）模式下仅通过 `HarnessRunner` 中的条件分支引用 `MultiAgentExecutor`。完整的多 Agent 工作流将在 Web 渠道接入后启用。
+**当前状态**：`agent/` 包在单 Agent（QQ 渠道）模式下仅通过 `TurnOrchestrator` 中的条件分支引用 `MultiAgentExecutor`。完整的多 Agent 工作流将在 Web 渠道接入后启用。
 
 ---
 
@@ -555,7 +555,7 @@ Layer 5: 多 Agent 协作层
 | 位置 | 参与类 | 解决的问题 |
 |------|--------|-----------|
 | `sandbox/tools/adapters/mcp.py` | `MCPToolManager` | 将 MCP 协议的工具服务器适配为 ToolRegistry 的标准工具接口，隐藏 MCP 通信细节 |
-| `agent/adapters.py` | `ReActAgent` | 将 HarnessRunner（单 Agent ReAct 模式）适配为多 Agent 系统中的 `BaseAgent` 接口 |
+| `agent/adapters.py` | `ReActAgent` | 将 TurnOrchestrator（单 Agent ReAct 模式）适配为多 Agent 系统中的 `BaseAgent` 接口 |
 | `agent/factory.py` | `ResourcePoolAdapter` | 将 ResourcePool 的强类型 generate() 适配为多 Agent 系统期望的简化 `CallLLM` 协议 |
 | `resources/model_client.py` | `ModelClient._convert_messages()`, `_tools_to_openai()`, `_tools_to_anthropic()` | 将 HpAgent 内部统一的 message 格式适配为不同 LLM API 格式（Anthropic vs OpenAI） |
 
@@ -569,7 +569,7 @@ Layer 5: 多 Agent 协作层
 
 | 位置 | 参与函数 | 解决的问题 |
 |------|---------|-----------|
-| `harness/activities.py` | `process_turn_activity`, `archive_session_activity`, `reflect_activity`, `reflect_batch_activity`, `metrics_report_activity` | 将 HarnessRunner 的业务方法封装为 Temporal Activity，使其获得 Temporal 提供的幂等性、超时、重试和分布式调度能力 |
+| `harness/activities.py` | `process_turn_activity`, `archive_session_activity`, `reflect_activity`, `reflect_batch_activity`, `metrics_report_activity` | 将 TurnOrchestrator 的业务方法封装为 Temporal Activity，使其获得 Temporal 提供的幂等性、超时、重试和分布式调度能力 |
 
 ### 4.7 责任链模式（Chain of Responsibility）
 
@@ -589,8 +589,8 @@ Layer 5: 多 Agent 协作层
 
 | 位置 | 参与机制 | 解决的问题 |
 |------|---------|-----------|
-| `orchestration/worker.py` | `start_worker()` 函数全量组装 | 所有组件通过构造函数/工厂接收依赖，不存在全局单例（除 Activity 薄封装层出于 Temporal 限制的模块级注入）。HarnessRunner 接收 SessionStore、SandboxManager、ChannelRouter、ResourcePool 全部作为构造参数 |
-| `harness/activities.py` | `inject(harness)` 模块级函数 | 绕过 Temporal Activity 不能使用类实例的限制，通过模块级变量注入 HarnessRunner |
+| `orchestration/worker.py` | `start_worker()` 函数全量组装 | 所有组件通过构造函数/工厂接收依赖，不存在全局单例（除 Activity 薄封装层出于 Temporal 限制的模块级注入）。TurnOrchestrator 接收 SessionStore、SandboxManager、ChannelRouter、ResourcePool 全部作为构造参数 |
+| `harness/activities.py` | `inject(turn_orchestrator)` 模块级函数 | 绕过 Temporal Activity 不能使用类实例的限制，通过模块级变量注入 TurnOrchestrator |
 
 ---
 
@@ -603,7 +603,7 @@ Layer 5: 多 Agent 协作层
 ```
 参与者: QQ 用户 → QQ 服务器 → NapCat → NapCatChannel → Worker.handle_message()
          → Temporal OrchestrationWorkflow → process_turn_activity()
-         → HarnessRunner.process_turn() → ChannelRouter.send() → NapCatChannel
+         → TurnOrchestrator.process_turn() → ChannelRouter.send() → NapCatChannel
          → NapCat → QQ 服务器 → QQ 用户
 
 时序:
@@ -651,10 +651,10 @@ Layer 5: 多 Agent 协作层
 
 8. OrchestrationWorkflow.run():
      a. 调用 process_turn_activity(user_message)
-        → HarnessRunner.process_turn()
+        → TurnOrchestrator.process_turn()
      b. 进入等待: 下一条消息信号 或 空闲超时(5分钟)
 
-9. HarnessRunner.process_turn():
+9. TurnOrchestrator.process_turn():
      9a. HyDE 改写:
          原始查询 "查天气" → ResourcePool.generate(model="fast", hyde_rewrite prompt)
            → "用户希望查询明天深圳的天气情况"
@@ -701,7 +701,7 @@ Layer 5: 多 Agent 协作层
            → 结果写回事件流 → 循环到 9e (LLM 继续)
 
      9g. 回复发送:
-         HarnessRunner._send_response(response_content)
+         TurnOrchestrator._send_response(response_content)
            → ChannelRouter.send(UnifiedMessage(
                content="深圳明天晴，25-32°C...",
                channel_type=NAPCAT,
@@ -731,7 +731,7 @@ Layer 5: 多 Agent 协作层
 11. [空转超时] 5 分钟无新消息:
     OrchestrationWorkflow 触发 idle_timeout 分支
       → archive_session_activity()
-        → HarnessRunner.archive_session()
+        → TurnOrchestrator.archive_session()
           → 全量事件 → history.jsonl + meta.yaml
           → 清理 WAL + Redis + 群上下文退订 + RAG 缓存清理
       → 工作流结束
@@ -792,9 +792,9 @@ Layer 5: 多 Agent 协作层
         → 实例化渠道 → 设置 bot_name → 注册到 ChannelRouter
         → channel.start_monitor(handle_message)
      l. 初始化 TaskScheduler → 注册 handler("user_reminder", callback)
-     m. 构建 HarnessRunner(session_store, sandbox_manager, channel_router,
+     m. 构建 TurnOrchestrator(session_store, sandbox_manager, channel_router,
                           resource_pool, context_builder, agent_config)
-     n. 注入到 activities.inject(harness_runner)
+     n. 注入到 activities.inject(turn_orchestrator)
      o. 连接 Temporal Server(host:port)
      p. 注册 Activity + Workflow → Worker.run()
      q. 启动后台任务: scheduler._poll_loop, sandbox_cleanup_loop
@@ -806,11 +806,11 @@ Layer 5: 多 Agent 协作层
 ### 5.3 流程三：多模型降级切换
 
 ```
-参与者: HarnessRunner → ResourcePool → ModelClient(主) → ModelClient(备用1) → ...
+参与者: TurnOrchestrator → ResourcePool → ModelClient(主) → ModelClient(备用1) → ...
 
 时序:
 
-1. HarnessRunner: ResourcePool.generate(messages, model_selector="chat", tools=[...])
+1. TurnOrchestrator: ResourcePool.generate(messages, model_selector="chat", tools=[...])
 2. ResourcePool: 查 _fallback_groups["chat"] = [MimoPro, ...]
 3. 尝试 MimoPro:
      a. ModelClient.generate(messages, tools)
@@ -822,12 +822,12 @@ Layer 5: 多 Agent 协作层
      c. ResourcePool 捕获 ModelAPIError → 继续下一个
 5. ... 所有条目失败:
      a. ResourcePool 抛出最终 ModelAPIError("All models in fallback group 'chat' failed")
-     b. HarnessRunner 捕获 → 触发生成兜底回复:
+     b. TurnOrchestrator 捕获 → 触发生成兜底回复:
         "抱歉，我暂时无法处理这个消息，请稍后再试。"
 
 6. [成功路径] 某条目返回 ModelResponse:
      a. 记录 [TIMING] 日志 (模型名 + 延迟)
-     b. 返回 HarnessRunner
+     b. 返回 TurnOrchestrator
 ```
 
 ---
@@ -835,7 +835,7 @@ Layer 5: 多 Agent 协作层
 ### 5.4 流程四：定时提醒触发
 
 ```
-参与者: TaskScheduler → 本地 JSON → HarnessRunner → QQ 用户
+参与者: TaskScheduler → 本地 JSON → TurnOrchestrator → QQ 用户
 
 时序:
 
@@ -849,7 +849,7 @@ Layer 5: 多 Agent 协作层
 
 3. [触发] 当前时间 >= trigger_at:
      a. TaskScheduler: 调用 handler_registry["user_reminder"](params)
-     b. handler → HarnessRunner 构造提醒消息
+     b. handler → TurnOrchestrator 构造提醒消息
      c. ChannelRouter.send(UnifiedMessage(
           content="⏰ 提醒: 起床啦",
           channel_type=NAPCAT,
@@ -867,13 +867,13 @@ Layer 5: 多 Agent 协作层
 ### 5.5 流程五：会话归档
 
 ```
-参与者: OrchestrationWorkflow (空闲超时) → HarnessRunner → 文件系统 + LLM
+参与者: OrchestrationWorkflow (空闲超时) → TurnOrchestrator → 文件系统 + LLM
 
 时序:
 
 1. 5 分钟无新消息 → OrchestrationWorkflow.idle_timeout 触发
 2. 调用 archive_session_activity(session_id, account_id)
-3. HarnessRunner.archive_session():
+3. TurnOrchestrator.archive_session():
      a. SessionStore.archive() → 返回全量事件列表
      b. write_history_jsonl(events, ".data/workspace/{account}/sessions/{id}/history.jsonl")
         → 逐行写入 JSONL 文件
@@ -1085,7 +1085,7 @@ Layer 5: 多 Agent 协作层
 
 **PLAN-01: Web 渠道 + 多 Agent 启用**
 
-- 目标：通过 Web 界面接入用户，启用 `agent/` 包的多 Agent 协作能力（Supervisor/Council/Workflow 策略）。当前 `agent/` 包（14 文件）已完整实现，仅在 `HarnessRunner` 中以条件分支引入
+- 目标：通过 Web 界面接入用户，启用 `agent/` 包的多 Agent 协作能力（Supervisor/Council/Workflow 策略）。当前 `agent/` 包（14 文件）已完整实现，仅在 `TurnOrchestrator` 中以条件分支引入
 - 需要：新增 `WebChannel` 实现（HTTP/SSE），扩展 `_channel_factories`，在 Web 请求路径中触发 `MultiAgentExecutor` 而非单 Agent 循环
 
 **PLAN-02: 凭证加密升级**

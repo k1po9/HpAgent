@@ -5,7 +5,6 @@ TurnOrchestrator 是 Temporal Activities 注入对象的正式名称。
 它持有 TurnMemoryService / ContextBuilder / BrainEngine / ActionRuntime / ReplyService，
 在 process_turn() 中协调完整的 agentic loop。
 
-HarnessRunner 作为兼容名称保留，避免旧 import 和测试立即失效。
 """
 from __future__ import annotations
 
@@ -71,7 +70,6 @@ class TurnOrchestrator:
         brain_engine: Optional[BrainEngine] = None,
         memory_service: Optional[TurnMemoryService] = None,
     ):
-        self._session = session_store  # Backward-compatible access; prefer self._memory.
         self._memory = memory_service or TurnMemoryService(session_store=session_store)
         self._ctx = context_builder
         self._model = resource_pool
@@ -552,12 +550,4 @@ class TurnOrchestrator:
         return await self._memory.get_metrics()
 
 
-class HarnessRunner(TurnOrchestrator):
-    """Backward-compatible name for TurnOrchestrator.
-
-    Older modules and tests may still import HarnessRunner. New code should prefer
-    TurnOrchestrator to make the architecture boundary explicit.
-    """
-
-
-__all__ = ["TurnOrchestrator", "HarnessRunner"]
+__all__ = ["TurnOrchestrator"]

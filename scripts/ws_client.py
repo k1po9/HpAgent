@@ -1,3 +1,5 @@
+"""NapCat/OneBot WebSocket 手工调试客户端。"""
+
 import asyncio
 import json
 import websockets
@@ -71,4 +73,5 @@ async def send_and_listen():
         except websockets.exceptions.ConnectionClosed:
             print("🔌 连接已关闭")
 
-asyncio.run(send_and_listen())
+if __name__ == "__main__":
+    asyncio.run(send_and_listen())

@@ -12,6 +12,7 @@ SandboxManager —— 沙箱池管理器，按会话创建 workspace 绑定的�
 from typing import Dict, List, Optional, Any
 from threading import RLock
 from pathlib import Path
+import os
 import uuid
 import time
 import logging
@@ -156,11 +157,37 @@ class SandboxManager:
             self._sandboxes[sandbox_id] = sandbox
             self._session_to_sandbox[session_id] = sandbox_id
 
+        tool_counts = registry.count_by_category()
+        reminder_count = sum(
+            registry.get_category(name) == "native" for name in reminder_keys
+        )
+        native_general_count = max(tool_counts["native"] - reminder_count, 0)
+        bash_registered = registry.get_category("Bash") == "native"
+        nsjail_binary_ready = bool(
+            nsjail_executor
+            and os.path.isfile(nsjail_executor.config.nsjail_binary)
+        )
+        if not bash_registered:
+            bash_isolation = "n/a"
+        elif nsjail_binary_ready:
+            bash_isolation = "nsjail"
+        else:
+            bash_isolation = "unavailable"
+
         logger.info(
-            "Session sandbox created: %s (session=%s, user=%s, native=%s, nsjail=%s)",
-            sandbox_id, session_id, user_uuid,
-            "on" if self._native_tools_enabled else "off",
-            "on" if nsjail_executor else "off",
+            "Session sandbox created: id=%s session=%s user=%s "
+            "tools(total=%d native_general=%d reminders=%d mcp=%d skills=%d) "
+            "bash_registered=%s bash_isolation=%s",
+            sandbox_id,
+            session_id,
+            user_uuid,
+            sum(tool_counts.values()),
+            native_general_count,
+            reminder_count,
+            tool_counts["mcp"],
+            tool_counts["skill"],
+            bash_registered,
+            bash_isolation,
         )
         return sandbox_id
 

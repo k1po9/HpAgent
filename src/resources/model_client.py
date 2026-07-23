@@ -51,10 +51,20 @@ class ModelClient:
         self.api_key = config["api_key"]
         self.base_url = config["base_url"].rstrip("/")
         self.model = config["model"]
+        self.endpoint_id = config.get("endpoint_id") or self.model
+        self.provider = config.get("provider") or "unknown"
         self.api_format = config.get("api_format", "anthropic")
         self._max_tokens = config.get("max_tokens", 2048)
         self._timeout = config.get("timeout", 30.0)
         self._extra_body = config.get("extra_body") or {}
+        if not isinstance(self._extra_body, dict):
+            raise ValueError("extra_body must be a mapping")
+        reserved = {"model", "messages", "tools", "stream", "max_tokens"}
+        conflicts = sorted(reserved.intersection(self._extra_body))
+        if conflicts:
+            raise ValueError(
+                f"extra_body cannot override standard request fields: {conflicts}"
+            )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # 主入口
@@ -74,6 +84,21 @@ class ModelClient:
         url = self._build_url()
         headers = self._build_headers()
         payload = self._build_payload(messages, tools, stream, max_tokens=max_tokens)
+        thinking = self._extra_body.get("thinking")
+        thinking_mode = thinking.get("type") if isinstance(thinking, dict) else None
+        request_tool_count = len(tools or [])
+        logger.debug(
+            "Model request: endpoint=%s provider=%s model=%s format=%s "
+            "stream=%s request_tools=%d max_tokens=%s thinking=%s",
+            self.endpoint_id,
+            self.provider,
+            self.model,
+            self.api_format,
+            stream,
+            request_tool_count,
+            payload.get("max_tokens"),
+            thinking_mode or "default",
+        )
 
         t0 = time.monotonic()
         async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -81,7 +106,11 @@ class ModelClient:
                 response = await client.post(url, json=payload, headers=headers)
                 if response.status_code >= 400:
                     logger.error(
-                        "ModelClient HTTP %d: body=%s",
+                        "Model HTTP error: endpoint=%s provider=%s model=%s "
+                        "status=%d body=%s",
+                        self.endpoint_id,
+                        self.provider,
+                        self.model,
                         response.status_code,
                         response.text[:1000],
                     )
@@ -94,17 +123,29 @@ class ModelClient:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 tokens = self._extract_usage(result, response)
                 tc_names = [tc.name for tc in (result.tool_calls or [])]
+                log_args = (
+                    self.endpoint_id,
+                    self.provider,
+                    self.model,
+                    elapsed_ms,
+                    tokens,
+                    request_tool_count,
+                    tc_names,
+                    result.stop_reason.value if result.stop_reason else "?",
+                )
                 if elapsed_ms > 8000:
                     logger.warning(
-                        "Model call %s SLOW: latency=%.0fms tokens=%s tools=%s stop=%s",
-                        self.model, elapsed_ms, tokens, tc_names or None,
-                        result.stop_reason.value if result.stop_reason else "?",
+                        "Model call SLOW: endpoint=%s provider=%s model=%s "
+                        "latency=%.0fms tokens=%s request_tools=%d "
+                        "returned_tools=%s stop=%s",
+                        *log_args,
                     )
                 else:
                     logger.info(
-                        "Model call %s latency=%.0fms tokens=%s tools=%s stop=%s",
-                        self.model, elapsed_ms, tokens, tc_names or None,
-                        result.stop_reason.value if result.stop_reason else "?",
+                        "Model call: endpoint=%s provider=%s model=%s "
+                        "latency=%.0fms tokens=%s request_tools=%d "
+                        "returned_tools=%s stop=%s",
+                        *log_args,
                     )
                 return result
             except httpx.HTTPStatusError as e:

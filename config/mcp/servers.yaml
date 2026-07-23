@@ -56,80 +56,64 @@ servers:
     transport: "stdio"
     command: "node"
     args:
-      - "tools/mcp/stock-sdk/dist/cli.js"
-      - "mcp"
+      - "tools/mcp/stock-sdk-runtime/node_modules/stock-sdk-mcp/dist/index.js"
     description: "国内外股票：A股/港股/美股/基金/期货/期权 行情数据"
-    request_timeout: 30
+    request_timeout: 60
     truncate_limit: 4000
-    env:
-      STOCK_SDK_MCP_TOOLS: "core"
+    # env:
+    #   STOCK_SDK_MCP_TOOLS: "core"
     tools:
+      get_quotes_by_query:
+        hint: "（正在查询股票行情 📈）"
+        enrich: " 优先用于按名称、代码或拼音查询A股、港股、美股实时行情。"
+
       get_a_share_quotes:
-        hint: "（跑去交易所看了眼A股行情 🏦）"
-        enrich: " 用于查询A股实时行情：股价、收盘价、涨跌幅、市值、PE/PB等。"
-      search:
-        hint: "（在股票池里捞了一下 🔍）"
-        enrich: " 用于根据名称/代码/拼音搜索股票。精准名搜不到时换简称/拼音重试（如搜不到'麦迪股份'就搜'麦迪'）。"
-      get_today_timeline:
-        hint: "（拉开分时图看了一眼 📈）"
-        enrich: " 用于查看A股当日分时走势。"
-      get_history_kline:
-        hint: "（翻了翻历史K线 📊）"
-        enrich: " 用于查看A股历史K线（日/周/月，含复权）：开高低收、涨跌幅。"
-      get_minute_kline:
-        hint: "（打开分钟K线看走势 🕯️）"
-        enrich: " 用于查看A股分钟K线或当日分时。"
+        hint: "（正在查询A股行情 🏦）"
+        enrich: " 用于已知A股代码时批量查询实时行情和估值字段。"
+
       get_hk_quotes:
-        hint: "（跑去港交所瞄了一眼 🇭🇰）"
+        hint: "（正在查询港股行情 🇭🇰）"
         enrich: " 用于查询港股实时行情。"
+
       get_us_quotes:
-        hint: "（跨洋看了眼美股 🇺🇸）"
+        hint: "（正在查询美股行情 🇺🇸）"
         enrich: " 用于查询美股实时行情。"
-      get_fund_quotes:
-        hint: "（翻了翻基金净值 💰）"
-        enrich: " 用于查询公募基金净值（场内/场外）。"
-      get_fund_estimate:
-        hint: "（算了算基金估值 🧮）"
-        enrich: " 用于查询基金当日实时估值。"
-      get_zt_pool:
-        hint: "（翻了翻涨停板 📋）"
-        enrich: " 用于查看涨停板股票列表（涨停/昨日涨停/炸板/跌停）。"
-      get_dragon_tiger_detail:
-        hint: "（偷瞄了龙虎榜 🐉）"
-        enrich: " 用于查看龙虎榜、游资和机构交易席位。"
-      get_northbound_flow_summary:
-        hint: "（看了看北向资金动向 🧭）"
-        enrich: " 用于查看北向资金/南向资金流入流出概况。"
-      get_individual_fund_flow:
-        hint: "（追踪了一下资金流向 💸）"
-        enrich: " 用于查看个股资金流向历史。"
-      get_fund_flow_rank:
-        hint: "（看了资金排行榜 🏆）"
-        enrich: " 用于查看个股资金流向排行。"
-      get_market_status:
-        hint: "（看了看盘面状态 🚦）"
-        enrich: " 用于查看当前A股是否开盘、盘面状态（开盘/午休/收盘）。"
-      is_trading_day:
-        hint: "（查了查是不是交易日 🗓️）"
-        enrich: " 用于判断某日期是否为A股交易日。"
+
+      search_stock:
+        hint: "（正在搜索股票代码 🔍）"
+        enrich: " 名称或代码不确定时使用，支持名称、代码和拼音模糊搜索。"
+
+      get_today_timeline:
+        hint: "（正在查看当日分时走势 📉）"
+        enrich: " 用于查看A股当日分时价格和成交走势。"
+
+      get_history_kline:
+        hint: "（正在读取历史K线 📊）"
+        enrich: " 用于查询A股日线、周线或月线历史行情。"
+
       get_kline_with_indicators:
-        hint: "（开着技术指标分析K线 🔬）"
-        enrich: " 用于查看带技术指标的历史K线（MA/MACD/BOLL/KDJ/RSI等）。"
-      get_industry_list:
-        hint: "（翻了翻行业板块 🏭）"
-        enrich: " 用于获取行业板块列表。"
-      get_concept_list:
-        hint: "（看了看概念板块 💡）"
-        enrich: " 用于获取概念板块列表。"
-      get_industry_constituents:
-        hint: "（翻了翻行业成分股 🏭）"
-        enrich: " 用于查看行业板块成分股。"
-      get_concept_constituents:
-        hint: "（看了看概念成分股 💡）"
-        enrich: " 用于查看概念板块成分股。"
-      get_futures_kline:
-        hint: "（翻了翻期货行情 📉）"
-        enrich: " 用于查看国内期货K线行情。"
+        hint: "（正在计算技术指标 🧮）"
+        enrich: " 需要MA、MACD、BOLL、KDJ或RSI等技术指标时优先使用。"
+
+      analyze_stock:
+        hint: "（正在进行个股综合分析 🧐）"
+        enrich: " 用于一次获取个股行情、K线、技术指标、资金流和分红信息。"
+
+      compare_stocks:
+        hint: "（正在对比多只股票 ⚖️）"
+        enrich: " 用于并排比较2至10只股票的行情和指标。"
+
+      scan_market:
+        hint: "（正在按条件筛选股票 🔭）"
+        enrich: " 用于根据涨跌幅、换手率、量比、市盈率等条件选股。"
+
+      get_market_overview:
+        hint: "（正在查看市场全景 🌏）"
+        enrich: " 用于获取主要指数、热门行业概念和市场涨跌统计。"
+
+      get_sector_analysis:
+        hint: "（正在分析行业板块 🧭）"
+        enrich: " 用于查询板块行情、K线及龙头成分股。"
 
   # ── TickDB 股票行情 ──────────────────────────────────────
   # tickdb:

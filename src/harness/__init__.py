@@ -11,7 +11,7 @@ Harness —— 回合编排层。
   4. ActionRuntime → 工具选择、工具执行、工具审计
   5. ReplyService → 渠道路由、最终回复、工具进度提示
 
-TurnOrchestrator 是 Temporal Activities 的主要交互对象；HarnessRunner 作为兼容名称保留。
+TurnOrchestrator 是 Temporal Activities 的主要交互对象。
 Temporal Workflow 只做时间和信号编排，不持有业务数据。
 
 模块结构：
@@ -26,11 +26,10 @@ from .activities import (
     reflect_activity,
 )
 from .context_builder import HarnessContextBuilder
-from .runner import HarnessRunner, TurnOrchestrator
+from .runner import TurnOrchestrator
 
 __all__ = [
     "TurnOrchestrator",
-    "HarnessRunner",
     "HarnessContextBuilder",
     "inject",
     "process_turn_activity",

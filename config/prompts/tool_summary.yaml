@@ -1,5 +1,5 @@
 # 工具结果摘要 Prompt 配置
-# 由 HarnessRunner._build_summary_prompt() 读取，按工具名匹配 hint
+# 由 ActionRuntime._summarize_if_needed() 通过 PromptLoader 读取，按工具名匹配 hint
 
 # 摘要系统指令模板
 system_template: |

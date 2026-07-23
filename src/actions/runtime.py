@@ -1,6 +1,6 @@
 """ActionRuntime —— 工具选择、执行、审计和结果后处理的统一入口。
 
-HarnessRunner 不再直接面向 SandboxManager/Sandbox。
+TurnOrchestrator 不再直接面向 SandboxManager/Sandbox。
 它只向 ActionRuntime 请求：
   - reset_turn(session_id)
   - select_tools(...)
@@ -24,7 +24,7 @@ class ActionRuntime:
     """行动运行时 facade。
 
     这一层保留 Sandbox 的核心能力，同时把工具 RAG 查询拼接、缓存、
-    审计事件写入和长结果摘要从 HarnessRunner 中移出。
+    审计事件写入和长结果摘要从 TurnOrchestrator 中移出。
     """
 
     def __init__(

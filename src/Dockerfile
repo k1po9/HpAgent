@@ -22,6 +22,8 @@ RUN curl -L --retry 3 --retry-delay 10 \
     ${NSJAIL_MIRROR}https://github.com/google/nsjail/releases/download/3.4/nsjail-3.4-x86_64 \
     && chmod +x /usr/local/bin/nsjail
 
+# RUN npm install -g stock-sdk-mcp@0.2.1
+
 WORKDIR /app
 
 COPY requirements.txt .

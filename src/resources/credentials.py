@@ -32,6 +32,7 @@ class ModelEndpoint:
     """模型端点元数据 —— 一个 LLM 服务地址的配置信息。
 
     Attributes:
+        endpoint_id: 配置实例唯一标识；同一远端模型可有多个独立调用配置。
         provider: 提供商（"openai" / "anthropic" / "azure"）。
         api_key: API 密钥（存储时会被剥离，使用时通过 CredentialManager 解密填充）。
         base_url: API 基础 URL。
@@ -43,6 +44,7 @@ class ModelEndpoint:
     base_url: Optional[str] = None
     model: Optional[str] = None
     extra: Dict[str, Any] = field(default_factory=dict)
+    endpoint_id: str = ""
 
 
 class CredentialManager:
@@ -87,6 +89,7 @@ class CredentialManager:
                     value=endpoint.api_key,
                     scope=["model:invoke"],
                     metadata={
+                        "endpoint_id": endpoint.endpoint_id,
                         "provider": endpoint.provider,
                         "base_url": endpoint.base_url,
                         "model": endpoint.model,
@@ -96,6 +99,7 @@ class CredentialManager:
                 )
                 # 列表存储脱敏副本（api_key 置空）
                 sanitized_endpoint = ModelEndpoint(
+                    endpoint_id=endpoint.endpoint_id,
                     provider=endpoint.provider,
                     api_key="",  # 不再明文存储
                     base_url=endpoint.base_url,
@@ -117,6 +121,7 @@ class CredentialManager:
                 if decrypted_key is None:
                     raise RuntimeError(f"Failed to decrypt API key for {resource_id}")
                 result.append(ModelEndpoint(
+                    endpoint_id=endpoint.endpoint_id,
                     provider=endpoint.provider,
                     api_key=decrypted_key,
                     base_url=endpoint.base_url,

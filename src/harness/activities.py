@@ -27,14 +27,13 @@ from harness.runner import TurnOrchestrator
 _turn_orchestrator: Optional[TurnOrchestrator] = None
 
 
-def inject(turn_orchestrator: Optional[TurnOrchestrator] = None, *, harness=None) -> None:
+def inject(turn_orchestrator: TurnOrchestrator) -> None:
     """在 Worker 启动前注入 TurnOrchestrator。
 
-    ``harness=`` 是旧参数名，暂时保留为兼容入口。
     Temporal Activity 要求函数无闭包状态，使用模块级变量。
     """
     global _turn_orchestrator
-    _turn_orchestrator = turn_orchestrator if turn_orchestrator is not None else harness
+    _turn_orchestrator = turn_orchestrator
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

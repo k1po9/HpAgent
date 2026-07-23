@@ -4,7 +4,7 @@ Sandbox —— 模型"手"层：工具选择 + 安全执行 + 输出后处理 + 
 设计原则:
   - 工具选择由 Sandbox 全权负责（hints 优先 → RAG → required 合并）
   - 执行按类别路由：native 进程内 / Bash nsjail / MCP 远端 / Skill 展开
-  - 输出截断在 Sandbox 统一执行（HarnessRunner 无需关心工具输出长度）
+  - 输出截断在 Sandbox 统一执行（TurnOrchestrator 无需关心工具输出长度）
   - 跨轮 hints 状态归属于 Sandbox（生命周期与 session 一致）
   - 审计信息以纯数据 dict 返回（不依赖 Harness 层的 Event 体系）
 """
@@ -26,7 +26,7 @@ class Sandbox:
       1. select_tools() — 完整工具选择管线（hints → RAG → required 合并 → 排序）
       2. execute()      — 安全路由执行 + 输出截断
       3. 持有 hints 队列 — 跨轮次工具检索偏好
-      4. 返回审计信息 — 供 HarnessRunner 写入事件日志
+      4. 返回审计信息 — 供 TurnOrchestrator 写入事件日志
     """
 
     def __init__(
@@ -170,7 +170,7 @@ class Sandbox:
     # ── 跨轮 hints ────────────────────────────────────────────────────────
 
     def reset_hints(self) -> None:
-        """清空所有累积的 hints。每个新轮次开始时由 HarnessRunner 调用，
+        """清空所有累积的 hints。每个新轮次开始时由 TurnOrchestrator 调用，
         防止上一轮末尾产生的 hint 泄漏到下一轮的工具检索。"""
         self._hints.clear()
 

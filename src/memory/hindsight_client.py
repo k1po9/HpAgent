@@ -207,7 +207,12 @@ class HindsightClient:
                     resp.raise_for_status()
                     return resp.json()
             except httpx.TimeoutException:
-                logger.warning("DEGRADATION: Hindsight timeout %s %s (attempt %d/3)", method, path, attempt + 1)
+                logger.warning(
+                    "DEGRADATION: Hindsight timeout %s %s after %.1fs (no retry)",
+                    method,
+                    path,
+                    _timeout,
+                )
                 self.metrics.degraded += 1
                 return None  # 超时不重试，已占用时间
             except httpx.HTTPStatusError as e:

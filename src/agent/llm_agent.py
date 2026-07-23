@@ -1,6 +1,6 @@
 """LLMAgent —— 轻量 BaseAgent，直接封装 ResourcePool。
 
-与 ReActAgent（包装完整 HarnessRunner，含会话/记忆/渠道）不同，
+与 ReActAgent（包装完整 TurnOrchestrator，含会话/记忆/渠道）不同，
 LLMAgent 无状态：通过 task.input_data 接收上下文，仅委托给 ResourcePool.generate()。
 """
 

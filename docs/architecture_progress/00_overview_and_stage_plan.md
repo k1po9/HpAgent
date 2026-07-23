@@ -2,7 +2,7 @@
 
 > 日期：2026-07-07  
 > 当前阶段：P10，架构收尾完成  
-> 关联方案：`docs/architecture_hand_brain_refactor_plan.md`
+> 关联记录：本目录 P0-P10 阶段文档
 
 ---
 
@@ -114,7 +114,6 @@ Resources/Persistence 负责供能和记账。
 
 本阶段产物：
 
-- `docs/architecture_hand_brain_refactor_plan.md`
 - `docs/architecture_progress/00_overview_and_stage_plan.md`
 
 改造后的样貌：
@@ -487,7 +486,7 @@ docs/architecture_progress/
 
 1. 跑真实端到端链路：渠道 -> Temporal -> TurnOrchestrator -> 工具 -> 回复。
 2. 补轻量测试：`BrainDecision`、`ActionRequest`、`TurnMemoryService`、`ReplyService`。
-3. 稳定后删除兼容层：`HarnessRunner`、`inject(harness=...)`、`sandbox.channels.*`。
-4. 更新大图文档 `docs/draw_docs/02_src_architecture.md`。
+3. 已完成兼容层清理：`HarnessRunner`、`inject(harness=...)`、`WorkerDependencies.harness_runner`、`sandbox.channels.*`、`TurnOrchestrator._session`。
+4. 已更新大图文档 `docs/draw_docs/02_src_architecture.md`。
 
 当前判断：核心组件边界已经达到“足够接近 Anthropic managed 手脑分离”的工程状态，后续重点应转为回归验证。

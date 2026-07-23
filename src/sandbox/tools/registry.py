@@ -85,6 +85,15 @@ class ToolRegistry:
                 + list(self._skills.values())
             )
 
+    def count_by_category(self) -> Dict[str, int]:
+        """返回实际注册工具数量，供能力审计和准确日志使用。"""
+        with self._lock:
+            return {
+                "native": len(self._native_tools),
+                "mcp": len(self._mcp_tools),
+                "skill": len(self._skills),
+            }
+
     def list_required(self) -> List[BaseTool]:
         """返回所有标记为 required 的工具（始终加载，不参与 RAG 过滤）。"""
         with self._lock:

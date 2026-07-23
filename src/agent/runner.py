@@ -1,9 +1,9 @@
-"""MultiAgentExecutor —— 多Agent编排执行器，可注入 HarnessRunner。
+"""MultiAgentExecutor —— 多Agent编排执行器，可注入 TurnOrchestrator。
 
-本模块是单Agent HarnessRunner 与多Agent Orchestrator 之间的桥梁。
+本模块是单Agent TurnOrchestrator 与多Agent Orchestrator 之间的桥梁。
 负责：加载 Agent 配置 → 构建编排器 → 运行编排 → 合成最终响应。
 
-HarnessRunner 在 agent_mode == "multi" 时调用 execute()。
+TurnOrchestrator 在 agent_mode == "multi" 时调用 execute()。
 """
 
 from __future__ import annotations
@@ -80,7 +80,7 @@ class MultiAgentExecutor:
     ) -> tuple[str, int]:
         """运行多Agent编排，返回 (final_content, turns_taken)。
 
-        返回格式与 HarnessRunner 兼容。
+        返回格式与 TurnOrchestrator 兼容。
         """
         # 1. 构建 ExecutionContext
         context = ExecutionContext(

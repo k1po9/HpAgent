@@ -108,18 +108,18 @@ TurnOrchestrator 不亲自问模型、不亲自执行工具、不亲自处理渠
 | P8 | `TurnMemoryService`：记忆仓库访问从回合导演中移出 |
 | P9 | `BrainDecision` / `ActionRequest` / `ActionResult`：脑和手通过协议对象交接 |
 
-## 保留的兼容层
+## 兼容层清理状态
 
-为了保证外部行为稳定，P10 不删除这些兼容层：
+> 2026-07-22 全仓审计后更新。
 
-| 兼容层 | 当前作用 | 删除条件 |
+| 兼容层 | 状态 | 说明 |
 |---|---|---|
-| `HarnessRunner(TurnOrchestrator)` | 兼容旧导入和测试 | 全仓库和外部调用都改用 `TurnOrchestrator` 后删除 |
-| `inject(harness=...)` | 兼容旧 Activity 注入参数 | worker 和测试都使用 `turn_orchestrator=` 后删除 |
-| `WorkerDependencies.harness_runner` property | 兼容旧字段访问 | 外部脚本不再访问该字段后删除 |
-| `sandbox.channels.*` | 兼容旧渠道 import | 全仓库和历史启动脚本都切到 `channels.*` 后删除 |
-| `TurnOrchestrator._session` | 兼容少量旧内部访问 | activities/tests 不再需要底层 store 后删除 |
-| `BrainEngine.generate_chat()` / `ActionRuntime.execute()` | 兼容旧直接调用 | 所有调用方都使用 decision/request 方法后再评估 |
+| `HarnessRunner(TurnOrchestrator)` | 已删除 | 仓内已统一使用 `TurnOrchestrator` |
+| `inject(harness=...)` | 已删除 | 正式入口仅接受 `turn_orchestrator` |
+| `WorkerDependencies.harness_runner` property | 已删除 | 仓内无调用 |
+| `sandbox.channels.*` | 已删除 | 仓内已统一使用 `channels.*` |
+| `TurnOrchestrator._session` | 已删除 | 主流程只通过 `TurnMemoryService` |
+| `BrainEngine.generate_chat()` / `ActionRuntime.execute()` | 保留 | 目前仍分别被 decision/request 方法内部调用，不是纯兼容代码 |
 
 ## 不建议继续拆的部分
 

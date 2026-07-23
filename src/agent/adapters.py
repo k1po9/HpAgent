@@ -1,9 +1,9 @@
-"""适配器：将现有的 HarnessRunner 封装为 BaseAgent（ReActAgent）。
+"""适配器：将现有的 TurnOrchestrator 封装为 BaseAgent（ReActAgent）。
 
-该适配器将单代理的 HarnessRunner（src/harness/runner.py）桥接到多代理架构中。
-HarnessRunner 的 process_turn() 对应为 BaseAgent.execute()。
+该适配器将单代理的 TurnOrchestrator（src/harness/runner.py）桥接到多代理架构中。
+TurnOrchestrator 的 process_turn() 对应为 BaseAgent.execute()。
 
-在第 1 阶段测试中，HarnessRunner 是可选的——可以使用模拟（mock）代理。
+在第 1 阶段测试中，TurnOrchestrator 是可选的——可以使用模拟（mock）代理。
 """
 
 from __future__ import annotations
@@ -24,15 +24,15 @@ from .types import (
 
 
 class ReActAgent(BaseAgent):
-    """Wraps HarnessRunner as a BaseAgent implementation.
+    """Wraps TurnOrchestrator as a BaseAgent implementation.
 
-    HarnessRunner.process_turn(user_message) -> dict
+    TurnOrchestrator.process_turn(user_message) -> dict
     is adapted to BaseAgent.execute(task, context) -> TaskResult.
     """
 
     def __init__(
         self,
-        harness_runner: Any = None,  # HarnessRunner（延迟导入以避免循环依赖）
+        harness_runner: Any = None,  # TurnOrchestrator（延迟导入以避免循环依赖）
         capability_spec: CapabilitySpec | None = None,
     ) -> None:
         self._harness = harness_runner
@@ -51,7 +51,7 @@ class ReActAgent(BaseAgent):
 
         try:
             if self._harness is None:
-                # 无 HarnessRunner —— 返回模拟结果（用于第 1 阶段测试）
+                # 无 TurnOrchestrator —— 返回模拟结果（用于第 1 阶段测试）
                 return TaskResult(
                     task_id=task.task_id,
                     status=TaskStatus.COMPLETED,
@@ -62,7 +62,7 @@ class ReActAgent(BaseAgent):
                     trace_id=context.trace_id,
                 )
 
-            # 将 Task 映射为 HarnessRunner.process_turn(user_message) 的消息形态
+            # 将 Task 映射为 TurnOrchestrator.process_turn(user_message) 的消息形态
             user_msg = {
                 "content": task.goal,
                 "sender_id": context.session.user_id or "agent",

@@ -43,6 +43,7 @@ class ModelEntry:
     model: str = ""
     max_tokens: int = 2048
     timeout: float = 30.0
+    extra_body: dict = field(default_factory=dict)  # 模型级请求参数，覆盖 provider 默认值
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -136,11 +137,28 @@ class ModelsConfig:
         """获取指定类别的模型降级链。"""
         return getattr(self, name, [])
 
-    def resolve_endpoint(self, entry: ModelEntry) -> "ModelEndpoint":
+    def resolve_endpoint(
+        self,
+        entry: ModelEntry,
+        *,
+        endpoint_id: str = "",
+    ) -> "ModelEndpoint":
         """将 ModelEntry 解析为完整的 ModelEndpoint（含 api_key）。"""
         from resources.credentials import ModelEndpoint
         provider = self.providers.get(entry.provider, ProviderEntry())
+
+        def _deep_merge(base: dict, override: dict) -> dict:
+            """递归合并请求体配置；模型条目优先于 provider 默认值。"""
+            merged = dict(base)
+            for key, value in override.items():
+                if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                    merged[key] = _deep_merge(merged[key], value)
+                else:
+                    merged[key] = value
+            return merged
+
         return ModelEndpoint(
+            endpoint_id=endpoint_id,
             provider=entry.provider,
             api_key=provider.api_key,
             base_url=provider.base_url,
@@ -149,7 +167,7 @@ class ModelsConfig:
                 "api_format": provider.api_format,
                 "max_tokens": entry.max_tokens,
                 "timeout": entry.timeout,
-                "extra_body": provider.extra_body,
+                "extra_body": _deep_merge(provider.extra_body, entry.extra_body),
             },
         )
 
@@ -180,11 +198,17 @@ class ModelsConfig:
         providers: Dict[str, ProviderEntry] = {}
         for key, val in (raw.get("providers") or {}).items():
             if isinstance(val, dict):
+                extra_body = val.get("extra_body") or {}
+                if not isinstance(extra_body, dict):
+                    raise ValueError(
+                        f"providers.{key}.extra_body must be a mapping, "
+                        f"got {type(extra_body).__name__}"
+                    )
                 providers[key] = ProviderEntry(
                     base_url=_os2.path.expandvars(val.get("base_url", "")),
                     api_key=_os2.path.expandvars(val.get("api_key", "")),
                     api_format=val.get("api_format", "anthropic"),
-                    extra_body=val.get("extra_body") or {},
+                    extra_body=extra_body,
                 )
 
         # 解析 models 各分类
@@ -197,11 +221,28 @@ class ModelsConfig:
             result = []
             for item in (entries or []):
                 if isinstance(item, dict):
+                    allowed_fields = {
+                        "provider", "model", "max_tokens", "timeout", "extra_body"
+                    }
+                    unknown_fields = sorted(set(item) - allowed_fields)
+                    if unknown_fields:
+                        raise ValueError(
+                            f"models.{category} contains unsupported fields "
+                            f"{unknown_fields}; provider-specific request fields "
+                            "must be nested under extra_body"
+                        )
+                    extra_body = item.get("extra_body") or {}
+                    if not isinstance(extra_body, dict):
+                        raise ValueError(
+                            f"models.{category}.extra_body must be a mapping, "
+                            f"got {type(extra_body).__name__}"
+                        )
                     result.append(ModelEntry(
                         provider=item.get("provider", ""),
                         model=_os2.path.expandvars(item.get("model", "")),
                         max_tokens=item.get("max_tokens", 2048),
                         timeout=item.get("timeout", 30.0),
+                        extra_body=extra_body,
                     ))
             return result
 

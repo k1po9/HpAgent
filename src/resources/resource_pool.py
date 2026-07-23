@@ -34,8 +34,8 @@ class ResourcePool(IResources):
 
     def __init__(self, credential_manager: CredentialManager):
         self._credential_manager = credential_manager
-        self._model_clients: Dict[str, Any] = {}          # model_id("{provider}:{model_name}") → {"client":ModelClient, priority":int}
-        self._fallback_groups: Dict[str, List[str]] = {}  # group_name → [model_id, ...]
+        self._model_clients: Dict[str, Any] = {}          # endpoint_id → {"client": ModelClient, ...}
+        self._fallback_groups: Dict[str, List[str]] = {}  # group_name → [endpoint_id, ...]
 
     async def initialize_models(self) -> None:
         """从凭据管理器加载所有模型端点并注册到内部客户端池。
@@ -49,12 +49,16 @@ class ResourcePool(IResources):
             return
 
         client_ids = []
-        for ep in endpoints:
-            client_id = f"{ep.provider}:{ep.model}"
+        for index, ep in enumerate(endpoints):
+            # endpoint_id 表示配置实例，而不是远端模型身份。缺省 ID 也带序号，
+            # 避免相同 provider/model 的不同参数互相覆盖。
+            client_id = ep.endpoint_id or f"endpoint:{index}:{ep.provider}:{ep.model}"
             client_cfg: Dict[str, Any] = {
                 "api_key": ep.api_key,
                 "base_url": ep.base_url,
                 "model": ep.model,
+                "endpoint_id": client_id,
+                "provider": ep.provider,
             }
             # 从 extra 字段传递 api_format / max_tokens / timeout / extra_body
             if ep.extra:
@@ -69,6 +73,17 @@ class ResourcePool(IResources):
             client = ModelClient(config=client_cfg)
             self._model_clients[client_id] = {"client": client, "priority": 0}
             client_ids.append(client_id)
+            logger.info(
+                "Model endpoint registered: id=%s provider=%s model=%s "
+                "format=%s max_tokens=%s timeout=%ss extra_body_keys=%s",
+                client_id,
+                ep.provider,
+                ep.model,
+                client_cfg.get("api_format", "anthropic"),
+                client_cfg.get("max_tokens", 2048),
+                client_cfg.get("timeout", 30.0),
+                sorted((client_cfg.get("extra_body") or {}).keys()),
+            )
 
         # 默认退避组: 按注册顺序包含所有模型
         if client_ids:
@@ -139,7 +154,7 @@ class ResourcePool(IResources):
                 if latency_budget and elapsed_s > latency_budget:
                     if attempt < len(candidate_ids):
                         logger.warning(
-                            "Model %s exceeded latency budget (%.1fs > %.1fs), "
+                            "Endpoint %s exceeded latency budget (%.1fs > %.1fs), "
                             "falling back to next candidate",
                             model_id, elapsed_s, latency_budget,
                         )
@@ -150,7 +165,7 @@ class ResourcePool(IResources):
                 chain_elapsed = (time.monotonic() - chain_start) * 1000
                 # [TIMING] 临时日志，标记每次成功调用的耗时
                 logger.info(
-                    "[TIMING] %s attempt=%d/%d model=%s latency=%.0fms chain_total=%.0fms",
+                    "[TIMING] group=%s attempt=%d/%d endpoint=%s latency=%.0fms chain_total=%.0fms",
                     model_selector, attempt, len(candidate_ids),
                     model_id, elapsed_ms, chain_elapsed,
                 )
@@ -159,7 +174,7 @@ class ResourcePool(IResources):
                 elapsed = (time.monotonic() - t0) * 1000
                 chain_elapsed = (time.monotonic() - chain_start) * 1000
                 logger.warning(
-                    "DEGRADATION: model %s failed (%s) → trying next in chain [%s] "
+                    "DEGRADATION: endpoint %s failed (%s) → trying next in chain [%s] "
                     "(attempt %d/%d, attempt_latency=%.0fms chain_total=%.0fms)",
                     model_id, e, model_selector,
                     attempt, len(candidate_ids), elapsed, chain_elapsed,

@@ -29,11 +29,14 @@ services:
       # ── MiniMax（Chat 模型） ──
       - MINIMAX_API_KEY=${MINIMAX_API_KEY}
       - MINIMAX_API_BASE_URL=${MINIMAX_API_BASE_URL}
+      - MINIMAX_STANDARD_MODEL=${MINIMAX_STANDARD_MODEL}
+      - MINIMAX_FLAGSHIP_MODEL=${MINIMAX_FLAGSHIP_MODEL}
+      - MINIMAX_HIGHSPEED_MODEL=${MINIMAX_HIGHSPEED_MODEL}
       # ── Mimo（Chat / Fast 主模型） ──
-      - MIMO_API_KEY=${MIMO_API_KEY}
-      - MIMO_API_BASE_URL=${MIMO_API_BASE_URL}
-      - MIMO_PRO_MODEL=${MIMO_PRO_MODEL}
-      - MIMO_MODEL=${MIMO_MODEL}
+      # - MIMO_API_KEY=${MIMO_API_KEY}
+      # - MIMO_API_BASE_URL=${MIMO_API_BASE_URL}
+      # - MIMO_PRO_MODEL=${MIMO_PRO_MODEL}
+      # - MIMO_MODEL=${MIMO_MODEL}
       # 官方 QQ 机器人
       - QQ_OFFICIAL_APP_ID=${QQ_OFFICIAL_APP_ID:-}
       - QQ_OFFICIAL_CLIENT_SECRET=${QQ_OFFICIAL_CLIENT_SECRET:-}
@@ -118,8 +121,7 @@ services:
   # 停止：docker compose --profile direct down
   #
   # 不走代理，UID 2000 不会被 iptables 规则拦截
-  napcat-direct:
-    profiles: [direct]
+  napcat:
     image: mlikiowa/napcat-docker:latest
     logging:
       driver: json-file

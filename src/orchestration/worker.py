@@ -80,10 +80,6 @@ class WorkerDependencies:
     group_context: object  # GroupContextStore | None，群聊短期上下文缓存
     scheduler: "TaskScheduler" = None
 
-    @property
-    def harness_runner(self) -> "TurnOrchestrator":
-        """Backward-compatible alias for older callers."""
-        return self.turn_orchestrator
 
 
 async def setup_tools(config: AppConfig):
@@ -200,11 +196,14 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         if not chain:
             continue
         ids: list[str] = []
-        for entry in chain:
-            ep = config.models.resolve_endpoint(entry)
-            model_id = f"{ep.provider}:{ep.model}"
+        for index, entry in enumerate(chain):
+            # endpoint 是“调用配置实例”，不能只用 provider:model 标识。
+            # 同一远端模型在 fast/chat/reasoning 中可能有不同的超时、
+            # max_tokens 和 extra_body，必须分别注册。
+            endpoint_id = f"{category}:{index}:{entry.provider}:{entry.model}"
+            ep = config.models.resolve_endpoint(entry, endpoint_id=endpoint_id)
             all_endpoints.append(ep)
-            ids.append(model_id)
+            ids.append(endpoint_id)
         if ids:
             category_ids[category] = ids
     if not all_endpoints:
@@ -215,6 +214,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     await resource_pool.initialize_models()
     for category, ids in category_ids.items():
         resource_pool.configure_fallback_group(category, ids)
+        logger.info("Model chain configured: category=%s endpoints=%s", category, ids)
     if "chat" in category_ids:
         resource_pool.configure_fallback_group("default", category_ids["chat"])
         logger.info("Model chains registered: %s", ", ".join(
