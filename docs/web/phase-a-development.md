@@ -11,7 +11,7 @@ make migrate
 make ci
 ```
 
-默认开发数据库为 `postgresql://hpagent_api:hpagent_api@localhost:5434/hpagent`。迁移必须使用具 DDL 权限的 `hpagent_migrate` 账号；API/Worker 使用最小权限的 `hpagent_api` 和 `hpagent_worker` 账号。生产环境必须替换 compose 中的示例密码，并通过 secret manager 注入连接串。
+迁移默认使用 `MIGRATION_DATABASE_URL=postgresql://hpagent_migrate:hpagent_migrate@localhost:5434/hpagent`。业务命令和 Worker 分别使用 `APP_DATABASE_URL` 与 `WORKER_DATABASE_URL`；运行账号仅获得各自的表级权限，且不能访问 `schema_migrations`。生产环境必须替换 compose 中的示例密码，并通过 secret manager 注入连接串。
 
 `make test-db` 是真实 PostgreSQL 合约测试入口；它不会用 SQLite 降级。GitHub Actions 使用同一 migration runner 和 pytest marker，并上传 JUnit 报告。
 

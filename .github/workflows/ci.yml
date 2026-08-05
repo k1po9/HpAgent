@@ -20,7 +20,9 @@ jobs:
           --health-cmd "pg_isready -U hpagent_migrate -d hpagent"
           --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      APP_DATABASE_URL: postgresql://hpagent_migrate:hpagent_migrate@localhost:5432/hpagent
+      MIGRATION_DATABASE_URL: postgresql://hpagent_migrate:hpagent_migrate@localhost:5432/hpagent
+      APP_DATABASE_URL: postgresql://hpagent_api:hpagent_api@localhost:5432/hpagent
+      WORKER_DATABASE_URL: postgresql://hpagent_worker:hpagent_worker@localhost:5432/hpagent
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -31,7 +33,13 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: make lint typecheck
       - name: Empty database migration smoke test
-        run: PYTHONPATH=src python -m persistence.migrate
+        run: PYTHONPATH=src APP_DATABASE_URL=$MIGRATION_DATABASE_URL python -m persistence.migrate
+      - name: Configure test runtime role passwords
+        env:
+          PGPASSWORD: hpagent_migrate
+        run: |
+          psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_api PASSWORD 'hpagent_api'"
+          psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_worker PASSWORD 'hpagent_worker'"
       - name: Phase A PostgreSQL contract suite
         run: PYTHONPATH=src python -m pytest -m postgres test/web_persistence --junitxml=test-results/phase-a.xml
       - uses: actions/upload-artifact@v4

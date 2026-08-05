@@ -31,6 +31,9 @@ def test_db_003_send_is_atomic_and_busy(db, account_id, database_url):
     service = CommandService(database_url)
     conversation = UUID(service.create_conversation(account_id, str(uuid4()))["conversation_id"])
     service.send_message(account_id, conversation, str(uuid4()), "hello")
+    assert db.execute(
+        "SELECT count(*) FROM runs WHERE conversation_id=%s AND status='queued'", (conversation,)
+    ).fetchone()[0] == 1
     with pytest.raises(ConversationBusy):
         service.send_message(account_id, conversation, str(uuid4()), "again")
     assert db.execute("SELECT count(*) FROM messages").fetchone()[0] == 2

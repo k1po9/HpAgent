@@ -4,12 +4,22 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from uuid6 import uuid7
 
-from persistence.uow import UnitOfWork
+from persistence.repositories import (
+    AccountRepository,
+    ConversationRepository,
+    IdempotencyRepository,
+    MessageRepository,
+    OutboxRepository,
+    RunRepository,
+    SessionRepository,
+    WorkflowExecutionRepository,
+)
+from persistence.uow import UnitOfWork, retryable_transaction
 
 from .errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
 
@@ -26,50 +36,74 @@ def _digest(value: object) -> bytes:
 class CommandService:
     def __init__(self, database_url: str):
         self.database_url = database_url
+        self.accounts = AccountRepository()
+        self.conversations = ConversationRepository()
+        self.messages = MessageRepository()
+        self.runs = RunRepository()
+        self.sessions = SessionRepository()
+        self.workflows = WorkflowExecutionRepository()
+        self.idempotency = IdempotencyRepository()
+        self.outbox = OutboxRepository()
 
+    @retryable_transaction
     def create_conversation(self, account_id: UUID, key: str, title: str = "") -> dict[str, str]:
         payload = {"title": title}
         with UnitOfWork(self.database_url) as uow:
             existing = self._claim(uow, account_id, "create_conversation", key, payload)
             if existing:
                 return existing
-            conversation_id = _id()
-            uow.execute("INSERT INTO conversations(conversation_id,account_id,title) SELECT %s,%s,%s WHERE EXISTS (SELECT 1 FROM accounts WHERE account_id=%s AND status='active')", (conversation_id, account_id, title, account_id))
-            if uow.execute("SELECT 1 FROM conversations WHERE conversation_id=%s", (conversation_id,)).fetchone() is None:
+            if not self.accounts.require_active(uow, account_id):
                 raise ResourceNotFound()
+            conversation_id = _id()
+            self.conversations.create(uow, conversation_id, account_id, title)
             result = {"conversation_id": str(conversation_id)}
             self._complete(uow, account_id, "create_conversation", key, result)
             return result
 
+    @retryable_transaction
     def send_message(self, account_id: UUID, conversation_id: UUID, key: str, content: str) -> dict[str, str]:
         payload = {"conversation_id": str(conversation_id), "content": content}
         with UnitOfWork(self.database_url) as uow:
             existing = self._claim(uow, account_id, "send_message", key, payload)
             if existing:
                 return existing
-            conversation = uow.execute("SELECT * FROM conversations WHERE account_id=%s AND conversation_id=%s FOR UPDATE", (account_id, conversation_id)).fetchone()
-            if not conversation or conversation["status"] != "active":
+            conversation = self.conversations.lock_active(uow, account_id, conversation_id)
+            if not conversation:
                 raise ResourceNotFound()
-            active = uow.execute("SELECT 1 FROM runs WHERE conversation_id=%s AND status IN ('queued','running','cancelling')", (conversation_id,)).fetchone()
-            if active:
+            retained = self.messages.find_initial_by_client_request(uow, account_id, UUID(key))
+            if retained:
+                if retained["conversation_id"] != conversation_id or retained["content"] != content:
+                    raise IdempotencyConflict()
+                result = {"message_id": str(retained["message_id"]), "run_id": str(retained["run_id"]), "session_id": str(retained["session_id"])}
+                self._complete(uow, account_id, "send_message", key, result)
+                return result
+            if self.runs.has_active(uow, conversation_id):
                 raise ConversationBusy()
-            session = uow.execute("SELECT session_id FROM sessions WHERE account_id=%s AND conversation_id=%s AND status='active'", (account_id, conversation_id)).fetchone()
-            if session is None:
-                session_id = _id()
-                uow.execute("INSERT INTO sessions(session_id,account_id,conversation_id,sequence) VALUES (%s,%s,%s,1)", (session_id, account_id, conversation_id))
-            else:
-                session_id = session["session_id"]
-            allocated = uow.execute("UPDATE conversations SET last_message_seq=last_message_seq+2,updated_at=now() WHERE account_id=%s AND conversation_id=%s RETURNING last_message_seq", (account_id, conversation_id)).fetchone()["last_message_seq"]
+            session_id = self.sessions.get_or_create_active(
+                uow, account_id, conversation_id, _id()
+            )
+            allocated = self.conversations.allocate_messages(
+                uow, account_id, conversation_id, 2
+            )
             user_message_id, run_id, assistant_message_id = _id(), _id(), _id()
             workflow_id = f"hpagent-web-run-{run_id}"
-            uow.execute("INSERT INTO messages(message_id,account_id,conversation_id,role,status,content,sequence,client_request_id) VALUES (%s,%s,%s,'user','accepted',%s,%s,%s)", (user_message_id, account_id, conversation_id, content, allocated - 1, UUID(key)))
-            uow.execute("INSERT INTO runs(run_id,account_id,conversation_id,session_id,trigger_message_id,workflow_id,context_message_seq) VALUES (%s,%s,%s,%s,%s,%s,%s)", (run_id, account_id, conversation_id, session_id, user_message_id, workflow_id, allocated - 1))
-            uow.execute("INSERT INTO messages(message_id,account_id,conversation_id,role,status,sequence,produced_by_run_id) VALUES (%s,%s,%s,'assistant','pending',%s,%s)", (assistant_message_id, account_id, conversation_id, allocated, run_id))
-            uow.execute("INSERT INTO outbox_events(outbox_event_id,account_id,event_type,business_key,conversation_id,run_id,payload) VALUES (%s,%s,'start_run',%s,%s,%s,'{}')", (_id(), account_id, f"start-run:{run_id}", conversation_id, run_id))
+            self.messages.insert_user(
+                uow, user_message_id, account_id, conversation_id, content,
+                allocated - 1, UUID(key)
+            )
+            self.runs.insert(
+                uow, run_id, account_id, conversation_id, session_id, user_message_id,
+                workflow_id, allocated - 1
+            )
+            self.messages.insert_assistant(
+                uow, assistant_message_id, account_id, conversation_id, allocated, run_id
+            )
+            self._outbox(uow, account_id, conversation_id, run_id, "start_run")
             result = {"message_id": str(user_message_id), "run_id": str(run_id), "session_id": str(session_id)}
             self._complete(uow, account_id, "send_message", key, result)
             return result
 
+    @retryable_transaction
     def cancel_run(self, account_id: UUID, run_id: UUID, key: str) -> dict[str, str]:
         """Cancel a queued Run before any Workflow execution exists.
 
@@ -83,106 +117,167 @@ class CommandService:
             existing = self._claim(uow, account_id, "cancel_run", key, payload)
             if existing:
                 return existing
-            run = uow.execute("SELECT * FROM runs WHERE account_id=%s AND run_id=%s FOR UPDATE", (account_id, run_id)).fetchone()
+            conversation_id = self.runs.discover_conversation(uow, account_id, run_id)
+            if conversation_id is None:
+                raise ResourceNotFound()
+            self.conversations.get_for_account(uow, account_id, conversation_id, lock=True)
+            run = self.runs.get_for_account(uow, account_id, run_id, lock=True)
             if run is None:
                 raise ResourceNotFound()
             if run["status"] in ("completed", "failed", "cancelled"):
                 result = {"run_id": str(run_id), "status": run["status"]}
-            elif run["status"] == "queued" and uow.execute("SELECT 1 FROM workflow_executions WHERE run_id=%s AND is_current", (run_id,)).fetchone() is None:
-                self._set_terminal(uow, run_id, "cancelled")
+            elif run["status"] == "queued" and not self.workflows.has_current(uow, run_id):
+                self._set_terminal(
+                    uow, account_id, run["conversation_id"], run_id, "cancelled"
+                )
                 result = {"run_id": str(run_id), "status": "cancelled"}
             else:
-                uow.execute("UPDATE runs SET status='cancelling',version=version+1,updated_at=now() WHERE run_id=%s AND status IN ('queued','running')", (run_id,))
+                self.runs.set_cancelling(uow, run_id)
                 self._outbox(uow, account_id, run["conversation_id"], run_id, "cancel_run")
                 result = {"run_id": str(run_id), "status": "cancelling"}
             self._complete(uow, account_id, "cancel_run", key, result)
             return result
 
+    @retryable_transaction
     def retry_run(self, account_id: UUID, source_run_id: UUID, key: str) -> dict[str, str]:
         payload = {"run_id": str(source_run_id)}
         with UnitOfWork(self.database_url) as uow:
             existing = self._claim(uow, account_id, "retry_run", key, payload)
             if existing:
                 return existing
-            source = uow.execute("SELECT * FROM runs WHERE account_id=%s AND run_id=%s FOR UPDATE", (account_id, source_run_id)).fetchone()
+            conversation_id = self.runs.discover_conversation(uow, account_id, source_run_id)
+            if conversation_id is None:
+                raise ResourceNotFound()
+            conversation = self.conversations.get_for_account(
+                uow, account_id, conversation_id, lock=True
+            )
+            source = self.runs.get_for_account(uow, account_id, source_run_id, lock=True)
             if source is None:
                 raise ResourceNotFound()
-            child = uow.execute("SELECT run_id FROM runs WHERE retry_of_run_id=%s", (source_run_id,)).fetchone()
+            child = self.runs.direct_retry(uow, source_run_id)
             if child:
-                result = {"run_id": str(child["run_id"])}
+                result = {"run_id": str(child)}
             else:
                 if source["status"] not in ("failed", "cancelled"):
                     raise ConversationBusy()
-                conversation = uow.execute("SELECT * FROM conversations WHERE account_id=%s AND conversation_id=%s FOR UPDATE", (account_id, source["conversation_id"])).fetchone()
                 if conversation is None or conversation["status"] != "active":
                     raise ResourceNotFound()
-                if uow.execute("SELECT 1 FROM runs WHERE conversation_id=%s AND status IN ('queued','running','cancelling')", (source["conversation_id"],)).fetchone():
+                if self.runs.has_active(uow, source["conversation_id"]):
                     raise ConversationBusy()
-                sequence = uow.execute("UPDATE conversations SET last_message_seq=last_message_seq+1,updated_at=now() WHERE conversation_id=%s RETURNING last_message_seq", (source["conversation_id"],)).fetchone()["last_message_seq"]
+                session_id = self.sessions.get_or_create_active(
+                    uow, account_id, source["conversation_id"], _id()
+                )
+                sequence = self.conversations.allocate_messages(
+                    uow, account_id, source["conversation_id"], 1
+                )
                 run_id = _id()
-                uow.execute("INSERT INTO runs(run_id,account_id,conversation_id,session_id,trigger_message_id,retry_of_run_id,workflow_id,context_message_seq) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)", (run_id, account_id, source["conversation_id"], source["session_id"], source["trigger_message_id"], source_run_id, f"hpagent-web-run-{run_id}", source["context_message_seq"]))
-                uow.execute("INSERT INTO messages(message_id,account_id,conversation_id,role,status,sequence,produced_by_run_id) VALUES (%s,%s,%s,'assistant','pending',%s,%s)", (_id(), account_id, source["conversation_id"], sequence, run_id))
+                self.runs.insert(
+                    uow, run_id, account_id, source["conversation_id"], session_id,
+                    source["trigger_message_id"], f"hpagent-web-run-{run_id}",
+                    source["context_message_seq"], source_run_id
+                )
+                self.messages.insert_assistant(
+                    uow, _id(), account_id, source["conversation_id"], sequence, run_id
+                )
                 self._outbox(uow, account_id, source["conversation_id"], run_id, "start_run")
                 result = {"run_id": str(run_id)}
             self._complete(uow, account_id, "retry_run", key, result)
             return result
 
+    @retryable_transaction
     def complete_run(self, account_id: UUID, run_id: UUID, content: str) -> bool:
         """Lifecycle adapter entrypoint; callers invoke it only after external work."""
         with UnitOfWork(self.database_url) as uow:
-            run = uow.execute("SELECT * FROM runs WHERE account_id=%s AND run_id=%s FOR UPDATE", (account_id, run_id)).fetchone()
-            if run is None:
-                raise ResourceNotFound()
+            run = self._lock_owned_run(uow, account_id, run_id)
             if run["status"] in ("completed", "failed", "cancelled"):
                 return bool(run["status"] == "completed")
             if run["status"] not in ("running", "cancelling"):
                 raise ConversationBusy()
-            uow.execute("UPDATE messages SET status='completed',content=%s,completed_at=now() WHERE produced_by_run_id=%s AND status='pending'", (content, run_id))
-            uow.execute("UPDATE runs SET status='completed',finished_at=now(),version=version+1,updated_at=now() WHERE run_id=%s", (run_id,))
+            self.messages.set_terminal(uow, run_id, "completed", content)
+            self.runs.set_terminal(uow, run_id, "completed")
             self._outbox(uow, account_id, run["conversation_id"], run_id, "retain_memory")
             self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "completed")
             return True
 
+    @retryable_transaction
     def fail_run(self, account_id: UUID, run_id: UUID, failure_code: str, failure_message: str | None = None) -> bool:
         """Atomically record a safe terminal failure and its notification."""
         with UnitOfWork(self.database_url) as uow:
-            run = uow.execute("SELECT * FROM runs WHERE account_id=%s AND run_id=%s FOR UPDATE", (account_id, run_id)).fetchone()
-            if run is None:
-                raise ResourceNotFound()
+            run = self._lock_owned_run(uow, account_id, run_id)
             if run["status"] in ("completed", "failed", "cancelled"):
                 return bool(run["status"] == "failed")
-            uow.execute("UPDATE messages SET status='failed',completed_at=now() WHERE produced_by_run_id=%s AND status='pending'", (run_id,))
-            uow.execute("UPDATE runs SET status='failed',failure_code=%s,failure_message=%s,finished_at=now(),version=version+1,updated_at=now() WHERE run_id=%s", (failure_code, failure_message, run_id))
+            self.messages.set_terminal(uow, run_id, "failed")
+            self.runs.set_terminal(uow, run_id, "failed", failure_code, failure_message)
             self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "failed")
+            return True
+
+    @retryable_transaction
+    def cancelled_run(self, account_id: UUID, run_id: UUID) -> bool:
+        """Converge a Workflow cancellation callback into one atomic terminal fact."""
+        with UnitOfWork(self.database_url) as uow:
+            run = self._lock_owned_run(uow, account_id, run_id)
+            if run["status"] in ("completed", "failed", "cancelled"):
+                return bool(run["status"] == "cancelled")
+            self.messages.set_terminal(uow, run_id, "aborted")
+            self.runs.set_terminal(uow, run_id, "cancelled")
+            self._outbox(
+                uow, account_id, run["conversation_id"], run_id,
+                "publish_terminal_event", "cancelled"
+            )
             return True
 
     def _claim(self, uow: UnitOfWork, account_id: UUID, operation: str, key: str, payload: object) -> dict[str, str] | None:
         digest = _digest(payload)
-        row = uow.execute("SELECT * FROM idempotency_commands WHERE account_id=%s AND operation=%s AND idempotency_key=%s FOR UPDATE", (account_id, operation, key)).fetchone()
-        if row:
-            if bytes(row["request_hash"]) != digest:
-                raise IdempotencyConflict()
-            if row["status"] == "completed":
-                return cast(dict[str, str], row["response_body"])
-            raise ConversationBusy()
-        uow.execute("INSERT INTO idempotency_commands(idempotency_command_id,account_id,operation,idempotency_key,request_hash,expires_at) VALUES (%s,%s,%s,%s,%s,%s)", (_id(), account_id, operation, key, digest, datetime.now(UTC) + timedelta(days=7)))
-        return None
+        row = self.idempotency.claim(
+            uow, _id(), account_id, operation, key, digest,
+            datetime.now(UTC) + timedelta(days=7),
+        )
+        if row is None:
+            return None
+        if row is None or bytes(row["request_hash"]) != digest:
+            raise IdempotencyConflict()
+        if row["status"] == "completed":
+            return cast(dict[str, str], row["response_body"])
+        raise ConversationBusy()
 
-    @staticmethod
-    def _complete(uow: UnitOfWork, account_id: UUID, operation: str, key: str, result: dict[str, str]) -> None:
-        uow.execute("UPDATE idempotency_commands SET status='completed',response_status=200,response_body=%s::jsonb,completed_at=now() WHERE account_id=%s AND operation=%s AND idempotency_key=%s", (json.dumps(result), account_id, operation, key))
+    def _complete(self, uow: UnitOfWork, account_id: UUID, operation: str, key: str, result: dict[str, str]) -> None:
+        self.idempotency.complete(uow, account_id, operation, key, json.dumps(result))
 
-    @staticmethod
-    def _outbox(uow: UnitOfWork, account_id: UUID, conversation_id: UUID, run_id: UUID, event_type: str, terminal_status: str | None = None) -> None:
+    def _outbox(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, run_id: UUID, event_type: str, terminal_status: str | None = None) -> None:
         key = f"terminal:{run_id}:{terminal_status}" if event_type == "publish_terminal_event" else f"{event_type.replace('_', '-')}:{run_id}"
+        event_id = _id()
         payload = {"run_id": str(run_id), "version": 1}
         if terminal_status:
             payload["terminal_status"] = terminal_status
-        uow.execute("INSERT INTO outbox_events(outbox_event_id,account_id,event_type,business_key,conversation_id,run_id,payload) VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb) ON CONFLICT (business_key) DO NOTHING", (_id(), account_id, event_type, key, conversation_id, run_id, json.dumps(payload)))
+            payload["terminal_event_id"] = str(event_id)
+        self.outbox.enqueue(
+            uow, event_id, account_id, event_type, key, conversation_id, run_id,
+            json.dumps(payload),
+        )
 
-    def _set_terminal(self, uow: UnitOfWork, run_id: UUID, status: str) -> None:
+    def _set_terminal(
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
+        run_id: UUID, status: str
+    ) -> None:
         message_status = {"failed": "failed", "cancelled": "aborted"}[status]
-        uow.execute("UPDATE messages SET status=%s,completed_at=now() WHERE produced_by_run_id=%s AND status='pending'", (message_status, run_id))
-        uow.execute("UPDATE runs SET status=%s,finished_at=now(),version=version+1,updated_at=now() WHERE run_id=%s", (status, run_id))
-        run = uow.execute("SELECT account_id,conversation_id FROM runs WHERE run_id=%s", (run_id,)).fetchone()
-        self._outbox(uow, run["account_id"], run["conversation_id"], run_id, "publish_terminal_event", status)
+        self.messages.set_terminal(uow, run_id, message_status)
+        self.runs.set_terminal(uow, run_id, status)
+        self._outbox(
+            uow, account_id, conversation_id, run_id, "publish_terminal_event", status
+        )
+
+    def _lock_owned_run(
+        self, uow: UnitOfWork, account_id: UUID, run_id: UUID
+    ) -> dict[str, Any]:
+        conversation_id = self.runs.discover_conversation(uow, account_id, run_id)
+        if conversation_id is None:
+            raise ResourceNotFound()
+        conversation = self.conversations.get_for_account(
+            uow, account_id, conversation_id, lock=True
+        )
+        if conversation is None:
+            raise ResourceNotFound()
+        run = self.runs.get_for_account(uow, account_id, run_id, lock=True)
+        if run is None or run["conversation_id"] != conversation_id:
+            raise ResourceNotFound()
+        return cast(dict[str, Any], run)
