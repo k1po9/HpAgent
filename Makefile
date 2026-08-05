@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test test-db migrate db-up db-down ci
+.PHONY: install lint typecheck test test-existing test-db migrate db-up db-down ci
 
 MIGRATION_DATABASE_URL ?= postgresql://hpagent_migrate:hpagent_migrate@localhost:5434/hpagent
 APP_DATABASE_URL ?= postgresql://hpagent_api:hpagent_api@localhost:5434/hpagent
@@ -17,6 +17,9 @@ typecheck:
 test:
 	PYTHONPATH=src $(PYTHON) -m pytest
 
+test-existing:
+	PYTHONPATH=src $(PYTHON) -m pytest -m "not postgres" test
+
 test-db:
 	PYTHONPATH=src MIGRATION_DATABASE_URL=$(MIGRATION_DATABASE_URL) APP_DATABASE_URL=$(APP_DATABASE_URL) WORKER_DATABASE_URL=$(WORKER_DATABASE_URL) $(PYTHON) -m pytest -m postgres test/web_persistence
 
@@ -29,4 +32,4 @@ db-up:
 db-down:
 	docker compose stop app-postgres
 
-ci: lint typecheck test-db
+ci: lint typecheck test-existing test-db

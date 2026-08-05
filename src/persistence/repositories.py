@@ -1,6 +1,8 @@
 """Ownership-scoped repositories.  No method accepts a bare public resource ID."""
 from __future__ import annotations
 
+from collections.abc import Collection
+from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
@@ -55,9 +57,13 @@ class MessageRepository:
         self, uow: UnitOfWork, account_id: UUID, client_request_id: UUID
     ):
         return uow.execute(
-            "SELECT m.message_id,m.conversation_id,m.content,r.run_id,r.session_id "
+            "SELECT m.message_id,m.conversation_id,m.content,m.sequence AS user_sequence,"
+            "r.run_id,r.session_id,r.status AS run_status,r.trigger_message_id,"
+            "a.message_id AS assistant_message_id,a.sequence AS assistant_sequence,"
+            "a.status AS assistant_status "
             "FROM messages m JOIN runs r ON r.trigger_message_id=m.message_id "
-            "AND r.retry_of_run_id IS NULL WHERE m.account_id=%s "
+            "AND r.retry_of_run_id IS NULL JOIN messages a ON a.produced_by_run_id=r.run_id "
+            "WHERE m.account_id=%s "
             "AND m.client_request_id=%s",
             (account_id, client_request_id),
         ).fetchone()
@@ -122,11 +128,14 @@ class RunRepository:
             (conversation_id,),
         ).fetchone() is not None
 
-    def direct_retry(self, uow: UnitOfWork, source_run_id: UUID) -> UUID | None:
-        row = uow.execute(
-            "SELECT run_id FROM runs WHERE retry_of_run_id=%s", (source_run_id,)
+    def direct_retry(self, uow: UnitOfWork, source_run_id: UUID):
+        return uow.execute(
+            "SELECT r.run_id,r.status,r.retry_of_run_id,m.message_id AS assistant_message_id,"
+            "m.sequence AS assistant_sequence,m.status AS assistant_status "
+            "FROM runs r JOIN messages m ON m.produced_by_run_id=r.run_id "
+            "WHERE r.retry_of_run_id=%s",
+            (source_run_id,),
         ).fetchone()
-        return cast(UUID | None, row["run_id"] if row else None)
 
     def insert(
         self, uow: UnitOfWork, run_id: UUID, account_id: UUID, conversation_id: UUID,
@@ -211,13 +220,14 @@ class IdempotencyRepository:
         ).fetchone())
 
     def complete(
-        self, uow: UnitOfWork, account_id: UUID, operation: str, key: str, body: str
+        self, uow: UnitOfWork, account_id: UUID, operation: str, key: str,
+        response_status: int, body: str
     ) -> None:
         uow.execute(
-            "UPDATE idempotency_commands SET status='completed',response_status=200,"
+            "UPDATE idempotency_commands SET status='completed',response_status=%s,"
             "response_body=%s::jsonb,completed_at=now() WHERE account_id=%s "
             "AND operation=%s AND idempotency_key=%s",
-            (body, account_id, operation, key),
+            (response_status, body, account_id, operation, key),
         )
 
 
@@ -233,15 +243,18 @@ class OutboxRepository:
             (event_id, account_id, event_type, business_key, conversation_id, run_id, payload),
         )
 
-    def claim_batch(self, uow: UnitOfWork, worker_id: str, limit: int = 10):
+    def claim_batch(
+        self, uow: UnitOfWork, worker_id: str,
+        owned_event_types: Collection[str], limit: int = 10
+    ):
         return uow.execute(
             "WITH candidates AS (SELECT outbox_event_id FROM outbox_events "
-            "WHERE status='pending' AND available_at<=now() "
+            "WHERE status='pending' AND available_at<=now() AND event_type=ANY(%s) "
             "ORDER BY available_at,created_at,outbox_event_id "
             "FOR UPDATE SKIP LOCKED LIMIT %s) UPDATE outbox_events o SET status='processing',"
             "attempt_count=attempt_count+1,locked_at=now(),locked_by=%s,updated_at=now() "
             "FROM candidates c WHERE o.outbox_event_id=c.outbox_event_id RETURNING o.*",
-            (limit, worker_id),
+            (list(owned_event_types), limit, worker_id),
         ).fetchall()
 
     def recover_expired(self, uow: UnitOfWork, older_than_seconds: int) -> int:
@@ -261,9 +274,11 @@ class OutboxRepository:
             (event_id, worker_id),
         ).fetchone() is not None
 
-    def lock_event(self, uow: UnitOfWork, event_id: UUID):
+    def lock_owned_event(self, uow: UnitOfWork, event_id: UUID, worker_id: str):
         return uow.execute(
-            "SELECT * FROM outbox_events WHERE outbox_event_id=%s FOR UPDATE", (event_id,)
+            "SELECT * FROM outbox_events WHERE outbox_event_id=%s "
+            "AND status='processing' AND locked_by=%s FOR UPDATE",
+            (event_id, worker_id),
         ).fetchone()
 
     def discover_context(self, uow: UnitOfWork, event_id: UUID):
@@ -273,12 +288,26 @@ class OutboxRepository:
             (event_id,),
         ).fetchone()
 
+    def mark_retryable_failure(
+        self, uow: UnitOfWork, event_id: UUID, worker_id: str,
+        error_code: str, error_message: str, next_available_at: datetime
+    ) -> bool:
+        return uow.execute(
+            "UPDATE outbox_events SET status='pending',locked_at=NULL,locked_by=NULL,"
+            "available_at=%s,last_error_code=%s,last_error_message=%s,updated_at=now() "
+            "WHERE outbox_event_id=%s AND status='processing' AND locked_by=%s "
+            "RETURNING outbox_event_id",
+            (next_available_at, error_code, error_message, event_id, worker_id),
+        ).fetchone() is not None
+
     def mark_dead_letter(
-        self, uow: UnitOfWork, event_id: UUID, error_code: str, error_message: str
-    ) -> None:
-        uow.execute(
+        self, uow: UnitOfWork, event_id: UUID, worker_id: str,
+        error_code: str, error_message: str
+    ) -> bool:
+        return uow.execute(
             "UPDATE outbox_events SET status='dead_letter',locked_at=NULL,locked_by=NULL,"
             "last_error_code=%s,last_error_message=%s,updated_at=now() "
-            "WHERE outbox_event_id=%s",
-            (error_code, error_message, event_id),
-        )
+            "WHERE outbox_event_id=%s AND status='processing' AND locked_by=%s "
+            "RETURNING outbox_event_id",
+            (error_code, error_message, event_id, worker_id),
+        ).fetchone() is not None

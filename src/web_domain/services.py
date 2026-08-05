@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
@@ -21,7 +23,12 @@ from persistence.repositories import (
 )
 from persistence.uow import UnitOfWork, retryable_transaction
 
-from .errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
+from .errors import (
+    ConversationBusy,
+    IdempotencyConflict,
+    ResourceNotFound,
+    RunNotCancellable,
+)
 
 
 def _id() -> UUID:
@@ -31,6 +38,23 @@ def _id() -> UUID:
 
 def _digest(value: object) -> bytes:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).digest()
+
+
+@dataclass(frozen=True)
+class CommandResult(Mapping[str, Any]):
+    """A frozen command body plus the exact status an HTTP adapter must replay."""
+
+    response_status: int
+    body: dict[str, Any]
+
+    def __getitem__(self, key: str) -> Any:
+        return self.body[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.body)
+
+    def __len__(self) -> int:
+        return len(self.body)
 
 
 class CommandService:
@@ -46,7 +70,7 @@ class CommandService:
         self.outbox = OutboxRepository()
 
     @retryable_transaction
-    def create_conversation(self, account_id: UUID, key: str, title: str = "") -> dict[str, str]:
+    def create_conversation(self, account_id: UUID, key: str, title: str = "") -> CommandResult:
         payload = {"title": title}
         with UnitOfWork(self.database_url) as uow:
             existing = self._claim(uow, account_id, "create_conversation", key, payload)
@@ -57,11 +81,11 @@ class CommandService:
             conversation_id = _id()
             self.conversations.create(uow, conversation_id, account_id, title)
             result = {"conversation_id": str(conversation_id)}
-            self._complete(uow, account_id, "create_conversation", key, result)
-            return result
+            self._complete(uow, account_id, "create_conversation", key, 201, result)
+            return CommandResult(201, result)
 
     @retryable_transaction
-    def send_message(self, account_id: UUID, conversation_id: UUID, key: str, content: str) -> dict[str, str]:
+    def send_message(self, account_id: UUID, conversation_id: UUID, key: str, content: str) -> CommandResult:
         payload = {"conversation_id": str(conversation_id), "content": content}
         with UnitOfWork(self.database_url) as uow:
             existing = self._claim(uow, account_id, "send_message", key, payload)
@@ -74,9 +98,15 @@ class CommandService:
             if retained:
                 if retained["conversation_id"] != conversation_id or retained["content"] != content:
                     raise IdempotencyConflict()
-                result = {"message_id": str(retained["message_id"]), "run_id": str(retained["run_id"]), "session_id": str(retained["session_id"])}
-                self._complete(uow, account_id, "send_message", key, result)
-                return result
+                result = self._send_result(
+                    retained["message_id"], retained["user_sequence"],
+                    retained["assistant_message_id"], retained["assistant_sequence"],
+                    "pending", retained["run_id"],
+                    "queued", retained["trigger_message_id"],
+                    retained["session_id"]
+                )
+                self._complete(uow, account_id, "send_message", key, 202, result)
+                return CommandResult(202, result)
             if self.runs.has_active(uow, conversation_id):
                 raise ConversationBusy()
             session_id = self.sessions.get_or_create_active(
@@ -99,12 +129,15 @@ class CommandService:
                 uow, assistant_message_id, account_id, conversation_id, allocated, run_id
             )
             self._outbox(uow, account_id, conversation_id, run_id, "start_run")
-            result = {"message_id": str(user_message_id), "run_id": str(run_id), "session_id": str(session_id)}
-            self._complete(uow, account_id, "send_message", key, result)
-            return result
+            result = self._send_result(
+                user_message_id, allocated - 1, assistant_message_id, allocated,
+                "pending", run_id, "queued", user_message_id, session_id
+            )
+            self._complete(uow, account_id, "send_message", key, 202, result)
+            return CommandResult(202, result)
 
     @retryable_transaction
-    def cancel_run(self, account_id: UUID, run_id: UUID, key: str) -> dict[str, str]:
+    def cancel_run(self, account_id: UUID, run_id: UUID, key: str) -> CommandResult:
         """Cancel a queued Run before any Workflow execution exists.
 
         The Temporal-facing branch is deliberately not implemented here: Phase D
@@ -124,22 +157,29 @@ class CommandService:
             run = self.runs.get_for_account(uow, account_id, run_id, lock=True)
             if run is None:
                 raise ResourceNotFound()
-            if run["status"] in ("completed", "failed", "cancelled"):
+            if run["status"] in ("completed", "failed"):
+                raise RunNotCancellable()
+            if run["status"] == "cancelled":
                 result = {"run_id": str(run_id), "status": run["status"]}
+                response_status = 200
             elif run["status"] == "queued" and not self.workflows.has_current(uow, run_id):
                 self._set_terminal(
                     uow, account_id, run["conversation_id"], run_id, "cancelled"
                 )
                 result = {"run_id": str(run_id), "status": "cancelled"}
+                response_status = 200
             else:
                 self.runs.set_cancelling(uow, run_id)
                 self._outbox(uow, account_id, run["conversation_id"], run_id, "cancel_run")
                 result = {"run_id": str(run_id), "status": "cancelling"}
-            self._complete(uow, account_id, "cancel_run", key, result)
-            return result
+                response_status = 202
+            self._complete(
+                uow, account_id, "cancel_run", key, response_status, result
+            )
+            return CommandResult(response_status, result)
 
     @retryable_transaction
-    def retry_run(self, account_id: UUID, source_run_id: UUID, key: str) -> dict[str, str]:
+    def retry_run(self, account_id: UUID, source_run_id: UUID, key: str) -> CommandResult:
         payload = {"run_id": str(source_run_id)}
         with UnitOfWork(self.database_url) as uow:
             existing = self._claim(uow, account_id, "retry_run", key, payload)
@@ -156,7 +196,12 @@ class CommandService:
                 raise ResourceNotFound()
             child = self.runs.direct_retry(uow, source_run_id)
             if child:
-                result = {"run_id": str(child)}
+                result = self._retry_result(
+                    source_run_id, child["run_id"], child["status"],
+                    child["assistant_message_id"], child["assistant_sequence"],
+                    child["assistant_status"]
+                )
+                response_status = 200
             else:
                 if source["status"] not in ("failed", "cancelled"):
                     raise ConversationBusy()
@@ -171,18 +216,26 @@ class CommandService:
                     uow, account_id, source["conversation_id"], 1
                 )
                 run_id = _id()
+                assistant_message_id = _id()
                 self.runs.insert(
                     uow, run_id, account_id, source["conversation_id"], session_id,
                     source["trigger_message_id"], f"hpagent-web-run-{run_id}",
                     source["context_message_seq"], source_run_id
                 )
                 self.messages.insert_assistant(
-                    uow, _id(), account_id, source["conversation_id"], sequence, run_id
+                    uow, assistant_message_id, account_id, source["conversation_id"],
+                    sequence, run_id
                 )
                 self._outbox(uow, account_id, source["conversation_id"], run_id, "start_run")
-                result = {"run_id": str(run_id)}
-            self._complete(uow, account_id, "retry_run", key, result)
-            return result
+                result = self._retry_result(
+                    source_run_id, run_id, "queued", assistant_message_id,
+                    sequence, "pending"
+                )
+                response_status = 202
+            self._complete(
+                uow, account_id, "retry_run", key, response_status, result
+            )
+            return CommandResult(response_status, result)
 
     @retryable_transaction
     def complete_run(self, account_id: UUID, run_id: UUID, content: str) -> bool:
@@ -226,7 +279,10 @@ class CommandService:
             )
             return True
 
-    def _claim(self, uow: UnitOfWork, account_id: UUID, operation: str, key: str, payload: object) -> dict[str, str] | None:
+    def _claim(
+        self, uow: UnitOfWork, account_id: UUID, operation: str,
+        key: str, payload: object
+    ) -> CommandResult | None:
         digest = _digest(payload)
         row = self.idempotency.claim(
             uow, _id(), account_id, operation, key, digest,
@@ -237,11 +293,62 @@ class CommandService:
         if row is None or bytes(row["request_hash"]) != digest:
             raise IdempotencyConflict()
         if row["status"] == "completed":
-            return cast(dict[str, str], row["response_body"])
+            return CommandResult(
+                int(row["response_status"]), cast(dict[str, Any], row["response_body"])
+            )
         raise ConversationBusy()
 
-    def _complete(self, uow: UnitOfWork, account_id: UUID, operation: str, key: str, result: dict[str, str]) -> None:
-        self.idempotency.complete(uow, account_id, operation, key, json.dumps(result))
+    def _complete(
+        self, uow: UnitOfWork, account_id: UUID, operation: str, key: str,
+        response_status: int, result: dict[str, Any]
+    ) -> None:
+        self.idempotency.complete(
+            uow, account_id, operation, key, response_status, json.dumps(result)
+        )
+
+    @staticmethod
+    def _send_result(
+        user_message_id: UUID, user_sequence: int, assistant_message_id: UUID,
+        assistant_sequence: int, assistant_status: str, run_id: UUID,
+        run_status: str, trigger_message_id: UUID, session_id: UUID
+    ) -> dict[str, Any]:
+        return {
+            "message_id": str(user_message_id),
+            "run_id": str(run_id),
+            "session_id": str(session_id),
+            "user_message": {
+                "message_id": str(user_message_id), "role": "user",
+                "status": "accepted", "sequence": user_sequence,
+            },
+            "assistant_message": {
+                "message_id": str(assistant_message_id), "role": "assistant",
+                "status": assistant_status, "sequence": assistant_sequence,
+            },
+            "run": {
+                "run_id": str(run_id), "status": run_status,
+                "trigger_message_id": str(trigger_message_id),
+            },
+        }
+
+    @staticmethod
+    def _retry_result(
+        source_run_id: UUID, run_id: UUID, run_status: str,
+        assistant_message_id: UUID, assistant_sequence: int,
+        assistant_status: str
+    ) -> dict[str, Any]:
+        return {
+            "run_id": str(run_id),
+            "source_run_id": str(source_run_id),
+            "retry_of_run_id": str(source_run_id),
+            "assistant_message": {
+                "message_id": str(assistant_message_id), "role": "assistant",
+                "status": assistant_status, "sequence": assistant_sequence,
+            },
+            "run": {
+                "run_id": str(run_id), "status": run_status,
+                "retry_of_run_id": str(source_run_id),
+            },
+        }
 
     def _outbox(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, run_id: UUID, event_type: str, terminal_status: str | None = None) -> None:
         key = f"terminal:{run_id}:{terminal_status}" if event_type == "publish_terminal_event" else f"{event_type.replace('_', '-')}:{run_id}"

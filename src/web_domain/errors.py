@@ -12,3 +12,11 @@ class ConversationBusy(DomainError):
 
 class ResourceNotFound(DomainError):
     pass
+
+
+class OutboxLeaseLost(DomainError):
+    pass
+
+
+class RunNotCancellable(DomainError):
+    pass

@@ -35,14 +35,39 @@ class UnitOfWork(AbstractContextManager["UnitOfWork"]):
 
     def __init__(self, database_url: str):
         self.connection = psycopg.connect(database_url, row_factory=psycopg.rows.dict_row)
-        self.connection.execute("SET search_path TO hpagent, public")
+        try:
+            self.connection.execute("SET search_path TO hpagent, public")
+        except Exception:
+            self.connection.close()
+            raise
 
     def execute(self, query: str, params: tuple[Any, ...] = ()) -> Any:
         return self.connection.execute(query, params)
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
-        if exc_type is None:
+        if exc_type is not None:
+            try:
+                self.connection.rollback()
+            except Exception:
+                # Cleanup must not replace the business exception already in flight.
+                pass
+            finally:
+                try:
+                    self.connection.close()
+                except Exception:
+                    pass
+            return
+
+        try:
             self.connection.commit()
-        else:
-            self.connection.rollback()
+        except Exception:
+            try:
+                self.connection.rollback()
+            except Exception:
+                pass
+            try:
+                self.connection.close()
+            except Exception:
+                pass
+            raise
         self.connection.close()

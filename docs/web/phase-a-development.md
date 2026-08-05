@@ -15,6 +15,22 @@ make ci
 
 `make test-db` 是真实 PostgreSQL 合约测试入口；它不会用 SQLite 降级。GitHub Actions 使用同一 migration runner 和 pytest marker，并上传 JUnit 报告。
 
+## Phase A 持久化边界
+
+同步 `UnitOfWork` 当前按短事务建立独立 psycopg 连接，并可靠地在 commit、rollback
+和 commit-time deferred trigger 失败后关闭连接。连接池推迟到 Phase B 的应用组合根：届时
+必须显式注入同步 `ConnectionPool`（并在线程池调用同步 CommandService），或统一采用
+`AsyncConnectionPool`/Async UoW；不得创建全局隐式池，也不得在 ASGI 事件循环中直接执行
+同步数据库 I/O。
+
+migration runner 使用 PostgreSQL transaction advisory lock 串行化部署实例，并记录 SHA-256
+checksum 拒绝已应用文件被修改。它仍只支持整事务 migration，不支持
+`CREATE INDEX CONCURRENTLY`、dirty-state 恢复、自动 rollback 或 expand/contract 编排；需要这些
+能力时应迁移到正式 migration 工具，不能把当前 runner 当作完整生产发布框架。
+
+`make ci` 会同时运行静态检查、现有项目测试和 Phase A PostgreSQL 合约测试。现有项目测试
+不会因环境或历史失败被静默跳过；缺少 nsjail 等平台依赖时，pytest 的 skip 原因会保留在报告中。
+
 ## 回滚
 
 初始 migration 是绿色建库。发布前发生问题时，停止 Web API/Worker 并删除仅该环境的 `hpagent` schema 或整个独立 app-postgres 数据卷；不得影响 Temporal/Hindsight 数据库。已有生产数据后的后续 migration 必须提供独立的 expand/contract 回滚说明，不能修改此初始 migration。
