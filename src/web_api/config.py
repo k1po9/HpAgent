@@ -29,6 +29,7 @@ class WebApiSettings:
     fake_executor_mode: str = "success"
     fake_executor_content: str = "这是由测试执行器生成的回复。"
     fake_executor_failure_code: str = "fake_executor_failure"
+    real_agent_enabled: bool = False
 
     def __post_init__(self) -> None:
         if self.active_cursor_key_id not in self.cursor_signing_keys:
@@ -80,4 +81,5 @@ class WebApiSettings:
             fake_executor_failure_code=os.getenv(
                 "WEB_FAKE_EXECUTOR_FAILURE_CODE", "fake_executor_failure"
             ),
+            real_agent_enabled=os.getenv("WEB_REAL_AGENT_ENABLED", "false").lower() == "true",
         )

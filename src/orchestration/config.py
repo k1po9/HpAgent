@@ -18,7 +18,7 @@ import dataclasses
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict, List
 
 logger = logging.getLogger("HpAgent.Config")
 
@@ -348,6 +348,10 @@ class WorkspaceConfig:
     root: str = ".data/workspace"
     db_path: str = ""
     cleanup_max_age_days: int = 30
+    workspace_isolation_mode: str = ""
+    agent_worker_replicas: int = 1
+    prefork_enabled: bool = False
+    agent_activity_processes: int = 1
 
 
 @dataclass
@@ -676,6 +680,8 @@ class AppConfig:
             self.hindsight.base_url = environ["HINDSIGHT_URL"]
         if environ.get("WORKSPACE_ROOT"):
             self.workspace.root = environ["WORKSPACE_ROOT"]
+        if environ.get("WORKSPACE_ISOLATION_MODE"):
+            self.workspace.workspace_isolation_mode = environ["WORKSPACE_ISOLATION_MODE"]
         if environ.get("REDIS_URL"):
             self.redis.url = environ["REDIS_URL"]
 

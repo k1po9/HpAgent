@@ -52,6 +52,7 @@ from resources.credentials import CredentialManager, ModelEndpoint
 from sandbox.sandbox_manager import SandboxManager
 from sandbox.nsjail import NsjailConfig
 from sandbox.git_repo import GitRepoManager
+from workspace.isolation import WorkspaceIsolationRuntime
 from channels.napcat import NapCatChannel
 from channels.official_qq import OfficialQQChannel
 from channels.router import ChannelRouter
@@ -79,6 +80,7 @@ class WorkerDependencies:
     git_repo_manager: "GitRepoManager"
     group_context: object  # GroupContextStore | None，群聊短期上下文缓存
     scheduler: "TaskScheduler" = None
+    workspace_isolation: "WorkspaceIsolationRuntime | None" = None
 
 
 
@@ -186,6 +188,18 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
      10. MultiAgentExecutor（条件）
      11. TurnOrchestrator（组装所有上述组件）
     """
+    # Hard gate: no shared-worktree Agent process starts without an explicit,
+    # validated isolation topology and its OS process lock.
+    workspace_isolation = WorkspaceIsolationRuntime(
+        workspace_root=Path(config.workspace.root),
+        mode=config.workspace.workspace_isolation_mode,
+        agent_worker_replicas=config.workspace.agent_worker_replicas,
+        prefork_enabled=config.workspace.prefork_enabled,
+        agent_activity_processes=config.workspace.agent_activity_processes,
+        hosts_share_lock_registry=True,
+    )
+    workspace_isolation.start()
+
     # ── 1. 凭据 + 资源池 ──
     credential_manager = CredentialManager()
     all_endpoints: list[ModelEndpoint] = []
@@ -451,6 +465,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         git_repo_manager=git_repo_manager,
         group_context=group_context,
         scheduler=scheduler,
+        workspace_isolation=workspace_isolation,
     )
 
 
@@ -625,6 +640,9 @@ async def start_worker(config: AppConfig) -> None:
             logger.info("MCP connections closed")
         except Exception as e:
             logger.warning("MCP disconnect failed: %s", e)
+
+    if deps.workspace_isolation is not None:
+        deps.workspace_isolation.close()
 
     logger.info("Worker shutdown complete")
 

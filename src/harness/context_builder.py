@@ -20,10 +20,10 @@ prompt 拼接顺序（_build_system_prompt）：
 可通过编辑 YAML 文件实时调整，无需改代码。
 """
 import logging
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from common.types import Event, EventType, ChannelType
 from common.token_counter import estimate_tokens
+from common.types import ChannelType, Event, EventType
 from harness.prompts import PromptLoader
 
 logger = logging.getLogger(__name__)
@@ -71,6 +71,7 @@ class HarnessContextBuilder:
         channel_type: Optional[ChannelType] = None,
         recalled_memories: str = "",
         *,
+        interaction_profile: str = "",
         token_budget: int = 0,
         generation_headroom: int = 4000,
         in_session_summary: str = "",
@@ -89,7 +90,8 @@ class HarnessContextBuilder:
         Args:
             events:             历史事件列表。
             max_turns:          最多保留对话轮次（token_budget=0 时生效）。
-            channel_type:       可选强制指定渠道。
+            channel_type:       可选强制指定渠道（legacy compatibility）。
+            interaction_profile: 显式交互风格；Web 使用 ``web_chat``，不负责路由。
             recalled_memories:  从 Hindsight 召回的格式化记忆文本。
             token_budget:       上下文总 token 预算（0=关闭 token 感知）。
             generation_headroom: 留给模型输出的 token 空间。
@@ -113,8 +115,10 @@ class HarnessContextBuilder:
                 + ("\n\n" + extra_context if extra_context else "")
             )
 
+        profile_channel = self._channel_for_profile(interaction_profile)
+        effective_channel = profile_channel or channel_type
         system_content = self._build_system_prompt(
-            events, channel_type, recalled_memories,
+            events, effective_channel, recalled_memories,
             in_session_summary=in_session_summary,
             extra_context=extra_context,
             remaining_turns=remaining_turns,
@@ -176,6 +180,16 @@ class HarnessContextBuilder:
                 messages.append({"role": "user", "content": self._extract_tool_result(event)})
 
         return messages
+
+    @staticmethod
+    def _channel_for_profile(profile: str) -> Optional[ChannelType]:
+        """Compatibility mapping while profiles replace channel-based prompt selection."""
+        return {
+            "web_chat": ChannelType.WEB,
+            "qq_private": ChannelType.NAPCAT,
+            "qq_group": ChannelType.NAPCAT,
+            "console": ChannelType.CONSOLE,
+        }.get(profile)
 
     # ── 渠道检测 ──────────────────────────────────────────────────────────
 

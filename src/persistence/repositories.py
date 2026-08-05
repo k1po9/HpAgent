@@ -53,6 +53,18 @@ class ConversationRepository:
 
 
 class MessageRepository:
+    def context_messages(
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, watermark: int
+    ) -> list[dict[str, Any]]:
+        """Load the frozen, model-visible Web history for exactly one Conversation."""
+        return list(uow.execute(
+            "SELECT message_id,role,status,content,sequence FROM messages "
+            "WHERE account_id=%s AND conversation_id=%s AND sequence<=%s "
+            "AND ((role='user' AND status='accepted') OR "
+            "(role='assistant' AND status='completed')) ORDER BY sequence",
+            (account_id, conversation_id, watermark),
+        ).fetchall())
+
     def find_initial_by_client_request(
         self, uow: UnitOfWork, account_id: UUID, client_request_id: UUID
     ):
@@ -107,10 +119,26 @@ class RunRepository:
         ).fetchone())
 
     def context_messages(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, watermark: int) -> list[dict[str, Any]]:
-        return list(uow.execute(
-            "SELECT message_id,role,status,content,sequence FROM messages WHERE account_id=%s AND conversation_id=%s AND sequence<=%s AND ((role='user' AND status='accepted') OR (role='assistant' AND status='completed')) ORDER BY sequence",
-            (account_id, conversation_id, watermark),
-        ).fetchall())
+        """Compatibility alias; new Web context code uses MessageRepository."""
+        return MessageRepository().context_messages(uow, account_id, conversation_id, watermark)
+
+    def context_subject(
+        self, uow: UnitOfWork, account_id: UUID, run_id: UUID
+    ) -> dict[str, Any] | None:
+        """Load the complete owned Run/Session/Conversation chain for Context assembly."""
+        return cast(dict[str, Any] | None, uow.execute(
+            "SELECT r.run_id,r.account_id,r.conversation_id,r.session_id,"
+            "r.trigger_message_id,r.context_message_seq,r.status AS run_status,"
+            "s.status AS session_status,s.workspace_ref,"
+            "t.role AS trigger_role,t.status AS trigger_status,t.content AS trigger_content "
+            "FROM runs r JOIN conversations c ON c.account_id=r.account_id "
+            "AND c.conversation_id=r.conversation_id JOIN sessions s "
+            "ON s.account_id=r.account_id AND s.conversation_id=r.conversation_id "
+            "AND s.session_id=r.session_id JOIN messages t ON t.account_id=r.account_id "
+            "AND t.conversation_id=r.conversation_id AND t.message_id=r.trigger_message_id "
+            "WHERE r.account_id=%s AND r.run_id=%s",
+            (account_id, run_id),
+        ).fetchone())
 
     def discover_conversation(
         self, uow: UnitOfWork, account_id: UUID, run_id: UUID
@@ -169,14 +197,26 @@ class RunRepository:
 
 
 class SessionRepository:
+    def get_active(
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID
+    ) -> dict[str, Any] | None:
+        """Return the sole active Web session for an already-owned conversation."""
+        return cast(dict[str, Any] | None, uow.execute(
+            "SELECT * FROM sessions WHERE account_id=%s AND conversation_id=%s "
+            "AND status='active'",
+            (account_id, conversation_id),
+        ).fetchone())
+
     def get_or_create_active(
         self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, session_id: UUID
     ) -> UUID:
-        row = uow.execute(
-            "SELECT session_id FROM sessions WHERE account_id=%s AND conversation_id=%s "
-            "AND status='active'",
-            (account_id, conversation_id),
-        ).fetchone()
+        """Get or create an active session after the caller locked Conversation.
+
+        The Conversation row is the transaction serialization point.  This keeps
+        the database partial unique index as the final invariant while avoiding a
+        check-then-insert race for normal send/retry commands.
+        """
+        row = self.get_active(uow, account_id, conversation_id)
         if row:
             return cast(UUID, row["session_id"])
         sequence = uow.execute(
@@ -185,9 +225,39 @@ class SessionRepository:
             (account_id, conversation_id),
         ).fetchone()["sequence"]
         uow.execute(
-            "INSERT INTO sessions(session_id,account_id,conversation_id,sequence) "
-            "VALUES (%s,%s,%s,%s)",
+            "INSERT INTO sessions(session_id,account_id,conversation_id,sequence,workspace_ref) "
+            "VALUES (%s,%s,%s,%s,'account_repo')",
             (session_id, account_id, conversation_id, sequence),
+        )
+        return session_id
+
+    def transition_active(
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
+        session_id: UUID, status: str,
+    ) -> bool:
+        """Leave the active state without ever touching a different conversation."""
+        row = uow.execute(
+            "UPDATE sessions SET status=%s,archived_at=CASE WHEN %s='archived' "
+            "THEN now() ELSE archived_at END,updated_at=now(),version=version+1 "
+            "WHERE account_id=%s AND conversation_id=%s AND session_id=%s "
+            "AND status='active' RETURNING session_id",
+            (status, status, account_id, conversation_id, session_id),
+        ).fetchone()
+        return row is not None
+
+    def create_successor(
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
+        predecessor_session_id: UUID, session_id: UUID,
+    ) -> UUID:
+        sequence = uow.execute(
+            "SELECT COALESCE(max(sequence),0)+1 AS sequence FROM sessions "
+            "WHERE account_id=%s AND conversation_id=%s",
+            (account_id, conversation_id),
+        ).fetchone()["sequence"]
+        uow.execute(
+            "INSERT INTO sessions(session_id,account_id,conversation_id,sequence,"
+            "predecessor_session_id,workspace_ref) VALUES (%s,%s,%s,%s,%s,'account_repo')",
+            (session_id, account_id, conversation_id, sequence, predecessor_session_id),
         )
         return session_id
 

@@ -60,6 +60,7 @@ services:
       - TEMPORAL_HOST=temporal:7233
       - HINDSIGHT_URL=http://hindsight:8888
       - WORKSPACE_ROOT=/app/.data/workspace
+      - WORKSPACE_ISOLATION_MODE=${WORKSPACE_ISOLATION_MODE:-single_process_account_lock}
       - REDIS_URL=redis://redis:6379
       # ── SiliconFlow（Embedding / Rerank / Fast 模型） ──
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}

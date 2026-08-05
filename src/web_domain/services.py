@@ -30,6 +30,7 @@ from .errors import (
     RunNotCancellable,
     RunNotRetryable,
 )
+from .sessions import ConversationSessionService
 
 
 def _id() -> UUID:
@@ -68,6 +69,7 @@ class CommandService:
         self.messages = MessageRepository()
         self.runs = RunRepository()
         self.sessions = SessionRepository()
+        self.session_service = ConversationSessionService(database_url)
         self.workflows = WorkflowExecutionRepository()
         self.idempotency = IdempotencyRepository()
         self.outbox = OutboxRepository()
@@ -113,8 +115,8 @@ class CommandService:
                 return CommandResult(202, result)
             if self.runs.has_active(uow, conversation_id):
                 raise ConversationBusy()
-            session_id = self.sessions.get_or_create_active(
-                uow, account_id, conversation_id, _id()
+            session_id = self.session_service.get_or_create_in_locked_conversation(
+                uow, account_id, conversation_id
             )
             allocated = self.conversations.allocate_messages(
                 uow, account_id, conversation_id, 2
@@ -210,8 +212,8 @@ class CommandService:
                     raise ResourceNotFound()
                 if self.runs.has_active(uow, source["conversation_id"]):
                     raise ConversationBusy()
-                session_id = self.sessions.get_or_create_active(
-                    uow, account_id, source["conversation_id"], _id()
+                session_id = self.session_service.get_or_create_in_locked_conversation(
+                    uow, account_id, source["conversation_id"]
                 )
                 sequence = self.conversations.allocate_messages(
                     uow, account_id, source["conversation_id"], 1

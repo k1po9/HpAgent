@@ -30,6 +30,12 @@ def test_fake_executor_is_rejected_in_production():
         _settings(environment="production", fake_executor_enabled=True)
 
 
+def test_real_web_agent_feature_flag_defaults_to_off(monkeypatch):
+    monkeypatch.delenv("WEB_REAL_AGENT_ENABLED", raising=False)
+    monkeypatch.setenv("APP_DATABASE_URL", "postgresql://unused")
+    assert WebApiSettings.from_env().real_agent_enabled is False
+
+
 def test_production_rejects_short_secrets():
     with pytest.raises(ValueError, match="32 bytes"):
         _settings(environment="production", csrf_signing_key=b"short")
