@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test test-existing test-db migrate db-up db-down ci
+.PHONY: install lint typecheck test test-existing test-db test-api migrate db-up db-down ci
 
 MIGRATION_DATABASE_URL ?= postgresql://hpagent_migrate:hpagent_migrate@localhost:5434/hpagent
 APP_DATABASE_URL ?= postgresql://hpagent_api:hpagent_api@localhost:5434/hpagent
@@ -9,7 +9,7 @@ install:
 	$(PYTHON) -m pip install -r requirements-dev.txt
 
 lint:
-	$(PYTHON) -m ruff check src/web_domain src/persistence test/web_persistence
+	$(PYTHON) -m ruff check src/web_domain src/persistence src/web_api test/web_persistence test/web_api
 
 typecheck:
 	$(PYTHON) -m mypy
@@ -23,6 +23,9 @@ test-existing:
 test-db:
 	PYTHONPATH=src MIGRATION_DATABASE_URL=$(MIGRATION_DATABASE_URL) APP_DATABASE_URL=$(APP_DATABASE_URL) WORKER_DATABASE_URL=$(WORKER_DATABASE_URL) $(PYTHON) -m pytest -m postgres test/web_persistence
 
+test-api:
+	PYTHONPATH=src MIGRATION_DATABASE_URL=$(MIGRATION_DATABASE_URL) APP_DATABASE_URL=$(APP_DATABASE_URL) WORKER_DATABASE_URL=$(WORKER_DATABASE_URL) $(PYTHON) -m pytest -m postgres test/web_api
+
 migrate:
 	PYTHONPATH=src APP_DATABASE_URL=$(MIGRATION_DATABASE_URL) $(PYTHON) -m persistence.migrate
 
@@ -32,4 +35,4 @@ db-up:
 db-down:
 	docker compose stop app-postgres
 
-ci: lint typecheck test-existing test-db
+ci: lint typecheck test-existing test-db test-api

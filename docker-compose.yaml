@@ -20,6 +20,30 @@ services:
     networks:
       - app-network
 
+  hpagent-api:
+    profiles: ["web"]
+    build:
+      context: .
+      dockerfile: src/Dockerfile.web-api
+    environment:
+      TZ: UTC
+      HPAGENT_ENV: ${HPAGENT_ENV:-development}
+      APP_DATABASE_URL: postgresql://hpagent_api:${HPAGENT_API_PASSWORD:-hpagent_api}@app-postgres:5432/hpagent
+      WEB_PUBLIC_ORIGIN: ${WEB_PUBLIC_ORIGIN:-https://localhost}
+      WEB_CURSOR_ACTIVE_KEY_ID: ${WEB_CURSOR_ACTIVE_KEY_ID:-v1}
+      WEB_CURSOR_SECRET: ${WEB_CURSOR_SECRET:-development-cursor-secret}
+      WEB_SESSION_TOKEN_PEPPER: ${WEB_SESSION_TOKEN_PEPPER:-development-session-token-pepper}
+      WEB_CSRF_SIGNING_KEY: ${WEB_CSRF_SIGNING_KEY:-development-csrf-key}
+      WEB_CREDENTIALS_JSON: ${WEB_CREDENTIALS_JSON:-{}}
+      WEB_FAKE_EXECUTOR_ENABLED: "false"
+    ports:
+      - "8080:8080"
+    depends_on:
+      app-postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
   # ==================== HpAgent 主服务 ====================
   hpagent:
     build: ./src

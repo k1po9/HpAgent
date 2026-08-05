@@ -76,3 +76,44 @@ jobs:
         with:
           name: phase-a-test-results
           path: test-results/
+
+  phase-b-api-contract-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hpagent_migrate
+          POSTGRES_PASSWORD: hpagent_migrate
+          POSTGRES_DB: hpagent
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U hpagent_migrate -d hpagent"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      MIGRATION_DATABASE_URL: postgresql://hpagent_migrate:hpagent_migrate@localhost:5432/hpagent
+      APP_DATABASE_URL: postgresql://hpagent_api:hpagent_api@localhost:5432/hpagent
+      WORKER_DATABASE_URL: postgresql://hpagent_worker:hpagent_worker@localhost:5432/hpagent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Empty database migration
+        run: PYTHONPATH=src APP_DATABASE_URL=$MIGRATION_DATABASE_URL python -m persistence.migrate
+      - name: Configure runtime role passwords
+        env:
+          PGPASSWORD: hpagent_migrate
+        run: |
+          psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_api PASSWORD 'hpagent_api'"
+          psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_worker PASSWORD 'hpagent_worker'"
+      - name: Phase B API contract suite
+        run: PYTHONPATH=src python -m pytest -m postgres test/web_api --junitxml=test-results/phase-b.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-b-test-results
+          path: test-results/

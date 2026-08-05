@@ -29,7 +29,7 @@ def _safe_error(value: str, limit: int) -> str:
 class OutboxService:
     """Database-only Outbox lifecycle; external effects happen after claim commits."""
 
-    def __init__(self, database_url: str):
+    def __init__(self, database_url: object):
         self.database_url = database_url
         self.repository = OutboxRepository()
         self.conversations = ConversationRepository()

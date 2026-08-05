@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
@@ -28,6 +28,7 @@ from .errors import (
     IdempotencyConflict,
     ResourceNotFound,
     RunNotCancellable,
+    RunNotRetryable,
 )
 
 
@@ -46,6 +47,8 @@ class CommandResult(Mapping[str, Any]):
 
     response_status: int
     body: dict[str, Any]
+    replayed: bool = field(default=False, compare=False)
+    resource_reused: bool = field(default=False, compare=False)
 
     def __getitem__(self, key: str) -> Any:
         return self.body[key]
@@ -58,7 +61,7 @@ class CommandResult(Mapping[str, Any]):
 
 
 class CommandService:
-    def __init__(self, database_url: str):
+    def __init__(self, database_url: object):
         self.database_url = database_url
         self.accounts = AccountRepository()
         self.conversations = ConversationRepository()
@@ -80,7 +83,14 @@ class CommandService:
                 raise ResourceNotFound()
             conversation_id = _id()
             self.conversations.create(uow, conversation_id, account_id, title)
-            result = {"conversation_id": str(conversation_id)}
+            row = uow.execute(
+                "SELECT * FROM conversations WHERE account_id=%s AND conversation_id=%s",
+                (account_id, conversation_id),
+            ).fetchone()
+            result = {
+                "conversation_id": str(conversation_id),
+                "conversation": self._conversation_dto(row),
+            }
             self._complete(uow, account_id, "create_conversation", key, 201, result)
             return CommandResult(201, result)
 
@@ -98,13 +108,7 @@ class CommandService:
             if retained:
                 if retained["conversation_id"] != conversation_id or retained["content"] != content:
                     raise IdempotencyConflict()
-                result = self._send_result(
-                    retained["message_id"], retained["user_sequence"],
-                    retained["assistant_message_id"], retained["assistant_sequence"],
-                    "pending", retained["run_id"],
-                    "queued", retained["trigger_message_id"],
-                    retained["session_id"]
-                )
+                result = self._send_result_for_run(uow, retained["run_id"])
                 self._complete(uow, account_id, "send_message", key, 202, result)
                 return CommandResult(202, result)
             if self.runs.has_active(uow, conversation_id):
@@ -129,10 +133,7 @@ class CommandService:
                 uow, assistant_message_id, account_id, conversation_id, allocated, run_id
             )
             self._outbox(uow, account_id, conversation_id, run_id, "start_run")
-            result = self._send_result(
-                user_message_id, allocated - 1, assistant_message_id, allocated,
-                "pending", run_id, "queued", user_message_id, session_id
-            )
+            result = self._send_result_for_run(uow, run_id)
             self._complete(uow, account_id, "send_message", key, 202, result)
             return CommandResult(202, result)
 
@@ -160,18 +161,21 @@ class CommandService:
             if run["status"] in ("completed", "failed"):
                 raise RunNotCancellable()
             if run["status"] == "cancelled":
-                result = {"run_id": str(run_id), "status": run["status"]}
+                result = self._snapshot_for_run(uow, run_id)
+                result.update({"run_id": str(run_id), "status": "cancelled"})
                 response_status = 200
             elif run["status"] == "queued" and not self.workflows.has_current(uow, run_id):
                 self._set_terminal(
                     uow, account_id, run["conversation_id"], run_id, "cancelled"
                 )
-                result = {"run_id": str(run_id), "status": "cancelled"}
+                result = self._snapshot_for_run(uow, run_id)
+                result.update({"run_id": str(run_id), "status": "cancelled"})
                 response_status = 200
             else:
                 self.runs.set_cancelling(uow, run_id)
                 self._outbox(uow, account_id, run["conversation_id"], run_id, "cancel_run")
-                result = {"run_id": str(run_id), "status": "cancelling"}
+                result = self._snapshot_for_run(uow, run_id)
+                result.update({"run_id": str(run_id), "status": "cancelling"})
                 response_status = 202
             self._complete(
                 uow, account_id, "cancel_run", key, response_status, result
@@ -196,15 +200,12 @@ class CommandService:
                 raise ResourceNotFound()
             child = self.runs.direct_retry(uow, source_run_id)
             if child:
-                result = self._retry_result(
-                    source_run_id, child["run_id"], child["status"],
-                    child["assistant_message_id"], child["assistant_sequence"],
-                    child["assistant_status"]
-                )
+                result = self._retry_result_for_run(uow, source_run_id, child["run_id"])
                 response_status = 200
+                resource_reused = True
             else:
                 if source["status"] not in ("failed", "cancelled"):
-                    raise ConversationBusy()
+                    raise RunNotRetryable()
                 if conversation is None or conversation["status"] != "active":
                     raise ResourceNotFound()
                 if self.runs.has_active(uow, source["conversation_id"]):
@@ -227,15 +228,31 @@ class CommandService:
                     sequence, run_id
                 )
                 self._outbox(uow, account_id, source["conversation_id"], run_id, "start_run")
-                result = self._retry_result(
-                    source_run_id, run_id, "queued", assistant_message_id,
-                    sequence, "pending"
-                )
+                result = self._retry_result_for_run(uow, source_run_id, run_id)
                 response_status = 202
+                resource_reused = False
             self._complete(
                 uow, account_id, "retry_run", key, response_status, result
             )
-            return CommandResult(response_status, result)
+            return CommandResult(
+                response_status, result, resource_reused=resource_reused
+            )
+
+    @retryable_transaction
+    def start_run(self, account_id: UUID, run_id: UUID) -> bool:
+        """Move a queued Run to running through the formal lifecycle boundary."""
+        with UnitOfWork(self.database_url) as uow:
+            run = self._lock_owned_run(uow, account_id, run_id)
+            if run["status"] == "running":
+                return True
+            if run["status"] != "queued":
+                return False
+            changed = uow.execute(
+                "UPDATE runs SET status='running',started_at=now(),version=version+1,"
+                "updated_at=now() WHERE run_id=%s AND status='queued' RETURNING run_id",
+                (run_id,),
+            ).fetchone()
+            return changed is not None
 
     @retryable_transaction
     def complete_run(self, account_id: UUID, run_id: UUID, content: str) -> bool:
@@ -294,7 +311,10 @@ class CommandService:
             raise IdempotencyConflict()
         if row["status"] == "completed":
             return CommandResult(
-                int(row["response_status"]), cast(dict[str, Any], row["response_body"])
+                int(row["response_status"]),
+                cast(dict[str, Any], row["response_body"]),
+                replayed=True,
+                resource_reused=(operation == "retry_run" and int(row["response_status"]) == 200),
             )
         raise ConversationBusy()
 
@@ -306,48 +326,85 @@ class CommandService:
             uow, account_id, operation, key, response_status, json.dumps(result)
         )
 
-    @staticmethod
-    def _send_result(
-        user_message_id: UUID, user_sequence: int, assistant_message_id: UUID,
-        assistant_sequence: int, assistant_status: str, run_id: UUID,
-        run_status: str, trigger_message_id: UUID, session_id: UUID
-    ) -> dict[str, Any]:
+    def _send_result_for_run(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
+        snapshot = self._snapshot_for_run(uow, run_id)
+        user = uow.execute(
+            "SELECT m.* FROM messages m JOIN runs r ON r.trigger_message_id=m.message_id "
+            "WHERE r.run_id=%s", (run_id,)
+        ).fetchone()
+        run = snapshot["run"]
         return {
-            "message_id": str(user_message_id),
+            "message_id": user and str(user["message_id"]),
             "run_id": str(run_id),
-            "session_id": str(session_id),
-            "user_message": {
-                "message_id": str(user_message_id), "role": "user",
-                "status": "accepted", "sequence": user_sequence,
-            },
-            "assistant_message": {
-                "message_id": str(assistant_message_id), "role": "assistant",
-                "status": assistant_status, "sequence": assistant_sequence,
-            },
-            "run": {
-                "run_id": str(run_id), "status": run_status,
-                "trigger_message_id": str(trigger_message_id),
-            },
+            "session_id": run["session_id"],
+            "user_message": self._message_dto(user),
+            "assistant_message": snapshot["assistant_message"],
+            "run": run,
+            "events_url": f"/api/v1/runs/{run_id}/events",
         }
 
-    @staticmethod
-    def _retry_result(
-        source_run_id: UUID, run_id: UUID, run_status: str,
-        assistant_message_id: UUID, assistant_sequence: int,
-        assistant_status: str
+    def _retry_result_for_run(
+        self, uow: UnitOfWork, source_run_id: UUID, run_id: UUID
     ) -> dict[str, Any]:
+        snapshot = self._snapshot_for_run(uow, run_id)
         return {
             "run_id": str(run_id),
             "source_run_id": str(source_run_id),
             "retry_of_run_id": str(source_run_id),
-            "assistant_message": {
-                "message_id": str(assistant_message_id), "role": "assistant",
-                "status": assistant_status, "sequence": assistant_sequence,
-            },
-            "run": {
-                "run_id": str(run_id), "status": run_status,
-                "retry_of_run_id": str(source_run_id),
-            },
+            "assistant_message": snapshot["assistant_message"],
+            "run": snapshot["run"],
+            "events_url": f"/api/v1/runs/{run_id}/events",
+        }
+
+    def _snapshot_for_run(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
+        run = uow.execute("SELECT * FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+        message = uow.execute(
+            "SELECT * FROM messages WHERE produced_by_run_id=%s", (run_id,)
+        ).fetchone()
+        return {"run": self._run_dto(run), "assistant_message": self._message_dto(message)}
+
+    @staticmethod
+    def _timestamp(value: datetime | None) -> str | None:
+        return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z") if value else None
+
+    @classmethod
+    def _conversation_dto(cls, row: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            "conversation_id": str(row["conversation_id"]), "title": row["title"],
+            "status": row["status"], "last_message_seq": row["last_message_seq"],
+            "metadata_version": row["metadata_version"],
+            "created_at": cls._timestamp(row["created_at"]),
+            "updated_at": cls._timestamp(row["updated_at"]),
+        }
+
+    @classmethod
+    def _message_dto(cls, row: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            "message_id": str(row["message_id"]),
+            "conversation_id": str(row["conversation_id"]), "role": row["role"],
+            "status": row["status"], "content": row["content"],
+            "sequence": row["sequence"],
+            "client_request_id": str(row["client_request_id"]) if row["client_request_id"] else None,
+            "produced_by_run_id": str(row["produced_by_run_id"]) if row["produced_by_run_id"] else None,
+            "created_at": cls._timestamp(row["created_at"]),
+            "completed_at": cls._timestamp(row["completed_at"]),
+        }
+
+    @classmethod
+    def _run_dto(cls, row: Mapping[str, Any]) -> dict[str, Any]:
+        failure = None
+        if row["status"] == "failed":
+            failure = {"code": row["failure_code"], "message": row["failure_message"] or "Agent 暂时无法完成本次请求，请稍后重试。", "retryable": True}
+        return {
+            "run_id": str(row["run_id"]), "conversation_id": str(row["conversation_id"]),
+            "session_id": str(row["session_id"]),
+            "trigger_message_id": str(row["trigger_message_id"]),
+            "retry_of_run_id": str(row["retry_of_run_id"]) if row["retry_of_run_id"] else None,
+            "status": row["status"], "failure": failure, "version": row["version"],
+            "created_at": cls._timestamp(row["created_at"]),
+            "started_at": cls._timestamp(row["started_at"]),
+            "finished_at": cls._timestamp(row["finished_at"]),
+            "updated_at": cls._timestamp(row["updated_at"]),
         }
 
     def _outbox(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, run_id: UUID, event_type: str, terminal_status: str | None = None) -> None:

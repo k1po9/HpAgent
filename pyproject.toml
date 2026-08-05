@@ -15,7 +15,7 @@ select = ["F", "I"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src/web_domain", "src/persistence"]
+files = ["src/web_domain", "src/persistence", "src/web_api"]
 check_untyped_defs = true
 warn_return_any = true
 warn_unused_ignores = true

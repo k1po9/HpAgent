@@ -33,13 +33,27 @@ def retryable_transaction(
 class UnitOfWork(AbstractContextManager["UnitOfWork"]):
     """Owns one short DB transaction; callers must not invoke external services in it."""
 
-    def __init__(self, database_url: str):
-        self.connection = psycopg.connect(database_url, row_factory=psycopg.rows.dict_row)
+    def __init__(self, database: Any):
+        self._pooled_context: Any | None = None
+        if isinstance(database, str):
+            self.connection = psycopg.connect(
+                database, row_factory=psycopg.rows.dict_row
+            )
+        else:
+            self._pooled_context = database.connection()
+            self.connection = self._pooled_context.__enter__()
         try:
             self.connection.execute("SET search_path TO hpagent, public")
         except Exception:
-            self.connection.close()
+            self._release()
             raise
+
+    def _release(self) -> None:
+        if self._pooled_context is not None:
+            self._pooled_context.__exit__(None, None, None)
+            self._pooled_context = None
+        else:
+            self.connection.close()
 
     def execute(self, query: str, params: tuple[Any, ...] = ()) -> Any:
         return self.connection.execute(query, params)
@@ -53,7 +67,7 @@ class UnitOfWork(AbstractContextManager["UnitOfWork"]):
                 pass
             finally:
                 try:
-                    self.connection.close()
+                    self._release()
                 except Exception:
                     pass
             return
@@ -66,8 +80,8 @@ class UnitOfWork(AbstractContextManager["UnitOfWork"]):
             except Exception:
                 pass
             try:
-                self.connection.close()
+                self._release()
             except Exception:
                 pass
             raise
-        self.connection.close()
+        self._release()

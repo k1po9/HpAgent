@@ -20,3 +20,16 @@ class OutboxLeaseLost(DomainError):
 
 class RunNotCancellable(DomainError):
     pass
+
+
+class RunNotRetryable(DomainError):
+    pass
+
+
+class VersionConflict(DomainError):
+    def __init__(self, current_version: int):
+        self.current_version = current_version
+
+
+class PreconditionRequired(DomainError):
+    pass
