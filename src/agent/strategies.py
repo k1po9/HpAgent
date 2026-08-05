@@ -33,6 +33,13 @@ from .types import (
 
 logger = logging.getLogger(__name__)
 
+
+def _response_content(response: Any) -> str:
+    """Accept legacy string mocks and current ModelResponse objects."""
+    if isinstance(response, str):
+        return response
+    return getattr(response, "content", None) or ""
+
 # ── LLM Call Protocol ──────────────────────────────────────────────────────────
 
 CallLLM = Callable[[list[dict], list[dict] | None], Awaitable[Any]]
@@ -369,7 +376,7 @@ class StubLLMPlanner(LLMPlanner):
         self._task_map = task_map or {}
 
     async def plan(
-        self, goal: str, context: ExecutionContext
+        self, goal: str, context: ExecutionContext, agent_tags: set[str] | None = None
     ) -> tuple[list[Task], dict[str, list[str]]]:
         if goal in self._task_map:
             return self._task_map[goal]
@@ -513,7 +520,7 @@ class RealLLMPlanner(LLMPlanner):
             return self._tasks_from_tool_calls(tool_calls, goal)
 
         # Fallback: 从文字回答中解析
-        content = getattr(response, "content", None)
+        content = _response_content(response)
         if content:
             try:
                 data = self._parse_json_response(content)
@@ -655,7 +662,7 @@ class RealLLMReviewer(LLMReviewer):
 
         try:
             response = await self._call_llm(messages, None)
-            data = self._parse_response(response.content or "")
+            data = self._parse_response(_response_content(response))
         except Exception as exc:
             logger.warning("LLM reviewer failed: %s, assuming done", exc)
             return True, None
@@ -739,7 +746,7 @@ class RealLLMJudge(LLMJudge):
 
         try:
             response = await self._call_llm(messages, None)
-            data = self._parse_response(response.content or "")
+            data = self._parse_response(_response_content(response))
         except Exception as exc:
             logger.warning("LLM judge failed: %s, falling back to majority", exc)
             return await MajorityJudge().judge(results, context)
@@ -776,15 +783,19 @@ class SupervisorControlStrategy(ControlStrategy):
         self,
         planner: LLMPlanner,
         reviewer: LLMReviewer | None = None,
+        agent_tags: set[str] | None = None,
     ) -> None:
         self._planner = planner
         self._reviewer = reviewer
+        self._agent_tags = agent_tags
 
     async def initialize_plan(
         self, goal: str, context: ExecutionContext, agent_tags: set[str] | None = None
     ) -> ExecutionPlan:
         """调用LLMPlanner进行任务规划."""
-        tasks_list, deps = await self._planner.plan(goal, context, agent_tags)
+        tasks_list, deps = await self._planner.plan(
+            goal, context, agent_tags or self._agent_tags
+        )
         tasks = {t.task_id: t for t in tasks_list}
         return ExecutionPlan(tasks=tasks, dependencies=deps)
 

@@ -15,7 +15,6 @@ from typing import Any, Optional
 from resources.resource_pool import ResourcePool
 
 from .bus import InMemoryMessageBus
-from .context import ExecutionContext
 from .interfaces import BaseAgent
 from .orchestrator import Orchestrator
 from .registry import InMemoryAgentRegistry
@@ -23,8 +22,6 @@ from .strategies import (
     CallLLM,
     CouncilControlStrategy,
     LLMJudge,
-    LLMPlanner,
-    LLMReviewer,
     MajorityJudge,
     RealLLMJudge,
     RealLLMPlanner,
@@ -34,8 +31,6 @@ from .strategies import (
 )
 from .types import (
     CapabilityRequirement,
-    CapabilitySpec,
-    ExecutionPlan,
     Task,
 )
 
@@ -67,12 +62,17 @@ class ResourcePoolAdapter:
     async def __call__(
         self, messages: list[dict], tools: list[dict] | None = None
     ) -> Any:
-        return await self._pool.generate(
+        response = await self._pool.generate(
             messages=messages,
             model_selector=self._model_selector,
             tools=tools,
             stream=False,
         )
+        # Tool-aware callers need the complete response. Text-only callers retain
+        # compatibility with the original CallLLM string protocol.
+        if tools:
+            return response
+        return getattr(response, "content", None) or ""
 
 
 def build_supervisor(

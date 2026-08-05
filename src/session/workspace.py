@@ -32,14 +32,16 @@ logger = logging.getLogger("HpAgent.SessionWorkspace")
 DIR_SKILLS = "skills"
 DIR_SESSIONS = "sessions"
 DIR_REPO = "repo"
+DIR_LEGACY_PERSISTENT = "persistent"
 FILE_SESSION_META = "meta.yaml"
+FILE_LEGACY_SESSION_META = "session.yaml"
 FILE_SESSION_HISTORY = "history.jsonl"
 FILE_USER_PROFILE = "user_profile.yaml"
 
 
 def init_user(file_store, db: WorkspaceDB, user_uuid: str, username: str = "") -> None:
     """确保用户工作目录存在（幂等）。"""
-    for subdir in [DIR_SKILLS, DIR_SESSIONS, DIR_REPO]:
+    for subdir in [DIR_SKILLS, DIR_SESSIONS, DIR_REPO, DIR_LEGACY_PERSISTENT]:
         file_store.mkdir_sync(f"{user_uuid}/{subdir}")
 
     profile_rel = f"{user_uuid}/{FILE_USER_PROFILE}"
@@ -80,7 +82,7 @@ def init_session(
     file_store.mkdir_sync(session_rel)
 
     now = _now_iso()
-    _write_yaml(file_store, f"{session_rel}/{FILE_SESSION_META}", {
+    metadata = {
         "session_id": session_id,
         "user_uuid": user_uuid,
         "status": SessionStatus.ACTIVE.value,
@@ -91,7 +93,11 @@ def init_session(
         "tool_calls": 0,
         "created_at": now,
         "completed_at": "",
-    })
+    }
+    _write_yaml(file_store, f"{session_rel}/{FILE_SESSION_META}", metadata)
+    _write_yaml(file_store, f"{session_rel}/{FILE_LEGACY_SESSION_META}", metadata)
+    for subdir in ("input", "scratch", "output"):
+        file_store.mkdir_sync(f"{session_rel}/workspace/{subdir}")
 
     session = Session(
         session_id=session_id,
