@@ -9,3 +9,5 @@ chromadb>=1.0.0
 redis>=5.0.0
 python-dotenv>=1.0.0
 croniter>=2.0.0
+psycopg[binary]>=3.2,<4
+uuid6>=2024.7.10,<2026

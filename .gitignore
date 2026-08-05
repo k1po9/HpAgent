@@ -21,6 +21,7 @@ wheels/
 MANIFEST
 .pytest_cache/
 .coverage
+test-results/
 htmlcov/
 .env
 .env.example

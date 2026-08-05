@@ -1,4 +1,25 @@
 services:
+  # Web MVP 的领域真相；与 Temporal/Hindsight 私有数据库严格分离。
+  app-postgres:
+    image: postgres:16-alpine
+    environment:
+      TZ: UTC
+      POSTGRES_USER: hpagent_migrate
+      POSTGRES_PASSWORD: ${HPAGENT_MIGRATE_PASSWORD:-hpagent_migrate}
+      POSTGRES_DB: hpagent
+    ports:
+      - "5434:5432"
+    volumes:
+      - app-pgdata:/var/lib/postgresql/data
+      - ./persistence/docker-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hpagent_migrate -d hpagent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - app-network
+
   # ==================== HpAgent 主服务 ====================
   hpagent:
     build: ./src
@@ -303,6 +324,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  app-pgdata:
   temporal-pgdata:
   hindsight-pgdata:
   redis-data:
