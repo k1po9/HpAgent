@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -40,4 +42,12 @@ def test_web_api_import_does_not_load_agent_runtime():
         "assert not any(name == item or name.startswith(item + '.') "
         "for name in sys.modules for item in forbidden)"
     )
-    subprocess.run([sys.executable, "-c", code], check=True)
+    env = os.environ.copy()
+    source_root = Path(__file__).resolve().parents[2] / "src"
+    inherited_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        f"{source_root}{os.pathsep}{inherited_pythonpath}"
+        if inherited_pythonpath
+        else str(source_root)
+    )
+    subprocess.run([sys.executable, "-c", code], check=True, env=env)
