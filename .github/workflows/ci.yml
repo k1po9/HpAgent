@@ -207,6 +207,11 @@ jobs:
         run: |
           psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_api PASSWORD 'hpagent_api'"
           psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_worker PASSWORD 'hpagent_worker'"
+      - name: Phase D frozen Workflow History replay
+        run: >-
+          PYTHONPATH=.:src python -m pytest
+          test/test_web_temporal_replay.py
+          --junitxml=test-results/phase-d-replay.xml
       - name: Phase D real Temporal and fault-injection suite
         run: >-
           PYTHONPATH=.:src python -m pytest -s

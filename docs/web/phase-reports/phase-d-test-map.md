@@ -31,11 +31,56 @@
 | TD-023 | D-06 | `test_context_assembly.py::test_recall_failure_degrades_to_empty_memory` | contract |
 | TD-024 | D-06 | `test_context_assembly.py::test_cross_account_recall_is_a_safe_failure` | contract |
 
-## D-09 剩余强制门禁
+## D-09 固定旧 History 门禁（已完成）
 
-- 保留已捕获 Workflow History fixture；后续 Workflow 变更必须 replay 该旧 History。
+D-09 同时保留动态 replay 与固定 fixture replay 两层门禁：
 
-在上述剩余项完成前，本表不得作为“Phase D 已全部完成”的声明。
+- **动态 replay**：`test_web_temporal_integration.py::test_td_001_real_temporal_duplicate_start_executes_agent_once`
+  在真实 Execution 结束后立即抓取该次 History 并用当前代码 replay。作用：验证运行时抓取与
+  基本 replay 能力；由于 History 与代码同版本，它无法检测未来 Workflow 修改对旧 History 的破坏。
+- **固定 fixture replay**：`test_web_temporal_replay.py::test_web_run_workflow_replays_frozen_v1_completed_history`
+  在完全不连接 Temporal、PostgreSQL、不启动 Docker、不依赖 `TEMPORAL_HOST` 的前提下，用当前
+  `WebRunWorkflow` 代码 replay 仓库中冻结的旧 History，检测未来 Workflow 命令顺序/决策是否破坏
+  历史确定性。该测试不挂 `temporal`/`postgres` marker，属于离线单元门禁。
+
+固定 fixture：
+
+- 路径：`test/fixtures/temporal/web_run_workflow_v1_completed.json`
+- 来源：真实 Temporal Server 上完成的最小 happy-path `WebRunWorkflow` Execution，完整 History
+  （17 个事件），非仅 close event。
+- 捕获方式：`scripts/capture_web_workflow_history.py` 连接 `TEMPORAL_HOST`，注册 stub
+  activities，启动一次真实 Execution，`handle.fetch_history()` + `to_json()` 直接写入 fixture，
+  写盘后立即从磁盘重新读取并离线 replay 验证；目标文件已存在时默认拒绝覆盖，仅显式 `--force`
+  允许重捕。详细来源与更新规则见 `test/fixtures/temporal/README.md`。
+- 捕获基线：Git commit `e542ef5a2e079fa543d55a9b0ceade930f050f9c`，Temporal Server 1.26.2，
+  Temporal Python SDK 1.31.0，workflow_id `hpagent-web-run-a423e6b8-17b8-4446-8ed2-873152ae8329`。
+
+CI 门禁：
+
+- `phase-d-temporal-fault-gate` job 在真实 Temporal 套件之前新增 step：
+  `Phase D frozen Workflow History replay`，运行
+  `PYTHONPATH=.:src python -m pytest test/test_web_temporal_replay.py --junitxml=test-results/phase-d-replay.xml`。
+  该 step 无 `continue-on-error`、无 flaky retry，replay 失败即 CI 失败；CI 从不生成或刷新 fixture；
+  JUnit 输出独立为 `phase-d-replay.xml`，不覆盖 `phase-d.xml`。该离线测试同时被
+  `existing-unit-tests`（`-m "not postgres" test`）自然收集执行。
+
+本地验证结果（与本表一致，非伪造）：
+
+```text
+env -u TEMPORAL_HOST PYTHONPATH=.:src python -m pytest -q test/test_web_temporal_replay.py
+结果：1 passed
+
+TEMPORAL_HOST=localhost:7233 ... python -m pytest -s \
+  test/test_web_temporal_integration.py test/web_persistence/test_web_temporal_e2e.py \
+  test/web_persistence/test_web_temporal_lifecycle.py test/test_web_temporal_replay.py
+结果：10 passed
+
+PYTHONPATH=.:src python -m pytest -m "not postgres" test
+结果：226 passed / 6 skipped（Temporal 集成无 TEMPORAL_HOST 跳过）/ 82 deselected
+```
+
+本表现在可以作为 Phase D 已全部完成的证据：TD-001～TD-024 均已映射到自动化证据，D-09 固定旧
+History 门禁已通过真实捕获、离线 replay 与 CI 接入完成。
 
 ## Agent/QQ 融合证据
 
