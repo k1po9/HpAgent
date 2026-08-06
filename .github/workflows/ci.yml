@@ -160,3 +160,62 @@ jobs:
         with:
           name: phase-c-test-results
           path: test-results/
+
+  phase-d-temporal-fault-gate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: hpagent_migrate
+          POSTGRES_PASSWORD: hpagent_migrate
+          POSTGRES_DB: hpagent
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U hpagent_migrate -d hpagent"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+      temporal:
+        image: temporalio/auto-setup:1.26.2
+        env:
+          DB: postgres12
+          DB_PORT: 5432
+          POSTGRES_USER: hpagent_migrate
+          POSTGRES_PWD: hpagent_migrate
+          POSTGRES_SEEDS: postgres
+        ports: [7233:7233]
+        options: >-
+          --health-cmd "tctl --address localhost:7233 cluster health"
+          --health-interval 10s --health-timeout 5s --health-retries 24
+    env:
+      TEMPORAL_HOST: localhost:7233
+      MIGRATION_DATABASE_URL: postgresql://hpagent_migrate:hpagent_migrate@localhost:5432/hpagent
+      APP_DATABASE_URL: postgresql://hpagent_api:hpagent_api@localhost:5432/hpagent
+      WORKER_DATABASE_URL: postgresql://hpagent_worker:hpagent_worker@localhost:5432/hpagent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Empty database migration
+        run: PYTHONPATH=src APP_DATABASE_URL=$MIGRATION_DATABASE_URL python -m persistence.migrate
+      - name: Configure runtime role passwords
+        env:
+          PGPASSWORD: hpagent_migrate
+        run: |
+          psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_api PASSWORD 'hpagent_api'"
+          psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_worker PASSWORD 'hpagent_worker'"
+      - name: Phase D real Temporal and fault-injection suite
+        run: >-
+          PYTHONPATH=.:src python -m pytest -s
+          test/test_web_temporal_integration.py
+          test/web_persistence/test_web_temporal_e2e.py
+          test/web_persistence/test_web_temporal_lifecycle.py
+          --junitxml=test-results/phase-d.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-d-test-results
+          path: test-results/

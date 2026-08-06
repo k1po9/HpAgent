@@ -14,7 +14,7 @@ Activity 清单:
 import json
 import logging
 import time
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from temporalio import activity
 
@@ -25,6 +25,8 @@ from harness.runner import TurnOrchestrator
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _turn_orchestrator: Optional[TurnOrchestrator] = None
+_qq_execution_host: Any = None
+_qq_execution_host_enabled = False
 
 
 def inject(turn_orchestrator: TurnOrchestrator) -> None:
@@ -34,6 +36,21 @@ def inject(turn_orchestrator: TurnOrchestrator) -> None:
     """
     global _turn_orchestrator
     _turn_orchestrator = turn_orchestrator
+
+
+def inject_qq_execution_host(host: Any, *, enabled: bool) -> None:
+    """Freeze the QQ implementation choice before any model/tool work begins."""
+    if enabled and host is None:
+        raise RuntimeError("QQ Execution Host feature flag has no Host")
+    global _qq_execution_host, _qq_execution_host_enabled
+    _qq_execution_host = host
+    _qq_execution_host_enabled = enabled
+
+
+def _orchestrator() -> TurnOrchestrator:
+    if _turn_orchestrator is None:
+        raise RuntimeError("TurnOrchestrator was not injected")
+    return _turn_orchestrator
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -57,8 +74,19 @@ async def process_turn_activity(user_message: Dict[str, Any]) -> Dict[str, Any]:
     sid = user_message.get("session_id", "?")
     t0 = time.monotonic()
     try:
-        result = await _turn_orchestrator.process_turn(user_message)
-        return result
+        if _qq_execution_host_enabled:
+            try:
+                workflow_id = activity.info().workflow_id
+            except RuntimeError:
+                workflow_id = f"direct-{sid}"
+            if not workflow_id:
+                raise RuntimeError("QQ Activity has no Workflow identity")
+            return cast(
+                Dict[str, Any],
+                await _qq_execution_host.execute(workflow_id, user_message),
+            )
+        result = await _orchestrator().process_turn(user_message)
+        return cast(Dict[str, Any], result)
     except Exception:
         elapsed_ms = (time.monotonic() - t0) * 1000
         _activity_logger.exception(
@@ -83,11 +111,14 @@ async def archive_session_activity(session_id: str) -> Dict[str, Any]:
     Returns:
         {"ok": bool, "task_summary": str, "tags": [...], "event_count": int}
     """
-    account_id = await _turn_orchestrator.get_session_account(session_id)
+    account_id = await _orchestrator().get_session_account(session_id)
     if not account_id:
         return {"ok": False, "error": f"Session not found: {session_id}"}
     try:
-        return await _turn_orchestrator.archive_session(session_id, account_id)
+        return cast(
+            Dict[str, Any],
+            await _orchestrator().archive_session(session_id, account_id),
+        )
     except Exception as e:
         logger = logging.getLogger("HpAgent.Activity")
         logger.exception("archive_session_activity FAILED sid=%s", session_id)
@@ -111,7 +142,7 @@ async def reflect_activity(account_id: str) -> Dict[str, Any]:
     Returns:
         {"insights": int}
     """
-    return await _turn_orchestrator.reflect(account_id)
+    return cast(Dict[str, Any], await _orchestrator().reflect(account_id))
 
 
 @activity.defn
@@ -130,7 +161,7 @@ async def reflect_batch_activity(account_ids: List[str]) -> Dict[str, Any]:
     results: Dict[str, int] = {}
     for aid in account_ids:
         try:
-            r = await _turn_orchestrator.reflect(aid)
+            r = await _orchestrator().reflect(aid)
             results[aid] = r.get("insights", 0)
         except Exception:
             results[aid] = -1
@@ -151,10 +182,10 @@ async def metrics_report_activity() -> Dict[str, Any]:
     Returns:
         HindsightMetrics.snapshot() 的完整指标快照。
     """
-    metrics = await _turn_orchestrator.get_metrics()
+    metrics = await _orchestrator().get_metrics()
     _metrics_logger = logging.getLogger("HpAgent.Metrics")
     _metrics_logger.info(
         "HindsightMetrics|%s",
         json.dumps(metrics, ensure_ascii=False, default=str),
     )
-    return metrics
+    return cast(Dict[str, Any], metrics)

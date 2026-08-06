@@ -8,13 +8,13 @@ Sandbox —— 模型"手"层：工具选择 + 安全执行 + 输出后处理 + 
   - 跨轮 hints 状态归属于 Sandbox（生命周期与 session 一致）
   - 审计信息以纯数据 dict 返回（不依赖 Harness 层的 Event 体系）
 """
-from typing import Dict, Any, List, Optional, Tuple
 import logging
 import time
 import uuid
+from typing import Any, Dict, List, Optional, Tuple
 
-from sandbox.tools.types import ToolResult
 from sandbox.tools.registry import ToolRegistry
+from sandbox.tools.types import ToolResult
 
 logger = logging.getLogger("HpAgent.Sandbox")
 
@@ -192,6 +192,9 @@ class Sandbox:
 
     def get_category(self, tool_name: str) -> Optional[str]:
         return self._registry.get_category(tool_name)
+
+    def get_tool_metadata(self, tool_name: str) -> dict:
+        return self._registry.get_metadata(tool_name)
 
     # ── 生命周期 ──────────────────────────────────────────────────────────
 

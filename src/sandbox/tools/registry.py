@@ -77,6 +77,10 @@ class ToolRegistry:
                 return "skill"
         return None
 
+    def get_metadata(self, name: str) -> dict:
+        tool = self.get(name)
+        return dict(getattr(tool, "metadata", {}) or {}) if tool else {}
+
     def list_all(self) -> List[BaseTool]:
         with self._lock:
             return (

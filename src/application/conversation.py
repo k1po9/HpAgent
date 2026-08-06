@@ -216,6 +216,7 @@ class ConversationService:
         account_id: str,
     ) -> dict:
         return {
+            "message_id": message.message_id,
             "content": message.content,
             "sender_id": message.sender_id,
             "channel_type": channel_type,

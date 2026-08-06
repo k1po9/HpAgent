@@ -18,7 +18,10 @@ import dataclasses
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
+
+if TYPE_CHECKING:
+    from resources.credentials import ModelEndpoint
 
 logger = logging.getLogger("HpAgent.Config")
 
@@ -185,6 +188,7 @@ class ModelsConfig:
             FileNotFoundError: 文件不存在。
         """
         import os as _os2
+
         import yaml
 
         config_file = Path(path)
@@ -295,7 +299,24 @@ class ModelsConfig:
 class TemporalConfig:
     """Temporal Server 连接配置。"""
     host: str = "localhost:7233"
+    # QQ legacy queue.  It must not be reused by WebRunWorkflow.
     task_queue: str = "hpagent-task-queue"
+    web_lifecycle_task_queue: str = "hpagent-web-lifecycle"
+    web_agent_task_queue: str = "hpagent-web-agent"
+    web_workflow_execution_timeout_seconds: int = 3000
+    web_prepare_schedule_to_close_seconds: int = 120
+    web_prepare_start_to_close_seconds: int = 15
+    web_agent_schedule_to_close_seconds: int = 2100
+    web_agent_start_to_close_seconds: int = 1800
+    web_agent_heartbeat_interval_seconds: int = 15
+    web_agent_heartbeat_timeout_seconds: int = 45
+    web_cancel_cleanup_timeout_seconds: int = 30
+    web_finalize_schedule_to_close_seconds: int = 300
+    web_finalize_start_to_close_seconds: int = 20
+    # C-07 is the release gate.  A checked-in default must never run Web's
+    # real Agent path merely because the Temporal workers are present.
+    web_real_agent_enabled: bool = False
+    web_real_agent_gate_version: str = ""
 
 
 @dataclass
@@ -436,6 +457,9 @@ class AgentConfig:
     tool_result_summary_max_chars: int = 1000           # 摘要最大字符数（注入 LLM 的）
     wal_enabled: bool = True             # 启用 WAL 预写日志
     inherit_context: bool = True         # 跨会话上下文继承
+    # D-05 migration flag. The legacy TurnOrchestrator remains the default
+    # until QQ characterization tests approve the shared Facade path.
+    qq_execution_host_enabled: bool = False
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Prompt 配置 —— 从 config/prompts/*.yaml 加载
@@ -592,6 +616,7 @@ class AppConfig:
             FileNotFoundError: 配置文件不存在。
         """
         import os as _os
+
         import yaml
 
         config_file = Path(path)
@@ -676,6 +701,16 @@ class AppConfig:
             self.temporal.host = environ["TEMPORAL_HOST"]
         if environ.get("TEMPORAL_TASK_QUEUE"):
             self.temporal.task_queue = environ["TEMPORAL_TASK_QUEUE"]
+        if environ.get("WEB_REAL_AGENT_ENABLED"):
+            self.temporal.web_real_agent_enabled = environ["WEB_REAL_AGENT_ENABLED"].lower() in (
+                "1", "true", "yes", "on"
+            )
+        if environ.get("WEB_REAL_AGENT_GATE_VERSION"):
+            self.temporal.web_real_agent_gate_version = environ["WEB_REAL_AGENT_GATE_VERSION"]
+        if environ.get("QQ_EXECUTION_HOST_ENABLED"):
+            self.agent.qq_execution_host_enabled = environ[
+                "QQ_EXECUTION_HOST_ENABLED"
+            ].lower() in ("1", "true", "yes", "on")
         if environ.get("HINDSIGHT_URL"):
             self.hindsight.base_url = environ["HINDSIGHT_URL"]
         if environ.get("WORKSPACE_ROOT"):

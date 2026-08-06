@@ -18,46 +18,47 @@ import asyncio
 import dataclasses
 import logging
 import os
+from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Dict
 
 from temporalio.client import Client
-from temporalio.worker import Worker, UnsandboxedWorkflowRunner
+from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
-from orchestration.config import AppConfig, SandboxConfig
-from orchestration.scheduler import TaskScheduler
-from orchestration.workflow import OrchestrationWorkflow, ReflectWorkflow, MetricsReportWorkflow
-from harness.activities import (
-    inject,
-    process_turn_activity,
-    archive_session_activity,
-    reflect_activity,
-    reflect_batch_activity,
-    metrics_report_activity,
-)
-from harness.context_builder import HarnessContextBuilder
-from harness.prompts import PromptLoader
-from harness.runner import TurnOrchestrator
+from account.account_service import AccountService
 from actions.runtime import ActionRuntime
-from brain.engine import BrainEngine
 from application.conversation import ConversationService
 from application.ingress import MessageIngressService
 from application.memory import TurnMemoryService
 from application.reply import ReplyService
-from session.store import SessionStore
-from session.db import WorkspaceDB
-from storage.file_store import LocalFileStore
-from resources.resource_pool import ResourcePool
-from resources.credentials import CredentialManager, ModelEndpoint
-from sandbox.sandbox_manager import SandboxManager
-from sandbox.nsjail import NsjailConfig
-from sandbox.git_repo import GitRepoManager
-from workspace.isolation import WorkspaceIsolationRuntime
+from brain.engine import BrainEngine
 from channels.napcat import NapCatChannel
 from channels.official_qq import OfficialQQChannel
 from channels.router import ChannelRouter
-from account.account_service import AccountService
-from common.types import UnifiedMessage, ChannelType
+from common.types import ChannelType, UnifiedMessage
+from harness.activities import (
+    archive_session_activity,
+    inject,
+    metrics_report_activity,
+    process_turn_activity,
+    reflect_activity,
+    reflect_batch_activity,
+)
+from harness.context_builder import HarnessContextBuilder
+from harness.prompts import PromptLoader
+from harness.runner import TurnOrchestrator
+from orchestration.config import AppConfig, SandboxConfig
+from orchestration.scheduler import TaskScheduler
+from orchestration.workflow import MetricsReportWorkflow, OrchestrationWorkflow, ReflectWorkflow
+from resources.credentials import CredentialManager, ModelEndpoint
+from resources.resource_pool import ResourcePool
+from sandbox.git_repo import GitRepoManager
+from sandbox.nsjail import NsjailConfig
+from sandbox.sandbox_manager import SandboxManager
+from session.db import WorkspaceDB
+from session.store import SessionStore
+from storage.file_store import LocalFileStore
+from workspace.isolation import WorkspaceIsolationRuntime
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
 
@@ -79,6 +80,12 @@ class WorkerDependencies:
     resource_pool: "ResourcePool"
     git_repo_manager: "GitRepoManager"
     group_context: object  # GroupContextStore | None，群聊短期上下文缓存
+    redis_client: object = None
+    context_builder: object = None
+    brain_engine: object = None
+    action_runtime: object = None
+    hindsight_client: object = None
+    qq_execution_host: object = None
     scheduler: "TaskScheduler" = None
     workspace_isolation: "WorkspaceIsolationRuntime | None" = None
 
@@ -97,9 +104,9 @@ async def setup_tools(config: AppConfig):
     retriever = None
     if config.models.tool_rag.enabled:
         try:
-            from sandbox.tools.retriever import ToolVectorStore, ToolRetriever
             from resources.embedding import create_embedding_client
             from resources.reranker import create_reranker_client
+            from sandbox.tools.retriever import ToolRetriever, ToolVectorStore
             emb_client = create_embedding_client(config.models)
             reranker_client = create_reranker_client(config.models)
             vector_store = ToolVectorStore(persist_path=config.models.tool_rag.persist_path)
@@ -130,8 +137,10 @@ async def setup_tools(config: AppConfig):
     skill_definitions = []
     if config.models.skills.enabled:
         try:
-            import yaml
             from pathlib import Path
+
+            import yaml
+
             from sandbox.tools.skills.skillmd import parse_skillmd, skillmd_to_definition
 
             skills_path = Path(config.models.skills.config_path)
@@ -242,6 +251,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     if redis_url:
         try:
             import redis.asyncio as aioredis
+
             from storage.redis import RedisCache
             redis_client = aioredis.from_url(redis_url, decode_responses=False)
             redis_cache = RedisCache(redis_client, default_ttl=config.redis.default_ttl)
@@ -452,6 +462,38 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         "on" if session_store._wal_enabled else "off",
         turn_orchestrator._tool_rag_top_k,
     )
+    qq_execution_host = None
+    if config.agent.qq_execution_host_enabled:
+        from agent_execution.brain_action_loop import DefaultBrainActionLoop
+        from agent_execution.facade import AgentExecutionFacade
+        from agent_execution.qq_host import (
+            QQExecutionHost,
+            QQLegacyExecutionControl,
+            QQLegacyRequestLoader,
+            ReplyServiceQQEventSinkFactory,
+            ReplyServiceQQSink,
+            TurnMemoryQQAuditSinkFactory,
+            TurnMemoryQQRetentionSink,
+        )
+
+        qq_execution_host = QQExecutionHost(
+            QQLegacyRequestLoader(
+                memory_service,
+                context_builder,
+                group_context,
+                channel_overrides,
+            ),
+            AgentExecutionFacade(DefaultBrainActionLoop(
+                brain_engine,
+                action_runtime,
+                max_tool_turns=config.agent.max_tool_turns,
+            )),
+            ReplyServiceQQEventSinkFactory(reply_service),
+            ReplyServiceQQSink(reply_service),
+            QQLegacyExecutionControl(),
+            audit=TurnMemoryQQAuditSinkFactory(memory_service),
+            retention=TurnMemoryQQRetentionSink(memory_service),
+        )
     return WorkerDependencies(
         turn_orchestrator=turn_orchestrator,
         account_service=account_service,
@@ -464,6 +506,12 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         resource_pool=resource_pool,
         git_repo_manager=git_repo_manager,
         group_context=group_context,
+        redis_client=redis_client,
+        context_builder=context_builder,
+        brain_engine=brain_engine,
+        action_runtime=action_runtime,
+        hindsight_client=hindsight_client,
+        qq_execution_host=qq_execution_host,
         scheduler=scheduler,
         workspace_isolation=workspace_isolation,
     )
@@ -474,6 +522,12 @@ async def start_worker(config: AppConfig) -> None:
     deps = await init_dependencies(config)
 
     inject(turn_orchestrator=deps.turn_orchestrator)
+    from harness.activities import inject_qq_execution_host
+
+    inject_qq_execution_host(
+        deps.qq_execution_host,
+        enabled=config.agent.qq_execution_host_enabled,
+    )
 
     # ── 注册提醒 handler ──
     async def _handle_user_reminder(task):
@@ -535,6 +589,98 @@ async def start_worker(config: AppConfig) -> None:
         ],
     )
 
+    web_workers = None
+    web_dispatcher = None
+    web_reconciler = None
+    if config.temporal.web_real_agent_enabled:
+        worker_database_url = os.getenv("WORKER_DATABASE_URL")
+
+        from agent_execution.audit import LoggingExecutionAuditSinkFactory
+        from agent_execution.brain_action_loop import DefaultBrainActionLoop
+        from agent_execution.facade import AgentExecutionFacade
+        from agent_execution.web_adapters import (
+            LifecycleWebReplySink,
+            PostgresWebRequestLoader,
+            TemporalActivityControl,
+        )
+        from agent_execution.web_events import RedisWebRunEventSinkFactory
+        from agent_execution.web_host import WebExecutionHost
+        from application.context_assembly import ContextAssemblyService
+        from orchestration.web_activities import (
+            execute_agent_activity,
+            finalize_cancelled_activity,
+            finalize_failed_activity,
+            inject_web_execution_host,
+            inject_web_lifecycle,
+            prepare_run_activity,
+        )
+        from orchestration.web_dispatcher import (
+            TemporalClientAdapter,
+            TemporalOutboxDispatcher,
+            WebOutboxDispatcher,
+        )
+        from orchestration.web_reconcile_adapters import LifecycleReconcileStore
+        from orchestration.web_reconciler import (
+            TemporalInspectorAdapter,
+            WebRunReconciler,
+        )
+        from orchestration.web_workers import (
+            build_web_temporal_workers,
+            validate_web_worker_startup,
+        )
+        from web_domain.lifecycle import WebRunLifecycleService
+        from web_domain.outbox import OutboxService
+        from web_domain.workflow_execution import PostgresWorkflowExecutionStore
+
+        validate_web_worker_startup(config.temporal, worker_database_url)
+        assert worker_database_url is not None
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        context = ContextAssemblyService(
+            worker_database_url, deps.context_builder, deps.hindsight_client
+        )
+        facade = AgentExecutionFacade(
+            DefaultBrainActionLoop(
+                deps.brain_engine,
+                deps.action_runtime,
+                max_tool_turns=config.agent.max_tool_turns,
+                cancel_cleanup_timeout_seconds=(
+                    config.temporal.web_cancel_cleanup_timeout_seconds
+                ),
+            )
+        )
+        web_host = WebExecutionHost(
+            PostgresWebRequestLoader(worker_database_url, context),
+            facade,
+            RedisWebRunEventSinkFactory(deps.redis_client),
+            LifecycleWebReplySink(lifecycle),
+            TemporalActivityControl(),
+            LoggingExecutionAuditSinkFactory(),
+        )
+        inject_web_lifecycle(lifecycle)
+        inject_web_execution_host(web_host)
+        web_workers = build_web_temporal_workers(
+            client,
+            lifecycle_activities=[
+                prepare_run_activity,
+                finalize_failed_activity,
+                finalize_cancelled_activity,
+            ],
+            agent_activities=[execute_agent_activity],
+        )
+        execution_store = PostgresWorkflowExecutionStore(worker_database_url)
+        web_dispatcher = WebOutboxDispatcher(
+            OutboxService(worker_database_url),
+            TemporalOutboxDispatcher(
+                execution_store, TemporalClientAdapter(client), lifecycle
+            ),
+            worker_id=f"hpagent-web-dispatcher-{os.getpid()}",
+        )
+        web_reconciler = WebRunReconciler(
+            LifecycleReconcileStore(execution_store, lifecycle),
+            TemporalInspectorAdapter(client),
+        )
+        logger.info("Web real-Agent composition passed C-07 gate")
+
     # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
     _channel_factories = {
         ChannelType.NAPCAT: NapCatChannel,
@@ -586,31 +732,68 @@ async def start_worker(config: AppConfig) -> None:
     sandbox_cleanup_task = asyncio.create_task(
         _run_sandbox_cleanup_loop(deps.sandbox_manager, interval=300)
     )
+    web_dispatcher_task = None
+    web_reconciler_task = None
 
-    async with worker:
-        for ch in active_channels:
-            await ch.start_monitor(handle_message)
+    try:
+        async with AsyncExitStack() as worker_stack:
+            await worker_stack.enter_async_context(worker)
+            if (
+                web_workers is not None
+                and web_dispatcher is not None
+                and web_reconciler is not None
+            ):
+                await worker_stack.enter_async_context(web_workers.lifecycle)
+                await worker_stack.enter_async_context(web_workers.agent)
+                web_dispatcher_task = asyncio.create_task(
+                    _run_web_dispatcher_loop(web_dispatcher)
+                )
+                web_reconciler_task = asyncio.create_task(
+                    _run_web_reconciler_loop(web_reconciler)
+                )
+            for ch in active_channels:
+                await ch.start_monitor(handle_message)
 
-        channel_names = [ch.channel_type.value for ch in active_channels]
-        logger.info(
-            "Orchestration Worker started on task_queue='%s' (channels: %s)",
-            config.temporal.task_queue, ", ".join(channel_names) if channel_names else "none",
+            channel_names = [ch.channel_type.value for ch in active_channels]
+            logger.info(
+                "Orchestration Worker started on task_queue='%s' (channels: %s)",
+                config.temporal.task_queue,
+                ", ".join(channel_names) if channel_names else "none",
+            )
+
+            # 设置定期记忆反思 Schedule
+            await _setup_reflect_schedule(client, deps.account_service, config)
+
+            # 设置定期指标报告 Schedule（每 30 分钟）
+            await _setup_metrics_schedule(client, config)
+
+            logger.info(
+                "Periodic schedules configured: reflect=every-%dh metrics=every-30m",
+                config.agent.reflect_interval_hours,
+            )
+
+            await asyncio.Future()
+    finally:
+        await _shutdown_worker_resources(
+            active_channels=active_channels,
+            sandbox_cleanup_task=sandbox_cleanup_task,
+            scheduler_task=scheduler_task,
+            web_dispatcher_task=web_dispatcher_task,
+            web_reconciler_task=web_reconciler_task,
+            deps=deps,
         )
 
-        # 设置定期记忆反思 Schedule
-        await _setup_reflect_schedule(client, deps.account_service, config)
 
-        # 设置定期指标报告 Schedule（每 30 分钟）
-        await _setup_metrics_schedule(client, config)
-
-        logger.info(
-            "Periodic schedules configured: reflect=every-%dh metrics=every-30m",
-            config.agent.reflect_interval_hours,
-        )
-
-        await asyncio.Future()
-
-    # ── Worker shutdown cleanup ──
+async def _shutdown_worker_resources(
+    *,
+    active_channels,
+    sandbox_cleanup_task,
+    scheduler_task,
+    web_dispatcher_task,
+    web_reconciler_task,
+    deps,
+) -> None:
+    """Always release monitors/background tasks, including task cancellation."""
     logger.info("Worker shutting down, cleaning up resources...")
 
     for ch in active_channels:
@@ -631,6 +814,20 @@ async def start_worker(config: AppConfig) -> None:
         scheduler_task.cancel()
         try:
             await scheduler_task
+        except asyncio.CancelledError:
+            pass
+
+    if web_dispatcher_task is not None:
+        web_dispatcher_task.cancel()
+        try:
+            await web_dispatcher_task
+        except asyncio.CancelledError:
+            pass
+
+    if web_reconciler_task is not None:
+        web_reconciler_task.cancel()
+        try:
+            await web_reconciler_task
         except asyncio.CancelledError:
             pass
 
@@ -661,6 +858,33 @@ async def _run_sandbox_cleanup_loop(sandbox_manager, interval: int = 300) -> Non
             logger.warning("Sandbox cleanup error: %s", e)
 
 
+async def _run_web_dispatcher_loop(dispatcher, idle_seconds: float = 0.25) -> None:
+    """Continuously consume Web start/cancel Outbox events."""
+    while True:
+        try:
+            handled = await dispatcher.run_once()
+            if not handled:
+                await asyncio.sleep(idle_seconds)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Web Outbox Dispatcher iteration failed")
+            await asyncio.sleep(1)
+
+
+async def _run_web_reconciler_loop(reconciler, interval_seconds: float = 5) -> None:
+    """Periodically converge active Runs and Temporal execution facts."""
+    while True:
+        try:
+            await reconciler.run_once()
+            await asyncio.sleep(interval_seconds)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Web Reconciler iteration failed")
+            await asyncio.sleep(interval_seconds)
+
+
 async def _setup_reflect_schedule(client, account_service, config) -> None:
     """创建 Temporal Schedule，每 6 小时触发一次 ReflectWorkflow。
 
@@ -668,13 +892,14 @@ async def _setup_reflect_schedule(client, account_service, config) -> None:
     触发 Hindsight 深度推理（记忆关联、矛盾检测、知识抽象、经验总结）。
     """
     from datetime import timedelta
+
     from temporalio.client import (
         Schedule,
         ScheduleActionStartWorkflow,
-        ScheduleSpec,
         ScheduleIntervalSpec,
         ScheduleOverlapPolicy,
         SchedulePolicy,
+        ScheduleSpec,
     )
 
     schedule_id = "hpagent-reflect-schedule"
@@ -723,16 +948,17 @@ async def _setup_metrics_schedule(client, config) -> None:
     可观测性指标并以结构化 JSON 日志输出，供外部监控系统（Prometheus/
     Grafana/ELK）采集。
     """
+    from datetime import timedelta
+
     from temporalio.client import (
         Schedule,
         ScheduleActionStartWorkflow,
-        ScheduleSpec,
         ScheduleIntervalSpec,
         ScheduleOverlapPolicy,
         SchedulePolicy,
+        ScheduleSpec,
         ScheduleState,
     )
-    from datetime import timedelta
 
     schedule_id = "hpagent-metrics-schedule"
     try:

@@ -2,7 +2,7 @@
 
 TurnOrchestrator 不再直接面向 SandboxManager/Sandbox。
 它只向 ActionRuntime 请求：
-  - reset_turn(session_id)
+  - reset_turn(session_id, execution_id)
   - select_tools(...)
   - execute(...)
   - clear_session(session_id)
@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
+from agent.protocol import ActionRequest, ActionResult
 from common.token_counter import estimate_messages_tokens
 from common.types import Event, EventType
-from agent.protocol import ActionRequest, ActionResult
 
 logger = logging.getLogger("HpAgent.ActionRuntime")
 
@@ -47,10 +47,21 @@ class ActionRuntime:
         self._tool_result_summary_enabled = tool_result_summary_enabled
         self._tool_result_summary_threshold = tool_result_summary_threshold
         self._tool_result_summary_max_chars = tool_result_summary_max_chars
-        self._tools_cache: Dict[str, tuple] = {}
+        self._tools_cache: Dict[str, tuple[str, List[Dict[str, Any]]]] = {}
 
-    def reset_turn(self, session_id: str) -> None:
-        """清理上一轮残留的 tool hints。"""
+    @staticmethod
+    def _execution_cache_key(session_id: str, execution_id: str = "") -> str:
+        """Partition mutable selection state by both Session and execution.
+
+        The legacy QQ path does not yet pass an execution id, so its historical
+        session-scoped behavior remains intact. Web and the new QQ Host always
+        pass a stable execution id and therefore cannot share a cache entry.
+        """
+        return f"{session_id}:{execution_id}" if execution_id else session_id
+
+    def reset_turn(self, session_id: str, execution_id: str = "") -> None:
+        """Clear only the mutable state owned by this execution."""
+        self._tools_cache.pop(self._execution_cache_key(session_id, execution_id), None)
         if self._sandbox is None:
             return
         try:
@@ -64,6 +75,7 @@ class ActionRuntime:
         *,
         user_content: str = "",
         session_id: str = "",
+        execution_id: str = "",
         group_context_text: str = "",
     ) -> List[Dict[str, Any]]:
         """完成工具选择管线，并写入工具检索审计事件。"""
@@ -72,19 +84,27 @@ class ActionRuntime:
             return []
 
         try:
+            cache_key = self._execution_cache_key(session_id, execution_id)
             if session_id:
                 query_hash = hashlib.md5(user_content.encode()).hexdigest()
-                if session_id in self._tools_cache:
-                    last_hash, cached = self._tools_cache[session_id]
+                if cache_key in self._tools_cache:
+                    last_hash, cached = self._tools_cache[cache_key]
                     if query_hash == last_hash:
-                        logger.info("select_tools: cache hit session=%s", session_id)
+                        logger.info(
+                            "select_tools: cache hit session=%s execution=%s",
+                            session_id,
+                            execution_id or "legacy",
+                        )
                         return cached
 
             sandbox = self._sandbox.get_sandbox_for_session(session_id)
-            tools, audit = await sandbox.select_tools(rag_query, self._tool_rag_top_k)
+            raw_tools, audit = await sandbox.select_tools(
+                rag_query, self._tool_rag_top_k
+            )
+            tools = cast(List[Dict[str, Any]], raw_tools)
 
             if session_id:
-                self._tools_cache[session_id] = (query_hash, tools)
+                self._tools_cache[cache_key] = (query_hash, tools)
 
             logger.info(
                 "select_tools: query=%s top_k=%d -> %d tools",
@@ -111,6 +131,7 @@ class ActionRuntime:
         tool_name: str,
         arguments: Dict[str, Any],
         session_id: str = "",
+        execution_id: str = "",
         user_query: str = "",
     ) -> Dict[str, Any]:
         """执行工具，并按配置对长输出做语义摘要。"""
@@ -120,7 +141,7 @@ class ActionRuntime:
         try:
             sandbox = self._sandbox.get_sandbox_for_session(session_id)
             result, _audit = await sandbox.execute(tool_name, arguments)
-            result_dict = result.to_dict()
+            result_dict = cast(Dict[str, Any], result.to_dict())
 
             if self._tool_result_summary_enabled:
                 result_dict = await self._summarize_if_needed(
@@ -137,19 +158,48 @@ class ActionRuntime:
         request: ActionRequest,
         *,
         session_id: str = "",
+        execution_id: str = "",
         user_query: str = "",
     ) -> ActionResult:
         result = await self.execute(
             tool_name=request.name,
             arguments=request.arguments,
             session_id=session_id,
+            execution_id=execution_id,
             user_query=user_query,
         )
+        if execution_id:
+            metadata = dict(result.get("metadata") or {})
+            metadata.setdefault(
+                "invocation_key",
+                f"tool-invocation:{execution_id}:{request.id}",
+            )
+            result["metadata"] = metadata
         return ActionResult.from_runtime_result(request, result)
+
+    def clear_execution(self, session_id: str, execution_id: str) -> None:
+        """Fence late completion from retaining per-execution cache state."""
+        self._tools_cache.pop(self._execution_cache_key(session_id, execution_id), None)
+
+    def side_effect_class(self, session_id: str, tool_name: str) -> str:
+        """Read trusted registry metadata; unknown tools fail closed upstream."""
+        if self._sandbox is None:
+            return "unknown"
+        try:
+            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            value = sandbox.get_tool_metadata(tool_name).get(
+                "side_effect_class", "unknown"
+            )
+            return str(value)
+        except Exception:
+            return "unknown"
 
     def clear_session(self, session_id: str) -> None:
         """会话结束时清理行动运行时的会话级缓存。"""
-        self._tools_cache.pop(session_id, None)
+        prefix = f"{session_id}:"
+        for key in tuple(self._tools_cache):
+            if key == session_id or key.startswith(prefix):
+                self._tools_cache.pop(key, None)
 
     def _build_rag_query(self, user_content: str, group_context_text: str) -> str:
         rag_query = user_content

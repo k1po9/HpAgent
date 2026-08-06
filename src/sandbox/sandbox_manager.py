@@ -9,21 +9,42 @@ SandboxManager —— 沙箱池管理器，按会话创建 workspace 绑定的�
 
 每个会话一个 Sandbox，会话结束时销毁。
 """
-from typing import Dict, List, Optional, Any
-from threading import RLock
-from pathlib import Path
-import os
-import uuid
-import time
 import logging
+import os
+import time
+import uuid
+from pathlib import Path
+from threading import RLock
+from typing import Any, Dict, List, Optional
 
-from .sandbox import Sandbox
-from .nsjail import NsjailConfig, NsjailExecutor
-from sandbox.tools.registry import ToolRegistry
-from sandbox.tools.local import LOCAL_TOOL_FACTORIES
 from common.errors import SandboxNotFoundError
+from sandbox.tools.local import LOCAL_TOOL_FACTORIES
+from sandbox.tools.registry import ToolRegistry
+
+from .nsjail import NsjailConfig, NsjailExecutor
+from .sandbox import Sandbox
 
 logger = logging.getLogger("HpAgent.SandboxManager")
+
+_LOCAL_SIDE_EFFECT_CLASS = {
+    "fs_read": "read_only",
+    "Glob": "read_only",
+    "Grep": "read_only",
+    "list_reminders": "read_only",
+    "fs_write": "workspace_write",
+    "fs_edit": "workspace_write",
+    "Bash": "unknown",
+    "create_reminder": "external_write",
+    "cancel_reminder": "external_write",
+}
+
+
+def _declare_local_side_effect(tool: Any, name: str) -> None:
+    metadata = dict(getattr(tool, "metadata", {}) or {})
+    metadata["side_effect_class"] = _LOCAL_SIDE_EFFECT_CLASS.get(
+        name, "unknown"
+    )
+    tool.metadata = metadata
 
 
 class SandboxManager:
@@ -99,6 +120,7 @@ class SandboxManager:
             if factory is None:
                 continue
             tool = factory(ctx)
+            _declare_local_side_effect(tool, name)
             registry.register(tool, category="native")
 
         if self._native_tools_enabled:
@@ -106,6 +128,7 @@ class SandboxManager:
                 if name in reminder_keys:
                     continue  # 提醒工具已在上方无条件注册
                 tool = factory(workspace_path)
+                _declare_local_side_effect(tool, name)
                 registry.register(tool, category="native")
             logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
         else:

@@ -132,7 +132,7 @@ def build_skill_tool(pipeline: SkillPipeline, registry, parameters: dict = None)
         description=pipeline.description,
         args_schema=SkillArgs,
         coroutine=_execute_skill,
-        metadata={"category": "skill"},
+        metadata={"category": "skill", "side_effect_class": "unknown"},
     )
 
 
@@ -155,7 +155,7 @@ def _build_instruction_tool(name: str, description: str, body: str) -> BaseTool:
         description=description,
         args_schema=InstructionArgs,
         coroutine=_get_instructions,
-        metadata={"category": "skill"},
+        metadata={"category": "skill", "side_effect_class": "read_only"},
     )
 
 

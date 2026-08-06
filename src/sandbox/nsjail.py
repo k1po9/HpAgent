@@ -108,6 +108,7 @@ class NsjailExecutor:
         cmd = self.config.build_command(bash_cmd, work_dir=work_dir)
         logger.debug("nsjail exec [%s]: %s", execution_id, " ".join(cmd))
 
+        proc: asyncio.subprocess.Process | None = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -119,11 +120,15 @@ class NsjailExecutor:
                 timeout=self.config.time_limit + 5,
             )
         except asyncio.TimeoutError:
+            await self._stop_process(proc)
             return ToolResult(
                 success=False,
                 error=f"Command timed out after {self.config.time_limit}s",
                 metadata={"execution_id": execution_id},
             )
+        except asyncio.CancelledError:
+            await self._stop_process(proc)
+            raise
         except FileNotFoundError:
             return ToolResult(
                 success=False,
@@ -154,3 +159,23 @@ class NsjailExecutor:
                 "elapsed_ms": round(elapsed_ms, 2),
             },
         )
+
+    @staticmethod
+    async def _stop_process(proc: asyncio.subprocess.Process | None) -> None:
+        """Bounded subprocess cleanup: SIGTERM grace, then SIGKILL."""
+        if proc is None or proc.returncode is not None:
+            return
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            return
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=3)
+            return
+        except asyncio.TimeoutError:
+            pass
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            return
+        await proc.wait()
