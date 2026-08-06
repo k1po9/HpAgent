@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -20,10 +21,47 @@ from orchestration.web_workflow import (
 )
 from web_domain.outbox import OutboxService
 
+logger = logging.getLogger("HpAgent.WebOutboxDispatcher")
+
 
 def web_workflow_id(run_id: UUID | str) -> str:
     """The sole accepted Web Workflow ID derivation; never retry with a new ID."""
     return f"hpagent-web-run-{run_id}"
+
+
+async def run_web_outbox_recovery_loop(
+    outbox: OutboxService,
+    lease_timeout_seconds: int,
+    interval_seconds: float,
+) -> None:
+    """Periodically return expired ``processing`` Outbox leases to pending.
+
+    An Outbox event stays in ``processing`` for exactly the lifetime of its
+    claiming worker process.  If that process crashes before calling
+    ``mark_processed``/``mark_retryable_failure``, the row would otherwise block
+    every future consumer forever.  This loop reclaims rows whose lock is older
+    than ``lease_timeout_seconds`` on a dedicated config-driven cadence.
+
+    It deliberately runs independently of the fast Dispatcher poll (which wakes
+    every ~250ms): recovery is a coarse, config-tuned sweep and must never be
+    invoked with a non-positive timeout (``recover_expired(0)``).  Cancellation
+    (worker shutdown) propagates so the caller can await the task.
+    """
+    while True:
+        await asyncio.sleep(interval_seconds)
+        try:
+            recovered = await asyncio.to_thread(
+                outbox.recover_expired, lease_timeout_seconds
+            )
+            if recovered:
+                logger.info(
+                    "Web Outbox lease recovery: %d expired lease(s) returned to pending",
+                    recovered,
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Web Outbox lease recovery iteration failed")
 
 
 @dataclass(frozen=True)

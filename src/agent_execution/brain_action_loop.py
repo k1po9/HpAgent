@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Any
 
 from actions.runtime import ActionRuntime
@@ -50,7 +51,8 @@ class DefaultBrainActionLoop:
         ]
         if request.context_provider is not None:
             try:
-                recall_query, _hyde_context = await self._await_with_cancellation(
+                self._raise_if_expired(control)
+                recall_query, _hyde_context = await self._await_with_control(
                     self._brain.rewrite_recall_query(
                         user_content=request.user_content,
                         group_context_text="",
@@ -58,8 +60,16 @@ class DefaultBrainActionLoop:
                     ),
                     control,
                 )
-                memories = await request.context_provider.recall_long_term(recall_query)
+                self._raise_if_expired(control)
+                memories = await self._await_with_control(
+                    request.context_provider.recall_long_term(recall_query),
+                    control,
+                )
+                self._raise_if_expired(control)
                 messages = list(request.context_provider.compose(memories))
+            except TimeoutError as exc:
+                # The whole Run exceeded its deadline while assembling context.
+                raise StableExecutionFailure("run_timeout") from exc
             except StableExecutionFailure:
                 raise
             except Exception as exc:
@@ -77,7 +87,7 @@ class DefaultBrainActionLoop:
                 raise StableExecutionFailure("tool_failed") from exc
             await events.progress("generating", "正在生成回复。")
             try:
-                decision = await self._await_with_cancellation(
+                decision = await self._await_with_control(
                     self._brain.generate_chat_decision(
                         messages=messages,
                         tools=tools or None,
@@ -168,7 +178,7 @@ class DefaultBrainActionLoop:
         await self._checkpoint(control, "generating")
         await events.progress("generating", "正在整理结果。")
         try:
-            decision = await self._await_with_cancellation(
+            decision = await self._await_with_control(
                 self._brain.generate_final_decision(
                     messages=messages,
                     channel_overrides=dict(
@@ -223,9 +233,30 @@ class DefaultBrainActionLoop:
         elif control.cancelled():
             raise asyncio.CancelledError
 
+    @staticmethod
+    def _remaining_seconds(control: ExecutionControl) -> float:
+        """Seconds until the execution deadline; infinite when there is none.
+
+        Fakes that predate the deadline never expose ``deadline``, and the QQ
+        legacy chain reports ``datetime.max`` (an explicit no-op), so a missing
+        or effectively-infinite deadline must not trip the run-timeout paths.
+        """
+        deadline = getattr(control, "deadline", None)
+        if deadline is None:
+            return float("inf")
+        remaining = (deadline - datetime.now(UTC)).total_seconds()
+        return remaining if remaining > 0 else 0.0
+
+    @classmethod
+    def _raise_if_expired(cls, control: ExecutionControl) -> None:
+        """Fail the whole Run when the execution deadline has already passed."""
+        if cls._remaining_seconds(control) <= 0:
+            raise StableExecutionFailure("run_timeout")
+
     @classmethod
     async def _checkpoint(cls, control: ExecutionControl, phase: str) -> None:
         cls._raise_if_cancelled(control)
+        cls._raise_if_expired(control)
         heartbeat = getattr(control, "heartbeat", None)
         if heartbeat is not None:
             await heartbeat(phase)
@@ -241,10 +272,17 @@ class DefaultBrainActionLoop:
         try:
             while not task.done():
                 self._raise_if_cancelled(control)
+                if self._remaining_seconds(control) <= 0:
+                    # The tool ran past the execution deadline: stop it exactly
+                    # like a cancel so cancellation (never a tool timeout) wins.
+                    raise asyncio.CancelledError
                 try:
                     return await asyncio.wait_for(
                         asyncio.shield(task),
-                        timeout=self._cancel_poll_interval_seconds,
+                        timeout=min(
+                            self._cancel_poll_interval_seconds,
+                            self._remaining_seconds(control),
+                        ),
                     )
                 except TimeoutError:
                     continue
@@ -253,15 +291,35 @@ class DefaultBrainActionLoop:
             await self._cancel_with_budget(task)
             raise
 
-    async def _await_with_cancellation(self, awaitable: Any, control: ExecutionControl):
+    async def _await_with_control(
+        self,
+        awaitable: Any,
+        control: ExecutionControl,
+        *,
+        timeout_cap: float | None = None,
+    ):
+        """Await while honoring both cancellation and the execution deadline.
+
+        Cancellation always wins (checked first). If the deadline — or an
+        optional per-call cap — expires while the awaitable is in flight, the
+        awaitable is cancelled within the cleanup budget and TimeoutError is
+        raised so the caller maps a stable timeout code. A result that lands
+        after the budget is detached and ignored.
+        """
         task = asyncio.create_task(awaitable)
         try:
             while not task.done():
                 self._raise_if_cancelled(control)
+                remaining = self._remaining_seconds(control)
+                if timeout_cap is not None:
+                    remaining = min(remaining, timeout_cap)
+                if remaining <= 0:
+                    await self._cancel_with_budget(task)
+                    raise TimeoutError
                 try:
                     return await asyncio.wait_for(
                         asyncio.shield(task),
-                        timeout=self._cancel_poll_interval_seconds,
+                        timeout=min(self._cancel_poll_interval_seconds, remaining),
                     )
                 except TimeoutError:
                     continue

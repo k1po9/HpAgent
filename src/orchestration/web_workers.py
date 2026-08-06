@@ -39,12 +39,41 @@ class WebTemporalWorkers:
     agent: Worker
 
 
+def validate_web_outbox_recovery(
+    lease_timeout_seconds: int,
+    recovery_interval_seconds: float,
+) -> None:
+    """Outbox auto-recovery config must never produce ``recover_expired(0)``.
+
+    ``lease_timeout_seconds`` and ``recovery_interval_seconds`` must both be
+    positive and the interval must be strictly smaller than the timeout, so a
+    lease is observed as expired on a later sweep rather than at the exact
+    timeout boundary.
+    """
+    if lease_timeout_seconds <= 0:
+        raise ValueError("web_outbox_lease_timeout_seconds must be positive")
+    if recovery_interval_seconds <= 0:
+        raise ValueError("web_outbox_recovery_interval_seconds must be positive")
+    if recovery_interval_seconds >= lease_timeout_seconds:
+        raise ValueError(
+            "web_outbox_recovery_interval_seconds must be smaller than "
+            "web_outbox_lease_timeout_seconds"
+        )
+
+
 def validate_web_worker_startup(config: Any, worker_database_url: str | None) -> None:
     """Fail closed before constructing any real-Agent Web worker."""
     if config.web_real_agent_gate_version != WEB_REAL_AGENT_GATE_VERSION:
         raise RuntimeError(
             f"WEB real Agent requires WEB_REAL_AGENT_GATE_VERSION={WEB_REAL_AGENT_GATE_VERSION}"
         )
+    try:
+        validate_web_outbox_recovery(
+            config.web_outbox_lease_timeout_seconds,
+            config.web_outbox_recovery_interval_seconds,
+        )
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
     if not worker_database_url:
         raise RuntimeError("WEB real Agent requires WORKER_DATABASE_URL")
     if config.web_lifecycle_task_queue != WEB_LIFECYCLE_TASK_QUEUE:

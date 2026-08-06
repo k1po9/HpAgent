@@ -323,7 +323,7 @@ Activity 返回权威状态后，Workflow 必须对应结束：`completed` 正�
 | `finalize_failed_activity` | 5 分钟 | 20 秒 | 不适用 | 10 |
 | `finalize_cancelled_activity` | 5 分钟 | 20 秒 | 不适用 | 10 |
 
-Workflow Execution timeout 默认 50 分钟，预算公式为：prepare schedule-to-close 2 分钟 + execute schedule-to-close 35 分钟 + 最多一个 finalize schedule-to-close 5 分钟 + 取消清理 3 分钟 + 调度/网络余量 5 分钟。Reconciler 仍是最后保护，但正常路径不能因静态预算不足而依赖 Reconciler。Schedule-to-start 延迟用于监控和告警，不设置过短的失败阈值，以免正常队列积压直接制造失败。
+Workflow Execution timeout 默认 50 分钟，预算公式为：prepare schedule-to-close 2 分钟 + execute schedule-to-close 35 分钟 + 最多一个 finalize schedule-to-close 5 分钟 + 取消清理 30 秒 + 调度/网络余量 5 分钟。Reconciler 仍是最后保护，但正常路径不能因静态预算不足而依赖 Reconciler。Schedule-to-start 延迟用于监控和告警，不设置过短的失败阈值，以免正常队列积压直接制造失败。
 
 执行内部还必须设置更细粒度上限：
 
@@ -861,15 +861,29 @@ sequenceDiagram
 - [ ] Hindsight recall 暂时失败是否降级为空记忆，隔离异常是否安全失败？
 - [ ] QQ 旧 Workflow 与 WebRunWorkflow 是否隔离且可并行迁移？
 
-## 23. 待详细实现时确认的参数
+## 23. 参数冻结核验
 
-以下参数不改变本文语义，可在实现/压测阶段确定：
+以下参数在 D-01～D-09 实现后已冻结为 Web Workflow 契约常量（`src/orchestration/web_workflow.py`），
+并由 `validate_web_worker_startup` 在 Web Worker 启动时强校验；标“仍待确认”的项不在冻结契约内。
 
-- Workflow、模型、普通工具和长工具的最终超时数值。
-- heartbeat 的 15 秒发送周期和 45 秒超时是否适配部署网络。
-- Sandbox SIGTERM 到 SIGKILL 的宽限时间。
-- Reconciler 的 queued/running/cancelling 扫描阈值和批量大小。
-- Temporal namespace、task queue 命名和 Worker 并发度。
+| 参数 | 冻结值 | 代码常量/配置 |
+|---|---|---|
+| Workflow Execution timeout | 3000 秒（50 分钟） | `WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS` |
+| `prepare_run_activity` | schedule-to-close 2 分钟 / start-to-close 15 秒 / 最大尝试 5 | `WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS`、`WEB_PREPARE_START_TO_CLOSE_SECONDS`、`_LIFECYCLE_RETRY` |
+| `execute_agent_activity` | schedule-to-close 35 分钟 / start-to-close 30 分钟 / heartbeat 15 秒、超时 45 秒 / 最大尝试 1 | `WEB_AGENT_SCHEDULE_TO_CLOSE_SECONDS`、`WEB_AGENT_START_TO_CLOSE_SECONDS`、`WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS`、`WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS`、`_AGENT_NO_RETRY` |
+| `finalize_failed/cancelled_activity` | schedule-to-close 5 分钟 / start-to-close 20 秒 / 最大尝试 10 | `WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS`、`WEB_FINALIZE_START_TO_CLOSE_SECONDS`、`_FINALIZE_RETRY` |
+| Agent 取消清理预算 | 30 秒 | `WEB_CANCEL_CLEANUP_TIMEOUT_SECONDS` |
+| lifecycle/agent task queue | `hpagent-web-lifecycle` / `hpagent-web-agent` | `WEB_LIFECYCLE_TASK_QUEUE`、`WEB_AGENT_TASK_QUEUE` |
+| Web Worker 启动门禁 | gate `c-07-v1`，要求 `WORKER_DATABASE_URL` 且 `web_real_agent_enabled` | `WEB_REAL_AGENT_GATE_VERSION` |
+| Reconciler 扫描间隔 / 批量 | 5 秒 / 100 | `worker.py::_run_web_reconciler_loop` 默认参数、`WebRunReconciler.run_once(limit=100)`（代码默认，未入启动校验） |
+| Outbox 租约超时 / 恢复间隔 | 60 秒 / 15 秒（间隔 < 超时，启动校验） | `web_outbox_lease_timeout_seconds`、`web_outbox_recovery_interval_seconds`（Phase D 收口新增） |
+
+以下项仍待确认，不改变本文语义，可在压测/部署阶段确定：
+
+- 模型、普通工具和长工具的最终单次超时数值（设计 §7 默认 120 秒 / 120 秒 / 10 分钟，未冻结）。
+- Sandbox SIGTERM 到 SIGKILL 的宽限时间（当前实现为 3 秒，未入启动校验）。
+- Temporal namespace、Worker 并发度。
 - Search Attributes 是否启用及其保留策略。
+- 拓扑：lifecycle 与 agent Worker 当前同进程启动（`build_web_temporal_workers`），也可拆分独立进程，不改变本文语义。
 
-这些参数必须配置化、可观测，并保证 Agent Activity 不自动重放、领域终态优先、取消最终收口和账号/Conversation 隔离等核心语义不变。
+以上参数必须配置化、可观测，并保证 Agent Activity 不自动重放、领域终态优先、取消最终收口和账号/Conversation 隔离等核心语义不变。

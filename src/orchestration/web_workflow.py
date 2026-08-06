@@ -76,6 +76,7 @@ _STABLE_FAILURE_MESSAGES = {
     "model_timeout": "模型调用超时。",
     "tool_failed": "工具执行失败。",
     "tool_timeout": "工具执行超时。",
+    "run_timeout": "执行总时长超时。",
     "workspace_recovery_required": "工作区需要人工恢复。",
 }
 

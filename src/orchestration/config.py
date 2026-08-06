@@ -313,6 +313,13 @@ class TemporalConfig:
     web_cancel_cleanup_timeout_seconds: int = 30
     web_finalize_schedule_to_close_seconds: int = 300
     web_finalize_start_to_close_seconds: int = 20
+    # Outbox lease auto-recovery.  A claimed (processing) Outbox row whose lease
+    # is older than web_outbox_lease_timeout_seconds is returned to pending by a
+    # dedicated recovery loop that runs every web_outbox_recovery_interval_seconds.
+    # Both values must be positive and the interval must be smaller than the
+    # timeout so the loop observes leases before they can starve the queue.
+    web_outbox_lease_timeout_seconds: int = 60
+    web_outbox_recovery_interval_seconds: int = 15
     # C-07 is the release gate.  A checked-in default must never run Web's
     # real Agent path merely because the Temporal workers are present.
     web_real_agent_enabled: bool = False
@@ -707,6 +714,14 @@ class AppConfig:
             )
         if environ.get("WEB_REAL_AGENT_GATE_VERSION"):
             self.temporal.web_real_agent_gate_version = environ["WEB_REAL_AGENT_GATE_VERSION"]
+        if environ.get("WEB_OUTBOX_LEASE_TIMEOUT_SECONDS"):
+            self.temporal.web_outbox_lease_timeout_seconds = int(
+                environ["WEB_OUTBOX_LEASE_TIMEOUT_SECONDS"]
+            )
+        if environ.get("WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"):
+            self.temporal.web_outbox_recovery_interval_seconds = int(
+                environ["WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"]
+            )
         if environ.get("QQ_EXECUTION_HOST_ENABLED"):
             self.agent.qq_execution_host_enabled = environ[
                 "QQ_EXECUTION_HOST_ENABLED"

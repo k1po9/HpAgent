@@ -618,6 +618,7 @@ async def start_worker(config: AppConfig) -> None:
             TemporalClientAdapter,
             TemporalOutboxDispatcher,
             WebOutboxDispatcher,
+            run_web_outbox_recovery_loop,
         )
         from orchestration.web_reconcile_adapters import LifecycleReconcileStore
         from orchestration.web_reconciler import (
@@ -734,6 +735,7 @@ async def start_worker(config: AppConfig) -> None:
     )
     web_dispatcher_task = None
     web_reconciler_task = None
+    web_outbox_recovery_task = None
 
     try:
         async with AsyncExitStack() as worker_stack:
@@ -750,6 +752,16 @@ async def start_worker(config: AppConfig) -> None:
                 )
                 web_reconciler_task = asyncio.create_task(
                     _run_web_reconciler_loop(web_reconciler)
+                )
+                # Expired-lease auto-recovery runs on its own cadence, never in
+                # the fast Dispatcher poll; validate_web_worker_startup already
+                # guaranteed both values are positive and interval < timeout.
+                web_outbox_recovery_task = asyncio.create_task(
+                    run_web_outbox_recovery_loop(
+                        web_dispatcher.outbox,
+                        config.temporal.web_outbox_lease_timeout_seconds,
+                        config.temporal.web_outbox_recovery_interval_seconds,
+                    )
                 )
             for ch in active_channels:
                 await ch.start_monitor(handle_message)
@@ -780,6 +792,7 @@ async def start_worker(config: AppConfig) -> None:
             scheduler_task=scheduler_task,
             web_dispatcher_task=web_dispatcher_task,
             web_reconciler_task=web_reconciler_task,
+            web_outbox_recovery_task=web_outbox_recovery_task,
             deps=deps,
         )
 
@@ -791,6 +804,7 @@ async def _shutdown_worker_resources(
     scheduler_task,
     web_dispatcher_task,
     web_reconciler_task,
+    web_outbox_recovery_task,
     deps,
 ) -> None:
     """Always release monitors/background tasks, including task cancellation."""
@@ -828,6 +842,13 @@ async def _shutdown_worker_resources(
         web_reconciler_task.cancel()
         try:
             await web_reconciler_task
+        except asyncio.CancelledError:
+            pass
+
+    if web_outbox_recovery_task is not None:
+        web_outbox_recovery_task.cancel()
+        try:
+            await web_outbox_recovery_task
         except asyncio.CancelledError:
             pass
 

@@ -104,6 +104,71 @@ services:
     restart: unless-stopped
     # privileged: true  # 仅 nsjail 需要，已关闭
 
+  # ==================== Web 真实 Agent Worker（Phase D 收口） ====================
+  # 启动：docker compose --profile web --profile web-agent up -d
+  # 停止：docker compose --profile web --profile web-agent down
+  #
+  # 独立的 Web 真实 Agent Worker，注册 hpagent-web-lifecycle / hpagent-web-agent
+  # task queue，并运行 start/cancel Outbox Dispatcher 与 Reconciler。它复用与主
+  # `hpagent` 相同的镜像与入口（start_worker 同时启动 QQ 与 Web Worker），仅通过
+  # profile `web-agent` 显式启用，避免影响默认的 QQ 主 Worker 启动路径。
+  #
+  # WORKER_DATABASE_URL 必须使用 hpagent_worker 角色（persistence/docker-init/
+  # 01-roles.sql 已创建），Web Worker 只经该角色访问领域库。
+  # Hindsight 故障不阻塞本 Worker 启动：HindsightClient 构造失败或执行期 recall
+  # 失败均降级为空记忆（见 TD-023），因此本服务不依赖 hindsight 健康。
+  hpagent-web-worker:
+    profiles: ["web-agent"]
+    build: ./src
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+    environment:
+      # 容器内通信（Docker DNS 自动解析服务名）
+      - TZ=Asia/Shanghai
+      - TEMPORAL_HOST=temporal:7233
+      - HINDSIGHT_URL=http://hindsight:8888
+      - WORKSPACE_ROOT=/app/.data/workspace
+      - WORKSPACE_ISOLATION_MODE=${WORKSPACE_ISOLATION_MODE:-single_process_account_lock}
+      - REDIS_URL=redis://redis:6379
+      # ── Web 真实 Agent 门禁（C-07 gate c-07-v1）──
+      - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
+      - WEB_REAL_AGENT_ENABLED=true
+      - WEB_REAL_AGENT_GATE_VERSION=c-07-v1
+      # ── SiliconFlow（Embedding / Rerank / Fast 模型） ──
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
+      - SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL}
+      - SILICONFLOW_EMBEDDING_MODEL=${SILICONFLOW_EMBEDDING_MODEL}
+      - SILICONFLOW_RERANK_MODEL=${SILICONFLOW_RERANK_MODEL}
+      - SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL=${SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL}
+      # ── 阿里云百炼（Fast 模型） ──
+      - ALIBABA_BAILIAN_API_KEY=${ALIBABA_BAILIAN_API_KEY}
+      - ALIBABA_BAILIAN_BASE_URL=${ALIBABA_BAILIAN_BASE_URL}
+      - ALIBABA_BAILIAN_FAST_MODEL=${ALIBABA_BAILIAN_FAST_MODEL}
+      # ── MiniMax（Chat 模型） ──
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+      - MINIMAX_API_BASE_URL=${MINIMAX_API_BASE_URL}
+      - MINIMAX_STANDARD_MODEL=${MINIMAX_STANDARD_MODEL}
+      - MINIMAX_FLAGSHIP_MODEL=${MINIMAX_FLAGSHIP_MODEL}
+      - MINIMAX_HIGHSPEED_MODEL=${MINIMAX_HIGHSPEED_MODEL}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./.data:/app/.data                           # 运行时数据（workspace/sessions/logs/accounts）
+      - ./config:/app/config:ro                # 配置文件（只读）
+      - ./tools:/app/tools                    # 工具定义 + MCP配置 + ChromaDB向量库
+    depends_on:
+      app-postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
   # ==================== Redis 会话存储 ====================
   redis:
     image: redis:7-alpine

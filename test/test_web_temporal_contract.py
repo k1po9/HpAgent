@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import inspect
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
@@ -19,7 +20,7 @@ from agent_execution.facade import (
     NullExecutionAuditSink,
     StableExecutionFailure,
 )
-from agent_execution.qq_host import QQExecutionHost, qq_execution_id
+from agent_execution.qq_host import QQLegacyExecutionControl, QQExecutionHost, qq_execution_id
 from agent_execution.web_adapters import TemporalActivityControl
 from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
@@ -242,6 +243,54 @@ async def test_dispatcher_exhaustion_dead_letters_through_authoritative_outbox()
     consumer = WebOutboxDispatcher(Outbox(), Dispatcher(), "worker", max_attempts=3)
     assert await consumer.run_once() == 1
     assert calls == ["temporal_dispatch_exhausted"]
+
+
+@pytest.mark.asyncio
+async def test_temporal_start_temporarily_unavailable_is_retried_then_processed():
+    calls: list[str] = []
+    events: list[dict] = [{
+        "outbox_event_id": "00000000-0000-0000-0000-000000000011",
+        "run_id": "00000000-0000-0000-0000-000000000001",
+        "event_type": "start_run",
+        "attempt_count": 1,
+    }]
+
+    class Outbox:
+        def claim(self, worker_id, event_types, limit):
+            return events
+
+        def mark_processed(self, event_id, worker_id):
+            calls.append("processed")
+
+        def mark_retryable_failure(self, event_id, worker_id, code, message, retry_at):
+            assert code == "temporal_dispatch_failed"
+            assert retry_at > datetime.now(UTC)
+            calls.append("retryable")
+            events[0] = {**events[0], "attempt_count": 2}
+            return True
+
+        def dead_letter(self, *args):
+            raise AssertionError("a transient Temporal failure must not dead-letter")
+
+    class Dispatcher:
+        attempts = 0
+
+        async def dispatch_start(self, run_id):
+            self.attempts += 1
+            if self.attempts == 1:
+                raise ConnectionError("Temporal Start temporarily unavailable")
+            return True
+
+    consumer = WebOutboxDispatcher(Outbox(), Dispatcher(), "worker", max_attempts=3)
+    # First poll: the transient failure is marked retryable, not dead-lettered.
+    assert await consumer.run_once() == 1
+    assert calls == ["retryable"]
+    assert events[0]["attempt_count"] == 2
+
+    # Second poll: the retried claim succeeds and the event is marked processed.
+    calls.clear()
+    assert await consumer.run_once() == 1
+    assert calls == ["processed"]
 
 
 @pytest.mark.asyncio
@@ -860,3 +909,352 @@ async def test_td_012_td_014_reconciler_converges_every_temporal_close_fact(
     assert expected in calls
     if run_status == "completed":
         assert not any(call[0] == "failed" for call in calls)
+
+
+@pytest.mark.asyncio
+async def test_deadline_expired_prevents_model_call():
+    model_calls: list[str] = []
+
+    class Control:
+        @property
+        def deadline(self):
+            return datetime.now(UTC) - timedelta(seconds=1)
+
+        def cancelled(self):
+            return False
+
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+    class Actions:
+        def reset_turn(self, session_id, execution_id):
+            return None
+
+        async def select_tools(self, **kwargs):
+            return []
+
+    class Brain:
+        async def generate_chat_decision(self, **kwargs):
+            model_calls.append("called")
+            raise AssertionError("model must not be called after the deadline")
+
+    with pytest.raises(StableExecutionFailure) as failure:
+        await DefaultBrainActionLoop(Brain(), Actions()).execute(
+            ExecutionRequest("r", "a", "c", "s", "hello", ()),
+            Control(),
+            Events(),
+            NullExecutionAuditSink(),
+        )
+    assert failure.value.code == "run_timeout"
+    assert model_calls == []
+
+
+@pytest.mark.asyncio
+async def test_model_over_deadline_is_stable_model_timeout():
+    class Control:
+        def __init__(self):
+            self._deadline = datetime.now(UTC) + timedelta(seconds=0.2)
+
+        @property
+        def deadline(self):
+            return self._deadline
+
+        def cancelled(self):
+            return False
+
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+    class Actions:
+        def reset_turn(self, session_id, execution_id):
+            return None
+
+        async def select_tools(self, **kwargs):
+            return []
+
+    class Brain:
+        async def generate_chat_decision(self, **kwargs):
+            await asyncio.sleep(5)
+
+    loop = DefaultBrainActionLoop(
+        Brain(),
+        Actions(),
+        cancel_cleanup_timeout_seconds=0.5,
+        cancel_poll_interval_seconds=0.05,
+    )
+    with pytest.raises(StableExecutionFailure) as failure:
+        await loop.execute(
+            ExecutionRequest("r", "a", "c", "s", "hello", ()),
+            Control(),
+            Events(),
+            NullExecutionAuditSink(),
+        )
+    assert failure.value.code == "model_timeout"
+
+
+@pytest.mark.asyncio
+async def test_tool_over_deadline_is_cancelled():
+    class Control:
+        def __init__(self):
+            self._deadline = datetime.now(UTC) + timedelta(seconds=0.2)
+
+        @property
+        def deadline(self):
+            return self._deadline
+
+        def cancelled(self):
+            return False
+
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+    class Actions:
+        def reset_turn(self, session_id, execution_id):
+            return None
+
+        async def select_tools(self, **kwargs):
+            return []
+
+        async def execute_request(self, request, **kwargs):
+            await asyncio.sleep(5)
+
+    request = ActionRequest("tool-1", "safe_tool", {})
+
+    class FirstDecision:
+        has_actions = True
+        content = ""
+        action_requests = [request]
+
+    class Brain:
+        async def generate_chat_decision(self, **kwargs):
+            return FirstDecision()
+
+    loop = DefaultBrainActionLoop(
+        Brain(),
+        Actions(),
+        cancel_cleanup_timeout_seconds=0.5,
+        cancel_poll_interval_seconds=0.05,
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await loop.execute(
+            ExecutionRequest("run", "a", "c", "s", "hello", ()),
+            Control(),
+            Events(),
+            NullExecutionAuditSink(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_cancel_wins_over_deadline():
+    class Control:
+        @property
+        def deadline(self):
+            return datetime.now(UTC) - timedelta(seconds=1)
+
+        def cancelled(self):
+            return True
+
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+    class Actions:
+        def reset_turn(self, session_id, execution_id):
+            return None
+
+        async def select_tools(self, **kwargs):
+            return []
+
+    class Brain:
+        async def generate_chat_decision(self, **kwargs):
+            raise AssertionError("model must not be called")
+
+    with pytest.raises(asyncio.CancelledError):
+        await DefaultBrainActionLoop(Brain(), Actions()).execute(
+            ExecutionRequest("r", "a", "c", "s", "hello", ()),
+            Control(),
+            Events(),
+            NullExecutionAuditSink(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_cancellation_is_not_swallowed_by_deadline_timeout():
+    cancel_toggled = {"value": False}
+
+    class Control:
+        def __init__(self):
+            self._deadline = datetime.now(UTC) + timedelta(seconds=0.2)
+
+        @property
+        def deadline(self):
+            return self._deadline
+
+        def cancelled(self):
+            return cancel_toggled["value"]
+
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+    class Actions:
+        def reset_turn(self, session_id, execution_id):
+            return None
+
+        async def select_tools(self, **kwargs):
+            return []
+
+    class Brain:
+        async def generate_chat_decision(self, **kwargs):
+            await asyncio.sleep(0.1)
+            cancel_toggled["value"] = True
+            await asyncio.sleep(5)
+
+    loop = DefaultBrainActionLoop(
+        Brain(),
+        Actions(),
+        cancel_cleanup_timeout_seconds=0.5,
+        cancel_poll_interval_seconds=0.02,
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await loop.execute(
+            ExecutionRequest("r", "a", "c", "s", "hello", ()),
+            Control(),
+            Events(),
+            NullExecutionAuditSink(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_deadline_detaches_late_model_result():
+    late_results: list[str] = []
+
+    class Control:
+        def __init__(self):
+            self._deadline = datetime.now(UTC) + timedelta(seconds=0.15)
+
+        @property
+        def deadline(self):
+            return self._deadline
+
+        def cancelled(self):
+            return False
+
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+    class Actions:
+        def reset_turn(self, session_id, execution_id):
+            return None
+
+        async def select_tools(self, **kwargs):
+            return []
+
+    class Brain:
+        async def generate_chat_decision(self, **kwargs):
+            try:
+                await asyncio.sleep(60)
+            except asyncio.CancelledError:
+                # Cancellation-hostile model: it returns late, after the budget.
+                await asyncio.sleep(0.1)
+                late_results.append("late-model-result")
+
+    loop = DefaultBrainActionLoop(
+        Brain(),
+        Actions(),
+        cancel_cleanup_timeout_seconds=0.01,
+        cancel_poll_interval_seconds=0.01,
+    )
+    with pytest.raises(StableExecutionFailure) as failure:
+        await loop.execute(
+            ExecutionRequest("r", "a", "c", "s", "hello", ()),
+            Control(),
+            Events(),
+            NullExecutionAuditSink(),
+        )
+    assert failure.value.code == "model_timeout"
+    await asyncio.sleep(0.15)
+    assert late_results == ["late-model-result"]
+
+
+@pytest.mark.asyncio
+async def test_deadline_during_recall_is_run_timeout():
+    calls: list[str] = []
+
+    class Control:
+        def __init__(self):
+            self._deadline = datetime.now(UTC) + timedelta(seconds=0.1)
+
+        @property
+        def deadline(self):
+            return self._deadline
+
+        def cancelled(self):
+            return False
+
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+    class Context:
+        async def recall_long_term(self, recall_query):
+            await asyncio.sleep(5)
+
+        def compose(self, memories):
+            calls.append("compose")
+
+    class Actions:
+        def reset_turn(self, session_id, execution_id):
+            return None
+
+        async def select_tools(self, **kwargs):
+            return []
+
+    class Brain:
+        async def rewrite_recall_query(self, **kwargs):
+            calls.append("rewrite")
+            return "rewritten", ()
+
+    request = ExecutionRequest(
+        "run", "a", "c", "s", "hello", (), context_provider=Context(),
+    )
+    with pytest.raises(StableExecutionFailure) as failure:
+        await DefaultBrainActionLoop(Brain(), Actions()).execute(
+            request, Control(), Events(), NullExecutionAuditSink(),
+        )
+    assert failure.value.code == "run_timeout"
+    assert calls == ["rewrite"]
+
+
+@pytest.mark.asyncio
+async def test_qq_infinite_deadline_control_is_a_no_op():
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+    class Actions:
+        def reset_turn(self, session_id, execution_id):
+            return None
+
+        async def select_tools(self, **kwargs):
+            return []
+
+    class Decision:
+        has_actions = False
+        content = "done"
+
+    class Brain:
+        async def generate_chat_decision(self, **kwargs):
+            return Decision()
+
+    result = await DefaultBrainActionLoop(Brain(), Actions()).execute(
+        ExecutionRequest("r", "a", "c", "s", "hello", ()),
+        QQLegacyExecutionControl(),
+        Events(),
+        NullExecutionAuditSink(),
+    )
+    assert result.content == "done"
