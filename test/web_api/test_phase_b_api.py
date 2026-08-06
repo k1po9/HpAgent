@@ -141,7 +141,11 @@ def test_api_018_conversation_replay_list_cursor_and_etag(logged_client):
     page = client.get("/api/v1/conversations?limit=2").json()
     assert page["has_more"] is True
     assert len(page["items"]) == 2
-    tampered = page["next_cursor"][:-1] + ("A" if page["next_cursor"][-1] != "A" else "B")
+    # 篡改 payload 部分而不是签名尾部: HMAC 是对 payload 字符串签名, 只要 payload
+    # 任一字符改变, 期望签名必然失配 → 400。改签名最后一字符是不确定的——base64
+    # 的 padding 位使该改动可能解码出完全相同签名字节, 导致 200。
+    payload, signature = page["next_cursor"].split(".", 1)
+    tampered = ("X" if payload[0] != "X" else "Y") + payload[1:] + "." + signature
     assert client.get(f"/api/v1/conversations?limit=2&cursor={tampered}").status_code == 400
 
 

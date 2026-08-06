@@ -14,6 +14,8 @@ Orchestration Worker —— Temporal Worker 启动与依赖组装。
       ↓ 协调
   TurnMemoryService / ContextBuilder / BrainEngine / ActionRuntime / ReplyService
 """
+from __future__ import annotations
+
 import asyncio
 import dataclasses
 import logging
@@ -61,6 +63,130 @@ from storage.file_store import LocalFileStore
 from workspace.isolation import WorkspaceIsolationRuntime
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
+
+
+@dataclasses.dataclass
+class WebWorkerComposition:
+    """``compose_web_workers`` 的产物 —— Web Temporal workers + 后台任务边界。
+
+    单一进程部署（QQ + Web 同进程，AE-021 的 ``single_process_account_lock``）
+    与独立 Web Worker 入口都通过同一个组合函数组装，保证二者使用同一个
+    ``SessionResourceRecoveryService`` 与共享 ``AccountLockRegistry``。
+    """
+    workers: object  # WebTemporalWorkers
+    dispatcher: object  # WebOutboxDispatcher
+    reconciler: object  # WebRunReconciler
+
+
+def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> WebWorkerComposition:
+    """组装 Web lifecycle/agent Worker、Outbox Dispatcher 与 Reconciler。
+
+    只应在 ``config.temporal.web_real_agent_enabled`` 时调用（C-07 门禁）。
+    该方法不启动任何 Worker/后台任务，也不注册 QQ/scheduler/channel/schedule；
+    调用方决定进程边界。Web 真实执行会经 ``SessionResourceRecoveryService``
+    获取共享 Account 执行锁、恢复 Run 绑定 Session 的 workspace 并创建 Sandbox。
+    """
+    worker_database_url = os.getenv("WORKER_DATABASE_URL")
+
+    from agent_execution.audit import LoggingExecutionAuditSinkFactory
+    from agent_execution.brain_action_loop import DefaultBrainActionLoop
+    from agent_execution.facade import AgentExecutionFacade
+    from agent_execution.web_adapters import (
+        LifecycleWebReplySink,
+        PostgresWebRequestLoader,
+        TemporalActivityControl,
+    )
+    from agent_execution.web_events import RedisWebRunEventSinkFactory
+    from agent_execution.web_host import WebExecutionHost
+    from application.context_assembly import ContextAssemblyService
+    from orchestration.web_activities import (
+        execute_agent_activity,
+        finalize_cancelled_activity,
+        finalize_failed_activity,
+        inject_web_execution_host,
+        inject_web_lifecycle,
+        prepare_run_activity,
+    )
+    from orchestration.web_dispatcher import (
+        TemporalClientAdapter,
+        TemporalOutboxDispatcher,
+        WebOutboxDispatcher,
+    )
+    from orchestration.web_reconcile_adapters import LifecycleReconcileStore
+    from orchestration.web_reconciler import (
+        TemporalInspectorAdapter,
+        WebRunReconciler,
+    )
+    from orchestration.web_workers import (
+        build_web_temporal_workers,
+        validate_web_worker_startup,
+    )
+    from web_domain.lifecycle import WebRunLifecycleService
+    from web_domain.outbox import OutboxService
+    from web_domain.workflow_execution import PostgresWorkflowExecutionStore
+    from workspace.isolation import SessionResourceRecoveryService
+
+    validate_web_worker_startup(config.temporal, worker_database_url)
+    assert worker_database_url is not None
+    assert deps.workspace_isolation is not None, "workspace isolation is required"
+    lifecycle = WebRunLifecycleService(worker_database_url)
+    context = ContextAssemblyService(
+        worker_database_url, deps.context_builder, deps.hindsight_client
+    )
+    facade = AgentExecutionFacade(
+        DefaultBrainActionLoop(
+            deps.brain_engine,
+            deps.action_runtime,
+            max_tool_turns=config.agent.max_tool_turns,
+            cancel_cleanup_timeout_seconds=(
+                config.temporal.web_cancel_cleanup_timeout_seconds
+            ),
+        )
+    )
+    # P0/P1-3: Web real execution must acquire the shared Account lock, recover
+    # the Run's bound Session workspace, and create the Session Sandbox before
+    # the Facade selects tools.  ``deps.workspace_isolation.account_locks`` is
+    # the same registry QQ uses, so QQ and Web serialize per Account.
+    resource_prep = SessionResourceRecoveryService(
+        worker_database_url,
+        deps.workspace_root,
+        deps.sandbox_manager,
+        deps.workspace_isolation.account_locks,
+    )
+    web_host = WebExecutionHost(
+        PostgresWebRequestLoader(worker_database_url, context),
+        facade,
+        RedisWebRunEventSinkFactory(deps.redis_client),
+        LifecycleWebReplySink(lifecycle),
+        TemporalActivityControl(),
+        LoggingExecutionAuditSinkFactory(),
+        resource_prep=resource_prep,
+    )
+    inject_web_lifecycle(lifecycle)
+    inject_web_execution_host(web_host)
+    workers = build_web_temporal_workers(
+        client,
+        lifecycle_activities=[
+            prepare_run_activity,
+            finalize_failed_activity,
+            finalize_cancelled_activity,
+        ],
+        agent_activities=[execute_agent_activity],
+    )
+    execution_store = PostgresWorkflowExecutionStore(worker_database_url)
+    dispatcher = WebOutboxDispatcher(
+        OutboxService(worker_database_url),
+        TemporalOutboxDispatcher(
+            execution_store, TemporalClientAdapter(client), lifecycle
+        ),
+        worker_id=f"hpagent-web-dispatcher-{os.getpid()}",
+    )
+    reconciler = WebRunReconciler(
+        LifecycleReconcileStore(execution_store, lifecycle),
+        TemporalInspectorAdapter(client),
+    )
+    logger.info("Web real-Agent composition passed C-07 gate")
+    return WebWorkerComposition(workers, dispatcher, reconciler)
 
 
 @dataclasses.dataclass
@@ -593,94 +719,10 @@ async def start_worker(config: AppConfig) -> None:
     web_dispatcher = None
     web_reconciler = None
     if config.temporal.web_real_agent_enabled:
-        worker_database_url = os.getenv("WORKER_DATABASE_URL")
-
-        from agent_execution.audit import LoggingExecutionAuditSinkFactory
-        from agent_execution.brain_action_loop import DefaultBrainActionLoop
-        from agent_execution.facade import AgentExecutionFacade
-        from agent_execution.web_adapters import (
-            LifecycleWebReplySink,
-            PostgresWebRequestLoader,
-            TemporalActivityControl,
-        )
-        from agent_execution.web_events import RedisWebRunEventSinkFactory
-        from agent_execution.web_host import WebExecutionHost
-        from application.context_assembly import ContextAssemblyService
-        from orchestration.web_activities import (
-            execute_agent_activity,
-            finalize_cancelled_activity,
-            finalize_failed_activity,
-            inject_web_execution_host,
-            inject_web_lifecycle,
-            prepare_run_activity,
-        )
-        from orchestration.web_dispatcher import (
-            TemporalClientAdapter,
-            TemporalOutboxDispatcher,
-            WebOutboxDispatcher,
-            run_web_outbox_recovery_loop,
-        )
-        from orchestration.web_reconcile_adapters import LifecycleReconcileStore
-        from orchestration.web_reconciler import (
-            TemporalInspectorAdapter,
-            WebRunReconciler,
-        )
-        from orchestration.web_workers import (
-            build_web_temporal_workers,
-            validate_web_worker_startup,
-        )
-        from web_domain.lifecycle import WebRunLifecycleService
-        from web_domain.outbox import OutboxService
-        from web_domain.workflow_execution import PostgresWorkflowExecutionStore
-
-        validate_web_worker_startup(config.temporal, worker_database_url)
-        assert worker_database_url is not None
-        lifecycle = WebRunLifecycleService(worker_database_url)
-        context = ContextAssemblyService(
-            worker_database_url, deps.context_builder, deps.hindsight_client
-        )
-        facade = AgentExecutionFacade(
-            DefaultBrainActionLoop(
-                deps.brain_engine,
-                deps.action_runtime,
-                max_tool_turns=config.agent.max_tool_turns,
-                cancel_cleanup_timeout_seconds=(
-                    config.temporal.web_cancel_cleanup_timeout_seconds
-                ),
-            )
-        )
-        web_host = WebExecutionHost(
-            PostgresWebRequestLoader(worker_database_url, context),
-            facade,
-            RedisWebRunEventSinkFactory(deps.redis_client),
-            LifecycleWebReplySink(lifecycle),
-            TemporalActivityControl(),
-            LoggingExecutionAuditSinkFactory(),
-        )
-        inject_web_lifecycle(lifecycle)
-        inject_web_execution_host(web_host)
-        web_workers = build_web_temporal_workers(
-            client,
-            lifecycle_activities=[
-                prepare_run_activity,
-                finalize_failed_activity,
-                finalize_cancelled_activity,
-            ],
-            agent_activities=[execute_agent_activity],
-        )
-        execution_store = PostgresWorkflowExecutionStore(worker_database_url)
-        web_dispatcher = WebOutboxDispatcher(
-            OutboxService(worker_database_url),
-            TemporalOutboxDispatcher(
-                execution_store, TemporalClientAdapter(client), lifecycle
-            ),
-            worker_id=f"hpagent-web-dispatcher-{os.getpid()}",
-        )
-        web_reconciler = WebRunReconciler(
-            LifecycleReconcileStore(execution_store, lifecycle),
-            TemporalInspectorAdapter(client),
-        )
-        logger.info("Web real-Agent composition passed C-07 gate")
+        composition = compose_web_workers(client, config, deps)
+        web_workers = composition.workers
+        web_dispatcher = composition.dispatcher
+        web_reconciler = composition.reconciler
 
     # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
     _channel_factories = {

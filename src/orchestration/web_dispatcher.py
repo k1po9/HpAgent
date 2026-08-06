@@ -19,7 +19,10 @@ from orchestration.web_workflow import (
     WebRunWorkflow,
     WebRunWorkflowInput,
 )
-from web_domain.outbox import OutboxService
+from web_domain.outbox import (
+    WEB_OUTBOX_RECOVERY_EVENT_TYPES,
+    OutboxService,
+)
 
 logger = logging.getLogger("HpAgent.WebOutboxDispatcher")
 
@@ -46,12 +49,18 @@ async def run_web_outbox_recovery_loop(
     every ~250ms): recovery is a coarse, config-tuned sweep and must never be
     invoked with a non-positive timeout (``recover_expired(0)``).  Cancellation
     (worker shutdown) propagates so the caller can await the task.
+
+    Only leases for the Web Dispatcher's own event types are recovered: this
+    sweep must never steal ``processing`` rows owned by terminal/retain
+    consumers.
     """
     while True:
         await asyncio.sleep(interval_seconds)
         try:
             recovered = await asyncio.to_thread(
-                outbox.recover_expired, lease_timeout_seconds
+                outbox.recover_expired,
+                lease_timeout_seconds,
+                WEB_OUTBOX_RECOVERY_EVENT_TYPES,
             )
             if recovered:
                 logger.info(

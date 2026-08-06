@@ -21,6 +21,11 @@ OUTBOX_EVENT_TYPES = frozenset(
     {"start_run", "cancel_run", "retain_memory", "publish_terminal_event"}
 )
 
+# The Web Agent's lease recovery sweep must only reclaim leases the Web Outbox
+# Dispatcher itself owns.  Other consumers (terminal publishing, retain) hold
+# their own ``processing`` rows and must never be stolen by this recovery loop.
+WEB_OUTBOX_RECOVERY_EVENT_TYPES = frozenset({"start_run", "cancel_run"})
+
 
 def _safe_error(value: str, limit: int) -> str:
     return value.replace("\x00", "")[:limit]
@@ -47,9 +52,18 @@ class OutboxService:
             return self.repository.claim_batch(uow, worker_id, event_types, limit)
 
     @retryable_transaction
-    def recover_expired(self, older_than_seconds: int) -> int:
+    def recover_expired(
+        self,
+        older_than_seconds: int,
+        owned_event_types: Collection[str] = WEB_OUTBOX_RECOVERY_EVENT_TYPES,
+    ) -> int:
+        event_types = frozenset(owned_event_types)
+        if not event_types or not event_types <= OUTBOX_EVENT_TYPES:
+            raise ValueError("owned_event_types must contain known Outbox event types")
         with UnitOfWork(self.database_url) as uow:
-            return int(self.repository.recover_expired(uow, older_than_seconds))
+            return int(self.repository.recover_expired(
+                uow, older_than_seconds, event_types
+            ))
 
     @retryable_transaction
     def mark_processed(self, event_id: UUID, worker_id: str) -> bool:

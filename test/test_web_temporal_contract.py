@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import inspect
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -24,6 +25,7 @@ from agent_execution.qq_host import QQLegacyExecutionControl, QQExecutionHost, q
 from agent_execution.web_adapters import TemporalActivityControl
 from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
+from workspace.isolation import WorkspaceRecoveryRequired
 from application.conversation import ConversationService
 from common.types import ChannelType, UnifiedMessage
 from orchestration.config import TemporalConfig
@@ -38,6 +40,7 @@ from orchestration.web_reconciler import ReconcileCandidate, TemporalFact, WebRu
 from orchestration.web_workers import (
     WEB_REAL_AGENT_GATE_VERSION,
     build_web_temporal_workers,
+    validate_standalone_web_worker_topology,
     validate_web_worker_startup,
 )
 from orchestration.web_workflow import (
@@ -73,6 +76,27 @@ def test_web_worker_startup_fails_closed_without_c07_gate_or_database():
     config.web_agent_heartbeat_timeout_seconds = 44
     with pytest.raises(RuntimeError, match="frozen Workflow contract"):
         validate_web_worker_startup(config, "postgresql://worker")
+
+
+def test_standalone_web_worker_fails_closed_under_single_process_account_lock():
+    # P0-2: a separate Web Worker process racing the main Worker for the
+    # workspace process lock (and splitting the AccountLockRegistry) must be a
+    # hard configuration error, never a silently-duplicated QQ deployment.
+    with pytest.raises(RuntimeError, match="single_process_account_lock"):
+        validate_standalone_web_worker_topology("single_process_account_lock", True)
+    with pytest.raises(RuntimeError, match="must share one process"):
+        validate_standalone_web_worker_topology("single_process_account_lock", False)
+
+
+def test_standalone_web_worker_requires_real_agent_gate():
+    with pytest.raises(RuntimeError, match="WEB_REAL_AGENT_ENABLED=true"):
+        validate_standalone_web_worker_topology("session_worktree", False)
+
+
+def test_standalone_web_worker_accepts_session_worktree_with_gate():
+    # session_worktree is the only topology where a separate Web Worker process
+    # is structurally valid; with the gate on, the entrypoint may proceed.
+    validate_standalone_web_worker_topology("session_worktree", True)
 
 
 def test_web_workflow_input_is_minimal_and_versioned():
@@ -440,6 +464,118 @@ async def test_web_host_loads_by_run_id_and_only_then_calls_complete():
     host = WebExecutionHost(Loader(), AgentExecutionFacade(Loop()), Events(), Replies(), Control())
     assert (await host.execute("run")).content == "done"
     assert calls == ["load", "execute", "complete"]
+
+
+@pytest.mark.asyncio
+async def test_web_host_acquires_resource_lease_before_facade_execution():
+    # P0/P1-3: SessionResourceRecoveryService.lease_for_run must be entered
+    # before the Facade selects tools, and the Account lock must be held for
+    # the whole execution (AE-021).
+    calls: list[str] = []
+
+    run_uuid = "00000000-0000-0000-0000-00000000000a"
+    account_uuid = "00000000-0000-0000-0000-0000000000aa"
+
+    class Loader:
+        async def load(self, run_id):
+            return ExecutionRequest(
+                run_id, account_uuid, "conversation", "session", "hello", ()
+            )
+
+    class Control:
+        def cancelled(self):
+            return False
+
+    class Events:
+        def for_run(self, run_id):
+            return self
+
+        async def progress(self, phase, summary):
+            return None
+
+    class Loop:
+        async def execute(self, request, control, events, audit):
+            calls.append(f"execute:{'lease-held' if held[0] else 'no-lease'}")
+            return ExecutionResult("done", 1)
+
+    class Replies:
+        async def complete(self, run_id, result):
+            calls.append("complete")
+
+    held: list[bool] = [False]
+
+    class Prep:
+        @asynccontextmanager
+        async def lease_for_run(self, account_id, run_id, control=None):
+            held[0] = True
+            calls.append(f"lease:{account_id}:{run_id}")
+            try:
+                yield
+            finally:
+                calls.append("lease-released")
+                held[0] = False
+
+    host = WebExecutionHost(
+        Loader(), AgentExecutionFacade(Loop()), Events(), Replies(), Control(),
+        resource_prep=Prep(),
+    )
+    assert (await host.execute(run_uuid)).content == "done"
+    assert calls == [
+        f"lease:{account_uuid}:{run_uuid}",
+        "execute:lease-held",
+        "lease-released",
+        "complete",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_web_host_maps_workspace_recovery_required_to_stable_failure():
+    # Resource preparation is not a retryable internal error: an unprovable
+    # workspace recovery must surface as a stable workspace_recovery_required
+    # failure and never reach the ReplySink (no terminal state written).
+    run_uuid = "00000000-0000-0000-0000-00000000000b"
+    account_uuid = "00000000-0000-0000-0000-0000000000bb"
+    calls: list[str] = []
+
+    class Loader:
+        async def load(self, run_id):
+            return ExecutionRequest(
+                run_id, account_uuid, "conversation", "session", "hello", ()
+            )
+
+    class Control:
+        def cancelled(self):
+            return False
+
+    class Events:
+        def for_run(self, run_id):
+            return self
+
+        async def progress(self, phase, summary):
+            return None
+
+    class Loop:
+        async def execute(self, request, control, events, audit):
+            raise AssertionError("facade must not run when resource preparation fails")
+
+    class Replies:
+        async def complete(self, run_id, result):
+            calls.append("complete")
+
+    class Prep:
+        @asynccontextmanager
+        async def lease_for_run(self, account_id, run_id, control=None):
+            raise WorkspaceRecoveryRequired("dirty state belongs to another Session")
+            yield  # pragma: no cover
+
+    host = WebExecutionHost(
+        Loader(), AgentExecutionFacade(Loop()), Events(), Replies(), Control(),
+        resource_prep=Prep(),
+    )
+    with pytest.raises(StableExecutionFailure) as excinfo:
+        await host.execute(run_uuid)
+    assert excinfo.value.code == "workspace_recovery_required"
+    assert calls == []
 
 
 @pytest.mark.asyncio
@@ -954,7 +1090,9 @@ async def test_deadline_expired_prevents_model_call():
 async def test_model_over_deadline_is_stable_model_timeout():
     class Control:
         def __init__(self):
-            self._deadline = datetime.now(UTC) + timedelta(seconds=0.2)
+            # Larger than the loop's 1.0s safety margin so the model call is
+            # actually entered before the deadline expires.
+            self._deadline = datetime.now(UTC) + timedelta(seconds=1.3)
 
         @property
         def deadline(self):
@@ -995,10 +1133,10 @@ async def test_model_over_deadline_is_stable_model_timeout():
 
 
 @pytest.mark.asyncio
-async def test_tool_over_deadline_is_cancelled():
+async def test_tool_over_deadline_is_run_timeout():
     class Control:
         def __init__(self):
-            self._deadline = datetime.now(UTC) + timedelta(seconds=0.2)
+            self._deadline = datetime.now(UTC) + timedelta(seconds=1.3)
 
         @property
         def deadline(self):
@@ -1038,13 +1176,72 @@ async def test_tool_over_deadline_is_cancelled():
         cancel_cleanup_timeout_seconds=0.5,
         cancel_poll_interval_seconds=0.05,
     )
-    with pytest.raises(asyncio.CancelledError):
+    with pytest.raises(StableExecutionFailure) as failure:
         await loop.execute(
             ExecutionRequest("run", "a", "c", "s", "hello", ()),
             Control(),
             Events(),
             NullExecutionAuditSink(),
         )
+    # The Activity's global deadline expiring while a tool is in flight is a
+    # whole-Run timeout, not an unexpected cancellation: the Workflow must
+    # finalize it as run_timeout instead of treating it as a user cancel.
+    assert failure.value.code == "run_timeout"
+
+
+@pytest.mark.asyncio
+async def test_tool_per_call_cap_is_tool_timeout():
+    class Control:
+        @property
+        def deadline(self):
+            return datetime.max.replace(tzinfo=UTC)
+
+        def cancelled(self):
+            return False
+
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+    class Actions:
+        def reset_turn(self, session_id, execution_id):
+            return None
+
+        async def select_tools(self, **kwargs):
+            return []
+
+        async def execute_request(self, request, **kwargs):
+            await asyncio.sleep(5)
+
+    request = ActionRequest("tool-1", "safe_tool", {})
+
+    class FirstDecision:
+        has_actions = True
+        content = ""
+        action_requests = [request]
+
+    class Brain:
+        async def generate_chat_decision(self, **kwargs):
+            return FirstDecision()
+
+    loop = DefaultBrainActionLoop(
+        Brain(),
+        Actions(),
+        cancel_cleanup_timeout_seconds=0.5,
+        cancel_poll_interval_seconds=0.05,
+        deadline_margin_seconds=0.0,
+        tool_timeout_seconds=0.2,
+    )
+    with pytest.raises(StableExecutionFailure) as failure:
+        await loop.execute(
+            ExecutionRequest("run", "a", "c", "s", "hello", ()),
+            Control(),
+            Events(),
+            NullExecutionAuditSink(),
+        )
+    # A per-tool call cap expiring is a single-tool timeout, independent of the
+    # (infinite) whole-Run deadline.
+    assert failure.value.code == "tool_timeout"
 
 
 @pytest.mark.asyncio
@@ -1087,7 +1284,9 @@ async def test_cancellation_is_not_swallowed_by_deadline_timeout():
 
     class Control:
         def __init__(self):
-            self._deadline = datetime.now(UTC) + timedelta(seconds=0.2)
+            # Larger than the 1.0s safety margin so the model is entered and
+            # toggles cancellation well before the deadline would expire.
+            self._deadline = datetime.now(UTC) + timedelta(seconds=1.4)
 
         @property
         def deadline(self):
@@ -1134,7 +1333,8 @@ async def test_deadline_detaches_late_model_result():
 
     class Control:
         def __init__(self):
-            self._deadline = datetime.now(UTC) + timedelta(seconds=0.15)
+            # Larger than the 1.0s safety margin so the model is entered.
+            self._deadline = datetime.now(UTC) + timedelta(seconds=1.15)
 
         @property
         def deadline(self):
@@ -1187,7 +1387,9 @@ async def test_deadline_during_recall_is_run_timeout():
 
     class Control:
         def __init__(self):
-            self._deadline = datetime.now(UTC) + timedelta(seconds=0.1)
+            # Larger than the 1.0s safety margin so rewrite is entered before
+            # the deadline expires; recall then crosses it.
+            self._deadline = datetime.now(UTC) + timedelta(seconds=1.1)
 
         @property
         def deadline(self):

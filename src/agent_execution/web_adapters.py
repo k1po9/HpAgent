@@ -110,6 +110,7 @@ class TemporalActivityControl:
     async def heartbeat(self, phase: str) -> None:
         if phase not in {
             "starting",
+            "waiting_for_workspace_lock",
             "selecting_tools",
             "generating",
             "executing_tool",

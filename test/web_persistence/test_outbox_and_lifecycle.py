@@ -310,10 +310,20 @@ def test_db_025_killed_worker_lease_recovered_by_replacement_dispatcher(
     process.start()
     try:
         deadline = time.monotonic() + 10
-        while not marker.exists() and time.monotonic() < deadline:
-            time.sleep(0.05)
-        assert marker.exists(), "subprocess never claimed the start_run Outbox"
-        event_id = UUID(json.loads(marker.read_text(encoding="utf-8"))["outbox_event_id"])
+        claimed = None
+        while claimed is None and time.monotonic() < deadline:
+            if marker.exists():
+                try:
+                    claimed = json.loads(marker.read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    # The subprocess may have created the file before flushing
+                    # its JSON payload; retry until it is readable.
+                    claimed = None
+                    time.sleep(0.05)
+            else:
+                time.sleep(0.05)
+        assert claimed is not None, "subprocess never claimed the start_run Outbox"
+        event_id = UUID(claimed["outbox_event_id"])
 
         # The worker process is killed without marking processed.
         process.kill()
@@ -342,6 +352,44 @@ def test_db_025_killed_worker_lease_recovered_by_replacement_dispatcher(
         if process.is_alive():
             process.kill()
             process.join(10)
+
+
+def test_db_028_recovery_never_steals_other_consumers_leases(
+    db, account_id, database_url, worker_database_url
+):
+    """Web lease recovery must only reclaim Web-owned event types.
+
+    A ``publish_terminal_event`` row claimed and held by the terminal publisher
+    belongs to a different consumer; the Web recovery sweep must leave its
+    expired lease untouched even though ``recover_expired`` is asked to sweep.
+    """
+    from web_domain.outbox import WEB_OUTBOX_RECOVERY_EVENT_TYPES
+
+    _, _, run_id = _conversation_and_run(database_url, account_id)
+    _running(worker_database_url, run_id)
+    CommandService(worker_database_url).complete_run(account_id, run_id, "done")
+
+    outbox = OutboxService(worker_database_url)
+    terminal = outbox.claim(
+        "terminal-publisher", {"publish_terminal_event"}, 1
+    )[0]
+    assert terminal["event_type"] == "publish_terminal_event"
+    assert terminal["status"] == "processing"
+
+    # Expire the terminal lease, then run the Web recovery sweep.
+    with psycopg.connect(worker_database_url) as connection:
+        connection.execute(
+            "UPDATE outbox_events SET locked_at=now()-interval '120 seconds',"
+            "updated_at=now() WHERE outbox_event_id=%s",
+            (terminal["outbox_event_id"],),
+        )
+    assert outbox.recover_expired(60, WEB_OUTBOX_RECOVERY_EVENT_TYPES) == 0
+
+    # The terminal publisher's lease is untouched: still processing, still locked.
+    assert db.execute(
+        "SELECT status,locked_by FROM outbox_events WHERE outbox_event_id=%s",
+        (terminal["outbox_event_id"],),
+    ).fetchone() == ("processing", "terminal-publisher")
 
 
 def test_db_026_dispatcher_crash_after_claim_recovers_and_dispatches_once(

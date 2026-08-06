@@ -25,15 +25,18 @@ from orchestration.web_workers import (
     WEB_REAL_AGENT_GATE_VERSION,
     validate_web_worker_startup,
 )
+from web_domain.outbox import WEB_OUTBOX_RECOVERY_EVENT_TYPES
 
 
 class _RecordingOutbox:
     def __init__(self, failures: int = 0):
-        self.calls: list[int] = []
+        self.calls: list[tuple[int, frozenset[str]]] = []
         self._failures = failures
 
-    def recover_expired(self, older_than_seconds: int) -> int:
-        self.calls.append(older_than_seconds)
+    def recover_expired(
+        self, older_than_seconds: int, owned_event_types: frozenset[str]
+    ) -> int:
+        self.calls.append((older_than_seconds, frozenset(owned_event_types)))
         if len(self.calls) <= self._failures:
             raise RuntimeError("transient database failure")
         return 0
@@ -51,7 +54,7 @@ async def test_recovery_loop_runs_on_config_cadence_with_config_timeout_and_canc
     # The sweep repeats on its own config-driven cadence, not once and not in
     # the fast poll, and every call uses the configured lease timeout (never 0).
     assert len(outbox.calls) >= 2, "recovery must run repeatedly on the interval"
-    assert outbox.calls == [60] * len(outbox.calls)
+    assert outbox.calls == [(60, WEB_OUTBOX_RECOVERY_EVENT_TYPES)] * len(outbox.calls)
 
 
 @pytest.mark.asyncio
@@ -65,7 +68,7 @@ async def test_recovery_loop_logs_an_error_and_keeps_looping():
 
     # The transient failure was logged; the loop continued with later sweeps.
     assert len(outbox.calls) >= 2, "recovery must keep looping after an error"
-    assert outbox.calls == [30] * len(outbox.calls)
+    assert outbox.calls == [(30, WEB_OUTBOX_RECOVERY_EVENT_TYPES)] * len(outbox.calls)
 
 
 def test_outbox_recovery_config_defaults():

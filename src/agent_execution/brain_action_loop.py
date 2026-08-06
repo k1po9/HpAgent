@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from actions.runtime import ActionRuntime
@@ -18,6 +18,16 @@ from .facade import (
 )
 
 
+class ToolTimeoutCapExpired(TimeoutError):
+    """A per-call tool timeout cap expired while the tool was in flight.
+
+    The Activity's own start-to-close deadline and a per-tool call cap are
+    distinct: the former is a whole-Run timeout (``run_timeout``) while the
+    latter is a single-tool timeout (``tool_timeout``).  This subclass lets the
+    caller tell them apart without guessing from timing.
+    """
+
+
 class DefaultBrainActionLoop:
     def __init__(
         self,
@@ -26,16 +36,30 @@ class DefaultBrainActionLoop:
         max_tool_turns: int = 20,
         cancel_cleanup_timeout_seconds: float = 30,
         cancel_poll_interval_seconds: float = 1,
+        deadline_margin_seconds: float = 1.0,
+        tool_timeout_seconds: float | None = 120.0,
     ):
         if cancel_cleanup_timeout_seconds <= 0:
             raise ValueError("cancel cleanup timeout must be positive")
         if cancel_poll_interval_seconds <= 0:
             raise ValueError("cancel poll interval must be positive")
+        if deadline_margin_seconds < 0:
+            raise ValueError("deadline margin must be non-negative")
+        if tool_timeout_seconds is not None and tool_timeout_seconds <= 0:
+            raise ValueError("tool timeout must be positive")
         self._brain = brain
         self._actions = actions
         self._max_tool_turns = max_tool_turns
         self._cancel_cleanup_timeout_seconds = cancel_cleanup_timeout_seconds
         self._cancel_poll_interval_seconds = cancel_poll_interval_seconds
+        # The loop must stop slightly before the Activity deadline so a small
+        # scheduling slip cannot let Temporal's own start-to-close timeout fire
+        # and misclassify the failure as an internal execution error.
+        self._deadline_margin_seconds = deadline_margin_seconds
+        # Design §7 default for a single ordinary tool call (unfrozen).  A cap
+        # is what makes ``tool_timeout`` reachable independently of the whole
+        # Run deadline; passing None disables the per-tool cap.
+        self._tool_timeout_seconds = tool_timeout_seconds
 
     async def execute(
         self,
@@ -78,11 +102,18 @@ class DefaultBrainActionLoop:
             await self._checkpoint(control, "selecting_tools")
             await events.progress("selecting_tools", "正在准备工具。")
             try:
-                tools = await self._actions.select_tools(
-                    user_content=request.user_content,
-                    session_id=request.session_id,
-                    execution_id=request.execution_id,
+                tools = await self._await_with_control(
+                    self._actions.select_tools(
+                        user_content=request.user_content,
+                        session_id=request.session_id,
+                        execution_id=request.execution_id,
+                    ),
+                    control,
                 )
+            except TimeoutError as exc:
+                raise StableExecutionFailure("run_timeout") from exc
+            except StableExecutionFailure:
+                raise
             except Exception as exc:
                 raise StableExecutionFailure("tool_failed") from exc
             await events.progress("generating", "正在生成回复。")
@@ -101,6 +132,8 @@ class DefaultBrainActionLoop:
                 )
             except TimeoutError as exc:
                 raise StableExecutionFailure("model_timeout") from exc
+            except StableExecutionFailure:
+                raise
             except Exception as exc:
                 raise StableExecutionFailure("model_unavailable") from exc
             await self._audit_best_effort(
@@ -157,10 +190,22 @@ class DefaultBrainActionLoop:
                         ) from exc
                 try:
                     result = await self._execute_with_cancellation(
-                        action, request, control
+                        action,
+                        request,
+                        control,
+                        timeout_cap=self._tool_timeout_seconds,
                     )
-                except TimeoutError as exc:
+                except ToolTimeoutCapExpired as exc:
+                    # The single-tool call cap expired: this tool timed out,
+                    # not the whole Run.
                     raise StableExecutionFailure("tool_timeout") from exc
+                except TimeoutError as exc:
+                    # The Activity's global deadline expired while the tool was
+                    # in flight: the whole Run timed out, so cancellation must
+                    # not leak into the Workflow as an unexpected cancel.
+                    raise StableExecutionFailure("run_timeout") from exc
+                except StableExecutionFailure:
+                    raise
                 except Exception as exc:
                     raise StableExecutionFailure("tool_failed") from exc
                 await self._audit_best_effort(
@@ -189,6 +234,8 @@ class DefaultBrainActionLoop:
             )
         except TimeoutError as exc:
             raise StableExecutionFailure("model_timeout") from exc
+        except StableExecutionFailure:
+            raise
         except Exception as exc:
             raise StableExecutionFailure("model_unavailable") from exc
         await self._audit_best_effort(
@@ -247,41 +294,76 @@ class DefaultBrainActionLoop:
         remaining = (deadline - datetime.now(UTC)).total_seconds()
         return remaining if remaining > 0 else 0.0
 
-    @classmethod
-    def _raise_if_expired(cls, control: ExecutionControl) -> None:
-        """Fail the whole Run when the execution deadline has already passed."""
-        if cls._remaining_seconds(control) <= 0:
+    def _remaining_with_margin(self, control: ExecutionControl) -> float:
+        """Seconds left once the safety margin has been reserved.
+
+        The margin guarantees the loop stops before Temporal's own
+        start-to-close timeout can fire and misclassify the failure.
+        """
+        remaining = self._remaining_seconds(control)
+        if remaining == float("inf"):
+            return float("inf")
+        return max(0.0, remaining - self._deadline_margin_seconds)
+
+    def _raise_if_expired(self, control: ExecutionControl) -> None:
+        """Fail the whole Run before starting work close to the deadline."""
+        if self._remaining_with_margin(control) <= 0:
             raise StableExecutionFailure("run_timeout")
 
-    @classmethod
-    async def _checkpoint(cls, control: ExecutionControl, phase: str) -> None:
-        cls._raise_if_cancelled(control)
-        cls._raise_if_expired(control)
+    async def _checkpoint(self, control: ExecutionControl, phase: str) -> None:
+        self._raise_if_cancelled(control)
+        self._raise_if_expired(control)
         heartbeat = getattr(control, "heartbeat", None)
         if heartbeat is not None:
             await heartbeat(phase)
 
-    async def _execute_with_cancellation(self, action: Any, request: ExecutionRequest, control: ExecutionControl):
-        """Poll a running tool so an Activity cancellation is observed promptly."""
+    async def _execute_with_cancellation(
+        self,
+        action: Any,
+        request: ExecutionRequest,
+        control: ExecutionControl,
+        *,
+        timeout_cap: float | None = None,
+    ):
+        """Poll a running tool so cancellation/deadline are observed promptly.
+
+        Cancellation always wins.  A global-deadline expiry raises plain
+        ``TimeoutError`` (the whole Run timed out) while a per-tool ``timeout_cap``
+        expiry raises :class:`ToolTimeoutCapExpired` (only this tool timed out),
+        so the caller can map the two stable codes differently.  The in-flight
+        tool is always cancelled within the cleanup budget first.
+        """
         task = asyncio.create_task(self._actions.execute_request(
             action,
             session_id=request.session_id,
             execution_id=request.execution_id,
             user_query=request.user_content,
         ))
+        cap_deadline = (
+            datetime.now(UTC) + timedelta(seconds=timeout_cap)
+            if timeout_cap is not None
+            else None
+        )
         try:
             while not task.done():
                 self._raise_if_cancelled(control)
-                if self._remaining_seconds(control) <= 0:
-                    # The tool ran past the execution deadline: stop it exactly
-                    # like a cancel so cancellation (never a tool timeout) wins.
-                    raise asyncio.CancelledError
+                if cap_deadline is not None and datetime.now(UTC) >= cap_deadline:
+                    await self._cancel_with_budget(task)
+                    raise ToolTimeoutCapExpired("single-tool timeout cap expired")
+                remaining = self._remaining_with_margin(control)
+                if remaining <= 0:
+                    # The tool ran past the Activity deadline.  Stop it within
+                    # the cleanup budget and report the whole-Run timeout —
+                    # never CancelledError, which the Workflow would treat as
+                    # an unexpected cancellation.
+                    await self._cancel_with_budget(task)
+                    raise TimeoutError("execution deadline expired while tool in flight")
                 try:
                     return await asyncio.wait_for(
                         asyncio.shield(task),
                         timeout=min(
                             self._cancel_poll_interval_seconds,
-                            self._remaining_seconds(control),
+                            remaining,
                         ),
                     )
                 except TimeoutError:
@@ -305,14 +387,24 @@ class DefaultBrainActionLoop:
         awaitable is cancelled within the cleanup budget and TimeoutError is
         raised so the caller maps a stable timeout code. A result that lands
         after the budget is detached and ignored.
+
+        The cap is resolved to an absolute deadline once, before the loop, so
+        it actually expires instead of being re-reset to its full value on
+        every poll iteration.
         """
         task = asyncio.create_task(awaitable)
+        cap_deadline = (
+            datetime.now(UTC) + timedelta(seconds=timeout_cap)
+            if timeout_cap is not None
+            else None
+        )
         try:
             while not task.done():
                 self._raise_if_cancelled(control)
-                remaining = self._remaining_seconds(control)
-                if timeout_cap is not None:
-                    remaining = min(remaining, timeout_cap)
+                remaining = self._remaining_with_margin(control)
+                if cap_deadline is not None:
+                    cap_remaining = (cap_deadline - datetime.now(UTC)).total_seconds()
+                    remaining = min(remaining, max(0.0, cap_remaining))
                 if remaining <= 0:
                     await self._cancel_with_budget(task)
                     raise TimeoutError

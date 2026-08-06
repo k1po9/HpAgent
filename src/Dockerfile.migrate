@@ -1,0 +1,17 @@
+# One-shot schema migration runner (P1-6 compose DB gate).
+#
+# Build context is the repo root (like src/Dockerfile.web-api) so BOTH the
+# Python package (src/persistence) and the audited SQL dir (persistence/migrations)
+# land under /app.  persistence.migrate resolves its migration directory via
+# __file__.resolve().parents[2] → /app/persistence/migrations, so this layout is
+# required for the container to find the SQL files.
+FROM python:3.12-slim
+
+WORKDIR /app
+COPY requirements.txt /app/requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r /app/requirements.txt
+COPY src /app/src
+COPY persistence /app/persistence
+ENV PYTHONPATH=/app/src PYTHONUNBUFFERED=1
+CMD ["python", "-m", "persistence.migrate"]

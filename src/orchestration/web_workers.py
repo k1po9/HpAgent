@@ -14,6 +14,8 @@ from typing import Any
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from workspace.isolation import WorkspaceIsolationMode
+
 from .web_workflow import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
     WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS,
@@ -59,6 +61,34 @@ def validate_web_outbox_recovery(
             "web_outbox_recovery_interval_seconds must be smaller than "
             "web_outbox_lease_timeout_seconds"
         )
+
+
+def validate_standalone_web_worker_topology(
+    workspace_isolation_mode: str, web_real_agent_enabled: bool
+) -> None:
+    """Fail-closed gate for the independent ``web_worker`` entrypoint.
+
+    A separate Web Worker process is only structurally valid under the
+    ``session_worktree`` topology.  Under ``single_process_account_lock`` (the
+    default and only implemented topology) QQ and Web must share one process and
+    one ``AccountLockRegistry`` (AE-021); a second process would race the main
+    Worker for the workspace process lock and split the registry.  The
+    standalone entrypoint therefore refuses to start in that mode and requires
+    the C-07 real-Agent gate to be explicitly enabled.
+    """
+    if workspace_isolation_mode == WorkspaceIsolationMode.SINGLE_PROCESS_ACCOUNT_LOCK.value:
+        raise RuntimeError(
+            "standalone Web Worker is invalid under "
+            f"'{WorkspaceIsolationMode.SINGLE_PROCESS_ACCOUNT_LOCK.value}': "
+            "QQ and Web must share one process and one AccountLockRegistry "
+            "(AE-021); a second process would race the main Worker for the "
+            "workspace process lock and split the registry.  Enable Web on the "
+            "main worker (WEB_REAL_AGENT_ENABLED=true) instead, or switch "
+            f"WORKSPACE_ISOLATION_MODE to "
+            f"'{WorkspaceIsolationMode.SESSION_WORKTREE.value}'."
+        )
+    if not web_real_agent_enabled:
+        raise RuntimeError("standalone Web Worker requires WEB_REAL_AGENT_ENABLED=true")
 
 
 def validate_web_worker_startup(config: Any, worker_database_url: str | None) -> None:

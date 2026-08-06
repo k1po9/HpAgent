@@ -327,12 +327,19 @@ class OutboxRepository:
             (list(owned_event_types), limit, worker_id),
         ).fetchall()
 
-    def recover_expired(self, uow: UnitOfWork, older_than_seconds: int) -> int:
+    def recover_expired(
+        self,
+        uow: UnitOfWork,
+        older_than_seconds: int,
+        owned_event_types: Collection[str],
+    ) -> int:
+        event_types = list(frozenset(owned_event_types))
         cursor = uow.execute(
             "UPDATE outbox_events SET status='pending',locked_at=NULL,locked_by=NULL,"
             "updated_at=now() WHERE status='processing' "
-            "AND locked_at < now()-(%s * interval '1 second')",
-            (older_than_seconds,),
+            "AND locked_at < now()-(%s * interval '1 second') "
+            "AND event_type=ANY(%s)",
+            (older_than_seconds, event_types),
         )
         return int(cursor.rowcount)
 
