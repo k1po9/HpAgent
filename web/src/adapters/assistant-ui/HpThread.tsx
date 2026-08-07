@@ -15,6 +15,7 @@ import {
   ThreadPrimitive,
 } from "@assistant-ui/react";
 import { Flex, Text } from "@radix-ui/themes";
+import ReactMarkdown from "react-markdown";
 import type { HpMessage, HpRun } from "../../api/types";
 import { useHpThreadRuntime } from "./runtime";
 
@@ -23,6 +24,19 @@ export interface HpThreadProps {
   activeRun: HpRun | null;
   onSend: (content: string) => void;
   onCancel: () => void;
+}
+
+/**
+ * Text part renderer: assistant replies carry Markdown (fenced code, lists,
+ * emphasis) and must render as such. react-markdown emits no raw HTML by
+ * default, so the text stays inert.
+ */
+function HpTextPart({ text }: { text: string }) {
+  return (
+    <div className="hp-text-part">
+      <ReactMarkdown>{text}</ReactMarkdown>
+    </div>
+  );
 }
 
 function HpMessageView() {
@@ -34,7 +48,7 @@ function HpMessageView() {
       <MessagePrimitive.If assistant>
         <span className="hp-msg__marker hp-msg__marker--assistant" aria-hidden="true" />
       </MessagePrimitive.If>
-      <MessagePrimitive.Parts />
+      <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
     </MessagePrimitive.Root>
   );
 }

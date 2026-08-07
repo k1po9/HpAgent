@@ -1,4 +1,4 @@
-import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
+import { Box, Button, Flex, Heading, Spinner, Text } from "@radix-ui/themes";
 import { Plus, LogOut } from "lucide-react";
 import type { HpConversation } from "../api/types";
 
@@ -33,9 +33,9 @@ export function ConversationSidebar({
     <Box className="hp-sidebar">
       <Flex direction="column" style={{ height: "100%" }}>
         <Flex justify="between" align="center" className="hp-sidebar__header">
-          <Text size="3" weight="bold">
+          <Heading as="h2" size="3" weight="bold">
             对话
-          </Text>
+          </Heading>
           <Button
             size="1"
             variant="soft"

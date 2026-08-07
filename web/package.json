@@ -15,7 +15,8 @@
     "lint:fix": "eslint . --fix && prettier --write .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.8",
@@ -23,10 +24,12 @@
     "lucide-react": "^1.30.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^7.0.0",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.3",

@@ -104,6 +104,50 @@ describe("ApiClient auth recovery", () => {
     expect(headerValue(calls[2]?.init?.headers, "x-csrf-token")).toBe("token-from-me");
   });
 
+  it("puts the Idempotency-Key header on every mutation request", async () => {
+    const key = "019fdd40-0000-7000-8000-000000000001";
+    const seen: Array<Record<string, string>> = [];
+    const keyMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      void input;
+      seen.push((init?.headers ?? {}) as Record<string, string>);
+      return OK({ conversation: { conversation_id: "c1" } });
+    };
+    const c = new ApiClient(keyMock);
+    await c.request({
+      method: "POST",
+      path: "/api/v1/conversations",
+      body: { title: null },
+      idempotencyKey: key,
+    });
+    expect(headerValue(seen[0], "idempotency-key")).toBe(key);
+  });
+
+  it("replays the SAME Idempotency-Key after a CSRF rotation", async () => {
+    const key = "019fdd40-0000-7000-8000-000000000002";
+    let postCount = 0;
+    const keysSeen: Array<string | undefined> = [];
+    const replayMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/v1/me") {
+        return OK({ csrf_token: "fresh" });
+      }
+      postCount += 1;
+      keysSeen.push(headerValue(init?.headers, "idempotency-key"));
+      return postCount === 1
+        ? error(403, "csrf_invalid", "CSRF 校验失败。")
+        : OK({ conversation: { conversation_id: "c1" } });
+    };
+    const c = new ApiClient(replayMock);
+    await c.request({
+      method: "POST",
+      path: "/api/v1/conversations",
+      body: { title: null },
+      idempotencyKey: key,
+    });
+    // Original mutation and the post-rotation replay both carry the caller's key.
+    expect(keysSeen).toEqual([key, key]);
+  });
+
   it("does NOT rotate for a second csrf_invalid (single refresh budget)", async () => {
     let fetchCalls = 0;
     const always403 = async (_input: RequestInfo | URL) => {

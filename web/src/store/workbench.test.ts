@@ -382,6 +382,24 @@ describe("workbench store", () => {
     expect(store.getState().polling).toBe(false);
   });
 
+  it("allows a follow-up send after the Run completes (long conversation)", async () => {
+    const backend = makeBackend();
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    await store.getState().sendMessage("你好");
+    await vi.advanceTimersByTimeAsync(1000); // first poll resolves the completed snapshot
+    expect(store.getState().activeRun?.status).toBe("completed");
+
+    const posts = () =>
+      backend.calls.filter((c) => c.method === "POST" && c.url.endsWith("/messages"));
+    const before = posts().length;
+    // A terminal Run must NOT gate the composer: the next turn can start.
+    const ok = await store.getState().sendMessage("又一条");
+    expect(ok).toBe(true);
+    expect(posts().length).toBe(before + 1);
+  });
+
   // ---- E-06 SSE integration -------------------------------------------------
 
   /** Build one contract envelope (run_id pinned to r1). */

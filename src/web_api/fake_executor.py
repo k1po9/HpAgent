@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 from uuid import UUID
 
+from agent_execution.web_events import RedisWebRunEventSinkFactory
 from persistence.uow import UnitOfWork
 from web_domain.outbox import OutboxService
 from web_domain.services import CommandService
@@ -12,15 +13,28 @@ from .config import WebApiSettings
 
 
 class FakeRunExecutor:
-    """Non-production Outbox consumer using the real Run lifecycle service."""
+    """Non-production Outbox consumer using the real Run lifecycle service.
 
-    def __init__(self, database: object, settings: WebApiSettings):
+    When Redis is available the executor also projects the contract's *online*
+    events (run.started / run.progress / message.delta) through the real
+    ``RedisWebRunEventSink`` so a browser E2E can validate the live SSE pipeline.
+    Terminal state always flows through the committed Outbox + Terminal Event
+    Publisher — the online projection never contradicts database truth.
+    """
+
+    def __init__(
+        self,
+        database: object,
+        settings: WebApiSettings,
+        redis_client: object | None = None,
+    ):
         if settings.environment == "production":
             raise ValueError("fake executor cannot run in production")
         self.outbox = OutboxService(database)
         self.lifecycle = CommandService(database)
         self.settings = settings
         self.worker_id = "phase-b-fake-executor"
+        self._sinks = RedisWebRunEventSinkFactory(redis_client)
         self._task: asyncio.Task[None] | None = None
 
     def start(self) -> None:
@@ -66,6 +80,11 @@ class FakeRunExecutor:
         if row and row["status"] == "cancelling":
             await asyncio.to_thread(self.lifecycle.cancelled_run, account_id, run_id)
             return
+        # The run survived the delay window; stream the contract online events
+        # (progress + a delta) so a browser can observe the live SSE projection.
+        # Emitting AFTER the delay means the client's Gateway subscription is
+        # already established — nothing is lost to Redis pub/sub's no-backlog.
+        await self._stream_online(run_id)
         if self.settings.fake_executor_mode == "failure":
             await asyncio.to_thread(
                 self.lifecycle.fail_run,
@@ -81,3 +100,36 @@ class FakeRunExecutor:
                 run_id,
                 self.settings.fake_executor_content,
             )
+
+    async def _stream_online(self, run_id: UUID) -> None:
+        """Project run.started / run.progress / message.delta for one Run.
+
+        Best-effort: without Redis (or on a publish failure) the sink degrades
+        silently and the Run completes anyway.  Deltas are a volatile display
+        buffer — the committed terminal snapshot is authoritative and replaces
+        them client-side.
+        """
+        sink = self._sinks.for_run(str(run_id))
+        if sink.degraded:
+            return
+        with UnitOfWork(self.lifecycle.database_url) as uow:
+            row = uow.execute(
+                "SELECT message_id FROM messages "
+                "WHERE produced_by_run_id=%s AND role='assistant' "
+                "ORDER BY created_at LIMIT 1",
+                (run_id,),
+            ).fetchone()
+        if not row:
+            await sink.close()
+            return
+        message_id = str(row["message_id"])
+        content = self.settings.fake_executor_content
+        try:
+            await sink.started("running")
+            await sink.progress("assembling_context", "正在准备测试回复")
+            await asyncio.sleep(0.3)
+            await sink.delta(content, message_id)
+            await asyncio.sleep(0.3)
+            await sink.progress("finalizing", "正在完成处理")
+        finally:
+            await sink.close()

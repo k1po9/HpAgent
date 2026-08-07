@@ -235,7 +235,7 @@ export function createWorkbenchStore(
             set({
               activeRun: run,
               messages: reconcileAssistantMessage(latest.messages, snapshot.assistant_message),
-              activeRunError: null,
+              ...(terminal ? { activeRunError: null } : {}),
               polling: !terminal,
               degraded: terminal ? false : get().degraded,
             });
@@ -290,12 +290,15 @@ export function createWorkbenchStore(
           {
             onSnapshot: (snapshot) => {
               if (stale()) return;
+              // Only a terminal Run dismisses a `conversation_busy` notice;
+              // while a foreign Run is still executing the notice stays up.
+              const terminal = isTerminalRunStatus(snapshot.run.status);
               set({
                 activeRun: snapshot.run,
                 messages: reconcileAssistantMessage(get().messages, snapshot.assistant_message),
-                activeRunError: null,
+                ...(terminal ? { activeRunError: null } : {}),
               });
-              if (isTerminalRunStatus(snapshot.run.status)) {
+              if (terminal) {
                 set({ polling: false, degraded: false, activeRunProgress: null });
               }
             },
@@ -361,7 +364,9 @@ export function createWorkbenchStore(
         const active = detail.active_run;
         set((s) => ({
           activeRun: active?.run ?? null,
-          activeRunError: null,
+          // A `conversation_busy` message is deliberately preserved: learning
+          // that a foreign Run is active is not a reason to hide the notice —
+          // it clears when that Run reaches terminal (see the run monitor).
           activeRunProgress: null,
           degraded: false,
           pollGeneration: active ? s.pollGeneration + 1 : s.pollGeneration,
@@ -511,7 +516,12 @@ export function createWorkbenchStore(
         const conversationId = get().activeConversationId;
         const trimmed = content.trim();
         if (!conversationId || !trimmed) return false;
-        if (get().sending || get().stopping || get().activeRun) return false;
+        // Only a live Run blocks sending: after a terminal Run the composer is
+        // re-enabled so a long conversation continues in place (E-07).
+        const active = get().activeRun;
+        if (get().sending || get().stopping || (active && !isTerminalRunStatus(active.status))) {
+          return false;
+        }
 
         const idempotencyKey = newIdempotencyKey();
         const tempId = `temp:${idempotencyKey}`;

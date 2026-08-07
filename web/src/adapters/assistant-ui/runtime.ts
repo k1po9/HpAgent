@@ -19,6 +19,9 @@ import {
 import type { HpMessage, HpRun } from "../../api/types";
 import { toThreadMessageLike } from "./types";
 
+/** Terminal Run statuses: the composer un-gates once a Run is finished. */
+const TERMINAL_RUN_STATUS = new Set<HpRun["status"]>(["completed", "failed", "cancelled"]);
+
 export interface HpThreadRuntimeOptions {
   messages: HpMessage[];
   activeRun: HpRun | null;
@@ -47,7 +50,10 @@ export function useHpThreadRuntime({
     [],
   );
 
-  const isRunning = activeRun !== null;
+  // Only a live (queued/running/cancelling) Run gates the composer: a terminal
+  // Run re-enables sending so a long conversation can continue in place, while
+  // the run-status area keeps offering Retry for failed/cancelled Runs.
+  const isRunning = activeRun !== null && !TERMINAL_RUN_STATUS.has(activeRun.status);
 
   const onNew = useCallback(
     async (message: AppendMessage) => {

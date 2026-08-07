@@ -367,6 +367,64 @@ def test_sse_http_redis_unavailable_degrades_to_poll(
     assert client.get(f"/api/v1/runs/{run['run_id']}").status_code == 200
 
 
+def test_sse_http_fake_executor_streams_online_events_then_terminal(
+    seed_identity, client_factory, redis_url
+):
+    """Phase-e exit gate: with Redis the Fake Run Executor projects the contract
+    online events (run.started / run.progress / message.delta) under one
+    stream_id before the committed run.completed snapshot closes the stream."""
+    seed_identity("alice")
+    client = client_factory(
+        redis_url=redis_url, fake_enabled=True, fake_mode="success", fake_delay=0.05
+    )
+    csrf = login(client)
+    conversation_id = client.post(
+        "/api/v1/conversations",
+        json={"title": None},
+        headers=command_headers(csrf, str(uuid4())),
+    ).json()["conversation"]["conversation_id"]
+    sent = client.post(
+        f"/api/v1/conversations/{conversation_id}/messages",
+        json={"content": "stream please"},
+        headers=command_headers(csrf, str(uuid4())),
+    ).json()
+    run_id = sent["run"]["run_id"]
+    with client.stream("GET", f"/api/v1/runs/{run_id}/events") as response:
+        assert response.status_code == 200
+        frames = collect_sse(response)
+
+    types = [frame["event_type"] for frame in frames]
+    assert types[0] == "run.snapshot"
+    assert "run.started" in types
+    assert any(t == "run.progress" for t in types)
+    assert any(t == "message.delta" for t in types)
+    assert types[-1] == "run.completed"
+
+    # The online events share one stream_id and a monotonic event_seq.
+    online = [
+        frame
+        for frame in frames
+        if frame["event_type"] in ("run.started", "run.progress", "message.delta")
+    ]
+    assert online, "online events must reach the stream before the terminal"
+    assert len({frame["stream_id"] for frame in online}) == 1
+    seqs = [frame["event_seq"] for frame in online]
+    assert all(seq is not None for seq in seqs)
+    assert seqs == sorted(seqs)
+
+    # The delta carries the pending assistant Message id; the terminal snapshot
+    # is authoritative with null stream_id/event_seq.
+    delta = next(frame for frame in frames if frame["event_type"] == "message.delta")
+    assert delta["message_id"] == sent["assistant_message"]["message_id"]
+    terminal = frames[-1]
+    assert terminal["stream_id"] is None
+    assert terminal["event_seq"] is None
+    assert (
+        terminal["payload"]["snapshot"]["assistant_message"]["content"]
+        == "fake completed response"
+    )
+
+
 def test_sse_connection_limit_returns_503(client_factory, seed_identity, redis_url):
     """A bounded number of concurrent SSE connections: the excess gets a JSON 503.
 

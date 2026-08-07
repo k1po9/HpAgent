@@ -26,11 +26,15 @@ export function toAssistantStatus(status: HpMessageStatus): MessageStatus {
 
 /** Map an authoritative HpMessage onto the assistant-ui message shape. */
 export function toThreadMessageLike(message: HpMessage): ThreadMessageLike {
-  return {
+  const base = {
     id: message.message_id,
     role: message.role,
     content: message.content ?? "",
     createdAt: new Date(message.created_at),
-    status: toAssistantStatus(message.status),
   };
+  // assistant-ui only accepts a streaming `status` on assistant messages —
+  // a user message carrying one makes the thread render throw. Omit it there.
+  return message.role === "assistant"
+    ? { ...base, status: toAssistantStatus(message.status) }
+    : base;
 }

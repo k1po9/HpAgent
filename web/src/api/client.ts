@@ -85,18 +85,16 @@ export class ApiClient {
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ username, password, return_to: "/" }),
-      redirect: "manual",
+      redirect: "follow",
     });
-    if (response.status !== 303) {
+    if (response.status === 401 || response.status === 422) {
       // A 401 carries the stable JSON error envelope; surface it as a typed
       // error so the login form can show the message.
-      if (response.status === 401 || response.status === 422) {
-        throw await this.toError(response);
-      }
-      return false;
+      throw await this.toError(response);
     }
-    // The 303 Set-Cookie has been stored by the browser; /me seeds the CSRF
-    // token and confirms the session.
+    // The 303 Set-Cookie has been stored by the browser (redirect: follow goes
+    // to return_to `/`). The real proof of the session is /me, which also seeds
+    // the CSRF token — never trust the login response alone.
     return (await this.me()) !== null;
   }
 
@@ -113,17 +111,10 @@ export class ApiClient {
   }
 
   async request<T>(init: ApiRequestInit): Promise<T> {
-    const headers = this.mutationHeaders();
-    if (init.body !== undefined) {
-      headers["Content-Type"] = "application/json";
-    }
-    for (const [name, value] of Object.entries(init.headers ?? {})) {
-      headers[name] = value;
-    }
     const response = await this.fetchImpl(init.path, {
       method: init.method,
       credentials: "same-origin",
-      headers,
+      headers: this.buildRequestHeaders(init),
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
       signal: init.signal,
     });
@@ -134,6 +125,26 @@ export class ApiClient {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (this.csrfToken) {
       headers["X-CSRF-Token"] = this.csrfToken;
+    }
+    return headers;
+  }
+
+  /**
+   * Header assembly shared by the initial send and the CSRF-triggered replay:
+   * both must carry the SAME Idempotency-Key (the replay is the same intent).
+   */
+  private buildRequestHeaders(
+    init: Pick<ApiRequestInit, "body" | "headers" | "idempotencyKey">,
+  ): Record<string, string> {
+    const headers = this.mutationHeaders();
+    if (init.body !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
+    if (init.idempotencyKey) {
+      headers["Idempotency-Key"] = init.idempotencyKey;
+    }
+    for (const [name, value] of Object.entries(init.headers ?? {})) {
+      headers[name] = value;
     }
     return headers;
   }
@@ -157,17 +168,10 @@ export class ApiClient {
     if (csrfRetryCount === 0 && !init.sensitive && (await this.isCsrfInvalid(response))) {
       const me = await this.me();
       if (me !== null) {
-        const headers = this.mutationHeaders();
-        if (init.body !== undefined) {
-          headers["Content-Type"] = "application/json";
-        }
-        for (const [name, value] of Object.entries(init.headers ?? {})) {
-          headers[name] = value;
-        }
         const retried = await this.fetchImpl(init.path, {
           method: init.method,
           credentials: "same-origin",
-          headers,
+          headers: this.buildRequestHeaders(init),
           body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
           signal: init.signal,
         });

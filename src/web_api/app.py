@@ -52,7 +52,6 @@ from .security import CursorCodec, CursorError
 from .sse import SSEGateway, load_run_snapshot
 from .terminal_publisher import TerminalEventPublisher
 
-COOKIE_NAME = "__Host-hpagent_session"
 ETAG_PATTERN = re.compile(r'^"conversation-([0-9a-f-]+)-m([1-9][0-9]*)"$')
 
 
@@ -190,6 +189,10 @@ def create_app(
     credential_adapter: CredentialAdapter | None = None,
 ) -> FastAPI:
     settings = settings or WebApiSettings.from_env()
+    # The `__Host-` cookie prefix is only valid with Secure/HTTPS; non-secure
+    # environments (local dev / E2E over http) use a plain name so the browser
+    # accepts the session cookie.
+    cookie_name = "__Host-hpagent_session" if settings.cookie_secure else "hpagent_session"
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -238,7 +241,7 @@ def create_app(
             )
             worker_pool.wait()
             app.state.worker_pool = worker_pool
-            fake = FakeRunExecutor(worker_pool, settings)
+            fake = FakeRunExecutor(worker_pool, settings, redis_client)
             fake.start()
         try:
             yield
@@ -305,7 +308,7 @@ def create_app(
         return _error(request, 503, "service_unavailable", "服务暂不可用。", retryable=True)
 
     def auth_context(request: Request) -> AuthContext:
-        raw = request.cookies.get(COOKIE_NAME)
+        raw = request.cookies.get(cookie_name)
         context = request.app.state.auth.authenticate(raw) if raw else None
         if not context:
             raise Unauthenticated()
@@ -364,7 +367,7 @@ def create_app(
             return_to = "/"
         response = RedirectResponse(return_to, status_code=303)
         response.set_cookie(
-            COOKIE_NAME,
+            cookie_name,
             context.raw_session_token,
             path="/",
             secure=settings.cookie_secure,
@@ -393,7 +396,7 @@ def create_app(
 
     @app.post("/api/v1/auth/logout", status_code=204)
     def logout(request: Request):
-        raw = request.cookies.get(COOKIE_NAME)
+        raw = request.cookies.get(cookie_name)
         context = request.app.state.auth.authenticate(raw) if raw else None
         if context:
             submitted = request.headers.get("x-csrf-token", "")
@@ -401,7 +404,7 @@ def create_app(
                 raise CsrfInvalid()
             request.app.state.auth.revoke(context)
         response = Response(status_code=204)
-        response.delete_cookie(COOKIE_NAME, path="/", secure=settings.cookie_secure, httponly=True, samesite="lax")
+        response.delete_cookie(cookie_name, path="/", secure=settings.cookie_secure, httponly=True, samesite="lax")
         return response
 
     @app.post("/api/v1/conversations")
@@ -501,7 +504,7 @@ def create_app(
             if isinstance(exc, ResourceNotFound):
                 return _error(request, 404, "resource_not_found", "资源不存在。")
             raise
-        raw_token = request.cookies.get(COOKIE_NAME, "")
+        raw_token = request.cookies.get(cookie_name, "")
         auth_service: AuthService = request.app.state.auth
 
         def auth_check(raw: str) -> bool:

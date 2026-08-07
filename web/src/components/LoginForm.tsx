@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box, Button, Flex, Text, TextField } from "@radix-ui/themes";
+import { Box, Button, Flex, Heading, Text, TextField } from "@radix-ui/themes";
 import { api } from "../api/client";
 import { useAuth } from "../store/auth";
 
@@ -34,9 +34,9 @@ export function LoginForm() {
     <Box style={{ maxWidth: 360, margin: "20vh auto 0" }}>
       <form onSubmit={onSubmit}>
         <Flex direction="column" gap="3">
-          <Text size="5" weight="bold">
+          <Heading as="h1" size="5" weight="bold">
             HpAgent 登录
-          </Text>
+          </Heading>
           <label>
             <Text as="span" size="2" color="gray">
               用户名
