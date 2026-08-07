@@ -1,0 +1,379 @@
+/**
+ * Workbench store tests (phase-e test strategy):
+ * double-click guard, send → authoritative replace, pagination dedup,
+ * conversation_busy recovery, retry, and run polling until terminal.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiClient } from "../api/client";
+import { HpApi } from "../api/resources";
+import type { HpConversation, HpMessage, HpRun, HpRunSnapshot } from "../api/types";
+import { createWorkbenchStore } from "./workbench";
+
+const OK = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+
+function message(overrides: Partial<HpMessage>): HpMessage {
+  return {
+    message_id: overrides.message_id ?? "m",
+    conversation_id: "c1",
+    role: "assistant",
+    status: "completed",
+    content: "hello",
+    sequence: 1,
+    client_request_id: null,
+    produced_by_run_id: null,
+    created_at: "2026-08-08T00:00:00Z",
+    completed_at: null,
+    ...overrides,
+  };
+}
+
+function run(overrides: Partial<HpRun>): HpRun {
+  return {
+    run_id: overrides.run_id ?? "r1",
+    conversation_id: "c1",
+    session_id: "s1",
+    trigger_message_id: "um1",
+    retry_of_run_id: null,
+    status: overrides.status ?? "queued",
+    failure: null,
+    version: 1,
+    created_at: "2026-08-08T00:00:00Z",
+    started_at: null,
+    finished_at: null,
+    updated_at: "2026-08-08T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function conversation(overrides: Partial<HpConversation>): HpConversation {
+  return {
+    conversation_id: overrides.conversation_id ?? "c1",
+    title: "测试对话",
+    status: "active",
+    last_message_seq: 0,
+    metadata_version: 1,
+    created_at: "2026-08-08T00:00:00Z",
+    updated_at: "2026-08-08T00:00:00Z",
+    ...overrides,
+  };
+}
+
+interface FakeBackend {
+  calls: Array<{ method: string; url: string }>;
+  state: {
+    postCount: Record<string, number>;
+    runSnapshots: Record<string, HpRunSnapshot>;
+  };
+  fetchMock: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+}
+
+function makeBackend(overrides: Partial<FakeBackend["state"]> = {}): FakeBackend {
+  const state: FakeBackend["state"] = {
+    postCount: {},
+    runSnapshots: {},
+    ...overrides,
+  };
+  const calls: FakeBackend["calls"] = [];
+  const fetchMock: FakeBackend["fetchMock"] = async (input, init) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    calls.push({ method, url });
+
+    if (url === "/api/v1/me") {
+      return OK({ csrf_token: "t" });
+    }
+    if (method === "POST" && url === "/api/v1/conversations") {
+      return OK({ conversation: conversation({ conversation_id: "c2", title: "新对话" }) });
+    }
+    if (url === "/api/v1/conversations") {
+      return OK({ items: [conversation({})], next_cursor: null, has_more: false });
+    }
+    const detailMatch = url.match(/^\/api\/v1\/conversations\/([^/]+)$/);
+    if (method === "GET" && detailMatch) {
+      return OK({
+        conversation: conversation({ conversation_id: detailMatch[1] }),
+        active_run: null,
+      });
+    }
+    const sendMatch = url.match(/^\/api\/v1\/conversations\/([^/]+)\/messages$/);
+    if (method === "POST" && sendMatch) {
+      const id = sendMatch[1] ?? "c1";
+      const key = `send:${id}`;
+      state.postCount[key] = (state.postCount[key] ?? 0) + 1;
+      const body = JSON.parse(String(init?.body)) as { content: string };
+      const userMessage = message({
+        message_id: `um-${state.postCount[key]}`,
+        conversation_id: id,
+        role: "user",
+        status: "accepted",
+        content: body.content,
+        sequence: 1,
+      });
+      const assistantMessage = message({
+        message_id: "am-1",
+        conversation_id: id,
+        role: "assistant",
+        status: "pending",
+        content: "",
+        sequence: 2,
+        produced_by_run_id: "r1",
+      });
+      const runObj = run({
+        run_id: "r1",
+        status: "queued",
+        trigger_message_id: userMessage.message_id,
+      });
+      return OK({
+        user_message: userMessage,
+        assistant_message: assistantMessage,
+        run: runObj,
+        events_url: `/api/v1/runs/r1/events`,
+      });
+    }
+    const listMatch = url.match(/^\/api\/v1\/conversations\/([^/]+)\/messages\?/);
+    if (method === "GET" && listMatch) {
+      return OK({
+        items: [],
+        next_cursor: null,
+        has_more: false,
+        conversation_last_message_seq: 0,
+      });
+    }
+    const runMatch = url.match(/^\/api\/v1\/runs\/([^/]+)$/);
+    if (method === "GET" && runMatch) {
+      const snapshot = state.runSnapshots[runMatch[1] ?? ""];
+      if (snapshot) return OK(snapshot);
+      return OK({
+        run: run({ run_id: runMatch[1], status: "completed" }),
+        assistant_message: message({
+          message_id: "am-1",
+          role: "assistant",
+          status: "completed",
+          content: "completed answer",
+          sequence: 2,
+          produced_by_run_id: runMatch[1],
+        }),
+      });
+    }
+    const cancelMatch = url.match(/^\/api\/v1\/runs\/([^/]+)\/cancel$/);
+    if (method === "POST" && cancelMatch) {
+      return OK({
+        run: run({
+          run_id: cancelMatch[1],
+          status: "cancelled",
+          finished_at: "2026-08-08T00:00:01Z",
+        }),
+        assistant_message: message({
+          message_id: "am-1",
+          role: "assistant",
+          status: "aborted",
+          content: "partial",
+          produced_by_run_id: cancelMatch[1],
+        }),
+      });
+    }
+    const retryMatch = url.match(/^\/api\/v1\/runs\/([^/]+)\/retry$/);
+    if (method === "POST" && retryMatch) {
+      return OK({
+        source_run_id: retryMatch[1],
+        assistant_message: message({
+          message_id: "am-2",
+          role: "assistant",
+          status: "pending",
+          content: "",
+          produced_by_run_id: "r2",
+        }),
+        run: run({ run_id: "r2", status: "queued", retry_of_run_id: retryMatch[1] }),
+        events_url: `/api/v1/runs/r2/events`,
+      });
+    }
+    return OK({ items: [], next_cursor: null, has_more: false });
+  };
+  return { calls, state, fetchMock };
+}
+
+type BoundStore = ReturnType<typeof createWorkbenchStore>;
+
+function makeStore(backend: FakeBackend): BoundStore {
+  const client = new ApiClient(backend.fetchMock);
+  return createWorkbenchStore({ api: new HpApi(client) });
+}
+
+describe("workbench store", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("guards against double-send: only one POST, second call returns false", async () => {
+    const backend = makeBackend();
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+
+    const first = store.getState().sendMessage("你好");
+    const second = store.getState().sendMessage("又一条"); // ignored while sending
+    expect(await second).toBe(false);
+    expect(await first).toBe(true);
+
+    const posts = backend.calls.filter((c) => c.method === "POST" && c.url.endsWith("/messages"));
+    expect(posts).toHaveLength(1);
+    expect(store.getState().activeRun?.run_id).toBe("r1");
+  });
+
+  it("replaces the temp user message with authoritative ids and starts a run", async () => {
+    const backend = makeBackend();
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+
+    const ok = await store.getState().sendMessage("你好");
+    expect(ok).toBe(true);
+    expect(store.getState().messages.map((m) => m.message_id)).toEqual(["um-1", "am-1"]);
+    expect(store.getState().messages[0]).toMatchObject({ role: "user", content: "你好" });
+    expect(store.getState().activeRun?.run_id).toBe("r1");
+    expect(store.getState().sending).toBe(false);
+  });
+
+  it("does not duplicate messages when pagination pages overlap", async () => {
+    const backend = makeBackend();
+    // First page holds one message; the older page re-returns it plus one
+    // genuinely older message (keyset pages may share the cursor boundary).
+    const orig = backend.fetchMock;
+    let page = 1;
+    backend.fetchMock = async (input, init) => {
+      const url = String(input);
+      if (url.startsWith("/api/v1/conversations/c1/messages")) {
+        if (page === 1) {
+          page += 1;
+          return OK({
+            items: [message({ message_id: "um-1", sequence: 1 })],
+            next_cursor: "older",
+            has_more: true,
+            conversation_last_message_seq: 1,
+          });
+        }
+        return OK({
+          items: [
+            message({ message_id: "m-old-2", sequence: 2 }),
+            message({ message_id: "um-1", sequence: 1 }),
+          ],
+          next_cursor: null,
+          has_more: false,
+          conversation_last_message_seq: 2,
+        });
+      }
+      return orig(input, init);
+    };
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    expect(store.getState().messages.map((m) => m.message_id)).toEqual(["um-1"]);
+
+    await store.getState().loadMoreMessages();
+    const ids = store.getState().messages.map((m) => m.message_id);
+    expect(ids).toEqual(["m-old-2", "um-1"]);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("surfaces conversation_busy from the backend without losing the draft", async () => {
+    const backend = makeBackend();
+    const orig = backend.fetchMock;
+    backend.fetchMock = async (input, init) => {
+      const url = String(input);
+      if (url.includes("/messages") && init?.method === "POST") {
+        return OK(
+          {
+            error: {
+              code: "conversation_busy",
+              message: "当前对话仍有请求正在执行。",
+              request_id: null,
+              retryable: false,
+              details: {},
+            },
+          },
+          409,
+        );
+      }
+      return orig(input, init);
+    };
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+
+    const ok = await store.getState().sendMessage("你好");
+    expect(ok).toBe(false);
+    // The temp message is removed; the draft lives in the composer, not here.
+    expect(store.getState().messages).toHaveLength(0);
+    expect(store.getState().activeRunError).not.toBeNull();
+    expect(store.getState().error).toBeNull();
+  });
+
+  it("retries a failed run with a fresh idempotency key and new assistant message", async () => {
+    const backend = makeBackend();
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    await store.getState().sendMessage("你好");
+    // The backend marks the run failed.
+    store.setState({
+      activeRun: run({
+        run_id: "r1",
+        status: "failed",
+        failure: { code: "run_failed", message: "boom", retryable: true },
+      }),
+    });
+
+    await store.getState().retryRun();
+    expect(store.getState().activeRun?.run_id).toBe("r2");
+    expect(store.getState().activeRun?.status).toBe("queued");
+    expect(store.getState().messages.some((m) => m.message_id === "am-2")).toBe(true);
+  });
+
+  it("polls a running run until terminal and reconciles the assistant message", async () => {
+    const backend = makeBackend();
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    await store.getState().sendMessage("你好");
+    expect(store.getState().activeRun?.status).toBe("queued");
+
+    await vi.advanceTimersByTimeAsync(1000); // first poll
+    // backend default: completed snapshot
+    expect(store.getState().activeRun?.status).toBe("completed");
+    const assistant = store.getState().messages.find((m) => m.message_id === "am-1");
+    expect(assistant?.content).toBe("completed answer");
+    expect(store.getState().polling).toBe(false);
+  });
+
+  it("stops polling when the conversation is switched away", async () => {
+    const backend = makeBackend();
+    backend.state.runSnapshots["r1"] = {
+      run: run({ run_id: "r1", status: "running" }),
+      assistant_message: message({
+        message_id: "am-1",
+        role: "assistant",
+        status: "pending",
+        content: "growing…",
+        produced_by_run_id: "r1",
+      }),
+    };
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    await store.getState().sendMessage("你好");
+
+    // Switch away: the r1 poller must stop polling.
+    const callsBefore = backend.calls.filter((c) => c.url.includes("/runs/")).length;
+    await store.getState().selectConversation("c2");
+    await vi.advanceTimersByTimeAsync(2000);
+    const callsAfter = backend.calls.filter((c) => c.url.includes("/runs/")).length;
+    expect(callsAfter).toBe(callsBefore);
+  });
+});

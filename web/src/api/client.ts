@@ -47,8 +47,12 @@ export class ApiClient {
   private csrfToken: string | null = null;
   private readonly fetchImpl: HpApiTransport["fetch"];
 
-  constructor(fetchImpl: HpApiTransport["fetch"] = globalThis.fetch.bind(globalThis)) {
-    this.fetchImpl = fetchImpl;
+  constructor(fetchImpl?: HpApiTransport["fetch"]) {
+    // Resolve `globalThis.fetch` at call time (not construction) so tests and
+    // a Vite HMR reload can swap it; an arrow call preserves the browser's
+    // same-origin `this` without binding a stale function.
+    this.fetchImpl =
+      fetchImpl ?? ((input, init) => globalThis.fetch(input as RequestInfo | URL, init));
   }
 
   /** Reset the cached CSRF token (logout, session expiry). */

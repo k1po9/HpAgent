@@ -1,0 +1,91 @@
+import { useCallback } from "react";
+import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
+import { HpThread } from "../adapters/assistant-ui/HpThread";
+import { useWorkbench } from "../store/workbench";
+import { RunStatus } from "./RunStatus";
+
+/**
+ * The active conversation pane (phase-e E-03/E-04).
+ *
+ * Composes the assistant-ui chat surface with the run-status strip. The store
+ * owns all authoritative state; this component only maps store → UI.
+ */
+export function ChatPane() {
+  const messages = useWorkbench((s) => s.messages);
+  const activeRun = useWorkbench((s) => s.activeRun);
+  const activeRunError = useWorkbench((s) => s.activeRunError);
+  const stopping = useWorkbench((s) => s.stopping);
+  const loadingMessages = useWorkbench((s) => s.loadingMessages);
+  const hasMoreMessages = useWorkbench((s) => s.hasMoreMessages);
+  const loadingMoreMessages = useWorkbench((s) => s.loadingMoreMessages);
+  const error = useWorkbench((s) => s.error);
+  const sendMessage = useWorkbench((s) => s.sendMessage);
+  const stopRun = useWorkbench((s) => s.stopRun);
+  const retryRun = useWorkbench((s) => s.retryRun);
+  const loadMoreMessages = useWorkbench((s) => s.loadMoreMessages);
+  const clearError = useWorkbench((s) => s.clearError);
+
+  const handleSend = useCallback(
+    (content: string) => {
+      void sendMessage(content);
+    },
+    [sendMessage],
+  );
+  const handleCancel = useCallback(() => {
+    void stopRun();
+  }, [stopRun]);
+  const handleRetry = useCallback(() => {
+    void retryRun();
+  }, [retryRun]);
+  const handleLoadMore = useCallback(() => {
+    void loadMoreMessages();
+  }, [loadMoreMessages]);
+  const handleDismissError = useCallback(() => {
+    clearError();
+  }, [clearError]);
+
+  if (loadingMessages) {
+    return (
+      <Flex align="center" justify="center" gap="2" style={{ height: "100%" }}>
+        <Spinner />
+        <Text size="2" color="gray">
+          正在加载对话…
+        </Text>
+      </Flex>
+    );
+  }
+
+  return (
+    <Flex direction="column" style={{ height: "100%" }}>
+      <RunStatus
+        activeRun={activeRun}
+        busyMessage={activeRunError}
+        stopping={stopping}
+        onStop={handleCancel}
+        onRetry={handleRetry}
+      />
+      {error ? (
+        <button type="button" className="hp-error" onClick={handleDismissError}>
+          <Text size="2" color="red">
+            {error}（点击关闭）
+          </Text>
+        </button>
+      ) : null}
+      {hasMoreMessages ? (
+        <Flex justify="center" className="hp-loadmore">
+          <Button size="1" variant="soft" onClick={handleLoadMore} disabled={loadingMoreMessages}>
+            {loadingMoreMessages ? "加载中…" : "加载更早的消息"}
+          </Button>
+        </Flex>
+      ) : null}
+      <Box style={{ flex: 1, minHeight: 0 }}>
+        <HpThread
+          messages={messages}
+          activeRun={activeRun}
+          onSend={handleSend}
+          onCancel={handleCancel}
+        />
+      </Box>
+    </Flex>
+  );
+}
