@@ -30,6 +30,13 @@ class WebApiSettings:
     fake_executor_content: str = "这是由测试执行器生成的回复。"
     fake_executor_failure_code: str = "fake_executor_failure"
     real_agent_enabled: bool = False
+    # --- Phase E: SSE / terminal publisher ---
+    redis_url: str | None = None
+    sse_handshake_buffer_events: int = 256
+    sse_handshake_buffer_bytes: int = 1 * 1024 * 1024
+    sse_keepalive_seconds: float = 15.0
+    sse_max_connections: int = 256
+    terminal_publisher_poll_seconds: float = 0.5
 
     def __post_init__(self) -> None:
         if self.active_cursor_key_id not in self.cursor_signing_keys:
@@ -82,4 +89,16 @@ class WebApiSettings:
                 "WEB_FAKE_EXECUTOR_FAILURE_CODE", "fake_executor_failure"
             ),
             real_agent_enabled=os.getenv("WEB_REAL_AGENT_ENABLED", "false").lower() == "true",
+            redis_url=os.getenv("REDIS_URL") or None,
+            sse_handshake_buffer_events=int(
+                os.getenv("WEB_SSE_HANDSHAKE_BUFFER_EVENTS", "256")
+            ),
+            sse_handshake_buffer_bytes=int(
+                os.getenv("WEB_SSE_HANDSHAKE_BUFFER_BYTES", str(1 * 1024 * 1024))
+            ),
+            sse_keepalive_seconds=float(os.getenv("WEB_SSE_KEEPALIVE_SECONDS", "15.0")),
+            sse_max_connections=int(os.getenv("WEB_SSE_MAX_CONNECTIONS", "256")),
+            terminal_publisher_poll_seconds=float(
+                os.getenv("WEB_TERMINAL_PUBLISHER_POLL_SECONDS", "0.5")
+            ),
         )

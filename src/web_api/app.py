@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hmac
 import html
 import json
@@ -11,7 +12,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, StreamingResponse
 from psycopg.rows import dict_row
 from psycopg_pool import ConnectionPool
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -48,6 +49,8 @@ from .models import (
 )
 from .queries import QueryService
 from .security import CursorCodec, CursorError
+from .sse import SSEGateway, load_run_snapshot
+from .terminal_publisher import TerminalEventPublisher
 
 COOKIE_NAME = "__Host-hpagent_session"
 ETAG_PATTERN = re.compile(r'^"conversation-([0-9a-f-]+)-m([1-9][0-9]*)"$')
@@ -111,7 +114,8 @@ class CommonHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
         if request.url.path.startswith("/api/v1") or request.url.path.startswith("/auth"):
-            response.headers["Cache-Control"] = "no-store"
+            if not response.headers.get("content-type", "").startswith("text/event-stream"):
+                response.headers["Cache-Control"] = "no-store"
         if response.headers.get("content-type", "").startswith("application/json"):
             response.headers["Content-Type"] = "application/json; charset=utf-8"
         return response
@@ -121,7 +125,10 @@ class ProtocolMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Any]]):
         if request.url.path.startswith("/api/v1"):
             accept = request.headers.get("accept", "*/*")
-            if "application/json" not in accept and "*/*" not in accept:
+            is_sse = request.url.path.endswith("/events")
+            if not is_sse and "application/json" not in accept and "*/*" not in accept:
+                return _error(request, 406, "not_acceptable", "不支持请求的响应类型。")
+            if is_sse and "text/event-stream" not in accept and "*/*" not in accept:
                 return _error(request, 406, "not_acceptable", "不支持请求的响应类型。")
         if request.method in {"POST", "PATCH", "PUT"} and request.url.path != "/api/v1/auth/logout":
             content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
@@ -205,6 +212,21 @@ def create_app(
                 settings.cursor_ttl_seconds,
             ),
         )
+        # Phase E: SSE Gateway + Terminal Event Publisher over the raw Web Run
+        # Redis channel.  Redis is optional: without it the SSE Gateway degrades
+        # to snapshot + stream.degraded(redis_unavailable) and the client polls.
+        redis_client = None
+        if settings.redis_url:
+            import redis.asyncio as aioredis
+
+            redis_client = aioredis.from_url(settings.redis_url, decode_responses=False)
+            app.state.redis_client = redis_client
+        app.state.sse_gateway = SSEGateway(api_pool, settings, redis_client)
+        publisher = None
+        if redis_client is not None:
+            publisher = TerminalEventPublisher(api_pool, redis_client, settings)
+            publisher.start()
+            app.state.terminal_publisher = publisher
         fake = None
         if settings.fake_executor_enabled:
             worker_pool = ConnectionPool(
@@ -224,6 +246,10 @@ def create_app(
             if fake:
                 await fake.stop()
                 app.state.worker_pool.close()
+            if publisher:
+                await publisher.stop()
+            if redis_client is not None:
+                await redis_client.aclose()
             api_pool.close()
 
     app = FastAPI(
@@ -441,6 +467,60 @@ def create_app(
     @app.get("/api/v1/runs/{run_id}")
     def get_run(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
         return request.app.state.queries.get_run(context.account_id, run_id)
+
+    @app.get("/api/v1/runs/{run_id}/events")
+    async def run_events(
+        run_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(auth_context),
+    ):
+        """SSE projection of one Run (hpagent-web-api-contract.md §12, §13).
+
+        Authentication is the same-origin HttpOnly Cookie (no CSRF for GET).
+        Connection errors before streaming return JSON; after the stream starts,
+        problems are signalled with control events (stream.degraded / auth.expired).
+        """
+        gateway: SSEGateway = request.app.state.sse_gateway
+        # Bound concurrent SSE connections before streaming begins.
+        if not await gateway.try_acquire():
+            return _error(
+                request,
+                503,
+                "service_unavailable",
+                "SSE 连接数已达上限，请稍后重试。",
+                retryable=True,
+            )
+        # Verify ownership before starting the stream so pre-stream errors can
+        # still be non-200 JSON (contract §12.1).
+        try:
+            await asyncio.to_thread(
+                load_run_snapshot, request.app.state.api_pool, context.account_id, run_id
+            )
+        except Exception as exc:
+            await gateway.release()
+            if isinstance(exc, ResourceNotFound):
+                return _error(request, 404, "resource_not_found", "资源不存在。")
+            raise
+        raw_token = request.cookies.get(COOKIE_NAME, "")
+        auth_service: AuthService = request.app.state.auth
+
+        def auth_check(raw: str) -> bool:
+            return auth_service.authenticate(raw) is not None
+
+        return StreamingResponse(
+            gateway.stream(
+                context.account_id,
+                run_id,
+                raw_token,
+                auth_check,
+                acquired=True,
+            ),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-transform",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     @app.post("/api/v1/runs/{run_id}/cancel")
     def cancel_run(run_id: UUID, payload: EmptyRequest, request: Request, context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):

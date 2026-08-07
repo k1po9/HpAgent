@@ -69,7 +69,14 @@ class WebExecutionHost:
             raise ValueError("Web request loader returned a different run")
         events = self._events.for_run(run_id)
         try:
-            await events.progress("starting", "正在启动执行。")
+            # Phase E: emit the contract ``run.started`` online event when the
+            # Event Sink supports it; ``assembling_context`` is the first stable
+            # progress phase.  ``started`` is an optional extension of the
+            # ``EventSink`` protocol, so older sinks are untouched.
+            started = getattr(events, "started", None)
+            if started is not None:
+                await started()
+            await events.progress("assembling_context", "正在启动执行。")
             audit = (
                 self._audit.for_execution(request.execution_id, request)
                 if self._audit is not None

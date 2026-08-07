@@ -13,6 +13,23 @@ from web_api.app import create_app
 from web_api.config import WebApiSettings
 
 
+@pytest.fixture(scope="session")
+def redis_url() -> str:
+    value = os.getenv("REDIS_URL")
+    if not value:
+        pytest.skip("REDIS_URL is required")
+    return value
+
+
+@pytest.fixture
+def sync_redis(redis_url: str):
+    import redis
+
+    client = redis.Redis.from_url(redis_url, decode_responses=False)
+    yield client
+    client.close()
+
+
 class TestCredentials:
     def verify(self, username: str, password: str) -> str | None:
         if password != "correct-password":
@@ -79,7 +96,15 @@ def client_factory(database_url: str, worker_database_url: str):
     clients: list[TestClient] = []
 
     def factory(
-        *, fake_enabled: bool = False, fake_mode: str = "hold", fake_delay: float = 0.02
+        *,
+        fake_enabled: bool = False,
+        fake_mode: str = "hold",
+        fake_delay: float = 0.02,
+        redis_url: str | None = None,
+        sse_keepalive_seconds: float = 15.0,
+        sse_max_connections: int = 256,
+        sse_handshake_buffer_events: int = 256,
+        sse_handshake_buffer_bytes: int = 1 * 1024 * 1024,
     ) -> TestClient:
         settings = WebApiSettings(
             database_url=database_url,
@@ -95,6 +120,12 @@ def client_factory(database_url: str, worker_database_url: str):
             fake_executor_delay_seconds=fake_delay,
             fake_executor_content="fake completed response",
             cookie_secure=True,
+            redis_url=redis_url,
+            sse_keepalive_seconds=sse_keepalive_seconds,
+            sse_max_connections=sse_max_connections,
+            sse_handshake_buffer_events=sse_handshake_buffer_events,
+            sse_handshake_buffer_bytes=sse_handshake_buffer_bytes,
+            terminal_publisher_poll_seconds=0.1,
         )
         client = TestClient(
             create_app(settings, TestCredentials()), base_url="https://testserver"

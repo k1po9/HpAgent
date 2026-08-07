@@ -413,8 +413,15 @@ def test_api_021_claimed_start_is_not_started_after_direct_cancel(
     assert CommandService(worker_database_url).start_run(account_id, UUID(run_id)) is False
 
 
-def test_sse_placeholder_path_uses_structured_404(client_factory):
+def test_sse_route_requires_auth_and_ownership(client_factory, seed_identity, logged_client):
+    # API-001: unauthenticated SSE is 401 before any stream data, without
+    # revealing whether the Run exists.
     client = client_factory()
-    response = client.get(f"/api/v1/runs/{uuid4()}/events")
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "resource_not_found"
+    unauth = client.get(f"/api/v1/runs/{uuid4()}/events")
+    assert unauth.status_code == 401
+    assert unauth.json()["error"]["code"] == "unauthenticated"
+    # Authenticated access to an unknown Run is an opaque 404.
+    authenticated, _csrf, _account = logged_client
+    missing = authenticated.get(f"/api/v1/runs/{uuid4()}/events")
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "resource_not_found"

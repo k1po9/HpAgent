@@ -116,7 +116,7 @@ class DefaultBrainActionLoop:
                 raise
             except Exception as exc:
                 raise StableExecutionFailure("tool_failed") from exc
-            await events.progress("generating", "正在生成回复。")
+            await events.progress("calling_model", "正在生成回复。")
             try:
                 decision = await self._await_with_control(
                     self._brain.generate_chat_decision(
@@ -221,7 +221,7 @@ class DefaultBrainActionLoop:
                     "content": result.display_result,
                 })
         await self._checkpoint(control, "generating")
-        await events.progress("generating", "正在整理结果。")
+        await events.progress("finalizing", "正在整理结果。")
         try:
             decision = await self._await_with_control(
                 self._brain.generate_final_decision(
