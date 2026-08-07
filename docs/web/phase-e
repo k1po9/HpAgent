@@ -1,0 +1,141 @@
+# Phase E 开发说明
+
+Phase E 交付 SSE 实时事件管道与 assistant-ui 前端：后端新增 SSE Gateway、
+Terminal Event Publisher 和 Web Run 事件桥；前端新增 `web/` React + TypeScript
+工作台。命令仍走 HTTP，SSE 只投影状态；PostgreSQL 继续是 Message、Run、
+Session 和终态的唯一真相源，Redis 只承载瞬时 delta/进度与终态通知。
+
+## 本地命令
+
+```bash
+make install
+make db-up
+make migrate
+make ci                 # lint + typecheck + test-existing + test-db + test-api
+make web-install        # web/ 依赖安装与锁文件
+make web-lint           # eslint / prettier
+make web-typecheck      # tsc --noEmit
+make web-build          # vite build
+make web-test           # 前端单测 + mock server 合约测试
+make web-dev            # vite dev + 同源代理到 hpagent-api
+make e2e                # Playwright 浏览器 E2E（真实 API/PostgreSQL/Redis）
+```
+
+前端开发时同时启动 `hpagent-api`（含 Fake Executor）与 `redis`：
+
+```bash
+export HPAGENT_ENV=test
+export WEB_FAKE_EXECUTOR_ENABLED=true
+export APP_DATABASE_URL=postgresql://hpagent_api:hpagent_api@localhost:5434/hpagent
+export WORKER_DATABASE_URL=postgresql://hpagent_worker:hpagent_worker@localhost:5434/hpagent
+export WEB_PUBLIC_ORIGIN=https://localhost
+export WEB_CURSOR_SECRET='replace-with-at-least-32-bytes'
+export WEB_SESSION_TOKEN_PEPPER='replace-with-at-least-32-bytes'
+export WEB_CSRF_SIGNING_KEY='replace-with-at-least-32-bytes'
+export WEB_CREDENTIALS_JSON='{"alice":"<argon2id-password-hash>"}'
+export REDIS_URL=redis://localhost:6379
+PYTHONPATH=src python -m web_api
+```
+
+## 前端工程（E-01）
+
+- 目录 `web/`，React + TypeScript + Vite。assistant-ui 只允许出现在单一
+  `web/src/adapters/assistant-ui/` 层，业务 API client、路由、store 和 DTO
+  不得导入 assistant-ui 内部类型（合约 §14.1）。
+- 升级 assistant-ui 依赖必须通过 Adapter 回归；MVP 不实现自制聊天组件替代
+  assistant-ui 的成熟交互。
+- 无 Account/Conversation 真相存入组件内部状态；后端 ID 是稳定 key，刷新后
+  从 API 完全重建。
+
+## API Client 与状态边界（E-02）
+
+- same-origin HttpOnly Cookie；CSRF token 来自 `GET /api/v1/me`；修改请求统一
+  携带 `X-CSRF-Token` 与 `Idempotency-Key`（一次意图一个 key，网络重试复用）。
+- 401/403/409/412/503 按错误码恢复：`csrf_invalid` 只允许用 `GET /me` 刷新一次
+  token；`conversation_busy` 引导等待 active Run；`idempotency_conflict` 不覆盖。
+- 客户端不提交 `account_id` 选择范围；草稿只作为本地 UI 状态，失败请求不得自动
+  换新幂等 key。
+
+## 工作台与发送/停止/重试（E-03、E-04）
+
+- Conversation 列表/创建/切换、历史 keyset 分页、空状态；进入时先 GET detail +
+  messages，不从 assistant-ui local cache 恢复权威历史。
+- composer 发送：生成 Idempotency-Key → POST messages → 用后端 user/assistant
+  message_id 和 Run 替换临时项 → 订阅 events URL。
+- 停止调用 cancel API；failed/cancelled 的 retry 调用 retry API 复用原 user
+  Message；禁用 assistant-ui 自带 regenerate/branch 语义。
+- 同一 Conversation active Run 时前端禁用冲突发送，但以后端 409 为最终裁决。
+
+## SSE Gateway（E-05，后端）
+
+`GET /api/v1/runs/{run_id}/events`，实现位于 `src/web_api/sse.py`（独立模块，
+保持组合根边界）：
+
+1. 先鉴权并校验 Run 归属，建连失败返回 401/404/429/503 JSON；连接建立后不再
+   改变 HTTP 状态，后续问题用控制事件并关闭。
+2. 先订阅 Redis `hpagent:web:run:{run_id}`（**原始通道，无 `app:` 前缀**，
+   与 `RedisWebRunEventSink` 的发布通道一致）。
+3. 订阅成功后启用每连接有界握手缓冲（256 事件 / 1 MiB，可配置，任一达到即降级）。
+4. 查数据库发送 `run.snapshot`，再按同一 stream_id 的 event_seq 排空在线事件；
+   缓冲中出现多个非空 stream_id 直接 `stream.degraded`。
+5. 心跳用 SSE comment `: keepalive`；`stream.degraded` 的 reason 稳定值为
+   `handshake_buffer_overflow` / `sequence_gap` / `redis_unavailable` /
+   `upstream_disconnected`。
+6. 收到终态通知后再查数据库确认已提交终态，发送后关闭；snapshot 已含终态时丢弃
+   缓冲 delta 直接关闭。
+7. SSE 不得直接暴露 Redis/Temporal 内部对象；终端事件 Publisher 失败不能修改
+   Run 数据库状态。
+
+Redis 事件桥统一把 Phase D 已有的 `RedisWebRunEventSink` 扩展为契约形状：
+`run.started` / `message.delta` / `run.status` / `run.progress`，同一
+`stream_id` 内 `event_seq` 从 1 单调递增；合并/限流 progress 必须在分配
+`event_id/event_seq` 之前完成，不人为制造序号缺口。
+
+## Terminal Event Publisher（E-05，后端）
+
+- 独立逻辑组件（MVP 可与 Worker 同容器），consumer 名沿用测试已有的
+  `terminal-publisher`，只领取已提交的 `publish_terminal_event` Outbox。
+- 发布 `run.completed` / `run.failed` / `run.cancelled`，复用 Outbox 中稳定的
+  `terminal_event_id`（重试不换 ID），携带完整数据库 RunSnapshot；终态事件
+  `stream_id/event_seq` 均为 null。
+- 发布失败不改变数据库终态；at-least-once 重复投递不得产生重复 Message/UI。
+
+## SSE Client（E-06，前端）
+
+- 基于 `fetch()` + `ReadableStream` 的可控客户端，`credentials: 'same-origin'`；
+  禁止原生 EventSource 默认重连/Last-Event-ID 行为。
+- 按 event_id 去重；同 stream_id 序号乱序可短暂缓冲，跳号/stream_id 改变立即
+  degraded 并永久停止本次 delta 拼接；progress 只显示在独立运行状态区域，不进
+  Message 内容；终态 snapshot 完整覆盖本地 delta。
+- 恢复算法：SSE error / degraded / 刷新 → 停止拼接 → `GET /api/v1/runs/{run_id}`
+  → 终态则覆盖，active 则按退避轮询（1s/2s/3s/5s，最多 5s 一次）。
+
+## 测试策略
+
+- 后端 SSE/Publisher 合约测试位于 `test/web_api/`，连接真实 PostgreSQL 与 Redis，
+  覆盖 API-010～API-015、API-020、API-023：握手竞态、缓冲溢出、Redis 断连、
+  序号缺口、重复终态、snapshot 覆盖 delta。
+- 前端单测 + mock server 合约测试覆盖 401/403/409/412/503、token 轮换、双击、
+  幂等 key 复用、分页去重。
+- `make e2e`：Playwright 覆盖登录、长对话、刷新、多标签页、停止、重试、断线、
+  Markdown/code、基础可访问性；不同账号浏览器上下文完全隔离；依赖真实
+  API/PostgreSQL/Redis，不依赖测试顺序或共享 local state。
+- 生产环境不启用 Fake Executor、不把 QQ 长期记忆验收提前伪造。
+
+## 风险与已知缺口
+
+- `RedisWebRunEventSink` 现仅发布 `run.progress`（phase 集合为
+  starting/selecting_tools/generating/executing_tool），不满足契约 phase 枚举
+  （assembling_context/recalling_memory/calling_model/selecting_tools/
+  executing_tool/finalizing）；E-05 必须扩展 phase 白名单并按契约形状补
+  `run.started`/`message.delta`/`run.status`，同时保持 Phase D 冻结的
+  `hpagent:web:run:{run_id}` 通道不变。
+- 现有 sink payload 用 `type` 字段而非 `event_type`，且缺 `message_id`/
+  `conversation_id`/`occurred_at`；Gateway 负责归一化为契约信封。
+- 握手缓冲参数必须可配置并记录为指标；WebSocket/HTTP2 代理层缓存需确认
+  `X-Accel-Buffering: no`。
+- E2E 不能依赖浏览器共享 local state；多标签页正确性依赖后端幂等与单 active
+  Run 约束，不依赖 BroadcastChannel。
+
+
+

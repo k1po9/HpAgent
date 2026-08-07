@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    // Composite projects referenced from tsconfig.json must emit; redirect the
+    // output (vite.config.js / .d.ts) into node_modules/.tmp so the source tree
+    // stays clean (gitignored and eslint-ignored).
+    "outDir": "./node_modules/.tmp/tsconfig.node",
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "types": ["node"]
+  },
+  "include": ["vite.config.ts"]
+}

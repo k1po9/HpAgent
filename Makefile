@@ -1,4 +1,6 @@
-.PHONY: install lint typecheck test test-existing test-db test-api migrate db-up db-down ci
+.PHONY: install lint typecheck test test-existing test-db test-api migrate db-up db-down ci web-install web-lint web-typecheck web-build web-test web-dev e2e
+
+NPM ?= npm
 
 MIGRATION_DATABASE_URL ?= postgresql://hpagent_migrate:hpagent_migrate@localhost:5434/hpagent
 APP_DATABASE_URL ?= postgresql://hpagent_api:hpagent_api@localhost:5434/hpagent
@@ -36,3 +38,24 @@ db-down:
 	docker compose stop app-postgres
 
 ci: lint typecheck test-existing test-db test-api
+
+web-install:
+	cd web && $(NPM) install
+
+web-lint:
+	cd web && $(NPM) run lint
+
+web-typecheck:
+	cd web && $(NPM) run typecheck
+
+web-build:
+	cd web && $(NPM) run build
+
+web-test:
+	cd web && $(NPM) test
+
+web-dev:
+	cd web && $(NPM) run dev
+
+e2e:
+	cd web && $(NPM) run test:e2e
