@@ -1,5 +1,5 @@
 /**
- * Workbench state (phase-e E-03/E-04).
+ * Workbench state (phase-e E-03/E-04/E-06).
  *
  * Single source of truth for the conversation list, the active conversation's
  * message history, and the active Run. Backend IDs are the stable keys: after a
@@ -13,13 +13,18 @@
  *   double-sends are ignored, but the backend 409 remains the final arbiter.
  * - `stop`/`retry` call the cancel/retry APIs; a failed or cancelled Run can be
  *   retried, reusing the original user message.
- * - Run state is refreshed by keyset polling with backoff (1s/2s/3s/5s) until
- *   the Run reaches a terminal state. E-06 replaces the polling cadence with the
- *   SSE subscription; `applyRunSnapshot` is shared by both.
+ * - Run state is watched live over the SSE subscription (E-06). Deltas stream
+ *   into the pending assistant Message as a volatile buffer; `run.progress`
+ *   lives only in the run-status area. On degraded/connect loss the feed stops
+ *   permanently and the store recovers by querying the Run, polling with
+ *   backoff (1s/2s/3s/5s) while it stays active. A terminal SSE snapshot always
+ *   replaces the local delta buffer.
  */
 import { create } from "zustand";
 import { api as defaultApi } from "../api/client";
 import { HpApi } from "../api/resources";
+import { openRunFeed, type RunFeed, type RunProgress } from "../sse/runFeed";
+import { useAuth } from "./auth";
 import {
   HpCommandError,
   type HpConversation,
@@ -73,6 +78,10 @@ function sleep(ms: number): Promise<void> {
 
 export interface WorkbenchDeps {
   api: HpApi;
+  /** fetch override for the SSE subscription (tests swap this for a mock). */
+  fetchImpl?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  /** Session invalidated mid-stream: defaults to flipping the app to login. */
+  onAuthExpired?: () => void;
 }
 
 export interface WorkbenchState {
@@ -94,6 +103,10 @@ export interface WorkbenchState {
   // Active Run
   activeRun: HpRun | null;
   activeRunError: string | null;
+  /** Volatile `run.progress` hint; shown only in the run-status area (E-06). */
+  activeRunProgress: RunProgress | null;
+  /** True when the SSE stream degraded/connection was lost (recovering by poll). */
+  degraded: boolean;
   polling: boolean;
   sending: boolean;
   stopping: boolean;
@@ -145,6 +158,30 @@ function reconcileAssistantMessage(messages: HpMessage[], assistant: HpMessage):
   return [...messages, assistant];
 }
 
+/**
+ * Append a volatile SSE delta to the pending assistant Message (E-06).
+ *
+ * Deltas are an in-memory display buffer only: they are never written to the
+ * backend, and a terminal snapshot fully replaces them. Matching is by
+ * message_id first, then by the Run that produced the pending assistant Message.
+ */
+function appendDelta(
+  messages: HpMessage[],
+  runId: string,
+  messageId: string,
+  delta: string,
+): HpMessage[] {
+  const idx = messages.findIndex(
+    (m) => m.message_id === messageId || (m.role === "assistant" && m.produced_by_run_id === runId),
+  );
+  if (idx < 0) return messages;
+  const next = messages.slice();
+  const current = next[idx];
+  if (!current) return messages;
+  next[idx] = { ...current, content: `${current.content ?? ""}${delta}` };
+  return next;
+}
+
 function messageErrorText(err: unknown): string {
   if (err instanceof HpCommandError) {
     return err.error.message;
@@ -155,10 +192,24 @@ function messageErrorText(err: unknown): string {
   return "发生未知错误，请重试。";
 }
 
-export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defaultApi) }) {
+export function createWorkbenchStore(
+  deps: WorkbenchDeps = {
+    api: new HpApi(defaultApi),
+    onAuthExpired: () => useAuth.getState().expire(),
+  },
+) {
   const { api } = deps;
 
   return create<WorkbenchState>()((set, get) => {
+    /** The live SSE feed for the current Run, if any; closed on switch/stop. */
+    let activeFeed: RunFeed | null = null;
+
+    const closeFeed = (): void => {
+      if (activeFeed) {
+        activeFeed.close();
+        activeFeed = null;
+      }
+    };
     /** Poll a Run until terminal; stops when a newer Run supersedes it. */
     function startPolling(runId: string): void {
       const generation = get().pollGeneration;
@@ -172,7 +223,7 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
           if (current.pollGeneration !== generation) return;
           if (current.activeRun?.run_id !== runId) return;
           if (current.activeRun && isTerminalRunStatus(current.activeRun.status)) {
-            set({ polling: false });
+            set({ polling: false, degraded: false });
             return;
           }
           try {
@@ -180,18 +231,122 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
             const latest = get();
             if (latest.pollGeneration !== generation) return;
             const run = snapshot.run;
+            const terminal = isTerminalRunStatus(run.status);
             set({
               activeRun: run,
               messages: reconcileAssistantMessage(latest.messages, snapshot.assistant_message),
               activeRunError: null,
-              polling: !isTerminalRunStatus(run.status),
+              polling: !terminal,
+              degraded: terminal ? false : get().degraded,
             });
-            if (isTerminalRunStatus(run.status)) return;
+            if (terminal) return;
           } catch {
             // Transient fetch error: keep polling with the current backoff.
           }
         }
       })();
+    }
+
+    /** One authoritative GET after a terminal SSE event (contract §12.4). */
+    async function confirmRun(runId: string, generation: number): Promise<void> {
+      try {
+        const snapshot = await api.getRun(runId);
+        const latest = get();
+        if (latest.pollGeneration !== generation || latest.activeRun?.run_id !== runId) return;
+        set({
+          activeRun: snapshot.run,
+          messages: reconcileAssistantMessage(latest.messages, snapshot.assistant_message),
+        });
+      } catch {
+        // The SSE snapshot is already authoritative; nothing to correct.
+      }
+    }
+
+    /**
+     * Watch a Run live over SSE (E-06). Deltas stream into the pending Message;
+     * progress lands in the run-status area; a terminal snapshot replaces the
+     * buffer. On degraded/connect loss the feed stops permanently and recovery
+     * queries the Run, polling while it stays active (contract §13.2).
+     */
+    function startRunMonitor(runId: string): void {
+      const generation = get().pollGeneration;
+      closeFeed();
+
+      const current = get();
+      if (current.activeRun && isTerminalRunStatus(current.activeRun.status)) {
+        set({ polling: false, degraded: false, activeRunProgress: null });
+        return;
+      }
+      set({ polling: true, degraded: false, activeRunProgress: null });
+
+      const stale = (): boolean => {
+        const latest = get();
+        return latest.pollGeneration !== generation || latest.activeRun?.run_id !== runId;
+      };
+
+      try {
+        const feed = openRunFeed(
+          runId,
+          {
+            onSnapshot: (snapshot) => {
+              if (stale()) return;
+              set({
+                activeRun: snapshot.run,
+                messages: reconcileAssistantMessage(get().messages, snapshot.assistant_message),
+                activeRunError: null,
+              });
+              if (isTerminalRunStatus(snapshot.run.status)) {
+                set({ polling: false, degraded: false, activeRunProgress: null });
+              }
+            },
+            onDelta: (messageId, delta) => {
+              if (stale()) return;
+              set({ messages: appendDelta(get().messages, runId, messageId, delta) });
+            },
+            onProgress: (progress) => {
+              if (stale()) return;
+              set({ activeRunProgress: progress });
+            },
+            onStatus: (status) => {
+              if (stale()) return;
+              set((s) => (s.activeRun ? { activeRun: { ...s.activeRun, status } } : {}));
+            },
+            onTerminal: (snapshot) => {
+              if (stale()) return;
+              // The committed snapshot overrides the volatile delta buffer, then
+              // a single GET corrects any drift (contract §12.4 run.completed).
+              set({
+                activeRun: snapshot.run,
+                messages: reconcileAssistantMessage(get().messages, snapshot.assistant_message),
+                activeRunError: null,
+                activeRunProgress: null,
+                polling: false,
+                degraded: false,
+              });
+              void confirmRun(runId, generation);
+            },
+            onDegraded: () => {
+              if (stale()) return;
+              // Delta assembly is permanently stopped; recover by querying the
+              // Run and, while active, polling with backoff (contract §13).
+              set({ degraded: true, activeRunProgress: null });
+              startPolling(runId);
+            },
+            onAuthExpired: () => {
+              deps.onAuthExpired?.();
+            },
+          },
+          { fetchImpl: deps.fetchImpl },
+        );
+        activeFeed = feed;
+        void feed.done.then(() => {
+          if (activeFeed === feed) activeFeed = null;
+        });
+      } catch {
+        // Synchronous construction failure (never expected): poll instead.
+        set({ degraded: true });
+        startPolling(runId);
+      }
     }
 
     /** Re-fetch the active Run from the conversation detail (busy recovery). */
@@ -207,10 +362,12 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
         set((s) => ({
           activeRun: active?.run ?? null,
           activeRunError: null,
+          activeRunProgress: null,
+          degraded: false,
           pollGeneration: active ? s.pollGeneration + 1 : s.pollGeneration,
         }));
         if (active) {
-          startPolling(active.run.run_id);
+          startRunMonitor(active.run.run_id);
         }
       } catch {
         // Keep whatever Run we had; a later poll or user action will re-sync.
@@ -231,6 +388,8 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
       loadingMoreMessages: false,
       activeRun: null,
       activeRunError: null,
+      activeRunProgress: null,
+      degraded: false,
       polling: false,
       sending: false,
       stopping: false,
@@ -257,6 +416,7 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
 
       createConversation: async () => {
         if (get().creatingConversation) return;
+        closeFeed();
         set({ creatingConversation: true, error: null });
         try {
           const result = await api.createConversation(newIdempotencyKey());
@@ -273,6 +433,8 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
             hasMoreMessages: false,
             activeRun: null,
             activeRunError: null,
+            activeRunProgress: null,
+            degraded: false,
             error: null,
             pollGeneration: s.pollGeneration + 1,
           }));
@@ -283,6 +445,7 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
 
       selectConversation: async (id) => {
         if (id === get().activeConversationId) return;
+        closeFeed();
         set((s) => ({
           activeConversationId: id,
           messages: [],
@@ -290,6 +453,8 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
           hasMoreMessages: true,
           activeRun: null,
           activeRunError: null,
+          activeRunProgress: null,
+          degraded: false,
           error: null,
           pollGeneration: s.pollGeneration + 1,
         }));
@@ -309,10 +474,12 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
             hasMoreMessages: page.has_more,
             activeRun: active?.run ?? null,
             activeRunError: null,
+            activeRunProgress: null,
+            degraded: false,
             pollGeneration: s.pollGeneration + 1,
           }));
           if (active) {
-            startPolling(active.run.run_id);
+            startRunMonitor(active.run.run_id);
           }
         } catch (err) {
           set({ loadingMessages: false, error: messageErrorText(err) });
@@ -374,9 +541,11 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
             ),
             activeRun: result.run,
             activeRunError: null,
+            activeRunProgress: null,
+            degraded: false,
             pollGeneration: s.pollGeneration + 1,
           }));
-          startPolling(result.run.run_id);
+          startRunMonitor(result.run.run_id);
           return true;
         } catch (err) {
           const messages = get().messages.filter((m) => m.message_id !== tempId);
@@ -396,7 +565,8 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
         set({ stopping: true, error: null });
         try {
           await api.cancelRun(run.run_id, newIdempotencyKey());
-          // The active poll observes the terminal cancelled state.
+          // The SSE monitor (or its polling fallback) observes the terminal
+          // cancelled snapshot.
         } catch (err) {
           if (err instanceof HpCommandError && err.code === "run_not_cancellable") {
             void refreshActiveRun();
@@ -420,9 +590,11 @@ export function createWorkbenchStore(deps: WorkbenchDeps = { api: new HpApi(defa
             messages: reconcileAssistantMessage(s.messages, result.assistant_message),
             activeRun: result.run,
             activeRunError: null,
+            activeRunProgress: null,
+            degraded: false,
             pollGeneration: s.pollGeneration + 1,
           }));
-          startPolling(result.run.run_id);
+          startRunMonitor(result.run.run_id);
         } catch (err) {
           if (err instanceof HpCommandError && err.code === "conversation_busy") {
             set({ sending: false, activeRunError: err.error.message });

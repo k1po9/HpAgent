@@ -14,6 +14,8 @@ export function ChatPane() {
   const messages = useWorkbench((s) => s.messages);
   const activeRun = useWorkbench((s) => s.activeRun);
   const activeRunError = useWorkbench((s) => s.activeRunError);
+  const activeRunProgress = useWorkbench((s) => s.activeRunProgress);
+  const degraded = useWorkbench((s) => s.degraded);
   const stopping = useWorkbench((s) => s.stopping);
   const loadingMessages = useWorkbench((s) => s.loadingMessages);
   const hasMoreMessages = useWorkbench((s) => s.hasMoreMessages);
@@ -60,6 +62,8 @@ export function ChatPane() {
       <RunStatus
         activeRun={activeRun}
         busyMessage={activeRunError}
+        progress={activeRunProgress}
+        degraded={degraded}
         stopping={stopping}
         onStop={handleCancel}
         onRetry={handleRetry}

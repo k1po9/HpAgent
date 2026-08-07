@@ -9,6 +9,34 @@ import { HpApi } from "../api/resources";
 import type { HpConversation, HpMessage, HpRun, HpRunSnapshot } from "../api/types";
 import { createWorkbenchStore } from "./workbench";
 
+const ENCODER = new TextEncoder();
+
+/** A manually-driven SSE body so tests can emit frames deterministically. */
+function sseChannel(): {
+  response: Response;
+  send: (eventType: string, eventId: string, data: unknown) => void;
+  sendRaw: (text: string) => void;
+  close: () => void;
+} {
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+    },
+  });
+  const sendRaw = (text: string) => controller.enqueue(ENCODER.encode(text));
+  return {
+    response: new Response(body, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    }),
+    send: (eventType, eventId, data) =>
+      sendRaw(`id: ${eventId}\nevent: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`),
+    sendRaw,
+    close: () => controller.close(),
+  };
+}
+
 const OK = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -200,7 +228,9 @@ type BoundStore = ReturnType<typeof createWorkbenchStore>;
 
 function makeStore(backend: FakeBackend): BoundStore {
   const client = new ApiClient(backend.fetchMock);
-  return createWorkbenchStore({ api: new HpApi(client) });
+  // The SSE feed uses fetch directly (not the ApiClient), so it must be swapped
+  // too — otherwise tests would hit the real network.
+  return createWorkbenchStore({ api: new HpApi(client), fetchImpl: backend.fetchMock });
 }
 
 describe("workbench store", () => {
@@ -352,6 +382,182 @@ describe("workbench store", () => {
     expect(store.getState().polling).toBe(false);
   });
 
+  // ---- E-06 SSE integration -------------------------------------------------
+
+  /** Build one contract envelope (run_id pinned to r1). */
+  function env(
+    eventType: string,
+    eventId: string,
+    opts: {
+      messageId?: string | null;
+      streamId?: string | null;
+      eventSeq?: number | null;
+      payload?: Record<string, unknown>;
+    } = {},
+  ): unknown {
+    return {
+      schema_version: 1,
+      event_id: eventId,
+      event_type: eventType,
+      conversation_id: "c1",
+      run_id: "r1",
+      message_id: opts.messageId ?? null,
+      stream_id: opts.streamId ?? null,
+      event_seq: opts.eventSeq ?? null,
+      occurred_at: "2026-08-08T00:00:00Z",
+      payload: opts.payload ?? {},
+    };
+  }
+
+  /** A backend whose events URL answers from a hand-driven SSE channel. */
+  function makeSseBackend(channel: ReturnType<typeof sseChannel>): FakeBackend {
+    const base = makeBackend();
+    const orig = base.fetchMock;
+    base.fetchMock = async (input, init) => {
+      if (/\/events$/.test(String(input))) return channel.response;
+      return orig(input, init);
+    };
+    return base;
+  }
+
+  it("streams SSE deltas and progress, then resolves on the terminal snapshot", async () => {
+    const channel = sseChannel();
+    const backend = makeSseBackend(channel);
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    await store.getState().sendMessage("你好");
+    const assistantId = "am-1";
+
+    channel.send(
+      "run.snapshot",
+      "s1",
+      env("run.snapshot", "s1", {
+        payload: {
+          snapshot: {
+            run: run({ run_id: "r1", status: "running" }),
+            assistant_message: message({
+              message_id: assistantId,
+              status: "pending",
+              content: "",
+              produced_by_run_id: "r1",
+            }),
+          },
+        },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+
+    channel.send(
+      "message.delta",
+      "e1",
+      env("message.delta", "e1", {
+        messageId: assistantId,
+        streamId: "str-1",
+        eventSeq: 1,
+        payload: { delta: "你" },
+      }),
+    );
+    channel.send(
+      "message.delta",
+      "e2",
+      env("message.delta", "e2", {
+        messageId: assistantId,
+        streamId: "str-1",
+        eventSeq: 2,
+        payload: { delta: "好" },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().messages.find((m) => m.message_id === assistantId)?.content).toBe(
+      "你好",
+    );
+    expect(store.getState().activeRunProgress).toBeNull();
+
+    // Progress lands only in the run-status area; Message content is untouched.
+    channel.send(
+      "run.progress",
+      "p1",
+      env("run.progress", "p1", {
+        streamId: "str-1",
+        eventSeq: 3,
+        payload: { phase: "executing_tool", summary: "正在分析项目文件" },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().activeRunProgress).toMatchObject({ phase: "executing_tool" });
+    expect(store.getState().messages.find((m) => m.message_id === assistantId)?.content).toBe(
+      "你好",
+    );
+
+    const completed: HpRunSnapshot = {
+      run: run({ run_id: "r1", status: "completed" }),
+      assistant_message: message({
+        message_id: assistantId,
+        status: "completed",
+        content: "完整的最终回复",
+        produced_by_run_id: "r1",
+      }),
+    };
+    backend.state.runSnapshots["r1"] = completed; // the confirm GET returns the same truth
+    channel.send(
+      "run.completed",
+      "t1",
+      env("run.completed", "t1", { messageId: assistantId, payload: { snapshot: completed } }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(store.getState().activeRun?.status).toBe("completed");
+    expect(store.getState().messages.find((m) => m.message_id === assistantId)?.content).toBe(
+      "完整的最终回复",
+    );
+    expect(store.getState().polling).toBe(false);
+    expect(store.getState().activeRunProgress).toBeNull();
+    expect(store.getState().degraded).toBe(false);
+  });
+
+  it("degrades on a sequence gap and recovers by polling the Run", async () => {
+    const channel = sseChannel();
+    const backend = makeSseBackend(channel);
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    await store.getState().sendMessage("你好");
+
+    channel.send(
+      "message.delta",
+      "e1",
+      env("message.delta", "e1", {
+        messageId: "am-1",
+        streamId: "str-1",
+        eventSeq: 1,
+        payload: { delta: "一" },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    channel.send(
+      "message.delta",
+      "e100",
+      env("message.delta", "e100", {
+        messageId: "am-1",
+        streamId: "str-1",
+        eventSeq: 100,
+        payload: { delta: "跳" },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Delta assembly stops; the degraded notice shows while polling recovers.
+    expect(store.getState().degraded).toBe(true);
+    expect(store.getState().messages.find((m) => m.message_id === "am-1")?.content).toBe("一");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(store.getState().activeRun?.status).toBe("completed");
+    expect(store.getState().messages.find((m) => m.message_id === "am-1")?.content).toBe(
+      "completed answer",
+    );
+    expect(store.getState().polling).toBe(false);
+  });
+
   it("stops polling when the conversation is switched away", async () => {
     const backend = makeBackend();
     backend.state.runSnapshots["r1"] = {
@@ -369,11 +575,14 @@ describe("workbench store", () => {
     await store.getState().selectConversation("c1");
     await store.getState().sendMessage("你好");
 
-    // Switch away: the r1 poller must stop polling.
-    const callsBefore = backend.calls.filter((c) => c.url.includes("/runs/")).length;
+    // Switch away: the r1 poller must stop polling. Count only Run GETs (the
+    // events URL contains "/runs/" too and would flake this assertion).
+    const runGets = (calls: FakeBackend["calls"]) =>
+      calls.filter((c) => /^\/api\/v1\/runs\/[^/]+$/.test(c.url)).length;
+    const callsBefore = runGets(backend.calls);
     await store.getState().selectConversation("c2");
     await vi.advanceTimersByTimeAsync(2000);
-    const callsAfter = backend.calls.filter((c) => c.url.includes("/runs/")).length;
+    const callsAfter = runGets(backend.calls);
     expect(callsAfter).toBe(callsBefore);
   });
 });
