@@ -19,8 +19,16 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+from account.postgres_account_service import (
+    IdentityResolutionUnavailable,
+    PostgresAccountService,
+)
 from application.conversation import ConversationService, UnboundIdentity
-from application.ingress import UNBOUND_REPLY, MessageIngressService
+from application.ingress import (
+    IDENTITY_RESOLUTION_UNAVAILABLE_REPLY,
+    UNBOUND_REPLY,
+    MessageIngressService,
+)
 from common.types import ChannelType, UnifiedMessage
 
 
@@ -157,6 +165,58 @@ async def test_ingress_sends_fixed_unbound_reply_and_logs_structured_warning(cap
     assert user_message["channel_type"] == "napcat"
     assert user_message["session_id"] == ""
     assert user_message["account_id"] == ""
+
+
+class _RaisingUnavailableConversation:
+    """ConversationService 的替身：身份解析基础设施故障（DB 挂）。"""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def start_or_signal(self, message: UnifiedMessage, channel_type: str):
+        self.calls += 1
+        raise IdentityResolutionUnavailable(
+            provider="qq",
+            normalized_subject=f"{channel_type}:{message.sender_id}",
+        )
+
+
+@pytest.mark.asyncio
+async def test_ingress_replies_unavailable_not_unbound_on_resolution_failure(caplog):
+    """DB 故障 ≠ 未绑定：回复"服务暂时不可用"，绝不说"账号尚未绑定"。"""
+    conversation = _RaisingUnavailableConversation()
+    reply = _FakeReply()
+    ingress = MessageIngressService(
+        group_context=None,
+        conversation_service=conversation,
+        reply_service=reply,
+    )
+    with caplog.at_level(logging.WARNING, logger="HpAgent.MessageIngressService"):
+        await ingress.handle(_message(sender_id="qq-user"))
+
+    assert "qq_identity_resolution_unavailable" in caplog.text
+    assert "provider=qq" in caplog.text
+
+    assert conversation.calls == 1
+    assert len(reply.sent) == 1
+    content, user_message = reply.sent[0]
+    assert content == IDENTITY_RESOLUTION_UNAVAILABLE_REPLY
+    assert content != UNBOUND_REPLY
+    assert user_message["sender_id"] == "qq-user"
+
+
+@pytest.mark.asyncio
+async def test_postgres_service_raises_unavailable_not_none_on_db_failure():
+    """SELECT 失败 → IdentityResolutionUnavailable（绝不伪装成 None / 未绑定）。
+
+    DSN 指向不可达端口（连接拒绝），psycopg 抛错 → 服务重抛
+    IdentityResolutionUnavailable，由 ingress 层翻译成"服务暂时不可用"。
+    """
+    service = PostgresAccountService("postgresql://nobody@127.0.0.1:1/hpagent")
+    with pytest.raises(IdentityResolutionUnavailable) as excinfo:
+        await service.resolve("napcat", "10001")
+    assert excinfo.value.provider == "qq"
+    assert excinfo.value.normalized_subject == "napcat:10001"
 
 
 @pytest.mark.asyncio

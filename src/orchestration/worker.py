@@ -201,6 +201,73 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     return WebWorkerComposition(workers, dispatcher, reconciler, memory_retention)
 
 
+def _build_web_background_tasks(
+    *,
+    web_dispatcher,
+    web_reconciler,
+    web_memory_retention,
+    lease_timeout_seconds: int,
+    recovery_interval_seconds: float,
+) -> tuple[asyncio.Task | None, asyncio.Task | None, asyncio.Task | None, asyncio.Task | None, asyncio.Task | None]:
+    """把 Web 组合产物变成可取消的后台任务，供 ``start_worker`` 前台运行。
+
+    Dispatcher / Reconciler / 过期 lease 恢复 / Memory Retention（Phase F）各占
+    一条独立任务，从不共享 lease 所有权。``web_memory_retention`` 必须来自
+    ``WebWorkerComposition.memory_retention``（组合层）；它**不在**
+    ``composition.workers`` 上 —— 那里只有 lifecycle/agent（C-07）。
+    """
+    # 惰性导入与 compose_web_workers 一致：web 组合产物只在
+    # web_real_agent_enabled 时构建，模块顶层不引 Temporal 侧依赖。
+    from orchestration.web_dispatcher import run_web_outbox_recovery_loop
+
+    dispatcher_task = asyncio.create_task(_run_web_dispatcher_loop(web_dispatcher))
+    reconciler_task = asyncio.create_task(
+        _run_web_reconciler_loop(web_reconciler)
+    )
+    # Expired-lease auto-recovery runs on its own cadence, never in the fast
+    # Dispatcher poll; validate_web_worker_startup already guaranteed both
+    # values are positive and interval < timeout.
+    recovery_task = asyncio.create_task(
+        run_web_outbox_recovery_loop(
+            web_dispatcher.outbox,
+            lease_timeout_seconds,
+            recovery_interval_seconds,
+        )
+    )
+    memory_retention_task = None
+    memory_retention_recovery_task = None
+    if web_memory_retention is not None:
+        # Phase F: retain_memory consumer + its own expired-lease sweep.  Both
+        # run independently of the start/cancel Dispatcher and never share its
+        # lease ownership.
+        from orchestration.memory_retention_worker import (
+            run_memory_retention_loop,
+        )
+
+        memory_retention_task = asyncio.create_task(
+            run_memory_retention_loop(
+                web_dispatcher.outbox,
+                web_memory_retention,
+                worker_id=f"hpagent-memory-{os.getpid()}",
+            )
+        )
+        memory_retention_recovery_task = asyncio.create_task(
+            run_web_outbox_recovery_loop(
+                web_dispatcher.outbox,
+                lease_timeout_seconds,
+                recovery_interval_seconds,
+                event_types={"retain_memory"},
+            )
+        )
+    return (
+        dispatcher_task,
+        reconciler_task,
+        recovery_task,
+        memory_retention_task,
+        memory_retention_recovery_task,
+    )
+
+
 @dataclasses.dataclass
 class WorkerDependencies:
     """init_dependencies() 的返回值 —— 所有组装好的共享依赖。
@@ -742,11 +809,15 @@ async def start_worker(config: AppConfig) -> None:
     web_workers = None
     web_dispatcher = None
     web_reconciler = None
+    web_memory_retention = None
     if config.temporal.web_real_agent_enabled:
         composition = compose_web_workers(client, config, deps)
         web_workers = composition.workers
         web_dispatcher = composition.dispatcher
         web_reconciler = composition.reconciler
+        # Phase F: MemoryRetentionService 挂在组合层（composition.memory_retention），
+        # 不在 composition.workers 上 —— 那里只有 lifecycle/agent（C-07）。
+        web_memory_retention = composition.memory_retention
 
     # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
     _channel_factories = {
@@ -816,45 +887,19 @@ async def start_worker(config: AppConfig) -> None:
             ):
                 await worker_stack.enter_async_context(web_workers.lifecycle)
                 await worker_stack.enter_async_context(web_workers.agent)
-                web_dispatcher_task = asyncio.create_task(
-                    _run_web_dispatcher_loop(web_dispatcher)
+                (
+                    web_dispatcher_task,
+                    web_reconciler_task,
+                    web_outbox_recovery_task,
+                    memory_retention_task,
+                    memory_retention_recovery_task,
+                ) = _build_web_background_tasks(
+                    web_dispatcher=web_dispatcher,
+                    web_reconciler=web_reconciler,
+                    web_memory_retention=web_memory_retention,
+                    lease_timeout_seconds=config.temporal.web_outbox_lease_timeout_seconds,
+                    recovery_interval_seconds=config.temporal.web_outbox_recovery_interval_seconds,
                 )
-                web_reconciler_task = asyncio.create_task(
-                    _run_web_reconciler_loop(web_reconciler)
-                )
-                # Expired-lease auto-recovery runs on its own cadence, never in
-                # the fast Dispatcher poll; validate_web_worker_startup already
-                # guaranteed both values are positive and interval < timeout.
-                web_outbox_recovery_task = asyncio.create_task(
-                    run_web_outbox_recovery_loop(
-                        web_dispatcher.outbox,
-                        config.temporal.web_outbox_lease_timeout_seconds,
-                        config.temporal.web_outbox_recovery_interval_seconds,
-                    )
-                )
-                if web_workers.memory_retention is not None:
-                    # Phase F: retain_memory consumer + its own expired-lease
-                    # sweep.  Both run independently of the start/cancel
-                    # Dispatcher and never share its lease ownership.
-                    from orchestration.memory_retention_worker import (
-                        run_memory_retention_loop,
-                    )
-
-                    memory_retention_task = asyncio.create_task(
-                        run_memory_retention_loop(
-                            web_dispatcher.outbox,
-                            web_workers.memory_retention,
-                            worker_id=f"hpagent-memory-{os.getpid()}",
-                        )
-                    )
-                    memory_retention_recovery_task = asyncio.create_task(
-                        run_web_outbox_recovery_loop(
-                            web_dispatcher.outbox,
-                            config.temporal.web_outbox_lease_timeout_seconds,
-                            config.temporal.web_outbox_recovery_interval_seconds,
-                            event_types={"retain_memory"},
-                        )
-                    )
             for ch in active_channels:
                 await ch.start_monitor(handle_message)
 

@@ -13,12 +13,16 @@ from typing import Any
 
 from common.types import UnifiedMessage
 
+from account.postgres_account_service import IdentityResolutionUnavailable
 from application.conversation import UnboundIdentity
 
 logger = logging.getLogger("HpAgent.MessageIngressService")
 
-# Phase F：无活跃身份绑定的 QQ 发送者收到的固定用户可见回复。
+# Phase F：无活跃身份绑定的发送者收到的固定用户可见回复。
 UNBOUND_REPLY = "账号尚未绑定，请先由管理员完成身份绑定后再使用。"
+
+# Phase F：身份解析基础设施不可用（DB 故障）≠ 未绑定，绝不回复"账号尚未绑定"。
+IDENTITY_RESOLUTION_UNAVAILABLE_REPLY = "服务暂时不可用，请稍后重试。"
 
 
 class MessageIngressService:
@@ -52,6 +56,8 @@ class MessageIngressService:
             await self._conversation.start_or_signal(message, ch_type)
         except UnboundIdentity:
             await self._reject_unbound(message, ch_type)
+        except IdentityResolutionUnavailable as exc:
+            await self._reject_resolution_unavailable(message, ch_type, exc)
 
     async def _reject_unbound(self, message: UnifiedMessage, ch_type: str) -> None:
         """Phase F：无身份绑定 → 结构化告警 + 固定回复，绝不自动建号。
@@ -66,7 +72,41 @@ class MessageIngressService:
         )
         if self._reply is None:
             return
-        user_message = {
+        try:
+            await self._reply.send_final(
+                UNBOUND_REPLY, self._build_user_message(message, ch_type)
+            )
+        except Exception as e:
+            logger.warning("Unbound reply send failed: %s", e)
+
+    async def _reject_resolution_unavailable(
+        self, message: UnifiedMessage, ch_type: str, exc: IdentityResolutionUnavailable
+    ) -> None:
+        """Phase F：DB 故障 ≠ 没绑定。基础设施错误回复"服务暂时不可用"。
+
+        PostgresAccountService 只在 SELECT 本身失败时抛
+        IdentityResolutionUnavailable；业务上确实没有 binding 仍走
+        UnboundIdentity（"账号尚未绑定"）。绝不把基础设施错误伪装成业务
+        未绑定，也绝不自动创建账号。
+        """
+        logger.warning(
+            "qq_identity_resolution_unavailable channel_type=%s sender_id=%s provider=%s",
+            ch_type, message.sender_id, exc.provider,
+        )
+        if self._reply is None:
+            return
+        try:
+            await self._reply.send_final(
+                IDENTITY_RESOLUTION_UNAVAILABLE_REPLY,
+                self._build_user_message(message, ch_type),
+            )
+        except Exception as e:
+            logger.warning("Unavailable reply send failed: %s", e)
+
+    @staticmethod
+    def _build_user_message(message: UnifiedMessage, ch_type: str) -> dict:
+        """构造投递给 ReplyService 的合成 user_message（与正常回复同一路径）。"""
+        return {
             "message_id": message.message_id,
             "content": message.content,
             "sender_id": message.sender_id,
@@ -76,10 +116,6 @@ class MessageIngressService:
             "metadata": message.metadata,
             "timestamp": message.timestamp,
         }
-        try:
-            await self._reply.send_final(UNBOUND_REPLY, user_message)
-        except Exception as e:
-            logger.warning("Unbound reply send failed: %s", e)
 
     async def _capture_group_context(self, message: UnifiedMessage) -> bool:
         """写入群聊上下文；非 @bot 群消息返回 False。"""

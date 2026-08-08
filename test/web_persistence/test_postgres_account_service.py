@@ -86,6 +86,22 @@ async def test_revoked_binding_is_not_resolved(db, worker_database_url):
     assert await service.resolve("napcat", "4000") is None
 
 
+@pytest.mark.asyncio
+async def test_disabled_account_is_not_resolved(db, worker_database_url):
+    """绑定 active 但 account 被禁用 → 解析必须拒绝（P1 修复）。
+
+    resolve 必须 JOIN accounts 并校验 a.status='active'：禁用账号绝不能
+    继续获得会话 / Hindsight bank 访问。
+    """
+    account = uuid4()
+    db.execute(
+        "INSERT INTO accounts(account_id, status) VALUES (%s,'disabled')", (account,)
+    )
+    _binding(db, account, "qq", "napcat:5000", external="5000")
+    service = PostgresAccountService(worker_database_url)
+    assert await service.resolve("napcat", "5000") is None
+
+
 def test_list_all_ids_returns_active_accounts(db, worker_database_url):
     a, b = _account(db), _account(db)
     service = PostgresAccountService(worker_database_url)
