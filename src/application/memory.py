@@ -162,6 +162,30 @@ class TurnMemoryService:
             scope=metadata.get("detail_type", ""),
         )
 
+    async def retain_document(
+        self,
+        *,
+        events: List[Dict[str, Any]],
+        account_id: str,
+        document_id: str,
+        channel_type: str,
+        metadata: Dict[str, Any],
+        session_id: str = "",
+    ) -> int:
+        """用显式幂等 document_id 保留长期记忆（QQ per-execution retain）。"""
+        return await self._session.retain_document(
+            events,
+            account_id,
+            document_id,
+            channel_type=channel_type,
+            group_id=str(metadata.get("group_id", "")),
+            sender_name=metadata.get("sender_name", ""),
+            iso_timestamp=metadata.get("iso_timestamp", ""),
+            scope=metadata.get("detail_type", ""),
+            session_id=session_id,
+            metadata=metadata,
+        )
+
     async def archive_events(self, session_id: str) -> List[Dict[str, Any]]:
         return await self._session.archive(session_id)
 

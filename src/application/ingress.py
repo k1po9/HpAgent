@@ -13,15 +13,26 @@ from typing import Any
 
 from common.types import UnifiedMessage
 
+from application.conversation import UnboundIdentity
+
 logger = logging.getLogger("HpAgent.MessageIngressService")
+
+# Phase F：无活跃身份绑定的 QQ 发送者收到的固定用户可见回复。
+UNBOUND_REPLY = "账号尚未绑定，请先由管理员完成身份绑定后再使用。"
 
 
 class MessageIngressService:
     """消息入口服务，让 worker.py 不再承载入站业务规则。"""
 
-    def __init__(self, group_context: Any = None, conversation_service: Any = None):
+    def __init__(
+        self,
+        group_context: Any = None,
+        conversation_service: Any = None,
+        reply_service: Any = None,
+    ):
         self._group_context = group_context
         self._conversation = conversation_service
+        self._reply = reply_service
 
     async def handle(self, message: UnifiedMessage) -> None:
         if not message.content or not message.content.strip():
@@ -37,7 +48,38 @@ class MessageIngressService:
         if not should_continue:
             return
 
-        await self._conversation.start_or_signal(message, ch_type)
+        try:
+            await self._conversation.start_or_signal(message, ch_type)
+        except UnboundIdentity:
+            await self._reject_unbound(message, ch_type)
+
+    async def _reject_unbound(self, message: UnifiedMessage, ch_type: str) -> None:
+        """Phase F：无身份绑定 → 结构化告警 + 固定回复，绝不自动建号。
+
+        发送者没有活跃的 PostgreSQL identity binding：消息不进入
+        Temporal / Agent / Session / Hindsight。回复走 ReplyService /
+        ChannelRouter（含群聊智能 @），与正常回复同一路径。
+        """
+        logger.warning(
+            "qq_identity_unbound channel_type=%s sender_id=%s",
+            ch_type, message.sender_id,
+        )
+        if self._reply is None:
+            return
+        user_message = {
+            "message_id": message.message_id,
+            "content": message.content,
+            "sender_id": message.sender_id,
+            "channel_type": ch_type,
+            "session_id": "",
+            "account_id": "",
+            "metadata": message.metadata,
+            "timestamp": message.timestamp,
+        }
+        try:
+            await self._reply.send_final(UNBOUND_REPLY, user_message)
+        except Exception as e:
+            logger.warning("Unbound reply send failed: %s", e)
 
     async def _capture_group_context(self, message: UnifiedMessage) -> bool:
         """写入群聊上下文；非 @bot 群消息返回 False。"""

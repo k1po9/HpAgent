@@ -474,6 +474,66 @@ class SessionStore:
         })
         return count
 
+    async def retain_document(
+        self,
+        events: list[dict],
+        account_id: str,
+        document_id: str,
+        *,
+        channel_type: str = "",
+        group_id: str = "",
+        sender_name: str = "",
+        iso_timestamp: str = "",
+        scope: str = "",
+        session_id: str = "",
+        metadata: dict | None = None,
+    ) -> int:
+        """用显式幂等 document_id 保留长期记忆（Phase F 统一 Retain API）。
+
+        Web:    web-run:{run_id}        —— MemoryRetentionWorker
+        QQ:     qq-execution:{execution_id} —— TurnMemoryQQRetentionSink
+
+        document_id 是幂等核心：同一 source 重试多次仍是同一个 Hindsight
+        document，不会覆盖其它交互（doc §25/§27）。
+        """
+        count = 0
+        error: str = ""
+        t0 = time.monotonic()
+        if self._hindsight:
+            try:
+                receipt = await self._hindsight.retain_document(
+                    events,
+                    account_id,
+                    document_id,
+                    async_retain=True,
+                    channel_type=channel_type,
+                    group_id=group_id,
+                    sender_name=sender_name,
+                    iso_timestamp=iso_timestamp,
+                    scope=scope,
+                    session_id=session_id,
+                    metadata=metadata,
+                )
+                count = receipt.items_count if receipt.accepted else 0
+            except Exception as e:
+                error = str(e)
+                logger.warning("DEGRADATION: Hindsight retain_document failed (%s) → events preserved in WAL/checkpoint", e)
+
+        elapsed_ms = (time.monotonic() - t0) * 1000
+        turn_snippet = "\n".join(
+            f"[{e.get('role', '?')}]: {e.get('content', '')[:200]}"
+            for e in (events or [])[-6:] if e.get("content")
+        )
+        await self._record_memory_event(session_id, EventType.MEMORY_RETAIN, {
+            "events_count": len(events),
+            "items_stored": count,
+            "turn_snippet": turn_snippet[:2000],
+            "latency_ms": round(elapsed_ms, 1),
+            "document_id": document_id,
+            "error": error,
+        })
+        return count
+
     async def reflect(self, account_id: str) -> int:
         """触发深度记忆推理（委托给 Hindsight）。"""
         if not self._hindsight:

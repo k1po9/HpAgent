@@ -76,6 +76,7 @@ class WebWorkerComposition:
     workers: object  # WebTemporalWorkers
     dispatcher: object  # WebOutboxDispatcher
     reconciler: object  # WebRunReconciler
+    memory_retention: object = None  # MemoryRetentionService | None (Phase F)
 
 
 def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> WebWorkerComposition:
@@ -185,8 +186,19 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         LifecycleReconcileStore(execution_store, lifecycle),
         TemporalInspectorAdapter(client),
     )
+    # Phase F: Memory Retention consumer only starts when Hindsight is available.
+    # If it is not, retain_memory rows stay pending and are consumed on a later
+    # healthy boot (doc §46) — never dead-lettered just because Hindsight was down.
+    memory_retention = None
+    if deps.hindsight_client is not None:
+        from application.memory_retention import MemoryRetentionService
+
+        memory_retention = MemoryRetentionService(
+            worker_database_url, deps.hindsight_client
+        )
+        logger.info("MemoryRetentionService composed (retain_memory consumer)")
     logger.info("Web real-Agent composition passed C-07 gate")
-    return WebWorkerComposition(workers, dispatcher, reconciler)
+    return WebWorkerComposition(workers, dispatcher, reconciler, memory_retention)
 
 
 @dataclasses.dataclass
@@ -207,6 +219,7 @@ class WorkerDependencies:
     git_repo_manager: "GitRepoManager"
     group_context: object  # GroupContextStore | None，群聊短期上下文缓存
     redis_client: object = None
+    reply_service: object = None
     context_builder: object = None
     brain_engine: object = None
     action_runtime: object = None
@@ -476,7 +489,17 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     )
 
     # ── 8. 账号服务 + 渠道路由器 ──
-    account_service = AccountService(data_dir=Path(config.workspace.root).parent)
+    # Phase F: 有 WORKER_DATABASE_URL 且统一账号启用时，QQ 通过 PostgreSQL
+    # identity_bindings 解析到与 Web 相同的 account_id；否则回退 accounts.json。
+    worker_database_url = os.getenv("WORKER_DATABASE_URL")
+    if worker_database_url and config.temporal.web_unified_account_enabled:
+        from account.postgres_account_service import PostgresAccountService
+
+        account_service = PostgresAccountService(worker_database_url)
+        logger.info("Account backend: postgres")
+    else:
+        account_service = AccountService(data_dir=Path(config.workspace.root).parent)
+        logger.info("Account backend: legacy_json")
     channel_router = ChannelRouter()
 
     # ── 9. SessionStore ──
@@ -624,6 +647,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         turn_orchestrator=turn_orchestrator,
         account_service=account_service,
         channel_router=channel_router,
+        reply_service=reply_service,
         sandbox_manager=sandbox_manager,
         file_store=file_store,
         workspace_db=workspace_db,
@@ -766,6 +790,7 @@ async def start_worker(config: AppConfig) -> None:
     ingress_service = MessageIngressService(
         group_context=deps.group_context,
         conversation_service=conversation_service,
+        reply_service=deps.reply_service,
     )
 
     async def handle_message(message: UnifiedMessage) -> None:
@@ -778,6 +803,8 @@ async def start_worker(config: AppConfig) -> None:
     web_dispatcher_task = None
     web_reconciler_task = None
     web_outbox_recovery_task = None
+    memory_retention_task = None
+    memory_retention_recovery_task = None
 
     try:
         async with AsyncExitStack() as worker_stack:
@@ -805,6 +832,29 @@ async def start_worker(config: AppConfig) -> None:
                         config.temporal.web_outbox_recovery_interval_seconds,
                     )
                 )
+                if web_workers.memory_retention is not None:
+                    # Phase F: retain_memory consumer + its own expired-lease
+                    # sweep.  Both run independently of the start/cancel
+                    # Dispatcher and never share its lease ownership.
+                    from orchestration.memory_retention_worker import (
+                        run_memory_retention_loop,
+                    )
+
+                    memory_retention_task = asyncio.create_task(
+                        run_memory_retention_loop(
+                            web_dispatcher.outbox,
+                            web_workers.memory_retention,
+                            worker_id=f"hpagent-memory-{os.getpid()}",
+                        )
+                    )
+                    memory_retention_recovery_task = asyncio.create_task(
+                        run_web_outbox_recovery_loop(
+                            web_dispatcher.outbox,
+                            config.temporal.web_outbox_lease_timeout_seconds,
+                            config.temporal.web_outbox_recovery_interval_seconds,
+                            event_types={"retain_memory"},
+                        )
+                    )
             for ch in active_channels:
                 await ch.start_monitor(handle_message)
 
@@ -835,6 +885,8 @@ async def start_worker(config: AppConfig) -> None:
             web_dispatcher_task=web_dispatcher_task,
             web_reconciler_task=web_reconciler_task,
             web_outbox_recovery_task=web_outbox_recovery_task,
+            memory_retention_task=memory_retention_task,
+            memory_retention_recovery_task=memory_retention_recovery_task,
             deps=deps,
         )
 
@@ -847,6 +899,8 @@ async def _shutdown_worker_resources(
     web_dispatcher_task,
     web_reconciler_task,
     web_outbox_recovery_task,
+    memory_retention_task,
+    memory_retention_recovery_task,
     deps,
 ) -> None:
     """Always release monitors/background tasks, including task cancellation."""
@@ -891,6 +945,20 @@ async def _shutdown_worker_resources(
         web_outbox_recovery_task.cancel()
         try:
             await web_outbox_recovery_task
+        except asyncio.CancelledError:
+            pass
+
+    if memory_retention_task is not None:
+        memory_retention_task.cancel()
+        try:
+            await memory_retention_task
+        except asyncio.CancelledError:
+            pass
+
+    if memory_retention_recovery_task is not None:
+        memory_retention_recovery_task.cancel()
+        try:
+            await memory_retention_recovery_task
         except asyncio.CancelledError:
             pass
 

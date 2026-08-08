@@ -324,6 +324,12 @@ class TemporalConfig:
     # real Agent path merely because the Temporal workers are present.
     web_real_agent_enabled: bool = False
     web_real_agent_gate_version: str = ""
+    # Phase F: when enabled (and WORKER_DATABASE_URL is set), the worker
+    # resolves QQ senders through PostgreSQL identity_bindings
+    # (PostgresAccountService) instead of the legacy accounts.json.  Default
+    # off: the operator must run scripts/bootstrap_identity.py before enabling,
+    # or every QQ sender becomes an explicit "账号尚未绑定" rejection.
+    web_unified_account_enabled: bool = False
 
 
 @dataclass
@@ -722,6 +728,10 @@ class AppConfig:
             self.temporal.web_outbox_recovery_interval_seconds = int(
                 environ["WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"]
             )
+        if environ.get("WEB_UNIFIED_ACCOUNT_ENABLED"):
+            self.temporal.web_unified_account_enabled = environ[
+                "WEB_UNIFIED_ACCOUNT_ENABLED"
+            ].lower() in ("1", "true", "yes", "on")
         if environ.get("QQ_EXECUTION_HOST_ENABLED"):
             self.agent.qq_execution_host_enabled = environ[
                 "QQ_EXECUTION_HOST_ENABLED"

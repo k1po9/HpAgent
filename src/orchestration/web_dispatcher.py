@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
@@ -36,6 +37,8 @@ async def run_web_outbox_recovery_loop(
     outbox: OutboxService,
     lease_timeout_seconds: int,
     interval_seconds: float,
+    *,
+    event_types: Collection[str] = WEB_OUTBOX_RECOVERY_EVENT_TYPES,
 ) -> None:
     """Periodically return expired ``processing`` Outbox leases to pending.
 
@@ -50,9 +53,10 @@ async def run_web_outbox_recovery_loop(
     invoked with a non-positive timeout (``recover_expired(0)``).  Cancellation
     (worker shutdown) propagates so the caller can await the task.
 
-    Only leases for the Web Dispatcher's own event types are recovered: this
-    sweep must never steal ``processing`` rows owned by terminal/retain
-    consumers.
+    ``event_types`` defaults to the Web Dispatcher's own leases. The Memory
+    Retention worker passes ``{"retain_memory"}`` so its crashes are recovered
+    by the same sweep on the same cadence without ever stealing start/cancel
+    (or terminal) ``processing`` rows.
     """
     while True:
         await asyncio.sleep(interval_seconds)
@@ -60,17 +64,18 @@ async def run_web_outbox_recovery_loop(
             recovered = await asyncio.to_thread(
                 outbox.recover_expired,
                 lease_timeout_seconds,
-                WEB_OUTBOX_RECOVERY_EVENT_TYPES,
+                event_types,
             )
             if recovered:
                 logger.info(
-                    "Web Outbox lease recovery: %d expired lease(s) returned to pending",
+                    "Outbox lease recovery (%s): %d expired lease(s) returned to pending",
+                    ",".join(sorted(event_types)),
                     recovered,
                 )
         except asyncio.CancelledError:
             raise
         except Exception:
-            logger.exception("Web Outbox lease recovery iteration failed")
+            logger.exception("Outbox lease recovery iteration failed")
 
 
 @dataclass(frozen=True)

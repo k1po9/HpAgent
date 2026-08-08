@@ -302,7 +302,12 @@ class ReplyServiceQQSink:
 
 
 class TurnMemoryQQRetentionSink:
-    """Keep QQ retain after final delivery, matching the legacy ordering."""
+    """Keep QQ retain after final delivery, matching the legacy ordering.
+
+    Phase F (F-03): 只 retain 用户实际说的话 + 最终实际收到的答案，使用稳定
+    的 per-execution document_id（doc §28-31），不再用本轮内容反复覆盖同一个
+    session document。
+    """
 
     def __init__(self, memory_service: Any) -> None:
         self._memory = memory_service
@@ -313,12 +318,22 @@ class TurnMemoryQQRetentionSink:
         result: ExecutionResult,
         user_message: dict[str, Any],
     ) -> None:
-        await self._memory.retain_memories(
-            turn_events=[dict(item) for item in result.memory_observations],
+        events = [
+            {"role": "user", "content": request.user_content},
+            {"role": "assistant", "content": result.content},
+        ]
+        document_id = f"qq-execution:{request.execution_id}"
+        metadata = dict(user_message.get("metadata", {}))
+        metadata["source"] = "qq"
+        metadata["execution_id"] = request.execution_id
+        metadata["session_id"] = request.session_id
+        await self._memory.retain_document(
+            events=events,
             account_id=request.account_id,
-            session_id=request.session_id,
+            document_id=document_id,
             channel_type=str(user_message["channel_type"]),
-            metadata=dict(user_message.get("metadata", {})),
+            metadata=metadata,
+            session_id=request.session_id,
         )
 
 

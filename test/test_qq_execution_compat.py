@@ -94,29 +94,35 @@ async def test_ae_014_qq_channel_failure_does_not_raise_from_reply_service():
 
 
 @pytest.mark.asyncio
-async def test_qq_retain_uses_non_authoritative_facade_observations_after_reply():
+async def test_qq_retain_uses_per_execution_document_after_reply():
+    """Phase F：QQ retain 只取用户消息 + 最终答案，用稳定 qq-execution:{id}。
+
+    不再使用 facade 的 memory_observations，也不再反复覆盖同一 session document。
+    """
     retained = []
 
     class Memory:
-        async def retain_memories(self, **kwargs):
+        async def retain_document(self, **kwargs):
             retained.append(kwargs)
+            return 1
 
     request = ExecutionRequest(
         "execution", "account", "", "session", "question", ()
     )
-    observations = (
-        {"role": "user", "content": "question"},
-        {"role": "assistant", "content": "answer"},
-    )
     await TurnMemoryQQRetentionSink(Memory()).retain(
         request,
-        ExecutionResult("answer", 1, observations),
+        ExecutionResult("answer", 1, ()),
         _group_message(),
     )
 
-    assert retained[0]["turn_events"] == list(observations)
+    assert retained[0]["document_id"] == "qq-execution:execution"
+    assert retained[0]["events"] == [
+        {"role": "user", "content": "question"},
+        {"role": "assistant", "content": "answer"},
+    ]
     assert retained[0]["account_id"] == "account"
     assert retained[0]["session_id"] == "session"
+    assert retained[0]["metadata"]["source"] == "qq"
 
 
 @pytest.mark.asyncio

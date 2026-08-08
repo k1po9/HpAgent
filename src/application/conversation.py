@@ -22,6 +22,22 @@ from session.workspace import init_session, init_user
 logger = logging.getLogger("HpAgent.ConversationService")
 
 
+class UnboundIdentity(Exception):
+    """发送者在 PostgreSQL 中没有活跃身份绑定。
+
+    Phase F 决策：绝不回落到 accounts.json，也绝不自动创建 Account /
+    IdentityBinding。消息不会进入 Temporal / Agent / Session / Hindsight，
+    由 MessageIngressService 捕获后向 QQ 发送固定 "账号尚未绑定" 回复。
+    """
+
+    def __init__(self, *, channel_type: str, sender_id: str):
+        super().__init__(
+            f"unbound {channel_type} identity: sender_id={sender_id}"
+        )
+        self.channel_type = channel_type
+        self.sender_id = sender_id
+
+
 class ConversationService:
     """对话会话应用服务。"""
 
@@ -54,6 +70,8 @@ class ConversationService:
 
     async def start_or_signal(self, message: UnifiedMessage, channel_type: str) -> None:
         account_id = await self._account_service.resolve(channel_type, message.sender_id)
+        if not account_id:
+            raise UnboundIdentity(channel_type=channel_type, sender_id=message.sender_id)
         workflow_id = f"hpagent-{account_id}"
 
         session_context = {

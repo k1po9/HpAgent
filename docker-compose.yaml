@@ -89,6 +89,9 @@ services:
       - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
       - WEB_REAL_AGENT_ENABLED=${WEB_REAL_AGENT_ENABLED:-true}
       - WEB_REAL_AGENT_GATE_VERSION=c-07-v1
+      # Phase F 统一身份：QQ 通过 PostgreSQL identity_bindings 解析。
+      # 启用前必须先运行 scripts/bootstrap_identity.py（幂等）。
+      - WEB_UNIFIED_ACCOUNT_ENABLED=${WEB_UNIFIED_ACCOUNT_ENABLED:-true}
       - REDIS_URL=redis://redis:6379
       # ── SiliconFlow（Embedding / Rerank / Fast 模型） ──
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
