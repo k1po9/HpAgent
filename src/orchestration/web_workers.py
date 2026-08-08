@@ -41,6 +41,23 @@ class WebTemporalWorkers:
     agent: Worker
 
 
+def validate_unified_account_backend(
+    web_unified_account_enabled: bool, worker_database_url: str | None
+) -> None:
+    """Phase G G-02 §10.5 fail-closed gate.
+
+    统一身份（WEB_UNIFIED_ACCOUNT_ENABLED=true）要求 QQ 通过 PostgreSQL
+    ``identity_bindings`` 解析到与 Web 相同的 account_id。缺少
+    ``WORKER_DATABASE_URL`` 时拒绝启动，QQ 绝不静默回退 ``accounts.json``
+    （那会伪造“未绑定 / 空数据”而不是明确失败）。
+    """
+    if web_unified_account_enabled and not worker_database_url:
+        raise RuntimeError(
+            "WEB_UNIFIED_ACCOUNT_ENABLED=true requires WORKER_DATABASE_URL; "
+            "QQ must not fall back to accounts.json under unified identity"
+        )
+
+
 def validate_web_outbox_recovery(
     lease_timeout_seconds: int,
     recovery_interval_seconds: float,

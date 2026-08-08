@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${HPAGENT_MIGRATE_PASSWORD:-hpagent_migrate}
       POSTGRES_DB: hpagent
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"   # 仅宿主机调试；不暴露公网（G §14）
     volumes:
       - app-pgdata:/var/lib/postgresql/data
       - ./persistence/docker-init:/docker-entrypoint-initdb.d:ro
@@ -55,7 +55,14 @@ services:
       WEB_CREDENTIALS_JSON: ${WEB_CREDENTIALS_JSON:-{}}
       WEB_FAKE_EXECUTOR_ENABLED: "false"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"   # 仅宿主机调试；公网唯一入口是 web-gateway（G §14）
+    healthcheck:
+      # /health/ready 校验 API 进程存活且 PostgreSQL 可访问（G-03 §15）。
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
     depends_on:
       app-postgres:
         condition: service_healthy
@@ -64,11 +71,35 @@ services:
     networks:
       - app-network
 
+  # ==================== Web 生产网关（唯一浏览器入口） ====================
+  # G-01/G-03：React 静态资源 + /api、/auth 反向代理 + SSE 不缓存。
+  # 只在 hpagent-api healthy 之后启动（G §13：migration → API → gateway）。
+  web-gateway:
+    profiles: ["web"]
+    build:
+      context: ./web
+    environment:
+      TZ: UTC
+    ports:
+      - "${WEB_GATEWAY_PORT:-80}:80"   # 唯一公开业务入口；TLS 由外层（80→443）提供
+    depends_on:
+      hpagent-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    networks:
+      - app-network
+    restart: unless-stopped
+
   # ==================== HpAgent 主服务 ====================
   hpagent:
     build: ./src
     ports:
-      - "8082:8082"                   # 宿主机调试：ws://localhost:8082
+      - "127.0.0.1:8082:8082"         # 仅宿主机调试：ws://localhost:8082（G §14）
     logging:
       driver: json-file
       options:
@@ -162,7 +193,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
     ports:
-      - "6379:6379"                   # 宿主机调试：redis://localhost:6379
+      - "127.0.0.1:6379:6379"         # 仅宿主机调试；不暴露公网（G §14）
     volumes:
       - redis-data:/data
     healthcheck:
@@ -277,7 +308,7 @@ services:
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=temporal-postgres
     ports:
-      - "7233:7233"                   # 宿主机调试：localhost:7233
+      - "127.0.0.1:7233:7233"         # 仅宿主机调试：localhost:7233（G §14）
     depends_on:
       temporal-postgres:
         condition: service_healthy
@@ -301,7 +332,7 @@ services:
       - TZ=Asia/Shanghai
       - TEMPORAL_ADDRESS=temporal:7233
     ports:
-      - "8088:8088"
+      - "127.0.0.1:8088:8088"         # 仅宿主机调试（G §14）
     depends_on:
       - temporal
     networks:
@@ -374,8 +405,8 @@ services:
       # ── 跳过 LLM 验证（避免启动时卡在 API 连通性检查） ──
       - HINDSIGHT_API_SKIP_LLM_VERIFICATION=true
     ports:
-      - "8001:8888"                   # 宿主机调试：http://localhost:8001
-      - "9999:9999"                   # webui
+      - "127.0.0.1:8001:8888"         # 仅宿主机调试：http://localhost:8001（G §14）
+      - "127.0.0.1:9999:9999"         # webui（仅宿主机调试）
     volumes:
       - ./scripts/start-all.sh:/app/start-all.sh:ro  # 覆盖镜像内硬编码 300s 超时的启动脚本
     depends_on:

@@ -36,6 +36,69 @@ def test_real_web_agent_feature_flag_defaults_to_off(monkeypatch):
     assert WebApiSettings.from_env().real_agent_enabled is False
 
 
+# ── Phase G G-02 §10.2：生产 WEB_PUBLIC_ORIGIN fail-closed ──
+
+
+def _env_settings(monkeypatch, **env):
+    monkeypatch.setenv("APP_DATABASE_URL", "postgresql://unused")
+    # 生产校验要求 secrets ≥ 32 bytes（G §10/§11），默认给足长值。
+    monkeypatch.setenv("WEB_CURSOR_SECRET", "x" * 40)
+    monkeypatch.setenv("WEB_SESSION_TOKEN_PEPPER", "y" * 40)
+    monkeypatch.setenv("WEB_CSRF_SIGNING_KEY", "z" * 40)
+    for key, value in env.items():
+        if value is None:
+            monkeypatch.delenv(key, raising=False)
+        else:
+            monkeypatch.setenv(key, value)
+    return WebApiSettings.from_env()
+
+
+def test_production_rejects_missing_public_origin(monkeypatch):
+    with pytest.raises(ValueError, match="WEB_PUBLIC_ORIGIN"):
+        _env_settings(
+            monkeypatch,
+            HPAGENT_ENV="production",
+            WEB_PUBLIC_ORIGIN=None,
+        )
+
+
+def test_production_rejects_dev_default_public_origin(monkeypatch):
+    with pytest.raises(ValueError, match="real public HTTPS origin"):
+        _env_settings(
+            monkeypatch,
+            HPAGENT_ENV="production",
+            WEB_PUBLIC_ORIGIN="https://localhost",
+        )
+
+
+def test_production_rejects_http_public_origin(monkeypatch):
+    with pytest.raises(ValueError, match="https"):
+        _env_settings(
+            monkeypatch,
+            HPAGENT_ENV="production",
+            WEB_PUBLIC_ORIGIN="http://hpagent-api:8080",
+        )
+
+
+def test_production_accepts_real_https_origin(monkeypatch):
+    settings = _env_settings(
+        monkeypatch,
+        HPAGENT_ENV="production",
+        WEB_PUBLIC_ORIGIN="https://agent.example.com",
+    )
+    assert settings.public_origin == "https://agent.example.com"
+    assert settings.environment == "production"
+
+
+def test_development_allows_localhost_origin(monkeypatch):
+    settings = _env_settings(
+        monkeypatch,
+        HPAGENT_ENV="development",
+        WEB_PUBLIC_ORIGIN="https://localhost",
+    )
+    assert settings.public_origin == "https://localhost"
+
+
 def test_production_rejects_short_secrets():
     with pytest.raises(ValueError, match="32 bytes"):
         _settings(environment="production", csrf_signing_key=b"short")

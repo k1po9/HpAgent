@@ -856,3 +856,56 @@ orchestration / execution
 8. app-postgres 的备份、恢复、连接池和生产凭据管理。
 
 这些事项不得改变已经评审通过的领域模型：Account/Conversation/Session/Run 基数、单活跃约束、每 Run Workflow、后端真相源、Hindsight Account bank 和 Conversation 短期隔离。
+
+## 21. 生产部署现状（Phase G as-built）
+
+> G-07（`docs/web/phase-g.md` §28-30）：把“设计上准备这样做”改成“当前系统实际上就是这样运行”。
+> 部署 / 备份 / 回滚 / 运维手册见 `docs/operations/web-release.md`。
+
+以下为 Phase G 结束时系统**实际运行**的事实：
+
+| 事实类别 | 现状 |
+|---|---|
+| Canonical state | **PostgreSQL**（Conversation / Message / Run / Session / IdentityBinding / Outbox 唯一真相源） |
+| Realtime projection | **Redis + SSE**（transient，允许丢失；Redis 挂 → SSE degrade / GET polling） |
+| Durable orchestration | **Temporal**（WebRunWorkflow 冻结，replay 门禁 c-07-v1） |
+| Long-term memory | **Hindsight**，`bank = hpagent-u-{account_id}`（跨端召回） |
+| Identity | **Account** ← IdentityBinding（Web + QQ），`WEB_UNIFIED_ACCOUNT_ENABLED=true` 时 QQ 绝不回退 `accounts.json` |
+| Workspace isolation | **single_process_account_lock**（`session_worktree` 未实现，见 P1-02） |
+| Agent topology | **1 个主 Agent 进程**：QQ + Web 共享同一 `AccountLockRegistry`（第二个独立 Web Agent Worker 为无效拓扑） |
+| Web memory | `web-run:{run_id}` |
+| QQ memory | `qq-execution:{execution_id}` |
+| Web retain consistency | Transactional Outbox + eventual consistency（`retain_memory` → `MemoryRetentionWorker` → Hindsight） |
+| Browser entrypoint | **web-gateway**（React 静态 + SPA fallback + `/api`、`/auth` 代理 + SSE `proxy_buffering off`）；`hpagent-api`/DB/Redis/Temporal/Hindsight 均不面向公网 |
+
+生产配置基线（`HPAGENT_ENV=production`）：
+
+```text
+WEB_REAL_AGENT_ENABLED=true        WEB_REAL_AGENT_GATE_VERSION=c-07-v1
+WEB_UNIFIED_ACCOUNT_ENABLED=true   WEB_FAKE_EXECUTOR_ENABLED=false
+WORKSPACE_ISOLATION_MODE=single_process_account_lock
+WEB_PUBLIC_ORIGIN=https://<真实公网 origin>
+```
+
+生产 fail-closed：fake executor、非 HTTPS/缺省 `WEB_PUBLIC_ORIGIN`、real-Agent gate 版本不匹配、
+unified account 缺 `WORKER_DATABASE_URL`、`single_process_account_lock` 下多 Worker —— 全部拒绝启动。
+
+### 21.1 §20 “待决事项”的 Phase G 处置
+
+| §20 项 | 处置 |
+|---|---|
+| #2 React 构建与部署 | **已解决**：`web/Dockerfile`（Node build → Nginx runtime）+ `web/nginx.conf` |
+| #3 服务端会话认证 / P0 QQ 映射 | **已解决**：Cookie+CSRF 已实现；QQ 映射由 `scripts/bootstrap_identity.py` 运维执行 |
+| #5 Outbox Dispatcher 退避/死信 | **已解决**：`dead_letter` + 重放 SQL（见 runbook §6） |
+| #8 app-postgres 备份/恢复/凭据 | **已解决**：`scripts/backup.sh` + runbook §3/§4 |
+
+### 21.2 保留的 Legacy / P1 技术债
+
+| ID | 技术债 |
+|---|---|
+| P1-01 | QQ retention 仍是 best effort，不是 Web 那样的 durable Outbox |
+| P1-02 | 只实现 `single_process_account_lock`，`session_worktree` 尚未实现 |
+| P1-03 | 没有 Web 自助 QQ identity binding，当前由管理员 bootstrap |
+| P1-04 | 没有 `accounts.json → PostgreSQL` 历史自动迁移 |
+| P1-05 | 没有旧 Hindsight bank 自动 merge |
+| P1-06 | Memory 没有管理 UI |

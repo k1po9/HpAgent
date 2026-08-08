@@ -63,17 +63,33 @@ class WebApiSettings:
         if not cursor_keys:
             cursor_keys = {key_id: os.getenv("WEB_CURSOR_SECRET", "development-cursor-secret")}
         credentials = json.loads(os.getenv("WEB_CREDENTIALS_JSON", "{}"))
+        environment = os.getenv("HPAGENT_ENV", "development")
+        # G-02 §10.2：生产必须显式配置最终用户真正访问的 HTTPS origin，
+        # 不得沿用开发默认值或内部服务地址（http://hpagent-api:8080）。
+        raw_public_origin = os.getenv("WEB_PUBLIC_ORIGIN")
+        if environment == "production":
+            if not raw_public_origin:
+                raise ValueError("WEB_PUBLIC_ORIGIN must be explicitly set in production")
+            if raw_public_origin == "https://localhost":
+                raise ValueError(
+                    "WEB_PUBLIC_ORIGIN must be the real public HTTPS origin, not the dev "
+                    "default https://localhost"
+                )
+            if not raw_public_origin.startswith("https://"):
+                raise ValueError(
+                    "WEB_PUBLIC_ORIGIN must use the https:// scheme in production"
+                )
         return cls(
             database_url=os.environ["APP_DATABASE_URL"],
             worker_database_url=os.getenv("WORKER_DATABASE_URL"),
-            public_origin=os.getenv("WEB_PUBLIC_ORIGIN", "https://localhost"),
+            public_origin=raw_public_origin or "https://localhost",
             cursor_signing_keys={name: value.encode() for name, value in cursor_keys.items()},
             active_cursor_key_id=key_id,
             session_token_pepper=_secret(
                 "WEB_SESSION_TOKEN_PEPPER", "development-session-token-pepper"
             ),
             csrf_signing_key=_secret("WEB_CSRF_SIGNING_KEY", "development-csrf-key"),
-            environment=os.getenv("HPAGENT_ENV", "development"),
+            environment=environment,
             credential_records=credentials,
             cookie_secure=os.getenv("WEB_COOKIE_SECURE", "true").lower() == "true",
             fake_executor_enabled=os.getenv("WEB_FAKE_EXECUTOR_ENABLED", "false").lower()

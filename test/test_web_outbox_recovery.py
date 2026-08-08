@@ -23,6 +23,7 @@ from orchestration.config import AppConfig, TemporalConfig
 from orchestration.web_dispatcher import run_web_outbox_recovery_loop
 from orchestration.web_workers import (
     WEB_REAL_AGENT_GATE_VERSION,
+    validate_unified_account_backend,
     validate_web_worker_startup,
 )
 from web_domain.outbox import WEB_OUTBOX_RECOVERY_EVENT_TYPES
@@ -87,6 +88,23 @@ def test_outbox_recovery_env_overrides():
     )
     assert config.temporal.web_outbox_lease_timeout_seconds == 90
     assert config.temporal.web_outbox_recovery_interval_seconds == 20
+
+
+def test_unified_account_gate_rejects_missing_worker_database_url():
+    # G-02 §10.5：统一身份启用但缺 WORKER_DATABASE_URL → fail closed，不回退 accounts.json。
+    with pytest.raises(RuntimeError, match="WORKER_DATABASE_URL"):
+        validate_unified_account_backend(web_unified_account_enabled=True, worker_database_url=None)
+
+
+def test_unified_account_gate_accepts_worker_database_url():
+    validate_unified_account_backend(
+        web_unified_account_enabled=True, worker_database_url="postgresql://unused"
+    )
+
+
+def test_unified_account_gate_is_inert_when_disabled():
+    # 未启用统一身份时，legacy accounts.json 是合法后端（G-P5 允许的既有行为）。
+    validate_unified_account_backend(web_unified_account_enabled=False, worker_database_url=None)
 
 
 def test_web_worker_startup_rejects_invalid_outbox_recovery_config():

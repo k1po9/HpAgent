@@ -556,10 +556,16 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     )
 
     # ── 8. 账号服务 + 渠道路由器 ──
-    # Phase F: 有 WORKER_DATABASE_URL 且统一账号启用时，QQ 通过 PostgreSQL
-    # identity_bindings 解析到与 Web 相同的 account_id；否则回退 accounts.json。
+    # Phase F: 统一账号启用时，QQ 必须通过 PostgreSQL identity_bindings 解析到与
+    # Web 相同的 account_id。G-02 §10.5 fail-closed：启用统一身份但缺少
+    # WORKER_DATABASE_URL 时拒绝启动，QQ 绝不静默回退 accounts.json。
     worker_database_url = os.getenv("WORKER_DATABASE_URL")
-    if worker_database_url and config.temporal.web_unified_account_enabled:
+    if config.temporal.web_unified_account_enabled:
+        from orchestration.web_workers import validate_unified_account_backend
+
+        validate_unified_account_backend(
+            web_unified_account_enabled=True, worker_database_url=worker_database_url
+        )
         from account.postgres_account_service import PostgresAccountService
 
         account_service = PostgresAccountService(worker_database_url)

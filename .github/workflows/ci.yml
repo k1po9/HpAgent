@@ -301,3 +301,51 @@ jobs:
         with:
           name: phase-e-e2e-results
           path: web/test-results/
+
+  # ==================== Phase F gate（§17：Phase F 测试明确纳入 CI 门禁） ====================
+  # 非 PostgreSQL 依赖的 Phase F 测试显式列出；需要 PostgreSQL 的 Phase F 文件
+  # （postgres_account_service / bootstrap_identity / memory_retention）已由
+  # phase-a-postgres-contract-tests 的 `test/web_persistence` glob 覆盖。
+  phase-f-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Phase F unit gate (unified identity / memory retention / background tasks)
+        run: >-
+          PYTHONPATH=.:src python -m pytest
+          test/test_unbound_identity.py
+          test/test_hindsight_retain_document.py
+          test/test_qq_retention_document.py
+          test/test_web_background_tasks.py
+          test/test_web_outbox_recovery.py
+          --junitxml=test-results/phase-f.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-f-test-results
+          path: test-results/
+
+  # ==================== Phase G gateway smoke（G-T01~G-T04） ====================
+  # 验证生产网关组合：React build + Nginx + /api 代理 + SSE 不缓存。
+  # 需要 Docker daemon（GitHub Actions ubuntu-latest 自带）。
+  phase-g-gateway-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install web dependencies
+        run: cd web && npm ci
+      - name: Production frontend build (G-T01)
+        run: cd web && npm run build
+      - name: Gateway smoke — SPA fallback /api proxy / SSE no-buffering (G-T02~T04)
+        run: ./scripts/gateway-smoke.sh
