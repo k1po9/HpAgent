@@ -14,6 +14,8 @@ from __future__ import annotations
 import json
 import logging
 import sys
+import traceback
+from datetime import datetime
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 
@@ -22,17 +24,33 @@ class _JsonFormatter(logging.Formatter):
     """结构化 JSON 行格式 —— 每行一条独立 JSON，方便 jq/grep 处理。"""
 
     def format(self, record: logging.LogRecord) -> str:
-        payload = {
-            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+        # ``extra`` values are attributes added directly to LogRecord, not
+        # ``record.args``.  Preserve them at the top level so JSONL can be
+        # queried by run_id/component/event without parsing a nested blob.
+        builtin = set(logging.makeLogRecord({}).__dict__) | {"message", "asctime"}
+        custom = {key: value for key, value in record.__dict__.items() if key not in builtin}
+        payload = custom | {
+            "ts": datetime.fromtimestamp(record.created).astimezone().isoformat(timespec="milliseconds"),
             "level": record.levelname,
             "logger": record.name,
             "msg": record.getMessage(),
         }
         if record.exc_info and record.exc_info[1]:
-            payload["exc"] = str(record.exc_info[1])
-        if record.args and isinstance(record.args, dict):
-            payload["extra"] = record.args
+            payload["error"] = {
+                "type": type(record.exc_info[1]).__name__,
+                "message": str(record.exc_info[1]),
+                "stack": "".join(traceback.format_exception(*record.exc_info)),
+            }
         return json.dumps(payload, ensure_ascii=False, default=str)
+
+
+def log_event(logger: logging.Logger, level: int, event: str, component: str, /, **fields: object) -> None:
+    """Emit one queryable lifecycle event using the shared JSONL schema."""
+    logger.log(level, event, extra={
+        "event": event,
+        "component": component,
+        **{key: value for key, value in fields.items() if value is not None},
+    })
 
 
 def setup_logging(

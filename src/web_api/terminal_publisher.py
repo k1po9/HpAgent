@@ -18,15 +18,18 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from web_domain.outbox import OutboxService
+from common.logging import log_event
 
 from .config import WebApiSettings
 from .sse import AsyncRedis, envelope, load_run_snapshot
 
 _TOPIC_PREFIX = "hpagent:web:run:"
+logger = logging.getLogger("HpAgent.TerminalPublisher")
 
 _TERMINAL_EVENT = {
     "completed": "run.completed",
@@ -111,6 +114,11 @@ class TerminalEventPublisher:
                 load_run_snapshot, self.database, account_id, UUID(run_id)
             )
         except Exception:
+            logger.exception("Terminal Redis publish failed", extra={
+                "event": "redis_projection_degraded", "component": "redis", "run_id": run_id,
+                "outbox_event_id": str(event_id), "status": "degraded",
+                "error_code": "redis_unavailable",
+            })
             await asyncio.to_thread(
                 self.outbox.mark_retryable_failure,
                 event_id,
@@ -150,3 +158,5 @@ class TerminalEventPublisher:
         )
         if marked:
             self.published += 1
+            log_event(logger, logging.INFO, "sse_terminal_published", "sse", run_id=run_id,
+                      conversation_id=snapshot["run"]["conversation_id"], status=terminal_status)

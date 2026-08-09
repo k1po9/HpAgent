@@ -4,6 +4,7 @@ import asyncio
 import hmac
 import html
 import json
+import logging
 import re
 from contextlib import asynccontextmanager
 from typing import Any, Awaitable, Callable, cast
@@ -19,6 +20,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from uuid6 import uuid7
+
+from common.logging import log_event
 
 from persistence.uow import UnitOfWork
 from web_domain.errors import (
@@ -53,6 +56,7 @@ from .sse import SSEGateway, load_run_snapshot
 from .terminal_publisher import TerminalEventPublisher
 
 ETAG_PATTERN = re.compile(r'^"conversation-([0-9a-f-]+)-m([1-9][0-9]*)"$')
+logger = logging.getLogger("HpAgent.WebApi")
 
 
 class BodyLimitMiddleware:
@@ -305,6 +309,12 @@ def create_app(
 
     @app.exception_handler(Exception)
     async def unhandled_error(request: Request, exc: Exception):
+        logger.exception("Unhandled Web API exception", extra={
+            "event": "web_request_failed", "component": "web_api",
+            "request_id": getattr(request.state, "request_id", None),
+            "run_id": request.path_params.get("run_id"), "path": request.url.path,
+            "method": request.method, "status": "failed",
+        })
         return _error(request, 503, "service_unavailable", "服务暂不可用。", retryable=True)
 
     def auth_context(request: Request) -> AuthContext:
@@ -461,6 +471,12 @@ def create_app(
         except MessageTooLarge:
             return _error(request, 413, "message_too_large", "消息过长。")
         result: CommandResult = request.app.state.commands.send_message(context.account_id, conversation_id, key, content)
+        run = result.body["run"]
+        log_event(
+            logger, logging.INFO, "web_message_accepted", "web_api",
+            request_id=request.state.request_id, run_id=run["run_id"],
+            conversation_id=str(conversation_id), status="success",
+        )
         body = {name: result.body[name] for name in ("user_message", "assistant_message", "run", "events_url")}
         response = JSONResponse(status_code=result.response_status, content=body)
         if result.replayed:

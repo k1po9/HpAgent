@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,6 +14,7 @@ from temporalio.client import Client
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
+from common.logging import log_event
 
 from orchestration.web_workflow import (
     WEB_LIFECYCLE_TASK_QUEUE,
@@ -123,10 +125,16 @@ class TemporalOutboxDispatcher:
         still_queued = await asyncio.to_thread(self.store.still_queued, run_id)
         if not decision.should_start or not still_queued:
             return False
+        started_at = time.monotonic()
+        log_event(logger, logging.INFO, "temporal_workflow_starting", "temporal", run_id=str(run_id),
+                  workflow_id=decision.workflow_id, status="started")
         temporal_run_id = await self.temporal.start_web_run(
             decision.workflow_id, WebRunWorkflowInput(1, str(run_id))
         )
         await asyncio.to_thread(self.store.record_started, run_id, temporal_run_id)
+        log_event(logger, logging.INFO, "temporal_workflow_started", "temporal", run_id=str(run_id),
+                  workflow_id=decision.workflow_id, temporal_run_id=temporal_run_id, status="success",
+                  elapsed_ms=round((time.monotonic() - started_at) * 1000))
         # The final check handles the unavoidable Start/Cancel narrow race.
         if await asyncio.to_thread(self.store.needs_cancel, run_id):
             if await self.temporal.cancel_web_run(decision.workflow_id):
@@ -218,6 +226,9 @@ class WebOutboxDispatcher:
         for event in events:
             event_id = UUID(str(event["outbox_event_id"]))
             run_id = UUID(str(event["run_id"]))
+            log_event(logger, logging.INFO, "outbox_event_claimed", "outbox", run_id=str(run_id),
+                      outbox_event_id=str(event_id), event_type=event["event_type"],
+                      attempt_count=int(event["attempt_count"]), status="running")
             try:
                 if event["event_type"] == "start_run":
                     await self.dispatcher.dispatch_start(run_id)
@@ -226,6 +237,8 @@ class WebOutboxDispatcher:
                 await asyncio.to_thread(
                     self.outbox.mark_processed, event_id, self.worker_id
                 )
+                log_event(logger, logging.INFO, "outbox_event_processed", "outbox", run_id=str(run_id),
+                          outbox_event_id=str(event_id), event_type=event["event_type"], status="success")
             except Exception as exc:
                 if int(event["attempt_count"]) >= self.max_attempts:
                     await asyncio.to_thread(
@@ -235,6 +248,9 @@ class WebOutboxDispatcher:
                         "temporal_dispatch_exhausted",
                         str(exc)[:1000],
                     )
+                    log_event(logger, logging.ERROR, "outbox_event_dead_letter", "outbox", run_id=str(run_id),
+                              outbox_event_id=str(event_id), event_type=event["event_type"], status="failed",
+                              attempt_count=int(event["attempt_count"]), error_code="temporal_dispatch_exhausted")
                 else:
                     await asyncio.to_thread(
                         self.outbox.mark_retryable_failure,
@@ -244,4 +260,7 @@ class WebOutboxDispatcher:
                         str(exc)[:1000],
                         datetime.now(UTC) + timedelta(seconds=5),
                     )
+                    log_event(logger, logging.WARNING, "outbox_event_retry", "outbox", run_id=str(run_id),
+                              outbox_event_id=str(event_id), event_type=event["event_type"], status="retrying",
+                              attempt_count=int(event["attempt_count"]), error_code="temporal_dispatch_failed")
         return len(events)

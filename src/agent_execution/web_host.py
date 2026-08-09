@@ -1,10 +1,13 @@
 """Web execution host: load by Run ID, execute once, then commit through ReplySink."""
 from __future__ import annotations
 
+import logging
+import time
 from typing import Protocol
 from uuid import UUID
 
 from workspace.isolation import WorkspaceRecoveryRequired
+from common.logging import log_event
 
 from .facade import (
     AgentExecutionFacade,
@@ -15,6 +18,8 @@ from .facade import (
     ExecutionResult,
     StableExecutionFailure,
 )
+
+logger = logging.getLogger("HpAgent.WebExecutionHost")
 
 
 class WebRequestLoader(Protocol):
@@ -64,10 +69,13 @@ class WebExecutionHost:
         self._resource_prep = resource_prep
 
     async def execute(self, run_id: str) -> ExecutionResult:
+        started_at = time.monotonic()
         request = await self._loader.load(run_id)
         if request.execution_id != run_id:
             raise ValueError("Web request loader returned a different run")
         events = self._events.for_run(run_id)
+        log_event(logger, logging.INFO, "agent_execution_started", "agent", run_id=run_id,
+                  execution_id=request.execution_id, conversation_id=request.conversation_id, status="running")
         try:
             # Phase E: emit the contract ``run.started`` online event when the
             # Event Sink supports it; ``assembling_context`` is the first stable
@@ -99,7 +107,17 @@ class WebExecutionHost:
                     request, self._control, events, audit
                 )
             await self._replies.complete(run_id, result)
+            log_event(logger, logging.INFO, "agent_execution_completed", "agent", run_id=run_id,
+                      execution_id=request.execution_id, status="completed",
+                      elapsed_ms=round((time.monotonic() - started_at) * 1000))
             return result
+        except Exception:
+            logger.exception("Web agent execution failed", extra={
+                "event": "agent_execution_failed", "component": "agent", "run_id": run_id,
+                "execution_id": request.execution_id, "status": "failed",
+                "elapsed_ms": round((time.monotonic() - started_at) * 1000),
+            })
+            raise
         finally:
             close = getattr(events, "close", None)
             if close is not None:

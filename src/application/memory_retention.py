@@ -11,11 +11,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
 from persistence.uow import UnitOfWork
+from common.logging import log_event
 
 logger = logging.getLogger("HpAgent.MemoryRetention")
 
@@ -95,11 +97,9 @@ class MemoryRetentionService:
             {"role": "user", "content": run["trigger_content"]},
             {"role": "assistant", "content": run["assistant_content"]},
         ]
-        logger.info(
-            "memory_retain_started run_id=%s account_id=%s document_id=%s",
-            run["run_id"], run["account_id"], document_id,
-        )
-        t0 = asyncio.get_running_loop().time()
+        log_event(logger, logging.INFO, "memory_retain_started", "memory", run_id=str(run["run_id"]),
+                  conversation_id=str(run["conversation_id"]), document_id=document_id, status="started")
+        t0 = time.monotonic()
         receipt = await self._hindsight.retain_document(
             events,
             user_id=str(run["account_id"]),
@@ -114,19 +114,13 @@ class MemoryRetentionService:
                 "session_id": str(run["session_id"]),
             },
         )
-        latency_ms = (asyncio.get_running_loop().time() - t0) * 1000
+        elapsed_ms = round((time.monotonic() - t0) * 1000)
         if receipt.accepted:
-            logger.info(
-                "memory_retain_succeeded run_id=%s account_id=%s document_id=%s "
-                "latency_ms=%.1f",
-                run["run_id"], run["account_id"], document_id, latency_ms,
-            )
+            log_event(logger, logging.INFO, "memory_retain_completed", "memory", run_id=str(run["run_id"]),
+                      document_id=document_id, status="success", elapsed_ms=elapsed_ms)
         else:
-            logger.warning(
-                "memory_retain_failed run_id=%s account_id=%s document_id=%s "
-                "latency_ms=%.1f",
-                run["run_id"], run["account_id"], document_id, latency_ms,
-            )
+            log_event(logger, logging.WARNING, "memory_retain_failed", "memory", run_id=str(run["run_id"]),
+                      document_id=document_id, status="failed", elapsed_ms=elapsed_ms)
         return RetainOutcome(
             skipped=False, accepted=receipt.accepted, document_id=document_id
         )

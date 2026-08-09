@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 from uuid import UUID
 
 from common.types import Event, EventType
+from common.logging import log_event
 from harness.context_builder import HarnessContextBuilder
 from memory.hindsight_client import MemoryItem
 from persistence.repositories import MessageRepository, RunRepository
@@ -101,6 +103,8 @@ class ContextAssemblyService:
         """Recall account-bank memory only after query rewrite; unavailable is empty."""
         if self._hindsight is None:
             return ()
+        started_at = time.monotonic()
+        log_event(logger, logging.INFO, "memory_recall_started", "memory", run_id=str(base.run_id), status="started")
         try:
             recalled = await self._hindsight.recall(
                 recall_query,
@@ -110,12 +114,19 @@ class ContextAssemblyService:
                 channel_type="web",
             )
         except Exception as exc:
-            logger.warning("DEGRADATION: Web Hindsight recall unavailable: %s", exc)
+            logger.exception("Web Hindsight recall unavailable", extra={
+                "event": "memory_recall_degraded", "component": "memory",
+                "run_id": str(base.run_id), "status": "degraded",
+                "elapsed_ms": round((time.monotonic() - started_at) * 1000),
+                "error_code": type(exc).__name__,
+            })
             return ()
         validated: list[MemoryItem] = []
         for item in recalled:
             self._validate_memory(item, base.account_id)
             validated.append(item)
+        log_event(logger, logging.INFO, "memory_recall_completed", "memory", run_id=str(base.run_id),
+                  status="success", result_count=len(validated), elapsed_ms=round((time.monotonic() - started_at) * 1000))
         return tuple(validated)
 
     def compose(

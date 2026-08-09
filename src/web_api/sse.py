@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 from datetime import UTC, datetime
 from typing import Any, Awaitable, Callable, Protocol
 from uuid import UUID
@@ -26,11 +27,13 @@ from uuid6 import uuid7
 
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound
+from common.logging import log_event
 
 from .config import WebApiSettings
 from .queries import message_dto, run_dto
 
 _TOPIC_PREFIX = "hpagent:web:run:"
+logger = logging.getLogger("HpAgent.SSE")
 
 _TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 _TERMINAL_EVENT_TYPES = frozenset(
@@ -186,6 +189,8 @@ class SSEGateway:
                 yield sse_frame(self._degraded(None, run_id, "upstream_disconnected"))
                 return
             conversation_id = snapshot["run"]["conversation_id"]
+            log_event(logger, logging.INFO, "sse_subscribed", "sse", run_id=str(run_id),
+                      conversation_id=conversation_id, status="started")
             yield sse_frame(
                 envelope(
                     "run.snapshot",
@@ -290,6 +295,8 @@ class SSEGateway:
                             event["stream_id"] = None
                             event["event_seq"] = None
                             yield sse_frame(event)
+                            log_event(logger, logging.INFO, "sse_terminal_snapshot_sent", "sse", run_id=str(run_id),
+                                      conversation_id=conversation_id, status=snapshot["run"]["status"])
                             return
                         # Terminal claimed but not yet committed: keep streaming.
                         continue
@@ -303,6 +310,7 @@ class SSEGateway:
                     await pubsub.aclose()
         finally:
             await self.release()
+            log_event(logger, logging.INFO, "sse_disconnected", "sse", run_id=str(run_id), status="completed")
 
     def _degrade(self, state: _BufferState, queue: asyncio.Queue[str], reason: str) -> None:
         """Set the degradation reason and wake the stream loop if it is idle.
