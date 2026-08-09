@@ -148,11 +148,17 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     # the Run's bound Session workspace, and create the Session Sandbox before
     # the Facade selects tools.  ``deps.workspace_isolation.account_locks`` is
     # the same registry QQ uses, so QQ and Web serialize per Account.
+    # P0/P1-3/Web-workspace-provisioning: Web real execution acquires the shared
+    # Account lock, provisions any missing local repo / session branch (safely,
+    # inside the lock) and creates the Session Sandbox before the Facade selects
+    # tools.  ``deps.workspace_isolation.account_locks`` is the same registry QQ
+    # uses, so QQ and Web serialize per Account; ``deps.git_repo_manager`` is the
+    # same manager QQ uses, so there is exactly one Git implementation.
     resource_prep = SessionResourceRecoveryService(
         worker_database_url,
-        deps.workspace_root,
         deps.sandbox_manager,
         deps.workspace_isolation.account_locks,
+        deps.git_repo_manager,
     )
     web_host = WebExecutionHost(
         PostgresWebRequestLoader(worker_database_url, context),

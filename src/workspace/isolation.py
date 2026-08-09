@@ -29,6 +29,19 @@ class WorkspaceRecoveryRequired(RuntimeError):
     code = "workspace_recovery_required"
 
 
+class WorkspaceProvisioner(Protocol):
+    """Worker-owned safe creation of missing workspace resources.
+
+    ``GitRepoManager`` implements this (see ``sandbox.git_repo``); the Protocol
+    keeps ``workspace.isolation`` free of a ``sandbox.git_repo`` import so the
+    two modules never form a cycle.
+    """
+
+    def repo_path(self, account_id: str) -> Path: ...
+
+    async def ensure_session_workspace(self, account_id: str, session_id: str) -> None: ...
+
+
 class ExecutionControl(Protocol):
     def raise_if_cancelled(self) -> None: ...
 
@@ -223,13 +236,13 @@ class SessionResourceRecoveryService:
     """
 
     def __init__(
-        self, database_url: object, workspace_root: Path, sandbox_manager: Any,
-        account_locks: AccountLockRegistry,
+        self, database_url: object, sandbox_manager: Any,
+        account_locks: AccountLockRegistry, git_repo_manager: WorkspaceProvisioner,
     ) -> None:
         self._database_url = database_url
-        self._workspace_root = workspace_root
         self._sandbox_manager = sandbox_manager
         self._account_locks = account_locks
+        self._git_repo_manager = git_repo_manager
         self._runs = RunRepository()
 
     @asynccontextmanager
@@ -245,9 +258,19 @@ class SessionResourceRecoveryService:
 
         session_id = subject["session_id"]
         account_text = str(subject["account_id"])
-        repo_path = self._workspace_root / account_text / "repo"
+        # The provisioner owns "where the repo lives", so the recovery guard
+        # verifies exactly the repo that was (possibly) just created.
+        repo_path = self._git_repo_manager.repo_path(account_text)
         expected_branch = f"hpagent/{session_id}"
         async with self._account_locks.hold(account_text, control):
+            # Provision missing resources INSIDE the Account lock: QQ and Web
+            # share one registry, so no other execution can race checkout or
+            # branch creation on the same account repo.  Provisioning only
+            # creates provably-absent state; the conservative guard below still
+            # owns verification and fail-closed recovery of existing state.
+            await self._git_repo_manager.ensure_session_workspace(
+                account_text, str(session_id)
+            )
             await WorkspaceRecoveryGuard(repo_path).recover(expected_branch)
             self._sandbox_manager.create_session_sandbox(
                 session_id=str(session_id),

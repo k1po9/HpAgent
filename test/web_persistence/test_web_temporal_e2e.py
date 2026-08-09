@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import subprocess
 from contextlib import AsyncExitStack
 
 import pytest
@@ -29,6 +28,7 @@ from orchestration.web_activities import (
 from orchestration.web_dispatcher import TemporalClientAdapter
 from orchestration.web_workers import build_web_temporal_workers
 from orchestration.web_workflow import WebRunWorkflowInput
+from sandbox.git_repo import GitRepoManager
 from web_domain.lifecycle import WebRunLifecycleService
 from web_domain.workflow_execution import PostgresWorkflowExecutionStore
 from workspace.isolation import (
@@ -39,26 +39,6 @@ from workspace.isolation import (
 from .test_phase_a_invariants import _conversation_and_run
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.postgres, pytest.mark.temporal]
-
-
-def _provision_workspace(workspace_root, account_id, session_id) -> None:
-    """Create the real per-Account git worktree the resource-prep service recovers.
-
-    The production ``WorkspaceRecoveryGuard`` verifies the repo is on branch
-    ``hpagent/{session_id}`` and clean; a fresh repo on that branch with one
-    commit satisfies it without discarding anything.
-    """
-    repo_path = workspace_root / str(account_id) / "repo"
-    repo_path.mkdir(parents=True)
-    for args in (
-        ["git", "init", "-b", f"hpagent/{session_id}"],
-        ["git", "config", "user.email", "hpagent@test"],
-        ["git", "config", "user.name", "hpagent-test"],
-    ):
-        subprocess.run(args, cwd=repo_path, check=True, capture_output=True)
-    (repo_path / "README.md").write_text("# workspace", encoding="utf-8")
-    subprocess.run(["git", "add", "."], cwd=repo_path, check=True, capture_output=True)
-    subprocess.run(["git", "commit", "-m", "init"], cwd=repo_path, check=True, capture_output=True)
 
 
 class _CannedBrainLoop:
@@ -101,7 +81,6 @@ async def test_td_002_real_db_prepare_backfills_lost_start_ack(
             "SELECT session_id FROM runs WHERE run_id=%s", (run_id,)
         )
         session_id = cursor.fetchone()[0]
-    _provision_workspace(tmp_path, account_id, session_id)
 
     sandbox_calls: list[tuple[str, str]] = []
     context = ContextAssemblyService(worker_database_url, HarnessContextBuilder())
@@ -113,9 +92,9 @@ async def test_td_002_real_db_prepare_backfills_lost_start_ack(
         TemporalActivityControl(),
         resource_prep=SessionResourceRecoveryService(
             worker_database_url,
-            tmp_path,
             _RecordingSandboxManager(sandbox_calls),
             AccountLockRegistry(),
+            GitRepoManager(tmp_path),
         ),
     )
 
