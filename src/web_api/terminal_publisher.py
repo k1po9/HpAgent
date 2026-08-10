@@ -114,10 +114,10 @@ class TerminalEventPublisher:
                 load_run_snapshot, self.database, account_id, UUID(run_id)
             )
         except Exception:
-            logger.exception("Terminal Redis publish failed", extra={
-                "event": "redis_projection_degraded", "component": "redis", "run_id": run_id,
-                "outbox_event_id": str(event_id), "status": "degraded",
-                "error_code": "redis_unavailable",
+            logger.exception("Terminal snapshot load failed", extra={
+                "event": "terminal_snapshot_load_failed", "component": "sse", "run_id": run_id,
+                "outbox_event_id": str(event_id), "status": "failed",
+                "error_code": "terminal_snapshot_unavailable",
             })
             await asyncio.to_thread(
                 self.outbox.mark_retryable_failure,
@@ -144,6 +144,11 @@ class TerminalEventPublisher:
                 json.dumps(body, ensure_ascii=False, separators=(",", ":")),
             )
         except Exception:
+            logger.exception("Terminal Redis publish failed", extra={
+                "event": "redis_projection_degraded", "component": "redis", "run_id": run_id,
+                "outbox_event_id": str(event_id), "status": "degraded",
+                "error_code": "redis_unavailable",
+            })
             await asyncio.to_thread(
                 self.outbox.mark_retryable_failure,
                 event_id,

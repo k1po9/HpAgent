@@ -1,358 +1,177 @@
 services:
-  # Web MVP 的领域真相；与 Temporal/Hindsight 私有数据库严格分离。
+
+  # ============================================================
+  # 基础设施层
+  #
+  # 无 profile：
+  #   docker compose up -d
+  #
+  # 即可长期运行。
+  #
+  # 日常修改 hpagent / web 源码时，不需要重启这些服务。
+  # ============================================================
+
+  # ==================== App PostgreSQL ====================
   app-postgres:
     image: postgres:16-alpine
+
     environment:
       TZ: UTC
       POSTGRES_USER: hpagent_migrate
       POSTGRES_PASSWORD: ${HPAGENT_MIGRATE_PASSWORD:-hpagent_migrate}
       POSTGRES_DB: hpagent
+
     ports:
-      - "127.0.0.1:5434:5432"   # 仅宿主机调试；不暴露公网（G §14）
+      - "127.0.0.1:5434:5432"
+
     volumes:
       - app-pgdata:/var/lib/postgresql/data
       - ./persistence/docker-init:/docker-entrypoint-initdb.d:ro
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hpagent_migrate -d hpagent"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U hpagent_migrate -d hpagent"
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
+
     networks:
       - app-network
 
-  # ==================== Schema migration gate（P1-6） ====================
-  # One-shot：用 hpagent_migrate 角色把 persistence/migrations/*.sql 应用到领域库，
-  # 完成后退出（restart: "no"）。hpagent-api 与 hpagent 都依赖它
-  # service_completed_successfully，因此 DB 结构在任一 Web 消费者启动前就绪。
-  # 使用独立小镜像，避免主 Worker 镜像承担迁移职责。
-  hpagent-migrate:
-    build:
-      context: .
-      dockerfile: src/Dockerfile.migrate
-    environment:
-      APP_DATABASE_URL: postgresql://hpagent_migrate:${HPAGENT_MIGRATE_PASSWORD:-hpagent_migrate}@app-postgres:5432/hpagent
-    depends_on:
-      app-postgres:
-        condition: service_healthy
-    networks:
-      - app-network
-    restart: "no"
-
-  hpagent-api:
-    profiles: ["web"]
-    build:
-      context: .
-      dockerfile: src/Dockerfile.web-api
-    environment:
-      TZ: UTC
-      HPAGENT_ENV: ${HPAGENT_ENV:-development}
-      APP_DATABASE_URL: postgresql://hpagent_api:${HPAGENT_API_PASSWORD:-hpagent_api}@app-postgres:5432/hpagent
-      WEB_PUBLIC_ORIGIN: ${WEB_PUBLIC_ORIGIN:-https://localhost}
-      WEB_CURSOR_ACTIVE_KEY_ID: ${WEB_CURSOR_ACTIVE_KEY_ID:-v1}
-      WEB_CURSOR_SECRET: ${WEB_CURSOR_SECRET:-development-cursor-secret}
-      WEB_SESSION_TOKEN_PEPPER: ${WEB_SESSION_TOKEN_PEPPER:-development-session-token-pepper}
-      WEB_CSRF_SIGNING_KEY: ${WEB_CSRF_SIGNING_KEY:-development-csrf-key}
-      WEB_CREDENTIALS_JSON: ${WEB_CREDENTIALS_JSON:-{}}
-      WEB_FAKE_EXECUTOR_ENABLED: "false"
-    ports:
-      - "127.0.0.1:8080:8080"   # 仅宿主机调试；公网唯一入口是 web-gateway（G §14）
-    healthcheck:
-      # /health/ready 校验 API 进程存活且 PostgreSQL 可访问（G-03 §15）。
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    depends_on:
-      app-postgres:
-        condition: service_healthy
-      hpagent-migrate:
-        condition: service_completed_successfully
-    networks:
-      - app-network
-
-  # ==================== Web 生产网关（唯一浏览器入口） ====================
-  # G-01/G-03：React 静态资源 + /api、/auth 反向代理 + SSE 不缓存。
-  # 只在 hpagent-api healthy 之后启动（G §13：migration → API → gateway）。
-  web-gateway:
-    profiles: ["web"]
-    build:
-      context: ./web
-    environment:
-      TZ: UTC
-    ports:
-      - "${WEB_GATEWAY_PORT:-80}:80"   # 唯一公开业务入口；TLS 由外层（80→443）提供
-    depends_on:
-      hpagent-api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 5s
-    networks:
-      - app-network
     restart: unless-stopped
 
-  # ==================== HpAgent 主服务 ====================
-  hpagent:
-    build: ./src
-    ports:
-      - "127.0.0.1:8082:8082"         # 仅宿主机调试：ws://localhost:8082（G §14）
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-    environment:
-      # 容器内通信（Docker DNS 自动解析服务名）
-      - TZ=Asia/Shanghai
-      - TEMPORAL_HOST=temporal:7233
-      - HINDSIGHT_URL=http://hindsight:8888
-      - WORKSPACE_ROOT=/app/.data/workspace
-      - WORKSPACE_ISOLATION_MODE=${WORKSPACE_ISOLATION_MODE:-single_process_account_lock}
-      # ── Web real-Agent（P0-2 收口：合并进单一 Worker 进程）──
-      # QQ 与 Web 在同一进程共享同一个 AccountLockRegistry（AE-021）；
-      # single_process_account_lock 的 workspace 进程锁只允许一个 Agent 进程，
-      # 因此 Web 组件不能放在独立容器里。WORKER_DATABASE_URL 使用 hpagent_worker
-      # 角色（persistence/docker-init/01-roles.sql 已创建）。
-      - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
-      - WEB_REAL_AGENT_ENABLED=${WEB_REAL_AGENT_ENABLED:-true}
-      - WEB_REAL_AGENT_GATE_VERSION=c-07-v1
-      # Phase F 统一身份：QQ 通过 PostgreSQL identity_bindings 解析。
-      # 启用前必须先运行 scripts/bootstrap_identity.py（幂等）。
-      - WEB_UNIFIED_ACCOUNT_ENABLED=${WEB_UNIFIED_ACCOUNT_ENABLED:-true}
-      - REDIS_URL=redis://redis:6379
-      # ── SiliconFlow（Embedding / Rerank / Fast 模型） ──
-      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
-      - SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL}
-      - SILICONFLOW_EMBEDDING_MODEL=${SILICONFLOW_EMBEDDING_MODEL}
-      - SILICONFLOW_RERANK_MODEL=${SILICONFLOW_RERANK_MODEL}
-      - SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL=${SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL}
-      # ── 阿里云百炼（Fast 模型） ──
-      - ALIBABA_BAILIAN_API_KEY=${ALIBABA_BAILIAN_API_KEY}
-      - ALIBABA_BAILIAN_BASE_URL=${ALIBABA_BAILIAN_BASE_URL}
-      - ALIBABA_BAILIAN_FAST_MODEL=${ALIBABA_BAILIAN_FAST_MODEL}
-      # ── MiniMax（Chat 模型） ──
-      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
-      - MINIMAX_API_BASE_URL=${MINIMAX_API_BASE_URL}
-      - MINIMAX_STANDARD_MODEL=${MINIMAX_STANDARD_MODEL}
-      - MINIMAX_FLAGSHIP_MODEL=${MINIMAX_FLAGSHIP_MODEL}
-      - MINIMAX_HIGHSPEED_MODEL=${MINIMAX_HIGHSPEED_MODEL}
-      # ── Mimo（Chat / Fast 主模型） ──
-      # - MIMO_API_KEY=${MIMO_API_KEY}
-      # - MIMO_API_BASE_URL=${MIMO_API_BASE_URL}
-      # - MIMO_PRO_MODEL=${MIMO_PRO_MODEL}
-      # - MIMO_MODEL=${MIMO_MODEL}
-      # 官方 QQ 机器人
-      - QQ_OFFICIAL_APP_ID=${QQ_OFFICIAL_APP_ID:-}
-      - QQ_OFFICIAL_CLIENT_SECRET=${QQ_OFFICIAL_CLIENT_SECRET:-}
-      - QQ_OFFICIAL_SANDBOX=${QQ_OFFICIAL_SANDBOX:-false}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    volumes:
-      - ./.data:/app/.data                           # 运行时数据（workspace/sessions/logs/accounts）
-      - ./config:/app/config:ro                # 配置文件（只读）
-      - ./tools:/app/tools                    # 工具定义 + MCP配置 + ChromaDB向量库
-    depends_on:
-      app-postgres:
-        condition: service_healthy
-      hpagent-migrate:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-      temporal:
-        condition: service_healthy
-      hindsight:
-        condition: service_healthy
-    networks:
-      - app-network
-    restart: unless-stopped
-    # privileged: true  # 仅 nsjail 需要，已关闭
 
-  # ==================== Web 真实 Agent（Phase D 收口） ====================
-  # P0-2: Web 组件合并进单一 Worker 进程（见上方 `hpagent` 服务的
-  # WORKER_DATABASE_URL / WEB_REAL_AGENT_ENABLED / WEB_REAL_AGENT_GATE_VERSION）。
-  # single_process_account_lock 拓扑要求 QQ 与 Web 共享同一进程与同一个
-  # AccountLockRegistry（AE-021）；workspace 进程锁只允许一个 Agent 进程。
-  # 因此不再提供复用 start_worker 的独立 `hpagent-web-worker` 容器（它会与主
-  # Worker 竞争 workspace 进程锁，并重复注册 QQ 渠道与周期 Schedule）。
-  #
-  # 需要真正独立的 Web Worker 进程时（仅 session_worktree 拓扑有效，目前该
-  # 拓扑尚未实现），使用独立入口 `python -m orchestration.web_worker`，它在
-  # single_process_account_lock 模式下会 fail-closed 拒绝启动，避免错误部署。
-
-  # ==================== Redis 会话存储 ====================
+  # ==================== Redis ====================
   redis:
     image: redis:7-alpine
+
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "3"
+
     environment:
       - TZ=Asia/Shanghai
+
     ports:
-      - "127.0.0.1:6379:6379"         # 仅宿主机调试；不暴露公网（G §14）
+      - "127.0.0.1:6379:6379"
+
     volumes:
       - redis-data:/data
+
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
+
     networks:
       - app-network
+
     restart: unless-stopped
 
-  # ==================== NapCat QQ 机器人（代理版） ====================
-  # 启动：docker compose --profile proxy up -d
-  # 停止：docker compose --profile proxy down
-  #
-  # 透明代理链路：iptables REDIRECT(UID 1000) → redsocks → SOCKS5(PROXY_HOST:PROXY_PORT)
-  napcat-proxy:
-    profiles: [proxy]
-    build: ./src/napcat-proxy
-    logging:
-      driver: json-file
-      options:
-        max-size: "20m"
-        max-file: "3"
-    cap_add:
-      - NET_ADMIN
-    network_mode: host
-    environment:
-      - NAPCAT_UID=1000
-      - NAPCAT_GID=1000
-      - PROXY_HOST=${PROXY_HOST:-127.0.0.1}
-      - PROXY_PORT=${PROXY_PORT:-1080}
-      - PROXY_OPTIONAL=${PROXY_OPTIONAL:-false}
-      - REDSOCKS_PORT=12345
-      - TZ=Asia/Shanghai
-      - ACCOUNT=${NAPCAT_ACCOUNT}
-      - NAPCAT_QUICK_PASSWORD=${NAPCAT_QUICK_PASSWORD}
-      - ENABLE_VNC=false
-      - ELECTRON_DISABLE_GPU=1
-    volumes:
-      - ./.data/napcat/QQ:/app/.config/QQ
-      - ./.data/napcat/data:/app/.napcat
-      - ./.data/napcat/cache:/app/data/cache
-      - ./.data/napcat/config:/app/napcat/config
-    restart: unless-stopped
 
-  # ==================== NapCat QQ 机器人（直连版） ====================
-  # 启动：docker compose --profile direct up -d
-  # 停止：docker compose --profile direct down
-  #
-  # 不走代理，UID 2000 不会被 iptables 规则拦截
-  napcat:
-    image: mlikiowa/napcat-docker:latest
-    logging:
-      driver: json-file
-      options:
-        max-size: "20m"
-        max-file: "3"
-    network_mode: host
-    environment:
-      - NAPCAT_UID=2000
-      - NAPCAT_GID=2000
-      - TZ=Asia/Shanghai
-      - ACCOUNT=${NAPCAT_ACCOUNT}
-      - NAPCAT_QUICK_PASSWORD=${NAPCAT_QUICK_PASSWORD}
-      - ENABLE_VNC=false
-      - ELECTRON_DISABLE_GPU=1
-    volumes:
-      - ./.data/napcat/QQ:/app/.config/QQ
-      - ./.data/napcat/data:/app/.napcat
-      - ./.data/napcat/cache:/app/data/cache
-      - ./.data/napcat/config:/app/napcat/config
-    restart: unless-stopped
-
-  # ==================== Temporal + 数据库 ====================
+  # ==================== Temporal PostgreSQL ====================
   temporal-postgres:
     image: postgres:16-alpine
+
     logging:
       driver: json-file
       options:
         max-size: "20m"
         max-file: "3"
+
     environment:
       TZ: Asia/Shanghai
       POSTGRES_USER: temporal
       POSTGRES_PASSWORD: temporal
       POSTGRES_DB: temporal
+
     volumes:
       - temporal-pgdata:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U temporal -d temporal"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U temporal -d temporal"
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
+
     networks:
       - app-network
+
     restart: unless-stopped
 
+
+  # ==================== Temporal Server ====================
   temporal:
     image: temporalio/auto-setup:1.26.2
+
     logging:
       driver: json-file
       options:
         max-size: "50m"
         max-file: "3"
+
     environment:
       - TZ=Asia/Shanghai
-      - BIND_ON_IP=0.0.0.0              # 使 tctl healthcheck 能通过 localhost 连接
+      - BIND_ON_IP=0.0.0.0
       - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=temporal
       - POSTGRES_PWD=temporal
       - POSTGRES_SEEDS=temporal-postgres
+
     ports:
-      - "127.0.0.1:7233:7233"         # 仅宿主机调试：localhost:7233（G §14）
+      - "127.0.0.1:7233:7233"
+
     depends_on:
       temporal-postgres:
         condition: service_healthy
+
     healthcheck:
-      test: ["CMD", "tctl", "--address", "localhost:7233", "cluster", "health"]
+      test:
+        [
+          "CMD",
+          "tctl",
+          "--address",
+          "localhost:7233",
+          "cluster",
+          "health"
+        ]
       interval: 10s
       timeout: 5s
       retries: 12
+
     networks:
       - app-network
+
     restart: unless-stopped
 
-  temporal-web:
-    image: temporalio/ui:2.34.0
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      - TZ=Asia/Shanghai
-      - TEMPORAL_ADDRESS=temporal:7233
-    ports:
-      - "127.0.0.1:8088:8088"         # 仅宿主机调试（G §14）
-    depends_on:
-      - temporal
-    networks:
-      - app-network
-    restart: unless-stopped
 
-  # ==================== Hindsight 专用 PostgreSQL（pgvector） ====================
+  # ==================== Hindsight PostgreSQL ====================
   hindsight-postgres:
     image: pgvector/pgvector:pg16
+
     logging:
       driver: json-file
       options:
         max-size: "20m"
         max-file: "3"
+
     environment:
       TZ: Asia/Shanghai
       POSTGRES_USER: hindsight
       POSTGRES_PASSWORD: hindsight
       POSTGRES_DB: hindsight
-    # 限制内存防止 OOM kill 导致 WAL recovery 循环
+
     command: >
       -c shared_buffers=128MB
       -c work_mem=8MB
@@ -360,78 +179,564 @@ services:
       -c effective_cache_size=256MB
       -c wal_buffers=16MB
       -c max_wal_size=1GB
+
     volumes:
       - hindsight-pgdata:/var/lib/postgresql/data
+
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hindsight -d hindsight"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U hindsight -d hindsight"
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
+
     deploy:
       resources:
         limits:
           memory: 512m
+
     networks:
       - app-network
+
     restart: unless-stopped
 
-  # ==================== Hindsight 长期记忆 ====================
+
+  # ==================== Hindsight ====================
   hindsight:
     image: ghcr.io/vectorize-io/hindsight:0.6.1
+
     logging:
       driver: json-file
       options:
         max-size: "20m"
         max-file: "3"
+
     environment:
       - TZ=Asia/Shanghai
-      # ── 外部 PostgreSQL（替代内嵌 pg0，避免重启数据损坏） ──
+
+      # PostgreSQL
       - HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:hindsight@hindsight-postgres:5432/hindsight
-      # LLM（对话总结/记忆提取 — MiniMax OpenAI 兼容接口）
+
+      # LLM
       - HINDSIGHT_API_LLM_PROVIDER=${HINDSIGHT_API_LLM_PROVIDER}
       - HINDSIGHT_API_LLM_BASE_URL=${HINDSIGHT_API_LLM_BASE_URL}
       - HINDSIGHT_API_LLM_API_KEY=${HINDSIGHT_API_LLM_API_KEY}
       - HINDSIGHT_API_LLM_MODEL=${HINDSIGHT_API_LLM_MODEL}
-      # ── SiliconFlow 云端 Embedding（OpenAI 兼容） ──
+
+      # Embedding
       - HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
       - HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY=${SILICONFLOW_API_KEY}
       - HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL=${SILICONFLOW_EMBEDDING_MODEL}
       - HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL=${SILICONFLOW_BASE_URL}
-      # ── SiliconFlow 云端 Reranker ──
+
+      # Reranker
       - HINDSIGHT_API_RERANKER_PROVIDER=siliconflow
       - HINDSIGHT_API_RERANKER_SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
       - HINDSIGHT_API_RERANKER_SILICONFLOW_MODEL=${SILICONFLOW_RERANK_MODEL}
       - HINDSIGHT_API_RERANKER_SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL}
-      # ── 跳过 LLM 验证（避免启动时卡在 API 连通性检查） ──
+
       - HINDSIGHT_API_SKIP_LLM_VERIFICATION=true
+
     ports:
-      - "127.0.0.1:8001:8888"         # 仅宿主机调试：http://localhost:8001（G §14）
-      - "127.0.0.1:9999:9999"         # webui（仅宿主机调试）
+      - "127.0.0.1:8001:8888"
+      - "127.0.0.1:9999:9999"
+
     volumes:
-      - ./scripts/start-all.sh:/app/start-all.sh:ro  # 覆盖镜像内硬编码 300s 超时的启动脚本
+      - ./scripts/start-all.sh:/app/start-all.sh:ro
+
     depends_on:
       hindsight-postgres:
         condition: service_healthy
+
     deploy:
       resources:
         limits:
           memory: 1g
+
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:8888/health"
+        ]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 30s
+
     networks:
       - app-network
+
     restart: unless-stopped
 
+
+  # ============================================================
+  # 数据库 Migration
+  #
+  # 会随 agent / web / web-prod 启动。
+  #
+  # src 和 persistence 都直接挂载，
+  # 修改 Python migration 或 SQL 后无需 rebuild。
+  # ============================================================
+
+  hpagent-migrate:
+    profiles:
+      - agent
+      - web
+      - web-prod
+
+    build:
+      context: .
+      dockerfile: src/Dockerfile.migrate
+
+    environment:
+      APP_DATABASE_URL: postgresql://hpagent_migrate:${HPAGENT_MIGRATE_PASSWORD:-hpagent_migrate}@app-postgres:5432/hpagent
+
+    volumes:
+      - ./src:/app/src:ro
+      - ./persistence:/app/persistence:ro
+
+    depends_on:
+      app-postgres:
+        condition: service_healthy
+
+    networks:
+      - app-network
+
+    restart: "no"
+
+
+  # ============================================================
+  # HpAgent 主程序
+  #
+  # profiles:
+  #
+  #   agent
+  #       只启动 Agent
+  #
+  #   web
+  #       Web 开发模式
+  #
+  #   web-prod
+  #       Web 生产模式
+  #
+  # ./src -> /app
+  #
+  # 所以修改 Python 源码：
+  #
+  #   docker compose restart hpagent
+  #
+  # 不需要 build。
+  # ============================================================
+
+  hpagent:
+    profiles:
+      - agent
+      - web
+      - web-prod
+
+    build:
+      context: ./src
+
+    ports:
+      - "127.0.0.1:8082:8082"
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+    environment:
+      # 基础设施
+      - TZ=Asia/Shanghai
+      - TEMPORAL_HOST=temporal:7233
+      - HINDSIGHT_URL=http://hindsight:8888
+      - REDIS_URL=redis://redis:6379
+
+      # Workspace
+      - WORKSPACE_ROOT=/app/.data/workspace
+      - WORKSPACE_ISOLATION_MODE=${WORKSPACE_ISOLATION_MODE:-single_process_account_lock}
+
+      # Web real-Agent
+      - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
+      - WEB_REAL_AGENT_ENABLED=${WEB_REAL_AGENT_ENABLED:-true}
+      - WEB_REAL_AGENT_GATE_VERSION=c-07-v1
+
+      # Unified identity
+      - WEB_UNIFIED_ACCOUNT_ENABLED=${WEB_UNIFIED_ACCOUNT_ENABLED:-true}
+
+      # SiliconFlow
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
+      - SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL}
+      - SILICONFLOW_EMBEDDING_MODEL=${SILICONFLOW_EMBEDDING_MODEL}
+      - SILICONFLOW_RERANK_MODEL=${SILICONFLOW_RERANK_MODEL}
+      - SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL=${SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL}
+
+      # Alibaba Bailian
+      - ALIBABA_BAILIAN_API_KEY=${ALIBABA_BAILIAN_API_KEY}
+      - ALIBABA_BAILIAN_BASE_URL=${ALIBABA_BAILIAN_BASE_URL}
+      - ALIBABA_BAILIAN_FAST_MODEL=${ALIBABA_BAILIAN_FAST_MODEL}
+
+      # MiniMax
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY}
+      - MINIMAX_API_BASE_URL=${MINIMAX_API_BASE_URL}
+      - MINIMAX_STANDARD_MODEL=${MINIMAX_STANDARD_MODEL}
+      - MINIMAX_FLAGSHIP_MODEL=${MINIMAX_FLAGSHIP_MODEL}
+      - MINIMAX_HIGHSPEED_MODEL=${MINIMAX_HIGHSPEED_MODEL}
+
+      # QQ Official
+      - QQ_OFFICIAL_APP_ID=${QQ_OFFICIAL_APP_ID:-}
+      - QQ_OFFICIAL_CLIENT_SECRET=${QQ_OFFICIAL_CLIENT_SECRET:-}
+      - QQ_OFFICIAL_SANDBOX=${QQ_OFFICIAL_SANDBOX:-false}
+
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+    volumes:
+      # --------------------------------------------------------
+      # 核心：
+      # 本地 src 直接覆盖镜像里的 /app。
+      #
+      # 改 Python 源码以后只需要 restart，
+      # 不需要重新 docker build。
+      # --------------------------------------------------------
+      - ./src:/app
+
+      # Runtime Data
+      - ./.data:/app/.data
+
+      # Configuration
+      - ./config:/app/config:ro
+
+      # Tool definitions / MCP / ChromaDB
+      - ./tools:/app/tools
+
+    depends_on:
+      app-postgres:
+        condition: service_healthy
+
+      hpagent-migrate:
+        condition: service_completed_successfully
+
+      redis:
+        condition: service_healthy
+
+      temporal:
+        condition: service_healthy
+
+      hindsight:
+        condition: service_healthy
+
+    networks:
+      - app-network
+
+    restart: unless-stopped
+
+
+  # ============================================================
+  # FastAPI
+  #
+  # ./src -> /app/src
+  #
+  # 修改 API Python 源码：
+  #
+  #   docker compose restart hpagent-api
+  #
+  # 无需 rebuild。
+  # ============================================================
+
+  hpagent-api:
+    profiles:
+      - web
+      - web-prod
+
+    build:
+      context: .
+      dockerfile: src/Dockerfile.web-api
+
+    environment:
+      TZ: UTC
+
+      HPAGENT_ENV: ${HPAGENT_ENV:-development}
+
+      APP_DATABASE_URL: postgresql://hpagent_api:${HPAGENT_API_PASSWORD:-hpagent_api}@app-postgres:5432/hpagent
+
+      WEB_PUBLIC_ORIGIN: ${WEB_PUBLIC_ORIGIN:-https://localhost}
+
+      WEB_CURSOR_ACTIVE_KEY_ID: ${WEB_CURSOR_ACTIVE_KEY_ID:-v1}
+      WEB_CURSOR_SECRET: ${WEB_CURSOR_SECRET:-development-cursor-secret}
+
+      WEB_SESSION_TOKEN_PEPPER: ${WEB_SESSION_TOKEN_PEPPER:-development-session-token-pepper}
+      WEB_CSRF_SIGNING_KEY: ${WEB_CSRF_SIGNING_KEY:-development-csrf-key}
+
+      WEB_CREDENTIALS_JSON: ${WEB_CREDENTIALS_JSON:-{}}
+
+      WEB_FAKE_EXECUTOR_ENABLED: "false"
+
+      LOG_DIR: /app/.data/logs
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    volumes:
+      # Python API 源码直接挂载
+      - ./src:/app/src:ro
+
+      # API 写 web-api.jsonl / web-api-error.log；宿主机可直接联合查询
+      - ./.data:/app/.data
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/ready', timeout=5)"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+    depends_on:
+      app-postgres:
+        condition: service_healthy
+
+      hpagent-migrate:
+        condition: service_completed_successfully
+
+    networks:
+      - app-network
+
+    restart: unless-stopped
+
+
+  # ============================================================
+  # Web 开发模式
+  #
+  # profile: web
+  #
+  # React/Vite：
+  # ./web -> /app
+  #
+  # Vite HMR：
+  # 修改 ts / tsx / css 后浏览器自动更新。
+  #
+  # 不需要 restart
+  # 不需要 build
+  # ============================================================
+
+  web-dev:
+    profiles:
+      - web
+
+    image: node:20-alpine
+
+    working_dir: /app
+
+    environment:
+      TZ: Asia/Shanghai
+
+      # 容器内部通过 Docker DNS 访问 FastAPI
+      HPAGENT_API_TARGET: http://hpagent-api:8080
+
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -x node_modules/.bin/vite ]; then
+          npm ci
+        fi
+        exec npm run dev -- --host 0.0.0.0
+
+    ports:
+      - "127.0.0.1:5173:5173"
+
+    volumes:
+      # Web 源码实时挂载
+      - ./web:/app
+
+      # node_modules 不放到宿主机，
+      # 避免 WSL / Linux / Windows Node 环境相互污染
+      - web-node-modules:/app/node_modules
+
+    depends_on:
+      hpagent-api:
+        condition: service_healthy
+
+    networks:
+      - app-network
+
+    restart: unless-stopped
+
+
+  # ============================================================
+  # Web 生产模式
+  #
+  # profile: web-prod
+  #
+  # React -> npm build -> nginx
+  #
+  # 这个服务仍然是标准生产镜像，
+  # 前端源码变化时需要重新 build。
+  # ============================================================
+
+  web-gateway:
+    profiles:
+      - web-prod
+
+    build:
+      context: ./web
+
+    environment:
+      TZ: UTC
+
+    ports:
+      - "${WEB_GATEWAY_PORT:-80}:80"
+
+    depends_on:
+      hpagent-api:
+        condition: service_healthy
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1/"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+    networks:
+      - app-network
+
+    restart: unless-stopped
+
+
+  # ============================================================
+  # NapCat QQ
+  #
+  # 只保留直连模式。
+  #
+  # 启动：
+  #
+  #   docker compose --profile qq up -d napcat
+  #
+  # ============================================================
+
+  napcat:
+    profiles:
+      - qq
+
+    image: mlikiowa/napcat-docker:latest
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+    network_mode: host
+
+    environment:
+      - NAPCAT_UID=2000
+      - NAPCAT_GID=2000
+      - TZ=Asia/Shanghai
+
+      - ACCOUNT=${NAPCAT_ACCOUNT}
+      - NAPCAT_QUICK_PASSWORD=${NAPCAT_QUICK_PASSWORD}
+
+      - ENABLE_VNC=false
+      - ELECTRON_DISABLE_GPU=1
+
+    volumes:
+      - ./.data/napcat/QQ:/app/.config/QQ
+      - ./.data/napcat/data:/app/.napcat
+      - ./.data/napcat/cache:/app/data/cache
+      - ./.data/napcat/config:/app/napcat/config
+
+    restart: unless-stopped
+
+
+  # ============================================================
+  # Temporal UI
+  #
+  # 非核心基础设施。
+  #
+  # 按需启动：
+  #
+  #   docker compose --profile tools up -d temporal-web
+  #
+  # ============================================================
+
+  temporal-web:
+    profiles:
+      - tools
+
+    image: temporalio/ui:2.34.0
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    environment:
+      - TZ=Asia/Shanghai
+      - TEMPORAL_ADDRESS=temporal:7233
+
+    ports:
+      - "127.0.0.1:8088:8088"
+
+    depends_on:
+      temporal:
+        condition: service_healthy
+
+    networks:
+      - app-network
+
+    restart: unless-stopped
+
+
+# ============================================================
+# Persistent Volumes
+# ============================================================
+
 volumes:
+
+  # App PostgreSQL
   app-pgdata:
+
+  # Temporal PostgreSQL
   temporal-pgdata:
+
+  # Hindsight PostgreSQL
   hindsight-pgdata:
+
+  # Redis
   redis-data:
 
+  # Web dev node_modules
+  web-node-modules:
+
+
+# ============================================================
+# Network
+# ============================================================
+
 networks:
+
   app-network:
     driver: bridge

@@ -10,6 +10,7 @@ best-effort online projection.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
@@ -36,6 +37,7 @@ PROGRESS_PHASES = frozenset(
 _RUN_STATUSES = frozenset({"queued", "running", "cancelling"})
 
 _TOPIC_PREFIX = "hpagent:web:run:"
+logger = logging.getLogger("HpAgent.RedisWebRunEventSink")
 
 
 def _iso_now() -> str:
@@ -118,6 +120,11 @@ class RedisWebRunEventSink:
             # Redis is an online projection only.  The Agent execution and
             # authoritative database terminal transaction must continue.
             self.degraded = True
+            logger.exception("Web Run Redis projection degraded", extra={
+                "event": "redis_projection_degraded", "component": "redis",
+                "run_id": self._run_id, "status": "degraded",
+                "error_code": "redis_publish_failed",
+            })
 
     async def started(self, status: str = "running") -> None:
         if status not in _RUN_STATUSES:

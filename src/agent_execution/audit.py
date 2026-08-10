@@ -34,7 +34,7 @@ class LoggingExecutionAuditSink:
         input_context: Mapping[str, Any] | None,
     ) -> None:
         self._check_identity(execution_id)
-        logger.info(
+        logger.debug(
             "execution model step execution_id=%s turn=%d tools=%s",
             execution_id,
             turn,
@@ -49,7 +49,7 @@ class LoggingExecutionAuditSink:
         result: Any,
     ) -> None:
         self._check_identity(execution_id)
-        logger.info(
+        logger.debug(
             "execution tool result execution_id=%s tool_call_id=%s tool=%s failed=%s",
             execution_id,
             tool_call_id,

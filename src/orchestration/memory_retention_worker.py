@@ -18,6 +18,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+from common.logging import log_event
+
 logger = logging.getLogger("HpAgent.MemoryRetentionWorker")
 
 RETAIN_RETRY_BACKOFF_SECONDS: tuple[int, ...] = (1, 2, 4, 8, 16, 30, 60)
@@ -69,11 +71,9 @@ async def _handle_event(
         if outcome.skipped or outcome.accepted:
             await asyncio.to_thread(outbox.mark_processed, event_id, worker_id)
             if outcome.skipped:
-                logger.warning(
-                    "memory_retain_skipped run_id=%s (Run not in retentable "
-                    "completed state); event marked processed",
-                    run_id,
-                )
+                log_event(logger, logging.WARNING, "memory_retain_skipped", "memory",
+                          run_id=str(run_id), outbox_event_id=str(event_id),
+                          attempt_count=attempt, status="degraded")
         else:
             raise RuntimeError("hindsight_retain_rejected")
     except Exception as exc:
@@ -83,10 +83,9 @@ async def _handle_event(
                 outbox.dead_letter,
                 event_id, worker_id, error_code, str(exc)[:1000],
             )
-            logger.warning(
-                "memory_retain_dead_letter run_id=%s attempt=%d error_code=%s",
-                run_id, attempt, error_code,
-            )
+            log_event(logger, logging.ERROR, "memory_retain_dead_letter", "memory",
+                      run_id=str(run_id), outbox_event_id=str(event_id),
+                      attempt_count=attempt, status="failed", error_code=error_code)
         else:
             delay = backoff[min(attempt - 1, len(backoff) - 1)]
             await asyncio.to_thread(
@@ -94,8 +93,7 @@ async def _handle_event(
                 event_id, worker_id, error_code, str(exc)[:1000],
                 datetime.now(UTC) + timedelta(seconds=int(delay)),
             )
-            logger.warning(
-                "memory_retain_retry run_id=%s attempt=%d error_code=%s "
-                "retry_in=%ds",
-                run_id, attempt, error_code, int(delay),
-            )
+            log_event(logger, logging.WARNING, "memory_retain_retry", "memory",
+                      run_id=str(run_id), outbox_event_id=str(event_id),
+                      attempt_count=attempt, status="retrying", error_code=error_code,
+                      retry_in_seconds=int(delay))

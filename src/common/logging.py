@@ -56,6 +56,8 @@ def log_event(logger: logging.Logger, level: int, event: str, component: str, /,
 def setup_logging(
     level: int = logging.INFO,
     log_dir: Path | str = Path(".data/logs"),
+    json_filename: str = "hpagent.jsonl",
+    error_log_filename: str = "hpagent-error.log",
 ) -> None:
     """配置全局日志系统。
 
@@ -64,6 +66,8 @@ def setup_logging(
     Args:
         level: 控制台和文件的日志级别。
         log_dir: 日志文件目录，None 时不写文件。
+        json_filename: JSONL 文件名。不同进程共享目录时必须使用不同文件。
+        error_log_filename: ERROR+ 文本日志文件名。
     """
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)  # handler 各自控制级别
@@ -91,7 +95,7 @@ def setup_logging(
 
         # JSONL 全量日志（每天轮转，保留 30 天）
         json_handler = TimedRotatingFileHandler(
-            str(log_path / "hpagent.jsonl"),
+            str(log_path / json_filename),
             when="midnight",
             backupCount=30,
             encoding="utf-8",
@@ -102,7 +106,7 @@ def setup_logging(
 
         # 纯文本错误日志（只记录 ERROR+）
         err_handler = TimedRotatingFileHandler(
-            str(log_path / "hpagent-error.log"),
+            str(log_path / error_log_filename),
             when="midnight",
             backupCount=30,
             encoding="utf-8",
