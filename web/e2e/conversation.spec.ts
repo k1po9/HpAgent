@@ -18,8 +18,14 @@ test("holds a long conversation and survives a refresh", async ({ page }) => {
 
   // Refresh: the view is rebuilt from the API, never a local cache.
   await page.reload();
-  await expect(page.getByText("第一条消息")).toBeVisible();
-  await expect(page.getByText("第三条消息")).toBeVisible();
-  // All three Fake Executor replies are persisted server-side.
-  await expect(page.getByText(FAKE_REPLY, { exact: false })).toHaveCount(3);
+  const messages = page.locator(".hp-msg");
+  await expect(messages).toHaveCount(6);
+  await expect(messages).toHaveText([
+    /第一条消息/,
+    new RegExp(FAKE_REPLY),
+    /第二条消息/,
+    new RegExp(FAKE_REPLY),
+    /第三条消息/,
+    new RegExp(FAKE_REPLY),
+  ]);
 });

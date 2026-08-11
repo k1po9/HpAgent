@@ -273,8 +273,8 @@ describe("workbench store", () => {
 
   it("does not duplicate messages when pagination pages overlap", async () => {
     const backend = makeBackend();
-    // First page holds one message; the older page re-returns it plus one
-    // genuinely older message (keyset pages may share the cursor boundary).
+    // Each API page is already oldest-first. The older page re-returns the
+    // cursor boundary from the current page, which must also be deduplicated.
     const orig = backend.fetchMock;
     let page = 1;
     backend.fetchMock = async (input, init) => {
@@ -283,20 +283,24 @@ describe("workbench store", () => {
         if (page === 1) {
           page += 1;
           return OK({
-            items: [message({ message_id: "um-1", sequence: 1 })],
+            items: [
+              message({ message_id: "m-3", sequence: 3 }),
+              message({ message_id: "m-4", sequence: 4 }),
+            ],
             next_cursor: "older",
             has_more: true,
-            conversation_last_message_seq: 1,
+            conversation_last_message_seq: 4,
           });
         }
         return OK({
           items: [
-            message({ message_id: "m-old-2", sequence: 2 }),
-            message({ message_id: "um-1", sequence: 1 }),
+            message({ message_id: "m-1", sequence: 1 }),
+            message({ message_id: "m-2", sequence: 2 }),
+            message({ message_id: "m-3", sequence: 3 }),
           ],
           next_cursor: null,
           has_more: false,
-          conversation_last_message_seq: 2,
+          conversation_last_message_seq: 4,
         });
       }
       return orig(input, init);
@@ -304,11 +308,11 @@ describe("workbench store", () => {
     const store = makeStore(backend);
     await store.getState().loadConversations();
     await store.getState().selectConversation("c1");
-    expect(store.getState().messages.map((m) => m.message_id)).toEqual(["um-1"]);
+    expect(store.getState().messages.map((m) => m.message_id)).toEqual(["m-3", "m-4"]);
 
     await store.getState().loadMoreMessages();
     const ids = store.getState().messages.map((m) => m.message_id);
-    expect(ids).toEqual(["m-old-2", "um-1"]);
+    expect(ids).toEqual(["m-1", "m-2", "m-3", "m-4"]);
     expect(new Set(ids).size).toBe(ids.length);
   });
 

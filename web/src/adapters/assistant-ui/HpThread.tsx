@@ -16,6 +16,7 @@ import {
 } from "@assistant-ui/react";
 import { Flex, Text } from "@radix-ui/themes";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { HpMessage, HpRun } from "../../api/types";
 import { useHpThreadRuntime } from "./runtime";
 
@@ -34,7 +35,7 @@ export interface HpThreadProps {
 function HpTextPart({ text }: { text: string }) {
   return (
     <div className="hp-text-part">
-      <ReactMarkdown>{text}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   );
 }

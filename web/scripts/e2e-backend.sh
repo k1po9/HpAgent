@@ -37,9 +37,24 @@ export WEB_FAKE_EXECUTOR_MODE=success
 export WEB_FAKE_EXECUTOR_CONTENT="$(cat <<'EOF'
 这是由测试执行器生成的回复。
 
+## Markdown 标题
+
+普通段落。
+
+- 列表一
+- 列表二
+
+**粗体文本**
+
+`inline code`
+
 ```python
 print('hello from hpagent')
 ```
+
+| A | B |
+|---|---|
+| 1 | 2 |
 EOF
 )"
 

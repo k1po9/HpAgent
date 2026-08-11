@@ -463,6 +463,8 @@ services:
     environment:
       TZ: UTC
 
+      REDIS_URL: redis://redis:6379
+
       HPAGENT_ENV: ${HPAGENT_ENV:-development}
 
       APP_DATABASE_URL: postgresql://hpagent_api:${HPAGENT_API_PASSWORD:-hpagent_api}@app-postgres:5432/hpagent
@@ -511,6 +513,9 @@ services:
       hpagent-migrate:
         condition: service_completed_successfully
 
+      redis:
+        condition: service_healthy
+
     networks:
       - app-network
 
@@ -536,7 +541,7 @@ services:
     profiles:
       - web
 
-    image: node:20-alpine
+    image: node:22-bookworm-slim  # node:20-alpine
 
     working_dir: /app
 

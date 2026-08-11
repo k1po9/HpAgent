@@ -58,12 +58,12 @@ fast:
   #   timeout: 15.0
   #   extra_body:
   #     enable_thinking: false
-  - provider: alibaba
-    model: "${ALIBABA_BAILIAN_FAST_MODEL}"
-    max_tokens: 1024
-    timeout: 20.0
   - provider: siliconflow
     model: "${SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL}"
+    max_tokens: 1024
+    timeout: 20.0
+  - provider: alibaba
+    model: "${ALIBABA_BAILIAN_FAST_MODEL}"
     max_tokens: 1024
     timeout: 20.0
 

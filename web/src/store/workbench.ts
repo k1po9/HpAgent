@@ -472,9 +472,9 @@ export function createWorkbenchStore(
           const active = detail.active_run;
           set((s) => ({
             loadingMessages: false,
-            // The API returns newest-first; the store keeps chat order (oldest
-            // first) so send-time appends land at the end naturally.
-            messages: [...page.items].reverse(),
+            // The API normalizes each page to chat order (oldest first), so
+            // send-time appends land at the end naturally.
+            messages: page.items,
             messageCursor: page.next_cursor,
             hasMoreMessages: page.has_more,
             activeRun: active?.run ?? null,
@@ -502,8 +502,8 @@ export function createWorkbenchStore(
           const fresh = page.items.filter((m) => !seen.has(m.message_id));
           set((s) => ({
             loadingMoreMessages: false,
-            // Older batch is newest-first; prepend in chat order (oldest first).
-            messages: [...fresh].reverse().concat(s.messages),
+            // Older pages are also returned oldest-first; prepend unchanged.
+            messages: fresh.concat(s.messages),
             messageCursor: page.next_cursor,
             hasMoreMessages: page.has_more,
           }));
