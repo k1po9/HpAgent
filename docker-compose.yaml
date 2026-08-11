@@ -369,7 +369,6 @@ services:
       - WEB_REAL_AGENT_GATE_VERSION=c-07-v1
 
       # Unified identity
-      - WEB_UNIFIED_ACCOUNT_ENABLED=${WEB_UNIFIED_ACCOUNT_ENABLED:-true}
 
       # SiliconFlow
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}

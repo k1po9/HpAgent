@@ -145,7 +145,7 @@ class Task:
         task_id: 任务唯一标识（建议格式: "task-{short-uuid}"）
         goal: 任务目标，用自然语言描述要完成什么（Agent 用此生成执行计划）
         required_capability: 执行此任务需要的能力要求
-        input_data: 输入数据（上下文、历史消息、记忆等），由 TurnOrchestrator 注入
+        input_data: 输入数据（上下文、历史消息、记忆等），由实验层调用者注入
         task_type: 任务类型标签，用于补偿注册表查找对应的补偿逻辑
         parent_task_id: 父任务 ID，用于追踪子任务关系（子任务失败时级联处理）
     """

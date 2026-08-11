@@ -324,12 +324,6 @@ class TemporalConfig:
     # real Agent path merely because the Temporal workers are present.
     web_real_agent_enabled: bool = False
     web_real_agent_gate_version: str = ""
-    # Phase F: when enabled (and WORKER_DATABASE_URL is set), the worker
-    # resolves QQ senders through PostgreSQL identity_bindings
-    # (PostgresAccountService) instead of the legacy accounts.json.  Default
-    # off: the operator must run scripts/bootstrap_identity.py before enabling,
-    # or every QQ sender becomes an explicit "账号尚未绑定" rejection.
-    web_unified_account_enabled: bool = False
 
 
 @dataclass
@@ -381,7 +375,6 @@ class WorkspaceConfig:
     """用户工作区配置。"""
     root: str = ".data/workspace"
     db_path: str = ""
-    cleanup_max_age_days: int = 30
     workspace_isolation_mode: str = ""
     agent_worker_replicas: int = 1
     prefork_enabled: bool = False
@@ -457,22 +450,12 @@ class AgentConfig:
     idle_timeout_minutes: int = 5      # 会话空闲自动关闭时间（分钟）
     multi_agent: MultiAgentConfig = field(default_factory=MultiAgentConfig)
 
-    # —— 上下文工程参数 ——
-    context_budget: int = 256000            # 总上下文 token 预算
-    generation_headroom: int = 16000        # 留给模型输出的 token 空间
-    summary_budget: int = 2000              # 运行摘要最大 token
-    memories_budget: int = 2000             # 召回记忆最大 token
-    compress_interval: int = 8              # 每 N 轮触发历史压缩（0=禁用）
     checkpoint_interval: int = 10           # 每 N 轮写入中间检查点（0=禁用）
     # 工具结果摘要（替代简单截断）
     tool_result_summary_enabled: bool = True            # 启用 LLM 摘要替代截断
     tool_result_summary_threshold: int = 4000           # 超过此字符数触发摘要
     tool_result_summary_max_chars: int = 1000           # 摘要最大字符数（注入 LLM 的）
     wal_enabled: bool = True             # 启用 WAL 预写日志
-    inherit_context: bool = True         # 跨会话上下文继承
-    # D-05 migration flag. The legacy TurnOrchestrator remains the default
-    # until QQ characterization tests approve the shared Facade path.
-    qq_execution_host_enabled: bool = False
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Prompt 配置 —— 从 config/prompts/*.yaml 加载
@@ -728,14 +711,6 @@ class AppConfig:
             self.temporal.web_outbox_recovery_interval_seconds = int(
                 environ["WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"]
             )
-        if environ.get("WEB_UNIFIED_ACCOUNT_ENABLED"):
-            self.temporal.web_unified_account_enabled = environ[
-                "WEB_UNIFIED_ACCOUNT_ENABLED"
-            ].lower() in ("1", "true", "yes", "on")
-        if environ.get("QQ_EXECUTION_HOST_ENABLED"):
-            self.agent.qq_execution_host_enabled = environ[
-                "QQ_EXECUTION_HOST_ENABLED"
-            ].lower() in ("1", "true", "yes", "on")
         if environ.get("HINDSIGHT_URL"):
             self.hindsight.base_url = environ["HINDSIGHT_URL"]
         if environ.get("WORKSPACE_ROOT"):

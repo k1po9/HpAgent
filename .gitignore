@@ -24,7 +24,6 @@ MANIFEST
 test-results/
 htmlcov/
 .env
-.env.example
 config.yaml
 .venv
 venv/

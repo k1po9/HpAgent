@@ -1,9 +1,8 @@
-"""MultiAgentExecutor —— 多Agent编排执行器，可注入 TurnOrchestrator。
+"""Experimental MultiAgent executor.
 
-本模块是单Agent TurnOrchestrator 与多Agent Orchestrator 之间的桥梁。
-负责：加载 Agent 配置 → 构建编排器 → 运行编排 → 合成最终响应。
-
-TurnOrchestrator 在 agent_mode == "multi" 时调用 execute()。
+This package is retained for independent tests but is not wired into the
+current QQ/Web production runtime. Future activation must adapt it to the
+shared AgentExecutionFacade protocol instead of restoring the removed loop.
 """
 
 from __future__ import annotations
@@ -80,7 +79,7 @@ class MultiAgentExecutor:
     ) -> tuple[str, int]:
         """运行多Agent编排，返回 (final_content, turns_taken)。
 
-        返回格式与 TurnOrchestrator 兼容。
+        返回实验层的综合文本和内部执行步数。
         """
         # 1. 构建 ExecutionContext
         context = ExecutionContext(

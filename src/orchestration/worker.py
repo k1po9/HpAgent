@@ -4,15 +4,15 @@ Orchestration Worker —— Temporal Worker 启动与依赖组装。
 启动序列:
   1. AppConfig.from_yaml() → 加载全量结构化配置
   2. init_dependencies()    → 按 config 组装所有依赖
-  3. inject(turn_orchestrator) → 注入 TurnOrchestrator 到 Activities
+  3. inject_services()     → 注入 QQ Host 与应用服务到 Activities
   4. 连接 Temporal → 启动 Worker → 渠道监听
 
 架构:
-  Temporal Workflow （纯编排）
-      ↓ 只调用 Harness Activities
-  TurnOrchestrator （回合流程导演）
-      ↓ 协调
-  TurnMemoryService / ContextBuilder / BrainEngine / ActionRuntime / ReplyService
+  QQ / Web Temporal Workflow
+      ↓
+  AgentExecutionFacade → DefaultBrainActionLoop
+      ↓
+  BrainEngine / ActionRuntime / Surface adapters
 """
 from __future__ import annotations
 
@@ -27,20 +27,16 @@ from typing import Dict
 from temporalio.client import Client
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
-from account.account_service import AccountService
-from actions.runtime import ActionRuntime
 from application.conversation import ConversationService
 from application.ingress import MessageIngressService
-from application.memory import TurnMemoryService
-from application.reply import ReplyService
-from brain.engine import BrainEngine
+from bootstrap.qq import build_qq_runtime
 from channels.napcat import NapCatChannel
 from channels.official_qq import OfficialQQChannel
 from channels.router import ChannelRouter
 from common.types import ChannelType, UnifiedMessage
 from harness.activities import (
     archive_session_activity,
-    inject,
+    inject_services,
     metrics_report_activity,
     process_turn_activity,
     reflect_activity,
@@ -48,7 +44,6 @@ from harness.activities import (
 )
 from harness.context_builder import HarnessContextBuilder
 from harness.prompts import PromptLoader
-from harness.runner import TurnOrchestrator
 from orchestration.config import AppConfig, SandboxConfig
 from orchestration.scheduler import TaskScheduler
 from orchestration.workflow import MetricsReportWorkflow, OrchestrationWorkflow, ReflectWorkflow
@@ -58,7 +53,6 @@ from sandbox.git_repo import GitRepoManager
 from sandbox.nsjail import NsjailConfig
 from sandbox.sandbox_manager import SandboxManager
 from session.db import WorkspaceDB
-from session.store import SessionStore
 from storage.file_store import LocalFileStore
 from workspace.isolation import WorkspaceIsolationRuntime
 
@@ -280,8 +274,7 @@ class WorkerDependencies:
 
     使用 dataclass 而非裸 tuple，避免位置耦合，便于后续扩展。
     """
-    turn_orchestrator: "TurnOrchestrator"
-    account_service: "AccountService"
+    account_service: object
     channel_router: "ChannelRouter"
     sandbox_manager: "SandboxManager"
     file_store: "LocalFileStore"
@@ -298,6 +291,9 @@ class WorkerDependencies:
     action_runtime: object = None
     hindsight_client: object = None
     qq_execution_host: object = None
+    session_archive: object = None
+    memory_reflection: object = None
+    metrics: object = None
     scheduler: "TaskScheduler" = None
     workspace_isolation: "WorkspaceIsolationRuntime | None" = None
 
@@ -394,7 +390,7 @@ def _build_nsjail_config(sandbox: SandboxConfig) -> NsjailConfig:
 
 
 async def init_dependencies(config: AppConfig) -> WorkerDependencies:
-    """初始化所有共享依赖并组装 TurnOrchestrator。
+    """初始化共享依赖、统一 Agent Facade 与 Surface adapters。
 
     初始化顺序（严格遵守拓扑依赖 DAG）：
       1. CredentialManager → ResourcePool
@@ -404,10 +400,10 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
       5. workspace_root + LocalFileStore + WorkspaceDB
       6. SandboxManager（依赖 3+4+5）
       7. PromptLoader → HindsightClient → HarnessContextBuilder
-      8. AccountService + ChannelRouter
+      8. PostgresAccountService + ChannelRouter
       9. SessionStore（依赖 2+7）
-     10. MultiAgentExecutor（条件）
-     11. TurnOrchestrator（组装所有上述组件）
+     10. AgentExecutionFacade + QQExecutionHost
+     11. archive / reflection / metrics application services
     """
     # Hard gate: no shared-worktree Agent process starts without an explicit,
     # validated isolation topology and its OS process lock.
@@ -561,172 +557,33 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         enable_tool_guidance=True,
     )
 
-    # ── 8. 账号服务 + 渠道路由器 ──
-    # Phase F: 统一账号启用时，QQ 必须通过 PostgreSQL identity_bindings 解析到与
-    # Web 相同的 account_id。G-02 §10.5 fail-closed：启用统一身份但缺少
-    # WORKER_DATABASE_URL 时拒绝启动，QQ 绝不静默回退 accounts.json。
-    worker_database_url = os.getenv("WORKER_DATABASE_URL")
-    if config.temporal.web_unified_account_enabled:
-        from orchestration.web_workers import validate_unified_account_backend
-
-        validate_unified_account_backend(
-            web_unified_account_enabled=True, worker_database_url=worker_database_url
-        )
-        from account.postgres_account_service import PostgresAccountService
-
-        account_service = PostgresAccountService(worker_database_url)
-        logger.info("Account backend: postgres")
-    else:
-        account_service = AccountService(data_dir=Path(config.workspace.root).parent)
-        logger.info("Account backend: legacy_json")
+    # ── 8. Surface composition ──
     channel_router = ChannelRouter()
-
-    # ── 9. SessionStore ──
-    backup_store = None
-    if config.session.backup_dir:
-        backup_store = LocalFileStore(root=Path(config.session.backup_dir))
-    session_store = SessionStore(
-        redis_cache=redis_cache,
-        hindsight_client=hindsight_client,
-        file_store=backup_store,
-        wal_enabled=config.agent.wal_enabled,
-        checkpoint_enabled=config.agent.checkpoint_interval > 0,
-    )
-    logger.info(
-        "SessionStore: redis=%s hindsight=%s backup=%s",
-        "connected" if redis_cache else "in-memory fallback",
-        "connected" if hindsight_client else "disabled",
-        config.session.backup_dir if backup_store else "disabled",
-    )
-
-    # ── 10. Multi-Agent Executor（mode=multi 时加载）────
-    multi_agent_executor = None
-    if config.agent.mode == "multi" and config.agents:
-        from agent.runner import MultiAgentExecutor
-        agents_list = [dataclasses.asdict(a) for a in config.agents]
-        multi_agent_executor = MultiAgentExecutor(
-            resource_pool=resource_pool,
-            agents_config=agents_list,
-            strategy=config.agent.multi_agent.strategy,
-            max_review_rounds=config.agent.multi_agent.max_review_rounds,
-        )
-        logger.info(
-            "MultiAgentExecutor: strategy=%s agents=%d",
-            config.agent.multi_agent.strategy, len(config.agents),
-        )
-    elif config.agent.mode == "multi":
-        logger.warning("No agents defined in config, falling back to single-agent")
+    if config.agent.mode != "single":
+        raise RuntimeError("agent.mode=multi is experimental and inactive")
 
     # ── 11. GitRepoManager ──
     git_repo_manager = GitRepoManager(repos_root=workspace_root)
     logger.info("GitRepoManager initialized: repos_root=%s", workspace_root)
 
-    # ── 12. 记忆端口 + 大脑 + 行动运行时 + 回复服务 + TurnOrchestrator ──
-    channel_overrides = {
-        ch_name: {"max_tokens": ch_cfg.max_tokens, "timeout": ch_cfg.timeout, "stream": ch_cfg.stream}
-        for ch_name, ch_cfg in config.models.channel_overrides.items()
-    }
-    memory_service = TurnMemoryService(session_store=session_store)
-    brain_engine = BrainEngine(
-        resource_pool=resource_pool,
-        prompts=prompt_loader,
-    )
-    reply_service = ReplyService(
-        channel_router=channel_router,
-        group_context=group_context,
-        prompts=prompt_loader,
-    )
-    action_runtime = ActionRuntime(
-        sandbox_manager=sandbox_manager,
-        session_store=session_store,
-        resource_pool=resource_pool,
-        prompts=prompt_loader,
-        tool_rag_top_k=config.models.tool_rag.top_k,
-        tool_result_summary_enabled=config.agent.tool_result_summary_enabled,
-        tool_result_summary_threshold=config.agent.tool_result_summary_threshold,
-        tool_result_summary_max_chars=config.agent.tool_result_summary_max_chars,
-    )
-
-    turn_orchestrator = TurnOrchestrator(
-        session_store=session_store,
+    qq_runtime = build_qq_runtime(
+        config=config,
+        worker_database_url=os.getenv("WORKER_DATABASE_URL"),
+        redis_cache=redis_cache,
+        hindsight_client=hindsight_client,
         context_builder=context_builder,
-        resource_pool=resource_pool,
-        sandbox_manager=sandbox_manager,
         channel_router=channel_router,
-        max_tool_turns=config.agent.max_tool_turns,
-        agent_mode=config.agent.mode,
-        multi_agent_executor=multi_agent_executor,
-        channel_overrides=channel_overrides,
-        git_repo_manager=git_repo_manager,
-        workspace_db=workspace_db,
-        file_store=file_store,
-        # Prompt 配置（工具摘要用）
-        prompts=prompt_loader,
-        # 上下文工程参数
-        context_budget=config.agent.context_budget,
-        generation_headroom=config.agent.generation_headroom,
-        summary_budget=config.agent.summary_budget,
-        memories_budget=config.agent.memories_budget,
-        compress_interval=config.agent.compress_interval,
-        checkpoint_interval=config.agent.checkpoint_interval,
-        tool_result_summary_enabled=config.agent.tool_result_summary_enabled,
-        tool_result_summary_threshold=config.agent.tool_result_summary_threshold,
-        tool_result_summary_max_chars=config.agent.tool_result_summary_max_chars,
-        # 工具 RAG 参数
-        tool_rag_top_k=config.models.tool_rag.top_k,
-        # 群聊上下文
         group_context=group_context,
-        reply_service=reply_service,
-        action_runtime=action_runtime,
-        brain_engine=brain_engine,
-        memory_service=memory_service,
+        sandbox_manager=sandbox_manager,
+        resource_pool=resource_pool,
+        prompt_loader=prompt_loader,
+        file_store=file_store,
     )
-
-    logger.info(
-        "TurnOrchestrator assembled: all dependencies wired"
-        " | budget=%d headroom=%d compress=%d ckpt=%d wal=%s rag_top_k=%d",
-        turn_orchestrator._context_budget, turn_orchestrator._generation_headroom,
-        turn_orchestrator._compress_interval, turn_orchestrator._checkpoint_interval,
-        "on" if session_store._wal_enabled else "off",
-        turn_orchestrator._tool_rag_top_k,
-    )
-    qq_execution_host = None
-    if config.agent.qq_execution_host_enabled:
-        from agent_execution.brain_action_loop import DefaultBrainActionLoop
-        from agent_execution.facade import AgentExecutionFacade
-        from agent_execution.qq_host import (
-            QQExecutionHost,
-            QQLegacyExecutionControl,
-            QQLegacyRequestLoader,
-            ReplyServiceQQEventSinkFactory,
-            ReplyServiceQQSink,
-            TurnMemoryQQAuditSinkFactory,
-            TurnMemoryQQRetentionSink,
-        )
-
-        qq_execution_host = QQExecutionHost(
-            QQLegacyRequestLoader(
-                memory_service,
-                context_builder,
-                group_context,
-                channel_overrides,
-            ),
-            AgentExecutionFacade(DefaultBrainActionLoop(
-                brain_engine,
-                action_runtime,
-                max_tool_turns=config.agent.max_tool_turns,
-            )),
-            ReplyServiceQQEventSinkFactory(reply_service),
-            ReplyServiceQQSink(reply_service),
-            QQLegacyExecutionControl(),
-            audit=TurnMemoryQQAuditSinkFactory(memory_service),
-            retention=TurnMemoryQQRetentionSink(memory_service),
-        )
+    logger.info("AgentExecutionFacade assembled for QQ and Web")
     return WorkerDependencies(
-        turn_orchestrator=turn_orchestrator,
-        account_service=account_service,
+        account_service=qq_runtime.account_service,
         channel_router=channel_router,
-        reply_service=reply_service,
+        reply_service=qq_runtime.reply_service,
         sandbox_manager=sandbox_manager,
         file_store=file_store,
         workspace_db=workspace_db,
@@ -737,10 +594,13 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         group_context=group_context,
         redis_client=redis_client,
         context_builder=context_builder,
-        brain_engine=brain_engine,
-        action_runtime=action_runtime,
+        brain_engine=qq_runtime.brain_engine,
+        action_runtime=qq_runtime.action_runtime,
         hindsight_client=hindsight_client,
-        qq_execution_host=qq_execution_host,
+        qq_execution_host=qq_runtime.execution_host,
+        session_archive=qq_runtime.session_archive,
+        memory_reflection=qq_runtime.memory_reflection,
+        metrics=qq_runtime.metrics,
         scheduler=scheduler,
         workspace_isolation=workspace_isolation,
     )
@@ -750,12 +610,11 @@ async def start_worker(config: AppConfig) -> None:
     """完整启动流程: 组装依赖 → 连接 Temporal → 启动 Worker + 渠道监听。"""
     deps = await init_dependencies(config)
 
-    inject(turn_orchestrator=deps.turn_orchestrator)
-    from harness.activities import inject_qq_execution_host
-
-    inject_qq_execution_host(
-        deps.qq_execution_host,
-        enabled=config.agent.qq_execution_host_enabled,
+    inject_services(
+        qq_execution_host=deps.qq_execution_host,
+        session_archive=deps.session_archive,
+        memory_reflection=deps.memory_reflection,
+        metrics=deps.metrics,
     )
 
     # ── 注册提醒 handler ──

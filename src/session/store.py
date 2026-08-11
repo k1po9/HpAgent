@@ -176,7 +176,7 @@ class SessionStore:
         """归档会话：标记状态 + 返回全部事件。
 
         不再在此方法内写文件——仅清理 Redis 活跃指针。
-        事件导出和 meta 摘要由上层（TurnOrchestrator.archive_session）编排。
+        事件导出和 meta 摘要由 SessionArchiveService 编排。
 
         Returns:
             全部事件的 to_dict() 列表，供上层写入 history.jsonl。

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -84,8 +85,8 @@ class DefaultBrainActionLoop:
                 recall_query, _hyde_context = await self._await_with_control(
                     self._brain.rewrite_recall_query(
                         user_content=request.user_content,
-                        group_context_text="",
-                        sender_name="",
+                        group_context_text=request.group_context_text,
+                        sender_name=request.sender_name,
                     ),
                     control,
                 )
@@ -123,7 +124,7 @@ class DefaultBrainActionLoop:
                 raise StableExecutionFailure("tool_failed") from exc
             await events.progress("calling_model", "正在生成回复。")
             model_started_at = time.monotonic()
-            log_event(logger, logging.INFO, "model_call_started", "model", run_id=request.execution_id,
+            log_event(logger, logging.INFO, "model_call_started", "model", **self._correlation(request),
                       turn=turn, status="started")
             try:
                 decision = await self._await_with_control(
@@ -139,16 +140,16 @@ class DefaultBrainActionLoop:
                     control,
                 )
             except TimeoutError as exc:
-                log_event(logger, logging.ERROR, "model_call_failed", "model", run_id=request.execution_id,
+                log_event(logger, logging.ERROR, "model_call_failed", "model", **self._correlation(request),
                           turn=turn, status="failed", elapsed_ms=round((time.monotonic() - model_started_at) * 1000), error_code="model_timeout")
                 raise StableExecutionFailure("model_timeout") from exc
             except StableExecutionFailure:
                 raise
             except Exception as exc:
-                log_event(logger, logging.ERROR, "model_call_failed", "model", run_id=request.execution_id,
+                log_event(logger, logging.ERROR, "model_call_failed", "model", **self._correlation(request),
                           turn=turn, status="failed", elapsed_ms=round((time.monotonic() - model_started_at) * 1000), error_code="model_unavailable")
                 raise StableExecutionFailure("model_unavailable") from exc
-            log_event(logger, logging.INFO, "model_call_completed", "model", run_id=request.execution_id,
+            log_event(logger, logging.INFO, "model_call_completed", "model", **self._correlation(request),
                       turn=turn, status="success", elapsed_ms=round((time.monotonic() - model_started_at) * 1000),
                       tool_count=len(getattr(decision, "action_requests", ())), stop_reason=getattr(decision, "stop_reason", ""))
             await self._audit_best_effort(
@@ -165,7 +166,7 @@ class DefaultBrainActionLoop:
                 )
             )
             if not decision.has_actions:
-                content = decision.content or "抱歉，我暂时无法处理这个消息，请稍后重试。"
+                content = self._safe_final_content(decision.content)
                 observations.append({"role": "assistant", "content": content})
                 return ExecutionResult(content, turn, tuple(observations))
             tool_progress = getattr(events, "tool_progress", None)
@@ -205,7 +206,7 @@ class DefaultBrainActionLoop:
                         ) from exc
                 try:
                     tool_started_at = time.monotonic()
-                    log_event(logger, logging.INFO, "tool_execution_started", "tool", run_id=request.execution_id,
+                    log_event(logger, logging.INFO, "tool_execution_started", "tool", **self._correlation(request),
                               turn=turn, tool_call_id=action.id, tool=action.name, status="started")
                     result = await self._execute_with_cancellation(
                         action,
@@ -216,23 +217,23 @@ class DefaultBrainActionLoop:
                 except ToolTimeoutCapExpired as exc:
                     # The single-tool call cap expired: this tool timed out,
                     # not the whole Run.
-                    log_event(logger, logging.ERROR, "tool_execution_failed", "tool", run_id=request.execution_id,
+                    log_event(logger, logging.ERROR, "tool_execution_failed", "tool", **self._correlation(request),
                               turn=turn, tool_call_id=action.id, tool=action.name, status="failed", elapsed_ms=round((time.monotonic() - tool_started_at) * 1000), error_code="tool_timeout")
                     raise StableExecutionFailure("tool_timeout") from exc
                 except TimeoutError as exc:
                     # The Activity's global deadline expired while the tool was
                     # in flight: the whole Run timed out, so cancellation must
                     # not leak into the Workflow as an unexpected cancel.
-                    log_event(logger, logging.ERROR, "tool_execution_failed", "tool", run_id=request.execution_id,
+                    log_event(logger, logging.ERROR, "tool_execution_failed", "tool", **self._correlation(request),
                               turn=turn, tool_call_id=action.id, tool=action.name, status="failed", elapsed_ms=round((time.monotonic() - tool_started_at) * 1000), error_code="run_timeout")
                     raise StableExecutionFailure("run_timeout") from exc
                 except StableExecutionFailure:
                     raise
                 except Exception as exc:
-                    log_event(logger, logging.ERROR, "tool_execution_failed", "tool", run_id=request.execution_id,
+                    log_event(logger, logging.ERROR, "tool_execution_failed", "tool", **self._correlation(request),
                               turn=turn, tool_call_id=action.id, tool=action.name, status="failed", elapsed_ms=round((time.monotonic() - tool_started_at) * 1000), error_code="tool_failed")
                     raise StableExecutionFailure("tool_failed") from exc
-                log_event(logger, logging.INFO, "tool_execution_completed", "tool", run_id=request.execution_id,
+                log_event(logger, logging.INFO, "tool_execution_completed", "tool", **self._correlation(request),
                           turn=turn, tool_call_id=action.id, tool=action.name, status="success", elapsed_ms=round((time.monotonic() - tool_started_at) * 1000))
                 await self._audit_best_effort(
                     audit.tool_result(
@@ -274,7 +275,7 @@ class DefaultBrainActionLoop:
                 getattr(decision, "input_context", None),
             )
         )
-        content = decision.content or "抱歉，我暂时无法处理这个消息，请稍后重试。"
+        content = self._safe_final_content(decision.content)
         observations.append({"role": "assistant", "content": content})
         return ExecutionResult(
             content,
@@ -289,6 +290,26 @@ class DefaultBrainActionLoop:
             await awaitable
         except Exception:
             return
+
+    @staticmethod
+    def _correlation(request: ExecutionRequest) -> dict[str, Any]:
+        metadata = request.metadata or {}
+        return {
+            "run_id": metadata.get("run_id"),
+            "execution_id": request.execution_id,
+            "conversation_id": request.conversation_id or None,
+            "session_id": request.session_id or None,
+            "account_id": request.account_id or None,
+            "surface": metadata.get("surface"),
+        }
+
+    @staticmethod
+    def _safe_final_content(content: str | None) -> str:
+        """Prevent XML fallback tool syntax from leaking to either surface."""
+        value = content or ""
+        if "<tool_call>" in value:
+            value = re.sub(r"<tool_call>.*?</tool_call>", "", value, flags=re.DOTALL).strip()
+        return value or "抱歉，我暂时无法处理这个消息，请稍后重试。"
 
     def _side_effect_class(self, session_id: str, tool_name: str) -> str:
         classify = getattr(self._actions, "side_effect_class", None)

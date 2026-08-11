@@ -382,7 +382,7 @@ class HarnessContextBuilder:
         成功 → 返回 result 字符串。
         失败 → 返回 "工具执行失败：{error}"。
 
-        注：截断由 TurnOrchestrator._apply_truncation 统一处理并保存完整内容，
+        注：工具输出截断由 Sandbox/ActionRuntime 统一处理并保存完整内容，
         这里仅做安全网截断（50000 字符），防止异常大结果撑爆上下文。
         """
         content = event.content

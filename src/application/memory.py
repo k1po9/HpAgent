@@ -1,6 +1,6 @@
 """Turn memory service.
 
-This service is the narrow memory-facing port used by TurnOrchestrator. It wraps
+This service is the narrow memory-facing port used by execution adapters. It wraps
 SessionStore details so the turn layer does not need to know every persistence
 method directly.
 """

@@ -8,13 +8,13 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from temporalio import activity
-from common.logging import log_event
 
 from application.context_assembly import (
     ContextAssemblyService,
     ContextIsolationError,
     WebContextBase,
 )
+from common.logging import log_event
 from web_domain.lifecycle import WebRunLifecycleService
 
 from .facade import ExecutionRequest, ExecutionResult, StableExecutionFailure
@@ -84,6 +84,7 @@ class PostgresWebRequestLoader:
             context=context,
             trigger_message_id=str(base.trigger_message_id),
             interaction_profile=base.interaction_profile,
+            metadata={"run_id": run_id, "surface": "web"},
             context_provider=WebExecutionContextProvider(self._context, base),
         )
 

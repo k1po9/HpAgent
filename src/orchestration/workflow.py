@@ -2,7 +2,7 @@
 OrchestrationWorkflow —— Temporal Workflow 纯编排层。
 
 Workflow 不再持有任何业务数据（self._events 已移除）。
-所有对话数据存储在 Redis（SessionStore），由 TurnOrchestrator 读写。
+所有 QQ 对话数据存储在 Redis（SessionStore），由执行 Host 的适配器读写。
 
 Workflow 只负责:
   1. 循环控制：收到消息 → process_turn_activity → 等待下一信号
@@ -12,7 +12,7 @@ Workflow 只负责:
 """
 import asyncio
 from datetime import timedelta
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -95,7 +95,6 @@ class OrchestrationWorkflow:
 
         # 阶段 2: 归档。archive_session_activity 内部会调 fast 模型生成摘要，
         # 耗时可能很长（模型超时重试等），归档完成后再检查一次。
-        from orchestration.worker import archive_session_activity
         await workflow.execute_activity(
             "archive_session_activity",
             args=[self._session_id],
@@ -147,13 +146,12 @@ class OrchestrationWorkflow:
         return drained
 
     async def _process_turn(self, user_message: Dict[str, Any]) -> str:
-        """处理一条消息 —— 委托给 TurnOrchestrator 的 process_turn_activity。"""
+        """处理一条消息 —— 委托给统一 Agent Facade 的 Activity。"""
         self._total_turns += 1
 
         timeout_seconds = user_message.get("activity_timeout", 300)
 
         try:
-            from orchestration.worker import process_turn_activity
             result = await workflow.execute_activity(
                 "process_turn_activity",
                 args=[user_message],
@@ -182,7 +180,7 @@ class OrchestrationWorkflow:
 
         Worker 检测到同一 account_id 的 Workflow 已运行时调用。
         消息入队 pending_messages，wait_condition 被唤醒后取出处理。
-        事件写入由 TurnOrchestrator 在 process_turn 中完成。
+        事件写入由 QQ execution adapters 在 Activity 中完成。
         """
         self._pending_messages.append(user_message)
 

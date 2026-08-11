@@ -1,9 +1,7 @@
-"""适配器：将现有的 TurnOrchestrator 封装为 BaseAgent（ReActAgent）。
+"""Legacy compatibility adapter for objects exposing ``process_turn``.
 
-该适配器将单代理的 TurnOrchestrator（src/harness/runner.py）桥接到多代理架构中。
-TurnOrchestrator 的 process_turn() 对应为 BaseAgent.execute()。
-
-在第 1 阶段测试中，TurnOrchestrator 是可选的——可以使用模拟（mock）代理。
+The production TurnOrchestrator has been removed. This adapter remains only
+for experimental Multi-Agent tests and must not become a production route.
 """
 
 from __future__ import annotations
@@ -24,15 +22,15 @@ from .types import (
 
 
 class ReActAgent(BaseAgent):
-    """Wraps TurnOrchestrator as a BaseAgent implementation.
+    """Wraps a legacy ``process_turn`` object as a BaseAgent implementation.
 
-    TurnOrchestrator.process_turn(user_message) -> dict
+    legacy.process_turn(user_message) -> dict
     is adapted to BaseAgent.execute(task, context) -> TaskResult.
     """
 
     def __init__(
         self,
-        harness_runner: Any = None,  # TurnOrchestrator（延迟导入以避免循环依赖）
+        harness_runner: Any = None,  # legacy test adapter
         capability_spec: CapabilitySpec | None = None,
     ) -> None:
         self._harness = harness_runner
@@ -51,7 +49,7 @@ class ReActAgent(BaseAgent):
 
         try:
             if self._harness is None:
-                # 无 TurnOrchestrator —— 返回模拟结果（用于第 1 阶段测试）
+                # 无 legacy runner —— 返回模拟结果（仅用于实验层测试）
                 return TaskResult(
                     task_id=task.task_id,
                     status=TaskStatus.COMPLETED,
@@ -62,7 +60,7 @@ class ReActAgent(BaseAgent):
                     trace_id=context.trace_id,
                 )
 
-            # 将 Task 映射为 TurnOrchestrator.process_turn(user_message) 的消息形态
+            # 将 Task 映射为 legacy process_turn(user_message) 的消息形态
             user_msg = {
                 "content": task.goal,
                 "sender_id": context.session.user_id or "agent",

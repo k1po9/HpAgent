@@ -2,7 +2,7 @@
 Account 数据模型 —— 统一账号实体。
 
 设计要点：
-  - account_id 为 UUID，由 AccountService 在首次解析时生成
+  - account_id 为 UUID，由 PostgreSQL accounts 表管理
   - bindings 为 Dict[str, str]，键是渠道类型（如 "napcat"、"web"），值是渠道用户 ID（如 QQ 号）
   - 同一 account_id 可绑定多个渠道，实现跨平台用户身份统一
 
@@ -10,9 +10,9 @@ Account 数据模型 —— 统一账号实体。
   - 旧实现中 user_id 直接使用渠道 sender_id（如 QQ 号），Web 和 QQ 无法关联
   - 新实现中 account_id 是独立 UUID，通过 bindings 映射多渠道身份
 """
+import time
 from dataclasses import dataclass, field
 from typing import Dict
-import time
 
 
 @dataclass
@@ -23,7 +23,7 @@ class Account:
     所有渠道路由到同一个 Temporal Workflow (workflow_id = f"agent-{account_id}")。
 
     Attributes:
-        account_id: 全局唯一的账号 UUID，由 AccountService.resolve() 首次生成。
+        account_id: 全局唯一的账号 UUID，由 PostgreSQL accounts 表管理。
         bindings: 渠道类型 → 渠道用户 ID 的映射，如 {"napcat": "123456", "web": "user_abc"}。
         created_at: 账号首次创建时间戳（Unix epoch float）。
         updated_at: 账号最后更新时间戳（绑定新渠道时刷新）。

@@ -44,7 +44,7 @@ PostgreSQL / Temporal / Hindsight。
 [ ] WEB_PUBLIC_ORIGIN=https://<真实公网 origin>（必填，拒绝 https://localhost）
 [ ] WEB_REAL_AGENT_ENABLED=true
 [ ] WEB_REAL_AGENT_GATE_VERSION=c-07-v1
-[ ] WEB_UNIFIED_ACCOUNT_ENABLED=true 且 WORKER_DATABASE_URL 已配置
+[ ] WORKER_DATABASE_URL 已配置，QQ/Web 统一身份 migration 与 bootstrap 已完成
 [ ] WEB_FAKE_EXECUTOR_ENABLED=false（生产不允许 true，启动即拒绝）
 [ ] WORKSPACE_ISOLATION_MODE=single_process_account_lock 且 Agent Worker replicas=1
 [ ] 所有 secret 来自环境/secret file，绝不来自 Git（§5）
@@ -106,7 +106,7 @@ app-postgres (healthy)
 | `HPAGENT_ENV=production` + `WEB_FAKE_EXECUTOR_ENABLED=true` | API 启动失败 |
 | 生产缺 `WEB_PUBLIC_ORIGIN` / 非 `https://` / 是 `https://localhost` | API 启动失败 |
 | `WEB_REAL_AGENT_ENABLED=true` + gate 版本 ≠ `c-07-v1` | Worker 启动失败 |
-| `WEB_UNIFIED_ACCOUNT_ENABLED=true` + 缺 `WORKER_DATABASE_URL` | Worker 启动失败，QQ 绝不回退 `accounts.json` |
+| 缺 `WORKER_DATABASE_URL` | Worker 启动失败，QQ 绝不回退 `accounts.json` |
 | `single_process_account_lock` + 第二个独立 Web Worker | 独立入口 fail-closed（`orchestration.web_worker`） |
 | 生产 secret 长度 < 32 bytes | API 启动失败 |
 

@@ -25,6 +25,8 @@ class ExecutionRequest:
     interaction_profile: str = "web_chat"
     metadata: Mapping[str, Any] | None = None
     context_provider: ExecutionContextProvider | None = None
+    group_context_text: str = ""
+    sender_name: str = ""
 
 
 @dataclass(frozen=True)

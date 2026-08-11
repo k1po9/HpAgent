@@ -11,11 +11,23 @@ from agent_execution.qq_host import (
 )
 from application.reply import ReplyService
 from harness.activities import (
-    inject,
-    inject_qq_execution_host,
+    inject_services,
     process_turn_activity,
 )
-from orchestration.config import AppConfig
+
+
+class _UnusedService:
+    pass
+
+
+def _inject_host(host):
+    unused = _UnusedService()
+    inject_services(
+        qq_execution_host=host,
+        session_archive=unused,
+        memory_reflection=unused,
+        metrics=unused,
+    )
 
 
 def _group_message():
@@ -154,9 +166,17 @@ async def test_ae_030_qq_loader_is_retry_idempotent_and_sanitizes_metadata():
         def build(self, **kwargs):
             return [{"role": "user", "content": "isolated"}]
 
+    class GroupContext:
+        async def subscribe(self, group_id, session_id):
+            return None
+
+        async def get_window(self, group_id):
+            return "recent group conversation"
+
     message = _group_message()
+    message["metadata"]["sender_name"] = "Alice"
     message["metadata"]["access_token"] = "must-not-cross-port"
-    loader = QQLegacyRequestLoader(Memory(), Context())
+    loader = QQLegacyRequestLoader(Memory(), Context(), GroupContext())
     first = await loader.load(message, "stable-execution")
     second = await loader.load(message, "stable-execution")
 
@@ -166,6 +186,8 @@ async def test_ae_030_qq_loader_is_retry_idempotent_and_sanitizes_metadata():
     assert first.metadata is not None
     assert "access_token" not in first.metadata
     assert first.metadata["execution_id"] == "stable-execution"
+    assert first.group_context_text == "recent group conversation"
+    assert first.sender_name == "Alice"
     memories = await first.context_provider.recall_long_term("rewritten")
     assert memories == ("memory",)
 
@@ -204,13 +226,8 @@ async def test_qq_audit_adapter_keeps_model_and_tool_events_in_legacy_memory():
 
 
 @pytest.mark.asyncio
-async def test_d_05_feature_flag_selects_once_and_never_falls_back_after_failure():
+async def test_qq_activity_uses_shared_host_and_never_falls_back_after_failure():
     calls = []
-
-    class Legacy:
-        async def process_turn(self, user_message):
-            calls.append("legacy")
-            return {"content": "legacy"}
 
     class NewHost:
         async def execute(self, workflow_id, user_message):
@@ -218,22 +235,8 @@ async def test_d_05_feature_flag_selects_once_and_never_falls_back_after_failure
             raise RuntimeError("new path failed after selection")
 
     message = _group_message()
-    inject(Legacy())
-    try:
-        inject_qq_execution_host(NewHost(), enabled=False)
-        assert (await process_turn_activity(message))["content"] == "legacy"
+    _inject_host(NewHost())
+    with pytest.raises(RuntimeError, match="new path failed"):
+        await process_turn_activity(message)
 
-        inject_qq_execution_host(NewHost(), enabled=True)
-        with pytest.raises(RuntimeError, match="new path failed"):
-            await process_turn_activity(message)
-    finally:
-        inject_qq_execution_host(None, enabled=False)
-
-    assert calls == ["legacy", ("new", "direct-session")]
-
-
-def test_d_05_new_qq_host_feature_flag_defaults_off_and_has_env_override():
-    config = AppConfig()
-    assert config.agent.qq_execution_host_enabled is False
-    config._apply_env_overrides({"QQ_EXECUTION_HOST_ENABLED": "true"})
-    assert config.agent.qq_execution_host_enabled is True
+    assert calls == [("new", "direct-session")]

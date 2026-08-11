@@ -1,6 +1,6 @@
 """ReplyService —— 统一负责对外发送回复和工具进度提示。
 
-这层把“怎么说出去”的渠道细节从 TurnOrchestrator 中剥离出来：
+这层把“怎么说出去”的渠道细节从 Agent execution core 中剥离出来：
   - 最终回复发送
   - 群聊智能 @
   - 低密度群聊中的工具进度提示
@@ -23,7 +23,7 @@ logger = logging.getLogger("HpAgent.ReplyService")
 class ReplyService:
     """回复发送应用服务。
 
-    TurnOrchestrator/TurnOrchestrator 只需要交付内容和 user_message，
+    QQExecutionHost 只需要交付内容和 user_message，
     本服务负责渠道路由、群聊 @ 策略和工具进度提示。
     """
 

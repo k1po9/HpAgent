@@ -2,10 +2,14 @@
 from __future__ import annotations
 
 import hashlib
+import logging
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Mapping, Protocol, Sequence
 from uuid import UUID, uuid5
+
+from common.logging import log_event
 
 from .facade import (
     AgentExecutionFacade,
@@ -14,7 +18,10 @@ from .facade import (
     ExecutionControl,
     ExecutionRequest,
     ExecutionResult,
+    StableExecutionFailure,
 )
+
+logger = logging.getLogger("HpAgent.QQExecutionHost")
 
 HPAGENT_QQ_TURN_NS = UUID("e5c56536-48a5-5a84-bf54-1dbfa11c4fb4")
 
@@ -135,6 +142,7 @@ class QQLegacyRequestLoader:
             if key in self._METADATA_ALLOWLIST
         }
         metadata["execution_id"] = execution_id
+        metadata["surface"] = "qq"
         metadata["channel_overrides"] = dict(
             self._channel_overrides.get(channel_type, {})
         )
@@ -189,6 +197,8 @@ class QQLegacyRequestLoader:
             interaction_profile=profile,
             metadata=metadata,
             context_provider=provider,
+            group_context_text=group_context_text,
+            sender_name=str(metadata.get("sender_name", "")),
         )
 
 
@@ -248,6 +258,22 @@ class QQExecutionHost:
         if request.execution_id != execution_id:
             raise ValueError("QQ request loader returned a different execution")
         events = self._events.for_execution(execution_id, user_message)
+        started_at = time.monotonic()
+        correlation = {
+            "execution_id": execution_id,
+            "workflow_id": workflow_id,
+            "session_id": request.session_id,
+            "account_id": request.account_id,
+            "surface": "qq",
+        }
+        log_event(
+            logger,
+            logging.INFO,
+            "agent_execution_started",
+            "agent",
+            status="running",
+            **correlation,
+        )
         try:
             audit = (
                 self._audit.for_execution(request.execution_id, request)
@@ -260,12 +286,35 @@ class QQExecutionHost:
             await self._replies.complete(user_message, result)
             if self._retention is not None:
                 await self._retention.retain(request, result, user_message)
+            log_event(
+                logger,
+                logging.INFO,
+                "agent_execution_completed",
+                "agent",
+                status="completed",
+                elapsed_ms=round((time.monotonic() - started_at) * 1000),
+                **correlation,
+            )
             return {
                 "content": result.content,
                 "turns": result.tool_turns,
                 "session_id": request.session_id,
                 "account_id": request.account_id,
             }
+        except Exception as exc:
+            error_code = exc.code if isinstance(exc, StableExecutionFailure) else "internal_error"
+            logger.exception(
+                "QQ agent execution failed",
+                extra={
+                    "event": "agent_execution_failed",
+                    "component": "agent",
+                    "status": "failed",
+                    "elapsed_ms": round((time.monotonic() - started_at) * 1000),
+                    "error_code": error_code,
+                    **correlation,
+                },
+            )
+            raise
         finally:
             close = getattr(events, "close", None)
             if close is not None:
@@ -335,6 +384,9 @@ class TurnMemoryQQRetentionSink:
             metadata=metadata,
             session_id=request.session_id,
         )
+        maybe_log = getattr(self._memory, "maybe_log_metrics", None)
+        if maybe_log is not None:
+            maybe_log(result.tool_turns)
 
 
 class TurnMemoryQQAuditSinkFactory:
