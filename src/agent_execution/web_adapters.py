@@ -58,23 +58,40 @@ class PostgresWebRequestLoader:
             return self._context.load_base(row["account_id"], UUID(run_id))
 
         started_at = time.monotonic()
-        log_event(logger, logging.INFO, "context_assembly_started", "context", run_id=run_id, status="started")
+        correlation = {"run_id": run_id, "execution_id": run_id, "surface": "web"}
+        log_event(
+            logger,
+            logging.INFO,
+            "context_assembly_started",
+            "context",
+            status="started",
+            **correlation,
+        )
         try:
             base = await asyncio.to_thread(load_base)
-        except ContextIsolationError as exc:
+            # Long-term recall remains inside the execution loop, where a rewrite
+            # query exists; this loader only provides the frozen short-term snapshot.
+            context = tuple(self._context.compose(base, ()))
+        except (ContextIsolationError, ValueError) as exc:
             logger.exception("Web context assembly failed", extra={
-                "event": "context_assembly_failed", "component": "context", "run_id": run_id,
+                "event": "context_assembly_failed", "component": "context", **correlation,
                 "status": "failed", "elapsed_ms": round((time.monotonic() - started_at) * 1000),
                 "error_code": "context_build_failed",
             })
             raise StableExecutionFailure("context_build_failed") from exc
-        # Long-term recall remains inside the execution loop, where a rewrite
-        # query exists; this loader only provides the frozen short-term snapshot.
-        context = tuple(self._context.compose(base, ()))
-        log_event(logger, logging.INFO, "context_assembly_completed", "context", run_id=run_id,
-                  conversation_id=str(base.conversation_id), status="success",
-                  message_count=len(base.short_term_events),
-                  elapsed_ms=round((time.monotonic() - started_at) * 1000))
+        log_event(
+            logger,
+            logging.INFO,
+            "context_assembly_completed",
+            "context",
+            **correlation,
+            conversation_id=str(base.conversation_id),
+            session_id=str(base.session_id),
+            account_id=str(base.account_id),
+            status="success",
+            message_count=len(base.short_term_events),
+            elapsed_ms=round((time.monotonic() - started_at) * 1000),
+        )
         return ExecutionRequest(
             execution_id=run_id,
             account_id=str(base.account_id),

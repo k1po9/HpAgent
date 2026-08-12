@@ -72,8 +72,8 @@ async def _handle_event(
             await asyncio.to_thread(outbox.mark_processed, event_id, worker_id)
             if outcome.skipped:
                 log_event(logger, logging.WARNING, "memory_retain_skipped", "memory",
-                          run_id=str(run_id), outbox_event_id=str(event_id),
-                          attempt_count=attempt, status="degraded")
+                          run_id=str(run_id), execution_id=str(run_id), surface="web",
+                          outbox_event_id=str(event_id), attempt_count=attempt, status="skipped")
         else:
             raise RuntimeError("hindsight_retain_rejected")
     except Exception as exc:
@@ -84,7 +84,8 @@ async def _handle_event(
                 event_id, worker_id, error_code, str(exc)[:1000],
             )
             log_event(logger, logging.ERROR, "memory_retain_dead_letter", "memory",
-                      run_id=str(run_id), outbox_event_id=str(event_id),
+                      run_id=str(run_id), execution_id=str(run_id), surface="web",
+                      outbox_event_id=str(event_id),
                       attempt_count=attempt, status="failed", error_code=error_code)
         else:
             delay = backoff[min(attempt - 1, len(backoff) - 1)]
@@ -94,6 +95,7 @@ async def _handle_event(
                 datetime.now(UTC) + timedelta(seconds=int(delay)),
             )
             log_event(logger, logging.WARNING, "memory_retain_retry", "memory",
-                      run_id=str(run_id), outbox_event_id=str(event_id),
-                      attempt_count=attempt, status="retrying", error_code=error_code,
+                      run_id=str(run_id), execution_id=str(run_id), surface="web",
+                      outbox_event_id=str(event_id),
+                      attempt_count=attempt, status="degraded", error_code=error_code,
                       retry_in_seconds=int(delay))

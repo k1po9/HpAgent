@@ -14,8 +14,8 @@ from temporalio.client import Client
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
-from common.logging import log_event
 
+from common.logging import log_event
 from orchestration.web_workflow import (
     WEB_LIFECYCLE_TASK_QUEUE,
     WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
@@ -226,9 +226,10 @@ class WebOutboxDispatcher:
         for event in events:
             event_id = UUID(str(event["outbox_event_id"]))
             run_id = UUID(str(event["run_id"]))
-            log_event(logger, logging.INFO, "outbox_event_claimed", "outbox", run_id=str(run_id),
+            log_event(logger, logging.INFO, "outbox_event_claimed", "dispatcher", run_id=str(run_id),
+                      execution_id=str(run_id), surface="web",
                       outbox_event_id=str(event_id), event_type=event["event_type"],
-                      attempt_count=int(event["attempt_count"]), status="running")
+                      attempt_count=int(event["attempt_count"]), status="started")
             try:
                 if event["event_type"] == "start_run":
                     await self.dispatcher.dispatch_start(run_id)
@@ -237,7 +238,8 @@ class WebOutboxDispatcher:
                 await asyncio.to_thread(
                     self.outbox.mark_processed, event_id, self.worker_id
                 )
-                log_event(logger, logging.INFO, "outbox_event_processed", "outbox", run_id=str(run_id),
+                log_event(logger, logging.INFO, "outbox_event_processed", "dispatcher", run_id=str(run_id),
+                          execution_id=str(run_id), surface="web",
                           outbox_event_id=str(event_id), event_type=event["event_type"], status="success")
             except Exception as exc:
                 if int(event["attempt_count"]) >= self.max_attempts:
@@ -248,7 +250,8 @@ class WebOutboxDispatcher:
                         "temporal_dispatch_exhausted",
                         str(exc)[:1000],
                     )
-                    log_event(logger, logging.ERROR, "outbox_event_dead_letter", "outbox", run_id=str(run_id),
+                    log_event(logger, logging.ERROR, "outbox_event_dead_letter", "dispatcher", run_id=str(run_id),
+                              execution_id=str(run_id), surface="web",
                               outbox_event_id=str(event_id), event_type=event["event_type"], status="failed",
                               attempt_count=int(event["attempt_count"]), error_code="temporal_dispatch_exhausted")
                 else:
@@ -260,7 +263,8 @@ class WebOutboxDispatcher:
                         str(exc)[:1000],
                         datetime.now(UTC) + timedelta(seconds=5),
                     )
-                    log_event(logger, logging.WARNING, "outbox_event_retry", "outbox", run_id=str(run_id),
-                              outbox_event_id=str(event_id), event_type=event["event_type"], status="retrying",
+                    log_event(logger, logging.WARNING, "outbox_event_retry", "dispatcher", run_id=str(run_id),
+                              execution_id=str(run_id), surface="web",
+                              outbox_event_id=str(event_id), event_type=event["event_type"], status="degraded",
                               attempt_count=int(event["attempt_count"]), error_code="temporal_dispatch_failed")
         return len(events)

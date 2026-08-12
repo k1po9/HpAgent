@@ -14,6 +14,7 @@ from typing import Any
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from account.validation import validate_unified_account_backend
 from workspace.isolation import WorkspaceIsolationMode
 
 from .web_workflow import (
@@ -39,19 +40,6 @@ WEB_REAL_AGENT_GATE_VERSION = "c-07-v1"
 class WebTemporalWorkers:
     lifecycle: Worker
     agent: Worker
-
-
-def validate_unified_account_backend(worker_database_url: str | None) -> None:
-    """Fail closed when the unified PostgreSQL identity source is unavailable.
-
-    QQ and Web always resolve through PostgreSQL ``identity_bindings``.  A
-    missing ``WORKER_DATABASE_URL`` rejects startup instead of falling back to
-    the retired production JSON backend.
-    """
-    if not worker_database_url:
-        raise RuntimeError(
-            "WORKER_DATABASE_URL is required for the unified account backend"
-        )
 
 
 def validate_web_outbox_recovery(
@@ -117,8 +105,7 @@ def validate_web_worker_startup(config: Any, worker_database_url: str | None) ->
         )
     except ValueError as exc:
         raise RuntimeError(str(exc)) from exc
-    if not worker_database_url:
-        raise RuntimeError("WEB real Agent requires WORKER_DATABASE_URL")
+    validate_unified_account_backend(worker_database_url)
     if config.web_lifecycle_task_queue != WEB_LIFECYCLE_TASK_QUEUE:
         raise RuntimeError("Web lifecycle task queue differs from frozen Workflow contract")
     if config.web_agent_task_queue != WEB_AGENT_TASK_QUEUE:

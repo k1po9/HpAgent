@@ -26,15 +26,14 @@ SessionStore 只被 Harness 使用，不向其他模块暴露。
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import re
 import time
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from common.types import Event, EventType
+
 from .models import Session, SessionStatus
 
 logger = logging.getLogger("HpAgent.SessionStore")
@@ -61,7 +60,7 @@ class SessionStore:
     _ACTIVE_KEY = "account:{}:active"
     _DEFAULT_TTL = 86400  # 24h
 
-    def __init__(self, redis_cache=None, hindsight_client: Optional[HindsightClient] = None, file_store=None,
+    def __init__(self, redis_cache=None, hindsight_client: Optional[Any] = None, file_store=None,
                  *, wal_enabled: bool = True, checkpoint_enabled: bool = True):
         """
         Args:
@@ -349,6 +348,7 @@ class SessionStore:
         original_query: str = "",
         rewritten_query: str = "",
         hyde_input_context: list | None = None,
+        include_status: bool = False,
     ):
         """召回长期记忆。返回 (items: list[MemoryItem], formatted: str)。
 
@@ -358,7 +358,7 @@ class SessionStore:
             HyDE 改写信息，仅用于审计展示（不影响召回逻辑）。
         """
         if not self._hindsight:
-            return [], ""
+            return ([], "", True) if include_status else ([], "")
         clean_query = _clean_recall_query(query)
         t0 = time.monotonic()
         error: str = ""
@@ -377,11 +377,11 @@ class SessionStore:
             )
             items_count = len(items)
             formatted = await self._hindsight.recall_formatted(items=items)
-            return items, formatted
+            return (items, formatted, False) if include_status else (items, formatted)
         except Exception as e:
             error = str(e)
             logger.warning("DEGRADATION: Hindsight recall failed (%s) → memory disabled for this turn", e)
-            return [], ""
+            return ([], "", True) if include_status else ([], "")
         finally:
             elapsed_ms = (time.monotonic() - t0) * 1000
             # 记录 recall 实际返回的文本（截断以防过大）

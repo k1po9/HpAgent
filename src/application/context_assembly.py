@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from typing import Any, Protocol, Sequence
 from uuid import UUID
 
-from common.types import Event, EventType
 from common.logging import log_event
+from common.types import Event, EventType
 from harness.context_builder import HarnessContextBuilder
 from memory.hindsight_client import MemoryItem
 from persistence.repositories import MessageRepository, RunRepository
@@ -104,7 +104,18 @@ class ContextAssemblyService:
         if self._hindsight is None:
             return ()
         started_at = time.monotonic()
-        log_event(logger, logging.INFO, "memory_recall_started", "memory", run_id=str(base.run_id), status="started")
+        correlation = {
+            "run_id": str(base.run_id),
+            "execution_id": str(base.run_id),
+            "conversation_id": str(base.conversation_id),
+            "session_id": str(base.session_id),
+            "account_id": str(base.account_id),
+            "surface": "web",
+        }
+        log_event(
+            logger, logging.INFO, "memory_recall_started", "memory",
+            status="started", **correlation,
+        )
         try:
             recalled = await self._hindsight.recall(
                 recall_query,
@@ -113,20 +124,23 @@ class ContextAssemblyService:
                 top_n=self._recall_top_n,
                 channel_type="web",
             )
-        except Exception as exc:
+        except Exception:
             logger.exception("Web Hindsight recall unavailable", extra={
                 "event": "memory_recall_degraded", "component": "memory",
-                "run_id": str(base.run_id), "status": "degraded",
+                **correlation, "status": "degraded",
                 "elapsed_ms": round((time.monotonic() - started_at) * 1000),
-                "error_code": type(exc).__name__,
+                "error_code": "memory_recall_failed",
             })
             return ()
         validated: list[MemoryItem] = []
         for item in recalled:
             self._validate_memory(item, base.account_id)
             validated.append(item)
-        log_event(logger, logging.INFO, "memory_recall_completed", "memory", run_id=str(base.run_id),
-                  status="success", result_count=len(validated), elapsed_ms=round((time.monotonic() - started_at) * 1000))
+        log_event(
+            logger, logging.INFO, "memory_recall_completed", "memory",
+            **correlation, status="success", result_count=len(validated),
+            elapsed_ms=round((time.monotonic() - started_at) * 1000),
+        )
         return tuple(validated)
 
     def compose(

@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from persistence.uow import UnitOfWork
 from common.logging import log_event
+from persistence.uow import UnitOfWork
 
 logger = logging.getLogger("HpAgent.MemoryRetention")
 
@@ -97,30 +97,50 @@ class MemoryRetentionService:
             {"role": "user", "content": run["trigger_content"]},
             {"role": "assistant", "content": run["assistant_content"]},
         ]
-        log_event(logger, logging.INFO, "memory_retain_started", "memory", run_id=str(run["run_id"]),
-                  conversation_id=str(run["conversation_id"]), document_id=document_id, status="started")
-        t0 = time.monotonic()
-        receipt = await self._hindsight.retain_document(
-            events,
-            user_id=str(run["account_id"]),
-            document_id=document_id,
-            async_retain=False,
-            channel_type="web",
-            scope="private",
-            metadata={
-                "source": "web",
-                "run_id": str(run["run_id"]),
-                "conversation_id": str(run["conversation_id"]),
-                "session_id": str(run["session_id"]),
-            },
+        correlation = {
+            "run_id": str(run["run_id"]),
+            "execution_id": str(run["run_id"]),
+            "conversation_id": str(run["conversation_id"]),
+            "session_id": str(run["session_id"]),
+            "account_id": str(run["account_id"]),
+            "surface": "web",
+        }
+        log_event(
+            logger, logging.INFO, "memory_retain_started", "memory",
+            **correlation, document_id=document_id, status="started",
         )
+        t0 = time.monotonic()
+        try:
+            receipt = await self._hindsight.retain_document(
+                events,
+                user_id=str(run["account_id"]),
+                document_id=document_id,
+                async_retain=False,
+                channel_type="web",
+                scope="private",
+                metadata={
+                    "source": "web",
+                    "run_id": str(run["run_id"]),
+                    "conversation_id": str(run["conversation_id"]),
+                    "session_id": str(run["session_id"]),
+                },
+            )
+        except Exception:
+            logger.exception("Web Hindsight retention failed", extra={
+                "event": "memory_retain_failed", "component": "memory",
+                **correlation, "document_id": document_id, "status": "failed",
+                "elapsed_ms": round((time.monotonic() - t0) * 1000),
+                "error_code": "memory_retain_failed",
+            })
+            raise
         elapsed_ms = round((time.monotonic() - t0) * 1000)
         if receipt.accepted:
-            log_event(logger, logging.INFO, "memory_retain_completed", "memory", run_id=str(run["run_id"]),
+            log_event(logger, logging.INFO, "memory_retain_completed", "memory", **correlation,
                       document_id=document_id, status="success", elapsed_ms=elapsed_ms)
         else:
-            log_event(logger, logging.WARNING, "memory_retain_failed", "memory", run_id=str(run["run_id"]),
-                      document_id=document_id, status="failed", elapsed_ms=elapsed_ms)
+            log_event(logger, logging.WARNING, "memory_retain_failed", "memory", **correlation,
+                      document_id=document_id, status="failed", elapsed_ms=elapsed_ms,
+                      error_code="memory_retain_failed")
         return RetainOutcome(
             skipped=False, accepted=receipt.accepted, document_id=document_id
         )

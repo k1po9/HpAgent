@@ -6,7 +6,28 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from common.logging import _JsonFormatter, setup_logging
+from common.logging import _JsonFormatter, log_event, setup_logging
+
+
+def test_log_event_omits_none_fields(caplog: Any) -> None:
+    logger = logging.getLogger("HpAgent.Test.Logging")
+
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        log_event(
+            logger,
+            logging.INFO,
+            "agent_execution_started",
+            "agent",
+            execution_id="execution-1",
+            run_id=None,
+            status="started",
+        )
+
+    record = caplog.records[-1]
+    assert record.event == "agent_execution_started"
+    assert record.component == "agent"
+    assert record.execution_id == "execution-1"
+    assert not hasattr(record, "run_id")
 
 
 def test_json_formatter_promotes_structured_extra_fields() -> None:

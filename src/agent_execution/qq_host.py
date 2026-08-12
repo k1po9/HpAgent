@@ -75,17 +75,63 @@ class QQLegacyContextProvider:
 
     async def recall_long_term(self, recall_query: str) -> Sequence[Any]:
         metadata = dict(self._message.get("metadata", {}))
+        execution_id = metadata.get("execution_id")
         metadata.pop("channel_overrides", None)
         metadata.pop("execution_id", None)
-        _items, memories_text = await self._memory.recall_memories(
-            query=recall_query,
-            account_id=str(self._message["account_id"]),
-            session_id=str(self._message["session_id"]),
-            channel_type=str(self._message["channel_type"]),
-            metadata=metadata,
-            original_query=str(self._message["content"]),
-            rewritten_query=recall_query,
-            hyde_input_context=None,
+        correlation = {
+            "execution_id": execution_id,
+            "session_id": str(self._message["session_id"]),
+            "account_id": str(self._message["account_id"]),
+            "surface": "qq",
+            "operation": "recall",
+        }
+        started_at = time.monotonic()
+        log_event(
+            logger, logging.INFO, "memory_recall_started", "memory",
+            status="started", **correlation,
+        )
+        kwargs = {
+            "query": recall_query,
+            "account_id": str(self._message["account_id"]),
+            "session_id": str(self._message["session_id"]),
+            "channel_type": str(self._message["channel_type"]),
+            "metadata": metadata,
+            "original_query": str(self._message["content"]),
+            "rewritten_query": recall_query,
+            "hyde_input_context": None,
+        }
+        try:
+            observed = getattr(self._memory, "recall_memories_with_status", None)
+            if observed is not None:
+                items, memories_text, degraded = await observed(**kwargs)
+            else:
+                items, memories_text = await self._memory.recall_memories(**kwargs)
+                degraded = False
+        except Exception:
+            logger.exception(
+                "QQ memory recall failed",
+                extra={
+                    "event": "memory_recall_failed",
+                    "component": "memory",
+                    "status": "failed",
+                    "elapsed_ms": round((time.monotonic() - started_at) * 1000),
+                    "error_code": "memory_recall_failed",
+                    **correlation,
+                },
+            )
+            raise
+        event = "memory_recall_degraded" if degraded else "memory_recall_completed"
+        level = logging.WARNING if degraded else logging.INFO
+        log_event(
+            logger,
+            level,
+            event,
+            "memory",
+            status="degraded" if degraded else "success",
+            elapsed_ms=round((time.monotonic() - started_at) * 1000),
+            result_count=len(items),
+            error_code="memory_recall_failed" if degraded else None,
+            **correlation,
         )
         return (memories_text,)
 
@@ -271,7 +317,7 @@ class QQExecutionHost:
             logging.INFO,
             "agent_execution_started",
             "agent",
-            status="running",
+            status="started",
             **correlation,
         )
         try:
@@ -291,7 +337,7 @@ class QQExecutionHost:
                 logging.INFO,
                 "agent_execution_completed",
                 "agent",
-                status="completed",
+                status="success",
                 elapsed_ms=round((time.monotonic() - started_at) * 1000),
                 **correlation,
             )
@@ -376,13 +422,50 @@ class TurnMemoryQQRetentionSink:
         metadata["source"] = "qq"
         metadata["execution_id"] = request.execution_id
         metadata["session_id"] = request.session_id
-        await self._memory.retain_document(
-            events=events,
-            account_id=request.account_id,
-            document_id=document_id,
-            channel_type=str(user_message["channel_type"]),
-            metadata=metadata,
-            session_id=request.session_id,
+        correlation = {
+            "execution_id": request.execution_id,
+            "session_id": request.session_id,
+            "account_id": request.account_id,
+            "surface": "qq",
+            "channel_type": str(user_message["channel_type"]),
+            "operation": "retain",
+            "document_id": document_id,
+        }
+        started_at = time.monotonic()
+        log_event(
+            logger, logging.INFO, "memory_retain_started", "memory",
+            status="started", **correlation,
+        )
+        try:
+            await self._memory.retain_document(
+                events=events,
+                account_id=request.account_id,
+                document_id=document_id,
+                channel_type=str(user_message["channel_type"]),
+                metadata=metadata,
+                session_id=request.session_id,
+            )
+        except Exception:
+            logger.exception(
+                "QQ memory retain failed",
+                extra={
+                    "event": "memory_retain_failed",
+                    "component": "memory",
+                    "status": "failed",
+                    "elapsed_ms": round((time.monotonic() - started_at) * 1000),
+                    "error_code": "memory_retain_failed",
+                    **correlation,
+                },
+            )
+            raise
+        log_event(
+            logger,
+            logging.INFO,
+            "memory_retain_completed",
+            "memory",
+            status="success",
+            elapsed_ms=round((time.monotonic() - started_at) * 1000),
+            **correlation,
         )
         maybe_log = getattr(self._memory, "maybe_log_metrics", None)
         if maybe_log is not None:

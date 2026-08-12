@@ -13,7 +13,6 @@ from uuid import UUID
 from uuid6 import uuid7
 
 from common.logging import log_event
-
 from persistence.repositories import (
     AccountRepository,
     ConversationRepository,
@@ -277,7 +276,9 @@ class CommandService:
             self._outbox(uow, account_id, run["conversation_id"], run_id, "retain_memory")
             self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "completed")
             log_event(logger, logging.INFO, "run_completed", "run", run_id=str(run_id),
-                      conversation_id=str(run["conversation_id"]), status="completed")
+                      execution_id=str(run_id), account_id=str(account_id),
+                      conversation_id=str(run["conversation_id"]), surface="web",
+                      status="success", run_status="completed")
             return True
 
     @retryable_transaction
@@ -291,7 +292,9 @@ class CommandService:
             self.runs.set_terminal(uow, run_id, "failed", failure_code, failure_message)
             self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "failed")
             log_event(logger, logging.ERROR, "run_failed", "run", run_id=str(run_id),
-                      conversation_id=str(run["conversation_id"]), status="failed", error_code=failure_code)
+                      execution_id=str(run_id), account_id=str(account_id),
+                      conversation_id=str(run["conversation_id"]), surface="web",
+                      status="failed", run_status="failed", error_code=failure_code)
             return True
 
     @retryable_transaction
@@ -308,7 +311,9 @@ class CommandService:
                 "publish_terminal_event", "cancelled"
             )
             log_event(logger, logging.INFO, "run_cancelled", "run", run_id=str(run_id),
-                      conversation_id=str(run["conversation_id"]), status="cancelled")
+                      execution_id=str(run_id), account_id=str(account_id),
+                      conversation_id=str(run["conversation_id"]), surface="web",
+                      status="cancelled", run_status="cancelled")
             return True
 
     def _claim(

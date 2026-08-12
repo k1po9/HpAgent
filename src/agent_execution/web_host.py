@@ -6,8 +6,8 @@ import time
 from typing import Protocol
 from uuid import UUID
 
-from workspace.isolation import WorkspaceRecoveryRequired
 from common.logging import log_event
+from workspace.isolation import WorkspaceRecoveryRequired
 
 from .facade import (
     AgentExecutionFacade,
@@ -74,8 +74,22 @@ class WebExecutionHost:
         if request.execution_id != run_id:
             raise ValueError("Web request loader returned a different run")
         events = self._events.for_run(run_id)
-        log_event(logger, logging.INFO, "agent_execution_started", "agent", run_id=run_id,
-                  execution_id=request.execution_id, conversation_id=request.conversation_id, status="running")
+        correlation = {
+            "run_id": run_id,
+            "execution_id": request.execution_id,
+            "conversation_id": request.conversation_id or None,
+            "session_id": request.session_id or None,
+            "account_id": request.account_id or None,
+            "surface": "web",
+        }
+        log_event(
+            logger,
+            logging.INFO,
+            "agent_execution_started",
+            "agent",
+            status="started",
+            **correlation,
+        )
         try:
             # Phase E: emit the contract ``run.started`` online event when the
             # Event Sink supports it; ``assembling_context`` is the first stable
@@ -107,14 +121,23 @@ class WebExecutionHost:
                     request, self._control, events, audit
                 )
             await self._replies.complete(run_id, result)
-            log_event(logger, logging.INFO, "agent_execution_completed", "agent", run_id=run_id,
-                      execution_id=request.execution_id, status="completed",
-                      elapsed_ms=round((time.monotonic() - started_at) * 1000))
+            log_event(
+                logger,
+                logging.INFO,
+                "agent_execution_completed",
+                "agent",
+                status="success",
+                elapsed_ms=round((time.monotonic() - started_at) * 1000),
+                **correlation,
+            )
             return result
-        except Exception:
+        except Exception as exc:
+            error_code = (
+                exc.code if isinstance(exc, StableExecutionFailure) else "internal_error"
+            )
             logger.exception("Web agent execution failed", extra={
-                "event": "agent_execution_failed", "component": "agent", "run_id": run_id,
-                "execution_id": request.execution_id, "status": "failed",
+                "event": "agent_execution_failed", "component": "agent",
+                **correlation, "status": "failed", "error_code": error_code,
                 "elapsed_ms": round((time.monotonic() - started_at) * 1000),
             })
             raise

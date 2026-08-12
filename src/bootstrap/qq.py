@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from account.postgres_account_service import PostgresAccountService
+from account.validation import validate_unified_account_backend
 from actions.runtime import ActionRuntime
 from agent_execution.brain_action_loop import DefaultBrainActionLoop
 from agent_execution.facade import AgentExecutionFacade
@@ -24,7 +25,6 @@ from application.metrics import MetricsSnapshotService
 from application.reply import ReplyService
 from application.session_archive import SessionArchiveService
 from brain.engine import BrainEngine
-from orchestration.web_workers import validate_unified_account_backend
 from session.store import SessionStore
 from storage.file_store import LocalFileStore
 

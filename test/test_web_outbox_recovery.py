@@ -19,11 +19,11 @@ import asyncio
 
 import pytest
 
+from account.validation import validate_unified_account_backend
 from orchestration.config import AppConfig, TemporalConfig
 from orchestration.web_dispatcher import run_web_outbox_recovery_loop
 from orchestration.web_workers import (
     WEB_REAL_AGENT_GATE_VERSION,
-    validate_unified_account_backend,
     validate_web_worker_startup,
 )
 from web_domain.outbox import WEB_OUTBOX_RECOVERY_EVENT_TYPES

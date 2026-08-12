@@ -142,6 +142,36 @@ class TurnMemoryService:
             hyde_input_context=hyde_input_context,
         )
 
+    async def recall_memories_with_status(
+        self,
+        *,
+        query: str,
+        account_id: str,
+        session_id: str,
+        channel_type: str,
+        metadata: Dict[str, Any],
+        original_query: str,
+        rewritten_query: str,
+        hyde_input_context: Optional[List[Dict[str, str]]],
+        top_n: int = 5,
+    ) -> Tuple[Any, str, bool]:
+        """Recall with an explicit degradation bit for lifecycle logging."""
+        return await self._session.recall_memories(
+            query=query,
+            account_id=account_id,
+            session_id=session_id,
+            top_n=top_n,
+            tags_match="any_strict",
+            query_timestamp=metadata.get("iso_timestamp", ""),
+            group_id=str(metadata.get("group_id", "")),
+            scope=metadata.get("detail_type", ""),
+            channel_type=channel_type,
+            original_query=original_query,
+            rewritten_query=rewritten_query,
+            hyde_input_context=hyde_input_context,
+            include_status=True,
+        )
+
     async def retain_memories(
         self,
         *,

@@ -125,7 +125,7 @@ class DefaultBrainActionLoop:
             await events.progress("calling_model", "正在生成回复。")
             model_started_at = time.monotonic()
             log_event(logger, logging.INFO, "model_call_started", "model", **self._correlation(request),
-                      turn=turn, status="started")
+                      turn=turn, phase="agent_turn", status="started")
             try:
                 decision = await self._await_with_control(
                     self._brain.generate_chat_decision(
@@ -141,16 +141,16 @@ class DefaultBrainActionLoop:
                 )
             except TimeoutError as exc:
                 log_event(logger, logging.ERROR, "model_call_failed", "model", **self._correlation(request),
-                          turn=turn, status="failed", elapsed_ms=round((time.monotonic() - model_started_at) * 1000), error_code="model_timeout")
+                          turn=turn, phase="agent_turn", status="failed", elapsed_ms=round((time.monotonic() - model_started_at) * 1000), error_code="model_timeout")
                 raise StableExecutionFailure("model_timeout") from exc
             except StableExecutionFailure:
                 raise
             except Exception as exc:
                 log_event(logger, logging.ERROR, "model_call_failed", "model", **self._correlation(request),
-                          turn=turn, status="failed", elapsed_ms=round((time.monotonic() - model_started_at) * 1000), error_code="model_unavailable")
+                          turn=turn, phase="agent_turn", status="failed", elapsed_ms=round((time.monotonic() - model_started_at) * 1000), error_code="model_unavailable")
                 raise StableExecutionFailure("model_unavailable") from exc
             log_event(logger, logging.INFO, "model_call_completed", "model", **self._correlation(request),
-                      turn=turn, status="success", elapsed_ms=round((time.monotonic() - model_started_at) * 1000),
+                      turn=turn, phase="agent_turn", status="success", elapsed_ms=round((time.monotonic() - model_started_at) * 1000),
                       tool_count=len(getattr(decision, "action_requests", ())), stop_reason=getattr(decision, "stop_reason", ""))
             await self._audit_best_effort(
                 audit.model_step(
@@ -249,6 +249,18 @@ class DefaultBrainActionLoop:
                 })
         await self._checkpoint(control, "generating")
         await events.progress("finalizing", "正在整理结果。")
+        final_turn = self._max_tool_turns + 1
+        model_started_at = time.monotonic()
+        log_event(
+            logger,
+            logging.INFO,
+            "model_call_started",
+            "model",
+            **self._correlation(request),
+            turn=final_turn,
+            phase="forced_final",
+            status="started",
+        )
         try:
             decision = await self._await_with_control(
                 self._brain.generate_final_decision(
@@ -260,15 +272,52 @@ class DefaultBrainActionLoop:
                 control,
             )
         except TimeoutError as exc:
+            log_event(
+                logger,
+                logging.ERROR,
+                "model_call_failed",
+                "model",
+                **self._correlation(request),
+                turn=final_turn,
+                phase="forced_final",
+                status="failed",
+                elapsed_ms=round((time.monotonic() - model_started_at) * 1000),
+                error_code="model_timeout",
+            )
             raise StableExecutionFailure("model_timeout") from exc
         except StableExecutionFailure:
             raise
         except Exception as exc:
+            log_event(
+                logger,
+                logging.ERROR,
+                "model_call_failed",
+                "model",
+                **self._correlation(request),
+                turn=final_turn,
+                phase="forced_final",
+                status="failed",
+                elapsed_ms=round((time.monotonic() - model_started_at) * 1000),
+                error_code="model_unavailable",
+            )
             raise StableExecutionFailure("model_unavailable") from exc
+        log_event(
+            logger,
+            logging.INFO,
+            "model_call_completed",
+            "model",
+            **self._correlation(request),
+            turn=final_turn,
+            phase="forced_final",
+            status="success",
+            elapsed_ms=round((time.monotonic() - model_started_at) * 1000),
+            tool_count=0,
+            stop_reason=getattr(decision, "stop_reason", "forced_final"),
+        )
         await self._audit_best_effort(
             audit.model_step(
                 request.execution_id,
-                self._max_tool_turns + 1,
+                final_turn,
                 decision.content,
                 (),
                 getattr(decision, "stop_reason", "forced_final"),
