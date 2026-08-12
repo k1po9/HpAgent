@@ -24,9 +24,11 @@ longer creates a QQ bootstrap dependency on `orchestration.web_workers`.
   and `surface=qq`; no synthetic `run_id` is emitted.
 - Model lifecycle events distinguish `agent_turn` from `forced_final` and use
   stable `model_timeout` / `model_unavailable` failure codes.
-- Recall degradation uses `memory_recall_failed`; retention failure uses
-  `memory_retain_failed`. QQ retention exceptions continue to propagate so the
-  established failure semantics are unchanged.
+- Recall degradation uses `memory_backend_unavailable`, while a recall that
+  actually fails execution uses `memory_recall_failed`. Disabled Web memory is
+  recorded as `memory_recall_skipped` with `reason=memory_disabled`. Retention
+  failure uses `memory_retain_failed`. QQ retention exceptions continue to
+  propagate so the established failure semantics are unchanged.
 - Stable execution failures retain their code at the Host boundary; unexpected
   exceptions are classified as `internal_error`.
 
@@ -34,17 +36,16 @@ longer creates a QQ bootstrap dependency on `orchestration.web_workers`.
 
 - `test/test_logging.py`, `test/test_observability_preflight.py`,
   `test/test_qq_execution_compat.py`, `test/test_qq_retention_document.py`, and
-  `test/test_web_outbox_recovery.py`: **31 passed**.
+  `test/test_web_outbox_recovery.py`: **32 passed**.
 - The preflight tests cover JSON schema promotion, omission of `None`, exception
   serialization, normal and forced-final model success/timeout/failure, Web and
   QQ Host lifecycle correlation, QQ recall degradation, and QQ retention
   failure propagation.
 - `git diff --check`: passed.
 - Ruff on all touched Python files: passed.
-- Direct MyPy invocation using the repository configuration: passed (22 source
-  files). `make typecheck` itself could not start because GNU Make reported
-  `Makefile:1: multiple target patterns`; this is recorded as a runner/Makefile
-  limitation rather than a type-check result.
+- `make lint typecheck`: passed after renaming the invalid colon-form Make
+  target to `ci-web` and normalizing the Web API import ordering found by Ruff. MyPy
+  checked 22 source files successfully.
 - Docker service inspection: application PostgreSQL, Temporal, Redis, Hindsight,
   API, and gateway containers were running; health-checked dependencies were
   healthy.

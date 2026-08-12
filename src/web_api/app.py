@@ -22,7 +22,6 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from uuid6 import uuid7
 
 from common.logging import log_event
-
 from persistence.uow import UnitOfWork
 from web_domain.errors import (
     ConversationBusy,

@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test test-existing test-db test-api migrate db-up db-down ci ci:web web-install web-lint web-typecheck web-build web-test web-dev e2e
+.PHONY: install lint typecheck test test-existing test-db test-api migrate db-up db-down ci ci-web web-install web-lint web-typecheck web-build web-test web-dev e2e
 
 NPM ?= npm
 
@@ -40,7 +40,7 @@ db-down:
 ci: lint typecheck test-existing test-db test-api
 
 # Phase E frontend gate (phase-e-report.md §8); E2E runs via `make e2e`.
-ci:web: web-lint web-typecheck web-build web-test
+ci-web: web-lint web-typecheck web-build web-test
 
 web-install:
 	cd web && $(NPM) install

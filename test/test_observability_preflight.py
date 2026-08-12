@@ -4,6 +4,7 @@ import logging
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 import pytest
 
@@ -21,6 +22,7 @@ from agent_execution.qq_host import (
     qq_execution_id,
 )
 from agent_execution.web_host import WebExecutionHost
+from application.context_assembly import ContextAssemblyService, WebContextBase
 
 
 class _Control:
@@ -267,8 +269,34 @@ async def test_qq_memory_recall_reports_degradation(
         "memory_recall_degraded",
     ]
     assert records[-1].status == "degraded"
-    assert records[-1].error_code == "memory_recall_failed"
+    assert records[-1].error_code == "memory_backend_unavailable"
     assert records[-1].execution_id == "execution-1"
+
+
+@pytest.mark.asyncio
+async def test_web_memory_recall_reports_skipped_when_disabled(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    base = WebContextBase(
+        run_id=uuid4(),
+        account_id=uuid4(),
+        conversation_id=uuid4(),
+        session_id=uuid4(),
+        context_message_seq=1,
+        trigger_message_id=uuid4(),
+        trigger_content="question",
+        short_term_events=(),
+    )
+    service = ContextAssemblyService(None, SimpleNamespace(), hindsight=None)
+
+    with caplog.at_level(logging.INFO, logger="HpAgent.ContextAssembly"):
+        assert await service.recall_long_term(base, "rewritten") == ()
+
+    records = [r for r in caplog.records if getattr(r, "component", None) == "memory"]
+    assert [r.event for r in records] == ["memory_recall_skipped"]
+    assert records[0].status == "skipped"
+    assert records[0].reason == "memory_disabled"
+    assert records[0].run_id == records[0].execution_id == str(base.run_id)
 
 
 @pytest.mark.asyncio

@@ -101,9 +101,6 @@ class ContextAssemblyService:
         self, base: WebContextBase, recall_query: str
     ) -> tuple[MemoryItem, ...]:
         """Recall account-bank memory only after query rewrite; unavailable is empty."""
-        if self._hindsight is None:
-            return ()
-        started_at = time.monotonic()
         correlation = {
             "run_id": str(base.run_id),
             "execution_id": str(base.run_id),
@@ -112,6 +109,18 @@ class ContextAssemblyService:
             "account_id": str(base.account_id),
             "surface": "web",
         }
+        if self._hindsight is None:
+            log_event(
+                logger,
+                logging.INFO,
+                "memory_recall_skipped",
+                "memory",
+                **correlation,
+                status="skipped",
+                reason="memory_disabled",
+            )
+            return ()
+        started_at = time.monotonic()
         log_event(
             logger, logging.INFO, "memory_recall_started", "memory",
             status="started", **correlation,
@@ -129,7 +138,7 @@ class ContextAssemblyService:
                 "event": "memory_recall_degraded", "component": "memory",
                 **correlation, "status": "degraded",
                 "elapsed_ms": round((time.monotonic() - started_at) * 1000),
-                "error_code": "memory_recall_failed",
+                "error_code": "memory_backend_unavailable",
             })
             return ()
         validated: list[MemoryItem] = []

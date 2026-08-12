@@ -87,7 +87,7 @@ docker compose restart hpagent hpagent-api
 make test-existing
 make test-db
 make test-api
-make ci:web
+make ci-web
 make e2e
 ```
 

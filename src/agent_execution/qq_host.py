@@ -130,7 +130,7 @@ class QQLegacyContextProvider:
             status="degraded" if degraded else "success",
             elapsed_ms=round((time.monotonic() - started_at) * 1000),
             result_count=len(items),
-            error_code="memory_recall_failed" if degraded else None,
+            error_code="memory_backend_unavailable" if degraded else None,
             **correlation,
         )
         return (memories_text,)

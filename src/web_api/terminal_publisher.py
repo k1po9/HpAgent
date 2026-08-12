@@ -22,8 +22,8 @@ import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from web_domain.outbox import OutboxService
 from common.logging import log_event
+from web_domain.outbox import OutboxService
 
 from .config import WebApiSettings
 from .sse import AsyncRedis, envelope, load_run_snapshot
