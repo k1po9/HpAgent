@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
 from uuid import UUID
 
+from common.logging import log_event
 from persistence.uow import UnitOfWork
 
 from .generator import ArtifactGenerationError, WebArtifactGenerator
+
+logger = logging.getLogger("HpAgent.ArtifactBuild")
 
 
 class ArtifactBuildService:
@@ -23,12 +27,20 @@ class ArtifactBuildService:
                 previous_html=inputs["previous_html"],
             )
             self._complete(version_id, html)
+            log_event(logger, logging.INFO, "artifact_build_completed", "artifact",
+                      artifact_version_id=str(version_id), status="success")
             return {"artifact_version_id": str(version_id), "status": "completed"}
         except ArtifactGenerationError as exc:
             self._fail(version_id, exc.code, exc.safe_message)
+            log_event(logger, logging.WARNING, "artifact_build_failed", "artifact",
+                      artifact_version_id=str(version_id), status="failed",
+                      failure_code=exc.code)
             return {"artifact_version_id": str(version_id), "status": "failed"}
         except Exception:
             self._fail(version_id, "artifact_build_failed", "Artifact 生成失败。")
+            log_event(logger, logging.ERROR, "artifact_build_failed", "artifact",
+                      artifact_version_id=str(version_id), status="failed",
+                      failure_code="artifact_build_failed")
             return {"artifact_version_id": str(version_id), "status": "failed"}
 
     def _prepare(self, version_id: UUID) -> dict[str, str | None]:
@@ -51,6 +63,8 @@ class ArtifactBuildService:
                 "completed_at=NULL,html=NULL,failure_code=NULL,failure_message=NULL,updated_at=now() "
                 "WHERE artifact_version_id=%s", (version_id,),
             )
+            log_event(logger, logging.INFO, "artifact_build_started", "artifact",
+                      artifact_version_id=str(version_id), status="running")
             return {"status": "running", "source_markdown": str(row["source_markdown"]),
                     "instruction": row["instruction"], "previous_html": row["previous_html"]}
 

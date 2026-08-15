@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -8,10 +9,13 @@ from temporalio.client import Client
 from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
+from common.logging import log_event
 from web_artifacts.models import ArtifactBuildInput
 from web_artifacts.outbox import ArtifactOutboxService
 
 from .artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
+
+logger = logging.getLogger("HpAgent.ArtifactOutboxDispatcher")
 
 
 def artifact_workflow_id(version_id: UUID | str) -> str:
@@ -51,9 +55,16 @@ class ArtifactOutboxDispatcher:
         for event in events:
             event_id = UUID(str(event["artifact_outbox_event_id"]))
             version_id = UUID(str(event["artifact_version_id"]))
+            log_event(logger, logging.INFO, "artifact_outbox_claimed", "artifact_dispatcher",
+                      artifact_outbox_event_id=str(event_id),
+                      artifact_version_id=str(version_id),
+                      attempt_count=int(event["attempt_count"]))
             try:
                 await self.temporal.start(version_id)
                 await asyncio.to_thread(self.outbox.mark_processed, event_id, self.worker_id)
+                log_event(logger, logging.INFO, "artifact_outbox_processed",
+                          "artifact_dispatcher", artifact_outbox_event_id=str(event_id),
+                          artifact_version_id=str(version_id), status="success")
             except Exception as exc:
                 if int(event["attempt_count"]) >= self.max_attempts:
                     await asyncio.to_thread(self.outbox.dead_letter, event_id, self.worker_id,
@@ -62,12 +73,22 @@ class ArtifactOutboxDispatcher:
                         self.outbox.fail_version, version_id, "artifact_build_failed",
                         "Artifact 调度失败。",
                     )
+                    log_event(logger, logging.ERROR, "artifact_outbox_dead_letter",
+                              "artifact_dispatcher",
+                              artifact_outbox_event_id=str(event_id),
+                              artifact_version_id=str(version_id), status="failed",
+                              failure_code="artifact_dispatch_exhausted")
                 else:
                     await asyncio.to_thread(
                         self.outbox.retry, event_id, self.worker_id,
                         "artifact_dispatch_failed", str(exc)[:1000],
                         datetime.now(UTC) + timedelta(seconds=5),
                     )
+                    log_event(logger, logging.WARNING, "artifact_outbox_retry",
+                              "artifact_dispatcher",
+                              artifact_outbox_event_id=str(event_id),
+                              artifact_version_id=str(version_id), status="retrying",
+                              failure_code="artifact_dispatch_failed")
         return len(events)
 
 

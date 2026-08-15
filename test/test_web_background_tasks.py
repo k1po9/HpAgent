@@ -14,8 +14,8 @@ import uuid
 
 import pytest
 
-from orchestration.worker import WebWorkerComposition, _build_web_background_tasks
 from orchestration.web_workers import WebTemporalWorkers
+from orchestration.worker import WebWorkerComposition, _build_web_background_tasks
 
 
 class _FakeDispatcher:
@@ -31,6 +31,25 @@ class _FakeDispatcher:
 class _FakeReconciler:
     async def run_once(self):
         return None
+
+
+class _FakeArtifactOutbox:
+    def __init__(self):
+        self.recovered = 0
+
+    def recover_expired(self, _lease_timeout_seconds):
+        self.recovered += 1
+        return 0
+
+
+class _FakeArtifactDispatcher:
+    def __init__(self):
+        self.outbox = _FakeArtifactOutbox()
+        self.run_once_calls = 0
+
+    async def run_once(self):
+        self.run_once_calls += 1
+        return 0
 
 
 class _FakeOutbox:
@@ -180,3 +199,37 @@ def test_memory_retention_lives_on_composition_not_workers():
     )
     assert hasattr(composition, "memory_retention")
     assert not hasattr(composition.workers, "memory_retention")
+
+
+@pytest.mark.asyncio
+async def test_background_tasks_start_and_stop_artifact_dispatch_and_recovery():
+    dispatcher = _FakeArtifactDispatcher()
+    tasks = _build_web_background_tasks(
+        web_dispatcher=_FakeDispatcher(_FakeOutbox()),
+        web_reconciler=_FakeReconciler(),
+        web_memory_retention=None,
+        artifact_dispatcher=dispatcher,
+        lease_timeout_seconds=60,
+        recovery_interval_seconds=0.01,
+    )
+    assert len(tasks) == 7
+    artifact_dispatcher_task, artifact_recovery_task = tasks[-2:]
+    assert artifact_dispatcher_task is not None
+    assert artifact_recovery_task is not None
+
+    for _ in range(40):
+        if dispatcher.run_once_calls and dispatcher.outbox.recovered:
+            break
+        await asyncio.sleep(0.01)
+    assert dispatcher.run_once_calls > 0
+    assert dispatcher.outbox.recovered > 0
+
+    for task in tasks:
+        if task is not None:
+            task.cancel()
+    for task in tasks:
+        if task is not None:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass

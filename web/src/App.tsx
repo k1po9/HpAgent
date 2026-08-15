@@ -15,11 +15,17 @@ import { ArtifactPanel } from "./components/ArtifactPanel";
  */
 export function App() {
   const status = useAuth((s) => s.status);
+  const accountId = useAuth((s) => s.account?.account_id ?? null);
   const check = useAuth((s) => s.check);
+  const resetArtifacts = useArtifacts((s) => s.reset);
 
   useEffect(() => {
     void check();
   }, [check]);
+
+  useEffect(() => {
+    resetArtifacts();
+  }, [status, accountId, resetArtifacts]);
 
   if (status === "checking") {
     return (
@@ -58,7 +64,7 @@ function Workbench() {
   const createConversation = useWorkbench((s) => s.createConversation);
   const selectConversation = useWorkbench((s) => s.selectConversation);
   const openArtifactId = useArtifacts((s) => s.openArtifactId);
-  const clearArtifact = useArtifacts((s) => s.clearConversation);
+  const resetArtifacts = useArtifacts((s) => s.reset);
 
   const initialSelectionDone = useRef(false);
 
@@ -84,11 +90,17 @@ function Workbench() {
         creating={creatingConversation}
         accountName={account?.account_id ?? "账号"}
         onSelect={(id) => {
-          clearArtifact();
+          resetArtifacts();
           void selectConversation(id);
         }}
-        onCreate={() => void createConversation()}
-        onSignOut={() => void signOut()}
+        onCreate={() => {
+          resetArtifacts();
+          void createConversation();
+        }}
+        onSignOut={() => {
+          resetArtifacts();
+          void signOut();
+        }}
       />
       <Flex direction="column" className="hp-chatpane">
         {activeConversationId ? <ChatPane /> : <EmptySelection />}

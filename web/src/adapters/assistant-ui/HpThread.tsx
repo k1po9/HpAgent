@@ -53,6 +53,9 @@ function HpMessageView() {
 
   const primaryAction = async () => {
     const known = artifacts ?? (await loadForMessage(message.id));
+    // A reset invalidates an in-flight lookup. Do not reinterpret that stale
+    // response (or a lookup error) as "no Artifact" and create one implicitly.
+    if (known === null) return;
     if (known[0]) await openArtifact(known[known.length - 1]!.artifact.artifact_id);
     else await createArtifact(message.id);
   };

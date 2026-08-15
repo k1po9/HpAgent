@@ -13,7 +13,10 @@
 
 ## 2. 资源模型
 
-Migration：`persistence/migrations/010_web_artifacts.sql`。
+Schema Migration 为 `persistence/migrations/010_web_artifacts.sql`；运行时最小权限修正为
+`persistence/migrations/011_artifact_api_lock_permission.sql`。后者仅授予 API 对
+`artifacts` 的 `UPDATE`，用于 `SELECT ... FOR UPDATE` 行锁；API 仍不能更新
+`artifact_versions`，构建状态转换仍归 Worker。
 
 ```text
 completed assistant message
@@ -126,7 +129,9 @@ base-uri 'none'
 
 ## 8. Worker 组合与运维
 
-Artifact Workflow/Activity 注册到现有 Web lifecycle Worker 进程，不新增容器。主 worker 与 standalone Web worker 都启动 Artifact dispatcher 和独立 lease recovery task，并在 shutdown 时取消任务。
+Artifact Workflow/Activity 注册到现有 Web lifecycle Worker 进程，不新增容器。Dispatcher、Workflow Activity 与 Worker 注册统一使用 `WEB_LIFECYCLE_TASK_QUEUE`（当前值 `hpagent-web-lifecycle`），代码中的 `ARTIFACT_TASK_QUEUE` 只是该常量的别名，不维护第二个字符串。主 worker 与 standalone Web worker 都启动 Artifact dispatcher 和独立 lease recovery task，并在 shutdown 时取消任务。
+
+Artifact Activity 的 Temporal retry 上限为 3，但只用于 Activity 基础设施异常、Worker 丢失或未被 BuildService 收口的异常。`artifact_model_timeout`、`artifact_model_unavailable`、无效/超大 HTML 等业务生成失败由 BuildService 持久化为 terminal `failed` 并正常返回小状态，不触发 Temporal 重试。这避免对确定失败进行重复模型计费，同时允许 Worker 崩溃后的 durable redelivery。
 
 关键配置：
 
@@ -145,6 +150,10 @@ cd web && TMPDIR=/tmp npm run build
 ```
 
 需要 PostgreSQL/Temporal 的持久化与 E2E 测试仍使用项目既有环境变量和 compose 测试栈。全量本地 Python 测试若容器不允许 nsjail namespace，会出现 `exit_code=255`，该环境失败与 Artifact 逻辑无关。
+
+关键结构化日志事件为 `artifact_outbox_claimed|processed|retry|dead_letter` 与
+`artifact_build_started|completed|failed`。字段只包含 outbox/version ID、attempt、
+status 和稳定 failure code；日志及 Temporal History 均不记录 source Markdown 或 HTML。
 
 ## 9. 当前实现范围
 

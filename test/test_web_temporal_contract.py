@@ -21,13 +21,13 @@ from agent_execution.facade import (
     NullExecutionAuditSink,
     StableExecutionFailure,
 )
-from agent_execution.qq_host import QQLegacyExecutionControl, QQExecutionHost, qq_execution_id
+from agent_execution.qq_host import QQExecutionHost, QQLegacyExecutionControl, qq_execution_id
 from agent_execution.web_adapters import TemporalActivityControl
 from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
-from workspace.isolation import WorkspaceRecoveryRequired
 from application.conversation import ConversationService
 from common.types import ChannelType, UnifiedMessage
+from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.web_dispatcher import (
     StartDecision,
@@ -43,7 +43,6 @@ from orchestration.web_workers import (
     validate_standalone_web_worker_topology,
     validate_web_worker_startup,
 )
-from orchestration.artifact_workflow import ArtifactBuildWorkflow
 from orchestration.web_workflow import (
     _AGENT_NO_RETRY,
     WEB_AGENT_TASK_QUEUE,
@@ -53,6 +52,7 @@ from orchestration.web_workflow import (
     WebRunWorkflowInput,
 )
 from web_domain.lifecycle import LifecycleAuthority
+from workspace.isolation import WorkspaceRecoveryRequired
 
 
 def test_web_temporal_defaults_are_isolated_from_qq_queue():
@@ -141,6 +141,10 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
     assert made[0]["workflows"] == [WebRunWorkflow, ArtifactBuildWorkflow]
     assert made[1]["task_queue"] == WEB_AGENT_TASK_QUEUE
     assert made[1]["workflows"] == []
+
+
+def test_artifact_uses_the_registered_web_lifecycle_task_queue():
+    assert ARTIFACT_TASK_QUEUE == WEB_LIFECYCLE_TASK_QUEUE
 
 
 @pytest.mark.asyncio

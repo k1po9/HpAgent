@@ -1,5 +1,7 @@
 # HpAgent Web 系统架构设计
 
+> Web Artifact 是 completed Assistant Message 上的 durable、可版本化 Web 派生资源，不是第二种 Chat Run。组件、部署和 iframe 安全边界见 [Web Artifact 实现](hpagent-web-artifact-implementation.md)。
+
 ## 1. 文档信息
 
 | 项目 | 内容 |

@@ -1,5 +1,7 @@
 # HpAgent Web Temporal 与执行生命周期详细设计
 
+> Artifact 使用独立 `ArtifactBuildWorkflow`，但与生命周期 Activity 一样统一由 `hpagent-web-lifecycle` queue 承载；HTML 在 Activity 内提交 PostgreSQL，不进入 Workflow History。详见 [Web Artifact 实现](hpagent-web-artifact-implementation.md)。
+
 ## 1. 文档信息
 
 | 项目 | 内容 |

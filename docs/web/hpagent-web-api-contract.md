@@ -1,5 +1,7 @@
 # HpAgent Web API 与 SSE 契约
 
+> Web Artifact 是 completed Assistant Message 之上的独立派生子域，不扩展 Chat Run/SSE 协议。Artifact create/list/version/polling API 的实现契约见 [Web Artifact 实现](hpagent-web-artifact-implementation.md)。
+
 ## 1. 文档信息
 
 | 项目 | 内容 |

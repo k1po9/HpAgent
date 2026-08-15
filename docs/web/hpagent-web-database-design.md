@@ -1,5 +1,7 @@
 # HpAgent Web 数据库与持久化详细设计
 
+> `artifacts`、`artifact_versions` 与独立 `artifact_outbox_events` 是 completed Assistant Message 的派生资源，不属于 `runs` 或 `outbox_events`。实际约束、权限与事务边界见 [Web Artifact 实现](hpagent-web-artifact-implementation.md)。
+
 ## 1. 文档信息
 
 | 项目 | 内容 |

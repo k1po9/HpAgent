@@ -1,5 +1,7 @@
 # HpAgent Web 领域模型与状态模型设计
 
+> Web Artifact 是独立派生子域：Chat Run 仍只产出 Assistant Markdown Message，Artifact Build 不占用 Conversation active-run。详细状态模型见 [Web Artifact 实现](hpagent-web-artifact-implementation.md)。
+
 ## 1. 文档信息
 
 | 项目 | 内容 |
