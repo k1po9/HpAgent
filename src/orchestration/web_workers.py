@@ -17,6 +17,7 @@ from temporalio.worker import Worker
 from account.validation import validate_unified_account_backend
 from workspace.isolation import WorkspaceIsolationMode
 
+from .artifact_workflow import ArtifactBuildWorkflow
 from .web_workflow import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
     WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS,
@@ -143,7 +144,7 @@ def build_web_temporal_workers(
         lifecycle=Worker(
             client,
             task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-            workflows=[WebRunWorkflow],
+            workflows=[WebRunWorkflow, ArtifactBuildWorkflow],
             activities=list(lifecycle_activities),
         ),
         agent=Worker(

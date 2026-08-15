@@ -27,3 +27,11 @@ class SendMessageRequest(StrictModel):
 
 class EmptyRequest(StrictModel):
     pass
+
+
+class CreateArtifactRequest(StrictModel):
+    instruction: str | None = Field(default=None, max_length=4000)
+
+
+class CreateArtifactVersionRequest(StrictModel):
+    instruction: str = Field(min_length=1, max_length=4000)

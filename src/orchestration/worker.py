@@ -71,6 +71,7 @@ class WebWorkerComposition:
     dispatcher: object  # WebOutboxDispatcher
     reconciler: object  # WebRunReconciler
     memory_retention: object = None  # MemoryRetentionService | None (Phase F)
+    artifact_dispatcher: object = None
 
 
 def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> WebWorkerComposition:
@@ -94,6 +95,14 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_execution.web_events import RedisWebRunEventSinkFactory
     from agent_execution.web_host import WebExecutionHost
     from application.context_assembly import ContextAssemblyService
+    from orchestration.artifact_activities import (
+        execute_artifact_build_activity,
+        inject_artifact_build_service,
+    )
+    from orchestration.artifact_dispatcher import (
+        ArtifactOutboxDispatcher,
+        TemporalArtifactClient,
+    )
     from orchestration.web_activities import (
         execute_agent_activity,
         finalize_cancelled_activity,
@@ -116,6 +125,9 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         build_web_temporal_workers,
         validate_web_worker_startup,
     )
+    from web_artifacts.build import ArtifactBuildService
+    from web_artifacts.generator import WebArtifactGenerator
+    from web_artifacts.outbox import ArtifactOutboxService
     from web_domain.lifecycle import WebRunLifecycleService
     from web_domain.outbox import OutboxService
     from web_domain.workflow_execution import PostgresWorkflowExecutionStore
@@ -165,12 +177,21 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     )
     inject_web_lifecycle(lifecycle)
     inject_web_execution_host(web_host)
+    artifact_build = ArtifactBuildService(
+        worker_database_url,
+        WebArtifactGenerator(
+            deps.resource_pool,
+            max_bytes=int(os.getenv("ARTIFACT_HTML_MAX_BYTES", str(1024 * 1024))),
+        ),
+    )
+    inject_artifact_build_service(artifact_build)
     workers = build_web_temporal_workers(
         client,
         lifecycle_activities=[
             prepare_run_activity,
             finalize_failed_activity,
             finalize_cancelled_activity,
+            execute_artifact_build_activity,
         ],
         agent_activities=[execute_agent_activity],
     )
@@ -197,8 +218,13 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
             worker_database_url, deps.hindsight_client
         )
         logger.info("MemoryRetentionService composed (retain_memory consumer)")
+    artifact_dispatcher = ArtifactOutboxDispatcher(
+        ArtifactOutboxService(worker_database_url), TemporalArtifactClient(client),
+        worker_id=f"hpagent-artifact-dispatcher-{os.getpid()}",
+    )
     logger.info("Web real-Agent composition passed C-07 gate")
-    return WebWorkerComposition(workers, dispatcher, reconciler, memory_retention)
+    return WebWorkerComposition(workers, dispatcher, reconciler, memory_retention,
+                                artifact_dispatcher)
 
 
 def _build_web_background_tasks(
@@ -208,7 +234,8 @@ def _build_web_background_tasks(
     web_memory_retention,
     lease_timeout_seconds: int,
     recovery_interval_seconds: float,
-) -> tuple[asyncio.Task | None, asyncio.Task | None, asyncio.Task | None, asyncio.Task | None, asyncio.Task | None]:
+    artifact_dispatcher=None,
+) -> tuple[asyncio.Task | None, ...]:
     """把 Web 组合产物变成可取消的后台任务，供 ``start_worker`` 前台运行。
 
     Dispatcher / Reconciler / 过期 lease 恢复 / Memory Retention（Phase F）各占
@@ -218,6 +245,10 @@ def _build_web_background_tasks(
     """
     # 惰性导入与 compose_web_workers 一致：web 组合产物只在
     # web_real_agent_enabled 时构建，模块顶层不引 Temporal 侧依赖。
+    from orchestration.artifact_dispatcher import (
+        run_artifact_dispatcher_loop,
+        run_artifact_outbox_recovery_loop,
+    )
     from orchestration.web_dispatcher import run_web_outbox_recovery_loop
 
     dispatcher_task = asyncio.create_task(_run_web_dispatcher_loop(web_dispatcher))
@@ -259,13 +290,24 @@ def _build_web_background_tasks(
                 event_types={"retain_memory"},
             )
         )
-    return (
+    artifact_dispatcher_task = asyncio.create_task(
+        run_artifact_dispatcher_loop(artifact_dispatcher)
+    ) if artifact_dispatcher is not None else None
+    artifact_recovery_task = asyncio.create_task(
+        run_artifact_outbox_recovery_loop(
+            artifact_dispatcher.outbox, lease_timeout_seconds, recovery_interval_seconds
+        )
+    ) if artifact_dispatcher is not None else None
+    base_tasks = (
         dispatcher_task,
         reconciler_task,
         recovery_task,
         memory_retention_task,
         memory_retention_recovery_task,
     )
+    if artifact_dispatcher is None:
+        return base_tasks
+    return base_tasks + (artifact_dispatcher_task, artifact_recovery_task)
 
 
 @dataclasses.dataclass
@@ -681,6 +723,7 @@ async def start_worker(config: AppConfig) -> None:
     web_dispatcher = None
     web_reconciler = None
     web_memory_retention = None
+    web_artifact_dispatcher = None
     if config.temporal.web_real_agent_enabled:
         composition = compose_web_workers(client, config, deps)
         web_workers = composition.workers
@@ -689,6 +732,7 @@ async def start_worker(config: AppConfig) -> None:
         # Phase F: MemoryRetentionService 挂在组合层（composition.memory_retention），
         # 不在 composition.workers 上 —— 那里只有 lifecycle/agent（C-07）。
         web_memory_retention = composition.memory_retention
+        web_artifact_dispatcher = composition.artifact_dispatcher
 
     # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
     _channel_factories = {
@@ -747,6 +791,8 @@ async def start_worker(config: AppConfig) -> None:
     web_outbox_recovery_task = None
     memory_retention_task = None
     memory_retention_recovery_task = None
+    artifact_dispatcher_task = None
+    artifact_recovery_task = None
 
     try:
         async with AsyncExitStack() as worker_stack:
@@ -764,10 +810,13 @@ async def start_worker(config: AppConfig) -> None:
                     web_outbox_recovery_task,
                     memory_retention_task,
                     memory_retention_recovery_task,
+                    artifact_dispatcher_task,
+                    artifact_recovery_task,
                 ) = _build_web_background_tasks(
                     web_dispatcher=web_dispatcher,
                     web_reconciler=web_reconciler,
                     web_memory_retention=web_memory_retention,
+                    artifact_dispatcher=web_artifact_dispatcher,
                     lease_timeout_seconds=config.temporal.web_outbox_lease_timeout_seconds,
                     recovery_interval_seconds=config.temporal.web_outbox_recovery_interval_seconds,
                 )
@@ -803,6 +852,8 @@ async def start_worker(config: AppConfig) -> None:
             web_outbox_recovery_task=web_outbox_recovery_task,
             memory_retention_task=memory_retention_task,
             memory_retention_recovery_task=memory_retention_recovery_task,
+            artifact_dispatcher_task=artifact_dispatcher_task,
+            artifact_recovery_task=artifact_recovery_task,
             deps=deps,
         )
 
@@ -817,6 +868,8 @@ async def _shutdown_worker_resources(
     web_outbox_recovery_task,
     memory_retention_task,
     memory_retention_recovery_task,
+    artifact_dispatcher_task,
+    artifact_recovery_task,
     deps,
 ) -> None:
     """Always release monitors/background tasks, including task cancellation."""
@@ -877,6 +930,16 @@ async def _shutdown_worker_resources(
             await memory_retention_recovery_task
         except asyncio.CancelledError:
             pass
+
+    for task in (artifact_dispatcher_task, artifact_recovery_task):
+        if task is not None:
+            task.cancel()
+    for task in (artifact_dispatcher_task, artifact_recovery_task):
+        if task is not None:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
     if deps.mcp_manager is not None:
         try:

@@ -43,6 +43,7 @@ from orchestration.web_workers import (
     validate_standalone_web_worker_topology,
     validate_web_worker_startup,
 )
+from orchestration.artifact_workflow import ArtifactBuildWorkflow
 from orchestration.web_workflow import (
     _AGENT_NO_RETRY,
     WEB_AGENT_TASK_QUEUE,
@@ -137,7 +138,7 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
     workers = build_web_temporal_workers(object(), lifecycle_activities=[], agent_activities=[])
     assert workers.lifecycle is not workers.agent
     assert made[0]["task_queue"] == WEB_LIFECYCLE_TASK_QUEUE
-    assert made[0]["workflows"] == [WebRunWorkflow]
+    assert made[0]["workflows"] == [WebRunWorkflow, ArtifactBuildWorkflow]
     assert made[1]["task_queue"] == WEB_AGENT_TASK_QUEUE
     assert made[1]["workflows"] == []
 

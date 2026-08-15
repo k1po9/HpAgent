@@ -13,12 +13,14 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAuiState,
 } from "@assistant-ui/react";
 import { Flex, Text } from "@radix-ui/themes";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { HpMessage, HpRun } from "../../api/types";
 import { useHpThreadRuntime } from "./runtime";
+import { useArtifacts } from "../../store/artifacts";
 
 export interface HpThreadProps {
   messages: HpMessage[];
@@ -41,6 +43,19 @@ function HpTextPart({ text }: { text: string }) {
 }
 
 function HpMessageView() {
+  const message = useAuiState((s) => s.message);
+  const artifacts = useArtifacts((s) => s.artifactsByMessageId[message.id]);
+  const loading = useArtifacts((s) => s.loadingMessageIds.includes(message.id));
+  const loadForMessage = useArtifacts((s) => s.loadForMessage);
+  const createArtifact = useArtifacts((s) => s.createArtifact);
+  const openArtifact = useArtifacts((s) => s.openArtifact);
+  const canBuild = message.role === "assistant" && message.status?.type === "complete";
+
+  const primaryAction = async () => {
+    const known = artifacts ?? (await loadForMessage(message.id));
+    if (known[0]) await openArtifact(known[known.length - 1]!.artifact.artifact_id);
+    else await createArtifact(message.id);
+  };
   return (
     <MessagePrimitive.Root className="hp-msg">
       <MessagePrimitive.If user>
@@ -50,6 +65,18 @@ function HpMessageView() {
         <span className="hp-msg__marker hp-msg__marker--assistant" aria-hidden="true" />
       </MessagePrimitive.If>
       <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
+      {canBuild ? (
+        <div className="hp-artifact-actions">
+          <button type="button" disabled={loading} onClick={() => void primaryAction()}>
+            {loading ? "加载中…" : artifacts?.length ? "打开 Artifact" : "生成 Artifact"}
+          </button>
+          {artifacts?.length ? (
+            <button type="button" onClick={() => void createArtifact(message.id)}>
+              再生成一个
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </MessagePrimitive.Root>
   );
 }

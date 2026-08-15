@@ -5,6 +5,8 @@ import { ConversationSidebar } from "./components/ConversationSidebar";
 import { LoginForm } from "./components/LoginForm";
 import { useAuth } from "./store/auth";
 import { useWorkbench } from "./store/workbench";
+import { useArtifacts } from "./store/artifacts";
+import { ArtifactPanel } from "./components/ArtifactPanel";
 
 /**
  * Auth gate: probe `/api/v1/me` on mount; signed-in sessions open the chat
@@ -55,6 +57,8 @@ function Workbench() {
   const loadConversations = useWorkbench((s) => s.loadConversations);
   const createConversation = useWorkbench((s) => s.createConversation);
   const selectConversation = useWorkbench((s) => s.selectConversation);
+  const openArtifactId = useArtifacts((s) => s.openArtifactId);
+  const clearArtifact = useArtifacts((s) => s.clearConversation);
 
   const initialSelectionDone = useRef(false);
 
@@ -79,13 +83,17 @@ function Workbench() {
         loading={loadingConversations}
         creating={creatingConversation}
         accountName={account?.account_id ?? "账号"}
-        onSelect={(id) => void selectConversation(id)}
+        onSelect={(id) => {
+          clearArtifact();
+          void selectConversation(id);
+        }}
         onCreate={() => void createConversation()}
         onSignOut={() => void signOut()}
       />
       <Flex direction="column" className="hp-chatpane">
         {activeConversationId ? <ChatPane /> : <EmptySelection />}
       </Flex>
+      {openArtifactId ? <ArtifactPanel /> : null}
     </Flex>
   );
 }

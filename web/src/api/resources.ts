@@ -14,6 +14,9 @@ import type {
   HpRetryResult,
   HpRunSnapshot,
   HpSendResult,
+  HpArtifact,
+  HpArtifactSummary,
+  HpArtifactVersion,
 } from "./types";
 
 export interface SendMessageOptions {
@@ -120,6 +123,52 @@ export class HpApi {
       body: {},
       idempotencyKey,
     });
+  }
+
+  async listMessageArtifacts(messageId: string): Promise<{ items: HpArtifactSummary[] }> {
+    return this.client.request({ method: "GET", path: `/api/v1/messages/${messageId}/artifacts` });
+  }
+
+  async createArtifact(
+    messageId: string,
+    instruction: string | null,
+    idempotencyKey: string,
+  ): Promise<{ artifact: HpArtifact; version: HpArtifactVersion }> {
+    return this.client.request({
+      method: "POST",
+      path: `/api/v1/messages/${messageId}/artifacts`,
+      body: { instruction },
+      idempotencyKey,
+    });
+  }
+
+  async getArtifact(
+    artifactId: string,
+  ): Promise<{ artifact: HpArtifact; latest_version: HpArtifactVersion | null }> {
+    return this.client.request({ method: "GET", path: `/api/v1/artifacts/${artifactId}` });
+  }
+
+  async listArtifactVersions(
+    artifactId: string,
+  ): Promise<{ artifact: HpArtifact; items: HpArtifactVersion[] }> {
+    return this.client.request({ method: "GET", path: `/api/v1/artifacts/${artifactId}/versions` });
+  }
+
+  async createArtifactVersion(
+    artifactId: string,
+    instruction: string,
+    idempotencyKey: string,
+  ): Promise<{ artifact: HpArtifact; version: HpArtifactVersion }> {
+    return this.client.request({
+      method: "POST",
+      path: `/api/v1/artifacts/${artifactId}/versions`,
+      body: { instruction },
+      idempotencyKey,
+    });
+  }
+
+  async getArtifactVersion(versionId: string): Promise<{ version: HpArtifactVersion }> {
+    return this.client.request({ method: "GET", path: `/api/v1/artifact-versions/${versionId}` });
   }
 }
 

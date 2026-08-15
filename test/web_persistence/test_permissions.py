@@ -53,3 +53,20 @@ def test_worker_cannot_insert_identity_bindings(worker_database_url: str) -> Non
                 "VALUES (%s,%s,'web','x','x',now())",
                 (uuid4(), uuid4()),
             )
+
+
+def test_artifact_runtime_permissions_are_split_by_responsibility(
+    database_url: str, worker_database_url: str
+) -> None:
+    with psycopg.connect(database_url) as connection:
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            connection.execute(
+                "UPDATE hpagent.artifact_versions SET status='completed' WHERE false"
+            )
+    with psycopg.connect(worker_database_url) as connection:
+        with pytest.raises(psycopg.errors.InsufficientPrivilege):
+            connection.execute(
+                "INSERT INTO hpagent.artifacts(artifact_id,account_id,conversation_id,"
+                "source_message_id) VALUES (%s,%s,%s,%s)",
+                (uuid4(), uuid4(), uuid4(), uuid4()),
+            )

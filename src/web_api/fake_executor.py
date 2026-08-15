@@ -5,7 +5,11 @@ import contextlib
 from uuid import UUID
 
 from agent_execution.web_events import RedisWebRunEventSinkFactory
+from common.types import ModelResponse
 from persistence.uow import UnitOfWork
+from web_artifacts.build import ArtifactBuildService
+from web_artifacts.generator import WebArtifactGenerator
+from web_artifacts.outbox import ArtifactOutboxService
 from web_domain.outbox import OutboxService
 from web_domain.services import CommandService
 
@@ -133,3 +137,48 @@ class FakeRunExecutor:
             await sink.progress("finalizing", "正在完成处理")
         finally:
             await sink.close()
+
+
+class _FakeArtifactModel:
+    async def generate(self, **_kwargs) -> ModelResponse:
+        return ModelResponse(content=(
+            "<!doctype html><html><head><title>Test Artifact</title></head><body>"
+            "<h1>Interactive Artifact</h1><button id='toggle'>切换状态</button>"
+            "<p id='state'>关闭</p><script>document.querySelector('#toggle').onclick=()=>{"
+            "document.querySelector('#state').textContent='开启'}</script></body></html>"
+        ))
+
+
+class FakeArtifactExecutor:
+    """E2E-only durable Artifact consumer; production always uses Temporal."""
+
+    def __init__(self, database: object, settings: WebApiSettings):
+        if settings.environment == "production":
+            raise ValueError("fake artifact executor cannot run in production")
+        self.outbox = ArtifactOutboxService(database)
+        self.build = ArtifactBuildService(database, WebArtifactGenerator(_FakeArtifactModel()))
+        self.worker_id = "web-e2e-fake-artifact"
+        self._task: asyncio.Task[None] | None = None
+
+    def start(self) -> None:
+        self._task = asyncio.create_task(self._run())
+
+    async def stop(self) -> None:
+        if self._task:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+
+    async def _run(self) -> None:
+        while True:
+            events = await asyncio.to_thread(self.outbox.claim, self.worker_id, 10)
+            if not events:
+                await asyncio.sleep(0.01)
+                continue
+            for event in events:
+                await self.build.execute(UUID(str(event["artifact_version_id"])))
+                await asyncio.to_thread(
+                    self.outbox.mark_processed,
+                    UUID(str(event["artifact_outbox_event_id"])),
+                    self.worker_id,
+                )

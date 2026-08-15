@@ -23,6 +23,7 @@ from uuid6 import uuid7
 
 from common.logging import log_event
 from persistence.uow import UnitOfWork
+from web_artifacts.services import ArtifactService
 from web_domain.errors import (
     ConversationBusy,
     DomainError,
@@ -41,8 +42,10 @@ from .auth import (
     CredentialAdapter,
 )
 from .config import WebApiSettings
-from .fake_executor import FakeRunExecutor
+from .fake_executor import FakeArtifactExecutor, FakeRunExecutor
 from .models import (
+    CreateArtifactRequest,
+    CreateArtifactVersionRequest,
     CreateConversationRequest,
     EmptyRequest,
     LoginRequest,
@@ -210,6 +213,7 @@ def create_app(
         app.state.api_pool = api_pool
         app.state.auth = AuthService(api_pool, settings)
         app.state.commands = CommandService(api_pool)
+        app.state.artifacts = ArtifactService(api_pool)
         app.state.queries = QueryService(
             api_pool,
             CursorCodec(
@@ -234,6 +238,7 @@ def create_app(
             publisher.start()
             app.state.terminal_publisher = publisher
         fake = None
+        fake_artifact = None
         if settings.fake_executor_enabled:
             worker_pool = ConnectionPool(
                 settings.worker_database_url or "",
@@ -246,10 +251,14 @@ def create_app(
             app.state.worker_pool = worker_pool
             fake = FakeRunExecutor(worker_pool, settings, redis_client)
             fake.start()
+            fake_artifact = FakeArtifactExecutor(worker_pool, settings)
+            fake_artifact.start()
         try:
             yield
         finally:
             if fake:
+                if fake_artifact:
+                    await fake_artifact.stop()
                 await fake.stop()
                 app.state.worker_pool.close()
             if publisher:
@@ -485,6 +494,66 @@ def create_app(
     @app.get("/api/v1/runs/{run_id}")
     def get_run(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
         return request.app.state.queries.get_run(context.account_id, run_id)
+
+    @app.post("/api/v1/messages/{message_id}/artifacts")
+    def create_artifact(message_id: UUID, payload: CreateArtifactRequest, request: Request,
+                        context: AuthContext = Depends(csrf_guard),
+                        key: str = Depends(idempotency_key)):
+        try:
+            result: CommandResult = request.app.state.artifacts.create_artifact(
+                context.account_id, message_id, key, payload.instruction
+            )
+        except ValueError as exc:
+            if str(exc) == "artifact_source_invalid":
+                return _error(request, 409, "artifact_source_invalid",
+                              "只能从已完成的 Assistant 消息生成 Artifact。")
+            raise
+        response = JSONResponse(status_code=result.response_status, content=result.body)
+        response.headers["Location"] = (
+            f'/api/v1/artifacts/{result.body["artifact"]["artifact_id"]}'
+        )
+        if result.replayed:
+            response.headers["Idempotency-Replayed"] = "true"
+        return response
+
+    @app.get("/api/v1/messages/{message_id}/artifacts")
+    def list_message_artifacts(message_id: UUID, request: Request,
+                               context: AuthContext = Depends(auth_context)):
+        return request.app.state.artifacts.list_for_message(context.account_id, message_id)
+
+    @app.get("/api/v1/artifacts/{artifact_id}")
+    def get_artifact(artifact_id: UUID, request: Request,
+                     context: AuthContext = Depends(auth_context)):
+        return request.app.state.artifacts.get_artifact(context.account_id, artifact_id)
+
+    @app.get("/api/v1/artifacts/{artifact_id}/versions")
+    def list_artifact_versions(artifact_id: UUID, request: Request,
+                               context: AuthContext = Depends(auth_context)):
+        return request.app.state.artifacts.list_versions(context.account_id, artifact_id)
+
+    @app.post("/api/v1/artifacts/{artifact_id}/versions")
+    def create_artifact_version(artifact_id: UUID, payload: CreateArtifactVersionRequest,
+                                request: Request, context: AuthContext = Depends(csrf_guard),
+                                key: str = Depends(idempotency_key)):
+        try:
+            result: CommandResult = request.app.state.artifacts.create_version(
+                context.account_id, artifact_id, key, payload.instruction
+            )
+        except ValueError as exc:
+            if str(exc) == "artifact_instruction_required":
+                return _error(request, 422, "validation_error", "修改要求不能为空。")
+            raise
+        response = JSONResponse(status_code=result.response_status, content=result.body)
+        if result.replayed:
+            response.headers["Idempotency-Replayed"] = "true"
+        return response
+
+    @app.get("/api/v1/artifact-versions/{artifact_version_id}")
+    def get_artifact_version(artifact_version_id: UUID, request: Request,
+                             context: AuthContext = Depends(auth_context)):
+        return request.app.state.artifacts.get_version(
+            context.account_id, artifact_version_id
+        )
 
     @app.get("/api/v1/runs/{run_id}/events")
     async def run_events(

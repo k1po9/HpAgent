@@ -53,6 +53,10 @@ logger = logging.getLogger("HpAgent.WebWorker")
 
 from temporalio.client import Client
 
+from orchestration.artifact_dispatcher import (
+    run_artifact_dispatcher_loop,
+    run_artifact_outbox_recovery_loop,
+)
 from orchestration.config import AppConfig
 from orchestration.memory_retention_worker import run_memory_retention_loop
 from orchestration.web_dispatcher import run_web_outbox_recovery_loop
@@ -92,6 +96,8 @@ async def main_async() -> None:
     recovery_task: asyncio.Task | None = None
     memory_retention_task: asyncio.Task | None = None
     memory_retention_recovery_task: asyncio.Task | None = None
+    artifact_dispatcher_task: asyncio.Task | None = None
+    artifact_recovery_task: asyncio.Task | None = None
     try:
         async with AsyncExitStack() as worker_stack:
             await worker_stack.enter_async_context(composition.workers.lifecycle)
@@ -109,6 +115,17 @@ async def main_async() -> None:
                     config.temporal.web_outbox_recovery_interval_seconds,
                 )
             )
+            if composition.artifact_dispatcher is not None:
+                artifact_dispatcher_task = asyncio.create_task(
+                    run_artifact_dispatcher_loop(composition.artifact_dispatcher)
+                )
+                artifact_recovery_task = asyncio.create_task(
+                    run_artifact_outbox_recovery_loop(
+                        composition.artifact_dispatcher.outbox,
+                        config.temporal.web_outbox_lease_timeout_seconds,
+                        config.temporal.web_outbox_recovery_interval_seconds,
+                    )
+                )
             if composition.memory_retention is not None:
                 memory_retention_task = asyncio.create_task(
                     run_memory_retention_loop(
@@ -139,6 +156,8 @@ async def main_async() -> None:
             recovery_task,
             memory_retention_task,
             memory_retention_recovery_task,
+            artifact_dispatcher_task,
+            artifact_recovery_task,
         )
         for task in _background:
             if task is not None:

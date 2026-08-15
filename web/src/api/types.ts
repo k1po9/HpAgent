@@ -103,6 +103,38 @@ export interface HpMessagePage extends HpPage<HpMessage> {
   conversation_last_message_seq: number;
 }
 
+export type HpArtifactKind = "html";
+export type HpArtifactVersionStatus = "queued" | "running" | "completed" | "failed";
+
+export interface HpArtifact {
+  artifact_id: string;
+  conversation_id: string;
+  source_message_id: string;
+  kind: HpArtifactKind;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface HpArtifactVersion {
+  artifact_version_id: string;
+  artifact_id: string;
+  version: number;
+  parent_version_id: string | null;
+  status: HpArtifactVersionStatus;
+  instruction: string | null;
+  html: string | null;
+  failure: { code: string; message: string } | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface HpArtifactSummary {
+  artifact: HpArtifact;
+  latest_version: HpArtifactVersion | null;
+}
+
 /** Stable error codes (contract §10.2). */
 export type HpErrorCode =
   | "unauthenticated"
