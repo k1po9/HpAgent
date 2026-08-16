@@ -16,6 +16,7 @@ export function LoginForm() {
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [registeredPendingLogin, setRegisteredPendingLogin] = useState(false);
   const check = useAuth((s) => s.check);
   const markRegistered = useAuth((s) => s.markRegistered);
   const dismissRegistrationHint = useAuth((s) => s.dismissRegistrationHint);
@@ -29,11 +30,26 @@ export function LoginForm() {
         if (password !== confirmation) {
           throw new Error("两次输入的密码不一致。");
         }
-        await api.register(username, password);
+        const sessionEstablished = await api.register(username, password);
+        if (!sessionEstablished) {
+          setRegisteredPendingLogin(true);
+          setMode("login");
+          setConfirmation("");
+          setError("注册成功，但自动登录失败。请使用刚注册的账号登录。");
+          return;
+        }
+        setRegisteredPendingLogin(false);
         markRegistered();
       } else {
-        dismissRegistrationHint();
-        await api.login(username, password);
+        if (!(await api.login(username, password))) {
+          throw new Error("登录会话未建立，请重试。");
+        }
+        if (registeredPendingLogin) {
+          markRegistered();
+          setRegisteredPendingLogin(false);
+        } else {
+          dismissRegistrationHint();
+        }
       }
       await check();
     } catch (err) {
@@ -109,6 +125,7 @@ export function LoginForm() {
             disabled={submitting}
             onClick={() => {
               setMode(mode === "login" ? "register" : "login");
+              setRegisteredPendingLogin(false);
               setError(null);
               setConfirmation("");
             }}

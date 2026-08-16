@@ -1,16 +1,36 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Box, Button, Flex, Text } from "@radix-ui/themes";
 import { api, type MeResponse, type QqBindingChallenge } from "../api/client";
 
 interface QQBindingPanelProps {
   qq: MeResponse["identities"]["qq"] | undefined;
   onCompleted: () => Promise<void>;
+  startRequested?: boolean;
 }
 
-export function QQBindingPanel({ qq, onCompleted }: QQBindingPanelProps) {
+export function QQBindingPanel({ qq, onCompleted, startRequested = false }: QQBindingPanelProps) {
   const [challenge, setChallenge] = useState<QqBindingChallenge | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const automaticStartHandled = useRef(false);
+
+  const createChallenge = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setChallenge(await api.createQqBindingChallenge());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "生成绑定码失败。");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!startRequested || qq?.bound || challenge || automaticStartHandled.current) return;
+    automaticStartHandled.current = true;
+    void createChallenge();
+  }, [challenge, createChallenge, qq?.bound, startRequested]);
 
   useEffect(() => {
     if (!challenge?.challenge_id || challenge.status === "completed") return;
@@ -45,18 +65,6 @@ export function QQBindingPanel({ qq, onCompleted }: QQBindingPanelProps) {
         <Text size="2">{qq.display_subject ?? "已绑定"}</Text>
       </Box>
     );
-  }
-
-  async function createChallenge() {
-    setLoading(true);
-    setError(null);
-    try {
-      setChallenge(await api.createQqBindingChallenge());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "生成绑定码失败。");
-    } finally {
-      setLoading(false);
-    }
   }
 
   return (

@@ -42,6 +42,9 @@ test("registers, auto-signs in, and can log in again", async ({ page }) => {
   await page.getByLabel("确认密码").fill("register-password");
   await page.getByRole("button", { name: "注册", exact: true }).click();
   await expect(page.locator(".hp-workbench")).toBeVisible();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "以后再说" }).click();
+  await expect(page.getByRole("alertdialog")).not.toBeVisible();
   await expect(page.getByRole("button", { name: "绑定 QQ" })).toBeVisible();
 
   await page.getByRole("button", { name: "退出登录" }).click();

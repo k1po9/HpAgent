@@ -6,6 +6,7 @@
  * surface renders (sidebar + composer) without runtime errors.
  */
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useAuth } from "./store/auth";
@@ -44,6 +45,14 @@ beforeEach(() => {
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === "/api/v1/me") return json(ME);
+    if (url === "/api/v1/identity-bindings/qq/challenges") {
+      return json({
+        challenge_id: "challenge-1",
+        code: "HP-123456",
+        status: "pending",
+        expires_at: "2026-08-16T00:05:00Z",
+      });
+    }
     if (url.startsWith("/api/v1/conversations?") || url === "/api/v1/conversations") {
       return json({ items: [CONVERSATION], next_cursor: null, has_more: false });
     }
@@ -72,9 +81,17 @@ describe("App workbench", () => {
   });
 
   it("prompts a newly registered existing QQ user to bind first", async () => {
+    const user = userEvent.setup();
     useAuth.setState({ justRegistered: true });
     render(<App />);
-    expect(await screen.findByText("已有 QQ 用户建议先绑定")).toBeInTheDocument();
+    expect(await screen.findByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByText("已有 QQ 用户建议先绑定")).toBeInTheDocument();
     expect(screen.getByText(/继续使用原 QQ 账号的长期记忆/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "绑定已有 QQ" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "以后再说" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "绑定已有 QQ" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(await screen.findByText("绑定 HP-123456")).toBeInTheDocument();
   });
 });

@@ -121,6 +121,10 @@ export class ApiClient {
     if (!response.ok) {
       throw await this.toError(response);
     }
+    const result = (await response.json()) as { session_established?: boolean };
+    if (result.session_established === false) {
+      return false;
+    }
     return (await this.me()) !== null;
   }
 

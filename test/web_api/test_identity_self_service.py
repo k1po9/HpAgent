@@ -56,6 +56,26 @@ def test_register_duplicate_and_password_policy_are_safe(client_factory, db):
     assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 1
 
 
+def test_register_reports_success_when_session_creation_fails(client_factory, db):
+    client = client_factory(postgres_credentials=True)
+
+    def fail_session_creation(_subject):
+        raise RuntimeError("session storage unavailable")
+
+    client.app.state.auth.login = fail_session_creation
+
+    response = client.post(
+        "/auth/register",
+        json={"username": "alice", "password": "correct-password"},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["registered"] is True
+    assert response.json()["session_established"] is False
+    assert "set-cookie" not in response.headers
+    assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 1
+
+
 def test_qq_challenge_updates_me_without_entering_agent(
     client_factory, db, worker_database_url
 ):

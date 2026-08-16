@@ -15,8 +15,7 @@ interface ConversationSidebarProps {
   onSignOut: () => void;
   qqIdentity?: MeResponse["identities"]["qq"];
   onIdentityRefresh: () => Promise<void>;
-  showRegistrationHint: boolean;
-  onDismissRegistrationHint: () => void;
+  startQqBinding?: boolean;
 }
 
 /**
@@ -36,8 +35,7 @@ export function ConversationSidebar({
   onSignOut,
   qqIdentity,
   onIdentityRefresh,
-  showRegistrationHint,
-  onDismissRegistrationHint,
+  startQqBinding,
 }: ConversationSidebarProps) {
   return (
     <Box className="hp-sidebar">
@@ -92,20 +90,11 @@ export function ConversationSidebar({
         </Flex>
 
         <Box className="hp-sidebar__footer">
-          {showRegistrationHint && !qqIdentity?.bound ? (
-            <Box className="hp-registration-hint" role="status">
-              <Text as="p" size="2" weight="bold">
-                已有 QQ 用户建议先绑定
-              </Text>
-              <Text as="p" size="1" color="gray">
-                绑定后可继续使用原 QQ 账号的长期记忆。
-              </Text>
-              <Button size="1" variant="ghost" onClick={onDismissRegistrationHint}>
-                以后再说
-              </Button>
-            </Box>
-          ) : null}
-          <QQBindingPanel qq={qqIdentity} onCompleted={onIdentityRefresh} />
+          <QQBindingPanel
+            qq={qqIdentity}
+            onCompleted={onIdentityRefresh}
+            startRequested={startQqBinding}
+          />
           <Flex justify="between" align="center" mt="2">
             <Text size="1" color="gray" truncate title={accountName}>
               {accountName}

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Flex, Spinner, Text } from "@radix-ui/themes";
 import { ChatPane } from "./components/ChatPane";
 import { ConversationSidebar } from "./components/ConversationSidebar";
@@ -7,6 +7,7 @@ import { useAuth } from "./store/auth";
 import { useWorkbench } from "./store/workbench";
 import { useArtifacts } from "./store/artifacts";
 import { ArtifactPanel } from "./components/ArtifactPanel";
+import { RegistrationQqGate } from "./components/RegistrationQqGate";
 
 /**
  * Auth gate: probe `/api/v1/me` on mount; signed-in sessions open the chat
@@ -69,6 +70,7 @@ function Workbench() {
   const selectConversation = useWorkbench((s) => s.selectConversation);
   const openArtifactId = useArtifacts((s) => s.openArtifactId);
   const resetArtifacts = useArtifacts((s) => s.reset);
+  const [startQqBinding, setStartQqBinding] = useState(false);
 
   const initialSelectionDone = useRef(false);
 
@@ -86,35 +88,44 @@ function Workbench() {
   }, [conversationsLoaded, conversations, selectConversation]);
 
   return (
-    <Flex className="hp-workbench">
-      <ConversationSidebar
-        conversations={conversations}
-        activeConversationId={activeConversationId}
-        loading={loadingConversations}
-        creating={creatingConversation}
-        accountName={account?.account_id ?? "账号"}
-        onSelect={(id) => {
-          resetArtifacts();
-          void selectConversation(id);
+    <>
+      <RegistrationQqGate
+        open={justRegistered && !identities?.qq.bound}
+        onBind={() => {
+          setStartQqBinding(true);
+          dismissRegistrationHint();
         }}
-        onCreate={() => {
-          resetArtifacts();
-          void createConversation();
-        }}
-        onSignOut={() => {
-          resetArtifacts();
-          void signOut();
-        }}
-        qqIdentity={identities?.qq}
-        onIdentityRefresh={refreshIdentity}
-        showRegistrationHint={justRegistered}
-        onDismissRegistrationHint={dismissRegistrationHint}
+        onSkip={dismissRegistrationHint}
       />
-      <Flex direction="column" className="hp-chatpane">
-        {activeConversationId ? <ChatPane /> : <EmptySelection />}
+      <Flex className="hp-workbench">
+        <ConversationSidebar
+          conversations={conversations}
+          activeConversationId={activeConversationId}
+          loading={loadingConversations}
+          creating={creatingConversation}
+          accountName={account?.account_id ?? "账号"}
+          onSelect={(id) => {
+            resetArtifacts();
+            void selectConversation(id);
+          }}
+          onCreate={() => {
+            resetArtifacts();
+            void createConversation();
+          }}
+          onSignOut={() => {
+            resetArtifacts();
+            void signOut();
+          }}
+          qqIdentity={identities?.qq}
+          onIdentityRefresh={refreshIdentity}
+          startQqBinding={startQqBinding}
+        />
+        <Flex direction="column" className="hp-chatpane">
+          {activeConversationId ? <ChatPane /> : <EmptySelection />}
+        </Flex>
+        {openArtifactId ? <ArtifactPanel /> : null}
       </Flex>
-      {openArtifactId ? <ArtifactPanel /> : null}
-    </Flex>
+    </>
   );
 }
 

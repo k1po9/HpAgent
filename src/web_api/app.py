@@ -444,14 +444,33 @@ def create_app(
                 "invalid_password",
                 "密码长度必须为 8 到 128 个字符。",
             )
-        context = request.app.state.auth.login(result.normalized_subject)
+        try:
+            context = request.app.state.auth.login(result.normalized_subject)
+        except Exception:
+            logger.exception(
+                "web_registration_session_creation_raised account_id=%s",
+                result.account_id,
+            )
+            context = None
         if context is None:
-            raise RuntimeError("registered Web identity could not create a session")
+            logger.error(
+                "web_registration_session_creation_failed account_id=%s",
+                result.account_id,
+            )
+            return JSONResponse(
+                status_code=201,
+                content={
+                    "account": {"account_id": str(result.account_id)},
+                    "registered": True,
+                    "session_established": False,
+                },
+            )
         response = JSONResponse(
             status_code=201,
             content={
                 "account": {"account_id": str(context.account_id)},
                 "registered": True,
+                "session_established": True,
             },
         )
         response.set_cookie(

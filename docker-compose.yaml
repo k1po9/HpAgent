@@ -369,6 +369,9 @@ services:
       - WEB_REAL_AGENT_GATE_VERSION=c-07-v1
 
       # Unified identity
+      - HPAGENT_ENV=${HPAGENT_ENV:-development}
+      - QQ_BINDING_CODE_PEPPER=${QQ_BINDING_CODE_PEPPER:-development-qq-binding-code-pepper}
+      - QQ_BINDING_CHALLENGE_SECONDS=${QQ_BINDING_CHALLENGE_SECONDS:-300}
 
       # SiliconFlow
       - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
@@ -475,6 +478,9 @@ services:
 
       WEB_SESSION_TOKEN_PEPPER: ${WEB_SESSION_TOKEN_PEPPER:-development-session-token-pepper}
       WEB_CSRF_SIGNING_KEY: ${WEB_CSRF_SIGNING_KEY:-development-csrf-key}
+
+      QQ_BINDING_CODE_PEPPER: ${QQ_BINDING_CODE_PEPPER:-development-qq-binding-code-pepper}
+      QQ_BINDING_CHALLENGE_SECONDS: ${QQ_BINDING_CHALLENGE_SECONDS:-300}
 
       WEB_CREDENTIALS_JSON: ${WEB_CREDENTIALS_JSON:-{}}
 

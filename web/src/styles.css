@@ -171,18 +171,6 @@ body,
   border-bottom: 1px solid var(--gray-a5);
 }
 
-.hp-registration-hint {
-  margin-bottom: 10px;
-  padding: 10px;
-  border: 1px solid var(--accent-a6);
-  border-radius: 8px;
-  background: var(--accent-a2);
-}
-
-.hp-registration-hint p {
-  margin: 0 0 6px;
-}
-
 .hp-qq-binding p {
   margin: 4px 0 0;
 }

@@ -104,6 +104,18 @@ describe("ApiClient auth recovery", () => {
     expect(headerValue(seen[2]?.init?.headers, "x-csrf-token")).toBe("csrf");
   });
 
+  it("reports a registered account whose automatic session was not established", async () => {
+    const c = new ApiClient(
+      async () =>
+        new Response(JSON.stringify({ registered: true, session_established: false }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+
+    expect(await c.register("alice", "correct-password")).toBe(false);
+  });
+
   it("rotates the CSRF token exactly once on csrf_invalid, then retries", async () => {
     let postCount = 0;
     const rotationMock = async (input: RequestInfo | URL, init?: RequestInit) => {
