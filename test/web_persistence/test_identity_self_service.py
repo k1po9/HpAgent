@@ -4,8 +4,12 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
+from argon2 import PasswordHasher
 
-from account.credentials import PostgresPasswordCredentialAdapter
+from account.credentials import (
+    FallbackCredentialAdapter,
+    PostgresPasswordCredentialAdapter,
+)
 from account.identity_binding_service import (
     ChallengeExpired,
     ChallengeNotFound,
@@ -17,6 +21,7 @@ from account.registration_service import (
     RegistrationService,
     UsernameAlreadyExists,
 )
+from web_api.auth import ConfiguredPasswordCredentialAdapter
 
 pytestmark = pytest.mark.postgres
 
@@ -58,6 +63,33 @@ def test_registration_password_policy_leaves_no_partial_account(db, database_url
     with pytest.raises(InvalidPassword):
         RegistrationService(database_url).register("alice", "short")
     assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 0
+
+
+def test_database_credential_is_authoritative_over_legacy_fallback(db, database_url):
+    registration = RegistrationService(database_url)
+    registration.register("alice", "database-password")
+    bob_account, bob_binding = uuid4(), uuid4()
+    db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (bob_account,))
+    db.execute(
+        "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,"
+        "external_subject_id,normalized_subject_id,verified_at) "
+        "VALUES (%s,%s,'web','bob','bob',now())",
+        (bob_binding, bob_account),
+    )
+    hasher = PasswordHasher()
+    adapter = FallbackCredentialAdapter(
+        PostgresPasswordCredentialAdapter(database_url),
+        ConfiguredPasswordCredentialAdapter(
+            {
+                "alice": hasher.hash("legacy-password"),
+                "bob": hasher.hash("legacy-password"),
+            }
+        ),
+    )
+
+    assert adapter.verify("alice", "database-password") == "alice"
+    assert adapter.verify("alice", "legacy-password") is None
+    assert adapter.verify("bob", "legacy-password") == "bob"
 
 
 def test_binding_unbound_qq_and_single_use(db, database_url, worker_database_url):
@@ -120,6 +152,13 @@ def test_challenge_rotation_expiry_and_invalid_code(
     )
     with pytest.raises(ChallengeExpired):
         worker_service.consume_qq_challenge(current.code, "napcat", "123456")
+    persisted = db.execute(
+        "SELECT status,cancelled_at FROM identity_binding_challenges "
+        "WHERE challenge_id=%s",
+        (current.challenge_id,),
+    ).fetchone()
+    assert persisted[0] == "cancelled"
+    assert persisted[1] is not None
     with pytest.raises(ChallengeNotFound):
         worker_service.consume_qq_challenge("HP-000001", "napcat", "123456")
 

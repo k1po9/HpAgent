@@ -162,6 +162,7 @@ class IdentityBindingService:
         if normalized is None:
             raise ChallengeNotFound("unsupported QQ identity")
         now = datetime.now(UTC)
+        expired_challenge_id: UUID | None = None
         with UnitOfWork(self._database) as uow:
             challenge = uow.execute(
                 "SELECT * FROM identity_binding_challenges "
@@ -190,67 +191,86 @@ class IdentityBindingService:
                     "cancelled_at=%s WHERE challenge_id=%s",
                     (now, challenge["challenge_id"]),
                 )
-                raise ChallengeExpired("challenge expired")
+                expired_challenge_id = challenge["challenge_id"]
+            else:
+                return self._consume_pending_qq_challenge(
+                    uow, challenge, normalized, channel_type, sender_id, now
+                )
 
-            source_account = challenge["account_id"]
-            source = uow.execute(
-                "SELECT account_id,status FROM accounts WHERE account_id=%s FOR UPDATE",
+        assert expired_challenge_id is not None
+        logger.info(
+            "qq_binding_challenge_expired challenge_id=%s", expired_challenge_id
+        )
+        raise ChallengeExpired("challenge expired")
+
+    def _consume_pending_qq_challenge(
+        self,
+        uow: UnitOfWork,
+        challenge: dict,
+        normalized: str,
+        channel_type: str,
+        sender_id: str,
+        now: datetime,
+    ) -> ConsumeResult:
+        source_account = challenge["account_id"]
+        source = uow.execute(
+            "SELECT account_id,status FROM accounts WHERE account_id=%s FOR UPDATE",
+            (source_account,),
+        ).fetchone()
+        if not source or source["status"] != "active":
+            raise IdentityConflict("challenge account is not active")
+        qq_binding = uow.execute(
+            "SELECT identity_binding_id,account_id FROM identity_bindings "
+            "WHERE provider='qq' AND normalized_subject_id=%s "
+            "AND status='active' FOR UPDATE",
+            (normalized,),
+        ).fetchone()
+
+        consolidated = False
+        final_account = source_account
+        if qq_binding is None:
+            other_qq = uow.execute(
+                "SELECT 1 FROM identity_bindings WHERE account_id=%s "
+                "AND provider='qq' AND status='active' FOR UPDATE",
                 (source_account,),
             ).fetchone()
-            if not source or source["status"] != "active":
-                raise IdentityConflict("challenge account is not active")
-            qq_binding = uow.execute(
-                "SELECT identity_binding_id,account_id FROM identity_bindings "
-                "WHERE provider='qq' AND normalized_subject_id=%s "
-                "AND status='active' FOR UPDATE",
-                (normalized,),
-            ).fetchone()
-
-            consolidated = False
-            final_account = source_account
-            if qq_binding is None:
-                other_qq = uow.execute(
-                    "SELECT 1 FROM identity_bindings WHERE account_id=%s "
-                    "AND provider='qq' AND status='active' FOR UPDATE",
-                    (source_account,),
-                ).fetchone()
-                if other_qq:
-                    raise IdentityConflict("account already has a QQ identity")
-                uow.execute(
-                    "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,"
-                    "external_subject_id,normalized_subject_id,verified_at,metadata) "
-                    "VALUES (%s,%s,'qq',%s,%s,%s,"
-                    "jsonb_build_object('channel_type',%s::text))",
-                    (uuid7(), source_account, sender_id.strip(), normalized, now, channel_type),
-                )
-            elif qq_binding["account_id"] != source_account:
-                final_account = qq_binding["account_id"]
-                target = uow.execute(
-                    "SELECT account_id,status FROM accounts WHERE account_id=%s FOR UPDATE",
-                    (final_account,),
-                ).fetchone()
-                if not target or target["status"] != "active":
-                    raise IdentityConflict("existing QQ account is not active")
-                self._consolidate_empty_web_account(
-                    uow, source_account, final_account, challenge["challenge_id"]
-                )
-                consolidated = True
-
+            if other_qq:
+                raise IdentityConflict("account already has a QQ identity")
             uow.execute(
-                "UPDATE identity_binding_challenges SET status='completed',"
-                "verified_subject_id=%s,verified_normalized_subject_id=%s,"
-                "verified_at=%s,consumed_at=%s WHERE challenge_id=%s",
-                (sender_id.strip(), normalized, now, now, challenge["challenge_id"]),
+                "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,"
+                "external_subject_id,normalized_subject_id,verified_at,metadata) "
+                "VALUES (%s,%s,'qq',%s,%s,%s,"
+                "jsonb_build_object('channel_type',%s::text))",
+                (uuid7(), source_account, sender_id.strip(), normalized, now, channel_type),
             )
-            logger.info(
-                "qq_binding_challenge_completed account_id=%s challenge_id=%s channel_type=%s",
-                final_account,
-                challenge["challenge_id"],
-                channel_type,
+        elif qq_binding["account_id"] != source_account:
+            final_account = qq_binding["account_id"]
+            target = uow.execute(
+                "SELECT account_id,status FROM accounts WHERE account_id=%s FOR UPDATE",
+                (final_account,),
+            ).fetchone()
+            if not target or target["status"] != "active":
+                raise IdentityConflict("existing QQ account is not active")
+            self._consolidate_empty_web_account(
+                uow, source_account, final_account, challenge["challenge_id"]
             )
-            return ConsumeResult(
-                challenge["challenge_id"], final_account, "completed", consolidated
-            )
+            consolidated = True
+
+        uow.execute(
+            "UPDATE identity_binding_challenges SET status='completed',"
+            "verified_subject_id=%s,verified_normalized_subject_id=%s,"
+            "verified_at=%s,consumed_at=%s WHERE challenge_id=%s",
+            (sender_id.strip(), normalized, now, now, challenge["challenge_id"]),
+        )
+        logger.info(
+            "qq_binding_challenge_completed account_id=%s challenge_id=%s channel_type=%s",
+            final_account,
+            challenge["challenge_id"],
+            channel_type,
+        )
+        return ConsumeResult(
+            challenge["challenge_id"], final_account, "completed", consolidated
+        )
 
     def _consolidate_empty_web_account(
         self,

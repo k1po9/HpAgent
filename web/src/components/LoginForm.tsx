@@ -17,6 +17,8 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const check = useAuth((s) => s.check);
+  const markRegistered = useAuth((s) => s.markRegistered);
+  const dismissRegistrationHint = useAuth((s) => s.dismissRegistrationHint);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -28,7 +30,9 @@ export function LoginForm() {
           throw new Error("两次输入的密码不一致。");
         }
         await api.register(username, password);
+        markRegistered();
       } else {
+        dismissRegistrationHint();
         await api.login(username, password);
       }
       await check();
@@ -65,7 +69,7 @@ export function LoginForm() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
               minLength={mode === "register" ? 8 : undefined}
               required
             />

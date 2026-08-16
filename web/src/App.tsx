@@ -60,6 +60,8 @@ function Workbench() {
   const activeConversationId = useWorkbench((s) => s.activeConversationId);
   const account = useAuth((s) => s.account);
   const identities = useAuth((s) => s.identities);
+  const justRegistered = useAuth((s) => s.justRegistered);
+  const dismissRegistrationHint = useAuth((s) => s.dismissRegistrationHint);
   const refreshIdentity = useAuth((s) => s.check);
   const signOut = useAuth((s) => s.signOut);
   const loadConversations = useWorkbench((s) => s.loadConversations);
@@ -105,6 +107,8 @@ function Workbench() {
         }}
         qqIdentity={identities?.qq}
         onIdentityRefresh={refreshIdentity}
+        showRegistrationHint={justRegistered}
+        onDismissRegistrationHint={dismissRegistrationHint}
       />
       <Flex direction="column" className="hp-chatpane">
         {activeConversationId ? <ChatPane /> : <EmptySelection />}

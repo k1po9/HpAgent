@@ -8,6 +8,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { useAuth } from "./store/auth";
 
 const ME = {
   account: { account_id: "alice", status: "active", created_at: "2026-08-08T00:00:00Z" },
@@ -34,6 +35,12 @@ const json = (body: unknown) =>
   });
 
 beforeEach(() => {
+  useAuth.setState({
+    status: "checking",
+    account: null,
+    identities: null,
+    justRegistered: false,
+  });
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === "/api/v1/me") return json(ME);
@@ -62,5 +69,12 @@ describe("App workbench", () => {
     expect(screen.getByPlaceholderText(/输入消息/)).toBeInTheDocument();
     expect(screen.getByText("新建", { selector: "button" })).toBeInTheDocument();
     expect(screen.getByText("绑定 QQ", { selector: "button" })).toBeInTheDocument();
+  });
+
+  it("prompts a newly registered existing QQ user to bind first", async () => {
+    useAuth.setState({ justRegistered: true });
+    render(<App />);
+    expect(await screen.findByText("已有 QQ 用户建议先绑定")).toBeInTheDocument();
+    expect(screen.getByText(/继续使用原 QQ 账号的长期记忆/)).toBeInTheDocument();
   });
 });

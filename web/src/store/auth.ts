@@ -15,7 +15,10 @@ interface AuthState {
   status: AuthStatus;
   account: MeResponse["account"] | null;
   identities: MeResponse["identities"] | null;
+  justRegistered: boolean;
   check: () => Promise<void>;
+  markRegistered: () => void;
+  dismissRegistrationHint: () => void;
   signOut: () => Promise<void>;
   expire: () => void;
 }
@@ -24,24 +27,29 @@ export const useAuth = create<AuthState>((set) => ({
   status: "checking",
   account: null,
   identities: null,
+  justRegistered: false,
 
   check: async () => {
     const me = await api.me();
     if (me === null) {
-      set({ status: "signedOut", account: null, identities: null });
+      set({ status: "signedOut", account: null, identities: null, justRegistered: false });
       return;
     }
     set({ status: "signedIn", account: me.account, identities: me.identities });
   },
 
+  markRegistered: () => set({ justRegistered: true }),
+
+  dismissRegistrationHint: () => set({ justRegistered: false }),
+
   signOut: async () => {
     await api.logout();
     api.reset();
-    set({ status: "signedOut", account: null, identities: null });
+    set({ status: "signedOut", account: null, identities: null, justRegistered: false });
   },
 
   expire: () => {
     api.reset();
-    set({ status: "signedOut", account: null, identities: null });
+    set({ status: "signedOut", account: null, identities: null, justRegistered: false });
   },
 }));

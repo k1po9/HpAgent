@@ -60,6 +60,28 @@ from workspace.isolation import WorkspaceIsolationRuntime
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
 
+_DEVELOPMENT_QQ_BINDING_CODE_PEPPER = b"development-qq-binding-code-pepper"
+
+
+def load_worker_qq_binding_code_pepper() -> bytes:
+    """Load the shared challenge pepper; production must configure it safely."""
+    environment = os.getenv("HPAGENT_ENV", "development").strip().casefold()
+    configured = os.getenv("QQ_BINDING_CODE_PEPPER")
+    if environment == "production" and not configured:
+        raise RuntimeError(
+            "QQ_BINDING_CODE_PEPPER must be explicitly set for the Worker in production"
+        )
+    pepper = (
+        configured.encode("utf-8")
+        if configured
+        else _DEVELOPMENT_QQ_BINDING_CODE_PEPPER
+    )
+    if environment == "production" and len(pepper) < 32:
+        raise RuntimeError(
+            "QQ_BINDING_CODE_PEPPER must contain at least 32 bytes in production"
+        )
+    return pepper
+
 
 @dataclasses.dataclass
 class WebWorkerComposition:
@@ -782,10 +804,7 @@ async def start_worker(config: AppConfig) -> None:
         identity_command_service=IdentityCommandService(
             IdentityBindingService(
                 os.environ["WORKER_DATABASE_URL"],
-                os.getenv(
-                    "QQ_BINDING_CODE_PEPPER",
-                    "development-qq-binding-code-pepper",
-                ).encode("utf-8"),
+                load_worker_qq_binding_code_pepper(),
                 int(os.getenv("QQ_BINDING_CHALLENGE_SECONDS", "300")),
             )
         ),
