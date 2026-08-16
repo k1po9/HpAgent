@@ -43,15 +43,14 @@ def test_worker_can_read_identity_bindings_after_009(worker_database_url: str) -
         connection.execute("SELECT * FROM identity_bindings LIMIT 1")
 
 
-def test_worker_cannot_insert_identity_bindings(worker_database_url: str) -> None:
-    """身份绑定属于管理面（bootstrap），Worker 仍禁止写入。"""
+def test_worker_has_narrow_identity_control_plane_write(worker_database_url: str) -> None:
+    """QQ ingress control-plane may write bindings, but not create accounts."""
     with psycopg.connect(worker_database_url) as connection:
+        connection.execute("SET search_path=hpagent,public")
+        connection.execute("UPDATE identity_bindings SET updated_at=updated_at WHERE false")
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             connection.execute(
-                "INSERT INTO identity_bindings(identity_binding_id, account_id,"
-                "provider, external_subject_id, normalized_subject_id, verified_at) "
-                "VALUES (%s,%s,'web','x','x',now())",
-                (uuid4(), uuid4()),
+                "INSERT INTO accounts(account_id) VALUES (%s)", (uuid4(),)
             )
 
 

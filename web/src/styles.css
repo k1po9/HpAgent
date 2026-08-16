@@ -166,6 +166,20 @@ body,
   padding: 8px;
 }
 
+.hp-qq-binding {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--gray-a5);
+}
+
+.hp-qq-binding p {
+  margin: 4px 0 0;
+}
+
+.hp-qq-binding__code {
+  user-select: all;
+  letter-spacing: 0.04em;
+}
+
 /* ---- assistant-ui thread ---- */
 .hp-thread {
   display: flex;

@@ -13,6 +13,7 @@ const ME = {
   account: { account_id: "alice", status: "active", created_at: "2026-08-08T00:00:00Z" },
   session: { expires_at: "2026-08-09T00:00:00Z", idle_expires_at: "2026-08-08T01:00:00Z" },
   csrf_token: "t",
+  identities: { web: { username: "alice" }, qq: { bound: false } },
   capabilities: {},
 };
 
@@ -60,5 +61,6 @@ describe("App workbench", () => {
     expect(await screen.findByText("测试对话")).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/输入消息/)).toBeInTheDocument();
     expect(screen.getByText("新建", { selector: "button" })).toBeInTheDocument();
+    expect(screen.getByText("绑定 QQ", { selector: "button" })).toBeInTheDocument();
   });
 });

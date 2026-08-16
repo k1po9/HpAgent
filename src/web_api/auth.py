@@ -11,6 +11,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from uuid6 import uuid7
 
+from account.identity import normalize_web_subject
 from persistence.uow import UnitOfWork
 
 from .config import WebApiSettings
@@ -31,7 +32,7 @@ class ConfiguredPasswordCredentialAdapter:
 
     @staticmethod
     def normalize(value: str) -> str:
-        return value.strip().casefold()
+        return normalize_web_subject(value)
 
     def verify(self, username: str, password: str) -> str | None:
         subject = self.normalize(username)

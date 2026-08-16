@@ -13,6 +13,11 @@ class LoginRequest(StrictModel):
     return_to: str = "/"
 
 
+class RegisterRequest(StrictModel):
+    username: str = Field(min_length=1, max_length=512)
+    password: str = Field(min_length=1, max_length=128)
+
+
 class CreateConversationRequest(StrictModel):
     title: str | None = None
 

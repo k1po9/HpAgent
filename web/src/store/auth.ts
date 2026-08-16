@@ -14,6 +14,7 @@ export type AuthStatus = "checking" | "signedIn" | "signedOut";
 interface AuthState {
   status: AuthStatus;
   account: MeResponse["account"] | null;
+  identities: MeResponse["identities"] | null;
   check: () => Promise<void>;
   signOut: () => Promise<void>;
   expire: () => void;
@@ -22,24 +23,25 @@ interface AuthState {
 export const useAuth = create<AuthState>((set) => ({
   status: "checking",
   account: null,
+  identities: null,
 
   check: async () => {
     const me = await api.me();
     if (me === null) {
-      set({ status: "signedOut", account: null });
+      set({ status: "signedOut", account: null, identities: null });
       return;
     }
-    set({ status: "signedIn", account: me.account });
+    set({ status: "signedIn", account: me.account, identities: me.identities });
   },
 
   signOut: async () => {
     await api.logout();
     api.reset();
-    set({ status: "signedOut", account: null });
+    set({ status: "signedOut", account: null, identities: null });
   },
 
   expire: () => {
     api.reset();
-    set({ status: "signedOut", account: null });
+    set({ status: "signedOut", account: null, identities: null });
   },
 }));

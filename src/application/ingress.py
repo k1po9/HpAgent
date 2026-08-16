@@ -11,10 +11,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from common.types import UnifiedMessage
-
 from account.postgres_account_service import IdentityResolutionUnavailable
 from application.conversation import UnboundIdentity
+from common.types import UnifiedMessage
 
 logger = logging.getLogger("HpAgent.MessageIngressService")
 
@@ -33,10 +32,12 @@ class MessageIngressService:
         group_context: Any = None,
         conversation_service: Any = None,
         reply_service: Any = None,
+        identity_command_service: Any = None,
     ):
         self._group_context = group_context
         self._conversation = conversation_service
         self._reply = reply_service
+        self._identity_commands = identity_command_service
 
     async def handle(self, message: UnifiedMessage) -> None:
         if not message.content or not message.content.strip():
@@ -47,6 +48,15 @@ class MessageIngressService:
             if hasattr(message.channel_type, "value")
             else str(message.channel_type)
         )
+
+        if self._identity_commands is not None:
+            command = await self._identity_commands.try_handle(message, ch_type)
+            if command.handled:
+                if command.reply and self._reply is not None:
+                    await self._reply.send_final(
+                        command.reply, self._build_user_message(message, ch_type)
+                    )
+                return
 
         should_continue = await self._capture_group_context(message)
         if not should_continue:
@@ -153,4 +163,3 @@ class MessageIngressService:
             return False
 
         return True
-

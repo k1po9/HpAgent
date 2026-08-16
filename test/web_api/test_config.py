@@ -45,6 +45,7 @@ def _env_settings(monkeypatch, **env):
     monkeypatch.setenv("WEB_CURSOR_SECRET", "x" * 40)
     monkeypatch.setenv("WEB_SESSION_TOKEN_PEPPER", "y" * 40)
     monkeypatch.setenv("WEB_CSRF_SIGNING_KEY", "z" * 40)
+    monkeypatch.setenv("QQ_BINDING_CODE_PEPPER", "q" * 40)
     for key, value in env.items():
         if value is None:
             monkeypatch.delenv(key, raising=False)
@@ -97,6 +98,16 @@ def test_development_allows_localhost_origin(monkeypatch):
         WEB_PUBLIC_ORIGIN="https://localhost",
     )
     assert settings.public_origin == "https://localhost"
+
+
+def test_production_requires_explicit_qq_binding_pepper(monkeypatch):
+    with pytest.raises(ValueError, match="QQ_BINDING_CODE_PEPPER"):
+        _env_settings(
+            monkeypatch,
+            HPAGENT_ENV="production",
+            WEB_PUBLIC_ORIGIN="https://agent.example.com",
+            QQ_BINDING_CODE_PEPPER=None,
+        )
 
 
 def test_production_rejects_short_secrets():

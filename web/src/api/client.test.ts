@@ -66,6 +66,44 @@ describe("ApiClient auth recovery", () => {
     expect(me?.csrf_token).toBe("token-from-me");
   });
 
+  it("registers, verifies the cookie session through /me, and creates a QQ challenge", async () => {
+    const seen: Array<{ url: string; init?: RequestInit }> = [];
+    const authMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      seen.push({ url, init });
+      if (url === "/auth/register") {
+        return new Response(JSON.stringify({ registered: true }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      if (url === "/api/v1/me") {
+        return OK({
+          account: { account_id: "a1" },
+          session: {},
+          csrf_token: "csrf",
+          identities: { web: { username: "alice" }, qq: { bound: false } },
+          capabilities: {},
+        });
+      }
+      return OK({
+        challenge_id: "ch1",
+        code: "HP-483921",
+        expires_at: "2026-08-16T00:05:00Z",
+      });
+    };
+    const c = new ApiClient(authMock);
+    expect(await c.register("alice", "correct-password")).toBe(true);
+    const challenge = await c.createQqBindingChallenge();
+    expect(challenge.code).toBe("HP-483921");
+    expect(seen.map((call) => call.url)).toEqual([
+      "/auth/register",
+      "/api/v1/me",
+      "/api/v1/identity-bindings/qq/challenges",
+    ]);
+    expect(headerValue(seen[2]?.init?.headers, "x-csrf-token")).toBe("csrf");
+  });
+
   it("rotates the CSRF token exactly once on csrf_invalid, then retries", async () => {
     let postCount = 0;
     const rotationMock = async (input: RequestInfo | URL, init?: RequestInit) => {

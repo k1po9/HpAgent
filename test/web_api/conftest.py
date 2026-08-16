@@ -67,6 +67,8 @@ def db(migration_database_url: str):
     with psycopg.connect(migration_database_url, autocommit=True) as connection:
         connection.execute("SET search_path TO hpagent, public")
         for table in (
+            "artifact_outbox_events", "artifact_versions", "artifacts",
+            "identity_binding_challenges", "web_credentials",
             "outbox_events", "idempotency_commands", "workflow_executions",
             "messages", "runs", "sessions", "web_auth_sessions",
             "identity_bindings", "conversations", "accounts",
@@ -105,6 +107,7 @@ def client_factory(database_url: str, worker_database_url: str):
         sse_max_connections: int = 256,
         sse_handshake_buffer_events: int = 256,
         sse_handshake_buffer_bytes: int = 1 * 1024 * 1024,
+        postgres_credentials: bool = False,
     ) -> TestClient:
         settings = WebApiSettings(
             database_url=database_url,
@@ -128,7 +131,8 @@ def client_factory(database_url: str, worker_database_url: str):
             terminal_publisher_poll_seconds=0.1,
         )
         client = TestClient(
-            create_app(settings, TestCredentials()), base_url="https://testserver"
+            create_app(settings, None if postgres_credentials else TestCredentials()),
+            base_url="https://testserver"
         )
         client.__enter__()
         clients.append(client)

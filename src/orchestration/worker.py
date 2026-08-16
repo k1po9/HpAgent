@@ -27,7 +27,9 @@ from typing import Dict
 from temporalio.client import Client
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
+from account.identity_binding_service import IdentityBindingService
 from application.conversation import ConversationService
+from application.identity_commands import IdentityCommandService
 from application.ingress import MessageIngressService
 from bootstrap.qq import build_qq_runtime
 from channels.napcat import NapCatChannel
@@ -777,6 +779,16 @@ async def start_worker(config: AppConfig) -> None:
         group_context=deps.group_context,
         conversation_service=conversation_service,
         reply_service=deps.reply_service,
+        identity_command_service=IdentityCommandService(
+            IdentityBindingService(
+                os.environ["WORKER_DATABASE_URL"],
+                os.getenv(
+                    "QQ_BINDING_CODE_PEPPER",
+                    "development-qq-binding-code-pepper",
+                ).encode("utf-8"),
+                int(os.getenv("QQ_BINDING_CHALLENGE_SECONDS", "300")),
+            )
+        ),
     )
 
     async def handle_message(message: UnifiedMessage) -> None:

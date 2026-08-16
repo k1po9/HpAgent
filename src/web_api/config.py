@@ -17,6 +17,8 @@ class WebApiSettings:
     active_cursor_key_id: str
     session_token_pepper: bytes
     csrf_signing_key: bytes
+    qq_binding_code_pepper: bytes = b"development-qq-binding-code-pepper"
+    qq_binding_challenge_seconds: int = 300
     environment: str = "development"
     worker_database_url: str | None = None
     credential_records: dict[str, str] = field(default_factory=dict)
@@ -47,10 +49,13 @@ class WebApiSettings:
             raise ValueError("fake executor requires WORKER_DATABASE_URL")
         if self.fake_executor_mode not in {"success", "failure", "hold"}:
             raise ValueError("invalid fake executor mode")
+        if self.qq_binding_challenge_seconds <= 0:
+            raise ValueError("QQ binding challenge TTL must be positive")
         if self.environment == "production":
             for value, name in (
                 (self.session_token_pepper, "session token pepper"),
                 (self.csrf_signing_key, "csrf signing key"),
+                (self.qq_binding_code_pepper, "QQ binding code pepper"),
                 (self.cursor_signing_keys[self.active_cursor_key_id], "cursor key"),
             ):
                 if len(value) < 32:
@@ -79,6 +84,10 @@ class WebApiSettings:
                 raise ValueError(
                     "WEB_PUBLIC_ORIGIN must use the https:// scheme in production"
                 )
+            if not os.getenv("QQ_BINDING_CODE_PEPPER"):
+                raise ValueError(
+                    "QQ_BINDING_CODE_PEPPER must be explicitly set in production"
+                )
         return cls(
             database_url=os.environ["APP_DATABASE_URL"],
             worker_database_url=os.getenv("WORKER_DATABASE_URL"),
@@ -89,6 +98,12 @@ class WebApiSettings:
                 "WEB_SESSION_TOKEN_PEPPER", "development-session-token-pepper"
             ),
             csrf_signing_key=_secret("WEB_CSRF_SIGNING_KEY", "development-csrf-key"),
+            qq_binding_code_pepper=_secret(
+                "QQ_BINDING_CODE_PEPPER", "development-qq-binding-code-pepper"
+            ),
+            qq_binding_challenge_seconds=int(
+                os.getenv("QQ_BINDING_CHALLENGE_SECONDS", "300")
+            ),
             environment=environment,
             credential_records=credentials,
             cookie_secure=os.getenv("WEB_COOKIE_SECURE", "true").lower() == "true",

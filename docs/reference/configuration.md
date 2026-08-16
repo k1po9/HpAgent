@@ -16,7 +16,7 @@
 
 ## Web
 
-`WEB_PUBLIC_ORIGIN`、cursor signing、session pepper、CSRF key 和 `WEB_CREDENTIALS_JSON` 属于安全配置，生产环境不得使用 Compose 的 development 默认值。`WEB_REAL_AGENT_ENABLED` 与 `WEB_REAL_AGENT_GATE_VERSION` 控制 Web 真实 Agent 发布门禁；Outbox lease/recovery 参数必须为正且 recovery interval 小于 lease timeout。
+`WEB_PUBLIC_ORIGIN`、cursor signing、session pepper、CSRF key 和 `QQ_BINDING_CODE_PEPPER` 属于安全配置，生产环境不得使用 development 默认值。API 与 QQ Worker 必须使用相同的 QQ binding pepper；`QQ_BINDING_CHALLENGE_SECONDS` 默认 300。Web password 的运行时真相源是 PostgreSQL `web_credentials`，`WEB_CREDENTIALS_JSON` 仅用于兼容迁移。`WEB_REAL_AGENT_ENABLED` 与 `WEB_REAL_AGENT_GATE_VERSION` 控制 Web 真实 Agent 发布门禁；Outbox lease/recovery 参数必须为正且 recovery interval 小于 lease timeout。
 
 ## 模型与工具
 

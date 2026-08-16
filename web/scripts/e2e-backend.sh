@@ -28,6 +28,7 @@ export WEB_COOKIE_SECURE=false
 export WEB_CURSOR_SECRET="e2e-cursor-secret-0123456789abcdef-32bytes"
 export WEB_SESSION_TOKEN_PEPPER="e2e-session-pepper-0123456789abcdef-32bytes"
 export WEB_CSRF_SIGNING_KEY="e2e-csrf-signing-key-0123456789abcdef-32bytes"
+export QQ_BINDING_CODE_PEPPER="e2e-qq-binding-code-pepper-0123456789abcdef"
 
 # Fake executor: slow enough to click Stop and for a second tab to race the
 # conversation-busy guard, fast enough to not drag the suite.
@@ -108,6 +109,10 @@ with psycopg.connect(os.environ["MIGRATION_DATABASE_URL"]) as conn:
             )
 print("E2E identity bindings ensured: alice, bob")
 PY
+
+# Exercise the production credential path; WEB_CREDENTIALS_JSON remains set so
+# compatibility is covered too, but DB verification succeeds first.
+"$PY" "${REPO_ROOT}/scripts/migrate_web_credentials.py"
 
 cd "${REPO_ROOT}"
 exec env PYTHONPATH=src "$PY" -m web_api

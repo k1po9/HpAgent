@@ -76,7 +76,7 @@ docker compose --profile qq up -d napcat
 docker compose --profile tools up -d temporal-web
 ```
 
-首次接入 QQ 前必须运行数据库 migration，并用 `scripts/bootstrap_identity.py` 建立 Web/QQ 身份绑定。Worker 缺少 `WORKER_DATABASE_URL` 会拒绝启动。
+数据库 migration 完成后，用户可在 Web 自助注册并通过 QQ 消息中的真实 sender identity 完成绑定；`scripts/bootstrap_identity.py` 继续保留给管理员。旧 `WEB_CREDENTIALS_JSON` 用户可通过 `scripts/migrate_web_credentials.py` 导入 PostgreSQL。API 与 Worker 必须配置相同的 `QQ_BINDING_CODE_PEPPER`，Worker 缺少 `WORKER_DATABASE_URL` 会拒绝启动。
 
 ## 常用命令
 
@@ -100,5 +100,6 @@ make e2e
 - [关键时序](docs/architecture/single_agent/04_sequence.md)
 - [配置参考](docs/reference/configuration.md)
 - [运行手册](docs/operations/runbook.md)
+- [Web 注册与 QQ 绑定](docs/operations/web-registration-and-qq-binding.md)
 - [可观测性](docs/operations/observability.md)
 - [架构收口报告](docs/architecture/refactor-closure-report.md)

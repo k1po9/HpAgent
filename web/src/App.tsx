@@ -59,6 +59,8 @@ function Workbench() {
   const creatingConversation = useWorkbench((s) => s.creatingConversation);
   const activeConversationId = useWorkbench((s) => s.activeConversationId);
   const account = useAuth((s) => s.account);
+  const identities = useAuth((s) => s.identities);
+  const refreshIdentity = useAuth((s) => s.check);
   const signOut = useAuth((s) => s.signOut);
   const loadConversations = useWorkbench((s) => s.loadConversations);
   const createConversation = useWorkbench((s) => s.createConversation);
@@ -101,6 +103,8 @@ function Workbench() {
           resetArtifacts();
           void signOut();
         }}
+        qqIdentity={identities?.qq}
+        onIdentityRefresh={refreshIdentity}
       />
       <Flex direction="column" className="hp-chatpane">
         {activeConversationId ? <ChatPane /> : <EmptySelection />}

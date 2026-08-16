@@ -24,12 +24,9 @@ import logging
 import psycopg
 from psycopg.rows import dict_row
 
+from account.identity import normalize_channel_subject
+
 logger = logging.getLogger("HpAgent.Account")
-
-# provider='qq' 同时承载 NapCat QQ 号与 Official QQ OpenID，二者不是同一个
-# ID namespace，因此 normalized_subject_id 必须带 channel 前缀。
-_QQ_CHANNELS = frozenset({"napcat", "official_qq"})
-
 
 class IdentityResolutionUnavailable(Exception):
     """PostgreSQL 身份解析不可用（DB 故障 / 连接失败 / 权限错误）。
@@ -61,14 +58,7 @@ class PostgresAccountService:
         Web: normalized = subject.strip().casefold()
              必须与 ``ConfiguredPasswordCredentialAdapter.normalize`` 完全一致。
         """
-        subject = (channel_user_id or "").strip()
-        if not subject:
-            return None
-        if channel_type in _QQ_CHANNELS:
-            return "qq", f"{channel_type}:{subject}"
-        if channel_type == "web":
-            return "web", subject.casefold()
-        return None
+        return normalize_channel_subject(channel_type, channel_user_id)
 
     async def resolve(self, channel_type: str, channel_user_id: str) -> str | None:
         """解析渠道身份到 account_id；无活跃绑定返回 None（不自动创建）。"""

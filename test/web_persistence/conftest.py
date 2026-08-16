@@ -39,7 +39,7 @@ def worker_database_url() -> str:
 def db(database_url: str, migration_database_url: str):
     with psycopg.connect(migration_database_url, autocommit=True) as connection:
         connection.execute("SET search_path TO hpagent, public")
-        for table in ("outbox_events", "idempotency_commands", "workflow_executions", "messages", "runs", "sessions", "web_auth_sessions", "identity_bindings", "conversations", "accounts"):
+        for table in ("artifact_outbox_events", "artifact_versions", "artifacts", "identity_binding_challenges", "web_credentials", "outbox_events", "idempotency_commands", "workflow_executions", "messages", "runs", "sessions", "web_auth_sessions", "identity_bindings", "conversations", "accounts"):
             connection.execute(f"TRUNCATE {table} CASCADE")
         yield connection
 

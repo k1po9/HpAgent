@@ -19,10 +19,9 @@ from dataclasses import dataclass
 import psycopg
 from psycopg.rows import dict_row
 
+from account.identity import QQ_CHANNELS, normalize_qq_subject, normalize_web_subject
+
 logger = logging.getLogger("HpAgent.Account")
-
-_QQ_CHANNELS = frozenset({"napcat", "official_qq"})
-
 
 @dataclass(frozen=True)
 class BootstrapResult:
@@ -30,14 +29,6 @@ class BootstrapResult:
 
     status: str
     account_id: str
-
-
-def _normalize_web(subject: str) -> str:
-    return subject.strip().casefold()
-
-
-def _normalize_qq(channel: str, subject: str) -> str:
-    return f"{channel}:{subject.strip()}"
 
 
 def bootstrap_identity(
@@ -58,13 +49,14 @@ def bootstrap_identity(
     """
     if web_subject.strip() == "":
         raise ValueError("web_subject must not be empty")
-    if qq_channel not in _QQ_CHANNELS:
-        raise ValueError(f"qq_channel must be one of {sorted(_QQ_CHANNELS)}")
+    if qq_channel not in QQ_CHANNELS:
+        raise ValueError(f"qq_channel must be one of {sorted(QQ_CHANNELS)}")
     if qq_subject.strip() == "":
         raise ValueError("qq_subject must not be empty")
 
-    web_norm = _normalize_web(web_subject)
-    qq_norm = _normalize_qq(qq_channel, qq_subject)
+    web_norm = normalize_web_subject(web_subject)
+    qq_norm = normalize_qq_subject(qq_channel, qq_subject)
+    assert qq_norm is not None
 
     with psycopg.connect(database_url, row_factory=dict_row) as connection:
         connection.execute("SET search_path TO hpagent, public")

@@ -22,7 +22,20 @@ export interface MeResponse {
     idle_expires_at: string;
   };
   csrf_token: string;
+  identities: {
+    web: { username: string } | null;
+    qq: { bound: boolean; channel_type?: string; display_subject?: string };
+  };
   capabilities: Record<string, boolean>;
+}
+
+export interface QqBindingChallenge {
+  challenge_id: string;
+  code?: string;
+  status?: "pending" | "completed" | "cancelled" | "expired";
+  expires_at: string;
+  instruction?: string;
+  qq?: { bound: true; display_subject: string };
 }
 
 export interface ApiRequestInit {
@@ -98,6 +111,19 @@ export class ApiClient {
     return (await this.me()) !== null;
   }
 
+  async register(username: string, password: string): Promise<boolean> {
+    const response = await this.fetchImpl("/auth/register", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!response.ok) {
+      throw await this.toError(response);
+    }
+    return (await this.me()) !== null;
+  }
+
   async logout(): Promise<void> {
     const response = await this.fetchImpl("/api/v1/auth/logout", {
       method: "POST",
@@ -108,6 +134,21 @@ export class ApiClient {
     if (response.status !== 204) {
       throw await this.toError(response);
     }
+  }
+
+  async createQqBindingChallenge(): Promise<QqBindingChallenge> {
+    return this.request<QqBindingChallenge>({
+      method: "POST",
+      path: "/api/v1/identity-bindings/qq/challenges",
+      body: {},
+    });
+  }
+
+  async getQqBindingChallenge(challengeId: string): Promise<QqBindingChallenge> {
+    return this.request<QqBindingChallenge>({
+      method: "GET",
+      path: `/api/v1/identity-bindings/qq/challenges/${challengeId}`,
+    });
   }
 
   async request<T>(init: ApiRequestInit): Promise<T> {
