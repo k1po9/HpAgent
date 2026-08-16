@@ -95,6 +95,11 @@ class ContextAssemblyService:
             trigger_message_id=subject["trigger_message_id"],
             trigger_content=subject["trigger_content"],
             short_term_events=events,
+            interaction_profile=(
+                "web_plan"
+                if subject.get("agent_strategy") == "plan_and_execute"
+                else "web_chat"
+            ),
         )
 
     async def recall_long_term(

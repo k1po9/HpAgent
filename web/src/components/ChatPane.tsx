@@ -17,6 +17,8 @@ export function ChatPane() {
   const activeRunProgress = useWorkbench((s) => s.activeRunProgress);
   const degraded = useWorkbench((s) => s.degraded);
   const stopping = useWorkbench((s) => s.stopping);
+  const sending = useWorkbench((s) => s.sending);
+  const agentStrategy = useWorkbench((s) => s.agentStrategy);
   const loadingMessages = useWorkbench((s) => s.loadingMessages);
   const hasMoreMessages = useWorkbench((s) => s.hasMoreMessages);
   const loadingMoreMessages = useWorkbench((s) => s.loadingMoreMessages);
@@ -26,6 +28,10 @@ export function ChatPane() {
   const retryRun = useWorkbench((s) => s.retryRun);
   const loadMoreMessages = useWorkbench((s) => s.loadMoreMessages);
   const clearError = useWorkbench((s) => s.clearError);
+  const setAgentStrategy = useWorkbench((s) => s.setAgentStrategy);
+  const strategyLocked =
+    sending ||
+    Boolean(activeRun && !["completed", "failed", "cancelled"].includes(activeRun.status));
 
   const handleSend = useCallback(
     (content: string) => {
@@ -82,6 +88,20 @@ export function ChatPane() {
           </Button>
         </Flex>
       ) : null}
+      <Flex align="center" gap="2" px="3" py="2">
+        <Text size="1" color="gray">
+          执行模式
+        </Text>
+        <select
+          aria-label="执行模式"
+          value={agentStrategy}
+          disabled={strategyLocked}
+          onChange={(event) => setAgentStrategy(event.target.value as "react" | "plan_and_execute")}
+        >
+          <option value="react">对话（ReAct）</option>
+          <option value="plan_and_execute">计划执行</option>
+        </select>
+      </Flex>
       <Box style={{ flex: 1, minHeight: 0 }}>
         <HpThread
           messages={messages}

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -28,6 +30,7 @@ class RenameConversationRequest(StrictModel):
 
 class SendMessageRequest(StrictModel):
     content: str
+    agent_strategy: Literal["react", "plan_and_execute"] = "react"
 
 
 class EmptyRequest(StrictModel):

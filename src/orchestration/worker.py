@@ -8,9 +8,8 @@ Orchestration Worker —— Temporal Worker 启动与依赖组装。
   4. 连接 Temporal → 启动 Worker → 渠道监听
 
 架构:
-  QQ / Web Temporal Workflow
-      ↓
-  AgentExecutionFacade → DefaultBrainActionLoop
+  QQ / Web legacy → AgentExecutionFacade → DefaultBrainActionLoop
+  Web durable → DurableWebRunWorkflow → AgentRunWorkflow → Strategy Workflow
       ↓
   BrainEngine / ActionRuntime / Surface adapters
 """
@@ -108,6 +107,8 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     """
     worker_database_url = os.getenv("WORKER_DATABASE_URL")
 
+    from agent_activities.runtime import DurableAgentActivities
+    from agent_activities.store import AgentDataStore
     from agent_execution.audit import LoggingExecutionAuditSinkFactory
     from agent_execution.brain_action_loop import DefaultBrainActionLoop
     from agent_execution.facade import AgentExecutionFacade
@@ -128,12 +129,15 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         TemporalArtifactClient,
     )
     from orchestration.web_activities import (
+        acquire_execution_lease_activity,
         execute_agent_activity,
         finalize_cancelled_activity,
         finalize_failed_activity,
+        inject_agent_data_store,
         inject_web_execution_host,
         inject_web_lifecycle,
         prepare_run_activity,
+        release_execution_lease_activity,
     )
     from orchestration.web_dispatcher import (
         TemporalClientAdapter,
@@ -190,10 +194,12 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         deps.workspace_isolation.account_locks,
         deps.git_repo_manager,
     )
+    event_factory = RedisWebRunEventSinkFactory(deps.redis_client)
+    loader = PostgresWebRequestLoader(worker_database_url, context)
     web_host = WebExecutionHost(
-        PostgresWebRequestLoader(worker_database_url, context),
+        loader,
         facade,
-        RedisWebRunEventSinkFactory(deps.redis_client),
+        event_factory,
         LifecycleWebReplySink(lifecycle),
         TemporalActivityControl(),
         LoggingExecutionAuditSinkFactory(),
@@ -201,6 +207,17 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     )
     inject_web_lifecycle(lifecycle)
     inject_web_execution_host(web_host)
+    agent_store = AgentDataStore(worker_database_url)
+    inject_agent_data_store(agent_store, max_turns=config.agent.max_tool_turns)
+    durable_activities = DurableAgentActivities(
+        store=agent_store,
+        loader=loader,
+        brain=deps.brain_engine,
+        actions=deps.action_runtime,
+        event_factory=event_factory,
+        resource_prep=resource_prep,
+        lifecycle=lifecycle,
+    )
     artifact_build = ArtifactBuildService(
         worker_database_url,
         WebArtifactGenerator(
@@ -211,19 +228,38 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     inject_artifact_build_service(artifact_build)
     workers = build_web_temporal_workers(
         client,
+        # Definitions remain registered even when new durable starts are
+        # disabled, so toggling the migration flag off cannot strand an
+        # already-running durable Workflow during rollback.
+        durable_agent_enabled=True,
         lifecycle_activities=[
             prepare_run_activity,
+            acquire_execution_lease_activity,
+            release_execution_lease_activity,
             finalize_failed_activity,
             finalize_cancelled_activity,
+            durable_activities.finalize_agent_result,
             execute_artifact_build_activity,
         ],
-        agent_activities=[execute_agent_activity],
+        agent_activities=[
+            execute_agent_activity,
+            durable_activities.context_bootstrap,
+            durable_activities.model_decision,
+            durable_activities.tool_execution,
+            durable_activities.planning,
+            durable_activities.evaluate_plan,
+        ],
     )
     execution_store = PostgresWorkflowExecutionStore(worker_database_url)
     dispatcher = WebOutboxDispatcher(
         OutboxService(worker_database_url),
         TemporalOutboxDispatcher(
-            execution_store, TemporalClientAdapter(client), lifecycle
+            execution_store,
+            TemporalClientAdapter(
+                client,
+                durable_agent_enabled=config.temporal.durable_agent_enabled,
+            ),
+            lifecycle,
         ),
         worker_id=f"hpagent-web-dispatcher-{os.getpid()}",
     )

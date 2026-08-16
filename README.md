@@ -1,6 +1,6 @@
 # HpAgent
 
-HpAgent 是一个同时面向 QQ 与 Web 的单 Agent 应用。两种入口保留各自的接入、状态和输出方式，但共享同一套 `AgentExecutionFacade → DefaultBrainActionLoop` 执行核心。系统使用 Temporal 管理生命周期，PostgreSQL 保存 Web 领域数据与统一身份，Hindsight 保存长期记忆，Sandbox/Workspace 隔离工具执行。
+HpAgent 是一个同时面向 QQ 与 Web 的 Agent 应用。两种入口保留各自的接入、状态和输出方式；QQ 与 Web legacy 路径共享 `AgentExecutionFacade → DefaultBrainActionLoop`，Web 还可启用 Temporal durable Agent Workflow。PostgreSQL 保存 Web 领域数据、Agent transcript/operation 与统一身份，Hindsight 保存长期记忆，Sandbox/Workspace 隔离工具执行。
 
 ## 当前架构
 
@@ -17,7 +17,7 @@ Browser ── FastAPI ── PostgreSQL/Outbox ── WebRunWorkflow ── Web
 ```
 
 - QQ 与 Web 不共享 transport 或短期状态模型。
-- QQ 与 Web 共享单一 Agent loop。
+- QQ 与 Web legacy 路径共享单一 Agent loop；Web durable 路径支持 `react` 与 `plan_and_execute`。
 - 统一账号事实源是 PostgreSQL `accounts` 与 `identity_bindings`；QQ 不回退到 JSON 账号库。
 - 多 Agent 包仍保留作实验代码，但未接入当前生产运行时。
 
@@ -36,6 +36,8 @@ Browser ── FastAPI ── PostgreSQL/Outbox ── WebRunWorkflow ── Web
 | `src/main.py` | Agent/QQ Worker 入口 |
 | `src/bootstrap/qq.py` | QQ Surface、统一 Facade 与应用服务组装 |
 | `src/agent_execution/` | QQ/Web Host、Facade、唯一 single-agent loop |
+| `src/agent_workflows/` | Durable ReAct、Plan-and-Execute 与策略路由 Workflow |
+| `src/agent_activities/` | Context/Model/Tool Activities 与 Agent PostgreSQL data plane |
 | `src/orchestration/` | Temporal Workflow、Activity、Web Outbox/Reconciler |
 | `src/web_api/` | FastAPI、认证、查询与 SSE |
 | `src/web_domain/` | Web 命令、生命周期和 Outbox 领域逻辑 |
@@ -77,6 +79,16 @@ docker compose --profile tools up -d temporal-web
 ```
 
 数据库 migration 完成后，用户可在 Web 自助注册并通过 QQ 消息中的真实 sender identity 完成绑定；`scripts/bootstrap_identity.py` 继续保留给管理员。旧 `WEB_CREDENTIALS_JSON` 用户可通过 `scripts/migrate_web_credentials.py` 导入 PostgreSQL。API 与 Worker 必须配置相同的 `QQ_BINDING_CODE_PEPPER`，Worker 缺少 `WORKER_DATABASE_URL` 会拒绝启动。
+
+### Durable Agent 迁移开关
+
+先应用 migration `014_durable_agent_control_plane.sql`，再设置：
+
+```bash
+DURABLE_AGENT_ENABLED=true
+```
+
+关闭该开关时，新 Run 仍启动历史兼容的 `WebRunWorkflow`；开启后新 Run 启动 `DurableWebRunWorkflow`，旧 History 不受影响。发送消息 API 可通过 `agent_strategy` 选择 `react` 或 `plan_and_execute`。
 
 ## 常用命令
 

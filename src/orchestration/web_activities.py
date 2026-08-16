@@ -2,22 +2,31 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import asdict
 from uuid import UUID
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
+from agent_activities.store import AgentDataStore, LeaseConflict
 from agent_execution.facade import StableExecutionFailure
 from agent_execution.web_host import WebExecutionHost
+from agent_workflows.contracts import AGENT_STRATEGIES
+from common.logging import log_event
 from orchestration.web_workflow import FailureInput, WebRunWorkflowInput
 from web_domain.errors import DomainError
 from web_domain.lifecycle import WebRunLifecycleService
 
+from .durable_web_workflow import AcquireLeaseInput, ReleaseLeaseInput
 from .web_workflow import WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS
+
+lease_logger = logging.getLogger("HpAgent.ExecutionLease")
 
 _lifecycle: WebRunLifecycleService | None = None
 _web_host: WebExecutionHost | None = None
+_agent_store: AgentDataStore | None = None
+_agent_max_turns = 20
 
 
 async def _lifecycle_call(function, *args):
@@ -37,6 +46,20 @@ def inject_web_lifecycle(service: WebRunLifecycleService) -> None:
 def inject_web_execution_host(host: WebExecutionHost) -> None:
     global _web_host
     _web_host = host
+
+
+def inject_agent_data_store(store: AgentDataStore, *, max_turns: int = 20) -> None:
+    global _agent_store, _agent_max_turns
+    if max_turns < 1:
+        raise ValueError("max_turns must be positive")
+    _agent_store = store
+    _agent_max_turns = max_turns
+
+
+def _store() -> AgentDataStore:
+    if _agent_store is None:
+        raise RuntimeError("AgentDataStore was not injected")
+    return _agent_store
 
 
 def _service() -> WebRunLifecycleService:
@@ -103,6 +126,78 @@ async def execute_agent_activity(request: WebRunWorkflowInput) -> dict[str, str]
         await asyncio.gather(heartbeat_task, return_exceptions=True)
     _heartbeat({"schema_version": 1, "phase": "completed"})
     return {"run_id": request.run_id, "status": "completed"}
+
+
+@activity.defn
+async def acquire_execution_lease_activity(request: AcquireLeaseInput) -> dict[str, str | int]:
+    if request.schema_version != 1 or not request.run_id:
+        raise ApplicationError("invalid execution lease input", non_retryable=True)
+    identity = await asyncio.to_thread(_store().run_identity, request.run_id)
+    strategy = str(identity["agent_strategy"])
+    if strategy not in AGENT_STRATEGIES:
+        raise ApplicationError(
+            "unsupported agent strategy",
+            type="unsupported_agent_strategy",
+            non_retryable=True,
+        )
+    fields = {
+        "run_id": request.run_id,
+        "execution_id": request.run_id,
+        "account_id": identity["account_id"],
+        "surface": "web",
+        "strategy": strategy,
+    }
+    log_event(lease_logger, logging.INFO, "execution_lease_acquire_started", "lease", **fields, status="started")
+    try:
+        lease = await asyncio.to_thread(
+            _store().acquire_lease, str(identity["account_id"]), request.run_id
+        )
+    except LeaseConflict as exc:
+        log_event(lease_logger, logging.WARNING, "execution_lease_conflict", "lease", **fields, status="rejected", error_code=exc.code)
+        raise ApplicationError(
+            "该账号已有任务正在执行。",
+            type=exc.code,
+            non_retryable=True,
+        ) from exc
+    result: dict[str, str | int] = {
+        "run_id": request.run_id,
+        "account_id": str(identity["account_id"]),
+        "conversation_id": str(identity["conversation_id"]),
+        "session_id": str(identity["session_id"]),
+        "trigger_message_id": str(identity["trigger_message_id"]),
+        "strategy": strategy,
+        "interaction_profile": "web_plan" if strategy == "plan_and_execute" else "web_chat",
+        "fencing_token": lease.fencing_token,
+        "lease_expires_at": lease.lease_expires_at,
+        "max_turns": _agent_max_turns,
+    }
+    log_event(lease_logger, logging.INFO, "execution_lease_acquired", "lease", **fields, status="success", fencing_token=lease.fencing_token, lease_expires_at=lease.lease_expires_at)
+    return result
+
+
+@activity.defn
+async def release_execution_lease_activity(request: ReleaseLeaseInput) -> dict[str, str | bool]:
+    if request.schema_version != 1:
+        raise ApplicationError("invalid execution lease input", non_retryable=True)
+    released = await asyncio.to_thread(
+        _store().release_lease,
+        request.account_id,
+        request.run_id,
+        request.fencing_token,
+    )
+    log_event(
+        lease_logger,
+        logging.INFO,
+        "execution_lease_released",
+        "lease",
+        run_id=request.run_id,
+        execution_id=request.run_id,
+        account_id=request.account_id,
+        surface="web",
+        fencing_token=request.fencing_token,
+        status="success" if released else "stale",
+    )
+    return {"run_id": request.run_id, "released": released}
 
 
 @activity.defn

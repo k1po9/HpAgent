@@ -15,9 +15,14 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from account.validation import validate_unified_account_backend
+from agent_workflows.agent_run import AgentRunWorkflow
+from agent_workflows.agent_step import AgentStepWorkflow
+from agent_workflows.plan_execute import PlanAndExecuteWorkflow
+from agent_workflows.react import ReactAgentWorkflow
 from workspace.isolation import WorkspaceIsolationMode
 
 from .artifact_workflow import ArtifactBuildWorkflow
+from .durable_web_workflow import DurableWebRunWorkflow
 from .web_workflow import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
     WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS,
@@ -133,6 +138,7 @@ def build_web_temporal_workers(
     *,
     lifecycle_activities: Sequence[Any],
     agent_activities: Sequence[Any],
+    durable_agent_enabled: bool = False,
 ) -> WebTemporalWorkers:
     """Build, but do not start, the Web lifecycle and Agent workers.
 
@@ -144,13 +150,26 @@ def build_web_temporal_workers(
         lifecycle=Worker(
             client,
             task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-            workflows=[WebRunWorkflow, ArtifactBuildWorkflow],
+            workflows=(
+                [WebRunWorkflow, DurableWebRunWorkflow, ArtifactBuildWorkflow]
+                if durable_agent_enabled
+                else [WebRunWorkflow, ArtifactBuildWorkflow]
+            ),
             activities=list(lifecycle_activities),
         ),
         agent=Worker(
             client,
             task_queue=WEB_AGENT_TASK_QUEUE,
-            workflows=[],
+            workflows=(
+                [
+                    AgentRunWorkflow,
+                    ReactAgentWorkflow,
+                    PlanAndExecuteWorkflow,
+                    AgentStepWorkflow,
+                ]
+                if durable_agent_enabled
+                else []
+            ),
             activities=list(agent_activities),
             # Temporal otherwise throttles heartbeat RPCs to most of the
             # heartbeat timeout, which delays cancellation beyond our budget.

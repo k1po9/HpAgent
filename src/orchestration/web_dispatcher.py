@@ -158,13 +158,20 @@ class TemporalOutboxDispatcher:
 class TemporalClientAdapter:
     """Thin Temporal SDK adapter; retry policy is explicitly absent."""
 
-    def __init__(self, client: Client):
+    def __init__(self, client: Client, *, durable_agent_enabled: bool = False):
         self.client = client
+        self.durable_agent_enabled = durable_agent_enabled
 
     async def start_web_run(self, workflow_id: str, request: WebRunWorkflowInput) -> str:
         try:
+            if self.durable_agent_enabled:
+                from orchestration.durable_web_workflow import DurableWebRunWorkflow
+
+                workflow_run = DurableWebRunWorkflow.run
+            else:
+                workflow_run = WebRunWorkflow.run
             handle = await self.client.start_workflow(
-                WebRunWorkflow.run,
+                workflow_run,
                 request,
                 id=workflow_id,
                 task_queue=WEB_LIFECYCLE_TASK_QUEUE,
@@ -181,7 +188,11 @@ class TemporalClientAdapter:
                 raise RuntimeError("started Workflow has no Temporal Run ID")
             return str(temporal_run_id)
         except WorkflowAlreadyStartedError as exc:
-            if exc.workflow_id != workflow_id or exc.workflow_type != "WebRunWorkflow":
+            # A deployment may flip the durable-start flag after Temporal
+            # accepted Start but before the Outbox ack. Both HpAgent Web
+            # definitions are valid owners of the same deterministic Run ID.
+            accepted_types = {"WebRunWorkflow", "DurableWebRunWorkflow"}
+            if exc.workflow_id != workflow_id or exc.workflow_type not in accepted_types:
                 raise RuntimeError("deterministic Workflow ID belongs to another Workflow") from exc
             if exc.run_id:
                 return str(exc.run_id)

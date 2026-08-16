@@ -27,6 +27,7 @@ import { openRunFeed, type RunFeed, type RunProgress } from "../sse/runFeed";
 import { useAuth } from "./auth";
 import {
   HpCommandError,
+  type AgentStrategy,
   type HpConversation,
   type HpMessage,
   type HpRun,
@@ -110,6 +111,7 @@ export interface WorkbenchState {
   polling: boolean;
   sending: boolean;
   stopping: boolean;
+  agentStrategy: AgentStrategy;
 
   // Transient UI error (dismissible)
   error: string | null;
@@ -122,6 +124,7 @@ export interface WorkbenchState {
   selectConversation: (id: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   sendMessage: (content: string) => Promise<boolean>;
+  setAgentStrategy: (strategy: AgentStrategy) => void;
   stopRun: () => Promise<void>;
   retryRun: () => Promise<void>;
   refreshActiveRun: () => Promise<void>;
@@ -398,6 +401,7 @@ export function createWorkbenchStore(
       polling: false,
       sending: false,
       stopping: false,
+      agentStrategy: "react",
       error: null,
       pollGeneration: 0,
 
@@ -540,7 +544,10 @@ export function createWorkbenchStore(
         set((s) => ({ sending: true, error: null, messages: [...s.messages, tempMessage] }));
 
         try {
-          const result = await api.sendMessage(conversationId, trimmed, { idempotencyKey });
+          const result = await api.sendMessage(conversationId, trimmed, {
+            idempotencyKey,
+            agentStrategy: get().agentStrategy,
+          });
           set((s) => ({
             sending: false,
             messages: replaceTempMessage(
@@ -567,6 +574,12 @@ export function createWorkbenchStore(
           }
           return false;
         }
+      },
+
+      setAgentStrategy: (agentStrategy) => {
+        const active = get().activeRun;
+        if (active && !isTerminalRunStatus(active.status)) return;
+        set({ agentStrategy });
       },
 
       stopRun: async () => {

@@ -367,6 +367,7 @@ services:
       - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
       - WEB_REAL_AGENT_ENABLED=${WEB_REAL_AGENT_ENABLED:-true}
       - WEB_REAL_AGENT_GATE_VERSION=c-07-v1
+      - DURABLE_AGENT_ENABLED=${DURABLE_AGENT_ENABLED:-false}
 
       # Unified identity
       - HPAGENT_ENV=${HPAGENT_ENV:-development}

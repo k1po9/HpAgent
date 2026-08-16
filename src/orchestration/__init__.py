@@ -2,7 +2,8 @@
 Orchestration —— 纯编排层。
 
 Temporal Workflow 不持有任何业务数据，只做循环控制 + 信号路由。
-单轮 agentic loop 由 AgentExecutionFacade / DefaultBrainActionLoop 编排。
+QQ/legacy 单轮 loop 由 AgentExecutionFacade / DefaultBrainActionLoop 编排；
+Web durable control flow 位于 agent_workflows 的 Temporal state machines。
 
 模块结构：
   - workflow.py: OrchestrationWorkflow —— 纯编排（循环 / 信号 / 查询）

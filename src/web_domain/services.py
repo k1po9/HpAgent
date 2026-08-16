@@ -101,8 +101,21 @@ class CommandService:
             return CommandResult(201, result)
 
     @retryable_transaction
-    def send_message(self, account_id: UUID, conversation_id: UUID, key: str, content: str) -> CommandResult:
+    def send_message(
+        self,
+        account_id: UUID,
+        conversation_id: UUID,
+        key: str,
+        content: str,
+        agent_strategy: str = "react",
+    ) -> CommandResult:
+        if agent_strategy not in {"react", "plan_and_execute"}:
+            raise ValueError("unsupported agent strategy")
+        # Preserve the pre-durable request hash for the default strategy so
+        # in-flight/retained idempotency keys remain replayable after upgrade.
         payload = {"conversation_id": str(conversation_id), "content": content}
+        if agent_strategy != "react":
+            payload["agent_strategy"] = agent_strategy
         with UnitOfWork(self.database_url) as uow:
             existing = self._claim(uow, account_id, "send_message", key, payload)
             if existing:
@@ -133,7 +146,7 @@ class CommandService:
             )
             self.runs.insert(
                 uow, run_id, account_id, conversation_id, session_id, user_message_id,
-                workflow_id, allocated - 1
+                workflow_id, allocated - 1, agent_strategy=agent_strategy
             )
             self.messages.insert_assistant(
                 uow, assistant_message_id, account_id, conversation_id, allocated, run_id
@@ -229,7 +242,8 @@ class CommandService:
                 self.runs.insert(
                     uow, run_id, account_id, source["conversation_id"], session_id,
                     source["trigger_message_id"], f"hpagent-web-run-{run_id}",
-                    source["context_message_seq"], source_run_id
+                    source["context_message_seq"], source_run_id,
+                    str(source.get("agent_strategy") or "react"),
                 )
                 self.messages.insert_assistant(
                     uow, assistant_message_id, account_id, source["conversation_id"],

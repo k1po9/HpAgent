@@ -6,6 +6,7 @@
  */
 import type { ApiClient } from "./client";
 import type {
+  AgentStrategy,
   HpConversation,
   HpConversationDetail,
   HpMessage,
@@ -22,6 +23,7 @@ import type {
 export interface SendMessageOptions {
   idempotencyKey: string;
   signal?: AbortSignal;
+  agentStrategy?: AgentStrategy;
 }
 
 export class HpApi {
@@ -86,12 +88,15 @@ export class HpApi {
   async sendMessage(
     conversationId: string,
     content: string,
-    { idempotencyKey, signal }: SendMessageOptions,
+    { idempotencyKey, signal, agentStrategy }: SendMessageOptions,
   ): Promise<HpSendResult & { __idempotencyReplayed?: boolean }> {
     return this.client.request<HpSendResult>({
       method: "POST",
       path: `/api/v1/conversations/${conversationId}/messages`,
-      body: { content },
+      body: {
+        content,
+        ...(agentStrategy ? { agent_strategy: agentStrategy } : {}),
+      },
       idempotencyKey,
       signal,
     });

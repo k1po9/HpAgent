@@ -43,6 +43,8 @@ export interface HpMessage {
 export type HpRunStatus =
   "queued" | "running" | "cancelling" | "completed" | "failed" | "cancelled";
 
+export type AgentStrategy = "react" | "plan_and_execute";
+
 export interface HpFailure {
   code: string;
   message: string;

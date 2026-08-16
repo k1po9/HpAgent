@@ -31,6 +31,12 @@ PROGRESS_PHASES = frozenset(
         "finalizing",
         "starting",
         "generating",
+        "planning",
+        "plan_ready",
+        "executing_step",
+        "evaluating_step",
+        "replanning",
+        "synthesizing",
     }
 )
 

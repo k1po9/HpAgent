@@ -603,13 +603,26 @@ def create_app(
 
     @app.post("/api/v1/conversations/{conversation_id}/messages")
     def send_message(conversation_id: UUID, payload: SendMessageRequest, request: Request, context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        if payload.agent_strategy == "plan_and_execute" and not settings.durable_agent_enabled:
+            return _error(
+                request,
+                409,
+                "agent_strategy_disabled",
+                "计划模式尚未启用。",
+            )
         try:
             content = _normalize_content(payload.content)
         except EmptyMessage:
             return _error(request, 422, "empty_message", "消息不能为空。")
         except MessageTooLarge:
             return _error(request, 413, "message_too_large", "消息过长。")
-        result: CommandResult = request.app.state.commands.send_message(context.account_id, conversation_id, key, content)
+        result: CommandResult = request.app.state.commands.send_message(
+            context.account_id,
+            conversation_id,
+            key,
+            content,
+            payload.agent_strategy,
+        )
         run = result.body["run"]
         log_event(
             logger, logging.INFO, "web_message_accepted", "web_api",

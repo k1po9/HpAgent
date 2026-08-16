@@ -32,6 +32,7 @@ class WebApiSettings:
     fake_executor_content: str = "这是由测试执行器生成的回复。"
     fake_executor_failure_code: str = "fake_executor_failure"
     real_agent_enabled: bool = False
+    durable_agent_enabled: bool = False
     # --- Phase E: SSE / terminal publisher ---
     redis_url: str | None = None
     sse_handshake_buffer_events: int = 256
@@ -120,6 +121,8 @@ class WebApiSettings:
                 "WEB_FAKE_EXECUTOR_FAILURE_CODE", "fake_executor_failure"
             ),
             real_agent_enabled=os.getenv("WEB_REAL_AGENT_ENABLED", "false").lower() == "true",
+            durable_agent_enabled=os.getenv("DURABLE_AGENT_ENABLED", "false").lower()
+            == "true",
             redis_url=os.getenv("REDIS_URL") or None,
             sse_handshake_buffer_events=int(
                 os.getenv("WEB_SSE_HANDSHAKE_BUFFER_EVENTS", "256")

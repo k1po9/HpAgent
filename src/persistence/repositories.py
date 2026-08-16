@@ -128,7 +128,7 @@ class RunRepository:
         """Load the complete owned Run/Session/Conversation chain for Context assembly."""
         return cast(dict[str, Any] | None, uow.execute(
             "SELECT r.run_id,r.account_id,r.conversation_id,r.session_id,"
-            "r.trigger_message_id,r.context_message_seq,r.status AS run_status,"
+            "r.trigger_message_id,r.context_message_seq,r.agent_strategy,r.status AS run_status,"
             "s.status AS session_status,s.workspace_ref,"
             "t.role AS trigger_role,t.status AS trigger_status,t.content AS trigger_content "
             "FROM runs r JOIN conversations c ON c.account_id=r.account_id "
@@ -168,14 +168,15 @@ class RunRepository:
     def insert(
         self, uow: UnitOfWork, run_id: UUID, account_id: UUID, conversation_id: UUID,
         session_id: UUID, trigger_message_id: UUID, workflow_id: str,
-        context_message_seq: int, retry_of_run_id: UUID | None = None
+        context_message_seq: int, retry_of_run_id: UUID | None = None,
+        agent_strategy: str = "react",
     ) -> None:
         uow.execute(
             "INSERT INTO runs(run_id,account_id,conversation_id,session_id,trigger_message_id,"
-            "retry_of_run_id,workflow_id,context_message_seq) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            "retry_of_run_id,workflow_id,context_message_seq,agent_strategy) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
             (run_id, account_id, conversation_id, session_id, trigger_message_id,
-             retry_of_run_id, workflow_id, context_message_seq),
+             retry_of_run_id, workflow_id, context_message_seq, agent_strategy),
         )
 
     def set_cancelling(self, uow: UnitOfWork, run_id: UUID) -> None:
