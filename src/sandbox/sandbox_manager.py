@@ -31,11 +31,11 @@ _LOCAL_SIDE_EFFECT_CLASS = {
     "Glob": "read_only",
     "Grep": "read_only",
     "list_reminders": "read_only",
-    "fs_write": "workspace_write",
-    "fs_edit": "workspace_write",
+    "fs_write": "idempotent_write",
+    "fs_edit": "idempotent_write",
     "Bash": "unknown",
-    "create_reminder": "external_write",
-    "cancel_reminder": "external_write",
+    "create_reminder": "non_idempotent_write",
+    "cancel_reminder": "non_idempotent_write",
 }
 
 

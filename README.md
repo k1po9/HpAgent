@@ -86,9 +86,13 @@ docker compose --profile tools up -d temporal-web
 
 ```bash
 DURABLE_AGENT_ENABLED=true
+AGENT_EXECUTION_LEASE_TTL_SECONDS=900
 ```
 
 关闭该开关时，新 Run 仍启动历史兼容的 `WebRunWorkflow`；开启后新 Run 启动 `DurableWebRunWorkflow`，旧 History 不受影响。发送消息 API 可通过 `agent_strategy` 选择 `react` 或 `plan_and_execute`。
+
+Durable replay 不等同于所有 Tool exactly-once：只读/幂等 Tool 可安全重试；不可确认的
+非幂等副作用通过 reconciliation 或 fail-closed 处理，避免重复执行。
 
 ## 常用命令
 

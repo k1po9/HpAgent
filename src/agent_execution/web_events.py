@@ -37,6 +37,7 @@ PROGRESS_PHASES = frozenset(
         "evaluating_step",
         "replanning",
         "synthesizing",
+        "waiting_for_account_execution",
     }
 )
 

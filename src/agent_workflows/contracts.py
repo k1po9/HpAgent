@@ -142,6 +142,11 @@ class PlanningInput:
     lease_token: int
     plan_id: str
     plan_version: int
+    previous_plan_ref: str | None = None
+    previous_plan_version: int | None = None
+    completed_step_refs: tuple[str, ...] = ()
+    trigger_step_id: str | None = None
+    evaluation_reason: str | None = None
 
 
 @dataclass(frozen=True)

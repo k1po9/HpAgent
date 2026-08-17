@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import inspect
+from pathlib import Path
+
 from agent_activities.runtime import DurableAgentActivities
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
@@ -61,7 +64,7 @@ def test_plan_evaluation_parser_supports_replan_and_safe_fallback():
     )
 
 
-def test_durable_worker_registration_is_feature_gated(monkeypatch):
+def test_durable_worker_definitions_remain_registered_for_rollback(monkeypatch):
     made: list[dict] = []
 
     class FakeWorker:
@@ -73,7 +76,7 @@ def test_durable_worker_registration_is_feature_gated(monkeypatch):
         object(),
         lifecycle_activities=[],
         agent_activities=[],
-        durable_agent_enabled=True,
+        durable_agent_enabled=False,
     )
     assert made[0]["workflows"] == [
         WebRunWorkflow,
@@ -93,3 +96,20 @@ def test_legacy_workflow_input_contract_did_not_change():
         "schema_version",
         "run_id",
     ]
+
+
+def test_lease_waiting_is_durable_and_cancellable_in_workflow_history():
+    source = inspect.getsource(DurableWebRunWorkflow.run)
+    assert "workflow.sleep" in source
+    assert "execution_lease_conflict" not in source
+    assert "durable_web_workflow_waiting_for_lease" in source
+
+
+def test_hardening_migration_extends_operation_states_without_rewriting_014():
+    root = Path(__file__).resolve().parents[1]
+    migration = (root / "persistence/migrations/015_durable_agent_hardening.sql").read_text()
+    assert "intent_recorded" in migration
+    assert "uncertain" in migration
+    assert "015_durable_agent_hardening.sql" not in (
+        root / "persistence/migrations/014_durable_agent_control_plane.sql"
+    ).read_text()

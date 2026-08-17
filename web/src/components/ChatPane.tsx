@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
 import { HpThread } from "../adapters/assistant-ui/HpThread";
 import { useWorkbench } from "../store/workbench";
+import { useAuth } from "../store/auth";
 import { RunStatus } from "./RunStatus";
 
 /**
@@ -19,6 +20,7 @@ export function ChatPane() {
   const stopping = useWorkbench((s) => s.stopping);
   const sending = useWorkbench((s) => s.sending);
   const agentStrategy = useWorkbench((s) => s.agentStrategy);
+  const durableAgentEnabled = useAuth((s) => Boolean(s.capabilities.durable_agent));
   const loadingMessages = useWorkbench((s) => s.loadingMessages);
   const hasMoreMessages = useWorkbench((s) => s.hasMoreMessages);
   const loadingMoreMessages = useWorkbench((s) => s.loadingMoreMessages);
@@ -32,6 +34,7 @@ export function ChatPane() {
   const strategyLocked =
     sending ||
     Boolean(activeRun && !["completed", "failed", "cancelled"].includes(activeRun.status));
+  const displayedStrategy = activeRun?.agent_strategy ?? agentStrategy;
 
   const handleSend = useCallback(
     (content: string) => {
@@ -94,12 +97,12 @@ export function ChatPane() {
         </Text>
         <select
           aria-label="执行模式"
-          value={agentStrategy}
+          value={displayedStrategy}
           disabled={strategyLocked}
           onChange={(event) => setAgentStrategy(event.target.value as "react" | "plan_and_execute")}
         >
           <option value="react">对话（ReAct）</option>
-          <option value="plan_and_execute">计划执行</option>
+          {durableAgentEnabled ? <option value="plan_and_execute">计划执行</option> : null}
         </select>
       </Flex>
       <Box style={{ flex: 1, minHeight: 0 }}>

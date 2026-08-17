@@ -1,0 +1,249 @@
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from uuid import uuid4
+
+import pytest
+from temporalio.exceptions import ApplicationError
+
+from actions.runtime import ActionRuntime
+from agent.protocol import ActionRequest, ActionResult
+from agent_activities.runtime import DurableAgentActivities
+from agent_activities.side_effects import UnsupportedToolSideEffectReconciler
+from agent_activities.store import LeaseConflict, StaleFencingToken, ToolOperationState
+from agent_workflows.contracts import (
+    AGENT_SCHEMA_VERSION,
+    CompactToolCall,
+    ToolExecutionInput,
+)
+from orchestration import web_activities
+from orchestration.durable_web_workflow import AcquireLeaseInput
+
+
+@pytest.fixture(autouse=True)
+def direct_to_thread(monkeypatch):
+    async def run(function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr("agent_activities.runtime.asyncio.to_thread", run)
+
+
+class Events:
+    async def progress(self, phase: str, summary: str) -> None:
+        return None
+
+    async def close(self) -> None:
+        return None
+
+
+class EventFactory:
+    def for_run(self, run_id: str) -> Events:
+        return Events()
+
+
+class ResourcePrep:
+    @asynccontextmanager
+    async def lease_for_run(self, account_id, run_id, control):
+        yield
+
+
+class Store:
+    def __init__(self, state: ToolOperationState, *, fence_second: bool = False):
+        self.state = state
+        self.fence_second = fence_second
+        self.validations = 0
+        self.uncertain: list[str] = []
+        self.failed: list[str] = []
+
+    def begin_tool_operation(self, operation_id: str, run_id: str) -> ToolOperationState:
+        return self.state
+
+    def validate_and_renew_lease(self, account_id: str, run_id: str, token: int):
+        self.validations += 1
+        if self.fence_second and self.validations == 2:
+            raise StaleFencingToken("taken over")
+
+    def load_messages(self, transcript_id: str):
+        return [], 1
+
+    def tool_call_arguments(self, arguments_ref: str, tool_call_id: str):
+        return {"value": 1}
+
+    def record_operation_intent(self, operation_id: str, intent: dict):
+        self.state = ToolOperationState("intent_recorded", intent)
+
+    def complete_operation_with_event(self, **kwargs):
+        return 2
+
+    def fail_operation(self, operation_id: str, code: str):
+        self.failed.append(code)
+
+    def mark_operation_uncertain(self, operation_id: str, code: str):
+        self.uncertain.append(code)
+
+
+class Actions:
+    def __init__(self, side_effect_class: str):
+        self.classification = side_effect_class
+        self.calls = 0
+
+    def side_effect_class(self, session_id: str, tool_name: str) -> str:
+        return self.classification
+
+    async def execute_request(self, request, **kwargs):
+        self.calls += 1
+        return ActionResult(request=request, output="ok", raw={"output": "ok"})
+
+    def clear_execution(self, session_id: str, run_id: str) -> None:
+        return None
+
+
+class CrashAfterSideEffect:
+    def hit(self, point: str) -> None:
+        assert point == "tool_side_effect_succeeded_before_ack"
+        raise RuntimeError("injected crash")
+
+
+def request() -> ToolExecutionInput:
+    run_id = str(uuid4())
+    return ToolExecutionInput(
+        AGENT_SCHEMA_VERSION,
+        run_id,
+        str(uuid4()),
+        str(uuid4()),
+        str(uuid4()),
+        "react",
+        f"transcript:{run_id}",
+        1,
+        1,
+        f"{run_id}:tool:call-1",
+        11,
+        CompactToolCall("call-1", "write_tool", "decision:1#call-1"),
+    )
+
+
+def activities(store: Store, actions: Actions, **kwargs) -> DurableAgentActivities:
+    return DurableAgentActivities(
+        store=store,
+        loader=None,
+        brain=None,
+        actions=actions,
+        event_factory=EventFactory(),
+        resource_prep=ResourcePrep(),
+        lifecycle=None,
+        **kwargs,
+    )
+
+
+@pytest.mark.asyncio
+async def test_second_fencing_check_prevents_side_effect_after_local_lock_wait():
+    store = Store(ToolOperationState("started", None), fence_second=True)
+    actions = Actions("external_write")
+    with pytest.raises(ApplicationError) as failure:
+        await activities(store, actions).tool_execution(request())
+    assert failure.value.type == "stale_fencing_token"
+    assert store.validations == 2
+    assert actions.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_non_idempotent_ack_gap_fails_closed_when_reconciliation_is_unsupported():
+    req = request()
+    intent = {
+        "schema_version": 1,
+        "tool_call_id": "call-1",
+        "tool": "write_tool",
+        "arguments_hash": "48208f9428d64634bd8e28ff345bf0eab60d53c18fa2fbdb0b9bc1e84df2b5f6",
+        "side_effect_class": "non_idempotent_write",
+        "fencing_token": 11,
+    }
+    store = Store(ToolOperationState("intent_recorded", intent))
+    actions = Actions("external_write")
+    with pytest.raises(ApplicationError) as failure:
+        await activities(
+            store,
+            actions,
+            reconciler=UnsupportedToolSideEffectReconciler(),
+        ).tool_execution(req)
+    assert failure.value.type == "tool_side_effect_uncertain"
+    assert actions.calls == 0
+    assert store.uncertain == ["tool_side_effect_uncertain"]
+
+
+@pytest.mark.asyncio
+async def test_fault_hook_marks_ack_gap_uncertain_after_exactly_one_side_effect():
+    store = Store(ToolOperationState("started", None))
+    actions = Actions("external_write")
+    with pytest.raises(ApplicationError) as failure:
+        await activities(
+            store,
+            actions,
+            fault_injector=CrashAfterSideEffect(),
+        ).tool_execution(request())
+    assert failure.value.type == "tool_failed"
+    assert actions.calls == 1
+    assert store.uncertain == ["tool_failed"]
+
+
+@pytest.mark.asyncio
+async def test_busy_execution_lease_returns_wait_state_and_progress(monkeypatch):
+    phases: list[str] = []
+
+    class BusyStore:
+        def run_identity(self, run_id: str):
+            return {
+                "account_id": str(uuid4()),
+                "conversation_id": str(uuid4()),
+                "session_id": str(uuid4()),
+                "trigger_message_id": str(uuid4()),
+                "agent_strategy": "react",
+            }
+
+        def acquire_lease(self, account_id: str, run_id: str):
+            raise LeaseConflict("busy")
+
+    class WaitingEvents(Events):
+        async def progress(self, phase: str, summary: str) -> None:
+            phases.append(phase)
+
+    class WaitingFactory:
+        def for_run(self, run_id: str) -> WaitingEvents:
+            return WaitingEvents()
+
+    monkeypatch.setattr(web_activities, "_agent_store", BusyStore())
+    monkeypatch.setattr(web_activities, "_agent_event_factory", WaitingFactory())
+    result = await web_activities.acquire_execution_lease_activity(
+        AcquireLeaseInput(1, str(uuid4()))
+    )
+    assert result["acquired"] is False
+    assert result["retry_after_seconds"] == 1
+    assert phases == ["waiting_for_account_execution"]
+
+
+@pytest.mark.asyncio
+async def test_declared_provider_idempotency_argument_receives_operation_id():
+    captured: dict = {}
+
+    class Sandbox:
+        def get_tool_metadata(self, tool_name: str):
+            return {"idempotency_key_argument": "request_id"}
+
+    class Sandboxes:
+        def get_sandbox_for_session(self, session_id: str):
+            return Sandbox()
+
+    runtime = ActionRuntime(sandbox_manager=Sandboxes())
+
+    async def execute(**kwargs):
+        captured.update(kwargs)
+        return {"output": "ok", "metadata": {}}
+
+    runtime.execute = execute
+    result = await runtime.execute_request(
+        ActionRequest("call-1", "provider_write", {"value": 1}),
+        session_id="session",
+        execution_id="run",
+        idempotency_key="operation-123",
+    )
+    assert captured["arguments"]["request_id"] == "operation-123"
+    assert result.metadata["idempotency_key"] == "operation-123"

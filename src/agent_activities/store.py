@@ -27,6 +27,12 @@ class TranscriptVersionConflict(RuntimeError):
 
 
 @dataclass(frozen=True)
+class ToolOperationState:
+    status: str
+    result_payload: dict[str, Any] | None
+
+
+@dataclass(frozen=True)
 class ExecutionLease:
     account_id: str
     run_id: str
@@ -169,6 +175,42 @@ class AgentDataStore:
         return None
 
     @retryable_transaction
+    def begin_tool_operation(self, operation_id: str, run_id: str) -> ToolOperationState:
+        """Start a tool attempt without erasing an unacknowledged intent."""
+        with UnitOfWork(self.database_url) as uow:
+            inserted = uow.execute(
+                "INSERT INTO agent_operations(operation_id,run_id,operation_type) "
+                "VALUES (%s,%s,'tool') ON CONFLICT (operation_id) DO NOTHING "
+                "RETURNING operation_id",
+                (operation_id, UUID(run_id)),
+            ).fetchone()
+            if inserted is not None:
+                return ToolOperationState("started", None)
+            row = uow.execute(
+                "SELECT run_id,operation_type,status,result_payload FROM agent_operations "
+                "WHERE operation_id=%s FOR UPDATE",
+                (operation_id,),
+            ).fetchone()
+            if str(row["run_id"]) != run_id or row["operation_type"] != "tool":
+                raise ValueError("operation_id identity mismatch")
+            status = str(row["status"])
+            payload = dict(row["result_payload"]) if row["result_payload"] else None
+            if status in {"completed", "intent_recorded", "uncertain"}:
+                uow.execute(
+                    "UPDATE agent_operations SET attempt_count=attempt_count+1,"
+                    "updated_at=now() WHERE operation_id=%s",
+                    (operation_id,),
+                )
+                return ToolOperationState(status, payload)
+            uow.execute(
+                "UPDATE agent_operations SET status='started',error_code=NULL,"
+                "result_payload=NULL,attempt_count=attempt_count+1,updated_at=now() "
+                "WHERE operation_id=%s",
+                (operation_id,),
+            )
+            return ToolOperationState("started", None)
+
+    @retryable_transaction
     def fail_operation(self, operation_id: str, error_code: str) -> None:
         with UnitOfWork(self.database_url) as uow:
             uow.execute(
@@ -184,12 +226,21 @@ class AgentDataStore:
         """Persist compact side-effect intent before invoking an external tool."""
         with UnitOfWork(self.database_url) as uow:
             row = uow.execute(
-                "UPDATE agent_operations SET result_payload=%s,updated_at=now() "
+                "UPDATE agent_operations SET status='intent_recorded',result_payload=%s,updated_at=now() "
                 "WHERE operation_id=%s AND status='started' RETURNING operation_id",
                 (Jsonb(intent), operation_id),
             ).fetchone()
             if row is None:
                 raise ValueError("tool intent operation is not active")
+
+    @retryable_transaction
+    def mark_operation_uncertain(self, operation_id: str, error_code: str) -> None:
+        with UnitOfWork(self.database_url) as uow:
+            uow.execute(
+                "UPDATE agent_operations SET status='uncertain',error_code=%s,updated_at=now() "
+                "WHERE operation_id=%s AND status IN ('intent_recorded','uncertain')",
+                (error_code, operation_id),
+            )
 
     @retryable_transaction
     def create_transcript(

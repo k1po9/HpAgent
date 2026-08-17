@@ -76,6 +76,7 @@ const RUNNING_SNAPSHOT: HpRunSnapshot = {
     session_id: "s1",
     trigger_message_id: "um-1",
     retry_of_run_id: null,
+    agent_strategy: "react",
     status: "running",
     failure: null,
     version: 1,

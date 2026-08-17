@@ -150,26 +150,20 @@ def build_web_temporal_workers(
         lifecycle=Worker(
             client,
             task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-            workflows=(
-                [WebRunWorkflow, DurableWebRunWorkflow, ArtifactBuildWorkflow]
-                if durable_agent_enabled
-                else [WebRunWorkflow, ArtifactBuildWorkflow]
-            ),
+            # Definitions are always registered. The flag only selects new
+            # starts; rollback must not strand an existing durable History.
+            workflows=[WebRunWorkflow, DurableWebRunWorkflow, ArtifactBuildWorkflow],
             activities=list(lifecycle_activities),
         ),
         agent=Worker(
             client,
             task_queue=WEB_AGENT_TASK_QUEUE,
-            workflows=(
-                [
-                    AgentRunWorkflow,
-                    ReactAgentWorkflow,
-                    PlanAndExecuteWorkflow,
-                    AgentStepWorkflow,
-                ]
-                if durable_agent_enabled
-                else []
-            ),
+            workflows=[
+                AgentRunWorkflow,
+                ReactAgentWorkflow,
+                PlanAndExecuteWorkflow,
+                AgentStepWorkflow,
+            ],
             activities=list(agent_activities),
             # Temporal otherwise throttles heartbeat RPCs to most of the
             # heartbeat timeout, which delays cancellation beyond our budget.

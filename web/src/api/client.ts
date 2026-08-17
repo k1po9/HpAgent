@@ -26,7 +26,12 @@ export interface MeResponse {
     web: { username: string } | null;
     qq: { bound: boolean; channel_type?: string; display_subject?: string };
   };
-  capabilities: Record<string, boolean>;
+  capabilities: {
+    qq_long_term_memory_shared?: boolean;
+    qq_self_service_binding?: boolean;
+    durable_agent?: boolean;
+    agent_strategies?: Array<"react" | "plan_and_execute">;
+  };
 }
 
 export interface QqBindingChallenge {

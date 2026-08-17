@@ -15,11 +15,16 @@ from agent_workflows.contracts import (
     AGENT_TASK_QUEUE,
     AgentRunInput,
     CompactToolCall,
+    ContextBootstrapInput,
     ContextBootstrapResult,
+    ModelDecisionInput,
     ModelDecisionResult,
+    PlanEvaluationInput,
     PlanEvaluationResult,
+    PlanningInput,
     PlanningResult,
     PlanStep,
+    ToolExecutionInput,
     ToolExecutionResult,
 )
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
@@ -29,7 +34,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 
 
 @activity.defn(name="context_bootstrap_activity")
-async def fake_context(request) -> ContextBootstrapResult:
+async def fake_context(request: ContextBootstrapInput) -> ContextBootstrapResult:
     return ContextBootstrapResult(
         AGENT_SCHEMA_VERSION,
         f"transcript:{request.run_id}",
@@ -39,7 +44,7 @@ async def fake_context(request) -> ContextBootstrapResult:
 
 
 @activity.defn(name="model_decision_activity")
-async def fake_model(request) -> ModelDecisionResult:
+async def fake_model(request: ModelDecisionInput) -> ModelDecisionResult:
     version = request.transcript_version + 1
     if request.strategy == "react" and request.turn == 1 and not request.final_only:
         call = CompactToolCall(
@@ -67,7 +72,7 @@ async def fake_model(request) -> ModelDecisionResult:
 
 
 @activity.defn(name="tool_execution_activity")
-async def fake_tool(request) -> ToolExecutionResult:
+async def fake_tool(request: ToolExecutionInput) -> ToolExecutionResult:
     return ToolExecutionResult(
         AGENT_SCHEMA_VERSION,
         request.operation_id,
@@ -78,7 +83,7 @@ async def fake_tool(request) -> ToolExecutionResult:
 
 
 @activity.defn(name="planning_activity")
-async def fake_planning(request) -> PlanningResult:
+async def fake_planning(request: PlanningInput) -> PlanningResult:
     return PlanningResult(
         AGENT_SCHEMA_VERSION,
         request.operation_id,
@@ -93,7 +98,7 @@ async def fake_planning(request) -> PlanningResult:
 
 
 @activity.defn(name="evaluate_plan_activity")
-async def fake_evaluation(request) -> PlanEvaluationResult:
+async def fake_evaluation(request: PlanEvaluationInput) -> PlanEvaluationResult:
     return PlanEvaluationResult(
         AGENT_SCHEMA_VERSION,
         request.operation_id,
@@ -122,7 +127,9 @@ async def _run(strategy: str):
     host = os.getenv("TEMPORAL_HOST")
     if not host:
         pytest.skip("TEMPORAL_HOST is required")
-    client = await Client.connect(host)
+    client = await Client.connect(
+        host, namespace=os.getenv("TEMPORAL_NAMESPACE", "default")
+    )
     worker = Worker(
         client,
         task_queue=AGENT_TASK_QUEUE,
@@ -166,7 +173,9 @@ async def test_agent_router_rejects_unknown_strategy():
     host = os.getenv("TEMPORAL_HOST")
     if not host:
         pytest.skip("TEMPORAL_HOST is required")
-    client = await Client.connect(host)
+    client = await Client.connect(
+        host, namespace=os.getenv("TEMPORAL_NAMESPACE", "default")
+    )
     worker = Worker(
         client,
         task_queue=AGENT_TASK_QUEUE,

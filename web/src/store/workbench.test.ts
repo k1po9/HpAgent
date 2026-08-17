@@ -74,6 +74,7 @@ function run(overrides: Partial<HpRun>): HpRun {
     finished_at: null,
     updated_at: "2026-08-08T00:00:00Z",
     ...overrides,
+    agent_strategy: overrides.agent_strategy ?? "react",
   };
 }
 

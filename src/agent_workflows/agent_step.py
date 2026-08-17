@@ -11,7 +11,9 @@ from .contracts import (
     AgentStepInput,
     AgentStepResult,
     ModelDecisionInput,
+    ModelDecisionResult,
     ToolExecutionInput,
+    ToolExecutionResult,
 )
 from .react import _MODEL_RETRY, _TOOL_RETRY, _validate
 
@@ -44,6 +46,7 @@ class AgentStepWorkflow:
                     step_id=request.step.step_id,
                 ),
                 task_queue=AGENT_TASK_QUEUE,
+                result_type=ModelDecisionResult,
                 start_to_close_timeout=timedelta(seconds=300),
                 retry_policy=_MODEL_RETRY,
             )
@@ -77,6 +80,7 @@ class AgentStepWorkflow:
                         request.step.step_id,
                     ),
                     task_queue=AGENT_TASK_QUEUE,
+                    result_type=ToolExecutionResult,
                     start_to_close_timeout=timedelta(seconds=600),
                     heartbeat_timeout=timedelta(seconds=45),
                     retry_policy=_TOOL_RETRY,
@@ -106,6 +110,7 @@ class AgentStepWorkflow:
                 step_id=request.step.step_id,
             ),
             task_queue=AGENT_TASK_QUEUE,
+            result_type=ModelDecisionResult,
             start_to_close_timeout=timedelta(seconds=300),
             retry_policy=_MODEL_RETRY,
         )

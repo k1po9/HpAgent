@@ -34,6 +34,14 @@ from agent_workflows.contracts import (
 )
 from common.logging import log_event
 
+from .side_effects import (
+    FaultInjector,
+    NoopFaultInjector,
+    ReconcileOutcome,
+    ToolSideEffectReconciler,
+    UnsupportedToolSideEffectReconciler,
+    normalize_side_effect_class,
+)
 from .store import AgentDataStore, StaleFencingToken, TranscriptVersionConflict
 
 context_logger = logging.getLogger("HpAgent.AgentContextActivity")
@@ -55,6 +63,8 @@ class DurableAgentActivities:
         event_factory: Any,
         resource_prep: Any,
         lifecycle: Any,
+        reconciler: ToolSideEffectReconciler | None = None,
+        fault_injector: FaultInjector | None = None,
     ) -> None:
         self.store = store
         self.loader = loader
@@ -63,6 +73,8 @@ class DurableAgentActivities:
         self.event_factory = event_factory
         self.resource_prep = resource_prep
         self.lifecycle = lifecycle
+        self.reconciler = reconciler or UnsupportedToolSideEffectReconciler()
+        self.fault_injector = fault_injector or NoopFaultInjector()
 
     @staticmethod
     def _attempt() -> int:
@@ -335,14 +347,18 @@ class DurableAgentActivities:
         log_event(tool_logger, logging.INFO, "tool_execution_started", "tool", **fields, status="started")
         if int(fields["activity_attempt"]) > 1:
             log_event(tool_logger, logging.WARNING, "activity_retry_detected", "tool", **fields, status="retrying")
-        previous = await asyncio.to_thread(
-            self.store.begin_operation, request.operation_id, request.run_id, "tool"
+        operation = await asyncio.to_thread(
+            self.store.begin_tool_operation, request.operation_id, request.run_id
         )
-        if previous is not None:
+        if operation.status == "completed":
+            previous = operation.result_payload or {}
             log_event(tool_logger, logging.INFO, "tool_execution_deduplicated", "tool", **fields, status="deduplicated", result_ref=previous.get("result_ref"))
             return ToolExecutionResult(**previous)
         events = self.event_factory.for_run(request.run_id)
         heartbeat_task: asyncio.Task[None] | None = None
+        side_effect_succeeded = False
+        entered_side_effect_window = False
+        side_effect_class = "unknown"
         try:
             await asyncio.to_thread(
                 self.store.validate_and_renew_lease,
@@ -364,12 +380,23 @@ class DurableAgentActivities:
                 tool=request.tool_call.name,
                 step_id=request.step_id,
             )
-            heartbeat_task = asyncio.create_task(self._tool_heartbeat_loop(request))
             await events.progress("executing_tool", f"正在执行 {request.tool_call.name}。")
             async with self._workspace(request):
-                side_effect_class = str(
-                    self.actions.side_effect_class(request.session_id, request.tool_call.name)
+                # The first check happened before potentially waiting on the
+                # in-process account lock. Renew again after workspace recovery
+                # and immediately before entering the side-effect window.
+                await asyncio.to_thread(
+                    self.store.validate_and_renew_lease,
+                    request.account_id,
+                    request.run_id,
+                    request.lease_token,
                 )
+                heartbeat_task = asyncio.create_task(
+                    self._tool_heartbeat_loop(request)
+                )
+                side_effect_class = normalize_side_effect_class(str(
+                    self.actions.side_effect_class(request.session_id, request.tool_call.name)
+                ))
                 if side_effect_class == "unknown":
                     raise ApplicationError(
                         "工具副作用分类未知。",
@@ -389,29 +416,71 @@ class DurableAgentActivities:
                         default=str,
                     ).encode("utf-8")
                 ).hexdigest()
-                await asyncio.to_thread(
-                    self.store.record_operation_intent,
-                    request.operation_id,
-                    {
+                intent = operation.result_payload or {
                         "schema_version": 1,
                         "tool_call_id": request.tool_call.tool_call_id,
                         "tool": request.tool_call.name,
                         "arguments_hash": arguments_hash,
                         "side_effect_class": side_effect_class,
                         "fencing_token": request.lease_token,
-                    },
-                )
+                        "idempotency_key": request.operation_id,
+                    }
+                if operation.status in {"intent_recorded", "uncertain"}:
+                    if intent.get("arguments_hash") != arguments_hash or intent.get("tool") != request.tool_call.name:
+                        raise ApplicationError("工具恢复标识不一致。", type="side_effect_reconciliation_failed", non_retryable=True)
+                    if side_effect_class == "non_idempotent_write":
+                        log_event(tool_logger, logging.WARNING, "tool_side_effect_reconcile_started", "tool", **fields, status="started")
+                        reconciled = await self.reconciler.reconcile(
+                            operation_id=request.operation_id,
+                            tool_name=request.tool_call.name,
+                            arguments_hash=arguments_hash,
+                            intent=intent,
+                        )
+                        log_event(tool_logger, logging.WARNING, "tool_side_effect_reconcile_completed", "tool", **fields, status=reconciled.outcome.value)
+                        if reconciled.outcome == ReconcileOutcome.CONFIRMED_COMPLETED:
+                            result_value = reconciled.result
+                            if result_value is None:
+                                raise ApplicationError("副作用已完成但结果不可恢复。", type="side_effect_reconciliation_failed", non_retryable=True)
+                        elif reconciled.outcome != ReconcileOutcome.CONFIRMED_NOT_EXECUTED:
+                            await asyncio.to_thread(self.store.mark_operation_uncertain, request.operation_id, "tool_side_effect_uncertain")
+                            log_event(tool_logger, logging.ERROR, "tool_side_effect_uncertain", "tool", **fields, status="failed", error_code="tool_side_effect_uncertain")
+                            raise ApplicationError("工具副作用状态无法安全确认。", type="tool_side_effect_uncertain", non_retryable=True)
+                        else:
+                            result_value = None
+                    else:
+                        result_value = None
+                else:
+                    await asyncio.to_thread(
+                        self.store.record_operation_intent,
+                        request.operation_id,
+                        intent,
+                    )
+                    log_event(tool_logger, logging.INFO, "tool_side_effect_intent_recorded", "tool", **fields, status="success", side_effect_class=side_effect_class)
+                    result_value = None
                 action = ActionRequest(
                     request.tool_call.tool_call_id,
                     request.tool_call.name,
                     arguments,
                 )
-                result_value = await self.actions.execute_request(
-                    action,
-                    session_id=request.session_id,
-                    execution_id=request.run_id,
-                    user_query="",
-                )
+                if result_value is None:
+                    # Reconciliation and intent persistence may themselves
+                    # take time. Fence once more at the last possible point.
+                    await asyncio.to_thread(
+                        self.store.validate_and_renew_lease,
+                        request.account_id,
+                        request.run_id,
+                        request.lease_token,
+                    )
+                    entered_side_effect_window = True
+                    result_value = await self.actions.execute_request(
+                        action,
+                        session_id=request.session_id,
+                        execution_id=request.run_id,
+                        user_query="",
+                        idempotency_key=request.operation_id,
+                    )
+                    side_effect_succeeded = True
+                    self.fault_injector.hit("tool_side_effect_succeeded_before_ack")
             display = result_value.display_result
             display_text = display if isinstance(display, str) else json.dumps(display, ensure_ascii=False, default=str)
             result_ref = f"agent-tool-result:{request.operation_id}"
@@ -444,7 +513,14 @@ class DurableAgentActivities:
             payload["transcript_version"] = version
             result = ToolExecutionResult(**payload)
         except StaleFencingToken as exc:
-            await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
+            if operation.status in {"intent_recorded", "uncertain"}:
+                await asyncio.to_thread(
+                    self.store.mark_operation_uncertain,
+                    request.operation_id,
+                    exc.code,
+                )
+            else:
+                await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
             log_event(tool_logger, logging.ERROR, "tool_execution_fenced", "tool", **fields, status="rejected", error_code=exc.code, fencing_token=request.lease_token)
             raise ApplicationError("执行租约已失效。", type=exc.code, non_retryable=True) from exc
         except TranscriptVersionConflict as exc:
@@ -452,7 +528,15 @@ class DurableAgentActivities:
             raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
         except Exception as exc:
             code = getattr(exc, "type", None) or "tool_failed"
-            await asyncio.to_thread(self.store.fail_operation, request.operation_id, str(code))
+            if str(code) == "tool_side_effect_uncertain":
+                pass
+            elif operation.status in {"intent_recorded", "uncertain"} or side_effect_succeeded or (
+                entered_side_effect_window
+                and side_effect_class == "non_idempotent_write"
+            ):
+                await asyncio.to_thread(self.store.mark_operation_uncertain, request.operation_id, str(code))
+            else:
+                await asyncio.to_thread(self.store.fail_operation, request.operation_id, str(code))
             log_event(tool_logger, logging.ERROR, "tool_execution_failed", "tool", **fields, status="failed", error_code=code, elapsed_ms=round((time.monotonic() - started) * 1000))
             if isinstance(exc, ApplicationError):
                 raise
@@ -520,6 +604,12 @@ class DurableAgentActivities:
                 "content": (
                     "把用户目标拆成 1 到 8 个可执行步骤。只返回 JSON："
                     '{"steps":[{"title":"短标题","objective":"具体目标"}]}。'
+                    "不要重复已经完成且仍有效的步骤，必须利用 completed step results。"
+                    f" previous_plan_ref={request.previous_plan_ref!r};"
+                    f" previous_plan_version={request.previous_plan_version!r};"
+                    f" completed_step_refs={list(request.completed_step_refs)!r};"
+                    f" trigger_step_id={request.trigger_step_id!r};"
+                    f" evaluation_reason={request.evaluation_reason!r}."
                 ),
             }
             position = 1 if planning_messages and planning_messages[0].get("role") == "system" else 0
@@ -547,7 +637,16 @@ class DurableAgentActivities:
                 expected_version=request.transcript_version,
                 event_type="plan",
                 operation_id=request.operation_id,
-                event_payload={"plan_id": request.plan_id, "plan_version": request.plan_version, "steps": payload["steps"]},
+                event_payload={
+                    "plan_id": request.plan_id,
+                    "plan_version": request.plan_version,
+                    "steps": payload["steps"],
+                    "previous_plan_ref": request.previous_plan_ref,
+                    "previous_plan_version": request.previous_plan_version,
+                    "completed_step_refs": list(request.completed_step_refs),
+                    "trigger_step_id": request.trigger_step_id,
+                    "evaluation_reason": request.evaluation_reason,
+                },
                 result_ref=result_ref,
                 result_payload=payload,
             )
@@ -632,6 +731,8 @@ class DurableAgentActivities:
             else 0
         )
         evaluation_messages.insert(position, instruction)
+        events = self.event_factory.for_run(request.run_id)
+        await events.progress("evaluating_step", "正在评估计划进度。")
         model_result = await self.brain.generate_final_decision(
             messages=evaluation_messages
         )
@@ -651,8 +752,6 @@ class DurableAgentActivities:
             f"agent-plan-evaluation:{request.operation_id}",
             payload,
         )
-        events = self.event_factory.for_run(request.run_id)
-        await events.progress("evaluating_step", "正在评估计划进度。")
         await events.close()
         log_event(
             plan_logger,

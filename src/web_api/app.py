@@ -502,7 +502,16 @@ def create_app(
             "session": {"expires_at": context.expires_at, "idle_expires_at": context.idle_expires_at},
             "csrf_token": context.csrf_token,
             "identities": identities,
-            "capabilities": {"qq_long_term_memory_shared": True, "qq_self_service_binding": True},
+            "capabilities": {
+                "qq_long_term_memory_shared": True,
+                "qq_self_service_binding": True,
+                "durable_agent": settings.durable_agent_enabled,
+                "agent_strategies": (
+                    ["react", "plan_and_execute"]
+                    if settings.durable_agent_enabled
+                    else ["react"]
+                ),
+            },
         }
 
     @app.post("/api/v1/identity-bindings/qq/challenges", status_code=201)

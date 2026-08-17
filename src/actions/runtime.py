@@ -160,10 +160,28 @@ class ActionRuntime:
         session_id: str = "",
         execution_id: str = "",
         user_query: str = "",
+        idempotency_key: str = "",
     ) -> ActionResult:
+        executed_request = request
+        if idempotency_key and self._sandbox is not None:
+            try:
+                sandbox = self._sandbox.get_sandbox_for_session(session_id)
+                key_argument = sandbox.get_tool_metadata(request.name).get(
+                    "idempotency_key_argument"
+                )
+            except Exception:
+                key_argument = None
+            if isinstance(key_argument, str) and key_argument:
+                arguments = dict(request.arguments)
+                arguments.setdefault(key_argument, idempotency_key)
+                executed_request = ActionRequest(
+                    request.id,
+                    request.name,
+                    arguments,
+                )
         result = await self.execute(
-            tool_name=request.name,
-            arguments=request.arguments,
+            tool_name=executed_request.name,
+            arguments=executed_request.arguments,
             session_id=session_id,
             execution_id=execution_id,
             user_query=user_query,
@@ -174,6 +192,11 @@ class ActionRuntime:
                 "invocation_key",
                 f"tool-invocation:{execution_id}:{request.id}",
             )
+            if idempotency_key:
+                # Providers that expose an idempotency facility can consume
+                # this stable operation identifier; it is also retained in the
+                # result for reconciliation/audit adapters.
+                metadata.setdefault("idempotency_key", idempotency_key)
             result["metadata"] = metadata
         return ActionResult.from_runtime_result(request, result)
 

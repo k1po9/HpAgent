@@ -14,8 +14,11 @@ from .contracts import (
     AgentRunInput,
     AgentStepInput,
     ModelDecisionInput,
+    ModelDecisionResult,
     PlanEvaluationInput,
+    PlanEvaluationResult,
     PlanningInput,
+    PlanningResult,
 )
 from .react import _MODEL_RETRY, _validate, bootstrap
 
@@ -48,12 +51,14 @@ class PlanAndExecuteWorkflow:
                 plan_version,
             ),
             task_queue=AGENT_TASK_QUEUE,
+            result_type=PlanningResult,
             start_to_close_timeout=timedelta(seconds=300),
             retry_policy=_MODEL_RETRY,
         )
         transcript_version = plan.transcript_version
         tool_turns = 0
         replan_count = 0
+        completed_step_refs: list[str] = []
         while True:
             replan_requested = False
             for index, step in enumerate(plan.steps, 1):
@@ -77,6 +82,7 @@ class PlanAndExecuteWorkflow:
                 )
                 transcript_version = result.transcript_version
                 tool_turns += result.tool_turns
+                completed_step_refs.append(result.result_ref)
                 workflow.logger.info(
                     "plan_step_completed",
                     extra={"event": "plan_step_completed", "component": "workflow", "run_id": request.run_id, "strategy": request.strategy, "plan_id": plan_id, "plan_version": plan_version, "step_id": step.step_id, "step_index": index, "step_count": len(plan.steps), "status": "success", "result_ref": result.result_ref},
@@ -100,6 +106,7 @@ class PlanAndExecuteWorkflow:
                         len(plan.steps),
                     ),
                     task_queue=AGENT_TASK_QUEUE,
+                    result_type=PlanEvaluationResult,
                     start_to_close_timeout=timedelta(seconds=60),
                     retry_policy=_MODEL_RETRY,
                 )
@@ -136,8 +143,14 @@ class PlanAndExecuteWorkflow:
                             request.lease_token,
                             plan_id,
                             plan_version,
+                            f"agent-plan:{plan_id}:v{plan_version - 1}",
+                            plan_version - 1,
+                            tuple(completed_step_refs),
+                            step.step_id,
+                            evaluation.reason,
                         ),
                         task_queue=AGENT_TASK_QUEUE,
+                        result_type=PlanningResult,
                         start_to_close_timeout=timedelta(seconds=300),
                         retry_policy=_MODEL_RETRY,
                     )
@@ -177,6 +190,7 @@ class PlanAndExecuteWorkflow:
                 plan_version=plan_version,
             ),
             task_queue=AGENT_TASK_QUEUE,
+            result_type=ModelDecisionResult,
             start_to_close_timeout=timedelta(seconds=300),
             retry_policy=_MODEL_RETRY,
         )

@@ -434,6 +434,7 @@ class CommandService:
             "session_id": str(row["session_id"]),
             "trigger_message_id": str(row["trigger_message_id"]),
             "retry_of_run_id": str(row["retry_of_run_id"]) if row["retry_of_run_id"] else None,
+            "agent_strategy": str(row.get("agent_strategy") or "react"),
             "status": row["status"], "failure": failure, "version": row["version"],
             "created_at": cls._timestamp(row["created_at"]),
             "started_at": cls._timestamp(row["started_at"]),

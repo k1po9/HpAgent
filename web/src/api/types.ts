@@ -57,6 +57,7 @@ export interface HpRun {
   session_id: string;
   trigger_message_id: string;
   retry_of_run_id: string | null;
+  agent_strategy: AgentStrategy;
   status: HpRunStatus;
   failure: HpFailure | null;
   version: number;

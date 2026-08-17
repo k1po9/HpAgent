@@ -327,6 +327,8 @@ class TemporalConfig:
     # Migration gate: false preserves the frozen legacy single-Activity path;
     # true starts new Runs with durable child Agent workflows.
     durable_agent_enabled: bool = False
+    # Must exceed any single model/tool Activity timeout plus safety margin.
+    agent_execution_lease_ttl_seconds: int = 900
 
 
 @dataclass
@@ -709,6 +711,10 @@ class AppConfig:
         if environ.get("DURABLE_AGENT_ENABLED"):
             self.temporal.durable_agent_enabled = environ["DURABLE_AGENT_ENABLED"].lower() in (
                 "1", "true", "yes", "on"
+            )
+        if environ.get("AGENT_EXECUTION_LEASE_TTL_SECONDS"):
+            self.temporal.agent_execution_lease_ttl_seconds = int(
+                environ["AGENT_EXECUTION_LEASE_TTL_SECONDS"]
             )
         if environ.get("WEB_OUTBOX_LEASE_TIMEOUT_SECONDS"):
             self.temporal.web_outbox_lease_timeout_seconds = int(

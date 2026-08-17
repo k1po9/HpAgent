@@ -42,6 +42,7 @@ class AgentRunWorkflow:
             request,
             id=f"hpagent-agent-{request.strategy}-{request.run_id}",
             task_queue=AGENT_TASK_QUEUE,
+            result_type=AgentResult,
         )
         workflow.logger.info(
             "agent_workflow_completed",

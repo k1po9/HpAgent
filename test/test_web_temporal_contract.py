@@ -25,10 +25,15 @@ from agent_execution.qq_host import QQExecutionHost, QQLegacyExecutionControl, q
 from agent_execution.web_adapters import TemporalActivityControl
 from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
+from agent_workflows.agent_run import AgentRunWorkflow
+from agent_workflows.agent_step import AgentStepWorkflow
+from agent_workflows.plan_execute import PlanAndExecuteWorkflow
+from agent_workflows.react import ReactAgentWorkflow
 from application.conversation import ConversationService
 from common.types import ChannelType, UnifiedMessage
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from orchestration.config import TemporalConfig
+from orchestration.durable_web_workflow import DurableWebRunWorkflow
 from orchestration.web_dispatcher import (
     StartDecision,
     TemporalClientAdapter,
@@ -138,9 +143,18 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
     workers = build_web_temporal_workers(object(), lifecycle_activities=[], agent_activities=[])
     assert workers.lifecycle is not workers.agent
     assert made[0]["task_queue"] == WEB_LIFECYCLE_TASK_QUEUE
-    assert made[0]["workflows"] == [WebRunWorkflow, ArtifactBuildWorkflow]
+    assert made[0]["workflows"] == [
+        WebRunWorkflow,
+        DurableWebRunWorkflow,
+        ArtifactBuildWorkflow,
+    ]
     assert made[1]["task_queue"] == WEB_AGENT_TASK_QUEUE
-    assert made[1]["workflows"] == []
+    assert made[1]["workflows"] == [
+        AgentRunWorkflow,
+        ReactAgentWorkflow,
+        PlanAndExecuteWorkflow,
+        AgentStepWorkflow,
+    ]
 
 
 def test_artifact_uses_the_registered_web_lifecycle_task_queue():

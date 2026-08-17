@@ -83,6 +83,21 @@ activity_attempt`。新增 retry、dedup、lease、fencing、planning、evaluati
 synthesis 事件。Web progress 白名单增加 `planning`、`plan_ready`、`executing_step`、
 `evaluating_step`、`replanning`、`synthesizing`。
 
+## 副作用恢复边界
+
+Workflow 控制状态支持 durable replay；Activity 以稳定 operation id 去重。只读或可
+幂等副作用可以安全自动重试；进入 `intent_recorded` 后仍无法确认结果的非幂等副作用
+必须先 reconciliation，无法确认时转为 `uncertain` 并 fail-closed，绝不盲目重放。
+这不是对所有 Tool 的通用 exactly-once 承诺。
+
+Web Activity 在 durable lease 外仍持有共享的进程内 `AccountLockRegistry`，因此当前
+单进程部署与 QQ legacy 执行保持互斥；但 Web durable lease 并不表示 QQ/Web 已统一
+durable ownership。QQ 的 durable lease 接入属于后续范围。
+
+`AGENT_EXECUTION_LEASE_TTL_SECONDS` 统一配置执行租约 TTL，生产值必须大于最长单次
+Activity 超时并留出安全余量。Activity 开始时续租，并在 workspace 恢复、本地锁获取
+完成后、Tool 副作用执行前再次续租和校验 fencing token。
+
 ## 已知迁移风险与后续故障注入
 
 1. QQ 仍走 legacy ReAct。它尚未获取 PostgreSQL durable lease，因此 Phase 3 需要将

@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import asdict
+from typing import Any
 from uuid import UUID
 
 from temporalio import activity
@@ -26,6 +27,7 @@ lease_logger = logging.getLogger("HpAgent.ExecutionLease")
 _lifecycle: WebRunLifecycleService | None = None
 _web_host: WebExecutionHost | None = None
 _agent_store: AgentDataStore | None = None
+_agent_event_factory: Any | None = None
 _agent_max_turns = 20
 
 
@@ -54,6 +56,11 @@ def inject_agent_data_store(store: AgentDataStore, *, max_turns: int = 20) -> No
         raise ValueError("max_turns must be positive")
     _agent_store = store
     _agent_max_turns = max_turns
+
+
+def inject_agent_event_factory(factory: Any) -> None:
+    global _agent_event_factory
+    _agent_event_factory = factory
 
 
 def _store() -> AgentDataStore:
@@ -152,15 +159,24 @@ async def acquire_execution_lease_activity(request: AcquireLeaseInput) -> dict[s
         lease = await asyncio.to_thread(
             _store().acquire_lease, str(identity["account_id"]), request.run_id
         )
-    except LeaseConflict as exc:
-        log_event(lease_logger, logging.WARNING, "execution_lease_conflict", "lease", **fields, status="rejected", error_code=exc.code)
-        raise ApplicationError(
-            "该账号已有任务正在执行。",
-            type=exc.code,
-            non_retryable=True,
-        ) from exc
+    except LeaseConflict:
+        log_event(lease_logger, logging.INFO, "execution_lease_waiting", "lease", **fields, status="waiting")
+        if _agent_event_factory is not None:
+            events = _agent_event_factory.for_run(request.run_id)
+            await events.progress(
+                "waiting_for_account_execution",
+                "正在等待同账号的另一个任务完成…",
+            )
+            await events.close()
+        return {
+            "run_id": request.run_id,
+            "account_id": str(identity["account_id"]),
+            "acquired": False,
+            "retry_after_seconds": 1,
+        }
     result: dict[str, str | int] = {
         "run_id": request.run_id,
+        "acquired": True,
         "account_id": str(identity["account_id"]),
         "conversation_id": str(identity["conversation_id"]),
         "session_id": str(identity["session_id"]),

@@ -13,8 +13,11 @@ from .contracts import (
     AgentResult,
     AgentRunInput,
     ContextBootstrapInput,
+    ContextBootstrapResult,
     ModelDecisionInput,
+    ModelDecisionResult,
     ToolExecutionInput,
+    ToolExecutionResult,
 )
 
 _READ_RETRY = RetryPolicy(
@@ -59,6 +62,7 @@ async def bootstrap(request: AgentRunInput):
             f"{request.run_id}:{request.strategy}:context",
         ),
         task_queue=AGENT_TASK_QUEUE,
+        result_type=ContextBootstrapResult,
         start_to_close_timeout=timedelta(seconds=120),
         retry_policy=_READ_RETRY,
     )
@@ -97,6 +101,7 @@ class ReactAgentWorkflow:
                     request.lease_token,
                 ),
                 task_queue=AGENT_TASK_QUEUE,
+                result_type=ModelDecisionResult,
                 start_to_close_timeout=timedelta(seconds=300),
                 retry_policy=_MODEL_RETRY,
             )
@@ -136,6 +141,7 @@ class ReactAgentWorkflow:
                         call,
                     ),
                     task_queue=AGENT_TASK_QUEUE,
+                    result_type=ToolExecutionResult,
                     start_to_close_timeout=timedelta(seconds=600),
                     heartbeat_timeout=timedelta(seconds=45),
                     retry_policy=_TOOL_RETRY,
@@ -170,6 +176,7 @@ class ReactAgentWorkflow:
                 final_only=True,
             ),
             task_queue=AGENT_TASK_QUEUE,
+            result_type=ModelDecisionResult,
             start_to_close_timeout=timedelta(seconds=300),
             retry_policy=_MODEL_RETRY,
         )

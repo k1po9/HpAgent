@@ -134,6 +134,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         finalize_cancelled_activity,
         finalize_failed_activity,
         inject_agent_data_store,
+        inject_agent_event_factory,
         inject_web_execution_host,
         inject_web_lifecycle,
         prepare_run_activity,
@@ -207,8 +208,12 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     )
     inject_web_lifecycle(lifecycle)
     inject_web_execution_host(web_host)
-    agent_store = AgentDataStore(worker_database_url)
+    agent_store = AgentDataStore(
+        worker_database_url,
+        lease_ttl_seconds=config.temporal.agent_execution_lease_ttl_seconds,
+    )
     inject_agent_data_store(agent_store, max_turns=config.agent.max_tool_turns)
+    inject_agent_event_factory(event_factory)
     durable_activities = DurableAgentActivities(
         store=agent_store,
         loader=loader,
