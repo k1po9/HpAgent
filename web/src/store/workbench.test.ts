@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
 import { HpApi } from "../api/resources";
 import type { HpConversation, HpMessage, HpRun, HpRunSnapshot } from "../api/types";
-import { createWorkbenchStore } from "./workbench";
+import { createWorkbenchStore, isRetryableRun } from "./workbench";
 
 const ENCODER = new TextEncoder();
 
@@ -391,6 +391,35 @@ describe("workbench store", () => {
     await store.getState().retryRun();
     expect(backend.calls.filter((call) => call.url.endsWith("/retry"))).toHaveLength(0);
     expect(store.getState().activeRun?.run_id).toBe("r-unsafe");
+  });
+
+  it("does not consider a cancelled run retryable", async () => {
+    const backend = makeBackend();
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    const cancelled = run({ run_id: "r-cancelled", status: "cancelled" });
+    store.setState({ activeRun: cancelled });
+
+    expect(isRetryableRun(cancelled)).toBe(false);
+    expect(
+      isRetryableRun(
+        run({
+          status: "failed",
+          failure: { code: "run_failed", message: "boom", retryable: true },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isRetryableRun(
+        run({
+          status: "failed",
+          failure: { code: "tool_side_effect_uncertain", message: "unknown", retryable: false },
+        }),
+      ),
+    ).toBe(false);
+    await store.getState().retryRun();
+    expect(backend.calls.filter((call) => call.url.endsWith("/retry"))).toHaveLength(0);
   });
 
   it("polls a running run until terminal and reconciles the assistant message", async () => {

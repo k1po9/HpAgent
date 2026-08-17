@@ -372,6 +372,7 @@ Workflow Execution timeout 默认 50 分钟，预算公式为：prepare schedule
 
 - Workflow Failed 后，Temporal 不得自动创建新的 Temporal Run ID 并重新执行 prepare/Agent Activity。
 - Workflow Timed Out、Terminated 或意外 Canceled 也不得通过 Retry Policy 自动重启。
+- 用户取消的领域 Run 不提供自动恢复或 Retry；仅安全失败的 Run 可显式创建新的 Retry Run。
 - `workflow_executions.execution_sequence` 不能被自动 retry 隐式增加。
 - 业务重试只能由用户/API 创建新领域 Run、新 Agent Message 和新 Workflow ID。
 - 运维 Reset 是受控修复，不是业务重试，必须审计并遵守 current execution 切换协议。

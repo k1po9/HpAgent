@@ -90,6 +90,34 @@ class DurableAgentActivities:
         except RuntimeError:
             pass
 
+    async def _mark_uncertain_side_effect(
+        self,
+        request: ToolExecutionInput,
+        fields: dict[str, Any],
+        *,
+        original_error_code: str,
+        event: str = "tool_side_effect_uncertain",
+        status: str = "failed",
+        reason: str = "non_idempotent_side_effect_may_have_executed",
+    ) -> None:
+        """Persist an uncertain non-idempotent side effect before propagating."""
+        await asyncio.to_thread(
+            self.store.mark_operation_uncertain,
+            request.operation_id,
+            "tool_side_effect_uncertain",
+        )
+        log_event(
+            tool_logger,
+            logging.ERROR,
+            event,
+            "tool",
+            **fields,
+            status=status,
+            error_code="tool_side_effect_uncertain",
+            original_error_code=original_error_code,
+            reason=reason,
+        )
+
     async def _raise_uncertain_side_effect(
         self,
         request: ToolExecutionInput,
@@ -99,21 +127,10 @@ class DurableAgentActivities:
         cause: BaseException | None = None,
     ) -> NoReturn:
         """Persist and expose the safety failure instead of its technical cause."""
-        await asyncio.to_thread(
-            self.store.mark_operation_uncertain,
-            request.operation_id,
-            "tool_side_effect_uncertain",
-        )
-        log_event(
-            tool_logger,
-            logging.ERROR,
-            "tool_side_effect_uncertain",
-            "tool",
-            **fields,
-            status="failed",
-            error_code="tool_side_effect_uncertain",
+        await self._mark_uncertain_side_effect(
+            request,
+            fields,
             original_error_code=original_error_code,
-            reason="non_idempotent_side_effect_may_have_executed",
         )
         error = ApplicationError(
             "工具副作用状态无法安全确认。",
@@ -572,6 +589,34 @@ class DurableAgentActivities:
             )
             payload["transcript_version"] = version
             result = ToolExecutionResult(**payload)
+        except asyncio.CancelledError:
+            if non_idempotent_may_have_executed:
+                await self._mark_uncertain_side_effect(
+                    request,
+                    fields,
+                    original_error_code="activity_cancelled",
+                    event="tool_execution_cancelled",
+                    status="cancelled",
+                    reason="cancelled_after_non_idempotent_side_effect_window",
+                )
+            else:
+                await asyncio.to_thread(
+                    self.store.fail_operation,
+                    request.operation_id,
+                    "activity_cancelled",
+                )
+                log_event(
+                    tool_logger,
+                    logging.WARNING,
+                    "tool_execution_cancelled",
+                    "tool",
+                    **fields,
+                    status="cancelled",
+                    error_code="activity_cancelled",
+                    reason="cancelled_before_non_idempotent_side_effect_window",
+                    side_effect_class=side_effect_class,
+                )
+            raise
         except StaleFencingToken as exc:
             if non_idempotent_may_have_executed:
                 await self._raise_uncertain_side_effect(

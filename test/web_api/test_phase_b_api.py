@@ -228,7 +228,7 @@ def test_api_006_messages_are_paginated_in_sequence(logged_client, db):
     assert [item["sequence"] for item in second["items"]] == [3, 4]
 
 
-def test_api_007_cancel_queued_and_retry_once(logged_client):
+def test_api_007_cancelled_run_cannot_be_retried(logged_client):
     client, csrf, _ = logged_client
     conversation_id = create_conversation(client, csrf).json()["conversation"]["conversation_id"]
     sent = client.post(
@@ -244,16 +244,34 @@ def test_api_007_cancel_queued_and_retry_once(logged_client):
     )
     assert cancelled.status_code == 200
     assert cancelled.json()["run"]["status"] == "cancelled"
-    one = client.post(
+    retried = client.post(
         f"/api/v1/runs/{run_id}/retry", json={}, headers=command_headers(csrf, str(uuid4()))
     )
-    two = client.post(
-        f"/api/v1/runs/{run_id}/retry", json={}, headers=command_headers(csrf, str(uuid4()))
+    assert retried.status_code == 409
+    assert retried.json()["error"]["code"] == "run_not_retryable"
+
+
+def test_api_rejects_retry_while_run_is_running(logged_client, db):
+    client, csrf, _ = logged_client
+    conversation_id = create_conversation(client, csrf).json()["conversation"]["conversation_id"]
+    sent = client.post(
+        f"/api/v1/conversations/{conversation_id}/messages",
+        json={"content": "still running"},
+        headers=command_headers(csrf, str(uuid4())),
+    ).json()
+    run_id = sent["run"]["run_id"]
+    db.execute(
+        "UPDATE runs SET status='running',started_at=now() WHERE run_id=%s",
+        (run_id,),
     )
-    assert one.status_code == 202
-    assert two.status_code == 200
-    assert two.headers["resource-reused"] == "true"
-    assert one.json()["run"]["run_id"] == two.json()["run"]["run_id"]
+
+    retried = client.post(
+        f"/api/v1/runs/{run_id}/retry",
+        json={},
+        headers=command_headers(csrf, str(uuid4())),
+    )
+    assert retried.status_code == 409
+    assert retried.json()["error"]["code"] == "run_not_retryable"
 
 
 def test_api_rejects_retry_after_uncertain_side_effect(logged_client, worker_database_url):

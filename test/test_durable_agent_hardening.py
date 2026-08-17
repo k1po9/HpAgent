@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -61,10 +62,12 @@ class Store:
         *,
         fence_on_validation: int | None = None,
         completion_error: Exception | None = None,
+        load_error: BaseException | None = None,
     ):
         self.state = state
         self.fence_on_validation = fence_on_validation
         self.completion_error = completion_error
+        self.load_error = load_error
         self.validations = 0
         self.uncertain: list[str] = []
         self.failed: list[str] = []
@@ -78,6 +81,8 @@ class Store:
             raise StaleFencingToken("taken over")
 
     def load_messages(self, transcript_id: str):
+        if self.load_error is not None:
+            raise self.load_error
         return [], 1
 
     def tool_call_arguments(self, arguments_ref: str, tool_call_id: str):
@@ -99,9 +104,16 @@ class Store:
 
 
 class Actions:
-    def __init__(self, side_effect_class: str, *, error: str | None = None):
+    def __init__(
+        self,
+        side_effect_class: str,
+        *,
+        error: str | None = None,
+        cancel: bool = False,
+    ):
         self.classification = side_effect_class
         self.error = error
+        self.cancel = cancel
         self.calls = 0
 
     def side_effect_class(self, session_id: str, tool_name: str) -> str:
@@ -109,6 +121,8 @@ class Actions:
 
     async def execute_request(self, request, **kwargs):
         self.calls += 1
+        if self.cancel:
+            raise asyncio.CancelledError
         return ActionResult(
             request=request,
             output="ok",
@@ -301,6 +315,35 @@ async def test_non_idempotent_action_error_is_uncertain_and_never_completed():
     assert failure.value.type == "tool_side_effect_uncertain"
     assert failure.value.non_retryable is True
     assert actions.calls == 1
+    assert store.uncertain == ["tool_side_effect_uncertain"]
+
+
+@pytest.mark.asyncio
+async def test_cancellation_before_side_effect_window_fails_operation_and_propagates():
+    store = Store(
+        ToolOperationState("started", None),
+        load_error=asyncio.CancelledError(),
+    )
+    actions = Actions("non_idempotent_write")
+
+    with pytest.raises(asyncio.CancelledError):
+        await activities(store, actions).tool_execution(request())
+
+    assert actions.calls == 0
+    assert store.failed == ["activity_cancelled"]
+    assert store.uncertain == []
+
+
+@pytest.mark.asyncio
+async def test_cancellation_after_non_idempotent_window_is_uncertain_and_propagates():
+    store = Store(ToolOperationState("started", None))
+    actions = Actions("non_idempotent_write", cancel=True)
+
+    with pytest.raises(asyncio.CancelledError):
+        await activities(store, actions).tool_execution(request())
+
+    assert actions.calls == 1
+    assert store.failed == []
     assert store.uncertain == ["tool_side_effect_uncertain"]
 
 

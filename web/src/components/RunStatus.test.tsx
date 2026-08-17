@@ -26,6 +26,23 @@ function failedRun(retryable: boolean): HpRun {
 }
 
 describe("RunStatus retry safety", () => {
+  it("hides Retry for a cancelled run", () => {
+    render(
+      <RunStatus
+        activeRun={{ ...failedRun(true), status: "cancelled", failure: null }}
+        busyMessage={null}
+        progress={null}
+        degraded={false}
+        stopping={false}
+        onStop={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("run-label")).toHaveTextContent("已停止");
+    expect(screen.queryByRole("button", { name: "重试" })).not.toBeInTheDocument();
+  });
+
   it("hides Retry and explains an uncertain external side effect", () => {
     render(
       <RunStatus

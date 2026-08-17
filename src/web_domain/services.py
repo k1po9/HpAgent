@@ -221,8 +221,10 @@ class CommandService:
             source = self.runs.get_for_account(uow, account_id, source_run_id, lock=True)
             if source is None:
                 raise ResourceNotFound()
+            if source["status"] != "failed":
+                raise RunNotRetryable()
             failure_code = str(source.get("failure_code") or "")
-            if source["status"] == "failed" and not is_failure_retryable(failure_code):
+            if not is_failure_retryable(failure_code):
                 log_event(
                     logger,
                     logging.WARNING,
@@ -241,8 +243,6 @@ class CommandService:
                 response_status = 200
                 resource_reused = True
             else:
-                if source["status"] not in ("failed", "cancelled"):
-                    raise RunNotRetryable()
                 if conversation is None or conversation["status"] != "active":
                     raise ResourceNotFound()
                 if self.runs.has_active(uow, source["conversation_id"]):

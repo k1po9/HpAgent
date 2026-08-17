@@ -26,7 +26,7 @@ interface RunStatusProps {
  *
  * Progress/state of the active Run lives here, never inside Message content.
  * While a Run is running the composer is gated; this strip offers Stop. A
- * A cancelled or safely retryable failed Run offers Retry, which reuses the
+ * safely retryable failed Run offers Retry, which reuses the
  * original user message. Uncertain external side effects require manual review.
  */
 export function RunStatus({

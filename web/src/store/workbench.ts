@@ -11,8 +11,8 @@
  *   and Run from the POST (contract API-013).
  * - While a Run is active the conversation is busy: the composer is gated and
  *   double-sends are ignored, but the backend 409 remains the final arbiter.
- * - `stop`/`retry` call the cancel/retry APIs; a cancelled or safely retryable
- *   failed Run can be retried, reusing the original user message.
+ * - `stop`/`retry` call the cancel/retry APIs; only a safely retryable failed
+ *   Run can be retried, reusing the original user message.
  * - Run state is watched live over the SSE subscription (E-06). Deltas stream
  *   into the pending assistant Message as a volatile buffer; `run.progress`
  *   lives only in the run-status area. On degraded/connect loss the feed stops
@@ -50,9 +50,7 @@ export function isCancellableRunStatus(status: HpRunStatus): boolean {
 }
 
 export function isRetryableRun(run: HpRun): boolean {
-  return (
-    run.status === "cancelled" || (run.status === "failed" && run.failure?.retryable !== false)
-  );
+  return run.status === "failed" && run.failure?.retryable !== false;
 }
 
 /** Human-readable label for the run status area (progress lives here, not in content). */
