@@ -23,6 +23,24 @@ def _load_module():
 viewer = _load_module()
 
 
+def test_live_polling_does_not_replace_focused_detail_filters() -> None:
+    html = viewer.HTML
+    assert "if(!force&&detailControlActive()){pendingDetailRender=true;return}" in html
+    assert "if(!force&&signature===detailSignature)return" in html
+    assert "rawFilters={component:c,status:s,event:" in html
+    assert "if(pendingDetailRender&&!detailControlActive())" in html
+
+
+def test_live_polling_is_bounded_and_pauses_when_hidden() -> None:
+    html = viewer.HTML
+    assert "POLL_INTERVAL_MS=2500" in html
+    assert "FETCH_TIMEOUT_MS=8000" in html
+    assert "if(document.hidden||pollInFlight)return" in html
+    assert "finally{pollInFlight=false;schedulePoll()}" in html
+    assert "document.addEventListener('visibilitychange'" in html
+    assert "setInterval(poll" not in html
+
+
 def _write(path: Path, *records: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
@@ -119,6 +137,23 @@ def test_qq_archived_history_takes_precedence_over_wal(tmp_path: Path) -> None:
     assert snapshot["summary"] == "archived"
 
 
+def test_qq_reader_throttles_unchanged_file_checks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reader = viewer.QQSessionReader(tmp_path / "active", tmp_path / "workspace")
+    file_checks = 0
+
+    def files() -> list[tuple[Path, str, str | None]]:
+        nonlocal file_checks
+        file_checks += 1
+        return []
+
+    monkeypatch.setattr(reader, "_files", files)
+    reader.refresh()
+    reader.refresh()
+    assert file_checks == 1
+
+
 class _FakeConnection:
     def __init__(self) -> None:
         self.queries: list[str] = []
@@ -154,6 +189,21 @@ def test_postgres_snapshot_mapping_is_read_only(monkeypatch: pytest.MonkeyPatch)
     assert snapshot["run"]["status"] == "running"
     assert snapshot["messages"][0]["message_id"] == "m1"
     assert all(not query.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")) for query in connection.queries)
+
+
+def test_postgres_snapshot_uses_short_lived_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    connection = _FakeConnection()
+    reader = viewer.PostgresReader("postgresql://example")
+    connect_count = 0
+
+    def connect() -> _FakeConnection:
+        nonlocal connect_count
+        connect_count += 1
+        return connection
+
+    monkeypatch.setattr(reader, "_connect", connect)
+    assert reader.snapshot("r1") == reader.snapshot("r1")
+    assert connect_count == 1
 
 
 def test_observatory_merges_web_logs_and_authoritative_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

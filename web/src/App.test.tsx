@@ -5,11 +5,12 @@
  * one conversation, and an empty message page. Verifies the assistant-ui chat
  * surface renders (sidebar + composer) without runtime errors.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useAuth } from "./store/auth";
+import { useArtifacts } from "./store/artifacts";
 
 const ME = {
   account: { account_id: "alice", status: "active", created_at: "2026-08-08T00:00:00Z" },
@@ -78,6 +79,17 @@ describe("App workbench", () => {
     expect(screen.getByPlaceholderText(/输入消息/)).toBeInTheDocument();
     expect(screen.getByText("新建", { selector: "button" })).toBeInTheDocument();
     expect(screen.getByText("绑定 QQ", { selector: "button" })).toBeInTheDocument();
+  });
+
+  it("shows Artifact store errors in the active chat", async () => {
+    render(<App />);
+    await screen.findByPlaceholderText(/输入消息/);
+
+    useArtifacts.setState({ error: "Artifact 服务不可用" });
+
+    await waitFor(() =>
+      expect(screen.getByText("Artifact：Artifact 服务不可用（点击关闭）")).toBeInTheDocument(),
+    );
   });
 
   it("prompts a newly registered existing QQ user to bind first", async () => {

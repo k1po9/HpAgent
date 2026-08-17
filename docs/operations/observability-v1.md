@@ -40,6 +40,8 @@ http://127.0.0.1:8091
 
 JSONL 使用增量 offset 读取，并处理文件轮转和缩短；内存默认最多保留 30,000 条事件。PostgreSQL 列表只读取最近 100 个 Run，详情按需读取。QQ 文件按 mtime/size 变化刷新，归档 `history.jsonl` 优先于活跃 WAL。
 
+浏览器在上一轮请求完成后等待 2.5 秒再轮询，单次请求 8 秒超时，页面进入后台时暂停轮询、回到前台后立即恢复。PostgreSQL 列表与详情使用 5 秒进程内缓存，避免同一轮列表和详情组装重复建立数据库连接；QQ WAL/history 文件检查使用 1 秒节流和并发锁。缓存只影响只读观测数据，进程退出后自动清空。
+
 ## Correlation
 
 Web 使用 `execution_id`，缺失时使用 `run_id`；当前 Web 中二者相等。QQ 使用 `execution_id=qq-turn-*`，不会创建假的 `run_id`。
@@ -57,4 +59,3 @@ QQ WAL 中每轮带 `execution_id` 的 `user_message` 是分段起点，该事�
 ## P0 明确不包含
 
 Temporal 实时 inspect、Redis 在线历史、Hindsight health/metrics、Critical Path 百分比和完整 anomaly engine 属于后续阶段。页面会明确将这三个在线源标为 `P1 / not_connected`。
-

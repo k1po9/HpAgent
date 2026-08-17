@@ -3,6 +3,7 @@ import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
 import { HpThread } from "../adapters/assistant-ui/HpThread";
 import { useWorkbench } from "../store/workbench";
 import { useAuth } from "../store/auth";
+import { useArtifacts } from "../store/artifacts";
 import { RunStatus } from "./RunStatus";
 
 /**
@@ -30,6 +31,8 @@ export function ChatPane() {
   const retryRun = useWorkbench((s) => s.retryRun);
   const loadMoreMessages = useWorkbench((s) => s.loadMoreMessages);
   const clearError = useWorkbench((s) => s.clearError);
+  const artifactError = useArtifacts((s) => s.error);
+  const clearArtifactError = useArtifacts((s) => s.clearError);
   const setAgentStrategy = useWorkbench((s) => s.setAgentStrategy);
   const strategyLocked =
     sending ||
@@ -81,6 +84,13 @@ export function ChatPane() {
         <button type="button" className="hp-error" onClick={handleDismissError}>
           <Text size="2" color="red">
             {error}（点击关闭）
+          </Text>
+        </button>
+      ) : null}
+      {artifactError ? (
+        <button type="button" className="hp-error" onClick={clearArtifactError}>
+          <Text size="2" color="red">
+            Artifact：{artifactError}（点击关闭）
           </Text>
         </button>
       ) : null}

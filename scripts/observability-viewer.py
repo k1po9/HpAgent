@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import threading
+import time
 from collections import deque
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -210,9 +211,13 @@ class IncrementalJsonlReader:
 class PostgresReader:
     """On-demand, read-only PostgreSQL snapshots for Web runs."""
 
-    def __init__(self, database_url: str | None) -> None:
+    def __init__(self, database_url: str | None, cache_ttl_seconds: float = 5.0) -> None:
         self.database_url = database_url
+        self.cache_ttl_seconds = cache_ttl_seconds
         self.last_error: str | None = None
+        self._cache_lock = threading.Lock()
+        self._recent_cache: dict[int, tuple[float, list[dict[str, Any]]]] = {}
+        self._snapshot_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
 
     def _connect(self):
         if not self.database_url:
@@ -224,55 +229,74 @@ class PostgresReader:
         return connection
 
     def recent_runs(self, limit: int = 100) -> list[dict[str, Any]]:
+        limit = min(max(limit, 1), 500)
         sql = (
             "SELECT r.*,m.content AS trigger_content FROM hpagent.runs r "
             "JOIN hpagent.messages m ON m.message_id=r.trigger_message_id "
             "ORDER BY r.updated_at DESC,r.run_id DESC LIMIT %s"
         )
-        try:
-            with self._connect() as connection:
-                rows = connection.execute(sql, (min(max(limit, 1), 500),)).fetchall()
-            self.last_error = None
-            return [dict(row) for row in rows]
-        except Exception as exc:
-            self.last_error = f"{type(exc).__name__}: {exc}"
-            return []
+        with self._cache_lock:
+            now = time.monotonic()
+            cached = self._recent_cache.get(limit)
+            if cached and now - cached[0] < self.cache_ttl_seconds:
+                return cached[1]
+            try:
+                with self._connect() as connection:
+                    rows = connection.execute(sql, (limit,)).fetchall()
+                result = [dict(row) for row in rows]
+                self.last_error = None
+            except Exception as exc:
+                self.last_error = f"{type(exc).__name__}: {exc}"
+                result = []
+            self._recent_cache[limit] = (time.monotonic(), result)
+            return result
 
     def snapshot(self, run_id: str) -> dict[str, Any] | None:
-        try:
-            with self._connect() as connection:
-                run = connection.execute(
-                    "SELECT * FROM hpagent.runs WHERE run_id=%s", (run_id,),
-                ).fetchone()
-                if run is None:
-                    return None
-                messages = connection.execute(
-                    "SELECT * FROM hpagent.messages WHERE message_id=%s OR produced_by_run_id=%s "
-                    "ORDER BY sequence", (run["trigger_message_id"], run_id),
-                ).fetchall()
-                session = connection.execute(
-                    "SELECT * FROM hpagent.sessions WHERE session_id=%s", (run["session_id"],),
-                ).fetchone()
-                conversation = connection.execute(
-                    "SELECT * FROM hpagent.conversations WHERE conversation_id=%s", (run["conversation_id"],),
-                ).fetchone()
-                workflows = connection.execute(
-                    "SELECT * FROM hpagent.workflow_executions WHERE run_id=%s ORDER BY execution_sequence", (run_id,),
-                ).fetchall()
-                outbox = connection.execute(
-                    "SELECT * FROM hpagent.outbox_events WHERE run_id=%s ORDER BY created_at,outbox_event_id", (run_id,),
-                ).fetchall()
-            self.last_error = None
-            return {
-                "run": dict(run), "messages": [dict(row) for row in messages],
-                "session": dict(session) if session else None,
-                "conversation": dict(conversation) if conversation else None,
-                "workflow_executions": [dict(row) for row in workflows],
-                "outbox_events": [dict(row) for row in outbox],
-            }
-        except Exception as exc:
-            self.last_error = f"{type(exc).__name__}: {exc}"
-            return None
+        with self._cache_lock:
+            now = time.monotonic()
+            cached = self._snapshot_cache.get(run_id)
+            if cached and now - cached[0] < self.cache_ttl_seconds:
+                return cached[1]
+            try:
+                with self._connect() as connection:
+                    run = connection.execute(
+                        "SELECT * FROM hpagent.runs WHERE run_id=%s", (run_id,),
+                    ).fetchone()
+                    if run is None:
+                        result = None
+                    else:
+                        messages = connection.execute(
+                            "SELECT * FROM hpagent.messages WHERE message_id=%s OR produced_by_run_id=%s "
+                            "ORDER BY sequence", (run["trigger_message_id"], run_id),
+                        ).fetchall()
+                        session = connection.execute(
+                            "SELECT * FROM hpagent.sessions WHERE session_id=%s", (run["session_id"],),
+                        ).fetchone()
+                        conversation = connection.execute(
+                            "SELECT * FROM hpagent.conversations WHERE conversation_id=%s", (run["conversation_id"],),
+                        ).fetchone()
+                        workflows = connection.execute(
+                            "SELECT * FROM hpagent.workflow_executions WHERE run_id=%s ORDER BY execution_sequence", (run_id,),
+                        ).fetchall()
+                        outbox = connection.execute(
+                            "SELECT * FROM hpagent.outbox_events WHERE run_id=%s ORDER BY created_at,outbox_event_id", (run_id,),
+                        ).fetchall()
+                        result = {
+                            "run": dict(run), "messages": [dict(row) for row in messages],
+                            "session": dict(session) if session else None,
+                            "conversation": dict(conversation) if conversation else None,
+                            "workflow_executions": [dict(row) for row in workflows],
+                            "outbox_events": [dict(row) for row in outbox],
+                        }
+                self.last_error = None
+            except Exception as exc:
+                self.last_error = f"{type(exc).__name__}: {exc}"
+                result = None
+            if len(self._snapshot_cache) >= 256:
+                oldest = min(self._snapshot_cache, key=lambda key: self._snapshot_cache[key][0])
+                del self._snapshot_cache[oldest]
+            self._snapshot_cache[run_id] = (time.monotonic(), result)
+            return result
 
 
 class QQSessionReader:
@@ -283,6 +307,8 @@ class QQSessionReader:
         self.workspace_dir = workspace_dir
         self._stamp: tuple[tuple[str, int, int], ...] = ()
         self._executions: dict[str, dict[str, Any]] = {}
+        self._refresh_lock = threading.Lock()
+        self._last_refresh_check = 0.0
         self.last_error: str | None = None
 
     def _files(self) -> list[tuple[Path, str, str | None]]:
@@ -301,6 +327,14 @@ class QQSessionReader:
         return files
 
     def refresh(self) -> dict[str, dict[str, Any]]:
+        with self._refresh_lock:
+            now = time.monotonic()
+            if now - self._last_refresh_check < 1.0:
+                return self._executions
+            self._last_refresh_check = now
+            return self._refresh_files()
+
+    def _refresh_files(self) -> dict[str, dict[str, Any]]:
         files = self._files()
         stamp = tuple(sorted((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path, _, _ in files))
         if stamp == self._stamp:
@@ -530,18 +564,21 @@ HTML = r'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta n
 :root{--bg:#071018;--panel:#0d1924;--panel2:#122231;--line:#24394a;--text:#d9e7f0;--muted:#7992a5;--cyan:#4fd1c5;--green:#5bd68b;--red:#ff6b76;--amber:#ffc857;--blue:#6dafff;--purple:#bb86fc}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px Inter,ui-sans-serif,system-ui,sans-serif}header{height:58px;padding:0 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:20px;background:#09141e}h1{font-size:17px;margin:0;letter-spacing:.3px}.live{color:var(--green)}.health{display:flex;gap:7px;margin-left:auto}.badge,.source{border:1px solid var(--line);padding:2px 7px;border-radius:20px;font-size:10px;color:var(--muted)}.source{color:var(--cyan)}.filters{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;background:var(--panel)}select,input{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:6px 8px}.filters input{flex:1}.layout{height:calc(100vh - 105px);display:grid;grid-template-columns:310px minmax(420px,1fr) 330px}.left,.main,.right{overflow:auto}.left{border-right:1px solid var(--line);padding:10px}.main{padding:14px 18px}.right{border-left:1px solid var(--line);padding:12px;background:#09141e}.card{padding:10px;border:1px solid var(--line);border-radius:7px;margin-bottom:7px;cursor:pointer;background:var(--panel)}.card:hover,.card.on{border-color:var(--cyan);background:var(--panel2)}.row{display:flex;justify-content:space-between;gap:8px}.id{font:11px ui-monospace,monospace;color:var(--blue);overflow:hidden;text-overflow:ellipsis}.summary{color:var(--muted);font-size:11px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status{font-weight:700;font-size:10px;text-transform:uppercase}.running{color:var(--blue)}.success{color:var(--green)}.failed{color:var(--red)}.degraded{color:var(--amber)}.cancelled{color:var(--muted)}h2{font-size:15px;margin:0 0 10px}h3{font-size:11px;color:var(--muted);letter-spacing:1.1px;margin:18px 0 8px}.summarybox,.state{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px;margin-bottom:12px}.kv{display:grid;grid-template-columns:100px 1fr;gap:4px 8px;font-size:11px}.kv b{color:var(--muted);font-weight:500}.kv span{font-family:ui-monospace,monospace;overflow-wrap:anywhere}.node{display:grid;grid-template-columns:95px 90px 1fr 85px;gap:9px;border-left:3px solid var(--blue);padding:9px 10px;margin:5px 0;background:var(--panel);border-radius:0 6px 6px 0}.node.failed{border-color:var(--red)}.node.degraded{border-color:var(--amber)}.node .time{color:var(--muted);font:10px ui-monospace,monospace}.node .component{font-weight:700;text-transform:uppercase}.node .detail{color:var(--text)}.node .duration{text-align:right;color:var(--cyan);font-family:ui-monospace,monospace}.tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;padding:7px;cursor:pointer}.tabs button.on{color:var(--cyan);border-color:var(--cyan)}pre{white-space:pre-wrap;word-break:break-word;background:#050b10;border:1px solid var(--line);padding:9px;border-radius:6px;font:10px ui-monospace,monospace;max-height:360px;overflow:auto}.raw{border-top:1px solid var(--line);padding:7px 0}.raw summary{cursor:pointer;color:var(--blue)}.empty{color:var(--muted);padding:40px;text-align:center}.anomaly{border:1px solid #6b4d1b;background:#2b2110;color:var(--amber);padding:8px;border-radius:6px;margin:6px 0}
 </style></head><body><header><h1>HpAgent Execution Observatory</h1><span class="live">LIVE ●</span><div class="health" id="health"></div></header><div class="filters"><select id="surface"><option value="">All surfaces</option><option value="web">Web</option><option value="qq">QQ</option></select><select id="status"><option value="">All statuses</option><option>running</option><option>success</option><option>failed</option><option>degraded</option><option>cancelled</option></select><select id="component"><option value="">All components</option><option>web_api</option><option>run</option><option>dispatcher</option><option>temporal</option><option>context</option><option>agent</option><option>model</option><option>tool</option><option>memory</option><option>sse</option></select><input id="search" placeholder="Search execution / run / workflow / session / tool / error"></div><div class="layout"><aside class="left" id="list"></aside><main class="main" id="main"><div class="empty">Select an execution</div></main><aside class="right" id="state"><div class="empty">State Inspector</div></aside></div>
 <script>
-let executions=[],selected=null,detail=null;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const short=s=>{s=String(s||'');return s.length>48?s.slice(0,25)+'…'+s.slice(-12):s};
-async function get(url){const r=await fetch(url);if(!r.ok)throw Error(r.status);return r.json()}
-async function poll(){try{const [e,h]=await Promise.all([get('/api/executions'),get('/api/health')]);executions=e.executions;renderList();renderHealth(h);if(selected){detail=await get('/api/execution/'+encodeURIComponent(selected));renderDetail()}}catch(e){document.getElementById('health').innerHTML='<span class="badge failed">viewer degraded</span>'}}
+let executions=[],selected=null,detail=null,detailSignature='',pendingDetailRender=false,pollTimer=null,pollInFlight=false;let rawFilters={component:'',status:'',event:''};const POLL_INTERVAL_MS=2500,FETCH_TIMEOUT_MS=8000;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const short=s=>{s=String(s||'');return s.length>48?s.slice(0,25)+'…'+s.slice(-12):s};
+async function get(url){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),FETCH_TIMEOUT_MS);try{const r=await fetch(url,{signal:controller.signal});if(!r.ok)throw Error(r.status);return await r.json()}finally{clearTimeout(timer)}}
+function detailControlActive(){const el=document.activeElement,main=document.getElementById('main');return !!(el&&main.contains(el)&&el.matches('input,select,button'))}
+function applyDetail(next,{force=false}={}){const signature=JSON.stringify(next);if(!force&&signature===detailSignature)return;detail=next;detailSignature=signature;if(!force&&detailControlActive()){pendingDetailRender=true;return}pendingDetailRender=false;renderDetail()}
+function schedulePoll(delay=POLL_INTERVAL_MS){clearTimeout(pollTimer);if(!document.hidden)pollTimer=setTimeout(poll,delay)}
+async function poll(){if(document.hidden||pollInFlight)return;pollInFlight=true;try{const [e,h]=await Promise.all([get('/api/executions'),get('/api/health')]);executions=e.executions;renderList();renderHealth(h);if(selected)applyDetail(await get('/api/execution/'+encodeURIComponent(selected))) }catch(e){document.getElementById('health').innerHTML='<span class="badge failed">viewer degraded</span>'}finally{pollInFlight=false;schedulePoll()}}
 function renderHealth(h){document.getElementById('health').innerHTML=Object.entries(h.sources).slice(0,3).map(([k,v])=>`<span class="badge ${v.status==='ok'||v.status==='configured'?'success':'degraded'}">${esc(k)} ${esc(v.status)}</span>`).join('')}
 function renderList(){const surface=document.getElementById('surface').value,status=document.getElementById('status').value,component=document.getElementById('component').value,q=document.getElementById('search').value.toLowerCase();const list=executions.filter(x=>(!surface||x.surface===surface)&&(!status||x.status===status)&&(!component||(x.components||[]).includes(component))&&(!q||JSON.stringify(x).toLowerCase().includes(q)));document.getElementById('list').innerHTML=`<h2>Executions <span class="badge">${list.length}</span></h2>`+list.map(x=>`<div class="card ${selected===x.trace_key?'on':''}" onclick="choose('${esc(x.trace_key)}')"><div class="row"><b>${esc((x.surface||'?').toUpperCase())}</b><span class="status ${esc(x.status)}">${esc(x.status)}</span></div><div class="id">${esc(short(x.trace_key))}</div><div class="summary">${esc(x.summary||x.activity_at||'')}</div></div>`).join('')}
-async function choose(key){selected=key;detail=await get('/api/execution/'+encodeURIComponent(key));renderList();renderDetail()}
-function renderDetail(){if(!detail)return;const s=detail.summary||{};const ids=[['execution',s.execution_id],['run',s.run_id],['workflow',s.workflow_id],['account',s.account_id],['session',s.session_id],['conversation',s.conversation_id]].filter(x=>x[1]);document.getElementById('main').innerHTML=`<div class="summarybox"><div class="row"><h2>${esc((s.surface||'?').toUpperCase())} Execution</h2><span class="status ${esc(s.status)}">${esc(s.status)}</span></div><div class="kv">${ids.map(x=>`<b>${x[0]}</b><span>${esc(x[1])}</span>`).join('')}</div></div>${(detail.anomalies||[]).map(x=>`<div class="anomaly">STATE DIVERGENCE · ${esc(x)}</div>`).join('')}<h2>Execution Waterfall <span class="source">DERIVED</span></h2><div>${detail.waterfall.length?detail.waterfall.map(nodeHtml).join(''):'<div class="empty">No correlated JSONL lifecycle events</div>'}</div><div class="tabs"><button class="on">Raw Events</button></div><div class="filters"><select id="rawcomponent"><option value="">All components</option>${[...new Set(detail.events.map(e=>e.component))].sort().map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="rawstatus"><option value="">All outcomes</option><option value="failed">failed</option><option value="degraded">degraded</option></select><input id="rawevent" placeholder="Filter event name"></div><div id="rawlist"></div>`;['rawcomponent','rawstatus','rawevent'].forEach(id=>document.getElementById(id).addEventListener(id==='rawevent'?'input':'change',renderRaw));renderRaw();renderState()}
-function renderRaw(){const c=document.getElementById('rawcomponent').value,s=document.getElementById('rawstatus').value,q=document.getElementById('rawevent').value.toLowerCase();const rows=detail.events.filter(e=>(!c||e.component===c)&&(!q||e.event.toLowerCase().includes(q))&&(!s||(s==='failed'?(e.status==='failed'||e.level==='ERROR'):e.status==='degraded')));document.getElementById('rawlist').innerHTML=rows.map(e=>`<details class="raw"><summary>${esc(e.ts)} · ${esc(e.component)} · ${esc(e.event)} · ${esc(e.status||'')}</summary><button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent)">Copy JSON</button><pre>${esc(JSON.stringify(e.raw,null,2))}</pre></details>`).join('')||'<div class="empty">No matching raw events</div>'}
+async function choose(key){selected=key;rawFilters={component:'',status:'',event:''};renderList();applyDetail(await get('/api/execution/'+encodeURIComponent(key)),{force:true})}
+function renderDetail(){if(!detail)return;const s=detail.summary||{};const ids=[['execution',s.execution_id],['run',s.run_id],['workflow',s.workflow_id],['account',s.account_id],['session',s.session_id],['conversation',s.conversation_id]].filter(x=>x[1]);document.getElementById('main').innerHTML=`<div class="summarybox"><div class="row"><h2>${esc((s.surface||'?').toUpperCase())} Execution</h2><span class="status ${esc(s.status)}">${esc(s.status)}</span></div><div class="kv">${ids.map(x=>`<b>${x[0]}</b><span>${esc(x[1])}</span>`).join('')}</div></div>${(detail.anomalies||[]).map(x=>`<div class="anomaly">STATE DIVERGENCE · ${esc(x)}</div>`).join('')}<h2>Execution Waterfall <span class="source">DERIVED</span></h2><div>${detail.waterfall.length?detail.waterfall.map(nodeHtml).join(''):'<div class="empty">No correlated JSONL lifecycle events</div>'}</div><div class="tabs"><button class="on">Raw Events</button></div><div class="filters"><select id="rawcomponent"><option value="">All components</option>${[...new Set(detail.events.map(e=>e.component))].sort().map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="rawstatus"><option value="">All outcomes</option><option value="failed">failed</option><option value="degraded">degraded</option></select><input id="rawevent" placeholder="Filter event name"></div><div id="rawlist"></div>`;document.getElementById('rawcomponent').value=rawFilters.component;document.getElementById('rawstatus').value=rawFilters.status;document.getElementById('rawevent').value=rawFilters.event;['rawcomponent','rawstatus','rawevent'].forEach(id=>document.getElementById(id).addEventListener(id==='rawevent'?'input':'change',renderRaw));renderRaw();renderState()}
+function renderRaw(){const c=document.getElementById('rawcomponent').value,s=document.getElementById('rawstatus').value,q=document.getElementById('rawevent').value.toLowerCase();rawFilters={component:c,status:s,event:document.getElementById('rawevent').value};const rows=detail.events.filter(e=>(!c||e.component===c)&&(!q||e.event.toLowerCase().includes(q))&&(!s||(s==='failed'?(e.status==='failed'||e.level==='ERROR'):e.status==='degraded')));document.getElementById('rawlist').innerHTML=rows.map(e=>`<details class="raw"><summary>${esc(e.ts)} · ${esc(e.component)} · ${esc(e.event)} · ${esc(e.status||'')}</summary><button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent)">Copy JSON</button><pre>${esc(JSON.stringify(e.raw,null,2))}</pre></details>`).join('')||'<div class="empty">No matching raw events</div>'}
 function nodeHtml(n){const more=[n.event,n.phase,n.tool,n.turn!=null?'turn '+n.turn:null,n.error_code].filter(Boolean).join(' · ');return `<div class="node ${esc(n.status)}"><div class="time">${esc((n.ts||'').slice(11,23))}</div><div class="component">${esc(n.component)}</div><div class="detail">${esc(more)}</div><div class="duration">${n.elapsed_ms==null?'—':esc(Math.round(n.elapsed_ms)+' ms')}</div></div>`}
 function renderState(){const p=detail.postgres,q=detail.qq_session,src=detail.sources;let html='<h2>State Inspector</h2><h3>SOURCE BADGES</h3>'+Object.entries(src).filter(x=>x[1]).map(([k,v])=>`<div class="row"><span>${esc(k)}</span><span class="source">${esc(v)}</span></div>`).join('');if(p){html+='<h3>POSTGRESQL</h3>'+stateBox('run',p.run)+stateBox('messages',p.messages)+stateBox('workflow executions',p.workflow_executions)+stateBox('outbox',p.outbox_events)}if(q){html+='<h3>QQ SESSION</h3>'+stateBox(q.source,q.events)}document.getElementById('state').innerHTML=html}
 function stateBox(title,data){return `<div class="state"><b>${esc(title)}</b><pre>${esc(JSON.stringify(data,null,2))}</pre></div>`}
-['surface','status','component','search'].forEach(id=>document.getElementById(id).addEventListener(id==='search'?'input':'change',renderList));poll();setInterval(poll,1000);
+['surface','status','component','search'].forEach(id=>document.getElementById(id).addEventListener(id==='search'?'input':'change',renderList));document.addEventListener('focusout',()=>setTimeout(()=>{if(pendingDetailRender&&!detailControlActive()){pendingDetailRender=false;renderDetail()}},0));document.addEventListener('visibilitychange',()=>{clearTimeout(pollTimer);if(!document.hidden)poll()});poll();
 </script></body></html>'''
 
 

@@ -7,6 +7,7 @@ import {
   type HpArtifactSummary,
   type HpArtifactVersion,
 } from "../api/types";
+import { newIdempotencyKey } from "../utils/idempotency";
 
 const delays = [1000, 2000, 3000, 5000] as const;
 
@@ -24,6 +25,7 @@ interface ArtifactState {
   openArtifact: (artifactId: string) => Promise<void>;
   createVersion: (artifactId: string, instruction: string) => Promise<void>;
   selectVersion: (versionId: string) => void;
+  clearError: () => void;
   closeArtifact: () => void;
   reset: () => void;
 }
@@ -60,7 +62,7 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
   const api = deps.api;
   const sleep =
     deps.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
-  const newKey = deps.newIdempotencyKey ?? (() => crypto.randomUUID());
+  const newKey = deps.newIdempotencyKey ?? newIdempotencyKey;
 
   return create<ArtifactState>()((set) => {
     // Every conversation/account context change invalidates all outstanding
@@ -115,6 +117,7 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
         const requestGeneration = generation;
         set((state) => ({
           loadingMessageIds: unique([...state.loadingMessageIds, messageId]),
+          error: null,
         }));
         try {
           const result = await api.listMessageArtifacts(messageId);
@@ -138,6 +141,7 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
       },
       createArtifact: async (messageId, instruction = null) => {
         const requestGeneration = generation;
+        set({ error: null });
         try {
           const result = await api.createArtifact(messageId, instruction, newKey());
           if (!current(requestGeneration)) return;
@@ -172,6 +176,7 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
       },
       openArtifact: async (artifactId) => {
         const requestGeneration = generation;
+        set({ error: null });
         try {
           const result = await api.listArtifactVersions(artifactId);
           if (!current(requestGeneration)) return;
@@ -204,6 +209,7 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
         const value = instruction.trim();
         if (!value) return;
         const requestGeneration = generation;
+        set({ error: null });
         try {
           const result = await api.createArtifactVersion(artifactId, value, newKey());
           if (!current(requestGeneration)) return;
@@ -225,6 +231,7 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
         }
       },
       selectVersion: (openVersionId) => set({ openVersionId }),
+      clearError: () => set({ error: null }),
       closeArtifact: () => set({ openArtifactId: null, openVersionId: null }),
       reset,
     };

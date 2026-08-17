@@ -1,7 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
-import type { HpApi } from "../api/resources";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ApiClient } from "../api/client";
+import { HpApi } from "../api/resources";
 import type { HpArtifact, HpArtifactVersion } from "../api/types";
 import { createArtifactStore } from "./artifacts";
+
+afterEach(() => vi.unstubAllGlobals());
 
 const artifact: HpArtifact = {
   artifact_id: "a1",
@@ -111,5 +114,44 @@ describe("artifact store lifecycle", () => {
     expect(store.getState().artifactsById).toEqual({});
     expect(store.getState().versionsByArtifactId).toEqual({});
     expect(store.getState().buildingVersionIds).toEqual([]);
+  });
+
+  it("creates an Artifact with a fallback UUID when randomUUID is unavailable", async () => {
+    const request = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ artifact, version: version("completed") }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("crypto", {
+      getRandomValues: (bytes: Uint8Array) => {
+        bytes.fill(0);
+        return bytes;
+      },
+    });
+    const store = createArtifactStore({ api: new HpApi(new ApiClient(request)) });
+
+    await store.getState().createArtifact("m1");
+
+    expect(request).toHaveBeenCalledOnce();
+    expect(request.mock.calls[0]?.[0]).toBe("/api/v1/messages/m1/artifacts");
+    expect(request.mock.calls[0]?.[1]).toMatchObject({
+      method: "POST",
+      headers: expect.objectContaining({
+        "Idempotency-Key": "00000000-0000-4000-8000-000000000000",
+      }),
+    });
+    expect(store.getState().openArtifactId).toBe("a1");
+  });
+
+  it("exposes an Artifact creation failure to the UI state", async () => {
+    const store = createArtifactStore({
+      api: fakeApi({ createArtifact: vi.fn().mockRejectedValue(new Error("Artifact 服务不可用")) }),
+    });
+
+    await store.getState().createArtifact("m1");
+
+    expect(store.getState().error).toBe("Artifact 服务不可用");
   });
 });

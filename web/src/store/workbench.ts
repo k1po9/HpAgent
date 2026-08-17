@@ -25,6 +25,7 @@ import { api as defaultApi } from "../api/client";
 import { HpApi } from "../api/resources";
 import { openRunFeed, type RunFeed, type RunProgress } from "../sse/runFeed";
 import { useAuth } from "./auth";
+import { newIdempotencyKey } from "../utils/idempotency";
 import {
   HpCommandError,
   type AgentStrategy,
@@ -33,11 +34,6 @@ import {
   type HpRun,
   type HpRunStatus,
 } from "../api/types";
-
-/** One idempotency key per user intent; never rotate implicitly. */
-export function newIdempotencyKey(): string {
-  return crypto.randomUUID();
-}
 
 const TERMINAL_RUN_STATUS = new Set<HpRunStatus>(["completed", "failed", "cancelled"]);
 
