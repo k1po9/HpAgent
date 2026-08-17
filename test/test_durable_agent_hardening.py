@@ -10,7 +10,12 @@ from actions.runtime import ActionRuntime
 from agent.protocol import ActionRequest, ActionResult
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.side_effects import UnsupportedToolSideEffectReconciler
-from agent_activities.store import LeaseConflict, StaleFencingToken, ToolOperationState
+from agent_activities.store import (
+    LeaseConflict,
+    StaleFencingToken,
+    ToolOperationState,
+    TranscriptVersionConflict,
+)
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     CompactToolCall,
@@ -50,9 +55,16 @@ class ResourcePrep:
 
 
 class Store:
-    def __init__(self, state: ToolOperationState, *, fence_second: bool = False):
+    def __init__(
+        self,
+        state: ToolOperationState,
+        *,
+        fence_on_validation: int | None = None,
+        completion_error: Exception | None = None,
+    ):
         self.state = state
-        self.fence_second = fence_second
+        self.fence_on_validation = fence_on_validation
+        self.completion_error = completion_error
         self.validations = 0
         self.uncertain: list[str] = []
         self.failed: list[str] = []
@@ -62,7 +74,7 @@ class Store:
 
     def validate_and_renew_lease(self, account_id: str, run_id: str, token: int):
         self.validations += 1
-        if self.fence_second and self.validations == 2:
+        if self.validations == self.fence_on_validation:
             raise StaleFencingToken("taken over")
 
     def load_messages(self, transcript_id: str):
@@ -75,6 +87,8 @@ class Store:
         self.state = ToolOperationState("intent_recorded", intent)
 
     def complete_operation_with_event(self, **kwargs):
+        if self.completion_error is not None:
+            raise self.completion_error
         return 2
 
     def fail_operation(self, operation_id: str, code: str):
@@ -145,7 +159,7 @@ def activities(store: Store, actions: Actions, **kwargs) -> DurableAgentActiviti
 
 @pytest.mark.asyncio
 async def test_second_fencing_check_prevents_side_effect_after_local_lock_wait():
-    store = Store(ToolOperationState("started", None), fence_second=True)
+    store = Store(ToolOperationState("started", None), fence_on_validation=2)
     actions = Actions("external_write")
     with pytest.raises(ApplicationError) as failure:
         await activities(store, actions).tool_execution(request())
@@ -188,9 +202,94 @@ async def test_fault_hook_marks_ack_gap_uncertain_after_exactly_one_side_effect(
             actions,
             fault_injector=CrashAfterSideEffect(),
         ).tool_execution(request())
-    assert failure.value.type == "tool_failed"
+    assert failure.value.type == "tool_side_effect_uncertain"
+    assert failure.value.non_retryable is True
     assert actions.calls == 1
-    assert store.uncertain == ["tool_failed"]
+    assert store.uncertain == ["tool_side_effect_uncertain"]
+
+
+@pytest.mark.asyncio
+async def test_non_idempotent_completion_failure_is_exposed_as_uncertain():
+    store = Store(
+        ToolOperationState("started", None),
+        completion_error=RuntimeError("database write failed"),
+    )
+    actions = Actions("non_idempotent_write")
+    with pytest.raises(ApplicationError) as failure:
+        await activities(store, actions).tool_execution(request())
+    assert failure.value.type == "tool_side_effect_uncertain"
+    assert failure.value.non_retryable is True
+    assert actions.calls == 1
+    assert store.uncertain == ["tool_side_effect_uncertain"]
+
+
+@pytest.mark.asyncio
+async def test_non_idempotent_transcript_conflict_after_side_effect_is_uncertain():
+    store = Store(
+        ToolOperationState("started", None),
+        completion_error=TranscriptVersionConflict("concurrent transcript update"),
+    )
+    actions = Actions("non_idempotent_write")
+    with pytest.raises(ApplicationError) as failure:
+        await activities(store, actions).tool_execution(request())
+    assert failure.value.type == "tool_side_effect_uncertain"
+    assert store.uncertain == ["tool_side_effect_uncertain"]
+    assert store.failed == []
+
+
+@pytest.mark.asyncio
+async def test_redelivered_non_idempotent_intent_with_stale_fence_is_uncertain():
+    req = request()
+    intent = {
+        "schema_version": 1,
+        "tool_call_id": "call-1",
+        "tool": "write_tool",
+        "arguments_hash": "stable",
+        "side_effect_class": "non_idempotent_write",
+        "fencing_token": 11,
+    }
+    store = Store(
+        ToolOperationState("intent_recorded", intent),
+        fence_on_validation=1,
+    )
+    with pytest.raises(ApplicationError) as failure:
+        await activities(store, Actions("non_idempotent_write")).tool_execution(req)
+    assert failure.value.type == "tool_side_effect_uncertain"
+    assert failure.value.non_retryable is True
+    assert store.uncertain == ["tool_side_effect_uncertain"]
+    assert store.failed == []
+
+
+@pytest.mark.asyncio
+async def test_redelivered_non_idempotent_intent_rejects_classification_drift():
+    req = request()
+    intent = {
+        "schema_version": 1,
+        "tool_call_id": "call-1",
+        "tool": "write_tool",
+        "arguments_hash": "48208f9428d64634bd8e28ff345bf0eab60d53c18fa2fbdb0b9bc1e84df2b5f6",
+        "side_effect_class": "non_idempotent_write",
+        "fencing_token": 11,
+    }
+    store = Store(ToolOperationState("intent_recorded", intent))
+    actions = Actions("read_only")
+    with pytest.raises(ApplicationError) as failure:
+        await activities(store, actions).tool_execution(req)
+    assert failure.value.type == "tool_side_effect_uncertain"
+    assert actions.calls == 0
+    assert store.uncertain == ["tool_side_effect_uncertain"]
+
+
+@pytest.mark.asyncio
+async def test_pre_side_effect_stale_fence_preserves_original_error():
+    store = Store(ToolOperationState("started", None), fence_on_validation=1)
+    actions = Actions("non_idempotent_write")
+    with pytest.raises(ApplicationError) as failure:
+        await activities(store, actions).tool_execution(request())
+    assert failure.value.type == "stale_fencing_token"
+    assert actions.calls == 0
+    assert store.uncertain == []
+    assert store.failed == ["stale_fencing_token"]
 
 
 @pytest.mark.asyncio

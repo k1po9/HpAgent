@@ -9,7 +9,7 @@ import re
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
@@ -89,6 +89,40 @@ class DurableAgentActivities:
             activity.heartbeat({"schema_version": 1, **details})
         except RuntimeError:
             pass
+
+    async def _raise_uncertain_side_effect(
+        self,
+        request: ToolExecutionInput,
+        fields: dict[str, Any],
+        *,
+        original_error_code: str,
+        cause: BaseException | None = None,
+    ) -> NoReturn:
+        """Persist and expose the safety failure instead of its technical cause."""
+        await asyncio.to_thread(
+            self.store.mark_operation_uncertain,
+            request.operation_id,
+            "tool_side_effect_uncertain",
+        )
+        log_event(
+            tool_logger,
+            logging.ERROR,
+            "tool_side_effect_uncertain",
+            "tool",
+            **fields,
+            status="failed",
+            error_code="tool_side_effect_uncertain",
+            original_error_code=original_error_code,
+            reason="non_idempotent_side_effect_may_have_executed",
+        )
+        error = ApplicationError(
+            "工具副作用状态无法安全确认。",
+            type="tool_side_effect_uncertain",
+            non_retryable=True,
+        )
+        if cause is not None:
+            raise error from cause
+        raise error
 
     async def _tool_heartbeat_loop(self, request: ToolExecutionInput) -> None:
         while True:
@@ -356,9 +390,14 @@ class DurableAgentActivities:
             return ToolExecutionResult(**previous)
         events = self.event_factory.for_run(request.run_id)
         heartbeat_task: asyncio.Task[None] | None = None
-        side_effect_succeeded = False
-        entered_side_effect_window = False
         side_effect_class = "unknown"
+        persisted_side_effect_class = normalize_side_effect_class(
+            str((operation.result_payload or {}).get("side_effect_class", "unknown"))
+        )
+        non_idempotent_may_have_executed = (
+            operation.status in {"intent_recorded", "uncertain"}
+            and persisted_side_effect_class == "non_idempotent_write"
+        )
         try:
             await asyncio.to_thread(
                 self.store.validate_and_renew_lease,
@@ -428,6 +467,16 @@ class DurableAgentActivities:
                 if operation.status in {"intent_recorded", "uncertain"}:
                     if intent.get("arguments_hash") != arguments_hash or intent.get("tool") != request.tool_call.name:
                         raise ApplicationError("工具恢复标识不一致。", type="side_effect_reconciliation_failed", non_retryable=True)
+                    recovered_side_effect_class = normalize_side_effect_class(
+                        str(intent.get("side_effect_class", "unknown"))
+                    )
+                    if recovered_side_effect_class != side_effect_class:
+                        raise ApplicationError(
+                            "工具副作用分类与持久化 intent 不一致。",
+                            type="side_effect_reconciliation_failed",
+                            non_retryable=True,
+                        )
+                    side_effect_class = recovered_side_effect_class
                     if side_effect_class == "non_idempotent_write":
                         log_event(tool_logger, logging.WARNING, "tool_side_effect_reconcile_started", "tool", **fields, status="started")
                         reconciled = await self.reconciler.reconcile(
@@ -442,9 +491,11 @@ class DurableAgentActivities:
                             if result_value is None:
                                 raise ApplicationError("副作用已完成但结果不可恢复。", type="side_effect_reconciliation_failed", non_retryable=True)
                         elif reconciled.outcome != ReconcileOutcome.CONFIRMED_NOT_EXECUTED:
-                            await asyncio.to_thread(self.store.mark_operation_uncertain, request.operation_id, "tool_side_effect_uncertain")
-                            log_event(tool_logger, logging.ERROR, "tool_side_effect_uncertain", "tool", **fields, status="failed", error_code="tool_side_effect_uncertain")
-                            raise ApplicationError("工具副作用状态无法安全确认。", type="tool_side_effect_uncertain", non_retryable=True)
+                            await self._raise_uncertain_side_effect(
+                                request,
+                                fields,
+                                original_error_code="side_effect_reconciliation_unsupported",
+                            )
                         else:
                             result_value = None
                     else:
@@ -471,7 +522,8 @@ class DurableAgentActivities:
                         request.run_id,
                         request.lease_token,
                     )
-                    entered_side_effect_window = True
+                    if side_effect_class == "non_idempotent_write":
+                        non_idempotent_may_have_executed = True
                     result_value = await self.actions.execute_request(
                         action,
                         session_id=request.session_id,
@@ -479,30 +531,14 @@ class DurableAgentActivities:
                         user_query="",
                         idempotency_key=request.operation_id,
                     )
-                    side_effect_succeeded = True
                     if (
                         side_effect_class == "non_idempotent_write"
                         and result_value.error is not None
                     ):
-                        await asyncio.to_thread(
-                            self.store.mark_operation_uncertain,
-                            request.operation_id,
-                            "tool_side_effect_uncertain",
-                        )
-                        log_event(
-                            tool_logger,
-                            logging.ERROR,
-                            "tool_side_effect_uncertain",
-                            "tool",
-                            **fields,
-                            status="failed",
-                            error_code="tool_side_effect_uncertain",
-                            side_effect_class=side_effect_class,
-                        )
-                        raise ApplicationError(
-                            "工具副作用状态无法安全确认。",
-                            type="tool_side_effect_uncertain",
-                            non_retryable=True,
+                        await self._raise_uncertain_side_effect(
+                            request,
+                            fields,
+                            original_error_code="action_result_error",
                         )
                     self.fault_injector.hit("tool_side_effect_succeeded_before_ack")
             display = result_value.display_result
@@ -537,28 +573,37 @@ class DurableAgentActivities:
             payload["transcript_version"] = version
             result = ToolExecutionResult(**payload)
         except StaleFencingToken as exc:
-            if operation.status in {"intent_recorded", "uncertain"}:
-                await asyncio.to_thread(
-                    self.store.mark_operation_uncertain,
-                    request.operation_id,
-                    exc.code,
+            if non_idempotent_may_have_executed:
+                await self._raise_uncertain_side_effect(
+                    request,
+                    fields,
+                    original_error_code=exc.code,
+                    cause=exc,
                 )
-            else:
-                await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
+            await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
             log_event(tool_logger, logging.ERROR, "tool_execution_fenced", "tool", **fields, status="rejected", error_code=exc.code, fencing_token=request.lease_token)
             raise ApplicationError("执行租约已失效。", type=exc.code, non_retryable=True) from exc
         except TranscriptVersionConflict as exc:
+            if non_idempotent_may_have_executed:
+                await self._raise_uncertain_side_effect(
+                    request,
+                    fields,
+                    original_error_code=exc.code,
+                    cause=exc,
+                )
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
             raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
         except Exception as exc:
             code = getattr(exc, "type", None) or "tool_failed"
             if str(code) == "tool_side_effect_uncertain":
                 pass
-            elif operation.status in {"intent_recorded", "uncertain"} or side_effect_succeeded or (
-                entered_side_effect_window
-                and side_effect_class == "non_idempotent_write"
-            ):
-                await asyncio.to_thread(self.store.mark_operation_uncertain, request.operation_id, str(code))
+            elif non_idempotent_may_have_executed:
+                await self._raise_uncertain_side_effect(
+                    request,
+                    fields,
+                    original_error_code=str(code),
+                    cause=exc,
+                )
             else:
                 await asyncio.to_thread(self.store.fail_operation, request.operation_id, str(code))
             log_event(tool_logger, logging.ERROR, "tool_execution_failed", "tool", **fields, status="failed", error_code=code, elapsed_ms=round((time.monotonic() - started) * 1000))

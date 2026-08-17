@@ -4,12 +4,19 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sqlite3
+from contextlib import asynccontextmanager
+from datetime import timedelta
 from pathlib import Path
 
-from temporalio import activity
+from temporalio import activity, workflow
 from temporalio.client import Client
+from temporalio.common import RetryPolicy
 from temporalio.worker import Worker
 
+from agent.protocol import ActionResult
+from agent_activities.runtime import DurableAgentActivities
+from agent_activities.side_effects import UnsupportedToolSideEffectReconciler
+from agent_activities.store import AgentDataStore
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import (
@@ -32,6 +39,68 @@ from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 
 _STATE_DIR: Path
+
+
+class _Events:
+    async def progress(self, phase: str, summary: str) -> None:
+        return None
+
+    async def close(self) -> None:
+        return None
+
+
+class _EventFactory:
+    def for_run(self, run_id: str) -> _Events:
+        return _Events()
+
+
+class _ResourcePrep:
+    @asynccontextmanager
+    async def lease_for_run(self, account_id, run_id, control):
+        yield
+
+
+class _CountingNonIdempotentActions:
+    def side_effect_class(self, session_id: str, tool_name: str) -> str:
+        return "non_idempotent_write"
+
+    async def execute_request(self, request, **kwargs) -> ActionResult:
+        with sqlite3.connect(_STATE_DIR / "external.sqlite") as connection:
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS side_effect_counter ("
+                "operation_id TEXT PRIMARY KEY, count INTEGER NOT NULL)"
+            )
+            connection.execute(
+                "INSERT INTO side_effect_counter(operation_id,count) VALUES (?,1) "
+                "ON CONFLICT(operation_id) DO UPDATE SET count=count+1",
+                (kwargs["idempotency_key"],),
+            )
+            connection.commit()
+        (_STATE_DIR / "activity-side-effect.boundary").touch()
+        while True:
+            activity.heartbeat({"boundary": "activity-side-effect"})
+            await asyncio.sleep(0.1)
+
+    def clear_execution(self, session_id: str, run_id: str) -> None:
+        return None
+
+
+@workflow.defn(name="activity-crash-tool-workflow")
+class ActivityCrashToolWorkflow:
+    @workflow.run
+    async def run(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        return await workflow.execute_activity(
+            "tool_execution_activity",
+            request,
+            task_queue=AGENT_TASK_QUEUE,
+            result_type=ToolExecutionResult,
+            start_to_close_timeout=timedelta(seconds=30),
+            heartbeat_timeout=timedelta(seconds=2),
+            retry_policy=RetryPolicy(
+                initial_interval=timedelta(milliseconds=200),
+                maximum_attempts=3,
+            ),
+        )
 
 
 def _record(operation_id: str, kind: str, plan_version: int | None = None) -> bool:
@@ -167,9 +236,10 @@ async def _serve(args: argparse.Namespace) -> None:
                 ReactAgentWorkflow,
                 PlanAndExecuteWorkflow,
                 AgentStepWorkflow,
+                ActivityCrashToolWorkflow,
             ],
         )
-    else:
+    elif args.role == "activity":
         worker = Worker(
             client,
             task_queue=AGENT_TASK_QUEUE,
@@ -181,17 +251,36 @@ async def _serve(args: argparse.Namespace) -> None:
                 evaluation_activity,
             ],
         )
+    else:
+        if not args.database_url:
+            raise ValueError("production-activity requires --database-url")
+        durable = DurableAgentActivities(
+            store=AgentDataStore(args.database_url, lease_ttl_seconds=900),
+            loader=None,
+            brain=None,
+            actions=_CountingNonIdempotentActions(),
+            event_factory=_EventFactory(),
+            resource_prep=_ResourcePrep(),
+            lifecycle=None,
+            reconciler=UnsupportedToolSideEffectReconciler(),
+        )
+        worker = Worker(
+            client,
+            task_queue=AGENT_TASK_QUEUE,
+            activities=[durable.tool_execution],
+        )
     (_STATE_DIR / f"{args.ready_name}.ready").touch()
     await worker.run()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("role", choices=("workflow", "activity"))
+    parser.add_argument("role", choices=("workflow", "activity", "production-activity"))
     parser.add_argument("host")
     parser.add_argument("namespace")
     parser.add_argument("state_dir")
     parser.add_argument("ready_name")
+    parser.add_argument("--database-url")
     asyncio.run(_serve(parser.parse_args()))
 
 
