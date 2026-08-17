@@ -256,6 +256,39 @@ def test_api_007_cancel_queued_and_retry_once(logged_client):
     assert one.json()["run"]["run_id"] == two.json()["run"]["run_id"]
 
 
+def test_api_rejects_retry_after_uncertain_side_effect(logged_client, worker_database_url):
+    client, csrf, account_id = logged_client
+    conversation_id = create_conversation(client, csrf).json()["conversation"]["conversation_id"]
+    sent = client.post(
+        f"/api/v1/conversations/{conversation_id}/messages",
+        json={"content": "unsafe write"},
+        headers=command_headers(csrf, str(uuid4())),
+    ).json()
+    run_id = sent["run"]["run_id"]
+    assert CommandService(worker_database_url).fail_run(
+        account_id,
+        UUID(run_id),
+        "tool_side_effect_uncertain",
+        "provider outcome is unknown",
+    )
+
+    snapshot = client.get(f"/api/v1/runs/{run_id}")
+    assert snapshot.status_code == 200
+    assert snapshot.json()["run"]["failure"]["retryable"] is False
+    retried = client.post(
+        f"/api/v1/runs/{run_id}/retry",
+        json={},
+        headers=command_headers(csrf, str(uuid4())),
+    )
+    assert retried.status_code == 409
+    assert retried.json()["error"]["code"] == "run_retry_not_safe"
+    assert retried.json()["error"]["retryable"] is False
+    assert retried.json()["error"]["details"] == {
+        "failure_code": "tool_side_effect_uncertain",
+        "reason": "unsafe_side_effect_state",
+    }
+
+
 def test_b05_fake_executor_completed_refresh_recovery(seed_identity, client_factory):
     seed_identity("alice")
     client = client_factory(fake_enabled=True, fake_mode="success", fake_delay=0.01)

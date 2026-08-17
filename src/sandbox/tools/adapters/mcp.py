@@ -31,7 +31,7 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from urllib.parse import urljoin, urlparse
 
 import httpx
@@ -49,6 +49,7 @@ JSONRPC_VERSION = "2.0"
 # 从 config/tool_enrich.yaml 加载，启动后缓存在此 dict 中。
 # key: MCP tool name, value: 追加到 description 末尾的提示文本
 _tool_enrich: dict = {}
+_tool_durable_metadata: dict[tuple[str, str], dict[str, str]] = {}
 
 
 # ── 数据结构 ────────────────────────────────────────────────────────
@@ -1281,6 +1282,10 @@ def _build_langchain_tool(cached: CachedTool, session: "MCPSession | MCPSessionS
         metadata={
             "mcp_server": cached.server_name,
             "category": "mcp",
+            **_tool_durable_metadata.get(
+                (cached.server_name, cached.name),
+                {"side_effect_class": "unknown"},
+            ),
             # required 参数为布尔值，表示该工具是否始终加载
             "required": required,
         },
@@ -1312,7 +1317,7 @@ class MCPToolManager:
 
     async def load_config(self) -> Dict:
         """加载 YAML 配置，替换 ${ENV_VAR} 占位符。"""
-        global _tool_enrich
+        global _tool_enrich, _tool_durable_metadata
 
         if not self._config_path.exists():
             logger.warning("MCP config not found: %s", self._config_path)
@@ -1324,16 +1329,41 @@ class MCPToolManager:
 
         # ── 从 servers.yaml 提取工具描述增强（每个 server 下 tools.<name>.enrich） ──
         _tool_enrich.clear()
+        _tool_durable_metadata.clear()
         servers = self._config.get("servers", {}) if isinstance(self._config, dict) else {}
-        for server_cfg in servers.values():
+        allowed_classes = {
+            "read_only",
+            "idempotent_write",
+            "non_idempotent_write",
+        }
+        for server_name, server_cfg in servers.items():
             if not isinstance(server_cfg, dict):
                 continue
             tools = server_cfg.get("tools", {})
             if not isinstance(tools, dict):
                 continue
             for tool_name, tool_cfg in tools.items():
-                if isinstance(tool_cfg, dict) and isinstance(tool_cfg.get("enrich"), str):
+                if not isinstance(tool_cfg, dict):
+                    continue
+                if isinstance(tool_cfg.get("enrich"), str):
                     _tool_enrich[tool_name] = tool_cfg["enrich"]
+                side_effect_class = tool_cfg.get("side_effect_class")
+                if side_effect_class is None:
+                    continue
+                if side_effect_class not in allowed_classes:
+                    raise ValueError(
+                        f"invalid side_effect_class for MCP tool {server_name}.{tool_name}"
+                    )
+                durable_metadata = {"side_effect_class": side_effect_class}
+                idempotency_argument = tool_cfg.get("idempotency_key_argument")
+                if idempotency_argument is not None:
+                    if not isinstance(idempotency_argument, str) or not idempotency_argument:
+                        raise ValueError(
+                            "idempotency_key_argument must be a non-empty string for "
+                            f"MCP tool {server_name}.{tool_name}"
+                        )
+                    durable_metadata["idempotency_key_argument"] = idempotency_argument
+                _tool_durable_metadata[(str(server_name), str(tool_name))] = durable_metadata
         if _tool_enrich:
             logger.info("MCP tool enrich loaded: %d entries", len(_tool_enrich))
 
@@ -1360,7 +1390,6 @@ class MCPToolManager:
             """并行任务：连接 + list_tools + 缓存。异常由调用方处理。"""
             session = await self._connect_one(name, cfg)
             cached = await session.list_tools()
-            truncate_limit = cfg.get("truncate_limit")
             result_transform = cfg.get("result_transform")
             is_required = cfg.get("required", False)
             # 批量追加到共享状态（并行安全：append + dict set 在 asyncio 协作调度下安全）

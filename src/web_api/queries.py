@@ -6,6 +6,7 @@ from uuid import UUID
 
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound, VersionConflict
+from web_domain.failures import is_failure_retryable
 
 from .security import CursorCodec, CursorError
 
@@ -54,7 +55,7 @@ def run_dto(row: dict[str, Any]) -> dict[str, Any]:
             "code": row["failure_code"],
             "message": row["failure_message"]
             or "Agent 暂时无法完成本次请求，请稍后重试。",
-            "retryable": True,
+            "retryable": is_failure_retryable(row["failure_code"]),
         }
     return {
         "run_id": str(row["run_id"]),

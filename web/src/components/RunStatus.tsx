@@ -1,7 +1,12 @@
 import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
 import type { HpRun } from "../api/types";
 import type { RunProgress } from "../sse/runFeed";
-import { isCancellableRunStatus, isRetryableRunStatus, runStatusLabel } from "../store/workbench";
+import {
+  isCancellableRunStatus,
+  isRetryableRun,
+  isTerminalRunStatus,
+  runStatusLabel,
+} from "../store/workbench";
 import { phaseLabel } from "./progressLabels";
 
 interface RunStatusProps {
@@ -21,7 +26,8 @@ interface RunStatusProps {
  *
  * Progress/state of the active Run lives here, never inside Message content.
  * While a Run is running the composer is gated; this strip offers Stop. A
- * failed/cancelled Run offers Retry, which reuses the original user message.
+ * A cancelled or safely retryable failed Run offers Retry, which reuses the
+ * original user message. Uncertain external side effects require manual review.
  */
 export function RunStatus({
   activeRun,
@@ -37,8 +43,9 @@ export function RunStatus({
   }
 
   const cancellable = activeRun !== null && isCancellableRunStatus(activeRun.status);
-  const retryable = activeRun !== null && isRetryableRunStatus(activeRun.status);
-  const running = activeRun !== null && !isRetryableRunStatus(activeRun.status);
+  const retryable = activeRun !== null && isRetryableRun(activeRun);
+  const running = activeRun !== null && !isTerminalRunStatus(activeRun.status);
+  const unsafeSideEffect = activeRun?.status === "failed" && activeRun.failure?.retryable === false;
 
   return (
     <Box className="hp-runstrip">
@@ -67,6 +74,11 @@ export function RunStatus({
           {progress ? (
             <Text size="2" color="gray" data-testid="run-progress">
               {progress.summary || phaseLabel(progress.phase)}
+            </Text>
+          ) : null}
+          {unsafeSideEffect ? (
+            <Text size="2" color="red" role="alert" data-testid="unsafe-retry-message">
+              任务中存在无法确认是否已完成的外部操作，请检查结果后重新发起任务。
             </Text>
           ) : null}
           {cancellable ? (

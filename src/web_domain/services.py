@@ -31,7 +31,9 @@ from .errors import (
     ResourceNotFound,
     RunNotCancellable,
     RunNotRetryable,
+    RunRetryNotSafe,
 )
+from .failures import is_failure_retryable
 from .sessions import ConversationSessionService
 
 logger = logging.getLogger("HpAgent.WebRun")
@@ -219,6 +221,20 @@ class CommandService:
             source = self.runs.get_for_account(uow, account_id, source_run_id, lock=True)
             if source is None:
                 raise ResourceNotFound()
+            failure_code = str(source.get("failure_code") or "")
+            if source["status"] == "failed" and not is_failure_retryable(failure_code):
+                log_event(
+                    logger,
+                    logging.WARNING,
+                    "run_retry_rejected",
+                    "run",
+                    run_id=str(source_run_id),
+                    account_id=str(account_id),
+                    failure_code=failure_code,
+                    reason="unsafe_side_effect_state",
+                    status="rejected",
+                )
+                raise RunRetryNotSafe(failure_code)
             child = self.runs.direct_retry(uow, source_run_id)
             if child:
                 result = self._retry_result_for_run(uow, source_run_id, child["run_id"])
@@ -428,7 +444,11 @@ class CommandService:
     def _run_dto(cls, row: Mapping[str, Any]) -> dict[str, Any]:
         failure = None
         if row["status"] == "failed":
-            failure = {"code": row["failure_code"], "message": row["failure_message"] or "Agent 暂时无法完成本次请求，请稍后重试。", "retryable": True}
+            failure = {
+                "code": row["failure_code"],
+                "message": row["failure_message"] or "Agent 暂时无法完成本次请求，请稍后重试。",
+                "retryable": is_failure_retryable(row["failure_code"]),
+            }
         return {
             "run_id": str(row["run_id"]), "conversation_id": str(row["conversation_id"]),
             "session_id": str(row["session_id"]),

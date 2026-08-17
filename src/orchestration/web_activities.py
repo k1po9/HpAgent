@@ -172,7 +172,6 @@ async def acquire_execution_lease_activity(request: AcquireLeaseInput) -> dict[s
             "run_id": request.run_id,
             "account_id": str(identity["account_id"]),
             "acquired": False,
-            "retry_after_seconds": 1,
         }
     result: dict[str, str | int] = {
         "run_id": request.run_id,

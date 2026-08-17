@@ -11,8 +11,8 @@
  *   and Run from the POST (contract API-013).
  * - While a Run is active the conversation is busy: the composer is gated and
  *   double-sends are ignored, but the backend 409 remains the final arbiter.
- * - `stop`/`retry` call the cancel/retry APIs; a failed or cancelled Run can be
- *   retried, reusing the original user message.
+ * - `stop`/`retry` call the cancel/retry APIs; a cancelled or safely retryable
+ *   failed Run can be retried, reusing the original user message.
  * - Run state is watched live over the SSE subscription (E-06). Deltas stream
  *   into the pending assistant Message as a volatile buffer; `run.progress`
  *   lives only in the run-status area. On degraded/connect loss the feed stops
@@ -49,8 +49,10 @@ export function isCancellableRunStatus(status: HpRunStatus): boolean {
   return status === "queued" || status === "running";
 }
 
-export function isRetryableRunStatus(status: HpRunStatus): boolean {
-  return status === "failed" || status === "cancelled";
+export function isRetryableRun(run: HpRun): boolean {
+  return (
+    run.status === "cancelled" || (run.status === "failed" && run.failure?.retryable !== false)
+  );
 }
 
 /** Human-readable label for the run status area (progress lives here, not in content). */
@@ -603,7 +605,7 @@ export function createWorkbenchStore(
 
       retryRun: async () => {
         const run = get().activeRun;
-        if (!run || !isRetryableRunStatus(run.status)) return;
+        if (!run || !isRetryableRun(run)) return;
         if (get().sending || get().stopping) return;
         set({ sending: true, error: null });
         try {
@@ -624,6 +626,12 @@ export function createWorkbenchStore(
             void refreshActiveRun();
           } else if (err instanceof HpCommandError && err.code === "run_not_retryable") {
             set({ sending: false, error: "当前状态不可重试。" });
+            void refreshActiveRun();
+          } else if (err instanceof HpCommandError && err.code === "run_retry_not_safe") {
+            set({
+              sending: false,
+              error: "任务中存在无法确认是否已完成的外部操作，请检查结果后重新发起任务。",
+            });
             void refreshActiveRun();
           } else {
             set({ sending: false, error: messageErrorText(err) });

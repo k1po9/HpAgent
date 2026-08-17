@@ -34,10 +34,21 @@ export const useAuth = create<AuthState>((set) => ({
   check: async () => {
     const me = await api.me();
     if (me === null) {
-      set({ status: "signedOut", account: null, identities: null, capabilities: {}, justRegistered: false });
+      set({
+        status: "signedOut",
+        account: null,
+        identities: null,
+        capabilities: {},
+        justRegistered: false,
+      });
       return;
     }
-    set({ status: "signedIn", account: me.account, identities: me.identities, capabilities: me.capabilities });
+    set({
+      status: "signedIn",
+      account: me.account,
+      identities: me.identities,
+      capabilities: me.capabilities,
+    });
   },
 
   markRegistered: () => set({ justRegistered: true }),
@@ -47,11 +58,23 @@ export const useAuth = create<AuthState>((set) => ({
   signOut: async () => {
     await api.logout();
     api.reset();
-    set({ status: "signedOut", account: null, identities: null, capabilities: {}, justRegistered: false });
+    set({
+      status: "signedOut",
+      account: null,
+      identities: null,
+      capabilities: {},
+      justRegistered: false,
+    });
   },
 
   expire: () => {
     api.reset();
-    set({ status: "signedOut", account: null, identities: null, capabilities: {}, justRegistered: false });
+    set({
+      status: "signedOut",
+      account: null,
+      identities: null,
+      capabilities: {},
+      justRegistered: false,
+    });
   },
 }));

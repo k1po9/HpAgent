@@ -46,6 +46,7 @@ from web_domain.errors import (
     ResourceNotFound,
     RunNotCancellable,
     RunNotRetryable,
+    RunRetryNotSafe,
     VersionConflict,
 )
 from web_domain.services import CommandResult, CommandService
@@ -340,10 +341,16 @@ def create_app(
             IdempotencyConflict: (409, "idempotency_conflict", "幂等键对应的请求不一致。", False),
             RunNotCancellable: (409, "run_not_cancellable", "当前运行状态不可取消。", False),
             RunNotRetryable: (409, "run_not_retryable", "当前运行状态不可重试。", False),
+            RunRetryNotSafe: (409, "run_retry_not_safe", "任务包含无法确认的外部操作，不能自动重试。", False),
             VersionConflict: (412, "version_conflict", "对话版本已经变化。", True),
         }
         status, code, message, retryable = mapping.get(type(exc), (500, "service_unavailable", "服务暂不可用。", True))
         details = {"current_version": exc.current_version} if isinstance(exc, VersionConflict) else {}
+        if isinstance(exc, RunRetryNotSafe):
+            details = {
+                "failure_code": exc.failure_code,
+                "reason": "unsafe_side_effect_state",
+            }
         return _error(request, status, code, message, retryable=retryable, details=details)
 
     @app.exception_handler(Exception)
@@ -533,7 +540,7 @@ def create_app(
         challenge_id: UUID,
         request: Request,
         context: AuthContext = Depends(auth_context),
-    ) -> dict[str, Any]:
+    ) -> Any:
         try:
             challenge = request.app.state.identity_bindings.get_qq_challenge(
                 context.account_id, challenge_id

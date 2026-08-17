@@ -32,14 +32,14 @@ class ConfiguredPasswordCredentialAdapter:
 
     @staticmethod
     def normalize(value: str) -> str:
-        return normalize_web_subject(value)
+        return str(normalize_web_subject(value))
 
     def verify(self, username: str, password: str) -> str | None:
         subject = self.normalize(username)
         encoded = self._records.get(subject, self._dummy_hash)
         verified = False
         try:
-            verified = self._hasher.verify(encoded, password)
+            verified = bool(self._hasher.verify(encoded, password))
         except (VerifyMismatchError, InvalidHashError):
             pass
         return subject if verified and subject in self._records else None

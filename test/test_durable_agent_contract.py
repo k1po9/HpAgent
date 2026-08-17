@@ -76,7 +76,6 @@ def test_durable_worker_definitions_remain_registered_for_rollback(monkeypatch):
         object(),
         lifecycle_activities=[],
         agent_activities=[],
-        durable_agent_enabled=False,
     )
     assert made[0]["workflows"] == [
         WebRunWorkflow,

@@ -480,6 +480,30 @@ class DurableAgentActivities:
                         idempotency_key=request.operation_id,
                     )
                     side_effect_succeeded = True
+                    if (
+                        side_effect_class == "non_idempotent_write"
+                        and result_value.error is not None
+                    ):
+                        await asyncio.to_thread(
+                            self.store.mark_operation_uncertain,
+                            request.operation_id,
+                            "tool_side_effect_uncertain",
+                        )
+                        log_event(
+                            tool_logger,
+                            logging.ERROR,
+                            "tool_side_effect_uncertain",
+                            "tool",
+                            **fields,
+                            status="failed",
+                            error_code="tool_side_effect_uncertain",
+                            side_effect_class=side_effect_class,
+                        )
+                        raise ApplicationError(
+                            "工具副作用状态无法安全确认。",
+                            type="tool_side_effect_uncertain",
+                            non_retryable=True,
+                        )
                     self.fault_injector.hit("tool_side_effect_succeeded_before_ack")
             display = result_value.display_result
             display_text = display if isinstance(display, str) else json.dumps(display, ensure_ascii=False, default=str)

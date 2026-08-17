@@ -17,9 +17,11 @@ Browser ── FastAPI ── PostgreSQL/Outbox ── WebRunWorkflow ── Web
 ```
 
 - QQ 与 Web 不共享 transport 或短期状态模型。
-- QQ 与 Web legacy 路径共享单一 Agent loop；Web durable 路径支持 `react` 与 `plan_and_execute`。
+- QQ 与 Web legacy 路径共享单一 Agent loop；Durable Agent MVP 的策略范围固定为
+  `react` 与 `plan_and_execute`。
 - 统一账号事实源是 PostgreSQL `accounts` 与 `identity_bindings`；QQ 不回退到 JSON 账号库。
-- 多 Agent 包仍保留作实验代码，但未接入当前生产运行时。
+- Blackboard 相关 contract、router 扩展点和设计属于 Reserved / Planned，不属于本次
+  MVP，也未接入当前生产运行时。
 
 ## 技术栈
 
@@ -91,8 +93,11 @@ AGENT_EXECUTION_LEASE_TTL_SECONDS=900
 
 关闭该开关时，新 Run 仍启动历史兼容的 `WebRunWorkflow`；开启后新 Run 启动 `DurableWebRunWorkflow`，旧 History 不受影响。发送消息 API 可通过 `agent_strategy` 选择 `react` 或 `plan_and_execute`。
 
-Durable replay 不等同于所有 Tool exactly-once：只读/幂等 Tool 可安全重试；不可确认的
-非幂等副作用通过 reconciliation 或 fail-closed 处理，避免重复执行。
+Durable Agent MVP 提供 ReAct 与 Plan-and-Execute 的 durable Workflow 控制流。模型、
+工具和计划操作使用稳定 operation ID；只读或具备明确幂等语义的 Tool 可安全重试，
+不可确认的非幂等副作用采用 reconciliation / fail-closed，避免自动重复执行。此能力
+不等同于承诺所有 Tool exactly-once；Blackboard、QQ durable ownership 统一和
+Continue-As-New 均不属于本次 MVP。
 
 ## 常用命令
 

@@ -26,6 +26,11 @@ class RunNotRetryable(DomainError):
     pass
 
 
+class RunRetryNotSafe(DomainError):
+    def __init__(self, failure_code: str):
+        self.failure_code = failure_code
+
+
 class VersionConflict(DomainError):
     def __init__(self, current_version: int):
         self.current_version = current_version

@@ -10,6 +10,7 @@ from temporalio.exceptions import ApplicationError
 from .contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
+    DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS,
     AgentResult,
     AgentRunInput,
     ContextBootstrapInput,
@@ -142,7 +143,9 @@ class ReactAgentWorkflow:
                     ),
                     task_queue=AGENT_TASK_QUEUE,
                     result_type=ToolExecutionResult,
-                    start_to_close_timeout=timedelta(seconds=600),
+                    start_to_close_timeout=timedelta(
+                        seconds=DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS
+                    ),
                     heartbeat_timeout=timedelta(seconds=45),
                     retry_policy=_TOOL_RETRY,
                     cancellation_type=workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,

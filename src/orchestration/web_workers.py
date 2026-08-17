@@ -17,6 +17,10 @@ from temporalio.worker import Worker
 from account.validation import validate_unified_account_backend
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
+from agent_workflows.contracts import (
+    DURABLE_LEASE_SAFETY_MARGIN_SECONDS,
+    DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS,
+)
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from workspace.isolation import WorkspaceIsolationMode
@@ -112,6 +116,15 @@ def validate_web_worker_startup(config: Any, worker_database_url: str | None) ->
     except ValueError as exc:
         raise RuntimeError(str(exc)) from exc
     validate_unified_account_backend(worker_database_url)
+    minimum_lease_ttl = (
+        DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS
+        + DURABLE_LEASE_SAFETY_MARGIN_SECONDS
+    )
+    if config.agent_execution_lease_ttl_seconds <= minimum_lease_ttl:
+        raise RuntimeError(
+            "agent_execution_lease_ttl_seconds must be greater than "
+            f"{minimum_lease_ttl} seconds"
+        )
     if config.web_lifecycle_task_queue != WEB_LIFECYCLE_TASK_QUEUE:
         raise RuntimeError("Web lifecycle task queue differs from frozen Workflow contract")
     if config.web_agent_task_queue != WEB_AGENT_TASK_QUEUE:
@@ -138,7 +151,6 @@ def build_web_temporal_workers(
     *,
     lifecycle_activities: Sequence[Any],
     agent_activities: Sequence[Any],
-    durable_agent_enabled: bool = False,
 ) -> WebTemporalWorkers:
     """Build, but do not start, the Web lifecycle and Agent workers.
 

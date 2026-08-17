@@ -233,10 +233,6 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     inject_artifact_build_service(artifact_build)
     workers = build_web_temporal_workers(
         client,
-        # Definitions remain registered even when new durable starts are
-        # disabled, so toggling the migration flag off cannot strand an
-        # already-running durable Workflow during rollback.
-        durable_agent_enabled=True,
         lifecycle_activities=[
             prepare_run_activity,
             acquire_execution_lease_activity,

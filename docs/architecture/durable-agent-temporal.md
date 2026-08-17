@@ -1,5 +1,16 @@
 # Durable Agent Temporal 改造实施说明
 
+## MVP 范围
+
+当前 Durable Agent MVP 仅包含 `react` 与 `plan_and_execute` 两种策略，以及两者共用的
+`AgentStepWorkflow`、PostgreSQL transcript/operation data plane、durable lease 与
+fencing。Legacy `WebRunWorkflow` 和 `DefaultBrainActionLoop` 继续保留，用于旧 History、
+feature-flag rollback 和 QQ legacy 路径。
+
+Blackboard 的统一 contract、`AgentRunWorkflow` router 扩展点和架构设计保持
+Reserved / Planned；Blackboard Workflow、多 Agent 并行协调、QQ durable ownership
+统一与 Continue-As-New 均不属于本次 MVP。
+
 ## 真实执行链与边界
 
 改造前 Web 链路为：
@@ -39,7 +50,8 @@ Run 启动哪个顶层 Workflow；durable definitions 始终注册，因此关�
 
 ## 状态与持久化
 
-Migration `014_durable_agent_control_plane.sql` 增加：
+Migration `014_durable_agent_control_plane.sql` 增加基础控制面，
+`015_durable_agent_hardening.sql` 增加 operation intent/uncertain 状态与 fencing 加固：
 
 - `runs.agent_strategy`：`react | plan_and_execute`；
 - `agent_transcripts` / `agent_transcript_events`：模型上下文、决策和工具 raw result；
@@ -105,8 +117,8 @@ Activity 超时并留出安全余量。Activity 开始时续租，并在 workspa
 2. 任意第三方 side-effect tool 仍需自身支持 invocation/idempotency key；operation
    intent 能覆盖“完成并持久化后 ack 丢失”，不能让不支持幂等的远端 API 变成严格
    exactly-once。
-3. 上线前需在有 PostgreSQL/Temporal 的 CI 环境执行 worker-kill fault injection：
-   model completion 后重启、tool completion 持久化后 ack 前 kill、Plan step 中断、
-   cancellation propagation、stale fencing token。
+3. 仓库中的真实进程 worker-kill 验收覆盖 ReAct tool 边界和 Plan step 边界；发布流水线
+   必须在真实 Temporal namespace 执行这些用例，并继续执行 cancellation propagation、
+   ack-gap 和 stale fencing token 的专项用例。
 4. 生产中已开始新 Workflow 后，控制流变更必须使用 Worker Versioning/patch；不要
    原地重新解释现有 History。

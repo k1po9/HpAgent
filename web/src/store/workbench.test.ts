@@ -371,6 +371,28 @@ describe("workbench store", () => {
     expect(store.getState().messages.some((m) => m.message_id === "am-2")).toBe(true);
   });
 
+  it("does not call retry for an unsafe failed run", async () => {
+    const backend = makeBackend();
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    store.setState({
+      activeRun: run({
+        run_id: "r-unsafe",
+        status: "failed",
+        failure: {
+          code: "tool_side_effect_uncertain",
+          message: "provider outcome is unknown",
+          retryable: false,
+        },
+      }),
+    });
+
+    await store.getState().retryRun();
+    expect(backend.calls.filter((call) => call.url.endsWith("/retry"))).toHaveLength(0);
+    expect(store.getState().activeRun?.run_id).toBe("r-unsafe");
+  });
+
   it("polls a running run until terminal and reconciles the assistant message", async () => {
     const backend = makeBackend();
     const store = makeStore(backend);

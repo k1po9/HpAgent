@@ -151,6 +151,7 @@ export type HpErrorCode =
   | "message_too_large"
   | "run_not_cancellable"
   | "run_not_retryable"
+  | "run_retry_not_safe"
   | "invalid_cursor"
   | "cursor_expired"
   | "service_unavailable"

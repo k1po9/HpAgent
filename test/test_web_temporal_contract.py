@@ -79,6 +79,10 @@ def test_web_worker_startup_fails_closed_without_c07_gate_or_database():
     with pytest.raises(RuntimeError):
         validate_web_worker_startup(config, None)
     validate_web_worker_startup(config, "postgresql://worker")
+    config.agent_execution_lease_ttl_seconds = 660
+    with pytest.raises(RuntimeError, match="greater than 660 seconds"):
+        validate_web_worker_startup(config, "postgresql://worker")
+    config.agent_execution_lease_ttl_seconds = 900
     config.web_agent_heartbeat_timeout_seconds = 44
     with pytest.raises(RuntimeError, match="frozen Workflow contract"):
         validate_web_worker_startup(config, "postgresql://worker")

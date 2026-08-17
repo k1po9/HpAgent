@@ -18,6 +18,8 @@ from agent_workflows.contracts import (
 )
 from orchestration import web_activities
 from orchestration.durable_web_workflow import AcquireLeaseInput
+from sandbox.tools.adapters.mcp import CachedTool, MCPToolManager, _build_langchain_tool
+from web_domain.failures import is_failure_retryable
 
 
 @pytest.fixture(autouse=True)
@@ -83,8 +85,9 @@ class Store:
 
 
 class Actions:
-    def __init__(self, side_effect_class: str):
+    def __init__(self, side_effect_class: str, *, error: str | None = None):
         self.classification = side_effect_class
+        self.error = error
         self.calls = 0
 
     def side_effect_class(self, session_id: str, tool_name: str) -> str:
@@ -92,7 +95,12 @@ class Actions:
 
     async def execute_request(self, request, **kwargs):
         self.calls += 1
-        return ActionResult(request=request, output="ok", raw={"output": "ok"})
+        return ActionResult(
+            request=request,
+            output="ok",
+            error=self.error,
+            raw={"output": "ok", "error": self.error},
+        )
 
     def clear_execution(self, session_id: str, run_id: str) -> None:
         return None
@@ -186,6 +194,24 @@ async def test_fault_hook_marks_ack_gap_uncertain_after_exactly_one_side_effect(
 
 
 @pytest.mark.asyncio
+async def test_non_idempotent_action_error_is_uncertain_and_never_completed():
+    store = Store(ToolOperationState("started", None))
+    actions = Actions("non_idempotent_write", error="provider timed out")
+    with pytest.raises(ApplicationError) as failure:
+        await activities(store, actions).tool_execution(request())
+    assert failure.value.type == "tool_side_effect_uncertain"
+    assert failure.value.non_retryable is True
+    assert actions.calls == 1
+    assert store.uncertain == ["tool_side_effect_uncertain"]
+
+
+def test_uncertain_side_effect_failures_are_not_run_retryable():
+    assert is_failure_retryable("tool_side_effect_uncertain") is False
+    assert is_failure_retryable("side_effect_reconciliation_failed") is False
+    assert is_failure_retryable("model_unavailable") is True
+
+
+@pytest.mark.asyncio
 async def test_busy_execution_lease_returns_wait_state_and_progress(monkeypatch):
     phases: list[str] = []
 
@@ -216,7 +242,6 @@ async def test_busy_execution_lease_returns_wait_state_and_progress(monkeypatch)
         AcquireLeaseInput(1, str(uuid4()))
     )
     assert result["acquired"] is False
-    assert result["retry_after_seconds"] == 1
     assert phases == ["waiting_for_account_execution"]
 
 
@@ -247,3 +272,50 @@ async def test_declared_provider_idempotency_argument_receives_operation_id():
     )
     assert captured["arguments"]["request_id"] == "operation-123"
     assert result.metadata["idempotency_key"] == "operation-123"
+
+
+@pytest.mark.asyncio
+async def test_mcp_durable_metadata_is_explicit_and_undeclared_tools_fail_closed(tmp_path):
+    config = tmp_path / "servers.yaml"
+    config.write_text(
+        """
+servers:
+  provider:
+    url: https://example.invalid/mcp
+    tools:
+      create_record:
+        side_effect_class: idempotent_write
+        idempotency_key_argument: request_id
+""",
+        encoding="utf-8",
+    )
+    await MCPToolManager(str(config)).load_config()
+
+    declared = _build_langchain_tool(
+        CachedTool("create_record", "create", {}, "provider"),
+        object(),
+    )
+    undeclared = _build_langchain_tool(
+        CachedTool("delete_record", "delete", {}, "provider"),
+        object(),
+    )
+    assert declared.metadata["side_effect_class"] == "idempotent_write"
+    assert declared.metadata["idempotency_key_argument"] == "request_id"
+    assert undeclared.metadata["side_effect_class"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_mcp_rejects_invalid_durable_metadata(tmp_path):
+    config = tmp_path / "servers.yaml"
+    config.write_text(
+        """
+servers:
+  provider:
+    tools:
+      create_record:
+        side_effect_class: guessed_write
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="invalid side_effect_class"):
+        await MCPToolManager(str(config)).load_config()

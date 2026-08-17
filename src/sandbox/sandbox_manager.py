@@ -32,8 +32,8 @@ _LOCAL_SIDE_EFFECT_CLASS = {
     "Grep": "read_only",
     "list_reminders": "read_only",
     "fs_write": "idempotent_write",
-    "fs_edit": "idempotent_write",
-    "Bash": "unknown",
+    "fs_edit": "non_idempotent_write",
+    "Bash": "non_idempotent_write",
     "create_reminder": "non_idempotent_write",
     "cancel_reminder": "non_idempotent_write",
 }
