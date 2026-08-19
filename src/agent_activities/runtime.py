@@ -779,7 +779,15 @@ class DurableAgentActivities:
             if isinstance(exc, ApplicationError):
                 raise
             raise ApplicationError("计划生成失败。", type="planning_failed") from exc
-        log_event(plan_logger, logging.INFO, "planning_completed", "planning", **fields, status="success", plan_id=request.plan_id, plan_version=request.plan_version, step_count=len(result.steps))
+        log_event(
+            plan_logger,
+            logging.INFO,
+            "planning_completed",
+            "planning",
+            **fields,
+            status="success",
+            step_count=len(result.steps),
+        )
         await events.progress("plan_ready", f"计划已生成，共 {len(result.steps)} 步。")
         await events.close()
         return result
@@ -796,9 +804,6 @@ class DurableAgentActivities:
             "plan_evaluation_started",
             "planning",
             **fields,
-            plan_id=request.plan_id,
-            plan_version=request.plan_version,
-            step_id=request.step_id,
             step_index=request.step_index,
             step_count=request.step_count,
             status="started",
@@ -873,9 +878,6 @@ class DurableAgentActivities:
             "plan_evaluation_completed",
             "planning",
             **fields,
-            plan_id=request.plan_id,
-            plan_version=request.plan_version,
-            step_id=request.step_id,
             status="success",
             decision=decision,
         )

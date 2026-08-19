@@ -1,0 +1,50 @@
+{
+  "ready": true,
+  "will_call_model_api": false,
+  "checked_at": "2026-08-18T19:14:03.317162+00:00",
+  "host": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "effective": {
+    "provider": "minimax",
+    "model": "MiniMax-M3",
+    "temperature": "provider-default",
+    "max_turns": 5
+  },
+  "checks": {
+    "docker_services": {
+      "ok": true,
+      "detail": "required Docker services are running/healthy"
+    },
+    "api_ready": {
+      "ok": true,
+      "detail": "HpAgent API ready"
+    },
+    "database_roles": {
+      "ok": true,
+      "detail": "API and Worker database roles connected"
+    },
+    "durable_agent_config": {
+      "ok": true,
+      "detail": "DURABLE_AGENT_ENABLED=True"
+    },
+    "native_workspace_tools": {
+      "ok": true,
+      "detail": "native tools enabled"
+    },
+    "worker_loaded_current_config": {
+      "ok": true,
+      "detail": "Worker started after current config was written"
+    },
+    "provider_config": {
+      "ok": true,
+      "detail": "provider=minimax, model=MiniMax-M3"
+    },
+    "provider_connectivity_3x": {
+      "ok": true,
+      "detail": "[{\"ok\": true, \"ms\": 1145.7, \"status\": 301}, {\"ok\": true, \"ms\": 234.9, \"status\": 301}, {\"ok\": true, \"ms\": 165.7, \"status\": 301}]"
+    },
+    "benchmark_account": {
+      "ok": true,
+      "detail": "reused existing 0600 benchmark runtime config; dedicated benchmark account ready (01a015e7-5e6e-7de9-bfa8-805ad3579774)"
+    }
+  }
+}

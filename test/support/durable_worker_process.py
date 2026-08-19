@@ -39,6 +39,8 @@ from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 
 _STATE_DIR: Path
+_FAULT_BOUNDARY: str | None = None
+_ACTIVITY_CASE: str | None = None
 
 
 class _Events:
@@ -77,6 +79,7 @@ class _CountingNonIdempotentActions:
             )
             connection.commit()
         (_STATE_DIR / "activity-side-effect.boundary").touch()
+        (_STATE_DIR / "activity-side-effect-succeeded-before-ack.boundary").touch()
         while True:
             activity.heartbeat({"boundary": "activity-side-effect"})
             await asyncio.sleep(0.1)
@@ -134,6 +137,14 @@ async def _wait_for_release(name: str) -> None:
         await asyncio.sleep(0.05)
 
 
+async def _wait_at_fault_boundary(name: str) -> None:
+    legacy_boundaries = {"react-tool", "plan-step-2"}
+    if _FAULT_BOUNDARY == name or (
+        _FAULT_BOUNDARY is None and name in legacy_boundaries
+    ):
+        await _wait_for_release(name)
+
+
 @activity.defn(name="context_bootstrap_activity")
 async def context_activity(request: ContextBootstrapInput) -> ContextBootstrapResult:
     _record(request.operation_id, "context")
@@ -149,6 +160,7 @@ async def context_activity(request: ContextBootstrapInput) -> ContextBootstrapRe
 async def model_activity(request: ModelDecisionInput) -> ModelDecisionResult:
     _record(request.operation_id, "model", request.plan_version)
     if request.strategy == "react" and request.turn == 1 and not request.final_only:
+        await _wait_at_fault_boundary("react-model-decision")
         call = CompactToolCall(
             "call-1", "read_only_tool", f"decision:{request.operation_id}#call-1"
         )
@@ -161,8 +173,10 @@ async def model_activity(request: ModelDecisionInput) -> ModelDecisionResult:
             request.transcript_version + 1,
             "tool_calls",
         )
+    if request.strategy == "react" and request.final_only:
+        await _wait_at_fault_boundary("react-final-synthesis")
     if request.strategy == "plan_and_execute" and request.step_id == "step-2":
-        await _wait_for_release("plan-step-2")
+        await _wait_at_fault_boundary("plan-step-2")
     return ModelDecisionResult(
         AGENT_SCHEMA_VERSION,
         request.operation_id,
@@ -177,6 +191,8 @@ async def model_activity(request: ModelDecisionInput) -> ModelDecisionResult:
 
 @activity.defn(name="tool_execution_activity")
 async def tool_activity(request: ToolExecutionInput) -> ToolExecutionResult:
+    if request.strategy == "react":
+        await _wait_at_fault_boundary("react-tool-before-side-effect")
     first_execution = _record(request.operation_id, "tool", request.plan_version)
     if first_execution:
         with sqlite3.connect(_STATE_DIR / "operations.sqlite") as connection:
@@ -185,13 +201,74 @@ async def tool_activity(request: ToolExecutionInput) -> ToolExecutionResult:
             )
             connection.commit()
     if request.strategy == "react":
-        await _wait_for_release("react-tool")
+        await _wait_at_fault_boundary("react-tool")
+        await _wait_at_fault_boundary("react-tool-after-side-effect-before-ack")
     return ToolExecutionResult(
         AGENT_SCHEMA_VERSION,
         request.operation_id,
         f"tool-result:{request.operation_id}",
         request.transcript_version + 1,
         "tool done",
+    )
+
+
+def _record_activity_attempt(operation_id: str, case_id: str) -> int:
+    with sqlite3.connect(_STATE_DIR / "activity_recovery.sqlite") as connection:
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS activity_attempts ("
+            "attempt_id INTEGER PRIMARY KEY AUTOINCREMENT, operation_id TEXT NOT NULL, "
+            "case_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+        )
+        connection.execute(
+            "INSERT INTO activity_attempts(operation_id,case_id) VALUES (?,?)",
+            (operation_id, case_id),
+        )
+        attempt = connection.execute(
+            "SELECT count(*) FROM activity_attempts WHERE operation_id=?",
+            (operation_id,),
+        ).fetchone()[0]
+        connection.commit()
+        return int(attempt)
+
+
+def _record_idempotent_effect(operation_id: str) -> None:
+    with sqlite3.connect(_STATE_DIR / "activity_recovery.sqlite") as connection:
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS idempotent_business_state ("
+            "operation_id TEXT PRIMARY KEY, value TEXT NOT NULL)"
+        )
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS effect_invocations ("
+            "invocation_id INTEGER PRIMARY KEY AUTOINCREMENT, operation_id TEXT NOT NULL)"
+        )
+        connection.execute(
+            "INSERT INTO idempotent_business_state(operation_id,value) VALUES (?,?) "
+            "ON CONFLICT(operation_id) DO UPDATE SET value=excluded.value",
+            (operation_id, "expected-result"),
+        )
+        connection.execute(
+            "INSERT INTO effect_invocations(operation_id) VALUES (?)", (operation_id,)
+        )
+        connection.commit()
+
+
+@activity.defn(name="tool_execution_activity")
+async def benchmark_tool_activity(request: ToolExecutionInput) -> ToolExecutionResult:
+    if _ACTIVITY_CASE not in {"A1", "A2"}:
+        raise RuntimeError("benchmark Activity case is not configured")
+    attempt = _record_activity_attempt(request.operation_id, _ACTIVITY_CASE)
+    if _ACTIVITY_CASE == "A1" and attempt == 1:
+        await _wait_for_release("activity-before-side-effect")
+    if _ACTIVITY_CASE == "A2":
+        _record_idempotent_effect(request.operation_id)
+        if attempt == 1:
+            await _wait_for_release("activity-idempotent-effect-succeeded-before-ack")
+    return ToolExecutionResult(
+        AGENT_SCHEMA_VERSION,
+        request.operation_id,
+        f"tool-result:{request.operation_id}",
+        request.transcript_version + 1,
+        "expected-result",
     )
 
 
@@ -214,6 +291,8 @@ async def planning_activity(request: PlanningInput) -> PlanningResult:
 @activity.defn(name="evaluate_plan_activity")
 async def evaluation_activity(request: PlanEvaluationInput) -> PlanEvaluationResult:
     _record(request.operation_id, "evaluation", request.plan_version)
+    if request.step_index == request.step_count:
+        await _wait_at_fault_boundary("plan-final-evaluation")
     return PlanEvaluationResult(
         AGENT_SCHEMA_VERSION,
         request.operation_id,
@@ -223,8 +302,10 @@ async def evaluation_activity(request: PlanEvaluationInput) -> PlanEvaluationRes
 
 
 async def _serve(args: argparse.Namespace) -> None:
-    global _STATE_DIR
+    global _ACTIVITY_CASE, _FAULT_BOUNDARY, _STATE_DIR
     _STATE_DIR = Path(args.state_dir)
+    _FAULT_BOUNDARY = args.fault_boundary
+    _ACTIVITY_CASE = args.activity_case
     _STATE_DIR.mkdir(parents=True, exist_ok=True)
     client = await Client.connect(args.host, namespace=args.namespace)
     if args.role == "workflow":
@@ -251,6 +332,14 @@ async def _serve(args: argparse.Namespace) -> None:
                 evaluation_activity,
             ],
         )
+    elif args.role == "benchmark-activity":
+        if args.activity_case not in {"A1", "A2"}:
+            raise ValueError("benchmark-activity requires --activity-case A1 or A2")
+        worker = Worker(
+            client,
+            task_queue=AGENT_TASK_QUEUE,
+            activities=[benchmark_tool_activity],
+        )
     else:
         if not args.database_url:
             raise ValueError("production-activity requires --database-url")
@@ -275,12 +364,17 @@ async def _serve(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("role", choices=("workflow", "activity", "production-activity"))
+    parser.add_argument(
+        "role",
+        choices=("workflow", "activity", "benchmark-activity", "production-activity"),
+    )
     parser.add_argument("host")
     parser.add_argument("namespace")
     parser.add_argument("state_dir")
     parser.add_argument("ready_name")
     parser.add_argument("--database-url")
+    parser.add_argument("--fault-boundary")
+    parser.add_argument("--activity-case")
     asyncio.run(_serve(parser.parse_args()))
 
 

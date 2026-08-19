@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test test-existing test-db test-api migrate db-up db-down ci ci-web web-install web-lint web-typecheck web-build web-test web-dev e2e
+.PHONY: install lint typecheck test test-existing test-db test-api migrate db-up db-down ci ci-web web-install web-lint web-typecheck web-build web-test web-dev e2e agent-benchmark-check agent-benchmark-run
 
 NPM ?= npm
 
@@ -62,3 +62,9 @@ web-dev:
 
 e2e:
 	cd web && $(NPM) run test:e2e
+
+agent-benchmark-check:
+	bash scripts/benchmarks/agent_strategy.sh check
+
+agent-benchmark-run:
+	bash scripts/benchmarks/agent_strategy.sh run

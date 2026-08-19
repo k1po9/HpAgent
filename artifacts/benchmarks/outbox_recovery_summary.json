@@ -1,0 +1,44 @@
+{
+  "experiment": "outbox_recovery",
+  "environment": {
+    "git_commit": "3c192760c30dae6a9125926b46c7a3c3d993ccb5",
+    "branch": "feat/hpagent-web",
+    "timestamp": "2026-08-18T14:52:56.799863+00:00",
+    "python_version": "3.12.3",
+    "temporal_sdk_version": "1.31.0",
+    "docker_compose_version": "5.3.1",
+    "host_os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "logical_cpu_count": 8,
+    "benchmark_config": {
+      "requests": 30,
+      "temporal_host": "localhost:7233",
+      "temporal_namespace": "hpagent-outbox-benchmark",
+      "database_name": "hpagent_outbox_benchmark",
+      "timeout_seconds": 120,
+      "worker_process": "test/support/outbox_benchmark_worker.py",
+      "fake_model": true
+    }
+  },
+  "definitions": {
+    "outbox_recovery_success_rate": "accepted runs whose start_run Outbox was processed, Temporal Workflow completed, and Run reached a terminal completed state / accepted requests",
+    "lost_run_count": "accepted requests missing any persisted message/run, processed start event, deterministic workflow start, or terminal run",
+    "duplicate_workflow_count": "workflow_execution rows beyond one per run",
+    "backlog_drain_time_ms": "monotonic elapsed time from replacement Worker readiness until all start events were processed and all runs completed",
+    "percentile_method": "linear interpolation at (n-1)*q over successful requests"
+  },
+  "requests": 30,
+  "accepted_requests": 30,
+  "persisted_requests": 30,
+  "eventually_processed_runs": 30,
+  "temporal_completed_workflows": 30,
+  "terminal_completed_runs": 30,
+  "lost_run_count": 0,
+  "duplicate_workflow_count": 0,
+  "outbox_recovery_success_rate": 1.0,
+  "backlog_drain_time_ms": 11916.932,
+  "eventual_completion_latency_ms": {
+    "p50": 9718.245,
+    "p95": 12664.568
+  },
+  "failures": []
+}

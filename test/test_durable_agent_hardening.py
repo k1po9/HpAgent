@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -20,6 +21,8 @@ from agent_activities.store import (
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     CompactToolCall,
+    PlanEvaluationInput,
+    PlanningInput,
     ToolExecutionInput,
 )
 from orchestration import web_activities
@@ -169,6 +172,84 @@ def activities(store: Store, actions: Actions, **kwargs) -> DurableAgentActiviti
         lifecycle=None,
         **kwargs,
     )
+
+
+@pytest.mark.asyncio
+async def test_plan_activity_logging_does_not_duplicate_correlation_fields():
+    class PlanStore:
+        def begin_operation(self, operation_id: str, run_id: str, kind: str):
+            return None
+
+        def validate_and_renew_lease(self, account_id: str, run_id: str, token: int):
+            return None
+
+        def load_messages(self, transcript_id: str):
+            return [{"role": "user", "content": "read version"}], 1
+
+        def complete_operation_with_event(self, **kwargs):
+            return 2
+
+        def complete_operation(self, operation_id: str, result_ref: str, payload: dict):
+            return None
+
+        def fail_operation(self, operation_id: str, code: str):
+            raise AssertionError(f"unexpected failure: {operation_id} {code}")
+
+    class PlanBrain:
+        def __init__(self):
+            self.calls = 0
+
+        async def generate_final_decision(self, *, messages):
+            self.calls += 1
+            content = (
+                '{"steps":[{"title":"read","objective":"read version"}]}'
+                if self.calls == 1
+                else '{"decision":"complete","reason":"done"}'
+            )
+            return SimpleNamespace(content=content)
+
+    run_id = str(uuid4())
+    identity = (str(uuid4()), str(uuid4()), str(uuid4()))
+    durable = DurableAgentActivities(
+        store=PlanStore(),
+        loader=None,
+        brain=PlanBrain(),
+        actions=Actions("read_only"),
+        event_factory=EventFactory(),
+        resource_prep=ResourcePrep(),
+        lifecycle=None,
+    )
+    planned = await durable.planning(
+        PlanningInput(
+            AGENT_SCHEMA_VERSION,
+            run_id,
+            *identity,
+            f"transcript:{run_id}",
+            1,
+            f"{run_id}:plan:1:planner",
+            1,
+            f"plan:{run_id}",
+            1,
+        )
+    )
+    assert len(planned.steps) == 1
+    evaluated = await durable.evaluate_plan(
+        PlanEvaluationInput(
+            AGENT_SCHEMA_VERSION,
+            run_id,
+            *identity,
+            f"transcript:{run_id}",
+            1,
+            f"{run_id}:plan:1:step:step-1:evaluation",
+            1,
+            f"plan:{run_id}",
+            1,
+            "step-1",
+            1,
+            1,
+        )
+    )
+    assert evaluated.decision == "complete"
 
 
 @pytest.mark.asyncio

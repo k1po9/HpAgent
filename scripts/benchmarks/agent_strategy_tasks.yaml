@@ -1,0 +1,199 @@
+schema_version: 1
+description: Deterministic 30-task ReAct vs Plan-and-Execute benchmark pack.
+tasks:
+  - id: simple_001
+    level: simple
+    prompt: Read version.txt and return only the version inside <answer> tags.
+    files: {version.txt: "HPAGENT_VERSION=3.7.2\n"}
+    grader: {type: tag_equals, value: "3.7.2"}
+  - id: simple_002
+    level: simple
+    prompt: Read service.ini and return the timeout integer inside <answer> tags.
+    files: {service.ini: "[runtime]\ntimeout_seconds=45\nretries=3\n"}
+    grader: {type: tag_equals, value: "45"}
+  - id: simple_003
+    level: simple
+    prompt: Read README.md and return the value after Canonical mode inside <answer> tags.
+    files: {README.md: "# Fixture\n\nCanonical mode: durable-agent\n"}
+    grader: {type: tag_equals, value: durable-agent}
+  - id: simple_004
+    level: simple
+    prompt: Count the .toml files below this task directory recursively and return the integer inside <answer> tags.
+    files: {a.toml: "a=1\n", nested/b.toml: "b=2\n", nested/c.toml: "c=3\n", nested/ignore.txt: "x\n"}
+    grader: {type: tag_equals, value: "3"}
+  - id: simple_005
+    level: simple
+    prompt: Read deployment.json and return the primary region inside <answer> tags.
+    files: {deployment.json: "{\"regions\": {\"primary\": \"ap-southeast-1\", \"backup\": \"eu-west-1\"}}\n"}
+    grader: {type: tag_equals, value: ap-southeast-1}
+  - id: simple_006
+    level: simple
+    prompt: In metrics.csv find the score for beta and return it inside <answer> tags.
+    files: {metrics.csv: "name,score\nalpha,19\nbeta,27\ngamma,11\n"}
+    grader: {type: tag_equals, value: "27"}
+  - id: simple_007
+    level: simple
+    prompt: Read flags.env and return the value of FEATURE_DURABLE inside <answer> tags.
+    files: {flags.env: "FEATURE_LEGACY=disabled\nFEATURE_DURABLE=enabled\n"}
+    grader: {type: tag_equals, value: enabled}
+  - id: simple_008
+    level: simple
+    prompt: Read package-lock.json and return the temporalio version inside <answer> tags.
+    files: {package-lock.json: "{\"packages\": {\"temporalio\": {\"version\": \"1.31.0\"}}}\n"}
+    grader: {type: tag_equals, value: "1.31.0"}
+  - id: simple_009
+    level: simple
+    prompt: Read secret.txt and return the word on line 4 inside <answer> tags.
+    files: {secret.txt: "amber\nbirch\ncedar\nquartz\nsilver\n"}
+    grader: {type: tag_equals, value: quartz}
+  - id: simple_010
+    level: simple
+    prompt: Read temporal.yaml and return the frontend port inside <answer> tags.
+    files: {temporal.yaml: "services:\n  frontend:\n    host: localhost\n    port: 7233\n"}
+    grader: {type: tag_equals, value: "7233"}
+
+  - id: medium_001
+    level: medium
+    prompt: Compare config/base.json and config/prod.json. Return the changed keys in alphabetical order, comma-separated, inside <answer> tags.
+    files:
+      config/base.json: "{\"cache\": true, \"replicas\": 1, \"timeout\": 30, \"zone\": \"a\"}\n"
+      config/prod.json: "{\"cache\": true, \"replicas\": 3, \"timeout\": 45, \"zone\": \"a\"}\n"
+    grader: {type: tag_equals, value: "replicas,timeout"}
+  - id: medium_002
+    level: medium
+    prompt: Follow service name billing from routes.json to services.json and return its queue inside <answer> tags.
+    files:
+      routes.json: "{\"/invoice\": \"billing\", \"/profile\": \"identity\"}\n"
+      services.json: "{\"billing\": {\"queue\": \"invoice-jobs\"}, \"identity\": {\"queue\": \"user-jobs\"}}\n"
+    grader: {type: tag_equals, value: invoice-jobs}
+  - id: medium_003
+    level: medium
+    prompt: Sum the integer value in each file under shards and return the total inside <answer> tags.
+    files: {shards/a.txt: "14\n", shards/b.txt: "9\n", shards/c.txt: "22\n"}
+    grader: {type: tag_equals, value: "45"}
+  - id: medium_004
+    level: medium
+    prompt: settings.json says active_profile=blue. Find blue in profiles.ini and return its endpoint inside <answer> tags.
+    files:
+      settings.json: "{\"active_profile\": \"blue\"}\n"
+      profiles.ini: "[green]\nendpoint=https://green.invalid\n[blue]\nendpoint=https://blue.internal\n"
+    grader: {type: tag_equals, value: "https://blue.internal"}
+  - id: medium_005
+    level: medium
+    prompt: Find the file that defines class LeaseCoordinator, then read aliases.txt and return that file's alias inside <answer> tags.
+    files:
+      src/a.py: "class QueueCoordinator:\n    pass\n"
+      src/lease.py: "class LeaseCoordinator:\n    pass\n"
+      aliases.txt: "src/a.py=queue\nsrc/lease.py=fencing-lease\n"
+    grader: {type: tag_equals, value: fencing-lease}
+  - id: medium_006
+    level: medium
+    prompt: Follow the next pointers starting at alpha across graph/*.json until END. Return visited node names comma-separated inside <answer> tags.
+    files:
+      graph/alpha.json: "{\"next\": \"gamma\"}\n"
+      graph/gamma.json: "{\"next\": \"beta\"}\n"
+      graph/beta.json: "{\"next\": \"END\"}\n"
+    grader: {type: tag_equals, value: "alpha,gamma,beta"}
+  - id: medium_007
+    level: medium
+    prompt: Compare expected.txt with observed.txt and return missing IDs in ascending order, comma-separated, inside <answer> tags.
+    files: {expected.txt: "101\n102\n103\n104\n105\n", observed.txt: "105\n101\n103\n"}
+    grader: {type: tag_equals, value: "102,104"}
+  - id: medium_008
+    level: medium
+    prompt: Join quantities.csv with prices.csv by sku, compute the total value, and return the integer inside <answer> tags.
+    files:
+      quantities.csv: "sku,qty\nA,2\nB,3\nC,1\n"
+      prices.csv: "sku,price\nA,5\nB,7\nC,4\n"
+    grader: {type: tag_equals, value: "35"}
+  - id: medium_009
+    level: medium
+    prompt: Return the permissions present in both role_a.txt and role_b.txt, alphabetical and comma-separated, inside <answer> tags.
+    files: {role_a.txt: "read\nwrite\ndeploy\naudit\n", role_b.txt: "audit\nread\nexport\n"}
+    grader: {type: tag_equals, value: "audit,read"}
+  - id: medium_010
+    level: medium
+    prompt: Read events.log and return the request id of the chronologically first ERROR line inside <answer> tags.
+    files: {events.log: "2026-01-01T10:00:03Z INFO req-3 ok\n2026-01-01T10:00:02Z ERROR req-2 failed\n2026-01-01T10:00:01Z ERROR req-1 failed\n"}
+    grader: {type: tag_equals, value: req-1}
+
+  - id: complex_001
+    level: complex
+    prompt: Fix the bug in math_utils.py so all tests pass. Run the tests before finishing.
+    files:
+      math_utils.py: "def clamp(value, low, high):\n    return max(high, min(low, value))\n"
+      test_math_utils.py: "from math_utils import clamp\n\ndef test_clamp():\n    assert clamp(5, 0, 10) == 5\n    assert clamp(-2, 0, 10) == 0\n    assert clamp(20, 0, 10) == 10\n"
+    allowed_changes: [math_utils.py]
+    grader: {type: pytest, path: test_math_utils.py}
+  - id: complex_002
+    level: complex
+    prompt: Fix parse_bool in parser.py so all tests pass. Run the tests before finishing.
+    files:
+      parser.py: "def parse_bool(value):\n    return bool(value)\n"
+      test_parser.py: "import pytest\nfrom parser import parse_bool\n\ndef test_values():\n    assert parse_bool('true') is True\n    assert parse_bool('FALSE') is False\n    with pytest.raises(ValueError): parse_bool('maybe')\n"
+    allowed_changes: [parser.py]
+    grader: {type: pytest, path: test_parser.py}
+  - id: complex_003
+    level: complex
+    prompt: Fix inventory_total in inventory.py so all tests pass. Run the tests before finishing.
+    files:
+      inventory.py: "def inventory_total(rows):\n    return sum(row['price'] for row in rows)\n"
+      test_inventory.py: "from inventory import inventory_total\n\ndef test_total():\n    rows=[{'qty':2,'price':5},{'qty':3,'price':7}]\n    assert inventory_total(rows) == 31\n"
+    allowed_changes: [inventory.py]
+    grader: {type: pytest, path: test_inventory.py}
+  - id: complex_004
+    level: complex
+    prompt: Fix slugify in text_utils.py so all tests pass. Run the tests before finishing.
+    files:
+      text_utils.py: "def slugify(value):\n    return value.lower().replace(' ', '_')\n"
+      test_text_utils.py: "from text_utils import slugify\n\ndef test_slugify():\n    assert slugify(' Durable  Agent ') == 'durable-agent'\n    assert slugify('ACK Gap') == 'ack-gap'\n"
+    allowed_changes: [text_utils.py]
+    grader: {type: pytest, path: test_text_utils.py}
+  - id: complex_005
+    level: complex
+    prompt: Fix dedupe in sequences.py so it preserves first-seen order and all tests pass. Run the tests.
+    files:
+      sequences.py: "def dedupe(values):\n    return sorted(set(values))\n"
+      test_sequences.py: "from sequences import dedupe\n\ndef test_dedupe():\n    assert dedupe(['b','a','b','c','a']) == ['b','a','c']\n"
+    allowed_changes: [sequences.py]
+    grader: {type: pytest, path: test_sequences.py}
+  - id: complex_006
+    level: complex
+    prompt: Fix get_nested in config_reader.py so all tests pass without changing tests. Run the tests.
+    files:
+      config_reader.py: "def get_nested(data, path, default=None):\n    return data.get(path, default)\n"
+      test_config_reader.py: "from config_reader import get_nested\n\ndef test_nested():\n    data={'service':{'limits':{'timeout':45}}}\n    assert get_nested(data, 'service.limits.timeout') == 45\n    assert get_nested(data, 'service.missing', 9) == 9\n"
+    allowed_changes: [config_reader.py]
+    grader: {type: pytest, path: test_config_reader.py}
+  - id: complex_007
+    level: complex
+    prompt: Fix is_leap_year in dates.py so all leap-year rules are correct. Run the tests before finishing.
+    files:
+      dates.py: "def is_leap_year(year):\n    return year % 4 == 0\n"
+      test_dates.py: "from dates import is_leap_year\n\ndef test_leap_years():\n    assert is_leap_year(2000)\n    assert not is_leap_year(1900)\n    assert is_leap_year(2024)\n    assert not is_leap_year(2023)\n"
+    allowed_changes: [dates.py]
+    grader: {type: pytest, path: test_dates.py}
+  - id: complex_008
+    level: complex
+    prompt: Fix exponential_delays in retry.py so all tests pass. Run the tests before finishing.
+    files:
+      retry.py: "def exponential_delays(base, attempts, cap):\n    return [min(cap, base * i) for i in range(attempts)]\n"
+      test_retry.py: "from retry import exponential_delays\n\ndef test_delays():\n    assert exponential_delays(2, 5, 10) == [2,4,8,10,10]\n"
+    allowed_changes: [retry.py]
+    grader: {type: pytest, path: test_retry.py}
+  - id: complex_009
+    level: complex
+    prompt: Fix has_permissions in permissions.py so all tests pass. Run the tests before finishing.
+    files:
+      permissions.py: "def has_permissions(granted, required):\n    return any(item in granted for item in required)\n"
+      test_permissions.py: "from permissions import has_permissions\n\ndef test_permissions():\n    assert has_permissions({'read','write'}, {'read','write'})\n    assert not has_permissions({'read'}, {'read','write'})\n    assert has_permissions({'read'}, set())\n"
+    allowed_changes: [permissions.py]
+    grader: {type: pytest, path: test_permissions.py}
+  - id: complex_010
+    level: complex
+    prompt: Fix initials in formatter.py so all tests pass. Run the tests before finishing.
+    files:
+      formatter.py: "def initials(name):\n    return ''.join(part[0] for part in name.split(' '))\n"
+      test_formatter.py: "from formatter import initials\n\ndef test_initials():\n    assert initials('Ada  Lovelace') == 'AL'\n    assert initials(' grace hopper ') == 'GH'\n"
+    allowed_changes: [formatter.py]
+    grader: {type: pytest, path: test_formatter.py}
