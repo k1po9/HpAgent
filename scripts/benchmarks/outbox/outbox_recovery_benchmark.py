@@ -29,8 +29,8 @@ from persistence.migrate import migrate
 from web_api.app import create_app
 from web_api.config import WebApiSettings
 
-ROOT = Path(__file__).resolve().parents[2]
-WORKER_HARNESS = ROOT / "test" / "support" / "outbox_benchmark_worker.py"
+ROOT = Path(__file__).resolve().parents[3]
+WORKER_HARNESS = Path(__file__).with_name("outbox_benchmark_worker.py")
 
 
 class BenchmarkCredentials:
@@ -502,13 +502,13 @@ def write_outputs(
     output_dir: Path, records: list[dict[str, Any]], summary: dict[str, Any]
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    with (output_dir / "outbox_recovery_trials.csv").open(
+    with (output_dir / "trials.csv").open(
         "w", newline="", encoding="utf-8"
     ) as stream:
         writer = csv.DictWriter(stream, fieldnames=list(records[0]))
         writer.writeheader()
         writer.writerows(records)
-    (output_dir / "outbox_recovery_summary.json").write_text(
+    (output_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     latency = summary["eventual_completion_latency_ms"]
@@ -572,15 +572,15 @@ started; their newly emitted events remain pending and are outside the measured 
 docker compose up -d app-postgres temporal-postgres temporal
 PYTHONPATH=src TEMPORAL_HOST=localhost:7233 \\
   TEMPORAL_NAMESPACE=hpagent-outbox-benchmark \\
-  .venv/bin/python scripts/benchmarks/outbox_recovery_benchmark.py --requests 30
+  .venv/bin/python scripts/benchmarks/outbox/outbox_recovery_benchmark.py --requests 30
 ```
 """
-    (output_dir / "outbox_recovery_report.md").write_text(report, encoding="utf-8")
+    (output_dir / "report.md").write_text(report, encoding="utf-8")
 
 
 async def async_main(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).resolve()
-    run_dir = output_dir / "outbox_recovery_runs"
+    run_dir = output_dir / "runs"
     if run_dir.exists():
         shutil.rmtree(run_dir)
     run_dir.mkdir(parents=True)
@@ -674,7 +674,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--database-name", default="hpagent_outbox_benchmark")
     parser.add_argument("--timeout", type=float, default=120)
-    parser.add_argument("--output-dir", default=str(ROOT / "artifacts" / "benchmarks"))
+    parser.add_argument(
+        "--output-dir", default=str(ROOT / "artifacts" / "benchmarks" / "outbox")
+    )
     args = parser.parse_args()
     if args.requests < 1:
         parser.error("--requests must be at least 1")

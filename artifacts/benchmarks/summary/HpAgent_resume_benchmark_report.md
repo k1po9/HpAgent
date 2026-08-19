@@ -86,8 +86,8 @@ overall rate is 14/25 (56.0%), nearly equal to ReAct's 15/27 (55.6%). Token coun
 
 ## Evidence
 
-- `temporal_recovery_trials.csv` and `temporal_recovery_summary.json`
-- `activity_worker_recovery_trials.csv` and `activity_worker_recovery_summary.json`
-- `outbox_recovery_trials.csv` and `outbox_recovery_summary.json`
-- `agent_strategy_trials.csv`, `agent_strategy_summary.json`, and `agent_strategy_report.md`
+- `../temporal/workflow_worker/{trials.csv,summary.json,report.md}`
+- `../temporal/activity_worker/{trials.csv,summary.json,report.md}`
+- `../outbox/{trials.csv,summary.json,report.md}`
+- `../agent_strategy/{trials.csv,trials.jsonl,summary.json,report.md}`
 - `FINAL_ANALYSIS.md` for the consolidated interpretation, validity boundary, and discovered bugs

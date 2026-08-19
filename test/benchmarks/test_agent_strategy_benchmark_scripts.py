@@ -9,11 +9,12 @@ from types import ModuleType
 import httpx
 import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
+AGENT_STRATEGY_DIR = ROOT / "scripts" / "benchmarks" / "agent_strategy"
 
 
 def load_script(name: str) -> ModuleType:
-    path = ROOT / "scripts" / "benchmarks" / f"{name}.py"
+    path = AGENT_STRATEGY_DIR / f"{name}.py"
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

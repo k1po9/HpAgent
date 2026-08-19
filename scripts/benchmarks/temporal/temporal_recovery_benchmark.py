@@ -25,7 +25,7 @@ from temporalio.client import Client
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, AGENT_TASK_QUEUE, AgentRunInput
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 HARNESS = ROOT / "test" / "support" / "durable_worker_process.py"
 
 
@@ -426,12 +426,12 @@ def write_outputs(
     summary: dict[str, Any],
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    trials_path = output_dir / "temporal_recovery_trials.csv"
+    trials_path = output_dir / "trials.csv"
     with trials_path.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=list(trials[0]))
         writer.writeheader()
         writer.writerows(trials)
-    summary_path = output_dir / "temporal_recovery_summary.json"
+    summary_path = output_dir / "summary.json"
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -495,7 +495,7 @@ and checks transcript version, unique operation ids, operation attempts, and sid
 
 ## Failure Analysis
 
-Failures are retained verbatim in `temporal_recovery_summary.json` and each trial's state directory.
+Failures are retained verbatim in `summary.json` and each trial's state directory.
 Observed failure count: **{len(summary['failures'])}**.
 
 ## Limitations
@@ -509,15 +509,15 @@ docker compose up -d temporal-postgres temporal
 docker compose exec -T temporal tctl --ns hpagent-benchmark namespace register --rd 1
 PYTHONPATH=src TEMPORAL_HOST=localhost:7233 TEMPORAL_NAMESPACE=hpagent-benchmark \\
   .venv/bin/python \\
-  scripts/benchmarks/temporal_recovery_benchmark.py --trials-per-case 10
+  scripts/benchmarks/temporal/temporal_recovery_benchmark.py --trials-per-case 10
 ```
 """
-    (output_dir / "temporal_recovery_report.md").write_text(report, encoding="utf-8")
+    (output_dir / "report.md").write_text(report, encoding="utf-8")
 
 
 async def async_main(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).resolve()
-    runs_dir = output_dir / "temporal_recovery_runs"
+    runs_dir = output_dir / "runs"
     if args.clean_runs and runs_dir.exists():
         shutil.rmtree(runs_dir)
     runs_dir.mkdir(parents=True, exist_ok=True)
@@ -570,7 +570,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--namespace", default=os.getenv("TEMPORAL_NAMESPACE", "default"))
     parser.add_argument("--trials-per-case", type=int, default=10)
     parser.add_argument("--timeout", type=float, default=45)
-    parser.add_argument("--output-dir", default=str(ROOT / "artifacts" / "benchmarks"))
+    parser.add_argument(
+        "--output-dir",
+        default=str(ROOT / "artifacts" / "benchmarks" / "temporal" / "workflow_worker"),
+    )
     parser.add_argument("--clean-runs", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
     if args.trials_per_case < 1:

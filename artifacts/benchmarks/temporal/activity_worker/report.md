@@ -54,3 +54,13 @@ not exactly-once delivery and not automatic business reconciliation.
 
 Unexpected failure count: **0**. Raw details are retained in the CSV and
 JSON summary.
+
+## Reproduction
+
+```bash
+docker compose up -d app-postgres temporal-postgres temporal
+PYTHONPATH=src TEMPORAL_HOST=localhost:7233 \
+  TEMPORAL_NAMESPACE=hpagent-activity-benchmark-final \
+  .venv/bin/python \
+  scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py
+```

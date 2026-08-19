@@ -41,7 +41,7 @@ rest of the workspace. Every task/strategy/repetition gets an independent fixtur
 
 ```bash
 PYTHONPATH=src .venv/bin/python \
-  scripts/benchmarks/agent_strategy_benchmark.py preflight
+  scripts/benchmarks/agent_strategy/agent_strategy_benchmark.py preflight
 ```
 
 Expected: 30 tasks, split into 10 simple, 10 medium, and 10 complex. The output explicitly says
@@ -54,10 +54,10 @@ strategies into a separate pilot file. This is the first command that can call t
 
 ```bash
 PYTHONPATH=src .venv/bin/python \
-  scripts/benchmarks/agent_strategy_benchmark.py run \
+  scripts/benchmarks/agent_strategy/agent_strategy_benchmark.py run \
   --execute-model-api \
   --task-ids simple_001 \
-  --output artifacts/benchmarks/agent_strategy_pilot.jsonl \
+  --output artifacts/benchmarks/agent_strategy/pilots/manual_pilot.jsonl \
   --repetitions 1 \
   --model YOUR_EXACT_MODEL_ID \
   --provider YOUR_PROVIDER \
@@ -73,7 +73,7 @@ The first complete version is 60 runs (30 tasks × 2 strategies × 1 repetition)
 
 ```bash
 PYTHONPATH=src .venv/bin/python \
-  scripts/benchmarks/agent_strategy_benchmark.py run \
+  scripts/benchmarks/agent_strategy/agent_strategy_benchmark.py run \
   --execute-model-api \
   --repetitions 1 \
   --run-group formal-01 \
@@ -107,17 +107,25 @@ Only summarize a complete balanced design for formal claims:
 
 ```bash
 PYTHONPATH=src .venv/bin/python \
-  scripts/benchmarks/summarize_agent_strategy_benchmark.py
+  scripts/benchmarks/agent_strategy/summarize_agent_strategy_benchmark.py
 ```
 
 For pilot inspection only, add `--allow-partial`; such a report must be labeled preliminary.
 
 Formal outputs:
 
-- `artifacts/benchmarks/agent_strategy_trials.jsonl` — append-only raw records and answers
-- `artifacts/benchmarks/agent_strategy_trials.csv` — flattened trial table
-- `artifacts/benchmarks/agent_strategy_summary.json` — validated grouped and paired statistics
-- `artifacts/benchmarks/agent_strategy_report.md` — readable result table and boundaries
+- `artifacts/benchmarks/agent_strategy/trials.jsonl` — append-only raw records and answers
+- `artifacts/benchmarks/agent_strategy/trials.csv` — flattened trial table
+- `artifacts/benchmarks/agent_strategy/summary.json` — validated grouped and paired statistics
+- `artifacts/benchmarks/agent_strategy/report.md` — readable result table and boundaries
+
+## Completed run result
+
+The committed MiniMax-M3 run recorded 60 formal slots. Six `complex_008`–`complex_010` records
+were environment failures and are excluded from evaluable metrics, leaving 27 paired tasks.
+ReAct succeeded on 15/27 overall and 9/10 simple tasks; Plan-and-Execute succeeded on 14/27
+overall and 7/10 medium tasks. See `artifacts/benchmarks/agent_strategy/README.md` for the complete
+design, stratified results, paired outcomes, and interpretation boundary.
 
 ## Metrics and limitations
 

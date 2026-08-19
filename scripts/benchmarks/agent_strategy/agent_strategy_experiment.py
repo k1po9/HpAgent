@@ -21,14 +21,16 @@ import httpx
 import psycopg
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 CONFIG = ROOT / "config" / "config.yaml"
 MODELS = ROOT / "config" / "models.yaml"
 DOTENV = ROOT / ".env"
 RUNTIME_ENV = ROOT / ".data" / "benchmarks" / "agent_strategy.env.json"
-RUNNER = ROOT / "scripts" / "benchmarks" / "agent_strategy_benchmark.py"
-SUMMARIZER = ROOT / "scripts" / "benchmarks" / "summarize_agent_strategy_benchmark.py"
-ARTIFACTS = ROOT / "artifacts" / "benchmarks"
+BENCHMARK_DIR = ROOT / "scripts" / "benchmarks" / "agent_strategy"
+RUNNER = BENCHMARK_DIR / "agent_strategy_benchmark.py"
+SUMMARIZER = BENCHMARK_DIR / "summarize_agent_strategy_benchmark.py"
+ARTIFACTS = ROOT / "artifacts" / "benchmarks" / "agent_strategy"
+PILOTS = ARTIFACTS / "pilots"
 REQUIRED_SERVICES = {
     "app-postgres",
     "redis",
@@ -391,7 +393,8 @@ def execute() -> None:
         raise SystemExit("environment gate failed; formal experiment was not started")
     config = report["effective"]
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    pilot = ARTIFACTS / f"agent_strategy_gate_pilot_{stamp}.jsonl"
+    pilot = PILOTS / f"gate_{stamp}.jsonl"
+    pilot.parent.mkdir(parents=True, exist_ok=True)
     common = [
         sys.executable,
         str(RUNNER),
@@ -469,7 +472,7 @@ def execute() -> None:
             "pilot_file": str(pilot),
         }, ensure_ascii=False, indent=2))
         raise SystemExit("pilot gate failed; formal experiment was not started")
-    formal = ARTIFACTS / "agent_strategy_trials.jsonl"
+    formal = ARTIFACTS / "trials.jsonl"
     formal_returncode = stream_command(
         *common,
         "--output",
@@ -495,7 +498,7 @@ def execute() -> None:
     print(summary.stdout, end="")
     if summary.returncode:
         raise SystemExit(summary.stderr.strip() or "summary generation failed")
-    print("Experiment complete. Ask Codex to analyze artifacts/benchmarks/agent_strategy_*.{jsonl,csv,json,md}")
+    print("Experiment complete. Review artifacts/benchmarks/agent_strategy/README.md")
 
 
 def main() -> None:
@@ -505,7 +508,7 @@ def main() -> None:
     if args.command == "check":
         ok, report, _ = check_environment()
         print_report(report)
-        report_path = ARTIFACTS / "agent_strategy_environment_check.json"
+        report_path = ARTIFACTS / "environment_check.json"
         report_path.parent.mkdir(parents=True, exist_ok=True)
         report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         raise SystemExit(0 if ok else 1)

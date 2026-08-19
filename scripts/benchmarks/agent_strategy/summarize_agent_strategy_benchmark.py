@@ -11,9 +11,9 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_INPUT = ROOT / "artifacts" / "benchmarks" / "agent_strategy_trials.jsonl"
-DEFAULT_DIR = ROOT / "artifacts" / "benchmarks"
+ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_DIR = ROOT / "artifacts" / "benchmarks" / "agent_strategy"
+DEFAULT_INPUT = DEFAULT_DIR / "trials.jsonl"
 
 
 def percentile(values: list[float], q: float) -> float | None:
@@ -248,9 +248,9 @@ def main() -> None:
     rows = load(args.input)
     summary = build_summary(rows, args.allow_partial)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = args.output_dir / "agent_strategy_trials.csv"
-    json_path = args.output_dir / "agent_strategy_summary.json"
-    report_path = args.output_dir / "agent_strategy_report.md"
+    csv_path = args.output_dir / "trials.csv"
+    json_path = args.output_dir / "summary.json"
+    report_path = args.output_dir / "report.md"
     write_csv(rows, csv_path)
     json_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     write_report(summary, report_path)

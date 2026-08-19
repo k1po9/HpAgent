@@ -15,7 +15,7 @@
       "temporal_namespace": "hpagent-outbox-benchmark",
       "database_name": "hpagent_outbox_benchmark",
       "timeout_seconds": 120,
-      "worker_process": "test/support/outbox_benchmark_worker.py",
+      "worker_process": "scripts/benchmarks/outbox/outbox_benchmark_worker.py",
       "fake_model": true
     }
   },

@@ -10,4 +10,4 @@ if [[ ! -x .venv/bin/python ]]; then
 fi
 
 exec env PYTHONPATH=src .venv/bin/python \
-  scripts/benchmarks/agent_strategy_experiment.py "${1:-check}"
+  scripts/benchmarks/agent_strategy/agent_strategy_experiment.py "${1:-check}"

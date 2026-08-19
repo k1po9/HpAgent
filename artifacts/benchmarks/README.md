@@ -1,39 +1,44 @@
-# HpAgent Benchmark Evidence Index
+# HpAgent Benchmark Evidence
 
-This directory is the committed evidence bundle for the three resume experiments. Start with
-[`FINAL_ANALYSIS.md`](FINAL_ANALYSIS.md), then use the raw CSV/JSON files for independent review.
+该目录按实验边界组织设计、结果和原始证据。根目录只负责导航，避免把不同故障模型、统计
+口径和试运行数据混在一起。
 
-## 1. Temporal Durable Agent recovery
+## 目录
 
-- `temporal_recovery_report.md`: Workflow Worker SIGKILL method, metrics, and limitations.
-- `temporal_recovery_summary.json`: machine-readable aggregate for 50 trials.
-- `temporal_recovery_trials.csv`: one row per Workflow Worker fault injection.
-- `activity_worker_recovery_report.md`: Activity Worker SIGKILL and ack-gap interpretation.
-- `activity_worker_recovery_summary.json`: machine-readable aggregate for 20 trials.
-- `activity_worker_recovery_trials.csv`: one row per Activity Worker fault injection.
+```text
+artifacts/benchmarks/
+├── summary/                         # 跨实验结论与简历表述
+├── temporal/
+│   ├── README.md                    # Temporal 总设计与两类 Worker 结论
+│   ├── workflow_worker/             # 50 次 Workflow Worker SIGKILL
+│   │   ├── report.md
+│   │   ├── summary.json
+│   │   ├── trials.csv
+│   │   └── runs/                    # 边界标记与逐次 SQLite 状态
+│   └── activity_worker/             # 20 次 Activity Worker SIGKILL/ack gap
+│       ├── report.md
+│       ├── summary.json
+│       ├── trials.csv
+│       └── runs/
+├── outbox/                          # 30 请求宕机恢复
+│   ├── README.md
+│   ├── report.md
+│   ├── summary.json
+│   └── trials.csv
+└── agent_strategy/                  # ReAct vs Plan-and-Execute
+    ├── README.md
+    ├── report.md
+    ├── summary.json
+    ├── trials.csv
+    ├── trials.jsonl
+    └── pilots/                      # gate、延迟试跑与问题记录
+```
 
-## 2. Transactional Outbox recovery
+## 阅读顺序
 
-- `outbox_recovery_report.md`: method, aggregate results, and scope boundary.
-- `outbox_recovery_summary.json`: machine-readable aggregate for 30 requests.
-- `outbox_recovery_trials.csv`: one row per accepted request.
+1. [`summary/FINAL_ANALYSIS.md`](summary/FINAL_ANALYSIS.md)：完整跨实验分析和有效性边界。
+2. [`summary/FINAL_SUMMARY.json`](summary/FINAL_SUMMARY.json)：机器可读核心指标。
+3. 各实验 `README.md`：实验目标、设计、指标定义、结果和局限。
+4. 各实验 `report.md`、`summary.json`、`trials.csv`：生成报告、聚合数据和逐条数据。
 
-## 3. ReAct vs Plan-and-Execute
-
-- `agent_strategy_report.md`: generated difficulty-level table using evaluable records.
-- `agent_strategy_summary.json`: machine-readable aggregate and paired outcomes.
-- `agent_strategy_trials.csv`: canonical 60-slot table; six environment-failure rows are retained.
-- `agent_strategy_trials.jsonl`: append-only audit history, including the interrupted/retried record.
-- `agent_strategy_tasks.yaml`: task manifest is under `scripts/benchmarks/`.
-- `agent_strategy_gate_pilot_*.jsonl`, `agent_strategy_pilot*.jsonl`: environment qualification history.
-- `agent_strategy_latency_pilot_report.md`: early provider latency and qualification failure.
-- `agent_strategy_plan_logging_bug.md`: production logging bug discovered and fixed before formal run.
-
-## Consolidated outputs
-
-- `FINAL_ANALYSIS.md`: authoritative cross-experiment analysis and resume-safe claims.
-- `FINAL_SUMMARY.json`: compact machine-readable headline metrics and validity notes.
-- `HpAgent_resume_benchmark_report.md`: concise resume-oriented report.
-
-All benchmark artifacts were generated on branch `feat/hpagent-web`. The raw evidence is retained;
-environment failures are labeled rather than deleted or rewritten.
+原始失败和环境错误均保留并明确标注，没有为了提高数字而删除或改写样本。

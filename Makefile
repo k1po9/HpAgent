@@ -64,7 +64,7 @@ e2e:
 	cd web && $(NPM) run test:e2e
 
 agent-benchmark-check:
-	bash scripts/benchmarks/agent_strategy.sh check
+	bash scripts/benchmarks/agent_strategy/agent_strategy.sh check
 
 agent-benchmark-run:
-	bash scripts/benchmarks/agent_strategy.sh run
+	bash scripts/benchmarks/agent_strategy/agent_strategy.sh run

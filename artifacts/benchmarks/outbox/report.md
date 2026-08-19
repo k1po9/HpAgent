@@ -57,5 +57,5 @@ started; their newly emitted events remain pending and are outside the measured 
 docker compose up -d app-postgres temporal-postgres temporal
 PYTHONPATH=src TEMPORAL_HOST=localhost:7233 \
   TEMPORAL_NAMESPACE=hpagent-outbox-benchmark \
-  .venv/bin/python scripts/benchmarks/outbox_recovery_benchmark.py --requests 30
+  .venv/bin/python scripts/benchmarks/outbox/outbox_recovery_benchmark.py --requests 30
 ```

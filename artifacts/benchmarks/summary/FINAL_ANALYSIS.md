@@ -117,3 +117,10 @@ max turns 5 下成功率不足 30%，当前数据不支持将任一策略作为�
   阻止二次外部写入，不将该结果表述为通用 exactly-once。
 - 在 27 组有效 Agent 配对任务中，ReAct 简单任务成功率 90%，Plan-and-Execute 中等任务成功率
   70%、较 ReAct 高 30 个百分点；据此实现按复杂度选择策略的可解释依据。
+
+## 证据目录
+
+- Temporal：`../temporal/README.md`，其下分为 `workflow_worker/` 与 `activity_worker/`。
+- Transactional Outbox：`../outbox/README.md`。
+- Agent 策略：`../agent_strategy/README.md`。
+- 总索引：`../README.md`。

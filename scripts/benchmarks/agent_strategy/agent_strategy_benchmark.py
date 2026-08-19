@@ -26,9 +26,11 @@ import httpx
 import psycopg
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_MANIFEST = ROOT / "scripts" / "benchmarks" / "agent_strategy_tasks.yaml"
-DEFAULT_RAW = ROOT / "artifacts" / "benchmarks" / "agent_strategy_trials.jsonl"
+ROOT = Path(__file__).resolve().parents[3]
+BENCHMARK_DIR = ROOT / "scripts" / "benchmarks" / "agent_strategy"
+ARTIFACT_DIR = ROOT / "artifacts" / "benchmarks" / "agent_strategy"
+DEFAULT_MANIFEST = BENCHMARK_DIR / "agent_strategy_tasks.yaml"
+DEFAULT_RAW = ARTIFACT_DIR / "trials.jsonl"
 TERMINAL = {"completed", "failed", "cancelled"}
 STRATEGIES = ("react", "plan_and_execute")
 

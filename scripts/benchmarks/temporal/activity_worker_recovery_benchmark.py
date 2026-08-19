@@ -35,7 +35,7 @@ from agent_workflows.contracts import (
 from persistence.migrate import migrate
 from web_domain.services import CommandService
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 HARNESS = ROOT / "test" / "support" / "durable_worker_process.py"
 CASES = (
     ("A1", 5, "none", "activity-before-side-effect"),
@@ -623,13 +623,13 @@ def summarize(trials: list[dict[str, Any]], env: dict[str, Any]) -> dict[str, An
 def write_outputs(
     output_dir: Path, trials: list[dict[str, Any]], summary: dict[str, Any]
 ) -> None:
-    with (output_dir / "activity_worker_recovery_trials.csv").open(
+    with (output_dir / "trials.csv").open(
         "w", newline="", encoding="utf-8"
     ) as stream:
         writer = csv.DictWriter(stream, fieldnames=list(trials[0]))
         writer.writeheader()
         writer.writerows(trials)
-    (output_dir / "activity_worker_recovery_summary.json").write_text(
+    (output_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     latency = summary["kill_to_terminal_latency_ms"]
@@ -690,52 +690,24 @@ not exactly-once delivery and not automatic business reconciliation.
 
 Unexpected failure count: **{len(summary['failures'])}**. Raw details are retained in the CSV and
 JSON summary.
+
+## Reproduction
+
+```bash
+docker compose up -d app-postgres temporal-postgres temporal
+PYTHONPATH=src TEMPORAL_HOST=localhost:7233 \\
+  TEMPORAL_NAMESPACE=hpagent-activity-benchmark-final \\
+  .venv/bin/python \\
+  scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py
+```
 """
-    (output_dir / "activity_worker_recovery_report.md").write_text(
-        report, encoding="utf-8"
-    )
-
-
-def merge_temporal_report(output_dir: Path, summary: dict[str, Any]) -> None:
-    path = output_dir / "temporal_recovery_report.md"
-    if not path.exists():
-        return
-    text = path.read_text(encoding="utf-8")
-    marker = "\n## B. Activity Worker Loss\n"
-    if marker in text:
-        text = text.split(marker, 1)[0].rstrip() + "\n"
-    if "## A. Workflow Worker Loss" not in text:
-        text = text.replace("## Method\n", "## A. Workflow Worker Loss\n\n### Method\n", 1)
-        for heading in (
-            "Results",
-            "Results by Fault Boundary",
-            "Failure Analysis",
-            "Limitations",
-            "Reproduction",
-        ):
-            text = text.replace(f"## {heading}\n", f"### {heading}\n", 1)
-    latency = summary["kill_to_terminal_latency_ms"]
-    text += f"""
-
-## B. Activity Worker Loss
-
-Real Activity Worker SIGKILL supplement: **{summary['safe_outcomes']}/{summary['trials']}** safe
-outcomes with Activity retry observed in **{summary['activity_retry_observed']}/{summary['trials']}**
-trials. A3 produced **{summary['a3']['uncertain_fail_closed_count']}** safe uncertain/fail-closed
-outcomes and **{summary['a3']['unsafe_duplicate_side_effect_count']}** unsafe duplicate side
-effects. Kill-to-terminal latency was P50 **{latency['p50']} ms**, P95 **{latency['p95']} ms**.
-
-See `activity_worker_recovery_report.md` and `activity_worker_recovery_trials.csv` for method,
-per-trial evidence, and the exact safety boundary. This result demonstrates Activity retry and
-ack-gap fail-closed safety; it does not claim universal Tool exactly-once execution.
-"""
-    path.write_text(text, encoding="utf-8")
+    (output_dir / "report.md").write_text(report, encoding="utf-8")
 
 
 async def async_main(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-    runs_dir = output_dir / "activity_worker_recovery_runs"
+    runs_dir = output_dir / "runs"
     if runs_dir.exists():
         shutil.rmtree(runs_dir)
     runs_dir.mkdir(parents=True)
@@ -794,7 +766,6 @@ async def async_main(args: argparse.Namespace) -> int:
             )
     summary = summarize(trials, env)
     write_outputs(output_dir, trials, summary)
-    merge_temporal_report(output_dir, summary)
     print(
         json.dumps(
             {
@@ -835,7 +806,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--trials-a2", type=int, default=5)
     parser.add_argument("--trials-a3", type=int, default=10)
     parser.add_argument("--timeout", type=float, default=30)
-    parser.add_argument("--output-dir", default=str(ROOT / "artifacts" / "benchmarks"))
+    parser.add_argument(
+        "--output-dir",
+        default=str(ROOT / "artifacts" / "benchmarks" / "temporal" / "activity_worker"),
+    )
     args = parser.parse_args()
     if not args.database_name.startswith("hpagent_") or not args.database_name.endswith(
         "_benchmark"
