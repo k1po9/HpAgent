@@ -18,6 +18,18 @@
 
 `WEB_PUBLIC_ORIGIN`、cursor signing、session pepper、CSRF key 和 `QQ_BINDING_CODE_PEPPER` 属于安全配置，生产环境不得使用 development 默认值。API 与 QQ Worker 必须使用相同的 QQ binding pepper；`QQ_BINDING_CHALLENGE_SECONDS` 默认 300。Web password 的运行时真相源是 PostgreSQL `web_credentials`，`WEB_CREDENTIALS_JSON` 仅用于兼容迁移。`WEB_REAL_AGENT_ENABLED` 与 `WEB_REAL_AGENT_GATE_VERSION` 控制 Web 真实 Agent 发布门禁；Outbox lease/recovery 参数必须为正且 recovery interval 小于 lease timeout。
 
+## Durable Agent
+
+| 变量 | 默认值 | 消费者 | 说明 |
+|---|---:|---|---|
+| `DURABLE_AGENT_ENABLED` | `false` | API/Worker | 只决定新 Web Run 使用 `DurableWebRunWorkflow` 还是 legacy `WebRunWorkflow`；durable definitions 始终注册，关闭开关不会中断已开始的 durable execution |
+| `AGENT_EXECUTION_LEASE_TTL_SECONDS` | `900` | Worker | PostgreSQL account execution lease TTL；必须为正，并大于最长单次 Activity 超时且留出恢复余量 |
+
+启用前必须应用 `014_durable_agent_control_plane.sql` 与
+`015_durable_agent_hardening.sql`。`plan_and_execute` 只在 Durable Agent 开启时可选；关闭开关时
+API 仍接受默认 `react`，但拒绝需要 durable Workflow 的策略。生产中已有 Workflow History 后，
+控制流变更应使用 Temporal Worker Versioning/patch，不能通过切换开关重新解释旧 History。
+
 ## 模型与工具
 
 模型 provider、fallback chain、timeout 和 token 上限在 `config/models.yaml` 定义；API key 由同名环境变量替换。MCP、Skills、Tool RAG 和 native tools 由配置文件开启，启动失败按模块记录降级日志。

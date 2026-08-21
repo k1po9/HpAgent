@@ -110,7 +110,7 @@ durable ownership。QQ 的 durable lease 接入属于后续范围。
 Activity 超时并留出安全余量。Activity 开始时续租，并在 workspace 恢复、本地锁获取
 完成后、Tool 副作用执行前再次续租和校验 fencing token。
 
-## 已知迁移风险与后续故障注入
+## 已知迁移风险
 
 1. QQ 仍走 legacy ReAct。它尚未获取 PostgreSQL durable lease，因此 Phase 3 需要将
    QQ 迁移到同一 ownership 机制，才能在多进程拓扑下与 Web 完全互斥。
@@ -122,3 +122,18 @@ Activity 超时并留出安全余量。Activity 开始时续租，并在 workspa
    ack-gap 和 stale fencing token 的专项用例。
 4. 生产中已开始新 Workflow 后，控制流变更必须使用 Worker Versioning/patch；不要
    原地重新解释现有 History。
+
+## 故障注入验证现状
+
+当前仓库已将原先的“后续故障注入”落为可复现实验，并保留逐次证据：
+
+- Workflow Worker SIGKILL：覆盖 ReAct 的 model/tool 边界与 Plan-and-Execute 的 step/final
+  evaluation 边界，已提交的一轮为 50/50 恢复，未观察到重复 operation 或额外重复副作用。
+- Activity Worker SIGKILL：覆盖副作用前、幂等副作用 ack gap 和非幂等副作用 ack gap，已提交
+  的一轮 20/20 达到预定义安全结果；其中非幂等 case 为 10/10 `uncertain` fail-closed。
+- Transactional Outbox：Worker 停机期间持久化 30 个请求，replacement Worker 启动后 30/30
+  最终处理，丢失 Run 和重复 Workflow 均为 0。
+
+这些结果证明当前测试场景和环境下的 replay/retry/fail-closed 边界，不扩大为任意 Tool 的
+exactly-once 保证。实验设计、复现命令和有效性限制见[基准与故障恢复验证](../benchmarks.md)，
+原始证据索引见 [`artifacts/benchmarks/README.md`](../../artifacts/benchmarks/README.md)。

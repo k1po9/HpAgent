@@ -110,7 +110,23 @@ make test-db
 make test-api
 make ci-web
 make e2e
+make agent-benchmark-check
+make agent-benchmark-run
 ```
+
+`agent-benchmark-check` 只执行环境门禁，不调用模型；`agent-benchmark-run` 会执行低成本
+pilot，并在门禁通过后启动 ReAct 与 Plan-and-Execute 的正式配对实验，因此会产生模型调用
+费用。Temporal Worker、Activity Worker 与 Transactional Outbox 的独立故障恢复实验入口、
+前置条件和证据口径见[基准与故障恢复验证](docs/benchmarks.md)。
+
+## 已验证的恢复边界
+
+仓库包含三组可追溯基准证据：Temporal Workflow Worker/Activity Worker SIGKILL 恢复、
+Transactional Outbox 宕机恢复，以及 ReAct/Plan-and-Execute 策略对比。已提交的一轮可靠性
+实验共覆盖 50 次 Workflow Worker、20 次 Activity Worker 故障和 30 个 Outbox 请求，均达到
+各自预定义的恢复或安全终态；非幂等副作用 ack gap 的安全结果是 `uncertain` fail-closed，
+不代表所有外部 Tool 都具备 exactly-once 语义。完整结果、环境与样本限制见
+[`artifacts/benchmarks/README.md`](artifacts/benchmarks/README.md)。
 
 ## 文档
 
@@ -121,6 +137,7 @@ make e2e
 - [关键时序](docs/architecture/single_agent/04_sequence.md)
 - [配置参考](docs/reference/configuration.md)
 - [运行手册](docs/operations/runbook.md)
+- [基准与故障恢复验证](docs/benchmarks.md)
 - [Web 注册与 QQ 绑定](docs/operations/web-registration-and-qq-binding.md)
 - [可观测性](docs/operations/observability.md)
 - [架构收口报告](docs/architecture/refactor-closure-report.md)
