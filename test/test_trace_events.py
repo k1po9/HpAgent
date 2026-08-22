@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -10,7 +11,11 @@ from agent_activities.runtime import DurableAgentActivities
 from agent_activities.store import ToolOperationState
 from agent_execution.facade import ExecutionRequest
 from agent_execution.tracing import (
+    TraceEvent,
+    TraceEventNode,
     TraceLifecycleObserver,
+    TraceRun,
+    TraceTree,
     model_observation_metadata,
     trace_node_id,
 )
@@ -23,6 +28,7 @@ from agent_workflows.contracts import (
     ContextBootstrapInput,
     ToolExecutionInput,
 )
+from web_api.queries import trace_tree_dto
 
 
 @pytest.mark.asyncio
@@ -173,6 +179,49 @@ def test_trace_node_ids_are_stable_and_operation_scoped():
     assert trace_node_id(run_id, "llm_call", "turn:1") != trace_node_id(
         run_id, "llm_call", "turn:2"
     )
+
+
+def test_trace_tree_dto_exposes_safe_nested_http_contract():
+    trace_run_id, run_id, account_id, conversation_id, root_id = (
+        uuid4() for _ in range(5)
+    )
+    started_at = datetime(2026, 8, 22, tzinfo=UTC)
+    tree = TraceTree(
+        run=TraceRun(
+            trace_run_id=trace_run_id,
+            run_id=run_id,
+            account_id=account_id,
+            conversation_id=conversation_id,
+            strategy="react",
+            status="completed",
+            started_at=started_at,
+            ended_at=started_at,
+            metadata={"source": "web"},
+        ),
+        roots=(
+            TraceEventNode(
+                TraceEvent(
+                    trace_event_id=root_id,
+                    trace_run_id=trace_run_id,
+                    parent_event_id=None,
+                    event_type="agent",
+                    name="AgentExecution",
+                    status="completed",
+                    started_at=started_at,
+                    ended_at=started_at,
+                    duration_ms=10,
+                    metadata={"strategy": "react"},
+                )
+            ),
+        ),
+    )
+
+    dto = trace_tree_dto(tree)
+
+    assert "account_id" not in dto["run"]
+    assert dto["run"]["run_id"] == str(run_id)
+    assert dto["roots"][0]["event"]["trace_event_id"] == str(root_id)
+    assert dto["roots"][0]["event"]["metadata"] == {"strategy": "react"}
 
 
 def test_model_observation_excludes_content_and_keeps_usage():

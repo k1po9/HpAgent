@@ -8,6 +8,8 @@ import { useWorkbench } from "./store/workbench";
 import { useArtifacts } from "./store/artifacts";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { RegistrationQqGate } from "./components/RegistrationQqGate";
+import { TracePanel } from "./components/trace/TracePanel";
+import { useTraceStore } from "./components/trace/traceStore";
 
 /**
  * Auth gate: probe `/api/v1/me` on mount; signed-in sessions open the chat
@@ -19,6 +21,7 @@ export function App() {
   const accountId = useAuth((s) => s.account?.account_id ?? null);
   const check = useAuth((s) => s.check);
   const resetArtifacts = useArtifacts((s) => s.reset);
+  const resetTrace = useTraceStore((s) => s.reset);
 
   useEffect(() => {
     void check();
@@ -26,7 +29,8 @@ export function App() {
 
   useEffect(() => {
     resetArtifacts();
-  }, [status, accountId, resetArtifacts]);
+    resetTrace();
+  }, [status, accountId, resetArtifacts, resetTrace]);
 
   if (status === "checking") {
     return (
@@ -123,6 +127,7 @@ function Workbench() {
         <Flex direction="column" className="hp-chatpane">
           {activeConversationId ? <ChatPane /> : <EmptySelection />}
         </Flex>
+        <TracePanel />
         {openArtifactId ? <ArtifactPanel /> : null}
       </Flex>
     </>

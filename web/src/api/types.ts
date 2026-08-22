@@ -72,6 +72,42 @@ export interface HpRunSnapshot {
   assistant_message: HpMessage;
 }
 
+export type HpTraceStatus = "running" | "completed" | "failed" | "cancelled";
+
+export interface HpTraceRun {
+  trace_run_id: string;
+  run_id: string;
+  conversation_id: string;
+  strategy: string;
+  status: HpTraceStatus;
+  started_at: string;
+  ended_at: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface HpTraceEvent {
+  trace_event_id: string;
+  trace_run_id: string;
+  parent_event_id: string | null;
+  event_type: string;
+  name: string;
+  status: HpTraceStatus;
+  started_at: string;
+  ended_at: string | null;
+  duration_ms: number | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface HpTraceEventNode {
+  event: HpTraceEvent;
+  children: HpTraceEventNode[];
+}
+
+export interface HpTraceTree {
+  run: HpTraceRun;
+  roots: HpTraceEventNode[];
+}
+
 export interface HpActiveRun {
   run: HpRun;
   assistant_message: HpMessage;

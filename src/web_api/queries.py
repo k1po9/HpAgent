@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from agent_execution.tracing.models import TraceEventNode, TraceTree
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound, VersionConflict
 from web_domain.failures import is_failure_retryable
@@ -71,6 +72,45 @@ def run_dto(row: dict[str, Any]) -> dict[str, Any]:
         "started_at": timestamp(row["started_at"]),
         "finished_at": timestamp(row["finished_at"]),
         "updated_at": timestamp(row["updated_at"]),
+    }
+
+
+def trace_tree_dto(tree: TraceTree) -> dict[str, Any]:
+    """Serialize the ownership-scoped Trace domain tree for the Debug Panel."""
+
+    def event_node_dto(node: TraceEventNode) -> dict[str, Any]:
+        event = node.event
+        return {
+            "event": {
+                "trace_event_id": str(event.trace_event_id),
+                "trace_run_id": str(event.trace_run_id),
+                "parent_event_id": (
+                    str(event.parent_event_id) if event.parent_event_id else None
+                ),
+                "event_type": event.event_type,
+                "name": event.name,
+                "status": event.status,
+                "started_at": timestamp(event.started_at),
+                "ended_at": timestamp(event.ended_at),
+                "duration_ms": event.duration_ms,
+                "metadata": dict(event.metadata),
+            },
+            "children": [event_node_dto(child) for child in node.children],
+        }
+
+    run = tree.run
+    return {
+        "run": {
+            "trace_run_id": str(run.trace_run_id),
+            "run_id": str(run.run_id),
+            "conversation_id": str(run.conversation_id),
+            "strategy": run.strategy,
+            "status": run.status,
+            "started_at": timestamp(run.started_at),
+            "ended_at": timestamp(run.ended_at),
+            "metadata": dict(run.metadata),
+        },
+        "roots": [event_node_dto(root) for root in tree.roots],
     }
 
 

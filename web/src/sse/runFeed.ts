@@ -37,6 +37,18 @@ export interface RunProgress {
   summary: string;
 }
 
+export interface TraceEventUpdate {
+  action: "start" | "end";
+  nodeId: string;
+  parentId: string | null;
+  name: string | null;
+  nodeType: string | null;
+  status: string | null;
+  metadata: Record<string, unknown>;
+  durationMs: number | null;
+  occurredAt: string | null;
+}
+
 /** The contract domain event envelope (§12.2). */
 export interface SseEnvelope {
   schema_version: number;
@@ -60,6 +72,8 @@ export interface RunFeedHandlers {
   onProgress?: (progress: RunProgress) => void;
   /** Non-terminal Run status change (queued/running/cancelling). */
   onStatus?: (status: HpRunStatus) => void;
+  /** Best-effort Trace node update, ordered with the other online events. */
+  onTrace?: (update: TraceEventUpdate) => void;
   /** Terminal RunSnapshot (run.completed/failed/cancelled); replace local state. */
   onTerminal?: (snapshot: HpRunSnapshot) => void;
   /** Stream degraded (stable reason) or connect failure — stop delta assembly. */
@@ -296,6 +310,28 @@ export function openRunFeed(
         if (typeof status === "string" && isRunStatus(status)) {
           handlers.onStatus?.(status);
         }
+        return;
+      }
+      case "trace.event": {
+        const action = event.payload.action;
+        const nodeId = event.payload.node_id;
+        if ((action !== "start" && action !== "end") || typeof nodeId !== "string") return;
+        const metadata = event.payload.metadata;
+        handlers.onTrace?.({
+          action,
+          nodeId,
+          parentId: typeof event.payload.parent_id === "string" ? event.payload.parent_id : null,
+          name: typeof event.payload.name === "string" ? event.payload.name : null,
+          nodeType: typeof event.payload.type === "string" ? event.payload.type : null,
+          status: typeof event.payload.status === "string" ? event.payload.status : null,
+          metadata:
+            typeof metadata === "object" && metadata !== null && !Array.isArray(metadata)
+              ? (metadata as Record<string, unknown>)
+              : {},
+          durationMs:
+            typeof event.payload.duration_ms === "number" ? event.payload.duration_ms : null,
+          occurredAt: event.occurred_at,
+        });
         return;
       }
       default:

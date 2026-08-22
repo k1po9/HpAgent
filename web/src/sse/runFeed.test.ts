@@ -142,6 +142,7 @@ function probe(): FeedProbe {
     onDelta: (id, delta) => calls.push({ type: "delta", value: { id, delta } }),
     onProgress: (p) => calls.push({ type: "progress", value: p }),
     onStatus: (s) => calls.push({ type: "status", value: s }),
+    onTrace: (event) => calls.push({ type: "trace", value: event }),
     onTerminal: (s) => calls.push({ type: "terminal", value: s }),
     onDegraded: (r) => calls.push({ type: "degraded", value: r }),
     onAuthExpired: () => calls.push({ type: "auth" }),
@@ -169,6 +170,16 @@ describe("openRunFeed", () => {
       }),
     );
     stream.send(envelope("message.delta", 4, STREAM_ID, { delta: "好" }));
+    stream.send(
+      envelope("trace.event", 5, STREAM_ID, {
+        action: "start",
+        node_id: "node-1",
+        parent_id: null,
+        name: "AgentExecution",
+        type: "agent",
+        metadata: { strategy: "react" },
+      }),
+    );
     stream.send(terminalFrame("run.completed", COMPLETED_SNAPSHOT));
     await feed.done;
 
@@ -179,6 +190,12 @@ describe("openRunFeed", () => {
       phase: "executing_tool",
       summary: "正在分析项目文件",
     } as RunProgress);
+    expect(p.calls.find((c) => c.type === "trace")?.value).toMatchObject({
+      action: "start",
+      nodeId: "node-1",
+      name: "AgentExecution",
+      nodeType: "agent",
+    });
     const terminal = p.calls.find((c) => c.type === "terminal")?.value as HpRunSnapshot;
     expect(terminal.run.status).toBe("completed");
     expect(terminal.assistant_message.content).toBe("完整的最终回复");

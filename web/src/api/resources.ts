@@ -14,6 +14,7 @@ import type {
   HpPage,
   HpRetryResult,
   HpRunSnapshot,
+  HpTraceTree,
   HpSendResult,
   HpArtifact,
   HpArtifactSummary,
@@ -106,6 +107,13 @@ export class HpApi {
     return this.client.request<HpRunSnapshot>({
       method: "GET",
       path: `/api/v1/runs/${runId}`,
+    });
+  }
+
+  async getRunTrace(runId: string): Promise<HpTraceTree> {
+    return this.client.request<HpTraceTree>({
+      method: "GET",
+      path: `/api/v1/runs/${runId}/trace`,
     });
   }
 

@@ -1,10 +1,12 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
+import { Activity } from "lucide-react";
 import { HpThread } from "../adapters/assistant-ui/HpThread";
 import { useWorkbench } from "../store/workbench";
 import { useAuth } from "../store/auth";
 import { useArtifacts } from "../store/artifacts";
 import { RunStatus } from "./RunStatus";
+import { useTraceStore } from "./trace/traceStore";
 
 /**
  * The active conversation pane (phase-e E-03/E-04).
@@ -38,6 +40,21 @@ export function ChatPane() {
     sending ||
     Boolean(activeRun && !["completed", "failed", "cancelled"].includes(activeRun.status));
   const displayedStrategy = activeRun?.agent_strategy ?? agentStrategy;
+  const traceOpen = useTraceStore((s) => s.open);
+  const setTraceOpen = useTraceStore((s) => s.setOpen);
+  const followTraceRun = useTraceStore((s) => s.followRun);
+  const latestRunId =
+    activeRun?.run_id ??
+    messages
+      .slice()
+      .reverse()
+      .find((message) => message.role === "assistant" && message.produced_by_run_id)
+      ?.produced_by_run_id ??
+    null;
+
+  useEffect(() => {
+    followTraceRun(latestRunId);
+  }, [latestRunId, followTraceRun]);
 
   const handleSend = useCallback(
     (content: string) => {
@@ -101,19 +118,31 @@ export function ChatPane() {
           </Button>
         </Flex>
       ) : null}
-      <Flex align="center" gap="2" px="3" py="2">
-        <Text size="1" color="gray">
-          执行模式
-        </Text>
-        <select
-          aria-label="执行模式"
-          value={displayedStrategy}
-          disabled={strategyLocked}
-          onChange={(event) => setAgentStrategy(event.target.value as "react" | "plan_and_execute")}
+      <Flex align="center" justify="between" gap="2" px="3" py="2">
+        <Flex align="center" gap="2">
+          <Text size="1" color="gray">
+            执行模式
+          </Text>
+          <select
+            aria-label="执行模式"
+            value={displayedStrategy}
+            disabled={strategyLocked}
+            onChange={(event) =>
+              setAgentStrategy(event.target.value as "react" | "plan_and_execute")
+            }
+          >
+            <option value="react">对话（ReAct）</option>
+            {durableAgentEnabled ? <option value="plan_and_execute">计划执行</option> : null}
+          </select>
+        </Flex>
+        <Button
+          size="1"
+          variant={traceOpen ? "solid" : "soft"}
+          disabled={!latestRunId}
+          onClick={() => setTraceOpen(!traceOpen)}
         >
-          <option value="react">对话（ReAct）</option>
-          {durableAgentEnabled ? <option value="plan_and_execute">计划执行</option> : null}
-        </select>
+          <Activity size={14} aria-hidden="true" /> Trace
+        </Button>
       </Flex>
       <Box style={{ flex: 1, minHeight: 0 }}>
         <HpThread

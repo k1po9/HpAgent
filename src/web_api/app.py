@@ -36,6 +36,7 @@ from account.registration_service import (
     RegistrationService,
     UsernameAlreadyExists,
 )
+from agent_execution.tracing.repository import PostgresTraceRepository
 from common.logging import log_event
 from persistence.uow import UnitOfWork
 from web_artifacts.services import ArtifactService
@@ -69,7 +70,7 @@ from .models import (
     RenameConversationRequest,
     SendMessageRequest,
 )
-from .queries import QueryService
+from .queries import QueryService, trace_tree_dto
 from .security import CursorCodec, CursorError
 from .sse import SSEGateway, load_run_snapshot
 from .terminal_publisher import TerminalEventPublisher
@@ -257,6 +258,7 @@ def create_app(
                 settings.cursor_ttl_seconds,
             ),
         )
+        app.state.trace_repository = PostgresTraceRepository(api_pool)
         # Phase E: SSE Gateway + Terminal Event Publisher over the raw Web Run
         # Redis channel.  Redis is optional: without it the SSE Gateway degrades
         # to snapshot + stream.degraded(redis_unavailable) and the client polls.
@@ -654,6 +656,19 @@ def create_app(
     @app.get("/api/v1/runs/{run_id}")
     def get_run(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
         return request.app.state.queries.get_run(context.account_id, run_id)
+
+    @app.get("/api/v1/runs/{run_id}/trace")
+    def get_run_trace(
+        run_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(auth_context),
+    ):
+        tree = request.app.state.trace_repository.get_trace_tree(
+            context.account_id, run_id
+        )
+        if tree is None:
+            raise ResourceNotFound()
+        return trace_tree_dto(tree)
 
     @app.post("/api/v1/messages/{message_id}/artifacts")
     def create_artifact(message_id: UUID, payload: CreateArtifactRequest, request: Request,

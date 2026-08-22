@@ -26,6 +26,7 @@ import { HpApi } from "../api/resources";
 import { openRunFeed, type RunFeed, type RunProgress } from "../sse/runFeed";
 import { useAuth } from "./auth";
 import { newIdempotencyKey } from "../utils/idempotency";
+import { useTraceStore } from "../components/trace/traceStore";
 import {
   HpCommandError,
   type AgentStrategy,
@@ -268,6 +269,7 @@ export function createWorkbenchStore(
      * queries the Run, polling while it stays active (contract §13.2).
      */
     function startRunMonitor(runId: string): void {
+      useTraceStore.getState().followRun(runId);
       const generation = get().pollGeneration;
       closeFeed();
 
@@ -313,6 +315,10 @@ export function createWorkbenchStore(
               if (stale()) return;
               set((s) => (s.activeRun ? { activeRun: { ...s.activeRun, status } } : {}));
             },
+            onTrace: (event) => {
+              if (stale()) return;
+              useTraceStore.getState().applyEvent(runId, event);
+            },
             onTerminal: (snapshot) => {
               if (stale()) return;
               // The committed snapshot overrides the volatile delta buffer, then
@@ -326,6 +332,7 @@ export function createWorkbenchStore(
                 degraded: false,
               });
               void confirmRun(runId, generation);
+              void useTraceStore.getState().loadTrace();
             },
             onDegraded: () => {
               if (stale()) return;
@@ -422,6 +429,7 @@ export function createWorkbenchStore(
       createConversation: async () => {
         if (get().creatingConversation) return;
         closeFeed();
+        useTraceStore.getState().reset();
         set({ creatingConversation: true, error: null });
         try {
           const result = await api.createConversation(newIdempotencyKey());
@@ -451,6 +459,7 @@ export function createWorkbenchStore(
       selectConversation: async (id) => {
         if (id === get().activeConversationId) return;
         closeFeed();
+        useTraceStore.getState().reset();
         set((s) => ({
           activeConversationId: id,
           messages: [],
