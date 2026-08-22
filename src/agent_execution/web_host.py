@@ -1,11 +1,13 @@
 """Web execution host: load by Run ID, execute once, then commit through ReplySink."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import Protocol
 from uuid import UUID
 
+from agent_execution.tracing import trace_end, trace_node_id, trace_start
 from common.logging import log_event
 from workspace.isolation import WorkspaceRecoveryRequired
 
@@ -74,6 +76,7 @@ class WebExecutionHost:
         if request.execution_id != run_id:
             raise ValueError("Web request loader returned a different run")
         events = self._events.for_run(run_id)
+        root_node_id = trace_node_id(run_id, "agent_execution")
         correlation = {
             "run_id": run_id,
             "execution_id": request.execution_id,
@@ -98,6 +101,17 @@ class WebExecutionHost:
             started = getattr(events, "started", None)
             if started is not None:
                 await started()
+            await trace_start(
+                events,
+                root_node_id,
+                None,
+                "AgentExecution",
+                "agent",
+                {
+                    "strategy": (request.metadata or {}).get("strategy", "react"),
+                    "surface": "web",
+                },
+            )
             await events.progress("assembling_context", "正在启动执行。")
             audit = (
                 self._audit.for_execution(request.execution_id, request)
@@ -121,6 +135,12 @@ class WebExecutionHost:
                     request, self._control, events, audit
                 )
             await self._replies.complete(run_id, result)
+            await trace_end(
+                events,
+                root_node_id,
+                "completed",
+                {"tool_turns": result.tool_turns},
+            )
             log_event(
                 logger,
                 logging.INFO,
@@ -131,9 +151,15 @@ class WebExecutionHost:
                 **correlation,
             )
             return result
+        except asyncio.CancelledError:
+            await trace_end(events, root_node_id, "cancelled")
+            raise
         except Exception as exc:
             error_code = (
                 exc.code if isinstance(exc, StableExecutionFailure) else "internal_error"
+            )
+            await trace_end(
+                events, root_node_id, "failed", {"error_code": error_code}
             )
             logger.exception("Web agent execution failed", extra={
                 "event": "agent_execution_failed", "component": "agent",

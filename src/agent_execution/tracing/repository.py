@@ -57,7 +57,10 @@ class PostgresTraceRepository:
             row = uow.execute(
                 "INSERT INTO trace_events(trace_event_id,trace_run_id,parent_event_id,"
                 "name,event_type,metadata) VALUES (%s,%s,%s,%s,%s,%s) "
-                "ON CONFLICT (trace_event_id) DO NOTHING RETURNING *",
+                "ON CONFLICT (trace_event_id) DO UPDATE SET "
+                "status='running',started_at=CASE WHEN trace_events.status='running' "
+                "THEN trace_events.started_at ELSE now() END,ended_at=NULL,duration_ms=NULL,"
+                "metadata=trace_events.metadata || EXCLUDED.metadata RETURNING *",
                 (
                     event_id,
                     trace_run.trace_run_id,
@@ -105,6 +108,13 @@ class PostgresTraceRepository:
             if row is None:
                 raise LookupError(f"trace Event does not exist: {event_id}")
             if row["parent_event_id"] is None:
+                uow.execute(
+                    "UPDATE trace_events SET status=%s,ended_at=COALESCE(ended_at,now()),"
+                    "duration_ms=COALESCE(duration_ms,GREATEST(0,round(extract(epoch FROM "
+                    "(now()-started_at))*1000)::bigint)) WHERE trace_run_id=%s "
+                    "AND trace_event_id<>%s AND status='running'",
+                    (status, row["trace_run_id"], event_id),
+                )
                 uow.execute(
                     "UPDATE trace_runs SET status=%s,ended_at=COALESCE(ended_at,now()),"
                     "metadata=metadata || %s WHERE run_id=%s AND status='running'",

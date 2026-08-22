@@ -16,6 +16,12 @@ from temporalio.exceptions import ApplicationError
 
 from agent.protocol import ActionRequest
 from agent_execution.facade import StableExecutionFailure
+from agent_execution.tracing import (
+    model_observation_metadata,
+    trace_end,
+    trace_node_id,
+    trace_start,
+)
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     CompactToolCall,
@@ -207,6 +213,33 @@ class DurableAgentActivities:
         self._check_schema(request.schema_version)
         started = time.monotonic()
         fields = self._correlation(request)
+        events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        context_node_id = trace_node_id(
+            request.run_id, "context_assembly", request.operation_id
+        )
+        memory_node_id = trace_node_id(
+            request.run_id, "memory_recall", request.operation_id
+        )
+        rewrite_node_id = trace_node_id(
+            request.run_id, "memory_query_rewrite", request.operation_id
+        )
+        await trace_start(
+            events,
+            root_node_id,
+            None,
+            "AgentExecution",
+            "agent",
+            {"strategy": request.strategy, "surface": "web"},
+        )
+        await trace_start(
+            events,
+            context_node_id,
+            root_node_id,
+            "ContextAssembly",
+            "context",
+            {"operation_id": request.operation_id},
+        )
         log_event(context_logger, logging.INFO, "context_bootstrap_started", "context", **fields, status="started")
         if int(fields["activity_attempt"]) > 1:
             log_event(context_logger, logging.WARNING, "activity_retry_detected", "context", **fields, status="retrying")
@@ -215,6 +248,10 @@ class DurableAgentActivities:
         )
         if previous is not None:
             log_event(context_logger, logging.INFO, "operation_deduplicated", "context", **fields, status="deduplicated")
+            await trace_end(
+                events, context_node_id, "completed", {"deduplicated": True}
+            )
+            await events.close()
             return ContextBootstrapResult(**previous)
         try:
             loaded = await self.loader.load(request.run_id)
@@ -225,14 +262,72 @@ class DurableAgentActivities:
             ):
                 raise ApplicationError("context identity mismatch", non_retryable=True)
             messages = list(loaded.context)
+            memory_count = 0
             if loaded.context_provider is not None:
-                recall_query, _ = await self.brain.rewrite_recall_query(
-                    user_content=loaded.user_content,
-                    group_context_text=loaded.group_context_text,
-                    sender_name=loaded.sender_name,
+                await trace_start(
+                    events,
+                    rewrite_node_id,
+                    context_node_id,
+                    "MemoryQueryRewrite",
+                    "llm",
+                    {"model_selector": "fast"},
                 )
-                memories = await loaded.context_provider.recall_long_term(recall_query)
-                messages = list(loaded.context_provider.compose(memories))
+                try:
+                    recall_query, rewrite_context = await self.brain.rewrite_recall_query(
+                        user_content=loaded.user_content,
+                        group_context_text=loaded.group_context_text,
+                        sender_name=loaded.sender_name,
+                    )
+                except Exception as exc:
+                    await trace_end(
+                        events,
+                        rewrite_node_id,
+                        "failed",
+                        {"error_code": type(exc).__name__},
+                    )
+                    raise
+                await trace_end(
+                    events,
+                    rewrite_node_id,
+                    "completed",
+                    {"model_invoked": rewrite_context is not None},
+                )
+                await trace_start(
+                    events,
+                    memory_node_id,
+                    context_node_id,
+                    "MemoryRecall",
+                    "memory",
+                )
+                try:
+                    memories = await loaded.context_provider.recall_long_term(recall_query)
+                    memory_count = len(memories)
+                    messages = list(loaded.context_provider.compose(memories))
+                except Exception as exc:
+                    await trace_end(
+                        events,
+                        memory_node_id,
+                        "failed",
+                        {"error_code": getattr(exc, "code", type(exc).__name__)},
+                    )
+                    raise
+                await trace_end(
+                    events,
+                    memory_node_id,
+                    "completed",
+                    {"memory_count": memory_count},
+                )
+            else:
+                await trace_start(
+                    events,
+                    memory_node_id,
+                    context_node_id,
+                    "MemoryRecall",
+                    "memory",
+                )
+                await trace_end(
+                    events, memory_node_id, "completed", {"memory_count": 0}
+                )
             transcript_id = f"agent-transcript:{request.run_id}"
             version = await asyncio.to_thread(
                 self.store.create_transcript,
@@ -250,6 +345,12 @@ class DurableAgentActivities:
                 version,
                 f"transcript:{transcript_id}:{version}",
             )
+            await trace_end(
+                events,
+                context_node_id,
+                "completed",
+                {"message_count": len(messages), "memory_count": memory_count},
+            )
         except Exception as exc:
             code = (
                 exc.code
@@ -257,6 +358,9 @@ class DurableAgentActivities:
                 else "context_build_failed"
             )
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, code)
+            await trace_end(
+                events, context_node_id, "failed", {"error_code": code}
+            )
             log_event(context_logger, logging.ERROR, "context_bootstrap_failed", "context", **fields, status="failed", error_code=code)
             if isinstance(exc, ApplicationError):
                 raise
@@ -265,6 +369,8 @@ class DurableAgentActivities:
                 type=code,
                 non_retryable=isinstance(exc, StableExecutionFailure),
             ) from exc
+        finally:
+            await events.close()
         log_event(context_logger, logging.INFO, "context_bootstrap_completed", "context", **fields, status="success", elapsed_ms=round((time.monotonic() - started) * 1000), transcript_version=version)
         return result
 
@@ -273,6 +379,31 @@ class DurableAgentActivities:
         self._check_schema(request.schema_version)
         started = time.monotonic()
         fields = self._correlation(request)
+        events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        model_node_id = trace_node_id(request.run_id, "llm_call", request.operation_id)
+        model_phase = (
+            "synthesis"
+            if request.final_only and request.plan_id
+            else "forced_final"
+            if request.final_only
+            else "plan_step"
+            if request.plan_id and request.step_id
+            else "decision"
+        )
+        await trace_start(
+            events,
+            model_node_id,
+            root_node_id,
+            "LLMCall",
+            "llm",
+            {
+                "operation_id": request.operation_id,
+                "turn": request.turn,
+                "phase": model_phase,
+                "model_selector": "chat",
+            },
+        )
         log_event(model_logger, logging.INFO, "model_decision_started", "model", **fields, status="started")
         if int(fields["activity_attempt"]) > 1:
             log_event(model_logger, logging.WARNING, "activity_retry_detected", "model", **fields, status="retrying")
@@ -282,8 +413,17 @@ class DurableAgentActivities:
         )
         if previous is not None:
             log_event(model_logger, logging.INFO, "operation_deduplicated", "model", **fields, status="deduplicated", result_ref=previous.get("decision_ref"))
-            return self._decision_from_payload(previous)
-        events = self.event_factory.for_run(request.run_id)
+            result = self._decision_from_payload(previous)
+            await trace_end(
+                events,
+                model_node_id,
+                "completed",
+                {"deduplicated": True, "stop_reason": result.stop_reason},
+            )
+            await events.close()
+            return result
+        trace_status = "failed"
+        trace_metadata: dict[str, Any] = {"error_code": "model_unavailable"}
         try:
             await asyncio.to_thread(
                 self.store.validate_and_renew_lease,
@@ -367,14 +507,27 @@ class DurableAgentActivities:
             )
             payload["transcript_version"] = version
             result = self._decision_from_payload(payload)
+            input_context = getattr(decision, "input_context", None) or {}
+            trace_status = "completed"
+            trace_metadata = {
+                "stop_reason": result.stop_reason,
+                "tool_count": len(result.tool_calls),
+                "estimated_input_tokens": input_context.get("estimated_tokens"),
+                **model_observation_metadata(decision),
+            }
         except StaleFencingToken as exc:
+            trace_metadata = {"error_code": exc.code}
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
             log_event(model_logger, logging.ERROR, "execution_fenced", "model", **fields, status="rejected", error_code=exc.code)
             raise ApplicationError("执行租约已失效。", type=exc.code, non_retryable=True) from exc
         except TranscriptVersionConflict as exc:
+            trace_metadata = {"error_code": exc.code}
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
             raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
         except Exception as exc:
+            trace_metadata = {
+                "error_code": getattr(exc, "type", None) or "model_unavailable"
+            }
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, "model_unavailable")
             log_event(model_logger, logging.ERROR, "model_decision_failed", "model", **fields, status="failed", error_code="model_unavailable", elapsed_ms=round((time.monotonic() - started) * 1000))
             if isinstance(exc, ApplicationError):
@@ -382,6 +535,7 @@ class DurableAgentActivities:
             raise ApplicationError("模型暂时不可用。", type="model_unavailable") from exc
         finally:
             self.actions.clear_execution(request.session_id, request.run_id)
+            await trace_end(events, model_node_id, trace_status, trace_metadata)
             await events.close()
         log_event(model_logger, logging.INFO, "model_decision_completed", "model", **fields, status="success", elapsed_ms=round((time.monotonic() - started) * 1000), stop_reason=result.stop_reason, tool_count=len(result.tool_calls), result_ref=result.decision_ref)
         return result
@@ -395,6 +549,22 @@ class DurableAgentActivities:
             "tool_call_id": request.tool_call.tool_call_id,
             "tool": request.tool_call.name,
         }
+        events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        tool_node_id = trace_node_id(request.run_id, "tool_execution", request.operation_id)
+        await trace_start(
+            events,
+            tool_node_id,
+            root_node_id,
+            "ToolExecution",
+            "tool",
+            {
+                "operation_id": request.operation_id,
+                "tool_name": request.tool_call.name,
+                "tool_call_id": request.tool_call.tool_call_id,
+                "turn": request.turn,
+            },
+        )
         log_event(tool_logger, logging.INFO, "tool_execution_started", "tool", **fields, status="started")
         if int(fields["activity_attempt"]) > 1:
             log_event(tool_logger, logging.WARNING, "activity_retry_detected", "tool", **fields, status="retrying")
@@ -404,8 +574,12 @@ class DurableAgentActivities:
         if operation.status == "completed":
             previous = operation.result_payload or {}
             log_event(tool_logger, logging.INFO, "tool_execution_deduplicated", "tool", **fields, status="deduplicated", result_ref=previous.get("result_ref"))
-            return ToolExecutionResult(**previous)
-        events = self.event_factory.for_run(request.run_id)
+            result = ToolExecutionResult(**previous)
+            await trace_end(
+                events, tool_node_id, "completed", {"deduplicated": True}
+            )
+            await events.close()
+            return result
         heartbeat_task: asyncio.Task[None] | None = None
         side_effect_class = "unknown"
         persisted_side_effect_class = normalize_side_effect_class(
@@ -415,6 +589,8 @@ class DurableAgentActivities:
             operation.status in {"intent_recorded", "uncertain"}
             and persisted_side_effect_class == "non_idempotent_write"
         )
+        trace_status = "failed"
+        trace_metadata: dict[str, Any] = {"error_code": "tool_failed"}
         try:
             await asyncio.to_thread(
                 self.store.validate_and_renew_lease,
@@ -589,7 +765,14 @@ class DurableAgentActivities:
             )
             payload["transcript_version"] = version
             result = ToolExecutionResult(**payload)
+            trace_status = "completed"
+            trace_metadata = {
+                "side_effect_class": side_effect_class,
+                "result_ref": result.result_ref,
+            }
         except asyncio.CancelledError:
+            trace_status = "cancelled"
+            trace_metadata = {"error_code": "activity_cancelled"}
             if non_idempotent_may_have_executed:
                 await self._mark_uncertain_side_effect(
                     request,
@@ -618,6 +801,7 @@ class DurableAgentActivities:
                 )
             raise
         except StaleFencingToken as exc:
+            trace_metadata = {"error_code": exc.code}
             if non_idempotent_may_have_executed:
                 await self._raise_uncertain_side_effect(
                     request,
@@ -629,6 +813,7 @@ class DurableAgentActivities:
             log_event(tool_logger, logging.ERROR, "tool_execution_fenced", "tool", **fields, status="rejected", error_code=exc.code, fencing_token=request.lease_token)
             raise ApplicationError("执行租约已失效。", type=exc.code, non_retryable=True) from exc
         except TranscriptVersionConflict as exc:
+            trace_metadata = {"error_code": exc.code}
             if non_idempotent_may_have_executed:
                 await self._raise_uncertain_side_effect(
                     request,
@@ -640,6 +825,7 @@ class DurableAgentActivities:
             raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
         except Exception as exc:
             code = getattr(exc, "type", None) or "tool_failed"
+            trace_metadata = {"error_code": str(code)}
             if str(code) == "tool_side_effect_uncertain":
                 pass
             elif non_idempotent_may_have_executed:
@@ -660,6 +846,7 @@ class DurableAgentActivities:
                 heartbeat_task.cancel()
                 await asyncio.gather(heartbeat_task, return_exceptions=True)
             self.actions.clear_execution(request.session_id, request.run_id)
+            await trace_end(events, tool_node_id, trace_status, trace_metadata)
             await events.close()
         log_event(
             tool_logger,
@@ -681,6 +868,22 @@ class DurableAgentActivities:
         fields = self._correlation(request)
         log_event(plan_logger, logging.INFO, "planning_started", "planning", **fields, status="started")
         events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        model_node_id = trace_node_id(request.run_id, "llm_call", request.operation_id)
+        await trace_start(
+            events,
+            model_node_id,
+            root_node_id,
+            "LLMCall",
+            "llm",
+            {
+                "operation_id": request.operation_id,
+                "phase": "replanning" if request.plan_version > 1 else "planning",
+                "model_selector": "chat",
+                "plan_id": request.plan_id,
+                "plan_version": request.plan_version,
+            },
+        )
         await events.progress(
             "replanning" if request.plan_version > 1 else "planning",
             "正在调整执行计划。" if request.plan_version > 1 else "正在制定执行计划。",
@@ -698,6 +901,12 @@ class DurableAgentActivities:
                 transcript_version=int(previous["transcript_version"]),
             )
             await events.progress("plan_ready", f"计划已恢复，共 {len(result.steps)} 步。")
+            await trace_end(
+                events,
+                model_node_id,
+                "completed",
+                {"deduplicated": True, "step_count": len(result.steps)},
+            )
             await events.close()
             return result
         try:
@@ -775,6 +984,12 @@ class DurableAgentActivities:
             )
         except Exception as exc:
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, "planning_failed")
+            await trace_end(
+                events,
+                model_node_id,
+                "failed",
+                {"error_code": getattr(exc, "type", None) or "planning_failed"},
+            )
             await events.close()
             if isinstance(exc, ApplicationError):
                 raise
@@ -789,6 +1004,16 @@ class DurableAgentActivities:
             step_count=len(result.steps),
         )
         await events.progress("plan_ready", f"计划已生成，共 {len(result.steps)} 步。")
+        await trace_end(
+            events,
+            model_node_id,
+            "completed",
+            {
+                "step_count": len(result.steps),
+                "stop_reason": getattr(decision, "stop_reason", ""),
+                **model_observation_metadata(decision),
+            },
+        )
         await events.close()
         return result
 
@@ -852,8 +1077,44 @@ class DurableAgentActivities:
         evaluation_messages.insert(position, instruction)
         events = self.event_factory.for_run(request.run_id)
         await events.progress("evaluating_step", "正在评估计划进度。")
-        model_result = await self.brain.generate_final_decision(
-            messages=evaluation_messages
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        model_node_id = trace_node_id(request.run_id, "llm_call", request.operation_id)
+        await trace_start(
+            events,
+            model_node_id,
+            root_node_id,
+            "LLMCall",
+            "llm",
+            {
+                "operation_id": request.operation_id,
+                "phase": "plan_evaluation",
+                "model_selector": "chat",
+                "plan_id": request.plan_id,
+                "plan_version": request.plan_version,
+                "step_id": request.step_id,
+            },
+        )
+        try:
+            model_result = await self.brain.generate_final_decision(
+                messages=evaluation_messages
+            )
+        except Exception as exc:
+            await trace_end(
+                events,
+                model_node_id,
+                "failed",
+                {"error_code": getattr(exc, "type", None) or "model_unavailable"},
+            )
+            await events.close()
+            raise
+        await trace_end(
+            events,
+            model_node_id,
+            "completed",
+            {
+                "stop_reason": getattr(model_result, "stop_reason", ""),
+                **model_observation_metadata(model_result),
+            },
         )
         decision, reason = self._parse_evaluation(
             model_result.content, default_decision
@@ -886,11 +1147,40 @@ class DurableAgentActivities:
     @activity.defn(name="finalize_agent_result_activity")
     async def finalize_agent_result(self, request: FinalizeResultInput) -> dict[str, str]:
         self._check_schema(request.schema_version)
-        content = await asyncio.to_thread(self.store.result_content, request.result_ref)
-        authority = await asyncio.to_thread(
-            self.lifecycle.complete, __import__("uuid").UUID(request.run_id), content
+        events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        final_node_id = trace_node_id(request.run_id, "final_response")
+        await trace_start(
+            events,
+            final_node_id,
+            root_node_id,
+            "FinalResponse",
+            "final",
+            {"result_ref": request.result_ref},
         )
-        return {"run_id": authority.run_id, "status": authority.status}
+        try:
+            content = await asyncio.to_thread(self.store.result_content, request.result_ref)
+            authority = await asyncio.to_thread(
+                self.lifecycle.complete, __import__("uuid").UUID(request.run_id), content
+            )
+            await trace_end(
+                events,
+                final_node_id,
+                "completed",
+                {"content_length": len(content)},
+            )
+            await trace_end(events, root_node_id, "completed")
+            return {"run_id": authority.run_id, "status": authority.status}
+        except Exception as exc:
+            await trace_end(
+                events,
+                final_node_id,
+                "failed",
+                {"error_code": getattr(exc, "type", None) or type(exc).__name__},
+            )
+            raise
+        finally:
+            await events.close()
 
     @staticmethod
     def _last_user_content(messages: list[dict[str, Any]]) -> str:

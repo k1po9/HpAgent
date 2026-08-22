@@ -19,12 +19,15 @@ def test_trace_repository_builds_owned_tree(database_url, worker_database_url, a
         commands.send_message(account_id, conversation_id, str(uuid4()), "trace this")["run_id"]
     )
     repository = PostgresTraceRepository(worker_database_url)
-    root_id, child_id = uuid4(), uuid4()
+    root_id, child_id, recovered_id = uuid4(), uuid4(), uuid4()
 
     trace_run = repository.create_trace_run(run_id, {"source": "test"})
     repository.start_event(run_id, root_id, None, "AgentExecution", "agent")
     repository.start_event(run_id, child_id, root_id, "LLMCall", "llm", {"model": "test"})
+    repository.finish_event(run_id, child_id, "failed", {"error_code": "retryable"})
+    repository.start_event(run_id, child_id, root_id, "LLMCall", "llm", {"attempt": 2})
     repository.finish_event(run_id, child_id, "completed", {"tokens": 12})
+    repository.start_event(run_id, recovered_id, root_id, "ToolExecution", "tool")
     repository.finish_event(run_id, root_id, "completed")
 
     tree = repository.get_trace_tree(account_id, run_id)
@@ -34,7 +37,9 @@ def test_trace_repository_builds_owned_tree(database_url, worker_database_url, a
     assert tree.roots[0].event.name == "AgentExecution"
     assert tree.roots[0].children[0].event.name == "LLMCall"
     assert tree.roots[0].children[0].event.metadata == {
+        "attempt": 2,
         "model": "test",
         "tokens": 12,
     }
+    assert tree.roots[0].children[1].event.status == "completed"
     assert repository.get_trace_tree(uuid4(), run_id) is None

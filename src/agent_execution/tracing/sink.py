@@ -8,6 +8,8 @@ from uuid import UUID
 
 from agent_execution.facade import EventSink
 
+from .context import trace_node_id
+
 logger = logging.getLogger("HpAgent.TraceEventSink")
 
 
@@ -45,9 +47,31 @@ class TracingWebEventSinkFactory:
     def __init__(self, downstream: WebEventSinkFactory, repository: TraceWriter):
         self._downstream = downstream
         self._repository = repository
+        self._active: dict[str, TraceEventSink] = {}
 
     def for_run(self, run_id: str) -> "TraceEventSink":
-        return TraceEventSink(run_id, self._downstream.for_run(run_id), self._repository)
+        existing = self._active.get(run_id)
+        if existing is not None:
+            existing.resume_persistence()
+            return existing
+        sink = TraceEventSink(
+            run_id,
+            self._downstream.for_run(run_id),
+            self._repository,
+            keep_open=True,
+            on_terminal=self.close_run,
+        )
+        self._active[run_id] = sink
+        return sink
+
+    def close_run(self, run_id: str) -> None:
+        sink = self._active.pop(run_id, None)
+        if sink is not None:
+            sink.force_close()
+
+    def detach_run(self, run_id: str) -> None:
+        """Release the cache while an in-flight terminal Activity retains its sink."""
+        self._active.pop(run_id, None)
 
 
 class TraceEventSink:
@@ -57,12 +81,24 @@ class TraceEventSink:
     change the Agent result.  The downstream Redis sink has the same property.
     """
 
-    def __init__(self, run_id: str, downstream: EventSink, repository: TraceWriter):
+    def __init__(
+        self,
+        run_id: str,
+        downstream: EventSink,
+        repository: TraceWriter,
+        *,
+        keep_open: bool = False,
+        on_terminal: Any = None,
+    ):
+        self._run_id_text = run_id
         self._run_id = UUID(run_id)
         self._downstream = downstream
         self._repository = repository
         self.degraded = False
         self._trace_run_ready = False
+        self._keep_open = keep_open
+        self._on_terminal = on_terminal
+        self._closed = False
 
     async def _write(self, method: str, *args: object) -> object | None:
         if self.degraded:
@@ -157,9 +193,30 @@ class TraceEventSink:
         await self._downstream_call(
             "trace_end", node_id, status, metadata, duration_ms
         )
+        if node_id == trace_node_id(self._run_id_text, "agent_execution"):
+            await self._terminal_close()
 
     async def close(self) -> None:
+        if not self._keep_open:
+            await self._terminal_close()
+
+    async def _terminal_close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
         await self._downstream_call("close")
+        if self._on_terminal is not None:
+            self._on_terminal(self._run_id_text)
+
+    def force_close(self) -> None:
+        """Synchronous fence used by lifecycle recovery paths."""
+        self._closed = True
+        if hasattr(self._downstream, "closed"):
+            self._downstream.closed = True
+
+    def resume_persistence(self) -> None:
+        """Let the next Activity retry a previously degraded trace database."""
+        self.degraded = False
 
     def _degrade_invalid_id(self, node_id: str) -> None:
         self.degraded = True

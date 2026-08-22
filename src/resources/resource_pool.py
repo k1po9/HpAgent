@@ -12,10 +12,12 @@ ResourcePool —— 模型调用池，实现 IResources 接口。
 """
 import logging
 import time
-from typing import Dict, Any, Optional, List
-from .credentials import CredentialManager
-from common.interfaces import IResources
+from typing import Any, Dict, List, Optional
+
 from common.errors import ModelAPIError
+from common.interfaces import IResources
+
+from .credentials import CredentialManager
 from .model_client import ModelClient
 
 logger = logging.getLogger("HpAgent.ResourcePool")
@@ -169,6 +171,15 @@ class ResourcePool(IResources):
                     model_selector, attempt, len(candidate_ids),
                     model_id, elapsed_ms, chain_elapsed,
                 )
+                # Attach the selected endpoint as operational metadata.  The
+                # Brain/Trace layer reads these fields without retaining model
+                # response content or reasoning.
+                try:
+                    result.endpoint_id = model_id
+                    result.model = getattr(client, "model", None)
+                    result.provider = getattr(client, "provider", None)
+                except (AttributeError, TypeError):
+                    pass
                 return result
             except (ModelAPIError, ConnectionError, TimeoutError) as e:
                 elapsed = (time.monotonic() - t0) * 1000

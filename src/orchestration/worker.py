@@ -112,7 +112,11 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_execution.audit import LoggingExecutionAuditSinkFactory
     from agent_execution.brain_action_loop import DefaultBrainActionLoop
     from agent_execution.facade import AgentExecutionFacade
-    from agent_execution.tracing import PostgresTraceRepository, TracingWebEventSinkFactory
+    from agent_execution.tracing import (
+        PostgresTraceRepository,
+        TraceLifecycleObserver,
+        TracingWebEventSinkFactory,
+    )
     from agent_execution.web_adapters import (
         LifecycleWebReplySink,
         PostgresWebRequestLoader,
@@ -166,7 +170,15 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     validate_web_worker_startup(config.temporal, worker_database_url)
     assert worker_database_url is not None
     assert deps.workspace_isolation is not None, "workspace isolation is required"
-    lifecycle = WebRunLifecycleService(worker_database_url)
+    trace_repository = PostgresTraceRepository(worker_database_url)
+    event_factory = TracingWebEventSinkFactory(
+        RedisWebRunEventSinkFactory(deps.redis_client),
+        trace_repository,
+    )
+    lifecycle = WebRunLifecycleService(
+        worker_database_url,
+        TraceLifecycleObserver(trace_repository, event_factory.detach_run),
+    )
     context = ContextAssemblyService(
         worker_database_url, deps.context_builder, deps.hindsight_client
     )
@@ -195,10 +207,6 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         deps.sandbox_manager,
         deps.workspace_isolation.account_locks,
         deps.git_repo_manager,
-    )
-    event_factory = TracingWebEventSinkFactory(
-        RedisWebRunEventSinkFactory(deps.redis_client),
-        PostgresTraceRepository(worker_database_url),
     )
     loader = PostgresWebRequestLoader(worker_database_url, context)
     web_host = WebExecutionHost(

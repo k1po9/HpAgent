@@ -12,6 +12,7 @@ from temporalio.exceptions import ApplicationError
 
 from agent_activities.store import AgentDataStore, LeaseConflict
 from agent_execution.facade import StableExecutionFailure
+from agent_execution.tracing import trace_end, trace_node_id, trace_start
 from agent_execution.web_host import WebExecutionHost
 from agent_workflows.contracts import AGENT_STRATEGIES
 from common.logging import log_event
@@ -217,12 +218,52 @@ async def release_execution_lease_activity(request: ReleaseLeaseInput) -> dict[s
 
 @activity.defn
 async def finalize_failed_activity(failure: FailureInput) -> dict[str, str]:
-    return asdict(await _lifecycle_call(
+    events = (
+        _agent_event_factory.for_run(failure.run_id)
+        if _agent_event_factory is not None
+        else None
+    )
+    authority = asdict(await _lifecycle_call(
         _service().finalize_failed, UUID(failure.run_id), failure.error_code, failure.error_message
     ))
+    await _finish_root_trace(
+        failure.run_id,
+        "failed",
+        {"error_code": failure.error_code},
+        events=events,
+    )
+    return authority
 
 
 @activity.defn
 async def finalize_cancelled_activity(request: WebRunWorkflowInput) -> dict[str, str]:
     request.validate()
-    return asdict(await _lifecycle_call(_service().finalize_cancelled, UUID(request.run_id)))
+    events = (
+        _agent_event_factory.for_run(request.run_id)
+        if _agent_event_factory is not None
+        else None
+    )
+    authority = asdict(
+        await _lifecycle_call(_service().finalize_cancelled, UUID(request.run_id))
+    )
+    await _finish_root_trace(request.run_id, "cancelled", events=events)
+    return authority
+
+
+async def _finish_root_trace(
+    run_id: str,
+    status: str,
+    metadata: dict[str, Any] | None = None,
+    *,
+    events: Any = None,
+) -> None:
+    if events is None:
+        return
+    root_node_id = trace_node_id(run_id, "agent_execution")
+    try:
+        await trace_start(
+            events, root_node_id, None, "AgentExecution", "agent", {"surface": "web"}
+        )
+        await trace_end(events, root_node_id, status, metadata)
+    finally:
+        await events.close()

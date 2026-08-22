@@ -9,6 +9,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from actions.runtime import ActionRuntime
+from agent_execution.tracing import (
+    model_observation_metadata,
+    trace_end,
+    trace_node_id,
+    trace_start,
+)
 from brain.engine import BrainEngine
 from common.logging import log_event
 
@@ -80,15 +86,43 @@ class DefaultBrainActionLoop:
             {"role": "user", "content": request.user_content}
         ]
         if request.context_provider is not None:
+            root_node_id = trace_node_id(request.execution_id, "agent_execution")
+            memory_node_id = trace_node_id(
+                request.execution_id, "memory_recall", "legacy"
+            )
+            rewrite_node_id = trace_node_id(
+                request.execution_id, "memory_query_rewrite", "legacy"
+            )
+            await trace_start(
+                events,
+                memory_node_id,
+                root_node_id,
+                "MemoryRecall",
+                "memory",
+            )
+            await trace_start(
+                events,
+                rewrite_node_id,
+                memory_node_id,
+                "MemoryQueryRewrite",
+                "llm",
+                {"model_selector": "fast"},
+            )
             try:
                 self._raise_if_expired(control)
-                recall_query, _hyde_context = await self._await_with_control(
+                recall_query, hyde_context = await self._await_with_control(
                     self._brain.rewrite_recall_query(
                         user_content=request.user_content,
                         group_context_text=request.group_context_text,
                         sender_name=request.sender_name,
                     ),
                     control,
+                )
+                await trace_end(
+                    events,
+                    rewrite_node_id,
+                    "completed",
+                    {"model_invoked": hyde_context is not None},
                 )
                 self._raise_if_expired(control)
                 memories = await self._await_with_control(
@@ -98,12 +132,33 @@ class DefaultBrainActionLoop:
                 self._raise_if_expired(control)
                 messages = list(request.context_provider.compose(memories))
             except TimeoutError as exc:
+                await trace_end(
+                    events, memory_node_id, "failed", {"error_code": "run_timeout"}
+                )
                 # The whole Run exceeded its deadline while assembling context.
                 raise StableExecutionFailure("run_timeout") from exc
             except StableExecutionFailure:
+                await trace_end(
+                    events,
+                    memory_node_id,
+                    "failed",
+                    {"error_code": "memory_recall_failed"},
+                )
                 raise
             except Exception as exc:
+                await trace_end(
+                    events,
+                    memory_node_id,
+                    "failed",
+                    {"error_code": "context_build_failed"},
+                )
                 raise StableExecutionFailure("context_build_failed") from exc
+            await trace_end(
+                events,
+                memory_node_id,
+                "completed",
+                {"memory_count": len(memories)},
+            )
         for turn in range(1, self._max_tool_turns + 1):
             await self._checkpoint(control, "selecting_tools")
             await events.progress("selecting_tools", "正在准备工具。")
@@ -123,6 +178,17 @@ class DefaultBrainActionLoop:
             except Exception as exc:
                 raise StableExecutionFailure("tool_failed") from exc
             await events.progress("calling_model", "正在生成回复。")
+            model_node_id = trace_node_id(
+                request.execution_id, "llm_call", f"legacy:turn:{turn}"
+            )
+            await trace_start(
+                events,
+                model_node_id,
+                trace_node_id(request.execution_id, "agent_execution"),
+                "LLMCall",
+                "llm",
+                {"turn": turn, "phase": "agent_turn", "model_selector": "chat"},
+            )
             model_started_at = time.monotonic()
             log_event(logger, logging.INFO, "model_call_started", "model", **self._correlation(request),
                       turn=turn, phase="agent_turn", status="started")
@@ -140,15 +206,42 @@ class DefaultBrainActionLoop:
                     control,
                 )
             except TimeoutError as exc:
+                await trace_end(
+                    events, model_node_id, "failed", {"error_code": "model_timeout"}
+                )
                 log_event(logger, logging.ERROR, "model_call_failed", "model", **self._correlation(request),
                           turn=turn, phase="agent_turn", status="failed", elapsed_ms=round((time.monotonic() - model_started_at) * 1000), error_code="model_timeout")
                 raise StableExecutionFailure("model_timeout") from exc
             except StableExecutionFailure:
+                await trace_end(
+                    events,
+                    model_node_id,
+                    "failed",
+                    {"error_code": "stable_execution_failure"},
+                )
                 raise
             except Exception as exc:
+                await trace_end(
+                    events,
+                    model_node_id,
+                    "failed",
+                    {"error_code": "model_unavailable"},
+                )
                 log_event(logger, logging.ERROR, "model_call_failed", "model", **self._correlation(request),
                           turn=turn, phase="agent_turn", status="failed", elapsed_ms=round((time.monotonic() - model_started_at) * 1000), error_code="model_unavailable")
                 raise StableExecutionFailure("model_unavailable") from exc
+            input_context = getattr(decision, "input_context", None) or {}
+            await trace_end(
+                events,
+                model_node_id,
+                "completed",
+                {
+                    "stop_reason": getattr(decision, "stop_reason", ""),
+                    "tool_count": len(getattr(decision, "action_requests", ())),
+                    "estimated_input_tokens": input_context.get("estimated_tokens"),
+                    **model_observation_metadata(decision),
+                },
+            )
             log_event(logger, logging.INFO, "model_call_completed", "model", **self._correlation(request),
                       turn=turn, phase="agent_turn", status="success", elapsed_ms=round((time.monotonic() - model_started_at) * 1000),
                       tool_count=len(getattr(decision, "action_requests", ())), stop_reason=getattr(decision, "stop_reason", ""))
@@ -187,6 +280,19 @@ class DefaultBrainActionLoop:
                 ],
             })
             for action in decision.action_requests:
+                tool_node_id = trace_node_id(
+                    request.execution_id,
+                    "tool_execution",
+                    f"legacy:turn:{turn}:{action.id}",
+                )
+                await trace_start(
+                    events,
+                    tool_node_id,
+                    trace_node_id(request.execution_id, "agent_execution"),
+                    "ToolExecution",
+                    "tool",
+                    {"turn": turn, "tool_call_id": action.id, "tool_name": action.name},
+                )
                 await self._checkpoint(control, "executing_tool")
                 await events.progress("executing_tool", f"正在执行 {action.name}。")
                 side_effect_class = self._side_effect_class(
@@ -201,6 +307,12 @@ class DefaultBrainActionLoop:
                             side_effect_class,
                         )
                     except Exception as exc:
+                        await trace_end(
+                            events,
+                            tool_node_id,
+                            "failed",
+                            {"error_code": "side_effect_audit_unavailable"},
+                        )
                         raise StableExecutionFailure(
                             "side_effect_audit_unavailable"
                         ) from exc
@@ -215,12 +327,18 @@ class DefaultBrainActionLoop:
                         timeout_cap=self._tool_timeout_seconds,
                     )
                 except ToolTimeoutCapExpired as exc:
+                    await trace_end(
+                        events, tool_node_id, "failed", {"error_code": "tool_timeout"}
+                    )
                     # The single-tool call cap expired: this tool timed out,
                     # not the whole Run.
                     log_event(logger, logging.ERROR, "tool_execution_failed", "tool", **self._correlation(request),
                               turn=turn, tool_call_id=action.id, tool=action.name, status="failed", elapsed_ms=round((time.monotonic() - tool_started_at) * 1000), error_code="tool_timeout")
                     raise StableExecutionFailure("tool_timeout") from exc
                 except TimeoutError as exc:
+                    await trace_end(
+                        events, tool_node_id, "failed", {"error_code": "run_timeout"}
+                    )
                     # The Activity's global deadline expired while the tool was
                     # in flight: the whole Run timed out, so cancellation must
                     # not leak into the Workflow as an unexpected cancel.
@@ -228,11 +346,26 @@ class DefaultBrainActionLoop:
                               turn=turn, tool_call_id=action.id, tool=action.name, status="failed", elapsed_ms=round((time.monotonic() - tool_started_at) * 1000), error_code="run_timeout")
                     raise StableExecutionFailure("run_timeout") from exc
                 except StableExecutionFailure:
+                    await trace_end(
+                        events,
+                        tool_node_id,
+                        "failed",
+                        {"error_code": "stable_execution_failure"},
+                    )
                     raise
                 except Exception as exc:
+                    await trace_end(
+                        events, tool_node_id, "failed", {"error_code": "tool_failed"}
+                    )
                     log_event(logger, logging.ERROR, "tool_execution_failed", "tool", **self._correlation(request),
                               turn=turn, tool_call_id=action.id, tool=action.name, status="failed", elapsed_ms=round((time.monotonic() - tool_started_at) * 1000), error_code="tool_failed")
                     raise StableExecutionFailure("tool_failed") from exc
+                await trace_end(
+                    events,
+                    tool_node_id,
+                    "completed",
+                    {"side_effect_class": side_effect_class},
+                )
                 log_event(logger, logging.INFO, "tool_execution_completed", "tool", **self._correlation(request),
                           turn=turn, tool_call_id=action.id, tool=action.name, status="success", elapsed_ms=round((time.monotonic() - tool_started_at) * 1000))
                 await self._audit_best_effort(
@@ -250,6 +383,17 @@ class DefaultBrainActionLoop:
         await self._checkpoint(control, "generating")
         await events.progress("finalizing", "正在整理结果。")
         final_turn = self._max_tool_turns + 1
+        model_node_id = trace_node_id(
+            request.execution_id, "llm_call", f"legacy:turn:{final_turn}:forced-final"
+        )
+        await trace_start(
+            events,
+            model_node_id,
+            trace_node_id(request.execution_id, "agent_execution"),
+            "LLMCall",
+            "llm",
+            {"turn": final_turn, "phase": "forced_final", "model_selector": "chat"},
+        )
         model_started_at = time.monotonic()
         log_event(
             logger,
@@ -272,6 +416,9 @@ class DefaultBrainActionLoop:
                 control,
             )
         except TimeoutError as exc:
+            await trace_end(
+                events, model_node_id, "failed", {"error_code": "model_timeout"}
+            )
             log_event(
                 logger,
                 logging.ERROR,
@@ -286,8 +433,20 @@ class DefaultBrainActionLoop:
             )
             raise StableExecutionFailure("model_timeout") from exc
         except StableExecutionFailure:
+            await trace_end(
+                events,
+                model_node_id,
+                "failed",
+                {"error_code": "stable_execution_failure"},
+            )
             raise
         except Exception as exc:
+            await trace_end(
+                events,
+                model_node_id,
+                "failed",
+                {"error_code": "model_unavailable"},
+            )
             log_event(
                 logger,
                 logging.ERROR,
@@ -301,6 +460,15 @@ class DefaultBrainActionLoop:
                 error_code="model_unavailable",
             )
             raise StableExecutionFailure("model_unavailable") from exc
+        await trace_end(
+            events,
+            model_node_id,
+            "completed",
+            {
+                "stop_reason": getattr(decision, "stop_reason", "forced_final"),
+                **model_observation_metadata(decision),
+            },
+        )
         log_event(
             logger,
             logging.INFO,

@@ -1,14 +1,27 @@
 """Web-only adapter around the authoritative Run lifecycle transactions."""
 from __future__ import annotations
 
+import logging
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 from persistence.uow import UnitOfWork, retryable_transaction
 
 from .errors import ResourceNotFound
 from .services import CommandService
+
+logger = logging.getLogger("HpAgent.WebRunLifecycleService")
+
+
+class RunLifecycleObserver(Protocol):
+    def observe_terminal(
+        self,
+        run_id: UUID,
+        status: str,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -20,9 +33,14 @@ class LifecycleAuthority:
 class WebRunLifecycleService:
     """Loads ownership from ``run_id``; callers never supply an Account ID."""
 
-    def __init__(self, database_url: object):
+    def __init__(
+        self,
+        database_url: object,
+        terminal_observer: RunLifecycleObserver | None = None,
+    ):
         self.database_url = database_url
         self.commands = CommandService(database_url)
+        self._terminal_observer = terminal_observer
 
     @retryable_transaction
     def prepare(
@@ -65,25 +83,54 @@ class WebRunLifecycleService:
     def finalize_failed(self, run_id: UUID, error_code: str, error_message: str) -> LifecycleAuthority:
         account_id = self._account_for(run_id)
         self.commands.fail_run(account_id, run_id, error_code, error_message)
-        return cast(LifecycleAuthority, self._authority(run_id))
+        authority = cast(LifecycleAuthority, self._authority(run_id))
+        self._observe_terminal(run_id, authority.status, {"error_code": error_code})
+        return authority
 
     def complete(self, run_id: UUID, content: str) -> LifecycleAuthority:
         """The sole Web success terminal entrypoint, called by WebReplySink."""
         account_id = self._account_for(run_id)
         self.commands.complete_run(account_id, run_id, content)
-        return cast(LifecycleAuthority, self._authority(run_id))
+        authority = cast(LifecycleAuthority, self._authority(run_id))
+        self._observe_terminal(run_id, authority.status)
+        return authority
 
     def finalize_cancelled(self, run_id: UUID) -> LifecycleAuthority:
         authority = cast(LifecycleAuthority, self._authority(run_id))
         if authority.status == "cancelling":
             account_id = self._account_for(run_id)
             self.commands.cancelled_run(account_id, run_id)
-            return cast(LifecycleAuthority, self._authority(run_id))
+            authority = cast(LifecycleAuthority, self._authority(run_id))
+            self._observe_terminal(run_id, authority.status)
+            return authority
         if authority.status in ("cancelled", "completed", "failed"):
+            self._observe_terminal(run_id, authority.status)
             return authority
         # A Temporal/UI cancel without database cancellation evidence is not a
         # user cancellation and must be visible as a stable domain failure.
         return self.finalize_failed(run_id, "workflow_cancelled_unexpectedly", "执行被意外取消。")
+
+    def _observe_terminal(
+        self,
+        run_id: UUID,
+        status: str,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        if self._terminal_observer is None:
+            return
+        try:
+            self._terminal_observer.observe_terminal(run_id, status, metadata)
+        except Exception:
+            logger.exception(
+                "Run terminal trace observation degraded",
+                extra={
+                    "event": "trace_terminal_observation_failed",
+                    "component": "trace",
+                    "run_id": str(run_id),
+                    "status": "degraded",
+                    "error_code": "trace_write_failed",
+                },
+            )
 
     @retryable_transaction
     def _authority(self, run_id: UUID) -> LifecycleAuthority:
