@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Any, Protocol
 from uuid import uuid4
 
 from uuid6 import uuid7
@@ -179,6 +180,46 @@ class RedisWebRunEventSink:
                 {"phase": phase, "summary": summary[:120]},
             )
         )
+
+    async def trace_start(
+        self,
+        node_id: str,
+        parent_id: str | None,
+        name: str,
+        node_type: str,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None:
+        await self._publish(
+            self._envelope(
+                "trace.event",
+                None,
+                {
+                    "action": "start",
+                    "node_id": node_id,
+                    "parent_id": parent_id,
+                    "name": name,
+                    "type": node_type,
+                    "metadata": dict(metadata or {}),
+                },
+            )
+        )
+
+    async def trace_end(
+        self,
+        node_id: str,
+        status: str,
+        metadata: Mapping[str, Any] | None = None,
+        duration_ms: int | None = None,
+    ) -> None:
+        payload: dict[str, Any] = {
+            "action": "end",
+            "node_id": node_id,
+            "status": status,
+            "metadata": dict(metadata or {}),
+        }
+        if duration_ms is not None:
+            payload["duration_ms"] = duration_ms
+        await self._publish(self._envelope("trace.event", None, payload))
 
     async def close(self) -> None:
         """Fence late model/tool callbacks from publishing after Host exit."""

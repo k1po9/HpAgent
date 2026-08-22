@@ -59,6 +59,22 @@ class ExecutionControl(Protocol):
 class EventSink(Protocol):
     async def progress(self, phase: str, summary: str) -> None: ...
 
+    async def trace_start(
+        self,
+        node_id: str,
+        parent_id: str | None,
+        name: str,
+        node_type: str,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None: ...
+
+    async def trace_end(
+        self,
+        node_id: str,
+        status: str,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> None: ...
+
 
 class ExecutionAuditSink(Protocol):
     """Safe, non-authoritative execution observations.

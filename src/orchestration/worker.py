@@ -112,6 +112,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_execution.audit import LoggingExecutionAuditSinkFactory
     from agent_execution.brain_action_loop import DefaultBrainActionLoop
     from agent_execution.facade import AgentExecutionFacade
+    from agent_execution.tracing import PostgresTraceRepository, TracingWebEventSinkFactory
     from agent_execution.web_adapters import (
         LifecycleWebReplySink,
         PostgresWebRequestLoader,
@@ -195,7 +196,10 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         deps.workspace_isolation.account_locks,
         deps.git_repo_manager,
     )
-    event_factory = RedisWebRunEventSinkFactory(deps.redis_client)
+    event_factory = TracingWebEventSinkFactory(
+        RedisWebRunEventSinkFactory(deps.redis_client),
+        PostgresTraceRepository(worker_database_url),
+    )
     loader = PostgresWebRequestLoader(worker_database_url, context)
     web_host = WebExecutionHost(
         loader,
