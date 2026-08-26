@@ -36,6 +36,29 @@ def test_real_web_agent_feature_flag_defaults_to_off(monkeypatch):
     assert WebApiSettings.from_env().real_agent_enabled is False
 
 
+def test_file_capabilities_default_closed(monkeypatch):
+    monkeypatch.setenv("APP_DATABASE_URL", "postgresql://unused")
+    for name in (
+        "WEB_FILE_UPLOAD_ENABLED", "WEB_FILE_TRANSFORM_ENABLED",
+        "WEB_FILE_SHELL_ENABLED",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    settings = WebApiSettings.from_env()
+    assert settings.web_file_upload_enabled is False
+    assert settings.web_file_transform_enabled is False
+    assert settings.web_file_shell_enabled is False
+
+
+def test_file_transform_requires_durable_agent():
+    with pytest.raises(ValueError, match="Durable Agent"):
+        _settings(web_file_transform_enabled=True, durable_agent_enabled=False)
+
+
+def test_production_rejects_web_file_shell():
+    with pytest.raises(ValueError, match="host Bash"):
+        _settings(environment="production", web_file_shell_enabled=True)
+
+
 # ── Phase G G-02 §10.2：生产 WEB_PUBLIC_ORIGIN fail-closed ──
 
 

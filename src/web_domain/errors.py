@@ -14,6 +14,14 @@ class ResourceNotFound(DomainError):
     pass
 
 
+class FileNotReady(DomainError):
+    pass
+
+
+class FileAlreadyBound(DomainError):
+    pass
+
+
 class OutboxLeaseLost(DomainError):
     pass
 

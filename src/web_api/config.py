@@ -33,6 +33,14 @@ class WebApiSettings:
     fake_executor_failure_code: str = "fake_executor_failure"
     real_agent_enabled: bool = False
     durable_agent_enabled: bool = False
+    web_file_upload_enabled: bool = False
+    web_file_transform_enabled: bool = False
+    web_file_shell_enabled: bool = False
+    file_store_root: str = ".data/file-store"
+    file_max_bytes: int = 128 * 1024 * 1024
+    file_max_count_per_message: int = 10
+    run_budget_mode: str = "observe"
+    run_budget_policy_version: str = "file-p0-v1"
     # --- Phase E: SSE / terminal publisher ---
     redis_url: str | None = None
     sse_handshake_buffer_events: int = 256
@@ -52,6 +60,16 @@ class WebApiSettings:
             raise ValueError("invalid fake executor mode")
         if self.qq_binding_challenge_seconds <= 0:
             raise ValueError("QQ binding challenge TTL must be positive")
+        if self.file_max_bytes <= 0 or self.file_max_bytes > 1024 * 1024 * 1024:
+            raise ValueError("FILE_MAX_BYTES must be between 1 byte and 1 GiB")
+        if self.file_max_count_per_message <= 0 or self.file_max_count_per_message > 20:
+            raise ValueError("FILE_MAX_COUNT_PER_MESSAGE must be between 1 and 20")
+        if self.run_budget_mode not in {"off", "observe", "enforce"}:
+            raise ValueError("RUN_BUDGET_MODE must be off, observe, or enforce")
+        if self.web_file_transform_enabled and not self.durable_agent_enabled:
+            raise ValueError("file transforms require the Durable Agent")
+        if self.environment == "production" and self.web_file_shell_enabled:
+            raise ValueError("host Bash cannot be enabled for production Web file runs")
         if self.environment == "production":
             for value, name in (
                 (self.session_token_pepper, "session token pepper"),
@@ -123,6 +141,24 @@ class WebApiSettings:
             real_agent_enabled=os.getenv("WEB_REAL_AGENT_ENABLED", "false").lower() == "true",
             durable_agent_enabled=os.getenv("DURABLE_AGENT_ENABLED", "false").lower()
             == "true",
+            web_file_upload_enabled=os.getenv(
+                "WEB_FILE_UPLOAD_ENABLED", "false"
+            ).lower() == "true",
+            web_file_transform_enabled=os.getenv(
+                "WEB_FILE_TRANSFORM_ENABLED", "false"
+            ).lower() == "true",
+            web_file_shell_enabled=os.getenv(
+                "WEB_FILE_SHELL_ENABLED", "false"
+            ).lower() == "true",
+            file_store_root=os.getenv("FILE_STORE_ROOT", ".data/file-store"),
+            file_max_bytes=int(os.getenv("FILE_MAX_BYTES", str(128 * 1024 * 1024))),
+            file_max_count_per_message=int(
+                os.getenv("FILE_MAX_COUNT_PER_MESSAGE", "10")
+            ),
+            run_budget_mode=os.getenv("RUN_BUDGET_MODE", "observe"),
+            run_budget_policy_version=os.getenv(
+                "RUN_BUDGET_POLICY_VERSION", "file-p0-v1"
+            ),
             redis_url=os.getenv("REDIS_URL") or None,
             sse_handshake_buffer_events=int(
                 os.getenv("WEB_SSE_HANDSHAKE_BUFFER_EVENTS", "256")

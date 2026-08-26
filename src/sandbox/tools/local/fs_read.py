@@ -1,23 +1,21 @@
 import os
-from pathlib import Path
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
-from sandbox.tools.types import ToolResult
 from ._path_utils import safe_resolve
 
 
 class FsReadInput(BaseModel):
     path: str = Field(description="File path relative to workspace root")
     offset: int = Field(default=1, description="Start line number (1-indexed)")
-    limit: int = Field(default=None, description="Max lines to return")
+    limit: int | None = Field(default=None, ge=1, le=2000, description="Max lines to return")
 
 
 def create_fs_read_tool(workspace_root: str):
-    async def fs_read(path: str, offset: int = 1, limit: int = None) -> str:
+    async def fs_read(path: str, offset: int = 1, limit: int | None = None) -> str:
         full = safe_resolve(workspace_root, path)
-        if not os.path.isfile(full):
+        if not os.path.isfile(full) or os.path.islink(full):
             if os.path.isdir(full):
                 raise ValueError(
                     f"'{path}' is a directory. Use Glob to list its contents."
@@ -26,30 +24,40 @@ def create_fs_read_tool(workspace_root: str):
                 f"File not found: {path}"
             )
 
-        with open(full, "r", encoding="utf-8", errors="replace") as f:
-            lines = f.readlines()
-
-        total = len(lines)
         start = max(offset - 1, 0)
-        end = start + limit if limit else total
-        selected = lines[start:end]
-
+        requested = min(limit or 500, 2000)
+        max_return_bytes = 256 * 1024
         out_lines = []
-        for i, line in enumerate(selected):
-            out_lines.append(f"{start + i + 1}\t{line.rstrip()}")
+        returned_bytes = 0
+        truncated = False
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(full, flags)
+        try:
+            with os.fdopen(fd, "r", encoding="utf-8", errors="replace") as stream:
+                fd = -1
+                for index, line in enumerate(stream):
+                    if index < start:
+                        continue
+                    if len(out_lines) >= requested:
+                        truncated = True
+                        break
+                    rendered = f"{index + 1}\t{line.rstrip()}"
+                    encoded = rendered.encode("utf-8")
+                    if returned_bytes + len(encoded) > max_return_bytes:
+                        truncated = True
+                        break
+                    returned_bytes += len(encoded) + (1 if out_lines else 0)
+                    out_lines.append(rendered)
+        finally:
+            if fd >= 0:
+                os.close(fd)
 
         result = "\n".join(out_lines)
-
-        if limit is None and total > 2000:
-            truncated_msg = (
-                f"\n\n--- File has {total} lines. "
-                f"Showing first 500. Use offset/limit to read more. ---"
+        if truncated:
+            result += (
+                f"\n\n--- Showing at most {requested} lines / "
+                f"{max_return_bytes} UTF-8 bytes from line {start + 1}; use offset/limit to continue. ---"
             )
-            return result[:result.rfind("\n", 0, len(result))] + truncated_msg
-
-        if end < total:
-            result += f"\n\n--- Lines {start + 1}-{min(end, total)} of {total} (truncated) ---"
-
         return result
 
     return StructuredTool.from_function(

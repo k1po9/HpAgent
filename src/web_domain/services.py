@@ -16,9 +16,11 @@ from common.logging import log_event
 from persistence.repositories import (
     AccountRepository,
     ConversationRepository,
+    FileRepository,
     IdempotencyRepository,
     MessageRepository,
     OutboxRepository,
+    RunBudgetRepository,
     RunRepository,
     SessionRepository,
     WorkflowExecutionRepository,
@@ -27,6 +29,8 @@ from persistence.uow import UnitOfWork, retryable_transaction
 
 from .errors import (
     ConversationBusy,
+    FileAlreadyBound,
+    FileNotReady,
     IdempotencyConflict,
     ResourceNotFound,
     RunNotCancellable,
@@ -68,17 +72,35 @@ class CommandResult(Mapping[str, Any]):
 
 
 class CommandService:
-    def __init__(self, database_url: object):
+    def __init__(
+        self, database_url: object, *, budget_mode: str = "observe",
+        budget_policy_version: str = "file-p0-v1",
+        budget_limits: Mapping[str, int] | None = None,
+        final_response_reserve_tokens: int = 1024,
+    ):
         self.database_url = database_url
         self.accounts = AccountRepository()
         self.conversations = ConversationRepository()
         self.messages = MessageRepository()
         self.runs = RunRepository()
+        self.files = FileRepository()
+        self.budgets = RunBudgetRepository()
         self.sessions = SessionRepository()
         self.session_service = ConversationSessionService(database_url)
         self.workflows = WorkflowExecutionRepository()
         self.idempotency = IdempotencyRepository()
         self.outbox = OutboxRepository()
+        self.budget_mode = budget_mode
+        self.budget_policy_version = budget_policy_version
+        self.budget_limits = dict(budget_limits or {
+            "model_input_tokens": 80000, "model_output_tokens": 20000,
+            "model_total_tokens": 100000, "model_calls": 20, "tool_calls": 20,
+            "bytes_scanned": 512 * 1024 * 1024,
+            "bytes_returned_to_model": 2 * 1024 * 1024,
+            "bytes_written": 512 * 1024 * 1024,
+            "output_file_bytes": 128 * 1024 * 1024, "wall_time_ms": 600000,
+        })
+        self.final_response_reserve_tokens = final_response_reserve_tokens
 
     @retryable_transaction
     def create_conversation(self, account_id: UUID, key: str, title: str = "") -> CommandResult:
@@ -110,14 +132,19 @@ class CommandService:
         key: str,
         content: str,
         agent_strategy: str = "react",
+        file_ids: tuple[UUID, ...] = (),
     ) -> CommandResult:
         if agent_strategy not in {"react", "plan_and_execute"}:
             raise ValueError("unsupported agent strategy")
         # Preserve the pre-durable request hash for the default strategy so
         # in-flight/retained idempotency keys remain replayable after upgrade.
-        payload = {"conversation_id": str(conversation_id), "content": content}
+        payload: dict[str, Any] = {
+            "conversation_id": str(conversation_id), "content": content
+        }
         if agent_strategy != "react":
             payload["agent_strategy"] = agent_strategy
+        if file_ids:
+            payload["file_ids"] = [str(file_id) for file_id in file_ids]
         with UnitOfWork(self.database_url) as uow:
             existing = self._claim(uow, account_id, "send_message", key, payload)
             if existing:
@@ -134,6 +161,23 @@ class CommandService:
                 return CommandResult(202, result)
             if self.runs.has_active(uow, conversation_id):
                 raise ConversationBusy()
+            if len(set(file_ids)) != len(file_ids):
+                raise FileAlreadyBound()
+            input_files = self.files.lock_ready_inputs(
+                uow, account_id, conversation_id, file_ids
+            )
+            if len(input_files) != len(file_ids):
+                scoped_count = (
+                    uow.execute(
+                        "SELECT count(*) AS count FROM stored_files WHERE account_id=%s "
+                        "AND conversation_id=%s AND file_id=ANY(%s)",
+                        (account_id, conversation_id, list(file_ids)),
+                    ).fetchone()["count"]
+                    if file_ids else 0
+                )
+                if scoped_count != len(file_ids):
+                    raise ResourceNotFound()
+                raise FileNotReady()
             session_id = self.session_service.get_or_create_in_locked_conversation(
                 uow, account_id, conversation_id
             )
@@ -153,6 +197,10 @@ class CommandService:
             self.messages.insert_assistant(
                 uow, assistant_message_id, account_id, conversation_id, allocated, run_id
             )
+            self.files.bind_inputs(
+                uow, account_id, conversation_id, user_message_id, run_id, input_files
+            )
+            self._create_budget(uow, run_id, account_id, conversation_id)
             self._outbox(uow, account_id, conversation_id, run_id, "start_run")
             result = self._send_result_for_run(uow, run_id)
             self._complete(uow, account_id, "send_message", key, 202, result)
@@ -264,6 +312,10 @@ class CommandService:
                 self.messages.insert_assistant(
                     uow, assistant_message_id, account_id, source["conversation_id"],
                     sequence, run_id
+                )
+                self.files.copy_retry_inputs(uow, source_run_id, run_id)
+                self._create_budget(
+                    uow, run_id, account_id, source["conversation_id"]
                 )
                 self._outbox(uow, account_id, source["conversation_id"], run_id, "start_run")
                 result = self._retry_result_for_run(uow, source_run_id, run_id)
@@ -483,6 +535,17 @@ class CommandService:
         self.runs.set_terminal(uow, run_id, status)
         self._outbox(
             uow, account_id, conversation_id, run_id, "publish_terminal_event", status
+        )
+
+    def _create_budget(
+        self, uow: UnitOfWork, run_id: UUID, account_id: UUID,
+        conversation_id: UUID,
+    ) -> None:
+        self.budgets.create_snapshot(
+            uow, run_id, account_id, conversation_id,
+            self.budget_policy_version, self.budget_mode,
+            json.dumps(self.budget_limits, sort_keys=True),
+            self.final_response_reserve_tokens,
         )
 
     def _lock_owned_run(

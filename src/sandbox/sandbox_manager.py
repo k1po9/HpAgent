@@ -68,6 +68,7 @@ class SandboxManager:
         per_query_min: int = 3,
         native_tools_enabled: bool = True,
         nsjail_enabled: bool = True,
+        host_bash_enabled: bool = False,
     ):
         self._nsjail_config = nsjail_config or NsjailConfig()
         self._redis_cache = redis_cache
@@ -80,6 +81,9 @@ class SandboxManager:
         self._per_query_min = per_query_min
         self._native_tools_enabled = native_tools_enabled
         self._nsjail_enabled = nsjail_enabled
+        # FILE-P0-04: host Bash is an explicit capability, never implied by
+        # enabling otherwise-safe native tools.
+        self._host_bash_enabled = host_bash_enabled
 
         self._sandboxes: Dict[str, Sandbox] = {}
         self._session_to_sandbox: Dict[str, str] = {}
@@ -127,6 +131,8 @@ class SandboxManager:
             for name, factory in LOCAL_TOOL_FACTORIES.items():
                 if name in reminder_keys:
                     continue  # 提醒工具已在上方无条件注册
+                if name == "Bash" and not self._host_bash_enabled:
+                    continue
                 tool = factory(workspace_path)
                 _declare_local_side_effect(tool, name)
                 registry.register(tool, category="native")

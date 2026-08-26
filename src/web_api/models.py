@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -31,6 +32,7 @@ class RenameConversationRequest(StrictModel):
 class SendMessageRequest(StrictModel):
     content: str
     agent_strategy: Literal["react", "plan_and_execute"] = "react"
+    file_ids: list[UUID] = Field(default_factory=list, max_length=20)
 
 
 class EmptyRequest(StrictModel):

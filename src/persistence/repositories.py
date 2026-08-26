@@ -197,6 +197,79 @@ class RunRepository:
         )
 
 
+class FileRepository:
+    def lock_ready_inputs(
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
+        file_ids: Collection[UUID],
+    ) -> list[dict[str, Any]]:
+        if not file_ids:
+            return []
+        return list(uow.execute(
+            "SELECT * FROM stored_files WHERE account_id=%s AND conversation_id=%s "
+            "AND file_id=ANY(%s) AND purpose='input' AND status='ready' "
+            "ORDER BY created_at,file_id FOR UPDATE",
+            (account_id, conversation_id, list(file_ids)),
+        ).fetchall())
+
+    def bind_inputs(
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
+        message_id: UUID, run_id: UUID, files: list[dict[str, Any]],
+    ) -> None:
+        used_names: set[str] = set()
+        for ordinal, file in enumerate(files):
+            logical_name = self._unique_logical_name(str(file["display_name"]), used_names)
+            uow.execute(
+                "INSERT INTO message_files(account_id,conversation_id,message_id,file_id,role,ordinal) "
+                "VALUES (%s,%s,%s,%s,'input',%s)",
+                (account_id, conversation_id, message_id, file["file_id"], ordinal),
+            )
+            uow.execute(
+                "INSERT INTO run_files(account_id,conversation_id,run_id,file_id,direction,logical_name) "
+                "VALUES (%s,%s,%s,%s,'input',%s)",
+                (account_id, conversation_id, run_id, file["file_id"], logical_name),
+            )
+
+    def copy_retry_inputs(
+        self, uow: UnitOfWork, source_run_id: UUID, target_run_id: UUID,
+    ) -> None:
+        uow.execute(
+            "INSERT INTO run_files(account_id,conversation_id,run_id,file_id,direction,logical_name) "
+            "SELECT account_id,conversation_id,%s,file_id,'input',logical_name FROM run_files "
+            "WHERE run_id=%s AND direction='input'",
+            (target_run_id, source_run_id),
+        )
+
+    @staticmethod
+    def _unique_logical_name(name: str, used: set[str]) -> str:
+        safe = name.replace("/", "_").replace("\\", "_").strip() or "file"
+        safe = safe[:255]
+        candidate = safe
+        stem, dot, suffix = safe.rpartition(".")
+        base = stem if dot else safe
+        extension = f".{suffix}" if dot else ""
+        counter = 2
+        while candidate.casefold() in used:
+            marker = f"-{counter}"
+            candidate = f"{base[:255-len(extension)-len(marker)]}{marker}{extension}"
+            counter += 1
+        used.add(candidate.casefold())
+        return candidate
+
+
+class RunBudgetRepository:
+    def create_snapshot(
+        self, uow: UnitOfWork, run_id: UUID, account_id: UUID,
+        conversation_id: UUID, policy_version: str, mode: str,
+        limits: str, final_response_reserve_tokens: int,
+    ) -> None:
+        uow.execute(
+            "INSERT INTO run_budgets(run_id,account_id,conversation_id,policy_version,mode,"
+            "limits,final_response_reserve_tokens) VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s)",
+            (run_id, account_id, conversation_id, policy_version, mode, limits,
+             final_response_reserve_tokens),
+        )
+
+
 class SessionRepository:
     def get_active(
         self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID

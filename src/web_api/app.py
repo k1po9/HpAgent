@@ -43,6 +43,8 @@ from web_artifacts.services import ArtifactService
 from web_domain.errors import (
     ConversationBusy,
     DomainError,
+    FileAlreadyBound,
+    FileNotReady,
     IdempotencyConflict,
     ResourceNotFound,
     RunNotCancellable,
@@ -248,7 +250,11 @@ def create_app(
             settings.qq_binding_code_pepper,
             settings.qq_binding_challenge_seconds,
         )
-        app.state.commands = CommandService(api_pool)
+        app.state.commands = CommandService(
+            api_pool,
+            budget_mode=settings.run_budget_mode,
+            budget_policy_version=settings.run_budget_policy_version,
+        )
         app.state.artifacts = ArtifactService(api_pool)
         app.state.queries = QueryService(
             api_pool,
@@ -340,6 +346,8 @@ def create_app(
         mapping: dict[type[DomainError], tuple[int, str, str, bool]] = {
             ResourceNotFound: (404, "resource_not_found", "资源不存在。", False),
             ConversationBusy: (409, "conversation_busy", "当前对话仍有请求正在执行。", True),
+            FileNotReady: (409, "file_not_ready", "文件尚未准备完成。", True),
+            FileAlreadyBound: (409, "file_already_bound", "附件不能重复绑定。", False),
             IdempotencyConflict: (409, "idempotency_conflict", "幂等键对应的请求不一致。", False),
             RunNotCancellable: (409, "run_not_cancellable", "当前运行状态不可取消。", False),
             RunNotRetryable: (409, "run_not_retryable", "当前运行状态不可重试。", False),
@@ -515,6 +523,11 @@ def create_app(
                 "qq_long_term_memory_shared": True,
                 "qq_self_service_binding": True,
                 "durable_agent": settings.durable_agent_enabled,
+                "file_upload": settings.web_file_upload_enabled,
+                "file_transform": (
+                    settings.web_file_transform_enabled
+                    and settings.durable_agent_enabled
+                ),
                 "agent_strategies": (
                     ["react", "plan_and_execute"]
                     if settings.durable_agent_enabled
@@ -621,6 +634,14 @@ def create_app(
 
     @app.post("/api/v1/conversations/{conversation_id}/messages")
     def send_message(conversation_id: UUID, payload: SendMessageRequest, request: Request, context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        if payload.file_ids and not settings.web_file_upload_enabled:
+            return _error(
+                request, 409, "file_capability_disabled", "文件能力尚未启用。"
+            )
+        if len(payload.file_ids) > settings.file_max_count_per_message:
+            return _error(
+                request, 422, "file_processing_limit", "附件数量超过限制。"
+            )
         if payload.agent_strategy == "plan_and_execute" and not settings.durable_agent_enabled:
             return _error(
                 request,
@@ -640,6 +661,7 @@ def create_app(
             key,
             content,
             payload.agent_strategy,
+            tuple(payload.file_ids),
         )
         run = result.body["run"]
         log_event(

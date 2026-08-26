@@ -10,7 +10,7 @@ import logging
 import os
 from pathlib import Path
 
-from .protocols import FileStore, StoreError, StoreErrorCode
+from .protocols import StoreError, StoreErrorCode
 
 logger = logging.getLogger(__name__)
 
@@ -128,8 +128,11 @@ class LocalFileStore:
 
     def _resolve(self, path: str) -> Path:
         """解析相对路径并检查路径遍历。"""
+        candidate = Path(path)
+        if candidate.is_absolute() or any(part == ".." for part in candidate.parts):
+            raise StoreError(StoreErrorCode.NOT_FOUND, f"Path traversal denied: {path}")
         resolved = (self._root / path).resolve()
-        if not str(resolved).startswith(str(self._root)):
+        if not resolved.is_relative_to(self._root):
             raise StoreError(
                 StoreErrorCode.NOT_FOUND,
                 f"Path traversal denied: {path}",
