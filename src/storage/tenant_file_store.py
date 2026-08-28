@@ -8,6 +8,7 @@ from __future__ import annotations
 import codecs
 import hashlib
 import os
+from collections.abc import AsyncIterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Iterable
@@ -144,6 +145,54 @@ class TenantFileStore:
         self._fsync_directory(target.parent)
         return PublishedFile(key, staged.size_bytes, staged.sha256)
 
+    async def stage_async(
+        self,
+        file_id: UUID,
+        chunks: AsyncIterable[bytes],
+        *,
+        declared_size: int,
+        declared_sha256: str | None = None,
+    ) -> StagedFile:
+        """Async-iterator variant used by the ASGI streaming upload endpoint."""
+        if declared_size < 0 or declared_size > self.max_bytes:
+            raise FileTooLarge()
+        key = self.staging_key(file_id)
+        path = self._key_path(key)
+        digest = hashlib.sha256()
+        decoder = codecs.getincrementaldecoder("utf-8")("strict")
+        total = 0
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(path, flags, 0o600)
+        try:
+            async for chunk in chunks:
+                total += len(chunk)
+                if total > self.max_bytes:
+                    raise FileTooLarge()
+                if b"\x00" in chunk:
+                    raise FileEncodingUnsupported()
+                decoder.decode(chunk, final=False)
+                digest.update(chunk)
+                view = memoryview(chunk)
+                while view:
+                    written = os.write(fd, view)
+                    view = view[written:]
+            decoder.decode(b"", final=True)
+            if total != declared_size:
+                raise FileStoreError("declared size does not match received bytes")
+            actual_hash = digest.hexdigest()
+            if declared_sha256 and actual_hash != declared_sha256:
+                raise FileHashMismatch()
+            os.fsync(fd)
+            return StagedFile(key, total, actual_hash, "utf-8")
+        except UnicodeDecodeError as exc:
+            self._unlink_quietly(path)
+            raise FileEncodingUnsupported() from exc
+        except BaseException:
+            self._unlink_quietly(path)
+            raise
+        finally:
+            os.close(fd)
+
     def open(self, storage_key: str) -> BinaryIO:
         path = self._key_path(storage_key)
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
@@ -173,3 +222,10 @@ class TenantFileStore:
             os.fsync(fd)
         finally:
             os.close(fd)
+
+    @staticmethod
+    def _unlink_quietly(path: Path) -> None:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            pass

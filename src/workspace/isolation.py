@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Protocol
@@ -238,11 +238,13 @@ class SessionResourceRecoveryService:
     def __init__(
         self, database_url: object, sandbox_manager: Any,
         account_locks: AccountLockRegistry, git_repo_manager: WorkspaceProvisioner,
+        run_file_workspace: Any | None = None,
     ) -> None:
         self._database_url = database_url
         self._sandbox_manager = sandbox_manager
         self._account_locks = account_locks
         self._git_repo_manager = git_repo_manager
+        self._run_file_workspace = run_file_workspace
         self._runs = RunRepository()
 
     @asynccontextmanager
@@ -272,10 +274,40 @@ class SessionResourceRecoveryService:
                 account_text, str(session_id)
             )
             await WorkspaceRecoveryGuard(repo_path).recover(expected_branch)
-            self._sandbox_manager.create_session_sandbox(
-                session_id=str(session_id),
-                workspace_path=str(repo_path),
-                user_uuid=account_text,
-                session_context={"account_id": account_text, "channel_type": "web", "metadata": {}},
+            file_scope_context = (
+                self._run_file_workspace.prepare(subject["account_id"], run_id)
+                if self._run_file_workspace is not None else nullcontext(None)
             )
-            yield session_id
+            file_scope_bound = False
+            try:
+                with file_scope_context as file_scope:
+                    if file_scope is not None:
+                        self._sandbox_manager.bind_run_file_scope(
+                            str(run_id), str(session_id), file_scope
+                        )
+                        file_scope_bound = True
+                    self._sandbox_manager.create_session_sandbox(
+                        session_id=str(session_id),
+                        workspace_path=str(repo_path),
+                        user_uuid=account_text,
+                        session_context={
+                            "account_id": account_text,
+                            "channel_type": "web",
+                            "metadata": {
+                                "run_id": str(run_id),
+                                "files": (
+                                    file_scope.model_manifest() if file_scope is not None else []
+                                ),
+                            },
+                        },
+                    )
+                    yield session_id
+            except Exception as exc:
+                from workspace.file_scope import RunFileScopeUnavailable
+
+                if isinstance(exc, RunFileScopeUnavailable):
+                    raise WorkspaceRecoveryRequired("Run file scope is unavailable") from exc
+                raise
+            finally:
+                if file_scope_bound:
+                    self._sandbox_manager.unbind_run_file_scope(str(run_id))

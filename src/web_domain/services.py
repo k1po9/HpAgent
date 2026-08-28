@@ -435,11 +435,13 @@ class CommandService:
             "WHERE r.run_id=%s", (run_id,)
         ).fetchone()
         run = snapshot["run"]
+        user_dto = self._message_dto(user)
+        user_dto["files"] = self._message_file_dtos(uow, user["message_id"])
         return {
             "message_id": user and str(user["message_id"]),
             "run_id": str(run_id),
             "session_id": run["session_id"],
-            "user_message": self._message_dto(user),
+            "user_message": user_dto,
             "assistant_message": snapshot["assistant_message"],
             "run": run,
             "events_url": f"/api/v1/runs/{run_id}/events",
@@ -463,7 +465,14 @@ class CommandService:
         message = uow.execute(
             "SELECT * FROM messages WHERE produced_by_run_id=%s", (run_id,)
         ).fetchone()
-        return {"run": self._run_dto(run), "assistant_message": self._message_dto(message)}
+        run_dto = self._run_dto(run)
+        budget = uow.execute(
+            "SELECT * FROM run_budgets WHERE run_id=%s", (run_id,)
+        ).fetchone()
+        run_dto["budget"] = self._budget_dto(budget)
+        message_dto = self._message_dto(message)
+        message_dto["files"] = self._message_file_dtos(uow, message["message_id"])
+        return {"run": run_dto, "assistant_message": message_dto}
 
     @staticmethod
     def _timestamp(value: datetime | None) -> str | None:
@@ -512,6 +521,42 @@ class CommandService:
             "started_at": cls._timestamp(row["started_at"]),
             "finished_at": cls._timestamp(row["finished_at"]),
             "updated_at": cls._timestamp(row["updated_at"]),
+        }
+
+    @staticmethod
+    def _message_file_dtos(uow: UnitOfWork, message_id: UUID) -> list[dict[str, Any]]:
+        rows = uow.execute(
+            "SELECT sf.* FROM message_files mf JOIN stored_files sf "
+            "ON sf.account_id=mf.account_id AND sf.conversation_id=mf.conversation_id "
+            "AND sf.file_id=mf.file_id WHERE mf.message_id=%s ORDER BY mf.ordinal",
+            (message_id,),
+        ).fetchall()
+        return [
+            {
+                "file_id": str(row["file_id"]), "file_name": row["display_name"],
+                "purpose": row["purpose"], "status": row["status"],
+                "size_bytes": row["size_bytes"],
+                "download_url": (
+                    f"/api/v1/files/{row['file_id']}/content"
+                    if row["status"] == "ready" else None
+                ),
+            }
+            for row in rows
+        ]
+
+    @staticmethod
+    def _budget_dto(row: Mapping[str, Any] | None) -> dict[str, Any] | None:
+        if row is None:
+            return None
+        limits, used = row["limits"], row["used"]
+        return {
+            "status": row["status"], "mode": row["mode"],
+            "policy_version": row["policy_version"],
+            **{
+                f"{dimension}_{suffix}": int(source.get(dimension, 0))
+                for dimension in ("model_total_tokens", "tool_calls", "bytes_scanned")
+                for suffix, source in (("used", used), ("limit", limits))
+            },
         }
 
     def _outbox(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, run_id: UUID, event_type: str, terminal_status: str | None = None) -> None:

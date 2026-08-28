@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from pathlib import Path
 from uuid import uuid4
@@ -33,6 +34,35 @@ def test_streaming_stage_publish_and_read(tmp_path: Path) -> None:
     assert ((tmp_path / "files").stat().st_mode & 0o777) == 0o700
 
 
+async def test_async_streaming_stage_never_requires_a_complete_body(tmp_path: Path) -> None:
+    content = "分块\ncontent\n".encode()
+
+    async def chunks():
+        for byte in content:
+            yield bytes([byte])
+
+    store = TenantFileStore(tmp_path / "files", max_bytes=1024)
+    staged = await store.stage_async(
+        uuid4(), chunks(), declared_size=len(content),
+        declared_sha256=hashlib.sha256(content).hexdigest(),
+    )
+    assert staged.size_bytes == len(content)
+    assert staged.sha256 == hashlib.sha256(content).hexdigest()
+
+
+async def test_async_upload_cancellation_removes_partial_file(tmp_path: Path) -> None:
+    file_id = uuid4()
+
+    async def chunks():
+        yield b"partial"
+        raise asyncio.CancelledError()
+
+    store = TenantFileStore(tmp_path / "files", max_bytes=1024)
+    with pytest.raises(asyncio.CancelledError):
+        await store.stage_async(file_id, chunks(), declared_size=100)
+    assert not (store.root / store.staging_key(file_id)).exists()
+
+
 @pytest.mark.parametrize(
     ("chunks", "size", "digest", "error"),
     [
@@ -62,4 +92,3 @@ def test_storage_keys_cannot_escape_or_follow_symlinks(tmp_path: Path) -> None:
         store.open("../outside/secret")
     with pytest.raises(FileStoreError):
         store.open("link/secret")
-

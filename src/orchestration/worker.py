@@ -55,6 +55,8 @@ from sandbox.nsjail import NsjailConfig
 from sandbox.sandbox_manager import SandboxManager
 from session.db import WorkspaceDB
 from storage.file_store import LocalFileStore
+from storage.tenant_file_store import TenantFileStore
+from workspace.file_scope import RunFileScopeUnavailable, RunFileWorkspace
 from workspace.isolation import WorkspaceIsolationRuntime
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
@@ -207,6 +209,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         deps.sandbox_manager,
         deps.workspace_isolation.account_locks,
         deps.git_repo_manager,
+        deps.run_file_workspace,
     )
     loader = PostgresWebRequestLoader(worker_database_url, context)
     web_host = WebExecutionHost(
@@ -411,6 +414,7 @@ class WorkerDependencies:
     metrics: object = None
     scheduler: "TaskScheduler" = None
     workspace_isolation: "WorkspaceIsolationRuntime | None" = None
+    run_file_workspace: object = None
 
 
 
@@ -623,6 +627,35 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     file_store = LocalFileStore(workspace_root)
     workspace_db = WorkspaceDB(config.workspace.db_path or str(workspace_root / "workspace.db"))
     logger.info("Workspace storage initialized: root=%s", workspace_root)
+    run_file_workspace = None
+    if os.getenv("WEB_FILE_UPLOAD_ENABLED", "false").lower() == "true":
+        worker_database_url = os.getenv("WORKER_DATABASE_URL")
+        file_store_root = os.getenv("FILE_STORE_ROOT")
+        file_run_root = os.getenv("FILE_RUN_ROOT")
+        if not worker_database_url or not file_store_root or not file_run_root:
+            raise RuntimeError(
+                "file capability requires WORKER_DATABASE_URL, FILE_STORE_ROOT and FILE_RUN_ROOT"
+            )
+        object_root = Path(file_store_root).resolve()
+        execution_root = Path(file_run_root).resolve()
+        workspace_canonical = workspace_root.resolve()
+        if any(
+            root == workspace_canonical
+            or root.is_relative_to(workspace_canonical)
+            or workspace_canonical.is_relative_to(root)
+            for root in (object_root, execution_root)
+        ):
+            raise RunFileScopeUnavailable(
+                "file store and Run execution roots must not overlap Git workspace"
+            )
+        tenant_store = TenantFileStore(
+            object_root,
+            max_bytes=int(os.getenv("FILE_MAX_BYTES", str(128 * 1024 * 1024))),
+        )
+        run_file_workspace = RunFileWorkspace(
+            worker_database_url, tenant_store, execution_root
+        )
+        logger.info("Run file workspace enabled with isolated object/execution roots")
 
     # ── 5b. 定时调度器 ──
     scheduler: TaskScheduler = TaskScheduler(data_dir=Path(config.scheduler.data_dir))
@@ -642,6 +675,9 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         per_query_min=config.models.tool_rag.per_query_min,
         native_tools_enabled=config.sandbox.native_tools_enabled,
         nsjail_enabled=config.sandbox.nsjail_enabled,
+        file_tools_enabled=(
+            os.getenv("WEB_FILE_UPLOAD_ENABLED", "false").lower() == "true"
+        ),
     )
 
     # ── 7. Prompt + Hindsight + 上下文构建器 ──
@@ -718,6 +754,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         metrics=qq_runtime.metrics,
         scheduler=scheduler,
         workspace_isolation=workspace_isolation,
+        run_file_workspace=run_file_workspace,
     )
 
 

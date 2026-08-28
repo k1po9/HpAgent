@@ -30,7 +30,9 @@ def conversation_dto(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def message_dto(row: dict[str, Any]) -> dict[str, Any]:
+def message_dto(
+    row: dict[str, Any], files: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     return {
         "message_id": str(row["message_id"]),
         "conversation_id": str(row["conversation_id"]),
@@ -46,6 +48,33 @@ def message_dto(row: dict[str, Any]) -> dict[str, Any]:
         ),
         "created_at": timestamp(row["created_at"]),
         "completed_at": timestamp(row["completed_at"]),
+        "files": files or [],
+    }
+
+
+def file_dto(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "file_id": str(row["file_id"]), "file_name": row["display_name"],
+        "purpose": row["purpose"], "status": row["status"],
+        "size_bytes": row["size_bytes"],
+        "download_url": (
+            f"/api/v1/files/{row['file_id']}/content" if row["status"] == "ready" else None
+        ),
+    }
+
+
+def budget_dto(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
+    limits, used = row["limits"], row["used"]
+    return {
+        "status": row["status"], "mode": row["mode"],
+        "policy_version": row["policy_version"],
+        **{
+            f"{dimension}_{suffix}": int(source.get(dimension, 0))
+            for dimension in ("model_total_tokens", "tool_calls", "bytes_scanned")
+            for suffix, source in (("used", used), ("limit", limits))
+        },
     }
 
 
@@ -140,7 +169,7 @@ class QueryService:
             ).fetchone()
             return {
                 "conversation": conversation_dto(conversation),
-                "active_run": self._joined_snapshot(active) if active else None,
+                "active_run": self._joined_snapshot(uow, active) if active else None,
             }
 
     def list_conversations(
@@ -234,6 +263,9 @@ class QueryService:
                     tuple(params),
                 ).fetchall()
             )
+            files_by_message = self._message_files(
+                uow, account_id, [row["message_id"] for row in rows]
+            )
         has_more = len(rows) > limit
         selected = rows[:limit]
         next_cursor = None
@@ -250,7 +282,10 @@ class QueryService:
             )
         selected.reverse()
         return {
-            "items": [message_dto(row) for row in selected],
+            "items": [
+                message_dto(row, files_by_message.get(row["message_id"], []))
+                for row in selected
+            ],
             "next_cursor": next_cursor,
             "has_more": has_more,
             "conversation_last_message_seq": conversation["last_message_seq"],
@@ -269,7 +304,7 @@ class QueryService:
             ).fetchone()
             if not row:
                 raise ResourceNotFound()
-            return self._joined_snapshot(row)
+            return self._joined_snapshot(uow, row)
 
     def rename_conversation(
         self, account_id: UUID, conversation_id: UUID, version: int, title: str
@@ -292,8 +327,7 @@ class QueryService:
                 raise ResourceNotFound()
             raise VersionConflict(current["metadata_version"])
 
-    @staticmethod
-    def _joined_snapshot(row: dict[str, Any]) -> dict[str, Any]:
+    def _joined_snapshot(self, uow: UnitOfWork, row: dict[str, Any]) -> dict[str, Any]:
         message = {
             "message_id": row["m_message_id"],
             "conversation_id": row["m_conversation_id"],
@@ -306,4 +340,30 @@ class QueryService:
             "created_at": row["m_created_at"],
             "completed_at": row["m_completed_at"],
         }
-        return {"run": run_dto(row), "assistant_message": message_dto(message)}
+        files = self._message_files(
+            uow, row["account_id"], [row["m_message_id"]]
+        ).get(row["m_message_id"], [])
+        budget = uow.execute(
+            "SELECT * FROM run_budgets WHERE run_id=%s", (row["run_id"],)
+        ).fetchone()
+        run = run_dto(row)
+        run["budget"] = budget_dto(budget)
+        return {"run": run, "assistant_message": message_dto(message, files)}
+
+    @staticmethod
+    def _message_files(
+        uow: UnitOfWork, account_id: UUID, message_ids: list[UUID],
+    ) -> dict[UUID, list[dict[str, Any]]]:
+        result: dict[UUID, list[dict[str, Any]]] = {}
+        if not message_ids:
+            return result
+        rows = uow.execute(
+            "SELECT mf.message_id,sf.* FROM message_files mf JOIN stored_files sf "
+            "ON sf.account_id=mf.account_id AND sf.conversation_id=mf.conversation_id "
+            "AND sf.file_id=mf.file_id WHERE mf.account_id=%s "
+            "AND mf.message_id=ANY(%s) ORDER BY mf.message_id,mf.ordinal",
+            (account_id, message_ids),
+        ).fetchall()
+        for row in rows:
+            result.setdefault(row["message_id"], []).append(file_dto(row))
+        return result

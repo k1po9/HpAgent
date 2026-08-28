@@ -15,3 +15,14 @@ def test_file_workspace_migration_has_required_tables_and_guards() -> None:
     assert "ct_message_files__shape" in migration
     assert "PRIMARY KEY(run_id,operation_id,dimension)" in migration
     assert "status='ready'" in migration
+
+
+def test_upload_contract_retains_declared_digest_separately() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "persistence/migrations/018_file_upload_contract.sql"
+    ).read_text()
+    assert "ADD COLUMN declared_sha256" in migration
+    assert "^[0-9a-f]{64}$" in migration
+    assert "tr_stored_files__api_input_only" in migration
+    assert "REVOKE UPDATE ON run_budgets FROM hpagent_api" in migration

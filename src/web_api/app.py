@@ -7,8 +7,9 @@ import json
 import logging
 import re
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, Awaitable, Callable, cast
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Header, Query, Request, Response
@@ -39,19 +40,26 @@ from account.registration_service import (
 from agent_execution.tracing.repository import PostgresTraceRepository
 from common.logging import log_event
 from persistence.uow import UnitOfWork
+from storage.tenant_file_store import TenantFileStore
 from web_artifacts.services import ArtifactService
 from web_domain.errors import (
     ConversationBusy,
     DomainError,
     FileAlreadyBound,
+    FileEncodingUnsupported,
+    FileHashMismatch,
     FileNotReady,
+    FileTooLarge,
+    FileUploadInvalid,
     IdempotencyConflict,
     ResourceNotFound,
     RunNotCancellable,
     RunNotRetryable,
     RunRetryNotSafe,
+    UnsupportedFileType,
     VersionConflict,
 )
+from web_domain.file_services import FileService
 from web_domain.services import CommandResult, CommandService
 
 from .auth import (
@@ -66,6 +74,7 @@ from .models import (
     CreateArtifactRequest,
     CreateArtifactVersionRequest,
     CreateConversationRequest,
+    CreateUploadRequest,
     EmptyRequest,
     LoginRequest,
     RegisterRequest,
@@ -82,16 +91,25 @@ logger = logging.getLogger("HpAgent.WebApi")
 
 
 class BodyLimitMiddleware:
-    def __init__(self, app: ASGIApp, default_limit: int = 64 * 1024):
+    def __init__(
+        self, app: ASGIApp, default_limit: int = 64 * 1024,
+        upload_limit: int = 128 * 1024 * 1024,
+    ):
         self.app = app
         self.default_limit = default_limit
+        self.upload_limit = upload_limit
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
         path = scope.get("path", "")
-        limit = 160 * 1024 if path.endswith("/messages") else self.default_limit
+        is_upload = bool(re.fullmatch(r"/api/v1/uploads/[0-9a-f-]+/content", path))
+        limit = (
+            self.upload_limit if is_upload
+            else 160 * 1024 if path.endswith("/messages")
+            else self.default_limit
+        )
         headers = dict(scope.get("headers", []))
         try:
             if int(headers.get(b"content-length", b"0")) > limit:
@@ -116,9 +134,12 @@ class BodyLimitMiddleware:
             await self._reject(scope, receive, send)
 
     async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
+        is_upload = bool(re.fullmatch(
+            r"/api/v1/uploads/[0-9a-f-]+/content", scope.get("path", "")
+        ))
         response = JSONResponse(
             status_code=413,
-            content={"error": {"code": "message_too_large", "message": "请求内容过大。", "request_id": scope.get("state", {}).get("request_id", "unknown"), "retryable": False, "details": {}}},
+            content={"error": {"code": "file_too_large" if is_upload else "message_too_large", "message": "请求内容过大。", "request_id": scope.get("state", {}).get("request_id", "unknown"), "retryable": False, "details": {}}},
         )
         await response(scope, receive, send)
 
@@ -157,8 +178,16 @@ class ProtocolMiddleware(BaseHTTPMiddleware):
                 return _error(request, 406, "not_acceptable", "不支持请求的响应类型。")
         if request.method in {"POST", "PATCH", "PUT"} and request.url.path != "/api/v1/auth/logout":
             content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-            if content_type != "application/json":
-                return _error(request, 415, "unsupported_media_type", "请求必须使用 JSON。")
+            is_upload_content = bool(re.fullmatch(
+                r"/api/v1/uploads/[0-9a-f-]+/content", request.url.path
+            ))
+            expected = "application/octet-stream" if is_upload_content else "application/json"
+            if content_type != expected:
+                message = (
+                    "上传内容必须使用 application/octet-stream。"
+                    if is_upload_content else "请求必须使用 JSON。"
+                )
+                return _error(request, 415, "unsupported_media_type", message)
         return await call_next(request)
 
 
@@ -255,6 +284,16 @@ def create_app(
             budget_mode=settings.run_budget_mode,
             budget_policy_version=settings.run_budget_policy_version,
         )
+        if settings.web_file_upload_enabled:
+            file_root = Path(settings.file_store_root).resolve()
+            application_root = Path.cwd().resolve()
+            if file_root == application_root or file_root.is_relative_to(application_root):
+                raise RuntimeError("FILE_STORE_ROOT must be outside the application/Git workspace")
+            app.state.file_service = FileService(
+                api_pool,
+                TenantFileStore(file_root, max_bytes=settings.file_max_bytes),
+                max_bytes=settings.file_max_bytes,
+            )
         app.state.artifacts = ArtifactService(api_pool)
         app.state.queries = QueryService(
             api_pool,
@@ -318,7 +357,7 @@ def create_app(
         redoc_url=None,
     )
     app.state.settings = settings
-    app.add_middleware(BodyLimitMiddleware)
+    app.add_middleware(BodyLimitMiddleware, upload_limit=settings.file_max_bytes)
     app.add_middleware(ProtocolMiddleware)
     app.add_middleware(CommonHeadersMiddleware)
 
@@ -348,6 +387,11 @@ def create_app(
             ConversationBusy: (409, "conversation_busy", "当前对话仍有请求正在执行。", True),
             FileNotReady: (409, "file_not_ready", "文件尚未准备完成。", True),
             FileAlreadyBound: (409, "file_already_bound", "附件不能重复绑定。", False),
+            FileTooLarge: (413, "file_too_large", "文件超过大小限制。", False),
+            UnsupportedFileType: (415, "unsupported_file_type", "不支持该文件类型。", False),
+            FileEncodingUnsupported: (422, "file_encoding_unsupported", "文件编码不受支持。", False),
+            FileHashMismatch: (422, "file_hash_mismatch", "文件哈希校验失败。", False),
+            FileUploadInvalid: (409, "file_not_ready", "上传状态无效，请重新创建上传。", False),
             IdempotencyConflict: (409, "idempotency_conflict", "幂等键对应的请求不一致。", False),
             RunNotCancellable: (409, "run_not_cancellable", "当前运行状态不可取消。", False),
             RunNotRetryable: (409, "run_not_retryable", "当前运行状态不可重试。", False),
@@ -407,6 +451,12 @@ def create_app(
         if str(parsed) != value.lower():
             raise InvalidIdempotencyKey()
         return value.lower()
+
+    def file_service(request: Request) -> FileService:
+        service = getattr(request.app.state, "file_service", None)
+        if service is None:
+            raise ResourceNotFound()
+        return cast(FileService, service)
 
     @app.exception_handler(InvalidIdempotencyKey)
     async def invalid_key(request: Request, exc: InvalidIdempotencyKey):
@@ -600,6 +650,82 @@ def create_app(
         if result.replayed:
             response.headers["Idempotency-Replayed"] = "true"
         return response
+
+    @app.post("/api/v1/conversations/{conversation_id}/uploads")
+    def create_upload(
+        conversation_id: UUID,
+        payload: CreateUploadRequest,
+        request: Request,
+        context: AuthContext = Depends(csrf_guard),
+        key: str = Depends(idempotency_key),
+        files: FileService = Depends(file_service),
+    ):
+        result = files.create_upload(
+            context.account_id, conversation_id, key, payload.file_name,
+            payload.size_bytes, payload.content_type, payload.sha256,
+        )
+        response = JSONResponse(status_code=result.response_status, content=result.body)
+        response.headers["Location"] = result.body["content_url"]
+        if result.replayed:
+            response.headers["Idempotency-Replayed"] = "true"
+        return response
+
+    @app.put("/api/v1/uploads/{file_id}/content")
+    async def upload_content(
+        file_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(csrf_guard),
+        files: FileService = Depends(file_service),
+    ):
+        uploaded = await files.upload_content(
+            context.account_id, file_id, request.stream()
+        )
+        return {"file": uploaded}
+
+    @app.get("/api/v1/files/{file_id}")
+    def get_file(
+        file_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(auth_context),
+        files: FileService = Depends(file_service),
+    ):
+        return {"file": files.get(context.account_id, file_id)}
+
+    @app.delete("/api/v1/files/{file_id}", status_code=204)
+    def delete_file(
+        file_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(csrf_guard),
+        files: FileService = Depends(file_service),
+    ):
+        files.delete(context.account_id, file_id)
+        return Response(status_code=204)
+
+    @app.get("/api/v1/files/{file_id}/content")
+    def download_file(
+        file_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(auth_context),
+        files: FileService = Depends(file_service),
+    ):
+        metadata, stream = files.download(context.account_id, file_id)
+
+        def body():
+            try:
+                while chunk := stream.read(64 * 1024):
+                    yield chunk
+            finally:
+                stream.close()
+
+        encoded_name = quote(str(metadata["file_name"]), safe="")
+        headers = {
+            "Content-Disposition": (
+                f"attachment; filename=download.txt; filename*=UTF-8''{encoded_name}"
+            )
+        }
+        return StreamingResponse(
+            body(), media_type="application/octet-stream", headers=headers
+        )
 
     @app.get("/api/v1/conversations")
     def list_conversations(request: Request, limit: int = Query(30, ge=1, le=100), cursor: str | None = None, context: AuthContext = Depends(auth_context)):

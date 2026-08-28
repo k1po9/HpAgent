@@ -22,6 +22,26 @@ class FileAlreadyBound(DomainError):
     pass
 
 
+class FileTooLarge(DomainError):
+    pass
+
+
+class UnsupportedFileType(DomainError):
+    pass
+
+
+class FileEncodingUnsupported(DomainError):
+    pass
+
+
+class FileHashMismatch(DomainError):
+    pass
+
+
+class FileUploadInvalid(DomainError):
+    pass
+
+
 class OutboxLeaseLost(DomainError):
     pass
 

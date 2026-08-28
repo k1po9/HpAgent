@@ -54,3 +54,16 @@ async def test_fs_read_streams_with_bounded_default_output(tmp_path: Path) -> No
 def test_host_bash_is_an_explicit_default_closed_capability() -> None:
     manager = SandboxManager(native_tools_enabled=True)
     assert manager._host_bash_enabled is False
+
+
+def test_run_file_scope_binding_is_explicit_and_released() -> None:
+    manager = SandboxManager(native_tools_enabled=False)
+    scope = object()
+    manager.bind_run_file_scope("run-1", "session-1", scope)
+    assert manager.get_run_file_scope("run-1") is scope
+    assert manager.get_active_run_file_scope("session-1") is scope
+    with pytest.raises(RuntimeError, match="already bound"):
+        manager.bind_run_file_scope("run-1", "session-1", object())
+    manager.unbind_run_file_scope("run-1")
+    assert manager.get_run_file_scope("run-1") is None
+    assert manager.get_active_run_file_scope("session-1") is None

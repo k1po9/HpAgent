@@ -69,6 +69,7 @@ class SandboxManager:
         native_tools_enabled: bool = True,
         nsjail_enabled: bool = True,
         host_bash_enabled: bool = False,
+        file_tools_enabled: bool = False,
     ):
         self._nsjail_config = nsjail_config or NsjailConfig()
         self._redis_cache = redis_cache
@@ -84,10 +85,36 @@ class SandboxManager:
         # FILE-P0-04: host Bash is an explicit capability, never implied by
         # enabling otherwise-safe native tools.
         self._host_bash_enabled = host_bash_enabled
+        self._file_tools_enabled = file_tools_enabled
 
         self._sandboxes: Dict[str, Sandbox] = {}
         self._session_to_sandbox: Dict[str, str] = {}
+        self._run_file_scopes: Dict[str, Any] = {}
+        self._session_active_file_run: Dict[str, str] = {}
         self._lock = RLock()
+
+    def bind_run_file_scope(self, run_id: str, session_id: str, scope: Any) -> None:
+        with self._lock:
+            if run_id in self._run_file_scopes or session_id in self._session_active_file_run:
+                raise RuntimeError("Run file scope is already bound")
+            self._run_file_scopes[run_id] = scope
+            self._session_active_file_run[session_id] = run_id
+
+    def get_run_file_scope(self, run_id: str) -> Any | None:
+        with self._lock:
+            return self._run_file_scopes.get(run_id)
+
+    def get_active_run_file_scope(self, session_id: str) -> Any | None:
+        with self._lock:
+            run_id = self._session_active_file_run.get(session_id)
+            return self._run_file_scopes.get(run_id) if run_id else None
+
+    def unbind_run_file_scope(self, run_id: str) -> None:
+        with self._lock:
+            self._run_file_scopes.pop(run_id, None)
+            for session_id, active_run_id in tuple(self._session_active_file_run.items()):
+                if active_run_id == run_id:
+                    del self._session_active_file_run[session_id]
 
     def create_session_sandbox(
         self,
@@ -139,6 +166,14 @@ class SandboxManager:
             logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
         else:
             logger.debug("Session sandbox: native tools disabled")
+
+        if self._file_tools_enabled and ctx.get("channel_type") == "web":
+            from sandbox.tools.local.file_analysis import create_file_analysis_tools
+
+            for tool in create_file_analysis_tools(
+                lambda sid=session_id: self.get_active_run_file_scope(sid)
+            ):
+                registry.register(tool, category="native")
 
         if self._mcp_manager:
             for tool in self._mcp_manager.get_cached_tools():

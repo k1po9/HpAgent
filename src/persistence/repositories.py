@@ -198,6 +198,70 @@ class RunRepository:
 
 
 class FileRepository:
+    def insert_upload(
+        self, uow: UnitOfWork, file_id: UUID, account_id: UUID,
+        conversation_id: UUID, original_name: str, display_name: str,
+        declared_size: int, content_type: str, declared_sha256: str | None,
+    ) -> None:
+        uow.execute(
+            "INSERT INTO stored_files(file_id,account_id,conversation_id,purpose,status,"
+            "original_name,display_name,content_type,size_bytes,declared_sha256) "
+            "VALUES (%s,%s,%s,'input','uploading',%s,%s,%s,%s,%s)",
+            (file_id, account_id, conversation_id, original_name, display_name,
+             content_type, declared_size, declared_sha256),
+        )
+
+    def get_for_account(
+        self, uow: UnitOfWork, account_id: UUID, file_id: UUID, *, lock: bool = False,
+    ) -> dict[str, Any] | None:
+        suffix = " FOR UPDATE" if lock else ""
+        return cast(dict[str, Any] | None, uow.execute(
+            "SELECT * FROM stored_files WHERE account_id=%s AND file_id=%s" + suffix,
+            (account_id, file_id),
+        ).fetchone())
+
+    def mark_ready(
+        self, uow: UnitOfWork, account_id: UUID, file_id: UUID, storage_key: str,
+        size_bytes: int, sha256: str, encoding: str,
+    ) -> bool:
+        return uow.execute(
+            "UPDATE stored_files SET status='ready',storage_key=%s,size_bytes=%s,sha256=%s,"
+            "encoding=%s,content_type='text/plain',ready_at=now() "
+            "WHERE account_id=%s AND file_id=%s AND status='uploading' RETURNING file_id",
+            (storage_key, size_bytes, sha256, encoding, account_id, file_id),
+        ).fetchone() is not None
+
+    def mark_rejected(
+        self, uow: UnitOfWork, account_id: UUID, file_id: UUID, failure_code: str,
+    ) -> None:
+        uow.execute(
+            "UPDATE stored_files SET status='rejected',failure_code=%s,storage_key=NULL,"
+            "ready_at=NULL,sha256=NULL WHERE account_id=%s AND file_id=%s "
+            "AND status='uploading'",
+            (failure_code, account_id, file_id),
+        )
+
+    def mark_deleted_if_unbound(
+        self, uow: UnitOfWork, account_id: UUID, file_id: UUID,
+    ) -> str:
+        row = self.get_for_account(uow, account_id, file_id, lock=True)
+        if row is None:
+            return "not_found"
+        bound = uow.execute(
+            "SELECT 1 FROM message_files WHERE file_id=%s UNION ALL "
+            "SELECT 1 FROM run_files WHERE file_id=%s LIMIT 1",
+            (file_id, file_id),
+        ).fetchone()
+        if bound:
+            return "bound"
+        if row["status"] != "deleted":
+            uow.execute(
+                "UPDATE stored_files SET status='deleted',deleted_at=now() "
+                "WHERE account_id=%s AND file_id=%s",
+                (account_id, file_id),
+            )
+        return "deleted"
+
     def lock_ready_inputs(
         self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
         file_ids: Collection[UUID],
