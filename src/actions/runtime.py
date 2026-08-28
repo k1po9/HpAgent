@@ -217,6 +217,30 @@ class ActionRuntime:
         except Exception:
             return "unknown"
 
+    def budget_reservation(self, session_id: str, tool_name: str) -> Dict[str, int]:
+        """Return trusted per-tool reservation bounds from registry metadata."""
+        if self._sandbox is None:
+            return {"tool_calls": 1}
+        try:
+            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            configured = sandbox.get_tool_metadata(tool_name).get(
+                "budget_reservation"
+            )
+            if not isinstance(configured, dict):
+                return {"tool_calls": 1}
+            values = {
+                str(dimension): int(amount)
+                for dimension, amount in configured.items()
+                if isinstance(dimension, str)
+                and isinstance(amount, int)
+                and not isinstance(amount, bool)
+                and amount >= 0
+            }
+            values["tool_calls"] = max(1, values.get("tool_calls", 0))
+            return values
+        except Exception:
+            return {"tool_calls": 1}
+
     def clear_session(self, session_id: str) -> None:
         """会话结束时清理行动运行时的会话级缓存。"""
         prefix = f"{session_id}:"

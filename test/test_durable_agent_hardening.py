@@ -122,6 +122,9 @@ class Actions:
     def side_effect_class(self, session_id: str, tool_name: str) -> str:
         return self.classification
 
+    def budget_reservation(self, session_id: str, tool_name: str) -> dict[str, int]:
+        return {"tool_calls": 1, "bytes_scanned": 100}
+
     async def execute_request(self, request, **kwargs):
         self.calls += 1
         if self.cancel:
@@ -129,6 +132,7 @@ class Actions:
         return ActionResult(
             request=request,
             output="ok",
+            metadata={"budget_usage": {"bytes_scanned": 17}},
             error=self.error,
             raw={"output": "ok", "error": self.error},
         )
@@ -172,6 +176,37 @@ def activities(store: Store, actions: Actions, **kwargs) -> DurableAgentActiviti
         lifecycle=None,
         **kwargs,
     )
+
+
+@pytest.mark.asyncio
+async def test_tool_activity_reserves_and_settles_measured_usage_once():
+    calls: list[tuple] = []
+
+    class Budget:
+        def reserve(self, run_id, operation_id, values):
+            calls.append(("reserve", run_id, operation_id, values))
+
+        def settle(self, run_id, operation_id, values, source):
+            calls.append(("settle", run_id, operation_id, values, source))
+
+    item = request()
+    result = await activities(
+        Store(ToolOperationState("started", None)),
+        Actions("read_only"),
+        run_budget=Budget(),
+    ).tool_execution(item)
+
+    assert result.operation_id == item.operation_id
+    assert calls == [
+        (
+            "reserve", item.run_id, item.operation_id,
+            {"tool_calls": 1, "bytes_scanned": 100},
+        ),
+        (
+            "settle", item.run_id, item.operation_id,
+            {"tool_calls": 1, "bytes_scanned": 17}, "measured",
+        ),
+    ]
 
 
 @pytest.mark.asyncio

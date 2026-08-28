@@ -16,6 +16,7 @@ from temporalio.exceptions import ApplicationError
 
 from agent.protocol import ActionRequest
 from agent_execution.facade import StableExecutionFailure
+from agent_execution.run_budget import RunBudgetExhausted
 from agent_execution.tracing import (
     model_observation_metadata,
     trace_end,
@@ -69,6 +70,7 @@ class DurableAgentActivities:
         event_factory: Any,
         resource_prep: Any,
         lifecycle: Any,
+        run_budget: Any = None,
         reconciler: ToolSideEffectReconciler | None = None,
         fault_injector: FaultInjector | None = None,
     ) -> None:
@@ -79,6 +81,7 @@ class DurableAgentActivities:
         self.event_factory = event_factory
         self.resource_prep = resource_prep
         self.lifecycle = lifecycle
+        self.run_budget = run_budget
         self.reconciler = reconciler or UnsupportedToolSideEffectReconciler()
         self.fault_injector = fault_injector or NoopFaultInjector()
 
@@ -717,13 +720,58 @@ class DurableAgentActivities:
                     )
                     if side_effect_class == "non_idempotent_write":
                         non_idempotent_may_have_executed = True
-                    result_value = await self.actions.execute_request(
-                        action,
-                        session_id=request.session_id,
-                        execution_id=request.run_id,
-                        user_query="",
-                        idempotency_key=request.operation_id,
-                    )
+                    reservation = {"tool_calls": 1}
+                    if self.run_budget is not None:
+                        reservation = self.actions.budget_reservation(
+                            request.session_id, request.tool_call.name
+                        )
+                        try:
+                            await asyncio.to_thread(
+                                self.run_budget.reserve,
+                                request.run_id,
+                                request.operation_id,
+                                reservation,
+                            )
+                        except RunBudgetExhausted as exc:
+                            raise ApplicationError(
+                                "Run 执行预算已耗尽。",
+                                type=exc.code,
+                                non_retryable=True,
+                            ) from exc
+                    try:
+                        result_value = await self.actions.execute_request(
+                            action,
+                            session_id=request.session_id,
+                            execution_id=request.run_id,
+                            user_query="",
+                            idempotency_key=request.operation_id,
+                        )
+                    except BaseException:
+                        if self.run_budget is not None:
+                            await asyncio.to_thread(
+                                self.run_budget.settle,
+                                request.run_id,
+                                request.operation_id,
+                                reservation,
+                                "estimated",
+                            )
+                        raise
+                    if self.run_budget is not None:
+                        measured = {dimension: 0 for dimension in reservation}
+                        measured["tool_calls"] = 1
+                        raw_usage = (result_value.metadata or {}).get("budget_usage")
+                        if isinstance(raw_usage, dict):
+                            for dimension in measured:
+                                amount = raw_usage.get(dimension)
+                                if isinstance(amount, int) and not isinstance(amount, bool):
+                                    measured[dimension] = max(0, amount)
+                        await asyncio.to_thread(
+                            self.run_budget.settle,
+                            request.run_id,
+                            request.operation_id,
+                            measured,
+                            "measured",
+                        )
                     if (
                         side_effect_class == "non_idempotent_write"
                         and result_value.error is not None

@@ -1,7 +1,8 @@
 """ToolRegistry —— 三槽位工具注册中心，基于 LangChain BaseTool。"""
+import json
 import logging
 from threading import RLock
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import BaseTool
 
@@ -246,7 +247,24 @@ class ToolRegistry:
             if isinstance(result, ToolResult):
                 return result
             output = result.content if hasattr(result, "content") else str(result)
-            return ToolResult(success=True, output=output)
+            metadata: dict[str, Any] = {}
+            usage_fields = (getattr(tool, "metadata", None) or {}).get(
+                "usage_json_fields"
+            )
+            if isinstance(usage_fields, dict) and isinstance(output, str):
+                try:
+                    payload = json.loads(output)
+                except (json.JSONDecodeError, TypeError):
+                    payload = None
+                if isinstance(payload, dict):
+                    usage: dict[str, int] = {}
+                    for source, dimension in usage_fields.items():
+                        amount = payload.get(source)
+                        if isinstance(dimension, str) and isinstance(amount, int):
+                            usage[dimension] = max(0, amount)
+                    if usage:
+                        metadata["budget_usage"] = usage
+            return ToolResult(success=True, output=output, metadata=metadata)
         except Exception as e:
             return ToolResult(success=False, error=str(e))
 

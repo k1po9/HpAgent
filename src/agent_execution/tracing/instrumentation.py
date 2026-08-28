@@ -17,7 +17,13 @@ def model_observation_metadata(decision: object) -> dict[str, Any]:
             metadata[field] = str(value)
     usage = getattr(raw_response, "usage", None)
     if isinstance(usage, Mapping):
-        metadata["token_usage"] = dict(usage)
+        metadata["token_usage"] = {
+            key: usage[key]
+            for key in (
+                "input_tokens", "output_tokens", "total_tokens", "usage_source"
+            )
+            if key in usage
+        }
     return metadata
 
 

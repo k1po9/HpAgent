@@ -30,15 +30,22 @@
 - FILE-P1-03（字面量只读工具）：已把 `inspect_file`、`search_file`、
   `count_matches`、`text_stats` 注册到 Web Run capability。扫描按固定 chunk 和
   有界单行缓冲执行，返回值同时限制行数、命中数与 UTF-8 字节；精确计数不会
-  返回匹配正文。当前不开放正则；扫描预算 reserve/settle 和扫描中的异步取消
-  checkpoint 仍是启用 Feature Flag 前的阻断项。
+  返回匹配正文。当前不开放正则；工具通过可信 registry metadata 申报扫描上界，
+  Durable Activity 使用稳定 operation_id reserve，并按工具层实测扫描/返回字节
+  settle。扫描中的异步取消 checkpoint 仍是启用 Feature Flag 前的阻断项。
+- FILE-P0-06（工具账本与 usage 基础）：新增事务型 `RunBudgetService`，在锁定
+  budget snapshot 后按 `(run_id,operation_id,dimension)` 幂等 reserve/settle/release，
+  enforce 模式保留最终回答 token，observe 模式记录越界；Durable 工具路径已接入。
+  模型客户端已把 Anthropic/OpenAI usage 统一为 `input_tokens`、`output_tokens`、
+  `total_tokens`、`usage_source`，缺失时使用统一估算。所有模型调用路径、provider
+  fallback 分尝试记账和最终回答预留的实际消费尚未完成。
 
 仍为上线阻断项：
 
 - `transform/publish` Durable 写工具；旧通用文件工具不得获得 inputs 的写能力。
 - `inspect_file`、`search_file`、`count_matches`、`text_stats`、
   `transform_file`、`publish_output`。
-- RunBudget reserve/settle enforcement、canonical model usage 和最终回答预留执行。
+- 模型/规划/摘要/HyDE/fallback 的 RunBudget 接线和最终回答预留实际消费。
 - 文件/预算 Trace allowlist、指标、清理任务、部署独立挂载和启动断言。
 - 前端上传状态机、Composer、SSE phase、output 卡片和下载闭环。
 - 真实 PostgreSQL migration/权限/并发测试、资源基准、故障注入和完整 E2E。

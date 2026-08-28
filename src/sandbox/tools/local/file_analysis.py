@@ -119,7 +119,19 @@ def create_file_analysis_tools(
         ),
     ]
     for tool in tools:
-        tool.metadata = {"side_effect_class": "read_only", "file_scope_required": True}
+        tool.metadata = {
+            "side_effect_class": "read_only",
+            "file_scope_required": True,
+            "budget_reservation": {
+                "tool_calls": 1,
+                "bytes_scanned": configured.max_scan_bytes,
+                "bytes_returned_to_model": configured.max_return_bytes,
+            },
+            "usage_json_fields": {
+                "scanned_bytes": "bytes_scanned",
+                "returned_bytes": "bytes_returned_to_model",
+            },
+        }
     return tools
 
 

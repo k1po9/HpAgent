@@ -12,14 +12,15 @@ ModelClient —— 单个模型 API 的 HTTP 客户端。
 调用链路:
   Harness.call_model_activity → ResourcePool.generate → ModelClient.generate → httpx POST
 """
-from typing import Dict, Any, Optional, List, Callable, Awaitable
 import json
 import logging
 import re
 import time
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
-from common.types import ModelResponse, StopReason, ToolCall
 from common.errors import ModelAPIError
+from common.model_usage import canonical_model_usage
+from common.types import ModelResponse, StopReason, ToolCall
 
 logger = logging.getLogger("HpAgent.ModelClient")
 
@@ -121,7 +122,12 @@ class ModelClient:
                     result = self._parse_non_stream(response.json())
 
                 elapsed_ms = (time.monotonic() - t0) * 1000
-                tokens = self._extract_usage(result, response)
+                tokens = canonical_model_usage(
+                    self._raw_usage(response),
+                    messages=messages,
+                    output_text=result.content,
+                )
+                result.usage = tokens
                 tc_names = [tc.name for tc in (result.tool_calls or [])]
                 log_args = (
                     self.endpoint_id,
@@ -544,7 +550,6 @@ class ModelClient:
                     if on_text_delta:
                         await on_text_delta(text)
                 elif delta.get("type") == "input_json_delta":
-                    partial = delta.get("partial_json", "")
                     if tool_calls:
                         tool_calls[-1].arguments = (
                             tool_calls[-1].arguments or {}
@@ -629,8 +634,8 @@ class ModelClient:
     # ═══════════════════════════════════════════════════════════════════════════
 
     @staticmethod
-    def _extract_usage(result: "ModelResponse", raw_response: Any) -> dict | None:
-        """从原始 HTTP 响应提取 token 用量（兼容 Anthropic / OpenAI 格式）。"""
+    def _raw_usage(raw_response: Any) -> dict | None:
+        """Read the provider payload; normalization happens in one shared helper."""
         try:
             body = raw_response.json() if hasattr(raw_response, "json") else {}
         except Exception:
@@ -638,15 +643,7 @@ class ModelClient:
         if not body:
             return None
         usage = body.get("usage")
-        if not usage:
-            return None
-        # Anthropic 格式: {"input_tokens": N, "output_tokens": N}
-        if "input_tokens" in usage:
-            return {"in": usage.get("input_tokens"), "out": usage.get("output_tokens")}
-        # OpenAI 格式: {"prompt_tokens": N, "completion_tokens": N, "total_tokens": N}
-        if "prompt_tokens" in usage:
-            return {"in": usage.get("prompt_tokens"), "out": usage.get("completion_tokens")}
-        return None
+        return usage if isinstance(usage, dict) else None
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Stop reason 映射

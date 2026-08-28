@@ -127,6 +127,10 @@ async def test_web_sandbox_registers_file_tools_against_active_run_only(
     })
     assert result.success is True
     assert json.loads(result.output)["count"] == 1
+    assert result.metadata["budget_usage"] == {
+        "bytes_scanned": len(b"ERROR\n"),
+        "bytes_returned_to_model": len(result.output.encode()),
+    }
     manager.unbind_run_file_scope("run-1")
     failed, _audit = await sandbox.execute("inspect_file", {"file": "service.log"})
     assert failed.success is False

@@ -114,6 +114,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_execution.audit import LoggingExecutionAuditSinkFactory
     from agent_execution.brain_action_loop import DefaultBrainActionLoop
     from agent_execution.facade import AgentExecutionFacade
+    from agent_execution.run_budget import RunBudgetService
     from agent_execution.tracing import (
         PostgresTraceRepository,
         TraceLifecycleObserver,
@@ -237,6 +238,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         event_factory=event_factory,
         resource_prep=resource_prep,
         lifecycle=lifecycle,
+        run_budget=RunBudgetService(worker_database_url),
     )
     artifact_build = ArtifactBuildService(
         worker_database_url,

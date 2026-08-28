@@ -232,7 +232,12 @@ def test_model_observation_excludes_content_and_keeps_usage():
             model="model-a",
             provider="provider-a",
             endpoint_id="chat-primary",
-            usage={"prompt_tokens": 10, "completion_tokens": 4},
+            usage={
+                "input_tokens": 10,
+                "output_tokens": 4,
+                "total_tokens": 14,
+                "usage_source": "provider",
+            },
         ),
     )
 
@@ -240,7 +245,12 @@ def test_model_observation_excludes_content_and_keeps_usage():
         "model": "model-a",
         "provider": "provider-a",
         "endpoint_id": "chat-primary",
-        "token_usage": {"prompt_tokens": 10, "completion_tokens": 4},
+        "token_usage": {
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "total_tokens": 14,
+            "usage_source": "provider",
+        },
     }
 
 
