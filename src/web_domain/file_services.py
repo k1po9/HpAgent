@@ -45,13 +45,25 @@ ALLOWED_DECLARED_TYPES = {
 
 
 class FileService:
-    def __init__(self, database: object, store: TenantFileStore, *, max_bytes: int) -> None:
+    def __init__(
+        self,
+        database: object,
+        store: TenantFileStore,
+        *,
+        max_bytes: int,
+        upload_ttl: timedelta = timedelta(hours=1),
+        unbound_ready_ttl: timedelta = timedelta(hours=24),
+    ) -> None:
+        if upload_ttl.total_seconds() <= 0 or unbound_ready_ttl.total_seconds() <= 0:
+            raise ValueError("file TTLs must be positive")
         self.database = database
         self.store = store
         self.max_bytes = max_bytes
         self.conversations = ConversationRepository()
         self.files = FileRepository()
         self.idempotency = IdempotencyRepository()
+        self.upload_ttl = upload_ttl
+        self.unbound_ready_ttl = unbound_ready_ttl
 
     @retryable_transaction
     def create_upload(
@@ -91,6 +103,7 @@ class FileService:
             self.files.insert_upload(
                 uow, file_id, account_id, conversation_id, original_name, display_name,
                 size_bytes, normalized_type, sha256,
+                datetime.now(UTC) + self.upload_ttl,
             )
             body = {
                 "file": self._dto(self.files.get_for_account(uow, account_id, file_id)),
@@ -135,11 +148,15 @@ class FileService:
             self._reject(account_id, file_id, "file_upload_invalid")
             raise FileUploadInvalid() from exc
         with UnitOfWork(self.database) as uow:
-            if not self.files.mark_ready(
+            marked_ready = self.files.mark_ready(
                 uow, account_id, file_id, published.storage_key,
                 published.size_bytes, published.sha256, staged.encoding,
-            ):
-                raise FileUploadInvalid()
+                datetime.now(UTC) + self.unbound_ready_ttl,
+            )
+        if not marked_ready:
+            self.store.delete(published.storage_key)
+            raise FileUploadInvalid()
+        with UnitOfWork(self.database) as uow:
             row = self.files.get_for_account(uow, account_id, file_id)
             return self._dto(row)
 

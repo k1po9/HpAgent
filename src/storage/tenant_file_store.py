@@ -201,6 +201,9 @@ class TenantFileStore:
     def delete(self, storage_key: str) -> None:
         self._key_path(storage_key).unlink(missing_ok=True)
 
+    def delete_staging(self, file_id: UUID) -> None:
+        self._key_path(self.staging_key(file_id)).unlink(missing_ok=True)
+
     def _key_path(self, key: str) -> Path:
         candidate = Path(key)
         if candidate.is_absolute() or any(part in {"..", ""} for part in candidate.parts):

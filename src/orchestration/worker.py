@@ -894,6 +894,22 @@ async def start_worker(config: AppConfig) -> None:
     sandbox_cleanup_task = asyncio.create_task(
         _run_sandbox_cleanup_loop(deps.sandbox_manager, interval=300)
     )
+    file_cleanup_task = None
+    if deps.run_file_workspace is not None:
+        from web_domain.file_cleanup import FileCleanupService
+
+        cleanup_interval = int(os.getenv("FILE_CLEANUP_INTERVAL_SECONDS", "300"))
+        if cleanup_interval <= 0:
+            raise RuntimeError("FILE_CLEANUP_INTERVAL_SECONDS must be positive")
+        file_cleanup_task = asyncio.create_task(
+            _run_file_cleanup_loop(
+                FileCleanupService(
+                    deps.run_file_workspace.database,
+                    deps.run_file_workspace.store,
+                ),
+                interval=cleanup_interval,
+            )
+        )
     web_dispatcher_task = None
     web_reconciler_task = None
     web_outbox_recovery_task = None
@@ -954,6 +970,7 @@ async def start_worker(config: AppConfig) -> None:
         await _shutdown_worker_resources(
             active_channels=active_channels,
             sandbox_cleanup_task=sandbox_cleanup_task,
+            file_cleanup_task=file_cleanup_task,
             scheduler_task=scheduler_task,
             web_dispatcher_task=web_dispatcher_task,
             web_reconciler_task=web_reconciler_task,
@@ -970,6 +987,7 @@ async def _shutdown_worker_resources(
     *,
     active_channels,
     sandbox_cleanup_task,
+    file_cleanup_task,
     scheduler_task,
     web_dispatcher_task,
     web_reconciler_task,
@@ -996,6 +1014,13 @@ async def _shutdown_worker_resources(
         await sandbox_cleanup_task
     except asyncio.CancelledError:
         pass
+
+    if file_cleanup_task is not None:
+        file_cleanup_task.cancel()
+        try:
+            await file_cleanup_task
+        except asyncio.CancelledError:
+            pass
 
     if scheduler_task is not None:
         scheduler_task.cancel()
@@ -1074,6 +1099,26 @@ async def _run_sandbox_cleanup_loop(sandbox_manager, interval: int = 300) -> Non
             break
         except Exception as e:
             logger.warning("Sandbox cleanup error: %s", e)
+
+
+async def _run_file_cleanup_loop(service, interval: int = 300) -> None:
+    """Delete expired unbound objects without blocking the event loop."""
+    while True:
+        try:
+            result = await asyncio.to_thread(service.cleanup_once)
+            if result.claimed:
+                logger.info(
+                    "File cleanup: claimed=%d deleted=%d failed=%d",
+                    result.claimed,
+                    result.deleted,
+                    result.failed,
+                )
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("File cleanup iteration failed")
+            await asyncio.sleep(interval)
 
 
 async def _run_web_dispatcher_loop(dispatcher, idle_seconds: float = 0.25) -> None:

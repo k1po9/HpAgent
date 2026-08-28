@@ -202,13 +202,14 @@ class FileRepository:
         self, uow: UnitOfWork, file_id: UUID, account_id: UUID,
         conversation_id: UUID, original_name: str, display_name: str,
         declared_size: int, content_type: str, declared_sha256: str | None,
+        expires_at: datetime,
     ) -> None:
         uow.execute(
             "INSERT INTO stored_files(file_id,account_id,conversation_id,purpose,status,"
-            "original_name,display_name,content_type,size_bytes,declared_sha256) "
-            "VALUES (%s,%s,%s,'input','uploading',%s,%s,%s,%s,%s)",
+            "original_name,display_name,content_type,size_bytes,declared_sha256,expires_at) "
+            "VALUES (%s,%s,%s,'input','uploading',%s,%s,%s,%s,%s,%s)",
             (file_id, account_id, conversation_id, original_name, display_name,
-             content_type, declared_size, declared_sha256),
+             content_type, declared_size, declared_sha256, expires_at),
         )
 
     def get_for_account(
@@ -222,13 +223,13 @@ class FileRepository:
 
     def mark_ready(
         self, uow: UnitOfWork, account_id: UUID, file_id: UUID, storage_key: str,
-        size_bytes: int, sha256: str, encoding: str,
+        size_bytes: int, sha256: str, encoding: str, expires_at: datetime,
     ) -> bool:
         return uow.execute(
             "UPDATE stored_files SET status='ready',storage_key=%s,size_bytes=%s,sha256=%s,"
-            "encoding=%s,content_type='text/plain',ready_at=now() "
+            "encoding=%s,content_type='text/plain',ready_at=now(),expires_at=%s "
             "WHERE account_id=%s AND file_id=%s AND status='uploading' RETURNING file_id",
-            (storage_key, size_bytes, sha256, encoding, account_id, file_id),
+            (storage_key, size_bytes, sha256, encoding, expires_at, account_id, file_id),
         ).fetchone() is not None
 
     def mark_rejected(
@@ -256,7 +257,7 @@ class FileRepository:
             return "bound"
         if row["status"] != "deleted":
             uow.execute(
-                "UPDATE stored_files SET status='deleted',deleted_at=now() "
+                "UPDATE stored_files SET status='deleted',deleted_at=now(),expires_at=now() "
                 "WHERE account_id=%s AND file_id=%s",
                 (account_id, file_id),
             )
@@ -280,6 +281,12 @@ class FileRepository:
         message_id: UUID, run_id: UUID, files: list[dict[str, Any]],
     ) -> None:
         used_names: set[str] = set()
+        if files:
+            uow.execute(
+                "UPDATE stored_files SET expires_at=NULL WHERE account_id=%s "
+                "AND conversation_id=%s AND file_id=ANY(%s)",
+                (account_id, conversation_id, [file["file_id"] for file in files]),
+            )
         for ordinal, file in enumerate(files):
             logical_name = self._unique_logical_name(str(file["display_name"]), used_names)
             uow.execute(

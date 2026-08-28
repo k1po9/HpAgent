@@ -11,7 +11,9 @@
   Message 角色约束和幂等用量主键。
 - FILE-P0-02（基础部分）：新增独立 `TenantFileStore`，使用服务端生成 key、
   `.part`、流式大小/哈希/UTF-8/NUL 校验、`fsync`、原子发布与 0600/0700
-  权限，并已接入上传/下载生命周期。orphan 清理任务尚未实现。
+  权限，并已接入上传/下载生命周期。uploading 与未绑定 ready 文件冻结 TTL；
+  Worker 周期清理使用 `FOR UPDATE SKIP LOCKED`、绑定反查和可重试的物理删除，
+  已绑定输入清除 expiry。真实 PostgreSQL 并发/崩溃测试仍待测试数据库执行。
 - FILE-P0-03：已实现创建上传、流式 PUT、查询、逻辑删除、安全下载、窄化的
   octet-stream 协议例外、硬请求上限、CSRF、幂等创建和 opaque ownership 查询。
   真实 PostgreSQL ACL/故障注入测试仍待具备测试数据库后执行。
@@ -58,7 +60,7 @@
 - `transform/publish` Durable 写工具；旧通用文件工具不得获得 inputs 的写能力。
 - Legacy Web 单 Activity 的模型/工具预算，以及普通 decision 直接结束时的最终
   回答预留提升。
-- BudgetCheck Trace、文件/预算指标、orphan 清理、部署独立挂载与 API 只读权限。
+- BudgetCheck Trace、文件/预算指标、部署独立挂载与 API 只读权限。
 - 前端上传状态机、Composer、SSE phase、output 卡片和下载闭环。
 - 真实 PostgreSQL migration/权限/并发测试、资源基准、故障注入和完整 E2E。
 

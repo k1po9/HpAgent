@@ -26,3 +26,12 @@ def test_upload_contract_retains_declared_digest_separately() -> None:
     assert "^[0-9a-f]{64}$" in migration
     assert "tr_stored_files__api_input_only" in migration
     assert "REVOKE UPDATE ON run_budgets FROM hpagent_api" in migration
+
+
+def test_orphan_cleanup_index_includes_unbound_ready_files() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "persistence/migrations/019_file_orphan_cleanup.sql"
+    ).read_text()
+    assert "DROP INDEX IF EXISTS ix_stored_files__cleanup" in migration
+    assert "('uploading','ready','rejected','deleted')" in migration
