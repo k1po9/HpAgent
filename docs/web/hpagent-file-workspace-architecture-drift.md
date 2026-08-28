@@ -37,15 +37,18 @@
   budget snapshot 后按 `(run_id,operation_id,dimension)` 幂等 reserve/settle/release，
   enforce 模式保留最终回答 token，observe 模式记录越界；Durable 工具路径已接入。
   模型客户端已把 Anthropic/OpenAI usage 统一为 `input_tokens`、`output_tokens`、
-  `total_tokens`、`usage_source`，缺失时使用统一估算。所有模型调用路径、provider
-  fallback 分尝试记账和最终回答预留的实际消费尚未完成。
+  `total_tokens`、`usage_source`，缺失时使用统一估算。Durable decision、规划、
+  评估、HyDE 和工具摘要通过 task-local scope 接入；provider fallback 每次尝试
+  独立记账，显式 `final_only` 生成可消费最终回答预留。Legacy Web 单 Activity
+  路径和普通 decision 直接成为最终答复时的预留提升尚未完成。
 
 仍为上线阻断项：
 
 - `transform/publish` Durable 写工具；旧通用文件工具不得获得 inputs 的写能力。
 - `inspect_file`、`search_file`、`count_matches`、`text_stats`、
   `transform_file`、`publish_output`。
-- 模型/规划/摘要/HyDE/fallback 的 RunBudget 接线和最终回答预留实际消费。
+- Legacy Web 单 Activity 的模型/工具预算，以及普通 decision 直接结束时的最终
+  回答预留提升。
 - 文件/预算 Trace allowlist、指标、清理任务、部署独立挂载和启动断言。
 - 前端上传状态机、Composer、SSE phase、output 卡片和下载闭环。
 - 真实 PostgreSQL migration/权限/并发测试、资源基准、故障注入和完整 E2E。

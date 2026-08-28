@@ -10,12 +10,16 @@ ResourcePool —— 模型调用池，实现 IResources 接口。
   - generate(model_selector="default") 时先尝试 anthropic:claude，
     失败自动切换到 openai:gpt4。
 """
+import asyncio
 import logging
 import time
 from typing import Any, Dict, List, Optional
 
+from agent_execution.model_budget_context import current_model_budget
 from common.errors import ModelAPIError
 from common.interfaces import IResources
+from common.model_usage import canonical_model_usage
+from common.token_counter import estimate_messages_tokens
 
 from .credentials import CredentialManager
 from .model_client import ModelClient
@@ -136,6 +140,7 @@ class ResourcePool(IResources):
         last_error = None
         chain_start = time.monotonic()
         attempt = 0
+        budget_context = current_model_budget()
 
         for model_id in candidate_ids:
             attempt += 1
@@ -144,6 +149,36 @@ class ResourcePool(IResources):
                 continue
             client = model_info["client"]
             t0 = time.monotonic()
+            budget_operation_id = ""
+            reservation: dict[str, int] | None = None
+            should_settle = False
+            if budget_context is not None and budget_context.service is not None:
+                budget_operation_id = budget_context.next_operation_id(
+                    attempt, model_id
+                )
+                input_tokens = estimate_messages_tokens(messages)
+                output_tokens = int(
+                    max_tokens
+                    if max_tokens is not None
+                    else getattr(client, "_max_tokens", 2048)
+                )
+                reservation = {
+                    "model_input_tokens": input_tokens,
+                    "model_output_tokens": max(0, output_tokens),
+                    "model_total_tokens": input_tokens + max(0, output_tokens),
+                    "model_calls": 1,
+                }
+                mutation = await asyncio.to_thread(
+                    budget_context.service.reserve,
+                    budget_context.run_id,
+                    budget_operation_id,
+                    reservation,
+                    final_response=budget_context.final_response,
+                )
+                should_settle = not (
+                    getattr(mutation, "replayed", False)
+                    and getattr(mutation, "state", "") in {"settled", "released"}
+                )
             try:
                 result = await client.generate(
                     messages=messages, tools=tools, stream=stream,
@@ -151,6 +186,25 @@ class ResourcePool(IResources):
                 )
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 elapsed_s = (time.monotonic() - t0)
+                if should_settle and reservation is not None:
+                    usage = canonical_model_usage(
+                        getattr(result, "usage", None),
+                        messages=messages,
+                        output_text=getattr(result, "content", None),
+                    )
+                    await asyncio.to_thread(
+                        budget_context.service.settle,
+                        budget_context.run_id,
+                        budget_operation_id,
+                        {
+                            "model_input_tokens": int(usage["input_tokens"]),
+                            "model_output_tokens": int(usage["output_tokens"]),
+                            "model_total_tokens": int(usage["total_tokens"]),
+                            "model_calls": 1,
+                        },
+                        str(usage["usage_source"]),
+                    )
+                    should_settle = False
 
                 # 延迟预算回退：若当前模型响应慢但后面还有候选，主动超时触发 fallback
                 if latency_budget and elapsed_s > latency_budget:
@@ -182,6 +236,15 @@ class ResourcePool(IResources):
                     pass
                 return result
             except (ModelAPIError, ConnectionError, TimeoutError) as e:
+                if should_settle and reservation is not None:
+                    await asyncio.to_thread(
+                        budget_context.service.settle,
+                        budget_context.run_id,
+                        budget_operation_id,
+                        reservation,
+                        "estimated",
+                    )
+                    should_settle = False
                 elapsed = (time.monotonic() - t0) * 1000
                 chain_elapsed = (time.monotonic() - chain_start) * 1000
                 logger.warning(
@@ -193,6 +256,12 @@ class ResourcePool(IResources):
                 last_error = e
                 continue
             except Exception:
+                if should_settle and reservation is not None:
+                    await asyncio.to_thread(
+                        budget_context.service.release,
+                        budget_context.run_id,
+                        budget_operation_id,
+                    )
                 # 不可恢复错误 → 直接抛出
                 raise
 

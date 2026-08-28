@@ -16,6 +16,7 @@ from temporalio.exceptions import ApplicationError
 
 from agent.protocol import ActionRequest
 from agent_execution.facade import StableExecutionFailure
+from agent_execution.model_budget_context import model_budget_scope
 from agent_execution.run_budget import RunBudgetExhausted
 from agent_execution.tracing import (
     model_observation_metadata,
@@ -276,11 +277,15 @@ class DurableAgentActivities:
                     {"model_selector": "fast"},
                 )
                 try:
-                    recall_query, rewrite_context = await self.brain.rewrite_recall_query(
-                        user_content=loaded.user_content,
-                        group_context_text=loaded.group_context_text,
-                        sender_name=loaded.sender_name,
-                    )
+                    with model_budget_scope(
+                        self.run_budget, request.run_id,
+                        f"{request.operation_id}:memory-rewrite",
+                    ):
+                        recall_query, rewrite_context = await self.brain.rewrite_recall_query(
+                            user_content=loaded.user_content,
+                            group_context_text=loaded.group_context_text,
+                            sender_name=loaded.sender_name,
+                        )
                 except Exception as exc:
                     await trace_end(
                         events,
@@ -455,18 +460,22 @@ class DurableAgentActivities:
                 await events.progress("calling_model", "正在生成回复。")
             async with self._workspace(request):
                 self.actions.reset_turn(request.session_id, request.run_id)
-                if request.final_only:
-                    decision = await self.brain.generate_final_decision(messages=model_messages)
-                else:
-                    tools = await self.actions.select_tools(
-                        user_content=request.objective or self._last_user_content(model_messages),
-                        session_id=request.session_id,
-                        execution_id=request.run_id,
-                    )
-                    decision = await self.brain.generate_chat_decision(
-                        messages=model_messages,
-                        tools=tools or None,
-                    )
+                with model_budget_scope(
+                    self.run_budget, request.run_id, request.operation_id,
+                    final_response=request.final_only,
+                ):
+                    if request.final_only:
+                        decision = await self.brain.generate_final_decision(messages=model_messages)
+                    else:
+                        tools = await self.actions.select_tools(
+                            user_content=request.objective or self._last_user_content(model_messages),
+                            session_id=request.session_id,
+                            execution_id=request.run_id,
+                        )
+                        decision = await self.brain.generate_chat_decision(
+                            messages=model_messages,
+                            tools=tools or None,
+                        )
             result_ref = f"agent-decision:{request.operation_id}"
             calls = tuple(
                 CompactToolCall(item.id, item.name, f"{result_ref}#{item.id}")
@@ -528,6 +537,14 @@ class DurableAgentActivities:
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
             raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
         except Exception as exc:
+            if isinstance(exc, RunBudgetExhausted):
+                trace_metadata = {"error_code": exc.code}
+                await asyncio.to_thread(
+                    self.store.fail_operation, request.operation_id, exc.code
+                )
+                raise ApplicationError(
+                    "Run 执行预算已耗尽。", type=exc.code, non_retryable=True
+                ) from exc
             trace_metadata = {
                 "error_code": getattr(exc, "type", None) or "model_unavailable"
             }
@@ -739,13 +756,17 @@ class DurableAgentActivities:
                                 non_retryable=True,
                             ) from exc
                     try:
-                        result_value = await self.actions.execute_request(
-                            action,
-                            session_id=request.session_id,
-                            execution_id=request.run_id,
-                            user_query="",
-                            idempotency_key=request.operation_id,
-                        )
+                        with model_budget_scope(
+                            self.run_budget, request.run_id,
+                            f"{request.operation_id}:tool-summary",
+                        ):
+                            result_value = await self.actions.execute_request(
+                                action,
+                                session_id=request.session_id,
+                                execution_id=request.run_id,
+                                user_query="",
+                                idempotency_key=request.operation_id,
+                            )
                     except BaseException:
                         if self.run_budget is not None:
                             await asyncio.to_thread(
@@ -985,7 +1006,12 @@ class DurableAgentActivities:
             }
             position = 1 if planning_messages and planning_messages[0].get("role") == "system" else 0
             planning_messages.insert(position, planning_instruction)
-            decision = await self.brain.generate_final_decision(messages=planning_messages)
+            with model_budget_scope(
+                self.run_budget, request.run_id, request.operation_id
+            ):
+                decision = await self.brain.generate_final_decision(
+                    messages=planning_messages
+                )
             raw_steps = self._parse_plan(
                 decision.content, self._last_user_content(messages)
             )
@@ -1031,16 +1057,25 @@ class DurableAgentActivities:
                 version,
             )
         except Exception as exc:
-            await asyncio.to_thread(self.store.fail_operation, request.operation_id, "planning_failed")
+            failure_code = (
+                exc.code if isinstance(exc, RunBudgetExhausted) else "planning_failed"
+            )
+            await asyncio.to_thread(
+                self.store.fail_operation, request.operation_id, failure_code
+            )
             await trace_end(
                 events,
                 model_node_id,
                 "failed",
-                {"error_code": getattr(exc, "type", None) or "planning_failed"},
+                {"error_code": getattr(exc, "type", None) or failure_code},
             )
             await events.close()
             if isinstance(exc, ApplicationError):
                 raise
+            if isinstance(exc, RunBudgetExhausted):
+                raise ApplicationError(
+                    "Run 执行预算已耗尽。", type=exc.code, non_retryable=True
+                ) from exc
             raise ApplicationError("计划生成失败。", type="planning_failed") from exc
         log_event(
             plan_logger,
@@ -1143,9 +1178,12 @@ class DurableAgentActivities:
             },
         )
         try:
-            model_result = await self.brain.generate_final_decision(
-                messages=evaluation_messages
-            )
+            with model_budget_scope(
+                self.run_budget, request.run_id, request.operation_id
+            ):
+                model_result = await self.brain.generate_final_decision(
+                    messages=evaluation_messages
+                )
         except Exception as exc:
             await trace_end(
                 events,
@@ -1154,6 +1192,10 @@ class DurableAgentActivities:
                 {"error_code": getattr(exc, "type", None) or "model_unavailable"},
             )
             await events.close()
+            if isinstance(exc, RunBudgetExhausted):
+                raise ApplicationError(
+                    "Run 执行预算已耗尽。", type=exc.code, non_retryable=True
+                ) from exc
             raise
         await trace_end(
             events,
