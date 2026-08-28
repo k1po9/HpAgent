@@ -264,6 +264,18 @@ class ToolRegistry:
                             usage[dimension] = max(0, amount)
                     if usage:
                         metadata["budget_usage"] = usage
+                    trace_fields = (getattr(tool, "metadata", None) or {}).get(
+                        "trace_json_fields"
+                    )
+                    if isinstance(trace_fields, dict):
+                        trace_metadata = {
+                            target: payload[source]
+                            for source, target in trace_fields.items()
+                            if isinstance(target, str)
+                            and isinstance(payload.get(source), (bool, int, float, str))
+                        }
+                        if trace_metadata:
+                            metadata["trace_metadata"] = trace_metadata
             return ToolResult(success=True, output=output, metadata=metadata)
         except Exception as e:
             return ToolResult(success=False, error=str(e))

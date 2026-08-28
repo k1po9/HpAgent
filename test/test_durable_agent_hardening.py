@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -132,7 +133,10 @@ class Actions:
         return ActionResult(
             request=request,
             output="ok",
-            metadata={"budget_usage": {"bytes_scanned": 17}},
+            metadata={
+                "budget_usage": {"bytes_scanned": 17},
+                "trace_metadata": {"count": 2},
+            },
             error=self.error,
             raw={"output": "ok", "error": self.error},
         )
@@ -207,6 +211,48 @@ async def test_tool_activity_reserves_and_settles_measured_usage_once():
             {"tool_calls": 1, "bytes_scanned": 17}, "measured",
         ),
     ]
+
+
+@pytest.mark.asyncio
+async def test_file_tool_activity_projects_only_aggregate_trace_metadata():
+    recorded: list[tuple] = []
+
+    class TraceEvents(Events):
+        async def trace_start(
+            self, node_id, parent_id, name, node_type, metadata=None
+        ):
+            recorded.append(("start", name, metadata))
+
+        async def trace_end(self, node_id, status, metadata=None):
+            recorded.append(("end", status, metadata))
+
+    class TraceFactory:
+        def for_run(self, run_id):
+            return TraceEvents()
+
+    item = request()
+    item = replace(
+        item,
+        tool_call=CompactToolCall(
+            "call-1", "count_matches", "decision:1#call-1"
+        ),
+    )
+    runtime = DurableAgentActivities(
+        store=Store(ToolOperationState("started", None)),
+        loader=None,
+        brain=None,
+        actions=Actions("read_only"),
+        event_factory=TraceFactory(),
+        resource_prep=ResourcePrep(),
+        lifecycle=None,
+    )
+
+    await runtime.tool_execution(item)
+
+    assert ("start", "FileCount", {}) in recorded
+    assert (
+        "end", "completed", {"scanned_bytes": 17, "returned_bytes": 0, "count": 2}
+    ) in recorded
 
 
 @pytest.mark.asyncio

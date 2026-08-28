@@ -601,6 +601,31 @@ class DurableAgentActivities:
             await events.close()
             return result
         heartbeat_task: asyncio.Task[None] | None = None
+        file_node_name = {
+            "inspect_file": "FileInspect",
+            "search_file": "FileSearch",
+            "count_matches": "FileCount",
+            "text_stats": "FileInspect",
+        }.get(request.tool_call.name)
+        file_node_id = (
+            trace_node_id(request.run_id, "file_tool", request.operation_id)
+            if file_node_name
+            else None
+        )
+        file_trace_metadata: dict[str, Any] = (
+            {"query_mode": "literal"}
+            if file_node_name == "FileSearch"
+            else {}
+        )
+        if file_node_id is not None and file_node_name is not None:
+            await trace_start(
+                events,
+                file_node_id,
+                tool_node_id,
+                file_node_name,
+                "file",
+                dict(file_trace_metadata),
+            )
         side_effect_class = "unknown"
         persisted_side_effect_class = normalize_side_effect_class(
             str((operation.result_payload or {}).get("side_effect_class", "unknown"))
@@ -793,6 +818,17 @@ class DurableAgentActivities:
                             measured,
                             "measured",
                         )
+                    budget_usage = (result_value.metadata or {}).get("budget_usage")
+                    if isinstance(budget_usage, dict):
+                        file_trace_metadata.update({
+                            "scanned_bytes": budget_usage.get("bytes_scanned", 0),
+                            "returned_bytes": budget_usage.get(
+                                "bytes_returned_to_model", 0
+                            ),
+                        })
+                    result_trace = (result_value.metadata or {}).get("trace_metadata")
+                    if isinstance(result_trace, dict):
+                        file_trace_metadata.update(result_trace)
                     if (
                         side_effect_class == "non_idempotent_write"
                         and result_value.error is not None
@@ -915,6 +951,10 @@ class DurableAgentActivities:
                 heartbeat_task.cancel()
                 await asyncio.gather(heartbeat_task, return_exceptions=True)
             self.actions.clear_execution(request.session_id, request.run_id)
+            if file_node_id is not None:
+                await trace_end(
+                    events, file_node_id, trace_status, file_trace_metadata
+                )
             await trace_end(events, tool_node_id, trace_status, trace_metadata)
             await events.close()
         log_event(

@@ -17,6 +17,7 @@ from agent_execution.tracing import (
     TraceRun,
     TraceTree,
     model_observation_metadata,
+    sanitize_trace_metadata,
     trace_node_id,
 )
 from agent_execution.tracing.sink import TraceEventSink, TracingWebEventSinkFactory
@@ -75,7 +76,55 @@ async def test_trace_sink_persists_and_projects_start_and_end_events(monkeypatch
         "trace.event",
     ]
     assert published[1]["payload"]["action"] == "start"
+    assert published[1]["payload"]["metadata"] == {"schema_version": 1}
     assert published[2]["payload"]["duration_ms"] == 42
+    assert published[2]["payload"]["metadata"] == {"schema_version": 1}
+
+
+def test_trace_metadata_drops_file_content_paths_and_queries() -> None:
+    safe = sanitize_trace_metadata("FileSearch", {
+        "query": "customer-secret-canary",
+        "path": "/tenant/private/customer.log",
+        "matches": ["customer-secret-canary"],
+        "query_mode": "literal",
+        "match_count": 2,
+        "scanned_bytes": 100,
+        "returned_bytes": 20,
+        "truncated": False,
+    })
+
+    assert safe == {
+        "schema_version": 1,
+        "query_mode": "literal",
+        "match_count": 2,
+        "scanned_bytes": 100,
+        "returned_bytes": 20,
+        "truncated": False,
+    }
+    assert "customer-secret-canary" not in json.dumps(safe)
+
+
+def test_trace_metadata_bounds_strings_and_nested_usage() -> None:
+    safe = sanitize_trace_metadata("LLMCall", {
+        "model": "m" * 10_000,
+        "token_usage": {
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "total_tokens": 14,
+            "usage_source": "provider",
+            "raw_prompt": "secret",
+        },
+        "prompt": "secret",
+    })
+
+    assert len(safe["model"]) == 256
+    assert safe["token_usage"] == {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "total_tokens": 14,
+        "usage_source": "provider",
+    }
+    assert len(json.dumps(safe).encode()) <= 4096
 
 
 @pytest.mark.asyncio

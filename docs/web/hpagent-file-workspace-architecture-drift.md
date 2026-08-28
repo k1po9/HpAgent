@@ -41,6 +41,11 @@
   评估、HyDE 和工具摘要通过 task-local scope 接入；provider fallback 每次尝试
   独立记账，显式 `final_only` 生成可消费最终回答预留。Legacy Web 单 Activity
   路径和普通 decision 直接成为最终答复时的预留提升尚未完成。
+- FILE-P0-07（Trace 安全基础）：持久化和在线 Trace 投影共享按节点 metadata
+  allowlist、schema version、字符串上限与 4096-byte 硬上限；未知字段、文件名、
+  路径、query、匹配正文和 prompt 均不进入 Trace。历史树服务端最多读取 1000
+  节点。结构化文件工具新增 `FileInspect`/`FileSearch`/`FileCount` 子节点，只投影
+  扫描/返回字节、截断和聚合计数。BudgetCheck 节点、指标和分页 cursor 尚未实现。
 
 仍为上线阻断项：
 
@@ -49,7 +54,7 @@
   `transform_file`、`publish_output`。
 - Legacy Web 单 Activity 的模型/工具预算，以及普通 decision 直接结束时的最终
   回答预留提升。
-- 文件/预算 Trace allowlist、指标、清理任务、部署独立挂载和启动断言。
+- BudgetCheck Trace、文件/预算指标、清理任务、部署独立挂载和启动断言。
 - 前端上传状态机、Composer、SSE phase、output 卡片和下载闭环。
 - 真实 PostgreSQL migration/权限/并发测试、资源基准、故障注入和完整 E2E。
 

@@ -131,6 +131,7 @@ async def test_web_sandbox_registers_file_tools_against_active_run_only(
         "bytes_scanned": len(b"ERROR\n"),
         "bytes_returned_to_model": len(result.output.encode()),
     }
+    assert result.metadata["trace_metadata"] == {"count": 1}
     manager.unbind_run_file_scope("run-1")
     failed, _audit = await sandbox.execute("inspect_file", {"file": "service.log"})
     assert failed.success is False

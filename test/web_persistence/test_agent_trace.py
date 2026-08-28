@@ -37,9 +37,9 @@ def test_trace_repository_builds_owned_tree(database_url, worker_database_url, a
     assert tree.roots[0].event.name == "AgentExecution"
     assert tree.roots[0].children[0].event.name == "LLMCall"
     assert tree.roots[0].children[0].event.metadata == {
-        "attempt": 2,
+        "schema_version": 1,
         "model": "test",
-        "tokens": 12,
+        "error_code": "retryable",
     }
     assert tree.roots[0].children[1].event.status == "completed"
     assert repository.get_trace_tree(uuid4(), run_id) is None

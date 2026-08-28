@@ -10,6 +10,7 @@ from uuid6 import uuid7
 
 from persistence.uow import UnitOfWork, retryable_transaction
 
+from .metadata import sanitize_trace_metadata, sanitize_trace_run_metadata
 from .models import TraceEvent, TraceEventNode, TraceRun, TraceTree
 
 _TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
@@ -18,8 +19,11 @@ _TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
 class PostgresTraceRepository:
     """Short, idempotent transactions for the non-authoritative trace projection."""
 
-    def __init__(self, database: object):
+    def __init__(self, database: object, *, max_events: int = 1000):
+        if max_events < 1 or max_events > 10_000:
+            raise ValueError("trace max_events must be between 1 and 10000")
         self.database = database
+        self.max_events = max_events
 
     @retryable_transaction
     def create_trace_run(
@@ -32,7 +36,7 @@ class PostgresTraceRepository:
                 "strategy,metadata) SELECT %s,r.run_id,r.account_id,r.conversation_id,"
                 "r.agent_strategy,%s FROM runs r WHERE r.run_id=%s "
                 "ON CONFLICT (run_id) DO NOTHING RETURNING *",
-                (uuid7(), Jsonb(dict(metadata or {})), run_id),
+                (uuid7(), Jsonb(sanitize_trace_run_metadata(metadata)), run_id),
             ).fetchone()
             if row is None:
                 row = uow.execute(
@@ -67,7 +71,7 @@ class PostgresTraceRepository:
                     parent_event_id,
                     name,
                     event_type,
-                    Jsonb(dict(metadata or {})),
+                    Jsonb(sanitize_trace_metadata(name, metadata)),
                 ),
             ).fetchone()
             if row is None:
@@ -90,13 +94,22 @@ class PostgresTraceRepository:
         if status not in _TERMINAL_STATUSES:
             raise ValueError(f"unsupported terminal trace status: {status}")
         with UnitOfWork(self.database) as uow:
+            event_name = uow.execute(
+                "SELECT e.name FROM trace_events e JOIN trace_runs r "
+                "ON r.trace_run_id=e.trace_run_id WHERE r.run_id=%s "
+                "AND e.trace_event_id=%s",
+                (run_id, event_id),
+            ).fetchone()
+            safe_metadata = sanitize_trace_metadata(
+                str(event_name["name"]) if event_name is not None else "", metadata
+            )
             row = uow.execute(
                 "UPDATE trace_events e SET status=%s,ended_at=COALESCE(e.ended_at,now()),"
                 "duration_ms=COALESCE(e.duration_ms,GREATEST(0,round(extract(epoch FROM "
                 "(now()-e.started_at))*1000)::bigint)),metadata=e.metadata || %s "
                 "FROM trace_runs r WHERE r.trace_run_id=e.trace_run_id AND r.run_id=%s "
                 "AND e.trace_event_id=%s AND e.status='running' RETURNING e.*",
-                (status, Jsonb(dict(metadata or {})), run_id, event_id),
+                (status, Jsonb(safe_metadata), run_id, event_id),
             ).fetchone()
             if row is None:
                 row = uow.execute(
@@ -118,7 +131,7 @@ class PostgresTraceRepository:
                 uow.execute(
                     "UPDATE trace_runs SET status=%s,ended_at=COALESCE(ended_at,now()),"
                     "metadata=metadata || %s WHERE run_id=%s AND status='running'",
-                    (status, Jsonb(dict(metadata or {})), run_id),
+                    (status, Jsonb(sanitize_trace_run_metadata(metadata)), run_id),
                 )
             return self._event(row)
 
@@ -133,8 +146,8 @@ class PostgresTraceRepository:
                 return None
             rows = uow.execute(
                 "SELECT * FROM trace_events WHERE trace_run_id=%s "
-                "ORDER BY started_at,trace_event_id",
-                (run_row["trace_run_id"],),
+                "ORDER BY started_at,trace_event_id LIMIT %s",
+                (run_row["trace_run_id"], self.max_events),
             ).fetchall()
         events = [self._event(row) for row in rows]
         children: dict[UUID | None, list[TraceEvent]] = defaultdict(list)

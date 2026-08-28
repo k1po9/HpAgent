@@ -132,6 +132,17 @@ def create_file_analysis_tools(
                 "returned_bytes": "bytes_returned_to_model",
             },
         }
+        if tool.name == "inspect_file":
+            tool.metadata["trace_json_fields"] = {"truncated": "truncated"}
+        elif tool.name == "search_file":
+            tool.metadata["trace_json_fields"] = {
+                "total_matches": "match_count",
+                "truncated": "truncated",
+            }
+        elif tool.name == "count_matches":
+            tool.metadata["trace_json_fields"] = {"count": "count"}
+        elif tool.name == "text_stats":
+            tool.metadata["trace_json_fields"] = {"truncated": "truncated"}
     return tools
 
 
