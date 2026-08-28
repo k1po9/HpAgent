@@ -56,7 +56,8 @@ from sandbox.sandbox_manager import SandboxManager
 from session.db import WorkspaceDB
 from storage.file_store import LocalFileStore
 from storage.tenant_file_store import TenantFileStore
-from workspace.file_scope import RunFileScopeUnavailable, RunFileWorkspace
+from workspace.file_capability_config import FileCapabilityConfig
+from workspace.file_scope import RunFileWorkspace
 from workspace.isolation import WorkspaceIsolationRuntime
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
@@ -630,32 +631,20 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     workspace_db = WorkspaceDB(config.workspace.db_path or str(workspace_root / "workspace.db"))
     logger.info("Workspace storage initialized: root=%s", workspace_root)
     run_file_workspace = None
-    if os.getenv("WEB_FILE_UPLOAD_ENABLED", "false").lower() == "true":
+    file_capability = FileCapabilityConfig.from_environment(
+        workspace_root, os.getenv("WORKER_DATABASE_URL")
+    )
+    if file_capability.upload_enabled:
         worker_database_url = os.getenv("WORKER_DATABASE_URL")
-        file_store_root = os.getenv("FILE_STORE_ROOT")
-        file_run_root = os.getenv("FILE_RUN_ROOT")
-        if not worker_database_url or not file_store_root or not file_run_root:
-            raise RuntimeError(
-                "file capability requires WORKER_DATABASE_URL, FILE_STORE_ROOT and FILE_RUN_ROOT"
-            )
-        object_root = Path(file_store_root).resolve()
-        execution_root = Path(file_run_root).resolve()
-        workspace_canonical = workspace_root.resolve()
-        if any(
-            root == workspace_canonical
-            or root.is_relative_to(workspace_canonical)
-            or workspace_canonical.is_relative_to(root)
-            for root in (object_root, execution_root)
-        ):
-            raise RunFileScopeUnavailable(
-                "file store and Run execution roots must not overlap Git workspace"
-            )
+        assert worker_database_url is not None
+        assert file_capability.store_root is not None
+        assert file_capability.run_root is not None
         tenant_store = TenantFileStore(
-            object_root,
-            max_bytes=int(os.getenv("FILE_MAX_BYTES", str(128 * 1024 * 1024))),
+            file_capability.store_root,
+            max_bytes=file_capability.max_bytes,
         )
         run_file_workspace = RunFileWorkspace(
-            worker_database_url, tenant_store, execution_root
+            worker_database_url, tenant_store, file_capability.run_root
         )
         logger.info("Run file workspace enabled with isolated object/execution roots")
 
@@ -678,7 +667,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         native_tools_enabled=config.sandbox.native_tools_enabled,
         nsjail_enabled=config.sandbox.nsjail_enabled,
         file_tools_enabled=(
-            os.getenv("WEB_FILE_UPLOAD_ENABLED", "false").lower() == "true"
+            file_capability.upload_enabled
         ),
     )
 

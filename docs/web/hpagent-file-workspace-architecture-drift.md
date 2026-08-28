@@ -46,15 +46,19 @@
   路径、query、匹配正文和 prompt 均不进入 Trace。历史树服务端最多读取 1000
   节点。结构化文件工具新增 `FileInspect`/`FileSearch`/`FileCount` 子节点，只投影
   扫描/返回字节、截断和聚合计数。BudgetCheck 节点、指标和分页 cursor 尚未实现。
+- FILE-P0-08（启动失败关闭基础）：Worker 使用严格布尔 Feature Flag 解析和统一
+  `FileCapabilityConfig`；启用上传时强制要求 Worker DB、file store、Run root，三者
+  与 Git Workspace 必须两两不重叠，生产根必须是绝对路径且预算必须 enforce。
+  transform/shell 不能脱离 upload，生产 Web host Bash 始终拒绝。API 同步执行能力
+  矩阵与生产预算校验。Compose 的 API/Worker 独立挂载和只读权限仍待处理（当前
+  工作区 `docker-compose.yaml` 有用户未提交改动，本阶段未覆盖）。
 
 仍为上线阻断项：
 
 - `transform/publish` Durable 写工具；旧通用文件工具不得获得 inputs 的写能力。
-- `inspect_file`、`search_file`、`count_matches`、`text_stats`、
-  `transform_file`、`publish_output`。
 - Legacy Web 单 Activity 的模型/工具预算，以及普通 decision 直接结束时的最终
   回答预留提升。
-- BudgetCheck Trace、文件/预算指标、清理任务、部署独立挂载和启动断言。
+- BudgetCheck Trace、文件/预算指标、orphan 清理、部署独立挂载与 API 只读权限。
 - 前端上传状态机、Composer、SSE phase、output 卡片和下载闭环。
 - 真实 PostgreSQL migration/权限/并发测试、资源基准、故障注入和完整 E2E。
 

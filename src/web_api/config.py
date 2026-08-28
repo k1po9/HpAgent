@@ -68,6 +68,16 @@ class WebApiSettings:
             raise ValueError("RUN_BUDGET_MODE must be off, observe, or enforce")
         if self.web_file_transform_enabled and not self.durable_agent_enabled:
             raise ValueError("file transforms require the Durable Agent")
+        if self.web_file_transform_enabled and not self.web_file_upload_enabled:
+            raise ValueError("file transforms require file uploads")
+        if self.web_file_shell_enabled and not self.web_file_upload_enabled:
+            raise ValueError("Web file shell requires file uploads")
+        if (
+            self.environment == "production"
+            and self.web_file_upload_enabled
+            and self.run_budget_mode != "enforce"
+        ):
+            raise ValueError("production file capability requires RUN_BUDGET_MODE=enforce")
         if self.environment == "production" and self.web_file_shell_enabled:
             raise ValueError("host Bash cannot be enabled for production Web file runs")
         if self.environment == "production":

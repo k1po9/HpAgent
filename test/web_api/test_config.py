@@ -54,9 +54,34 @@ def test_file_transform_requires_durable_agent():
         _settings(web_file_transform_enabled=True, durable_agent_enabled=False)
 
 
+def test_file_transform_and_shell_require_upload_capability():
+    with pytest.raises(ValueError, match="require file uploads"):
+        _settings(
+            web_file_transform_enabled=True,
+            durable_agent_enabled=True,
+            web_file_upload_enabled=False,
+        )
+    with pytest.raises(ValueError, match="requires file uploads"):
+        _settings(web_file_shell_enabled=True, web_file_upload_enabled=False)
+
+
+def test_production_upload_requires_enforced_run_budget():
+    with pytest.raises(ValueError, match="RUN_BUDGET_MODE=enforce"):
+        _settings(
+            environment="production",
+            web_file_upload_enabled=True,
+            run_budget_mode="observe",
+        )
+
+
 def test_production_rejects_web_file_shell():
     with pytest.raises(ValueError, match="host Bash"):
-        _settings(environment="production", web_file_shell_enabled=True)
+        _settings(
+            environment="production",
+            web_file_upload_enabled=True,
+            web_file_shell_enabled=True,
+            run_budget_mode="enforce",
+        )
 
 
 # ── Phase G G-02 §10.2：生产 WEB_PUBLIC_ORIGIN fail-closed ──
