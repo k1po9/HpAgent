@@ -157,11 +157,11 @@ CREATE CONSTRAINT TRIGGER ct_message_files__shape AFTER INSERT OR UPDATE ON mess
 ALTER TABLE idempotency_commands DROP CONSTRAINT ck_idempotency_commands__operation;
 ALTER TABLE idempotency_commands ADD CONSTRAINT ck_idempotency_commands__operation
   CHECK(operation IN ('create_conversation','send_message','cancel_run','retry_run',
-    'bind_identity','revoke_identity','create_upload','delete_file'));
+    'bind_identity','revoke_identity','create_artifact','create_artifact_version',
+    'create_upload','delete_file'));
 
 GRANT SELECT,INSERT,UPDATE ON stored_files,message_files,run_files,run_budgets,run_usage_ledger
   TO hpagent_api, hpagent_worker;
 REVOKE INSERT,UPDATE ON run_usage_ledger FROM hpagent_api;
 REVOKE INSERT,UPDATE ON stored_files FROM hpagent_api;
 GRANT INSERT,UPDATE ON stored_files TO hpagent_api;
-

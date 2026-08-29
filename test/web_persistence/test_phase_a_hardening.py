@@ -180,6 +180,8 @@ def test_trigger_old_new_paths_support_legal_insert_update_delete(
 
         connection.execute("DELETE FROM outbox_events WHERE run_id=%s", (run_id,))
         connection.execute("DELETE FROM messages WHERE produced_by_run_id=%s", (run_id,))
+        connection.execute("DELETE FROM run_usage_ledger WHERE run_id=%s", (run_id,))
+        connection.execute("DELETE FROM run_budgets WHERE run_id=%s", (run_id,))
         connection.execute("DELETE FROM runs WHERE run_id=%s", (run_id,))
         connection.commit()
 

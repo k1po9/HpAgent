@@ -15,6 +15,7 @@ def test_file_workspace_migration_has_required_tables_and_guards() -> None:
     assert "ct_message_files__shape" in migration
     assert "PRIMARY KEY(run_id,operation_id,dimension)" in migration
     assert "status='ready'" in migration
+    assert "'create_artifact','create_artifact_version'" in migration
 
 
 def test_upload_contract_retains_declared_digest_separately() -> None:
@@ -35,3 +36,14 @@ def test_orphan_cleanup_index_includes_unbound_ready_files() -> None:
     ).read_text()
     assert "DROP INDEX IF EXISTS ix_stored_files__cleanup" in migration
     assert "('uploading','ready','rejected','deleted')" in migration
+
+
+def test_file_operations_preserve_artifact_idempotency_operations() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "persistence/migrations/020_restore_artifact_idempotency_operations.sql"
+    ).read_text()
+    for operation in (
+        "create_artifact", "create_artifact_version", "create_upload", "delete_file",
+    ):
+        assert f"'{operation}'" in migration

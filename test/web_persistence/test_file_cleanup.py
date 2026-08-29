@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -35,8 +34,13 @@ def test_expired_crashed_upload_removes_staging_and_canonical_orphan(
     canonical.parent.mkdir(parents=True)
     canonical.write_bytes(b"crashed-after-publish")
     db.execute(
-        "UPDATE stored_files SET expires_at=%s WHERE file_id=%s",
-        (datetime.now(UTC) - timedelta(seconds=1), file_id),
+        """
+        UPDATE stored_files
+        SET created_at = created_at - interval '1 day',
+            expires_at = clock_timestamp() - interval '1 second'
+        WHERE file_id=%s
+        """,
+        (file_id,),
     )
 
     result = FileCleanupService(worker_database_url, store).cleanup_once()
@@ -73,8 +77,13 @@ async def test_bound_ready_file_is_never_claimed_by_ttl_cleanup(
         account_id, conversation_id, str(uuid4()), "analyze", file_ids=(file_id,)
     )
     db.execute(
-        "UPDATE stored_files SET expires_at=%s WHERE file_id=%s",
-        (datetime.now(UTC) - timedelta(seconds=1), file_id),
+        """
+        UPDATE stored_files
+        SET created_at = created_at - interval '1 day',
+            expires_at = clock_timestamp() - interval '1 second'
+        WHERE file_id=%s
+        """,
+        (file_id,),
     )
 
     result = FileCleanupService(worker_database_url, store).cleanup_once()
