@@ -294,6 +294,9 @@ services:
       context: .
       dockerfile: src/Dockerfile.migrate
 
+    # 固定标签使构建机导出的镜像可在另一台服务器被 Compose 直接复用。
+    image: ${HPAGENT_MIGRATE_IMAGE:-hpagent/hpagent-migrate:offline}
+
     environment:
       APP_DATABASE_URL: postgresql://hpagent_migrate:${HPAGENT_MIGRATE_PASSWORD:-hpagent_migrate}@app-postgres:5432/hpagent
 
@@ -342,6 +345,8 @@ services:
 
     build:
       context: ./src
+
+    image: ${HPAGENT_IMAGE:-hpagent/hpagent:offline}
 
     ports:
       - "127.0.0.1:8082:8082"
@@ -477,6 +482,8 @@ services:
     build:
       context: .
       dockerfile: src/Dockerfile.web-api
+
+    image: ${HPAGENT_API_IMAGE:-hpagent/hpagent-api:offline}
 
     environment:
       TZ: UTC
@@ -635,6 +642,8 @@ services:
 
     build:
       context: ./web
+
+    image: ${WEB_GATEWAY_IMAGE:-hpagent/web-gateway:offline}
 
     environment:
       TZ: UTC

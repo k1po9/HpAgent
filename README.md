@@ -67,6 +67,8 @@ docker compose --profile web up -d
 docker compose --profile web-prod up -d --build
 ```
 
+需要在无法访问 Docker Hub / GHCR 的服务器部署时，使用[离线镜像部署流程](docs/operations/docker-offline-deployment.md)。
+
 只启动 Agent：
 
 ```bash
