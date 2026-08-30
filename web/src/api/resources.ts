@@ -19,12 +19,14 @@ import type {
   HpArtifact,
   HpArtifactSummary,
   HpArtifactVersion,
+  HpFile,
 } from "./types";
 
 export interface SendMessageOptions {
   idempotencyKey: string;
   signal?: AbortSignal;
   agentStrategy?: AgentStrategy;
+  fileIds?: string[];
 }
 
 export class HpApi {
@@ -89,7 +91,7 @@ export class HpApi {
   async sendMessage(
     conversationId: string,
     content: string,
-    { idempotencyKey, signal, agentStrategy }: SendMessageOptions,
+    { idempotencyKey, signal, agentStrategy, fileIds }: SendMessageOptions,
   ): Promise<HpSendResult & { __idempotencyReplayed?: boolean }> {
     return this.client.request<HpSendResult>({
       method: "POST",
@@ -97,9 +99,46 @@ export class HpApi {
       body: {
         content,
         ...(agentStrategy ? { agent_strategy: agentStrategy } : {}),
+        ...(fileIds?.length ? { file_ids: fileIds } : {}),
       },
       idempotencyKey,
       signal,
+    });
+  }
+
+  async createUpload(
+    conversationId: string,
+    file: File,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<{ file: HpFile; content_url: string }> {
+    return this.client.request({
+      method: "POST",
+      path: `/api/v1/conversations/${conversationId}/uploads`,
+      body: {
+        file_name: file.name,
+        size_bytes: file.size,
+        content_type: file.type || "text/plain",
+      },
+      idempotencyKey,
+      signal,
+    });
+  }
+
+  async uploadContent(contentUrl: string, file: File, signal?: AbortSignal): Promise<HpFile> {
+    const result = await this.client.request<{ file: HpFile }>({
+      method: "PUT",
+      path: contentUrl,
+      rawBody: file,
+      signal,
+    });
+    return result.file;
+  }
+
+  async deleteFile(fileId: string): Promise<void> {
+    await this.client.request<void>({
+      method: "DELETE",
+      path: `/api/v1/files/${fileId}`,
     });
   }
 

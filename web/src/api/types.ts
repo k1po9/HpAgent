@@ -27,6 +27,21 @@ export type HpMessageStatus =
   | "failed"
   | "aborted";
 
+export type HpFileStatus = "uploading" | "ready" | "rejected" | "deleted";
+
+export interface HpFile {
+  file_id: string;
+  file_name: string;
+  purpose: "input" | "output";
+  status: HpFileStatus;
+  size_bytes: number | null;
+  content_type: string | null;
+  encoding: string | null;
+  sha256: string | null;
+  failure_code: string | null;
+  download_url: string | null;
+}
+
 export interface HpMessage {
   message_id: string;
   conversation_id: string;
@@ -38,6 +53,7 @@ export interface HpMessage {
   produced_by_run_id: string | null;
   created_at: string;
   completed_at: string | null;
+  files?: HpFile[];
 }
 
 export type HpRunStatus =

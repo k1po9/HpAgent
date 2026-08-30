@@ -31,6 +31,7 @@ export interface MeResponse {
     qq_self_service_binding?: boolean;
     durable_agent?: boolean;
     agent_strategies?: Array<"react" | "plan_and_execute">;
+    file_upload?: boolean;
   };
 }
 
@@ -44,9 +45,10 @@ export interface QqBindingChallenge {
 }
 
 export interface ApiRequestInit {
-  method: "GET" | "POST" | "PATCH" | "DELETE";
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   path: string;
   body?: unknown;
+  rawBody?: BodyInit;
   idempotencyKey?: string;
   signal?: AbortSignal;
   /** Extra headers (e.g. `If-Match` for conditional writes). */
@@ -165,7 +167,7 @@ export class ApiClient {
       method: init.method,
       credentials: "same-origin",
       headers: this.buildRequestHeaders(init),
-      body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+      body: this.requestBody(init),
       signal: init.signal,
     });
     return this.resolve<T>(response, init, 0);
@@ -184,10 +186,12 @@ export class ApiClient {
    * both must carry the SAME Idempotency-Key (the replay is the same intent).
    */
   private buildRequestHeaders(
-    init: Pick<ApiRequestInit, "body" | "headers" | "idempotencyKey">,
+    init: Pick<ApiRequestInit, "body" | "rawBody" | "headers" | "idempotencyKey">,
   ): Record<string, string> {
     const headers = this.mutationHeaders();
-    if (init.body !== undefined) {
+    if (init.rawBody !== undefined) {
+      headers["Content-Type"] = "application/octet-stream";
+    } else if (init.body !== undefined) {
       headers["Content-Type"] = "application/json";
     }
     if (init.idempotencyKey) {
@@ -197,6 +201,11 @@ export class ApiClient {
       headers[name] = value;
     }
     return headers;
+  }
+
+  private requestBody(init: Pick<ApiRequestInit, "body" | "rawBody">): BodyInit | undefined {
+    if (init.rawBody !== undefined) return init.rawBody;
+    return init.body !== undefined ? JSON.stringify(init.body) : undefined;
   }
 
   private async resolve<T>(
@@ -222,7 +231,7 @@ export class ApiClient {
           method: init.method,
           credentials: "same-origin",
           headers: this.buildRequestHeaders(init),
-          body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
+          body: this.requestBody(init),
           signal: init.signal,
         });
         return this.resolve<T>(retried, init, 1);

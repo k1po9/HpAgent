@@ -32,6 +32,7 @@ import {
   type AgentStrategy,
   type HpConversation,
   type HpMessage,
+  type HpFile,
   type HpRun,
   type HpRunStatus,
 } from "../api/types";
@@ -82,6 +83,18 @@ export interface WorkbenchDeps {
   onAuthExpired?: () => void;
 }
 
+export type UploadAttachmentStatus = "uploading" | "ready" | "failed";
+
+export interface UploadAttachment {
+  localId: string;
+  name: string;
+  size: number;
+  status: UploadAttachmentStatus;
+  fileId: string | null;
+  file: HpFile | null;
+  error: string | null;
+}
+
 export interface WorkbenchState {
   // Conversation list
   conversations: HpConversation[];
@@ -97,6 +110,7 @@ export interface WorkbenchState {
   hasMoreMessages: boolean;
   loadingMessages: boolean;
   loadingMoreMessages: boolean;
+  attachments: UploadAttachment[];
 
   // Active Run
   activeRun: HpRun | null;
@@ -120,6 +134,8 @@ export interface WorkbenchState {
   createConversation: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
+  addAttachments: (files: File[]) => Promise<void>;
+  removeAttachment: (localId: string) => Promise<void>;
   sendMessage: (content: string) => Promise<boolean>;
   setAgentStrategy: (strategy: AgentStrategy) => void;
   stopRun: () => Promise<void>;
@@ -397,6 +413,7 @@ export function createWorkbenchStore(
       hasMoreMessages: false,
       loadingMessages: false,
       loadingMoreMessages: false,
+      attachments: [],
       activeRun: null,
       activeRunError: null,
       activeRunProgress: null,
@@ -442,6 +459,7 @@ export function createWorkbenchStore(
             ],
             activeConversationId: conversation.conversation_id,
             messages: [],
+            attachments: [],
             messageCursor: null,
             hasMoreMessages: false,
             activeRun: null,
@@ -463,6 +481,7 @@ export function createWorkbenchStore(
         set((s) => ({
           activeConversationId: id,
           messages: [],
+          attachments: [],
           messageCursor: null,
           hasMoreMessages: true,
           activeRun: null,
@@ -521,6 +540,93 @@ export function createWorkbenchStore(
         }
       },
 
+      addAttachments: async (selectedFiles) => {
+        const conversationId = get().activeConversationId;
+        if (!conversationId || selectedFiles.length === 0) return;
+        const active = get().activeRun;
+        if (get().sending || (active && !isTerminalRunStatus(active.status))) return;
+
+        const available = Math.max(0, 10 - get().attachments.length);
+        const accepted = selectedFiles.slice(0, available);
+        if (accepted.length === 0) {
+          set({ error: "每条消息最多添加 10 个附件。" });
+          return;
+        }
+        if (accepted.length < selectedFiles.length) {
+          set({ error: "每条消息最多添加 10 个附件，多余文件未加入。" });
+        }
+
+        const queued = accepted.map<UploadAttachment>((file) => ({
+          localId: newIdempotencyKey(),
+          name: file.name,
+          size: file.size,
+          status: "uploading",
+          fileId: null,
+          file: null,
+          error: null,
+        }));
+        set((state) => ({ attachments: [...state.attachments, ...queued] }));
+
+        await Promise.all(
+          accepted.map(async (browserFile, index) => {
+            const attachment = queued[index];
+            if (!attachment) return;
+            try {
+              const created = await api.createUpload(
+                conversationId,
+                browserFile,
+                newIdempotencyKey(),
+              );
+              set((state) => ({
+                attachments: state.attachments.map((item) =>
+                  item.localId === attachment.localId
+                    ? { ...item, fileId: created.file.file_id }
+                    : item,
+                ),
+              }));
+              if (!get().attachments.some((item) => item.localId === attachment.localId)) {
+                await api.deleteFile(created.file.file_id);
+                return;
+              }
+              const uploaded = await api.uploadContent(created.content_url, browserFile);
+              set((state) => ({
+                attachments: state.attachments.map((item) =>
+                  item.localId === attachment.localId
+                    ? { ...item, status: "ready", fileId: uploaded.file_id, file: uploaded }
+                    : item,
+                ),
+              }));
+              if (!get().attachments.some((item) => item.localId === attachment.localId)) {
+                await api.deleteFile(uploaded.file_id);
+              }
+            } catch (err) {
+              set((state) => ({
+                attachments: state.attachments.map((item) =>
+                  item.localId === attachment.localId
+                    ? { ...item, status: "failed", error: messageErrorText(err) }
+                    : item,
+                ),
+              }));
+            }
+          }),
+        );
+      },
+
+      removeAttachment: async (localId) => {
+        const attachment = get().attachments.find((item) => item.localId === localId);
+        if (!attachment) return;
+        set((state) => ({
+          attachments: state.attachments.filter((item) => item.localId !== localId),
+        }));
+        if (attachment.fileId) {
+          try {
+            await api.deleteFile(attachment.fileId);
+          } catch (err) {
+            set({ error: messageErrorText(err) });
+          }
+        }
+      },
+
       sendMessage: async (content) => {
         const conversationId = get().activeConversationId;
         const trimmed = content.trim();
@@ -529,6 +635,11 @@ export function createWorkbenchStore(
         // re-enabled so a long conversation continues in place (E-07).
         const active = get().activeRun;
         if (get().sending || get().stopping || (active && !isTerminalRunStatus(active.status))) {
+          return false;
+        }
+        const attachments = get().attachments;
+        if (attachments.some((item) => item.status !== "ready" || !item.fileId)) {
+          set({ error: "请等待附件上传完成，或移除上传失败的附件。" });
           return false;
         }
 
@@ -552,6 +663,7 @@ export function createWorkbenchStore(
           const result = await api.sendMessage(conversationId, trimmed, {
             idempotencyKey,
             agentStrategy: get().agentStrategy,
+            fileIds: attachments.map((item) => item.fileId as string),
           });
           set((s) => ({
             sending: false,
@@ -565,6 +677,7 @@ export function createWorkbenchStore(
             activeRunError: null,
             activeRunProgress: null,
             degraded: false,
+            attachments: [],
             pollGeneration: s.pollGeneration + 1,
           }));
           startRunMonitor(result.run.run_id);

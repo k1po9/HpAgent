@@ -15,17 +15,24 @@ import {
   ThreadPrimitive,
   useAuiState,
 } from "@assistant-ui/react";
-import { Flex, Text } from "@radix-ui/themes";
+import { Flex, Spinner, Text } from "@radix-ui/themes";
+import { FileText, Paperclip, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { HpMessage, HpRun } from "../../api/types";
+import type { HpFile, HpMessage, HpRun } from "../../api/types";
 import { useHpThreadRuntime } from "./runtime";
 import { useArtifacts } from "../../store/artifacts";
+import type { UploadAttachment } from "../../store/workbench";
 
 export interface HpThreadProps {
   messages: HpMessage[];
   activeRun: HpRun | null;
-  onSend: (content: string) => void;
+  attachments: UploadAttachment[];
+  fileUploadEnabled: boolean;
+  sendDisabled: boolean;
+  onFilesSelected: (files: File[]) => void;
+  onRemoveAttachment: (localId: string) => void;
+  onSend: (content: string) => boolean | Promise<boolean>;
   onCancel: () => void;
 }
 
@@ -42,8 +49,9 @@ function HpTextPart({ text }: { text: string }) {
   );
 }
 
-function HpMessageView() {
+function HpMessageView({ filesByMessageId }: { filesByMessageId: Record<string, HpFile[]> }) {
   const message = useAuiState((s) => s.message);
+  const files = filesByMessageId[message.id] ?? [];
   const artifacts = useArtifacts((s) => s.artifactsByMessageId[message.id]);
   const loading = useArtifacts((s) => s.loadingMessageIds.includes(message.id));
   const loadForMessage = useArtifacts((s) => s.loadForMessage);
@@ -68,6 +76,21 @@ function HpMessageView() {
         <span className="hp-msg__marker hp-msg__marker--assistant" aria-hidden="true" />
       </MessagePrimitive.If>
       <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
+      {files.length ? (
+        <div className="hp-msg__files" aria-label="消息附件">
+          {files.map((file) => (
+            <a
+              className="hp-msg__file"
+              href={file.download_url ?? undefined}
+              aria-disabled={!file.download_url}
+              key={file.file_id}
+            >
+              <FileText size={14} aria-hidden="true" />
+              <span>{file.file_name}</span>
+            </a>
+          ))}
+        </div>
+      ) : null}
       {canBuild ? (
         <div className="hp-artifact-actions">
           <button type="button" disabled={loading} onClick={() => void primaryAction()}>
@@ -84,8 +107,21 @@ function HpMessageView() {
   );
 }
 
-export function HpThread({ messages, activeRun, onSend, onCancel }: HpThreadProps) {
-  const runtime = useHpThreadRuntime({ messages, activeRun, onSend, onCancel });
+export function HpThread({
+  messages,
+  activeRun,
+  attachments,
+  fileUploadEnabled,
+  sendDisabled,
+  onFilesSelected,
+  onRemoveAttachment,
+  onSend,
+  onCancel,
+}: HpThreadProps) {
+  const runtime = useHpThreadRuntime({ messages, activeRun, sendDisabled, onSend, onCancel });
+  const filesByMessageId = Object.fromEntries(
+    messages.map((message) => [message.message_id, message.files ?? []]),
+  );
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadPrimitive.Root className="hp-thread">
@@ -97,15 +133,62 @@ export function HpThread({ messages, activeRun, onSend, onCancel }: HpThreadProp
               </Text>
             </Flex>
           </ThreadPrimitive.Empty>
-          <ThreadPrimitive.Messages>{() => <HpMessageView />}</ThreadPrimitive.Messages>
+          <ThreadPrimitive.Messages>
+            {() => <HpMessageView filesByMessageId={filesByMessageId} />}
+          </ThreadPrimitive.Messages>
         </ThreadPrimitive.Viewport>
         <ComposerPrimitive.Root className="hp-composer">
+          {attachments.length ? (
+            <div className="hp-composer__attachments" aria-label="待发送附件">
+              {attachments.map((attachment) => (
+                <div
+                  className={`hp-attachment hp-attachment--${attachment.status}`}
+                  key={attachment.localId}
+                  title={attachment.error ?? attachment.name}
+                >
+                  <FileText size={14} aria-hidden="true" />
+                  <span className="hp-attachment__name">{attachment.name}</span>
+                  {attachment.status === "uploading" ? <Spinner size="1" /> : null}
+                  {attachment.status === "ready" ? (
+                    <span className="hp-attachment__status">已就绪</span>
+                  ) : null}
+                  {attachment.status === "failed" ? (
+                    <span className="hp-attachment__status">上传失败</span>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="hp-attachment__remove"
+                    aria-label={`移除 ${attachment.name}`}
+                    onClick={() => onRemoveAttachment(attachment.localId)}
+                  >
+                    <X size={13} aria-hidden="true" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <ComposerPrimitive.Input
             className="hp-composer__input"
             placeholder="输入消息，Enter 发送"
             autoFocus
           />
           <Flex gap="2" align="center" className="hp-composer__actions">
+            {fileUploadEnabled ? (
+              <label className="hp-composer__attach" aria-label="添加附件">
+                <Paperclip size={16} aria-hidden="true" />
+                <span>附件</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="text/*,.log,.md,.csv,.json,.yaml,.yml"
+                  disabled={sendDisabled}
+                  onChange={(event) => {
+                    onFilesSelected(Array.from(event.currentTarget.files ?? []));
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            ) : null}
             <ThreadPrimitive.If running={false}>
               <ComposerPrimitive.Send className="hp-composer__send">发送</ComposerPrimitive.Send>
             </ThreadPrimitive.If>

@@ -5,7 +5,7 @@
  * one conversation, and an empty message page. Verifies the assistant-ui chat
  * surface renders (sidebar + composer) without runtime errors.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
@@ -19,6 +19,8 @@ const ME = {
   identities: { web: { username: "alice" }, qq: { bound: false } },
   capabilities: {},
 };
+
+let capabilities: Record<string, unknown> = {};
 
 const CONVERSATION = {
   conversation_id: "c1",
@@ -37,6 +39,7 @@ const json = (body: unknown) =>
   });
 
 beforeEach(() => {
+  capabilities = {};
   useAuth.setState({
     status: "checking",
     account: null,
@@ -45,7 +48,7 @@ beforeEach(() => {
   });
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url === "/api/v1/me") return json(ME);
+    if (url === "/api/v1/me") return json({ ...ME, capabilities });
     if (url === "/api/v1/identity-bindings/qq/challenges") {
       return json({
         challenge_id: "challenge-1",
@@ -105,5 +108,60 @@ describe("App workbench", () => {
     await user.click(screen.getByRole("button", { name: "绑定已有 QQ" }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     expect(await screen.findByText("绑定 HP-123456")).toBeInTheDocument();
+  });
+
+  it("uploads and renders an attachment when the server enables file upload", async () => {
+    capabilities = { file_upload: true };
+    const baseFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === "POST" && url === "/api/v1/conversations/c1/uploads") {
+        return json({
+          file: {
+            file_id: "f1",
+            file_name: "notes.txt",
+            purpose: "input",
+            status: "uploading",
+            size_bytes: 5,
+            content_type: "text/plain",
+            encoding: null,
+            sha256: null,
+            failure_code: null,
+            download_url: null,
+          },
+          content_url: "/api/v1/uploads/f1/content",
+        });
+      }
+      if (init?.method === "PUT" && url === "/api/v1/uploads/f1/content") {
+        return json({
+          file: {
+            file_id: "f1",
+            file_name: "notes.txt",
+            purpose: "input",
+            status: "ready",
+            size_bytes: 5,
+            content_type: "text/plain",
+            encoding: "utf-8",
+            sha256: "a".repeat(64),
+            failure_code: null,
+            download_url: "/api/v1/files/f1/content",
+          },
+        });
+      }
+      return baseFetch(input, init);
+    });
+    render(<App />);
+    await screen.findByPlaceholderText(/输入消息/);
+
+    const input = document.querySelector<HTMLInputElement>(
+      '.hp-composer__attach input[type="file"]',
+    );
+    expect(input).not.toBeNull();
+    fireEvent.change(input as HTMLInputElement, {
+      target: { files: [new File(["hello"], "notes.txt", { type: "text/plain" })] },
+    });
+
+    expect(await screen.findByText("notes.txt")).toBeInTheDocument();
+    expect(await screen.findByText("已就绪")).toBeInTheDocument();
   });
 });

@@ -272,6 +272,115 @@ describe("workbench store", () => {
     expect(store.getState().sending).toBe(false);
   });
 
+  it("uploads attachments, binds ready file ids to the message, and clears them on success", async () => {
+    const backend = makeBackend();
+    const original = backend.fetchMock;
+    let sentBody: { content?: string; file_ids?: string[] } | null = null;
+    backend.fetchMock = async (input, init) => {
+      const url = String(input);
+      if (init?.method === "POST" && url === "/api/v1/conversations/c1/uploads") {
+        return OK({
+          file: {
+            file_id: "f1",
+            conversation_id: "c1",
+            file_name: "notes.txt",
+            content_type: "text/plain",
+            size_bytes: 5,
+            status: "pending",
+            created_at: "2026-08-08T00:00:00Z",
+          },
+          content_url: "/api/v1/files/f1/content",
+        });
+      }
+      if (init?.method === "PUT" && url === "/api/v1/files/f1/content") {
+        expect(init.body).toBeInstanceOf(File);
+        return OK({
+          file: {
+            file_id: "f1",
+            conversation_id: "c1",
+            file_name: "notes.txt",
+            content_type: "text/plain",
+            size_bytes: 5,
+            status: "ready",
+            created_at: "2026-08-08T00:00:00Z",
+          },
+        });
+      }
+      if (init?.method === "POST" && url.endsWith("/messages")) {
+        sentBody = JSON.parse(String(init.body)) as typeof sentBody;
+      }
+      return original(input, init);
+    };
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+
+    await store.getState().addAttachments([new File(["hello"], "notes.txt")]);
+    expect(store.getState().attachments).toMatchObject([
+      { name: "notes.txt", fileId: "f1", status: "ready" },
+    ]);
+
+    expect(await store.getState().sendMessage("分析附件")).toBe(true);
+    expect(sentBody).toMatchObject({ content: "分析附件", file_ids: ["f1"] });
+    expect(store.getState().attachments).toEqual([]);
+  });
+
+  it("blocks sending while an attachment failed and deletes it when removed", async () => {
+    const backend = makeBackend();
+    const original = backend.fetchMock;
+    backend.fetchMock = async (input, init) => {
+      const url = String(input);
+      if (init?.method === "POST" && url.endsWith("/uploads")) {
+        return OK({
+          file: {
+            file_id: "f-bad",
+            conversation_id: "c1",
+            file_name: "bad.txt",
+            content_type: "text/plain",
+            size_bytes: 3,
+            status: "pending",
+            created_at: "2026-08-08T00:00:00Z",
+          },
+          content_url: "/api/v1/files/f-bad/content",
+        });
+      }
+      if (init?.method === "PUT" && url === "/api/v1/files/f-bad/content") {
+        return OK(
+          {
+            error: {
+              code: "file_content_rejected",
+              message: "文件内容不受支持。",
+              request_id: null,
+              retryable: false,
+              details: {},
+            },
+          },
+          422,
+        );
+      }
+      if (init?.method === "DELETE" && url === "/api/v1/files/f-bad") {
+        return new Response(null, { status: 204 });
+      }
+      return original(input, init);
+    };
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+
+    await store.getState().addAttachments([new File(["bad"], "bad.txt")]);
+    expect(store.getState().attachments[0]).toMatchObject({
+      fileId: "f-bad",
+      status: "failed",
+    });
+    expect(await store.getState().sendMessage("不要发送")).toBe(false);
+    expect(backend.calls.filter((call) => call.url.endsWith("/messages"))).toHaveLength(0);
+
+    const localId = store.getState().attachments[0]?.localId;
+    expect(localId).toBeTruthy();
+    await store.getState().removeAttachment(localId as string);
+    expect(store.getState().attachments).toEqual([]);
+  });
+
   it("does not duplicate messages when pagination pages overlap", async () => {
     const backend = makeBackend();
     // Each API page is already oldest-first. The older page re-returns the

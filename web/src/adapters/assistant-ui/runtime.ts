@@ -25,7 +25,8 @@ const TERMINAL_RUN_STATUS = new Set<HpRun["status"]>(["completed", "failed", "ca
 export interface HpThreadRuntimeOptions {
   messages: HpMessage[];
   activeRun: HpRun | null;
-  onSend: (content: string) => void;
+  sendDisabled?: boolean;
+  onSend: (content: string) => boolean | Promise<boolean>;
   onCancel: () => void;
 }
 
@@ -42,6 +43,7 @@ function extractText(content: AppendMessage["content"]): string {
 export function useHpThreadRuntime({
   messages,
   activeRun,
+  sendDisabled = false,
   onSend,
   onCancel,
 }: HpThreadRuntimeOptions) {
@@ -59,7 +61,7 @@ export function useHpThreadRuntime({
     async (message: AppendMessage) => {
       const text = extractText(message.content).trim();
       if (text) {
-        onSend(text);
+        await onSend(text);
       }
     },
     [onSend],
@@ -75,7 +77,7 @@ export function useHpThreadRuntime({
     isRunning,
     // While a Run is active the conversation is busy; the backend 409 remains
     // the final arbiter for cross-tab races.
-    isSendDisabled: isRunning,
+    isSendDisabled: isRunning || sendDisabled,
     onNew,
     onCancel: onCancelRun,
   };

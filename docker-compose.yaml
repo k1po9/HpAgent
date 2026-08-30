@@ -370,6 +370,16 @@ services:
       - DURABLE_AGENT_ENABLED=${DURABLE_AGENT_ENABLED:-false}
       - AGENT_EXECUTION_LEASE_TTL_SECONDS=${AGENT_EXECUTION_LEASE_TTL_SECONDS:-900}
 
+      # Web file workspace (read-only P0 rollout)
+      - WEB_FILE_UPLOAD_ENABLED=${WEB_FILE_UPLOAD_ENABLED:-true}
+      - WEB_FILE_TRANSFORM_ENABLED=${WEB_FILE_TRANSFORM_ENABLED:-false}
+      - WEB_FILE_SHELL_ENABLED=${WEB_FILE_SHELL_ENABLED:-false}
+      - FILE_STORE_ROOT=/var/lib/hpagent/file-store
+      - FILE_RUN_ROOT=/var/lib/hpagent/file-runs
+      - FILE_MAX_BYTES=${FILE_MAX_BYTES:-134217728}
+      - FILE_CLEANUP_INTERVAL_SECONDS=${FILE_CLEANUP_INTERVAL_SECONDS:-300}
+      - RUN_BUDGET_MODE=${RUN_BUDGET_MODE:-enforce}
+
       # Unified identity
       - HPAGENT_ENV=${HPAGENT_ENV:-development}
       - QQ_BINDING_CODE_PEPPER=${QQ_BINDING_CODE_PEPPER:-development-qq-binding-code-pepper}
@@ -420,6 +430,10 @@ services:
 
       # Tool definitions / MCP / ChromaDB
       - ./tools:/app/tools
+
+      # File Store 与单次 Run 工作目录均独立于 Git Workspace。
+      - hpagent-file-store:/var/lib/hpagent/file-store
+      - hpagent-file-runs:/var/lib/hpagent/file-runs
 
     depends_on:
       app-postgres:
@@ -491,6 +505,16 @@ services:
 
       DURABLE_AGENT_ENABLED: ${DURABLE_AGENT_ENABLED:-false}
 
+      # Web file upload API. Transform/shell stay closed until their P1 tools
+      # and browser E2E are complete.
+      WEB_FILE_UPLOAD_ENABLED: ${WEB_FILE_UPLOAD_ENABLED:-true}
+      WEB_FILE_TRANSFORM_ENABLED: ${WEB_FILE_TRANSFORM_ENABLED:-false}
+      WEB_FILE_SHELL_ENABLED: ${WEB_FILE_SHELL_ENABLED:-false}
+      FILE_STORE_ROOT: /var/lib/hpagent/file-store
+      FILE_MAX_BYTES: ${FILE_MAX_BYTES:-134217728}
+      FILE_MAX_COUNT_PER_MESSAGE: ${FILE_MAX_COUNT_PER_MESSAGE:-10}
+      RUN_BUDGET_MODE: ${RUN_BUDGET_MODE:-enforce}
+
       LOG_DIR: /app/.data/logs
 
     ports:
@@ -502,6 +526,9 @@ services:
 
       # API 写 web-api.jsonl / web-api-error.log；宿主机可直接联合查询
       - ./.data:/app/.data
+
+      # API 仅访问对象存储，不挂载 Git Workspace 或 Run Root。
+      - hpagent-file-store:/var/lib/hpagent/file-store
 
     healthcheck:
       test:
@@ -745,6 +772,12 @@ volumes:
 
   # Web dev node_modules
   web-node-modules:
+
+  # Web file objects shared by API and Worker
+  hpagent-file-store:
+
+  # Per-Run materialized workspace, mounted only by Worker
+  hpagent-file-runs:
 
 
 # ============================================================

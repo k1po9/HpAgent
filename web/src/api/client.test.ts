@@ -172,6 +172,31 @@ describe("ApiClient auth recovery", () => {
     expect(headerValue(seen[0], "idempotency-key")).toBe(key);
   });
 
+  it("sends binary upload bodies unchanged and preserves them across CSRF recovery", async () => {
+    const file = new File(["upload body"], "notes.txt", { type: "text/plain" });
+    const seen: Array<{ body: BodyInit | null | undefined; headers: unknown }> = [];
+    let puts = 0;
+    const uploadMock = async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/v1/me") {
+        return OK({ csrf_token: "fresh" });
+      }
+      puts += 1;
+      seen.push({ body: init?.body, headers: init?.headers });
+      return puts === 1
+        ? error(403, "csrf_invalid", "CSRF 校验失败。")
+        : OK({ file: { file_id: "f1", status: "ready" } });
+    };
+    const c = new ApiClient(uploadMock);
+
+    await c.request({ method: "PUT", path: "/api/v1/files/f1/content", rawBody: file });
+
+    expect(seen).toHaveLength(2);
+    expect(seen[0]?.body).toBe(file);
+    expect(seen[1]?.body).toBe(file);
+    expect(headerValue(seen[0]?.headers, "content-type")).toBe("application/octet-stream");
+    expect(headerValue(seen[1]?.headers, "x-csrf-token")).toBe("fresh");
+  });
+
   it("replays the SAME Idempotency-Key after a CSRF rotation", async () => {
     const key = "019fdd40-0000-7000-8000-000000000002";
     let postCount = 0;

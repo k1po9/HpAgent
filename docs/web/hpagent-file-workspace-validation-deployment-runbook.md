@@ -1,7 +1,7 @@
 # HpAgent File Workspace 验证与部署操作流程
 
 - 适用分支：`feat/hpagent-web`
-- 当前实现提交：`d94f2ed` 至 `f2552ec`
+- 当前实现提交：`d94f2ed` 起，包含当前分支的附件 Composer 阶段
 - 基线文档：`docs/web/hpagent-file-workspace-agent-p0-p1-guide.md`
 
 > **重要安全约束**：不要把当前运行中的 `hpagent` 数据库直接用于 pytest。
@@ -20,15 +20,35 @@
 - Durable 工具和模型调用预算记账，包括 provider fallback。
 - Trace metadata allowlist、脱敏、大小限制及文件聚合节点。
 - 文件能力 Feature Flag、目录重叠和生产配置失败关闭。
+- 本地 Docker 测试环境的独立 File Store / Run Root 挂载。
+- 前端附件 Composer、上传状态、失败阻断、移除清理和历史消息附件展示。
+- 浏览器侧上传协议、`file_ids` 消息绑定和 PostgreSQL 原子绑定测试。
 
 尚未完成：
 
 - `transform_file`、`publish_output` Durable 写工具。
 - Legacy Web 单 Activity 的完整预算接线。
 - BudgetCheck Trace、文件/预算指标。
-- 前端附件 Composer、上传状态机、输出卡片。
-- Compose 的最终独立挂载与 API 最小文件系统权限。
-- 使用独立 PostgreSQL 测试库执行全部集成测试。
+- 输出文件卡片与 `publish_output` 写链路。
+- 云端开发环境部署及灰度（本地测试环境验收完成前不得执行）。
+
+当前推进图：
+
+```text
+[P0/P1 后端与迁移] ✅
+          ↓
+[本地 Compose 隔离挂载] ✅
+          ↓
+[真实 HTTP 上传/下载/删除] ✅
+          ↓
+[前端附件选择/上传/绑定] ✅
+          ↓
+[单元 + PostgreSQL + UI 验收] ✅
+          ↓
+[本地人工浏览器验收] ⏳
+          ↓
+[云端开发环境灰度] ⛔ 未授权、未执行
+```
 
 ## 2. 前置检查
 
@@ -177,10 +197,22 @@ PYTHONPATH=.:src .venv/bin/mypy src/web_domain src/persistence src/web_api
 
 记录失败测试、错误日志和 migration version；不要为了通过测试改用本地服务正在使用的 `hpagent` 库。
 
-## 8. 合并 Compose 文件能力配置
+### 7.5 前端附件验收
 
-当前 `docker-compose.yaml` 有未提交改动，先保存或提交现有修改，再人工合并本节。
-不要直接覆盖整个文件。
+```bash
+docker compose exec -T web-dev npm test -- --maxWorkers=1
+docker compose exec -T web-dev npm run lint
+docker compose exec -T web-dev npm run build
+```
+
+测试容器资源不足时必须保持 `--maxWorkers=1`；并发 worker 启动超时不等于断言失败。
+浏览器人工验收至少覆盖：附件按钮仅在 `file_upload=true` 时出现、上传中禁止发送、
+上传失败可移除、发送请求包含 `file_ids`、历史消息显示可下载附件。
+
+## 8. Compose 文件能力配置
+
+本地测试 Compose 已应用以下配置。若迁移到云端开发环境，仍需人工合并环境变量和挂载，
+不要直接覆盖服务器上的 Compose 文件。
 
 推荐使用三个互不重叠的根：
 

@@ -22,8 +22,12 @@ export function ChatPane() {
   const degraded = useWorkbench((s) => s.degraded);
   const stopping = useWorkbench((s) => s.stopping);
   const sending = useWorkbench((s) => s.sending);
+  const attachments = useWorkbench((s) => s.attachments);
+  const addAttachments = useWorkbench((s) => s.addAttachments);
+  const removeAttachment = useWorkbench((s) => s.removeAttachment);
   const agentStrategy = useWorkbench((s) => s.agentStrategy);
   const durableAgentEnabled = useAuth((s) => Boolean(s.capabilities.durable_agent));
+  const fileUploadEnabled = useAuth((s) => Boolean(s.capabilities.file_upload));
   const loadingMessages = useWorkbench((s) => s.loadingMessages);
   const hasMoreMessages = useWorkbench((s) => s.hasMoreMessages);
   const loadingMoreMessages = useWorkbench((s) => s.loadingMoreMessages);
@@ -56,11 +60,18 @@ export function ChatPane() {
     followTraceRun(latestRunId);
   }, [latestRunId, followTraceRun]);
 
-  const handleSend = useCallback(
-    (content: string) => {
-      void sendMessage(content);
+  const handleSend = useCallback((content: string) => sendMessage(content), [sendMessage]);
+  const handleFilesSelected = useCallback(
+    (files: File[]) => {
+      void addAttachments(files);
     },
-    [sendMessage],
+    [addAttachments],
+  );
+  const handleRemoveAttachment = useCallback(
+    (localId: string) => {
+      void removeAttachment(localId);
+    },
+    [removeAttachment],
   );
   const handleCancel = useCallback(() => {
     void stopRun();
@@ -148,6 +159,11 @@ export function ChatPane() {
         <HpThread
           messages={messages}
           activeRun={activeRun}
+          attachments={attachments}
+          fileUploadEnabled={fileUploadEnabled}
+          sendDisabled={sending || attachments.some((attachment) => attachment.status !== "ready")}
+          onFilesSelected={handleFilesSelected}
+          onRemoveAttachment={handleRemoveAttachment}
           onSend={handleSend}
           onCancel={handleCancel}
         />

@@ -499,10 +499,83 @@ body,
 
 .hp-composer {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
   padding: 12px 16px;
   border-top: 1px solid var(--gray-a5);
+}
+
+.hp-composer__attachments {
+  display: flex;
+  flex: 0 0 100%;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hp-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 260px;
+  padding: 5px 7px;
+  border: 1px solid var(--gray-a5);
+  border-radius: 7px;
+  background: var(--gray-a2);
+  font-size: 12px;
+}
+
+.hp-attachment--failed {
+  border-color: var(--red-a7);
+  color: var(--red-11);
+}
+
+.hp-attachment__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hp-attachment__status {
+  flex: none;
+  color: var(--gray-11);
+}
+
+.hp-attachment__remove {
+  display: inline-flex;
+  flex: none;
+  padding: 1px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.hp-composer__attach {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border: 1px solid var(--gray-a5);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.hp-composer__attach:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.hp-composer__attach input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
 }
 
 .hp-composer__input {
@@ -540,6 +613,31 @@ body,
 
 .hp-msg__marker {
   display: none;
+}
+
+.hp-msg__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.hp-msg__file {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--gray-a6);
+  border-radius: 7px;
+  color: var(--accent-a11);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.hp-msg__file[aria-disabled="true"] {
+  color: var(--gray-a10);
+  pointer-events: none;
 }
 
 .hp-text-part {
