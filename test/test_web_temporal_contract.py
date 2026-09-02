@@ -34,6 +34,7 @@ from common.types import ChannelType, UnifiedMessage
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.durable_web_workflow import DurableWebRunWorkflow
+from orchestration.research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
 from orchestration.web_dispatcher import (
     StartDecision,
     TemporalClientAdapter,
@@ -150,6 +151,8 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
     assert made[0]["workflows"] == [
         WebRunWorkflow,
         DurableWebRunWorkflow,
+        ResearchReportWorkflow,
+        ResearchTaskScheduleWorkflow,
         ArtifactBuildWorkflow,
     ]
     assert made[1]["task_queue"] == WEB_AGENT_TASK_QUEUE

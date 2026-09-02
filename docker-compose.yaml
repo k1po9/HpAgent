@@ -75,6 +75,47 @@ services:
     restart: unless-stopped
 
 
+  # ==================== Research Search ====================
+  searxng:
+    image: searxng/searxng:${SEARXNG_VERSION:-latest}
+    entrypoint: ["/bin/sh", "/usr/local/bin/hpagent-searxng-entrypoint.sh"]
+
+    environment:
+      - TZ=Asia/Shanghai
+      - SEARXNG_BASE_URL=http://searxng:8080/
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-development-searxng-secret-change-me}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - http_proxy=${HTTP_PROXY:-}
+      - https_proxy=${HTTPS_PROXY:-}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
+      - no_proxy=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
+
+    volumes:
+      - ./config/searxng/settings.yml:/etc/searxng/settings.template.yml:ro
+      - ./config/searxng/entrypoint.sh:/usr/local/bin/hpagent-searxng-entrypoint.sh:ro
+
+    ports:
+      - "127.0.0.1:8085:8080"
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/', timeout=5)"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+    networks:
+      - app-network
+
+    restart: unless-stopped
+
+
   # ==================== Temporal PostgreSQL ====================
   temporal-postgres:
     image: postgres:16-alpine
@@ -216,6 +257,12 @@ services:
 
     environment:
       - TZ=Asia/Shanghai
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - http_proxy=${HTTP_PROXY:-}
+      - https_proxy=${HTTPS_PROXY:-}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
+      - no_proxy=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
 
       # PostgreSQL
       - HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:hindsight@hindsight-postgres:5432/hindsight
@@ -293,6 +340,10 @@ services:
     build:
       context: .
       dockerfile: src/Dockerfile.migrate
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1}
 
     # 固定标签使构建机导出的镜像可在另一台服务器被 Compose 直接复用。
     image: ${HPAGENT_MIGRATE_IMAGE:-hpagent/hpagent-migrate:offline}
@@ -345,6 +396,10 @@ services:
 
     build:
       context: ./src
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1}
 
     image: ${HPAGENT_IMAGE:-hpagent/hpagent:offline}
 
@@ -363,6 +418,13 @@ services:
       - TEMPORAL_HOST=temporal:7233
       - HINDSIGHT_URL=http://hindsight:8888
       - REDIS_URL=redis://redis:6379
+      - SEARXNG_URL=${SEARXNG_URL:-http://searxng:8080}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - http_proxy=${HTTP_PROXY:-}
+      - https_proxy=${HTTPS_PROXY:-}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
+      - no_proxy=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
 
       # Workspace
       - WORKSPACE_ROOT=/app/.data/workspace
@@ -408,6 +470,13 @@ services:
       - MINIMAX_STANDARD_MODEL=${MINIMAX_STANDARD_MODEL}
       - MINIMAX_FLAGSHIP_MODEL=${MINIMAX_FLAGSHIP_MODEL}
       - MINIMAX_HIGHSPEED_MODEL=${MINIMAX_HIGHSPEED_MODEL}
+
+      # DeepSeek (OpenAI-compatible provider; also used by runtime acceptance)
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_API_BASE_URL=${DEEPSEEK_API_BASE_URL}
+      - DEEPSEEK_STANDARD_MODEL=${DEEPSEEK_STANDARD_MODEL}
+      - DEEPSEEK_FLAGSHIP_MODEL=${DEEPSEEK_FLAGSHIP_MODEL}
+      - DEEPSEEK_HIGHSPEED_MODEL=${DEEPSEEK_HIGHSPEED_MODEL}
 
       # QQ Official
       - QQ_OFFICIAL_APP_ID=${QQ_OFFICIAL_APP_ID:-}
@@ -456,6 +525,9 @@ services:
       hindsight:
         condition: service_healthy
 
+      searxng:
+        condition: service_healthy
+
     networks:
       - app-network
 
@@ -482,6 +554,10 @@ services:
     build:
       context: .
       dockerfile: src/Dockerfile.web-api
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1}
 
     image: ${HPAGENT_API_IMAGE:-hpagent/hpagent-api:offline}
 

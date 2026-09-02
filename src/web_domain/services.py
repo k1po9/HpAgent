@@ -338,7 +338,8 @@ class CommandService:
             if run["status"] != "queued":
                 return False
             changed = uow.execute(
-                "UPDATE runs SET status='running',started_at=now(),version=version+1,"
+                "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),"
+                "version=version+1,"
                 "updated_at=now() WHERE run_id=%s AND status='queued' RETURNING run_id",
                 (run_id,),
             ).fetchone()

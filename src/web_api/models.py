@@ -25,6 +25,30 @@ class CreateConversationRequest(StrictModel):
     title: str | None = None
 
 
+class SourceStrategyRequest(StrictModel):
+    public_web: bool = True
+    official_sources: bool = True
+    github: bool = True
+    rss: bool = True
+    uploaded_files: bool = False
+    freshness_days: int = Field(default=7, ge=0, le=3650)
+    preferred_domains: list[str] = Field(default_factory=list, max_length=100)
+    rss_feeds: list[str] = Field(default_factory=list, max_length=100)
+
+
+class CreateResearchTaskRequest(StrictModel):
+    title: str = Field(min_length=1, max_length=200)
+    objective: str = Field(min_length=1, max_length=20000)
+    source_strategy: SourceStrategyRequest = Field(default_factory=SourceStrategyRequest)
+
+
+class UpdateResearchScheduleRequest(StrictModel):
+    schedule_type: Literal["manual", "daily"]
+    timezone: str = Field(default="UTC", min_length=1, max_length=100)
+    expression: str | None = Field(default=None, max_length=20)
+    enabled: bool = False
+
+
 class RenameConversationRequest(StrictModel):
     title: str = Field(min_length=1, max_length=200)
 

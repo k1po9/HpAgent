@@ -104,7 +104,8 @@ class MessageRepository:
         self, uow: UnitOfWork, run_id: UUID, status: str, content: str | None = None
     ) -> None:
         uow.execute(
-            "UPDATE messages SET status=%s,content=COALESCE(%s,content),completed_at=now() "
+            "UPDATE messages SET status=%s,content=COALESCE(%s,content),"
+            "completed_at=GREATEST(now(),created_at) "
             "WHERE produced_by_run_id=%s AND status='pending'",
             (status, content, run_id),
         )
@@ -191,7 +192,8 @@ class RunRepository:
         failure_code: str | None = None, failure_message: str | None = None
     ) -> None:
         uow.execute(
-            "UPDATE runs SET status=%s,failure_code=%s,failure_message=%s,finished_at=now(),"
+            "UPDATE runs SET status=%s,failure_code=%s,failure_message=%s,"
+            "finished_at=GREATEST(now(),created_at,COALESCE(started_at,created_at)),"
             "version=version+1,updated_at=now() WHERE run_id=%s",
             (status, failure_code, failure_message, run_id),
         )
@@ -330,7 +332,7 @@ class FileRepository:
 class RunBudgetRepository:
     def create_snapshot(
         self, uow: UnitOfWork, run_id: UUID, account_id: UUID,
-        conversation_id: UUID, policy_version: str, mode: str,
+        conversation_id: UUID | None, policy_version: str, mode: str,
         limits: str, final_response_reserve_tokens: int,
     ) -> None:
         uow.execute(
@@ -449,7 +451,7 @@ class IdempotencyRepository:
 class OutboxRepository:
     def enqueue(
         self, uow: UnitOfWork, event_id: UUID, account_id: UUID, event_type: str,
-        business_key: str, conversation_id: UUID, run_id: UUID, payload: str
+        business_key: str, conversation_id: UUID | None, run_id: UUID, payload: str
     ) -> None:
         uow.execute(
             "INSERT INTO outbox_events(outbox_event_id,account_id,event_type,business_key,"

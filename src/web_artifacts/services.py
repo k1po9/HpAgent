@@ -70,7 +70,7 @@ class ArtifactService:
     def create_version(
         self, account_id: UUID, artifact_id: UUID, key: str, instruction: str,
     ) -> CommandResult:
-        instruction = self._instruction(instruction, required=True)
+        instruction = cast(str, self._instruction(instruction, required=True))
         payload = {"artifact_id": str(artifact_id), "instruction": instruction}
         with UnitOfWork(self.database) as uow:
             replay = self._claim(uow, account_id, "create_artifact_version", key, payload)
@@ -82,6 +82,8 @@ class ArtifactService:
             ).fetchone()
             if not artifact:
                 raise ResourceNotFound()
+            if artifact.get("research_run_id") is not None:
+                raise ValueError("artifact_research_version_unsupported")
             latest = uow.execute(
                 "SELECT artifact_version_id,version FROM artifact_versions "
                 "WHERE account_id=%s AND artifact_id=%s ORDER BY version DESC LIMIT 1",
@@ -237,8 +239,12 @@ class ArtifactService:
     @classmethod
     def _artifact_dto(cls, row: Mapping[str, Any]) -> dict[str, Any]:
         return {"artifact_id": str(row["artifact_id"]),
-                "conversation_id": str(row["conversation_id"]),
-                "source_message_id": str(row["source_message_id"]),
+                "conversation_id": (str(row["conversation_id"])
+                                    if row["conversation_id"] is not None else None),
+                "source_message_id": (str(row["source_message_id"])
+                                      if row["source_message_id"] is not None else None),
+                "research_run_id": (str(row.get("research_run_id"))
+                                    if row.get("research_run_id") is not None else None),
                 "kind": row["kind"], "title": row["title"],
                 "created_at": cls._timestamp(row["created_at"]),
                 "updated_at": cls._timestamp(row["updated_at"])}

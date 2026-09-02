@@ -3,7 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/requirements.txt
+    pip install -r /app/requirements.txt
 COPY src /app/src
 ENV PYTHONPATH=/app/src PYTHONUNBUFFERED=1
 EXPOSE 8080

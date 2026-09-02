@@ -163,6 +163,17 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         build_web_temporal_workers,
         validate_web_worker_startup,
     )
+    from research_activities import ResearchActivities
+    from research_adapters import (
+        CompositeSourceDiscoveryProvider,
+        GitHubDiscoveryProvider,
+        PlaywrightBrowserFetchProvider,
+        ResourcePoolResearchSynthesizer,
+        RSSDiscoveryProvider,
+        SearXNGDiscoveryProvider,
+        StaticWebContentProvider,
+        W3libSourceCanonicalizer,
+    )
     from web_artifacts.build import ArtifactBuildService
     from web_artifacts.generator import WebArtifactGenerator
     from web_artifacts.outbox import ArtifactOutboxService
@@ -231,6 +242,33 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     )
     inject_agent_data_store(agent_store, max_turns=config.agent.max_tool_turns)
     inject_agent_event_factory(event_factory)
+    canonicalizer = W3libSourceCanonicalizer()
+    research_activities = ResearchActivities(
+        worker_database_url,
+        CompositeSourceDiscoveryProvider([
+            SearXNGDiscoveryProvider(
+                config.research.searxng_url,
+                timeout_seconds=config.research.search_timeout_seconds,
+            ),
+            GitHubDiscoveryProvider(),
+            RSSDiscoveryProvider(timeout_seconds=config.research.search_timeout_seconds),
+        ]),
+        StaticWebContentProvider(
+            canonicalizer,
+            browser=PlaywrightBrowserFetchProvider(
+                timeout_seconds=config.research.browser_timeout_seconds
+            ),
+            timeout_seconds=config.research.fetch_timeout_seconds,
+            min_content_chars=config.research.min_content_chars,
+        ),
+        canonicalizer,
+        ResourcePoolResearchSynthesizer(deps.resource_pool),
+        max_sources=config.research.max_sources,
+        max_fetches=config.research.max_fetches,
+        max_iterations=config.research.max_iterations,
+        min_evidence=config.research.min_evidence,
+        min_distinct_sources=config.research.min_distinct_sources,
+    )
     durable_activities = DurableAgentActivities(
         store=agent_store,
         loader=loader,
@@ -259,6 +297,22 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
             finalize_cancelled_activity,
             durable_activities.finalize_agent_result,
             execute_artifact_build_activity,
+            research_activities.prepare_research_activity,
+            research_activities.trigger_scheduled_research_activity,
+            research_activities.create_research_plan_activity,
+            research_activities.discover_research_sources_activity,
+            research_activities.rank_research_sources_activity,
+            research_activities.fetch_research_sources_activity,
+            research_activities.normalize_research_sources_activity,
+            research_activities.extract_research_evidence_activity,
+            research_activities.assess_research_corroboration_activity,
+            research_activities.analyze_research_gaps_activity,
+            research_activities.synthesize_research_report_activity,
+            research_activities.verify_research_citations_activity,
+            research_activities.compare_previous_research_activity,
+            research_activities.publish_research_artifact_activity,
+            research_activities.complete_research_activity,
+            research_activities.fail_research_activity,
         ],
         agent_activities=[
             execute_agent_activity,
@@ -825,6 +879,7 @@ async def start_worker(config: AppConfig) -> None:
     web_reconciler = None
     web_memory_retention = None
     web_artifact_dispatcher = None
+    research_schedule_manager = None
     if config.temporal.web_real_agent_enabled:
         composition = compose_web_workers(client, config, deps)
         web_workers = composition.workers
@@ -834,6 +889,11 @@ async def start_worker(config: AppConfig) -> None:
         # 不在 composition.workers 上 —— 那里只有 lifecycle/agent（C-07）。
         web_memory_retention = composition.memory_retention
         web_artifact_dispatcher = composition.artifact_dispatcher
+        from orchestration.research_schedule import ResearchScheduleManager
+
+        research_schedule_manager = ResearchScheduleManager(
+            os.environ["WORKER_DATABASE_URL"], client
+        )
 
     # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
     _channel_factories = {
@@ -917,6 +977,7 @@ async def start_worker(config: AppConfig) -> None:
     memory_retention_recovery_task = None
     artifact_dispatcher_task = None
     artifact_recovery_task = None
+    research_schedule_task = None
 
     try:
         async with AsyncExitStack() as worker_stack:
@@ -944,6 +1005,14 @@ async def start_worker(config: AppConfig) -> None:
                     lease_timeout_seconds=config.temporal.web_outbox_lease_timeout_seconds,
                     recovery_interval_seconds=config.temporal.web_outbox_recovery_interval_seconds,
                 )
+                if research_schedule_manager is not None:
+                    from orchestration.research_schedule import (
+                        run_research_schedule_reconciler_loop,
+                    )
+
+                    research_schedule_task = asyncio.create_task(
+                        run_research_schedule_reconciler_loop(research_schedule_manager)
+                    )
             for ch in active_channels:
                 await ch.start_monitor(handle_message)
 
@@ -979,6 +1048,7 @@ async def start_worker(config: AppConfig) -> None:
             memory_retention_recovery_task=memory_retention_recovery_task,
             artifact_dispatcher_task=artifact_dispatcher_task,
             artifact_recovery_task=artifact_recovery_task,
+            research_schedule_task=research_schedule_task,
             deps=deps,
         )
 
@@ -996,6 +1066,7 @@ async def _shutdown_worker_resources(
     memory_retention_recovery_task,
     artifact_dispatcher_task,
     artifact_recovery_task,
+    research_schedule_task,
     deps,
 ) -> None:
     """Always release monitors/background tasks, including task cancellation."""
@@ -1064,10 +1135,10 @@ async def _shutdown_worker_resources(
         except asyncio.CancelledError:
             pass
 
-    for task in (artifact_dispatcher_task, artifact_recovery_task):
+    for task in (artifact_dispatcher_task, artifact_recovery_task, research_schedule_task):
         if task is not None:
             task.cancel()
-    for task in (artifact_dispatcher_task, artifact_recovery_task):
+    for task in (artifact_dispatcher_task, artifact_recovery_task, research_schedule_task):
         if task is not None:
             try:
                 await task

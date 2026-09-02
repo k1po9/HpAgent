@@ -146,6 +146,33 @@ def test_db_009_and_015_context_filters_status_and_account(
     assert hidden == []
 
 
+def test_run_timestamps_tolerate_a_small_system_clock_rollback(
+    db, account_id, database_url
+):
+    service, _, run_id = _conversation_and_run(database_url, account_id)
+    db.execute(
+        "UPDATE runs SET created_at=clock_timestamp()+interval '2 seconds' WHERE run_id=%s",
+        (run_id,),
+    )
+    db.execute(
+        "UPDATE messages SET created_at=clock_timestamp()+interval '2 seconds' "
+        "WHERE produced_by_run_id=%s",
+        (run_id,),
+    )
+
+    service.start_run(account_id, run_id)
+    service.complete_run(account_id, run_id, "done")
+
+    run = db.execute(
+        "SELECT created_at,started_at,finished_at FROM runs WHERE run_id=%s", (run_id,)
+    ).fetchone()
+    message = db.execute(
+        "SELECT created_at,completed_at FROM messages WHERE produced_by_run_id=%s", (run_id,)
+    ).fetchone()
+    assert run[1] >= run[0] and run[2] >= run[1]
+    assert message[1] >= message[0]
+
+
 def test_db_015_cross_account_context_is_empty(db, account_id, database_url):
     _, conversation_id, _ = _conversation_and_run(database_url, account_id)
     with UnitOfWork(database_url) as uow:

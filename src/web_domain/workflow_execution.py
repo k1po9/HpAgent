@@ -18,7 +18,7 @@ class PostgresWorkflowExecutionStore:
     def prepare_start(self, run_id: UUID) -> StartDecision:
         with UnitOfWork(self.database_url) as uow:
             run = uow.execute("SELECT * FROM runs WHERE run_id=%s FOR UPDATE", (run_id,)).fetchone()
-            if run is None or run["status"] != "queued":
+            if run is None:
                 return StartDecision(run_id, web_workflow_id(run_id), False)
             row = uow.execute(
                 "SELECT workflow_id,temporal_run_id,status FROM workflow_executions "
@@ -32,9 +32,12 @@ class PostgresWorkflowExecutionStore:
                 return StartDecision(
                     run_id,
                     str(row["workflow_id"]),
-                    row["temporal_run_id"] is None,
+                    row["temporal_run_id"] is None
+                    and run["status"] in ("queued", "running"),
                 )
-            workflow_id = web_workflow_id(run_id)
+            if run["status"] != "queued":
+                return StartDecision(run_id, str(run["workflow_id"]), False)
+            workflow_id = str(run["workflow_id"])
             uow.execute(
                 "INSERT INTO workflow_executions(workflow_execution_id,account_id,conversation_id,run_id,workflow_id) "
                 "VALUES (%s,%s,%s,%s,%s)",
@@ -88,9 +91,9 @@ class PostgresWorkflowExecutionStore:
             rows = uow.execute(
                 "SELECT r.run_id,r.status AS run_status,w.workflow_id FROM runs r "
                 "LEFT JOIN workflow_executions w ON w.run_id=r.run_id AND w.is_current "
-                "WHERE r.status IN ('queued','running','cancelling') OR "
+                "WHERE r.run_kind='chat' AND (r.status IN ('queued','running','cancelling') OR "
                 "(r.status IN ('completed','failed','cancelled') AND "
-                "w.status IN ('scheduled','running','cancel_requested')) "
+                "w.status IN ('scheduled','running','cancel_requested'))) "
                 "ORDER BY r.updated_at,r.run_id LIMIT %s",
                 (limit,),
             ).fetchall()

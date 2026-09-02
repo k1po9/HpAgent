@@ -16,6 +16,7 @@ from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from orchestration.artifact_workflow import ArtifactBuildWorkflow
 from orchestration.durable_web_workflow import DurableWebRunWorkflow
+from orchestration.research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
 from orchestration.web_workers import build_web_temporal_workers
 from orchestration.web_workflow import WebRunWorkflow, WebRunWorkflowInput
 from web_api.models import SendMessageRequest
@@ -80,6 +81,8 @@ def test_durable_worker_definitions_remain_registered_for_rollback(monkeypatch):
     assert made[0]["workflows"] == [
         WebRunWorkflow,
         DurableWebRunWorkflow,
+        ResearchReportWorkflow,
+        ResearchTaskScheduleWorkflow,
         ArtifactBuildWorkflow,
     ]
     assert made[1]["workflows"] == [

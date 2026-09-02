@@ -16,6 +16,7 @@ from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
 
 from common.logging import log_event
+from orchestration.research_workflow import ResearchReportWorkflow, ResearchWorkflowInput
 from orchestration.web_workflow import (
     WEB_LIFECYCLE_TASK_QUEUE,
     WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
@@ -98,6 +99,9 @@ class WorkflowExecutionStore(Protocol):
 
 class TemporalWebClient(Protocol):
     async def start_web_run(self, workflow_id: str, request: WebRunWorkflowInput) -> str: ...
+    async def start_research_run(
+        self, workflow_id: str, request: ResearchWorkflowInput
+    ) -> str: ...
     async def cancel_web_run(self, workflow_id: str) -> bool: ...
 
 
@@ -139,6 +143,19 @@ class TemporalOutboxDispatcher:
         if await asyncio.to_thread(self.store.needs_cancel, run_id):
             if await self.temporal.cancel_web_run(decision.workflow_id):
                 await asyncio.to_thread(self.store.record_cancel_requested, run_id)
+        return True
+
+    async def dispatch_research_start(self, run_id: UUID) -> bool:
+        decision = await asyncio.to_thread(self.store.prepare_start, run_id)
+        # An existing scheduled row without temporal_run_id is an ambiguous
+        # crash window. Starting the same deterministic ID recovers
+        # AlreadyStarted even if the Workflow already moved the Run to running.
+        if not decision.should_start:
+            return False
+        temporal_run_id = await self.temporal.start_research_run(
+            decision.workflow_id, ResearchWorkflowInput(1, str(run_id))
+        )
+        await asyncio.to_thread(self.store.record_started, run_id, temporal_run_id)
         return True
 
     async def dispatch_cancel(self, run_id: UUID) -> bool:
@@ -211,6 +228,36 @@ class TemporalClientAdapter:
                 return False
             raise
 
+    async def start_research_run(
+        self, workflow_id: str, request: ResearchWorkflowInput
+    ) -> str:
+        try:
+            handle = await self.client.start_workflow(
+                ResearchReportWorkflow.run,
+                request,
+                id=workflow_id,
+                task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                execution_timeout=timedelta(seconds=WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS),
+                id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
+                id_conflict_policy=WorkflowIDConflictPolicy.FAIL,
+                retry_policy=None,
+            )
+            if not handle.result_run_id:
+                raise RuntimeError("started Research Workflow has no Temporal Run ID")
+            return str(handle.result_run_id)
+        except WorkflowAlreadyStartedError as exc:
+            if exc.workflow_id != workflow_id or exc.workflow_type != "ResearchReportWorkflow":
+                raise RuntimeError(
+                    "deterministic Research Workflow ID belongs to another Workflow"
+                ) from exc
+            if exc.run_id:
+                return str(exc.run_id)
+            description = await self.client.get_workflow_handle(workflow_id).describe()
+            recovered = description.raw_description.workflow_execution_info.execution.run_id
+            if not recovered:
+                raise RuntimeError("already-started Research Workflow has no Temporal Run ID")
+            return str(recovered)
+
 
 class WebOutboxDispatcher:
     """Lease consumer for start/cancel events; external RPC is always post-commit."""
@@ -232,7 +279,10 @@ class WebOutboxDispatcher:
 
     async def run_once(self, limit: int = 10) -> int:
         events = await asyncio.to_thread(
-            self.outbox.claim, self.worker_id, {"start_run", "cancel_run"}, limit
+            self.outbox.claim,
+            self.worker_id,
+            {"start_run", "start_research_run", "cancel_run"},
+            limit,
         )
         for event in events:
             event_id = UUID(str(event["outbox_event_id"]))
@@ -244,6 +294,8 @@ class WebOutboxDispatcher:
             try:
                 if event["event_type"] == "start_run":
                     await self.dispatcher.dispatch_start(run_id)
+                elif event["event_type"] == "start_research_run":
+                    await self.dispatcher.dispatch_research_start(run_id)
                 else:
                     await self.dispatcher.dispatch_cancel(run_id)
                 await asyncio.to_thread(

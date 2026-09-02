@@ -34,7 +34,8 @@ class PostgresTraceRepository:
             row = uow.execute(
                 "INSERT INTO trace_runs(trace_run_id,run_id,account_id,conversation_id,"
                 "strategy,metadata) SELECT %s,r.run_id,r.account_id,r.conversation_id,"
-                "r.agent_strategy,%s FROM runs r WHERE r.run_id=%s "
+                "CASE WHEN r.run_kind='research' THEN 'research' ELSE r.agent_strategy END,"
+                "%s FROM runs r WHERE r.run_id=%s "
                 "ON CONFLICT (run_id) DO NOTHING RETURNING *",
                 (uuid7(), Jsonb(sanitize_trace_run_metadata(metadata)), run_id),
             ).fetchone()
@@ -104,7 +105,8 @@ class PostgresTraceRepository:
                 str(event_name["name"]) if event_name is not None else "", metadata
             )
             row = uow.execute(
-                "UPDATE trace_events e SET status=%s,ended_at=COALESCE(e.ended_at,now()),"
+                "UPDATE trace_events e SET status=%s,"
+                "ended_at=COALESCE(e.ended_at,GREATEST(now(),e.started_at)),"
                 "duration_ms=COALESCE(e.duration_ms,GREATEST(0,round(extract(epoch FROM "
                 "(now()-e.started_at))*1000)::bigint)),metadata=e.metadata || %s "
                 "FROM trace_runs r WHERE r.trace_run_id=e.trace_run_id AND r.run_id=%s "
@@ -122,7 +124,8 @@ class PostgresTraceRepository:
                 raise LookupError(f"trace Event does not exist: {event_id}")
             if row["parent_event_id"] is None:
                 uow.execute(
-                    "UPDATE trace_events SET status=%s,ended_at=COALESCE(ended_at,now()),"
+                    "UPDATE trace_events SET status=%s,"
+                    "ended_at=COALESCE(ended_at,GREATEST(now(),started_at)),"
                     "duration_ms=COALESCE(duration_ms,GREATEST(0,round(extract(epoch FROM "
                     "(now()-started_at))*1000)::bigint)) WHERE trace_run_id=%s "
                     "AND trace_event_id<>%s AND status='running'",

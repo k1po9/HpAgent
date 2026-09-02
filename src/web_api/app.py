@@ -40,6 +40,12 @@ from account.registration_service import (
 from agent_execution.tracing.repository import PostgresTraceRepository
 from common.logging import log_event
 from persistence.uow import UnitOfWork
+from research_domain.models import SourceStrategy
+from research_domain.services import (
+    ResearchTaskCommandService,
+    TaskBusy,
+    TaskNotActive,
+)
 from storage.tenant_file_store import TenantFileStore
 from web_artifacts.services import ArtifactService
 from web_domain.errors import (
@@ -74,12 +80,14 @@ from .models import (
     CreateArtifactRequest,
     CreateArtifactVersionRequest,
     CreateConversationRequest,
+    CreateResearchTaskRequest,
     CreateUploadRequest,
     EmptyRequest,
     LoginRequest,
     RegisterRequest,
     RenameConversationRequest,
     SendMessageRequest,
+    UpdateResearchScheduleRequest,
 )
 from .queries import QueryService, trace_tree_dto
 from .security import CursorCodec, CursorError
@@ -284,6 +292,9 @@ def create_app(
             budget_mode=settings.run_budget_mode,
             budget_policy_version=settings.run_budget_policy_version,
         )
+        app.state.research_tasks = ResearchTaskCommandService(
+            api_pool, budget_mode=settings.run_budget_mode
+        )
         if settings.web_file_upload_enabled:
             file_root = Path(settings.file_store_root).resolve()
             application_root = Path.cwd().resolve()
@@ -397,6 +408,8 @@ def create_app(
             RunNotRetryable: (409, "run_not_retryable", "当前运行状态不可重试。", False),
             RunRetryNotSafe: (409, "run_retry_not_safe", "任务包含无法确认的外部操作，不能自动重试。", False),
             VersionConflict: (412, "version_conflict", "对话版本已经变化。", True),
+            TaskBusy: (409, "task_busy", "该任务已有运行中的执行。", True),
+            TaskNotActive: (409, "task_not_active", "该任务当前不可触发。", False),
         }
         status, code, message, retryable = mapping.get(type(exc), (500, "service_unavailable", "服务暂不可用。", True))
         details = {"current_version": exc.current_version} if isinstance(exc, VersionConflict) else {}
@@ -651,6 +664,93 @@ def create_app(
             response.headers["Idempotency-Replayed"] = "true"
         return response
 
+    @app.post("/api/v1/tasks")
+    def create_research_task(
+        payload: CreateResearchTaskRequest,
+        request: Request,
+        context: AuthContext = Depends(csrf_guard),
+        key: str = Depends(idempotency_key),
+    ):
+        strategy = SourceStrategy.from_dict(payload.source_strategy.model_dump())
+        result = request.app.state.research_tasks.create_task(
+            context.account_id, key, payload.title, payload.objective, strategy
+        )
+        response = JSONResponse(status_code=result.status_code, content={"task": result.body})
+        response.headers["Location"] = f'/api/v1/tasks/{result.body["task_id"]}'
+        if result.replayed:
+            response.headers["Idempotency-Replayed"] = "true"
+        return response
+
+    @app.post("/api/v1/tasks/{task_id}/runs")
+    def trigger_research_task(
+        task_id: UUID,
+        payload: EmptyRequest,
+        request: Request,
+        context: AuthContext = Depends(csrf_guard),
+        key: str = Depends(idempotency_key),
+    ):
+        del payload
+        result = request.app.state.research_tasks.trigger_task(context.account_id, task_id, key)
+        response = JSONResponse(status_code=result.status_code, content={"run": result.body})
+        if result.replayed:
+            response.headers["Idempotency-Replayed"] = "true"
+        return response
+
+    @app.put("/api/v1/tasks/{task_id}/schedule")
+    def update_research_schedule(
+        task_id: UUID,
+        payload: UpdateResearchScheduleRequest,
+        request: Request,
+        context: AuthContext = Depends(csrf_guard),
+        key: str = Depends(idempotency_key),
+    ):
+        result = request.app.state.research_tasks.update_schedule(
+            context.account_id,
+            task_id,
+            key,
+            schedule_type=payload.schedule_type,
+            timezone=payload.timezone,
+            expression=payload.expression,
+            enabled=payload.enabled,
+        )
+        response = JSONResponse(status_code=result.status_code, content={"schedule": result.body})
+        if result.replayed:
+            response.headers["Idempotency-Replayed"] = "true"
+        return response
+
+    @app.get("/api/v1/tasks/{task_id}/runs/{run_id}")
+    def get_research_run(
+        task_id: UUID,
+        run_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(auth_context),
+    ):
+        return {"run": request.app.state.research_tasks.get_run(
+            context.account_id, task_id, run_id
+        )}
+
+    @app.get("/api/v1/tasks/{task_id}/runs/{run_id}/evidence")
+    def list_research_evidence(
+        task_id: UUID,
+        run_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(auth_context),
+    ):
+        return {"evidence": request.app.state.research_tasks.list_evidence(
+            context.account_id, task_id, run_id
+        )}
+
+    @app.get("/api/v1/tasks/{task_id}/runs/{run_id}/report")
+    def get_research_report(
+        task_id: UUID,
+        run_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(auth_context),
+    ):
+        return {"report": request.app.state.research_tasks.get_report(
+            context.account_id, task_id, run_id
+        )}
+
     @app.post("/api/v1/conversations/{conversation_id}/uploads")
     def create_upload(
         conversation_id: UUID,
@@ -865,6 +965,13 @@ def create_app(
         except ValueError as exc:
             if str(exc) == "artifact_instruction_required":
                 return _error(request, 422, "validation_error", "修改要求不能为空。")
+            if str(exc) == "artifact_research_version_unsupported":
+                return _error(
+                    request,
+                    409,
+                    "artifact_research_version_unsupported",
+                    "Research Artifact 当前只能由 Research Workflow 生成版本。",
+                )
             raise
         response = JSONResponse(status_code=result.response_status, content=result.body)
         if result.replayed:

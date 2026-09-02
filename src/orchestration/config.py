@@ -427,6 +427,21 @@ class HindsightConfig:
 
 
 @dataclass
+class ResearchConfig:
+    """Research source, bounded iteration and evidence thresholds."""
+    searxng_url: str = "http://searxng:8080"
+    search_timeout_seconds: float = 15.0
+    fetch_timeout_seconds: float = 20.0
+    browser_timeout_seconds: float = 30.0
+    min_content_chars: int = 240
+    max_sources: int = 30
+    max_fetches: int = 20
+    max_iterations: int = 3
+    min_evidence: int = 3
+    min_distinct_sources: int = 2
+
+
+@dataclass
 class SessionConfig:
     """会话存储配置。"""
     backup_dir: str = ".data/active-sessions"
@@ -581,6 +596,7 @@ class AppConfig:
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
     hindsight: HindsightConfig = field(default_factory=HindsightConfig)
+    research: ResearchConfig = field(default_factory=ResearchConfig)
     session: SessionConfig = field(default_factory=SessionConfig)
     channels: ChannelsConfig = field(default_factory=ChannelsConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
@@ -726,6 +742,8 @@ class AppConfig:
             )
         if environ.get("HINDSIGHT_URL"):
             self.hindsight.base_url = environ["HINDSIGHT_URL"]
+        if environ.get("SEARXNG_URL"):
+            self.research.searxng_url = environ["SEARXNG_URL"]
         if environ.get("WORKSPACE_ROOT"):
             self.workspace.root = environ["WORKSPACE_ROOT"]
         if environ.get("WORKSPACE_ISOLATION_MODE"):

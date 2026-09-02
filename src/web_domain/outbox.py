@@ -18,13 +18,15 @@ from persistence.uow import UnitOfWork, retryable_transaction
 from .errors import OutboxLeaseLost, ResourceNotFound
 
 OUTBOX_EVENT_TYPES = frozenset(
-    {"start_run", "cancel_run", "retain_memory", "publish_terminal_event"}
+    {"start_run", "start_research_run", "cancel_run", "retain_memory", "publish_terminal_event"}
 )
 
 # The Web Agent's lease recovery sweep must only reclaim leases the Web Outbox
 # Dispatcher itself owns.  Other consumers (terminal publishing, retain) hold
 # their own ``processing`` rows and must never be stolen by this recovery loop.
-WEB_OUTBOX_RECOVERY_EVENT_TYPES = frozenset({"start_run", "cancel_run"})
+WEB_OUTBOX_RECOVERY_EVENT_TYPES = frozenset(
+    {"start_run", "start_research_run", "cancel_run"}
+)
 
 
 def _safe_error(value: str, limit: int) -> str:
@@ -91,9 +93,10 @@ class OutboxService:
             context = self.repository.discover_context(uow, event_id)
             if context is None:
                 raise ResourceNotFound()
-            self.conversations.get_for_account(
-                uow, context["account_id"], context["conversation_id"], lock=True
-            )
+            if context["conversation_id"] is not None:
+                self.conversations.get_for_account(
+                    uow, context["account_id"], context["conversation_id"], lock=True
+                )
             run = self.runs.get_for_account(
                 uow, context["account_id"], context["run_id"], lock=True
             )
@@ -115,6 +118,14 @@ class OutboxService:
                                                    "terminal_status": "failed",
                                                    "terminal_event_id": str(terminal_event_id),
                                                    "version": 1}),
+                    )
+            elif event["event_type"] == "start_research_run":
+                if run and run["status"] == "queued":
+                    uow.execute(
+                        "UPDATE runs SET status='failed',failure_code='workflow_start_exhausted',"
+                        "failure_message=%s,finished_at=now(),updated_at=now(),version=version+1 "
+                        "WHERE run_id=%s AND status='queued'",
+                        (safe_message, run["run_id"]),
                     )
             changed = self.repository.mark_dead_letter(
                 uow, event_id, worker_id, error_code, safe_message

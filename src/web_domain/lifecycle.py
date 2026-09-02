@@ -74,7 +74,8 @@ class WebRunLifecycleService:
                 )
             if run["status"] == "queued":
                 uow.execute(
-                    "UPDATE runs SET status='running',started_at=now(),version=version+1,updated_at=now() "
+                    "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),"
+                    "version=version+1,updated_at=now() "
                     "WHERE run_id=%s AND status='queued'", (run_id,)
                 )
                 return LifecycleAuthority(str(run_id), "running")

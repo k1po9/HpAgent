@@ -13,6 +13,7 @@ DIMENSIONS = frozenset({
     "model_input_tokens", "model_output_tokens", "model_total_tokens",
     "model_calls", "tool_calls", "bytes_scanned", "bytes_returned_to_model",
     "bytes_written", "output_file_bytes", "wall_time_ms",
+    "sources_discovered", "source_fetches", "research_iterations",
 })
 USAGE_SOURCES = frozenset({"provider", "measured", "estimated"})
 

@@ -27,6 +27,7 @@ from workspace.isolation import WorkspaceIsolationMode
 
 from .artifact_workflow import ArtifactBuildWorkflow
 from .durable_web_workflow import DurableWebRunWorkflow
+from .research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
 from .web_workflow import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
     WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS,
@@ -164,7 +165,13 @@ def build_web_temporal_workers(
             task_queue=WEB_LIFECYCLE_TASK_QUEUE,
             # Definitions are always registered. The flag only selects new
             # starts; rollback must not strand an existing durable History.
-            workflows=[WebRunWorkflow, DurableWebRunWorkflow, ArtifactBuildWorkflow],
+            workflows=[
+                WebRunWorkflow,
+                DurableWebRunWorkflow,
+                ResearchReportWorkflow,
+                ResearchTaskScheduleWorkflow,
+                ArtifactBuildWorkflow,
+            ],
             activities=list(lifecycle_activities),
         ),
         agent=Worker(
