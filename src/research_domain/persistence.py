@@ -155,7 +155,9 @@ class ResearchRepository:
             uow.execute(
                 "SELECT * FROM source_records WHERE run_id=%s AND fetch_status='discovered' "
                 + iteration_sql
-                + " ORDER BY source_id LIMIT %s",
+                + " ORDER BY source_tier ASC,"
+                "CASE WHEN metadata->>'preferred_domain'='true' THEN 0 ELSE 1 END,"
+                "published_at DESC NULLS LAST,source_id LIMIT %s",
                 params,
             ).fetchall()
         )

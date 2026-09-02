@@ -362,6 +362,11 @@ PY
 
 ## 7. Source Smoke：SearXNG 与 URL canonicalization
 
+稳定 checkpoint 固定使用本次真实验收镜像
+`searxng/searxng@sha256:b36af7984b87191b595bc5301418ed6432c047668a4547ab531a7439b816fac3`
+（镜像 label version：`2026.8.29-d226b78bc`）。`.env.example` 的 `SEARXNG_IMAGE`
+与 Compose 默认值必须保持一致，不再使用浮动的 `latest`。
+
 ```bash
 docker compose exec -T hpagent python - <<'PY'
 import asyncio

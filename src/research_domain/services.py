@@ -106,7 +106,7 @@ class ResearchTaskCommandService:
             workflow_id = f"hpagent-research-{run_id}"
             uow.execute(
                 "INSERT INTO runs(run_id,account_id,task_id,run_kind,workflow_id,agent_strategy) "
-                "VALUES (%s,%s,%s,'research',%s,'react')",
+                "VALUES (%s,%s,%s,'research',%s,NULL)",
                 (run_id, account_id, task_id, workflow_id),
             )
             limits = {

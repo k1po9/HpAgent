@@ -77,7 +77,7 @@ services:
 
   # ==================== Research Search ====================
   searxng:
-    image: searxng/searxng:${SEARXNG_VERSION:-latest}
+    image: ${SEARXNG_IMAGE:-searxng/searxng@sha256:b36af7984b87191b595bc5301418ed6432c047668a4547ab531a7439b816fac3}
     entrypoint: ["/bin/sh", "/usr/local/bin/hpagent-searxng-entrypoint.sh"]
 
     environment:

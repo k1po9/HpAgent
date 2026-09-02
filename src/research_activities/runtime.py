@@ -346,7 +346,7 @@ class ResearchActivities:
             uow.execute(
                 "UPDATE source_records SET source_tier=CASE "
                 "WHEN metadata->>'preferred_domain'='true' THEN 0 "
-                "WHEN provider IN ('githubkit','feedparser') THEN 1 ELSE 2 END,updated_at=now() "
+                "ELSE 2 END,updated_at=now() "
                 "WHERE run_id=%s AND iteration=%s",
                 (run_id, iteration),
             )

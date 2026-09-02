@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import UTC, datetime
 from typing import Any, cast
 from urllib.parse import urlsplit
@@ -73,7 +74,7 @@ class SearXNGDiscoveryProvider:
             if not uri:
                 continue
             hostname = (urlsplit(uri).hostname or "").lower().removeprefix("www.")
-            preferred_domain = any(
+            preferred_domain = strategy.official_sources and any(
                 hostname == domain or hostname.endswith(f".{domain}") for domain in preferred
             )
             candidates.append(
@@ -113,11 +114,28 @@ class PlaywrightBrowserFetchProvider:
     def __init__(self, *, timeout_seconds: float = 30.0) -> None:
         self.timeout_ms = int(timeout_seconds * 1000)
 
+    @staticmethod
+    def _launch_options() -> dict[str, Any]:
+        options: dict[str, Any] = {"headless": True}
+        proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+        if not proxy:
+            return options
+        bypass = ",".join(
+            item.strip()
+            for item in (os.getenv("NO_PROXY") or "").split(",")
+            if item.strip()
+        )
+        proxy_options = {"server": proxy}
+        if bypass:
+            proxy_options["bypass"] = bypass
+        options["proxy"] = proxy_options
+        return options
+
     async def fetch_html(self, uri: str) -> str:
         from playwright.async_api import async_playwright
 
         async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(headless=True)
+            browser = await playwright.chromium.launch(**self._launch_options())
             try:
                 page = await browser.new_page()
                 await page.goto(uri, wait_until="domcontentloaded", timeout=self.timeout_ms)

@@ -40,7 +40,8 @@ def test_trigger_task_is_atomic_idempotent_and_links_research_run(database_url, 
     assert replay.body == first.body
     with UnitOfWork(database_url) as uow:
         run = uow.execute(
-            "SELECT task_id,run_kind,conversation_id,workflow_id FROM runs WHERE run_id=%s",
+            "SELECT task_id,run_kind,conversation_id,workflow_id,agent_strategy "
+            "FROM runs WHERE run_id=%s",
             (first.body["run_id"],),
         ).fetchone()
         event = uow.execute(
@@ -54,9 +55,53 @@ def test_trigger_task_is_atomic_idempotent_and_links_research_run(database_url, 
     assert run["run_kind"] == "research"
     assert run["conversation_id"] is None
     assert run["workflow_id"] == f"hpagent-research-{first.body['run_id']}"
+    assert run["agent_strategy"] is None
     assert event["event_type"] == "start_research_run"
     assert event["business_key"] == f"start-research-run:{first.body['run_id']}"
     assert budget["limits"]["source_fetches"] == 20
+
+
+def test_source_authority_and_fetch_priority_are_provider_independent(
+    database_url, worker_database_url, account_id
+):
+    commands = ResearchTaskCommandService(database_url)
+    task = commands.create_task(account_id, str(uuid7()), "Ranking", "Rank sources")
+    triggered = commands.trigger_task(account_id, UUID(task.body["task_id"]), str(uuid7()))
+    run_id = UUID(triggered.body["run_id"])
+    repository = ResearchRepository()
+    candidates = [
+        SourceCandidate(
+            "https://github.com/random/project", provider="githubkit",
+            source_type="github_repository",
+        ),
+        SourceCandidate(
+            "https://news.example/item", provider="feedparser", source_type="rss_entry"
+        ),
+        SourceCandidate(
+            "https://official.example/release", provider="searxng",
+            metadata={"preferred_domain": True},
+        ),
+    ]
+    with UnitOfWork(worker_database_url) as uow:
+        repository.add_candidates(uow, run_id, candidates, lambda uri: uri)
+
+    activities = ResearchActivities(
+        worker_database_url, object(), object(), object(), object()
+    )
+    activities._rank(run_id, 1)
+    with UnitOfWork(worker_database_url) as uow:
+        rows = uow.execute(
+            "SELECT canonical_uri,source_tier FROM source_records WHERE run_id=%s ",
+            (run_id,),
+        ).fetchall()
+        selected = repository.fetch_candidates(uow, run_id, 2, iteration=1)
+
+    tiers = {row["canonical_uri"]: row["source_tier"] for row in rows}
+    assert tiers["https://github.com/random/project"] == 2
+    assert tiers["https://news.example/item"] == 2
+    assert tiers["https://official.example/release"] == 0
+    assert selected[0]["canonical_uri"] == "https://official.example/release"
+    assert len(selected) == 2
 
 
 def test_daily_schedule_command_is_owned_and_idempotent(database_url, account_id):

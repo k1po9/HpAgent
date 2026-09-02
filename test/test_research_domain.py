@@ -13,7 +13,11 @@ from research_adapters.discovery import (
     RSSDiscoveryProvider,
 )
 from research_adapters.synthesis import ResourcePoolResearchSynthesizer
-from research_adapters.web import SearXNGDiscoveryProvider, StaticWebContentProvider
+from research_adapters.web import (
+    PlaywrightBrowserFetchProvider,
+    SearXNGDiscoveryProvider,
+    StaticWebContentProvider,
+)
 from research_domain.models import ClaimDraft, SourceCandidate, SourceStrategy, content_sha256
 
 
@@ -59,6 +63,7 @@ async def test_githubkit_results_are_translated_without_leaking_tool_payloads():
     assert [(item.provider, item.source_type) for item in result] == [
         ("githubkit", "github_repository")
     ]
+    assert result[0].metadata["preferred_domain"] is False
 
 
 @pytest.mark.asyncio
@@ -74,12 +79,18 @@ async def test_rss_uses_httpx_and_feedparser_and_respects_configured_feeds(monke
     client = httpx.AsyncClient(transport=transport)
     try:
         result = await RSSDiscoveryProvider(client=client).discover(
-            "Topic", strategy=SourceStrategy(rss_feeds=("https://example.com/feed",)), limit=3
+            "Topic",
+            strategy=SourceStrategy(
+                rss_feeds=("https://example.com/feed",),
+                preferred_domains=("example.com",),
+            ),
+            limit=3,
         )
     finally:
         await client.aclose()
     assert result[0].provider == "feedparser"
     assert result[0].metadata["feed_uri"] == "https://example.com/feed"
+    assert result[0].metadata["preferred_domain"] is True
 
 
 @pytest.mark.asyncio
@@ -92,6 +103,53 @@ async def test_composite_discovery_deduplicates_provider_results():
         "topic", strategy=SourceStrategy(), limit=5
     )
     assert [item.uri for item in result] == ["https://example.com/a"]
+
+
+@pytest.mark.asyncio
+async def test_composite_discovery_round_robins_providers_before_filling_limit():
+    class Provider:
+        def __init__(self, name):
+            self.name = name
+
+        async def discover(self, query, *, strategy, limit):
+            return [
+                SourceCandidate(f"https://{self.name}.example/{index}", provider=self.name)
+                for index in range(limit)
+            ]
+
+    result = await CompositeSourceDiscoveryProvider(
+        [Provider("search"), Provider("github"), Provider("rss")]
+    ).discover("topic", strategy=SourceStrategy(), limit=4)
+    assert [item.provider for item in result] == ["search", "github", "rss", "search"]
+
+
+@pytest.mark.asyncio
+async def test_composite_discovery_isolates_one_provider_failure(caplog):
+    class FailedProvider:
+        async def discover(self, query, *, strategy, limit):
+            raise TimeoutError("provider timed out")
+
+    class HealthyProvider:
+        async def discover(self, query, *, strategy, limit):
+            return [SourceCandidate("https://healthy.example/a", provider="healthy")]
+
+    result = await CompositeSourceDiscoveryProvider(
+        [FailedProvider(), HealthyProvider()]
+    ).discover("topic", strategy=SourceStrategy(), limit=5)
+    assert [item.provider for item in result] == ["healthy"]
+    assert "source discovery provider failed" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_composite_discovery_fails_when_every_provider_fails():
+    class FailedProvider:
+        async def discover(self, query, *, strategy, limit):
+            raise TimeoutError
+
+    with pytest.raises(RuntimeError, match="all source discovery providers failed"):
+        await CompositeSourceDiscoveryProvider([FailedProvider(), FailedProvider()]).discover(
+            "topic", strategy=SourceStrategy(), limit=5
+        )
 
 
 @pytest.mark.asyncio
@@ -156,7 +214,9 @@ async def test_searxng_transport_is_translated_to_source_candidates():
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     try:
         provider = SearXNGDiscoveryProvider("http://searxng:8080", client=client)
-        result = await provider.discover("topic", strategy=SourceStrategy(), limit=10)
+        result = await provider.discover(
+            "topic", strategy=SourceStrategy(preferred_domains=("example.com",)), limit=10
+        )
     finally:
         await client.aclose()
     assert len(result) == 1
@@ -165,8 +225,52 @@ async def test_searxng_transport_is_translated_to_source_candidates():
         "engine": "brave",
         "engines": [],
         "score": 1.5,
-        "preferred_domain": False,
+        "preferred_domain": True,
     }
+
+
+@pytest.mark.parametrize(
+    ("https_proxy", "http_proxy", "no_proxy", "expected"),
+    [
+        (None, None, None, {"headless": True}),
+        (
+            "http://secure-proxy:7890",
+            "http://fallback-proxy:8080",
+            None,
+            {"headless": True, "proxy": {"server": "http://secure-proxy:7890"}},
+        ),
+        (
+            None,
+            "http://fallback-proxy:8080",
+            None,
+            {"headless": True, "proxy": {"server": "http://fallback-proxy:8080"}},
+        ),
+        (
+            "http://secure-proxy:7890",
+            None,
+            " localhost, 127.0.0.1, searxng ",
+            {
+                "headless": True,
+                "proxy": {
+                    "server": "http://secure-proxy:7890",
+                    "bypass": "localhost,127.0.0.1,searxng",
+                },
+            },
+        ),
+    ],
+)
+def test_playwright_launch_options_follow_runtime_proxy_environment(
+    monkeypatch, https_proxy, http_proxy, no_proxy, expected
+):
+    for name in ("HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+    if https_proxy:
+        monkeypatch.setenv("HTTPS_PROXY", https_proxy)
+    if http_proxy:
+        monkeypatch.setenv("HTTP_PROXY", http_proxy)
+    if no_proxy:
+        monkeypatch.setenv("NO_PROXY", no_proxy)
+    assert PlaywrightBrowserFetchProvider._launch_options() == expected
 
 
 @pytest.mark.asyncio
