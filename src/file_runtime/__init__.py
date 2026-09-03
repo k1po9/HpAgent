@@ -5,5 +5,5 @@ from .registry import FileAdapterRegistry
 from .resolver import FileResourceResolver
 
 __all__ = [
-    "FileAdapterRegistry", "FileResourceResolver", "OutputPublisher", "PublishedOutput"
+    "FileAdapterRegistry", "FileResourceResolver", "OutputPublisher", "PublishedOutput",
 ]

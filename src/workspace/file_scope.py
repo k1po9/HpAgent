@@ -101,7 +101,10 @@ class RunFileWorkspace:
         if not run_root.is_relative_to(self.execution_root):
             raise RunFileScopeUnavailable("Run root escapes execution root")
         if run_root.exists():
-            raise RunFileScopeUnavailable("Run file scope already exists")
+            # A killed Activity cannot execute the context-manager cleanup. The
+            # replacement attempt owns the same authoritative Run and rebuilds
+            # the scope solely from immutable TenantFileStore objects.
+            self._remove_stale_run_root(run_root)
         inputs_root = run_root / "inputs"
         scratch_root = run_root / "scratch"
         outputs_root = run_root / "outputs"
@@ -174,3 +177,20 @@ class RunFileWorkspace:
         ):
             raise RunFileScopeUnavailable("invalid logical input name")
         return value
+
+    @staticmethod
+    def _remove_stale_run_root(run_root: Path) -> None:
+        if run_root.is_symlink() or not run_root.is_dir():
+            raise RunFileScopeUnavailable("stale Run file scope is invalid")
+        for path in run_root.rglob("*"):
+            if path.is_symlink():
+                raise RunFileScopeUnavailable("stale Run file scope contains a symbolic link")
+            if path.is_file():
+                path.chmod(0o600)
+        for directory in sorted(
+            (path for path in run_root.rglob("*") if path.is_dir()),
+            key=lambda path: len(path.parts), reverse=True,
+        ):
+            directory.chmod(0o700)
+        run_root.chmod(0o700)
+        shutil.rmtree(run_root)

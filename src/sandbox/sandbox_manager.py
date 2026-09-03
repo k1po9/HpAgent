@@ -72,6 +72,7 @@ class SandboxManager:
         file_tools_enabled: bool = False,
         file_output_publisher: Any = None,
         file_conversion_provider: Any = None,
+        file_document_router: Any = None,
     ):
         self._nsjail_config = nsjail_config or NsjailConfig()
         self._redis_cache = redis_cache
@@ -90,6 +91,7 @@ class SandboxManager:
         self._file_tools_enabled = file_tools_enabled
         self._file_output_publisher = file_output_publisher
         self._file_conversion_provider = file_conversion_provider
+        self._file_document_router = file_document_router
 
         self._sandboxes: Dict[str, Sandbox] = {}
         self._session_to_sandbox: Dict[str, str] = {}
@@ -103,6 +105,11 @@ class SandboxManager:
                 raise RuntimeError("Run file scope is already bound")
             self._run_file_scopes[run_id] = scope
             self._session_active_file_run[session_id] = run_id
+
+    def configure_file_document_router(self, router: Any) -> None:
+        """Inject the Temporal client after worker composition, before Web sessions start."""
+        with self._lock:
+            self._file_document_router = router
 
     def get_run_file_scope(self, run_id: str) -> Any | None:
         with self._lock:
@@ -179,7 +186,11 @@ class SandboxManager:
             scope_provider = lambda sid=session_id: self.get_active_run_file_scope(sid)
             for tool in (
                 create_file_analysis_tools(scope_provider)
-                + create_file_read_tools(scope_provider)
+                + create_file_read_tools(
+                    scope_provider,
+                    document_router=self._file_document_router,
+                    account_id_provider=lambda value=str(ctx.get("account_id", "")): value,
+                )
             ):
                 registry.register(tool, category="native")
             if self._file_output_publisher is not None:

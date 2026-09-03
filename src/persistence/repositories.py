@@ -229,7 +229,7 @@ class FileRepository:
     ) -> bool:
         return uow.execute(
             "UPDATE stored_files SET status='ready',storage_key=%s,size_bytes=%s,sha256=%s,"
-            "encoding=%s,content_type='text/plain',ready_at=now(),expires_at=%s "
+            "encoding=%s,ready_at=now(),expires_at=%s "
             "WHERE account_id=%s AND file_id=%s AND status='uploading' RETURNING file_id",
             (storage_key, size_bytes, sha256, encoding, expires_at, account_id, file_id),
         ).fetchone() is not None

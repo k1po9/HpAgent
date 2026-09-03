@@ -185,6 +185,16 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     validate_web_worker_startup(config.temporal, worker_database_url)
     assert worker_database_url is not None
     assert deps.workspace_isolation is not None, "workspace isolation is required"
+    from file_runtime.routing import TemporalDocumentRouter
+
+    deps.sandbox_manager.configure_file_document_router(
+        TemporalDocumentRouter(
+            client,
+            direct_read_max_bytes=int(
+                os.getenv("FILE_DIRECT_READ_MAX_BYTES", str(1024 * 1024))
+            ),
+        )
+    )
     trace_repository = PostgresTraceRepository(worker_database_url)
     event_factory = TracingWebEventSinkFactory(
         RedisWebRunEventSinkFactory(deps.redis_client),

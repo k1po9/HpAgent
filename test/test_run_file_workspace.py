@@ -73,3 +73,24 @@ def test_run_scope_rematerializes_prior_output_for_next_version(tmp_path: Path) 
         assert resource.local_path.read_bytes() == b"prior output"
         assert resource.local_path.stat().st_mode & 0o777 == 0o400
         assert scope.model_manifest()[0]["direction"] == "output"
+
+
+def test_run_scope_rebuilds_directory_left_by_killed_worker(tmp_path: Path) -> None:
+    account_id, file_id, run_id = uuid4(), uuid4(), uuid4()
+    store = TenantFileStore(tmp_path / "objects", max_bytes=1024)
+    published = _published(store, account_id, file_id, b"authoritative")
+    workspace = RunFileWorkspace(object(), store, tmp_path / "executions")
+    stale = workspace.execution_root / str(run_id)
+    (stale / "outputs").mkdir(parents=True)
+    stale_output = stale / "outputs" / "report.docx"
+    stale_output.write_bytes(b"untrusted partial")
+    stale_output.chmod(0o400)
+    rows = [{
+        "file_id": file_id, "logical_name": "source.log",
+        "storage_key": published.storage_key, "size_bytes": published.size_bytes,
+        "encoding": "utf-8",
+    }]
+
+    with workspace.prepare_rows(run_id, rows) as scope:
+        assert (scope.inputs_root / "source.log").read_bytes() == b"authoritative"
+        assert not (scope.outputs_root / "report.docx").exists()

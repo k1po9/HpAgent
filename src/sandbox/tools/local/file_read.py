@@ -120,6 +120,8 @@ def _encode(
 def create_file_read_tools(
     scope_provider: Callable[[], Any | None],
     registry: FileAdapterRegistry | None = None,
+    document_router: Any | None = None,
+    account_id_provider: Callable[[], str] | None = None,
 ) -> list[StructuredTool]:
     adapters = registry or default_file_adapter_registry()
 
@@ -132,8 +134,22 @@ def create_file_read_tools(
 
     async def fast_text_view(file: str, max_chars: int = 32_000) -> str:
         resource, adapter = resolve(file, "fast_text")
+        if document_router is not None and document_router.should_normalize(resource):
+            scope = scope_provider()
+            account_id = account_id_provider() if account_id_provider is not None else ""
+            if scope is None or not account_id:
+                raise ValueError("document routing identity is unavailable")
+            reference = await document_router.normalize(
+                account_id, str(scope.run_id), resource
+            )
+            return _encode(resource, {
+                "route": "normalized_document",
+                "normalized_document_ref": reference,
+                "truncated": bool(reference["truncated"]),
+            })
         view = await asyncio.to_thread(adapter.convert, resource, max_chars=max_chars)
         return _encode(resource, {
+            "route": "bounded_direct_read",
             "text": view.text, "media_type": view.media_type,
             "truncated": view.truncated, "metadata": view.metadata,
         })

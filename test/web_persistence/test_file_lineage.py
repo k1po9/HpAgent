@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import json
 from uuid import UUID, uuid4
 
 import psycopg
 import pytest
+from docx import Document
 
 from file_runtime import OutputPublisher
+from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
 from web_domain.file_services import FileService
 from web_domain.services import CommandService
-from workspace.file_scope import RunFileScope
+from workspace.file_scope import RunFileInput, RunFileScope
 
 pytestmark = pytest.mark.postgres
 
@@ -91,3 +94,66 @@ def test_database_ignores_caller_supplied_child_version(
         db.execute(
             "UPDATE stored_files SET parent_file_id=NULL WHERE file_id=%s", (child_id,)
         )
+
+
+@pytest.mark.asyncio
+async def test_docx_to_pdf_tool_records_source_lineage(
+    tmp_path, db, account_id, database_url, worker_database_url
+):
+    api = CommandService(database_url)
+    conversation_id = UUID(api.create_conversation(account_id, str(uuid4()))["conversation_id"])
+    inputs = tmp_path / "inputs"
+    outputs = tmp_path / "outputs"
+    scratch = tmp_path / "scratch"
+    for directory in (inputs, outputs, scratch):
+        directory.mkdir()
+    source_path = inputs / "source.docx"
+    document = Document()
+    document.add_paragraph("lineage")
+    document.save(source_path)
+    source_id = uuid4()
+    store = TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024)
+    staged = store.stage_output(source_id, source_path)
+    published = store.publish(account_id, source_id, staged)
+    db.execute(
+        "INSERT INTO stored_files(file_id,account_id,conversation_id,purpose,status,"
+        "original_name,display_name,storage_key,content_type,encoding,size_bytes,sha256,ready_at) "
+        "VALUES (%s,%s,%s,'input','ready','source.docx','source.docx',%s,%s,'binary',%s,%s,now())",
+        (source_id, account_id, conversation_id, published.storage_key,
+         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+         published.size_bytes, published.sha256),
+    )
+    run_id = UUID(api.send_message(
+        account_id, conversation_id, str(uuid4()), "convert", file_ids=(source_id,)
+    )["run_id"])
+    worker = CommandService(worker_database_url)
+    worker.start_run(account_id, run_id)
+    scope = RunFileScope(
+        run_id, inputs, scratch, outputs,
+        (RunFileInput(
+            source_id, "source.docx", source_path.stat().st_size, "binary",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ),),
+    )
+
+    class Conversion:
+        def convert_to_pdf(self, resource, outputs_root, output_name):
+            target = outputs_root / output_name
+            target.write_bytes(b"%PDF-1.7\nlineage")
+            return target
+
+    tool = next(tool for tool in create_file_write_tools(
+        lambda: scope, OutputPublisher(worker_database_url, store), Conversion()
+    ) if tool.name == "convert_file_to_pdf")
+    result = json.loads(await tool.ainvoke({
+        "file": "source.docx", "output_name": "source.pdf",
+        "operation_id": "convert-lineage",
+    }))
+    pdf_id = UUID(result["file_id"])
+    assert result["parent_file_id"] == str(source_id)
+    worker.complete_run(account_id, run_id, "converted")
+    lineage = FileService(database_url, store, max_bytes=1024 * 1024).lineage(
+        account_id, pdf_id
+    )
+    assert [item["file_id"] for item in lineage] == [str(source_id), str(pdf_id)]
+    assert [item["version"] for item in lineage] == [1, 2]

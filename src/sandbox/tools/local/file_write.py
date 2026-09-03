@@ -123,6 +123,11 @@ def create_file_write_tools(
 
     async def create_docx(output_name: str, blocks: list[DocxBlock], operation_id: str = "") -> str:
         current = active_scope()
+        replayed = await asyncio.to_thread(
+            publisher.replay, current, operation_id, output_name
+        )
+        if replayed is not None:
+            return _result(replayed)
         data = [block.model_dump() for block in blocks]
         if sum(len(block["text"]) for block in data) > 200_000:
             raise ValueError("DOCX content exceeds bounded character limit")
@@ -137,6 +142,11 @@ def create_file_write_tools(
         output_name: str, sheets: list[WorkbookSheet], operation_id: str = ""
     ) -> str:
         current = active_scope()
+        replayed = await asyncio.to_thread(
+            publisher.replay, current, operation_id, output_name
+        )
+        if replayed is not None:
+            return _result(replayed)
         data = [sheet.model_dump() for sheet in sheets]
         if sum(len(row) for sheet in data for row in sheet["rows"]) > 20_000:
             raise ValueError("workbook exceeds bounded cell limit")
@@ -153,6 +163,11 @@ def create_file_write_tools(
         output_name: str, slides: list[PresentationSlide], operation_id: str = ""
     ) -> str:
         current = active_scope()
+        replayed = await asyncio.to_thread(
+            publisher.replay, current, operation_id, output_name
+        )
+        if replayed is not None:
+            return _result(replayed)
         data = [slide.model_dump() for slide in slides]
         await asyncio.to_thread(PptxWriter().create, current.outputs_root, output_name, data)
         output = await asyncio.to_thread(
@@ -166,11 +181,17 @@ def create_file_write_tools(
             raise RuntimeError("Gotenberg conversion is unavailable")
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
+        replayed = await asyncio.to_thread(
+            publisher.replay, current, operation_id, output_name, resource.file_id
+        )
+        if replayed is not None:
+            return _result(replayed, scanned_bytes=resource.size_bytes)
         await asyncio.to_thread(
             conversion_provider.convert_to_pdf, resource, current.outputs_root, output_name
         )
         output = await asyncio.to_thread(
-            publisher.publish, current, operation_id, output_name, "application/pdf"
+            publisher.publish, current, operation_id, output_name, "application/pdf",
+            parent_file_id=resource.file_id,
         )
         return _result(output, scanned_bytes=resource.size_bytes)
 
@@ -180,6 +201,11 @@ def create_file_write_tools(
     ) -> str:
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
+        replayed = await asyncio.to_thread(
+            publisher.replay, current, operation_id, output_name, resource.file_id
+        )
+        if replayed is not None:
+            return _result(replayed, scanned_bytes=resource.size_bytes)
         _, replacements = await asyncio.to_thread(
             DocxWriter().replace_text, resource, current.outputs_root, output_name,
             find, replace, max_replacements,
@@ -201,6 +227,11 @@ def create_file_write_tools(
             raise ValueError("DOCX section exceeds bounded character limit")
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
+        replayed = await asyncio.to_thread(
+            publisher.replay, current, operation_id, output_name, resource.file_id
+        )
+        if replayed is not None:
+            return _result(replayed, scanned_bytes=resource.size_bytes)
         await asyncio.to_thread(
             DocxWriter().append_section, resource, current.outputs_root, output_name,
             heading, paragraphs,
@@ -220,6 +251,11 @@ def create_file_write_tools(
             raise ValueError("workbook patch exceeds bounded cell limit")
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
+        replayed = await asyncio.to_thread(
+            publisher.replay, current, operation_id, output_name, resource.file_id
+        )
+        if replayed is not None:
+            return _result(replayed, scanned_bytes=resource.size_bytes)
         await asyncio.to_thread(
             XlsxWriter().write_range, resource, current.outputs_root, output_name,
             sheet, start_row, start_column, values,
@@ -237,6 +273,11 @@ def create_file_write_tools(
     ) -> str:
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
+        replayed = await asyncio.to_thread(
+            publisher.replay, current, operation_id, output_name, resource.file_id
+        )
+        if replayed is not None:
+            return _result(replayed, scanned_bytes=resource.size_bytes)
         await asyncio.to_thread(
             PptxWriter().replace_slide, resource, current.outputs_root, output_name,
             slide, title, body,

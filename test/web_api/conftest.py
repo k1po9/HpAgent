@@ -108,6 +108,8 @@ def client_factory(database_url: str, worker_database_url: str):
         sse_handshake_buffer_events: int = 256,
         sse_handshake_buffer_bytes: int = 1 * 1024 * 1024,
         postgres_credentials: bool = False,
+        file_upload_enabled: bool = False,
+        file_store_root: str = "/tmp/hpagent-test-file-store",
     ) -> TestClient:
         settings = WebApiSettings(
             database_url=database_url,
@@ -129,6 +131,8 @@ def client_factory(database_url: str, worker_database_url: str):
             sse_handshake_buffer_events=sse_handshake_buffer_events,
             sse_handshake_buffer_bytes=sse_handshake_buffer_bytes,
             terminal_publisher_poll_seconds=0.1,
+            web_file_upload_enabled=file_upload_enabled,
+            file_store_root=file_store_root,
         )
         client = TestClient(
             create_app(settings, None if postgres_credentials else TestCredentials()),

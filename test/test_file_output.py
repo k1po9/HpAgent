@@ -15,10 +15,16 @@ from workspace.file_scope import RunFileScope
 
 
 class _Publisher:
-    def publish(self, scope, operation_id, logical_name, content_type):
+    def replay(self, scope, operation_id, logical_name, parent_file_id=None):
+        return None
+
+    def publish(
+        self, scope, operation_id, logical_name, content_type, parent_file_id=None
+    ):
         path = scope.outputs_root / logical_name
         return PublishedOutput(
-            uuid4(), logical_name, content_type, path.stat().st_size, "a" * 64
+            uuid4(), logical_name, content_type, path.stat().st_size, "a" * 64,
+            parent_file_id,
         )
 
 

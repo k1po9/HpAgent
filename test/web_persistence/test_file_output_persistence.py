@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 from uuid import UUID, uuid4
 
 import pytest
 
 from file_runtime import OutputPublisher
+from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
 from web_domain.errors import ResourceNotFound
 from web_domain.file_services import FileService
@@ -71,3 +73,56 @@ def test_output_publish_rejects_operation_name_mismatch(
     publisher.publish(scope, "stable-op", "a.docx")
     with pytest.raises(RuntimeError, match="another logical file"):
         publisher.publish(scope, "stable-op", "b.docx")
+
+
+@pytest.mark.asyncio
+async def test_write_retry_after_publish_before_ack_returns_same_output(
+    tmp_path, db, account_id, database_url, worker_database_url
+):
+    api = CommandService(database_url)
+    conversation_id = UUID(api.create_conversation(account_id, str(uuid4()))["conversation_id"])
+    run_id = UUID(api.send_message(
+        account_id, conversation_id, str(uuid4()), "crash after publish"
+    )["run_id"])
+    CommandService(worker_database_url).start_run(account_id, run_id)
+    outputs = tmp_path / "run" / "outputs"
+    outputs.mkdir(parents=True)
+    scope = RunFileScope(run_id, tmp_path / "inputs", tmp_path / "scratch", outputs, ())
+    delegate = OutputPublisher(
+        worker_database_url, TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024)
+    )
+
+    class CrashAfterPublish:
+        crashed = False
+
+        def replay(self, *args, **kwargs):
+            return delegate.replay(*args, **kwargs)
+
+        def publish(self, *args, **kwargs):
+            result = delegate.publish(*args, **kwargs)
+            if not self.crashed:
+                self.crashed = True
+                raise RuntimeError("worker killed after publish before Activity ACK")
+            return result
+
+    tools = {
+        tool.name: tool for tool in create_file_write_tools(
+            lambda: scope, CrashAfterPublish()
+        )
+    }
+    request = {
+        "output_name": "report.docx",
+        "blocks": [{"kind": "paragraph", "text": "stable output"}],
+        "operation_id": "stable-crash-operation",
+    }
+    with pytest.raises(RuntimeError, match="after publish"):
+        await tools["create_docx"].ainvoke(request)
+    recovered = json.loads(await tools["create_docx"].ainvoke(request))
+
+    rows = db.execute(
+        "SELECT rf.file_id,sf.version FROM run_files rf JOIN stored_files sf "
+        "ON sf.file_id=rf.file_id WHERE rf.run_id=%s AND rf.operation_id=%s",
+        (run_id, "stable-crash-operation"),
+    ).fetchall()
+    assert rows == [(UUID(recovered["file_id"]), 1)]
+    assert recovered["deduplicated"] is True

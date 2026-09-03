@@ -14,6 +14,9 @@ from workspace.file_scope import RunFileInput, RunFileScope
 
 
 class _Publisher:
+    def replay(self, scope, operation_id, logical_name, parent_file_id=None):
+        return None
+
     def publish(
         self, scope, operation_id, logical_name, content_type, *, parent_file_id=None
     ):

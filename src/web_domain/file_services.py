@@ -41,7 +41,16 @@ from .services import CommandResult
 
 ALLOWED_DECLARED_TYPES = {
     "text/plain", "text/x-log", "application/log", "application/octet-stream",
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 }
+
+BINARY_DECLARED_TYPES = ALLOWED_DECLARED_TYPES - {
+    "text/plain", "text/x-log", "application/log", "application/octet-stream",
+}
+BINARY_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx"}
 
 
 class FileService:
@@ -129,6 +138,9 @@ class FileService:
             staged = await self.store.stage_async(
                 file_id, chunks, declared_size=declared_size,
                 declared_sha256=declared_sha256,
+                validate_utf8=self._requires_utf8(
+                    str(row["content_type"]), str(row["display_name"])
+                ),
             )
             published = self.store.publish(account_id, file_id, staged)
         except StoreTooLarge as exc:
@@ -231,6 +243,14 @@ class FileService:
         if not display or display in {".", ".."}:
             raise FileUploadInvalid()
         return original, display
+
+    @staticmethod
+    def _requires_utf8(content_type: str, display_name: str) -> bool:
+        if content_type in BINARY_DECLARED_TYPES:
+            return False
+        if content_type == "application/octet-stream":
+            return not any(display_name.casefold().endswith(ext) for ext in BINARY_EXTENSIONS)
+        return True
 
     @staticmethod
     def _dto(row: Any) -> dict[str, Any]:

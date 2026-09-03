@@ -186,6 +186,7 @@ class TenantFileStore:
         *,
         declared_size: int,
         declared_sha256: str | None = None,
+        validate_utf8: bool = True,
     ) -> StagedFile:
         """Async-iterator variant used by the ASGI streaming upload endpoint."""
         if declared_size < 0 or declared_size > self.max_bytes:
@@ -193,7 +194,7 @@ class TenantFileStore:
         key = self.staging_key(file_id)
         path = self._key_path(key)
         digest = hashlib.sha256()
-        decoder = codecs.getincrementaldecoder("utf-8")("strict")
+        decoder = codecs.getincrementaldecoder("utf-8")("strict") if validate_utf8 else None
         total = 0
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
         fd = os.open(path, flags, 0o600)
@@ -202,22 +203,26 @@ class TenantFileStore:
                 total += len(chunk)
                 if total > self.max_bytes:
                     raise FileTooLarge()
-                if b"\x00" in chunk:
+                if decoder is not None and b"\x00" in chunk:
                     raise FileEncodingUnsupported()
-                decoder.decode(chunk, final=False)
+                if decoder is not None:
+                    decoder.decode(chunk, final=False)
                 digest.update(chunk)
                 view = memoryview(chunk)
                 while view:
                     written = os.write(fd, view)
                     view = view[written:]
-            decoder.decode(b"", final=True)
+            if decoder is not None:
+                decoder.decode(b"", final=True)
             if total != declared_size:
                 raise FileStoreError("declared size does not match received bytes")
             actual_hash = digest.hexdigest()
             if declared_sha256 and actual_hash != declared_sha256:
                 raise FileHashMismatch()
             os.fsync(fd)
-            return StagedFile(key, total, actual_hash, "utf-8")
+            return StagedFile(
+                key, total, actual_hash, "utf-8" if decoder is not None else "binary"
+            )
         except UnicodeDecodeError as exc:
             self._unlink_quietly(path)
             raise FileEncodingUnsupported() from exc

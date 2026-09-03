@@ -1,6 +1,14 @@
 # File Assistant F0–F4 实现地图与漂移审计
 
-审计基线：`feat/hpagent-web`，实现提交 `321dd2c`。
+审计基线：`feat/hpagent-web`，F0–F3 Runtime Closure 工作树。
+
+阶段结论：
+
+- **F0 Runtime Complete**
+- **F1 Runtime Complete**
+- **F2 Runtime Complete**
+- **F3 Runtime Complete**
+- **F4 Approval Foundation（保持不变）**
 
 本文用于把产品化指南中的 File Assistant 目标与当前代码逐项对照。状态分为：
 
@@ -27,6 +35,7 @@ Web message + attached stored_files
   -> authenticated metadata / lineage / download API
 
 Large structured document
+  -> deterministic size/media-type routing from ordinary Agent read tool
   -> NormalizeDocumentWorkflow
   -> dedicated document task queue / low-concurrency Worker
   -> DoclingStructuredDocumentProvider
@@ -48,17 +57,21 @@ Future destructive file action
 | F0 | 文件领域模型和 Provider 边界 | `FileResource`、`SourceLocator`、`NormalizedBlock/Table/Document`、`TextView`；`FastTextViewProvider`、`StructuredDocumentProvider`、`ConversionProvider` | 完成 |
 | F0 | Run File Scope，不接受任意宿主路径 | `RunFileScope`、`FileResourceResolver`；只解析当前 Run input 或已发布 output，拒绝逃逸、符号链接和非普通文件 | 完成 |
 | F0 | 快速文本查看 | `MarkItDownFastTextViewProvider`；`read_file_text` 提供有界结果 | 完成 |
+| F0 | 正式 Web binary upload | PDF/DOCX/XLSX/PPTX 流式写入 `stored_files`，保留 size/SHA256/immutable storage；仅文本执行 UTF-8 校验 | 完成 |
 | F0 | PDF / DOCX / XLSX / PPTX 有界读取 | `PdfAdapter`、`DocxAdapter`、`XlsxAdapter`、`PptxAdapter`；页、表、段落、range、slide 均要求显式范围 | 完成 |
 | F0 | Tool Registry 与副作用分类 | 文件读工具注册为 `read_only`，需要 file scope，并声明预算字段 | 完成 |
 | F1 | Docling 结构化文档 | `DoclingStructuredDocumentProvider`、标准化模型和序列化 | 完成 |
 | F1 | Docling 低并发独立 Worker | `hpagent-document-worker`、`DOCUMENT_TASK_QUEUE`、`max_concurrent_activities=1` | 完成 |
 | F1 | Temporal History 只保存 compact refs | Workflow 返回 `NormalizedDocumentRef`；完整结构写入 `normalized_documents` | 完成 |
+| F1 | 大文档自动路由 | 普通 Agent 按文件大小和复杂 MIME 确定性选择 bounded direct read 或 Document Worker；History 只接收 compact ref | 完成 |
 | F1 | Trace / Run Budget | `DocumentNormalization` Trace；bytes scanned 与 wall time reserve/settle；重放会收敛未结算 reservation | 完成 |
 | F2 | 创建 DOCX/XLSX/PPTX | `DocxWriter`、`XlsxWriter`、`PptxWriter` 和三个声明式工具 | 完成 |
 | F2 | Gotenberg 转 PDF | 常驻 Compose service；`GotenbergConversionProvider`；按需调用而非在 Agent Worker 管理 LibreOffice/Chromium | 完成 |
 | F2 | 不可变输出发布 | `OutputPublisher` 从 `outputs/` 发布到 `TenantFileStore`，登记 `stored_files/run_files`，同 operation 得到同 file id | 完成 |
+| F2 | ACK 丢失重试 | adapter 写入前按稳定 `(run_id, operation_id)` replay 已发布结果，返回原 `file_id/version`，不重复登记或扣预算 | 完成 |
 | F2 | 输出可见性 | Run 完成事务把 output 绑定到 completed assistant message，之后才可通过认证下载 | 完成 |
 | F3 | 文件版本和 lineage | `parent_file_id`、数据库计算 `version`、ready lineage 不可修改、root-first lineage API | 完成 |
+| F3 | PDF 转换 lineage | `convert_file_to_pdf` 发布时记录 source `file_id` 为 `parent_file_id`，lineage API 返回 source → PDF | 完成 |
 | F3 | 声明式 patch | DOCX replace/append、XLSX range write、PPTX single-slide replace；全部生成新版本 | 完成 |
 | F4 | 高风险动作审批数据模型 | `FileActionApproval` 和 `file_action_approvals` 状态机 | 完成 |
 | F4 | 审批 API 与命令幂等 | owned list、approve、reject；CSRF + Idempotency-Key；同租户校验 | 完成 |
@@ -162,6 +175,8 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
 - tool metadata 声明 bytes scanned/written/output/returned；Run Budget 统一 reserve/settle。
 - Document Activity 使用独立的 `DocumentNormalization` Trace 和相同 Run Budget 数据面。
 - `RunFileScope` 保留旧逻辑名解析，同时加入 UUID 和已发布 output 解析；旧错误文本相关测试仍在。
+- Worker 在发布后、Activity ACK 前退出时，重试先 replay 已有 publication；同一 operation
+  复用原 file/version 和预算 operation。SIGKILL 遗留的同 Run workspace 会从 immutable store 重建。
 - 未删除 Research、QQ/NapCat、legacy replay-sensitive workflow 或早期 migration。
 - `.serena/` 是本地搜索缓存，已加入 `.gitignore`，没有进入提交。
 
@@ -173,6 +188,7 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
 - Gotenberg、数据库、Temporal 等内部地址加入相关 `NO_PROXY`。
 - `WEB_FILE_TRANSFORM_ENABLED` 默认 false，必须同时启用 Durable Agent 与 file upload。
 - `WEB_FILE_SHELL_ENABLED` 默认 false，生产环境明确拒绝 host Bash。
+- `FILE_DIRECT_READ_MAX_BYTES` 默认 1 MiB；复杂文档或超过阈值的文件路由到 Document Worker。
 
 ## 9. 测试证据
 
@@ -180,12 +196,12 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
 
 | 测试层 | 结果 |
 |---|---|
-| F4 contract + PostgreSQL | 4 passed |
-| File/Document/Durable scoped | 64 passed, 1 skipped（未提供 Temporal env 的那次） |
-| File output + lineage PostgreSQL | 4 passed |
-| Document Worker PostgreSQL | 1 passed |
-| Document real Temporal integration | 1 passed |
-| 全量非 external、非 PostgreSQL | 507 passed, 15 skipped, 170 deselected |
+| Binary Web upload → message → RunFileScope（PostgreSQL） | PASS；PDF/DOCX/XLSX/PPTX 与 UTF-8 log |
+| Output ACK-gap retry + PDF lineage（PostgreSQL） | PASS；合并 persistence 组 7 passed |
+| Durable retry/budget + scoped unit | PASS；43 passed |
+| Document real Temporal integration | PASS；2 passed |
+| Agent/Research Temporal contract regression | PASS；62 passed |
+| 全量非 external、非 PostgreSQL | 511 passed, 17 skipped, 172 deselected |
 | Ruff scoped | PASS |
 | `git diff --check` | PASS |
 | `docker compose config --quiet` | PASS |
@@ -203,6 +219,9 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
 - `test/web_persistence/test_file_output_persistence.py`
 - `test/web_persistence/test_file_lineage.py`
 - `test/web_persistence/test_file_action_approvals.py`
+- `test/web_api/test_binary_file_upload.py`
+- `test/test_durable_agent_hardening.py`
+- `test/test_run_file_workspace.py`
 
 ## 10. 已知漂移与风险
 
@@ -214,9 +233,7 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
    overwrite/delete/send 尚不可验收。
 3. **pypdfium2 尚未进入代码路径**：依赖已安装，当前 PDF text/metadata 走 pypdf，table 走
    pdfplumber；扫描 PDF 的 render/OCR fallback 尚未实现。
-4. **Document normalization 尚未由通用 Agent 自动规划触发**：Workflow/Worker/Activity 可运行，
-   但当前 Agent 文件读工具主要直接使用有界 Adapter；大型文档自动路由策略仍需补齐。
-5. **前端没有 approval inbox/按钮**：审批 REST API 已有，Web UI 尚未实现。
+4. **前端没有 approval inbox/按钮**：审批 REST API 已有，Web UI 尚未实现。
 
 ### 非漂移的有意边界
 
@@ -225,22 +242,15 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
 - 所有 patch 生成新版本，不原地编辑 input。
 - 当前安全派生工具不需要人工审批。
 
-## 11. 下一阶段建议
+## 11. 本轮边界
 
-按依赖顺序：
-
-1. 定义首个真实高风险文件动作及外部目标 Adapter，确认 reconciliation 能查询目标端状态。
-2. 增加 `request_file_action_approval` Outbox 事件和 Temporal Signal；Workflow 等待时保持 Run
-   非终态，并支持批准、拒绝、超时和取消。
-3. 在 Side Effect Intent 之前原子 consume grant；在外部调用前再次校验 fencing token。
-4. 增加 Worker-kill 测试：批准前、consume 后/intention 前、外部 ACK 丢失三个故障窗口。
-5. 实现 Web approval inbox，并展示 tool、action summary、目标、过期时间；禁止展示敏感参数。
-6. 为扫描 PDF 接入 pypdfium2 render fallback；若引入 OCR，单独明确预算与低并发策略。
-7. 增加大型文档的自动路由规则，使普通 Agent 选择 compact `NormalizedDocumentRef` 而不是
-   把整份文档送入上下文。
+本轮只关闭 binary upload、idempotent write ACK-gap、PDF conversion lineage 和大型文档
+deterministic routing 四项漂移。F4 审批基础保持原状；未新增 destructive action、OCR、语义
+reranker、File Agent Framework，也未修改 Research 架构或 migration checksum。
 
 ## 12. 审计结论
 
-F0–F3 已形成可运行的“有界读取—独立结构化 Worker—不可变输出—版本 lineage”闭环。
+F0–F3 Runtime Complete，已形成“正式 binary upload—RunFileScope—有界读取/确定性 Document
+Worker 路由—不可变幂等输出—版本 lineage”的运行时闭环。
 F4 已形成持久化审批安全基础，但端到端 HITL 仍是部分完成。评审时应重点核对第 10 节，
 避免把存在类名、表或 API 误判为完整运行时能力。

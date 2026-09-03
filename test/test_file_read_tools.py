@@ -164,3 +164,61 @@ async def test_tool_result_fails_bounded_when_adapter_payload_is_too_large(
     assert result["truncated"] is True
     assert "smaller range" in result["error"]
     assert result["returned_bytes"] < 512 * 1024
+
+
+async def test_fast_text_deterministically_routes_complex_document(tmp_path: Path) -> None:
+    scope = _scope(tmp_path)
+
+    class Router:
+        calls = []
+
+        def should_normalize(self, resource):
+            return resource.logical_name.endswith(".docx")
+
+        async def normalize(self, account_id, run_id, resource):
+            self.calls.append((account_id, run_id, resource.file_id))
+            return {
+                "schema_version": 1, "run_id": run_id,
+                "file_id": str(resource.file_id),
+                "document_ref": f"normalized-document:{run_id}:{resource.file_id}",
+                "block_count": 2, "table_count": 1, "truncated": False,
+            }
+
+    router = Router()
+    tools = {tool.name: tool for tool in create_file_read_tools(
+        lambda: scope, document_router=router,
+        account_id_provider=lambda: "account-1",
+    )}
+    result = json.loads(await tools["fast_text_view"].ainvoke({
+        "file": "report.docx"
+    }))
+    assert result["route"] == "normalized_document"
+    assert set(result["normalized_document_ref"]) == {
+        "schema_version", "run_id", "file_id", "document_ref",
+        "block_count", "table_count", "truncated",
+    }
+    assert router.calls == [("account-1", str(scope.run_id), scope.inputs[0].file_id)]
+
+
+async def test_small_text_keeps_bounded_direct_read(tmp_path: Path) -> None:
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    (inputs / "small.txt").write_text("small text", encoding="utf-8")
+    item = RunFileInput(uuid4(), "small.txt", 10, "utf-8", "text/plain")
+    scope = RunFileScope(
+        uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs", (item,)
+    )
+
+    class Router:
+        def should_normalize(self, resource):
+            return resource.size_bytes > 1024
+
+        async def normalize(self, *args):
+            raise AssertionError("small text must not reach Document Worker")
+
+    tools = {tool.name: tool for tool in create_file_read_tools(
+        lambda: scope, document_router=Router(), account_id_provider=lambda: "account-1"
+    )}
+    result = json.loads(await tools["fast_text_view"].ainvoke({"file": "small.txt"}))
+    assert result["route"] == "bounded_direct_read"
+    assert "small text" in result["text"]

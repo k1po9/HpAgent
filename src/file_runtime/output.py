@@ -94,6 +94,24 @@ class OutputPublisher:
                 parent_file_id, int(stored["version"]),
             )
 
+    def replay(
+        self,
+        scope: RunFileScope,
+        operation_id: str,
+        logical_name: str,
+        parent_file_id: UUID | None = None,
+    ) -> PublishedOutput | None:
+        """Return an already-published output before an adapter rewrites its path."""
+        if not operation_id:
+            return None
+        name = self._logical_name(logical_name)
+        existing = self._existing(scope.run_id, operation_id)
+        if existing is None:
+            return None
+        if existing.logical_name != name or existing.parent_file_id != parent_file_id:
+            raise RuntimeError("output operation belongs to another logical file")
+        return PublishedOutput(**{**existing.__dict__, "deduplicated": True})
+
     def _existing(self, run_id: UUID, operation_id: str) -> PublishedOutput | None:
         with UnitOfWork(self.database) as uow:
             return self._existing_in_uow(uow, run_id, operation_id)

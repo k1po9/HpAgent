@@ -385,6 +385,41 @@ async def test_fault_hook_marks_ack_gap_uncertain_after_exactly_one_side_effect(
 
 
 @pytest.mark.asyncio
+async def test_idempotent_write_ack_gap_retry_reuses_budget_operation():
+    store = Store(ToolOperationState("started", None))
+    actions = Actions("idempotent_write")
+
+    class Budget:
+        settled: dict[str, dict[str, int]] = {}
+        used_tool_calls = 0
+
+        def reserve(self, run_id, operation_id, values):
+            return None
+
+        def settle(self, run_id, operation_id, values, source):
+            previous = self.settled.get(operation_id)
+            if previous is None:
+                self.settled[operation_id] = dict(values)
+                self.used_tool_calls += values["tool_calls"]
+            else:
+                assert previous == values
+
+    budget = Budget()
+    item = request()
+    with pytest.raises(ApplicationError):
+        await activities(
+            store, actions, run_budget=budget,
+            fault_injector=CrashAfterSideEffect(),
+        ).tool_execution(item)
+    result = await activities(
+        store, actions, run_budget=budget
+    ).tool_execution(item)
+
+    assert result.operation_id == item.operation_id
+    assert budget.used_tool_calls == 1
+
+
+@pytest.mark.asyncio
 async def test_non_idempotent_completion_failure_is_exposed_as_uncertain():
     store = Store(
         ToolOperationState("started", None),
