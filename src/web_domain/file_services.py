@@ -163,17 +163,42 @@ class FileService:
     def get(self, account_id: UUID, file_id: UUID) -> dict[str, Any]:
         with UnitOfWork(self.database) as uow:
             row = self.files.get_for_account(uow, account_id, file_id)
-            if row is None or row["status"] == "deleted":
+            if (
+                row is None or row["status"] == "deleted"
+                or not self._output_is_visible(uow, row)
+            ):
                 raise ResourceNotFound()
             return self._dto(row)
 
     def download(self, account_id: UUID, file_id: UUID) -> tuple[dict[str, Any], Any]:
         with UnitOfWork(self.database) as uow:
             row = self.files.get_for_account(uow, account_id, file_id)
-            if row is None or row["status"] != "ready" or not row["storage_key"]:
+            if (
+                row is None or row["status"] != "ready" or not row["storage_key"]
+                or not self._output_is_visible(uow, row)
+            ):
                 raise ResourceNotFound()
             metadata = dict(row)
         return self._dto(metadata), self.store.open(str(metadata["storage_key"]))
+
+    def lineage(self, account_id: UUID, file_id: UUID) -> list[dict[str, Any]]:
+        with UnitOfWork(self.database) as uow:
+            current = self.files.get_for_account(uow, account_id, file_id)
+            if current is None or not self._output_is_visible(uow, current):
+                raise ResourceNotFound()
+            rows = uow.execute(
+                "WITH RECURSIVE lineage AS ("
+                " SELECT sf.*,0 AS depth FROM stored_files sf "
+                " WHERE sf.account_id=%s AND sf.file_id=%s"
+                " UNION ALL"
+                " SELECT parent.*,lineage.depth+1 FROM stored_files parent "
+                " JOIN lineage ON parent.account_id=lineage.account_id "
+                " AND parent.conversation_id=lineage.conversation_id "
+                " AND parent.file_id=lineage.parent_file_id"
+                ") SELECT * FROM lineage ORDER BY depth DESC",
+                (account_id, file_id),
+            ).fetchall()
+            return [self._dto(row) for row in rows]
 
     def delete(self, account_id: UUID, file_id: UUID) -> None:
         with UnitOfWork(self.database) as uow:
@@ -186,6 +211,16 @@ class FileService:
     def _reject(self, account_id: UUID, file_id: UUID, code: str) -> None:
         with UnitOfWork(self.database) as uow:
             self.files.mark_rejected(uow, account_id, file_id, code)
+
+    @staticmethod
+    def _output_is_visible(uow: UnitOfWork, row: Any) -> bool:
+        if row["purpose"] != "output":
+            return True
+        return uow.execute(
+            "SELECT 1 FROM message_files WHERE account_id=%s AND file_id=%s "
+            "AND role='output'",
+            (row["account_id"], row["file_id"]),
+        ).fetchone() is not None
 
     @staticmethod
     def _names(file_name: str) -> tuple[str, str]:
@@ -204,6 +239,10 @@ class FileService:
             "purpose": row["purpose"], "status": row["status"],
             "size_bytes": row["size_bytes"], "content_type": row["content_type"],
             "encoding": row["encoding"], "sha256": row["sha256"],
+            "parent_file_id": (
+                str(row["parent_file_id"]) if row.get("parent_file_id") else None
+            ),
+            "version": int(row.get("version") or 1),
             "failure_code": row["failure_code"],
             "download_url": (
                 f"/api/v1/files/{row['file_id']}/content" if row["status"] == "ready" else None

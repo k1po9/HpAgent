@@ -685,6 +685,8 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     workspace_db = WorkspaceDB(config.workspace.db_path or str(workspace_root / "workspace.db"))
     logger.info("Workspace storage initialized: root=%s", workspace_root)
     run_file_workspace = None
+    file_output_publisher = None
+    file_conversion_provider = None
     file_capability = FileCapabilityConfig.from_environment(
         workspace_root, os.getenv("WORKER_DATABASE_URL")
     )
@@ -701,6 +703,19 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
             worker_database_url, tenant_store, file_capability.run_root
         )
         logger.info("Run file workspace enabled with isolated object/execution roots")
+        if file_capability.transform_enabled:
+            if not config.temporal.durable_agent_enabled:
+                raise RuntimeError("file transforms require DURABLE_AGENT_ENABLED=true")
+            from file_adapters import GotenbergConversionProvider
+            from file_runtime import OutputPublisher
+
+            gotenberg_url = os.getenv("GOTENBERG_URL", "").strip()
+            if not gotenberg_url:
+                raise RuntimeError("file transforms require GOTENBERG_URL")
+            file_output_publisher = OutputPublisher(worker_database_url, tenant_store)
+            file_conversion_provider = GotenbergConversionProvider(
+                gotenberg_url, max_output_bytes=file_capability.max_bytes
+            )
 
     # ── 5b. 定时调度器 ──
     scheduler: TaskScheduler = TaskScheduler(data_dir=Path(config.scheduler.data_dir))
@@ -723,6 +738,8 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         file_tools_enabled=(
             file_capability.upload_enabled
         ),
+        file_output_publisher=file_output_publisher,
+        file_conversion_provider=file_conversion_provider,
     )
 
     # ── 7. Prompt + Hindsight + 上下文构建器 ──

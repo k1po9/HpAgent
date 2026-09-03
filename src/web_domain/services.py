@@ -355,6 +355,17 @@ class CommandService:
             if run["status"] not in ("running", "cancelling"):
                 raise ConversationBusy()
             self.messages.set_terminal(uow, run_id, "completed", content)
+            # Output publication is durable before terminalization, but files
+            # become user-visible only with the completed assistant message.
+            uow.execute(
+                "INSERT INTO message_files(account_id,conversation_id,message_id,file_id,role,ordinal) "
+                "SELECT rf.account_id,rf.conversation_id,m.message_id,rf.file_id,'output',"
+                "row_number() OVER (ORDER BY rf.created_at,rf.file_id)-1 "
+                "FROM run_files rf JOIN messages m ON m.produced_by_run_id=rf.run_id "
+                "WHERE rf.run_id=%s AND rf.direction='output' "
+                "ON CONFLICT (message_id,file_id) DO NOTHING",
+                (run_id,),
+            )
             self.runs.set_terminal(uow, run_id, "completed")
             self._outbox(uow, account_id, run["conversation_id"], run_id, "retain_memory")
             self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "completed")

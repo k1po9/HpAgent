@@ -173,7 +173,9 @@ class ActionRuntime:
                 key_argument = None
             if isinstance(key_argument, str) and key_argument:
                 arguments = dict(request.arguments)
-                arguments.setdefault(key_argument, idempotency_key)
+                # The runtime owns durable operation identity. Never allow a
+                # model-supplied value to select another idempotency record.
+                arguments[key_argument] = idempotency_key
                 executed_request = ActionRequest(
                     request.id,
                     request.name,

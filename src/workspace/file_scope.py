@@ -10,7 +10,7 @@ from typing import Any, Iterator
 from uuid import UUID
 
 from persistence.uow import UnitOfWork
-from storage.tenant_file_store import FileStoreError, TenantFileStore
+from storage.tenant_file_store import FileStoreError, TenantFileReader, TenantFileStore
 
 
 class RunFileScopeUnavailable(RuntimeError):
@@ -23,6 +23,9 @@ class RunFileInput:
     logical_name: str
     size_bytes: int
     encoding: str
+    content_type: str | None = None
+    sha256: str | None = None
+    direction: str = "input"
 
 
 @dataclass(frozen=True)
@@ -32,24 +35,29 @@ class RunFileScope:
     scratch_root: Path
     outputs_root: Path
     inputs: tuple[RunFileInput, ...]
+    outputs: tuple[RunFileInput, ...] = ()
 
     def model_manifest(self) -> list[dict[str, Any]]:
-        return [
-            {
+        manifest = []
+        for item in (*self.inputs, *self.outputs):
+            record = {
                 "file": item.logical_name,
                 "file_id_suffix": str(item.file_id)[-8:],
                 "size_bytes": item.size_bytes,
                 "encoding": item.encoding,
             }
-            for item in self.inputs
-        ]
+            if item.direction == "output":
+                record["direction"] = "output"
+            manifest.append(record)
+        return manifest
 
 
 class RunFileWorkspace:
     """Materialize authoritative ``run_files`` as immutable local inputs."""
 
     def __init__(
-        self, database: object, store: TenantFileStore, execution_root: Path | str,
+        self, database: object, store: TenantFileStore | TenantFileReader,
+        execution_root: Path | str,
     ) -> None:
         self.database = database
         self.store = store
@@ -70,11 +78,12 @@ class RunFileWorkspace:
             if owned is None:
                 raise RunFileScopeUnavailable("authoritative Run scope is unavailable")
             return list(uow.execute(
-                "SELECT rf.file_id,rf.logical_name,sf.storage_key,sf.size_bytes,sf.encoding "
-                "FROM run_files rf JOIN stored_files sf ON sf.account_id=rf.account_id "
+                "SELECT rf.file_id,rf.logical_name,rf.direction,sf.storage_key,sf.size_bytes,sf.encoding,"
+                "sf.content_type,sf.sha256 FROM run_files rf JOIN stored_files sf "
+                "ON sf.account_id=rf.account_id "
                 "AND sf.conversation_id=rf.conversation_id AND sf.file_id=rf.file_id "
-                "WHERE rf.account_id=%s AND rf.run_id=%s AND rf.direction='input' "
-                "AND sf.status='ready' AND sf.purpose='input' ORDER BY rf.logical_name",
+                "WHERE rf.account_id=%s AND rf.run_id=%s AND sf.status='ready' "
+                "ORDER BY rf.direction,rf.logical_name",
                 (account_id, run_id),
             ).fetchall())
 
@@ -97,19 +106,24 @@ class RunFileWorkspace:
         scratch_root = run_root / "scratch"
         outputs_root = run_root / "outputs"
         materialized: list[RunFileInput] = []
+        materialized_outputs: list[RunFileInput] = []
         try:
             for directory in (run_root, inputs_root, scratch_root, outputs_root):
                 directory.mkdir(mode=0o700, parents=True, exist_ok=True)
                 directory.chmod(0o700)
-            seen: set[str] = set()
+            seen: dict[str, set[str]] = {"input": set(), "output": set()}
             for row in rows:
+                direction = str(row.get("direction") or "input")
+                if direction not in seen:
+                    raise RunFileScopeUnavailable("invalid Run file direction")
                 logical_name = self._logical_name(str(row["logical_name"]))
                 folded = logical_name.casefold()
-                if folded in seen:
-                    raise RunFileScopeUnavailable("duplicate logical input name")
-                seen.add(folded)
-                target = inputs_root / logical_name
-                temporary = inputs_root / f".{logical_name}.part"
+                if folded in seen[direction]:
+                    raise RunFileScopeUnavailable("duplicate logical Run file name")
+                seen[direction].add(folded)
+                destination_root = inputs_root if direction == "input" else outputs_root
+                target = destination_root / logical_name
+                temporary = destination_root / f".{logical_name}.part"
                 with self.store.open(str(row["storage_key"])) as source:
                     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
                     fd = os.open(temporary, flags, 0o600)
@@ -124,13 +138,17 @@ class RunFileWorkspace:
                             os.close(fd)
                 os.replace(temporary, target)
                 target.chmod(0o400)
-                materialized.append(RunFileInput(
+                item = RunFileInput(
                     file_id=row["file_id"], logical_name=logical_name,
                     size_bytes=int(row["size_bytes"]), encoding=str(row["encoding"]),
-                ))
+                    content_type=row.get("content_type"), sha256=row.get("sha256"),
+                    direction=direction,
+                )
+                (materialized if direction == "input" else materialized_outputs).append(item)
             inputs_root.chmod(0o500)
             yield RunFileScope(
-                run_id, inputs_root, scratch_root, outputs_root, tuple(materialized)
+                run_id, inputs_root, scratch_root, outputs_root, tuple(materialized),
+                tuple(materialized_outputs),
             )
         except (OSError, FileStoreError) as exc:
             raise RunFileScopeUnavailable("failed to prepare Run file scope") from exc
@@ -139,6 +157,10 @@ class RunFileWorkspace:
                 if inputs_root.exists():
                     inputs_root.chmod(0o700)
                     for path in inputs_root.iterdir():
+                        if path.is_file() and not path.is_symlink():
+                            path.chmod(0o600)
+                if outputs_root.exists():
+                    for path in outputs_root.iterdir():
                         if path.is_file() and not path.is_symlink():
                             path.chmod(0o600)
                 shutil.rmtree(run_root)

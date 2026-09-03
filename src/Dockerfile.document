@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /app
+
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG NO_PROXY
+
+RUN apt-get update -o Acquire::Retries=5 \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-document.txt ./
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r requirements-document.txt --timeout 180 --retries 10
+
+COPY . .
+CMD ["python", "-u", "-m", "orchestration.document_worker"]

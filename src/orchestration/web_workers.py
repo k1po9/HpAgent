@@ -26,6 +26,7 @@ from agent_workflows.react import ReactAgentWorkflow
 from workspace.isolation import WorkspaceIsolationMode
 
 from .artifact_workflow import ArtifactBuildWorkflow
+from .document_workflow import NormalizeDocumentWorkflow
 from .durable_web_workflow import DurableWebRunWorkflow
 from .research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
 from .web_workflow import (
@@ -171,6 +172,7 @@ def build_web_temporal_workers(
                 ResearchReportWorkflow,
                 ResearchTaskScheduleWorkflow,
                 ArtifactBuildWorkflow,
+                NormalizeDocumentWorkflow,
             ],
             activities=list(lifecycle_activities),
         ),

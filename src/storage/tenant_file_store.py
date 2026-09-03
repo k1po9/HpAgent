@@ -138,12 +138,46 @@ class TenantFileStore:
             stat = target.stat(follow_symlinks=False)
             if stat.st_size != staged.size_bytes:
                 raise FileStoreError("published object conflicts with staged upload")
+            digest = hashlib.sha256()
+            with target.open("rb") as existing:
+                while chunk := existing.read(64 * 1024):
+                    digest.update(chunk)
             source.unlink(missing_ok=True)
-            return PublishedFile(key, staged.size_bytes, staged.sha256)
+            return PublishedFile(key, stat.st_size, digest.hexdigest())
         os.replace(source, target)
         target.chmod(0o600)
         self._fsync_directory(target.parent)
         return PublishedFile(key, staged.size_bytes, staged.sha256)
+
+    def stage_output(self, file_id: UUID, source: Path | str) -> StagedFile:
+        """Stage a bounded binary worker output without applying upload text rules."""
+        source_path = Path(source)
+        if source_path.is_symlink() or not source_path.is_file():
+            raise FileStoreError("output source must be a regular file")
+        key = self.staging_key(file_id)
+        target = self._key_path(key)
+        digest = hashlib.sha256()
+        total = 0
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(target, flags, 0o600)
+        try:
+            with source_path.open("rb") as input_stream, os.fdopen(fd, "wb") as output_stream:
+                fd = -1
+                while chunk := input_stream.read(64 * 1024):
+                    total += len(chunk)
+                    if total > self.max_bytes:
+                        raise FileTooLarge()
+                    digest.update(chunk)
+                    output_stream.write(chunk)
+                output_stream.flush()
+                os.fsync(output_stream.fileno())
+            return StagedFile(key, total, digest.hexdigest(), "binary")
+        except BaseException:
+            self._unlink_quietly(target)
+            raise
+        finally:
+            if fd >= 0:
+                os.close(fd)
 
     async def stage_async(
         self,
@@ -232,3 +266,27 @@ class TenantFileStore:
             path.unlink(missing_ok=True)
         except OSError:
             pass
+
+
+class TenantFileReader:
+    """Least-privilege view used by workers with a read-only object-store mount."""
+
+    def __init__(self, root: Path | str) -> None:
+        self.root = Path(root).resolve()
+        if not self.root.is_dir():
+            raise FileStoreError("file store root is unavailable")
+
+    def open(self, storage_key: str) -> BinaryIO:
+        candidate = Path(storage_key)
+        if candidate.is_absolute() or any(part in {"..", ""} for part in candidate.parts):
+            raise FileStoreError("invalid storage key")
+        path = (self.root / candidate).absolute()
+        if not path.is_relative_to(self.root):
+            raise FileStoreError("storage key escapes root")
+        current = self.root
+        for part in candidate.parts:
+            current /= part
+            if current.is_symlink():
+                raise FileStoreError("symbolic links are not allowed")
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        return os.fdopen(os.open(path, flags), "rb")

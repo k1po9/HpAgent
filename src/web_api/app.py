@@ -39,6 +39,7 @@ from account.registration_service import (
 )
 from agent_execution.tracing.repository import PostgresTraceRepository
 from common.logging import log_event
+from file_domain.approvals import ApprovalNotPending, FileActionApprovalService
 from persistence.uow import UnitOfWork
 from research_domain.models import SourceStrategy
 from research_domain.services import (
@@ -295,6 +296,7 @@ def create_app(
         app.state.research_tasks = ResearchTaskCommandService(
             api_pool, budget_mode=settings.run_budget_mode
         )
+        app.state.file_approvals = FileActionApprovalService(api_pool)
         if settings.web_file_upload_enabled:
             file_root = Path(settings.file_store_root).resolve()
             application_root = Path.cwd().resolve()
@@ -410,6 +412,7 @@ def create_app(
             VersionConflict: (412, "version_conflict", "对话版本已经变化。", True),
             TaskBusy: (409, "task_busy", "该任务已有运行中的执行。", True),
             TaskNotActive: (409, "task_not_active", "该任务当前不可触发。", False),
+            ApprovalNotPending: (409, "approval_not_pending", "审批请求已处理或已过期。", False),
         }
         status, code, message, retryable = mapping.get(type(exc), (500, "service_unavailable", "服务暂不可用。", True))
         details = {"current_version": exc.current_version} if isinstance(exc, VersionConflict) else {}
@@ -800,6 +803,51 @@ def create_app(
     ):
         files.delete(context.account_id, file_id)
         return Response(status_code=204)
+
+    @app.get("/api/v1/files/{file_id}/lineage")
+    def get_file_lineage(
+        file_id: UUID,
+        request: Request,
+        context: AuthContext = Depends(auth_context),
+        files: FileService = Depends(file_service),
+    ):
+        return {"files": files.lineage(context.account_id, file_id)}
+
+    @app.get("/api/v1/runs/{run_id}/file-action-approvals")
+    def list_file_action_approvals(
+        run_id: UUID, request: Request, context: AuthContext = Depends(auth_context),
+    ):
+        return {"approvals": request.app.state.file_approvals.list_for_run(
+            context.account_id, run_id
+        )}
+
+    @app.post("/api/v1/file-action-approvals/{approval_id}/approve")
+    def approve_file_action(
+        approval_id: UUID, payload: EmptyRequest, request: Request,
+        context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key),
+    ):
+        del payload
+        result = request.app.state.file_approvals.decide(
+            context.account_id, approval_id, "approved", key
+        )
+        response = JSONResponse(status_code=result.response_status, content=result.body)
+        if result.replayed:
+            response.headers["Idempotency-Replayed"] = "true"
+        return response
+
+    @app.post("/api/v1/file-action-approvals/{approval_id}/reject")
+    def reject_file_action(
+        approval_id: UUID, payload: EmptyRequest, request: Request,
+        context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key),
+    ):
+        del payload
+        result = request.app.state.file_approvals.decide(
+            context.account_id, approval_id, "rejected", key
+        )
+        response = JSONResponse(status_code=result.response_status, content=result.body)
+        if result.replayed:
+            response.headers["Idempotency-Replayed"] = "true"
+        return response
 
     @app.get("/api/v1/files/{file_id}/content")
     def download_file(

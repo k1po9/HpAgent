@@ -1,0 +1,9 @@
+# Dedicated low-concurrency Document Worker dependencies only.
+# Resolve both packages from the CPU wheel index so Docling cannot pull CUDA.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.8.0+cpu
+torchvision==0.23.0+cpu
+temporalio>=1.10.0
+psycopg[binary]>=3.2,<4
+uuid6>=2024.7.10,<2026
+docling>=2.60,<3

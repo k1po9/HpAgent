@@ -606,6 +606,14 @@ class DurableAgentActivities:
             "search_file": "FileSearch",
             "count_matches": "FileCount",
             "text_stats": "FileInspect",
+            "create_docx": "FileTransform",
+            "create_workbook": "FileTransform",
+            "create_presentation": "FileTransform",
+            "convert_file_to_pdf": "FileTransform",
+            "replace_docx_text": "FileTransform",
+            "append_docx_section": "FileTransform",
+            "write_sheet_range": "FileTransform",
+            "replace_slide": "FileTransform",
         }.get(request.tool_call.name)
         file_node_id = (
             trace_node_id(request.run_id, "file_tool", request.operation_id)

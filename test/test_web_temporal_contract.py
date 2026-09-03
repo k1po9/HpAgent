@@ -33,6 +33,7 @@ from application.conversation import ConversationService
 from common.types import ChannelType, UnifiedMessage
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from orchestration.config import TemporalConfig
+from orchestration.document_workflow import NormalizeDocumentWorkflow
 from orchestration.durable_web_workflow import DurableWebRunWorkflow
 from orchestration.research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
 from orchestration.web_dispatcher import (
@@ -154,6 +155,7 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
         ResearchReportWorkflow,
         ResearchTaskScheduleWorkflow,
         ArtifactBuildWorkflow,
+        NormalizeDocumentWorkflow,
     ]
     assert made[1]["task_queue"] == WEB_AGENT_TASK_QUEUE
     assert made[1]["workflows"] == [

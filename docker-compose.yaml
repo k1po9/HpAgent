@@ -115,6 +115,25 @@ services:
 
     restart: unless-stopped
 
+  # ==================== File Conversion ====================
+  gotenberg:
+    image: ${GOTENBERG_IMAGE:-gotenberg/gotenberg@sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466}
+    command:
+      - gotenberg
+      - --api-port=3000
+      - --libreoffice-auto-start=true
+      - --chromium-auto-start=true
+    ports:
+      - "127.0.0.1:3001:3000"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - app-network
+    restart: unless-stopped
+
 
   # ==================== Temporal PostgreSQL ====================
   temporal-postgres:
@@ -419,12 +438,13 @@ services:
       - HINDSIGHT_URL=http://hindsight:8888
       - REDIS_URL=redis://redis:6379
       - SEARXNG_URL=${SEARXNG_URL:-http://searxng:8080}
+      - GOTENBERG_URL=${GOTENBERG_URL:-http://gotenberg:3000}
       - HTTP_PROXY=${HTTP_PROXY:-}
       - HTTPS_PROXY=${HTTPS_PROXY:-}
       - http_proxy=${HTTP_PROXY:-}
       - https_proxy=${HTTPS_PROXY:-}
-      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
-      - no_proxy=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,gotenberg,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
+      - no_proxy=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,gotenberg,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
 
       # Workspace
       - WORKSPACE_ROOT=/app/.data/workspace
@@ -528,6 +548,9 @@ services:
       searxng:
         condition: service_healthy
 
+      gotenberg:
+        condition: service_healthy
+
     networks:
       - app-network
 
@@ -545,6 +568,57 @@ services:
   #
   # 无需 rebuild。
   # ============================================================
+
+  hpagent-document-worker:
+    profiles:
+      - agent
+      - web
+      - web-prod
+
+    build:
+      context: ./src
+      dockerfile: Dockerfile.document
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1}
+
+    image: ${HPAGENT_DOCUMENT_IMAGE:-hpagent/hpagent-document:offline}
+
+    environment:
+      - TZ=Asia/Shanghai
+      - TEMPORAL_HOST=temporal:7233
+      - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
+      - FILE_STORE_ROOT=/var/lib/hpagent/file-store
+      - DOCUMENT_RUN_ROOT=/var/lib/hpagent/document-runs
+      - FILE_MAX_BYTES=${FILE_MAX_BYTES:-134217728}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api,hpagent-document-worker}
+
+    volumes:
+      - hpagent-file-store:/var/lib/hpagent/file-store:ro
+      - hpagent-document-runs:/var/lib/hpagent/document-runs
+
+    depends_on:
+      hpagent-migrate:
+        condition: service_completed_successfully
+      temporal:
+        condition: service_healthy
+      app-postgres:
+        condition: service_healthy
+
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+
+    networks:
+      - app-network
+
+    restart: unless-stopped
+
 
   hpagent-api:
     profiles:
@@ -863,6 +937,9 @@ volumes:
 
   # Per-Run materialized workspace, mounted only by Worker
   hpagent-file-runs:
+
+  # Dedicated Docling scratch; avoids colliding with the live Agent Run scope.
+  hpagent-document-runs:
 
 
 # ============================================================

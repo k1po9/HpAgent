@@ -70,6 +70,8 @@ class SandboxManager:
         nsjail_enabled: bool = True,
         host_bash_enabled: bool = False,
         file_tools_enabled: bool = False,
+        file_output_publisher: Any = None,
+        file_conversion_provider: Any = None,
     ):
         self._nsjail_config = nsjail_config or NsjailConfig()
         self._redis_cache = redis_cache
@@ -86,6 +88,8 @@ class SandboxManager:
         # enabling otherwise-safe native tools.
         self._host_bash_enabled = host_bash_enabled
         self._file_tools_enabled = file_tools_enabled
+        self._file_output_publisher = file_output_publisher
+        self._file_conversion_provider = file_conversion_provider
 
         self._sandboxes: Dict[str, Sandbox] = {}
         self._session_to_sandbox: Dict[str, str] = {}
@@ -169,11 +173,22 @@ class SandboxManager:
 
         if self._file_tools_enabled and ctx.get("channel_type") == "web":
             from sandbox.tools.local.file_analysis import create_file_analysis_tools
+            from sandbox.tools.local.file_read import create_file_read_tools
+            from sandbox.tools.local.file_write import create_file_write_tools
 
-            for tool in create_file_analysis_tools(
-                lambda sid=session_id: self.get_active_run_file_scope(sid)
+            scope_provider = lambda sid=session_id: self.get_active_run_file_scope(sid)
+            for tool in (
+                create_file_analysis_tools(scope_provider)
+                + create_file_read_tools(scope_provider)
             ):
                 registry.register(tool, category="native")
+            if self._file_output_publisher is not None:
+                for tool in create_file_write_tools(
+                    scope_provider,
+                    self._file_output_publisher,
+                    self._file_conversion_provider,
+                ):
+                    registry.register(tool, category="native")
 
         if self._mcp_manager:
             for tool in self._mcp_manager.get_cached_tools():

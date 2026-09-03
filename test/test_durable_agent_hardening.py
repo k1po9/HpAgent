@@ -569,7 +569,10 @@ async def test_declared_provider_idempotency_argument_receives_operation_id():
 
     runtime.execute = execute
     result = await runtime.execute_request(
-        ActionRequest("call-1", "provider_write", {"value": 1}),
+        ActionRequest(
+            "call-1", "provider_write",
+            {"value": 1, "request_id": "model-controlled-value"},
+        ),
         session_id="session",
         execution_id="run",
         idempotency_key="operation-123",

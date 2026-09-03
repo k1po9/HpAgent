@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from file_runtime import FileResourceResolver
 from storage.tenant_file_store import TenantFileStore
 from workspace.file_scope import RunFileScopeUnavailable, RunFileWorkspace
 
@@ -54,3 +55,21 @@ def test_execution_and_object_roots_must_not_overlap(tmp_path: Path) -> None:
     store = TenantFileStore(tmp_path / "files", max_bytes=10)
     with pytest.raises(RunFileScopeUnavailable):
         RunFileWorkspace(object(), store, store.root / "executions")
+
+
+def test_run_scope_rematerializes_prior_output_for_next_version(tmp_path: Path) -> None:
+    account_id, file_id, run_id = uuid4(), uuid4(), uuid4()
+    store = TenantFileStore(tmp_path / "objects", max_bytes=1024)
+    published = _published(store, account_id, file_id, b"prior output")
+    workspace = RunFileWorkspace(object(), store, tmp_path / "executions")
+    rows = [{
+        "file_id": file_id, "logical_name": "report-v2.docx", "direction": "output",
+        "storage_key": published.storage_key, "size_bytes": published.size_bytes,
+        "encoding": "binary", "content_type": "application/docx",
+    }]
+    with workspace.prepare_rows(run_id, rows) as scope:
+        resource = FileResourceResolver(scope).resolve(str(file_id))
+        assert resource.local_path == scope.outputs_root / "report-v2.docx"
+        assert resource.local_path.read_bytes() == b"prior output"
+        assert resource.local_path.stat().st_mode & 0o777 == 0o400
+        assert scope.model_manifest()[0]["direction"] == "output"
