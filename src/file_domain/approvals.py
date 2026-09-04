@@ -36,6 +36,9 @@ class FileActionApproval:
     arguments_hash: str
     status: ApprovalStatus
     expires_at: datetime
+    intent: dict[str, Any]
+    execution_id: str | None = None
+    execution_fencing_token: int | None = None
 
 
 def _digest(value: object) -> bytes:
@@ -55,21 +58,25 @@ class FileActionApprovalService:
     def request(
         self, account_id: UUID, conversation_id: UUID, run_id: UUID,
         operation_id: str, tool_name: str, action_summary: str, arguments_hash: str,
-        *, ttl: timedelta = timedelta(hours=24),
+        *, intent: dict[str, Any] | None = None,
+        ttl: timedelta = timedelta(hours=24),
     ) -> FileActionApproval:
         if ttl.total_seconds() <= 0 or len(arguments_hash) != 64:
             raise ValueError("invalid approval request")
         with UnitOfWork(self.database) as uow:
             row = uow.execute(
                 "INSERT INTO file_action_approvals(approval_id,account_id,conversation_id,"
-                "run_id,operation_id,tool_name,action_summary,arguments_hash,expires_at) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,now()+(%s * interval '1 second')) "
+                "run_id,operation_id,tool_name,action_summary,arguments_hash,intent,expires_at) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,"
+                "now()+(%s * interval '1 second')) "
                 "ON CONFLICT (run_id,operation_id) DO UPDATE SET updated_at=now() RETURNING *",
                 (uuid7(), account_id, conversation_id, run_id, operation_id, tool_name,
-                 action_summary, arguments_hash, ttl.total_seconds()),
+                 action_summary, arguments_hash, json.dumps(intent or {}, sort_keys=True),
+                 ttl.total_seconds()),
             ).fetchone()
             if (row["account_id"] != account_id or row["tool_name"] != tool_name
-                    or row["arguments_hash"] != arguments_hash):
+                    or row["arguments_hash"] != arguments_hash
+                    or dict(row["intent"]) != (intent or {})):
                 raise ValueError("approval intent identity mismatch")
             return self._model(row)
 
@@ -128,7 +135,8 @@ class FileActionApprovalService:
     @retryable_transaction
     def consume(
         self, account_id: UUID, run_id: UUID, operation_id: str,
-        tool_name: str, arguments_hash: str,
+        tool_name: str, arguments_hash: str, *, execution_id: str,
+        fencing_token: int,
     ) -> UUID:
         with UnitOfWork(self.database) as uow:
             row = uow.execute(
@@ -138,11 +146,19 @@ class FileActionApprovalService:
             if (row is None or row["tool_name"] != tool_name
                     or row["arguments_hash"] != arguments_hash):
                 raise ApprovalNotGranted()
-            if row["status"] != "approved" or row["expires_at"] <= datetime.now(UTC):
+            if row["status"] == "consumed":
+                if (row["execution_id"] == execution_id == operation_id
+                        and row["execution_fencing_token"] == fencing_token):
+                    return cast(UUID, row["approval_id"])
+                raise ApprovalNotGranted()
+            if (row["status"] != "approved" or row["expires_at"] <= datetime.now(UTC)
+                    or execution_id != operation_id or fencing_token < 1):
                 raise ApprovalNotGranted()
             uow.execute(
                 "UPDATE file_action_approvals SET status='consumed',consumed_at=now(),"
-                "updated_at=now() WHERE approval_id=%s", (row["approval_id"],),
+                "execution_id=%s,execution_fencing_token=%s,execution_bound_at=now(),"
+                "updated_at=now() WHERE approval_id=%s",
+                (execution_id, fencing_token, row["approval_id"]),
             )
             return cast(UUID, row["approval_id"])
 
@@ -151,6 +167,8 @@ class FileActionApprovalService:
         return FileActionApproval(
             row["approval_id"], row["run_id"], row["operation_id"], row["tool_name"],
             row["action_summary"], row["arguments_hash"], row["status"], row["expires_at"],
+            dict(row.get("intent") or {}), row.get("execution_id"),
+            row.get("execution_fencing_token"),
         )
 
     @staticmethod

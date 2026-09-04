@@ -16,6 +16,17 @@ def test_migration_defines_scoped_single_use_approval_and_commands():
     assert "reject_file_action" in sql
 
 
+def test_migration_031_adds_persistent_revisions_and_recoverable_binding():
+    sql = Path("persistence/migrations/031_persistent_web_file_foundation.sql").read_text()
+    assert "CREATE TABLE persistent_file_destinations" in sql
+    assert "CREATE TABLE persistent_file_revisions" in sql
+    assert "UNIQUE(account_id,logical_path)" in sql
+    assert "UNIQUE(destination_id,operation_id)" in sql
+    assert "execution_id=operation_id" in sql
+    assert "execution_fencing_token >= 1" in sql
+    assert "FOREIGN KEY(account_id,current_file_id)" in sql
+
+
 def test_api_exposes_owned_list_and_idempotent_decision_routes():
     app = create_app(WebApiSettings(
         database_url="postgresql://unused",

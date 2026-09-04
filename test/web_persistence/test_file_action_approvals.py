@@ -45,11 +45,17 @@ def test_approval_is_owned_idempotent_and_single_use(
     assert replay.replayed is True
 
     assert worker.consume(
-        account_id, run_id, "op-1", "external_file_overwrite", "a" * 64
+        account_id, run_id, "op-1", "external_file_overwrite", "a" * 64,
+        execution_id="op-1", fencing_token=7,
+    ) == request.approval_id
+    assert worker.consume(
+        account_id, run_id, "op-1", "external_file_overwrite", "a" * 64,
+        execution_id="op-1", fencing_token=7,
     ) == request.approval_id
     with pytest.raises(ApprovalNotGranted):
         worker.consume(
-            account_id, run_id, "op-1", "external_file_overwrite", "a" * 64
+            account_id, run_id, "op-1", "external_file_overwrite", "a" * 64,
+            execution_id="op-1", fencing_token=8,
         )
 
 
@@ -71,4 +77,7 @@ def test_approval_rejects_cross_tenant_access_and_second_decision(
     with pytest.raises(ApprovalNotPending):
         api.decide(account_id, request.approval_id, "approved", str(uuid4()))
     with pytest.raises(ApprovalNotGranted):
-        worker.consume(account_id, run_id, "op-2", "send_file", "b" * 64)
+        worker.consume(
+            account_id, run_id, "op-2", "send_file", "b" * 64,
+            execution_id="op-2", fencing_token=1,
+        )
