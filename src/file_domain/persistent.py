@@ -221,6 +221,25 @@ class PersistentWebFileService:
             account_id, current.destination_id, intent, operation_id, output
         )
 
+    def reconcile_approved_overwrite(
+        self, account_id: UUID, run_id: UUID, operation_id: str,
+    ) -> tuple[str, PersistentFileResult | None]:
+        approval = self._approval(account_id, run_id, operation_id)
+        intent = dict(approval["intent"])
+        current = self.destinations.get(account_id, self._path(intent["logical_path"]))
+        if current is None:
+            return "conflict", None
+        if (current.last_operation_id == operation_id
+                and current.current_sha256 == intent["new_sha256"]
+                and current.current_revision == int(intent["expected_revision"]) + 1):
+            return "confirmed_completed", self._result(
+                current, operation_id, deduplicated=True
+            )
+        if (current.current_revision == int(intent["expected_revision"])
+                and current.current_sha256 == intent["expected_sha256"]):
+            return "confirmed_not_executed", None
+        return "conflict", None
+
     @staticmethod
     def arguments_hash(intent: dict[str, Any]) -> str:
         return hashlib.sha256(json.dumps(

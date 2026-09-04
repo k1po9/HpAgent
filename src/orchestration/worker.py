@@ -110,6 +110,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     """
     worker_database_url = os.getenv("WORKER_DATABASE_URL")
 
+    from agent_activities.persistent_overwrite import PersistentOverwriteActivities
     from agent_activities.runtime import DurableAgentActivities
     from agent_activities.store import AgentDataStore
     from agent_execution.audit import LoggingExecutionAuditSinkFactory
@@ -130,6 +131,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_execution.web_host import WebExecutionHost
     from application.context_assembly import ContextAssemblyService
     from file_domain.approvals import FileActionApprovalService
+    from file_domain.persistent import PersistentWebFileService
     from file_runtime import ResearchMarkdownPublisher
     from orchestration.artifact_activities import (
         execute_artifact_build_activity,
@@ -285,6 +287,9 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
             if deps.file_output_publisher is not None else None
         ),
     )
+    persistent_files = PersistentWebFileService(
+        worker_database_url, deps.tenant_file_store
+    )
     durable_activities = DurableAgentActivities(
         store=agent_store,
         loader=loader,
@@ -295,6 +300,10 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         lifecycle=lifecycle,
         run_budget=RunBudgetService(worker_database_url),
         approval_service=FileActionApprovalService(worker_database_url),
+        persistent_file_service=persistent_files,
+    )
+    persistent_overwrite = PersistentOverwriteActivities(
+        agent_store, persistent_files
     )
     artifact_build = ArtifactBuildService(
         worker_database_url,
@@ -337,6 +346,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
             durable_activities.model_decision,
             durable_activities.tool_execution,
             durable_activities.file_action_approval_status,
+            persistent_overwrite.execute,
             durable_activities.planning,
             durable_activities.evaluate_plan,
         ],

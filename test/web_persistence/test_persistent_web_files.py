@@ -5,6 +5,9 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from agent_activities.persistent_overwrite import PersistentOverwriteActivities
+from agent_activities.store import StaleFencingToken, ToolOperationState
+from agent_workflows.contracts import ApprovedToolExecutionInput
 from file_domain.approvals import ApprovalNotGranted, FileActionApprovalService
 from file_domain.persistent import DestinationChanged, PersistentWebFileService
 from file_runtime import OutputPublisher
@@ -182,3 +185,62 @@ def test_destination_change_after_approval_fails_closed(
         service.execute_approved_overwrite(
             account_id, run_id, "overwrite", execution_id="overwrite", fencing_token=3
         )
+
+
+@pytest.mark.asyncio
+async def test_approved_executor_reconciles_ack_loss_without_duplicate_revision(
+    tmp_path, db, account_id, database_url, worker_database_url,
+):
+    _conversation_id, run_id = _run(account_id, database_url, worker_database_url)
+    store = TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024)
+    first = _source(tmp_path, worker_database_url, store, run_id, "one.md", b"one")
+    update = _source(tmp_path, worker_database_url, store, run_id, "two.md", b"two")
+    service = PersistentWebFileService(worker_database_url, store)
+    service.save(account_id, run_id, "create", "report.md", first.file_id)
+    pending = service.save(account_id, run_id, "overwrite", "report.md", update.file_id)
+    FileActionApprovalService(database_url).decide(
+        account_id, pending.approval_id, "approved", str(uuid4())
+    )
+
+    class Operations:
+        status = "started"
+        payload = None
+        def validate_and_renew_lease(self, _account, _run, token):
+            if token != 7:
+                raise StaleFencingToken("stale")
+        def begin_tool_operation(self, _operation, _run):
+            return ToolOperationState(self.status, self.payload)
+        def record_operation_intent(self, _operation, payload):
+            self.status, self.payload = "intent_recorded", payload
+        def complete_operation_with_event(self, **kwargs):
+            self.status, self.payload = "completed", kwargs["result_payload"]
+            self.payload["transcript_version"] = 2
+            return 2
+
+    class CrashOnce:
+        crashed = False
+        def hit(self, boundary):
+            assert boundary == "persistent_overwrite_succeeded_before_ack"
+            if not self.crashed:
+                self.crashed = True
+                raise RuntimeError("ack lost")
+
+    operations = Operations()
+    executor = PersistentOverwriteActivities(operations, service, CrashOnce())
+    request = ApprovedToolExecutionInput(
+        1, str(account_id), str(run_id), "overwrite", 7, str(pending.approval_id),
+        "transcript", 1, "call", "save_persistent_file",
+    )
+    with pytest.raises(RuntimeError, match="ack lost"):
+        await executor.execute(request)
+    result = await executor.execute(request)
+    assert result.result_ref
+    assert db.execute(
+        "SELECT count(*) FROM hpagent.persistent_file_revisions"
+    ).fetchone()[0] == 2
+    with pytest.raises(Exception):
+        await executor.execute(ApprovedToolExecutionInput(
+            1, str(account_id), str(run_id), "overwrite", 6,
+            str(pending.approval_id),
+            "transcript", 1, "call", "save_persistent_file",
+        ))

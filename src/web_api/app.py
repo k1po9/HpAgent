@@ -40,6 +40,7 @@ from account.registration_service import (
 from agent_execution.tracing.repository import PostgresTraceRepository
 from common.logging import log_event
 from file_domain.approvals import ApprovalNotPending, FileActionApprovalService
+from file_domain.persistent import PersistentFileRepository
 from persistence.uow import UnitOfWork
 from research_domain.models import SourceStrategy
 from research_domain.services import (
@@ -297,6 +298,7 @@ def create_app(
             api_pool, budget_mode=settings.run_budget_mode
         )
         app.state.file_approvals = FileActionApprovalService(api_pool)
+        app.state.persistent_files = PersistentFileRepository(api_pool)
         if settings.web_file_upload_enabled:
             file_root = Path(settings.file_store_root).resolve()
             application_root = Path.cwd().resolve()
@@ -794,6 +796,24 @@ def create_app(
         files: FileService = Depends(file_service),
     ):
         return {"file": files.get(context.account_id, file_id)}
+
+    @app.get("/api/v1/persistent-files/{logical_path:path}")
+    def get_persistent_file(
+        logical_path: str, request: Request,
+        context: AuthContext = Depends(auth_context),
+    ):
+        destination = request.app.state.persistent_files.get(
+            context.account_id, logical_path
+        )
+        if destination is None:
+            raise ResourceNotFound()
+        return {"destination": {
+            "logical_path": destination.logical_path,
+            "current_revision": destination.current_revision,
+            "current_file_id": str(destination.current_file_id),
+            "current_sha256": destination.current_sha256,
+            "last_operation_id": destination.last_operation_id,
+        }}
 
     @app.delete("/api/v1/files/{file_id}", status_code=204)
     def delete_file(

@@ -78,6 +78,7 @@ class DurableAgentActivities:
         reconciler: ToolSideEffectReconciler | None = None,
         fault_injector: FaultInjector | None = None,
         approval_service: Any = None,
+        persistent_file_service: Any = None,
     ) -> None:
         self.store = store
         self.loader = loader
@@ -90,6 +91,7 @@ class DurableAgentActivities:
         self.reconciler = reconciler or UnsupportedToolSideEffectReconciler()
         self.fault_injector = fault_injector or NoopFaultInjector()
         self.approval_service = approval_service
+        self.persistent_file_service = persistent_file_service
 
     @activity.defn(name="file_action_approval_status_activity")
     async def file_action_approval_status(
@@ -703,6 +705,32 @@ class DurableAgentActivities:
                 heartbeat_task = asyncio.create_task(
                     self._tool_heartbeat_loop(request)
                 )
+                if (request.tool_call.name == "save_persistent_file"
+                        and self.persistent_file_service is not None):
+                    arguments = await asyncio.to_thread(
+                        self.store.tool_call_arguments,
+                        request.tool_call.arguments_ref,
+                        request.tool_call.tool_call_id,
+                    )
+                    persistent = await asyncio.to_thread(
+                        self.persistent_file_service.save,
+                        UUID(request.account_id), UUID(request.run_id), request.operation_id,
+                        str(arguments["logical_path"]), UUID(str(arguments["source_file_id"])),
+                    )
+                    if persistent.status == "approval_required":
+                        approval = await asyncio.to_thread(
+                            self.approval_service.authoritative_status,
+                            UUID(request.account_id), UUID(request.run_id),
+                            request.operation_id, persistent.approval_id,
+                        )
+                        trace_status = "completed"
+                        return ToolExecutionResult(
+                            AGENT_SCHEMA_VERSION, request.operation_id,
+                            f"file-approval:{persistent.approval_id}",
+                            request.transcript_version, "approval required",
+                            str(persistent.approval_id), "pending",
+                            approval.expires_at.isoformat(),
+                        )
                 side_effect_class = normalize_side_effect_class(str(
                     self.actions.side_effect_class(request.session_id, request.tool_call.name)
                 ))

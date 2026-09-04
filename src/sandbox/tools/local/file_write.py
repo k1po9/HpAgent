@@ -90,6 +90,12 @@ class ReplaceSlideInput(BaseModel):
     operation_id: str = Field(default="", max_length=200)
 
 
+class SavePersistentFileInput(BaseModel):
+    logical_path: str = Field(min_length=1, max_length=500)
+    source_file_id: str
+    operation_id: str = Field(default="", max_length=200)
+
+
 def _result(output: Any, *, scanned_bytes: int = 0) -> str:
     payload = {
         "file_id": str(output.file_id), "file": output.logical_name,
@@ -289,6 +295,9 @@ def create_file_write_tools(
         )
         return _result(output, scanned_bytes=resource.size_bytes)
 
+    async def save_persistent_file(**_arguments: Any) -> str:
+        raise RuntimeError("save_persistent_file is executed by the durable tool runtime")
+
     definitions = [
         ("create_docx", "Create and publish a bounded DOCX output.", CreateDocxInput, create_docx),
         ("create_workbook", "Create and publish a bounded XLSX output.", CreateWorkbookInput, create_workbook),
@@ -298,6 +307,7 @@ def create_file_write_tools(
         ("append_docx_section", "Append a bounded section and publish a new DOCX version.", AppendDocxSectionInput, append_docx_section),
         ("write_sheet_range", "Write a bounded XLSX range and publish a new version.", WriteSheetRangeInput, write_sheet_range),
         ("replace_slide", "Replace one PPTX slide and publish a new version.", ReplaceSlideInput, replace_slide),
+        ("save_persistent_file", "Save a Run output to an account-owned persistent logical path.", SavePersistentFileInput, save_persistent_file),
     ]
     tools = [
         StructuredTool.from_function(
@@ -323,4 +333,6 @@ def create_file_write_tools(
             },
             "trace_json_fields": {"deduplicated": "deduplicated", "size_bytes": "output_bytes"},
         }
+        if tool.name == "save_persistent_file":
+            tool.metadata["side_effect_class"] = "non_idempotent_write"
     return tools

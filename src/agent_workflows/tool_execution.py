@@ -14,6 +14,8 @@ from .contracts import (
     ApprovalDecisionSignal,
     ApprovalStatusInput,
     ApprovalStatusResult,
+    ApprovedToolExecutionInput,
+    ApprovedToolExecutionResult,
     ToolExecutionInput,
     ToolExecutionResult,
 )
@@ -76,6 +78,28 @@ class ToolExecutionWorkflow:
                 retry_policy=_READ_RETRY,
             )
             if authoritative.status != "pending":
+                if authoritative.status == "approved":
+                    executed = await workflow.execute_activity(
+                        "approved_file_action_execution_activity",
+                        ApprovedToolExecutionInput(
+                            AGENT_SCHEMA_VERSION, request.account_id, request.run_id,
+                            request.operation_id, request.lease_token, result.approval_id,
+                            request.transcript_id, request.transcript_version,
+                            request.tool_call.tool_call_id, request.tool_call.name,
+                        ),
+                        task_queue=AGENT_TASK_QUEUE,
+                        result_type=ApprovedToolExecutionResult,
+                        start_to_close_timeout=timedelta(
+                            seconds=DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS
+                        ),
+                        heartbeat_timeout=timedelta(seconds=45),
+                        retry_policy=_TOOL_RETRY,
+                    )
+                    return ToolExecutionResult(
+                        result.schema_version, result.operation_id, executed.result_ref,
+                        executed.transcript_version, executed.display_summary,
+                        result.approval_id, "approved", result.approval_expires_at,
+                    )
                 return ToolExecutionResult(
                     result.schema_version, result.operation_id, result.result_ref,
                     result.transcript_version, result.display_summary,

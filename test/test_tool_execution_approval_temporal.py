@@ -16,6 +16,8 @@ from agent_workflows.contracts import (
     ApprovalDecisionSignal,
     ApprovalStatusInput,
     ApprovalStatusResult,
+    ApprovedToolExecutionInput,
+    ApprovedToolExecutionResult,
     CompactToolCall,
     ToolExecutionInput,
     ToolExecutionResult,
@@ -55,6 +57,11 @@ async def approval_status(request: ApprovalStatusInput) -> ApprovalStatusResult:
     )
 
 
+@activity.defn(name="approved_file_action_execution_activity")
+async def approved_execution(request: ApprovedToolExecutionInput) -> ApprovedToolExecutionResult:
+    return ApprovedToolExecutionResult(1, request.operation_id, "executed", "executed", 2)
+
+
 def _input(name: str) -> ToolExecutionInput:
     run_id = str(uuid4())
     operation_id = f"{run_id}:tool:one"
@@ -75,7 +82,7 @@ async def _client() -> Client:
 def _worker(client: Client) -> Worker:
     return Worker(
         client, task_queue=AGENT_TASK_QUEUE, workflows=[ToolExecutionWorkflow],
-        activities=[approval_tool, approval_status],
+        activities=[approval_tool, approval_status, approved_execution],
     )
 
 

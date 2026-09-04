@@ -15,6 +15,8 @@ from agent_workflows.contracts import (
     AGENT_TASK_QUEUE,
     ApprovalStatusInput,
     ApprovalStatusResult,
+    ApprovedToolExecutionInput,
+    ApprovedToolExecutionResult,
     CompactToolCall,
     ToolExecutionInput,
     ToolExecutionResult,
@@ -58,6 +60,11 @@ async def postgres_approval_status(request: ApprovalStatusInput) -> ApprovalStat
     )
 
 
+@activity.defn(name="approved_file_action_execution_activity")
+async def approved_execution(request: ApprovedToolExecutionInput) -> ApprovedToolExecutionResult:
+    return ApprovedToolExecutionResult(1, request.operation_id, "executed", "executed", 2)
+
+
 async def test_api_outbox_signal_resumes_with_postgres_authority(
     db, account_id, database_url, worker_database_url,
 ):
@@ -93,7 +100,7 @@ async def test_api_outbox_signal_resumes_with_postgres_authority(
     client = await Client.connect(host, namespace=os.getenv("TEMPORAL_NAMESPACE", "default"))
     worker = Worker(
         client, task_queue=AGENT_TASK_QUEUE, workflows=[ToolExecutionWorkflow],
-        activities=[pending_tool, postgres_approval_status],
+        activities=[pending_tool, postgres_approval_status, approved_execution],
     )
     async with worker:
         handle = await client.start_workflow(

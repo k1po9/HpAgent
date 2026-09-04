@@ -141,6 +141,29 @@ class ApprovalDecisionSignal:
 
 
 @dataclass(frozen=True)
+class ApprovedToolExecutionInput:
+    schema_version: int
+    account_id: str
+    run_id: str
+    operation_id: str
+    lease_token: int
+    approval_id: str
+    transcript_id: str
+    transcript_version: int
+    tool_call_id: str
+    tool_name: str
+
+
+@dataclass(frozen=True)
+class ApprovedToolExecutionResult:
+    schema_version: int
+    operation_id: str
+    result_ref: str
+    display_summary: str
+    transcript_version: int
+
+
+@dataclass(frozen=True)
 class AgentResult:
     schema_version: int
     run_id: str
