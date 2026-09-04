@@ -37,6 +37,7 @@ from agent_workflows.contracts import (
 )
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
+from agent_workflows.tool_execution import ToolExecutionWorkflow
 
 _STATE_DIR: Path
 _FAULT_BOUNDARY: str | None = None
@@ -317,6 +318,7 @@ async def _serve(args: argparse.Namespace) -> None:
                 ReactAgentWorkflow,
                 PlanAndExecuteWorkflow,
                 AgentStepWorkflow,
+                ToolExecutionWorkflow,
                 ActivityCrashToolWorkflow,
             ],
         )

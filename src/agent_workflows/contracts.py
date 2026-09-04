@@ -111,6 +111,33 @@ class ToolExecutionResult:
     result_ref: str
     transcript_version: int
     display_summary: str
+    approval_id: str | None = None
+    approval_status: str = "not_required"
+    approval_expires_at: str | None = None
+
+
+@dataclass(frozen=True)
+class ApprovalStatusInput:
+    schema_version: int
+    account_id: str
+    run_id: str
+    operation_id: str
+    approval_id: str
+
+
+@dataclass(frozen=True)
+class ApprovalStatusResult:
+    schema_version: int
+    approval_id: str
+    operation_id: str
+    status: Literal["pending", "approved", "rejected", "expired", "cancelled"]
+
+
+@dataclass(frozen=True)
+class ApprovalDecisionSignal:
+    schema_version: int
+    approval_id: str
+    operation_id: str
 
 
 @dataclass(frozen=True)

@@ -14,6 +14,7 @@ from agent_workflows.contracts import (
 )
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
+from agent_workflows.tool_execution import ToolExecutionWorkflow
 from orchestration.artifact_workflow import ArtifactBuildWorkflow
 from orchestration.document_workflow import NormalizeDocumentWorkflow
 from orchestration.durable_web_workflow import DurableWebRunWorkflow
@@ -56,6 +57,13 @@ def test_tool_call_history_contract_uses_argument_reference():
     assert not hasattr(call, "arguments")
 
 
+def test_react_and_plan_step_share_tool_execution_child_workflow():
+    for workflow_type in (ReactAgentWorkflow, AgentStepWorkflow):
+        source = inspect.getsource(workflow_type.run)
+        assert "ToolExecutionWorkflow.run" in source
+        assert '"tool_execution_activity"' not in source
+
+
 def test_plan_evaluation_parser_supports_replan_and_safe_fallback():
     assert DurableAgentActivities._parse_evaluation(
         '{"decision":"replan","reason":"new evidence"}', "continue"
@@ -92,6 +100,7 @@ def test_durable_worker_definitions_remain_registered_for_rollback(monkeypatch):
         ReactAgentWorkflow,
         PlanAndExecuteWorkflow,
         AgentStepWorkflow,
+        ToolExecutionWorkflow,
     ]
 
 

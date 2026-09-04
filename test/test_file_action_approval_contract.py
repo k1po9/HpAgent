@@ -27,6 +27,13 @@ def test_migration_031_adds_persistent_revisions_and_recoverable_binding():
     assert "FOREIGN KEY(account_id,current_file_id)" in sql
 
 
+def test_migration_032_extends_existing_approval_and_outbox_state_machines():
+    sql = Path("persistence/migrations/032_durable_approval_wait.sql").read_text()
+    assert "file_action_approval_decided" in sql
+    assert "'cancelled'" in sql
+    assert "CREATE TABLE" not in sql
+
+
 def test_api_exposes_owned_list_and_idempotent_decision_routes():
     app = create_app(WebApiSettings(
         database_url="postgresql://unused",

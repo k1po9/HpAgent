@@ -15,6 +15,8 @@ from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
 
+from agent_workflows.contracts import ApprovalDecisionSignal
+from agent_workflows.tool_execution import ToolExecutionWorkflow
 from common.logging import log_event
 from orchestration.research_workflow import ResearchReportWorkflow, ResearchWorkflowInput
 from orchestration.web_workflow import (
@@ -103,6 +105,9 @@ class TemporalWebClient(Protocol):
         self, workflow_id: str, request: ResearchWorkflowInput
     ) -> str: ...
     async def cancel_web_run(self, workflow_id: str) -> bool: ...
+    async def signal_tool_approval(
+        self, workflow_id: str, signal: ApprovalDecisionSignal
+    ) -> None: ...
 
 
 class CancellationFinalizer(Protocol):
@@ -171,6 +176,14 @@ class TemporalOutboxDispatcher:
             await asyncio.to_thread(self.store.record_cancel_requested, run_id)
         return True
 
+    async def dispatch_approval_decision(self, payload: dict[str, object]) -> bool:
+        workflow_id = str(payload["tool_execution_workflow_id"])
+        signal = ApprovalDecisionSignal(
+            1, str(payload["approval_id"]), str(payload["operation_id"])
+        )
+        await self.temporal.signal_tool_approval(workflow_id, signal)
+        return True
+
 
 class TemporalClientAdapter:
     """Thin Temporal SDK adapter; retry policy is explicitly absent."""
@@ -228,6 +241,13 @@ class TemporalClientAdapter:
                 return False
             raise
 
+    async def signal_tool_approval(
+        self, workflow_id: str, signal: ApprovalDecisionSignal
+    ) -> None:
+        await self.client.get_workflow_handle(workflow_id).signal(
+            ToolExecutionWorkflow.approval_decision, signal
+        )
+
     async def start_research_run(
         self, workflow_id: str, request: ResearchWorkflowInput
     ) -> str:
@@ -281,7 +301,8 @@ class WebOutboxDispatcher:
         events = await asyncio.to_thread(
             self.outbox.claim,
             self.worker_id,
-            {"start_run", "start_research_run", "cancel_run"},
+            {"start_run", "start_research_run", "cancel_run",
+             "file_action_approval_decided"},
             limit,
         )
         for event in events:
@@ -296,8 +317,10 @@ class WebOutboxDispatcher:
                     await self.dispatcher.dispatch_start(run_id)
                 elif event["event_type"] == "start_research_run":
                     await self.dispatcher.dispatch_research_start(run_id)
-                else:
+                elif event["event_type"] == "cancel_run":
                     await self.dispatcher.dispatch_cancel(run_id)
+                else:
+                    await self.dispatcher.dispatch_approval_decision(dict(event["payload"]))
                 await asyncio.to_thread(
                     self.outbox.mark_processed, event_id, self.worker_id
                 )

@@ -8,7 +8,6 @@ from temporalio import workflow
 from .contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
-    DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS,
     AgentStepInput,
     AgentStepResult,
     ModelDecisionInput,
@@ -16,7 +15,8 @@ from .contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
-from .react import _MODEL_RETRY, _TOOL_RETRY, _validate
+from .react import _MODEL_RETRY, _validate
+from .tool_execution import ToolExecutionWorkflow, tool_execution_workflow_id
 
 
 @workflow.defn
@@ -61,33 +61,32 @@ class AgentStepWorkflow:
                     tool_turns,
                 )
             for call in decision.tool_calls:
-                result = await workflow.execute_activity(
-                    "tool_execution_activity",
-                    ToolExecutionInput(
-                        AGENT_SCHEMA_VERSION,
-                        request.agent.run_id,
-                        request.agent.account_id,
-                        request.agent.conversation_id,
-                        request.agent.session_id,
-                        request.agent.strategy,
-                        request.transcript_id,
-                        transcript_version,
-                        turn,
-                        f"{request.agent.run_id}:plan:{request.plan_version}:step:{request.step.step_id}:turn:{turn}:tool:{call.tool_call_id}",
-                        request.agent.lease_token,
-                        call,
-                        request.plan_id,
-                        request.plan_version,
-                        request.step.step_id,
+                tool_input = ToolExecutionInput(
+                    AGENT_SCHEMA_VERSION,
+                    request.agent.run_id,
+                    request.agent.account_id,
+                    request.agent.conversation_id,
+                    request.agent.session_id,
+                    request.agent.strategy,
+                    request.transcript_id,
+                    transcript_version,
+                    turn,
+                    f"{request.agent.run_id}:plan:{request.plan_version}:step:"
+                    f"{request.step.step_id}:turn:{turn}:tool:{call.tool_call_id}",
+                    request.agent.lease_token,
+                    call,
+                    request.plan_id,
+                    request.plan_version,
+                    request.step.step_id,
+                )
+                result = await workflow.execute_child_workflow(
+                    ToolExecutionWorkflow.run,
+                    tool_input,
+                    id=tool_execution_workflow_id(
+                        request.agent.run_id, tool_input.operation_id
                     ),
                     task_queue=AGENT_TASK_QUEUE,
                     result_type=ToolExecutionResult,
-                    start_to_close_timeout=timedelta(
-                        seconds=DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS
-                    ),
-                    heartbeat_timeout=timedelta(seconds=45),
-                    retry_policy=_TOOL_RETRY,
-                    cancellation_type=workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
                 transcript_version = result.transcript_version
             tool_turns += 1

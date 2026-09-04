@@ -10,6 +10,7 @@ import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from typing import Any, NoReturn, cast
+from uuid import UUID
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
@@ -26,6 +27,8 @@ from agent_execution.tracing import (
 )
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
+    ApprovalStatusInput,
+    ApprovalStatusResult,
     CompactToolCall,
     ContextBootstrapInput,
     ContextBootstrapResult,
@@ -74,6 +77,7 @@ class DurableAgentActivities:
         run_budget: Any = None,
         reconciler: ToolSideEffectReconciler | None = None,
         fault_injector: FaultInjector | None = None,
+        approval_service: Any = None,
     ) -> None:
         self.store = store
         self.loader = loader
@@ -85,6 +89,26 @@ class DurableAgentActivities:
         self.run_budget = run_budget
         self.reconciler = reconciler or UnsupportedToolSideEffectReconciler()
         self.fault_injector = fault_injector or NoopFaultInjector()
+        self.approval_service = approval_service
+
+    @activity.defn(name="file_action_approval_status_activity")
+    async def file_action_approval_status(
+        self, request: ApprovalStatusInput,
+    ) -> ApprovalStatusResult:
+        self._check_schema(request.schema_version)
+        if self.approval_service is None:
+            raise ApplicationError(
+                "approval service unavailable", non_retryable=True
+            )
+        approval = await asyncio.to_thread(
+            self.approval_service.authoritative_status,
+            UUID(request.account_id), UUID(request.run_id), request.operation_id,
+            UUID(request.approval_id),
+        )
+        status = "approved" if approval.status == "consumed" else approval.status
+        return ApprovalStatusResult(
+            AGENT_SCHEMA_VERSION, str(approval.approval_id), approval.operation_id, status
+        )
 
     @staticmethod
     def _attempt() -> int:

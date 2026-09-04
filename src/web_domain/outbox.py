@@ -18,14 +18,15 @@ from persistence.uow import UnitOfWork, retryable_transaction
 from .errors import OutboxLeaseLost, ResourceNotFound
 
 OUTBOX_EVENT_TYPES = frozenset(
-    {"start_run", "start_research_run", "cancel_run", "retain_memory", "publish_terminal_event"}
+    {"start_run", "start_research_run", "cancel_run", "retain_memory", "publish_terminal_event",
+     "file_action_approval_decided"}
 )
 
 # The Web Agent's lease recovery sweep must only reclaim leases the Web Outbox
 # Dispatcher itself owns.  Other consumers (terminal publishing, retain) hold
 # their own ``processing`` rows and must never be stolen by this recovery loop.
 WEB_OUTBOX_RECOVERY_EVENT_TYPES = frozenset(
-    {"start_run", "start_research_run", "cancel_run"}
+    {"start_run", "start_research_run", "cancel_run", "file_action_approval_decided"}
 )
 
 

@@ -129,6 +129,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_execution.web_events import RedisWebRunEventSinkFactory
     from agent_execution.web_host import WebExecutionHost
     from application.context_assembly import ContextAssemblyService
+    from file_domain.approvals import FileActionApprovalService
     from file_runtime import ResearchMarkdownPublisher
     from orchestration.artifact_activities import (
         execute_artifact_build_activity,
@@ -293,6 +294,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         resource_prep=resource_prep,
         lifecycle=lifecycle,
         run_budget=RunBudgetService(worker_database_url),
+        approval_service=FileActionApprovalService(worker_database_url),
     )
     artifact_build = ArtifactBuildService(
         worker_database_url,
@@ -334,6 +336,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
             durable_activities.context_bootstrap,
             durable_activities.model_decision,
             durable_activities.tool_execution,
+            durable_activities.file_action_approval_status,
             durable_activities.planning,
             durable_activities.evaluate_plan,
         ],

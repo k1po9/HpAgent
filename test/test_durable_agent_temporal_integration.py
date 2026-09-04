@@ -29,6 +29,7 @@ from agent_workflows.contracts import (
 )
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
+from agent_workflows.tool_execution import ToolExecutionWorkflow
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 
@@ -138,6 +139,7 @@ async def _run(strategy: str):
             ReactAgentWorkflow,
             PlanAndExecuteWorkflow,
             AgentStepWorkflow,
+            ToolExecutionWorkflow,
         ],
         activities=[
             fake_context,

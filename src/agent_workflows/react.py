@@ -10,7 +10,6 @@ from temporalio.exceptions import ApplicationError
 from .contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
-    DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS,
     AgentResult,
     AgentRunInput,
     ContextBootstrapInput,
@@ -20,6 +19,7 @@ from .contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
+from .tool_execution import ToolExecutionWorkflow, tool_execution_workflow_id
 
 _READ_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),
@@ -125,30 +125,28 @@ class ReactAgentWorkflow:
                     tool_turns,
                 )
             for call in decision.tool_calls:
-                tool_result = await workflow.execute_activity(
-                    "tool_execution_activity",
-                    ToolExecutionInput(
-                        AGENT_SCHEMA_VERSION,
-                        request.run_id,
-                        request.account_id,
-                        request.conversation_id,
-                        request.session_id,
-                        request.strategy,
-                        context.transcript_id,
-                        transcript_version,
-                        turn,
-                        f"{request.run_id}:react:turn:{turn}:tool:{call.tool_call_id}",
-                        request.lease_token,
-                        call,
+                tool_input = ToolExecutionInput(
+                    AGENT_SCHEMA_VERSION,
+                    request.run_id,
+                    request.account_id,
+                    request.conversation_id,
+                    request.session_id,
+                    request.strategy,
+                    context.transcript_id,
+                    transcript_version,
+                    turn,
+                    f"{request.run_id}:react:turn:{turn}:tool:{call.tool_call_id}",
+                    request.lease_token,
+                    call,
+                )
+                tool_result = await workflow.execute_child_workflow(
+                    ToolExecutionWorkflow.run,
+                    tool_input,
+                    id=tool_execution_workflow_id(
+                        request.run_id, tool_input.operation_id
                     ),
                     task_queue=AGENT_TASK_QUEUE,
                     result_type=ToolExecutionResult,
-                    start_to_close_timeout=timedelta(
-                        seconds=DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS
-                    ),
-                    heartbeat_timeout=timedelta(seconds=45),
-                    retry_policy=_TOOL_RETRY,
-                    cancellation_type=workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
                 transcript_version = tool_result.transcript_version
             tool_turns += 1

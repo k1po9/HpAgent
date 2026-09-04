@@ -23,6 +23,7 @@ from agent_workflows.contracts import (
 )
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
+from agent_workflows.tool_execution import ToolExecutionWorkflow
 from workspace.isolation import WorkspaceIsolationMode
 
 from .artifact_workflow import ArtifactBuildWorkflow
@@ -184,6 +185,7 @@ def build_web_temporal_workers(
                 ReactAgentWorkflow,
                 PlanAndExecuteWorkflow,
                 AgentStepWorkflow,
+                ToolExecutionWorkflow,
             ],
             activities=list(agent_activities),
             # Temporal otherwise throttles heartbeat RPCs to most of the

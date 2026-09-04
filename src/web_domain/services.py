@@ -12,6 +12,7 @@ from uuid import UUID
 
 from uuid6 import uuid7
 
+from agent_workflows.tool_execution import tool_execution_workflow_id
 from common.logging import log_event
 from persistence.repositories import (
     AccountRepository,
@@ -244,6 +245,27 @@ class CommandService:
                 response_status = 200
             else:
                 self.runs.set_cancelling(uow, run_id)
+                pending_approvals = uow.execute(
+                    "UPDATE file_action_approvals SET status='cancelled',updated_at=now() "
+                    "WHERE account_id=%s AND run_id=%s AND status='pending' RETURNING *",
+                    (account_id, run_id),
+                ).fetchall()
+                for approval in pending_approvals:
+                    approval_event_id = _id()
+                    self.outbox.enqueue(
+                        uow, approval_event_id, account_id,
+                        "file_action_approval_decided",
+                        f"file-approval:{approval['approval_id']}:cancelled",
+                        run["conversation_id"], run_id,
+                        json.dumps({
+                            "approval_id": str(approval["approval_id"]),
+                            "operation_id": approval["operation_id"],
+                            "tool_execution_workflow_id": tool_execution_workflow_id(
+                                str(run_id), approval["operation_id"]
+                            ),
+                            "version": 1,
+                        }),
+                    )
                 self._outbox(uow, account_id, run["conversation_id"], run_id, "cancel_run")
                 result = self._snapshot_for_run(uow, run_id)
                 result.update({"run_id": str(run_id), "status": "cancelling"})

@@ -10,12 +10,15 @@ from uuid import UUID
 
 from uuid6 import uuid7
 
-from persistence.repositories import IdempotencyRepository
+from agent_workflows.tool_execution import tool_execution_workflow_id
+from persistence.repositories import IdempotencyRepository, OutboxRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import ConversationBusy, DomainError, IdempotencyConflict, ResourceNotFound
 from web_domain.services import CommandResult
 
-ApprovalStatus = Literal["pending", "approved", "rejected", "expired", "consumed"]
+ApprovalStatus = Literal[
+    "pending", "approved", "rejected", "expired", "cancelled", "consumed"
+]
 
 
 class ApprovalNotPending(DomainError):
@@ -53,6 +56,23 @@ class FileActionApprovalService:
     def __init__(self, database: object) -> None:
         self.database = database
         self.idempotency = IdempotencyRepository()
+        self.outbox = OutboxRepository()
+
+    def _enqueue_decision(self, uow: UnitOfWork, row: dict[str, Any]) -> None:
+        event_id = uuid7()
+        payload = {
+            "approval_id": str(row["approval_id"]),
+            "operation_id": row["operation_id"],
+            "tool_execution_workflow_id": tool_execution_workflow_id(
+                str(row["run_id"]), row["operation_id"]
+            ),
+            "version": 1,
+        }
+        self.outbox.enqueue(
+            uow, event_id, row["account_id"], "file_action_approval_decided",
+            f"file-approval:{row['approval_id']}:{row['status']}",
+            row["conversation_id"], row["run_id"], json.dumps(payload),
+        )
 
     @retryable_transaction
     def request(
@@ -128,9 +148,45 @@ class FileActionApprovalService:
                 "decided_by_account_id=%s,updated_at=now() WHERE approval_id=%s RETURNING *",
                 (decision, account_id, approval_id),
             ).fetchone()
+            self._enqueue_decision(uow, row)
             body = {"approval": self._dto(row)}
             self.idempotency.complete(uow, account_id, operation, key, 200, json.dumps(body))
             return CommandResult(200, body)
+
+    @retryable_transaction
+    def authoritative_status(
+        self, account_id: UUID, run_id: UUID, operation_id: str, approval_id: UUID,
+    ) -> FileActionApproval:
+        with UnitOfWork(self.database) as uow:
+            row = uow.execute(
+                "SELECT * FROM file_action_approvals WHERE account_id=%s AND run_id=%s "
+                "AND operation_id=%s AND approval_id=%s FOR UPDATE",
+                (account_id, run_id, operation_id, approval_id),
+            ).fetchone()
+            if row is None:
+                raise ApprovalNotGranted()
+            if row["status"] == "pending" and row["expires_at"] <= datetime.now(UTC):
+                row = uow.execute(
+                    "UPDATE file_action_approvals SET status='expired',updated_at=now() "
+                    "WHERE approval_id=%s RETURNING *", (approval_id,),
+                ).fetchone()
+            return self._model(row)
+
+    @retryable_transaction
+    def cancel(
+        self, account_id: UUID, run_id: UUID, operation_id: str, approval_id: UUID,
+    ) -> FileActionApproval:
+        with UnitOfWork(self.database) as uow:
+            row = uow.execute(
+                "UPDATE file_action_approvals SET status='cancelled',updated_at=now() "
+                "WHERE account_id=%s AND run_id=%s AND operation_id=%s AND approval_id=%s "
+                "AND status='pending' RETURNING *",
+                (account_id, run_id, operation_id, approval_id),
+            ).fetchone()
+            if row is None:
+                raise ApprovalNotPending()
+            self._enqueue_decision(uow, row)
+            return self._model(row)
 
     @retryable_transaction
     def consume(

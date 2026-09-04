@@ -27,8 +27,10 @@ from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
+from agent_workflows.contracts import ApprovalDecisionSignal
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
+from agent_workflows.tool_execution import ToolExecutionWorkflow
 from application.conversation import ConversationService
 from common.types import ChannelType, UnifiedMessage
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
@@ -163,6 +165,7 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
         ReactAgentWorkflow,
         PlanAndExecuteWorkflow,
         AgentStepWorkflow,
+        ToolExecutionWorkflow,
     ]
 
 
@@ -225,6 +228,28 @@ async def test_dispatcher_uses_deterministic_id_and_rechecks_cancel_after_start(
     store = Store()
     assert await TemporalOutboxDispatcher(store, Temporal()).dispatch_start(UUID(run_id))
     assert store.cancel_requested is True
+
+
+@pytest.mark.asyncio
+async def test_approval_dispatch_uses_persisted_deterministic_routing_identity():
+    received = []
+
+    class Temporal:
+        async def signal_tool_approval(self, workflow_id, signal):
+            received.append((workflow_id, signal))
+
+    payload = {
+        "approval_id": "00000000-0000-0000-0000-000000000042",
+        "operation_id": "run:tool:one",
+        "tool_execution_workflow_id": "hpagent-tool-exact",
+    }
+    assert await TemporalOutboxDispatcher(object(), Temporal()).dispatch_approval_decision(
+        payload
+    )
+    assert received == [(
+        "hpagent-tool-exact",
+        ApprovalDecisionSignal(1, payload["approval_id"], payload["operation_id"]),
+    )]
 
 
 @pytest.mark.asyncio
