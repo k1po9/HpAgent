@@ -39,6 +39,7 @@ from research_domain.providers import (
 )
 from research_domain.services import ResearchTaskCommandService, TaskBusy, TaskNotActive
 from web_domain.errors import ResourceNotFound
+from web_domain.services import CommandService
 
 
 class ResearchActivities:
@@ -55,12 +56,14 @@ class ResearchActivities:
         max_iterations: int = 3,
         min_evidence: int = 3,
         min_distinct_sources: int = 2,
+        markdown_publisher: Any | None = None,
     ) -> None:
         self.database, self.discovery, self.content = database, discovery, content
         self.canonicalizer, self.synthesis = canonicalizer, synthesis
         self.max_sources, self.max_fetches = max_sources, max_fetches
         self.max_iterations = max_iterations
         self.min_evidence, self.min_distinct_sources = min_evidence, min_distinct_sources
+        self.markdown_publisher = markdown_publisher
         self.repository = ResearchRepository()
         self.budget = RunBudgetService(database)
         self.trace = PostgresTraceRepository(database)
@@ -643,7 +646,21 @@ class ResearchActivities:
     ) -> ResearchStageRef:
         request.validate()
         run_id = UUID(request.run_id)
-        return await self._run_stage(run_id, "PublishArtifact", lambda: self._publish(run_id))
+        result = await self._run_stage(
+            run_id, "PublishArtifact", lambda: self._publish(run_id)
+        )
+        if self.markdown_publisher is not None:
+            markdown = await asyncio.to_thread(self._report_markdown, run_id)
+            await asyncio.to_thread(self.markdown_publisher.publish, run_id, markdown)
+        return result
+
+    @retryable_transaction
+    def _report_markdown(self, run_id: UUID) -> str:
+        with UnitOfWork(self.database) as uow:
+            report = self.repository.load_report(uow, run_id)
+            if report is None:
+                raise LookupError(f"research report not found: {run_id}")
+            return str(report["report_markdown"])
 
     @retryable_transaction
     def _publish(self, run_id: UUID) -> int:
@@ -709,11 +726,23 @@ class ResearchActivities:
     @retryable_transaction
     def _complete(self, run_id: UUID) -> None:
         with UnitOfWork(self.database) as uow:
-            uow.execute(
-                "UPDATE runs SET status='completed',finished_at=COALESCE(finished_at,now()),"
-                "updated_at=now(),version=version+1 WHERE run_id=%s AND status='running'",
-                (run_id,),
+            run = uow.execute(
+                "SELECT account_id,conversation_id FROM runs WHERE run_id=%s", (run_id,)
+            ).fetchone()
+        if run is None:
+            raise LookupError(f"research Run not found: {run_id}")
+        if run["conversation_id"] is not None:
+            CommandService(self.database).complete_run(
+                run["account_id"], run_id, "Research report completed."
             )
+        else:
+            with UnitOfWork(self.database) as uow:
+                uow.execute(
+                    "UPDATE runs SET status='completed',finished_at=COALESCE(finished_at,now()),"
+                    "updated_at=now(),version=version+1 WHERE run_id=%s AND status='running'",
+                    (run_id,),
+                )
+        with UnitOfWork(self.database) as uow:
             uow.execute(
                 "UPDATE workflow_executions SET status='completed',"
                 "closed_at=COALESCE(closed_at,now()),updated_at=now(),version=version+1 "
@@ -734,12 +763,25 @@ class ResearchActivities:
     @retryable_transaction
     def _fail(self, run_id: UUID) -> None:
         with UnitOfWork(self.database) as uow:
-            uow.execute(
-                "UPDATE runs SET status='failed',failure_code='research_stage_failed',"
-                "failure_message='Research stage failed.',finished_at=COALESCE(finished_at,now()),"
-                "updated_at=now(),version=version+1 WHERE run_id=%s AND status IN ('queued','running')",
-                (run_id,),
+            run = uow.execute(
+                "SELECT account_id,conversation_id FROM runs WHERE run_id=%s", (run_id,)
+            ).fetchone()
+        if run is None:
+            raise LookupError(f"research Run not found: {run_id}")
+        if run["conversation_id"] is not None:
+            CommandService(self.database).fail_run(
+                run["account_id"], run_id, "research_stage_failed", "Research stage failed."
             )
+        else:
+            with UnitOfWork(self.database) as uow:
+                uow.execute(
+                    "UPDATE runs SET status='failed',failure_code='research_stage_failed',"
+                    "failure_message='Research stage failed.',"
+                    "finished_at=COALESCE(finished_at,now()),updated_at=now(),version=version+1 "
+                    "WHERE run_id=%s AND status IN ('queued','running')",
+                    (run_id,),
+                )
+        with UnitOfWork(self.database) as uow:
             uow.execute(
                 "UPDATE workflow_executions SET status='failed',"
                 "closed_at=COALESCE(closed_at,now()),updated_at=now(),version=version+1 "

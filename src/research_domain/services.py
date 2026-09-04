@@ -14,7 +14,9 @@ from uuid6 import uuid7
 
 from persistence.repositories import (
     AccountRepository,
+    ConversationRepository,
     IdempotencyRepository,
+    MessageRepository,
     OutboxRepository,
     RunBudgetRepository,
 )
@@ -50,6 +52,8 @@ class ResearchTaskCommandService:
     def __init__(self, database: object, *, budget_mode: str = "enforce") -> None:
         self.database = database
         self.accounts = AccountRepository()
+        self.conversations = ConversationRepository()
+        self.messages = MessageRepository()
         self.tasks = TaskRepository()
         self.idempotency = IdempotencyRepository()
         self.outbox = OutboxRepository()
@@ -64,6 +68,8 @@ class ResearchTaskCommandService:
         title: str,
         objective: str,
         source_strategy: SourceStrategy | None = None,
+        *,
+        conversation_id: UUID | None = None,
     ) -> TaskCommandResult:
         title = title.strip()
         objective = objective.strip()
@@ -71,15 +77,25 @@ class ResearchTaskCommandService:
             raise ValueError("title and objective are required")
         strategy = source_strategy or SourceStrategy()
         payload = {"title": title, "objective": objective, "source_strategy": strategy.to_dict()}
+        if conversation_id is not None:
+            payload["conversation_id"] = str(conversation_id)
         with UnitOfWork(self.database) as uow:
             replay = self._claim(uow, account_id, "create_task", key, payload)
             if replay:
                 return replay
             if not self.accounts.require_active(uow, account_id):
                 raise ResourceNotFound()
+            if conversation_id is not None and not self.conversations.lock_active(
+                uow, account_id, conversation_id
+            ):
+                raise ResourceNotFound()
             task_id = uuid7()
-            self.tasks.insert(uow, task_id, account_id, title, objective, strategy.to_dict())
+            self.tasks.insert(
+                uow, task_id, account_id, title, objective, strategy.to_dict(), conversation_id
+            )
             body = {"task_id": str(task_id), "task_type": "research_report", "status": "active"}
+            if conversation_id is not None:
+                body["conversation_id"] = str(conversation_id)
             self._complete(uow, account_id, "create_task", key, 201, body)
             return TaskCommandResult(201, body)
 
@@ -104,11 +120,43 @@ class ResearchTaskCommandService:
                 raise TaskBusy(str(active["run_id"]))
             run_id = uuid7()
             workflow_id = f"hpagent-research-{run_id}"
-            uow.execute(
-                "INSERT INTO runs(run_id,account_id,task_id,run_kind,workflow_id,agent_strategy) "
-                "VALUES (%s,%s,%s,'research',%s,NULL)",
-                (run_id, account_id, task_id, workflow_id),
-            )
+            conversation_id = task["conversation_id"]
+            if conversation_id is None:
+                uow.execute(
+                    "INSERT INTO runs(run_id,account_id,task_id,run_kind,workflow_id,agent_strategy) "
+                    "VALUES (%s,%s,%s,'research',%s,NULL)",
+                    (run_id, account_id, task_id, workflow_id),
+                )
+            else:
+                conversation = self.conversations.lock_active(
+                    uow, account_id, conversation_id
+                )
+                if conversation is None:
+                    raise ResourceNotFound()
+                active = uow.execute(
+                    "SELECT 1 FROM runs WHERE conversation_id=%s AND status IN "
+                    "('queued','running','cancelling')", (conversation_id,),
+                ).fetchone()
+                if active is not None:
+                    raise TaskBusy("conversation has an active Run")
+                allocated = self.conversations.allocate_messages(
+                    uow, account_id, conversation_id, 2
+                )
+                user_message_id, assistant_message_id = uuid7(), uuid7()
+                self.messages.insert_user(
+                    uow, user_message_id, account_id, conversation_id,
+                    str(task["objective"]), allocated - 1, uuid7(),
+                )
+                uow.execute(
+                    "INSERT INTO runs(run_id,account_id,conversation_id,task_id,run_kind,"
+                    "trigger_message_id,workflow_id,context_message_seq,agent_strategy) "
+                    "VALUES (%s,%s,%s,%s,'research',%s,%s,%s,NULL)",
+                    (run_id, account_id, conversation_id, task_id, user_message_id,
+                     workflow_id, allocated - 1),
+                )
+                self.messages.insert_assistant(
+                    uow, assistant_message_id, account_id, conversation_id, allocated, run_id
+                )
             limits = {
                 "sources_discovered": 30,
                 "source_fetches": 20,
@@ -123,7 +171,7 @@ class ResearchTaskCommandService:
                 uow,
                 run_id,
                 account_id,
-                None,
+                conversation_id,
                 "research-r0-r4-v1",
                 self.budget_mode,
                 json.dumps(limits, sort_keys=True),
@@ -135,7 +183,7 @@ class ResearchTaskCommandService:
                 account_id,
                 "start_research_run",
                 f"start-research-run:{run_id}",
-                None,
+                conversation_id,
                 run_id,
                 json.dumps({"run_id": str(run_id), "task_id": str(task_id), "version": 1}),
             )
@@ -147,6 +195,8 @@ class ResearchTaskCommandService:
                 "workflow_id": workflow_id,
                 "status": "queued",
             }
+            if conversation_id is not None:
+                body["conversation_id"] = str(conversation_id)
             self._complete(uow, account_id, "trigger_task", key, 202, body)
             return TaskCommandResult(202, body)
 

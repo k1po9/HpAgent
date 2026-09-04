@@ -676,7 +676,8 @@ def create_app(
     ):
         strategy = SourceStrategy.from_dict(payload.source_strategy.model_dump())
         result = request.app.state.research_tasks.create_task(
-            context.account_id, key, payload.title, payload.objective, strategy
+            context.account_id, key, payload.title, payload.objective, strategy,
+            conversation_id=payload.conversation_id,
         )
         response = JSONResponse(status_code=result.status_code, content={"task": result.body})
         response.headers["Location"] = f'/api/v1/tasks/{result.body["task_id"]}'

@@ -40,6 +40,7 @@ class OutputPublisher:
         logical_name: str,
         content_type: str | None = None,
         parent_file_id: UUID | None = None,
+        encoding: str = "binary",
     ) -> PublishedOutput:
         if not operation_id or len(operation_id) > 200:
             raise ValueError("operation_id must contain 1 to 200 characters")
@@ -75,10 +76,10 @@ class OutputPublisher:
                 "INSERT INTO stored_files(file_id,account_id,conversation_id,purpose,status,"
                 "original_name,display_name,storage_key,content_type,encoding,size_bytes,sha256,"
                 "parent_file_id,ready_at) VALUES (%s,%s,%s,'output','ready',%s,%s,%s,%s,"
-                "'binary',%s,%s,%s,now()) RETURNING version",
+                "%s,%s,%s,%s,now()) RETURNING version",
                 (file_id, subject["account_id"], subject["conversation_id"], name, name,
-                 published.storage_key, media_type, published.size_bytes, published.sha256,
-                 parent_file_id),
+                 published.storage_key, media_type, encoding, published.size_bytes,
+                 published.sha256, parent_file_id),
             ).fetchone()
             uow.execute(
                 "INSERT INTO run_files(account_id,conversation_id,run_id,file_id,direction,"

@@ -39,6 +39,7 @@ class SourceStrategyRequest(StrictModel):
 class CreateResearchTaskRequest(StrictModel):
     title: str = Field(min_length=1, max_length=200)
     objective: str = Field(min_length=1, max_length=20000)
+    conversation_id: UUID | None = None
     source_strategy: SourceStrategyRequest = Field(default_factory=SourceStrategyRequest)
 
 

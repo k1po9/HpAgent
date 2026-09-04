@@ -129,6 +129,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_execution.web_events import RedisWebRunEventSinkFactory
     from agent_execution.web_host import WebExecutionHost
     from application.context_assembly import ContextAssemblyService
+    from file_runtime import ResearchMarkdownPublisher
     from orchestration.artifact_activities import (
         execute_artifact_build_activity,
         inject_artifact_build_service,
@@ -278,6 +279,10 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         max_iterations=config.research.max_iterations,
         min_evidence=config.research.min_evidence,
         min_distinct_sources=config.research.min_distinct_sources,
+        markdown_publisher=(
+            ResearchMarkdownPublisher(deps.file_output_publisher)
+            if deps.file_output_publisher is not None else None
+        ),
     )
     durable_activities = DurableAgentActivities(
         store=agent_store,
@@ -482,6 +487,8 @@ class WorkerDependencies:
     scheduler: "TaskScheduler" = None
     workspace_isolation: "WorkspaceIsolationRuntime | None" = None
     run_file_workspace: object = None
+    tenant_file_store: object = None
+    file_output_publisher: object = None
 
 
 
@@ -712,17 +719,17 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         run_file_workspace = RunFileWorkspace(
             worker_database_url, tenant_store, file_capability.run_root
         )
+        from file_runtime import OutputPublisher
+
+        file_output_publisher = OutputPublisher(worker_database_url, tenant_store)
         logger.info("Run file workspace enabled with isolated object/execution roots")
         if file_capability.transform_enabled:
             if not config.temporal.durable_agent_enabled:
                 raise RuntimeError("file transforms require DURABLE_AGENT_ENABLED=true")
             from file_adapters import GotenbergConversionProvider
-            from file_runtime import OutputPublisher
-
             gotenberg_url = os.getenv("GOTENBERG_URL", "").strip()
             if not gotenberg_url:
                 raise RuntimeError("file transforms require GOTENBERG_URL")
-            file_output_publisher = OutputPublisher(worker_database_url, tenant_store)
             file_conversion_provider = GotenbergConversionProvider(
                 gotenberg_url, max_output_bytes=file_capability.max_bytes
             )
@@ -827,6 +834,8 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         scheduler=scheduler,
         workspace_isolation=workspace_isolation,
         run_file_workspace=run_file_workspace,
+        tenant_file_store=(tenant_store if file_capability.upload_enabled else None),
+        file_output_publisher=file_output_publisher,
     )
 
 

@@ -30,11 +30,13 @@ class TaskRepository:
         title: str,
         objective: str,
         source_strategy: dict[str, Any],
+        conversation_id: UUID | None = None,
     ) -> None:
         uow.execute(
-            "INSERT INTO tasks(task_id,account_id,task_type,title,objective,source_strategy) "
-            "VALUES (%s,%s,'research_report',%s,%s,%s::jsonb)",
-            (task_id, account_id, title, objective, json.dumps(source_strategy)),
+            "INSERT INTO tasks(task_id,account_id,conversation_id,task_type,title,objective,"
+            "source_strategy) VALUES (%s,%s,%s,'research_report',%s,%s,%s::jsonb)",
+            (task_id, account_id, conversation_id, title, objective,
+             json.dumps(source_strategy)),
         )
 
     def lock_active(
