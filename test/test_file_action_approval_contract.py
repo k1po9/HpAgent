@@ -50,3 +50,4 @@ def test_api_exposes_owned_list_and_idempotent_decision_routes():
     assert ("/api/v1/runs/{run_id}/file-action-approvals", ("GET",)) in routes
     assert ("/api/v1/file-action-approvals/{approval_id}/approve", ("POST",)) in routes
     assert ("/api/v1/file-action-approvals/{approval_id}/reject", ("POST",)) in routes
+    assert ("/api/v1/persistent-files/{logical_path:path}", ("GET",)) in routes

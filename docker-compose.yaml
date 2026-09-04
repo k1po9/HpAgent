@@ -491,6 +491,7 @@ services:
       - MINIMAX_STANDARD_MODEL=${MINIMAX_STANDARD_MODEL}
       - MINIMAX_FLAGSHIP_MODEL=${MINIMAX_FLAGSHIP_MODEL}
       - MINIMAX_HIGHSPEED_MODEL=${MINIMAX_HIGHSPEED_MODEL}
+      - HPAGENT_MODELS_PATH=${HPAGENT_MODELS_PATH:-/app/config/models.yaml}
 
       # DeepSeek (OpenAI-compatible provider; also used by runtime acceptance)
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
@@ -556,6 +557,16 @@ services:
       - app-network
 
     restart: unless-stopped
+
+  f4-e2e-model:
+    profiles: ["f4-e2e"]
+    image: ${HPAGENT_API_IMAGE:-hpagent/hpagent-api:offline}
+    command: ["python", "/fixture/f4_e2e_model.py"]
+    volumes:
+      - ./test/support:/fixture:ro
+    networks:
+      - app-network
+    restart: "no"
 
 
   # ============================================================

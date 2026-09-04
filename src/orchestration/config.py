@@ -649,7 +649,9 @@ class AppConfig:
 
         # 加载模型配置
         if not models_path:
-            models_path = str(config_dir / "models.yaml")
+            models_path = _os.getenv(
+                "HPAGENT_MODELS_PATH", str(config_dir / "models.yaml")
+            )
         mp = Path(models_path)
         if mp.exists():
             config.models = ModelsConfig.from_yaml(str(mp))

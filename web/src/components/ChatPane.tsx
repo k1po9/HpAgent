@@ -7,6 +7,7 @@ import { useAuth } from "../store/auth";
 import { useArtifacts } from "../store/artifacts";
 import { RunStatus } from "./RunStatus";
 import { useTraceStore } from "./trace/traceStore";
+import { ApprovalCard } from "./ApprovalCard";
 
 /**
  * The active conversation pane (phase-e E-03/E-04).
@@ -108,6 +109,7 @@ export function ChatPane() {
         onStop={handleCancel}
         onRetry={handleRetry}
       />
+      <ApprovalCard runId={activeRun?.run_id ?? null} />
       {error ? (
         <button type="button" className="hp-error" onClick={handleDismissError}>
           <Text size="2" color="red">

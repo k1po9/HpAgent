@@ -37,9 +37,15 @@ def test_approval_is_owned_idempotent_and_single_use(
     request = worker.request(
         account_id, conversation_id, run_id, "op-1", "external_file_overwrite",
         "Overwrite an external destination", "a" * 64,
+        intent={"logical_path": "research/agent-memory.md", "expected_revision": 1,
+                "new_sha256": "b" * 64},
     )
     assert request.status == "pending"
-    assert "arguments_hash" not in api.list_for_run(account_id, run_id)[0]
+    listed = api.list_for_run(account_id, run_id)[0]
+    assert "arguments_hash" not in listed
+    assert listed["logical_path"] == "research/agent-memory.md"
+    assert listed["expected_revision"] == 1
+    assert "new_sha256" not in listed
 
     key = str(uuid4())
     result = api.decide(account_id, request.approval_id, "approved", key)

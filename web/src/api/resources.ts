@@ -20,6 +20,8 @@ import type {
   HpArtifactSummary,
   HpArtifactVersion,
   HpFile,
+  HpFileApproval,
+  HpPersistentFileDestination,
 } from "./types";
 
 export interface SendMessageOptions {
@@ -146,6 +148,35 @@ export class HpApi {
     return this.client.request<HpRunSnapshot>({
       method: "GET",
       path: `/api/v1/runs/${runId}`,
+    });
+  }
+
+  async listFileApprovals(runId: string): Promise<{ approvals: HpFileApproval[] }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/runs/${runId}/file-action-approvals`,
+    });
+  }
+
+  async decideFileApproval(
+    approvalId: string,
+    decision: "approve" | "reject",
+    idempotencyKey: string,
+  ): Promise<{ approval: HpFileApproval }> {
+    return this.client.request({
+      method: "POST",
+      path: `/api/v1/file-action-approvals/${approvalId}/${decision}`,
+      body: {},
+      idempotencyKey,
+    });
+  }
+
+  async getPersistentFile(logicalPath: string): Promise<{
+    destination: HpPersistentFileDestination;
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/persistent-files/${logicalPath.split("/").map(encodeURIComponent).join("/")}`,
     });
   }
 

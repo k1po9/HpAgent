@@ -454,6 +454,12 @@ body,
   min-height: 36px;
 }
 
+.hp-approval {
+  margin: 8px 12px;
+  border-color: var(--amber-7);
+  background: var(--amber-2);
+}
+
 .hp-error {
   display: block;
   width: 100%;

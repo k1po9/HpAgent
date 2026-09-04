@@ -731,6 +731,48 @@ class DurableAgentActivities:
                             str(persistent.approval_id), "pending",
                             approval.expires_at.isoformat(),
                         )
+                    display = (
+                        f"Saved {persistent.logical_path} revision "
+                        f"{persistent.revision}"
+                    )
+                    result_ref = f"agent-tool-result:{request.operation_id}"
+                    payload = {
+                        "schema_version": AGENT_SCHEMA_VERSION,
+                        "operation_id": request.operation_id,
+                        "result_ref": result_ref,
+                        "transcript_version": request.transcript_version,
+                        "display_summary": display,
+                    }
+                    version = await asyncio.to_thread(
+                        self.store.complete_operation_with_event,
+                        transcript_id=request.transcript_id,
+                        expected_version=request.transcript_version,
+                        event_type="tool_result",
+                        operation_id=request.operation_id,
+                        event_payload={
+                            "message": {
+                                "role": "tool",
+                                "tool_call_id": request.tool_call.tool_call_id,
+                                "name": request.tool_call.name,
+                                "content": display,
+                            },
+                            "raw_result": {
+                                "logical_path": persistent.logical_path,
+                                "revision": persistent.revision,
+                                "file_id": str(persistent.file_id),
+                            },
+                            "side_effect_class": "idempotent_write",
+                        },
+                        result_ref=result_ref,
+                        result_payload=payload,
+                    )
+                    payload["transcript_version"] = version
+                    trace_status = "completed"
+                    trace_metadata = {
+                        "side_effect_class": "idempotent_write",
+                        "result_ref": result_ref,
+                    }
+                    return ToolExecutionResult(**payload)
                 side_effect_class = normalize_side_effect_class(str(
                     self.actions.side_effect_class(request.session_id, request.tool_call.name)
                 ))

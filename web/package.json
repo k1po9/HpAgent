@@ -16,7 +16,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:f4": "bash scripts/e2e-f4.sh"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.8",

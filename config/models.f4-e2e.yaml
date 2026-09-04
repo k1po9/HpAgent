@@ -1,0 +1,26 @@
+providers:
+  fixture:
+    base_url: "http://f4-e2e-model:18081/v1"
+    api_key: "f4-e2e"
+    api_format: "openai"
+
+fast:
+  - provider: fixture
+    model: "f4-deterministic"
+    max_tokens: 256
+    timeout: 5.0
+
+chat:
+  - provider: fixture
+    model: "f4-deterministic"
+    max_tokens: 512
+    timeout: 5.0
+
+tool_rag:
+  enabled: false
+  top_k: 64
+
+channel_overrides:
+  web:
+    max_tokens: 512
+    timeout: 5.0

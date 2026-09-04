@@ -61,6 +61,25 @@ export type HpRunStatus =
 
 export type AgentStrategy = "react" | "plan_and_execute";
 
+export interface HpFileApproval {
+  approval_id: string;
+  run_id: string;
+  operation_id: string;
+  action_summary: string;
+  tool_name: string;
+  status: "pending" | "approved" | "rejected" | "expired" | "cancelled" | "consumed";
+  logical_path: string | null;
+  expected_revision: number | null;
+}
+
+export interface HpPersistentFileDestination {
+  logical_path: string;
+  current_revision: number;
+  current_file_id: string;
+  current_sha256: string;
+  last_operation_id: string;
+}
+
 export interface HpFailure {
   code: string;
   message: string;

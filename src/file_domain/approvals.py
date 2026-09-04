@@ -229,6 +229,7 @@ class FileActionApprovalService:
 
     @staticmethod
     def _dto(row: dict[str, Any]) -> dict[str, Any]:
+        intent = dict(row.get("intent") or {})
         return {
             "approval_id": str(row["approval_id"]), "run_id": str(row["run_id"]),
             "operation_id": row["operation_id"], "tool_name": row["tool_name"],
@@ -237,4 +238,6 @@ class FileActionApprovalService:
             "expires_at": row["expires_at"].isoformat(),
             "decided_at": row["decided_at"].isoformat() if row["decided_at"] else None,
             "consumed_at": row["consumed_at"].isoformat() if row["consumed_at"] else None,
+            "logical_path": intent.get("logical_path"),
+            "expected_revision": intent.get("expected_revision"),
         }

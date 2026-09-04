@@ -8,7 +8,7 @@
 - **F1 Runtime Complete**
 - **F2 Runtime Complete**
 - **F3 Runtime Complete**
-- **F4 Approval Foundation（保持不变）**
+- **F4 Runtime Complete**
 
 本文用于把产品化指南中的 File Assistant 目标与当前代码逐项对照。状态分为：
 
@@ -76,8 +76,8 @@ Future destructive file action
 | F4 | 高风险动作审批数据模型 | `FileActionApproval` 和 `file_action_approvals` 状态机 | 完成 |
 | F4 | 审批 API 与命令幂等 | owned list、approve、reject；CSRF + Idempotency-Key；同租户校验 | 完成 |
 | F4 | 单次精确授权 | grant 绑定 run、operation、tool、arguments SHA-256，Worker 原子 consume 一次 | 完成 |
-| F4 | Workflow 暂停等待审批并恢复 | 当前没有 destructive file tool，因此没有 Signal/Outbox 唤醒链路，也没有把普通输出工具暂停 | **未实现** |
-| F4 | 外部 overwrite/delete/send | Tool Registry 中不存在这些工具 | **未实现** |
+| F4 | Workflow 暂停等待审批并恢复 | ToolExecutionWorkflow、Approval Outbox、Temporal Signal、authoritative reload | 完成 |
+| F4 | Persistent Web File overwrite | production save_persistent_file、fencing、CAS、reconciliation、Web Approval Card + Playwright composition E2E | 完成 |
 
 ## 3. 技术选型落实情况
 
@@ -151,8 +151,10 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
 
 ### Non-idempotent write
 
-当前没有注册 external overwrite/delete/send 工具。F4 的 approval grant 只是它们未来接入前的
-持久化安全边界，不能把它描述成已完成的端到端 HITL。
+`save_persistent_file` 是当前唯一注册的高风险持久化写工具：目标不存在时安全创建 revision 1；
+目标存在时由 trusted runtime 固定 expected revision/hash 并进入 durable approval wait。批准后通过
+revision CAS、fencing 和 operation intent 执行 immutable revision 写入，ACK 丢失时按
+`last_operation_id/current_sha256/current_revision` reconciliation。delete/send 仍未注册。
 
 ## 6. Persistence 与 migration
 
@@ -163,6 +165,9 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
 | 027 | `stored_files.parent_file_id/version`、同租户父 FK、数据库版本计算 trigger | 已应用 |
 | 028 | ready 文件 lineage 不可修改 | 已应用 |
 | 029 | `file_action_approvals`、审批状态机、精确 grant、审批命令幂等操作 | 已应用，checksum 已记录 |
+| 030 | Research Markdown output publication composition | 已应用，checksum 已记录 |
+| 031 | Persistent destination/revision、recoverable approval execution binding | 已应用，checksum 已记录 |
+| 032 | Approval decided Outbox event 与 cancelled 状态扩展 | 已应用，checksum 已记录 |
 
 所有后续 schema 修正必须新增 030+；不得修改上述已应用 migration 或手工修改
 `schema_migrations.checksum`。
@@ -227,13 +232,12 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
 
 ### 明确漂移
 
-1. **F4 不是完整 HITL Workflow**：有审批状态/API/精确单次授权，但没有 Temporal wait/signal、
-   approval Outbox 或审批后恢复 Activity。
-2. **没有 destructive Adapter**：这符合当前“不虚构外部目标”的安全选择，但也意味着
-   overwrite/delete/send 尚不可验收。
+1. **F4 provider 边界**：当前仅支持 Web Persistent File create/overwrite；external provider、
+   delete/send 不在本阶段范围。
+2. **审批 UI 是 Run 内卡片**：没有独立全局 approval inbox；刷新/重连由 owned approval list
+   恢复，审批结果和 destination revision 均以 PostgreSQL/API 真值为准。
 3. **pypdfium2 尚未进入代码路径**：依赖已安装，当前 PDF text/metadata 走 pypdf，table 走
    pdfplumber；扫描 PDF 的 render/OCR fallback 尚未实现。
-4. **前端没有 approval inbox/按钮**：审批 REST API 已有，Web UI 尚未实现。
 
 ### 非漂移的有意边界
 
@@ -244,13 +248,17 @@ Docling Worker 被拆分。没有 GPU 要求，也没有商业 Document API P0 �
 
 ## 11. 本轮边界
 
-本轮只关闭 binary upload、idempotent write ACK-gap、PDF conversion lineage 和大型文档
-deterministic routing 四项漂移。F4 审批基础保持原状；未新增 destructive action、OCR、语义
-reranker、File Agent Framework，也未修改 Research 架构或 migration checksum。
+F0–F3 关闭 binary upload、idempotent write ACK-gap、PDF conversion lineage 和大型文档
+deterministic routing。F4 在同一 Durable Agent/side-effect runtime 上增加 Persistent Web File
+create/overwrite、durable approval wait/signal、精确可恢复授权、CAS/fencing/reconciliation，
+以及 Run 内 Web Approval Card；未新增 external provider、delete/send、File Agent 或 F5。
 
 ## 12. 审计结论
 
 F0–F3 Runtime Complete，已形成“正式 binary upload—RunFileScope—有界读取/确定性 Document
 Worker 路由—不可变幂等输出—版本 lineage”的运行时闭环。
-F4 已形成持久化审批安全基础，但端到端 HITL 仍是部分完成。评审时应重点核对第 10 节，
-避免把存在类名、表或 API 误判为完整运行时能力。
+F4 已完成首次安全创建、overwrite approval、Temporal durable wait/resume、精确 grant、revision
+CAS、fencing 和 ACK-loss reconciliation；Run 内审批卡、状态恢复与 destination 下载链接已实现。
+Playwright 验收从真实 Web Chat 上传和发送请求，经 deterministic OpenAI-compatible model 响应解析、
+production Tool Registry、Approval API/Outbox/Temporal resume 写入 revision 2，并通过当前浏览器登录态
+下载且校验批准后的正文。
