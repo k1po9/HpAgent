@@ -7,6 +7,8 @@ import pytest
 from sandbox.sandbox_manager import SandboxManager
 from sandbox.tools.local._path_utils import safe_cwd, safe_resolve
 from sandbox.tools.local.fs_read import create_fs_read_tool
+from sandbox.tools.local.glob_ import create_glob_tool
+from sandbox.tools.local.grep import create_grep_tool
 
 
 def test_safe_resolve_rejects_absolute_parent_and_same_prefix(tmp_path: Path) -> None:
@@ -54,6 +56,18 @@ async def test_fs_read_streams_with_bounded_default_output(tmp_path: Path) -> No
 def test_host_bash_is_an_explicit_default_closed_capability() -> None:
     manager = SandboxManager(native_tools_enabled=True)
     assert manager._host_bash_enabled is False
+
+
+def test_workspace_tool_descriptions_exclude_current_run_uploads(tmp_path: Path) -> None:
+    tools = [
+        create_fs_read_tool(str(tmp_path)),
+        create_glob_tool(str(tmp_path)),
+        create_grep_tool(str(tmp_path)),
+    ]
+    for tool in tools:
+        description = tool.description.lower()
+        assert "persistent git workspace" in description
+        assert "current web run" in description
 
 
 def test_run_file_scope_binding_is_explicit_and_released() -> None:

@@ -62,7 +62,7 @@ def create_fs_read_tool(workspace_root: str):
 
     return StructuredTool.from_function(
         name="fs_read",
-        description="Read a file with line numbers. Each returned line is prefixed with 'lineno\\t'. Use offset/limit for large files.",
+        description="Read a text file from the persistent Git workspace with line numbers. This tool does not read files uploaded with the current Web Run; use a dedicated Current Run File tool for those files. Each line is prefixed with 'lineno\\t'.",
         args_schema=FsReadInput,
         coroutine=fs_read,
     )

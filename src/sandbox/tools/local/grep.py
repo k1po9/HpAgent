@@ -1,6 +1,6 @@
+import json
 import os
 import re
-import json
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
@@ -78,7 +78,7 @@ def create_grep_tool(workspace_root: str):
 
     return StructuredTool.from_function(
         name="Grep",
-        description="Search file contents for a literal string (or regex). Returns matching lines with file path, line number, and column. Max 50 results. Default is literal match — use regex=True for patterns.",
+        description="Search file contents in the persistent Git workspace for a literal string or regex. This does not search files uploaded with the current Web Run. Returns at most 50 matching lines.",
         args_schema=GrepInput,
         coroutine=grep,
     )

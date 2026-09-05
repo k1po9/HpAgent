@@ -65,6 +65,13 @@ def _tools(scope: RunFileScope):
     return {tool.name: tool for tool in create_file_read_tools(lambda: scope)}
 
 
+def test_file_tool_descriptions_identify_current_run_scope(tmp_path: Path) -> None:
+    for tool in _tools(_scope(tmp_path)).values():
+        assert "Current Run File Scope" in tool.description
+        assert "logical filename" in tool.description
+        assert "Current Run Files" in tool.args_schema.model_fields["file"].description
+
+
 async def test_docx_tools_inspect_read_and_extract_table(tmp_path: Path) -> None:
     tools = _tools(_scope(tmp_path))
     inspected = json.loads(await tools["inspect_docx"].ainvoke({"file": "report.docx"}))

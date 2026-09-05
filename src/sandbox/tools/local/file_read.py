@@ -22,7 +22,7 @@ from file_runtime import FileAdapterRegistry, FileResourceResolver
 
 
 class FileInput(BaseModel):
-    file: str
+    file: str = Field(description="Logical filename shown in the Current Run Files manifest")
 
 
 class FastTextInput(FileInput):
@@ -218,18 +218,19 @@ def create_file_read_tools(
         result = await asyncio.to_thread(adapter.read_slide, resource, slide, max_chars)
         return _encode(resource, result)
 
+    scope_hint = " Use the logical filename from Current Run Files; this tool only reads the Current Run File Scope."
     definitions = [
-        ("fast_text_view", "Create a bounded approximate Markdown/text view of a Run input.", FastTextInput, fast_text_view),
-        ("inspect_pdf", "Inspect PDF metadata and page count before bounded reads.", FileInput, inspect_pdf),
-        ("read_pdf_pages", "Read a bounded one-based PDF page range.", PdfPagesInput, read_pdf_pages),
-        ("extract_pdf_tables", "Extract bounded tables from one PDF page.", PdfTableInput, extract_pdf_tables),
-        ("inspect_docx", "Inspect DOCX paragraph, heading, and table counts.", FileInput, inspect_docx),
-        ("read_docx_paragraphs", "Read a bounded DOCX paragraph range.", DocxParagraphsInput, read_docx_paragraphs),
-        ("extract_docx_tables", "Read bounded rows from one DOCX table.", DocxTableInput, extract_docx_tables),
-        ("inspect_workbook", "List XLSX sheets before selecting a range.", FileInput, inspect_workbook),
-        ("read_sheet_range", "Read a bounded XLSX row and column range.", SheetRangeInput, read_sheet_range),
-        ("inspect_presentation", "Inspect PPTX slide count before reading slides.", FileInput, inspect_presentation),
-        ("read_slide", "Read bounded text from one PPTX slide.", SlideInput, read_slide),
+        ("fast_text_view", "Create a bounded Markdown/text view of an uploaded or current-Run file." + scope_hint, FastTextInput, fast_text_view),
+        ("inspect_pdf", "Inspect PDF metadata and page count." + scope_hint, FileInput, inspect_pdf),
+        ("read_pdf_pages", "Read a bounded one-based PDF page range." + scope_hint, PdfPagesInput, read_pdf_pages),
+        ("extract_pdf_tables", "Extract bounded tables from one PDF page." + scope_hint, PdfTableInput, extract_pdf_tables),
+        ("inspect_docx", "Inspect DOCX paragraph, heading, and table counts." + scope_hint, FileInput, inspect_docx),
+        ("read_docx_paragraphs", "Read a bounded DOCX paragraph range." + scope_hint, DocxParagraphsInput, read_docx_paragraphs),
+        ("extract_docx_tables", "Read bounded rows from one DOCX table." + scope_hint, DocxTableInput, extract_docx_tables),
+        ("inspect_workbook", "List XLSX sheets before selecting a range." + scope_hint, FileInput, inspect_workbook),
+        ("read_sheet_range", "Read a bounded XLSX row and column range." + scope_hint, SheetRangeInput, read_sheet_range),
+        ("inspect_presentation", "Inspect PPTX slide count." + scope_hint, FileInput, inspect_presentation),
+        ("read_slide", "Read bounded text from one PPTX slide." + scope_hint, SlideInput, read_slide),
     ]
     tools = [
         StructuredTool.from_function(

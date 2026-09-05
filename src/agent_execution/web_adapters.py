@@ -90,6 +90,9 @@ class PostgresWebRequestLoader:
             account_id=str(base.account_id),
             status="success",
             message_count=len(base.short_term_events),
+            run_file_count=len(base.run_files),
+            run_file_names=[item.logical_name for item in base.run_files],
+            resource_context_injected=bool(base.run_files),
             elapsed_ms=round((time.monotonic() - started_at) * 1000),
         )
         return ExecutionRequest(

@@ -11,7 +11,7 @@ from common.logging import log_event
 from common.types import Event, EventType
 from harness.context_builder import HarnessContextBuilder
 from memory.hindsight_client import MemoryItem
-from persistence.repositories import MessageRepository, RunRepository
+from persistence.repositories import FileRepository, MessageRepository, RunRepository
 from persistence.uow import UnitOfWork
 
 logger = logging.getLogger("HpAgent.ContextAssembly")
@@ -28,6 +28,15 @@ class LongTermRecall(Protocol):
 
 
 @dataclass(frozen=True)
+class RunFileContext:
+    logical_name: str
+    direction: str
+    size_bytes: int
+    encoding: str
+    content_type: str | None = None
+
+
+@dataclass(frozen=True)
 class WebContextBase:
     run_id: UUID
     account_id: UUID
@@ -37,6 +46,7 @@ class WebContextBase:
     trigger_message_id: UUID
     trigger_content: str
     short_term_events: tuple[Event, ...]
+    run_files: tuple[RunFileContext, ...] = ()
     interaction_profile: str = "web_chat"
 
 
@@ -65,6 +75,7 @@ class ContextAssemblyService:
         self._generation_headroom = generation_headroom
         self._messages = MessageRepository()
         self._runs = RunRepository()
+        self._files = FileRepository()
 
     def load_base(self, account_id: UUID, run_id: UUID) -> WebContextBase:
         """Load one frozen context snapshot owned by ``account_id``.
@@ -84,8 +95,19 @@ class ContextAssemblyService:
             rows = self._messages.context_messages(
                 uow, account_id, subject["conversation_id"], subject["context_message_seq"]
             )
+            file_rows = self._files.list_ready_for_run(uow, account_id, run_id)
 
         events = tuple(self._message_to_event(row) for row in rows)
+        run_files = tuple(
+            RunFileContext(
+                logical_name=str(row["logical_name"]),
+                direction=str(row["direction"]),
+                size_bytes=int(row["size_bytes"]),
+                encoding=str(row.get("encoding") or "unknown"),
+                content_type=row.get("content_type"),
+            )
+            for row in file_rows
+        )
         return WebContextBase(
             run_id=subject["run_id"],
             account_id=subject["account_id"],
@@ -95,6 +117,7 @@ class ContextAssemblyService:
             trigger_message_id=subject["trigger_message_id"],
             trigger_content=subject["trigger_content"],
             short_term_events=events,
+            run_files=run_files,
             interaction_profile=(
                 "web_plan"
                 if subject.get("agent_strategy") == "plan_and_execute"
@@ -167,7 +190,36 @@ class ContextAssemblyService:
             interaction_profile=base.interaction_profile,
             token_budget=self._token_budget,
             generation_headroom=self._generation_headroom,
+            extra_context=self._format_run_file_context(base.run_files),
         )
+
+    @staticmethod
+    def _format_run_file_context(files: Sequence[RunFileContext]) -> str:
+        if not files:
+            return ""
+        lines = [
+            "## Current Run Files",
+            "",
+            "The following files are attached to or produced by the current Run:",
+            "",
+        ]
+        for item in files:
+            lines.extend([
+                f"- `{item.logical_name}`",
+                f"  - direction: {item.direction}",
+                f"  - type: {item.content_type or 'unknown'}",
+                f"  - size_bytes: {item.size_bytes}",
+                f"  - encoding: {item.encoding}",
+            ])
+        lines.extend([
+            "",
+            "Important:",
+            "- Current Run Files are separate from the persistent Git workspace.",
+            "- Uploaded files cannot be found with workspace `Glob`, `Grep`, or `fs_read`.",
+            "- Use a Current Run File tool and pass the logical filename shown above.",
+            "- Resolve references such as 'this file', 'attachment', or 'uploaded file' against this list first.",
+        ])
+        return "\n".join(lines)
 
     @staticmethod
     def _message_to_event(row: dict[str, Any]) -> Event:

@@ -200,6 +200,19 @@ class RunRepository:
 
 
 class FileRepository:
+    def list_ready_for_run(
+        self, uow: UnitOfWork, account_id: UUID, run_id: UUID,
+    ) -> list[dict[str, Any]]:
+        """Return the model-safe manifest for one account-owned Run."""
+        return list(uow.execute(
+            "SELECT rf.logical_name,rf.direction,sf.size_bytes,sf.encoding,sf.content_type "
+            "FROM run_files rf JOIN stored_files sf ON sf.account_id=rf.account_id "
+            "AND sf.conversation_id=rf.conversation_id AND sf.file_id=rf.file_id "
+            "WHERE rf.account_id=%s AND rf.run_id=%s AND sf.status='ready' "
+            "ORDER BY rf.direction,rf.logical_name",
+            (account_id, run_id),
+        ).fetchall())
+
     def insert_upload(
         self, uow: UnitOfWork, file_id: UUID, account_id: UUID,
         conversation_id: UUID, original_name: str, display_name: str,
