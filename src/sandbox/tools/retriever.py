@@ -4,6 +4,8 @@ ToolVectorStore + ToolRetriever —— 基于 ChromaDB 的 RAG 动态工具检�
 工具向量化: name + description + parameter descriptions
 持久化路径: tools/vectors/ (ChromaDB)
 """
+import hashlib
+import json
 import logging
 from typing import List, Optional
 
@@ -12,6 +14,29 @@ from chromadb.config import Settings
 from langchain_core.tools import BaseTool
 
 logger = logging.getLogger("HpAgent.ToolRAG")
+
+_TOOL_DEFINITION_HASH_VERSION = 1
+
+
+def _tool_definition_payload(tool: BaseTool) -> dict:
+    """Return the stable, declarative parts of a tool definition."""
+    return {
+        "version": _TOOL_DEFINITION_HASH_VERSION,
+        "name": tool.name,
+        "description": tool.description or "",
+        "parameters": tool.args_schema.model_json_schema() if tool.args_schema else {},
+        "metadata": dict(getattr(tool, "metadata", None) or {}),
+    }
+
+
+def _tool_definition_hash(tool: BaseTool) -> str:
+    raw = json.dumps(
+        _tool_definition_payload(tool),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 class ToolVectorStore:
@@ -49,6 +74,7 @@ class ToolVectorStore:
             metadatas.append({
                 "tool_name": tool.name,
                 "category": (tool.metadata or {}).get("category", "native") if hasattr(tool, "metadata") else "native",
+                "definition_hash": _tool_definition_hash(tool),
             })
 
         if docs:
@@ -63,7 +89,7 @@ class ToolVectorStore:
             self._set_stored_model(embedding_client.model)
 
     def sync(self, tools: List[BaseTool], embedding_client=None) -> None:
-        """增量同步：删除已移除的工具，新增未索引的工具。
+        """增量同步：删除已移除的工具，新增或更新定义变化的工具。
 
         若检测到 embedding 模型变更，自动清空全部缓存并全量重建。
         """
@@ -93,9 +119,14 @@ class ToolVectorStore:
                     return
 
             logger.info("sync: calling collection.get()")
-            result = self._collection.get()
+            result = self._collection.get(include=["metadatas"])
             logger.info("sync: collection.get() returned type=%s keys=%s", type(result).__name__, list(result.keys()) if result else "None")
             existing_ids = set(result["ids"]) if result and result.get("ids") else set()
+            existing_metadatas = result.get("metadatas") or [] if result else []
+            existing_hash_by_id = {
+                tool_id: (metadata or {}).get("definition_hash")
+                for tool_id, metadata in zip(result.get("ids") or [], existing_metadatas)
+            } if result else {}
             logger.info("sync: existing_ids count=%d", len(existing_ids))
             current_ids = {t.name for t in tools}
             logger.info("sync: current_ids count=%d", len(current_ids))
@@ -105,11 +136,21 @@ class ToolVectorStore:
                 logger.info("sync: deleting %d old tools", len(to_delete))
                 self._collection.delete(ids=list(to_delete))
 
-            to_add = [t for t in tools if t.name not in existing_ids]
-            logger.info("sync: to_add count=%d", len(to_add))
-            if to_add and embedding_client:
-                self.index_tools(to_add, embedding_client)
-                logger.info("sync: indexed %d new tools", len(to_add))
+            new_tools = [t for t in tools if t.name not in existing_ids]
+            changed_tools = [
+                t for t in tools
+                if t.name in existing_ids
+                and existing_hash_by_id.get(t.name) != _tool_definition_hash(t)
+            ]
+            unchanged_count = len(tools) - len(new_tools) - len(changed_tools)
+            logger.info(
+                "sync: unchanged count=%d changed count=%d new count=%d deleting count=%d",
+                unchanged_count, len(changed_tools), len(new_tools), len(to_delete),
+            )
+            to_upsert = new_tools + changed_tools
+            if to_upsert and embedding_client:
+                self.index_tools(to_upsert, embedding_client)
+                logger.info("sync: indexed %d new or changed tools", len(to_upsert))
 
             logger.info("sync: done (incremental)")
         except Exception:
