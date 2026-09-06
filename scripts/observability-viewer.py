@@ -85,6 +85,11 @@ class ObservationEvent:
     account_id: str | None = None
     tool_call_id: str | None = None
     tool: str | None = None
+    operation_id: str | None = None
+    result_ref: str | None = None
+    activity_attempt: int | None = None
+    stop_reason: str | None = None
+    tool_count: int | None = None
     turn: int | None = None
     phase: str | None = None
     elapsed_ms: float | None = None
@@ -113,7 +118,11 @@ class ObservationEvent:
             execution_id=execution_id, workflow_id=_string(raw.get("workflow_id")),
             conversation_id=_string(raw.get("conversation_id")), session_id=_string(raw.get("session_id")),
             account_id=_string(raw.get("account_id")), tool_call_id=_string(raw.get("tool_call_id")),
-            tool=_string(raw.get("tool")), turn=_integer(raw.get("turn")), phase=_string(raw.get("phase")),
+            tool=_string(raw.get("tool")), operation_id=_string(raw.get("operation_id")),
+            result_ref=_string(raw.get("result_ref")),
+            activity_attempt=_integer(raw.get("activity_attempt")),
+            stop_reason=_string(raw.get("stop_reason")), tool_count=_integer(raw.get("tool_count")),
+            turn=_integer(raw.get("turn")), phase=_string(raw.get("phase")),
             elapsed_ms=_number(raw.get("elapsed_ms")), error_code=_string(raw.get("error_code")),
             source_file=source_file, sequence=sequence, raw=raw,
         )
@@ -218,6 +227,7 @@ class PostgresReader:
         self._cache_lock = threading.Lock()
         self._recent_cache: dict[int, tuple[float, list[dict[str, Any]]]] = {}
         self._snapshot_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
+        self._debug_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
     def _connect(self):
         if not self.database_url:
@@ -226,6 +236,8 @@ class PostgresReader:
         from psycopg.rows import dict_row
         connection = psycopg.connect(self.database_url, row_factory=dict_row, connect_timeout=2)
         connection.execute("SET TRANSACTION READ ONLY")
+        connection.execute("SET statement_timeout = '3000ms'")
+        connection.execute("SET lock_timeout = '1000ms'")
         return connection
 
     def recent_runs(self, limit: int = 100) -> list[dict[str, Any]]:
@@ -296,6 +308,61 @@ class PostgresReader:
                 oldest = min(self._snapshot_cache, key=lambda key: self._snapshot_cache[key][0])
                 del self._snapshot_cache[oldest]
             self._snapshot_cache[run_id] = (time.monotonic(), result)
+            return result
+
+    def durable_debug_snapshot(
+        self, run_id: str, *, max_events: int = 1000, max_operations: int = 1000,
+    ) -> dict[str, Any]:
+        """Return bounded durable Agent evidence without enlarging polled snapshots."""
+        max_events = min(max(max_events, 1), 1000)
+        max_operations = min(max(max_operations, 1), 1000)
+        with self._cache_lock:
+            now = time.monotonic()
+            cached = self._debug_cache.get(run_id)
+            if cached and now - cached[0] < self.cache_ttl_seconds:
+                return cached[1]
+            try:
+                with self._connect() as connection:
+                    transcript = connection.execute(
+                        "SELECT transcript_id,run_id,account_id,conversation_id,session_id,"
+                        "schema_version,version,created_at,updated_at "
+                        "FROM hpagent.agent_transcripts WHERE run_id=%s", (run_id,),
+                    ).fetchone()
+                    events: list[Any] = []
+                    if transcript is not None:
+                        events = connection.execute(
+                            "SELECT transcript_id,sequence,event_type,operation_id,payload,created_at "
+                            "FROM hpagent.agent_transcript_events WHERE transcript_id=%s "
+                            "ORDER BY sequence LIMIT %s", (transcript["transcript_id"], max_events + 1),
+                        ).fetchall()
+                    operations = connection.execute(
+                        "SELECT operation_id,run_id,operation_type,status,result_ref,result_payload,"
+                        "error_code,attempt_count,started_at,completed_at,updated_at "
+                        "FROM hpagent.agent_operations WHERE run_id=%s "
+                        "ORDER BY started_at,operation_id LIMIT %s", (run_id, max_operations + 1),
+                    ).fetchall()
+                result = {
+                    "available": True,
+                    "run_id": run_id,
+                    "durable": {
+                        "transcript": dict(transcript) if transcript else None,
+                        "events": [dict(row) for row in events[:max_events]],
+                        "operations": [dict(row) for row in operations[:max_operations]],
+                        "truncated": {
+                            "events": len(events) > max_events,
+                            "operations": len(operations) > max_operations,
+                        },
+                    },
+                }
+                self.last_error = None
+            except Exception as exc:
+                error = f"{type(exc).__name__}: {exc}"
+                self.last_error = error
+                result = {"available": False, "reason": "database_unavailable", "error": error}
+            if len(self._debug_cache) >= 256:
+                oldest = min(self._debug_cache, key=lambda key: self._debug_cache[key][0])
+                del self._debug_cache[oldest]
+            self._debug_cache[run_id] = (time.monotonic(), result)
             return result
 
 
@@ -434,6 +501,12 @@ def pair_lifecycle(events: list[ObservationEvent]) -> list[dict[str, Any]]:
             "ts": start.ts if start else event.ts, "status": normalize_status(event.status, [event]),
             "elapsed_ms": elapsed, "turn": event.turn, "phase": event.phase,
             "tool": event.tool, "tool_call_id": event.tool_call_id,
+            "operation_id": event.operation_id or (start.operation_id if start else None),
+            "result_ref": event.result_ref or (start.result_ref if start else None),
+            "activity_attempt": event.activity_attempt or (start.activity_attempt if start else None),
+            "stop_reason": event.stop_reason or (start.stop_reason if start else None),
+            "tool_count": event.tool_count if event.tool_count is not None else (start.tool_count if start else None),
+            "raw_event_sequence": event.sequence,
             "error_code": event.error_code, "source": "OBSERVED",
         })
     for starts in pending.values():
@@ -442,6 +515,9 @@ def pair_lifecycle(events: list[ObservationEvent]) -> list[dict[str, Any]]:
                 "component": event.component, "event": event.event, "ts": event.ts,
                 "status": "running", "elapsed_ms": None, "turn": event.turn, "phase": event.phase,
                 "tool": event.tool, "tool_call_id": event.tool_call_id,
+                "operation_id": event.operation_id, "result_ref": event.result_ref,
+                "activity_attempt": event.activity_attempt, "stop_reason": event.stop_reason,
+                "tool_count": event.tool_count, "raw_event_sequence": event.sequence,
                 "error_code": event.error_code, "source": "OBSERVED", "incomplete": True,
             })
     return sorted(nodes, key=lambda item: item.get("ts") or "")
@@ -544,6 +620,18 @@ class Observatory:
             },
         }
 
+    def debug_detail(self, trace_key: str) -> dict[str, Any]:
+        summary = next((item for item in self.executions() if item["trace_key"] == trace_key), None)
+        if summary and summary.get("surface") == "qq" or trace_key.startswith("qq-turn-"):
+            return {"available": False, "reason": "web_run_required"}
+        _, all_events = self.logs.after(0)
+        run_id = next(
+            (event.run_id for event in reversed(all_events) if event.trace_key == trace_key and event.run_id),
+            None,
+        )
+        run_id = run_id or (summary or {}).get("run_id") or trace_key
+        return self.postgres.durable_debug_snapshot(str(run_id))
+
     def health(self) -> dict[str, Any]:
         self.logs.scan()
         self.qq.refresh()
@@ -561,10 +649,10 @@ class Observatory:
 
 HTML = r'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HpAgent Execution Observatory</title>
 <style>
-:root{--bg:#071018;--panel:#0d1924;--panel2:#122231;--line:#24394a;--text:#d9e7f0;--muted:#7992a5;--cyan:#4fd1c5;--green:#5bd68b;--red:#ff6b76;--amber:#ffc857;--blue:#6dafff;--purple:#bb86fc}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px Inter,ui-sans-serif,system-ui,sans-serif}header{height:58px;padding:0 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:20px;background:#09141e}h1{font-size:17px;margin:0;letter-spacing:.3px}.live{color:var(--green)}.health{display:flex;gap:7px;margin-left:auto}.badge,.source{border:1px solid var(--line);padding:2px 7px;border-radius:20px;font-size:10px;color:var(--muted)}.source{color:var(--cyan)}.filters{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;background:var(--panel)}select,input{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:6px 8px}.filters input{flex:1}.layout{height:calc(100vh - 105px);display:grid;grid-template-columns:310px minmax(420px,1fr) 330px}.left,.main,.right{overflow:auto}.left{border-right:1px solid var(--line);padding:10px}.main{padding:14px 18px}.right{border-left:1px solid var(--line);padding:12px;background:#09141e}.card{padding:10px;border:1px solid var(--line);border-radius:7px;margin-bottom:7px;cursor:pointer;background:var(--panel)}.card:hover,.card.on{border-color:var(--cyan);background:var(--panel2)}.row{display:flex;justify-content:space-between;gap:8px}.id{font:11px ui-monospace,monospace;color:var(--blue);overflow:hidden;text-overflow:ellipsis}.summary{color:var(--muted);font-size:11px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status{font-weight:700;font-size:10px;text-transform:uppercase}.running{color:var(--blue)}.success{color:var(--green)}.failed{color:var(--red)}.degraded{color:var(--amber)}.cancelled{color:var(--muted)}h2{font-size:15px;margin:0 0 10px}h3{font-size:11px;color:var(--muted);letter-spacing:1.1px;margin:18px 0 8px}.summarybox,.state{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px;margin-bottom:12px}.kv{display:grid;grid-template-columns:100px 1fr;gap:4px 8px;font-size:11px}.kv b{color:var(--muted);font-weight:500}.kv span{font-family:ui-monospace,monospace;overflow-wrap:anywhere}.node{display:grid;grid-template-columns:95px 90px 1fr 85px;gap:9px;border-left:3px solid var(--blue);padding:9px 10px;margin:5px 0;background:var(--panel);border-radius:0 6px 6px 0}.node.failed{border-color:var(--red)}.node.degraded{border-color:var(--amber)}.node .time{color:var(--muted);font:10px ui-monospace,monospace}.node .component{font-weight:700;text-transform:uppercase}.node .detail{color:var(--text)}.node .duration{text-align:right;color:var(--cyan);font-family:ui-monospace,monospace}.tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;padding:7px;cursor:pointer}.tabs button.on{color:var(--cyan);border-color:var(--cyan)}pre{white-space:pre-wrap;word-break:break-word;background:#050b10;border:1px solid var(--line);padding:9px;border-radius:6px;font:10px ui-monospace,monospace;max-height:360px;overflow:auto}.raw{border-top:1px solid var(--line);padding:7px 0}.raw summary{cursor:pointer;color:var(--blue)}.empty{color:var(--muted);padding:40px;text-align:center}.anomaly{border:1px solid #6b4d1b;background:#2b2110;color:var(--amber);padding:8px;border-radius:6px;margin:6px 0}
+:root{--bg:#071018;--panel:#0d1924;--panel2:#122231;--line:#24394a;--text:#d9e7f0;--muted:#7992a5;--cyan:#4fd1c5;--green:#5bd68b;--red:#ff6b76;--amber:#ffc857;--blue:#6dafff;--purple:#bb86fc}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px Inter,ui-sans-serif,system-ui,sans-serif}header{height:58px;padding:0 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:20px;background:#09141e}h1{font-size:17px;margin:0;letter-spacing:.3px}.live{color:var(--green)}.health{display:flex;gap:7px;margin-left:auto}.badge,.source{border:1px solid var(--line);padding:2px 7px;border-radius:20px;font-size:10px;color:var(--muted)}.source{color:var(--cyan)}.filters{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;background:var(--panel)}select,input{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:6px 8px}.filters input{flex:1}.layout{height:calc(100vh - 105px);display:grid;grid-template-columns:310px minmax(420px,1fr) 390px}.left,.main,.right{overflow:auto}.left{border-right:1px solid var(--line);padding:10px}.main{padding:14px 18px}.right{border-left:1px solid var(--line);padding:12px;background:#09141e}.card{padding:10px;border:1px solid var(--line);border-radius:7px;margin-bottom:7px;cursor:pointer;background:var(--panel)}.card:hover,.card.on{border-color:var(--cyan);background:var(--panel2)}.row{display:flex;justify-content:space-between;gap:8px}.id{font:11px ui-monospace,monospace;color:var(--blue);overflow:hidden;text-overflow:ellipsis}.summary{color:var(--muted);font-size:11px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status{font-weight:700;font-size:10px;text-transform:uppercase}.running,.started{color:var(--blue)}.success,.completed{color:var(--green)}.failed,.uncertain{color:var(--red)}.degraded,.intent_recorded{color:var(--amber)}.cancelled{color:var(--muted)}h2{font-size:15px;margin:0 0 10px}h3{font-size:11px;color:var(--muted);letter-spacing:1.1px;margin:18px 0 8px}.summarybox,.state{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px;margin-bottom:12px}.kv{display:grid;grid-template-columns:100px 1fr;gap:4px 8px;font-size:11px}.kv b{color:var(--muted);font-weight:500}.kv span{font-family:ui-monospace,monospace;overflow-wrap:anywhere}.node{display:grid;grid-template-columns:95px 90px 1fr 85px;gap:9px;border-left:3px solid var(--blue);padding:9px 10px;margin:5px 0;background:var(--panel);border-radius:0 6px 6px 0}.node.clickable{cursor:pointer}.node.clickable:hover,.node.on{background:var(--panel2);outline:1px solid var(--cyan)}.node.failed{border-color:var(--red)}.node.degraded{border-color:var(--amber)}.node .time{color:var(--muted);font:10px ui-monospace,monospace}.node .component{font-weight:700;text-transform:uppercase}.node .detail{color:var(--text)}.node .duration{text-align:right;color:var(--cyan);font-family:ui-monospace,monospace}.tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;padding:7px;cursor:pointer}.tabs button.on{color:var(--cyan);border-color:var(--cyan)}pre{white-space:pre-wrap;word-break:break-word;background:#050b10;border:1px solid var(--line);padding:9px;border-radius:6px;font:10px ui-monospace,monospace;max-height:360px;overflow:auto}.raw{border-top:1px solid var(--line);padding:7px 0}.raw summary{cursor:pointer;color:var(--blue)}.empty{color:var(--muted);padding:40px;text-align:center}.anomaly{border:1px solid #6b4d1b;background:#2b2110;color:var(--amber);padding:8px;border-radius:6px;margin:6px 0}.warning{border:1px solid var(--amber);color:var(--amber);padding:9px;border-radius:6px;margin:8px 0}.timeline{border-left:2px solid var(--line);padding:6px 8px;margin:4px 0;cursor:pointer}.timeline:hover{border-color:var(--cyan);background:var(--panel2)}
 </style></head><body><header><h1>HpAgent Execution Observatory</h1><span class="live">LIVE ●</span><div class="health" id="health"></div></header><div class="filters"><select id="surface"><option value="">All surfaces</option><option value="web">Web</option><option value="qq">QQ</option></select><select id="status"><option value="">All statuses</option><option>running</option><option>success</option><option>failed</option><option>degraded</option><option>cancelled</option></select><select id="component"><option value="">All components</option><option>web_api</option><option>run</option><option>dispatcher</option><option>temporal</option><option>context</option><option>agent</option><option>model</option><option>tool</option><option>memory</option><option>sse</option></select><input id="search" placeholder="Search execution / run / workflow / session / tool / error"></div><div class="layout"><aside class="left" id="list"></aside><main class="main" id="main"><div class="empty">Select an execution</div></main><aside class="right" id="state"><div class="empty">State Inspector</div></aside></div>
 <script>
-let executions=[],selected=null,detail=null,detailSignature='',pendingDetailRender=false,pollTimer=null,pollInFlight=false;let rawFilters={component:'',status:'',event:''};const POLL_INTERVAL_MS=2500,FETCH_TIMEOUT_MS=8000;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const short=s=>{s=String(s||'');return s.length>48?s.slice(0,25)+'…'+s.slice(-12):s};
+let executions=[],selected=null,detail=null,debugDetail=null,debugLoading=false,selectedNodeIndex=null,selectedTranscriptSequence=null,detailSignature='',pendingDetailRender=false,pollTimer=null,pollInFlight=false;let rawFilters={component:'',status:'',event:''};const POLL_INTERVAL_MS=2500,FETCH_TIMEOUT_MS=8000;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const short=s=>{s=String(s||'');return s.length>48?s.slice(0,25)+'…'+s.slice(-12):s};
 async function get(url){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),FETCH_TIMEOUT_MS);try{const r=await fetch(url,{signal:controller.signal});if(!r.ok)throw Error(r.status);return await r.json()}finally{clearTimeout(timer)}}
 function detailControlActive(){const el=document.activeElement,main=document.getElementById('main');return !!(el&&main.contains(el)&&el.matches('input,select,button'))}
 function applyDetail(next,{force=false}={}){const signature=JSON.stringify(next);if(!force&&signature===detailSignature)return;detail=next;detailSignature=signature;if(!force&&detailControlActive()){pendingDetailRender=true;return}pendingDetailRender=false;renderDetail()}
@@ -572,11 +660,23 @@ function schedulePoll(delay=POLL_INTERVAL_MS){clearTimeout(pollTimer);if(!docume
 async function poll(){if(document.hidden||pollInFlight)return;pollInFlight=true;try{const [e,h]=await Promise.all([get('/api/executions'),get('/api/health')]);executions=e.executions;renderList();renderHealth(h);if(selected)applyDetail(await get('/api/execution/'+encodeURIComponent(selected))) }catch(e){document.getElementById('health').innerHTML='<span class="badge failed">viewer degraded</span>'}finally{pollInFlight=false;schedulePoll()}}
 function renderHealth(h){document.getElementById('health').innerHTML=Object.entries(h.sources).slice(0,3).map(([k,v])=>`<span class="badge ${v.status==='ok'||v.status==='configured'?'success':'degraded'}">${esc(k)} ${esc(v.status)}</span>`).join('')}
 function renderList(){const surface=document.getElementById('surface').value,status=document.getElementById('status').value,component=document.getElementById('component').value,q=document.getElementById('search').value.toLowerCase();const list=executions.filter(x=>(!surface||x.surface===surface)&&(!status||x.status===status)&&(!component||(x.components||[]).includes(component))&&(!q||JSON.stringify(x).toLowerCase().includes(q)));document.getElementById('list').innerHTML=`<h2>Executions <span class="badge">${list.length}</span></h2>`+list.map(x=>`<div class="card ${selected===x.trace_key?'on':''}" onclick="choose('${esc(x.trace_key)}')"><div class="row"><b>${esc((x.surface||'?').toUpperCase())}</b><span class="status ${esc(x.status)}">${esc(x.status)}</span></div><div class="id">${esc(short(x.trace_key))}</div><div class="summary">${esc(x.summary||x.activity_at||'')}</div></div>`).join('')}
-async function choose(key){selected=key;rawFilters={component:'',status:'',event:''};renderList();applyDetail(await get('/api/execution/'+encodeURIComponent(key)),{force:true})}
-function renderDetail(){if(!detail)return;const s=detail.summary||{};const ids=[['execution',s.execution_id],['run',s.run_id],['workflow',s.workflow_id],['account',s.account_id],['session',s.session_id],['conversation',s.conversation_id]].filter(x=>x[1]);document.getElementById('main').innerHTML=`<div class="summarybox"><div class="row"><h2>${esc((s.surface||'?').toUpperCase())} Execution</h2><span class="status ${esc(s.status)}">${esc(s.status)}</span></div><div class="kv">${ids.map(x=>`<b>${x[0]}</b><span>${esc(x[1])}</span>`).join('')}</div></div>${(detail.anomalies||[]).map(x=>`<div class="anomaly">STATE DIVERGENCE · ${esc(x)}</div>`).join('')}<h2>Execution Waterfall <span class="source">DERIVED</span></h2><div>${detail.waterfall.length?detail.waterfall.map(nodeHtml).join(''):'<div class="empty">No correlated JSONL lifecycle events</div>'}</div><div class="tabs"><button class="on">Raw Events</button></div><div class="filters"><select id="rawcomponent"><option value="">All components</option>${[...new Set(detail.events.map(e=>e.component))].sort().map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="rawstatus"><option value="">All outcomes</option><option value="failed">failed</option><option value="degraded">degraded</option></select><input id="rawevent" placeholder="Filter event name"></div><div id="rawlist"></div>`;document.getElementById('rawcomponent').value=rawFilters.component;document.getElementById('rawstatus').value=rawFilters.status;document.getElementById('rawevent').value=rawFilters.event;['rawcomponent','rawstatus','rawevent'].forEach(id=>document.getElementById(id).addEventListener(id==='rawevent'?'input':'change',renderRaw));renderRaw();renderState()}
+async function choose(key){selected=key;selectedNodeIndex=null;selectedTranscriptSequence=null;debugDetail=null;debugLoading=true;rawFilters={component:'',status:'',event:''};renderList();const normal=get('/api/execution/'+encodeURIComponent(key));loadDebug(key);applyDetail(await normal,{force:true})}
+async function loadDebug(key){try{const loaded=await get('/api/execution/'+encodeURIComponent(key)+'/debug');if(selected===key)debugDetail=loaded}catch(e){if(selected===key)debugDetail={available:false,reason:'database_unavailable',error:String(e)}}finally{if(selected===key){debugLoading=false;renderInspector()}}}
+function renderDetail(){if(!detail)return;const s=detail.summary||{};const ids=[['execution',s.execution_id],['run',s.run_id],['workflow',s.workflow_id],['account',s.account_id],['session',s.session_id],['conversation',s.conversation_id]].filter(x=>x[1]);document.getElementById('main').innerHTML=`<div class="summarybox"><div class="row"><h2>${esc((s.surface||'?').toUpperCase())} Execution</h2><span class="status ${esc(s.status)}">${esc(s.status)}</span></div><div class="kv">${ids.map(x=>`<b>${x[0]}</b><span>${esc(x[1])}</span>`).join('')}</div></div>${(detail.anomalies||[]).map(x=>`<div class="anomaly">STATE DIVERGENCE · ${esc(x)}</div>`).join('')}<h2>Execution Waterfall <span class="source">DERIVED</span></h2><div>${detail.waterfall.length?detail.waterfall.map(nodeHtml).join(''):'<div class="empty">No correlated JSONL lifecycle events</div>'}</div><div class="tabs"><button class="on">Raw Events</button></div><div class="filters"><select id="rawcomponent"><option value="">All components</option>${[...new Set(detail.events.map(e=>e.component))].sort().map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="rawstatus"><option value="">All outcomes</option><option value="failed">failed</option><option value="degraded">degraded</option></select><input id="rawevent" placeholder="Filter event name"></div><div id="rawlist"></div>`;document.getElementById('rawcomponent').value=rawFilters.component;document.getElementById('rawstatus').value=rawFilters.status;document.getElementById('rawevent').value=rawFilters.event;['rawcomponent','rawstatus','rawevent'].forEach(id=>document.getElementById(id).addEventListener(id==='rawevent'?'input':'change',renderRaw));renderRaw();renderInspector()}
 function renderRaw(){const c=document.getElementById('rawcomponent').value,s=document.getElementById('rawstatus').value,q=document.getElementById('rawevent').value.toLowerCase();rawFilters={component:c,status:s,event:document.getElementById('rawevent').value};const rows=detail.events.filter(e=>(!c||e.component===c)&&(!q||e.event.toLowerCase().includes(q))&&(!s||(s==='failed'?(e.status==='failed'||e.level==='ERROR'):e.status==='degraded')));document.getElementById('rawlist').innerHTML=rows.map(e=>`<details class="raw"><summary>${esc(e.ts)} · ${esc(e.component)} · ${esc(e.event)} · ${esc(e.status||'')}</summary><button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent)">Copy JSON</button><pre>${esc(JSON.stringify(e.raw,null,2))}</pre></details>`).join('')||'<div class="empty">No matching raw events</div>'}
-function nodeHtml(n){const more=[n.event,n.phase,n.tool,n.turn!=null?'turn '+n.turn:null,n.error_code].filter(Boolean).join(' · ');return `<div class="node ${esc(n.status)}"><div class="time">${esc((n.ts||'').slice(11,23))}</div><div class="component">${esc(n.component)}</div><div class="detail">${esc(more)}</div><div class="duration">${n.elapsed_ms==null?'—':esc(Math.round(n.elapsed_ms)+' ms')}</div></div>`}
-function renderState(){const p=detail.postgres,q=detail.qq_session,src=detail.sources;let html='<h2>State Inspector</h2><h3>SOURCE BADGES</h3>'+Object.entries(src).filter(x=>x[1]).map(([k,v])=>`<div class="row"><span>${esc(k)}</span><span class="source">${esc(v)}</span></div>`).join('');if(p){html+='<h3>POSTGRESQL</h3>'+stateBox('run',p.run)+stateBox('messages',p.messages)+stateBox('workflow executions',p.workflow_executions)+stateBox('outbox',p.outbox_events)}if(q){html+='<h3>QQ SESSION</h3>'+stateBox(q.source,q.events)}document.getElementById('state').innerHTML=html}
+function nodeHtml(n,index){const more=[n.event,n.phase,n.tool,n.turn!=null?'turn '+n.turn:null,n.error_code].filter(Boolean).join(' · ');const linked=n.operation_id||n.result_ref||n.tool_call_id;return `<div class="node ${esc(n.status)} ${linked?'clickable':''} ${selectedNodeIndex===index?'on':''}" onclick="inspectNode(${index})"><div class="time">${esc((n.ts||'').slice(11,23))}</div><div class="component">${esc(n.component)}</div><div class="detail">${esc(more)}</div><div class="duration">${n.elapsed_ms==null?'—':esc(Math.round(n.elapsed_ms)+' ms')}</div></div>`}
+function inspectNode(index){selectedNodeIndex=index;selectedTranscriptSequence=null;renderDetail()}
+function durable(){return debugDetail?.durable||{}}
+function durableEvents(){return durable().events||[]}
+function durableOperations(){return durable().operations||[]}
+function findOperation(operationId,resultRef){return durableOperations().find(x=>operationId&&x.operation_id===operationId)||durableOperations().find(x=>resultRef&&x.result_ref===resultRef)||null}
+function findTranscriptEvent(operationId){return durableEvents().find(x=>operationId&&x.operation_id===operationId)||null}
+function findToolCall(toolCallId,beforeSequence=Infinity){for(const e of durableEvents().filter(x=>x.sequence<beforeSequence).reverse()){const calls=e.payload?.message?.tool_calls||[];const call=calls.find(x=>x.id===toolCallId);if(call)return call}return null}
+function reconstructTranscriptBefore(sequence){const messages=[];for(const e of durableEvents().filter(x=>x.sequence<sequence)){if(e.event_type==='context')messages.push(...(e.payload?.messages||[]));else if(['model_decision','tool_result','system'].includes(e.event_type)&&e.payload?.message)messages.push(e.payload.message)}return messages}
+function inspectTranscript(sequence){selectedNodeIndex=null;selectedTranscriptSequence=sequence;renderInspector()}
+function lifecycleBox(n){return stateBox('Lifecycle',{status:n.status,elapsed_ms:n.elapsed_ms,activity_attempt:n.activity_attempt,stop_reason:n.stop_reason,tool_count:n.tool_count,operation_id:n.operation_id,result_ref:n.result_ref,tool_call_id:n.tool_call_id,error_code:n.error_code})}
+function renderInspector(){if(!detail)return;const p=detail.postgres,q=detail.qq_session,src=detail.sources;let html='<h2>Debug Inspector</h2>';if(selectedNodeIndex==null&&selectedTranscriptSequence==null){html+='<h3>SOURCE BADGES</h3>'+Object.entries(src).filter(x=>x[1]).map(([k,v])=>`<div class="row"><span>${esc(k)}</span><span class="source">${esc(v)}</span></div>`).join('');if(p)html+='<h3>POSTGRESQL</h3>'+stateBox('run',p.run)+stateBox('messages',p.messages)+stateBox('workflow executions',p.workflow_executions)+stateBox('outbox',p.outbox_events);if(q)html+='<h3>QQ SESSION</h3>'+stateBox(q.source,q.events)}
+if(debugLoading)html+='<div class="empty">Loading durable debug evidence…</div>';else if(debugDetail&&!debugDetail.available){html+=debugDetail.reason==='web_run_required'?'<div class="empty">Durable Agent drill-down is available for Web runs.</div>':`<div class="warning">Durable Debug Unavailable<br>${esc(debugDetail.error||debugDetail.reason)}</div>`}else if(debugDetail?.available){const d=durable(),tr=d.transcript;if(d.truncated?.events||d.truncated?.operations)html+=`<div class="warning">Showing first 1000 ${d.truncated.events?'events ':''}${d.truncated.operations?'operations':''}</div>`;if(selectedTranscriptSequence!=null){const e=durableEvents().find(x=>x.sequence===selectedTranscriptSequence);if(e)html+=`<h3>TRANSCRIPT EVENT #${esc(e.sequence)}</h3>`+stateBox(e.event_type,e)}else if(selectedNodeIndex!=null){const n=detail.waterfall[selectedNodeIndex],op=findOperation(n.operation_id,n.result_ref),te=findTranscriptEvent(n.operation_id);html+=`<h3>${esc(n.component)} · ${esc(n.event)}</h3>`+lifecycleBox(n);if(op){if(['intent_recorded','uncertain'].includes(op.status))html+=`<div class="warning">SIDE EFFECT STATE · ${esc(op.status.toUpperCase())}</div>`;html+=stateBox('Durable Operation',op)}if(n.component==='model'||(te&&te.event_type==='model_decision')){const e=te;html+='<h3>MODEL OUTPUT</h3>'+stateBox('message',e?.payload?.message||null)+stateBox('tool calls',e?.payload?.message?.tool_calls||[]);if(e)html+='<h3>DURABLE TRANSCRIPT BEFORE DECISION</h3>'+stateBox('messages',reconstructTranscriptBefore(e.sequence));if(op)html+=stateBox('Operation Result',op.result_payload);if(e)html+=stateBox('Transcript Event Payload',e.payload)}else if(n.component==='tool'||(te&&te.event_type==='tool_result')){const call=findToolCall(n.tool_call_id,te?.sequence||Infinity);html+='<h3>TOOL EXECUTION</h3>'+stateBox('arguments',call||{tool_call_id:n.tool_call_id,name:n.tool,arguments:null})+stateBox('tool result',te?.payload||null);if(op)html+=stateBox('Operation Result / Intent',op.result_payload)}else if(te)html+=stateBox('Transcript Event',te)}else if(tr){html+='<h3>TRANSCRIPT</h3>'+stateBox('identity',tr)+durableEvents().map(e=>`<div class="timeline" onclick="inspectTranscript(${Number(e.sequence)})"><b>#${esc(e.sequence)} ${esc(e.event_type)}</b><div class="id">${esc(e.operation_id||'')}</div></div>`).join('')+stateBox('operations',durableOperations())}else html+='<div class="empty">No durable transcript yet.</div>'}document.getElementById('state').innerHTML=html}
 function stateBox(title,data){return `<div class="state"><b>${esc(title)}</b><pre>${esc(JSON.stringify(data,null,2))}</pre></div>`}
 ['surface','status','component','search'].forEach(id=>document.getElementById(id).addEventListener(id==='search'?'input':'change',renderList));document.addEventListener('focusout',()=>setTimeout(()=>{if(pendingDetailRender&&!detailControlActive()){pendingDetailRender=false;renderDetail()}},0));document.addEventListener('visibilitychange',()=>{clearTimeout(pollTimer);if(!document.hidden)poll()});poll();
 </script></body></html>'''
@@ -594,6 +694,10 @@ def make_handler(observatory: Observatory):
                 return
             if parsed.path == "/api/executions":
                 self._json({"executions": observatory.executions()})
+                return
+            if parsed.path.startswith("/api/execution/") and parsed.path.endswith("/debug"):
+                trace_key = unquote(parsed.path[len("/api/execution/"):-len("/debug")]).rstrip("/")
+                self._json(observatory.debug_detail(trace_key))
                 return
             if parsed.path.startswith("/api/execution/") or parsed.path.startswith("/api/raw/"):
                 trace_key = unquote(parsed.path.split("/", 3)[3])
@@ -652,11 +756,11 @@ def _resolve_path(raw: str, config_path: Path) -> Path:
 
 
 def default_database_url() -> str | None:
-    configured = os.getenv("OBSERVABILITY_DATABASE_URL") or os.getenv("APP_DATABASE_URL") or os.getenv("WORKER_DATABASE_URL")
+    configured = os.getenv("OBSERVABILITY_DATABASE_URL") or os.getenv("WORKER_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
     if configured:
         return configured
-    password = os.getenv("HPAGENT_API_PASSWORD", "hpagent_api")
-    return f"postgresql://hpagent_api:{password}@127.0.0.1:5434/hpagent"
+    password = os.getenv("HPAGENT_WORKER_PASSWORD", "hpagent_worker")
+    return f"postgresql://hpagent_worker:{password}@127.0.0.1:5434/hpagent"
 
 
 def build_observatory(args: argparse.Namespace) -> Observatory:

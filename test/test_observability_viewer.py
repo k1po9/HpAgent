@@ -251,3 +251,70 @@ def test_execution_detail_has_per_trace_memory_bound(tmp_path: Path, monkeypatch
 )
 def test_status_normalization(raw: str, expected: str) -> None:
     assert viewer.normalize_status(raw, []) == expected
+
+
+def test_durable_correlation_fields_reach_waterfall() -> None:
+    records = [
+        _log("model_decision_started", component="model", operation_id="op-1", activity_attempt=2),
+        _log("model_decision_completed", component="model", operation_id="op-1",
+             result_ref="decision:op-1", stop_reason="end_turn", tool_count=0),
+    ]
+    events = [viewer.ObservationEvent.from_json(record, "test.jsonl", index)
+              for index, record in enumerate(records, 1)]
+    node = viewer.pair_lifecycle(events)[0]
+    assert node["operation_id"] == "op-1"
+    assert node["result_ref"] == "decision:op-1"
+    assert node["activity_attempt"] == 2
+    assert node["raw_event_sequence"] == 2
+
+
+class _DebugConnection:
+    def __init__(self, transcript: dict[str, Any] | None = None) -> None:
+        self.transcript = transcript
+        self.queries: list[tuple[str, Any]] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_: Any) -> None:
+        return None
+
+    def execute(self, query: str, params: Any = None):
+        self.queries.append((query, params))
+        if "FROM hpagent.agent_transcripts" in query:
+            return SimpleNamespace(fetchone=lambda: self.transcript)
+        if "FROM hpagent.agent_transcript_events" in query:
+            return SimpleNamespace(fetchall=lambda: [{"sequence": 1, "event_type": "context"}])
+        if "FROM hpagent.agent_operations" in query:
+            return SimpleNamespace(fetchall=lambda: [{"operation_id": "op-1", "status": "uncertain"}])
+        raise AssertionError(query)
+
+
+def test_durable_debug_snapshot_is_bounded_and_read_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    connection = _DebugConnection({"transcript_id": "transcript-1"})
+    reader = viewer.PostgresReader("postgresql://example")
+    monkeypatch.setattr(reader, "_connect", lambda: connection)
+    snapshot = reader.durable_debug_snapshot("run-1")
+    assert snapshot["available"] is True
+    assert snapshot["durable"]["events"][0]["event_type"] == "context"
+    assert snapshot["durable"]["operations"][0]["status"] == "uncertain"
+    assert all(query.lstrip().startswith("SELECT") and params for query, params in connection.queries)
+
+
+def test_durable_debug_snapshot_allows_no_transcript(monkeypatch: pytest.MonkeyPatch) -> None:
+    reader = viewer.PostgresReader("postgresql://example")
+    monkeypatch.setattr(reader, "_connect", lambda: _DebugConnection())
+    snapshot = reader.durable_debug_snapshot("run-1")
+    assert snapshot["durable"]["transcript"] is None
+    assert snapshot["durable"]["events"] == []
+    assert snapshot["durable"]["operations"]
+
+
+def test_durable_debug_snapshot_degrades_on_database_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    reader = viewer.PostgresReader("postgresql://example")
+    def fail():
+        raise OSError("database down")
+    monkeypatch.setattr(reader, "_connect", fail)
+    snapshot = reader.durable_debug_snapshot("run-1")
+    assert snapshot["reason"] == "database_unavailable"
+    assert "database down" in reader.last_error
