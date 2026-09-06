@@ -3,5 +3,9 @@ from .models import (
     ToolRoutingSpec,
 )
 from .router import ToolRouter
+from .contracts import NATIVE_ROUTING_SPECS, routing_for
 
-__all__ = ["ResourceScope", "RuntimeCapabilitySnapshot", "ToolExposure", "ToolKind", "ToolRoutingSpec", "ToolRouter"]
+__all__ = [
+    "NATIVE_ROUTING_SPECS", "ResourceScope", "RuntimeCapabilitySnapshot",
+    "ToolExposure", "ToolKind", "ToolRoutingSpec", "ToolRouter", "routing_for",
+]

@@ -7,10 +7,13 @@ from pydantic import BaseModel
 
 from sandbox.tools.registry import ToolRegistry
 from sandbox.tools.routing.capability import CapabilityMatcher
+from sandbox.tools.routing.contracts import NATIVE_ROUTING_SPECS, routing_for
 from sandbox.tools.routing.models import (
     ResourceFact, ResourceScope, RuntimeCapabilitySnapshot, ScoredCandidate,
-    SemanticRetrievalResult, ToolExposure, ToolRoutingSpec,
+    SemanticRetrievalResult, ToolExposure, ToolRoutingConfigurationError,
+    ToolRoutingSpec,
 )
+from sandbox.tools.routing.policy import CandidatePolicy
 from sandbox.tools.routing.router import ToolRouter
 
 
@@ -128,3 +131,106 @@ def test_registry_rejects_missing_contract_and_name_collision():
     registry.register(_tool("alpha"), routing=ToolRoutingSpec("test.alpha"))
     with pytest.raises(ValueError, match="duplicate tool name"):
         registry.register(_tool("alpha"), category="mcp", routing=ToolRoutingSpec("mcp.test.alpha"))
+
+
+@pytest.mark.parametrize(
+    ("extension", "eligible", "ineligible"),
+    [
+        ("txt", {"read_file"}, {"replace_docx_text", "append_docx_section", "write_sheet_range", "replace_slide"}),
+        ("docx", {"read_file", "replace_docx_text", "append_docx_section"}, {"write_sheet_range", "replace_slide"}),
+        ("xlsx", {"read_file", "write_sheet_range"}, {"replace_docx_text", "replace_slide"}),
+        ("pptx", {"read_file", "replace_slide"}, {"replace_docx_text", "write_sheet_range"}),
+    ],
+)
+def test_native_file_patch_contract_matrix(extension, eligible, ineligible):
+    matcher = CapabilityMatcher()
+    runtime = _snapshot(extension)
+    for name in eligible:
+        assert matcher.evaluate(_registered(name, NATIVE_ROUTING_SPECS[name]), runtime).eligible
+    for name in ineligible:
+        assert not matcher.evaluate(_registered(name, NATIVE_ROUTING_SPECS[name]), runtime).eligible
+
+
+def test_output_only_scope_excludes_legacy_input_analysis():
+    runtime = RuntimeCapabilitySnapshot(
+        "web", True, True,
+        (ResourceFact("1", "generated.txt", ResourceScope.CURRENT_RUN, "text/plain", "txt", "output"),),
+    )
+    matcher = CapabilityMatcher()
+    assert matcher.evaluate(_registered("read_file", NATIVE_ROUTING_SPECS["read_file"]), runtime).eligible
+    for name in ("inspect_file", "search_file", "count_matches", "text_stats"):
+        decision = matcher.evaluate(_registered(name, NATIVE_ROUTING_SPECS[name]), runtime)
+        assert not decision.eligible
+        assert decision.reason == "no_compatible_direction"
+
+
+def test_direction_and_extension_must_match_same_resource():
+    runtime = RuntimeCapabilitySnapshot(
+        "web", True, True,
+        (
+            ResourceFact("1", "notes.txt", ResourceScope.CURRENT_RUN, "text/plain", "txt", "input"),
+            ResourceFact("2", "report.pdf", ResourceScope.CURRENT_RUN, "application/pdf", "pdf", "output"),
+        ),
+    )
+    spec = ToolRoutingSpec(
+        "test.input_pdf", resource_scope=ResourceScope.CURRENT_RUN,
+        requires_run_file_scope=True, accepts_extensions=frozenset({"pdf"}),
+        accepts_directions=frozenset({"input"}),
+    )
+    decision = CapabilityMatcher().evaluate(_registered("input_pdf", spec), runtime)
+    assert not decision.eligible
+    assert decision.reason == "no_compatible_extension"
+
+
+def test_gotenberg_service_and_real_input_formats_are_required():
+    registered = _registered("convert_file_to_pdf", NATIVE_ROUTING_SPECS["convert_file_to_pdf"])
+    matcher = CapabilityMatcher()
+    unavailable = matcher.evaluate(registered, _snapshot("docx"))
+    assert unavailable.reason == "required_service_unavailable"
+    available = RuntimeCapabilitySnapshot(
+        "web", True, True, _snapshot("docx").resources, frozenset({"gotenberg"}),
+    )
+    assert matcher.evaluate(registered, available).eligible
+    wrong_format = RuntimeCapabilitySnapshot(
+        "web", True, True, _snapshot("txt").resources, frozenset({"gotenberg"}),
+    )
+    assert matcher.evaluate(registered, wrong_format).reason == "no_compatible_extension"
+
+
+def test_native_routing_is_exhaustive_and_directions_are_validated():
+    with pytest.raises(ValueError, match="native tool 'calculator' has no explicit routing contract"):
+        routing_for(_tool("calculator"), "native")
+    with pytest.raises(ValueError, match="invalid routing resource directions"):
+        ToolRoutingSpec("test.invalid", accepts_directions=frozenset({"sideways"}))
+
+
+def test_frozen_registry_rejects_every_mutation():
+    registry = ToolRegistry()
+    registry.register(_tool("alpha"), routing=ToolRoutingSpec("test.alpha"))
+    registry.freeze()
+    with pytest.raises(RuntimeError, match="frozen"):
+        registry.register(_tool("beta"), routing=ToolRoutingSpec("test.beta"))
+    with pytest.raises(RuntimeError, match="frozen"):
+        registry.unregister("alpha")
+    with pytest.raises(RuntimeError, match="frozen"):
+        registry.clear()
+
+
+def test_reserved_candidates_cannot_be_silently_truncated():
+    with pytest.raises(ToolRoutingConfigurationError, match="reserved tools"):
+        CandidatePolicy.merge(
+            always=["mandatory"], front_doors=["read_file"], semantic=(), final_limit=1,
+        )
+
+
+def test_front_doors_are_ordered_by_priority_then_deterministic_ties():
+    registry = ToolRegistry()
+    for name, family, priority in (
+        ("low", "zeta", 1), ("alpha", "alpha", 5), ("beta", "beta", 5),
+        ("zeta_alias", "alpha", 5),
+    ):
+        registry.register(_tool(name), routing=ToolRoutingSpec(
+            f"test.{name}", exposure=ToolExposure.FRONT_DOOR,
+            front_door_family=family, front_door_priority=priority,
+        ))
+    assert CandidatePolicy.select_front_doors(registry.list_registered()) == ["alpha", "beta", "low"]

@@ -22,10 +22,13 @@ class ToolRegistry:
 
     # ── 注册 / 注销 ─────────────────────────────────────────────
 
-    def register(self, tool: BaseTool, category: str = "native", *, routing: ToolRoutingSpec | None = None) -> None:
+    def _ensure_mutable(self) -> None:
         if self._frozen:
             raise RuntimeError("ToolRegistry is frozen")
+
+    def register(self, tool: BaseTool, category: str = "native", *, routing: ToolRoutingSpec | None = None) -> None:
         with self._lock:
+            self._ensure_mutable()
             if tool.name in self._tools:
                 raise ValueError(f"duplicate tool name: {tool.name}")
             if routing is None:
@@ -34,13 +37,12 @@ class ToolRegistry:
 
     def unregister(self, name: str) -> bool:
         with self._lock:
+            self._ensure_mutable()
             return self._tools.pop(name, None) is not None
 
     def freeze(self) -> None:
-        missing = [name for name, item in self._tools.items() if item.routing is None]
-        if missing:
-            raise ValueError(f"tools missing routing contracts: {missing}")
-        self._frozen = True
+        with self._lock:
+            self._frozen = True
 
     # ── 查询 ────────────────────────────────────────────────────
 
@@ -130,4 +132,5 @@ class ToolRegistry:
 
     def clear(self) -> None:
         with self._lock:
+            self._ensure_mutable()
             self._tools.clear()
