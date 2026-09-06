@@ -114,6 +114,7 @@ class ToolExecutionResult:
     approval_id: str | None = None
     approval_status: str = "not_required"
     approval_expires_at: str | None = None
+    tool_success: bool | None = None
 
 
 @dataclass(frozen=True)

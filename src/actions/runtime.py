@@ -136,12 +136,21 @@ class ActionRuntime:
     ) -> Dict[str, Any]:
         """执行工具，并按配置对长输出做语义摘要。"""
         if self._sandbox is None:
-            return {"output": None, "error": "SandboxManager not configured"}
+            return {
+                "success": False,
+                "output": None,
+                "error": "SandboxManager not configured",
+                "metadata": {},
+            }
 
         try:
             sandbox = self._sandbox.get_sandbox_for_session(session_id)
             result, _audit = await sandbox.execute(tool_name, arguments)
             result_dict = cast(Dict[str, Any], result.to_dict())
+            result_dict.setdefault("success", result_dict.get("error") is None)
+            result_dict.setdefault("output", None)
+            result_dict.setdefault("error", None)
+            result_dict.setdefault("metadata", {})
 
             if self._tool_result_summary_enabled:
                 result_dict = await self._summarize_if_needed(
@@ -150,7 +159,12 @@ class ActionRuntime:
 
             return result_dict
         except Exception as e:
-            return {"output": None, "error": str(e)}
+            return {
+                "success": False,
+                "output": None,
+                "error": str(e),
+                "metadata": {},
+            }
 
 
     async def execute_request(

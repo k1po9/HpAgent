@@ -41,6 +41,19 @@ def test_live_polling_is_bounded_and_pauses_when_hidden() -> None:
     assert "setInterval(poll" not in html
 
 
+def test_tool_semantic_failure_and_json_inspector_controls_are_rendered() -> None:
+    html = viewer.HTML
+    assert "function toolSemanticState(n)" in html
+    assert "❌ TOOL FAILED" in html
+    assert "function toolSummaryBox(n,op,te)" in html
+    assert "Semantic Result" in html
+    assert "function syntaxHighlightJson(data)" in html
+    assert "function copyJson(button)" in html
+    assert "document.execCommand('copy')" in html
+    assert 'class="copy-json"' in html
+    assert '<details class="state" open>' in html
+
+
 def _write(path: Path, *records: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")

@@ -59,6 +59,7 @@ class ActionResult:
     """Result returned by the action runtime for one action request."""
 
     request: ActionRequest
+    success: bool | None = None
     output: Any = None
     summary: Any = None
     error: Any = None
@@ -73,6 +74,7 @@ class ActionResult:
     ) -> "ActionResult":
         return cls(
             request=request,
+            success=result.get("success"),
             output=result.get("output"),
             summary=result.get("summary"),
             error=result.get("error"),
@@ -83,3 +85,10 @@ class ActionResult:
     @property
     def display_result(self) -> Any:
         return self.summary if self.summary is not None else self.output
+
+    @property
+    def failed(self) -> bool:
+        """Whether the tool reported a semantic execution failure."""
+        if self.success is not None:
+            return not self.success
+        return self.error is not None

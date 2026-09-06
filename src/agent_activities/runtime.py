@@ -742,6 +742,7 @@ class DurableAgentActivities:
                         "result_ref": result_ref,
                         "transcript_version": request.transcript_version,
                         "display_summary": display,
+                        "tool_success": True,
                     }
                     version = await asyncio.to_thread(
                         self.store.complete_operation_with_event,
@@ -933,7 +934,7 @@ class DurableAgentActivities:
                         file_trace_metadata.update(result_trace)
                     if (
                         side_effect_class == "non_idempotent_write"
-                        and result_value.error is not None
+                        and result_value.failed
                     ):
                         await self._raise_uncertain_side_effect(
                             request,
@@ -941,8 +942,28 @@ class DurableAgentActivities:
                             original_error_code="action_result_error",
                         )
                     self.fault_injector.hit("tool_side_effect_succeeded_before_ack")
-            display = result_value.display_result
-            display_text = display if isinstance(display, str) else json.dumps(display, ensure_ascii=False, default=str)
+            if result_value.failed:
+                observation_content = json.dumps(
+                    {
+                        "success": False,
+                        "error": str(
+                            result_value.error or "tool execution failed"
+                        ),
+                    },
+                    ensure_ascii=False,
+                )
+                display_text = (
+                    f"Tool {request.tool_call.name} failed: "
+                    f"{result_value.error or 'tool execution failed'}"
+                )
+            else:
+                display = result_value.display_result
+                observation_content = (
+                    display
+                    if isinstance(display, str)
+                    else json.dumps(display, ensure_ascii=False, default=str)
+                )
+                display_text = observation_content
             result_ref = f"agent-tool-result:{request.operation_id}"
             payload = {
                 "schema_version": AGENT_SCHEMA_VERSION,
@@ -950,6 +971,7 @@ class DurableAgentActivities:
                 "result_ref": result_ref,
                 "transcript_version": request.transcript_version,
                 "display_summary": display_text[:240],
+                "tool_success": not result_value.failed,
             }
             version = await asyncio.to_thread(
                 self.store.complete_operation_with_event,
@@ -962,7 +984,7 @@ class DurableAgentActivities:
                         "role": "tool",
                         "tool_call_id": request.tool_call.tool_call_id,
                         "name": request.tool_call.name,
-                        "content": display,
+                        "content": observation_content,
                     },
                     "raw_result": result_value.raw,
                     "side_effect_class": side_effect_class,

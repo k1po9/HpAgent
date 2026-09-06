@@ -75,6 +75,7 @@ class Store:
         self.validations = 0
         self.uncertain: list[str] = []
         self.failed: list[str] = []
+        self.completion: dict | None = None
 
     def begin_tool_operation(self, operation_id: str, run_id: str) -> ToolOperationState:
         return self.state
@@ -98,6 +99,7 @@ class Store:
     def complete_operation_with_event(self, **kwargs):
         if self.completion_error is not None:
             raise self.completion_error
+        self.completion = kwargs
         return 2
 
     def fail_operation(self, operation_id: str, code: str):
@@ -132,13 +134,18 @@ class Actions:
             raise asyncio.CancelledError
         return ActionResult(
             request=request,
+            success=self.error is None,
             output="ok",
             metadata={
                 "budget_usage": {"bytes_scanned": 17},
                 "trace_metadata": {"count": 2},
             },
             error=self.error,
-            raw={"output": "ok", "error": self.error},
+            raw={
+                "success": self.error is None,
+                "output": "ok",
+                "error": self.error,
+            },
         )
 
     def clear_execution(self, session_id: str, run_id: str) -> None:
@@ -211,6 +218,26 @@ async def test_tool_activity_reserves_and_settles_measured_usage_once():
             {"tool_calls": 1, "bytes_scanned": 17}, "measured",
         ),
     ]
+
+
+@pytest.mark.asyncio
+async def test_read_only_tool_failure_is_a_completed_failure_observation():
+    item = request()
+    store = Store(ToolOperationState("started", None))
+
+    result = await activities(
+        store, Actions("read_only", error="mock read error")
+    ).tool_execution(item)
+
+    assert result.tool_success is False
+    assert result.display_summary == "Tool write_tool failed: mock read error"
+    assert store.completion is not None
+    event = store.completion["event_payload"]
+    assert event["message"]["content"] == (
+        '{"success": false, "error": "mock read error"}'
+    )
+    assert event["raw_result"]["error"] == "mock read error"
+    assert store.completion["result_payload"]["tool_success"] is False
 
 
 @pytest.mark.asyncio
