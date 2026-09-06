@@ -123,7 +123,7 @@ async def test_web_sandbox_registers_file_tools_against_active_run_only(
     names = {item["function"]["name"] for item in await sandbox.list_tools()}
     assert {"inspect_file", "search_file", "count_matches", "text_stats"} <= names
     assert {
-        "fast_text_view", "inspect_pdf", "read_pdf_pages", "extract_pdf_tables",
+        "read_file", "inspect_pdf", "read_pdf_pages", "extract_pdf_tables",
         "inspect_docx", "read_docx_paragraphs", "extract_docx_tables",
         "inspect_workbook", "read_sheet_range", "inspect_presentation", "read_slide",
     } <= names

@@ -761,8 +761,6 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         mcp_manager=mcp_mgr,
         skill_definitions=skill_definitions,
         retriever=retriever,
-        max_merged_multiplier=config.models.tool_rag.max_merged_multiplier,
-        per_query_min=config.models.tool_rag.per_query_min,
         native_tools_enabled=config.sandbox.native_tools_enabled,
         nsjail_enabled=config.sandbox.nsjail_enabled,
         file_tools_enabled=(

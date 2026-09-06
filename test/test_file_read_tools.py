@@ -196,7 +196,7 @@ async def test_fast_text_deterministically_routes_complex_document(tmp_path: Pat
         lambda: scope, document_router=router,
         account_id_provider=lambda: "account-1",
     )}
-    result = json.loads(await tools["fast_text_view"].ainvoke({
+    result = json.loads(await tools["read_file"].ainvoke({
         "file": "report.docx"
     }))
     assert result["route"] == "normalized_document"
@@ -226,6 +226,6 @@ async def test_small_text_keeps_bounded_direct_read(tmp_path: Path) -> None:
     tools = {tool.name: tool for tool in create_file_read_tools(
         lambda: scope, document_router=Router(), account_id_provider=lambda: "account-1"
     )}
-    result = json.loads(await tools["fast_text_view"].ainvoke({"file": "small.txt"}))
+    result = json.loads(await tools["read_file"].ainvoke({"file": "small.txt"}))
     assert result["route"] == "bounded_direct_read"
     assert "small text" in result["text"]

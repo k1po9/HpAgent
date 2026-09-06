@@ -2,7 +2,7 @@
 Sandbox —— 模型"手"层：工具选择 + 安全执行 + 输出后处理 + 跨轮状态。
 
 设计原则:
-  - 工具选择由 Sandbox 全权负责（hints 优先 → RAG → required 合并）
+  - 工具选择委托给 capability-first ToolRouter
   - 执行按类别路由：native 进程内 / Bash nsjail / MCP 远端 / Skill 展开
   - 输出截断在 Sandbox 统一执行（Agent loop 无需关心工具输出长度）
   - 跨轮 hints 状态归属于 Sandbox（生命周期与 session 一致）
@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sandbox.tools.registry import ToolRegistry
 from sandbox.tools.types import ToolResult
+from sandbox.tools.routing.router import ToolRouter
 
 logger = logging.getLogger("HpAgent.Sandbox")
 
@@ -23,7 +24,7 @@ class Sandbox:
     """工具的 workspace 绑定执行环境。
 
     职责:
-      1. select_tools() — 完整工具选择管线（hints → RAG → required 合并 → 排序）
+      1. select_tools() — 收集 hints/runtime facts 并委托 ToolRouter
       2. execute()      — 安全路由执行 + 输出截断
       3. 持有 hints 队列 — 跨轮次工具检索偏好
       4. 返回审计信息 — 供 execution audit sink 写入事件日志
@@ -36,13 +37,15 @@ class Sandbox:
         sandbox_id: Optional[str] = None,
         nsjail_executor=None,
         truncation_threshold: int = 50000,
-        max_merged_multiplier: float = 1.5,
+        tool_router: ToolRouter | None = None,
+        selection_context_provider=None,
     ):
         self._workspace = workspace_path
         self._registry = tool_registry
         self._nsjail = nsjail_executor
         self._truncation_threshold = truncation_threshold
-        self._max_merged_multiplier = max_merged_multiplier
+        self._tool_router = tool_router or ToolRouter(tool_registry)
+        self._selection_context_provider = selection_context_provider
 
         # 跨轮状态：hints 队列
         self._hints: List[str] = []
@@ -58,61 +61,25 @@ class Sandbox:
     async def select_tools(
         self, query: str, top_k: int = 8
     ) -> Tuple[List[dict], dict]:
-        """完整工具选择管线：用户 query 为主 + hints 为辅 → RAG → required 合并 → 去重 → 升序排列。
+        """Delegate tool selection using current runtime facts and optional hints.
 
         Args:
             query: 用户消息（始终作为主 RAG query）
-            top_k: RAG 检索上限
+            top_k: 最终候选工具数量上限
 
         Returns:
             (llm_tool_dicts, audit_info)
             llm_tool_dicts: 注入 next_tool_hint 后的 OpenAI function calling 格式
             audit_info: {mode, queries, tool_count, tools} 供审计用
         """
-        # 1. 取消费 hints（用后即清），用户 query 始终排在首位
         hints = self._drain_hints()
-        queries = ([query] if query else []) + hints
-
-        # 2. RAG 检索（max_merged = top_k × 配置的合并缓冲系数）
-        max_merged = int(top_k * self._max_merged_multiplier)
-        result = await self._registry.retrieve_for_llm_multi(queries, top_k, max_merged)
-
-        # 3. 合并 required 工具（去重，required 优先排在最前，最终不超过 top_k）
-        required = self._registry.list_required_for_llm()
-        if required:
-            existing = set(self._registry.get_tool_names(result))
-            for rd in reversed(required):
-                name = self._registry._extract_tool_name(rd)
-                if name not in existing:
-                    result.insert(0, rd)
-                    existing.add(name)
-            # 合并后以 top_k 为硬上界截断：required 已前置，超出部分为 RAG 低相关度工具
-            if len(result) > top_k:
-                trimmed_names = self._registry.get_tool_names(result[top_k:])
-                logger.debug("select_tools: trimmed %d tools beyond top_k=%d: %s",
-                           len(trimmed_names), top_k, trimmed_names)
-                result = result[:top_k]
-
-        # 3.5 按相关性分数升序排列（低分在前，高分在后）
-        scores: dict[str, float] = {}
-        if self._registry._retriever is not None:
-            scores = getattr(self._registry._retriever, "last_scores", {})
-        if scores:
-            result.sort(key=lambda d: scores.get(self._registry._extract_tool_name(d), 0.0))
-
-        # 4. 审计信息（含相关性评分）
-        retrieval_mode = "rag_multi" if len(queries) > 1 else "rag" if queries else "full"
-        tool_names = self._registry.get_tool_names(result)
-        audit = {
-            "mode": retrieval_mode,
-            "limit": top_k,
-            "queries": queries[:5],
-            "tool_count": len(result),
-            "tools": tool_names,
-            "scores": {name: scores.get(name, 0.0) for name in tool_names},
-        }
-
-        return result, audit
+        if self._selection_context_provider is None:
+            raise RuntimeError("tool selection context provider is unavailable")
+        selected = await self._tool_router.select(
+            query=query, hints=hints,
+            runtime=self._selection_context_provider.snapshot(), final_limit=top_k,
+        )
+        return list(selected.tool_schemas), selected.audit
 
     # ── 工具执行 ──────────────────────────────────────────────────────────
 
@@ -199,7 +166,9 @@ class Sandbox:
     # ── 生命周期 ──────────────────────────────────────────────────────────
 
     async def list_tools(self) -> List[Dict[str, Any]]:
-        return self._registry.list_for_llm()
+        from sandbox.tools.routing.projector import ToolSchemaProjector
+        projector = ToolSchemaProjector()
+        return [projector.project(item) for item in self._registry.list_registered()]
 
     async def health_check(self) -> bool:
         return self._status == "active"

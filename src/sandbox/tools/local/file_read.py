@@ -132,7 +132,7 @@ def create_file_read_tools(
         resource = FileResourceResolver(scope).resolve(file)
         return resource, adapters.resolve(capability, resource)
 
-    async def fast_text_view(file: str, max_chars: int = 32_000) -> str:
+    async def _read_default_view(file: str, max_chars: int = 32_000) -> str:
         resource, adapter = resolve(file, "fast_text")
         if document_router is not None and document_router.should_normalize(resource):
             scope = scope_provider()
@@ -153,6 +153,9 @@ def create_file_read_tools(
             "text": view.text, "media_type": view.media_type,
             "truncated": view.truncated, "metadata": view.metadata,
         })
+
+    async def read_file(file: str, max_chars: int = 32_000) -> str:
+        return await _read_default_view(file=file, max_chars=max_chars)
 
     async def inspect_pdf(file: str) -> str:
         resource, adapter = resolve(file, "pdf")
@@ -220,7 +223,7 @@ def create_file_read_tools(
 
     scope_hint = " Use the logical filename from Current Run Files; this tool only reads the Current Run File Scope."
     definitions = [
-        ("fast_text_view", "Create a bounded Markdown/text view of an uploaded or current-Run file." + scope_hint, FastTextInput, fast_text_view),
+        ("read_file", "Read a bounded Markdown/text view of an uploaded or current-Run file." + scope_hint, FastTextInput, read_file),
         ("inspect_pdf", "Inspect PDF metadata and page count." + scope_hint, FileInput, inspect_pdf),
         ("read_pdf_pages", "Read a bounded one-based PDF page range." + scope_hint, PdfPagesInput, read_pdf_pages),
         ("extract_pdf_tables", "Extract bounded tables from one PDF page." + scope_hint, PdfTableInput, extract_pdf_tables),

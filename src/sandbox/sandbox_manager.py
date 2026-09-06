@@ -20,6 +20,8 @@ from typing import Any, Dict, List, Optional
 from common.errors import SandboxNotFoundError
 from sandbox.tools.local import LOCAL_TOOL_FACTORIES
 from sandbox.tools.registry import ToolRegistry
+from sandbox.tools.routing import ResourceScope, ToolExposure, ToolRoutingSpec, ToolRouter
+from sandbox.tools.routing.context import ToolSelectionContextBuilder
 
 from .nsjail import NsjailConfig, NsjailExecutor
 from .sandbox import Sandbox
@@ -47,6 +49,52 @@ def _declare_local_side_effect(tool: Any, name: str) -> None:
     tool.metadata = metadata
 
 
+_SPECIALIZED_EXTENSIONS = {
+    "inspect_pdf": {"pdf"}, "read_pdf_pages": {"pdf"}, "extract_pdf_tables": {"pdf"},
+    "inspect_docx": {"docx"}, "read_docx_paragraphs": {"docx"}, "extract_docx_tables": {"docx"},
+    "inspect_workbook": {"xlsx"}, "read_sheet_range": {"xlsx"},
+    "inspect_presentation": {"pptx"}, "read_slide": {"pptx"},
+}
+_READ_FILE_EXTENSIONS = {"txt", "md", "html", "csv", "json", "xml", "pdf", "docx", "xlsx", "pptx"}
+
+
+def _routing_for(tool: Any, category: str) -> ToolRoutingSpec:
+    name = tool.name
+    metadata = dict(getattr(tool, "metadata", {}) or {})
+    if name == "read_file":
+        return ToolRoutingSpec(
+            capability="file.read", exposure=ToolExposure.FRONT_DOOR,
+            resource_scope=ResourceScope.CURRENT_RUN, requires_run_file_scope=True,
+            accepts_extensions=frozenset(_READ_FILE_EXTENSIONS),
+            front_door_family="current_run_file", front_door_priority=100,
+        )
+    if name in _SPECIALIZED_EXTENSIONS:
+        return ToolRoutingSpec(
+            capability=f"file.{next(iter(_SPECIALIZED_EXTENSIONS[name]))}.{name}",
+            resource_scope=ResourceScope.CURRENT_RUN, requires_run_file_scope=True,
+            accepts_extensions=frozenset(_SPECIALIZED_EXTENSIONS[name]),
+        )
+    if metadata.get("file_scope_required"):
+        return ToolRoutingSpec(
+            capability=f"file.{name}", resource_scope=ResourceScope.CURRENT_RUN,
+            requires_run_file_scope=True,
+        )
+    if category == "mcp":
+        server = str(metadata.get("server") or "unknown")
+        return ToolRoutingSpec(
+            capability=f"mcp.{server}.{name}",
+            exposure=ToolExposure.ALWAYS if metadata.get("required") else ToolExposure.SEMANTIC,
+        )
+    if category == "skill":
+        return ToolRoutingSpec(capability=f"skill.{name}")
+    if name in {"create_reminder", "list_reminders", "cancel_reminder"}:
+        return ToolRoutingSpec(capability=f"reminder.{name}")
+    return ToolRoutingSpec(
+        capability=f"workspace.{name}", resource_scope=ResourceScope.WORKSPACE,
+        requires_workspace=True,
+    )
+
+
 class SandboxManager:
     """沙箱池管理器 —— 按会话创建 / 查询 / 销毁。
 
@@ -64,8 +112,6 @@ class SandboxManager:
         mcp_manager: Any = None,
         skill_definitions: Optional[List[dict]] = None,
         retriever: Any = None,
-        max_merged_multiplier: float = 1.5,
-        per_query_min: int = 3,
         native_tools_enabled: bool = True,
         nsjail_enabled: bool = True,
         host_bash_enabled: bool = False,
@@ -81,8 +127,6 @@ class SandboxManager:
         self._mcp_manager = mcp_manager
         self._skill_definitions = skill_definitions or []
         self._retriever = retriever
-        self._max_merged_multiplier = max_merged_multiplier
-        self._per_query_min = per_query_min
         self._native_tools_enabled = native_tools_enabled
         self._nsjail_enabled = nsjail_enabled
         # FILE-P0-04: host Bash is an explicit capability, never implied by
@@ -147,7 +191,7 @@ class SandboxManager:
             if session_id in self._session_to_sandbox:
                 return self._session_to_sandbox[session_id]
 
-        registry = ToolRegistry(retriever=self._retriever, per_query_min=self._per_query_min)
+        registry = ToolRegistry()
 
         # ── 提醒工具（无条件注册，不依赖 native_tools_enabled） ──
         reminder_keys = ("create_reminder", "list_reminders", "cancel_reminder")
@@ -163,7 +207,7 @@ class SandboxManager:
                 continue
             tool = factory(ctx)
             _declare_local_side_effect(tool, name)
-            registry.register(tool, category="native")
+            registry.register(tool, category="native", routing=_routing_for(tool, "native"))
 
         if self._native_tools_enabled:
             for name, factory in LOCAL_TOOL_FACTORIES.items():
@@ -173,7 +217,7 @@ class SandboxManager:
                     continue
                 tool = factory(workspace_path)
                 _declare_local_side_effect(tool, name)
-                registry.register(tool, category="native")
+                registry.register(tool, category="native", routing=_routing_for(tool, "native"))
             logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
         else:
             logger.debug("Session sandbox: native tools disabled")
@@ -192,18 +236,18 @@ class SandboxManager:
                     account_id_provider=lambda value=str(ctx.get("account_id", "")): value,
                 )
             ):
-                registry.register(tool, category="native")
+                registry.register(tool, category="native", routing=_routing_for(tool, "native"))
             if self._file_output_publisher is not None:
                 for tool in create_file_write_tools(
                     scope_provider,
                     self._file_output_publisher,
                     self._file_conversion_provider,
                 ):
-                    registry.register(tool, category="native")
+                    registry.register(tool, category="native", routing=_routing_for(tool, "native"))
 
         if self._mcp_manager:
             for tool in self._mcp_manager.get_cached_tools():
-                registry.register(tool, category="mcp")
+                registry.register(tool, category="mcp", routing=_routing_for(tool, "mcp"))
             logger.debug("Session sandbox: %d MCP tools registered",
                          len(self._mcp_manager.get_cached_tools()))
 
@@ -211,7 +255,7 @@ class SandboxManager:
             from sandbox.tools.skills.engine import build_skill_tool_from_definition
             for skill_def in self._skill_definitions:
                 skill_tool = build_skill_tool_from_definition(skill_def, registry)
-                registry.register(skill_tool, category="skill")
+                registry.register(skill_tool, category="skill", routing=_routing_for(skill_tool, "skill"))
             logger.debug("Session sandbox: %d skills registered", len(self._skill_definitions))
 
         registry.freeze()
@@ -235,12 +279,19 @@ class SandboxManager:
             nsjail_executor = NsjailExecutor(self._nsjail_config)
             logger.debug("Session sandbox: nsjail executor enabled")
 
+        scope_provider = lambda sid=session_id: self.get_active_run_file_scope(sid)
+        context_provider = ToolSelectionContextBuilder(
+            surface=str(ctx.get("channel_type") or "unknown"),
+            workspace_path=workspace_path, run_scope_provider=scope_provider,
+        )
+        router = ToolRouter(registry, self._retriever)
         sandbox = Sandbox(
             workspace_path=workspace_path,
             tool_registry=registry,
             sandbox_id=sandbox_id,
             nsjail_executor=nsjail_executor,
-            max_merged_multiplier=self._max_merged_multiplier,
+            tool_router=router,
+            selection_context_provider=context_provider,
         )
 
         with self._lock:

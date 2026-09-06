@@ -99,7 +99,7 @@ async def test_large_document_read_tool_routes_through_real_document_worker(
     tool = next(tool for tool in create_file_read_tools(
         lambda: scope, document_router=router,
         account_id_provider=lambda: str(uuid4()),
-    ) if tool.name == "fast_text_view")
+    ) if tool.name == "read_file")
     async with AsyncExitStack() as stack:
         await stack.enter_async_context(lifecycle)
         await stack.enter_async_context(document)

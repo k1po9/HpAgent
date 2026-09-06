@@ -125,8 +125,6 @@ rerank:
 tool_rag:
   enabled: true               # 启用 RAG 动态注入（按语义检索相关工具）
   top_k: 12                    # 每轮注入的工具数量上限
-  max_merged_multiplier: 1.5  # 多路检索合并缓冲系数（max_merged = top_k × multiplier）
-  per_query_min: 3            # 多路检索每查询最少召回数
   persist_path: "tools/vectors"  # ChromaDB 持久化路径
 
 # ── MCP Server 配置 ──────────────────────────────────────────────────

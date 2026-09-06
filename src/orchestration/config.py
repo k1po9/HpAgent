@@ -58,8 +58,6 @@ class ToolRagConfig:
     """工具 RAG 检索配置。"""
     enabled: bool = True
     top_k: int = 8                          # 最终返回工具数量上限
-    max_merged_multiplier: float = 1.5      # 多路检索合并缓冲系数（max_merged = top_k * multiplier）
-    per_query_min: int = 3                  # 多路检索每查询最少召回数
     persist_path: str = "tools/vectors"
 
 

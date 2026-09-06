@@ -12,6 +12,7 @@ from typing import List, Optional
 import chromadb
 from chromadb.config import Settings
 from langchain_core.tools import BaseTool
+from sandbox.tools.routing.models import ScoredCandidate, SemanticRetrievalResult
 
 logger = logging.getLogger("HpAgent.ToolRAG")
 
@@ -186,40 +187,37 @@ class ToolRetriever:
     支持可选的 Reranker 精排：当提供 reranker_client 时，
     先从 ChromaDB 召回 top_n * 2 候选，再经 reranker 精排后返回 top_k。
 
-    last_scores: 最近一次 retrieve() 的结果评分，{tool_name: relevance_score}。
-    由 Sandbox.select_tools() 读取，用于 TOOL_RETRIEVAL 审计事件。
+    Retrieval is request-pure: scores are returned with candidates and are never
+    stored on this shared service.
     """
 
     def __init__(self, vector_store: ToolVectorStore, embedding_client, reranker_client=None):
         self._store = vector_store
         self._embedding = embedding_client
         self._reranker = reranker_client
-        self.last_scores: dict[str, float] = {}
 
     async def retrieve(
         self,
         query: str,
-        top_k: int = 5,
-        category_filter: Optional[str] = None,
-        registry=None,
-    ) -> List[BaseTool]:
-        fetch_k = top_k * 2 if self._reranker else top_k
+        *,
+        allowed_tool_names: frozenset[str],
+        limit: int,
+    ) -> SemanticRetrievalResult:
+        if not allowed_tool_names or limit <= 0:
+            return SemanticRetrievalResult()
+        fetch_k = min(len(allowed_tool_names), limit * 2 if self._reranker else limit)
         logger.info(
             "retrieve: query=%s top_k=%d fetch_k=%d reranker=%s filter=%s",
-            query[:80], top_k, fetch_k, self._reranker is not None, category_filter,
+            query[:80], limit, fetch_k, self._reranker is not None, "eligible_subset",
         )
 
         query_embedding = (await self._embedding.embed([query]))[0]
         logger.info("retrieve: embedding dim=%d", len(query_embedding) if query_embedding else 0)
 
-        where_filter = None
-        if category_filter:
-            where_filter = {"category": category_filter}
-
         results = self._store.collection.query(
             query_embeddings=[query_embedding],
             n_results=fetch_k,
-            where=where_filter,
+            where={"tool_name": {"$in": sorted(allowed_tool_names)}},
         )
 
         tool_names = results["ids"][0] if results["ids"] else []
@@ -241,10 +239,10 @@ class ToolRetriever:
             chroma_scores[name] = round(1.0 - dist, 4) if dist else 0.0
 
         # Reranker 精排（失败时回退到 ChromaDB 原始分数，不会被 0.0 覆盖）
-        if self._reranker and len(tool_names) > top_k:
-            logger.info("retrieve: running reranker on %d candidates → top_n=%d", len(tool_names), top_k)
+        if self._reranker and len(tool_names) > limit:
+            logger.info("retrieve: running reranker on %d candidates → top_n=%d", len(tool_names), limit)
             try:
-                rerank_results = await self._reranker.rerank(query, documents, top_n=top_k)
+                rerank_results = await self._reranker.rerank(query, documents, top_n=limit)
             except Exception:
                 logger.warning("Reranker failed, falling back to ChromaDB scores")
                 rerank_results = None
@@ -277,40 +275,10 @@ class ToolRetriever:
         else:
             scores = chroma_scores
 
-        if registry is None:
-            self.last_scores = {}
-            return []
-
-        tools = []
-        for name in tool_names[:top_k]:  # 最终硬截断：无论上游返回多少，不超过 top_k
-            tool = registry.get(name)
-            if tool:
-                tools.append(tool)
-
-        # 只保留最终入选工具的分数
-        self.last_scores = {t.name: scores.get(t.name, 0.0) for t in tools}
-        logger.info("retrieve: final %d tools: %s", len(tools), {t.name: round(scores.get(t.name, 0.0), 4) for t in tools})
-        return tools
-
-    async def retrieve_for_llm(
-        self, query: str, registry, top_k: int = 5
-    ) -> List[dict]:
-        tools = await self.retrieve(query, top_k=top_k, registry=registry)
-        # Use ToolRegistry's shared converter if available, fallback to manual
-        convert = getattr(registry, "_tool_to_llm_dict", None)
-        if convert:
-            return [convert(t) for t in tools]
-        result = []
-        for t in tools:
-            if hasattr(t, "to_openai_function"):
-                result.append(t.to_openai_function())
-            else:
-                result.append({
-                    "type": "function",
-                    "function": {
-                        "name": t.name,
-                        "description": t.description,
-                        "parameters": t.args_schema.model_json_schema() if t.args_schema else {},
-                    },
-                })
-        return result
+        candidates = tuple(
+            ScoredCandidate(name, scores.get(name, 0.0), rank, query)
+            for rank, name in enumerate(tool_names[:limit], 1)
+            if name in allowed_tool_names
+        )
+        logger.info("retrieve: final %d tools: %s", len(candidates), {c.tool_name: c.score for c in candidates})
+        return SemanticRetrievalResult(candidates)
