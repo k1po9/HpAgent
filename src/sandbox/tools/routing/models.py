@@ -36,6 +36,7 @@ class ToolRoutingSpec:
     requires_run_file_scope: bool = False
     accepts_extensions: frozenset[str] = field(default_factory=frozenset)
     accepts_media_types: frozenset[str] = field(default_factory=frozenset)
+    accepts_directions: frozenset[str] = field(default_factory=frozenset)
     required_services: frozenset[str] = field(default_factory=frozenset)
     front_door_family: str | None = None
     front_door_priority: int = 0
@@ -45,6 +46,15 @@ class ToolRoutingSpec:
             raise ValueError("routing capability must not be empty")
         object.__setattr__(self, "accepts_extensions", frozenset(x.lower().lstrip(".") for x in self.accepts_extensions))
         object.__setattr__(self, "accepts_media_types", frozenset(x.lower() for x in self.accepts_media_types))
+        directions = frozenset(x.lower() for x in self.accepts_directions)
+        invalid = directions - {"input", "output"}
+        if invalid:
+            raise ValueError(f"invalid routing resource directions: {sorted(invalid)}")
+        object.__setattr__(self, "accepts_directions", directions)
+
+
+class ToolRoutingConfigurationError(ValueError):
+    """The configured mandatory candidate set cannot satisfy router invariants."""
 
 
 @dataclass(frozen=True)

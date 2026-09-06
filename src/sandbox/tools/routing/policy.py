@@ -1,4 +1,7 @@
-from .models import RegisteredTool, ScoredCandidate, ToolExposure
+from .models import (
+    RegisteredTool, ScoredCandidate, ToolExposure,
+    ToolRoutingConfigurationError,
+)
 
 
 class CandidatePolicy:
@@ -14,16 +17,28 @@ class CandidatePolicy:
                 continue
             family = tool.routing.front_door_family or tool.name
             current = families.get(family)
-            if current is None or tool.routing.front_door_priority > current.routing.front_door_priority:
+            if current is None or (
+                (-tool.routing.front_door_priority, tool.name)
+                < (-current.routing.front_door_priority, current.name)
+            ):
                 families[family] = tool
-        return [tool.name for _, tool in sorted(families.items())]
+        selected = families.items()
+        return [
+            tool.name for family, tool in sorted(
+                selected,
+                key=lambda item: (-item[1].routing.front_door_priority, item[0], item[1].name),
+            )
+        ]
 
     @staticmethod
     def merge(*, always: list[str], front_doors: list[str], semantic: tuple[ScoredCandidate, ...], final_limit: int) -> list[str]:
-        if len(always) > final_limit:
-            raise ValueError("always_if_eligible tools exceed final tool limit")
-        result: list[str] = []
-        for name in [*always, *front_doors, *(c.tool_name for c in semantic)]:
+        reserved = list(dict.fromkeys([*always, *front_doors]))
+        if len(reserved) > final_limit:
+            raise ToolRoutingConfigurationError(
+                "always/front-door reserved tools exceed final tool limit"
+            )
+        result = reserved.copy()
+        for name in (c.tool_name for c in semantic):
             if name not in result and len(result) < final_limit:
                 result.append(name)
         return result
