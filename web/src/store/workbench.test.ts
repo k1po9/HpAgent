@@ -73,6 +73,7 @@ function run(overrides: Partial<HpRun>): HpRun {
     started_at: null,
     finished_at: null,
     updated_at: "2026-08-08T00:00:00Z",
+    budget: overrides.budget ?? null,
     ...overrides,
     agent_strategy: overrides.agent_strategy ?? "react",
   };
@@ -697,6 +698,84 @@ describe("workbench store", () => {
     expect(store.getState().polling).toBe(false);
     expect(store.getState().activeRunProgress).toBeNull();
     expect(store.getState().degraded).toBe(false);
+  });
+
+  it("refreshes budget after an LLM trace event without overwriting streamed content", async () => {
+    const channel = sseChannel();
+    const backend = makeSseBackend(channel);
+    const store = makeStore(backend);
+    await store.getState().loadConversations();
+    await store.getState().selectConversation("c1");
+    await store.getState().sendMessage("你好");
+
+    channel.send(
+      "message.delta",
+      "d1",
+      env("message.delta", "d1", {
+        messageId: "am-1",
+        streamId: "str-1",
+        eventSeq: 1,
+        payload: { delta: "Hello" },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(0);
+
+    const refreshedRun = run({ run_id: "r1", status: "running" });
+    refreshedRun.budget = {
+      status: "ok",
+      mode: "observe",
+      policy_version: "web-token-v2",
+      tokens: {
+        input: { used: 10, reserved: 0, limit: 100 },
+        output: { used: 5, reserved: 20, limit: 100 },
+        total: { used: 15, reserved: 20, limit: 200 },
+      },
+      model_calls: { settled: 1, in_flight: 1, unmetered: 0, total_attempts: 2, limit: 10 },
+      by_source: {
+        provider: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
+        measured: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+        estimated: { input_tokens: 0, output_tokens: 0, total_tokens: 0 },
+      },
+      usage_state: "in_flight",
+      usage_quality: "provider",
+      has_estimates: false,
+      model_total_tokens_used: 15,
+      model_total_tokens_limit: 200,
+      tool_calls_used: 0,
+      tool_calls_limit: 0,
+      bytes_scanned_used: 0,
+      bytes_scanned_limit: 0,
+    };
+    backend.state.runSnapshots.r1 = {
+      run: refreshedRun,
+      assistant_message: message({
+        message_id: "am-1",
+        status: "pending",
+        content: null,
+        produced_by_run_id: "r1",
+      }),
+    };
+
+    channel.send(
+      "trace.event",
+      "tr1",
+      env("trace.event", "tr1", {
+        payload: {
+          action: "start",
+          node_id: "llm-1",
+          parent_id: null,
+          name: "LLMCall",
+          type: "llm",
+          metadata: {},
+        },
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(150);
+
+    expect(store.getState().activeRun?.budget?.tokens.total.used).toBe(15);
+    expect(store.getState().messages.find((item) => item.message_id === "am-1")?.content).toBe(
+      "Hello",
+    );
   });
 
   it("degrades on a sequence gap and recovers by polling the Run", async () => {

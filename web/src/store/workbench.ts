@@ -219,13 +219,37 @@ export function createWorkbenchStore(
   return create<WorkbenchState>()((set, get) => {
     /** The live SSE feed for the current Run, if any; closed on switch/stop. */
     let activeFeed: RunFeed | null = null;
+    let budgetRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
     const closeFeed = (): void => {
       if (activeFeed) {
         activeFeed.close();
         activeFeed = null;
       }
+      if (budgetRefreshTimer) {
+        clearTimeout(budgetRefreshTimer);
+        budgetRefreshTimer = null;
+      }
     };
+
+    async function refreshRunBudgetOnly(runId: string, generation: number): Promise<void> {
+      try {
+        const snapshot = await api.getRun(runId);
+        const latest = get();
+        if (latest.pollGeneration !== generation || latest.activeRun?.run_id !== runId) return;
+        set({ activeRun: { ...latest.activeRun, budget: snapshot.run.budget } });
+      } catch {
+        // Terminal confirmation or degraded polling will provide the next refresh.
+      }
+    }
+
+    function scheduleBudgetRefresh(runId: string, generation: number, delay: number): void {
+      if (budgetRefreshTimer) clearTimeout(budgetRefreshTimer);
+      budgetRefreshTimer = setTimeout(() => {
+        budgetRefreshTimer = null;
+        void refreshRunBudgetOnly(runId, generation);
+      }, delay);
+    }
     /** Poll a Run until terminal; stops when a newer Run supersedes it. */
     function startPolling(runId: string): void {
       const generation = get().pollGeneration;
@@ -334,6 +358,10 @@ export function createWorkbenchStore(
             onTrace: (event) => {
               if (stale()) return;
               useTraceStore.getState().applyEvent(runId, event);
+              const node = useTraceStore.getState().nodes[event.nodeId];
+              if (node?.type === "llm") {
+                scheduleBudgetRefresh(runId, generation, event.action === "start" ? 150 : 0);
+              }
             },
             onTerminal: (snapshot) => {
               if (stale()) return;

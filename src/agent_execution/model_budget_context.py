@@ -13,6 +13,7 @@ class ModelBudgetContext:
     service: Any
     run_id: str
     operation_id: str
+    execution_attempt: int = 1
     final_response: bool = False
     invocations: int = 0
 
@@ -20,7 +21,10 @@ class ModelBudgetContext:
         self.invocations += 1
         endpoint_hash = hashlib.sha256(endpoint_id.encode("utf-8")).hexdigest()[:12]
         prefix = self.operation_id[:140]
-        return f"{prefix}:model:{self.invocations}:{attempt}:{endpoint_hash}"
+        return (
+            f"{prefix}:model:a{self.execution_attempt}:i{self.invocations}:"
+            f"f{attempt}:{endpoint_hash}"
+        )
 
 
 _CURRENT: ContextVar[ModelBudgetContext | None] = ContextVar(
@@ -34,11 +38,12 @@ def model_budget_scope(
     run_id: str,
     operation_id: str,
     *,
+    execution_attempt: int = 1,
     final_response: bool = False,
 ) -> Iterator[None]:
     """Bind one durable operation without leaking it to concurrent Runs."""
     token = _CURRENT.set(ModelBudgetContext(
-        service, str(run_id), operation_id, final_response
+        service, str(run_id), operation_id, execution_attempt, final_response
     ))
     try:
         yield

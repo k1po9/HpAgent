@@ -503,7 +503,16 @@ class CommandService:
         budget = uow.execute(
             "SELECT * FROM run_budgets WHERE run_id=%s", (run_id,)
         ).fetchone()
-        run_dto["budget"] = self._budget_dto(budget)
+        usage_rows = uow.execute(
+            "SELECT state,usage_source,dimension,"
+            "SUM(COALESCE(actual_amount,0)) AS actual_sum,"
+            "COUNT(DISTINCT operation_id) AS operation_count "
+            "FROM run_usage_ledger WHERE run_id=%s AND dimension IN "
+            "('model_input_tokens','model_output_tokens','model_total_tokens','model_calls') "
+            "GROUP BY state,usage_source,dimension",
+            (run_id,),
+        ).fetchall()
+        run_dto["budget"] = self._budget_dto(budget, usage_rows)
         message_dto = self._message_dto(message)
         message_dto["files"] = self._message_file_dtos(uow, message["message_id"])
         return {"run": run_dto, "assistant_message": message_dto}
@@ -579,13 +588,72 @@ class CommandService:
         ]
 
     @staticmethod
-    def _budget_dto(row: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    def _budget_dto(
+        row: Mapping[str, Any] | None,
+        usage_rows: list[Mapping[str, Any]] | None = None,
+    ) -> dict[str, Any] | None:
         if row is None:
             return None
-        limits, used = row["limits"], row["used"]
+        limits, used, reserved = row["limits"], row["used"], row["reserved"]
+        def counter(dimension: str) -> dict[str, int]:
+            return {
+                "used": int(used.get(dimension, 0)),
+                "reserved": int(reserved.get(dimension, 0)),
+                "limit": int(limits.get(dimension, 0)),
+            }
+        by_source = {
+            source: {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+            for source in ("provider", "measured", "estimated")
+        }
+        calls = {"settled": 0, "in_flight": 0, "unmetered": 0}
+        settled_sources: set[str] = set()
+        token_keys = {
+            "model_input_tokens": "input_tokens", "model_output_tokens": "output_tokens",
+            "model_total_tokens": "total_tokens",
+        }
+        for usage_row in usage_rows or []:
+            state, dimension = str(usage_row["state"]), str(usage_row["dimension"])
+            source = usage_row.get("usage_source")
+            count = int(usage_row.get("operation_count") or 0)
+            if dimension == "model_calls":
+                key = {"settled": "settled", "reserved": "in_flight",
+                       "released": "unmetered"}.get(state)
+                if key:
+                    calls[key] += count
+            if state == "settled" and source in by_source and dimension in token_keys:
+                by_source[source][token_keys[dimension]] += int(
+                    usage_row.get("actual_sum") or 0
+                )
+                settled_sources.add(str(source))
+        if not usage_rows:
+            calls["settled"] = int(used.get("model_calls", 0))
+            calls["in_flight"] = int(reserved.get("model_calls", 0))
+        token_sources = settled_sources & {"provider", "estimated"}
+        usage_quality = (
+            "provider" if token_sources == {"provider"} else
+            "estimated" if token_sources == {"estimated"} else
+            "mixed" if token_sources else "none"
+        )
+        usage_state = (
+            "partial" if calls["unmetered"] else "in_flight" if calls["in_flight"] else
+            "complete" if calls["settled"] else "none"
+        )
         return {
             "status": row["status"], "mode": row["mode"],
             "policy_version": row["policy_version"],
+            "tokens": {
+                "input": counter("model_input_tokens"),
+                "output": counter("model_output_tokens"),
+                "total": counter("model_total_tokens"),
+            },
+            "model_calls": {
+                **calls, "total_attempts": sum(calls.values()),
+                "limit": int(limits.get("model_calls", 0)),
+            },
+            "by_source": by_source,
+            "usage_state": usage_state,
+            "usage_quality": usage_quality,
+            "has_estimates": "estimated" in settled_sources,
             **{
                 f"{dimension}_{suffix}": int(source.get(dimension, 0))
                 for dimension in ("model_total_tokens", "tool_calls", "bytes_scanned")

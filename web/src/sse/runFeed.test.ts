@@ -84,6 +84,7 @@ const RUNNING_SNAPSHOT: HpRunSnapshot = {
     started_at: null,
     finished_at: null,
     updated_at: "2026-08-08T00:00:00Z",
+    budget: null,
   },
   assistant_message: {
     message_id: "am-1",

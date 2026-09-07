@@ -86,6 +86,42 @@ export interface HpFailure {
   retryable: boolean;
 }
 
+export interface HpTokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+
+export interface HpUsageCounter {
+  used: number;
+  reserved: number;
+  limit: number;
+}
+
+export interface HpRunBudget {
+  status: "ok" | "exhausted" | "closed";
+  mode: "off" | "observe" | "enforce";
+  policy_version: string;
+  tokens: { input: HpUsageCounter; output: HpUsageCounter; total: HpUsageCounter };
+  model_calls: {
+    settled: number;
+    in_flight: number;
+    unmetered: number;
+    total_attempts: number;
+    limit: number;
+  };
+  by_source: Record<"provider" | "measured" | "estimated", HpTokenUsage>;
+  usage_state: "none" | "in_flight" | "complete" | "partial";
+  usage_quality: "none" | "provider" | "estimated" | "mixed";
+  has_estimates: boolean;
+  model_total_tokens_used: number;
+  model_total_tokens_limit: number;
+  tool_calls_used: number;
+  tool_calls_limit: number;
+  bytes_scanned_used: number;
+  bytes_scanned_limit: number;
+}
+
 export interface HpRun {
   run_id: string;
   conversation_id: string;
@@ -100,6 +136,7 @@ export interface HpRun {
   started_at: string | null;
   finished_at: string | null;
   updated_at: string;
+  budget: HpRunBudget | null;
 }
 
 export interface HpRunSnapshot {

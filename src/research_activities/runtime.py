@@ -69,6 +69,13 @@ class ResearchActivities:
         self.trace = PostgresTraceRepository(database)
         self.task_commands = ResearchTaskCommandService(database)
 
+    @staticmethod
+    def _attempt() -> int:
+        try:
+            return int(activity.info().attempt)
+        except RuntimeError:
+            return 1
+
     @activity.defn
     async def trigger_scheduled_research_activity(
         self, request: dict[str, Any]
@@ -602,7 +609,8 @@ class ResearchActivities:
         if not evidence:
             raise ValueError("research report requires persisted EvidenceItems")
         with model_budget_scope(
-            self.budget, str(run_id), f"research:{run_id}:Synthesis:model:v1", final_response=True
+            self.budget, str(run_id), f"research:{run_id}:Synthesis:model:v1",
+            execution_attempt=self._attempt(), final_response=True,
         ):
             report = await self.synthesis.synthesize(
                 str(plan["objective"]), [dict(row) for row in evidence]

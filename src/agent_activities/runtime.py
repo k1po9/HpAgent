@@ -306,6 +306,7 @@ class DurableAgentActivities:
                     with model_budget_scope(
                         self.run_budget, request.run_id,
                         f"{request.operation_id}:memory-rewrite",
+                        execution_attempt=self._attempt(),
                     ):
                         recall_query, rewrite_context = await self.brain.rewrite_recall_query(
                             user_content=loaded.user_content,
@@ -488,6 +489,7 @@ class DurableAgentActivities:
                 self.actions.reset_turn(request.session_id, request.run_id)
                 with model_budget_scope(
                     self.run_budget, request.run_id, request.operation_id,
+                    execution_attempt=self._attempt(),
                     final_response=request.final_only,
                 ):
                     if request.final_only:
@@ -887,6 +889,7 @@ class DurableAgentActivities:
                         with model_budget_scope(
                             self.run_budget, request.run_id,
                             f"{request.operation_id}:tool-summary",
+                            execution_attempt=self._attempt(),
                         ):
                             result_value = await self.actions.execute_request(
                                 action,
@@ -1171,7 +1174,8 @@ class DurableAgentActivities:
             position = 1 if planning_messages and planning_messages[0].get("role") == "system" else 0
             planning_messages.insert(position, planning_instruction)
             with model_budget_scope(
-                self.run_budget, request.run_id, request.operation_id
+                self.run_budget, request.run_id, request.operation_id,
+                execution_attempt=self._attempt(),
             ):
                 decision = await self.brain.generate_final_decision(
                     messages=planning_messages
@@ -1343,7 +1347,8 @@ class DurableAgentActivities:
         )
         try:
             with model_budget_scope(
-                self.run_budget, request.run_id, request.operation_id
+                self.run_budget, request.run_id, request.operation_id,
+                execution_attempt=self._attempt(),
             ):
                 model_result = await self.brain.generate_final_decision(
                     messages=evaluation_messages

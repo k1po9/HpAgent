@@ -238,11 +238,9 @@ class ResourcePool(IResources):
             except (ModelAPIError, ConnectionError, TimeoutError) as e:
                 if should_settle and reservation is not None:
                     await asyncio.to_thread(
-                        budget_context.service.settle,
+                        budget_context.service.release,
                         budget_context.run_id,
                         budget_operation_id,
-                        reservation,
-                        "estimated",
                     )
                     should_settle = False
                 elapsed = (time.monotonic() - t0) * 1000

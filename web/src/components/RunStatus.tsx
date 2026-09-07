@@ -8,6 +8,7 @@ import {
   runStatusLabel,
 } from "../store/workbench";
 import { phaseLabel } from "./progressLabels";
+import { formatTokenCount, tokenUsagePrefix } from "../utils/tokenUsage";
 
 interface RunStatusProps {
   activeRun: HpRun | null;
@@ -46,6 +47,7 @@ export function RunStatus({
   const retryable = activeRun !== null && isRetryableRun(activeRun);
   const running = activeRun !== null && !isTerminalRunStatus(activeRun.status);
   const unsafeSideEffect = activeRun?.status === "failed" && activeRun.failure?.retryable === false;
+  const budget = activeRun?.budget;
 
   return (
     <Box className="hp-runstrip">
@@ -74,6 +76,19 @@ export function RunStatus({
           {progress ? (
             <Text size="2" color="gray" data-testid="run-progress">
               {progress.summary || phaseLabel(progress.phase)}
+            </Text>
+          ) : null}
+          {budget && budget.usage_state !== "none" ? (
+            <Text size="2" color="gray" data-testid="run-token-usage">
+              {tokenUsagePrefix(budget)}
+              {formatTokenCount(budget.tokens.total.used)} tokens
+              {budget.tokens.total.reserved > 0
+                ? ` · ≤${formatTokenCount(budget.tokens.total.reserved)} 预留`
+                : ""}
+              {budget.model_calls.total_attempts > 0
+                ? ` · ${budget.model_calls.total_attempts} 次模型请求`
+                : ""}
+              {budget.model_calls.unmetered > 0 ? " · 部分用量无法确认" : ""}
             </Text>
           ) : null}
           {unsafeSideEffect ? (
