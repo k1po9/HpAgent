@@ -23,6 +23,7 @@ import pytest
 import redis.asyncio as aioredis
 from uuid6 import uuid7
 
+from agent_execution.run_budget import RunBudgetService
 from web_api.sse import SSEGateway
 
 pytestmark = pytest.mark.postgres
@@ -338,6 +339,10 @@ def test_sse_http_terminal_snapshot_refresh_recovery(
     assert [frame["event_type"] for frame in frames] == ["run.snapshot"]
     snapshot = frames[0]["payload"]["snapshot"]
     assert snapshot["run"]["status"] == "completed"
+    assert snapshot["run"]["budget"] is not None
+    assert snapshot["run"]["budget"]["usage_state"] == "none"
+    assert "tokens" in snapshot["run"]["budget"]
+    assert "model_calls" in snapshot["run"]["budget"]
     assert snapshot["assistant_message"]["content"] == "terminal content"
     assert frames[0]["stream_id"] is None
     assert frames[0]["event_seq"] is None
@@ -478,6 +483,10 @@ async def test_sse_snapshot_and_handshake_ordering(
     try:
         snapshot = await reader.expect("run.snapshot")
         assert snapshot["payload"]["snapshot"]["run"]["status"] == "running"
+        budget = snapshot["payload"]["snapshot"]["run"]["budget"]
+        assert budget is not None
+        assert budget["usage_state"] == "none"
+        assert "tokens" in budget and "model_calls" in budget
         assert snapshot["payload"]["snapshot"]["assistant_message"]["status"] == "pending"
         assert snapshot["stream_id"] is None and snapshot["event_seq"] is None
 
@@ -613,7 +622,7 @@ async def test_sse_handshake_buffer_overflow_degrades(
     ],
 )
 async def test_sse_terminal_via_publisher(
-    client_factory, seed_identity, redis_url, sync_redis, db,
+    client_factory, seed_identity, redis_url, sync_redis, db, worker_database_url,
     status, terminal_event, message_status,
 ):
     """API-012: the Outbox-driven Terminal Event Publisher turns a committed
@@ -623,6 +632,16 @@ async def test_sse_terminal_via_publisher(
     client = client_factory(redis_url=redis_url, fake_enabled=True, fake_mode="hold")
     csrf = login(client)
     run = create_running_run(client, csrf)
+    budget_service = RunBudgetService(worker_database_url)
+    operation_id = f"{run['run_id']}:model:a1:i1:f1:test"
+    budget_service.reserve(run["run_id"], operation_id, {
+        "model_input_tokens": 20, "model_output_tokens": 10,
+        "model_total_tokens": 30, "model_calls": 1,
+    })
+    budget_service.settle(run["run_id"], operation_id, {
+        "model_input_tokens": 10, "model_output_tokens": 2,
+        "model_total_tokens": 12, "model_calls": 1,
+    }, "provider")
     gateway, redis_client = await make_gateway(client, redis_url)
     reader = StreamReader(
         gateway.stream(account_id, UUID(run["run_id"]), "", acquired=True)
@@ -643,6 +662,11 @@ async def test_sse_terminal_via_publisher(
         assert terminal["event_seq"] is None
         snapshot = terminal["payload"]["snapshot"]
         assert snapshot["run"]["status"] == status
+        terminal_budget = snapshot["run"]["budget"]
+        assert terminal_budget["tokens"]["total"]["used"] == 12
+        assert terminal_budget["model_calls"]["settled"] == 1
+        get_budget = client.get(f"/api/v1/runs/{run['run_id']}").json()["run"]["budget"]
+        assert terminal_budget == get_budget
         assert snapshot["assistant_message"]["status"] == message_status
         assert snapshot["assistant_message"]["message_id"] == run["message_id"]
         if content is not None:
@@ -772,4 +796,3 @@ async def test_sse_auth_expired_on_keepalive(
     finally:
         await reader.close()
         await redis_client.aclose()
-

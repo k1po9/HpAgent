@@ -8,6 +8,7 @@ from agent_execution.tracing.models import TraceEventNode, TraceTree
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound, VersionConflict
 from web_domain.failures import is_failure_retryable
+from web_domain.run_usage_projection import load_run_budget_projection
 
 from .security import CursorCodec, CursorError
 
@@ -60,92 +61,6 @@ def file_dto(row: dict[str, Any]) -> dict[str, Any]:
         "download_url": (
             f"/api/v1/files/{row['file_id']}/content" if row["status"] == "ready" else None
         ),
-    }
-
-
-def budget_dto(
-    row: dict[str, Any] | None,
-    usage_rows: list[dict[str, Any]] | None = None,
-) -> dict[str, Any] | None:
-    if row is None:
-        return None
-    limits, used, reserved = row["limits"], row["used"], row["reserved"]
-    by_source = {
-        source: {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
-        for source in ("provider", "measured", "estimated")
-    }
-    calls = {"settled": 0, "in_flight": 0, "unmetered": 0}
-    settled_sources: set[str] = set()
-    token_keys = {
-        "model_input_tokens": "input_tokens",
-        "model_output_tokens": "output_tokens",
-        "model_total_tokens": "total_tokens",
-    }
-    for usage_row in usage_rows or []:
-        state = str(usage_row["state"])
-        dimension = str(usage_row["dimension"])
-        source = usage_row.get("usage_source")
-        count = int(usage_row.get("operation_count") or 0)
-        if dimension == "model_calls":
-            if state == "settled":
-                calls["settled"] += count
-            elif state == "reserved":
-                calls["in_flight"] += count
-            elif state == "released":
-                calls["unmetered"] += count
-        if state == "settled" and source in by_source and dimension in token_keys:
-            by_source[source][token_keys[dimension]] += int(
-                usage_row.get("actual_sum") or 0
-            )
-            settled_sources.add(str(source))
-
-    if calls["unmetered"]:
-        usage_state = "partial"
-    elif calls["in_flight"]:
-        usage_state = "in_flight"
-    elif calls["settled"]:
-        usage_state = "complete"
-    else:
-        usage_state = "none"
-    token_sources = settled_sources & {"provider", "estimated"}
-    if token_sources == {"provider"}:
-        usage_quality = "provider"
-    elif token_sources == {"estimated"}:
-        usage_quality = "estimated"
-    elif token_sources:
-        usage_quality = "mixed"
-    else:
-        usage_quality = "none"
-
-    def counter(dimension: str) -> dict[str, int]:
-        return {
-            "used": int(used.get(dimension, 0)),
-            "reserved": int(reserved.get(dimension, 0)),
-            "limit": int(limits.get(dimension, 0)),
-        }
-
-    return {
-        "status": row["status"], "mode": row["mode"],
-        "policy_version": row["policy_version"],
-        "tokens": {
-            "input": counter("model_input_tokens"),
-            "output": counter("model_output_tokens"),
-            "total": counter("model_total_tokens"),
-        },
-        "model_calls": {
-            **calls,
-            "total_attempts": sum(calls.values()),
-            "limit": int(limits.get("model_calls", 0)),
-        },
-        "by_source": by_source,
-        "usage_state": usage_state,
-        "usage_quality": usage_quality,
-        "has_estimates": "estimated" in settled_sources,
-        **{
-            f"{dimension}_{suffix}": int(source.get(dimension, 0))
-            for dimension in ("model_total_tokens", "tool_calls", "bytes_scanned")
-            for suffix, source in (("used", used), ("limit", limits))
-        },
     }
 
 
@@ -414,21 +329,8 @@ class QueryService:
         files = self._message_files(
             uow, row["account_id"], [row["m_message_id"]]
         ).get(row["m_message_id"], [])
-        budget = uow.execute(
-            "SELECT * FROM run_budgets WHERE run_id=%s", (row["run_id"],)
-        ).fetchone()
-        usage_rows = uow.execute(
-            "SELECT state,usage_source,dimension,"
-            "SUM(COALESCE(actual_amount,0)) AS actual_sum,"
-            "SUM(reserved_amount) AS reserved_sum,"
-            "COUNT(DISTINCT operation_id) AS operation_count "
-            "FROM run_usage_ledger WHERE run_id=%s AND dimension IN "
-            "('model_input_tokens','model_output_tokens','model_total_tokens','model_calls') "
-            "GROUP BY state,usage_source,dimension",
-            (row["run_id"],),
-        ).fetchall()
         run = run_dto(row)
-        run["budget"] = budget_dto(budget, usage_rows)
+        run["budget"] = load_run_budget_projection(uow, row["run_id"])
         return {"run": run, "assistant_message": message_dto(message, files)}
 
     @staticmethod

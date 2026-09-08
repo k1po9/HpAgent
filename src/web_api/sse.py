@@ -28,6 +28,7 @@ from uuid6 import uuid7
 from common.logging import log_event
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound
+from web_domain.run_usage_projection import load_run_budget_projection
 
 from .config import WebApiSettings
 from .queries import message_dto, run_dto
@@ -82,7 +83,9 @@ def load_run_snapshot(database: object, account_id: UUID, run_id: UUID) -> dict[
             "created_at": row["m_created_at"],
             "completed_at": row["m_completed_at"],
         }
-        return {"run": run_dto(row), "assistant_message": message_dto(message)}
+        run = run_dto(row)
+        run["budget"] = load_run_budget_projection(uow, row["run_id"])
+        return {"run": run, "assistant_message": message_dto(message)}
 
 
 def envelope(
