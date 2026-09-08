@@ -10,7 +10,7 @@ from common.errors import ModelAPIError
 from common.model_usage import canonical_model_usage
 from common.types import ModelResponse
 from resources.resource_pool import ResourcePool
-from web_api.queries import budget_dto
+from web_domain.run_usage_projection import budget_dto
 
 
 def test_canonical_usage_normalizes_both_provider_dialects() -> None:
@@ -158,6 +158,61 @@ async def test_provider_fallback_attempts_are_accounted_separately(monkeypatch) 
         "model_calls": 1,
     }
     assert settlements[0][-1] == "provider"
+
+
+@pytest.mark.asyncio
+async def test_successful_latency_fallback_settles_both_provider_attempts(
+    monkeypatch,
+) -> None:
+    calls: list[tuple] = []
+    clock = [0.0]
+
+    async def direct(function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr("resources.resource_pool.asyncio.to_thread", direct)
+    monkeypatch.setattr("resources.resource_pool.time.monotonic", lambda: clock[0])
+
+    class Budget:
+        def reserve(self, run_id, operation_id, values, **kwargs):
+            calls.append(("reserve", operation_id))
+            return SimpleNamespace(replayed=False, state="reserved")
+
+        def settle(self, run_id, operation_id, values, source):
+            calls.append(("settle", operation_id, values, source))
+
+        def release(self, run_id, operation_id):
+            calls.append(("release", operation_id))
+
+    class Client:
+        _max_tokens = 20
+        model = "test-model"
+        provider = "test"
+
+        def __init__(self, elapsed: float, total: int):
+            self.elapsed, self.total = elapsed, total
+
+        async def generate(self, **kwargs):
+            clock[0] += self.elapsed
+            return ModelResponse(content="ok", usage={
+                "input_tokens": self.total - 1, "output_tokens": 1,
+                "total_tokens": self.total,
+            })
+
+    pool = ResourcePool(SimpleNamespace())
+    pool._model_clients = {
+        "slow": {"client": Client(2.0, 5)},
+        "fast": {"client": Client(0.1, 7)},
+    }
+    pool._fallback_groups = {"chat": ["slow", "fast"]}
+    with model_budget_scope(Budget(), "run-1", "decision-1"):
+        await pool.generate(
+            [{"role": "user", "content": "hello"}],
+            model_selector="chat", latency_budget=1.0,
+        )
+
+    assert [call[0] for call in calls] == ["reserve", "settle", "reserve", "settle"]
+    assert [call[2]["model_total_tokens"] for call in calls if call[0] == "settle"] == [5, 7]
 
 
 def test_provider_attempt_identity_includes_activity_attempt_and_stays_bounded() -> None:
