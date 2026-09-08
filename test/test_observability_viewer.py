@@ -54,6 +54,25 @@ def test_tool_semantic_failure_and_json_inspector_controls_are_rendered() -> Non
     assert '<details class="state" open>' in html
 
 
+def test_frontend_failures_and_empty_state_are_diagnostic() -> None:
+    html = viewer.HTML
+    assert "No executions loaded" in html
+    assert "function emptyExecutionsHtml()" in html
+    assert "console.error('viewer poll failed:'" in html
+    assert "console.error('viewer execution load failed:'" in html
+    assert "console.error('viewer debug load failed:'" in html
+    assert "console.error('viewer detail render failed:'" in html
+    assert "if(!n||n.component!=='tool')" in html
+
+
+def test_json_rendering_has_card_level_fallback() -> None:
+    html = viewer.HTML
+    assert "function safeJsonStringify(data)" in html
+    assert "text===undefined?'null':text" in html
+    assert "viewer_error:'json_render_failed'" in html
+    assert "console.error('JSON render failed:'" in html
+
+
 def _write(path: Path, *records: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
@@ -239,6 +258,73 @@ def test_observatory_merges_web_logs_and_authoritative_run(tmp_path: Path, monke
     assert execution["trace_key"] == "r1"
     assert execution["status"] == "success"
     assert execution["authoritative_status"] == "completed"
+
+
+def test_postgres_run_is_visible_without_jsonl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    postgres = viewer.PostgresReader("postgresql://example")
+    monkeypatch.setattr(postgres, "recent_runs", lambda: [{
+        "run_id": "database-run", "workflow_id": "wf1", "session_id": "s1",
+        "account_id": "a1", "conversation_id": "c1",
+        "created_at": "2026-08-12T01:00:00Z",
+        "updated_at": "2026-08-12T01:00:02Z", "status": "completed",
+        "trigger_content": "from database",
+    }])
+    observatory = viewer.Observatory(
+        viewer.IncrementalJsonlReader(tmp_path), postgres,
+        viewer.QQSessionReader(tmp_path / "wal", tmp_path / "workspace"),
+    )
+
+    assert [item["trace_key"] for item in observatory.executions()] == [
+        "database-run"
+    ]
+
+
+def test_jsonl_execution_is_visible_when_postgres_is_unavailable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(
+        tmp_path / "hpagent.jsonl",
+        _log("agent_execution_completed", execution_id="log-run", status="success"),
+    )
+    postgres = viewer.PostgresReader("postgresql://unavailable")
+    monkeypatch.setattr(postgres, "recent_runs", lambda: [])
+    observatory = viewer.Observatory(
+        viewer.IncrementalJsonlReader(tmp_path), postgres,
+        viewer.QQSessionReader(tmp_path / "wal", tmp_path / "workspace"),
+    )
+
+    assert [item["trace_key"] for item in observatory.executions()] == ["log-run"]
+
+
+def test_health_exposes_source_diagnostics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write(tmp_path / "hpagent.jsonl", _log("done", execution_id="e1"))
+    postgres = viewer.PostgresReader("postgresql://example")
+    monkeypatch.setattr(postgres, "recent_runs", lambda: [{"run_id": "r1"}])
+    observatory = viewer.Observatory(
+        viewer.IncrementalJsonlReader(tmp_path), postgres,
+        viewer.QQSessionReader(tmp_path / "wal", tmp_path / "workspace"),
+    )
+
+    sources = observatory.health()["sources"]
+    assert sources["jsonl"] == {
+        "status": "ok", "log_dir": str(tmp_path.resolve()), "exists": True,
+        "files": 1, "events_cached": 1, "parse_errors": 0,
+    }
+    assert sources["postgres"]["status"] == "ok"
+    assert sources["postgres"]["recent_run_count"] == 1
+
+
+def test_database_target_never_exposes_credentials() -> None:
+    target = viewer.database_target(
+        "postgresql://viewer:top-secret@db.example:5434/hpagent"
+    )
+    assert target == "db.example:5434/hpagent (read-only)"
+    assert "viewer" not in target
+    assert "top-secret" not in target
 
 
 def test_execution_detail_has_per_trace_memory_bound(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
