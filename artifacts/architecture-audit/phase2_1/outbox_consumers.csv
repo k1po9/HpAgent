@@ -1,0 +1,8 @@
+﻿event_type,producer,consumer,evidence
+start_run,src/web_domain/services.py,src/orchestration/web_dispatcher.py::WebOutboxDispatcher.run_once,src/web_domain/services.py:206;src/orchestration/web_dispatcher.py:304
+cancel_run,src/web_domain/services.py,src/orchestration/web_dispatcher.py::WebOutboxDispatcher.run_once,src/web_domain/services.py:214;src/orchestration/web_dispatcher.py:304
+start_research_run,src/research_domain/services.py,src/orchestration/web_dispatcher.py::WebOutboxDispatcher.run_once,src/research_domain/services.py:184;src/orchestration/web_dispatcher.py:104
+file_action_approval_decided,src/file_domain/approvals.py,src/orchestration/web_dispatcher.py::WebOutboxDispatcher.run_once,src/file_domain/approvals.py:72;src/orchestration/web_dispatcher.py:305
+publish_terminal_event,src/web_domain/services.py,src/web_api/terminal_publisher.py::TerminalEventPublisher._run,src/web_domain/services.py:394;src/web_api/terminal_publisher.py:3
+retain_memory,src/web_domain/services.py,src/orchestration/memory_retention_worker.py::run_memory_retention_loop,src/web_domain/services.py:393;src/orchestration/memory_retention_worker.py:1
+start_artifact_build,src/web_artifacts/services.py,src/orchestration/artifact_dispatcher.py::ArtifactOutboxDispatcher.run_once,src/web_artifacts/services.py:212;src/orchestration/artifact_dispatcher.py:53

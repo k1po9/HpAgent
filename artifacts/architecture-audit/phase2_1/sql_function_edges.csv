@@ -1,0 +1,2 @@
+﻿source,target,edge_type,evidence,config_gates,confidence,detail
+src/research_domain/persistence.py::ResearchRepository.publish_report_artifact,SQL_FUNCTION:publish_research_artifact,SQL_FUNCTION_CALL,src/research_domain/persistence.py:535,SQL transaction reaches call,HIGH,schema definition inspected

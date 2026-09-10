@@ -1,0 +1,273 @@
+{
+  "repository": "k1po9/HpAgent",
+  "branch": "feat/hpagent-web",
+  "head": "4ab07fbddf33e9a0dc652833acd9edd519e21fea",
+  "guide_baseline": "4ab07fbddf33e9a0dc652833acd9edd519e21fea",
+  "baseline_difference": false,
+  "audit_mode": "read_only_source_artifacts_added",
+  "started_worktree_status": "",
+  "generated_at": "2026-09-09T18:42:18.416741+00:00",
+  "files_scanned": 1078,
+  "python_files": 376,
+  "backend_python_files": 239,
+  "frontend_source_files": 44,
+  "test_files": 144,
+  "script_files": 37,
+  "workflow_definitions": 14,
+  "activity_definitions": 37,
+  "runtime_roots": 8,
+  "production_roots": 7,
+  "dependency_edges": 4402,
+  "runtime_edges": 10813,
+  "reviewed_runtime_edges": 135,
+  "truth_rows": 1609,
+  "truth_file_asset_rows": 530,
+  "unknown_rows": 256,
+  "unresolved_items": 83,
+  "http_routes": 42,
+  "http_routes_including_tests": 44,
+  "syntax_errors": [],
+  "file_reachability_counts": {
+    "GENERATED_OR_DATA": 76,
+    "OPS_ADMIN": 26,
+    "BENCHMARK": 12,
+    "DEV_ONLY": 6,
+    "UNKNOWN": 47,
+    "PROD_CONDITIONAL": 201,
+    "EXPERIMENTAL_REJECTED": 13,
+    "PROD_DIRECT": 5,
+    "TEST_ONLY": 144
+  },
+  "all_row_reachability_counts": {
+    "GENERATED_OR_DATA": 76,
+    "OPS_ADMIN": 30,
+    "BENCHMARK": 12,
+    "DEV_ONLY": 6,
+    "UNKNOWN": 256,
+    "PROD_CONDITIONAL": 895,
+    "EXPERIMENTAL_REJECTED": 126,
+    "PROD_DIRECT": 64,
+    "TEST_ONLY": 144
+  },
+  "fact_flags_top10": [
+    [
+      "UNRESOLVED_DYNAMIC_EDGE",
+      47
+    ],
+    [
+      "LARGE_HOTSPOT",
+      26
+    ],
+    [
+      "HIGH_FAN_IN",
+      15
+    ],
+    [
+      "PRODUCTION_REJECTED",
+      14
+    ],
+    [
+      "EXPERIMENTAL_CODE",
+      13
+    ],
+    [
+      "HIGH_FAN_OUT",
+      12
+    ],
+    [
+      "ARCHITECTURE_DRIFT",
+      6
+    ],
+    [
+      "PACKAGE_BOUNDARY_CROSSING",
+      3
+    ],
+    [
+      "HISTORY_COMPATIBILITY",
+      3
+    ],
+    [
+      "MIGRATION_GATE",
+      3
+    ]
+  ],
+  "excluded": [
+    ".git",
+    ".venv",
+    "node_modules",
+    "web/node_modules",
+    "web/dist",
+    "dist build output",
+    "__pycache__",
+    ".data",
+    ".env private deployment state",
+    "logs/volumes/caches"
+  ],
+  "method": {
+    "python": "stdlib AST, relative imports, TYPE_CHECKING, exact reexports; calls/constructors/typed receivers; manual DI and registry corrections",
+    "frontend": "installed TypeScript compiler AST; imports/types/value-use module graph",
+    "reachability": "source-proven possible invocation, not live telemetry; path-local conditions retained; root membership never inferred from imports",
+    "ownership": "reviewed package responsibilities + file definitions + SQL literal extraction; unknown dynamic reads not invented",
+    "symbols": "all definitions for hotspots; symbol gaps explicitly grouped in unresolved"
+  },
+  "validation": {
+    "python_ast": "376 Python files parse successfully; no business imports",
+    "frontend_typecheck": "PASS",
+    "frontend_lint": "PASS",
+    "compose_config_quiet": "PASS",
+    "source_coverage": "PASS",
+    "backend_python_file_rows": 239,
+    "frontend_ts_tsx_file_rows": 44,
+    "entity_ids_unique": "PASS",
+    "manifest_counts": "PASS",
+    "required_outputs": "PASS",
+    "all_production_file_rows_have_explicit_proof": "PASS",
+    "all_unknown_files_have_unresolved_item": "PASS",
+    "evidence_paths_and_line_bounds": "PASS (existence/bounds, not independent semantic verification)",
+    "tracked_diff_check": "PASS",
+    "untracked_artifact_whitespace_check": "PASS",
+    "tracked_changes": [],
+    "new_artifact_count": 39,
+    "source_modifications": false,
+    "excalidraw_modifications": false,
+    "refinement_integrity": "PASS",
+    "validated_at": "2026-09-10T05:08:40.057856+00:00",
+    "python_ast_files": 376
+  },
+  "production_code_modified": false,
+  "excalidraw_modified": false,
+  "compose_services": 17,
+  "ops_entrypoints": 35,
+  "schema_objects": 63,
+  "guide_adjustments": [
+    "Use python3 AST parse instead of compileall to avoid writing pycache",
+    "Installed TypeScript AST instead of regex for frontend",
+    "Extra proof/registry/routes/storage/hypothesis/archaeology evidence artifacts",
+    "Keep source and all existing documentation unchanged; drift recorded only in audit output",
+    "DoD follows section 24 scan/evidence/unresolved criteria; UNKNOWN=0 and exhaustive external side-effect proof are not imposed as additional completion requirements"
+  ],
+  "commands": [
+    {
+      "command": "git status --short; git branch --show-current; git rev-parse HEAD; git log -1 --oneline",
+      "result": "clean; feat/hpagent-web; 4ab07fbddf33e9a0dc652833acd9edd519e21fea"
+    },
+    {
+      "command": "python /tmp/hp_arch_scan.py",
+      "result": "exit 127: no python alias; replaced by python3"
+    },
+    {
+      "command": "python3 /tmp/hp_arch_scan.py",
+      "result": "PASS; stdlib AST scan"
+    },
+    {
+      "command": "node /tmp/hp_arch_ts.cjs",
+      "result": "PASS; existing TypeScript compiler AST"
+    },
+    {
+      "command": "python3 /tmp/hp_arch_report.py",
+      "result": "PASS; curated edges, truth rows, proof search"
+    },
+    {
+      "command": "npm run typecheck",
+      "cwd": "web",
+      "result": "PASS; exit 0"
+    },
+    {
+      "command": "npm run lint",
+      "cwd": "web",
+      "result": "PASS; exit 0"
+    },
+    {
+      "command": "docker compose config --quiet",
+      "result": "PASS; exit 0"
+    },
+    {
+      "command": "cmp -s requirements.txt src/requirements.txt",
+      "result": "identical; exit 0"
+    },
+    {
+      "command": "git log -60; git log --diff-filter=A -- selected module paths",
+      "result": "local history read only"
+    },
+    {
+      "command": "python3 /tmp/hp_arch_validate.py; git diff --check; git diff --no-index --check /dev/null <each artifact>",
+      "result": "PASS: coverage, counts, unique IDs, proof presence, evidence line bounds, tracked and untracked whitespace, path-only mutations"
+    },
+    {
+      "command": "python3 artifacts/architecture-audit/phase2_1/audit_tools/refine_evidence.py",
+      "result": "source-only concrete binding/framework/tool registry and state effect refinement"
+    },
+    {
+      "command": "python3 artifacts/architecture-audit/phase2_1/audit_tools/refine_evidence.py",
+      "result": "source-only concrete binding/framework/tool registry and state effect refinement"
+    }
+  ],
+  "required_artifacts": [
+    "00_audit_summary.md",
+    "01_repository_inventory.md",
+    "02_entrypoints_and_composition_roots.md",
+    "03_architecture_truth_table.md",
+    "04_runtime_reachability.md",
+    "05_architecture_drift_and_fact_flags.md",
+    "architecture_truth_table.csv",
+    "dependency_edges.csv",
+    "runtime_edges.csv",
+    "repository_inventory.csv",
+    "unresolved_items.csv",
+    "audit_manifest.json"
+  ],
+  "dod_status": "COMPLETE_FOR_GUIDE_SECTION_24_OFFLINE_AUDIT_WITH_REGISTERED_UNKNOWNS",
+  "use_boundary": "Useful for architecture/module orientation and narrowing Phase 2.2 investigations; not sufficient alone to approve deletions or compatibility retirement",
+  "output_files": [
+    "00_audit_summary.md",
+    "01_repository_inventory.md",
+    "02_entrypoints_and_composition_roots.md",
+    "03_architecture_truth_table.md",
+    "04_runtime_reachability.md",
+    "05_architecture_drift_and_fact_flags.md",
+    "06_archaeology_and_module_boundaries.md",
+    "architecture_drift.csv",
+    "architecture_truth_table.csv",
+    "audit_manifest.json",
+    "audit_tools/finalize_audit.py",
+    "audit_tools/refine_evidence.py",
+    "compose_services.csv",
+    "composition_bindings.csv",
+    "config_gates.csv",
+    "data_accesses.csv",
+    "dependency_edges.csv",
+    "frontend_symbols.csv",
+    "history_evidence.tsv",
+    "hotspots.csv",
+    "http_routes.csv",
+    "hypothesis_results.csv",
+    "ops_entrypoints.csv",
+    "outbox_consumers.csv",
+    "reachability_proofs.csv",
+    "refined_runtime_edges.csv",
+    "repository_inventory.csv",
+    "resolved_items.csv",
+    "reviewed_runtime_edges.csv",
+    "runtime_edges.csv",
+    "runtime_roots.csv",
+    "schema_objects.csv",
+    "sql_function_edges.csv",
+    "state_effects.csv",
+    "storage_ownership.csv",
+    "symbol_calls.csv",
+    "temporal_and_dynamic_registrations.csv",
+    "unresolved_items.csv",
+    "validation_report.json"
+  ],
+  "output_artifact_count": 39,
+  "refinement_runtime_edges": 2115,
+  "concrete_receiver_bindings": 77,
+  "resolved_item_groups": 26,
+  "state_effects": 836,
+  "sql_function_edges": 1,
+  "evidence_limits": [
+    "Remaining symbol/receiver and structural reachability uncertainties are registered in unresolved_items.csv",
+    "State effects distinguish schema-known SQL resources, stored-function calls, and lexical candidates; external tools, triggers and live execution effects are not exhaustively proven"
+  ],
+  "updated_at": "2026-09-10T05:08:40.057856+00:00"
+}
