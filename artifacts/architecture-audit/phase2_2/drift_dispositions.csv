@@ -1,0 +1,11 @@
+﻿drift_id,decision_ids,disposition,target,review_note,status
+D01,ACD-01;ACD-14,UPDATE_DESIGN_DOC,docs/architecture/single_agent/03_component.md,把单 loop 唯一性限定 QQ/legacy，新增 durable 控制流；登记 visual drift,PROPOSED_NOT_APPLIED
+D02,ACD-14;ACD-16,UPDATE_DESIGN_DOC,docs/architecture/single_agent/02_container.md,补外部依赖/Document Activity 进程，区分测试 profile 与生产拓扑,PROPOSED_NOT_APPLIED
+D03,ACD-03;ACD-14,ANNOTATE_HISTORICAL_SCOPE,docs/architecture/refactor-closure-report.md,限制 legacy 表述到实验模块，标注 protocol 生产用途,PROPOSED_NOT_APPLIED
+D04,ACD-01;ACD-09;ACD-14,UPDATE_DESIGN_DOC,docs/architecture/single_agent/04_sequence.md,区分 legacy/durable、approval/fencing；closure report 保留日期范围,PROPOSED_NOT_APPLIED
+D05,ACD-08,CHANGE_CONFIG_CONTRACT,src/orchestration/config.py,缺省 napcat、显式空列表、错误配置启动校验；实施后才能关闭漂移,PROPOSED_NOT_APPLIED
+D06,ACD-12;ACD-14,CORRECT_DOCSTRING,src/orchestration/web_activities.py,说明含 legacy execute_agent adapter，不为修注释立即拆所有 Activities,PROPOSED_NOT_APPLIED
+D07,ACD-04;ACD-14,CORRECT_DOCSTRING,src/session/store.py,描述 TurnMemory/bootstrap 实际消费者，保留状态实现,PROPOSED_NOT_APPLIED
+D08,ACD-05;ACD-16,SEED_CORRECTION_ALREADY_IN_2_1,artifacts/architecture-audit/phase2_1/04_runtime_reachability.md,沿用 lifecycle Workflow + 独立 document Activity 的纠正事实，不创建代码修复,FACT_CORRECTED_IN_PHASE2_1
+D09,ACD-07,SEED_CORRECTION_ALREADY_IN_2_1,artifacts/architecture-audit/phase2_1/04_runtime_reachability.md,沿用两条发布链，不以统一示意图倒推实现合并,FACT_CORRECTED_IN_PHASE2_1
+D10,ACD-03;ACD-08;ACD-14,ALIGN_CONFIG_AND_COMMENT,src/orchestration/config.py,明确当前总会解析；未来 single 跳过实验定义后同步 agents.yaml 注释,PROPOSED_NOT_APPLIED

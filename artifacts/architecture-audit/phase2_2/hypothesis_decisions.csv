@@ -1,0 +1,18 @@
+﻿hypothesis_id,phase2_1_status,decision_ids,disposition,source,source_row_id
+H01,部分推翻,ACD-03;ACD-08,抽取生产协议并对齐实验配置合同；保留实验代码,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H01
+H02,实现与数据分别确认,ACD-04;ACD-10,生产身份归 PG；旧类与旧 JSON 分别暂缓退役,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H02
+H03,确认双启动路径与双注册,ACD-01;ACD-09,保留双启动与双注册；迁移/退役分阶段,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H03
+H04,确认仍为生产路径,ACD-01;ACD-03;ACD-09,保留 harness/loop 生产职责，不跟随 Web legacy 整包删除,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H04
+H05,确认组合热点,ACD-02,先 Web 装配、后共享依赖；保持启动关闭 owner,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H05
+H06,重新统计并扩展,ACD-11;ACD-12,MCP 有切口；其他热点按行为和需求安排,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H06
+H07,确认固定 Workflow,ACD-06;ACD-15,保留固定 Research 与领域 Repository；UI 另定产品范围,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H07
+H08,确认多层分工，修正 Worker 边界,ACD-05;ACD-16,文件分层渐进整理；Document Activity 保持独立,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H08
+H09,两条发布路径,ACD-07,明确 Artifact owner 与 Research 原子发布桥，不合并业务流水线,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H09
+H10,确认真实 handler,ACD-02;ACD-06,保持提醒注册/poll gate 与 Research Schedule 区别,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H10
+H11,确认条件入口,ACD-16,当前冻结共进程拓扑，开放 standalone 需实证,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H11
+H12,确认开发门禁,ACD-08,保留 fake executor 开发门禁，不以 import 判为生产业务,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H12
+H13,确认完全相同,ACD-13,维护源统一，保留两个真实构建输入,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H13
+H14,确认多状态边界,ACD-04;ACD-05;ACD-16,按状态生命周期保留 owner，不强行合并 store,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H14
+H15,确认 Model / Tool 分离,ACD-01;ACD-03;ACD-11,保持 Model/Tool 分离，收敛协议及 MCP 职责,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H15
+H16,确认配置/工厂错位,ACD-08,修复缺省与工厂错位，未知/不支持配置显式失败,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H16
+H17,确认合理资产分层,ACD-04;ACD-13,保留 SQL 资产与 Python runner 的合理分层,artifacts/architecture-audit/phase2_1/hypothesis_results.csv,H17

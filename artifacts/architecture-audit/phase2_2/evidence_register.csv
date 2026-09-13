@@ -1,0 +1,26 @@
+﻿evidence_id,title,path,line,claim,kind,sha256
+E01,双新启动路径与翻转后的重复启动恢复,src/orchestration/web_dispatcher.py,103,按 durable_agent_enabled 选 Workflow；AlreadyStarted 接受 legacy/durable 两种类型。,SOURCE_REVIEW,f1296567dba5ebf5e2ac4967208535b452512481ae88a6dae8a8b8ed0901a52a
+E02,双 Workflow 注册及 Document queue 边界,src/orchestration/web_workers.py,152,lifecycle 和 agent 两组定义始终列入注册；NormalizeDocumentWorkflow 在 lifecycle。,SOURCE_REVIEW,c2e5da774e2a06fc97e8ff331384ff4bc071ac2efa7ca1e6f679746295d0eab6
+E03,组合入口职责集中,src/orchestration/worker.py,103,Web Host、durable Activities、Research、Artifact 与消费者由同一组合函数装配。,SOURCE_REVIEW,43393150b0b256d64ce17268250b6dd9f5fd64729cab192624c9a4983e0aa4aa
+E04,后台任务与资源关闭,src/orchestration/worker.py,1103,关闭渠道、各后台任务及依赖资源；抽取需保留生命周期和共享实例。,SOURCE_REVIEW,43393150b0b256d64ce17268250b6dd9f5fd64729cab192624c9a4983e0aa4aa
+E05,生产协议与实验模块共包,src/agent/protocol.py,10,Brain/Action DTO 为生产依赖；agent/__init__.py 顶层加载实验类。,SOURCE_REVIEW,4588023e72c4b3f4fd3ff5e23c0a7ddffba37a04235ff8ee9f0094210dea80ea
+E06,QQ 身份与短期状态组合,src/bootstrap/qq.py,44,构造 PostgresAccountService、SessionStore、Brain/Action、Facade。,SOURCE_REVIEW,a8be8a501f33a26727421b6fa839ec57ac2aeef29244ed805741b63d4051f866
+E07,持久文件混合职责,src/file_domain/persistent.py,50,同文件含 SQL Repository 与依赖 OutputPublisher 的 PersistentWebFileService。,SOURCE_REVIEW,4feaeaa9855679f5490948d8b3d52bbfe83668c27f8645e069f5673efe5ef357
+E08,审批事务及信号寻址,src/file_domain/approvals.py,61,审批服务写 Outbox 并使用 ToolExecutionWorkflow ID 算法，非纯值对象层。,SOURCE_REVIEW,cad1d01bf525f95fbf44d36037c3b0b1717b96d2095b378cb1a7217b1e34e305
+E09,固定 Research 控制流,src/orchestration/research_workflow.py,106,固定阶段表，gap 驱动提前结束，迭代至多三轮。,SOURCE_REVIEW,cd0c4a9bd3213662de497c5ab9d4cd992a7499104c33c1d70b84b1aa7a8edb04
+E10,Research 发布桥接,src/research_domain/persistence.py,526,确定性 UUID，通过 SQL function 发布；ResearchMarkdownPublisher 另输出附件。,SOURCE_REVIEW,09c210bd1c9f1f10a306d891c268074d94724ccd7102931f3f9bb6c44ef8c52d
+E11,Research 发布原子操作,persistence/migrations/022_research_r3_r4.sql,112,函数同时写 artifacts、artifact_versions、research_reports；授权 hpagent_worker。,SOURCE_REVIEW,55947a98d39f4c93695601c3f7ad6a62e0f9b400ad93fa279f7353c7848bb297
+E12,聊天 Artifact Outbox,src/web_artifacts/services.py,207,聊天 Artifact 写 start_artifact_build 事件后由专属构建链处理。,SOURCE_REVIEW,fbe70ecdba6fda6c888f1600bc5b6ca91ff09a0190975b17d0d0800b94e75f8c
+E13,渠道配置缺省,src/orchestration/config.py,79,缺省 console；worker 的工厂仅 NapCat/OfficialQQ，仓库 YAML 指定 napcat。,SOURCE_REVIEW,28f406e597307bdd46a5e2bf33b38128b9425110187ec32111c58ff3a5b8f3ce
+E14,实验配置仍会加载,src/orchestration/config.py,668,agents.yaml 存在就解析；worker init_dependencies 仍拒绝非 single。,SOURCE_REVIEW,28f406e597307bdd46a5e2bf33b38128b9425110187ec32111c58ff3a5b8f3ce
+E15,当前 workspace 隔离能力,src/workspace/isolation.py,129,single_process_account_lock 有进程/共享账户锁约束；session_worktree 仅枚举通过不证明完整实现。,SOURCE_REVIEW,58c67cf868cb20554f86aec13dd0999340e4c843a62a35e638bd3ce4bcda941b
+E16,独立 Document Activity,src/orchestration/document_worker.py,20,只注册 normalize_document Activity，并发 1；独立 tenant reader 与 document scratch。,SOURCE_REVIEW,260403abb29d396d8276a5817aae404958385344b9ef318fbc92bd8b2994667c
+E17,MCP 多种传输,src/sandbox/tools/adapters/mcp.py,69,HTTP、SSE、stdio 三类 session，工具投影与 manager 共处一文件。,SOURCE_REVIEW,dacbc41c822b882e2d7d2ec2787540b273e9e95b299636d7df521882c703ce76
+E18,API 组合与路由热点,src/web_api/app.py,252,lifespan 连接/服务构造与 HTTP handler 在一个 create_app 内。,SOURCE_REVIEW,781eb66bb0c6ae4f780a353a76563e8035e3d0c7032135bd917706366152a9c4
+E19,Durable Activity 职责,src/agent_activities/runtime.py,64,注入 store/brain/actions/lifecycle/budget/approval/persistent；持有多个 Activity 实现。,SOURCE_REVIEW,cacaf252b645f8f320c913600c2cd99a608b38f63a0e1f800c5ccaae2ab320d4
+E20,SSE 权威快照,src/web_api/sse.py,60,从已提交 PostgreSQL Run/Message 查询快照；Redis 承担在线事件传输。,SOURCE_REVIEW,32c7842752629c7ada9c4cf0723700838ade477532009ff4aad5f1f8982db0d4
+E21,旧 JSON 运维工具,scripts/merge-account.py,48,脚本直接操作 JSON 资产；不能作为旧 AccountService 类的生产调用证明。,SOURCE_REVIEW,4f2a07e16b3f0f77cd1d9a30e0c43002ab4d6939433012bac79a616e899f7aa0
+E22,冻结 legacy History 的范围,test/test_web_temporal_replay.py,66,测试只 replay 已冻结 completed happy path；不是全量线上历史或 durable 兼容证明。,TEST_SOURCE_READ_NOT_EXECUTED,d230619d87551108753779cdb4625bb3a7ceb16f56ab248dd3be9e526be20b70
+E23,注册合同断言,test/test_durable_agent_contract.py,77,断言 lifecycle/agent 注册定义列表；本次只读未执行。,TEST_SOURCE_READ_NOT_EXECUTED,eeadbc1e8ab9526f524a3095e77aa0c5925a2c6485f715ccc2140b996c9b04c8
+E24,依赖文件的不同 build context,src/Dockerfile,35,main context=src；API/migrate context=根目录；两份 requirements 当前相同。,SOURCE_REVIEW,cc469e110ea072c2678878c63a7f8507a1c6dc3e2292621e2b66fde88eab6dda
+E25,前端当前能力范围,web/src/App.tsx,1,结合 web/src 全量搜索与 2.1 frontend_symbols，未见任务管理路由/API；仅测试附件名出现 research。,SOURCE_REVIEW,4c5354817ef92e37825ebf6206e26365541815a53483f3e1804b653bc436aff2
