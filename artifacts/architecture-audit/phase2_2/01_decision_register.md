@@ -1,9 +1,9 @@
-# 架构决策登记册 · R2
+# 架构决策登记册 · R2.1
 
 > Historical architecture evidence. Not current architecture documentation.
-> 修订 R2；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。
+> 修订 R2.1；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。
 
-用户指定的 canonical 方向已经明确；具体命名/合同/busy 策略等为审计建议。REVERSED 表示推翻原结论；REVISED 表示依新目标重写；RETAINED_AND_RESCOPED 表示保留方向并调整边界；NEW 表示新增。原 16 项全部重审，新增 17/18。本轮不采纳任何“已经完成代码改造”的状态。
+用户指定的 canonical 方向已经明确；具体命名/合同/busy 策略等为审计建议。REVERSED 表示推翻原结论；REVISED 表示依新目标重写；RETAINED_AND_RESCOPED 表示保留方向并调整边界；NEW 表示新增。R2 已重审原 16 项并新增 17/18；R2.1 只修订 01/04/17 及相关合同。本轮不采纳任何“已经完成代码改造”的状态。
 
 ## ACD-01 · Web / QQ 共用唯一 Durable Agent 主线
 
@@ -12,16 +12,16 @@
 | 修订 | REVERSED / P0 |
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
-| 源码事实 | E01;E02;E06;E09;E26;E28;E36;E37；H03；H04；H07；H15 |
-| 门禁 | G02;G03;G04;G06（见 03 的 R2 定义） |
+| 源码事实 | E01;E02;E06;E09;E26;E28;E36;E37;E44;E45；H03；H04；H07；H15 |
+| 门禁 | G02;G03;G04;G06（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** QQ 经 QQExecutionHost / Facade / DefaultBrainActionLoop；Web Dispatcher 依开关选择 legacy 或 durable。Durable Activities、loader、trace、workspace 仍带 Web 假设，尚不是渠道中立运行时。Research 已有独立固定 Workflow。
 
-**TARGET DECISION / Target：** 所有正式 Agent Run 都经 Conversation 事务、Outbox、Dispatcher、一个渠道中立生命周期 Workflow、AgentRunWorkflow、ReAct 或 Plan-and-Execute、Durable Activities。以现有 durable 链演进为唯一实现；QQ/Web 差异止于入站、身份映射、投递和呈现。Research 独立固定流程。
+**TARGET DECISION / Target：** Web/QQ 对话触发的 Agent Run 必须统一走 Conversation → PG Message/Session/Run/Outbox → Dispatcher → Durable Runtime → AgentRunWorkflow → ReAct 或 Plan-and-Execute → Durable Activities。Conversation 是 Chat 的 source/context owner；Agent Runtime 保持 surface-neutral、conversation-neutral，不要求所有来源伪造聊天实体。Research 保留独立固定流程。
 
-**Required migration/refactor：** 先建立唯一 durable 生命周期及中立输入合同，再接入 QQ。替换 Web loader/profile/event/resource_prep 的隐式渠道假设；统一取消、审批、预算、Trace 和终态写入。目标删除 durable_agent_enabled 分流及两套正式聊天 loop。ConversationRunWorkflow 是建议名，不新增并存实现。
+**Required migration/refactor：** W1 冻结中立输入与 suspend-safe 生命周期：稳定 run_id/account_id/source_kind/source_ref，聊天 context 引用由 Conversation 提供；不将 conversation_id/session_id 或固定 lease_token 作为所有 Agent Run 的永久前置。Run lifetime ≠ Execution lease lifetime；durable wait 释放 Activity slot、workspace lock 和 execution lease，恢复重新 acquire 并向后续模型/工具/释放操作传播新 fencing token。以现有 durable 演进唯一实现，替换 Web loader/profile/event/resource_prep 假设；统一取消、预算、Trace、终态，删除双聊天 loop 与 durable_agent_enabled 分流。不要求立即拆新 package。
 
-**FUTURE OPTION：** 未来增加 surface 只新增适配器；不为不同渠道重新引入 Agent Host loop。
+**FUTURE OPTION：** Scheduled Task、后台自动化、File/Artifact 触发任务可由自己的 source/context owner 创建共享 Run 并复用 AgentRunWorkflow，无需 Conversation/Message/Session。这里只冻结扩展边界，不新增入口，也不改 Research fixed workflow 或 Artifact Build。
 
 **理由：** 现有差异是收敛起点，不再作为长期产品边界。统一恢复单位和业务权威后，两个入口才能共享审批、追踪与模型审阅。
 
@@ -39,7 +39,7 @@
 | 决策依据 | AUDIT_PROPOSAL |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E03;E04;E06;E15；H05；H10；H11 |
-| 门禁 | G02;G03（见 03 的 R2 定义） |
+| 门禁 | G02;G03（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** worker.py 集中共享依赖、QQ Host、Web legacy/durable、Research、Artifact、后台任务与关闭；bootstrap/qq.py 当前构造 QQ 私有执行栈。
 
@@ -65,7 +65,7 @@
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E05;E14;E19；H01；H04；H15 |
-| 门禁 | G03;G05（见 03 的 R2 定义） |
+| 门禁 | G03;G05（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** ActionRequest / BrainDecision / ActionResult 位于 agent/protocol.py，被正式 Brain/Action 与 durable 引用；agent/__init__.py 同时加载实验类。
 
@@ -91,19 +91,19 @@
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E06;E20;E26;E27;E28;E35;E38；H02；H14；H17 |
-| 门禁 | G03;G04;G06（见 03 的 R2 定义） |
+| 门禁 | G03;G04;G06（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** Web 已有 PG Conversation/Message/Session/Run/Outbox；QQ 按 account 启动或 signal 长会话 Workflow，短期消息经 SessionStore/Redis/WAL。现有 Run 唯一索引也把 queued 纳入单活跃限制；Research Run 允许 conversation/session 为 NULL。
 
-**TARGET DECISION / Target：** Conversation / Message / Session / Run 是产品核心领域，由 PostgreSQL 统一权威管理。web_domain 的相关概念提升为 surface-neutral domain；Redis 仅缓存/在线事件/临时群上下文，Hindsight 仅长期记忆。共享账户不意味着自动合并不同聊天的 Conversation。
+**TARGET DECISION / Target：** Conversation / Message / Session 属于 Conversation Domain，由 PG 统一权威管理。Run 属于共享 Execution/Lifecycle primitive，由 Conversation、Research Task 或未来其他 source 创建，保留来源与 ownership 引用；共享表不等于 Conversation 拥有全部执行。Admission 不变量是所有 surface 由同一个 PG authority 决定接纳，禁止 QQ 私建 mailbox/内存排队形成第二权威。Redis 仅缓存/在线事件/临时群上下文，Hindsight 仅长期记忆；同账户不自动合并聊天。
 
 **Required migration/refactor：** 统一 QQ 消息 ID、去重、会话绑定、忙时行为、Session 轮换和回复目标；QQ 通过同一事务命令建 Message/Run/Outbox。迁出 QQ WAL/SessionStore 权威职责，保留必要记忆能力。SQLite 若只剩 workspace 元数据可暂留适配器，但不得继续定义产品 Session。Research 共享 Run 基础合同而不强造 Conversation。
 
-**FUTURE OPTION：** 推荐 conversation_domain 命名；Run 的公共持久化原语可有薄运行子域，物理包划分在事务边界明确后确定。
+**FUTURE OPTION：** 物理包划分后定，本轮只冻结逻辑 owner。首版推荐 single active Run + busy reject；未来可替换为 persistent queue、interrupt、append-to-current-run 等 PG admission policy，无需改变领域边界。
 
 **理由：** 两套 Conversation 权威源增加跨入口历史、取消、恢复与审阅的不一致；在未生产阶段可主动统一，无需为旧 QQ 数据建兼容迁移系统。
 
-**取舍：** 现有 QQ 的 account mailbox 与 Web 单活跃 Run 语义不能直接等同。首版采用统一 busy 拒绝策略；若产品要排队，需显式改 admission/schema，禁止 QQ 暗建第二条进程内队列。
+**取舍：** 现有 QQ account mailbox 与 Web 单活跃语义不同，首版策略需产品验收。队列/中断/追加策略需要相应 PG 事务、索引与状态规则，但不建立第二 admission authority。等待中的 Run 是否继续占 Conversation admission slot 是策略选择，与 execution lease 释放无关。
 
 **验证入口（未执行；旧合同可按目标替换）：** `test/web_persistence/test_phase_c_sessions.py`；`test/web_api/test_sse_gateway.py`；`test/test_qq_execution_compat.py`。
 
@@ -117,7 +117,7 @@
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E07;E08;E16;E36;E39；H08；H14 |
-| 门禁 | G03;G10;G13（见 03 的 R2 定义） |
+| 门禁 | G03;G10;G13（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** file_domain/persistent.py 混合 SQL 与执行服务；Document Workflow 在 lifecycle，重型 Activity 在独立 worker；Run files 与账户 Git workspace 各有实现。
 
@@ -143,7 +143,7 @@
 | 决策依据 | USER_DIRECTION |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E09;E10;E11;E35；H07；H10 |
-| 门禁 | G03;G04;G10（见 03 的 R2 定义） |
+| 门禁 | G03;G04;G10（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** ResearchReportWorkflow 固定阶段、最多三轮迭代；task/Run/Outbox 与调度投影已实现。SQL 明确 Research Run 无 Conversation/Session/trigger message。
 
@@ -169,7 +169,7 @@
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E10;E11;E12；H09 |
-| 门禁 | G06;G10（见 03 的 R2 定义） |
+| 门禁 | G06;G10（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** 聊天 Artifact 走专属 Outbox/build；Research 经 SQL function 同时写 Artifact/version/report 引用，Markdown 附件另走 OutputPublisher。
 
@@ -195,7 +195,7 @@
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E01;E13;E14;E15；H01；H03；H12；H16 |
-| 门禁 | G03;G05;G11（见 03 的 R2 定义） |
+| 门禁 | G03;G05;G11（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** durable 默认 false；single 仍解析 agents.yaml；ChannelsConfig 缺省 console 但工厂未支持；fake 有开发门禁。
 
@@ -221,7 +221,7 @@
 | 决策依据 | USER_DIRECTION |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E01;E02;E05;E06;E22;E23;E40；H01；H03；H04 |
-| 门禁 | G03;G04;G05;G06（见 03 的 R2 定义） |
+| 门禁 | G03;G04;G05;G06（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** Web 双启动/双注册且 QQ 仍依赖 legacy Host/loop；旧 replay 与注册测试冻结这些合同。相关类型、Activity、常量还被目标能力复用，现阶段不能整目录删除。
 
@@ -247,7 +247,7 @@
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E05;E06;E14;E21;E24;E27;E35；H01；H02；H17 |
-| 门禁 | G03;G05;G11（见 03 的 R2 定义） |
+| 门禁 | G03;G05;G11（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** PG 身份已有真实生产相关构造链；JSON AccountService 无已证生产构造者，merge-account.py 直接操作 JSON。Multi-Agent 被启动拒绝，但正式协议与实验实现共包。
 
@@ -273,7 +273,7 @@
 | 决策依据 | AUDIT_PROPOSAL |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E17;E29;E32；H06；H15 |
-| 门禁 | G03;G09;G12（见 03 的 R2 定义） |
+| 门禁 | G03;G09;G12（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** mcp.py 同含 HTTP/SSE/stdio session、工具 schema 转换、MCPToolManager；工具目录运行时发现。
 
@@ -299,7 +299,7 @@
 | 决策依据 | AUDIT_PROPOSAL |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E18;E19;E29;E30;E31;E41；H06；H15 |
-| 门禁 | G02;G03;G12;G13（见 03 的 R2 定义） |
+| 门禁 | G02;G03;G12;G13（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** model_decision_activity 同时载入 transcript、加入目标、选工具和调模型；planning/evaluation 有独立模型调用；create_app 混合服务装配与路由。
 
@@ -325,7 +325,7 @@
 | 决策依据 | AUDIT_PROPOSAL |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E24;E27;E35；H13；H17 |
-| 门禁 | G05;G11（见 03 的 R2 定义） |
+| 门禁 | G05;G11（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** 根/src requirements 字节一致，但被不同 Docker build context 实际使用；Document 有独立依赖；migration 镜像需要根 SQL 目录。
 
@@ -351,7 +351,7 @@
 | 决策依据 | USER_DIRECTION |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E01;E02;E22;E42；H01；H03；H08 |
-| 门禁 | G01（见 03 的 R2 定义） |
+| 门禁 | G01（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** docs/architecture 的旧单 Agent 说明未完全覆盖 durable；已有历史 closure/audit。当前文档维护约束要求代码事实优先、Excalidraw 人工维护。
 
@@ -377,7 +377,7 @@
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E18;E25;E33;E43；H07 |
-| 门禁 | G08;G12;G13（见 03 的 R2 定义） |
+| 门禁 | G08;G12;G13（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** Research 后端任务 API 存在，前端无专用任务管理；现有 ApprovalCard 是文件动作审批，未见 ModelInputSnapshot / WorkspaceQueryService 专用合同与路由。
 
@@ -403,7 +403,7 @@
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E15;E16;E36;E39；H08；H11；H14 |
-| 门禁 | G07;G13（见 03 的 R2 定义） |
+| 门禁 | G07;G13（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** session_worktree 仅被枚举/validator 接受；现有 workspace_ref=account_repo，按 Session 分支在共享账户 checkout 上切换。只有 single_process_account_lock 有完整进程/账户锁路径。
 
@@ -428,24 +428,24 @@
 | 修订 | NEW / P1 |
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
-| 源码事实 | E29;E30;E31;E32;E33;E34;E37;E41；H15 |
-| 门禁 | G03;G04;G12（见 03 的 R2 定义） |
+| 源码事实 | E29;E30;E31;E32;E33;E34;E37;E41;E44;E45；H15 |
+| 门禁 | G03;G04;G12（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** model_decision_activity 混合准备/调用，BrainEngine 的 input_context 为调用后投影；ResourcePool 会选 fallback endpoint，ModelClient 还转换 messages/tools 并合并参数。文件审批提供 durable wait 模式，但模型快照/审阅未实现；context bootstrap 已可能调用 fast 模型改写检索词。
 
-**TARGET DECISION / Target：** 所有主 Agent 模型阶段统一 PrepareModelInput → 不可变 ModelInputSnapshot → review gate 或显式 policy bypass → InvokeModel。PG durable data plane 保存完整 canonical 请求与来源，History 仅 compact refs/等待控制。Approval 绑定 snapshot_id+content_hash；User/Developer/Admin 是同一对象的权限投影。
+**TARGET DECISION / Target：** 所有主 Agent 模型阶段统一 PrepareModelInput → 不可变 ModelInputSnapshot → 冻结的 AuthorizationPolicy 校验 → InvokeModel。每个 snapshot 在调用前必须满足对应授权策略，无任何旁路；review_enabled 不永久等于人工逐次审批。首版推荐 off / every_call，前者同样生成策略授权决定。PG 保存 canonical 请求、来源与授权，History 仅 compact refs/等待控制；人工 Approval 绑定 snapshot_id+content_hash，权限视图投影同一对象。
 
-**Required migration/refactor：** 在调用前冻结实际 endpoint/model、messages、tools、有效参数及 provider-normalized body；执行只读取和核验快照，不重组 prompt、不暗换模型。增加 ModelInputReview 的事务决定/Outbox 唤醒与取消失效流程，覆盖所有主模型 phase，保持文件动作审批独立。细节见 06。
+**Required migration/refactor：** W1 已冻结并验证 Run 与 execution lease 分离及 suspend/resume、新 fencing token 传播；W5 仅在此基础接入 Model Review，不再重构基础生命周期。W5 拆 Prepare/Invoke，冻结 endpoint/model/messages/tools/有效参数/provider body 与 AuthorizationPolicy id/version/mode/scope；每个 snapshot 记录对应授权决定，Invoke 校验当前快照、策略、权限和 fencing 后原样发送。人工决定通过 PG 事务与 Outbox 唤醒，保持文件动作审批独立。见 06。
 
-**FUTURE OPTION：** Prompt 编辑只创建新快照并重新审批。审阅辅助检索模型、Research 模型阶段可后续扩展；当前 scope 明确为主 Agent 模型调用。
+**FUTURE OPTION：** 可扩展 first_call_only / phase_based / policy-based；每个后续 snapshot 仍按冻结策略评估，不能复用第一份 snapshot 的人工批准冒充后续授权。Prompt 编辑创建新快照并重新评估策略，需人工时再审批。辅助检索和 Research 模型审阅仍属未来范围。
 
 **理由：** 用户批准的版本必须等于送至 provider 的应用请求；Trace 或临时打印 prompt 不能提供这个保证。
 
-**取舍：** fallback 改模型/有效输入需新快照重审；等待期间不能占 Activity 槽或 workspace 锁。外部模型调用仍有 at-least-once/响应丢失边界，不能仅凭 PG CAS 承诺 provider exactly-once。
+**取舍：** fallback 或有效输入变化生成新快照、旧批准失效，并重新满足策略；不等于任何模式都强制人工重审。所有 durable wait 必须释放 Activity slot、workspace lock、execution lease，恢复获取新 token。外部模型调用仍有 at-least-once/响应丢失边界，不承诺 provider exactly-once。
 
 **验证入口（未执行；旧合同可按目标替换）：** `test/test_durable_agent_hardening.py`；`test/test_tool_execution_approval_temporal.py`；`test/test_run_budget.py`；`src/resources/model_client.py`。
 
-**后续回退：** 准备/调用拆分可先在 review disabled 策略下落地验证；没有允许已批准 A 却执行 B 的旁路。未来 UI/审批可分包上线，目标唯一调用路径始终不变。
+**后续回退：** 可先用 off 策略验证同一 Prepare/Authorize/Invoke 路径；off 免人工但不免授权校验。UI/人工审批可后续交付，不能允许已批准 A 却执行 B 或另留旧模型旁路。
 
 ## ACD-18 · WorkspaceQueryService 与可验证的工作空间视图
 
@@ -455,7 +455,7 @@
 | 决策依据 | USER_DIRECTION;AUDIT_DESIGN_DETAILS |
 | 实施状态 | NOT IMPLEMENTED |
 | 源码事实 | E18;E25;E36;E39；H08；H14 |
-| 门禁 | G03;G07;G13（见 03 的 R2 定义） |
+| 门禁 | G03;G07;G13（见 03 的 R2.1 定义） |
 
 **CURRENT FACT / Current：** 现有 RunResourcePreparation 由 PG owner/session 解析账户 repo 并在锁内切分支；RunFileWorkspace 管输入/临时/输出。没有当前 Conversation 的通用只读 WorkspaceQueryService/API。
 

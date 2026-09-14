@@ -1,4 +1,4 @@
-"""Validate R2 provenance, target registers and edit scope; no product imports/services."""
+"""Validate R2.1 provenance, target registers and edit scope; no product imports/services."""
 from pathlib import Path
 import ast
 import csv
@@ -45,14 +45,14 @@ evidence = read_csv(OUT / 'evidence_register.csv')
 retirements = read_csv(OUT / 'retirement_candidates.csv')
 packages = read_csv(OUT / 'work_packages.csv')
 dids = {f'ACD-{i:02d}' for i in range(1, 19)}
-eids = {f'E{i:02d}' for i in range(1, 44)}
+eids = {f'E{i:02d}' for i in range(1, 46)}
 gates = {f'G{i:02d}' for i in range(1, 14)}
 check('all_original_16_plus_two_new', unique(decisions, 'decision_id') and {r['decision_id'] for r in decisions} == dids)
-check('43_current_fact_anchors', unique(evidence, 'evidence_id') and {r['evidence_id'] for r in evidence} == eids)
+check('45_current_fact_anchors', unique(evidence, 'evidence_id') and {r['evidence_id'] for r in evidence} == eids)
 check('explicit_not_implemented', register['implementation_status'] == 'NOT_IMPLEMENTED' and all(r['implementation_status'] == 'NOT_IMPLEMENTED' and r['classification'] == 'TARGET_DECISION' for r in decisions))
 projected = []
 for d in register['decisions']:
-    row = dict(revision='2.2-r2', classification='TARGET_DECISION', implementation_status='NOT_IMPLEMENTED')
+    row = dict(revision='2.2-r2.1', classification='TARGET_DECISION', implementation_status='NOT_IMPLEMENTED')
     row.update({k: ';'.join(v) if isinstance(v, list) else v for k, v in d.items()})
     projected.append(row)
 check('decision_json_csv_exact_projection', projected == decisions)
@@ -151,7 +151,7 @@ for p in OUT.rglob('*'):
             bad_whitespace.append(str(p.relative_to(OUT)))
 check('artifact_whitespace', not bad_whitespace, str(bad_whitespace))
 check('git_diff_check', subprocess.run(['git', 'diff', '--check'], cwd=ROOT, capture_output=True).returncode == 0)
-report = dict(revision='2.2-r2', classification='HISTORICAL_AUDIT_VALIDATION',
+report = dict(revision='2.2-r2.1', classification='HISTORICAL_AUDIT_VALIDATION',
               status='PASS' if not errors else 'FAIL', validated_at=datetime.now(timezone.utc).isoformat(),
               review_head=manifest['review_head'], checked_head=git('rev-parse', 'HEAD'),
               counts=counts, checks=checks, errors=errors,

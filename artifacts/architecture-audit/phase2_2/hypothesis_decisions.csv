@@ -1,7 +1,7 @@
 ﻿hypothesis_id,phase2_1_status,decision_ids,disposition,fact_status,implementation_status
 H01,部分推翻,ACD-03;ACD-08;ACD-10,正式协议先救出，非目标实验/配置后删除；不再永久保留实验包,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
 H02,实现与数据分别确认,ACD-04;ACD-10,PG 统一身份，旧 JSON 代码经目标消费者核验删除；不需旧生产数据迁移,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
-H03,确认双启动路径与双注册,ACD-01;ACD-08;ACD-09,双启动/双注册是当前过渡事实，目标验证后删除,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
+H03,确认双启动路径与双注册,ACD-01;ACD-08;ACD-09,双启动/双注册是当前过渡事实；W1 先冻结 source-neutral 与 suspend-safe 合同，目标验证后删除,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
 H04,确认仍为生产路径,ACD-03;ACD-09,QQ 迁入 canonical 后退役旧 loop；harness 必要 context/记忆/定时能力先迁出,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
 H05,确认组合热点,ACD-02,唯一主线和 legacy 清理后整理 composition，不先搬旧双栈,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
 H06,重新统计并扩展,ACD-11;ACD-12;ACD-17,按能力拆分，模型 preparation/invocation 成为明确切口,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
@@ -12,7 +12,7 @@ H10,确认真实 handler,ACD-02;ACD-06;ACD-09,提醒/反思等必要服务从旧
 H11,确认条件入口,ACD-16;ACD-18,当前未实现 worktree，明确拒绝；作为未来隔离候选而非无需求,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
 H12,确认开发门禁,ACD-08,保留开发 fake gate；不能以清理 migration 为由删除全部 feature gates,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
 H13,确认完全相同,ACD-13,维护源唯一，保留必要 build 输入或后续统一上下文,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
-H14,确认多状态边界,ACD-04;ACD-16;ACD-18,同类交互实体统一 PG；不同 workspace/file/memory 对象继续分工,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
-H15,确认 Model / Tool 分离,ACD-01;ACD-11;ACD-17,统一 Agent，保留 Model/Tool 能力；增加最终请求冻结与审阅,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
+H14,确认多状态边界,ACD-04;ACD-16;ACD-18,Conversation/Message/Session 归 Conversation，Run 为共享 Execution/Lifecycle；PG admission 唯一，busy 为可替换 policy；不同 workspace/file/memory 对象继续分工,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
+H15,确认 Model / Tool 分离,ACD-01;ACD-11;ACD-17,统一 Agent，保留 Model/Tool；每个 snapshot 满足冻结 AuthorizationPolicy，人工频率可替换；W1 suspend/resume，W5 接入审阅,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
 H16,确认配置/工厂错位,ACD-08,渠道默认与支持项对齐；目标无 legacy 编排选项,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED
 H17,确认合理资产分层,ACD-10;ACD-13,保留全新 schema 创建，删除 obsolete compatibility 不能按目录名判断,UNCHANGED_CURRENT_FACT,NOT_IMPLEMENTED

@@ -1,9 +1,9 @@
-# 事实到决策的修订追踪 · R2
+# 事实到决策的修订追踪 · R2.1
 
 > Historical architecture evidence. Not current architecture documentation.
-> 修订 R2；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。
+> 修订 R2.1；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。
 
-本次改变的是产品前提与目标处置，不改 2.1 的代码分类。CURRENT 可达不代表 TARGET 应长期保留；UNKNOWN 不代表可直接删除。拟删对象补目标调用/注册证据后主动清理。
+R2 已修订产品前提与目标处置；R2.1 仅调整 ACD-01/04/17 的三个合同边界与引用，不改 2.1 代码分类。CURRENT 可达不代表 TARGET 应长期保留；UNKNOWN 不代表可直接删除。拟删对象补目标调用/注册证据后主动清理。
 
 ## H01–H17
 
@@ -11,7 +11,7 @@
 | --- | --- | --- |
 | H01 | ACD-03;ACD-08;ACD-10 | 正式协议先救出，非目标实验/配置后删除；不再永久保留实验包 |
 | H02 | ACD-04;ACD-10 | PG 统一身份，旧 JSON 代码经目标消费者核验删除；不需旧生产数据迁移 |
-| H03 | ACD-01;ACD-08;ACD-09 | 双启动/双注册是当前过渡事实，目标验证后删除 |
+| H03 | ACD-01;ACD-08;ACD-09 | 双启动/双注册是当前过渡事实；W1 先冻结 source-neutral 与 suspend-safe 合同，目标验证后删除 |
 | H04 | ACD-03;ACD-09 | QQ 迁入 canonical 后退役旧 loop；harness 必要 context/记忆/定时能力先迁出 |
 | H05 | ACD-02 | 唯一主线和 legacy 清理后整理 composition，不先搬旧双栈 |
 | H06 | ACD-11;ACD-12;ACD-17 | 按能力拆分，模型 preparation/invocation 成为明确切口 |
@@ -22,14 +22,14 @@
 | H11 | ACD-16;ACD-18 | 当前未实现 worktree，明确拒绝；作为未来隔离候选而非无需求 |
 | H12 | ACD-08 | 保留开发 fake gate；不能以清理 migration 为由删除全部 feature gates |
 | H13 | ACD-13 | 维护源唯一，保留必要 build 输入或后续统一上下文 |
-| H14 | ACD-04;ACD-16;ACD-18 | 同类交互实体统一 PG；不同 workspace/file/memory 对象继续分工 |
-| H15 | ACD-01;ACD-11;ACD-17 | 统一 Agent，保留 Model/Tool 能力；增加最终请求冻结与审阅 |
+| H14 | ACD-04;ACD-16;ACD-18 | Conversation/Message/Session 归 Conversation，Run 为共享 Execution/Lifecycle；PG admission 唯一，busy 为可替换 policy；不同 workspace/file/memory 对象继续分工 |
+| H15 | ACD-01;ACD-11;ACD-17 | 统一 Agent，保留 Model/Tool；每个 snapshot 满足冻结 AuthorizationPolicy，人工频率可替换；W1 suspend/resume，W5 接入审阅 |
 | H16 | ACD-08 | 渠道默认与支持项对齐；目标无 legacy 编排选项 |
 | H17 | ACD-10;ACD-13 | 保留全新 schema 创建，删除 obsolete compatibility 不能按目录名判断 |
 
 ## D01–D10
 
-| D | ACD | R2 处置 | 状态 |
+| D | ACD | R2.1 处置 | 状态 |
 | --- | --- | --- | --- |
 | D01 | ACD-01;ACD-14 | HEAD 仍双路径；目标单 durable，当前文档纠事实、ADR 写目标，随实现再收口 | TARGET_REVISED_NOT_IMPLEMENTED |
 | D02 | ACD-05;ACD-14;ACD-16 | HEAD 容器清单补真实 Document/依赖；目标部署仍不冒称 worktree 已实现 | TARGET_REVISED_NOT_IMPLEMENTED |
@@ -54,4 +54,4 @@ hotspot_dispositions.csv 按 2.1 truth table 的 file/asset 粒度覆盖全部 L
 
 ## 修订追溯
 
-原 16 个 ACD 的 change_type 见 decision_register.json/CSV；新增 ACD-17/18。旧 R1 内容由 Git 提交 4c18f5d 保留，本目录只维护一套最新修订稿，不建立冲突的 old/current 两套目标。Machine registers 与摘要/目标/工作包均沿用同一组 ACD 与 R2 gate 编号。
+change_type 保留 R2 相对 R1 的处置类别；R2.1 只修改 ACD-01/04/17，其他 15 个决策对象保持不变。R2 稿由 Git 提交 53007a2 保留；E44/E45 是本轮新增的定向证据。旧 R1 内容由 Git 提交 4c18f5d 保留，本目录只维护一套最新修订稿，不建立冲突的 old/current 两套目标。Machine registers 与摘要/目标/工作包均沿用同一组 ACD 与 R2.1 gate 编号。

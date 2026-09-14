@@ -4,7 +4,7 @@
   "review_status": "TARGET_REVISED_NOT_IMPLEMENTED",
   "review_date": "2026-09-14",
   "phase2_1_source_head": "4ab07fbddf33e9a0dc652833acd9edd519e21fea",
-  "review_head": "4c18f5dff854c31bca1822028eb173bcb6a6055f",
+  "review_head": "53007a2be3d9e177378988e86377dd719047c050",
   "branch": "feat/hpagent-web",
   "business_source_delta_from_phase2_1": "",
   "phase2_1_input_sha256": {
@@ -1162,7 +1162,7 @@
     "web/vite.config.ts": "3ae22de49b1e74df8034f0b44b1f2a6d3eb2256dee28975863a4df0121a46779"
   },
   "decision_count": 18,
-  "evidence_count": 43,
+  "evidence_count": 45,
   "production_changes": false,
   "production_tests_run": false,
   "external_runtime_verified": false,
@@ -1174,7 +1174,7 @@
   },
   "outside_scope_diff_at_revision_start": "diff --git a/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md b/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md\nindex 6cc62da..6faf543 100644\n--- a/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md\n+++ b/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md\n@@ -36,7 +36,7 @@\n ## Production composition roots\n \n | 文件 | 职责 | Owner / capability | Roots | 可达性 | 主要静态依赖 | 主要静态使用者 | Flags | 置信度 |\n-| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n+| --- | :-: | :-: | :-: | :-: | :-: | --- | --- | --- |\n | src/main.py | HpAgent —— 主入口，负责加载配置并启动智能体服务。 | Repository / operations / NONE | R1 | PROD_DIRECT | src/common/logging.py;src/orchestration/config.py;src/orchestration/worker.py |  |  | HIGH |\n | src/bootstrap/qq.py | QQ surface and shared Agent execution composition. | Runtime composition / MULTIPLE | R1;R5 | PROD_CONDITIONAL | src/account/postgres_account_service.py;src/account/validation.py;src/actions/runtime.py;src/agent_execution/brain_action_loop.py | src/orchestration/worker.py |  | MEDIUM |\n | src/orchestration/worker.py | 组合共享基础设施、QQ、条件 Web、channels、scheduler、cleanup、Schedules 与 shutdown | Process composition & lifecycle / MULTIPLE | R1;R5 | PROD_CONDITIONAL | src/account/identity_binding_service.py;src/agent_activities/persistent_overwrite.py;src/agent_activities/runtime.py;src/agent_activities/store.py | src/main.py;src/orchestration/__init__.py;src/orchestration/web_worker.py | HIGH_FAN_OUT;LARGE_HOTSPOT | MEDIUM |",
   "outside_scope_untracked_at_revision_start": [],
-  "revision": "2.2-r2",
+  "revision": "2.2-r2.1",
   "classification": "Historical architecture evidence. Not current architecture documentation.",
   "premise_source": "USER_ATTACHMENT",
   "user_premise_id": "U-PREPROD",
@@ -1183,7 +1183,7 @@
   "source_modifications": false,
   "counts": {
     "decisions": 18,
-    "evidence": 43,
+    "evidence": 45,
     "hypotheses": 17,
     "drifts": 10,
     "unresolved": 83,
@@ -1193,5 +1193,10 @@
     "retirement_candidates": 16
   },
   "generation": "decision_register.json is decision source; render_review.py projects registers and indices; narrative 00/02/03/06/07/08 is authored separately and cross-checked.",
-  "baseline_policy": "Frozen review HEAD is provenance; later artifact-only commits do not invalidate evidence. Source hashes and outside-scope diff detect actual drift."
+  "baseline_policy": "Frozen review HEAD is provenance; later artifact-only commits do not invalidate evidence. Source hashes and outside-scope diff detect actual drift.",
+  "parent_review": {
+    "revision": "2.2-r2",
+    "review_head": "4c18f5dff854c31bca1822028eb173bcb6a6055f",
+    "artifact_commit": "53007a2be3d9e177378988e86377dd719047c050"
+  }
 }

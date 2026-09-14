@@ -1,13 +1,13 @@
 {
-  "revision": "2.2-r2",
+  "revision": "2.2-r2.1",
   "classification": "HISTORICAL_AUDIT_VALIDATION",
   "status": "PASS",
-  "validated_at": "2026-09-14T06:48:43.164732+00:00",
-  "review_head": "4c18f5dff854c31bca1822028eb173bcb6a6055f",
-  "checked_head": "4c18f5dff854c31bca1822028eb173bcb6a6055f",
+  "validated_at": "2026-09-14T09:32:05.007634+00:00",
+  "review_head": "53007a2be3d9e177378988e86377dd719047c050",
+  "checked_head": "53007a2be3d9e177378988e86377dd719047c050",
   "counts": {
     "decisions": 18,
-    "evidence": 43,
+    "evidence": 45,
     "hypotheses": 17,
     "drifts": 10,
     "unresolved": 83,
@@ -18,7 +18,7 @@
   },
   "checks": {
     "all_original_16_plus_two_new": "PASS",
-    "43_current_fact_anchors": "PASS",
+    "45_current_fact_anchors": "PASS",
     "explicit_not_implemented": "PASS",
     "decision_json_csv_exact_projection": "PASS",
     "all_decision_fields_nonempty": "PASS",

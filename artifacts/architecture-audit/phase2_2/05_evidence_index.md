@@ -1,9 +1,9 @@
-# 代码事实证据索引 · R2
+# 代码事实证据索引 · R2.1
 
 > Historical architecture evidence. Not current architecture documentation.
-> 修订 R2；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。
+> 修订 R2.1；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。
 
-E01–E25 继承原锚点且哈希核对；E26–E43 为新目标的定向复核。这里证明当前实现/差距，不能证明目标已实现。未生产前提来自用户 U-PREPROD，不来自 E 表。测试源码均只读未执行。
+E01–E25 继承原锚点且哈希核对；E26–E43 继承 R2；R2.1 定向补充 E44/E45，未重审全部 ACD。这里证明当前实现/差距，不能证明目标已实现。未生产前提来自用户 U-PREPROD，不来自 E 表。测试源码均只读未执行。
 
 | ID | 复核项 | 源码位置 | CURRENT FACT |
 | --- | --- | --- | --- |
@@ -50,6 +50,8 @@ E01–E25 继承原锚点且哈希核对；E26–E43 为新目标的定向复核
 | E41 | 规划与评估另有模型调用 | `src/agent_activities/runtime.py:1102` | planning/evaluate_plan 构建专门 instructions 后直接调用 Brain；只拆 model_decision 无法覆盖全部主模型阶段。 |
 | E42 | 当前文档维护约束 | `docs/architecture/README.md:5` | 要求实现事实优先、显式 drift 与 Excalidraw 人工维护；目标 ADR/当前文档分工是本次建议。 |
 | E43 | 当前审批 UI 范围 | `web/src/components/ApprovalCard.tsx:18` | 调用 listFileApprovals/decideFileApproval 并展示文件目的地；不是模型输入权限投影。 |
+| E44 | 当前一次性执行 lease | `src/orchestration/durable_web_workflow.py:86` | 启动 AgentRunWorkflow 前 acquire，固定 token 传入子 Workflow，finally 用同 token release；suspend-safe 分段 lease 是 W1 目标，未实现。 |
+| E45 | 当前 Agent 输入硬绑定 | `src/agent_workflows/contracts.py:17` | 必填 conversation_id/session_id 与固定 lease_token；source-neutral 输入及可更新执行 token 是目标，未实现。 |
 
 新功能负证据：对 src 与 web/src 搜索 ModelInputSnapshot、WorkspaceQueryService、prepare_model_input、invoke_model、prompt_review 未命中，再结合模型调用与 API/ApprovalCard 实现复核。这说明本仓库缺少上述目标合同，不声称没有任何相邻能力。Blackboard 未检出独立同名实现，退役按实验类真实消费者处理，不捏造 blackboard.py。
 

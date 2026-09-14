@@ -1,4 +1,4 @@
-"""Render R2 audit registers. Writes only within phase2_2; never imports product code."""
+"""Render R2.1 audit registers. Writes only within phase2_2; never imports product code."""
 from pathlib import Path
 import csv
 import hashlib
@@ -8,8 +8,8 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[4]
 OUT = ROOT / 'artifacts/architecture-audit/phase2_2'
 OLD = OUT.parent / 'phase2_1'
-REVISION = '2.2-r2'
-BANNER = '> Historical architecture evidence. Not current architecture documentation.\n> 修订 R2；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。\n\n'
+REVISION = '2.2-r2.1'
+BANNER = '> Historical architecture evidence. Not current architecture documentation.\n> 修订 R2.1；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。\n\n'
 
 
 def read_csv(path):
@@ -70,11 +70,12 @@ for group in ('phase2_1_input_sha256', 'protected_tracked_file_sha256'):
     for path, digest in manifest[group].items():
         assert (ROOT / path).is_file() and sha(ROOT / path) == digest, path
 if manifest.get('revision') != REVISION:
-    manifest['original_review'] = {
+    manifest['parent_review'] = {'revision': manifest.get('revision'), 'review_head': manifest['review_head'], 'artifact_commit': git('rev-parse', 'HEAD')}
+    manifest.setdefault('original_review', {
         'head': manifest['review_head'],
         'phase2_2_original_commit': '4c18f5dff854c31bca1822028eb173bcb6a6055f',
         'status': 'SUPERSEDED_BY_R2_USER_PREMISE',
-    }
+    })
     manifest['review_head'] = git('rev-parse', 'HEAD')
     manifest['outside_scope_diff_at_revision_start'] = git(
         'diff', '--binary', 'HEAD', '--', '.',
@@ -97,7 +98,7 @@ for d in decisions:
         f"| 项目 | 记录 |\n| --- | --- |\n| 修订 | {d['change_type']} / {d['priority']} |\n"
         f"| 决策依据 | {d['authority']} |\n| 实施状态 | NOT IMPLEMENTED |\n"
         f"| 源码事实 | {';'.join(d['evidence_ids'])}；{'；'.join(d['hypothesis_ids'])} |\n"
-        f"| 门禁 | {';'.join(d['gate_ids'])}（见 03 的 R2 定义） |\n\n"
+        f"| 门禁 | {';'.join(d['gate_ids'])}（见 03 的 R2.1 定义） |\n\n"
         f"**CURRENT FACT / Current：** {d['current_fact']}\n\n"
         f"**TARGET DECISION / Target：** {d['target_decision']}\n\n"
         f"**Required migration/refactor：** {d['required_refactor']}\n\n"
@@ -107,14 +108,16 @@ for d in decisions:
         f"**后续回退：** {d['rollback']}"
     )
 write_csv('decision_register.csv', rows)
-write_text('01_decision_register.md', '# 架构决策登记册 · R2\n\n' + BANNER +
+write_text('01_decision_register.md', '# 架构决策登记册 · R2.1\n\n' + BANNER +
            '用户指定的 canonical 方向已经明确；具体命名/合同/busy 策略等为审计建议。'
            'REVERSED 表示推翻原结论；REVISED 表示依新目标重写；RETAINED_AND_RESCOPED 表示保留方向并调整边界；NEW 表示新增。'
-           '原 16 项全部重审，新增 17/18。本轮不采纳任何“已经完成代码改造”的状态。\n\n' + '\n\n'.join(sections))
+           'R2 已重审原 16 项并新增 17/18；R2.1 只修订 01/04/17 及相关合同。本轮不采纳任何“已经完成代码改造”的状态。\n\n' + '\n\n'.join(sections))
 
 # Keep original source anchors; append only inspected source, never turn target nouns into code facts.
 evidence = [r for r in read_csv(OUT / 'evidence_register.csv') if int(r['evidence_id'][1:]) <= 25]
 specs = [
+    ('E44', '当前一次性执行 lease', 'src/orchestration/durable_web_workflow.py', 'class DurableWebRunWorkflow', '启动 AgentRunWorkflow 前 acquire，固定 token 传入子 Workflow，finally 用同 token release；suspend-safe 分段 lease 是 W1 目标，未实现。'),
+    ('E45', '当前 Agent 输入硬绑定', 'src/agent_workflows/contracts.py', 'class AgentRunInput', '必填 conversation_id/session_id 与固定 lease_token；source-neutral 输入及可更新执行 token 是目标，未实现。'),
     ('E26', 'QQ account 级会话入口', 'src/application/conversation.py', '    async def start_or_signal', '当前按 account start/signal OrchestrationWorkflow，生成字符串 session_id，并准备本地资源。'),
     ('E27', 'PG 交互实体与单活跃约束', 'persistence/migrations/001_phase_a_schema.sql', 'CREATE TABLE conversations', 'Conversation/Message/Session/Run 及 queued/running/cancelling 单活跃索引已存在，未含目标 QQ 适配。'),
     ('E28', 'Web 交互事务与 busy', 'src/web_domain/services.py', '    def send_message', '先锁 Conversation、查幂等/busy，再建 Session/Message/Run/budget/Outbox；不是已实现中立 QQ 命令。'),
@@ -139,12 +142,13 @@ for eid, title, path, needle, claim in specs:
     line = next(i for i, text in enumerate(lines, 1) if needle in text)
     evidence.append(dict(evidence_id=eid, title=title, path=path, line=line,
                          claim=claim, kind='SOURCE_REVIEW', sha256=sha(ROOT / path)))
+evidence.sort(key=lambda row: row['evidence_id'])
 for e in evidence:
     e['classification'] = 'CURRENT_FACT'
     e['revision'] = REVISION
 write_csv('evidence_register.csv', evidence)
-write_text('05_evidence_index.md', '# 代码事实证据索引 · R2\n\n' + BANNER +
-    'E01–E25 继承原锚点且哈希核对；E26–E43 为新目标的定向复核。这里证明当前实现/差距，'
+write_text('05_evidence_index.md', '# 代码事实证据索引 · R2.1\n\n' + BANNER +
+    'E01–E25 继承原锚点且哈希核对；E26–E43 继承 R2；R2.1 定向补充 E44/E45，未重审全部 ACD。这里证明当前实现/差距，'
     '不能证明目标已实现。未生产前提来自用户 U-PREPROD，不来自 E 表。测试源码均只读未执行。\n\n'
     '| ID | 复核项 | 源码位置 | CURRENT FACT |\n| --- | --- | --- | --- |\n' +
     '\n'.join(f"| {e['evidence_id']} | {e['title']} | `{e['path']}:{e['line']}` | {e['claim']} |" for e in evidence) +
@@ -161,7 +165,7 @@ write_text('05_evidence_index.md', '# 代码事实证据索引 · R2\n\n' + BANN
 hmap = {
  'H01': ('ACD-03;ACD-08;ACD-10', '正式协议先救出，非目标实验/配置后删除；不再永久保留实验包'),
  'H02': ('ACD-04;ACD-10', 'PG 统一身份，旧 JSON 代码经目标消费者核验删除；不需旧生产数据迁移'),
- 'H03': ('ACD-01;ACD-08;ACD-09', '双启动/双注册是当前过渡事实，目标验证后删除'),
+ 'H03': ('ACD-01;ACD-08;ACD-09', '双启动/双注册是当前过渡事实；W1 先冻结 source-neutral 与 suspend-safe 合同，目标验证后删除'),
  'H04': ('ACD-03;ACD-09', 'QQ 迁入 canonical 后退役旧 loop；harness 必要 context/记忆/定时能力先迁出'),
  'H05': ('ACD-02', '唯一主线和 legacy 清理后整理 composition，不先搬旧双栈'),
  'H06': ('ACD-11;ACD-12;ACD-17', '按能力拆分，模型 preparation/invocation 成为明确切口'),
@@ -172,8 +176,8 @@ hmap = {
  'H11': ('ACD-16;ACD-18', '当前未实现 worktree，明确拒绝；作为未来隔离候选而非无需求'),
  'H12': ('ACD-08', '保留开发 fake gate；不能以清理 migration 为由删除全部 feature gates'),
  'H13': ('ACD-13', '维护源唯一，保留必要 build 输入或后续统一上下文'),
- 'H14': ('ACD-04;ACD-16;ACD-18', '同类交互实体统一 PG；不同 workspace/file/memory 对象继续分工'),
- 'H15': ('ACD-01;ACD-11;ACD-17', '统一 Agent，保留 Model/Tool 能力；增加最终请求冻结与审阅'),
+ 'H14': ('ACD-04;ACD-16;ACD-18', 'Conversation/Message/Session 归 Conversation，Run 为共享 Execution/Lifecycle；PG admission 唯一，busy 为可替换 policy；不同 workspace/file/memory 对象继续分工'),
+ 'H15': ('ACD-01;ACD-11;ACD-17', '统一 Agent，保留 Model/Tool；每个 snapshot 满足冻结 AuthorizationPolicy，人工频率可替换；W1 suspend/resume，W5 接入审阅'),
  'H16': ('ACD-08', '渠道默认与支持项对齐；目标无 legacy 编排选项'),
  'H17': ('ACD-10;ACD-13', '保留全新 schema 创建，删除 obsolete compatibility 不能按目录名判断'),
 }
@@ -255,12 +259,12 @@ for r in read_csv(OLD / 'architecture_truth_table.csv'):
                         implementation_status='NOT_IMPLEMENTED'))
 write_csv('hotspot_dispositions.csv', hotrows)
 
-write_text('04_fact_to_decision_review.md', '# 事实到决策的修订追踪 · R2\n\n' + BANNER +
-    '本次改变的是产品前提与目标处置，不改 2.1 的代码分类。CURRENT 可达不代表 TARGET 应长期保留；'
+write_text('04_fact_to_decision_review.md', '# 事实到决策的修订追踪 · R2.1\n\n' + BANNER +
+    'R2 已修订产品前提与目标处置；R2.1 仅调整 ACD-01/04/17 的三个合同边界与引用，不改 2.1 代码分类。CURRENT 可达不代表 TARGET 应长期保留；'
     'UNKNOWN 不代表可直接删除。拟删对象补目标调用/注册证据后主动清理。\n\n'
     '## H01–H17\n\n| H | ACD | TARGET disposition |\n| --- | --- | --- |\n' +
     '\n'.join(f"| {r['hypothesis_id']} | {r['decision_ids']} | {r['disposition']} |" for r in hrows) +
-    '\n\n## D01–D10\n\n| D | ACD | R2 处置 | 状态 |\n| --- | --- | --- | --- |\n' +
+    '\n\n## D01–D10\n\n| D | ACD | R2.1 处置 | 状态 |\n| --- | --- | --- | --- |\n' +
     '\n'.join(f"| {r['drift_id']} | {r['decision_ids']} | {r['disposition']} | {r['status']} |" for r in drows) +
     '\n\n## 83 项 U 的含义变化\n\n'
     'unresolved_dispositions.csv 保留每个原 ID/kind/status，source_fact_closed=false。'
@@ -276,17 +280,18 @@ write_text('04_fact_to_decision_review.md', '# 事实到决策的修订追踪 ·
     'web_domain/services 提升中立领域；model runtime/client 增加准备/调用冻结切口。'
     '各测试保留必要业务回归、替换旧接线合同；benchmark/构建/UI 不因 LOC 自动整改。\n\n'
     '## 修订追溯\n\n'
-    '原 16 个 ACD 的 change_type 见 decision_register.json/CSV；新增 ACD-17/18。'
+    'change_type 保留 R2 相对 R1 的处置类别；R2.1 只修改 ACD-01/04/17，其他 15 个决策对象保持不变。'
+    'R2 稿由 Git 提交 53007a2 保留；E44/E45 是本轮新增的定向证据。'
     '旧 R1 内容由 Git 提交 4c18f5d 保留，本目录只维护一套最新修订稿，不建立冲突的 old/current 两套目标。'
-    'Machine registers 与摘要/目标/工作包均沿用同一组 ACD 与 R2 gate 编号。')
+    'Machine registers 与摘要/目标/工作包均沿用同一组 ACD 与 R2.1 gate 编号。')
 
 packages = [
  ('W0', '', 'ACD-01;ACD-04;ACD-06;ACD-14;ACD-17;ACD-18', 'G01', '冻结目标与文档职责'),
- ('W1', 'W0', 'ACD-01;ACD-08', 'G02;G03;G04', '唯一 durable 生命周期和 Web 验证'),
- ('W2', 'W1', 'ACD-01;ACD-04;ACD-07', 'G03;G04;G06', 'QQ/Conversation 统一与双入口验证'),
+ ('W1', 'W0', 'ACD-01;ACD-04;ACD-08;ACD-17', 'G02;G03;G04', 'source-neutral 输入与共享 Run；suspend-safe Run/lease 分离、wait 释放资源、恢复新 fencing token；Web 与通用等待验证'),
+ ('W2', 'W1', 'ACD-01;ACD-04;ACD-07', 'G03;G04;G06', 'QQ/Conversation 统一 PG admission authority；首版推荐 single active + busy reject，可替换 policy；双入口验证'),
  ('W3', 'W2', 'ACD-03;ACD-08;ACD-09;ACD-10', 'G03;G04;G05;G06;G11', '救出依赖后删除 legacy/非目标实现'),
  ('W4', 'W3', 'ACD-02;ACD-03', 'G02;G03', '唯一 runtime 装配与协议清理'),
- ('W5', 'W4', 'ACD-12;ACD-17', 'G03;G04;G12', 'Prepare/Invoke/Snapshot/Review 能力合同'),
+ ('W5', 'W4', 'ACD-12;ACD-17', 'G03;G04;G12', '复用 W1 suspend/resume，接入 Prepare/Invoke/Snapshot/AuthorizationPolicy/Review；off/every_call 均逐快照授权，不重构 Run/lease'),
  ('W6', 'W4', 'ACD-16;ACD-18', 'G03;G13', 'Workspace Query 合同；worktree G07 独立后评'),
  ('W7', 'W5;W6', 'ACD-05;ACD-11;ACD-13', 'G09;G10;G11', 'File/MCP/build 能力结构整理'),
 ]

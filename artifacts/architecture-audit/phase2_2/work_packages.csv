@@ -1,9 +1,9 @@
 ﻿work_package_id,depends_on,decision_ids,gate_ids,target,implementation_status
 W0,,ACD-01;ACD-04;ACD-06;ACD-14;ACD-17;ACD-18,G01,冻结目标与文档职责,NOT_IMPLEMENTED
-W1,W0,ACD-01;ACD-08,G02;G03;G04,唯一 durable 生命周期和 Web 验证,NOT_IMPLEMENTED
-W2,W1,ACD-01;ACD-04;ACD-07,G03;G04;G06,QQ/Conversation 统一与双入口验证,NOT_IMPLEMENTED
+W1,W0,ACD-01;ACD-04;ACD-08;ACD-17,G02;G03;G04,source-neutral 输入与共享 Run；suspend-safe Run/lease 分离、wait 释放资源、恢复新 fencing token；Web 与通用等待验证,NOT_IMPLEMENTED
+W2,W1,ACD-01;ACD-04;ACD-07,G03;G04;G06,QQ/Conversation 统一 PG admission authority；首版推荐 single active + busy reject，可替换 policy；双入口验证,NOT_IMPLEMENTED
 W3,W2,ACD-03;ACD-08;ACD-09;ACD-10,G03;G04;G05;G06;G11,救出依赖后删除 legacy/非目标实现,NOT_IMPLEMENTED
 W4,W3,ACD-02;ACD-03,G02;G03,唯一 runtime 装配与协议清理,NOT_IMPLEMENTED
-W5,W4,ACD-12;ACD-17,G03;G04;G12,Prepare/Invoke/Snapshot/Review 能力合同,NOT_IMPLEMENTED
+W5,W4,ACD-12;ACD-17,G03;G04;G12,复用 W1 suspend/resume，接入 Prepare/Invoke/Snapshot/AuthorizationPolicy/Review；off/every_call 均逐快照授权，不重构 Run/lease,NOT_IMPLEMENTED
 W6,W4,ACD-16;ACD-18,G03;G13,Workspace Query 合同；worktree G07 独立后评,NOT_IMPLEMENTED
 W7,W5;W6,ACD-05;ACD-11;ACD-13,G09;G10;G11,File/MCP/build 能力结构整理,NOT_IMPLEMENTED
