@@ -25,8 +25,11 @@ from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
+    ChatContext,
     CompactToolCall,
     ContextBootstrapInput,
+    RunContext,
+    RunSource,
     ToolExecutionInput,
 )
 from web_api.queries import trace_tree_dto
@@ -372,13 +375,13 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
             return ({"role": "user", "content": "hello"},)
 
     request = ContextBootstrapInput(
-        AGENT_SCHEMA_VERSION,
-        run_id,
-        account_id,
-        conversation_id,
-        session_id,
-        "react",
-        f"{run_id}:react:context",
+        schema_version=AGENT_SCHEMA_VERSION,
+        run_id=run_id,
+        account_id=account_id,
+        strategy="react",
+        operation_id=f"{run_id}:react:context",
+        source=RunSource("chat", conversation_id),
+        context=RunContext(chat=ChatContext(conversation_id, session_id, None), surface="web"),
     )
 
     class Loader:
@@ -458,18 +461,18 @@ async def test_deduplicated_tool_activity_still_projects_tool_node(monkeypatch):
             )
 
     request = ToolExecutionInput(
-        AGENT_SCHEMA_VERSION,
-        run_id,
-        account_id,
-        conversation_id,
-        session_id,
-        "react",
-        f"agent-transcript:{run_id}",
-        1,
-        1,
-        operation_id,
-        1,
-        CompactToolCall("call-1", "read_tool", "decision#call-1"),
+        schema_version=AGENT_SCHEMA_VERSION,
+        run_id=run_id,
+        account_id=account_id,
+        strategy="react",
+        transcript_id=f"agent-transcript:{run_id}",
+        transcript_version=1,
+        turn=1,
+        operation_id=operation_id,
+        lease_token=1,
+        tool_call=CompactToolCall("call-1", "read_tool", "decision#call-1"),
+        source=RunSource("chat", conversation_id),
+        context=RunContext(chat=ChatContext(conversation_id, session_id, None), surface="web"),
     )
     activities = DurableAgentActivities(
         store=Store(),

@@ -10,8 +10,8 @@ from .contracts import (
     AGENT_STRATEGY_PLAN,
     AGENT_STRATEGY_REACT,
     AGENT_TASK_QUEUE,
+    AgentExecutionInput,
     AgentResult,
-    AgentRunInput,
 )
 from .plan_execute import PlanAndExecuteWorkflow
 from .react import ReactAgentWorkflow, _validate
@@ -20,7 +20,7 @@ from .react import ReactAgentWorkflow, _validate
 @workflow.defn
 class AgentRunWorkflow:
     @workflow.run
-    async def run(self, request: AgentRunInput) -> AgentResult:
+    async def run(self, request: AgentExecutionInput) -> AgentResult:
         _validate(request)
         workflow.logger.info(
             "agent_workflow_started",

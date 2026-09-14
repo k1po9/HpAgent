@@ -1,10 +1,11 @@
 """Compact, versioned contracts crossing durable Workflow boundaries."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Literal
 
-AGENT_SCHEMA_VERSION = 1
+AGENT_SCHEMA_VERSION = 2
 AGENT_TASK_QUEUE = "hpagent-web-agent"
 AGENT_STRATEGY_REACT = "react"
 AGENT_STRATEGY_PLAN = "plan_and_execute"
@@ -14,17 +15,78 @@ DURABLE_LEASE_SAFETY_MARGIN_SECONDS = 60
 
 
 @dataclass(frozen=True)
+class RunSource:
+    """Source owner reference; account/run identity remains lifecycle authority."""
+
+    source_kind: str
+    source_ref: str
+
+    def __post_init__(self) -> None:
+        if not self.source_kind or not self.source_ref:
+            raise ValueError("Run source kind and reference are required")
+
+
+@dataclass(frozen=True)
+class ChatContext:
+    """Conversation-owned context, required only by Chat adapters."""
+
+    conversation_id: str
+    session_id: str
+    trigger_message_id: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.conversation_id or not self.session_id:
+            raise ValueError("Chat context requires Conversation and Session")
+
+
+@dataclass(frozen=True)
+class RunContext:
+    context_ref: str | None = None
+    chat: ChatContext | None = None
+    surface: str | None = None
+
+    def require_chat(self) -> ChatContext:
+        """Explicit boundary of the current Chat context/resource adapter."""
+        if self.chat is None:
+            raise ValueError("Current Chat adapter requires Chat context")
+        return self.chat
+
+
+@dataclass(frozen=True)
+class ExecutionLeaseRef:
+    """Fencing identity of one active interval, never the identity of a Run.
+
+    Reacquisition replaces this value. Operation IDs and Run source stay stable.
+    An expired interval must not be revived with the same fencing token.
+    """
+
+    fencing_token: int
+
+    def __post_init__(self) -> None:
+        if self.fencing_token < 1:
+            raise ValueError("Execution fencing token must be positive")
+
+
+@dataclass(frozen=True, kw_only=True)
 class AgentRunInput:
     schema_version: int
     run_id: str
     account_id: str
-    conversation_id: str
-    session_id: str
+    source: RunSource
+    context: RunContext
     strategy: str
-    trigger_message_id: str | None
-    lease_token: int
-    interaction_profile: str = "web_chat"
     max_turns: int = 20
+
+
+@dataclass(frozen=True, kw_only=True)
+class AgentExecutionInput(AgentRunInput):
+    """Active execution interval envelope; replace after suspend/reacquire.
+
+    W1-A separates stable input from execution authority. Lifecycle wiring for
+    suspension is delivered by the remaining W1 work, not by this DTO alone.
+    """
+
+    execution_lease: ExecutionLeaseRef
 
 
 @dataclass(frozen=True)
@@ -32,8 +94,8 @@ class ContextBootstrapInput:
     schema_version: int
     run_id: str
     account_id: str
-    conversation_id: str
-    session_id: str
+    source: RunSource
+    context: RunContext
     strategy: str
     operation_id: str
 
@@ -58,8 +120,8 @@ class ModelDecisionInput:
     schema_version: int
     run_id: str
     account_id: str
-    conversation_id: str
-    session_id: str
+    source: RunSource
+    context: RunContext
     strategy: str
     transcript_id: str
     transcript_version: int
@@ -90,8 +152,8 @@ class ToolExecutionInput:
     schema_version: int
     run_id: str
     account_id: str
-    conversation_id: str
-    session_id: str
+    source: RunSource
+    context: RunContext
     strategy: str
     transcript_id: str
     transcript_version: int
@@ -187,8 +249,8 @@ class PlanningInput:
     schema_version: int
     run_id: str
     account_id: str
-    conversation_id: str
-    session_id: str
+    source: RunSource
+    context: RunContext
     transcript_id: str
     transcript_version: int
     operation_id: str
@@ -217,8 +279,8 @@ class PlanEvaluationInput:
     schema_version: int
     run_id: str
     account_id: str
-    conversation_id: str
-    session_id: str
+    source: RunSource
+    context: RunContext
     transcript_id: str
     transcript_version: int
     operation_id: str
@@ -241,7 +303,7 @@ class PlanEvaluationResult:
 @dataclass(frozen=True)
 class AgentStepInput:
     schema_version: int
-    agent: AgentRunInput
+    agent: AgentExecutionInput
     transcript_id: str
     transcript_version: int
     plan_id: str

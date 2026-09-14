@@ -48,3 +48,28 @@ def test_tool_operation_intent_and_uncertain_survive_activity_redelivery(
     duplicate = store.begin_tool_operation(operation_id, str(run_id))
     assert duplicate.status == "completed"
     assert duplicate.result_payload == completed
+
+
+def test_expired_same_run_acquires_new_fence_and_rejects_old_interval(
+    db, account_id, database_url, worker_database_url
+):
+    from agent_activities.store import StaleFencingToken
+
+    _, _, run_id = _conversation_and_run(database_url, account_id)
+    store = AgentDataStore(worker_database_url, lease_ttl_seconds=30)
+    first = store.acquire_lease(str(account_id), str(run_id))
+    duplicate = store.acquire_lease(str(account_id), str(run_id))
+    assert duplicate.fencing_token == first.fencing_token
+    db.execute(
+        "UPDATE account_execution_leases SET lease_expires_at=now()-interval '1 second' "
+        "WHERE account_id=%s", (account_id,),
+    )
+    resumed = store.acquire_lease(str(account_id), str(run_id))
+    assert resumed.fencing_token > first.fencing_token
+    with pytest.raises(StaleFencingToken):
+        store.validate_and_renew_lease(str(account_id), str(run_id), first.fencing_token)
+    assert not store.release_lease(str(account_id), str(run_id), first.fencing_token)
+    store.validate_and_renew_lease(str(account_id), str(run_id), resumed.fencing_token)
+    assert store.release_lease(str(account_id), str(run_id), resumed.fencing_token)
+    next_interval = store.acquire_lease(str(account_id), str(run_id))
+    assert next_interval.fencing_token > resumed.fencing_token

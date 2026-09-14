@@ -15,7 +15,10 @@ from agent_activities.store import AgentDataStore
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
+    ChatContext,
     CompactToolCall,
+    RunContext,
+    RunSource,
     ToolExecutionInput,
 )
 from web_domain.services import CommandService
@@ -123,20 +126,7 @@ async def test_activity_worker_sigkill_redelivers_intent_without_repeating_side_
         },
     )
     operation_id = f"{run_id}:react:turn:1:tool:call-1"
-    request = ToolExecutionInput(
-        AGENT_SCHEMA_VERSION,
-        run_id,
-        str(account_id),
-        conversation["conversation_id"],
-        session_id,
-        "react",
-        transcript_id,
-        1,
-        1,
-        operation_id,
-        lease.fencing_token,
-        CompactToolCall("call-1", "counting_write", f"{decision_ref}#call-1"),
-    )
+    request = ToolExecutionInput(schema_version=AGENT_SCHEMA_VERSION, run_id=run_id, account_id=str(account_id), strategy="react", transcript_id=transcript_id, transcript_version=1, turn=1, operation_id=operation_id, lease_token=lease.fencing_token, tool_call=CompactToolCall("call-1", "counting_write", f"{decision_ref}#call-1"), source=RunSource("chat", conversation["conversation_id"]), context=RunContext(chat=ChatContext(conversation["conversation_id"], session_id, None), surface="web"))
 
     workflow_worker = first_activity_worker = replacement_activity_worker = None
     try:

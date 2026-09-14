@@ -7,7 +7,7 @@ import pytest
 
 from agent_activities.persistent_overwrite import PersistentOverwriteActivities
 from agent_activities.store import StaleFencingToken, ToolOperationState
-from agent_workflows.contracts import ApprovedToolExecutionInput
+from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ApprovedToolExecutionInput
 from file_domain.approvals import ApprovalNotGranted, FileActionApprovalService
 from file_domain.persistent import DestinationChanged, PersistentWebFileService
 from file_runtime import OutputPublisher
@@ -228,7 +228,7 @@ async def test_approved_executor_reconciles_ack_loss_without_duplicate_revision(
     operations = Operations()
     executor = PersistentOverwriteActivities(operations, service, CrashOnce())
     request = ApprovedToolExecutionInput(
-        1, str(account_id), str(run_id), "overwrite", 7, str(pending.approval_id),
+        AGENT_SCHEMA_VERSION, str(account_id), str(run_id), "overwrite", 7, str(pending.approval_id),
         "transcript", 1, "call", "save_persistent_file",
     )
     with pytest.raises(RuntimeError, match="ack lost"):
@@ -240,7 +240,7 @@ async def test_approved_executor_reconciles_ack_loss_without_duplicate_revision(
     ).fetchone()[0] == 2
     with pytest.raises(Exception):
         await executor.execute(ApprovedToolExecutionInput(
-            1, str(account_id), str(run_id), "overwrite", 6,
+            AGENT_SCHEMA_VERSION, str(account_id), str(run_id), "overwrite", 6,
             str(pending.approval_id),
             "transcript", 1, "call", "save_persistent_file",
         ))

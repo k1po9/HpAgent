@@ -1,4 +1,5 @@
 """Real-process Temporal replay acceptance for Durable ReAct and Plan."""
+
 from __future__ import annotations
 
 import asyncio
@@ -12,26 +13,34 @@ import pytest
 from temporalio.client import Client
 
 from agent_workflows.agent_run import AgentRunWorkflow
-from agent_workflows.contracts import AGENT_SCHEMA_VERSION, AGENT_TASK_QUEUE, AgentRunInput
+from agent_workflows.contracts import (
+    AGENT_SCHEMA_VERSION,
+    AGENT_TASK_QUEUE,
+    AgentExecutionInput,
+    ChatContext,
+    ExecutionLeaseRef,
+    RunContext,
+    RunSource,
+)
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 
 _HARNESS = Path(__file__).parent / "support" / "durable_worker_process.py"
 
 
-def _request(strategy: str) -> AgentRunInput:
+def _request(strategy: str) -> AgentExecutionInput:
     run_id = str(uuid4())
-    return AgentRunInput(
-        AGENT_SCHEMA_VERSION,
-        run_id,
-        str(uuid4()),
-        str(uuid4()),
-        str(uuid4()),
-        strategy,
-        str(uuid4()),
-        1,
-        "web_plan" if strategy == "plan_and_execute" else "web_chat",
-        3,
+    return AgentExecutionInput(
+        schema_version=AGENT_SCHEMA_VERSION,
+        run_id=run_id,
+        account_id=str(uuid4()),
+        strategy=strategy,
+        max_turns=3,
+        source=RunSource("chat", str(uuid4())),
+        context=RunContext(
+            chat=ChatContext(str(uuid4()), str(uuid4()), str(uuid4())), surface="web"
+        ),
+        execution_lease=ExecutionLeaseRef(1),
     )
 
 

@@ -1,8 +1,9 @@
 """Web business lifecycle using durable child Agent workflows.
 
-The legacy ``WebRunWorkflow`` remains byte-for-byte command compatible with
-existing histories. New durable Runs use this separately named definition.
+The Web adapter builds source/context and active-interval contracts from PG.
+Full suspend/resume wiring is the remaining W1 lifecycle work.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -21,8 +22,12 @@ from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
-    AgentRunInput,
+    AgentExecutionInput,
+    ChatContext,
+    ExecutionLeaseRef,
     FinalizeResultInput,
+    RunContext,
+    RunSource,
 )
 
 from .web_workflow import (
@@ -131,17 +136,22 @@ class DurableWebRunWorkflow:
             workflow.logger.info("durable_web_workflow_agent_started", extra={"event": "durable_web_workflow_agent_started", "component": "workflow", "run_id": request.run_id, "strategy": lease["strategy"], "status": "started", "phase": "agent"})
             agent_result = await workflow.execute_child_workflow(
                 AgentRunWorkflow.run,
-                AgentRunInput(
-                    AGENT_SCHEMA_VERSION,
-                    request.run_id,
-                    str(lease["account_id"]),
-                    str(lease["conversation_id"]),
-                    str(lease["session_id"]),
-                    str(lease["strategy"]),
-                    str(lease["trigger_message_id"]),
-                    int(lease["fencing_token"]),
-                    str(lease.get("interaction_profile", "web_chat")),
-                    int(lease.get("max_turns", 20)),
+                AgentExecutionInput(
+                    schema_version=AGENT_SCHEMA_VERSION,
+                    run_id=request.run_id,
+                    account_id=str(lease["account_id"]),
+                    strategy=str(lease["strategy"]),
+                    max_turns=int(lease.get("max_turns", 20)),
+                    source=RunSource("chat", str(lease["conversation_id"])),
+                    context=RunContext(
+                        chat=ChatContext(
+                            str(lease["conversation_id"]),
+                            str(lease["session_id"]),
+                            str(lease["trigger_message_id"]),
+                        ),
+                        surface="web",
+                    ),
+                    execution_lease=ExecutionLeaseRef(int(lease["fencing_token"])),
                 ),
                 id=f"hpagent-agent-run-{request.run_id}",
                 task_queue=AGENT_TASK_QUEUE,
@@ -163,15 +173,15 @@ class DurableWebRunWorkflow:
         except asyncio.CancelledError:
             workflow.logger.warning("durable_web_workflow_cancelled", extra={"event": "durable_web_workflow_cancelled", "component": "workflow", "run_id": request.run_id, "status": "cancelled", "phase": "finalize"})
             authority = await workflow.execute_activity(
-                "finalize_cancelled_activity",
-                request,
-                task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-                schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS),
-                start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
-                retry_policy=_FINALIZE_RETRY,
-            )
+                    "finalize_cancelled_activity",
+                    request,
+                    task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                    schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS),
+                    start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
+                    retry_policy=_FINALIZE_RETRY,
+                )
             if authority["status"] == "completed":
-                return _completed(request.run_id)
+                    return _completed(request.run_id)
             if authority["status"] == "failed":
                 raise ApplicationError("unexpected workflow cancellation", non_retryable=True)
             raise
@@ -202,7 +212,7 @@ class DurableWebRunWorkflow:
                 retry_policy=_FINALIZE_RETRY,
             )
             if authority["status"] == "completed":
-                return _completed(request.run_id)
+                    return _completed(request.run_id)
             raise
         finally:
             if lease is not None:

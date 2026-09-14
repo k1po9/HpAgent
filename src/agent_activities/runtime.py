@@ -197,13 +197,15 @@ class DurableAgentActivities:
 
     @staticmethod
     def _correlation(request: Any) -> dict[str, Any]:
+        context = getattr(request, "context", None)
+        chat = context.chat if context is not None else None
         return {
             "run_id": request.run_id,
             "execution_id": request.run_id,
             "account_id": getattr(request, "account_id", None),
-            "conversation_id": getattr(request, "conversation_id", None),
-            "session_id": getattr(request, "session_id", None),
-            "surface": "web",
+            "conversation_id": chat.conversation_id if chat else None,
+            "session_id": chat.session_id if chat else None,
+            "surface": context.surface if context else None,
             "strategy": getattr(request, "strategy", None),
             "plan_id": getattr(request, "plan_id", None),
             "plan_version": getattr(request, "plan_version", None),
@@ -260,7 +262,7 @@ class DurableAgentActivities:
             None,
             "AgentExecution",
             "agent",
-            {"strategy": request.strategy, "surface": "web"},
+            {"strategy": request.strategy, "surface": request.context.surface},
         )
         await trace_start(
             events,
@@ -287,8 +289,8 @@ class DurableAgentActivities:
             loaded = await self.loader.load(request.run_id)
             if (
                 loaded.account_id != request.account_id
-                or loaded.conversation_id != request.conversation_id
-                or loaded.session_id != request.session_id
+                or loaded.conversation_id != request.context.require_chat().conversation_id
+                or loaded.session_id != request.context.require_chat().session_id
             ):
                 raise ApplicationError("context identity mismatch", non_retryable=True)
             messages = list(loaded.context)
@@ -369,8 +371,8 @@ class DurableAgentActivities:
                 transcript_id=transcript_id,
                 run_id=request.run_id,
                 account_id=request.account_id,
-                conversation_id=request.conversation_id,
-                session_id=request.session_id,
+                conversation_id=request.context.require_chat().conversation_id,
+                session_id=request.context.require_chat().session_id,
                 messages=messages,
                 operation_id=request.operation_id,
             )
@@ -486,7 +488,7 @@ class DurableAgentActivities:
             else:
                 await events.progress("calling_model", "正在生成回复。")
             async with self._workspace(request):
-                self.actions.reset_turn(request.session_id, request.run_id)
+                self.actions.reset_turn(request.context.require_chat().session_id, request.run_id)
                 with model_budget_scope(
                     self.run_budget, request.run_id, request.operation_id,
                     execution_attempt=self._attempt(),
@@ -497,7 +499,7 @@ class DurableAgentActivities:
                     else:
                         tools = await self.actions.select_tools(
                             user_content=request.objective or self._last_user_content(model_messages),
-                            session_id=request.session_id,
+                            session_id=request.context.require_chat().session_id,
                             execution_id=request.run_id,
                         )
                         decision = await self.brain.generate_chat_decision(
@@ -582,7 +584,7 @@ class DurableAgentActivities:
                 raise
             raise ApplicationError("模型暂时不可用。", type="model_unavailable") from exc
         finally:
-            self.actions.clear_execution(request.session_id, request.run_id)
+            self.actions.clear_execution(request.context.require_chat().session_id, request.run_id)
             await trace_end(events, model_node_id, trace_status, trace_metadata)
             await events.close()
         log_event(model_logger, logging.INFO, "model_decision_completed", "model", **fields, status="success", elapsed_ms=round((time.monotonic() - started) * 1000), stop_reason=result.stop_reason, tool_count=len(result.tool_calls), result_ref=result.decision_ref)
@@ -777,7 +779,7 @@ class DurableAgentActivities:
                     }
                     return ToolExecutionResult(**payload)
                 side_effect_class = normalize_side_effect_class(str(
-                    self.actions.side_effect_class(request.session_id, request.tool_call.name)
+                    self.actions.side_effect_class(request.context.require_chat().session_id, request.tool_call.name)
                 ))
                 if side_effect_class == "unknown":
                     raise ApplicationError(
@@ -870,7 +872,7 @@ class DurableAgentActivities:
                     reservation = {"tool_calls": 1}
                     if self.run_budget is not None:
                         reservation = self.actions.budget_reservation(
-                            request.session_id, request.tool_call.name
+                            request.context.require_chat().session_id, request.tool_call.name
                         )
                         try:
                             await asyncio.to_thread(
@@ -893,7 +895,7 @@ class DurableAgentActivities:
                         ):
                             result_value = await self.actions.execute_request(
                                 action,
-                                session_id=request.session_id,
+                                session_id=request.context.require_chat().session_id,
                                 execution_id=request.run_id,
                                 user_query="",
                                 idempotency_key=request.operation_id,
@@ -1077,7 +1079,7 @@ class DurableAgentActivities:
             if heartbeat_task is not None:
                 heartbeat_task.cancel()
                 await asyncio.gather(heartbeat_task, return_exceptions=True)
-            self.actions.clear_execution(request.session_id, request.run_id)
+            self.actions.clear_execution(request.context.require_chat().session_id, request.run_id)
             if file_node_id is not None:
                 await trace_end(
                     events, file_node_id, trace_status, file_trace_metadata

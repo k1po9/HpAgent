@@ -13,10 +13,12 @@ from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
-    AgentRunInput,
+    AgentExecutionInput,
+    ChatContext,
     CompactToolCall,
     ContextBootstrapInput,
     ContextBootstrapResult,
+    ExecutionLeaseRef,
     ModelDecisionInput,
     ModelDecisionResult,
     PlanEvaluationInput,
@@ -24,6 +26,8 @@ from agent_workflows.contracts import (
     PlanningInput,
     PlanningResult,
     PlanStep,
+    RunContext,
+    RunSource,
     ToolExecutionInput,
     ToolExecutionResult,
 )
@@ -108,19 +112,19 @@ async def fake_evaluation(request: PlanEvaluationInput) -> PlanEvaluationResult:
     )
 
 
-def _request(strategy: str) -> AgentRunInput:
+def _request(strategy: str) -> AgentExecutionInput:
     run_id = str(uuid4())
-    return AgentRunInput(
-        AGENT_SCHEMA_VERSION,
-        run_id,
-        str(uuid4()),
-        str(uuid4()),
-        str(uuid4()),
-        strategy,
-        str(uuid4()),
-        1,
-        "web_plan" if strategy == "plan_and_execute" else "web_chat",
-        3,
+    return AgentExecutionInput(
+        schema_version=AGENT_SCHEMA_VERSION,
+        run_id=run_id,
+        account_id=str(uuid4()),
+        strategy=strategy,
+        max_turns=3,
+        source=RunSource("chat", str(uuid4())),
+        context=RunContext(
+            chat=ChatContext(str(uuid4()), str(uuid4()), str(uuid4())), surface="web"
+        ),
+        execution_lease=ExecutionLeaseRef(1),
     )
 
 

@@ -74,7 +74,7 @@ class PersistentOverwriteActivities:
                 )
                 self.fault_injector.hit("persistent_overwrite_succeeded_before_ack")
             result = ApprovedToolExecutionResult(
-                1, request.operation_id, f"persistent-file:{recovered.file_id}",
+                AGENT_SCHEMA_VERSION, request.operation_id, f"persistent-file:{recovered.file_id}",
                 f"Saved {recovered.logical_path} revision {recovered.revision}",
                 request.transcript_version,
             )

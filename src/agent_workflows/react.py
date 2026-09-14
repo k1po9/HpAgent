@@ -1,4 +1,5 @@
 """Durable ReAct state machine: compact state in History, payloads by ref."""
+
 from __future__ import annotations
 
 from datetime import timedelta
@@ -10,8 +11,8 @@ from temporalio.exceptions import ApplicationError
 from .contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
+    AgentExecutionInput,
     AgentResult,
-    AgentRunInput,
     ContextBootstrapInput,
     ContextBootstrapResult,
     ModelDecisionInput,
@@ -41,26 +42,28 @@ _TOOL_RETRY = RetryPolicy(
 )
 
 
-def _validate(request: AgentRunInput) -> None:
+def _validate(request: AgentExecutionInput) -> None:
     if request.schema_version != AGENT_SCHEMA_VERSION:
         raise ApplicationError("unsupported Agent workflow schema", non_retryable=True)
-    if not all((request.run_id, request.account_id, request.conversation_id, request.session_id)):
+    if not all(
+        (request.run_id, request.account_id, request.source.source_kind, request.source.source_ref)
+    ):
         raise ApplicationError("incomplete Agent identity", non_retryable=True)
-    if request.lease_token < 1 or request.max_turns < 1:
+    if request.execution_lease.fencing_token < 1 or request.max_turns < 1:
         raise ApplicationError("invalid Agent execution limits", non_retryable=True)
 
 
-async def bootstrap(request: AgentRunInput):
+async def bootstrap(request: AgentExecutionInput):
     return await workflow.execute_activity(
         "context_bootstrap_activity",
         ContextBootstrapInput(
-            AGENT_SCHEMA_VERSION,
-            request.run_id,
-            request.account_id,
-            request.conversation_id,
-            request.session_id,
-            request.strategy,
-            f"{request.run_id}:{request.strategy}:context",
+            schema_version=AGENT_SCHEMA_VERSION,
+            run_id=request.run_id,
+            account_id=request.account_id,
+            strategy=request.strategy,
+            operation_id=f"{request.run_id}:{request.strategy}:context",
+            source=request.source,
+            context=request.context,
         ),
         task_queue=AGENT_TASK_QUEUE,
         result_type=ContextBootstrapResult,
@@ -72,7 +75,7 @@ async def bootstrap(request: AgentRunInput):
 @workflow.defn
 class ReactAgentWorkflow:
     @workflow.run
-    async def run(self, request: AgentRunInput) -> AgentResult:
+    async def run(self, request: AgentExecutionInput) -> AgentResult:
         _validate(request)
         workflow.logger.info(
             "react_workflow_started",
@@ -89,17 +92,17 @@ class ReactAgentWorkflow:
             decision = await workflow.execute_activity(
                 "model_decision_activity",
                 ModelDecisionInput(
-                    AGENT_SCHEMA_VERSION,
-                    request.run_id,
-                    request.account_id,
-                    request.conversation_id,
-                    request.session_id,
-                    request.strategy,
-                    context.transcript_id,
-                    transcript_version,
-                    turn,
-                    f"{request.run_id}:react:turn:{turn}:model",
-                    request.lease_token,
+                    schema_version=AGENT_SCHEMA_VERSION,
+                    run_id=request.run_id,
+                    account_id=request.account_id,
+                    strategy=request.strategy,
+                    transcript_id=context.transcript_id,
+                    transcript_version=transcript_version,
+                    turn=turn,
+                    operation_id=f"{request.run_id}:react:turn:{turn}:model",
+                    lease_token=request.execution_lease.fencing_token,
+                    source=request.source,
+                    context=request.context,
                 ),
                 task_queue=AGENT_TASK_QUEUE,
                 result_type=ModelDecisionResult,
@@ -126,18 +129,18 @@ class ReactAgentWorkflow:
                 )
             for call in decision.tool_calls:
                 tool_input = ToolExecutionInput(
-                    AGENT_SCHEMA_VERSION,
-                    request.run_id,
-                    request.account_id,
-                    request.conversation_id,
-                    request.session_id,
-                    request.strategy,
-                    context.transcript_id,
-                    transcript_version,
-                    turn,
-                    f"{request.run_id}:react:turn:{turn}:tool:{call.tool_call_id}",
-                    request.lease_token,
-                    call,
+                    schema_version=AGENT_SCHEMA_VERSION,
+                    run_id=request.run_id,
+                    account_id=request.account_id,
+                    strategy=request.strategy,
+                    transcript_id=context.transcript_id,
+                    transcript_version=transcript_version,
+                    turn=turn,
+                    operation_id=f"{request.run_id}:react:turn:{turn}:tool:{call.tool_call_id}",
+                    lease_token=request.execution_lease.fencing_token,
+                    tool_call=call,
+                    source=request.source,
+                    context=request.context,
                 )
                 tool_result = await workflow.execute_child_workflow(
                     ToolExecutionWorkflow.run,
@@ -163,18 +166,18 @@ class ReactAgentWorkflow:
         final = await workflow.execute_activity(
             "model_decision_activity",
             ModelDecisionInput(
-                AGENT_SCHEMA_VERSION,
-                request.run_id,
-                request.account_id,
-                request.conversation_id,
-                request.session_id,
-                request.strategy,
-                context.transcript_id,
-                transcript_version,
-                final_turn,
-                f"{request.run_id}:react:turn:{final_turn}:forced-final",
-                request.lease_token,
+                schema_version=AGENT_SCHEMA_VERSION,
+                run_id=request.run_id,
+                account_id=request.account_id,
+                strategy=request.strategy,
+                transcript_id=context.transcript_id,
+                transcript_version=transcript_version,
+                turn=final_turn,
+                operation_id=f"{request.run_id}:react:turn:{final_turn}:forced-final",
+                lease_token=request.execution_lease.fencing_token,
                 final_only=True,
+                source=request.source,
+                context=request.context,
             ),
             task_queue=AGENT_TASK_QUEUE,
             result_type=ModelDecisionResult,

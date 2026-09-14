@@ -74,7 +74,7 @@ def test_plan_evaluation_parser_supports_replan_and_safe_fallback():
     )
 
 
-def test_durable_worker_definitions_remain_registered_for_rollback(monkeypatch):
+def test_current_w1_registry_includes_paths_pending_w3_retirement(monkeypatch):
     made: list[dict] = []
 
     class FakeWorker:

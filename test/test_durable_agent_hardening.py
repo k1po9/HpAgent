@@ -21,9 +21,12 @@ from agent_activities.store import (
 )
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
+    ChatContext,
     CompactToolCall,
     PlanEvaluationInput,
     PlanningInput,
+    RunContext,
+    RunSource,
     ToolExecutionInput,
 )
 from orchestration import web_activities
@@ -161,18 +164,18 @@ class CrashAfterSideEffect:
 def request() -> ToolExecutionInput:
     run_id = str(uuid4())
     return ToolExecutionInput(
-        AGENT_SCHEMA_VERSION,
-        run_id,
-        str(uuid4()),
-        str(uuid4()),
-        str(uuid4()),
-        "react",
-        f"transcript:{run_id}",
-        1,
-        1,
-        f"{run_id}:tool:call-1",
-        11,
-        CompactToolCall("call-1", "write_tool", "decision:1#call-1"),
+        schema_version=AGENT_SCHEMA_VERSION,
+        run_id=run_id,
+        account_id=str(uuid4()),
+        strategy="react",
+        transcript_id=f"transcript:{run_id}",
+        transcript_version=1,
+        turn=1,
+        operation_id=f"{run_id}:tool:call-1",
+        lease_token=11,
+        tool_call=CompactToolCall("call-1", "write_tool", "decision:1#call-1"),
+        source=RunSource("chat", str(uuid4())),
+        context=RunContext(chat=ChatContext(str(uuid4()), str(uuid4()), None), surface="web"),
     )
 
 
@@ -329,32 +332,36 @@ async def test_plan_activity_logging_does_not_duplicate_correlation_fields():
     )
     planned = await durable.planning(
         PlanningInput(
-            AGENT_SCHEMA_VERSION,
-            run_id,
-            *identity,
-            f"transcript:{run_id}",
-            1,
-            f"{run_id}:plan:1:planner",
-            1,
-            f"plan:{run_id}",
-            1,
+            schema_version=AGENT_SCHEMA_VERSION,
+            run_id=run_id,
+            account_id=identity[0],
+            transcript_id=f"transcript:{run_id}",
+            transcript_version=1,
+            operation_id=f"{run_id}:plan:1:planner",
+            lease_token=1,
+            plan_id=f"plan:{run_id}",
+            plan_version=1,
+            source=RunSource("chat", identity[1]),
+            context=RunContext(chat=ChatContext(identity[1], identity[2], None), surface="web"),
         )
     )
     assert len(planned.steps) == 1
     evaluated = await durable.evaluate_plan(
         PlanEvaluationInput(
-            AGENT_SCHEMA_VERSION,
-            run_id,
-            *identity,
-            f"transcript:{run_id}",
-            1,
-            f"{run_id}:plan:1:step:step-1:evaluation",
-            1,
-            f"plan:{run_id}",
-            1,
-            "step-1",
-            1,
-            1,
+            schema_version=AGENT_SCHEMA_VERSION,
+            run_id=run_id,
+            account_id=identity[0],
+            transcript_id=f"transcript:{run_id}",
+            transcript_version=1,
+            operation_id=f"{run_id}:plan:1:step:step-1:evaluation",
+            lease_token=1,
+            plan_id=f"plan:{run_id}",
+            plan_version=1,
+            step_id="step-1",
+            step_index=1,
+            step_count=1,
+            source=RunSource("chat", identity[1]),
+            context=RunContext(chat=ChatContext(identity[1], identity[2], None), surface="web"),
         )
     )
     assert evaluated.decision == "complete"

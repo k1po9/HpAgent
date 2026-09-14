@@ -60,14 +60,16 @@ class AgentDataStore:
                 "SELECT * FROM account_execution_leases WHERE account_id=%s FOR UPDATE",
                 (account_uuid,),
             ).fetchone()
+            now = uow.execute("SELECT now() AS now").fetchone()["now"]
+            active = row["lease_expires_at"] is not None and row["lease_expires_at"] > now
             if (
                 row["owner_run_id"] is not None
                 and str(row["owner_run_id"]) != run_id
-                and row["lease_expires_at"] is not None
-                and row["lease_expires_at"] > uow.execute("SELECT now() AS now").fetchone()["now"]
+                and active
             ):
                 raise LeaseConflict(f"account lease owned by run {row['owner_run_id']}")
-            same_owner = str(row["owner_run_id"]) == run_id
+            # Only redelivery within a live interval retains its token.
+            same_owner = str(row["owner_run_id"]) == run_id and active
             token = int(row["fencing_token"]) if same_owner else int(row["fencing_token"]) + 1
             expires = uow.execute(
                 "UPDATE account_execution_leases SET owner_run_id=%s,fencing_token=%s,"

@@ -27,7 +27,7 @@ from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
-from agent_workflows.contracts import ApprovalDecisionSignal
+from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ApprovalDecisionSignal
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
@@ -248,7 +248,7 @@ async def test_approval_dispatch_uses_persisted_deterministic_routing_identity()
     )
     assert received == [(
         "hpagent-tool-exact",
-        ApprovalDecisionSignal(1, payload["approval_id"], payload["operation_id"]),
+        ApprovalDecisionSignal(AGENT_SCHEMA_VERSION, payload["approval_id"], payload["operation_id"]),
     )]
 
 
@@ -1143,8 +1143,6 @@ async def test_deadline_expired_prevents_model_call():
 async def test_model_over_deadline_is_stable_model_timeout():
     class Control:
         def __init__(self):
-            # Larger than the loop's 1.0s safety margin so the model call is
-            # actually entered before the deadline expires.
             self._deadline = datetime.now(UTC) + timedelta(seconds=1.3)
 
         @property

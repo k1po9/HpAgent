@@ -15,7 +15,7 @@ from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 from temporalio.service import RPCError, RPCStatusCode
 
-from agent_workflows.contracts import ApprovalDecisionSignal
+from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ApprovalDecisionSignal
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from common.logging import log_event
 from orchestration.research_workflow import ResearchReportWorkflow, ResearchWorkflowInput
@@ -179,7 +179,7 @@ class TemporalOutboxDispatcher:
     async def dispatch_approval_decision(self, payload: dict[str, object]) -> bool:
         workflow_id = str(payload["tool_execution_workflow_id"])
         signal = ApprovalDecisionSignal(
-            1, str(payload["approval_id"]), str(payload["operation_id"])
+            AGENT_SCHEMA_VERSION, str(payload["approval_id"]), str(payload["operation_id"])
         )
         await self.temporal.signal_tool_approval(workflow_id, signal)
         return True

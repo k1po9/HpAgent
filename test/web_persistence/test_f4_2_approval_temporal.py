@@ -17,7 +17,10 @@ from agent_workflows.contracts import (
     ApprovalStatusResult,
     ApprovedToolExecutionInput,
     ApprovedToolExecutionResult,
+    ChatContext,
     CompactToolCall,
+    RunContext,
+    RunSource,
     ToolExecutionInput,
     ToolExecutionResult,
 )
@@ -42,7 +45,7 @@ _waiting: asyncio.Event
 @activity.defn(name="tool_execution_activity")
 async def pending_tool(request: ToolExecutionInput) -> ToolExecutionResult:
     return ToolExecutionResult(
-        1, request.operation_id, "approval-ref", request.transcript_version,
+        AGENT_SCHEMA_VERSION, request.operation_id, "approval-ref", request.transcript_version,
         "approval required", _approval_id, "pending", _expires_at,
     )
 
@@ -56,13 +59,13 @@ async def postgres_approval_status(request: ApprovalStatusInput) -> ApprovalStat
     )
     _waiting.set()
     return ApprovalStatusResult(
-        1, str(approval.approval_id), approval.operation_id, approval.status
+        AGENT_SCHEMA_VERSION, str(approval.approval_id), approval.operation_id, approval.status
     )
 
 
 @activity.defn(name="approved_file_action_execution_activity")
 async def approved_execution(request: ApprovedToolExecutionInput) -> ApprovedToolExecutionResult:
-    return ApprovedToolExecutionResult(1, request.operation_id, "executed", "executed", 2)
+    return ApprovedToolExecutionResult(AGENT_SCHEMA_VERSION, request.operation_id, "executed", "executed", 2)
 
 
 async def test_api_outbox_signal_resumes_with_postgres_authority(
@@ -92,11 +95,7 @@ async def test_api_outbox_signal_resumes_with_postgres_authority(
         "WHERE run_id=%s AND event_type='start_run'", (run_id,),
     )
 
-    request = ToolExecutionInput(
-        AGENT_SCHEMA_VERSION, str(run_id), str(account_id), str(conversation_id),
-        str(uuid4()), "react", "transcript", 1, 1, operation_id, 1,
-        CompactToolCall("overwrite", "save_persistent_file", "arguments-ref"),
-    )
+    request = ToolExecutionInput(schema_version=AGENT_SCHEMA_VERSION, run_id=str(run_id), account_id=str(account_id), strategy="react", transcript_id="transcript", transcript_version=1, turn=1, operation_id=operation_id, lease_token=1, tool_call=CompactToolCall("overwrite", "save_persistent_file", "arguments-ref"), source=RunSource("chat", str(conversation_id)), context=RunContext(chat=ChatContext(str(conversation_id), str(uuid4()), None), surface="web"))
     client = await Client.connect(host, namespace=os.getenv("TEMPORAL_NAMESPACE", "default"))
     worker = Worker(
         client, task_queue=AGENT_TASK_QUEUE, workflows=[ToolExecutionWorkflow],

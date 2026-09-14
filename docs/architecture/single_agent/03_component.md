@@ -1,5 +1,13 @@
 # 03 — 组件架构
 
+## 当前 Durable 合同补充（Phase 3 W1-A）
+
+当前 durable 主线使用 schema v2：稳定 `AgentRunInput` 保存 Run/account、source/context 与 strategy；`AgentExecutionInput` 另携带当次活跃区间的 fencing token。Chat 的 Conversation/Session/Message 位于可选 ChatContext；核心输入和 Workflow 身份校验不再要求所有来源都具备聊天实体。bootstrap/model/tool/planning/evaluation 传递 source/context，Trace 按 context 投影 surface。
+
+当前实际 loader/action/resource adapter 仍服务 Chat；生命周期仍一次 acquire 后运行 Agent child。过期同 Run 重新 acquire 已生成新 token，但完整 wait 释放、resume、新 token 全链路传播尚未完成，不能称为 suspend-safe 或 canonical runtime 已完成。QQ/legacy 仍在既有路径。
+
+实现范围与门禁见 [W1-A 实施报告](../../../artifacts/architecture-audit/phase3/W1_A_implementation_report.md)。下方历史组件图尚未覆盖 durable 分支及本次输入合同，属于明确的 architecture/visual drift；后续 W1 更新当前运行图，Excalidraw 由人工维护。
+
 ## 边界与依赖方向
 
 ```mermaid
