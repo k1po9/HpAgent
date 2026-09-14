@@ -17,6 +17,7 @@ from .contracts import (
     ToolExecutionResult,
 )
 from .react import _MODEL_RETRY, _validate
+from .segments import execute_segment
 from .tool_execution import ToolExecutionWorkflow, tool_execution_workflow_id
 
 
@@ -28,7 +29,7 @@ class AgentStepWorkflow:
         transcript_version = request.transcript_version
         tool_turns = 0
         for turn in range(1, request.max_turns + 1):
-            decision = await workflow.execute_activity(
+            decision = await execute_segment(
                 "model_decision_activity",
                 ModelDecisionInput(
                     schema_version=AGENT_SCHEMA_VERSION,
@@ -39,7 +40,7 @@ class AgentStepWorkflow:
                     transcript_version=transcript_version,
                     turn=turn,
                     operation_id=f"{request.agent.run_id}:plan:{request.plan_version}:step:{request.step.step_id}:turn:{turn}:model",
-                    lease_token=request.agent.execution_lease.fencing_token,
+                    lease_token=0,
                     objective=request.step.objective,
                     plan_id=request.plan_id,
                     plan_version=request.plan_version,
@@ -72,7 +73,7 @@ class AgentStepWorkflow:
                     turn=turn,
                     operation_id=f"{request.agent.run_id}:plan:{request.plan_version}:step:"
                     f"{request.step.step_id}:turn:{turn}:tool:{call.tool_call_id}",
-                    lease_token=request.agent.execution_lease.fencing_token,
+                    lease_token=0,
                     tool_call=call,
                     plan_id=request.plan_id,
                     plan_version=request.plan_version,
@@ -92,7 +93,7 @@ class AgentStepWorkflow:
                 transcript_version = result.transcript_version
             tool_turns += 1
         final_turn = request.max_turns + 1
-        final = await workflow.execute_activity(
+        final = await execute_segment(
             "model_decision_activity",
             ModelDecisionInput(
                 schema_version=AGENT_SCHEMA_VERSION,
@@ -103,7 +104,7 @@ class AgentStepWorkflow:
                 transcript_version=transcript_version,
                 turn=final_turn,
                 operation_id=f"{request.agent.run_id}:plan:{request.plan_version}:step:{request.step.step_id}:forced-final",
-                lease_token=request.agent.execution_lease.fencing_token,
+                lease_token=0,
                 objective=request.step.objective,
                 final_only=True,
                 plan_id=request.plan_id,

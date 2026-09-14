@@ -112,6 +112,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
 
     from agent_activities.persistent_overwrite import PersistentOverwriteActivities
     from agent_activities.runtime import DurableAgentActivities
+    from agent_activities.segments import SegmentActivities
     from agent_activities.store import AgentDataStore
     from agent_execution.audit import LoggingExecutionAuditSinkFactory
     from agent_execution.brain_action_loop import DefaultBrainActionLoop
@@ -142,7 +143,6 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         TemporalArtifactClient,
     )
     from orchestration.web_activities import (
-        acquire_execution_lease_activity,
         execute_agent_activity,
         finalize_cancelled_activity,
         finalize_failed_activity,
@@ -150,8 +150,8 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         inject_agent_event_factory,
         inject_web_execution_host,
         inject_web_lifecycle,
+        load_agent_run_input_activity,
         prepare_run_activity,
-        release_execution_lease_activity,
     )
     from orchestration.web_dispatcher import (
         TemporalClientAdapter,
@@ -313,12 +313,12 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         ),
     )
     inject_artifact_build_service(artifact_build)
+    segment_activities = SegmentActivities(durable_activities.store)
     workers = build_web_temporal_workers(
         client,
         lifecycle_activities=[
             prepare_run_activity,
-            acquire_execution_lease_activity,
-            release_execution_lease_activity,
+            load_agent_run_input_activity,
             finalize_failed_activity,
             finalize_cancelled_activity,
             durable_activities.finalize_agent_result,
@@ -341,6 +341,10 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
             research_activities.fail_research_activity,
         ],
         agent_activities=[
+            segment_activities.acquire,
+            segment_activities.release,
+            segment_activities.begin_wait,
+            segment_activities.finish_wait,
             execute_agent_activity,
             durable_activities.context_bootstrap,
             durable_activities.model_decision,

@@ -10,17 +10,21 @@ from uuid import UUID
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from agent_activities.store import AgentDataStore, LeaseConflict
+from agent_activities.store import AgentDataStore
 from agent_execution.facade import StableExecutionFailure
 from agent_execution.tracing import trace_end, trace_node_id, trace_start
 from agent_execution.web_host import WebExecutionHost
-from agent_workflows.contracts import AGENT_STRATEGIES
-from common.logging import log_event
+from agent_workflows.contracts import (
+    AGENT_SCHEMA_VERSION,
+    AgentRunInput,
+    ChatContext,
+    RunContext,
+    RunSource,
+)
 from orchestration.web_workflow import FailureInput, WebRunWorkflowInput
 from web_domain.errors import DomainError
 from web_domain.lifecycle import WebRunLifecycleService
 
-from .durable_web_workflow import AcquireLeaseInput, ReleaseLeaseInput
 from .web_workflow import WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS
 
 lease_logger = logging.getLogger("HpAgent.ExecutionLease")
@@ -137,86 +141,6 @@ async def execute_agent_activity(request: WebRunWorkflowInput) -> dict[str, str]
 
 
 @activity.defn
-async def acquire_execution_lease_activity(request: AcquireLeaseInput) -> dict[str, str | int]:
-    if request.schema_version != 1 or not request.run_id:
-        raise ApplicationError("invalid execution lease input", non_retryable=True)
-    identity = await asyncio.to_thread(_store().run_identity, request.run_id)
-    strategy = str(identity["agent_strategy"])
-    if strategy not in AGENT_STRATEGIES:
-        raise ApplicationError(
-            "unsupported agent strategy",
-            type="unsupported_agent_strategy",
-            non_retryable=True,
-        )
-    fields = {
-        "run_id": request.run_id,
-        "execution_id": request.run_id,
-        "account_id": identity["account_id"],
-        "surface": "web",
-        "strategy": strategy,
-    }
-    log_event(lease_logger, logging.INFO, "execution_lease_acquire_started", "lease", **fields, status="started")
-    try:
-        lease = await asyncio.to_thread(
-            _store().acquire_lease, str(identity["account_id"]), request.run_id
-        )
-    except LeaseConflict:
-        log_event(lease_logger, logging.INFO, "execution_lease_waiting", "lease", **fields, status="waiting")
-        if _agent_event_factory is not None:
-            events = _agent_event_factory.for_run(request.run_id)
-            await events.progress(
-                "waiting_for_account_execution",
-                "正在等待同账号的另一个任务完成…",
-            )
-            await events.close()
-        return {
-            "run_id": request.run_id,
-            "account_id": str(identity["account_id"]),
-            "acquired": False,
-        }
-    result: dict[str, str | int] = {
-        "run_id": request.run_id,
-        "acquired": True,
-        "account_id": str(identity["account_id"]),
-        "conversation_id": str(identity["conversation_id"]),
-        "session_id": str(identity["session_id"]),
-        "trigger_message_id": str(identity["trigger_message_id"]),
-        "strategy": strategy,
-        "interaction_profile": "web_plan" if strategy == "plan_and_execute" else "web_chat",
-        "fencing_token": lease.fencing_token,
-        "lease_expires_at": lease.lease_expires_at,
-        "max_turns": _agent_max_turns,
-    }
-    log_event(lease_logger, logging.INFO, "execution_lease_acquired", "lease", **fields, status="success", fencing_token=lease.fencing_token, lease_expires_at=lease.lease_expires_at)
-    return result
-
-
-@activity.defn
-async def release_execution_lease_activity(request: ReleaseLeaseInput) -> dict[str, str | bool]:
-    if request.schema_version != 1:
-        raise ApplicationError("invalid execution lease input", non_retryable=True)
-    released = await asyncio.to_thread(
-        _store().release_lease,
-        request.account_id,
-        request.run_id,
-        request.fencing_token,
-    )
-    log_event(
-        lease_logger,
-        logging.INFO,
-        "execution_lease_released",
-        "lease",
-        run_id=request.run_id,
-        execution_id=request.run_id,
-        account_id=request.account_id,
-        surface="web",
-        fencing_token=request.fencing_token,
-        status="success" if released else "stale",
-    )
-    return {"run_id": request.run_id, "released": released}
-
-
-@activity.defn
 async def finalize_failed_activity(failure: FailureInput) -> dict[str, str]:
     events = (
         _agent_event_factory.for_run(failure.run_id)
@@ -267,3 +191,20 @@ async def _finish_root_trace(
         await trace_end(events, root_node_id, status, metadata)
     finally:
         await events.close()
+
+
+@activity.defn
+async def load_agent_run_input_activity(request: WebRunWorkflowInput) -> AgentRunInput:
+    request.validate()
+    identity = await asyncio.to_thread(_store().run_identity, request.run_id)
+    if identity["status"] not in {"queued", "running"}:
+        raise ApplicationError("Run cannot execute", type="run_not_executable", non_retryable=True)
+    return AgentRunInput(
+        schema_version=AGENT_SCHEMA_VERSION, run_id=request.run_id,
+        account_id=str(identity["account_id"]), strategy=str(identity["agent_strategy"]),
+        max_turns=_agent_max_turns,
+        source=RunSource("chat", str(identity["conversation_id"])),
+        context=RunContext(chat=ChatContext(
+            str(identity["conversation_id"]), str(identity["session_id"]),
+            str(identity["trigger_message_id"])), surface="web"),
+    )

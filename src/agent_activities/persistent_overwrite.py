@@ -15,6 +15,7 @@ from agent_workflows.contracts import (
 )
 from file_domain.persistent import DestinationChanged, PersistentWebFileService
 
+from .fencing import fenced_activity
 from .side_effects import FaultInjector, NoopFaultInjector
 from .store import AgentDataStore, StaleFencingToken
 
@@ -29,6 +30,7 @@ class PersistentOverwriteActivities:
         self.fault_injector = fault_injector or NoopFaultInjector()
 
     @activity.defn(name="approved_file_action_execution_activity")
+    @fenced_activity
     async def execute(
         self, request: ApprovedToolExecutionInput,
     ) -> ApprovedToolExecutionResult:
@@ -93,7 +95,9 @@ class PersistentOverwriteActivities:
                 self.store.begin_tool_operation, request.operation_id, request.run_id
             )
             return ApprovedToolExecutionResult(**(completed.result_payload or asdict(result)))
-        except (StaleFencingToken, DestinationChanged) as exc:
+        except StaleFencingToken as exc:
+            raise ApplicationError(str(exc), type=exc.code, non_retryable=True) from exc
+        except DestinationChanged as exc:
             raise ApplicationError(
                 str(exc), type="destination_conflict", non_retryable=True
             ) from exc

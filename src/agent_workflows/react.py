@@ -11,8 +11,8 @@ from temporalio.exceptions import ApplicationError
 from .contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
-    AgentExecutionInput,
     AgentResult,
+    AgentRunInput,
     ContextBootstrapInput,
     ContextBootstrapResult,
     ModelDecisionInput,
@@ -20,6 +20,7 @@ from .contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
+from .segments import execute_segment
 from .tool_execution import ToolExecutionWorkflow, tool_execution_workflow_id
 
 _READ_RETRY = RetryPolicy(
@@ -42,19 +43,19 @@ _TOOL_RETRY = RetryPolicy(
 )
 
 
-def _validate(request: AgentExecutionInput) -> None:
+def _validate(request: AgentRunInput) -> None:
     if request.schema_version != AGENT_SCHEMA_VERSION:
         raise ApplicationError("unsupported Agent workflow schema", non_retryable=True)
     if not all(
         (request.run_id, request.account_id, request.source.source_kind, request.source.source_ref)
     ):
         raise ApplicationError("incomplete Agent identity", non_retryable=True)
-    if request.execution_lease.fencing_token < 1 or request.max_turns < 1:
+    if request.max_turns < 1:
         raise ApplicationError("invalid Agent execution limits", non_retryable=True)
 
 
-async def bootstrap(request: AgentExecutionInput):
-    return await workflow.execute_activity(
+async def bootstrap(request: AgentRunInput):
+    return await execute_segment(
         "context_bootstrap_activity",
         ContextBootstrapInput(
             schema_version=AGENT_SCHEMA_VERSION,
@@ -75,7 +76,7 @@ async def bootstrap(request: AgentExecutionInput):
 @workflow.defn
 class ReactAgentWorkflow:
     @workflow.run
-    async def run(self, request: AgentExecutionInput) -> AgentResult:
+    async def run(self, request: AgentRunInput) -> AgentResult:
         _validate(request)
         workflow.logger.info(
             "react_workflow_started",
@@ -89,7 +90,7 @@ class ReactAgentWorkflow:
                 "react_turn_started",
                 extra={"event": "react_turn_started", "component": "workflow", "run_id": request.run_id, "strategy": request.strategy, "turn": turn, "status": "started"},
             )
-            decision = await workflow.execute_activity(
+            decision = await execute_segment(
                 "model_decision_activity",
                 ModelDecisionInput(
                     schema_version=AGENT_SCHEMA_VERSION,
@@ -100,7 +101,7 @@ class ReactAgentWorkflow:
                     transcript_version=transcript_version,
                     turn=turn,
                     operation_id=f"{request.run_id}:react:turn:{turn}:model",
-                    lease_token=request.execution_lease.fencing_token,
+                    lease_token=0,
                     source=request.source,
                     context=request.context,
                 ),
@@ -137,7 +138,7 @@ class ReactAgentWorkflow:
                     transcript_version=transcript_version,
                     turn=turn,
                     operation_id=f"{request.run_id}:react:turn:{turn}:tool:{call.tool_call_id}",
-                    lease_token=request.execution_lease.fencing_token,
+                    lease_token=0,
                     tool_call=call,
                     source=request.source,
                     context=request.context,
@@ -163,7 +164,7 @@ class ReactAgentWorkflow:
             extra={"event": "react_max_turns_reached", "component": "workflow", "run_id": request.run_id, "strategy": request.strategy, "turn": request.max_turns},
         )
         final_turn = request.max_turns + 1
-        final = await workflow.execute_activity(
+        final = await execute_segment(
             "model_decision_activity",
             ModelDecisionInput(
                 schema_version=AGENT_SCHEMA_VERSION,
@@ -174,7 +175,7 @@ class ReactAgentWorkflow:
                 transcript_version=transcript_version,
                 turn=final_turn,
                 operation_id=f"{request.run_id}:react:turn:{final_turn}:forced-final",
-                lease_token=request.execution_lease.fencing_token,
+                lease_token=0,
                 final_only=True,
                 source=request.source,
                 context=request.context,

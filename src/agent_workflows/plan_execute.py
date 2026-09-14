@@ -11,8 +11,8 @@ from .agent_step import AgentStepWorkflow
 from .contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
-    AgentExecutionInput,
     AgentResult,
+    AgentRunInput,
     AgentStepInput,
     ModelDecisionInput,
     ModelDecisionResult,
@@ -22,12 +22,13 @@ from .contracts import (
     PlanningResult,
 )
 from .react import _MODEL_RETRY, _validate, bootstrap
+from .segments import execute_segment
 
 
 @workflow.defn
 class PlanAndExecuteWorkflow:
     @workflow.run
-    async def run(self, request: AgentExecutionInput) -> AgentResult:
+    async def run(self, request: AgentRunInput) -> AgentResult:
         _validate(request)
         plan_id = f"plan:{request.run_id}"
         plan_version = 1
@@ -36,7 +37,7 @@ class PlanAndExecuteWorkflow:
             extra={"event": "plan_workflow_started", "component": "workflow", "run_id": request.run_id, "strategy": request.strategy, "plan_id": plan_id, "plan_version": plan_version, "status": "started"},
         )
         context = await bootstrap(request)
-        plan = await workflow.execute_activity(
+        plan = await execute_segment(
             "planning_activity",
             PlanningInput(
                 schema_version=AGENT_SCHEMA_VERSION,
@@ -45,7 +46,7 @@ class PlanAndExecuteWorkflow:
                 transcript_id=context.transcript_id,
                 transcript_version=context.transcript_version,
                 operation_id=f"{request.run_id}:plan:{plan_version}:planner",
-                lease_token=request.execution_lease.fencing_token,
+                lease_token=0,
                 plan_id=plan_id,
                 plan_version=plan_version,
                 source=request.source,
@@ -88,7 +89,7 @@ class PlanAndExecuteWorkflow:
                     "plan_step_completed",
                     extra={"event": "plan_step_completed", "component": "workflow", "run_id": request.run_id, "strategy": request.strategy, "plan_id": plan_id, "plan_version": plan_version, "step_id": step.step_id, "step_index": index, "step_count": len(plan.steps), "status": "success", "result_ref": result.result_ref},
                 )
-                evaluation = await workflow.execute_activity(
+                evaluation = await execute_segment(
                     "evaluate_plan_activity",
                     PlanEvaluationInput(
                         schema_version=AGENT_SCHEMA_VERSION,
@@ -97,7 +98,7 @@ class PlanAndExecuteWorkflow:
                         transcript_id=context.transcript_id,
                         transcript_version=transcript_version,
                         operation_id=f"{request.run_id}:plan:{plan_version}:step:{step.step_id}:evaluation",
-                        lease_token=request.execution_lease.fencing_token,
+                        lease_token=0,
                         plan_id=plan_id,
                         plan_version=plan_version,
                         step_id=step.step_id,
@@ -130,7 +131,7 @@ class PlanAndExecuteWorkflow:
                         "replan_started",
                         extra={"event": "replan_started", "component": "workflow", "run_id": request.run_id, "strategy": request.strategy, "plan_id": plan_id, "plan_version": plan_version, "replan_count": replan_count, "status": "started"},
                     )
-                    plan = await workflow.execute_activity(
+                    plan = await execute_segment(
                         "planning_activity",
                         PlanningInput(
                             schema_version=AGENT_SCHEMA_VERSION,
@@ -139,7 +140,7 @@ class PlanAndExecuteWorkflow:
                             transcript_id=context.transcript_id,
                             transcript_version=transcript_version,
                             operation_id=f"{request.run_id}:plan:{plan_version}:planner",
-                            lease_token=request.execution_lease.fencing_token,
+                            lease_token=0,
                             plan_id=plan_id,
                             plan_version=plan_version,
                             previous_plan_ref=f"agent-plan:{plan_id}:v{plan_version - 1}",
@@ -171,7 +172,7 @@ class PlanAndExecuteWorkflow:
             "plan_synthesis_started",
             extra={"event": "plan_synthesis_started", "component": "workflow", "run_id": request.run_id, "strategy": request.strategy, "plan_id": plan_id, "plan_version": plan_version, "status": "started"},
         )
-        final = await workflow.execute_activity(
+        final = await execute_segment(
             "model_decision_activity",
             ModelDecisionInput(
                 schema_version=AGENT_SCHEMA_VERSION,
@@ -182,7 +183,7 @@ class PlanAndExecuteWorkflow:
                 transcript_version=transcript_version,
                 turn=len(plan.steps) + 1,
                 operation_id=f"{request.run_id}:plan:{plan_version}:synthesis",
-                lease_token=request.execution_lease.fencing_token,
+                lease_token=0,
                 objective="综合所有已完成步骤，直接回答用户最初的问题。",
                 final_only=True,
                 plan_id=plan_id,

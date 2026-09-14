@@ -3,6 +3,8 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 
+import pytest
+
 from agent_activities.runtime import DurableAgentActivities
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
@@ -111,11 +113,11 @@ def test_legacy_workflow_input_contract_did_not_change():
     ]
 
 
-def test_lease_waiting_is_durable_and_cancellable_in_workflow_history():
+def test_lifecycle_does_not_acquire_a_lease_for_the_entire_agent_child():
     source = inspect.getsource(DurableWebRunWorkflow.run)
-    assert "workflow.sleep" in source
-    assert "execution_lease_conflict" not in source
-    assert "durable_web_workflow_waiting_for_lease" in source
+    assert '"load_agent_run_input_activity"' in source
+    assert '"acquire_execution_lease_activity"' not in source
+    assert '"release_execution_lease_activity"' not in source
 
 
 def test_hardening_migration_extends_operation_states_without_rewriting_014():
@@ -126,3 +128,40 @@ def test_hardening_migration_extends_operation_states_without_rewriting_014():
     assert "015_durable_agent_hardening.sql" not in (
         root / "persistence/migrations/014_durable_agent_control_plane.sql"
     ).read_text()
+
+
+@pytest.mark.asyncio
+async def test_already_cancelled_run_finalizes_without_waiting_for_a_signal(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from temporalio import workflow
+
+    calls = []
+    async def execute(name, request, **kwargs):
+        calls.append(name)
+        return {"run_id": request.run_id, "status": "cancelled"}
+
+    monkeypatch.setattr(workflow, "execute_activity", execute)
+    monkeypatch.setattr(workflow, "logger", Mock())
+    monkeypatch.setattr(workflow, "info", lambda: SimpleNamespace(workflow_id="workflow", run_id="execution"))
+    with pytest.raises(asyncio.CancelledError):
+        await DurableWebRunWorkflow().run(WebRunWorkflowInput(1, "run"))
+    assert calls == ["prepare_run_activity", "finalize_cancelled_activity"]
+
+
+@pytest.mark.asyncio
+async def test_durable_run_timeout_is_independent_of_legacy_execution_limit():
+    from types import SimpleNamespace
+
+    from orchestration.web_dispatcher import TemporalClientAdapter
+
+    class Client:
+        async def start_workflow(self, *args, **kwargs):
+            assert kwargs["execution_timeout"] is None
+            return SimpleNamespace(result_run_id="temporal-run")
+
+    assert await TemporalClientAdapter(Client(), durable_agent_enabled=True).start_web_run(
+        "workflow", WebRunWorkflowInput(1, "run"),
+    ) == "temporal-run"

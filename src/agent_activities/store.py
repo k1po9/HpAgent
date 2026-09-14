@@ -11,7 +11,11 @@ from uuid import UUID
 
 from psycopg.types.json import Jsonb
 
+from agent_workflows.contracts import AGENT_SCHEMA_VERSION
+from agent_workflows.lifecycle_contracts import FinishWaitInput, SegmentInput, WaitInput
 from persistence.uow import UnitOfWork, retryable_transaction
+
+from .fencing import execution_fence
 
 
 class LeaseConflict(RuntimeError):
@@ -20,6 +24,14 @@ class LeaseConflict(RuntimeError):
 
 class StaleFencingToken(RuntimeError):
     code = "stale_fencing_token"
+
+
+class RunNotExecutable(RuntimeError):
+    code = "run_not_executable"
+
+
+class SegmentClosed(RuntimeError):
+    code = "execution_segment_closed"
 
 
 class TranscriptVersionConflict(RuntimeError):
@@ -62,6 +74,8 @@ class AgentDataStore:
             ).fetchone()
             now = uow.execute("SELECT now() AS now").fetchone()["now"]
             active = row["lease_expires_at"] is not None and row["lease_expires_at"] > now
+            if active and row.get("owner_segment_id") is not None:
+                raise LeaseConflict("account is owned by an execution segment")
             if (
                 row["owner_run_id"] is not None
                 and str(row["owner_run_id"]) != run_id
@@ -88,8 +102,10 @@ class AgentDataStore:
                 "UPDATE account_execution_leases SET "
                 "lease_expires_at=now()+(%s * interval '1 second'),updated_at=now() "
                 "WHERE account_id=%s AND owner_run_id=%s AND fencing_token=%s "
-                "AND lease_expires_at>now() RETURNING lease_expires_at",
-                (self.lease_ttl_seconds, UUID(account_id), UUID(run_id), fencing_token),
+                "AND lease_expires_at>clock_timestamp() "
+                "AND EXISTS (SELECT 1 FROM runs WHERE run_id=%s AND account_id=%s "
+                "AND status IN ('queued','running')) RETURNING lease_expires_at",
+                (self.lease_ttl_seconds, UUID(account_id), UUID(run_id), fencing_token, UUID(run_id), UUID(account_id)),
             ).fetchone()
             if row is None:
                 raise StaleFencingToken("execution lease is absent, expired, or fenced")
@@ -99,7 +115,7 @@ class AgentDataStore:
     def release_lease(self, account_id: str, run_id: str, fencing_token: int) -> bool:
         with UnitOfWork(self.database_url) as uow:
             row = uow.execute(
-                "UPDATE account_execution_leases SET owner_run_id=NULL,lease_expires_at=NULL,"
+                "UPDATE account_execution_leases SET owner_run_id=NULL,owner_segment_id=NULL,lease_expires_at=NULL,"
                 "updated_at=now() WHERE account_id=%s AND owner_run_id=%s "
                 "AND fencing_token=%s RETURNING account_id",
                 (UUID(account_id), UUID(run_id), fencing_token),
@@ -119,6 +135,7 @@ class AgentDataStore:
 
     def operation_result(self, operation_id: str) -> dict[str, Any] | None:
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             row = uow.execute(
                 "SELECT result_payload FROM agent_operations "
                 "WHERE operation_id=%s AND status='completed'",
@@ -133,6 +150,7 @@ class AgentDataStore:
         if not separator or referenced_call_id != tool_call_id:
             raise ValueError("invalid tool arguments reference")
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             row = uow.execute(
                 "SELECT result_payload FROM agent_operations "
                 "WHERE result_ref=%s AND status='completed'",
@@ -152,6 +170,7 @@ class AgentDataStore:
     def begin_operation(self, operation_id: str, run_id: str, operation_type: str) -> dict[str, Any] | None:
         """Return the prior compact result when completed, else mark an attempt."""
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             inserted = uow.execute(
                 "INSERT INTO agent_operations(operation_id,run_id,operation_type) "
                 "VALUES (%s,%s,%s) ON CONFLICT (operation_id) DO NOTHING "
@@ -180,6 +199,7 @@ class AgentDataStore:
     def begin_tool_operation(self, operation_id: str, run_id: str) -> ToolOperationState:
         """Start a tool attempt without erasing an unacknowledged intent."""
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             inserted = uow.execute(
                 "INSERT INTO agent_operations(operation_id,run_id,operation_type) "
                 "VALUES (%s,%s,'tool') ON CONFLICT (operation_id) DO NOTHING "
@@ -215,6 +235,7 @@ class AgentDataStore:
     @retryable_transaction
     def fail_operation(self, operation_id: str, error_code: str) -> None:
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             uow.execute(
                 "UPDATE agent_operations SET status='failed',error_code=%s,updated_at=now() "
                 "WHERE operation_id=%s AND status<>'completed'",
@@ -227,6 +248,7 @@ class AgentDataStore:
     ) -> None:
         """Persist compact side-effect intent before invoking an external tool."""
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             row = uow.execute(
                 "UPDATE agent_operations SET status='intent_recorded',result_payload=%s,updated_at=now() "
                 "WHERE operation_id=%s AND status='started' RETURNING operation_id",
@@ -238,6 +260,7 @@ class AgentDataStore:
     @retryable_transaction
     def mark_operation_uncertain(self, operation_id: str, error_code: str) -> None:
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             uow.execute(
                 "UPDATE agent_operations SET status='uncertain',error_code=%s,updated_at=now() "
                 "WHERE operation_id=%s AND status IN ('intent_recorded','uncertain')",
@@ -257,6 +280,7 @@ class AgentDataStore:
         operation_id: str,
     ) -> int:
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             uow.execute(
                 "INSERT INTO agent_transcripts(transcript_id,run_id,account_id,conversation_id,session_id) "
                 "VALUES (%s,%s,%s,%s,%s) ON CONFLICT (run_id) DO NOTHING",
@@ -285,7 +309,7 @@ class AgentDataStore:
                     (transcript_id,),
                 )
             payload = {
-                "schema_version": 1,
+                "schema_version": AGENT_SCHEMA_VERSION,
                 "transcript_id": transcript_id,
                 "transcript_version": 1,
                 "context_ref": f"transcript:{transcript_id}:1",
@@ -297,6 +321,7 @@ class AgentDataStore:
 
     def load_messages(self, transcript_id: str) -> tuple[list[dict[str, Any]], int]:
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             transcript = uow.execute(
                 "SELECT version FROM agent_transcripts WHERE transcript_id=%s",
                 (transcript_id,),
@@ -332,6 +357,7 @@ class AgentDataStore:
         result_payload: dict[str, Any],
     ) -> int:
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             row = uow.execute(
                 "SELECT version FROM agent_transcripts WHERE transcript_id=%s FOR UPDATE",
                 (transcript_id,),
@@ -370,6 +396,7 @@ class AgentDataStore:
         self, operation_id: str, result_ref: str, result_payload: dict[str, Any]
     ) -> None:
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             self._complete_operation(uow, operation_id, result_ref, result_payload)
 
     @staticmethod
@@ -384,6 +411,7 @@ class AgentDataStore:
 
     def result_content(self, result_ref: str) -> str:
         with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
             row = uow.execute(
                 "SELECT result_payload FROM agent_operations "
                 "WHERE result_ref=%s AND status='completed'",
@@ -395,3 +423,138 @@ class AgentDataStore:
         if not isinstance(content, str) or not content:
             raise ValueError("agent result has no content")
         return content
+
+
+    @staticmethod
+    def _active_run(uow, account_id, run_id):
+        row = uow.execute(
+            "SELECT status FROM runs WHERE account_id=%s AND run_id=%s FOR UPDATE",
+            (UUID(account_id), UUID(run_id)),
+        ).fetchone()
+        if row is None or row["status"] not in {"queued", "running"}:
+            raise RunNotExecutable("Run is cancelled, terminal or not owned by this account")
+
+    @staticmethod
+    def _assert_fence(uow):
+        fence = execution_fence.get()
+        if fence is None:
+            return
+        account_id, run_id, token = fence
+        # Same lock order as acquire: Run then account lease. No network calls
+        # while these short transaction locks are held.
+        run = uow.execute(
+            "SELECT status FROM runs WHERE account_id=%s AND run_id=%s FOR SHARE",
+            (UUID(account_id), UUID(run_id)),
+        ).fetchone()
+        row = uow.execute(
+            "SELECT fencing_token FROM account_execution_leases WHERE account_id=%s "
+            "AND owner_run_id=%s AND fencing_token=%s "
+            "AND lease_expires_at>clock_timestamp() FOR SHARE",
+            (UUID(account_id), UUID(run_id), token),
+        ).fetchone()
+        if row is None or run is None or run["status"] not in {"queued", "running"}:
+            raise StaleFencingToken("late execution cannot read or commit durable state")
+
+    @retryable_transaction
+    def acquire_segment(self, request: SegmentInput) -> int:
+        with UnitOfWork(self.database_url) as uow:
+            self._active_run(uow, request.account_id, request.run_id)
+            waiting = uow.execute(
+                "SELECT 1 FROM agent_run_waits WHERE run_id=%s AND state='waiting'",
+                (UUID(request.run_id),),
+            ).fetchone()
+            if waiting:
+                raise LeaseConflict("Run is suspended")
+            uow.execute(
+                "INSERT INTO agent_execution_segments(segment_id,run_id,account_id,state) "
+                "VALUES (%s,%s,%s,'requested') ON CONFLICT DO NOTHING",
+                (request.segment_id, UUID(request.run_id), UUID(request.account_id)),
+            )
+            segment = uow.execute(
+                "SELECT * FROM agent_execution_segments WHERE segment_id=%s FOR UPDATE",
+                (request.segment_id,),
+            ).fetchone()
+            if (str(segment["run_id"]) != request.run_id or
+                    str(segment["account_id"]) != request.account_id or segment["state"] == "released"):
+                raise SegmentClosed("execution segment closed or owner mismatch")
+            uow.execute(
+                "INSERT INTO account_execution_leases(account_id) VALUES (%s) ON CONFLICT DO NOTHING",
+                (UUID(request.account_id),),
+            )
+            lease = uow.execute(
+                "SELECT *,lease_expires_at>clock_timestamp() AS active "
+                "FROM account_execution_leases WHERE account_id=%s FOR UPDATE",
+                (UUID(request.account_id),),
+            ).fetchone()
+            same = lease["owner_segment_id"] == request.segment_id
+            if lease["active"] and not same:
+                raise LeaseConflict("account is executing another segment")
+            token = int(lease["fencing_token"]) + (0 if same and lease["active"] else 1)
+            uow.execute(
+                "UPDATE account_execution_leases SET owner_run_id=%s,owner_segment_id=%s,"
+                "fencing_token=%s,lease_expires_at=clock_timestamp()+(%s*interval '1 second'),"
+                "updated_at=now() WHERE account_id=%s",
+                (UUID(request.run_id), request.segment_id, token, self.lease_ttl_seconds, UUID(request.account_id)),
+            )
+            uow.execute(
+                "UPDATE agent_execution_segments SET state='active',fencing_token=%s,updated_at=now() "
+                "WHERE segment_id=%s", (token, request.segment_id),
+            )
+            return token
+
+    @retryable_transaction
+    def release_segment(self, request: SegmentInput) -> None:
+        with UnitOfWork(self.database_url) as uow:
+            # Terminal/cancelled Runs still need cleanup. Tombstone the segment
+            # even if the acquire Activity result was lost or never delivered.
+            uow.execute("SELECT run_id FROM runs WHERE run_id=%s FOR UPDATE", (UUID(request.run_id),))
+            uow.execute(
+                "INSERT INTO agent_execution_segments(segment_id,run_id,account_id,state) "
+                "VALUES (%s,%s,%s,'released') ON CONFLICT DO NOTHING",
+                (request.segment_id, UUID(request.run_id), UUID(request.account_id)),
+            )
+            uow.execute(
+                "UPDATE agent_execution_segments SET state='released',updated_at=now() "
+                "WHERE segment_id=%s AND run_id=%s AND account_id=%s",
+                (request.segment_id, UUID(request.run_id), UUID(request.account_id)),
+            )
+            uow.execute(
+                "UPDATE account_execution_leases SET owner_run_id=NULL,owner_segment_id=NULL,"
+                "lease_expires_at=NULL,updated_at=now() "
+                "WHERE account_id=%s AND owner_run_id=%s AND owner_segment_id=%s",
+                (UUID(request.account_id), UUID(request.run_id), request.segment_id),
+            )
+
+    @retryable_transaction
+    def begin_wait(self, request: WaitInput) -> None:
+        with UnitOfWork(self.database_url) as uow:
+            self._active_run(uow, request.account_id, request.run_id)
+            owned = uow.execute(
+                "SELECT 1 FROM account_execution_leases WHERE account_id=%s AND owner_run_id=%s "
+                "AND lease_expires_at>clock_timestamp()",
+                (UUID(request.account_id), UUID(request.run_id)),
+            ).fetchone()
+            if owned:
+                raise LeaseConflict("durable wait requires released execution resources")
+            uow.execute(
+                "INSERT INTO agent_run_waits(wait_id,run_id,account_id,operation_id,reason,resume_ref,"
+                "deadline,state) VALUES (%s,%s,%s,%s,%s,%s,%s,'waiting') ON CONFLICT DO NOTHING",
+                (request.wait_id, UUID(request.run_id), UUID(request.account_id), request.operation_id,
+                 request.reason, request.resume_ref, request.deadline),
+            )
+
+    @retryable_transaction
+    def finish_wait(self, request: FinishWaitInput) -> bool:
+        wait = request.wait
+        with UnitOfWork(self.database_url) as uow:
+            run = uow.execute(
+                "SELECT status FROM runs WHERE account_id=%s AND run_id=%s FOR UPDATE",
+                (UUID(wait.account_id), UUID(wait.run_id)),
+            ).fetchone()
+            active = run is not None and run["status"] in {"queued", "running"}
+            uow.execute(
+                "UPDATE agent_run_waits SET state=%s,updated_at=now() "
+                "WHERE wait_id=%s AND account_id=%s AND run_id=%s AND state='waiting'",
+                (request.state if active else 'cancelled', wait.wait_id, UUID(wait.account_id), UUID(wait.run_id)),
+            )
+            return active

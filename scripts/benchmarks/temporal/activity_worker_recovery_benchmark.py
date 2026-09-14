@@ -29,7 +29,10 @@ from agent_activities.store import AgentDataStore
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
+    ChatContext,
     CompactToolCall,
+    RunContext,
+    RunSource,
     ToolExecutionInput,
 )
 from persistence.migrate import migrate
@@ -175,12 +178,13 @@ def tool_request(case_id: str, run_id: str, operation_id: str) -> ToolExecutionI
         "A2": "benchmark_idempotent_write",
         "A3": "counting_write",
     }[case_id]
+    chat = ChatContext(str(uuid4()), str(uuid4()))
     return ToolExecutionInput(
         AGENT_SCHEMA_VERSION,
         run_id,
         str(uuid4()),
-        str(uuid4()),
-        str(uuid4()),
+        RunSource("chat", chat.conversation_id),
+        RunContext(chat=chat, surface="web"),
         "react",
         f"transcript:{run_id}",
         1,
@@ -245,8 +249,8 @@ def prepare_a3(
         AGENT_SCHEMA_VERSION,
         run_id,
         str(account_id),
-        conversation["conversation_id"],
-        session_id,
+        RunSource("chat", conversation["conversation_id"]),
+        RunContext(chat=ChatContext(conversation["conversation_id"], session_id), surface="web"),
         "react",
         transcript_id,
         1,

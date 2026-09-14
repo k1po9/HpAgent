@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 
+from segment_activities import CONTROL_ACTIVITIES
 from temporalio import activity, workflow
 from temporalio.client import Client
 from temporalio.common import RetryPolicy
@@ -327,6 +328,7 @@ async def _serve(args: argparse.Namespace) -> None:
             client,
             task_queue=AGENT_TASK_QUEUE,
             activities=[
+                *CONTROL_ACTIVITIES,
                 context_activity,
                 model_activity,
                 tool_activity,

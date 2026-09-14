@@ -356,6 +356,9 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
             return events
 
     class Store:
+        def validate_and_renew_lease(self, *_args):
+            return None
+
         def begin_operation(self, *_args):
             return None
 

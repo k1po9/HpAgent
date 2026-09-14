@@ -6,11 +6,9 @@ from temporalio.converter import DataConverter
 from agent_activities.runtime import DurableAgentActivities
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
-    AgentExecutionInput,
     AgentRunInput,
     ChatContext,
     ContextBootstrapInput,
-    ExecutionLeaseRef,
     ModelDecisionInput,
     RunContext,
     RunSource,
@@ -32,20 +30,13 @@ async def test_non_chat_run_and_execution_interval_roundtrip(strategy):
     assert not {"conversation_id", "session_id", "lease_token", "interaction_profile"} & {
         field.name for field in fields(stable)
     }
-    active = AgentExecutionInput(
-        **{field.name: getattr(stable, field.name) for field in fields(stable)},
-        execution_lease=ExecutionLeaseRef(7),
-    )
-    _validate(active)
+    _validate(stable)
     converter = DataConverter.default
-    decoded, = await converter.decode(await converter.encode([active]), [AgentExecutionInput])
-    assert decoded == active
-    resumed = replace(decoded, execution_lease=ExecutionLeaseRef(8))
-    assert resumed.run_id == stable.run_id
-    assert resumed.source == stable.source
-    assert resumed.context.chat is None
-    assert active.execution_lease.fencing_token == 7
-    assert resumed.execution_lease.fencing_token == 8
+    decoded, = await converter.decode(await converter.encode([stable]), [AgentRunInput])
+    assert decoded == stable
+    assert decoded.context.chat is None
+    assert "execution_lease" not in asdict(decoded)
+
 
 
 @pytest.mark.asyncio
@@ -78,10 +69,8 @@ def test_chat_context_is_owned_by_chat_adapter_and_preserves_trace_identity():
     assert correlation["surface"] == "qq"
     assert correlation["conversation_id"] == "conversation"
     assert correlation["session_id"] == "session"
-    assert "lease_token" not in asdict(request)
+    assert request.lease_token == 0  # assigned only when the Activity segment starts
     with pytest.raises(ValueError, match="Chat context"):
         RunContext(context_ref="task:1").require_chat()
     with pytest.raises(ValueError, match="Conversation and Session"):
         ChatContext("", "")
-    with pytest.raises(ValueError, match="positive"):
-        ExecutionLeaseRef(0)

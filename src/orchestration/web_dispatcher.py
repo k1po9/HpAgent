@@ -205,7 +205,7 @@ class TemporalClientAdapter:
                 request,
                 id=workflow_id,
                 task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-                execution_timeout=timedelta(seconds=WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS),
+                execution_timeout=(None if self.durable_agent_enabled else timedelta(seconds=WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)),
                 id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
                 id_conflict_policy=WorkflowIDConflictPolicy.FAIL,
                 retry_policy=None,

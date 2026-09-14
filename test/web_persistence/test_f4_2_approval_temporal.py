@@ -10,6 +10,8 @@ from temporalio import activity
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from agent_activities.segments import SegmentActivities
+from agent_activities.store import AgentDataStore
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
@@ -97,9 +99,10 @@ async def test_api_outbox_signal_resumes_with_postgres_authority(
 
     request = ToolExecutionInput(schema_version=AGENT_SCHEMA_VERSION, run_id=str(run_id), account_id=str(account_id), strategy="react", transcript_id="transcript", transcript_version=1, turn=1, operation_id=operation_id, lease_token=1, tool_call=CompactToolCall("overwrite", "save_persistent_file", "arguments-ref"), source=RunSource("chat", str(conversation_id)), context=RunContext(chat=ChatContext(str(conversation_id), str(uuid4()), None), surface="web"))
     client = await Client.connect(host, namespace=os.getenv("TEMPORAL_NAMESPACE", "default"))
+    segments = SegmentActivities(AgentDataStore(worker_database_url))
     worker = Worker(
         client, task_queue=AGENT_TASK_QUEUE, workflows=[ToolExecutionWorkflow],
-        activities=[pending_tool, postgres_approval_status, approved_execution],
+        activities=[segments.acquire, segments.release, segments.begin_wait, segments.finish_wait, pending_tool, postgres_approval_status, approved_execution],
     )
     async with worker:
         handle = await client.start_workflow(

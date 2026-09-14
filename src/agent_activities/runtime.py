@@ -45,6 +45,7 @@ from agent_workflows.contracts import (
 )
 from common.logging import log_event
 
+from .fencing import fenced_activity
 from .side_effects import (
     FaultInjector,
     NoopFaultInjector,
@@ -212,7 +213,7 @@ class DurableAgentActivities:
             "step_id": getattr(request, "step_id", None),
             "turn": getattr(request, "turn", None),
             "operation_id": getattr(request, "operation_id", None),
-            "activity_attempt": DurableAgentActivities._attempt(),
+            "activity_attempt": getattr(request, "execution_attempt", DurableAgentActivities._attempt()),
         }
 
     @staticmethod
@@ -241,8 +242,12 @@ class DurableAgentActivities:
             yield
 
     @activity.defn(name="context_bootstrap_activity")
+    @fenced_activity
     async def context_bootstrap(self, request: ContextBootstrapInput) -> ContextBootstrapResult:
         self._check_schema(request.schema_version)
+        await asyncio.to_thread(
+            self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
+        )
         started = time.monotonic()
         fields = self._correlation(request)
         events = self.event_factory.for_run(request.run_id)
@@ -308,7 +313,7 @@ class DurableAgentActivities:
                     with model_budget_scope(
                         self.run_budget, request.run_id,
                         f"{request.operation_id}:memory-rewrite",
-                        execution_attempt=self._attempt(),
+                        execution_attempt=request.execution_attempt,
                     ):
                         recall_query, rewrite_context = await self.brain.rewrite_recall_query(
                             user_content=loaded.user_content,
@@ -412,6 +417,7 @@ class DurableAgentActivities:
         return result
 
     @activity.defn(name="model_decision_activity")
+    @fenced_activity
     async def model_decision(self, request: ModelDecisionInput) -> ModelDecisionResult:
         self._check_schema(request.schema_version)
         started = time.monotonic()
@@ -488,10 +494,13 @@ class DurableAgentActivities:
             else:
                 await events.progress("calling_model", "正在生成回复。")
             async with self._workspace(request):
+                await asyncio.to_thread(
+                    self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
+                )
                 self.actions.reset_turn(request.context.require_chat().session_id, request.run_id)
                 with model_budget_scope(
                     self.run_budget, request.run_id, request.operation_id,
-                    execution_attempt=self._attempt(),
+                    execution_attempt=request.execution_attempt,
                     final_response=request.final_only,
                 ):
                     if request.final_only:
@@ -591,6 +600,7 @@ class DurableAgentActivities:
         return result
 
     @activity.defn(name="tool_execution_activity")
+    @fenced_activity
     async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
         self._check_schema(request.schema_version)
         started = time.monotonic()
@@ -891,7 +901,7 @@ class DurableAgentActivities:
                         with model_budget_scope(
                             self.run_budget, request.run_id,
                             f"{request.operation_id}:tool-summary",
-                            execution_attempt=self._attempt(),
+                            execution_attempt=request.execution_attempt,
                         ):
                             result_value = await self.actions.execute_request(
                                 action,
@@ -1101,6 +1111,7 @@ class DurableAgentActivities:
         return result
 
     @activity.defn(name="planning_activity")
+    @fenced_activity
     async def planning(self, request: PlanningInput) -> PlanningResult:
         self._check_schema(request.schema_version)
         fields = self._correlation(request)
@@ -1177,7 +1188,7 @@ class DurableAgentActivities:
             planning_messages.insert(position, planning_instruction)
             with model_budget_scope(
                 self.run_budget, request.run_id, request.operation_id,
-                execution_attempt=self._attempt(),
+                execution_attempt=request.execution_attempt,
             ):
                 decision = await self.brain.generate_final_decision(
                     messages=planning_messages
@@ -1271,6 +1282,7 @@ class DurableAgentActivities:
         return result
 
     @activity.defn(name="evaluate_plan_activity")
+    @fenced_activity
     async def evaluate_plan(
         self, request: PlanEvaluationInput
     ) -> PlanEvaluationResult:
@@ -1350,7 +1362,7 @@ class DurableAgentActivities:
         try:
             with model_budget_scope(
                 self.run_budget, request.run_id, request.operation_id,
-                execution_attempt=self._attempt(),
+                execution_attempt=request.execution_attempt,
             ):
                 model_result = await self.brain.generate_final_decision(
                     messages=evaluation_messages

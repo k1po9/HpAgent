@@ -12,6 +12,7 @@ from temporalio.exceptions import ApplicationError
 from actions.runtime import ActionRuntime
 from agent.protocol import ActionRequest, ActionResult
 from agent_activities.runtime import DurableAgentActivities
+from agent_activities.segments import SegmentActivities
 from agent_activities.side_effects import UnsupportedToolSideEffectReconciler
 from agent_activities.store import (
     LeaseConflict,
@@ -29,8 +30,7 @@ from agent_workflows.contracts import (
     RunSource,
     ToolExecutionInput,
 )
-from orchestration import web_activities
-from orchestration.durable_web_workflow import AcquireLeaseInput
+from agent_workflows.lifecycle_contracts import SegmentInput
 from sandbox.tools.adapters.mcp import CachedTool, MCPToolManager, _build_langchain_tool
 from web_domain.failures import is_failure_retryable
 
@@ -585,37 +585,16 @@ def test_uncertain_side_effect_failures_are_not_run_retryable():
 
 
 @pytest.mark.asyncio
-async def test_busy_execution_lease_returns_wait_state_and_progress(monkeypatch):
-    phases: list[str] = []
-
+async def test_busy_segment_returns_control_without_holding_activity_slot():
     class BusyStore:
-        def run_identity(self, run_id: str):
-            return {
-                "account_id": str(uuid4()),
-                "conversation_id": str(uuid4()),
-                "session_id": str(uuid4()),
-                "trigger_message_id": str(uuid4()),
-                "agent_strategy": "react",
-            }
-
-        def acquire_lease(self, account_id: str, run_id: str):
+        def acquire_segment(self, request):
             raise LeaseConflict("busy")
 
-    class WaitingEvents(Events):
-        async def progress(self, phase: str, summary: str) -> None:
-            phases.append(phase)
-
-    class WaitingFactory:
-        def for_run(self, run_id: str) -> WaitingEvents:
-            return WaitingEvents()
-
-    monkeypatch.setattr(web_activities, "_agent_store", BusyStore())
-    monkeypatch.setattr(web_activities, "_agent_event_factory", WaitingFactory())
-    result = await web_activities.acquire_execution_lease_activity(
-        AcquireLeaseInput(1, str(uuid4()))
+    result = await SegmentActivities(BusyStore()).acquire(
+        SegmentInput(1, str(uuid4()), str(uuid4()), str(uuid4()))
     )
-    assert result["acquired"] is False
-    assert phases == ["waiting_for_account_execution"]
+    assert result.acquired is False
+    assert result.fencing_token == 0
 
 
 @pytest.mark.asyncio

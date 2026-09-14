@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
-AGENT_SCHEMA_VERSION = 2
+AGENT_SCHEMA_VERSION = 3
 AGENT_TASK_QUEUE = "hpagent-web-agent"
 AGENT_STRATEGY_REACT = "react"
 AGENT_STRATEGY_PLAN = "plan_and_execute"
@@ -52,21 +52,6 @@ class RunContext:
         return self.chat
 
 
-@dataclass(frozen=True)
-class ExecutionLeaseRef:
-    """Fencing identity of one active interval, never the identity of a Run.
-
-    Reacquisition replaces this value. Operation IDs and Run source stay stable.
-    An expired interval must not be revived with the same fencing token.
-    """
-
-    fencing_token: int
-
-    def __post_init__(self) -> None:
-        if self.fencing_token < 1:
-            raise ValueError("Execution fencing token must be positive")
-
-
 @dataclass(frozen=True, kw_only=True)
 class AgentRunInput:
     schema_version: int
@@ -78,17 +63,6 @@ class AgentRunInput:
     max_turns: int = 20
 
 
-@dataclass(frozen=True, kw_only=True)
-class AgentExecutionInput(AgentRunInput):
-    """Active execution interval envelope; replace after suspend/reacquire.
-
-    W1-A separates stable input from execution authority. Lifecycle wiring for
-    suspension is delivered by the remaining W1 work, not by this DTO alone.
-    """
-
-    execution_lease: ExecutionLeaseRef
-
-
 @dataclass(frozen=True)
 class ContextBootstrapInput:
     schema_version: int
@@ -98,6 +72,9 @@ class ContextBootstrapInput:
     context: RunContext
     strategy: str
     operation_id: str
+
+    execution_attempt: int = field(default=1, kw_only=True)
+    lease_token: int = field(default=0, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -134,6 +111,8 @@ class ModelDecisionInput:
     plan_version: int | None = None
     step_id: str | None = None
 
+    execution_attempt: int = field(default=1, kw_only=True)
+
 
 @dataclass(frozen=True)
 class ModelDecisionResult:
@@ -164,6 +143,8 @@ class ToolExecutionInput:
     plan_id: str | None = None
     plan_version: int | None = None
     step_id: str | None = None
+
+    execution_attempt: int = field(default=1, kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -216,6 +197,8 @@ class ApprovedToolExecutionInput:
     tool_call_id: str
     tool_name: str
 
+    execution_attempt: int = field(default=1, kw_only=True)
+
 
 @dataclass(frozen=True)
 class ApprovedToolExecutionResult:
@@ -263,6 +246,8 @@ class PlanningInput:
     trigger_step_id: str | None = None
     evaluation_reason: str | None = None
 
+    execution_attempt: int = field(default=1, kw_only=True)
+
 
 @dataclass(frozen=True)
 class PlanningResult:
@@ -291,6 +276,8 @@ class PlanEvaluationInput:
     step_index: int
     step_count: int
 
+    execution_attempt: int = field(default=1, kw_only=True)
+
 
 @dataclass(frozen=True)
 class PlanEvaluationResult:
@@ -303,7 +290,7 @@ class PlanEvaluationResult:
 @dataclass(frozen=True)
 class AgentStepInput:
     schema_version: int
-    agent: AgentExecutionInput
+    agent: AgentRunInput
     transcript_id: str
     transcript_version: int
     plan_id: str

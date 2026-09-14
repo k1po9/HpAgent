@@ -23,7 +23,14 @@ from uuid import uuid4
 from temporalio.client import Client
 
 from agent_workflows.agent_run import AgentRunWorkflow
-from agent_workflows.contracts import AGENT_SCHEMA_VERSION, AGENT_TASK_QUEUE, AgentRunInput
+from agent_workflows.contracts import (
+    AGENT_SCHEMA_VERSION,
+    AGENT_TASK_QUEUE,
+    AgentRunInput,
+    ChatContext,
+    RunContext,
+    RunSource,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 HARNESS = ROOT / "test" / "support" / "durable_worker_process.py"
@@ -96,17 +103,11 @@ def display_path(path: Path) -> str:
 
 def request_for(strategy: str) -> AgentRunInput:
     run_id = str(uuid4())
+    chat = ChatContext(str(uuid4()), str(uuid4()), str(uuid4()))
     return AgentRunInput(
-        AGENT_SCHEMA_VERSION,
-        run_id,
-        str(uuid4()),
-        str(uuid4()),
-        str(uuid4()),
-        strategy,
-        str(uuid4()),
-        1,
-        "web_plan" if strategy == "plan_and_execute" else "web_chat",
-        3,
+        schema_version=AGENT_SCHEMA_VERSION, run_id=run_id, account_id=str(uuid4()),
+        source=RunSource("chat", chat.conversation_id), context=RunContext(chat=chat, surface="web"),
+        strategy=strategy, max_turns=3,
     )
 
 

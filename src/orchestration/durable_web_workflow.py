@@ -1,13 +1,12 @@
 """Web business lifecycle using durable child Agent workflows.
 
 The Web adapter builds source/context and active-interval contracts from PG.
-Full suspend/resume wiring is the remaining W1 lifecycle work.
+Agent Activities own individual segments; no lease spans the child Workflow.
 """
 
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from datetime import timedelta
 
 from temporalio import workflow
@@ -22,12 +21,8 @@ from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
-    AgentExecutionInput,
-    ChatContext,
-    ExecutionLeaseRef,
+    AgentRunInput,
     FinalizeResultInput,
-    RunContext,
-    RunSource,
 )
 
 from .web_workflow import (
@@ -43,21 +38,6 @@ from .web_workflow import (
     RunAuthority,
     WebRunWorkflowInput,
 )
-
-
-@dataclass(frozen=True)
-class AcquireLeaseInput:
-    schema_version: int
-    run_id: str
-
-
-@dataclass(frozen=True)
-class ReleaseLeaseInput:
-    schema_version: int
-    run_id: str
-    account_id: str
-    fencing_token: int
-
 
 _DURABLE_FAILURE_MESSAGES = {
     **_STABLE_FAILURE_MESSAGES,
@@ -92,7 +72,6 @@ class DurableWebRunWorkflow:
     @workflow.run
     async def run(self, request: WebRunWorkflowInput) -> dict[str, str | int]:
         request.validate()
-        lease: dict[str, str | int] | None = None
         workflow.logger.info("durable_web_workflow_started", extra={"event": "durable_web_workflow_started", "component": "workflow", "run_id": request.run_id, "workflow_type": "DurableWebRunWorkflow", "workflow_id": workflow.info().workflow_id, "workflow_run_id": workflow.info().run_id, "status": "started", "phase": "prepare"})
         try:
             prepared: RunAuthority = await workflow.execute_activity(
@@ -108,56 +87,25 @@ class DurableWebRunWorkflow:
             if status == "completed":
                 return _completed(request.run_id)
             if status in ("cancelling", "cancelled"):
-                await workflow.wait_condition(lambda: False)
-                raise AssertionError("unreachable cancellation wait")
+                raise asyncio.CancelledError
             if status == "failed":
                 raise ApplicationError("run already failed", non_retryable=True)
 
-            backoff = (1, 2, 3, 5)
-            attempt = 0
-            while True:
-                candidate = await workflow.execute_activity(
-                    "acquire_execution_lease_activity",
-                    AcquireLeaseInput(1, request.run_id),
-                    task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-                    start_to_close_timeout=timedelta(seconds=20),
-                    retry_policy=_LIFECYCLE_RETRY,
-                )
-                if bool(candidate.get("acquired")):
-                    lease = candidate
-                    break
-                delay = backoff[min(attempt, len(backoff) - 1)]
-                workflow.logger.info("durable_web_workflow_waiting_for_lease", extra={"event": "durable_web_workflow_waiting_for_lease", "component": "workflow", "run_id": request.run_id, "workflow_type": "DurableWebRunWorkflow", "status": "waiting", "phase": "lease", "retry_after_seconds": delay})
-                attempt += 1
-                await workflow.sleep(timedelta(seconds=delay))
-            workflow.logger.info("durable_web_workflow_lease_acquired", extra={"event": "durable_web_workflow_lease_acquired", "component": "workflow", "run_id": request.run_id, "strategy": lease["strategy"], "status": "success", "phase": "lease", "fencing_token": lease["fencing_token"]})
-            if attempt:
-                workflow.logger.info("execution_lease_wait_resumed", extra={"event": "execution_lease_wait_resumed", "component": "workflow", "run_id": request.run_id, "strategy": lease["strategy"], "status": "resumed", "phase": "lease", "wait_attempts": attempt})
-            workflow.logger.info("durable_web_workflow_agent_started", extra={"event": "durable_web_workflow_agent_started", "component": "workflow", "run_id": request.run_id, "strategy": lease["strategy"], "status": "started", "phase": "agent"})
+            identity = await workflow.execute_activity(
+                "load_agent_run_input_activity", request,
+                task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                result_type=AgentRunInput,
+                start_to_close_timeout=timedelta(seconds=20),
+                retry_policy=_LIFECYCLE_RETRY,
+            )
             agent_result = await workflow.execute_child_workflow(
                 AgentRunWorkflow.run,
-                AgentExecutionInput(
-                    schema_version=AGENT_SCHEMA_VERSION,
-                    run_id=request.run_id,
-                    account_id=str(lease["account_id"]),
-                    strategy=str(lease["strategy"]),
-                    max_turns=int(lease.get("max_turns", 20)),
-                    source=RunSource("chat", str(lease["conversation_id"])),
-                    context=RunContext(
-                        chat=ChatContext(
-                            str(lease["conversation_id"]),
-                            str(lease["session_id"]),
-                            str(lease["trigger_message_id"]),
-                        ),
-                        surface="web",
-                    ),
-                    execution_lease=ExecutionLeaseRef(int(lease["fencing_token"])),
-                ),
+                identity,
                 id=f"hpagent-agent-run-{request.run_id}",
                 task_queue=AGENT_TASK_QUEUE,
             )
-            workflow.logger.info("durable_web_workflow_agent_completed", extra={"event": "durable_web_workflow_agent_completed", "component": "workflow", "run_id": request.run_id, "strategy": lease["strategy"], "status": "success", "phase": "agent"})
-            workflow.logger.info("durable_web_workflow_finalizing", extra={"event": "durable_web_workflow_finalizing", "component": "workflow", "run_id": request.run_id, "strategy": lease["strategy"], "status": "started", "phase": "finalize"})
+            workflow.logger.info("durable_web_workflow_agent_completed", extra={"event": "durable_web_workflow_agent_completed", "component": "workflow", "run_id": request.run_id, "strategy": identity.strategy, "status": "success", "phase": "agent"})
+            workflow.logger.info("durable_web_workflow_finalizing", extra={"event": "durable_web_workflow_finalizing", "component": "workflow", "run_id": request.run_id, "strategy": identity.strategy, "status": "started", "phase": "finalize"})
             authority: RunAuthority = await workflow.execute_activity(
                 "finalize_agent_result_activity",
                 FinalizeResultInput(AGENT_SCHEMA_VERSION, request.run_id, agent_result.result_ref),
@@ -168,7 +116,7 @@ class DurableWebRunWorkflow:
             )
             if authority["status"] != "completed":
                 raise ApplicationError("Agent finalization returned non-completed status", non_retryable=True)
-            workflow.logger.info("durable_web_workflow_completed", extra={"event": "durable_web_workflow_completed", "component": "workflow", "run_id": request.run_id, "strategy": lease["strategy"], "status": "success", "phase": "completed"})
+            workflow.logger.info("durable_web_workflow_completed", extra={"event": "durable_web_workflow_completed", "component": "workflow", "run_id": request.run_id, "strategy": identity.strategy, "status": "success", "phase": "completed"})
             return _completed(request.run_id)
         except asyncio.CancelledError:
             workflow.logger.warning("durable_web_workflow_cancelled", extra={"event": "durable_web_workflow_cancelled", "component": "workflow", "run_id": request.run_id, "status": "cancelled", "phase": "finalize"})
@@ -186,7 +134,7 @@ class DurableWebRunWorkflow:
                 raise ApplicationError("unexpected workflow cancellation", non_retryable=True)
             raise
         except (ActivityError, ChildWorkflowError) as exc:
-            if is_cancelled_exception(exc):
+            if is_cancelled_exception(exc) or _failure_type(exc) == "run_not_executable":
                 authority = await workflow.execute_activity(
                     "finalize_cancelled_activity",
                     request,
@@ -214,12 +162,3 @@ class DurableWebRunWorkflow:
             if authority["status"] == "completed":
                     return _completed(request.run_id)
             raise
-        finally:
-            if lease is not None:
-                await workflow.execute_activity(
-                    "release_execution_lease_activity",
-                    ReleaseLeaseInput(1, request.run_id, str(lease["account_id"]), int(lease["fencing_token"])),
-                    task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-                    start_to_close_timeout=timedelta(seconds=20),
-                    retry_policy=_FINALIZE_RETRY,
-                )

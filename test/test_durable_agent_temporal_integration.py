@@ -4,6 +4,7 @@ import os
 from uuid import uuid4
 
 import pytest
+from support.segment_activities import CONTROL_ACTIVITIES
 from temporalio import activity
 from temporalio.client import Client, WorkflowFailureError
 from temporalio.worker import Worker
@@ -13,12 +14,11 @@ from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
-    AgentExecutionInput,
+    AgentRunInput,
     ChatContext,
     CompactToolCall,
     ContextBootstrapInput,
     ContextBootstrapResult,
-    ExecutionLeaseRef,
     ModelDecisionInput,
     ModelDecisionResult,
     PlanEvaluationInput,
@@ -112,9 +112,9 @@ async def fake_evaluation(request: PlanEvaluationInput) -> PlanEvaluationResult:
     )
 
 
-def _request(strategy: str) -> AgentExecutionInput:
+def _request(strategy: str) -> AgentRunInput:
     run_id = str(uuid4())
-    return AgentExecutionInput(
+    return AgentRunInput(
         schema_version=AGENT_SCHEMA_VERSION,
         run_id=run_id,
         account_id=str(uuid4()),
@@ -124,7 +124,6 @@ def _request(strategy: str) -> AgentExecutionInput:
         context=RunContext(
             chat=ChatContext(str(uuid4()), str(uuid4()), str(uuid4())), surface="web"
         ),
-        execution_lease=ExecutionLeaseRef(1),
     )
 
 
@@ -145,7 +144,7 @@ async def _run(strategy: str):
             AgentStepWorkflow,
             ToolExecutionWorkflow,
         ],
-        activities=[
+        activities=[*CONTROL_ACTIVITIES,
             fake_context,
             fake_model,
             fake_tool,

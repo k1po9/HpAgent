@@ -1,4 +1,5 @@
 """Generic durable tool execution and approval wait child workflow."""
+
 from __future__ import annotations
 
 import hashlib
@@ -19,6 +20,8 @@ from .contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
+from .lifecycle_contracts import LIFECYCLE_SCHEMA_VERSION, WaitInput
+from .segments import DurableWait, execute_segment
 
 _READ_RETRY = RetryPolicy(maximum_attempts=5)
 _TOOL_RETRY = RetryPolicy(maximum_attempts=3)
@@ -32,27 +35,28 @@ def tool_execution_workflow_id(run_id: str, operation_id: str) -> str:
 @workflow.defn
 class ToolExecutionWorkflow:
     def __init__(self) -> None:
-        self._wake = False
+        self._wait = DurableWait()
         self._approval_id: str | None = None
         self._operation_id: str | None = None
 
     @workflow.signal
     async def approval_decision(self, signal: ApprovalDecisionSignal) -> None:
-        if (signal.schema_version == AGENT_SCHEMA_VERSION
-                and signal.approval_id == self._approval_id
-                and signal.operation_id == self._operation_id):
-            self._wake = True
+        if (
+            signal.schema_version == AGENT_SCHEMA_VERSION
+            and signal.approval_id == self._approval_id
+            and signal.operation_id == self._operation_id
+        ):
+            if self._wait.wait_id is not None:
+                self._wait.notify(self._wait.wait_id)
 
     @workflow.run
     async def run(self, request: ToolExecutionInput) -> ToolExecutionResult:
-        result = await workflow.execute_activity(
+        result = await execute_segment(
             "tool_execution_activity",
             request,
             task_queue=AGENT_TASK_QUEUE,
             result_type=ToolExecutionResult,
-            start_to_close_timeout=timedelta(
-                seconds=DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS
-            ),
+            start_to_close_timeout=timedelta(seconds=DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS),
             heartbeat_timeout=timedelta(seconds=45),
             retry_policy=_TOOL_RETRY,
             cancellation_type=workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
@@ -63,53 +67,87 @@ class ToolExecutionWorkflow:
         self._operation_id = request.operation_id
         expires_at = (
             datetime.fromisoformat(result.approval_expires_at)
-            if result.approval_expires_at else workflow.now() + timedelta(hours=24)
+            if result.approval_expires_at
+            else workflow.now() + timedelta(hours=24)
         )
-        while True:
+
+        async def probe():
             authoritative = await workflow.execute_activity(
                 "file_action_approval_status_activity",
                 ApprovalStatusInput(
-                    AGENT_SCHEMA_VERSION, request.account_id, request.run_id,
-                    request.operation_id, result.approval_id,
+                    AGENT_SCHEMA_VERSION,
+                    request.account_id,
+                    request.run_id,
+                    request.operation_id,
+                    result.approval_id,
                 ),
                 task_queue=AGENT_TASK_QUEUE,
                 result_type=ApprovalStatusResult,
                 start_to_close_timeout=timedelta(seconds=30),
                 retry_policy=_READ_RETRY,
             )
-            if authoritative.status != "pending":
-                if authoritative.status == "approved":
-                    executed = await workflow.execute_activity(
-                        "approved_file_action_execution_activity",
-                        ApprovedToolExecutionInput(
-                            AGENT_SCHEMA_VERSION, request.account_id, request.run_id,
-                            request.operation_id, request.lease_token, result.approval_id,
-                            request.transcript_id, request.transcript_version,
-                            request.tool_call.tool_call_id, request.tool_call.name,
-                        ),
-                        task_queue=AGENT_TASK_QUEUE,
-                        result_type=ApprovedToolExecutionResult,
-                        start_to_close_timeout=timedelta(
-                            seconds=DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS
-                        ),
-                        heartbeat_timeout=timedelta(seconds=45),
-                        retry_policy=_TOOL_RETRY,
-                    )
-                    return ToolExecutionResult(
-                        result.schema_version, result.operation_id, executed.result_ref,
-                        executed.transcript_version, executed.display_summary,
-                        result.approval_id, "approved", result.approval_expires_at,
-                    )
-                return ToolExecutionResult(
-                    result.schema_version, result.operation_id, result.result_ref,
-                    result.transcript_version, result.display_summary,
-                    result.approval_id, authoritative.status, result.approval_expires_at,
-                )
-            self._wake = False
-            remaining = max(0.0, (expires_at - workflow.now()).total_seconds())
-            if remaining == 0:
-                continue
-            try:
-                await workflow.wait_condition(lambda: self._wake, timeout=remaining)
-            except TimeoutError:
-                pass
+            return authoritative if authoritative.status != "pending" else None
+
+        wait = WaitInput(
+            LIFECYCLE_SCHEMA_VERSION,
+            request.run_id,
+            request.account_id,
+            f"{request.operation_id}:approval:{result.approval_id}",
+            request.operation_id,
+            "tool_approval",
+            result.approval_id,
+            expires_at.isoformat(),
+        )
+        try:
+            authoritative = await self._wait.run(wait, probe)
+        except TimeoutError:
+            # A deadline is not authorization. No side effect on expiry.
+            authoritative = ApprovalStatusResult(
+                AGENT_SCHEMA_VERSION,
+                result.approval_id,
+                request.operation_id,
+                "expired",
+            )
+        if authoritative.status == "approved":
+            executed = await execute_segment(
+                "approved_file_action_execution_activity",
+                ApprovedToolExecutionInput(
+                    AGENT_SCHEMA_VERSION,
+                    request.account_id,
+                    request.run_id,
+                    request.operation_id,
+                    0,
+                    result.approval_id,
+                    request.transcript_id,
+                    request.transcript_version,
+                    request.tool_call.tool_call_id,
+                    request.tool_call.name,
+                ),
+                task_queue=AGENT_TASK_QUEUE,
+                result_type=ApprovedToolExecutionResult,
+                start_to_close_timeout=timedelta(
+                    seconds=DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS
+                ),
+                heartbeat_timeout=timedelta(seconds=45),
+                retry_policy=_TOOL_RETRY,
+            )
+            return ToolExecutionResult(
+                result.schema_version,
+                result.operation_id,
+                executed.result_ref,
+                executed.transcript_version,
+                executed.display_summary,
+                result.approval_id,
+                "approved",
+                result.approval_expires_at,
+            )
+        return ToolExecutionResult(
+            result.schema_version,
+            result.operation_id,
+            result.result_ref,
+            result.transcript_version,
+            result.display_summary,
+            result.approval_id,
+            authoritative.status,
+            result.approval_expires_at,
+        )

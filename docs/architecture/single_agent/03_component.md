@@ -1,12 +1,14 @@
 # 03 — 组件架构
 
-## 当前 Durable 合同补充（Phase 3 W1-A）
+## 当前 Durable 合同与生命周期（Phase 3 W1-B）
 
-当前 durable 主线使用 schema v2：稳定 `AgentRunInput` 保存 Run/account、source/context 与 strategy；`AgentExecutionInput` 另携带当次活跃区间的 fencing token。Chat 的 Conversation/Session/Message 位于可选 ChatContext；核心输入和 Workflow 身份校验不再要求所有来源都具备聊天实体。bootstrap/model/tool/planning/evaluation 传递 source/context，Trace 按 context 投影 surface。
+当前 durable 主线使用 schema v3。`AgentRunInput` 只保存稳定的 Run/account、source/context 与 strategy；父 Workflow 不持有执行 lease。Web lifecycle 读取 PG 身份后启动 Agent child，各次 bootstrap/model/tool/planning/evaluation/approved-tool Activity 都通过 `execute_segment` 获取当次 token，完成或失败后释放。重试使用新的 segment/token，operation ID 保持稳定。已替换 W1-A 的启动时 `AgentExecutionInput` envelope。
 
-当前实际 loader/action/resource adapter 仍服务 Chat；生命周期仍一次 acquire 后运行 Agent child。过期同 Run 重新 acquire 已生成新 token，但完整 wait 释放、resume、新 token 全链路传播尚未完成，不能称为 suspend-safe 或 canonical runtime 已完成。QQ/legacy 仍在既有路径。
+通用 `DurableWait` 保存 PG `agent_run_waits` 恢复点，Workflow signal 仅唤醒，业务 probe 读取权威状态后才结束等待；timer 可在 deadline 恢复。Tool Approval 已接入。等待期间无 Activity、workspace lock、事务或 execution lease；PG Run 仍保持原有非终态，等待状态由 wait 表表达，Conversation admission 与执行 lease 独立。恢复重新 acquire 并重验 Run 状态。主能力 Activity 的 data-plane 事务在同一事务内核验 fencing，拒绝过期 token 和取消后的迟到提交。
 
-实现范围与门禁见 [W1-A 实施报告](../../../artifacts/architecture-audit/phase3/W1_A_implementation_report.md)。下方历史组件图尚未覆盖 durable 分支及本次输入合同，属于明确的 architecture/visual drift；后续 W1 更新当前运行图，Excalidraw 由人工维护。
+执行 segment 的 PG 状态为 requested/active/released；released 保留清理记录，阻止丢失响应后的迟到 acquire 重建旧区间。Activity retry backoff 由 Workflow 在 release 之后执行。durable Run 不继承旧 Web 单次执行总超时，业务等待使用独立 deadline。当前 Chat loader/action/resource adapter、QQ/legacy 分流及 W1 整包收敛状态另行验收；没有实现 ModelInputSnapshot 或新的产品入口。
+
+实现与验证见 [W1-B 实施报告](../../../artifacts/architecture-audit/phase3/W1_B_implementation_report.md)。下方历史组件图尚未覆盖 durable 分支，属于明确的 architecture/visual drift；Excalidraw 由人工维护。
 
 ## 边界与依赖方向
 

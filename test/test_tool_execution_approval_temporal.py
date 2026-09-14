@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from support.segment_activities import CONTROL_ACTIVITIES
 from temporalio import activity
 from temporalio.client import Client
 from temporalio.worker import Worker
@@ -81,7 +82,7 @@ async def _client() -> Client:
 def _worker(client: Client) -> Worker:
     return Worker(
         client, task_queue=AGENT_TASK_QUEUE, workflows=[ToolExecutionWorkflow],
-        activities=[approval_tool, approval_status, approved_execution],
+        activities=[*CONTROL_ACTIVITIES,approval_tool, approval_status, approved_execution],
     )
 
 

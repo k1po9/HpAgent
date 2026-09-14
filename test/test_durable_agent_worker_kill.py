@@ -16,9 +16,8 @@ from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
-    AgentExecutionInput,
+    AgentRunInput,
     ChatContext,
-    ExecutionLeaseRef,
     RunContext,
     RunSource,
 )
@@ -28,9 +27,9 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 _HARNESS = Path(__file__).parent / "support" / "durable_worker_process.py"
 
 
-def _request(strategy: str) -> AgentExecutionInput:
+def _request(strategy: str) -> AgentRunInput:
     run_id = str(uuid4())
-    return AgentExecutionInput(
+    return AgentRunInput(
         schema_version=AGENT_SCHEMA_VERSION,
         run_id=run_id,
         account_id=str(uuid4()),
@@ -40,7 +39,6 @@ def _request(strategy: str) -> AgentExecutionInput:
         context=RunContext(
             chat=ChatContext(str(uuid4()), str(uuid4()), str(uuid4())), surface="web"
         ),
-        execution_lease=ExecutionLeaseRef(1),
     )
 
 
