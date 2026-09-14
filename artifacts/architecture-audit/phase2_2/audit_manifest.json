@@ -1,14 +1,12 @@
 {
   "phase": "2.2",
   "definition": "Architecture Consolidation Decision Review",
-  "review_status": "PROPOSED",
+  "review_status": "TARGET_REVISED_NOT_IMPLEMENTED",
   "review_date": "2026-09-14",
-  "generated_at": "2026-09-13T19:42:09.011739+00:00",
   "phase2_1_source_head": "4ab07fbddf33e9a0dc652833acd9edd519e21fea",
-  "review_head": "608ef1abdc6aa054987d27304d372c4f36900ffa",
+  "review_head": "4c18f5dff854c31bca1822028eb173bcb6a6055f",
   "branch": "feat/hpagent-web",
   "business_source_delta_from_phase2_1": "",
-  "initial_tracked_diff": "diff --git a/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md b/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md\nindex 6cc62da..6faf543 100644\n--- a/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md\n+++ b/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md\n@@ -36,7 +36,7 @@\n ## Production composition roots\n \n | 文件 | 职责 | Owner / capability | Roots | 可达性 | 主要静态依赖 | 主要静态使用者 | Flags | 置信度 |\n-| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n+| --- | :-: | :-: | :-: | :-: | :-: | --- | --- | --- |\n | src/main.py | HpAgent —— 主入口，负责加载配置并启动智能体服务。 | Repository / operations / NONE | R1 | PROD_DIRECT | src/common/logging.py;src/orchestration/config.py;src/orchestration/worker.py |  |  | HIGH |\n | src/bootstrap/qq.py | QQ surface and shared Agent execution composition. | Runtime composition / MULTIPLE | R1;R5 | PROD_CONDITIONAL | src/account/postgres_account_service.py;src/account/validation.py;src/actions/runtime.py;src/agent_execution/brain_action_loop.py | src/orchestration/worker.py |  | MEDIUM |\n | src/orchestration/worker.py | 组合共享基础设施、QQ、条件 Web、channels、scheduler、cleanup、Schedules 与 shutdown | Process composition & lifecycle / MULTIPLE | R1;R5 | PROD_CONDITIONAL | src/account/identity_binding_service.py;src/agent_activities/persistent_overwrite.py;src/agent_activities/runtime.py;src/agent_activities/store.py | src/main.py;src/orchestration/__init__.py;src/orchestration/web_worker.py | HIGH_FAN_OUT;LARGE_HOTSPOT | MEDIUM |",
   "phase2_1_input_sha256": {
     "artifacts/architecture-audit/phase2_1/temporal_and_dynamic_registrations.csv": "0edaf0ff6948f6c768e95436d82522ffe42485e72baab5114edcfea12d682e47",
     "artifacts/architecture-audit/phase2_1/hypothesis_results.csv": "7378b75f36f7cf684d502a8371465f0400b32cbb71a0d76f98115459b7eb2d47",
@@ -1163,10 +1161,37 @@
     "web/tsconfig.node.json": "2a584aaa450d0e1b53a6030c0ca70a80d8bbd252f79625f5171a1b1bdeee8584",
     "web/vite.config.ts": "3ae22de49b1e74df8034f0b44b1f2a6d3eb2256dee28975863a4df0121a46779"
   },
-  "decision_count": 16,
-  "evidence_count": 25,
+  "decision_count": 18,
+  "evidence_count": 43,
   "production_changes": false,
   "production_tests_run": false,
   "external_runtime_verified": false,
-  "scope": "Architecture decisions and review artifacts only; no adoption, implementation, migration, deployment or deletion executed."
+  "scope": "Only phase2_2 audit/decision artifacts; target code, tests, docs and data unchanged.",
+  "original_review": {
+    "head": "608ef1abdc6aa054987d27304d372c4f36900ffa",
+    "phase2_2_original_commit": "4c18f5dff854c31bca1822028eb173bcb6a6055f",
+    "status": "SUPERSEDED_BY_R2_USER_PREMISE"
+  },
+  "outside_scope_diff_at_revision_start": "diff --git a/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md b/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md\nindex 6cc62da..6faf543 100644\n--- a/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md\n+++ b/artifacts/architecture-audit/phase2_1/03_architecture_truth_table.md\n@@ -36,7 +36,7 @@\n ## Production composition roots\n \n | 文件 | 职责 | Owner / capability | Roots | 可达性 | 主要静态依赖 | 主要静态使用者 | Flags | 置信度 |\n-| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n+| --- | :-: | :-: | :-: | :-: | :-: | --- | --- | --- |\n | src/main.py | HpAgent —— 主入口，负责加载配置并启动智能体服务。 | Repository / operations / NONE | R1 | PROD_DIRECT | src/common/logging.py;src/orchestration/config.py;src/orchestration/worker.py |  |  | HIGH |\n | src/bootstrap/qq.py | QQ surface and shared Agent execution composition. | Runtime composition / MULTIPLE | R1;R5 | PROD_CONDITIONAL | src/account/postgres_account_service.py;src/account/validation.py;src/actions/runtime.py;src/agent_execution/brain_action_loop.py | src/orchestration/worker.py |  | MEDIUM |\n | src/orchestration/worker.py | 组合共享基础设施、QQ、条件 Web、channels、scheduler、cleanup、Schedules 与 shutdown | Process composition & lifecycle / MULTIPLE | R1;R5 | PROD_CONDITIONAL | src/account/identity_binding_service.py;src/agent_activities/persistent_overwrite.py;src/agent_activities/runtime.py;src/agent_activities/store.py | src/main.py;src/orchestration/__init__.py;src/orchestration/web_worker.py | HIGH_FAN_OUT;LARGE_HOTSPOT | MEDIUM |",
+  "outside_scope_untracked_at_revision_start": [],
+  "revision": "2.2-r2",
+  "classification": "Historical architecture evidence. Not current architecture documentation.",
+  "premise_source": "USER_ATTACHMENT",
+  "user_premise_id": "U-PREPROD",
+  "user_premise": "用户明确项目尚未正式生产；无需旧生产数据、线上 Temporal History 或旧部署兼容。源码事实不因此前提改变。",
+  "old_production_evidence_required": false,
+  "source_modifications": false,
+  "counts": {
+    "decisions": 18,
+    "evidence": 43,
+    "hypotheses": 17,
+    "drifts": 10,
+    "unresolved": 83,
+    "large_file_asset_hotspots": 26,
+    "backend_packages": 30,
+    "work_packages": 8,
+    "retirement_candidates": 16
+  },
+  "generation": "decision_register.json is decision source; render_review.py projects registers and indices; narrative 00/02/03/06/07/08 is authored separately and cross-checked.",
+  "baseline_policy": "Frozen review HEAD is provenance; later artifact-only commits do not invalidate evidence. Source hashes and outside-scope diff detect actual drift."
 }

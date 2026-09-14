@@ -1,116 +1,120 @@
-# 目标架构与模块边界
+# Canonical Architecture · 目标边界 R2
 
-本文件描述**ACD 建议采纳后的逻辑边界**。保留边界来源于当前实现；拟议迁移点明确标出。逻辑 owner 是规则/状态的责任域，不是人员、服务数量或数据库隔离承诺。
+> Historical architecture evidence. Not current architecture documentation.
+> 以下 TARGET DECISION 尚未实施；CURRENT FACT 见 E01–E43。逻辑 owner 不等于新增独立服务/数据库。
 
-## 执行结构
+**Current：** QQ 直接 start/signal account 级会话 Workflow；Web 在 PG 建 Run/Outbox 后分 legacy/durable；QQ Redis/WAL 与 Web PG 保存短期交互状态。现有 durable 的 profile、trace、loader、workspace session_context 仍含 Web 假设。
+
+**Target：** 所有正式 Agent 交互进入统一 Conversation 数据域和 Durable Runtime；只有 surface 协议/授权/投递保留渠道差异。Research、Artifact Build、Document 独立执行，共享设施而不合并内部控制流。
+
+**Required migration/refactor：** 统一领域与生命周期合同 → 中立 capabilities → QQ 接入 → 删除旧 loop/状态权威/分流 → 清理组合和协议。目录重命名本身不满足这些步骤。
 
 ```mermaid
 flowchart TD
-    QQ[QQ Ingress / Conversation] --> QH[QQ Host]
-    QH --> LOOP[Facade / BrainActionLoop]
-    API[Web API command transaction] --> OB[Web Outbox / Dispatcher]
-    OB --> SEL{新 Chat Run 选择}
-    SEL -->|legacy| LW[WebRunWorkflow / Web Host]
-    LW --> LOOP
-    SEL -->|durable| DW[DurableWebRunWorkflow]
-    DW --> AW[AgentRun / ReAct / Plan / Tool workflows]
-    AW --> DA[Durable Activities / data plane]
-    LOOP --> BA[Brain / Action 能力]
-    DA --> BA
-    BA --> MODEL[Model / ResourcePool]
-    BA --> TOOL[Sandbox / local / MCP / Skill]
-    OB -->|Research Run| RW[固定 Research Workflow]
-    RW --> RA[Research Activities / providers]
-    RA --> PUB[Research publication bridge]
-    PUB --> ART[Artifact versions]
-    RA --> OUTPUT[Markdown / OutputPublisher]
-    BUILD[聊天 Artifact Outbox / Build Workflow] --> ART
+    W[Web API adapter] --> C[Conversation commands]
+    Q[QQ ingress adapter] --> C
+    C --> TX[PG Message / Session / Run + Outbox]
+    R[Research commands] --> RT[PG Task / Run + Outbox]
+    TX --> D[Dispatcher infrastructure]
+    RT --> D
+    D -->|Agent Run| L[ConversationRunWorkflow proposed lifecycle]
+    L --> A[AgentRunWorkflow]
+    A --> RE[ReAct]
+    A --> PE[Plan-and-Execute]
+    RE --> CAP[Durable capabilities]
+    PE --> CAP
+    CAP --> CTX[Context / Memory]
+    CAP --> MOD[Prepare Model Input / Review / Invoke]
+    CAP --> TOOL[Tool / File / Workspace]
+    D -->|Research Run| RW[ResearchReportWorkflow fixed stages]
+    RW --> RA[Research Activities]
+    RA --> RP[Research SQL publication bridge]
+    RP --> AR[Artifact / versions]
+    B[Artifact command / dedicated Outbox] --> BW[ArtifactBuildWorkflow]
+    BW --> AR
+    TOOL --> NW[NormalizeDocumentWorkflow]
+    NW --> DA[Dedicated Document Activity worker]
+    L --> F[PG terminal state + delivery events]
+    F --> WS[Web SSE adapter]
+    F --> QS[QQ delivery adapter]
 ```
 
-图是职责图，不能当成逐方法调用或完整时序：取消、审批信号、归档、终态事务和调度细节以代码与 2.1 主链为准。Research 仍通过自己的 API/命令建 Run；聊天 Artifact 使用独立 Artifact Outbox。两者都不经过“新 Chat Run 选择”。
+ConversationRunWorkflow 是现有 durable 生命周期的拟议中立名称，不额外保留 DurableWebRunWorkflow 作为另一条正式实现。Dispatcher 可按 run_kind 选择入口；业务 Workflow 内不能变成 agent/research/artifact/document 分支大全。
 
-具体保留：QQ/legacy 的控制流在 Facade loop；durable 的恢复控制流在 Temporal，数据载荷在 PostgreSQL；Research 是有上限的固定阶段工作流。建议共享能力合同，禁止为了形式统一再套一个万能执行器。未来 QQ 是否迁移 durable 另作设计。
+## 核心领域与 Surface 合同
 
-## 进程和队列合同
-
-| 单元 | 保留责任 | 收敛约束 |
+| 对象 | TARGET DECISION | CURRENT 差异 / 必须处理 |
 | --- | --- | --- |
-| 主 hpagent 进程 | QQ Worker、条件 Web lifecycle/agent Workers、消费者、共享工具/模型/workspace | bootstrap 拆文件不改变进程拓扑；QQ/Web 共用一个 AccountLockRegistry |
-| Web API 进程 | 认证、命令事务、查询、SSE | 不构造 Agent 执行环境；命令借 Outbox 发起执行 |
-| Web lifecycle queue | legacy/durable Web lifecycle、Research、Artifact、Document Workflow | 与 agent queue 区分；队列分离不是容器分离 |
-| Web agent queue | legacy execute_agent 与 durable 能力 Activities / child workflows | durable 开关关闭后仍服务已有 durable 执行 |
-| Document 进程/queue | normalize_document Activity，当前并发 1 | Workflow 留在 lifecycle；保留 tenant reader 与独立 scratch |
-| Migration 进程 | SQL schema 迁移 | 根 SQL 资产与 Python runner 分工保留 |
-| Frontend/gateway | 产品交互、HTTP/SSE 展示 | 不成为 Run 权威终态来源 |
-| Standalone Web | 当前不列为支持部署 | 先完成 G07；不能以 enum/validator 可通过宣称可用 |
+| Account / identity binding | PG 身份；surface 解析外部主体后带内部 account_id 调命令 | QQ 已使用 PG；无绑定拒绝与 DB 不可用分开，不自动建号绕过授权 |
+| Conversation | 用户连续交互容器，可被显式授权的 surface 绑定 | QQ 当前 account 级 mailbox；建议按 account + provider + 私聊/群聊目标 + 可选 thread 映射，不能自动合并同账户所有聊天 |
+| Message | 源消息标识、Conversation、角色/顺序、回复关联均入 PG | QQ provider/bot/room/message 标识映射成稳定领域幂等键；不能随机 key 或假设上游消息天然是 Web UUID |
+| Session | Conversation 内上下文/执行资源生命周期，统一 PG 轮换 | 替换 QQ 字符串 Session 生成与恢复；SQLite 不再决定产品 active Session |
+| Run | 一次被接受的执行，统一终态/operation 合同 | 按 run_kind 保留合法 shape，Research 不强造 Conversation/Session |
+| Outbox | 事务命令与执行/投递副作用可靠衔接 | QQ 不直接 start/signal Agent；Research/Artifact 可有专属事件、表和消费者 |
+| Delivery | 从已提交结果派生的投递，支持重试/回执 | SSE 与 QQ 分段/引用/@/附件适配分离；投递失败不重新执行已完成 Agent |
 
-Research Activity 与 lifecycle 共享 queue 可能有隔离/容量方面的取舍，但没有排队延迟或资源竞争数据时，本次不新增 Research Worker。后续若观察到实际相互影响，再决定队列/并发/进程隔离。
+**建议的最小忙时规则：** 沿用一 Conversation 一个 active Run，包括 queued/running/cancelling；两个 surface 同样返回领域 busy，QQ 映射为明确提示。当前 QQ 会 signal 后续消息，这个行为改变需产品验收。如果需要排队，应显式改持久化 admission/唯一索引，不藏一套 QQ 内存或长 Workflow mailbox。群聊非触发消息可做有限临时上下文；一旦选入模型，内容与来源纳入 snapshot。
 
-## 状态 owner 与跨域桥
+统一身份不意味着 QQ 群聊与 Web 私人历史自动互通。跨 surface 打开同一 Conversation 必须显式绑定并验 ownership。PG `completed` 后 QQ 发送失败，只重试同一结果的 delivery；渠道无可靠幂等支持时记录投递不确定性，不承诺端到端 exactly-once。
 
-| 对象 | 权威来源 / 逻辑 owner | 合法协作边界 |
+## 权威状态与能力 owner
+
+| 状态 / 能力 | TARGET owner / 持久化 | 边界 |
 | --- | --- | --- |
-| account / binding / credential | PostgreSQL / Identity | QQ 和 Web 共用 account_id；旧 JSON 只作为待核验历史资产 |
-| Web Conversation / Message / Run / terminal | PostgreSQL / Web domain lifecycle | Command、Worker finalize、reconcile 使用受控事务；SSE 查询已提交快照 |
-| durable transcript / operation / lease | PostgreSQL / AgentDataStore | Activity CAS、fencing、幂等；Temporal 保存步骤历史与紧凑引用 |
-| run budget / usage ledger / trace | PostgreSQL / Budget 与 Observability | 预算参与执行约束，Trace 是投影；不能从 Trace 反写 Run 终态 |
-| QQ 短期对话 | SessionStore / Redis + WAL/checkpoint + archive | TurnMemory、Archive 应用服务编排；不混成 Web Session |
-| workspace metadata / branch | SQLite WorkspaceDB / Git workspace | Conversation 资源准备，WorkspaceIsolationRuntime 保护并发访问 |
-| 文件元数据 / 不可变版本 / 审批 | PostgreSQL / File domain | OutputPublisher 与持久文件服务按 operation/lineage 协作；审批与 Outbox 同事务 |
-| tenant 对象 / Run output / document scratch | TenantFileStore / RunFileWorkspace / Document runtime | 保留不可变对象与临时执行范围的不同生命周期；无跨 PG/FS 原子性承诺 |
-| Research task / stages / evidence / report | PostgreSQL / Research | PG task 配置投影成 Temporal Schedule；固定 Workflow 消费执行 |
-| Artifact / version | PostgreSQL / Artifact | 聊天 build 与 Research 发布桥共享版本合同；Research SQL 同事务关联 report |
-| online delta / progress | Redis / 传输 | 可降级、可丢弃，按 Run 快照恢复 |
-| 长期记忆 | Hindsight / Memory adapters | retain/recall 外部能力，不能替代 PG Run 或 QQ WAL |
-| user_reminder | scheduler JSON / QQ reminder scheduler | 与 Temporal Research Schedule 分开登记 |
+| Conversation / Message / Session / Run | surface-neutral domain / PG | 交互核心，不吸收所有模型/文件/Git/业务流程 |
+| transcript / operation / lease | durable data plane / PG | Run 执行状态、CAS、fencing 与重试结果；不同于用户 Message |
+| ModelInputSnapshot / ModelInputReview | Agent 模型输入能力 / PG | 不可变输入、独立审阅决定；History 只引用，Trace 只投影 |
+| 长期记忆 | Hindsight | 保留 retain/recall；统一 Message 来源后退出 QQ WAL 权威 |
+| 缓存 / 在线事件 / 临时群上下文 | Redis | 可丢弃可降级，不保存不可替代正式会话状态 |
+| Budget / Trace | 各自 capability / PG | 预算约束执行，Trace 观察执行；Trace 不给模型审批授权 |
+| Persistent Workspace | Workspace owner / Git + PG 逻辑绑定 | workspace_id 解析 repo/ref；SQLite 若保留，仅是可替换本地元数据 |
+| Run Files | File runtime / PG + tenant objects + run dirs | inputs/scratch/outputs 独立；scratch 非默认用户文件视图 |
+| Persistent file revisions | File owner / PG + immutable objects | 用户逻辑文件版本，不自动等同 Git workspace 文件 |
+| Research Task / evidence / report | Research / PG | 独立固定阶段与 schedule desired state，消费共享 Run 设施 |
+| Artifact / version | Artifact / PG | 结果合同统一；Research SQL 桥保留原子关联 |
+| Heavy Document | Document capability / dedicated Activity worker | 独立并发/资源边界，Workflow 仍在 lifecycle |
 
-ACD-04 接受多种存储，不接受不清楚谁最终负责同一对象。ACD-07 的 Research SQL 是明确的跨域事务桥；无需为了“单一 owner”强行打断它的原子性。
+需要消除的是同类交互实体的双重权威。Redis、Hindsight、Git、tenant store 对不同对象的分工继续保留。Reminder scheduler 若保留为目标工具，仍是有名业务能力，不因旧 QQ turn 退役而盲删或并入 Research。
 
-## 当前包到目标责任的映射
+## 新扩展边界
 
-覆盖 2.1 的全部 30 个后端一级包；保持现状也是审计结论。这里不授权全目录搬迁。
+模型输入按“冻结请求 → 权限投影 → 版本授权 → 执行原快照”衔接。准备覆盖 System/History/Memory/File/Plan/Tool、模型选择和有效参数；Invoke 不再组 prompt/选工具。等待期间输入或 provider fallback 改变实际请求，创建新 snapshot 并重审。见 06。
 
-| 当前包 | 建议归属 / 处理 | 决策 |
+Workspace 按“Conversation ownership → logical workspace binding → versioned query”衔接。shared checkout 只能显示正确 Session 的实时树；其他 Session 返回指定 ref 的 committed 视图或 unavailable，不因查询 checkout。worktree 将来改变物理隔离，不改变 UI query 合同。见 07。
+
+## 30 个当前包到目标责任的映射
+
+| 当前 src 包 | TARGET / Required refactor | ACD |
 | --- | --- | --- |
-| account | 生产身份；旧 JSON 类与数据分开评审 | ACD-04、10 |
-| actions | 工具选择/执行能力，保持独立 | ACD-01、03 |
-| agent | 暂保实验实现；生产协议迁出，旧协议路径兼容 | ACD-03 |
-| agent_activities | durable 能力及 data plane；按责任择机拆实现，保留注册面 | ACD-01、12 |
-| agent_execution | QQ/Web hosts、legacy loop、预算/Trace；不随 Web 退役整包删除 | ACD-01、04、09 |
-| agent_workflows | durable 确定性控制流及合同 | ACD-01、09 |
-| application | QQ/use case/context/memory/archive；保持应用服务 | ACD-01、04 |
-| bootstrap | 组合 owner；拟新增 web.py/infrastructure.py，复用 qq.py | ACD-02 |
-| brain | 模型决策能力 | ACD-01、03 |
-| channels | 已实现渠道适配；默认/工厂对齐，Console 单独保留候选 | ACD-08 |
-| common | 共享基础合同，拟新增 agent_protocol.py；不承载业务执行 | ACD-03 |
-| document_activities | 独立重型文档执行 | ACD-05、16 |
-| file_adapters | 具体格式/转换 provider | ACD-05 |
-| file_domain | 模型、规则、领域 Repository；拆开执行依赖 | ACD-04、05 |
-| file_runtime | Run 文件路由/发布/持久操作编排 | ACD-05、07 |
-| harness | QQ Temporal Activity 与 Prompt/context 适配，保持生产职责 | ACD-01、09 |
-| memory | Hindsight 与群上下文适配 | ACD-04 |
-| orchestration | 进程生命周期、Workflow、dispatcher/reconciler；剥离大块装配 | ACD-02、09、16 |
-| persistence | PG 基础 Repository/UoW/runner；不强制聚合所有领域 SQL | ACD-04、13 |
-| research_activities | 固定阶段执行及发布 | ACD-06、07 |
-| research_adapters | 发现/抓取/综合 provider | ACD-06 |
-| research_domain | Research 命令、规则、数据 Repository | ACD-06 |
-| resources | 模型链/凭证/检索/预算上下文 | ACD-01、04 |
-| sandbox | 工具 runtime；MCP 按传输与投影切分；保留 routing 既有边界 | ACD-01、11 |
-| session | QQ 短期状态与 workspace metadata，声明差异，暂不物理拆包 | ACD-04 |
-| storage | Redis/本地文件/tenant 对象 adapter | ACD-04、05 |
-| web_api | HTTP 边界及 app composition；后续按路由族抽取 | ACD-12、15 |
-| web_artifacts | Artifact 合同/build；登记 Research bridge | ACD-07 |
-| web_domain | Web 命令/生命周期/会话/文件上传服务；保持事务 | ACD-04、12 |
-| workspace | 进程/账户隔离、Run scope；拒绝未实现拓扑承诺 | ACD-04、05、16 |
+| account | 保留 PG 身份；删除旧 JSON 类/旧运维路径候选 | 04、10 |
+| actions | 正式工具能力；移除 QQ SessionStore 依赖，接受 Run 上下文 | 01、03、17 |
+| agent | 救出正式协议后删除实验/Multi-Agent/非目标实现 | 03、10 |
+| agent_activities | 唯一 durable 能力，拆准备与调用 | 01、12、17 |
+| agent_execution | 保留预算/Trace/中立适配；迁出合同后删 legacy hosts/loop | 01、03、09 |
+| agent_workflows | 唯一 Agent 编排、两 strategy、确定性 review wait | 01、17 |
+| application | ingress/delivery 为 surface；交互命令统一，重接记忆/归档 | 01、04 |
+| bootstrap | shared runtime + surfaces；QQ 不再组装私有 loop | 02 |
+| brain | 决策解析与模型能力；调用后 snapshot 不再用于授权 | 03、12、17 |
+| channels | 协议/路由/发送，不控制 Agent 内循环 | 01、08 |
+| common | 轻量正式合同候选，不建万能服务包 | 03 |
+| document_activities | 保留独立重型文档 Activity | 05 |
+| file_adapters | 格式读取/转换 provider | 05 |
+| file_domain | 规则/审批/版本/Repository，执行依赖外移 | 05 |
+| file_runtime | Run 文件解析/路由/发布，区别于 Workspace Query | 05、18 |
+| harness | 旧 QQ turn 删除；Prompt/context、reflection/metrics 等必要职责迁出保全 | 03、09 |
+| memory | Hindsight/group adapter，输入来自统一领域 | 04、17 |
+| orchestration | 中立 lifecycle/业务 Workflow/dispatcher/关闭，删除双注册 | 01、02、09 |
+| persistence | PG 原语/UoW/必要 schema runner，非全部领域总库 | 04、10、13 |
+| research_activities | 固定阶段/发布，不变 Agent strategy | 06、07 |
+| research_adapters | 发现/抓取/综合 provider | 06 |
+| research_domain | Task/evidence/report，消费共享 Run 设施 | 06 |
+| resources | 准备时固定 provider payload，fallback 新快照 | 17 |
+| sandbox | 唯一工具 runtime，版本化 MCP projection，消除渠道假设 | 01、11、17 |
+| session | QQ SessionStore/WAL 权威退役；WorkspaceDB 单独审视 | 04、09、18 |
+| storage | 通用 adapters 保留；QQ 专用无调用残留删除 | 04、05、10 |
+| web_api | HTTP/SSE/query surface，核心命令不归 Web 独占 | 04、15、18 |
+| web_artifacts | Artifact owner/build，支持双 surface 引用 | 07 |
+| web_domain | 交互核心提升中立领域；其他 capability 保持 owner | 04 |
+| workspace | PG 逻辑绑定/隔离/查询；worktree 未来选项，Run scope 独立 | 16、18 |
 
-前端 `web/src` 保留当前工作台及观测/文件/成果功能（ACD-15）；`config` 的功能合同由 ACD-08/16 处理；Compose/Docker/requirements 由 ACD-13/16 处理；根 `persistence` SQL 属于 schema 资产（ACD-04/13）；`scripts/tools` 保留明确运维用途，旧账号操作由 ACD-10 单列；`test` 与 `artifacts/benchmarks` 是验证资产，不能因体积/行数列为生产拆分目标。
-
-## 拟议依赖约束
-
-1. 生产 Brain/Action 调用方只依赖稳定协议，协议不反向 import 实验 agent、Temporal 或运行时资源。
-2. bootstrap 负责构造，应用服务不反向查找主 worker 全局对象；启动/关闭入口保留资源拥有权。
-3. 文件值对象不引用 OutputPublisher；文件运行服务可依赖领域规则/Repository，Repository 保持必要事务。
-4. Workflow 通过 Activity 和已有合同使用外部能力；不因文件抽取把数据库/网络调用移入 Workflow。
-5. 包内可以拥有领域 Repository，跨域 SQL 桥须具名、记录双方责任和事务效果。无需追求所有目录名都符合纯领域层教科书。
-
-这些是针对已观察耦合提出的约束，尚未增加架构测试或新的依赖检查框架。
+前端消费查询/投递合同，Research 专用 UI 另定范围。config/Compose 删除迁移开关但保留真实能力与已实现拓扑。根 persistence SQL 必须支持全新安装，不能按 migration 名字全删。

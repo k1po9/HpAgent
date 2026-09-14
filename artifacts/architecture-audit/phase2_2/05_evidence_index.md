@@ -1,8 +1,11 @@
-# 证据索引
+# 代码事实证据索引 · R2
 
-E 编号是本次源码复核锚点；H/D/U 编号沿用 2.1。代码未发生业务变更不等于 2.1 的每个推断都已复核，本次只对决策相关边界直接阅读、核对。行号与哈希以审计基线为准。测试源码只用于定位验收入口，未在本次执行。
+> Historical architecture evidence. Not current architecture documentation.
+> 修订 R2；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。
 
-| ID | 复核项 | 代码锚点 | 结论 |
+E01–E25 继承原锚点且哈希核对；E26–E43 为新目标的定向复核。这里证明当前实现/差距，不能证明目标已实现。未生产前提来自用户 U-PREPROD，不来自 E 表。测试源码均只读未执行。
+
+| ID | 复核项 | 源码位置 | CURRENT FACT |
 | --- | --- | --- | --- |
 | E01 | 双新启动路径与翻转后的重复启动恢复 | `src/orchestration/web_dispatcher.py:103` | 按 durable_agent_enabled 选 Workflow；AlreadyStarted 接受 legacy/durable 两种类型。 |
 | E02 | 双 Workflow 注册及 Document queue 边界 | `src/orchestration/web_workers.py:152` | lifecycle 和 agent 两组定义始终列入注册；NormalizeDocumentWorkflow 在 lifecycle。 |
@@ -29,7 +32,27 @@ E 编号是本次源码复核锚点；H/D/U 编号沿用 2.1。代码未发生�
 | E23 | 注册合同断言 | `test/test_durable_agent_contract.py:77` | 断言 lifecycle/agent 注册定义列表；本次只读未执行。 |
 | E24 | 依赖文件的不同 build context | `src/Dockerfile:35` | main context=src；API/migrate context=根目录；两份 requirements 当前相同。 |
 | E25 | 前端当前能力范围 | `web/src/App.tsx:1` | 结合 web/src 全量搜索与 2.1 frontend_symbols，未见任务管理路由/API；仅测试附件名出现 research。 |
+| E26 | QQ account 级会话入口 | `src/application/conversation.py:71` | 当前按 account start/signal OrchestrationWorkflow，生成字符串 session_id，并准备本地资源。 |
+| E27 | PG 交互实体与单活跃约束 | `persistence/migrations/001_phase_a_schema.sql:51` | Conversation/Message/Session/Run 及 queued/running/cancelling 单活跃索引已存在，未含目标 QQ 适配。 |
+| E28 | Web 交互事务与 busy | `src/web_domain/services.py:130` | 先锁 Conversation、查幂等/busy，再建 Session/Message/Run/budget/Outbox；不是已实现中立 QQ 命令。 |
+| E29 | 准备与模型调用耦合 | `src/agent_activities/runtime.py:413` | 同 Activity 读 transcript、加 objective、选工具并调模型；没有预调用审阅。 |
+| E30 | 调用后输入投影 | `src/brain/engine.py:170` | generate_chat_decision 在模型返回后生成 input_context；不是完整 provider 请求快照。 |
+| E31 | 真正 provider payload 转换 | `src/resources/model_client.py:191` | 选择实际 model，转换 messages/tools、填有效 max_tokens/stream 并合并 extra_body。 |
+| E32 | 模型回退发生于运行时 | `src/resources/resource_pool.py:108` | selector 解析候选 endpoint，按 attempt 调 client 并做预算 reserve/settle，可能 fallback。 |
+| E33 | 文件审批的 durable wait | `src/agent_workflows/tool_execution.py:33` | signal 唤醒后查询权威审批状态，wait_condition 等待；当前是工具/文件审批而非 Model Review。 |
+| E34 | 执行 lease 过期与 fencing | `src/agent_activities/store.py:81` | 只有 owner/token/未过期符合条件才续租，不能把长时间审阅后的旧 token 当作自动有效。 |
+| E35 | Research Run 非聊天 shape | `persistence/migrations/021_research_r0_r2.sql:31` | Research Run 绑定 Task，conversation/session/trigger/context_seq 为空；同表共享 Run 不等于共享聊天实体。 |
+| E36 | 当前 checkout 不是任意会话快照 | `src/workspace/isolation.py:251` | 加载 account_repo/session 后锁账户、准备并切分支，还写 Web session_context；执行准备不能用作只读查询。 |
+| E37 | 上下文准备已有辅助模型调用 | `src/agent_activities/runtime.py:242` | loader/记忆组装写 transcript；可先调用 fast 模型改写 recall query；trace surface 当前写 web。 |
+| E38 | QQ SessionStore 仍实际存在 | `src/session/store.py:46` | QQ Redis/WAL/checkpoint 现状；目标统一 PG 需要迁移正式消费者，不能以改文档声称已删除。 |
+| E39 | Run Files 独立范围 | `src/workspace/file_scope.py:55` | Run 文件输入/临时/输出范围，区别于 Git account/session workspace。 |
+| E40 | harness 含混合必要能力 | `src/harness/activities.py:41` | QQ turn 调旧 Host；同文件还有 archive/reflection/metrics，不能按目录整体判可删。 |
+| E41 | 规划与评估另有模型调用 | `src/agent_activities/runtime.py:1102` | planning/evaluate_plan 构建专门 instructions 后直接调用 Brain；只拆 model_decision 无法覆盖全部主模型阶段。 |
+| E42 | 当前文档维护约束 | `docs/architecture/README.md:5` | 要求实现事实优先、显式 drift 与 Excalidraw 人工维护；目标 ADR/当前文档分工是本次建议。 |
+| E43 | 当前审批 UI 范围 | `web/src/components/ApprovalCard.tsx:18` | 调用 listFileApprovals/decideFileApproval 并展示文件目的地；不是模型输入权限投影。 |
 
-E25 的负证据范围是当前仓库 web/src 的路由、API 调用与符号表；不是外部部署、其他仓库或未来需求。E24 结合 Compose 的 build.context 和四份 Dockerfile，并逐字节比较两份依赖。E05 结合 agent/__init__.py 与 brain/actions/durable 的生产 import。E15 结合 standalone validator 与 WorkspaceIsolationRuntime.start。
+新功能负证据：对 src 与 web/src 搜索 ModelInputSnapshot、WorkspaceQueryService、prepare_model_input、invoke_model、prompt_review 未命中，再结合模型调用与 API/ApprovalCard 实现复核。这说明本仓库缺少上述目标合同，不声称没有任何相邻能力。Blackboard 未检出独立同名实现，退役按实验类真实消费者处理，不捏造 blackboard.py。
 
-本次未读取私有部署环境、线上 Temporal History、业务数据库、QQ 历史目录或远端 MCP 工具目录。它们的缺口分别影响 G04–G09，不阻止非迁移的边界决策。
+E24 结合 Compose 的实际 build context 与四份 Dockerfile；E22/E23 的旧 replay/双注册测试只描述旧合同，新目标允许在行为验证后替换。代码基线变化后应重新检查适用性；validator 接受仅审计提交导致 HEAD 改变，但拒绝冻结证据或范围外源文件漂移。
+
+未读线上 History、真实业务数据库、私有部署配置；这些不再是 legacy 删除前置。目标 PG/Temporal E2E、MCP transport、workspace 隔离、模型输入一致性仍须在实施时验证。

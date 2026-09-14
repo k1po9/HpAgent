@@ -1,84 +1,84 @@
-﻿item_id,path,phase2_1_kind,phase2_1_status,decision_ids,gate_ids,disposition,blocking_scope,needed_evidence,closed_in_phase2_2
-U-F-001,src/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-002,src/account/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-10;ACD-04,G06,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-003,src/account/account_service.py,REACHABILITY,OPEN,ACD-10;ACD-04,G06,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-004,src/account/models.py,REACHABILITY,OPEN,ACD-10;ACD-04,G06,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-005,src/actions/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-006,src/agent/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-03,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-007,src/agent_activities/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-12,G03;G04,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-008,src/agent_execution/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-12,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-009,src/agent_execution/tracing/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-12,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-010,src/agent_workflows/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-09,G03;G05,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-011,src/application/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-012,src/bootstrap/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-013,src/brain/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-014,src/channels/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-08,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-015,src/channels/base.py,REACHABILITY,OPEN,ACD-08,G03,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-016,src/channels/console.py,REACHABILITY,OPEN,ACD-08,G03,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-017,src/common/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-018,src/common/interfaces.py,REACHABILITY,OPEN,ACD-04,G03,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-019,src/document_activities/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-05,G03;G10,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-020,src/document_activities/contracts.py,REACHABILITY,OPEN,ACD-05,G03;G10,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-021,src/file_adapters/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-05,G03;G10,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-023,src/file_domain/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-05,G03;G10,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-025,src/file_domain/providers.py,REACHABILITY,OPEN,ACD-05,G03;G10,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-026,src/file_runtime/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-05,G03;G10,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-027,src/harness/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-028,src/memory/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-029,src/orchestration/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-02;ACD-16,G02;G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-030,src/orchestration/document_contracts.py,REACHABILITY,OPEN,ACD-02;ACD-16,G02;G03,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-031,src/persistence/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-032,src/research_activities/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-06;ACD-07,G03;G10,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-033,src/research_adapters/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-06;ACD-07,G03;G10,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-034,src/research_domain/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-06;ACD-07,G03;G10,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-036,src/resources/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-037,src/sandbox/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11,G09,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-038,src/sandbox/tools/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11,G09,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-039,src/sandbox/tools/adapters/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11,G09,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-040,src/sandbox/tools/local/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11,G09,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-041,src/sandbox/tools/routing/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11,G09,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-042,src/sandbox/tools/skills/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11,G09,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-043,src/sandbox/tools/skills/installer.py,REACHABILITY,OPEN,ACD-11,G09,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-044,src/session/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-045,src/storage/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-046,src/storage/protocols.py,REACHABILITY,OPEN,ACD-04,G03,HOLD_NO_DELETE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,按计划改动补调用/注册/人工入口、数据与兼容证据；协议类型按消费者合同验证,false
-U-F-047,src/web_api/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-12;ACD-15,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-048,src/web_artifacts/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-07,G10,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-049,src/web_domain/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-F-050,src/workspace/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03,KEEP_STRUCTURAL_CONTRACT,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,若改变 import/重导出，核对导出对象身份与初始化副作用；不要求虚构业务调用入口,false
-U-S-051,src/account/account_service.py,SYMBOL_COVERAGE,OPEN,ACD-10;ACD-04,G06,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-053,src/account/registration_service.py,SYMBOL_COVERAGE,OPEN,ACD-10;ACD-04,G06,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-054,src/agent/protocol.py,SYMBOL_COVERAGE,OPEN,ACD-03,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-055,src/agent_execution/brain_action_loop.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-12,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-056,src/agent_execution/facade.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-12,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-057,src/agent_workflows/contracts.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-09,G03;G05,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-058,src/channels/official_qq.py,SYMBOL_COVERAGE,OPEN,ACD-08,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-060,src/common/types.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-061,src/file_domain/approvals.py,SYMBOL_COVERAGE,OPEN,ACD-05,G03;G10,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-062,src/file_domain/models.py,SYMBOL_COVERAGE,OPEN,ACD-05,G03;G10,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-064,src/file_domain/providers.py,SYMBOL_COVERAGE,OPEN,ACD-05,G03;G10,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-066,src/memory/hindsight_client.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-068,src/orchestration/config.py,SYMBOL_COVERAGE,OPEN,ACD-02;ACD-16,G02;G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-069,src/orchestration/research_workflow.py,SYMBOL_COVERAGE,OPEN,ACD-02;ACD-16,G02;G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-070,src/orchestration/web_dispatcher.py,SYMBOL_COVERAGE,OPEN,ACD-02;ACD-16,G02;G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-071,src/orchestration/web_reconciler.py,SYMBOL_COVERAGE,OPEN,ACD-02;ACD-16,G02;G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-072,src/orchestration/web_workflow.py,SYMBOL_COVERAGE,OPEN,ACD-02;ACD-16,G02;G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-074,src/persistence/uow.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-075,src/research_domain/models.py,SYMBOL_COVERAGE,OPEN,ACD-06;ACD-07,G03;G10,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-076,src/research_domain/persistence.py,SYMBOL_COVERAGE,OPEN,ACD-06;ACD-07,G03;G10,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-077,src/research_domain/providers.py,SYMBOL_COVERAGE,OPEN,ACD-06;ACD-07,G03;G10,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-079,src/sandbox/sandbox_manager.py,SYMBOL_COVERAGE,OPEN,ACD-11,G09,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-080,src/sandbox/tools/adapters/mcp.py,SYMBOL_COVERAGE,OPEN,ACD-11,G09,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-083,src/sandbox/tools/registry.py,SYMBOL_COVERAGE,OPEN,ACD-11,G09,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-084,src/session/store.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-085,src/storage/tenant_file_store.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-086,src/web_api/app.py,SYMBOL_COVERAGE,OPEN,ACD-12;ACD-15,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-087,src/web_domain/errors.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-088,src/web_domain/services.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-S-090,src/workspace/file_scope.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03,TARGETED_PROOF_BEFORE_CHANGE,只限制涉及该路径的破坏性改动；不扩展为全仓重构前置,只对拟移动/删除方法补具体 receiver、构造、回调与副作用链；其余继续保留,false
-U-DEPLOY,docker-compose.yaml,EXTERNAL_OR_PRODUCT,OPEN,ACD-09;ACD-16,G04;G05;G07,RETAIN_EXTERNAL_OR_PRODUCT_GAP,实际部署者提供去敏配置、版本/namespace 与开关矩阵；阻止默认切换/拓扑开放，不阻止文档和局部抽取,实际部署者提供去敏配置、版本/namespace 与开关矩阵；阻止默认切换/拓扑开放，不阻止文档和局部抽取,false
-U-HISTORY,src/orchestration/web_workers.py,EXTERNAL_OR_PRODUCT,OPEN,ACD-09,G05,RETAIN_EXTERNAL_OR_PRODUCT_GAP,运行维护者提供存量/保留/回滚窗口及代表性 History；阻止注册退役，不阻止继续双注册,运行维护者提供存量/保留/回滚窗口及代表性 History；阻止注册退役，不阻止继续双注册,false
-U-ACCOUNTS,src/account/account_service.py,EXTERNAL_OR_PRODUCT,OPEN,ACD-10,G06,RETAIN_EXTERNAL_OR_PRODUCT_GAP,身份与运维责任人提供历史 JSON 清单、映射与恢复核验；阻止代码/数据清理,身份与运维责任人提供历史 JSON 清单、映射与恢复核验；阻止代码/数据清理,false
-U-TOPOLOGY,src/workspace/isolation.py,EXTERNAL_OR_PRODUCT,OPEN,ACD-16,G07,RETAIN_EXTERNAL_OR_PRODUCT_GAP,workspace 实施者提供独立 worktree 实现和跨进程验证；阻止开放 standalone，不阻止收紧配置,workspace 实施者提供独立 worktree 实现和跨进程验证；阻止开放 standalone，不阻止收紧配置,false
-U-PLUGINS,src/sandbox/tools/adapters/mcp.py,EXTERNAL_OR_PRODUCT,OPEN,ACD-11,G09,RETAIN_EXTERNAL_OR_PRODUCT_GAP,工具责任人按改动涉及 transport 提供测试样例/所用 provider 合同；未知远端工具不作删除依据,工具责任人按改动涉及 transport 提供测试样例/所用 provider 合同；未知远端工具不作删除依据,false
-U-RESEARCH-UI,web/src/App.tsx,EXTERNAL_OR_PRODUCT,OPEN,ACD-15,G08,RETAIN_EXTERNAL_OR_PRODUCT_GAP,产品责任人给出任务/调度/报告用户流程；阻止声称前端闭环，不阻止保持后端,产品责任人给出任务/调度/报告用户流程；阻止声称前端闭环，不阻止保持后端,false
+﻿item_id,path,phase2_1_kind,phase2_1_status,decision_ids,gate_ids,disposition,needed_evidence,old_production_evidence_required,source_fact_closed,decision_gate_removed
+U-F-001,src/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-002,src/account/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04;ACD-10,G05;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-003,src/account/account_service.py,REACHABILITY,OPEN,ACD-04;ACD-10,G05;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-004,src/account/models.py,REACHABILITY,OPEN,ACD-04;ACD-10,G05;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-005,src/actions/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-006,src/agent/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-03;ACD-10,G03;G05,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-007,src/agent_activities/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-17,G04;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-008,src/agent_execution/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-09;ACD-17,G03;G05;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-009,src/agent_execution/tracing/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-09;ACD-17,G03;G05;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-010,src/agent_workflows/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-17,G04;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-011,src/application/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-012,src/bootstrap/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-013,src/brain/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-014,src/channels/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-08,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-015,src/channels/base.py,REACHABILITY,OPEN,ACD-01;ACD-08,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-016,src/channels/console.py,REACHABILITY,OPEN,ACD-01;ACD-08,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-017,src/common/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-018,src/common/interfaces.py,REACHABILITY,OPEN,ACD-04,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-019,src/document_activities/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-05;ACD-18,G10;G13,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-020,src/document_activities/contracts.py,REACHABILITY,OPEN,ACD-05;ACD-18,G10;G13,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-021,src/file_adapters/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-05;ACD-18,G10;G13,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-023,src/file_domain/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-05;ACD-18,G10;G13,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-025,src/file_domain/providers.py,REACHABILITY,OPEN,ACD-05;ACD-18,G10;G13,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-026,src/file_runtime/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-05;ACD-18,G10;G13,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-027,src/harness/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-028,src/memory/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-029,src/orchestration/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-01;ACD-02;ACD-09,G02;G04;G05,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-030,src/orchestration/document_contracts.py,REACHABILITY,OPEN,ACD-01;ACD-02;ACD-09,G02;G04;G05,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-031,src/persistence/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-032,src/research_activities/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-06;ACD-07,G04;G10,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-033,src/research_adapters/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-06;ACD-07,G04;G10,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-034,src/research_domain/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-06;ACD-07,G04;G10,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-036,src/resources/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-037,src/sandbox/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11;ACD-17,G09;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-038,src/sandbox/tools/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11;ACD-17,G09;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-039,src/sandbox/tools/adapters/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11;ACD-17,G09;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-040,src/sandbox/tools/local/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11;ACD-17,G09;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-041,src/sandbox/tools/routing/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11;ACD-17,G09;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-042,src/sandbox/tools/skills/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-11;ACD-17,G09;G12,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-043,src/sandbox/tools/skills/installer.py,REACHABILITY,OPEN,ACD-11;ACD-17,G09;G12,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-044,src/session/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04;ACD-16;ACD-18,G06;G07;G13,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-045,src/storage/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-046,src/storage/protocols.py,REACHABILITY,OPEN,ACD-04,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-F-047,src/web_api/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04;ACD-15;ACD-18,G06;G13,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-048,src/web_artifacts/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-07,G10,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-049,src/web_domain/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04,G03;G06,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-F-050,src/workspace/__init__.py,REACHABILITY,STRUCTURAL_ROLE_KNOWN_RUNTIME_NOT_ASSERTED,ACD-04;ACD-16;ACD-18,G06;G07;G13,REVIEW_TARGET_CONSUMERS,协议/重导出按目标消费者保全或移除；不要求虚构调用入口，不因 UNKNOWN 直接删,false,false,false
+U-S-051,src/account/account_service.py,SYMBOL_COVERAGE,OPEN,ACD-04;ACD-10,G05;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-053,src/account/registration_service.py,SYMBOL_COVERAGE,OPEN,ACD-04;ACD-10,G05;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-054,src/agent/protocol.py,SYMBOL_COVERAGE,OPEN,ACD-03;ACD-10,G03;G05,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-055,src/agent_execution/brain_action_loop.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-09;ACD-17,G03;G05;G12,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-056,src/agent_execution/facade.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-09;ACD-17,G03;G05;G12,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-057,src/agent_workflows/contracts.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-17,G04;G12,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-058,src/channels/official_qq.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-08,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-060,src/common/types.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-061,src/file_domain/approvals.py,SYMBOL_COVERAGE,OPEN,ACD-05;ACD-18,G10;G13,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-062,src/file_domain/models.py,SYMBOL_COVERAGE,OPEN,ACD-05;ACD-18,G10;G13,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-064,src/file_domain/providers.py,SYMBOL_COVERAGE,OPEN,ACD-05;ACD-18,G10;G13,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-066,src/memory/hindsight_client.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-068,src/orchestration/config.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-02;ACD-09,G02;G04;G05,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-069,src/orchestration/research_workflow.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-02;ACD-09,G02;G04;G05,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-070,src/orchestration/web_dispatcher.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-02;ACD-09,G02;G04;G05,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-071,src/orchestration/web_reconciler.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-02;ACD-09,G02;G04;G05,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-072,src/orchestration/web_workflow.py,SYMBOL_COVERAGE,OPEN,ACD-01;ACD-02;ACD-09,G02;G04;G05,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-074,src/persistence/uow.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-075,src/research_domain/models.py,SYMBOL_COVERAGE,OPEN,ACD-06;ACD-07,G04;G10,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-076,src/research_domain/persistence.py,SYMBOL_COVERAGE,OPEN,ACD-06;ACD-07,G04;G10,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-077,src/research_domain/providers.py,SYMBOL_COVERAGE,OPEN,ACD-06;ACD-07,G04;G10,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-079,src/sandbox/sandbox_manager.py,SYMBOL_COVERAGE,OPEN,ACD-11;ACD-17,G09;G12,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-080,src/sandbox/tools/adapters/mcp.py,SYMBOL_COVERAGE,OPEN,ACD-11;ACD-17,G09;G12,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-083,src/sandbox/tools/registry.py,SYMBOL_COVERAGE,OPEN,ACD-11;ACD-17,G09;G12,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-084,src/session/store.py,SYMBOL_COVERAGE,OPEN,ACD-04;ACD-16;ACD-18,G06;G07;G13,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-085,src/storage/tenant_file_store.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-086,src/web_api/app.py,SYMBOL_COVERAGE,OPEN,ACD-04;ACD-15;ACD-18,G06;G13,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-087,src/web_domain/errors.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-088,src/web_domain/services.py,SYMBOL_COVERAGE,OPEN,ACD-04,G03;G06,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-S-090,src/workspace/file_scope.py,SYMBOL_COVERAGE,OPEN,ACD-04;ACD-16;ACD-18,G06;G07;G13,TARGETED_PROOF_BEFORE_CHANGE,只对拟改/拟删对象补具体构造/调用/注册/副作用；目标无必要后删除，不永久保留 UNKNOWN 实现,false,false,false
+U-DEPLOY,docker-compose.yaml,EXTERNAL_OR_PRODUCT,OPEN,ACD-08;ACD-09;ACD-16,G05;G11,PREMISE_SUPERSEDED,无需旧部署盘点/兼容；仍需验证目标配置和全新启动,false,false,true
+U-HISTORY,src/orchestration/web_workers.py,EXTERNAL_OR_PRODUCT,OPEN,ACD-09,G04;G05,PREMISE_SUPERSEDED,无需旧线上 History 存量；验证 canonical replay/recovery，不能伪称已查线上为零,false,false,true
+U-ACCOUNTS,src/account/account_service.py,EXTERNAL_OR_PRODUCT,OPEN,ACD-04;ACD-10,G05;G06,PREMISE_SUPERSEDED,无需旧生产账号回填；核验目标身份路径与拟删源码消费者,false,false,true
+U-TOPOLOGY,src/workspace/isolation.py,EXTERNAL_OR_PRODUCT,OPEN,ACD-16;ACD-18,G07;G13,FUTURE_OPTION_PENDING,worktree 当前未实现；未来开放需隔离证明，Query 可先用真实可用视图,false,false,false
+U-PLUGINS,src/sandbox/tools/adapters/mcp.py,EXTERNAL_OR_PRODUCT,OPEN,ACD-11;ACD-17,G09;G12,TARGET_PROOF_PENDING,验证所改 transport 和工具定义冻结，不要求所有远端工具清单,false,false,false
+U-RESEARCH-UI,web/src/App.tsx,EXTERNAL_OR_PRODUCT,OPEN,ACD-15,G08,PRODUCT_SCOPE_SEPARATE,Research UI 另定；Model Review/Workspace 需求已明确，不能仍标无需求,false,false,false
