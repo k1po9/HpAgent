@@ -208,7 +208,7 @@ def finalize_session_branch(workspace: Path, base: str, task_dir: Path) -> list[
 def ensure_conversation_session(
     database_url: str, account_id: str, conversation_id: str
 ) -> str:
-    from web_domain.sessions import ConversationSessionService
+    from conversation_domain.sessions import ConversationSessionService
 
     service = ConversationSessionService(database_url)
     return str(service.get_or_create_active(UUID(account_id), UUID(conversation_id)))

@@ -21,6 +21,7 @@ from agent_execution.chat_run_input import ChatRunInputLoader
 from agent_execution.web_adapters import PostgresWebRequestLoader
 from agent_execution.web_events import RedisWebRunEventSinkFactory
 from application.context_assembly import ContextAssemblyService
+from conversation_domain.commands import CommandService
 from harness.context_builder import HarnessContextBuilder
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_activities import (
@@ -42,7 +43,6 @@ from orchestration.web_workers import build_web_temporal_workers
 from sandbox.git_repo import GitRepoManager
 from web_domain.lifecycle import WebRunLifecycleService
 from web_domain.outbox import OutboxService
-from web_domain.services import CommandService
 from web_domain.workflow_execution import PostgresWorkflowExecutionStore
 from workspace.isolation import AccountLockRegistry, SessionResourceRecoveryService
 

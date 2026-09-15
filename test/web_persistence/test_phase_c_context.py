@@ -5,8 +5,8 @@ from uuid import UUID, uuid4
 import pytest
 
 from application.context_assembly import ContextAssemblyService, ContextIsolationError
+from conversation_domain.commands import CommandService
 from harness.context_builder import HarnessContextBuilder
-from web_domain.services import CommandService
 
 pytestmark = pytest.mark.postgres
 

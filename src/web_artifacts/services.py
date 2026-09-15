@@ -9,10 +9,10 @@ from uuid import UUID
 
 from uuid6 import uuid7
 
+from persistence.command_result import CommandResult
 from persistence.repositories import IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
-from web_domain.services import CommandResult
 
 
 def _digest(value: object) -> bytes:

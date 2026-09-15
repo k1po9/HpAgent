@@ -4,10 +4,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from conversation_domain.commands import CommandService
 from document_activities import DocumentActivities, NormalizeDocumentInput
 from file_domain.models import FileResource, NormalizedBlock, NormalizedDocument, SourceLocator
 from storage.tenant_file_store import TenantFileStore
-from web_domain.services import CommandService
 from workspace.file_scope import RunFileWorkspace
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.postgres]

@@ -7,13 +7,13 @@ from uuid import UUID, uuid4
 import pytest
 
 from agent_workflows.ids import tool_execution_workflow_id
+from conversation_domain.commands import CommandService
 from file_domain.approvals import (
     ApprovalNotGranted,
     ApprovalNotPending,
     FileActionApprovalService,
 )
 from web_domain.errors import ResourceNotFound
-from web_domain.services import CommandService
 
 pytestmark = pytest.mark.postgres
 

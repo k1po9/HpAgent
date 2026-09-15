@@ -35,8 +35,8 @@ from agent_workflows.contracts import (
     RunSource,
     ToolExecutionInput,
 )
+from conversation_domain.commands import CommandService
 from persistence.migrate import migrate
-from web_domain.services import CommandService
 
 ROOT = Path(__file__).resolve().parents[3]
 HARNESS = ROOT / "test" / "support" / "durable_worker_process.py"

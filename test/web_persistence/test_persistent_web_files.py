@@ -8,11 +8,11 @@ import pytest
 from agent_activities.persistent_overwrite import PersistentOverwriteActivities
 from agent_activities.store import StaleFencingToken, ToolOperationState
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ApprovedToolExecutionInput
+from conversation_domain.commands import CommandService
 from file_domain.approvals import ApprovalNotGranted, FileActionApprovalService
 from file_domain.persistent import DestinationChanged, PersistentWebFileService
 from file_runtime import OutputPublisher
 from storage.tenant_file_store import TenantFileStore
-from web_domain.services import CommandService
 from workspace.file_scope import RunFileScope
 
 pytestmark = pytest.mark.postgres

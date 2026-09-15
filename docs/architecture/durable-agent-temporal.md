@@ -1,10 +1,11 @@
 # Durable Agent Temporal 改造实施说明
 
-## 当前实现（Phase 3 W1-D）
+## 当前实现（Phase 3 W1 + W2-A）
 
 Web Command 在 PG 中创建 Run + Outbox，Dispatcher 固定启动 `AgentLifecycleWorkflow`。
 生产 Worker 只注册这一 Agent lifecycle；`WebRunWorkflow`、legacy Activity 与 Host
-源码暂留 W3 退役，已无 Web 生产入口或注册。QQ 仍使用旧链，W2 尚未实施。
+源码暂留 W3 退役，已无 Web 生产入口或注册。W2-A 已提取共享 Conversation
+命令，QQ ingress 仍使用旧链；完整 W2 / G06 尚未完成。
 
 ```text
 Web Command → Run + Outbox → Dispatcher → AgentLifecycleWorkflow
@@ -12,6 +13,30 @@ Web Command → Run + Outbox → Dispatcher → AgentLifecycleWorkflow
     ReAct / Plan-and-Execute → segmented Activities
   finalize completed / failed / cancelled
 ```
+
+### Conversation command boundary（W2-A）
+
+`conversation_domain.commands.CommandService` 管理 Chat 的 Conversation、Message、
+Session 关联，并在一个 PG 事务中创建共享 Run、预算快照和 Outbox。
+Web API、Chat 终态适配器及测试工具直接调用这一实现；旧 `web_domain.services`
+和 `web_domain.sessions` 路径已迁出，无重导出。Run 仍是共享 Execution/Lifecycle
+primitive，Research 自己的命令和固定 Workflow 保持独立。
+
+命令的 ownership 检查、Conversation 行锁、幂等与 admission 都使用 PostgreSQL。
+发送和 retry 使用可注入的 `AdmissionPolicy`；首版 `SingleActiveRunAdmission` 与
+现有 active-Run 唯一索引共同实施 single active + busy reject。Session 轮换也在同一
+PG authority 上检查活跃 Run。未来队列、中断或追加策略须同步修改 PG 状态转换和
+约束；仅更换 Python policy 不会自动获得这些能力。
+
+入站键允许 UUID 或稳定的、带来源命名空间的字符串（最多 128 字符）；后者确定性
+映射为 Message 的 UUID 去重标识。provider/bot/room/thread/message 的组装与授权
+绑定属于 surface adapter，W2 的 QQ 接线尚待实施。相同 account 不自动合并 Conversation。
+命令结果保存产品字段；`web_api.command_projection` 生成 SSE 和附件 HTTP URL。
+通用 `CommandResult` 位于 `persistence.command_result`，保留既有 PG outcome code 编码。
+
+错误类型、失败策略、预算投影和 Outbox consumer 暂保持原物理路径；命令直接使用共享
+PG repositories，不将这些独立能力迁入 Conversation。QQ ingress、持久化回复投递、
+跨入口 G06 E2E 和 legacy retirement 均不能由 W2-A 的领域测试替代。
 
 生命周期输入仅携带 Run ID。`ChatRunInputLoader` 校验 Chat 所属 Conversation、Session、
 trigger Message，构造 `RunSource` / `RunContext`。Chat loader、资源准备、事件工厂与终态

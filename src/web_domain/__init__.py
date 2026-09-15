@@ -1,1 +1,1 @@
-"""Explicit Web domain services; intentionally separate from legacy QQ state."""
+"""Existing file/lifecycle/Outbox adapters; Chat commands live in conversation_domain."""

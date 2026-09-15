@@ -1,9 +1,4 @@
-"""Web Conversation session lifecycle.
-
-This is deliberately separate from :mod:`session.store`, which remains the
-QQ legacy Redis/WAL implementation.  A Web session is authoritative only in
-the app-postgres ``sessions`` table and is always scoped by Conversation.
-"""
+"""PostgreSQL Session lifecycle scoped by Conversation, shared by all surfaces."""
 from __future__ import annotations
 
 from typing import cast
@@ -13,12 +8,11 @@ from uuid6 import uuid7
 
 from persistence.repositories import ConversationRepository, RunRepository, SessionRepository
 from persistence.uow import UnitOfWork, retryable_transaction
-
-from .errors import ConversationBusy, ResourceNotFound
+from web_domain.errors import ConversationBusy, ResourceNotFound
 
 
 class ConversationSessionService:
-    """Create and rotate the one active Session of a Web Conversation.
+    """Create and rotate the one active Session of a Conversation.
 
     Methods which create a Session first lock the Conversation row.  No method
     reads Redis or accepts an account-level active-session pointer.

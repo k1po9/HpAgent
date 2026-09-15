@@ -1,5 +1,14 @@
 # 03 — 组件架构
 
+## Conversation 命令提取（Phase 3 W2-A）
+
+Chat 的共享命令和 Session owner 已迁至 `conversation_domain`；Web API 已直接调用。
+发送/retry 经同一个 PG 事务 admission policy 创建 Run + Outbox，HTTP URL 在 API
+适配层投影。具体合同见 [当前实现说明](../durable-agent-temporal.md#conversation-command-boundaryw2-a)。
+QQ ingress 与投递尚未切换，完整 W2/G06 未通过，不能开始 W3。
+下方旧组件图中的 Web Domain 命令归属已过时，属于 architecture/visual drift；
+Excalidraw 保持不变，需人工在完整双入口收敛后更新。
+
 ## 当前 Durable 合同与生命周期（Phase 3 W1-D）
 
 W1-D 将 Chat binding 改为显式注入，transcript 允许无 Conversation/Session 并保留

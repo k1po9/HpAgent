@@ -11,6 +11,7 @@ from uuid import UUID
 
 from uuid6 import uuid7
 
+from persistence.command_result import CommandResult
 from persistence.repositories import ConversationRepository, FileRepository, IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from storage.tenant_file_store import (
@@ -37,7 +38,6 @@ from .errors import (
     ResourceNotFound,
     UnsupportedFileType,
 )
-from .services import CommandResult
 
 ALLOWED_DECLARED_TYPES = {
     "text/plain", "text/x-log", "application/log", "application/octet-stream",

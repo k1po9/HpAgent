@@ -4,10 +4,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from conversation_domain.commands import CommandService
 from storage.tenant_file_store import TenantFileStore
 from web_domain.file_cleanup import FileCleanupService
 from web_domain.file_services import FileService
-from web_domain.services import CommandService
 
 pytestmark = pytest.mark.postgres
 

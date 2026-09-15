@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from typing import Any, Protocol, cast
 from uuid import UUID
 
+from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork, retryable_transaction
 
 from .errors import ResourceNotFound
-from .services import CommandService
 
 logger = logging.getLogger("HpAgent.WebRunLifecycleService")
 

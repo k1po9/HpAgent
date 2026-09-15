@@ -7,11 +7,11 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
+from conversation_domain.commands import CommandService
 from persistence.migrate import migrate
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import OutboxLeaseLost
 from web_domain.outbox import OutboxService
-from web_domain.services import CommandService
 
 pytestmark = pytest.mark.postgres
 

@@ -5,12 +5,12 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from conversation_domain.commands import CommandService
 from file_runtime import OutputPublisher
 from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
 from web_domain.errors import ResourceNotFound
 from web_domain.file_services import FileService
-from web_domain.services import CommandService
 from workspace.file_scope import RunFileScope
 
 pytestmark = pytest.mark.postgres

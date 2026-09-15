@@ -8,8 +8,8 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
+from conversation_domain.commands import CommandService
 from web_domain.outbox import OutboxService
-from web_domain.services import CommandService
 
 from .test_phase_a_invariants import _conversation_and_run
 

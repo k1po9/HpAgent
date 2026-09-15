@@ -7,11 +7,11 @@ import psycopg
 import pytest
 from docx import Document
 
+from conversation_domain.commands import CommandService
 from file_runtime import OutputPublisher
 from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
 from web_domain.file_services import FileService
-from web_domain.services import CommandService
 from workspace.file_scope import RunFileInput, RunFileScope
 
 pytestmark = pytest.mark.postgres

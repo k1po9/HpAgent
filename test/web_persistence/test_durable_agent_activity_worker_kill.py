@@ -21,7 +21,7 @@ from agent_workflows.contracts import (
     RunSource,
     ToolExecutionInput,
 )
-from web_domain.services import CommandService
+from conversation_domain.commands import CommandService
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal, pytest.mark.postgres]
 

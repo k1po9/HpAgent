@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from agent_execution.tracing.repository import PostgresTraceRepository
-from web_domain.services import CommandService
+from conversation_domain.commands import CommandService
 
 pytestmark = pytest.mark.postgres
 

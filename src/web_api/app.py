@@ -39,8 +39,10 @@ from account.registration_service import (
 )
 from agent_execution.tracing.repository import PostgresTraceRepository
 from common.logging import log_event
+from conversation_domain.commands import CommandService
 from file_domain.approvals import ApprovalNotPending, FileActionApprovalService
 from file_domain.persistent import PersistentFileRepository
+from persistence.command_result import CommandResult
 from persistence.uow import UnitOfWork
 from research_domain.models import SourceStrategy
 from research_domain.services import (
@@ -68,7 +70,6 @@ from web_domain.errors import (
     VersionConflict,
 )
 from web_domain.file_services import FileService
-from web_domain.services import CommandResult, CommandService
 
 from .auth import (
     AuthContext,
@@ -76,6 +77,7 @@ from .auth import (
     ConfiguredPasswordCredentialAdapter,
     CredentialAdapter,
 )
+from .command_projection import command_body
 from .config import WebApiSettings
 from .fake_executor import FakeArtifactExecutor, FakeRunExecutor
 from .models import (
@@ -950,7 +952,7 @@ def create_app(
             request_id=request.state.request_id, run_id=run["run_id"],
             conversation_id=str(conversation_id), status="success",
         )
-        body = {name: result.body[name] for name in ("user_message", "assistant_message", "run", "events_url")}
+        body = command_body(result, "user_message", "assistant_message", "run", events=True)
         response = JSONResponse(status_code=result.response_status, content=body)
         if result.replayed:
             response.headers["Idempotency-Replayed"] = "true"
@@ -1099,7 +1101,7 @@ def create_app(
         result: CommandResult = request.app.state.commands.cancel_run(context.account_id, run_id, key)
         response = JSONResponse(
             status_code=result.response_status,
-            content={name: result.body[name] for name in ("run", "assistant_message")},
+            content=command_body(result, "run", "assistant_message"),
         )
         if result.replayed:
             response.headers["Idempotency-Replayed"] = "true"
@@ -1108,7 +1110,7 @@ def create_app(
     @app.post("/api/v1/runs/{run_id}/retry")
     def retry_run(run_id: UUID, payload: EmptyRequest, request: Request, context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
         result: CommandResult = request.app.state.commands.retry_run(context.account_id, run_id, key)
-        body = {name: result.body[name] for name in ("source_run_id", "assistant_message", "run", "events_url")}
+        body = command_body(result, "source_run_id", "assistant_message", "run", events=True)
         response = JSONResponse(status_code=result.response_status, content=body)
         if result.replayed:
             response.headers["Idempotency-Replayed"] = "true"

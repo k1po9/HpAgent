@@ -9,6 +9,7 @@ import pytest
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from conversation_domain.commands import CommandService
 from orchestration.artifact_activities import (
     execute_artifact_build_activity,
     inject_artifact_build_service,
@@ -23,7 +24,6 @@ from web_artifacts.build import ArtifactBuildService
 from web_artifacts.outbox import ArtifactOutboxService
 from web_artifacts.services import ArtifactService
 from web_domain.errors import IdempotencyConflict, ResourceNotFound
-from web_domain.services import CommandService
 
 pytestmark = pytest.mark.postgres
 

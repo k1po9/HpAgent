@@ -4,8 +4,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from conversation_domain.commands import CommandService
 from web_domain.errors import ConversationBusy, IdempotencyConflict
-from web_domain.services import CommandService
 
 pytestmark = pytest.mark.postgres
 

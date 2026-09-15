@@ -13,8 +13,8 @@ from uuid import uuid4
 import pytest
 
 from application.memory_retention import MemoryRetentionService, RetainOutcome
+from conversation_domain.commands import CommandService
 from memory.hindsight_client import RetainReceipt
-from web_domain.services import CommandService
 
 from .test_phase_a_invariants import _conversation_and_run
 

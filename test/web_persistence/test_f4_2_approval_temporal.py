@@ -28,6 +28,7 @@ from agent_workflows.contracts import (
 )
 from agent_workflows.ids import tool_execution_workflow_id
 from agent_workflows.tool_execution import ToolExecutionWorkflow
+from conversation_domain.commands import CommandService
 from file_domain.approvals import FileActionApprovalService
 from orchestration.web_dispatcher import (
     TemporalClientAdapter,
@@ -35,7 +36,6 @@ from orchestration.web_dispatcher import (
     WebOutboxDispatcher,
 )
 from web_domain.outbox import OutboxService
-from web_domain.services import CommandService
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.postgres, pytest.mark.temporal]
 

@@ -6,9 +6,9 @@ import pytest
 
 from agent_execution.model_budget_context import current_model_budget, model_budget_scope
 from agent_execution.run_budget import RunBudgetExhausted, RunBudgetService
+from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork
 from web_domain.run_usage_projection import load_run_budget_projection
-from web_domain.services import CommandService
 
 from .test_phase_a_invariants import _conversation_and_run
 

@@ -7,10 +7,10 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
+from conversation_domain.commands import CommandService
 from persistence.repositories import RunRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import ConversationBusy
-from web_domain.services import CommandService
 
 pytestmark = pytest.mark.postgres
 
