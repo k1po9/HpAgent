@@ -6,7 +6,7 @@ Web Command 在 PG 中创建 Run + Outbox，Dispatcher 固定启动 `AgentLifecy
 生产 Worker 只注册这一 Agent lifecycle；`WebRunWorkflow`、legacy Activity 与 Host
 源码暂留 W3 退役，已无 Web 生产入口或注册。W2-A 已提取共享 Conversation
 命令；W2-B 已将 QQ ingress 接入同一 PG command / Outbox / durable 链。
-W2-C 已接入独立 PG delivery 状态与 QQ 投递消费者；完整 W2 Gate 仍需整包归档。
+W2-C 已接入独立 PG delivery 状态与 QQ 投递消费者；W2-D 已通过 G06，见 W2 总实施报告。
 
 ```text
 Web / QQ Command → Run + Outbox → Dispatcher → AgentLifecycleWorkflow
@@ -159,7 +159,7 @@ Session 使用绑定 Conversation 的 PG active Session，终态后继续复用�
 群上下文及来源 ID 随 Message 提交 PG，执行不重新读取缓存。长期记忆只保留 PG
 已提交用户消息与最终回答，群 recall 使用隔离的来源 context key。
 生产不再构造 QQ Host/Facade/loop/SessionStore，不再注册旧 QQ Workflow/Activity；
-历史实现留待 W3 删除。W2-C 已接入最终回复 delivery，完整 G06 需整包汇总。
+历史实现留待 W3 删除。W2-C 已接入最终回复 delivery，W2-D 已完成 G06 验证。
 验证与限制见 [W2-B 报告](../../artifacts/architecture-audit/phase3/W2_B_implementation_report.md)。
 
 ## QQ delivery（W2-C）
@@ -182,3 +182,5 @@ Official QQ 失败不会预先写入成功去重缓存；网络异常保留不�
 不在本次 completed-result delivery 范围；既有取消控制提示保留。
 
 验证和已知限制见 [W2-C 实施报告](../../artifacts/architecture-audit/phase3/W2_C_implementation_report.md)。
+
+W2 整包实施与 G06 证据见 [W2 总报告](../../artifacts/architecture-audit/phase3/W2_implementation_report.md)。
