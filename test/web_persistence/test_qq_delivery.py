@@ -35,7 +35,7 @@ async def test_delivery_failure_retries_committed_result_without_execution(
     router = Router()
     sender = QQDeliveryService(worker_database_url, QQDeliveryAdapter(router))
     await sender.deliver_once()
-    assert db.execute("SELECT state FROM qq_deliveries").fetchone()[0] == "pending"
+    assert db.execute("SELECT state,last_error FROM qq_deliveries").fetchone() == ("pending", "send_failed")
     db.execute("UPDATE qq_deliveries SET available_at=now()")
     router.ok = True
     await QQDeliveryService(worker_database_url, QQDeliveryAdapter(router)).deliver_once()
@@ -61,9 +61,10 @@ async def test_partial_chunks_resume_and_lost_sender_is_uncertain(
     commands.complete_run(account_id, run_id, "a" * 1600)
     router = Router()
     router.ok = True
+    db.execute("UPDATE qq_deliveries SET last_error='previous failure'")
     sender = QQDeliveryService(worker_database_url, QQDeliveryAdapter(router))
     await sender.deliver_once()
-    assert db.execute("SELECT next_part,state FROM qq_deliveries").fetchone() == (1, "pending")
+    assert db.execute("SELECT next_part,state,last_error FROM qq_deliveries").fetchone() == (1, "pending", None)
     db.execute("UPDATE qq_deliveries SET available_at=now()")
     row = sender.claim()
     assert sender.claim() is None

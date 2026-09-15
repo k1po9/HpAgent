@@ -44,13 +44,13 @@ Chat completion 同事务创建唯一 delivery payload。发送失败仅重试�
 
 完整复现：`.venv/bin/python scripts/verify_w2_contracts.py`。
 
-本轮最终 **199 个不同用例通过，无 skip**，分批证据如下。未把重复执行的用例累加：
+**W2-E 纠正：撤回原 199 distinct 声明。** 下列历史主 collection 为 184 个不同用例；后续 15 项 Outbox targeted rerun 不再累加为 distinct。最新完整执行与 node ID 计数见 [W2-E closure evidence](W2_E_implementation_report.md)。历史输出保留如下：
 
 | 执行 | 结果 | 证据 |
 | --- | --- | --- |
 | 主回归 | 183 passed；新增组合测试最初 1 failed | [W2_validation.txt](W2_validation.txt) |
 | 新组合测试纠正后复验 | 1 passed | [W2_cross_surface_validation.txt](W2_cross_surface_validation.txt) |
-| 真实 PG Outbox 故障与恢复 | 15 passed | [W2_outbox_validation.txt](W2_outbox_validation.txt) |
+| 真实 PG Outbox 故障与恢复（targeted rerun，不累加） | 15 passed | [W2_outbox_validation.txt](W2_outbox_validation.txt) |
 
 新增测试先错误读取 Web result 的 top-level conversation_id，随后错误假设 cancelled 可重试。两项均是测试预期错误，按既有 DTO 和 failed-only retry 合同纠正，最终通过；没有修改生产语义。已通过的 183 项未无理由重复执行。唯一 warning 是既有 Starlette/httpx 弃用提示。
 
@@ -102,3 +102,9 @@ Chat completion 同事务创建唯一 delivery payload。发送失败仅重试�
 8. 必要 migrations/SQL/授权不得按名字删除；G05/G11 对新的目标 schema 与安装链重新验收。
 
 当前仍有旧名称及历史注释，例如 worker init_dependencies 的旧组件描述；W3/W4 应结合真实依赖同步，不能据此宣称第二 production runtime 仍在运行。没有新建永久 legacy/old/deprecated 目录。
+
+## W2-E closure 更新
+
+本轮关闭 Official QQ PG 前内存去重、NapCat media provenance、delivery last_error 与历史测试计数四项 finding。当前脚本完整执行 **202 passed / 202 unique node IDs**，无失败或 skip；targeted 16 项不重复累计。此前历史 199 distinct 声明已撤回，当前 202 依据本轮保存的 collection 和完整执行，不依据历史输出相加。
+
+**G06 PASS / W2 EXIT PASS / W3 MAY START**。证据与首次环境中断说明见 [W2-E report](W2_E_implementation_report.md)。W3/W4 本次未执行。

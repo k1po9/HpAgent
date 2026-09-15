@@ -36,7 +36,7 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Optional, Callable, Awaitable
+from typing import Any, Awaitable, Callable, Optional
 
 import websockets
 
@@ -78,7 +78,7 @@ def _build_message_content(
     """从 OneBot message 段数组构建 agent 可读的消息内容。
 
     - 文本段: 直接拼接
-    - 图片段: 替换为 "[图片]"，URL 存入 metadata._images
+    - 图片段: 替换为 "[图片]"，URL/reference 存入 canonical metadata.image_urls
     - @段:    跳过（已通过 is_at_bot 判断）
     - 其他段: 跳过
 
@@ -115,6 +115,7 @@ def _build_message_content(
         # 其他未知类型静默跳过
 
     if images:
+        metadata["image_urls"] = images
         metadata["_images"] = images
         metadata["_image_count"] = len(images)
 

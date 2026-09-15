@@ -1,0 +1,6 @@
+$ .venv/bin/ruff check src/channels/official_qq.py src/channels/napcat.py src/application/qq_delivery.py test/web_persistence/test_qq_delivery.py test/web_persistence/test_qq_canonical_ingress.py
+exit_code=0
+All checks passed!
+
+$ git diff --check
+exit_code=0

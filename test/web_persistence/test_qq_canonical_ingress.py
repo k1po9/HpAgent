@@ -191,3 +191,57 @@ async def test_distinct_first_deliveries_share_binding_and_pg_admission(db, acco
     assert sorted(r.response_status for r in results) == [202, 409]
     assert db.execute("SELECT count(*) FROM conversation_bindings").fetchone()[0] == 1
     assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize("failure", ["callback", "database"])
+async def test_official_duplicate_reaches_pg_after_first_failure(
+    db, account_id, worker_database_url, failure,
+):
+    from channels.official_qq import OfficialQQChannel
+
+    bind(db, account_id, channel="official_qq")
+    channel = OfficialQQChannel()
+    channel._app_id = "test-bot"
+    ingress = MessageIngressService(conversation_service=service(worker_database_url))
+    unavailable = MessageIngressService(
+        conversation_service=service("postgresql://no@127.0.0.1:1/no"),
+    )
+    calls = []
+
+    async def callback(message):
+        calls.append(message)
+        if len(calls) == 1:
+            if failure == "callback":
+                raise RuntimeError("callback failed before admission")
+            return await unavailable.handle(message)
+        return await ingress.handle(message)
+
+    channel._callback = callback
+    raw = {"t": "C2C_MESSAGE_CREATE", "d": {"id": "same-provider-id",
+           "content": "hello", "author": {"id": "123"}}}
+    await channel._handle_dispatch(raw)
+    assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 0
+    await channel._handle_dispatch(raw)
+    await channel._handle_dispatch(raw)
+    assert len(calls) == 3
+    assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 1
+    assert db.execute("SELECT count(*) FROM conversation_ingress_receipts").fetchone()[0] == 1
+    assert db.execute("SELECT count(*) FROM outbox_events WHERE event_type='start_run'").fetchone()[0] == 1
+
+
+async def test_napcat_image_provenance_is_committed_to_pg(db, account_id, worker_database_url):
+    from channels.napcat import NapCatChannel
+
+    bind(db, account_id)
+    message = await NapCatChannel().normalize_message({
+        "post_type": "message", "message_type": "private", "self_id": 999,
+        "message_id": 42, "sender": {"user_id": 123}, "message": [
+            {"type": "image", "data": {"url": "https://example.invalid/image.png"}},
+            {"type": "image", "data": {"file": "provider-image-reference"}},
+        ],
+    })
+    await MessageIngressService(conversation_service=service(worker_database_url)).handle(message)
+    origin = db.execute("SELECT origin FROM messages WHERE role='user'").fetchone()[0]
+    assert origin["metadata"]["image_urls"] == [
+        "https://example.invalid/image.png", "provider-image-reference",
+    ]

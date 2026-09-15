@@ -61,7 +61,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Optional, Callable, Awaitable
+from typing import Any, Awaitable, Callable, Optional
 
 import aiohttp
 import websockets
@@ -145,7 +145,7 @@ class OfficialQQChannel(BaseChannel):
         _heartbeat_task: 心跳发送 task。
         _token_refresh_task: token 刷新 task。
         _reconnect_task: 重连 task。
-        _sent_msg_ids: 已处理消息 ID 去重集合（含 TTL）。
+        _sent_msg_ids: 仅用于非 durable 出站回复的成功发送缓存（含 TTL）。
         _last_send_time: 上次发送时间（防风控）。
         _shutdown: 关闭信号。
     """
@@ -694,16 +694,7 @@ class OfficialQQChannel(BaseChannel):
             if channel_message is None:
                 return
 
-            # 去重：根据 msg_id 检查是否已处理
-            msg_id = channel_message.metadata.get("msg_id")
-            if msg_id:
-                now = time.time()
-                self._clean_dedup_cache(now)
-                if msg_id in self._sent_msg_ids:
-                    logger.debug("QQ official bot: duplicate event skipped: %s", msg_id)
-                    return
-                self._sent_msg_ids[msg_id] = now
-
+            # Inbound redelivery must reach PG ingress receipts, including after failures.
             if self._callback:
                 await self._callback(channel_message)
 

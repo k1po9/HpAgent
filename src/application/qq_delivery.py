@@ -123,11 +123,12 @@ class QQDeliveryService:
             state = await asyncio.wait_for(self.adapter.send(row, part), timeout=60)
         except Exception:
             state = "uncertain"
+        error = {"delivered": None, "pending": "send_failed", "uncertain": "uncertain"}[state]
         if state == "delivered":
             part += 1
             state = "delivered" if part == len(self.adapter.parts(row)) else "pending"
         await asyncio.to_thread(
-            self.finish, row, state, part, None if state == "delivered" else state
+            self.finish, row, state, part, error
         )
         return True
 
