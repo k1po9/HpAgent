@@ -160,3 +160,82 @@ async def test_durable_run_timeout_is_independent_of_legacy_execution_limit():
     assert await TemporalClientAdapter(Client()).start_web_run(
         "workflow", WebRunWorkflowInput(1, "run"),
     ) == "temporal-run"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("maximum_attempts", [1, 3, "default"])
+async def test_segment_capability_retry_is_bounded_and_releases_between_attempts(monkeypatch, maximum_attempts):
+    from dataclasses import dataclass
+    from uuid import uuid4
+
+    from temporalio.common import RetryPolicy
+    from temporalio.exceptions import ActivityError
+
+    from agent_workflows import segments
+    from agent_workflows.lifecycle_contracts import SegmentLease
+
+    @dataclass
+    class Request:
+        run_id: str = "run"
+        account_id: str = "account"
+        lease_token: int = 0
+        execution_attempt: int = 1
+
+    events = []
+    tokens = []
+    segment_ids = []
+
+    async def control(name, request, result_type=None):
+        if name == "acquire_agent_segment_activity":
+            events.append("acquire")
+            segment_ids.append(request.segment_id)
+            return SegmentLease(True, len(segment_ids))
+        assert name == "release_agent_segment_activity"
+        events.append("release")
+
+    failure = ActivityError("retryable", scheduled_event_id=1, started_event_id=2,
+                            identity="worker", activity_type="capability", activity_id="activity", retry_state=None)
+
+    async def execute(name, request, **options):
+        assert options["retry_policy"].maximum_attempts == 1
+        events.append("attempt")
+        tokens.append((request.execution_attempt, request.lease_token))
+        raise failure
+
+    async def sleep(delay):
+        assert events[-1] == "release"
+        events.append("timer")
+
+    monkeypatch.setattr(segments, "_control", control)
+    monkeypatch.setattr(segments.workflow, "uuid4", uuid4)
+    monkeypatch.setattr(segments.workflow, "execute_activity", execute)
+    monkeypatch.setattr(segments.workflow, "sleep", sleep)
+    options = {} if maximum_attempts == "default" else {"retry_policy": RetryPolicy(maximum_attempts=maximum_attempts)}
+    with pytest.raises(ActivityError) as raised:
+        await segments.execute_segment("capability", Request(), **options)
+    assert raised.value is failure
+    attempts = 3 if maximum_attempts == "default" else maximum_attempts
+    assert tokens == [(attempt, attempt) for attempt in range(1, attempts + 1)]
+    assert len(set(segment_ids)) == attempts
+    assert events == ["acquire", "attempt", "release", "timer"] * (attempts - 1) + ["acquire", "attempt", "release"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("maximum_attempts", [0, -1, None])
+async def test_segment_rejects_unbounded_retry_before_acquiring(monkeypatch, maximum_attempts):
+    from temporalio.common import RetryPolicy
+
+    from agent_workflows import segments
+
+    def unexpected_uuid():
+        pytest.fail("invalid retry policy must be rejected before allocating a segment")
+
+    monkeypatch.setattr(segments.workflow, "uuid4", unexpected_uuid)
+    with pytest.raises(ValueError, match="^execute_segment requires a bounded retry policy$"):
+        await segments.execute_segment("capability", object(), retry_policy=RetryPolicy(maximum_attempts=maximum_attempts))
+
+
+def test_control_plane_retry_remains_unlimited():
+    from agent_workflows.segments import _CONTROL_RETRY
+
+    assert _CONTROL_RETRY.maximum_attempts == 0

@@ -48,7 +48,9 @@ async def execute_segment(name: str, request: Any, **options: Any):
     options.setdefault("heartbeat_timeout", timedelta(seconds=45))
     retry = options.pop("retry_policy", RetryPolicy(maximum_attempts=3))
     options.pop("cancellation_type", None)
-    attempts = retry.maximum_attempts or 3
+    attempts = retry.maximum_attempts
+    if attempts is None or attempts <= 0:
+        raise ValueError("execute_segment requires a bounded retry policy")
     for attempt in range(1, attempts + 1):
         segment = SegmentInput(
             LIFECYCLE_SCHEMA_VERSION,
