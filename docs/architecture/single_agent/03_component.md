@@ -5,7 +5,8 @@
 Chat 的共享命令和 Session owner 已迁至 `conversation_domain`；Web API 已直接调用。
 发送/retry 经同一个 PG 事务 admission policy 创建 Run + Outbox，HTTP URL 在 API
 适配层投影。具体合同见 [当前实现说明](../durable-agent-temporal.md#conversation-command-boundaryw2-a)。
-QQ ingress 与投递尚未切换，完整 W2/G06 未通过，不能开始 W3。
+W2-B 已将 QQ ingress 接入同一 PG command / Outbox / durable runtime；
+最终结果可靠投递尚未实现，完整 W2/G06 未通过，不能开始 W3。
 下方旧组件图中的 Web Domain 命令归属已过时，属于 architecture/visual drift；
 Excalidraw 保持不变，需人工在完整双入口收敛后更新。
 
@@ -27,7 +28,7 @@ Web 已固定经 `AgentLifecycleWorkflow` → `AgentRunWorkflow`；Dispatcher �
 
 实现与验证见 [W1-B 实施报告](../../../artifacts/architecture-audit/phase3/W1_B_implementation_report.md)。下方历史组件图尚未覆盖 durable 分支，属于明确的 architecture/visual drift；Excalidraw 由人工维护。
 
-## 边界与依赖方向
+## 历史组件图（W2-B 后非当前生产拓扑）
 
 ```mermaid
 flowchart TD
@@ -66,7 +67,7 @@ flowchart TD
 5. Brain 只做模型决策，ActionRuntime 只做工具选择与执行，Sandbox 管理工具和 workspace 隔离。
 6. PostgreSQL `accounts`/`identity_bindings` 是身份唯一生产事实源；`account_service.py` 仅作为待迁移历史实现保留，不在 composition root 中。
 
-## 主要组件
+## 历史组件清单（待完整 W2 后同步图示）
 
 | 边界 | 组件 | 职责 |
 |---|---|---|

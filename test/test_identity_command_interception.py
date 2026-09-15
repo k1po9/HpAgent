@@ -28,7 +28,7 @@ class _Conversation:
     def __init__(self):
         self.calls = []
 
-    async def start_or_signal(self, *args):
+    async def accept(self, *args, **kwargs):
         self.calls.append(args)
 
 
@@ -67,6 +67,7 @@ async def test_binding_command_is_consumed_before_conversation_or_agent_path():
         sender_id="123456",
         content="绑定 hp-483921",
         channel_type=ChannelType.NAPCAT,
+        metadata={"detail_type": "private", "self_id": "bot", "message_id": "1"},
     )
 
     await ingress.handle(message)
@@ -85,7 +86,8 @@ async def test_non_binding_message_keeps_existing_ingress_path():
         identity_command_service=IdentityCommandService(bindings),
     )
     message = UnifiedMessage(
-        sender_id="123456", content="你好", channel_type=ChannelType.NAPCAT
+        sender_id="123456", content="你好", channel_type=ChannelType.NAPCAT,
+        metadata={"detail_type": "private", "self_id": "bot", "message_id": "2"}
     )
 
     await ingress.handle(message)

@@ -47,6 +47,6 @@ class ChatRunInputLoader:
                     str(identity["session_id"]),
                     str(identity["trigger_message_id"]),
                 ),
-                surface=self.surface,
+                surface=str((identity.get("origin") or {}).get("channel_type") or self.surface),
             ),
         )

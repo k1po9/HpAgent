@@ -60,7 +60,7 @@ class MemoryRetentionService:
                 "SELECT r.run_id, r.account_id, r.conversation_id, r.session_id,"
                 "r.status AS run_status,"
                 "t.role AS trigger_role, t.status AS trigger_status,"
-                "t.content AS trigger_content,"
+                "t.content AS trigger_content,t.origin,"
                 "a.status AS assistant_status, a.content AS assistant_content "
                 "FROM runs r "
                 "JOIN messages t ON t.account_id=r.account_id "
@@ -92,7 +92,10 @@ class MemoryRetentionService:
         run = await asyncio.to_thread(self.load_completed_run, run_id)
         if run is None:
             return RetainOutcome(skipped=True)
-        document_id = f"web-run:{run['run_id']}"
+        origin = run.get("origin") or {}
+        surface = origin.get("channel_type", "web")
+        group = origin.get("scope") in {"group", "guild"}
+        document_id = f"{'web-run' if surface == 'web' else 'chat-run'}:{run['run_id']}"
         events = [
             {"role": "user", "content": run["trigger_content"]},
             {"role": "assistant", "content": run["assistant_content"]},
@@ -103,7 +106,7 @@ class MemoryRetentionService:
             "conversation_id": str(run["conversation_id"]),
             "session_id": str(run["session_id"]),
             "account_id": str(run["account_id"]),
-            "surface": "web",
+            "surface": surface,
         }
         log_event(
             logger, logging.INFO, "memory_retain_started", "memory",
@@ -116,10 +119,15 @@ class MemoryRetentionService:
                 user_id=str(run["account_id"]),
                 document_id=document_id,
                 async_retain=False,
-                channel_type="web",
-                scope="private",
+                channel_type=surface,
+                scope="group" if group else "private",
+                group_id=origin.get("context_key", "") if group else "",
                 metadata={
-                    "source": "web",
+                    "source": surface,
+                    "external_message_id": origin.get("external_message_id"),
+                    "bot_id": origin.get("bot_id"),
+                    "room_id": origin.get("room_id"),
+                    "thread_id": origin.get("thread_id"),
                     "run_id": str(run["run_id"]),
                     "conversation_id": str(run["conversation_id"]),
                     "session_id": str(run["session_id"]),

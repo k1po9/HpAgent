@@ -1,9 +1,9 @@
-"""Read-only Web Context assembly with strict Conversation boundaries."""
+"""Read-only Chat Context assembly with strict Conversation boundaries."""
 from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
 from uuid import UUID
 
@@ -48,6 +48,7 @@ class WebContextBase:
     short_term_events: tuple[Event, ...]
     run_files: tuple[RunFileContext, ...] = ()
     interaction_profile: str = "web_chat"
+    origin: dict = field(default_factory=dict)
 
 
 class ContextAssemblyService:
@@ -118,8 +119,11 @@ class ContextAssemblyService:
             trigger_content=subject["trigger_content"],
             short_term_events=events,
             run_files=run_files,
+            origin=dict(subject.get("origin") or {}),
             interaction_profile=(
-                "web_plan"
+                ("qq_group" if subject["origin"].get("scope") in {"group", "guild"} else "qq_private")
+                if (subject.get("origin") or {}).get("channel_type") in {"napcat", "official_qq"}
+                else "web_plan"
                 if subject.get("agent_strategy") == "plan_and_execute"
                 else "web_chat"
             ),
@@ -135,7 +139,7 @@ class ContextAssemblyService:
             "conversation_id": str(base.conversation_id),
             "session_id": str(base.session_id),
             "account_id": str(base.account_id),
-            "surface": "web",
+            "surface": base.origin.get("channel_type", "web"),
         }
         if self._hindsight is None:
             log_event(
@@ -159,7 +163,10 @@ class ContextAssemblyService:
                 user_id=str(base.account_id),
                 session_id=str(base.session_id),
                 top_n=self._recall_top_n,
-                channel_type="web",
+                channel_type=base.origin.get("channel_type", "web"),
+                scope="group" if base.origin.get("scope") in {"group", "guild"} else "private",
+                group_id=(base.origin.get("context_key", "")
+                          if base.origin.get("scope") in {"group", "guild"} else ""),
             )
         except Exception:
             logger.exception("Web Hindsight recall unavailable", extra={
@@ -191,6 +198,7 @@ class ContextAssemblyService:
             token_budget=self._token_budget,
             generation_headroom=self._generation_headroom,
             extra_context=self._format_run_file_context(base.run_files),
+            group_context_text=base.origin.get("group_context", ""),
         )
 
     @staticmethod
@@ -225,12 +233,13 @@ class ContextAssemblyService:
     def _message_to_event(row: dict[str, Any]) -> Event:
         if row["role"] == "user":
             return Event(
-                session_id="web-context",
+                session_id="conversation-context",
                 event_type=EventType.USER_MESSAGE,
-                content={"content": row["content"], "channel_type": "web"},
+                content={"content": row["content"], "channel_type": (row.get("origin") or {}).get("channel_type", "web")},
+                metadata=dict(row.get("origin") or {}),
             )
         return Event(
-            session_id="web-context",
+            session_id="conversation-context",
             event_type=EventType.MODEL_MESSAGE,
             content={"text": row["content"]},
         )

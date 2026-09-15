@@ -20,7 +20,7 @@ async def test_startup_failure_releases_shared_resources(monkeypatch, failure):
         workspace_isolation=SimpleNamespace(close=Mock()),
     )
     monkeypatch.setattr(worker, "init_dependencies", AsyncMock(return_value=deps))
-    monkeypatch.setattr(worker, "inject_services", Mock())
+    monkeypatch.setattr(worker, "inject_scheduled_services", Mock())
     monkeypatch.setattr(worker, "Worker", Mock())
     connection = AsyncMock(side_effect=RuntimeError("connect") if failure == "connect" else None)
     monkeypatch.setattr(worker.Client, "connect", connection)

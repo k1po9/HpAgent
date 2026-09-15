@@ -101,28 +101,47 @@ class Sandbox:
 
 
 @pytest.mark.parametrize(
-    "strategy,outcome",
+    "strategy,outcome,surface",
     [
-        ("react", "completed"),
-        ("plan_and_execute", "completed"),
-        ("react", "failed"),
-        ("react", "cancelled"),
-        ("plan_and_execute", "failed"),
-        ("plan_and_execute", "cancelled"),
+        ("react", "completed", "web"),
+        ("plan_and_execute", "completed", "web"),
+        ("react", "failed", "web"),
+        ("react", "cancelled", "web"),
+        ("plan_and_execute", "failed", "web"),
+        ("plan_and_execute", "cancelled", "web"),
+        ("react", "completed", "napcat"),
+        ("react", "cancelled", "napcat"),
     ],
 )
 async def test_web_canonical_lifecycle(
-    db, account_id, database_url, worker_database_url, tmp_path, strategy, outcome
+    db, account_id, database_url, worker_database_url, tmp_path, strategy, outcome, surface
 ):
     if not os.getenv("TEMPORAL_HOST"):
         pytest.skip("TEMPORAL_HOST required")
     command = CommandService(database_url)
-    conversation = UUID(command.create_conversation(account_id, str(uuid4()))["conversation_id"])
-    run_id = UUID(
-        command.send_message(
-            account_id, conversation, str(uuid4()), "hello", agent_strategy=strategy
-        )["run_id"]
-    )
+    if surface == "napcat":
+        from support.qq_messages import qq_message
+
+        from application.conversation import ConversationService
+        from application.ingress import MessageIngressService
+        from conversation_domain.surface_commands import SurfaceConversationCommands
+        db.execute(
+            "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
+            "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','napcat:123',now())",
+            (uuid4(), account_id),
+        )
+        ingress = MessageIngressService(conversation_service=ConversationService(
+            SurfaceConversationCommands(CommandService(worker_database_url))
+        ))
+        accepted = await ingress.handle(qq_message())
+        conversation, run_id = UUID(accepted["conversation_id"]), UUID(accepted["run_id"])
+    else:
+        conversation = UUID(command.create_conversation(account_id, str(uuid4()))["conversation_id"])
+        run_id = UUID(
+            command.send_message(
+                account_id, conversation, str(uuid4()), "hello", agent_strategy=strategy
+            )["run_id"]
+        )
     client = await Client.connect(
         os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default")
     )
@@ -197,7 +216,11 @@ async def test_web_canonical_lifecycle(
         handle = client.get_workflow_handle(f"hpagent-web-run-{run_id}")
         if outcome == "cancelled":
             await asyncio.wait_for(brain.entered.wait(), 30)
-            command.cancel_run(account_id, run_id, str(uuid4()))
+            if surface == "napcat":
+                cancelled = await ingress.handle(qq_message("cancel-1", "/cancel"))
+                assert cancelled["run_id"] == str(run_id)
+            else:
+                command.cancel_run(account_id, run_id, str(uuid4()))
             await outbox.run_once()
         if outcome == "completed":
             result = await asyncio.wait_for(handle.result(), 60)

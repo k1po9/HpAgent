@@ -55,7 +55,7 @@ class PostgresWebRequestLoader:
             return self._context.load_base(row["account_id"], UUID(run_id))
 
         started_at = time.monotonic()
-        correlation = {"run_id": run_id, "execution_id": run_id, "surface": "web"}
+        correlation = {"run_id": run_id, "execution_id": run_id}
         log_event(
             logger,
             logging.INFO,
@@ -66,6 +66,7 @@ class PostgresWebRequestLoader:
         )
         try:
             base = await asyncio.to_thread(load_base)
+            correlation["surface"] = base.origin.get("channel_type", "web")
             # Long-term recall remains inside the execution loop, where a rewrite
             # query exists; this loader only provides the frozen short-term snapshot.
             context = tuple(self._context.compose(base, ()))
@@ -101,7 +102,8 @@ class PostgresWebRequestLoader:
             context=context,
             trigger_message_id=str(base.trigger_message_id),
             interaction_profile=base.interaction_profile,
-            metadata={"run_id": run_id, "surface": "web"},
+            metadata={"run_id": run_id, "surface": base.origin.get("channel_type", "web"),
+                      "origin": base.origin},
             context_provider=WebExecutionContextProvider(self._context, base),
         )
 

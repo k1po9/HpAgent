@@ -391,6 +391,9 @@ class OfficialQQChannel(BaseChannel):
             "detail_type": None,
             "event_type": event_type,
             "msg_id": event_data.get("id"),
+            "bot_id": self._app_id,
+            "thread_id": str(event_data.get("thread_id") or ""),
+            "is_at_bot": event_type in {"GROUP_AT_MESSAGE_CREATE", "AT_MESSAGE_CREATE"},
             "timestamp": event_data.get("timestamp", ""),
         }
 
@@ -497,6 +500,7 @@ class OfficialQQChannel(BaseChannel):
             return None
 
         return UnifiedMessage(
+            message_id=str(event_data.get("id") or ""),
             sender_id=sender_id,
             content=content,
             channel_type=ChannelType.OFFICIAL_QQ,

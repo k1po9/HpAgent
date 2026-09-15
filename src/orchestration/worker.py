@@ -4,12 +4,11 @@ Orchestration Worker —— Temporal Worker 启动与依赖组装。
 启动序列:
   1. AppConfig.from_yaml() → 加载全量结构化配置
   2. init_dependencies()    → 按 config 组装所有依赖
-  3. inject_services()     → 注入 QQ Host 与应用服务到 Activities
+  3. inject_services()     → 注入定时应用服务到 Activities
   4. 连接 Temporal → 启动 Worker → 渠道监听
 
 架构:
-  QQ legacy → AgentExecutionFacade → DefaultBrainActionLoop
-  Web durable → AgentLifecycleWorkflow → AgentRunWorkflow → Strategy Workflow
+  Web / QQ → PG Conversation commands + Outbox → AgentLifecycleWorkflow → AgentRunWorkflow → Strategy Workflow
       ↓
   BrainEngine / ActionRuntime / Surface adapters
 """
@@ -36,10 +35,8 @@ from channels.official_qq import OfficialQQChannel
 from channels.router import ChannelRouter
 from common.types import ChannelType, UnifiedMessage
 from harness.activities import (
-    archive_session_activity,
-    inject_services,
+    inject_scheduled_services,
     metrics_report_activity,
-    process_turn_activity,
     reflect_activity,
     reflect_batch_activity,
 )
@@ -47,7 +44,7 @@ from harness.context_builder import HarnessContextBuilder
 from harness.prompts import PromptLoader
 from orchestration.config import AppConfig, SandboxConfig
 from orchestration.scheduler import TaskScheduler
-from orchestration.workflow import MetricsReportWorkflow, OrchestrationWorkflow, ReflectWorkflow
+from orchestration.workflow import MetricsReportWorkflow, ReflectWorkflow
 from resources.credentials import CredentialManager, ModelEndpoint
 from resources.resource_pool import ResourcePool
 from sandbox.git_repo import GitRepoManager
@@ -103,7 +100,7 @@ class WebWorkerComposition:
 def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> WebWorkerComposition:
     """组装 Web lifecycle/agent Worker、Outbox Dispatcher 与 Reconciler。
 
-    只应在 ``config.temporal.web_real_agent_enabled`` 时调用（C-07 门禁）。
+    Web real Agent 或任一 QQ channel 启用时组装唯一 canonical runtime（C-07 门禁）。
     该方法不启动任何 Worker/后台任务，也不注册 QQ/scheduler/channel/schedule；
     调用方决定进程边界。Web 真实执行会经 ``SessionResourceRecoveryService``
     获取共享 Account 执行锁、恢复 Run 绑定 Session 的 workspace 并创建 Sandbox。
@@ -785,7 +782,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         prompt_loader=prompt_loader,
         file_store=file_store,
     )
-    logger.info("AgentExecutionFacade assembled for QQ and Web")
+    logger.info("Shared Agent capabilities and QQ protocol services assembled")
     return WorkerDependencies(
         account_service=qq_runtime.account_service,
         channel_router=channel_router,
@@ -803,8 +800,6 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         brain_engine=qq_runtime.brain_engine,
         action_runtime=qq_runtime.action_runtime,
         hindsight_client=hindsight_client,
-        qq_execution_host=qq_runtime.execution_host,
-        session_archive=qq_runtime.session_archive,
         memory_reflection=qq_runtime.memory_reflection,
         metrics=qq_runtime.metrics,
         scheduler=scheduler,
@@ -825,9 +820,7 @@ async def start_worker(config: AppConfig) -> None:
     memory_retention_task = memory_retention_recovery_task = None
     artifact_dispatcher_task = artifact_recovery_task = research_schedule_task = None
     try:
-        inject_services(
-            qq_execution_host=deps.qq_execution_host,
-            session_archive=deps.session_archive,
+        inject_scheduled_services(
             memory_reflection=deps.memory_reflection,
             metrics=deps.metrics,
         )
@@ -881,11 +874,9 @@ async def start_worker(config: AppConfig) -> None:
         worker = Worker(
             client,
             task_queue=config.temporal.task_queue,
-            workflows=[OrchestrationWorkflow, ReflectWorkflow, MetricsReportWorkflow],
+            workflows=[ReflectWorkflow, MetricsReportWorkflow],
             workflow_runner=UnsandboxedWorkflowRunner(),
             activities=[
-                process_turn_activity,
-                archive_session_activity,
                 reflect_activity,
                 reflect_batch_activity,
                 metrics_report_activity,
@@ -898,7 +889,9 @@ async def start_worker(config: AppConfig) -> None:
         web_memory_retention = None
         web_artifact_dispatcher = None
         research_schedule_manager = None
-        if config.temporal.web_real_agent_enabled:
+        if config.temporal.web_real_agent_enabled or any(
+            name in {"napcat", "official_qq"} for name in config.channels.enabled
+        ):
             composition = compose_web_workers(client, config, deps)
             web_workers = composition.workers
             web_dispatcher = composition.dispatcher
@@ -939,19 +932,16 @@ async def start_worker(config: AppConfig) -> None:
             active_channels.append(channel)
             logger.info("Channel registered: %s", ch_name)
 
-        conversation_service = ConversationService(
-            temporal_client=client,
-            workflow_cls=OrchestrationWorkflow,
-            task_queue=config.temporal.task_queue,
-            idle_timeout_minutes=config.agent.idle_timeout_minutes,
-            activity_timeout=config.agent.activity_timeout,
-            account_service=deps.account_service,
-            workspace_root=deps.workspace_root,
-            file_store=deps.file_store,
-            workspace_db=deps.workspace_db,
-            git_repo_manager=deps.git_repo_manager,
-            sandbox_manager=deps.sandbox_manager,
-        )
+        from conversation_domain.commands import CommandService
+        from conversation_domain.surface_commands import SurfaceConversationCommands
+
+        conversation_service = ConversationService(SurfaceConversationCommands(
+            CommandService(
+                os.environ["WORKER_DATABASE_URL"],
+                budget_mode=os.getenv("RUN_BUDGET_MODE", "observe"),
+                budget_policy_version=os.getenv("RUN_BUDGET_POLICY_VERSION", "file-p0-v1"),
+            )
+        ))
         ingress_service = MessageIngressService(
             group_context=deps.group_context,
             conversation_service=conversation_service,

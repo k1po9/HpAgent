@@ -192,6 +192,8 @@ class NapCatChannel(BaseChannel):
             "sub_type": None,
             "sender_name": "",
             "message_id": data.get("message_id"),
+            "self_id": str(data.get("self_id") or ""),
+            "thread_id": str(data.get("thread_id") or ""),
             "iso_timestamp": _to_iso_timestamp(data["time"]) if data.get("time") else "",
         }
 
@@ -341,6 +343,7 @@ class NapCatChannel(BaseChannel):
             logger.warning(f"Unknown post_type: {post_type}, treating as generic event")
 
         return UnifiedMessage(
+            message_id=str(data.get("message_id") or ""),
             sender_id=sender_id,
             content=content,
             channel_type=ChannelType.NAPCAT,

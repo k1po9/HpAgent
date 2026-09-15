@@ -1,14 +1,15 @@
 # Durable Agent Temporal 改造实施说明
 
-## 当前实现（Phase 3 W1 + W2-A）
+## 当前实现（Phase 3 W1 + W2-A/B）
 
 Web Command 在 PG 中创建 Run + Outbox，Dispatcher 固定启动 `AgentLifecycleWorkflow`。
 生产 Worker 只注册这一 Agent lifecycle；`WebRunWorkflow`、legacy Activity 与 Host
 源码暂留 W3 退役，已无 Web 生产入口或注册。W2-A 已提取共享 Conversation
-命令，QQ ingress 仍使用旧链；完整 W2 / G06 尚未完成。
+命令；W2-B 已将 QQ ingress 接入同一 PG command / Outbox / durable 链。
+QQ 最终结果的可靠投递仍待后续 W2 实现；完整 W2 / G06 尚未完成。
 
 ```text
-Web Command → Run + Outbox → Dispatcher → AgentLifecycleWorkflow
+Web / QQ Command → Run + Outbox → Dispatcher → AgentLifecycleWorkflow
   prepare → source input loader → AgentRunWorkflow
     ReAct / Plan-and-Execute → segmented Activities
   finalize completed / failed / cancelled
@@ -30,7 +31,7 @@ PG authority 上检查活跃 Run。未来队列、中断或追加策略须同步
 
 入站键允许 UUID 或稳定的、带来源命名空间的字符串（最多 128 字符）；后者确定性
 映射为 Message 的 UUID 去重标识。provider/bot/room/thread/message 的组装与授权
-绑定属于 surface adapter，W2 的 QQ 接线尚待实施。相同 account 不自动合并 Conversation。
+绑定属于 surface adapter，W2-B 已实现 QQ 入站接线。相同 account 不自动合并 Conversation。
 命令结果保存产品字段；`web_api.command_projection` 生成 SSE 和附件 HTTP URL。
 通用 `CommandResult` 位于 `persistence.command_result`，保留既有 PG outcome code 编码。
 
@@ -115,8 +116,8 @@ Activity 超时并留出安全余量。Activity 开始时续租，并在 workspa
 
 ## 已知迁移风险
 
-1. QQ 仍走 legacy ReAct。它尚未获取 PostgreSQL durable lease，因此 Phase 3 需要将
-   QQ 迁移到同一 ownership 机制，才能在多进程拓扑下与 Web 完全互斥。
+1. QQ 入站已使用 canonical durable runtime 的同一 PostgreSQL lease；最终回复投递
+   尚未接入可靠 delivery consumer，完整 QQ 产品链路仍待 W2 后续验收。
 2. 任意第三方 side-effect tool 仍需自身支持 invocation/idempotency key；operation
    intent 能覆盖“完成并持久化后 ack 丢失”，不能让不支持幂等的远端 API 变成严格
    exactly-once。
@@ -140,3 +141,23 @@ Activity 超时并留出安全余量。Activity 开始时续租，并在 workspa
 这些结果证明当前测试场景和环境下的 replay/retry/fail-closed 边界，不扩大为任意 Tool 的
 exactly-once 保证。实验设计、复现命令和有效性限制见[基准与故障恢复验证](../benchmarks.md)，
 原始证据索引见 [`artifacts/benchmarks/README.md`](../../artifacts/benchmarks/README.md)。
+
+## QQ canonical ingress（W2-B）
+
+`ConversationService` 只规范化 QQ 来源并调用 `SurfaceConversationCommands`。
+后者在同一 PG 事务中验证绑定身份、解析 Conversation binding、检查持久化回执，
+调用共享发送/取消命令，并保存 Message origin 与回执。入站回执没有待执行状态，
+不是第二执行队列。外部消息键包含 channel/bot/scope/room/thread/sender/provider ID。
+相同账户不自动合并不同 room；同一群内不同账户各自拥有 Conversation。
+
+Session 使用绑定 Conversation 的 PG active Session，终态后继续复用，只有显式轮换
+创建后继 Session。busy reject 为共享 admission policy；重投已拒绝消息保持拒绝。
+`/cancel` 在当前账户与 Conversation 内选择 Run，回执重投不会取消后来启动的 Run。
+未绑定/撤销身份与数据库失败分别返回绑定提示/暂时不可用提示。
+
+非触发群消息仅进入可选 ambient cache；缓存失效不会改变触发判定。触发时选中的
+群上下文及来源 ID 随 Message 提交 PG，执行不重新读取缓存。长期记忆只保留 PG
+已提交用户消息与最终回答，群 recall 使用隔离的来源 context key。
+生产不再构造 QQ Host/Facade/loop/SessionStore，不再注册旧 QQ Workflow/Activity；
+历史实现留待 W3 删除。QQ 最终回复 delivery、协议投递恢复及完整 G06 尚未完成。
+验证与限制见 [W2-B 报告](../../artifacts/architecture-audit/phase3/W2_B_implementation_report.md)。

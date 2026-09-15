@@ -31,6 +31,12 @@ def inject_services(
     _metrics = metrics
 
 
+def inject_scheduled_services(*, memory_reflection: Any, metrics: Any) -> None:
+    """Production schedule composition, with no legacy turn/Session dependencies."""
+    global _memory_reflection, _metrics
+    _memory_reflection, _metrics = memory_reflection, metrics
+
+
 def _required(value: Any, name: str) -> Any:
     if value is None:
         raise RuntimeError(f"{name} was not injected")

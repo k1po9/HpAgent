@@ -31,7 +31,7 @@ from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ApprovalDecisionSign
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
-from application.conversation import ConversationService
+from application.conversation import normalize_qq_message
 from common.types import ChannelType, UnifiedMessage
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
@@ -463,23 +463,15 @@ async def test_qq_host_uses_stable_message_identity_and_legacy_reply_sink():
     assert calls == [expected, "reply", "retain"]
 
 
-def test_qq_ingress_message_id_is_frozen_in_workflow_payload():
-    service = object.__new__(ConversationService)
-    service._idle_timeout_minutes = 5
-    service._activity_timeout = 300
+def test_qq_ingress_key_is_derived_from_protocol_identity():
     message = UnifiedMessage(
-        message_id="qq-message-1",
-        sender_id="sender",
-        channel_type=ChannelType.NAPCAT,
-        content="hello",
+        message_id="random-local-id", sender_id="sender", channel_type=ChannelType.NAPCAT,
+        content="hello", metadata={"detail_type": "private", "self_id": "bot", "message_id": "qq-message-1"},
     )
-    payload = service._build_user_message(
-        message=message,
-        channel_type="napcat",
-        session_id="session",
-        account_id="account",
-    )
-    assert payload["message_id"] == "qq-message-1"
+    source = normalize_qq_message(message, "napcat")
+    message.message_id = "another-random-local-id"
+    assert normalize_qq_message(message, "napcat").message_key == source.message_key
+    assert source.origin["external_message_id"] == "qq-message-1"
 
 
 @pytest.mark.asyncio

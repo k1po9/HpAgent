@@ -126,7 +126,7 @@ class TraceEventSink:
         if self._trace_run_ready or self.degraded:
             return
         created = await self._write(
-            "create_trace_run", self._run_id, {"source": "web"}
+            "create_trace_run", self._run_id, {}
         )
         self._trace_run_ready = created is not None
 

@@ -292,8 +292,10 @@ class SessionResourceRecoveryService:
                         user_uuid=account_text,
                         session_context={
                             "account_id": account_text,
-                            "channel_type": "web",
+                            "channel_type": (subject.get("origin") or {}).get("channel_type", "web"),
+                            "sender_id": (subject.get("origin") or {}).get("sender_id", ""),
                             "metadata": {
+                                **(subject.get("origin") or {}).get("metadata", {}),
                                 "run_id": str(run_id),
                                 "files": (
                                     file_scope.model_manifest() if file_scope is not None else []

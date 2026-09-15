@@ -58,7 +58,7 @@ class MessageRepository:
     ) -> list[dict[str, Any]]:
         """Load the frozen, model-visible Web history for exactly one Conversation."""
         return list(uow.execute(
-            "SELECT message_id,role,status,content,sequence FROM messages "
+            "SELECT message_id,role,status,content,sequence,origin FROM messages "
             "WHERE account_id=%s AND conversation_id=%s AND sequence<=%s "
             "AND ((role='user' AND status='accepted') OR "
             "(role='assistant' AND status='completed')) ORDER BY sequence",
@@ -131,7 +131,7 @@ class RunRepository:
             "SELECT r.run_id,r.account_id,r.conversation_id,r.session_id,"
             "r.trigger_message_id,r.context_message_seq,r.agent_strategy,r.status AS run_status,"
             "s.status AS session_status,s.workspace_ref,"
-            "t.role AS trigger_role,t.status AS trigger_status,t.content AS trigger_content "
+            "t.role AS trigger_role,t.status AS trigger_status,t.content AS trigger_content,t.origin "
             "FROM runs r JOIN conversations c ON c.account_id=r.account_id "
             "AND c.conversation_id=r.conversation_id JOIN sessions s "
             "ON s.account_id=r.account_id AND s.conversation_id=r.conversation_id "
