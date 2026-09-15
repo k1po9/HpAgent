@@ -146,6 +146,8 @@ class NapCatChannel(BaseChannel):
         self._port = 8082
         self._server_task: Optional[asyncio.Task] = None
         self._connected_clients = set()
+        self._delivery_acks = {}
+        self._client_bots = {}
         self.bot_name: str = "bot"  # 由 worker 启动时从 identities.yaml 注入
 
     async def normalize_message(self, raw_message: Any) -> Optional[UnifiedMessage]:
@@ -403,6 +405,20 @@ class NapCatChannel(BaseChannel):
                 },
             }
 
+        if message.metadata.get("delivery_id"):
+            clients = [c for c in self._connected_clients
+                       if self._client_bots.get(c) == str(message.metadata.get("self_id"))]
+            if not clients:
+                return False
+            echo = f"{message.metadata['delivery_id']}:{message.metadata['msg_seq']}"
+            future = asyncio.get_running_loop().create_future()
+            self._delivery_acks[echo] = future
+            try:
+                await clients[0].send(json.dumps({**payload, "echo": echo}))
+                return await asyncio.wait_for(future, 30)
+            finally:
+                self._delivery_acks.pop(echo, None)
+
         # 广播到所有已连接客户端（含发送间隔防风控）
         try:
             send_tasks = [
@@ -473,6 +489,13 @@ class NapCatChannel(BaseChannel):
 
         try:
             async for message in websocket:
+                data = json.loads(message)
+                if data.get("self_id"):
+                    self._client_bots[websocket] = str(data["self_id"])
+                ack = self._delivery_acks.get(str(data.get("echo", "")))
+                if ack is not None and not ack.done():
+                    ack.set_result(data.get("status") == "ok" and data.get("retcode") == 0)
+                    continue
                 await self._handle_message(websocket, message)
         except websockets.exceptions.ConnectionClosedError as e:
             logger.warning(
@@ -483,6 +506,7 @@ class NapCatChannel(BaseChannel):
         finally:
             logger.info(f"NapCat client disconnected: {client_addr}")
             self._connected_clients.discard(websocket)
+            self._client_bots.pop(websocket, None)
 
     # ── 生命周期管理 ──
 

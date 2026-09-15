@@ -399,6 +399,9 @@ class CommandService:
                 (run_id,),
             )
             self.runs.set_terminal(uow, run_id, "completed")
+            from conversation_domain.delivery import enqueue_qq_result
+
+            enqueue_qq_result(uow, run_id)
             self._outbox(uow, account_id, run["conversation_id"], run_id, "retain_memory")
             self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "completed")
             log_event(logger, logging.INFO, "run_completed", "run", run_id=str(run_id),

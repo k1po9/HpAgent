@@ -1,12 +1,12 @@
 # Durable Agent Temporal 改造实施说明
 
-## 当前实现（Phase 3 W1 + W2-A/B）
+## 当前实现（Phase 3 W1 + W2-A/B/C）
 
 Web Command 在 PG 中创建 Run + Outbox，Dispatcher 固定启动 `AgentLifecycleWorkflow`。
 生产 Worker 只注册这一 Agent lifecycle；`WebRunWorkflow`、legacy Activity 与 Host
 源码暂留 W3 退役，已无 Web 生产入口或注册。W2-A 已提取共享 Conversation
 命令；W2-B 已将 QQ ingress 接入同一 PG command / Outbox / durable 链。
-QQ 最终结果的可靠投递仍待后续 W2 实现；完整 W2 / G06 尚未完成。
+W2-C 已接入独立 PG delivery 状态与 QQ 投递消费者；完整 W2 Gate 仍需整包归档。
 
 ```text
 Web / QQ Command → Run + Outbox → Dispatcher → AgentLifecycleWorkflow
@@ -116,8 +116,8 @@ Activity 超时并留出安全余量。Activity 开始时续租，并在 workspa
 
 ## 已知迁移风险
 
-1. QQ 入站已使用 canonical durable runtime 的同一 PostgreSQL lease；最终回复投递
-   尚未接入可靠 delivery consumer，完整 QQ 产品链路仍待 W2 后续验收。
+1. QQ 入站使用 canonical durable runtime 的同一 PostgreSQL lease；最终回复使用独立
+   delivery 状态。发送结果不确定时需显式重试，不能承诺渠道端 exactly-once。
 2. 任意第三方 side-effect tool 仍需自身支持 invocation/idempotency key；operation
    intent 能覆盖“完成并持久化后 ack 丢失”，不能让不支持幂等的远端 API 变成严格
    exactly-once。
@@ -159,5 +159,26 @@ Session 使用绑定 Conversation 的 PG active Session，终态后继续复用�
 群上下文及来源 ID 随 Message 提交 PG，执行不重新读取缓存。长期记忆只保留 PG
 已提交用户消息与最终回答，群 recall 使用隔离的来源 context key。
 生产不再构造 QQ Host/Facade/loop/SessionStore，不再注册旧 QQ Workflow/Activity；
-历史实现留待 W3 删除。QQ 最终回复 delivery、协议投递恢复及完整 G06 尚未完成。
+历史实现留待 W3 删除。W2-C 已接入最终回复 delivery，完整 G06 需整包汇总。
 验证与限制见 [W2-B 报告](../../artifacts/architecture-audit/phase3/W2_B_implementation_report.md)。
+
+## QQ delivery（W2-C）
+
+Chat completion 在提交 assistant Message、output file 关联及 Run completed 的同一事务
+插入 `qq_deliveries`，payload 冻结结果正文、来源路由与附件引用，Run ID 唯一去重。
+Web SSE 继续读取相同 Message 业务结果；不使用 QQ 的分段/引用/mention 展示实现。
+
+`QQDeliveryService` 使用独立行锁/短 delivery lease，网络调用期间没有 PG 事务或
+Agent execution lease。每段确认后推进 `next_part`；明确失败保留当前段并延迟重试。
+回执超时、异常或失联 sender 记 `uncertain`，不静默当作成功或自动重复发送。
+运维确认重复风险后可调用 `retry_uncertain(account_id, run_id)` 重试原段；该内部方法
+不授予外部用户权限，不提供新 UI/API。晚到 sender 的状态更新受 token/state CAS 拒绝。
+
+QQ adapter 负责 1500 字符分段、NapCat quote/@、Official msg_id/msg_seq，以及受保护
+附件引用。附件不转为公开下载资源，仍需原账户在 Web 下载；本次不实现 QQ 原生文件上传。
+NapCat delivery 按 self_id 选择单个连接并等待 OneBot echo 确认，避免向多个 bot 广播。
+Official QQ 失败不会预先写入成功去重缓存；网络异常保留不确定状态。
+完成结果投递失败不会修改 Run 状态或创建新的 start_run。失败/取消 Run 的最终通知
+不在本次 completed-result delivery 范围；既有取消控制提示保留。
+
+验证和已知限制见 [W2-C 实施报告](../../artifacts/architecture-audit/phase3/W2_C_implementation_report.md)。

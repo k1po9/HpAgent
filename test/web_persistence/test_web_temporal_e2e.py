@@ -233,6 +233,27 @@ async def test_web_canonical_lifecycle(
         assert (
             await adapter.start_web_run(handle.id, RunLifecycleInput(1, str(run_id))) == original_id
         )
+        if surface == "napcat" and outcome == "completed":
+            from application.qq_delivery import QQDeliveryAdapter, QQDeliveryService
+
+            class DeliveryRouter:
+                def __init__(self):
+                    self.sent = []
+
+                async def send(self, message):
+                    self.sent.append(message.content)
+                    return len(self.sent) > 1
+
+            router = DeliveryRouter()
+            delivery = QQDeliveryService(worker_database_url, QQDeliveryAdapter(router))
+            calls_before_delivery = brain.calls
+            await delivery.deliver_once()
+            db.execute("UPDATE qq_deliveries SET available_at=now()")
+            await delivery.deliver_once()
+            assert router.sent[0] == router.sent[1]
+            assert "canonical reply" in router.sent[1]
+            assert brain.calls == calls_before_delivery
+            assert db.execute("SELECT state FROM qq_deliveries WHERE run_id=%s", (run_id,)).fetchone()[0] == "delivered"
         before = brain.calls
         db.execute(
             "UPDATE outbox_events SET available_at=now() WHERE run_id=%s AND event_type='start_run'",

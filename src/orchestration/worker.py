@@ -814,6 +814,7 @@ async def start_worker(config: AppConfig) -> None:
     """完整启动流程: 组装依赖 → 连接 Temporal → 启动 Worker + 渠道监听。"""
     deps = await init_dependencies(config)
 
+    qq_delivery_task = None
     active_channels: list = []
     sandbox_cleanup_task = file_cleanup_task = scheduler_task = None
     web_dispatcher_task = web_reconciler_task = web_outbox_recovery_task = None
@@ -1023,6 +1024,11 @@ async def start_worker(config: AppConfig) -> None:
             for ch in active_channels:
                 await ch.start_monitor(handle_message)
 
+            from application.qq_delivery import QQDeliveryAdapter, QQDeliveryService
+
+            qq_delivery_task = asyncio.create_task(QQDeliveryService(
+                os.environ["WORKER_DATABASE_URL"], QQDeliveryAdapter(deps.channel_router),
+            ).run())
             channel_names = [ch.channel_type.value for ch in active_channels]
             logger.info(
                 "Orchestration Worker started on task_queue='%s' (channels: %s)",
@@ -1043,6 +1049,12 @@ async def start_worker(config: AppConfig) -> None:
 
             await asyncio.Future()
     finally:
+        if qq_delivery_task is not None:
+            qq_delivery_task.cancel()
+            try:
+                await qq_delivery_task
+            except asyncio.CancelledError:
+                pass
         await _shutdown_worker_resources(
             active_channels=active_channels,
             sandbox_cleanup_task=sandbox_cleanup_task,

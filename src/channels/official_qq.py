@@ -547,16 +547,18 @@ class OfficialQQChannel(BaseChannel):
         if msg_id:
             payload["msg_id"] = msg_id
 
+        if message.metadata.get("msg_seq"):
+            payload["msg_seq"] = message.metadata["msg_seq"]
+
         payload["msg_type"] = 0  # 纯文本
 
         # 去重检查
         dedup_key = f"{url}:{message.content[:50]}"
         now = time.time()
         self._clean_dedup_cache(now)
-        if dedup_key in self._sent_msg_ids:
+        if not message.metadata.get("delivery_id") and dedup_key in self._sent_msg_ids:
             logger.debug("QQ official bot: duplicate message skipped")
             return True
-        self._sent_msg_ids[dedup_key] = now
 
         # 发送 HTTP 请求
         try:
@@ -567,6 +569,8 @@ class OfficialQQChannel(BaseChannel):
             }
             async with self._session.post(url, json=payload, headers=headers) as resp:
                 if resp.status == 200 or resp.status == 204:
+                    if not message.metadata.get("delivery_id"):
+                        self._sent_msg_ids[dedup_key] = now
                     logger.info("QQ official bot: message sent to %s → %s", detail_type, url)
                     return True
                 elif resp.status == 401:
@@ -577,6 +581,8 @@ class OfficialQQChannel(BaseChannel):
                     headers["Authorization"] = f"QQBot {token}"
                     async with self._session.post(url, json=payload, headers=headers) as resp2:
                         if resp2.status in (200, 204):
+                            if not message.metadata.get("delivery_id"):
+                                self._sent_msg_ids[dedup_key] = now
                             logger.info("QQ official bot: message sent after token refresh")
                             return True
                         body = await resp2.text()
@@ -588,6 +594,8 @@ class OfficialQQChannel(BaseChannel):
                     return False
         except Exception as e:
             logger.error("QQ official bot: send error: %s", e)
+            if message.metadata.get("delivery_id"):
+                raise
             return False
 
     def _build_send_payload(

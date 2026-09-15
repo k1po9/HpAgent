@@ -6,7 +6,8 @@ Chat 的共享命令和 Session owner 已迁至 `conversation_domain`；Web API 
 发送/retry 经同一个 PG 事务 admission policy 创建 Run + Outbox，HTTP URL 在 API
 适配层投影。具体合同见 [当前实现说明](../durable-agent-temporal.md#conversation-command-boundaryw2-a)。
 W2-B 已将 QQ ingress 接入同一 PG command / Outbox / durable runtime；
-最终结果可靠投递尚未实现，完整 W2/G06 未通过，不能开始 W3。
+W2-C 已实现独立 PG delivery 状态、分段恢复和 QQ 协议回执；
+完整 W2 Gate 仍待整包汇总，本次不进入 W3。
 下方旧组件图中的 Web Domain 命令归属已过时，属于 architecture/visual drift；
 Excalidraw 保持不变，需人工在完整双入口收敛后更新。
 
