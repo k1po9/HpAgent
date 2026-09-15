@@ -19,6 +19,7 @@ from agent.protocol import ActionResult
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.side_effects import UnsupportedToolSideEffectReconciler
 from agent_activities.store import AgentDataStore
+from agent_execution.chat_bindings import ChatExecutionBindings
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import (
@@ -377,6 +378,7 @@ async def _serve(args: argparse.Namespace) -> None:
         if not args.database_url:
             raise ValueError("production-activity requires --database-url")
         durable = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
             store=AgentDataStore(args.database_url, lease_ttl_seconds=900),
             loader=None,
             brain=None,

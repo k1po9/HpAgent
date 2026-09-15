@@ -195,3 +195,58 @@ async def test_agent_router_rejects_unknown_strategy():
                 id=f"test-agent-run-{request.run_id}",
                 task_queue=AGENT_TASK_QUEUE,
             )
+
+
+class ReplanActivities:
+    def __init__(self, continuous):
+        self.continuous = continuous
+        self.plans = []
+
+    @activity.defn(name="planning_activity")
+    async def planning(self, request: PlanningInput) -> PlanningResult:
+        self.plans.append(request)
+        if request.plan_version > 1:
+            assert request.previous_plan_version == request.plan_version - 1
+            assert request.previous_plan_ref.endswith(f":v{request.previous_plan_version}")
+            assert len(request.completed_step_refs) == request.plan_version - 1
+            assert request.evaluation_reason == "new evidence"
+        return PlanningResult(
+            AGENT_SCHEMA_VERSION, request.operation_id, request.plan_id, request.plan_version,
+            (PlanStep(f"step-v{request.plan_version}", 1, "next", "next objective"),),
+            request.transcript_version + 1,
+        )
+
+    @activity.defn(name="evaluate_plan_activity")
+    async def evaluate(self, request: PlanEvaluationInput) -> PlanEvaluationResult:
+        return PlanEvaluationResult(
+            AGENT_SCHEMA_VERSION, request.operation_id,
+            "replan" if self.continuous or request.plan_version == 1 else "complete", "new evidence",
+        )
+
+
+@pytest.mark.parametrize("continuous", [False, True])
+async def test_replan_carries_completed_refs_and_has_a_finite_limit(continuous):
+    from temporalio.worker import Replayer
+
+    if not os.getenv("TEMPORAL_HOST"):
+        pytest.skip("TEMPORAL_HOST required")
+    client = await Client.connect(os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default"))
+    activities = ReplanActivities(continuous)
+    request = _request("plan_and_execute")
+    async with Worker(client, task_queue=AGENT_TASK_QUEUE,
+                      workflows=[PlanAndExecuteWorkflow, AgentStepWorkflow, ToolExecutionWorkflow],
+                      activities=[*CONTROL_ACTIVITIES, fake_context, fake_model, fake_tool,
+                                  activities.planning, activities.evaluate]):
+        handle = await client.start_workflow(PlanAndExecuteWorkflow.run, request,
+                                             id=f"replan-{request.run_id}", task_queue=AGENT_TASK_QUEUE)
+        if continuous:
+            with pytest.raises(WorkflowFailureError) as failure:
+                await handle.result()
+            assert failure.value.cause.type == "plan_replan_limit_reached"
+            assert [item.plan_version for item in activities.plans] == [1, 2, 3, 4]
+        else:
+            result = await handle.result()
+            assert result.result_ref.endswith(":plan:2:synthesis")
+            assert [item.plan_version for item in activities.plans] == [1, 2]
+        assert len({item.operation_id for item in activities.plans}) == len(activities.plans)
+        await Replayer(workflows=[PlanAndExecuteWorkflow]).replay_workflow(await handle.fetch_history())

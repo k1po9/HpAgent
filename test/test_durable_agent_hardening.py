@@ -20,6 +20,7 @@ from agent_activities.store import (
     ToolOperationState,
     TranscriptVersionConflict,
 )
+from agent_execution.chat_bindings import ChatExecutionBindings
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     ChatContext,
@@ -181,6 +182,7 @@ def request() -> ToolExecutionInput:
 
 def activities(store: Store, actions: Actions, **kwargs) -> DurableAgentActivities:
     return DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
         store=store,
         loader=None,
         brain=None,
@@ -268,6 +270,7 @@ async def test_file_tool_activity_projects_only_aggregate_trace_metadata():
         ),
     )
     runtime = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
         store=Store(ToolOperationState("started", None)),
         loader=None,
         brain=None,
@@ -322,6 +325,7 @@ async def test_plan_activity_logging_does_not_duplicate_correlation_fields():
     run_id = str(uuid4())
     identity = (str(uuid4()), str(uuid4()), str(uuid4()))
     durable = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
         store=PlanStore(),
         loader=None,
         brain=PlanBrain(),

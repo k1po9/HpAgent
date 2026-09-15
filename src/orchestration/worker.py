@@ -114,6 +114,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_activities.runtime import DurableAgentActivities
     from agent_activities.segments import SegmentActivities
     from agent_activities.store import AgentDataStore
+    from agent_execution.chat_bindings import ChatExecutionBindings
     from agent_execution.run_budget import RunBudgetService
     from agent_execution.tracing import (
         PostgresTraceRepository,
@@ -256,6 +257,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         worker_database_url, deps.tenant_file_store
     )
     durable_activities = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
         store=agent_store,
         loader=loader,
         brain=deps.brain_engine,
@@ -817,179 +819,184 @@ async def start_worker(config: AppConfig) -> None:
     """完整启动流程: 组装依赖 → 连接 Temporal → 启动 Worker + 渠道监听。"""
     deps = await init_dependencies(config)
 
-    inject_services(
-        qq_execution_host=deps.qq_execution_host,
-        session_archive=deps.session_archive,
-        memory_reflection=deps.memory_reflection,
-        metrics=deps.metrics,
-    )
-
-    # ── 注册提醒 handler ──
-    async def _handle_user_reminder(task):
-        """发送用户提醒消息。"""
-        ch_str = task.params.get("channel_type", "napcat")
-        try:
-            ch_type = ChannelType(ch_str)
-        except ValueError:
-            ch_type = ChannelType.NAPCAT
-
-        metadata = task.params.get("metadata", {})
-        content = f"[提醒] {task.params.get('content', '')}"
-
-        # 群聊中 @ 回原用户
-        sender_id = task.params.get("sender_id", "")
-        if metadata.get("detail_type") == "group" and sender_id:
-            content = f"[CQ:at,qq={sender_id}] {content}"
-
-        msg = UnifiedMessage(
-            session_id=f"reminder-{task.id}",
-            account_id=task.params.get("account_id", ""),
-            sender_id=sender_id,
-            channel_type=ch_type,
-            content=content,
-            metadata=metadata,
-        )
-        await deps.channel_router.send(msg)
-
-    deps.scheduler.register_handler("user_reminder", _handle_user_reminder)
-
-    # ── 加载持久化任务 + 注入 scheduler 到 reminder 模块 + 启动轮询 ──
-    scheduler_task = None
-    if config.scheduler.enabled:
-        await deps.scheduler.load()
-        from sandbox.tools.local.reminder import inject_scheduler
-        inject_scheduler(deps.scheduler)
-        scheduler_task = asyncio.create_task(
-            deps.scheduler.poll_loop(interval=config.scheduler.poll_interval)
-        )
-        logger.info("TaskScheduler poll_loop started")
-    else:
-        logger.info("TaskScheduler disabled by config")
-
-    # ── 连接 Temporal ──
-    client = await Client.connect(config.temporal.host)
-
-    # ── 创建 Worker ──
-    worker = Worker(
-        client,
-        task_queue=config.temporal.task_queue,
-        workflows=[OrchestrationWorkflow, ReflectWorkflow, MetricsReportWorkflow],
-        workflow_runner=UnsandboxedWorkflowRunner(),
-        activities=[
-            process_turn_activity,
-            archive_session_activity,
-            reflect_activity,
-            reflect_batch_activity,
-            metrics_report_activity,
-        ],
-    )
-
-    web_workers = None
-    web_dispatcher = None
-    web_reconciler = None
-    web_memory_retention = None
-    web_artifact_dispatcher = None
-    research_schedule_manager = None
-    if config.temporal.web_real_agent_enabled:
-        composition = compose_web_workers(client, config, deps)
-        web_workers = composition.workers
-        web_dispatcher = composition.dispatcher
-        web_reconciler = composition.reconciler
-        # Phase F: MemoryRetentionService 挂在组合层（composition.memory_retention），
-        # 不在 composition.workers 上 —— 那里只有 lifecycle/agent（C-07）。
-        web_memory_retention = composition.memory_retention
-        web_artifact_dispatcher = composition.artifact_dispatcher
-        from orchestration.research_schedule import ResearchScheduleManager
-
-        research_schedule_manager = ResearchScheduleManager(
-            os.environ["WORKER_DATABASE_URL"], client
-        )
-
-    # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
-    _channel_factories = {
-        ChannelType.NAPCAT: NapCatChannel,
-        ChannelType.OFFICIAL_QQ: OfficialQQChannel,
-    }
-
     active_channels: list = []
-    for ch_name in config.channels.enabled:
-        try:
-            ch_type = ChannelType(ch_name)
-        except ValueError:
-            logger.warning("Unknown channel in config: %s, skipped", ch_name)
-            continue
-
-        factory = _channel_factories.get(ch_type)
-        if factory is None:
-            logger.warning("No implementation for channel: %s, skipped", ch_name)
-            continue
-
-        channel = factory()
-        if hasattr(channel, "bot_name"):
-            channel.bot_name = getattr(config.prompts, "bot_name", "bot")
-        deps.channel_router.register(ch_type, channel)
-        active_channels.append(channel)
-        logger.info("Channel registered: %s", ch_name)
-
-    conversation_service = ConversationService(
-        temporal_client=client,
-        workflow_cls=OrchestrationWorkflow,
-        task_queue=config.temporal.task_queue,
-        idle_timeout_minutes=config.agent.idle_timeout_minutes,
-        activity_timeout=config.agent.activity_timeout,
-        account_service=deps.account_service,
-        workspace_root=deps.workspace_root,
-        file_store=deps.file_store,
-        workspace_db=deps.workspace_db,
-        git_repo_manager=deps.git_repo_manager,
-        sandbox_manager=deps.sandbox_manager,
-    )
-    ingress_service = MessageIngressService(
-        group_context=deps.group_context,
-        conversation_service=conversation_service,
-        reply_service=deps.reply_service,
-        identity_command_service=IdentityCommandService(
-            IdentityBindingService(
-                os.environ["WORKER_DATABASE_URL"],
-                load_worker_qq_binding_code_pepper(),
-                int(os.getenv("QQ_BINDING_CHALLENGE_SECONDS", "300")),
-            )
-        ),
-    )
-
-    async def handle_message(message: UnifiedMessage) -> None:
-        await ingress_service.handle(message)
-
-    # ── 并发运行 Worker + 渠道监听 ──
-    sandbox_cleanup_task = asyncio.create_task(
-        _run_sandbox_cleanup_loop(deps.sandbox_manager, interval=300)
-    )
-    file_cleanup_task = None
-    if deps.run_file_workspace is not None:
-        from web_domain.file_cleanup import FileCleanupService
-
-        cleanup_interval = int(os.getenv("FILE_CLEANUP_INTERVAL_SECONDS", "300"))
-        if cleanup_interval <= 0:
-            raise RuntimeError("FILE_CLEANUP_INTERVAL_SECONDS must be positive")
-        file_cleanup_task = asyncio.create_task(
-            _run_file_cleanup_loop(
-                FileCleanupService(
-                    deps.run_file_workspace.database,
-                    deps.run_file_workspace.store,
-                ),
-                interval=cleanup_interval,
-            )
-        )
-    web_dispatcher_task = None
-    web_reconciler_task = None
-    web_outbox_recovery_task = None
-    memory_retention_task = None
-    memory_retention_recovery_task = None
-    artifact_dispatcher_task = None
-    artifact_recovery_task = None
-    research_schedule_task = None
-
+    sandbox_cleanup_task = file_cleanup_task = scheduler_task = None
+    web_dispatcher_task = web_reconciler_task = web_outbox_recovery_task = None
+    memory_retention_task = memory_retention_recovery_task = None
+    artifact_dispatcher_task = artifact_recovery_task = research_schedule_task = None
     try:
+        inject_services(
+            qq_execution_host=deps.qq_execution_host,
+            session_archive=deps.session_archive,
+            memory_reflection=deps.memory_reflection,
+            metrics=deps.metrics,
+        )
+
+        # ── 注册提醒 handler ──
+        async def _handle_user_reminder(task):
+            """发送用户提醒消息。"""
+            ch_str = task.params.get("channel_type", "napcat")
+            try:
+                ch_type = ChannelType(ch_str)
+            except ValueError:
+                ch_type = ChannelType.NAPCAT
+
+            metadata = task.params.get("metadata", {})
+            content = f"[提醒] {task.params.get('content', '')}"
+
+            # 群聊中 @ 回原用户
+            sender_id = task.params.get("sender_id", "")
+            if metadata.get("detail_type") == "group" and sender_id:
+                content = f"[CQ:at,qq={sender_id}] {content}"
+
+            msg = UnifiedMessage(
+                session_id=f"reminder-{task.id}",
+                account_id=task.params.get("account_id", ""),
+                sender_id=sender_id,
+                channel_type=ch_type,
+                content=content,
+                metadata=metadata,
+            )
+            await deps.channel_router.send(msg)
+
+        deps.scheduler.register_handler("user_reminder", _handle_user_reminder)
+
+        # ── 加载持久化任务 + 注入 scheduler 到 reminder 模块 + 启动轮询 ──
+        scheduler_task = None
+        if config.scheduler.enabled:
+            await deps.scheduler.load()
+            from sandbox.tools.local.reminder import inject_scheduler
+            inject_scheduler(deps.scheduler)
+            scheduler_task = asyncio.create_task(
+                deps.scheduler.poll_loop(interval=config.scheduler.poll_interval)
+            )
+            logger.info("TaskScheduler poll_loop started")
+        else:
+            logger.info("TaskScheduler disabled by config")
+
+        # ── 连接 Temporal ──
+        client = await Client.connect(config.temporal.host)
+
+        # ── 创建 Worker ──
+        worker = Worker(
+            client,
+            task_queue=config.temporal.task_queue,
+            workflows=[OrchestrationWorkflow, ReflectWorkflow, MetricsReportWorkflow],
+            workflow_runner=UnsandboxedWorkflowRunner(),
+            activities=[
+                process_turn_activity,
+                archive_session_activity,
+                reflect_activity,
+                reflect_batch_activity,
+                metrics_report_activity,
+            ],
+        )
+
+        web_workers = None
+        web_dispatcher = None
+        web_reconciler = None
+        web_memory_retention = None
+        web_artifact_dispatcher = None
+        research_schedule_manager = None
+        if config.temporal.web_real_agent_enabled:
+            composition = compose_web_workers(client, config, deps)
+            web_workers = composition.workers
+            web_dispatcher = composition.dispatcher
+            web_reconciler = composition.reconciler
+            # Phase F: MemoryRetentionService 挂在组合层（composition.memory_retention），
+            # 不在 composition.workers 上 —— 那里只有 lifecycle/agent（C-07）。
+            web_memory_retention = composition.memory_retention
+            web_artifact_dispatcher = composition.artifact_dispatcher
+            from orchestration.research_schedule import ResearchScheduleManager
+
+            research_schedule_manager = ResearchScheduleManager(
+                os.environ["WORKER_DATABASE_URL"], client
+            )
+
+        # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
+        _channel_factories = {
+            ChannelType.NAPCAT: NapCatChannel,
+            ChannelType.OFFICIAL_QQ: OfficialQQChannel,
+        }
+
+        active_channels: list = []
+        for ch_name in config.channels.enabled:
+            try:
+                ch_type = ChannelType(ch_name)
+            except ValueError:
+                logger.warning("Unknown channel in config: %s, skipped", ch_name)
+                continue
+
+            factory = _channel_factories.get(ch_type)
+            if factory is None:
+                logger.warning("No implementation for channel: %s, skipped", ch_name)
+                continue
+
+            channel = factory()
+            if hasattr(channel, "bot_name"):
+                channel.bot_name = getattr(config.prompts, "bot_name", "bot")
+            deps.channel_router.register(ch_type, channel)
+            active_channels.append(channel)
+            logger.info("Channel registered: %s", ch_name)
+
+        conversation_service = ConversationService(
+            temporal_client=client,
+            workflow_cls=OrchestrationWorkflow,
+            task_queue=config.temporal.task_queue,
+            idle_timeout_minutes=config.agent.idle_timeout_minutes,
+            activity_timeout=config.agent.activity_timeout,
+            account_service=deps.account_service,
+            workspace_root=deps.workspace_root,
+            file_store=deps.file_store,
+            workspace_db=deps.workspace_db,
+            git_repo_manager=deps.git_repo_manager,
+            sandbox_manager=deps.sandbox_manager,
+        )
+        ingress_service = MessageIngressService(
+            group_context=deps.group_context,
+            conversation_service=conversation_service,
+            reply_service=deps.reply_service,
+            identity_command_service=IdentityCommandService(
+                IdentityBindingService(
+                    os.environ["WORKER_DATABASE_URL"],
+                    load_worker_qq_binding_code_pepper(),
+                    int(os.getenv("QQ_BINDING_CHALLENGE_SECONDS", "300")),
+                )
+            ),
+        )
+
+        async def handle_message(message: UnifiedMessage) -> None:
+            await ingress_service.handle(message)
+
+        # ── 并发运行 Worker + 渠道监听 ──
+        sandbox_cleanup_task = asyncio.create_task(
+            _run_sandbox_cleanup_loop(deps.sandbox_manager, interval=300)
+        )
+        file_cleanup_task = None
+        if deps.run_file_workspace is not None:
+            from web_domain.file_cleanup import FileCleanupService
+
+            cleanup_interval = int(os.getenv("FILE_CLEANUP_INTERVAL_SECONDS", "300"))
+            if cleanup_interval <= 0:
+                raise RuntimeError("FILE_CLEANUP_INTERVAL_SECONDS must be positive")
+            file_cleanup_task = asyncio.create_task(
+                _run_file_cleanup_loop(
+                    FileCleanupService(
+                        deps.run_file_workspace.database,
+                        deps.run_file_workspace.store,
+                    ),
+                    interval=cleanup_interval,
+                )
+            )
+        web_dispatcher_task = None
+        web_reconciler_task = None
+        web_outbox_recovery_task = None
+        memory_retention_task = None
+        memory_retention_recovery_task = None
+        artifact_dispatcher_task = None
+        artifact_recovery_task = None
+        research_schedule_task = None
+
         async with AsyncExitStack() as worker_stack:
             await worker_stack.enter_async_context(worker)
             if (
@@ -1090,11 +1097,12 @@ async def _shutdown_worker_resources(
         except Exception as e:
             logger.warning("%s stop_monitor failed: %s", ch_name, e)
 
-    sandbox_cleanup_task.cancel()
-    try:
-        await sandbox_cleanup_task
-    except asyncio.CancelledError:
-        pass
+    if sandbox_cleanup_task is not None:
+        sandbox_cleanup_task.cancel()
+        try:
+            await sandbox_cleanup_task
+        except asyncio.CancelledError:
+            pass
 
     if file_cleanup_task is not None:
         file_cleanup_task.cancel()

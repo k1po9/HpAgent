@@ -313,12 +313,3 @@ class FinalizeResultInput:
     schema_version: int
     run_id: str
     result_ref: str
-
-
-def strategy_for_profile(profile: str) -> str:
-    normalized = profile.strip().casefold()
-    if normalized in {"web_plan", "plan", AGENT_STRATEGY_PLAN}:
-        return AGENT_STRATEGY_PLAN
-    if normalized in {"web_chat", "chat", AGENT_STRATEGY_REACT}:
-        return AGENT_STRATEGY_REACT
-    return normalized

@@ -1,6 +1,10 @@
 # 03 — 组件架构
 
-## 当前 Durable 合同与生命周期（Phase 3 W1-C）
+## 当前 Durable 合同与生命周期（Phase 3 W1-D）
+
+W1-D 将 Chat binding 改为显式注入，transcript 允许无 Conversation/Session 并保留
+Run/account 约束；共享终态 Trace 不再写死 Web。完整 Gate 见
+[W1 总实施报告](../../../artifacts/architecture-audit/phase3/W1_implementation_report.md)。
 
 Web 已固定经 `AgentLifecycleWorkflow` → `AgentRunWorkflow`；Dispatcher 无分流开关，
 生产 registry 不再注册 legacy Web Workflow/Activity。Chat source/context、事件与资源适配

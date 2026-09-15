@@ -274,13 +274,23 @@ class AgentDataStore:
         transcript_id: str,
         run_id: str,
         account_id: str,
-        conversation_id: str,
-        session_id: str,
+        conversation_id: str | None = None,
+        session_id: str | None = None,
         messages: list[dict[str, Any]],
         operation_id: str,
     ) -> int:
         with UnitOfWork(self.database_url) as uow:
             self._assert_fence(uow)
+            owner = uow.execute(
+                "SELECT account_id,conversation_id,session_id FROM runs WHERE run_id=%s",
+                (UUID(run_id),),
+            ).fetchone()
+            expected = (UUID(account_id), UUID(conversation_id) if conversation_id else None,
+                        UUID(session_id) if session_id else None)
+            if owner is None or tuple(owner[key] for key in (
+                "account_id", "conversation_id", "session_id",
+            )) != expected:
+                raise ValueError("transcript context does not match Run ownership")
             uow.execute(
                 "INSERT INTO agent_transcripts(transcript_id,run_id,account_id,conversation_id,session_id) "
                 "VALUES (%s,%s,%s,%s,%s) ON CONFLICT (run_id) DO NOTHING",
@@ -288,8 +298,8 @@ class AgentDataStore:
                     transcript_id,
                     UUID(run_id),
                     UUID(account_id),
-                    UUID(conversation_id),
-                    UUID(session_id),
+                    UUID(conversation_id) if conversation_id else None,
+                    UUID(session_id) if session_id else None,
                 ),
             )
             transcript = uow.execute(

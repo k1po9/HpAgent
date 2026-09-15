@@ -158,8 +158,9 @@ def assert_no_resources(db, account_id, probes):
     )
 
 
+@pytest.mark.parametrize("reason", ["external_callback", "model_review"])
 async def test_wait_longer_than_ttl_restart_duplicate_wakeup_and_replay(
-    db, account_id, database_url, worker_database_url, tmp_path
+    db, account_id, database_url, worker_database_url, tmp_path, reason
 ):
     _, _, run_id = _conversation_and_run(database_url, account_id)
     store = AgentDataStore(worker_database_url, lease_ttl_seconds=2)
@@ -167,7 +168,7 @@ async def test_wait_longer_than_ttl_restart_duplicate_wakeup_and_replay(
     async with worker(temporal, segments, probes):
         handle = await temporal.start_workflow(
             SegmentScenarioWorkflow.run,
-            Scenario(request(account_id, run_id)),
+            Scenario(request(account_id, run_id), reason=reason),
             id=f"segment-scenario-{run_id}",
             task_queue=AGENT_TASK_QUEUE,
         )

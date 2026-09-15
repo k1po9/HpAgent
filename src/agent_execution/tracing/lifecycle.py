@@ -51,7 +51,7 @@ class TraceLifecycleObserver:
             None,
             "AgentExecution",
             "agent",
-            {"surface": "web", "terminal_fallback": True},
+            {"terminal_fallback": True},
         )
         self._repository.finish_event(run_id, root_node_id, status, metadata)
         if self._on_terminal is not None:

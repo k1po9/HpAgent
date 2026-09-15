@@ -1,6 +1,6 @@
 # Durable Agent Temporal 改造实施说明
 
-## 当前实现（Phase 3 W1-C）
+## 当前实现（Phase 3 W1-D）
 
 Web Command 在 PG 中创建 Run + Outbox，Dispatcher 固定启动 `AgentLifecycleWorkflow`。
 生产 Worker 只注册这一 Agent lifecycle；`WebRunWorkflow`、legacy Activity 与 Host
@@ -16,7 +16,7 @@ Web Command → Run + Outbox → Dispatcher → AgentLifecycleWorkflow
 生命周期输入仅携带 Run ID。`ChatRunInputLoader` 校验 Chat 所属 Conversation、Session、
 trigger Message，构造 `RunSource` / `RunContext`。Chat loader、资源准备、事件工厂与终态
 服务由装配注入；核心 Workflow 不固定 surface/profile，也不把聊天实体作为初始参数。
-`ChatExecutionBindings` 明确承接当前 Chat capability 的 Session 与 transcript 绑定。
+`ChatExecutionBindings` 由 composition 显式注入，承接当前 Chat capability 的 Session 与 transcript 绑定；Durable Activities 不默认构造 Chat 适配器。
 非 Chat 产品入口及相应数据／资源适配器尚未实现，不能将合同扩展口称为可运行的新入口。
 
 所有 capability attempts 分别 acquire → execute → release。Retry backoff 和 durable
@@ -28,7 +28,8 @@ wait 不持有执行租约；恢复取得新 token。Run 无固定总执行超�
 
 Migration `014_durable_agent_control_plane.sql` 增加基础控制面，
 `015_durable_agent_hardening.sql` 增加 operation intent/uncertain，
-`033_agent_execution_segments.sql` 增加 segment 与 durable wait 状态：
+`033_agent_execution_segments.sql` 增加 segment 与 durable wait 状态，
+`034_agent_transcript_run_ownership.sql` 允许无 Chat transcript，并保持 Run/account 归属约束：
 
 - `runs.agent_strategy`：`react | plan_and_execute`；
 - `agent_transcripts` / `agent_transcript_events`：模型上下文、决策和工具 raw result；

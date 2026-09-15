@@ -12,7 +12,6 @@ from agent_workflows.contracts import (
     AGENT_STRATEGY_PLAN,
     AGENT_STRATEGY_REACT,
     CompactToolCall,
-    strategy_for_profile,
 )
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
@@ -26,12 +25,9 @@ from orchestration.web_workers import build_web_temporal_workers
 from web_api.models import SendMessageRequest
 
 
-def test_strategy_names_are_centralized_and_profiles_are_stable():
-    assert strategy_for_profile("web_chat") == AGENT_STRATEGY_REACT
-    assert strategy_for_profile("react") == AGENT_STRATEGY_REACT
-    assert strategy_for_profile("web_plan") == AGENT_STRATEGY_PLAN
-    assert strategy_for_profile("plan_and_execute") == AGENT_STRATEGY_PLAN
-    assert strategy_for_profile("unknown") == "unknown"
+def test_strategy_names_are_explicit_and_surface_neutral():
+    assert AGENT_STRATEGY_REACT == "react"
+    assert AGENT_STRATEGY_PLAN == "plan_and_execute"
 
 
 def test_web_api_defaults_to_react_and_accepts_plan():

@@ -16,7 +16,6 @@ from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
 from agent.protocol import ActionRequest
-from agent_execution.chat_bindings import ChatExecutionBindings
 from agent_execution.facade import StableExecutionFailure
 from agent_execution.model_budget_context import model_budget_scope
 from agent_execution.run_budget import RunBudgetExhausted
@@ -46,6 +45,7 @@ from agent_workflows.contracts import (
 )
 from common.logging import log_event
 
+from .context_contracts import ExecutionContextBindings
 from .fencing import fenced_activity
 from .side_effects import (
     FaultInjector,
@@ -81,9 +81,9 @@ class DurableAgentActivities:
         fault_injector: FaultInjector | None = None,
         approval_service: Any = None,
         persistent_file_service: Any = None,
-        context_bindings: Any = None,
+        context_bindings: ExecutionContextBindings,
     ) -> None:
-        self.context_bindings = context_bindings or ChatExecutionBindings()
+        self.context_bindings = context_bindings
         self.store = store
         self.loader = loader
         self.brain = brain

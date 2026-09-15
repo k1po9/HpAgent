@@ -9,6 +9,7 @@ import pytest
 
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.store import ToolOperationState
+from agent_execution.chat_bindings import ChatExecutionBindings
 from agent_execution.facade import ExecutionRequest
 from agent_execution.tracing import (
     TraceEvent,
@@ -322,6 +323,7 @@ def test_terminal_observer_creates_and_closes_the_stable_root():
     )
 
     expected = trace_node_id(str(run_id), "agent_execution")
+    assert calls[0][-1] == {"terminal_fallback": True}
     assert str(calls[0][2]) == expected
     assert str(calls[1][2]) == expected
     assert calls[1][3] == "failed"
@@ -404,6 +406,7 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
             return "rewritten", [{"role": "user", "content": "hello"}]
 
     activities = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
         store=Store(),
         loader=Loader(),
         brain=Brain(),
@@ -478,6 +481,7 @@ async def test_deduplicated_tool_activity_still_projects_tool_node(monkeypatch):
         context=RunContext(chat=ChatContext(conversation_id, session_id, None), surface="web"),
     )
     activities = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
         store=Store(),
         loader=None,
         brain=None,

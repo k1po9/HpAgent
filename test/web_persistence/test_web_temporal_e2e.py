@@ -16,6 +16,7 @@ from agent.protocol import BrainDecision
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
+from agent_execution.chat_bindings import ChatExecutionBindings
 from agent_execution.chat_run_input import ChatRunInputLoader
 from agent_execution.web_adapters import PostgresWebRequestLoader
 from agent_execution.web_events import RedisWebRunEventSinkFactory
@@ -130,6 +131,7 @@ async def test_web_canonical_lifecycle(
     events = RedisWebRunEventSinkFactory(None)
     brain, sandbox = Brain(outcome), Sandbox()
     runtime = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
         store=store,
         loader=PostgresWebRequestLoader(
             worker_database_url,
