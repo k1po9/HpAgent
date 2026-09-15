@@ -322,9 +322,6 @@ class TemporalConfig:
     # real Agent path merely because the Temporal workers are present.
     web_real_agent_enabled: bool = False
     web_real_agent_gate_version: str = ""
-    # Migration gate: false preserves the frozen legacy single-Activity path;
-    # true starts new Runs with durable child Agent workflows.
-    durable_agent_enabled: bool = False
     # Must exceed any single model/tool Activity timeout plus safety margin.
     agent_execution_lease_ttl_seconds: int = 900
 
@@ -724,10 +721,6 @@ class AppConfig:
             )
         if environ.get("WEB_REAL_AGENT_GATE_VERSION"):
             self.temporal.web_real_agent_gate_version = environ["WEB_REAL_AGENT_GATE_VERSION"]
-        if environ.get("DURABLE_AGENT_ENABLED"):
-            self.temporal.durable_agent_enabled = environ["DURABLE_AGENT_ENABLED"].lower() in (
-                "1", "true", "yes", "on"
-            )
         if environ.get("AGENT_EXECUTION_LEASE_TTL_SECONDS"):
             self.temporal.agent_execution_lease_ttl_seconds = int(
                 environ["AGENT_EXECUTION_LEASE_TTL_SECONDS"]

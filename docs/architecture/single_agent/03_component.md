@@ -1,6 +1,10 @@
 # 03 — 组件架构
 
-## 当前 Durable 合同与生命周期（Phase 3 W1-B）
+## 当前 Durable 合同与生命周期（Phase 3 W1-C）
+
+Web 已固定经 `AgentLifecycleWorkflow` → `AgentRunWorkflow`；Dispatcher 无分流开关，
+生产 registry 不再注册 legacy Web Workflow/Activity。Chat source/context、事件与资源适配
+由 composition 提供。完整切换证据见 [W1-C 报告](../../../artifacts/architecture-audit/phase3/W1_C_implementation_report.md)。
 
 当前 durable 主线使用 schema v3。`AgentRunInput` 只保存稳定的 Run/account、source/context 与 strategy；父 Workflow 不持有执行 lease。Web lifecycle 读取 PG 身份后启动 Agent child，各次 bootstrap/model/tool/planning/evaluation/approved-tool Activity 都通过 `execute_segment` 获取当次 token，完成或失败后释放。重试使用新的 segment/token，operation ID 保持稳定。已替换 W1-A 的启动时 `AgentExecutionInput` envelope。
 

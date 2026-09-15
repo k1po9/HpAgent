@@ -16,6 +16,7 @@ from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
 from agent.protocol import ActionRequest
+from agent_execution.chat_bindings import ChatExecutionBindings
 from agent_execution.facade import StableExecutionFailure
 from agent_execution.model_budget_context import model_budget_scope
 from agent_execution.run_budget import RunBudgetExhausted
@@ -80,7 +81,9 @@ class DurableAgentActivities:
         fault_injector: FaultInjector | None = None,
         approval_service: Any = None,
         persistent_file_service: Any = None,
+        context_bindings: Any = None,
     ) -> None:
+        self.context_bindings = context_bindings or ChatExecutionBindings()
         self.store = store
         self.loader = loader
         self.brain = brain
@@ -231,7 +234,7 @@ class DurableAgentActivities:
 
     @asynccontextmanager
     async def _workspace(self, request: Any):
-        from agent_execution.web_adapters import TemporalActivityControl
+        from agent_execution.activity_control import TemporalActivityControl
 
         control = TemporalActivityControl()
         async with self.resource_prep.lease_for_run(
@@ -292,12 +295,7 @@ class DurableAgentActivities:
             return ContextBootstrapResult(**previous)
         try:
             loaded = await self.loader.load(request.run_id)
-            if (
-                loaded.account_id != request.account_id
-                or loaded.conversation_id != request.context.require_chat().conversation_id
-                or loaded.session_id != request.context.require_chat().session_id
-            ):
-                raise ApplicationError("context identity mismatch", non_retryable=True)
+            self.context_bindings.validate_loaded(request, loaded)
             messages = list(loaded.context)
             memory_count = 0
             if loaded.context_provider is not None:
@@ -376,8 +374,7 @@ class DurableAgentActivities:
                 transcript_id=transcript_id,
                 run_id=request.run_id,
                 account_id=request.account_id,
-                conversation_id=request.context.require_chat().conversation_id,
-                session_id=request.context.require_chat().session_id,
+                **self.context_bindings.transcript_context(request),
                 messages=messages,
                 operation_id=request.operation_id,
             )
@@ -497,7 +494,7 @@ class DurableAgentActivities:
                 await asyncio.to_thread(
                     self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
                 )
-                self.actions.reset_turn(request.context.require_chat().session_id, request.run_id)
+                self.actions.reset_turn(self.context_bindings.session_key(request), request.run_id)
                 with model_budget_scope(
                     self.run_budget, request.run_id, request.operation_id,
                     execution_attempt=request.execution_attempt,
@@ -508,7 +505,7 @@ class DurableAgentActivities:
                     else:
                         tools = await self.actions.select_tools(
                             user_content=request.objective or self._last_user_content(model_messages),
-                            session_id=request.context.require_chat().session_id,
+                            session_id=self.context_bindings.session_key(request),
                             execution_id=request.run_id,
                         )
                         decision = await self.brain.generate_chat_decision(
@@ -593,7 +590,7 @@ class DurableAgentActivities:
                 raise
             raise ApplicationError("模型暂时不可用。", type="model_unavailable") from exc
         finally:
-            self.actions.clear_execution(request.context.require_chat().session_id, request.run_id)
+            self.actions.clear_execution(self.context_bindings.session_key(request), request.run_id)
             await trace_end(events, model_node_id, trace_status, trace_metadata)
             await events.close()
         log_event(model_logger, logging.INFO, "model_decision_completed", "model", **fields, status="success", elapsed_ms=round((time.monotonic() - started) * 1000), stop_reason=result.stop_reason, tool_count=len(result.tool_calls), result_ref=result.decision_ref)
@@ -789,7 +786,7 @@ class DurableAgentActivities:
                     }
                     return ToolExecutionResult(**payload)
                 side_effect_class = normalize_side_effect_class(str(
-                    self.actions.side_effect_class(request.context.require_chat().session_id, request.tool_call.name)
+                    self.actions.side_effect_class(self.context_bindings.session_key(request), request.tool_call.name)
                 ))
                 if side_effect_class == "unknown":
                     raise ApplicationError(
@@ -882,7 +879,7 @@ class DurableAgentActivities:
                     reservation = {"tool_calls": 1}
                     if self.run_budget is not None:
                         reservation = self.actions.budget_reservation(
-                            request.context.require_chat().session_id, request.tool_call.name
+                            self.context_bindings.session_key(request), request.tool_call.name
                         )
                         try:
                             await asyncio.to_thread(
@@ -905,7 +902,7 @@ class DurableAgentActivities:
                         ):
                             result_value = await self.actions.execute_request(
                                 action,
-                                session_id=request.context.require_chat().session_id,
+                                session_id=self.context_bindings.session_key(request),
                                 execution_id=request.run_id,
                                 user_query="",
                                 idempotency_key=request.operation_id,
@@ -1089,7 +1086,7 @@ class DurableAgentActivities:
             if heartbeat_task is not None:
                 heartbeat_task.cancel()
                 await asyncio.gather(heartbeat_task, return_exceptions=True)
-            self.actions.clear_execution(request.context.require_chat().session_id, request.run_id)
+            self.actions.clear_execution(self.context_bindings.session_key(request), request.run_id)
             if file_node_id is not None:
                 await trace_end(
                     events, file_node_id, trace_status, file_trace_metadata

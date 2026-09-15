@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from agent_workflows.tool_execution import tool_execution_workflow_id
+from agent_workflows.ids import tool_execution_workflow_id
 from file_domain.approvals import (
     ApprovalNotGranted,
     ApprovalNotPending,

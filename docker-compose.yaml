@@ -454,7 +454,6 @@ services:
       - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
       - WEB_REAL_AGENT_ENABLED=${WEB_REAL_AGENT_ENABLED:-true}
       - WEB_REAL_AGENT_GATE_VERSION=c-07-v1
-      - DURABLE_AGENT_ENABLED=${DURABLE_AGENT_ENABLED:-false}
       - AGENT_EXECUTION_LEASE_TTL_SECONDS=${AGENT_EXECUTION_LEASE_TTL_SECONDS:-900}
 
       # Web file workspace (read-only P0 rollout)
@@ -672,7 +671,6 @@ services:
 
       WEB_FAKE_EXECUTOR_ENABLED: "false"
 
-      DURABLE_AGENT_ENABLED: ${DURABLE_AGENT_ENABLED:-false}
 
       # Web file upload API. Transform/shell stay closed until their P1 tools
       # and browser E2E are complete.

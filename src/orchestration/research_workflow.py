@@ -14,7 +14,7 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 from temporalio.exceptions import ActivityError, ApplicationError
 
-from orchestration.web_workflow import WEB_LIFECYCLE_TASK_QUEUE
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 
 RESEARCH_WORKFLOW_SCHEMA_VERSION = 1
 

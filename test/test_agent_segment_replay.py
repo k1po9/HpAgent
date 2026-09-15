@@ -8,10 +8,13 @@ from temporalio.worker import Replayer
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('workflow_type,filename', [
+    (AgentLifecycleWorkflow, 'lifecycle_react_completed.json'),
+    (AgentLifecycleWorkflow, 'lifecycle_plan_and_execute_completed.json'),
     (ReactAgentWorkflow, 'react_segments_completed.json'),
     (PlanAndExecuteWorkflow, 'plan_segments_completed.json'),
     (ToolExecutionWorkflow, 'tool_approval_segments_completed.json'),

@@ -45,6 +45,7 @@ async def _control(name: str, request: Any, result_type: Any = None):
 
 
 async def execute_segment(name: str, request: Any, **options: Any):
+    options.setdefault("heartbeat_timeout", timedelta(seconds=45))
     retry = options.pop("retry_policy", RetryPolicy(maximum_attempts=3))
     options.pop("cancellation_type", None)
     attempts = retry.maximum_attempts or 3

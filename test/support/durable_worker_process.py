@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import sqlite3
 from contextlib import asynccontextmanager
 from datetime import timedelta
@@ -23,9 +24,12 @@ from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
+    AgentRunInput,
+    ChatContext,
     CompactToolCall,
     ContextBootstrapInput,
     ContextBootstrapResult,
+    FinalizeResultInput,
     ModelDecisionInput,
     ModelDecisionResult,
     PlanEvaluationInput,
@@ -33,12 +37,33 @@ from agent_workflows.contracts import (
     PlanningInput,
     PlanningResult,
     PlanStep,
+    RunContext,
+    RunSource,
     ToolExecutionInput,
     ToolExecutionResult,
 )
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
+
+
+@activity.defn(name="prepare_run_activity")
+async def lifecycle_prepare(request: RunLifecycleInput) -> dict[str, str]:
+    return {"run_id": request.run_id, "status": "running"}
+
+@activity.defn(name="load_agent_run_input_activity")
+async def lifecycle_input(request: RunLifecycleInput) -> AgentRunInput:
+    data = json.loads((_STATE_DIR / "run-input.json").read_text())
+    data["source"] = RunSource(**data["source"])
+    data["context"]["chat"] = ChatContext(**data["context"]["chat"])
+    data["context"] = RunContext(**data["context"])
+    return AgentRunInput(**data)
+
+@activity.defn(name="finalize_agent_result_activity")
+async def lifecycle_complete(request: FinalizeResultInput) -> dict[str, str]:
+    return {"run_id": request.run_id, "status": "completed"}
 
 _STATE_DIR: Path
 _FAULT_BOUNDARY: str | None = None
@@ -310,7 +335,11 @@ async def _serve(args: argparse.Namespace) -> None:
     _ACTIVITY_CASE = args.activity_case
     _STATE_DIR.mkdir(parents=True, exist_ok=True)
     client = await Client.connect(args.host, namespace=args.namespace)
-    if args.role == "workflow":
+    if args.role == "lifecycle":
+        worker = Worker(client, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                        workflows=[AgentLifecycleWorkflow],
+                        activities=[lifecycle_prepare, lifecycle_input, lifecycle_complete])
+    elif args.role == "workflow":
         worker = Worker(
             client,
             task_queue=AGENT_TASK_QUEUE,
@@ -370,7 +399,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "role",
-        choices=("workflow", "activity", "benchmark-activity", "production-activity"),
+        choices=("lifecycle", "workflow", "activity", "benchmark-activity", "production-activity"),
     )
     parser.add_argument("host")
     parser.add_argument("namespace")

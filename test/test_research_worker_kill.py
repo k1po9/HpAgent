@@ -10,7 +10,7 @@ import pytest
 from temporalio.client import Client
 
 from orchestration.research_workflow import ResearchReportWorkflow, ResearchWorkflowInput
-from orchestration.web_workflow import WEB_LIFECYCLE_TASK_QUEUE
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 HARNESS = Path(__file__).parent / "support" / "research_worker_process.py"

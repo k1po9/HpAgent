@@ -26,9 +26,9 @@ from agent_workflows.contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
+from agent_workflows.ids import tool_execution_workflow_id
 from agent_workflows.tool_execution import (
     ToolExecutionWorkflow,
-    tool_execution_workflow_id,
 )
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]

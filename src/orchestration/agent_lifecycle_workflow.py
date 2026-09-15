@@ -1,6 +1,6 @@
-"""Web business lifecycle using durable child Agent workflows.
+"""Canonical Run lifecycle using durable child Agent workflows.
 
-The Web adapter builds source/context and active-interval contracts from PG.
+Source adapters build source/context contracts from PG.
 Agent Activities own individual segments; no lease spans the child Workflow.
 """
 
@@ -25,7 +25,7 @@ from agent_workflows.contracts import (
     FinalizeResultInput,
 )
 
-from .web_workflow import (
+from .run_lifecycle_contracts import (
     _FINALIZE_RETRY,
     _LIFECYCLE_RETRY,
     _STABLE_FAILURE_MESSAGES,
@@ -36,7 +36,7 @@ from .web_workflow import (
     WEB_PREPARE_START_TO_CLOSE_SECONDS,
     FailureInput,
     RunAuthority,
-    WebRunWorkflowInput,
+    RunLifecycleInput,
 )
 
 _DURABLE_FAILURE_MESSAGES = {
@@ -68,11 +68,23 @@ def _failure_type(error: BaseException) -> str:
 
 
 @workflow.defn
-class DurableWebRunWorkflow:
+class AgentLifecycleWorkflow:
     @workflow.run
-    async def run(self, request: WebRunWorkflowInput) -> dict[str, str | int]:
+    async def run(self, request: RunLifecycleInput) -> dict[str, str | int]:
         request.validate()
-        workflow.logger.info("durable_web_workflow_started", extra={"event": "durable_web_workflow_started", "component": "workflow", "run_id": request.run_id, "workflow_type": "DurableWebRunWorkflow", "workflow_id": workflow.info().workflow_id, "workflow_run_id": workflow.info().run_id, "status": "started", "phase": "prepare"})
+        workflow.logger.info(
+            "agent_lifecycle_started",
+            extra={
+                "event": "agent_lifecycle_started",
+                "component": "workflow",
+                "run_id": request.run_id,
+                "workflow_type": "AgentLifecycleWorkflow",
+                "workflow_id": workflow.info().workflow_id,
+                "workflow_run_id": workflow.info().run_id,
+                "status": "started",
+                "phase": "prepare",
+            },
+        )
         try:
             prepared: RunAuthority = await workflow.execute_activity(
                 "prepare_run_activity",
@@ -83,7 +95,17 @@ class DurableWebRunWorkflow:
                 retry_policy=_LIFECYCLE_RETRY,
             )
             status = prepared["status"]
-            workflow.logger.info("durable_web_workflow_prepared", extra={"event": "durable_web_workflow_prepared", "component": "workflow", "run_id": request.run_id, "workflow_type": "DurableWebRunWorkflow", "status": status, "phase": "prepare"})
+            workflow.logger.info(
+                "agent_lifecycle_prepared",
+                extra={
+                    "event": "agent_lifecycle_prepared",
+                    "component": "workflow",
+                    "run_id": request.run_id,
+                    "workflow_type": "AgentLifecycleWorkflow",
+                    "status": status,
+                    "phase": "prepare",
+                },
+            )
             if status == "completed":
                 return _completed(request.run_id)
             if status in ("cancelling", "cancelled"):
@@ -92,7 +114,8 @@ class DurableWebRunWorkflow:
                 raise ApplicationError("run already failed", non_retryable=True)
 
             identity = await workflow.execute_activity(
-                "load_agent_run_input_activity", request,
+                "load_agent_run_input_activity",
+                request,
                 task_queue=WEB_LIFECYCLE_TASK_QUEUE,
                 result_type=AgentRunInput,
                 start_to_close_timeout=timedelta(seconds=20),
@@ -104,8 +127,28 @@ class DurableWebRunWorkflow:
                 id=f"hpagent-agent-run-{request.run_id}",
                 task_queue=AGENT_TASK_QUEUE,
             )
-            workflow.logger.info("durable_web_workflow_agent_completed", extra={"event": "durable_web_workflow_agent_completed", "component": "workflow", "run_id": request.run_id, "strategy": identity.strategy, "status": "success", "phase": "agent"})
-            workflow.logger.info("durable_web_workflow_finalizing", extra={"event": "durable_web_workflow_finalizing", "component": "workflow", "run_id": request.run_id, "strategy": identity.strategy, "status": "started", "phase": "finalize"})
+            workflow.logger.info(
+                "agent_lifecycle_agent_completed",
+                extra={
+                    "event": "agent_lifecycle_agent_completed",
+                    "component": "workflow",
+                    "run_id": request.run_id,
+                    "strategy": identity.strategy,
+                    "status": "success",
+                    "phase": "agent",
+                },
+            )
+            workflow.logger.info(
+                "agent_lifecycle_finalizing",
+                extra={
+                    "event": "agent_lifecycle_finalizing",
+                    "component": "workflow",
+                    "run_id": request.run_id,
+                    "strategy": identity.strategy,
+                    "status": "started",
+                    "phase": "finalize",
+                },
+            )
             authority: RunAuthority = await workflow.execute_activity(
                 "finalize_agent_result_activity",
                 FinalizeResultInput(AGENT_SCHEMA_VERSION, request.run_id, agent_result.result_ref),
@@ -114,22 +157,45 @@ class DurableWebRunWorkflow:
                 start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
                 retry_policy=_FINALIZE_RETRY,
             )
+            if authority["status"] in ("cancelling", "cancelled"):
+                raise asyncio.CancelledError
             if authority["status"] != "completed":
-                raise ApplicationError("Agent finalization returned non-completed status", non_retryable=True)
-            workflow.logger.info("durable_web_workflow_completed", extra={"event": "durable_web_workflow_completed", "component": "workflow", "run_id": request.run_id, "strategy": identity.strategy, "status": "success", "phase": "completed"})
+                raise ApplicationError(
+                    "Agent finalization returned non-completed status", non_retryable=True
+                )
+            workflow.logger.info(
+                "agent_lifecycle_completed",
+                extra={
+                    "event": "agent_lifecycle_completed",
+                    "component": "workflow",
+                    "run_id": request.run_id,
+                    "strategy": identity.strategy,
+                    "status": "success",
+                    "phase": "completed",
+                },
+            )
             return _completed(request.run_id)
         except asyncio.CancelledError:
-            workflow.logger.warning("durable_web_workflow_cancelled", extra={"event": "durable_web_workflow_cancelled", "component": "workflow", "run_id": request.run_id, "status": "cancelled", "phase": "finalize"})
+            workflow.logger.warning(
+                "agent_lifecycle_cancelled",
+                extra={
+                    "event": "agent_lifecycle_cancelled",
+                    "component": "workflow",
+                    "run_id": request.run_id,
+                    "status": "cancelled",
+                    "phase": "finalize",
+                },
+            )
             authority = await workflow.execute_activity(
-                    "finalize_cancelled_activity",
-                    request,
-                    task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-                    schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS),
-                    start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
-                    retry_policy=_FINALIZE_RETRY,
-                )
+                "finalize_cancelled_activity",
+                request,
+                task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS),
+                start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
+                retry_policy=_FINALIZE_RETRY,
+            )
             if authority["status"] == "completed":
-                    return _completed(request.run_id)
+                return _completed(request.run_id)
             if authority["status"] == "failed":
                 raise ApplicationError("unexpected workflow cancellation", non_retryable=True)
             raise
@@ -139,26 +205,51 @@ class DurableWebRunWorkflow:
                     "finalize_cancelled_activity",
                     request,
                     task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-                    schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS),
+                    schedule_to_close_timeout=timedelta(
+                        seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS
+                    ),
                     start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
                     retry_policy=_FINALIZE_RETRY,
                 )
                 if authority["status"] == "completed":
                     return _completed(request.run_id)
                 if authority["status"] == "failed":
-                    raise ApplicationError("unexpected workflow cancellation", non_retryable=True) from exc
+                    raise ApplicationError(
+                        "unexpected workflow cancellation", non_retryable=True
+                    ) from exc
                 raise asyncio.CancelledError from exc
             failure_type = _failure_type(exc)
-            workflow.logger.error("durable_web_workflow_failed", extra={"event": "durable_web_workflow_failed", "component": "workflow", "run_id": request.run_id, "status": "failed", "phase": "finalize", "error_code": failure_type or "internal_execution_error"})
-            error_code = failure_type if failure_type in _DURABLE_FAILURE_MESSAGES else "internal_execution_error"
+            workflow.logger.error(
+                "agent_lifecycle_failed",
+                extra={
+                    "event": "agent_lifecycle_failed",
+                    "component": "workflow",
+                    "run_id": request.run_id,
+                    "status": "failed",
+                    "phase": "finalize",
+                    "error_code": failure_type or "internal_execution_error",
+                },
+            )
+            error_code = (
+                failure_type
+                if failure_type in _DURABLE_FAILURE_MESSAGES
+                else "internal_execution_error"
+            )
             authority = await workflow.execute_activity(
                 "finalize_failed_activity",
-                FailureInput(1, request.run_id, error_code, _DURABLE_FAILURE_MESSAGES.get(error_code, "执行未能完成。")),
+                FailureInput(
+                    1,
+                    request.run_id,
+                    error_code,
+                    _DURABLE_FAILURE_MESSAGES.get(error_code, "执行未能完成。"),
+                ),
                 task_queue=WEB_LIFECYCLE_TASK_QUEUE,
                 schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS),
                 start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
                 retry_policy=_FINALIZE_RETRY,
             )
             if authority["status"] == "completed":
-                    return _completed(request.run_id)
+                return _completed(request.run_id)
+            if authority["status"] == "cancelled":
+                raise asyncio.CancelledError from exc
             raise

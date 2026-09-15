@@ -16,9 +16,10 @@ from .contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
+from .ids import tool_execution_workflow_id
 from .react import _MODEL_RETRY, _validate
 from .segments import execute_segment
-from .tool_execution import ToolExecutionWorkflow, tool_execution_workflow_id
+from .tool_execution import ToolExecutionWorkflow
 
 
 @workflow.defn

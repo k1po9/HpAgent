@@ -10,7 +10,7 @@ from uuid import UUID
 
 from uuid6 import uuid7
 
-from agent_workflows.tool_execution import tool_execution_workflow_id
+from agent_workflows.ids import tool_execution_workflow_id
 from persistence.repositories import IdempotencyRepository, OutboxRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import ConversationBusy, DomainError, IdempotencyConflict, ResourceNotFound

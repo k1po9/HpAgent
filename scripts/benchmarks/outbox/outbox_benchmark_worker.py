@@ -12,17 +12,33 @@ from temporalio import activity
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from agent_activities.segments import SegmentActivities
+from agent_activities.store import AgentDataStore
+from agent_execution.chat_run_input import ChatRunInputLoader
+from agent_workflows.agent_run import AgentRunWorkflow
+from agent_workflows.contracts import (
+    AGENT_SCHEMA_VERSION,
+    AgentRunInput,
+    ContextBootstrapInput,
+    ContextBootstrapResult,
+    FinalizeResultInput,
+    ModelDecisionInput,
+    ModelDecisionResult,
+)
+from agent_workflows.react import ReactAgentWorkflow
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.run_lifecycle_contracts import (
+    WEB_AGENT_TASK_QUEUE,
+    WEB_LIFECYCLE_TASK_QUEUE,
+    FailureInput,
+)
+from orchestration.run_lifecycle_contracts import (
+    RunLifecycleInput as WebRunWorkflowInput,
+)
 from orchestration.web_dispatcher import (
     TemporalClientAdapter,
     TemporalOutboxDispatcher,
     WebOutboxDispatcher,
-)
-from orchestration.web_workflow import (
-    WEB_AGENT_TASK_QUEUE,
-    WEB_LIFECYCLE_TASK_QUEUE,
-    FailureInput,
-    WebRunWorkflow,
-    WebRunWorkflowInput,
 )
 from web_domain.lifecycle import WebRunLifecycleService
 from web_domain.outbox import OutboxService
@@ -44,14 +60,30 @@ async def prepare_run(request: WebRunWorkflowInput) -> dict[str, str]:
     return asdict(authority)
 
 
-@activity.defn(name="execute_agent_activity")
-async def execute_agent(request: WebRunWorkflowInput) -> dict[str, str]:
+_INPUT_LOADER: ChatRunInputLoader
+
+
+@activity.defn(name="load_agent_run_input_activity")
+async def load_input(request: WebRunWorkflowInput) -> AgentRunInput:
+    return await asyncio.to_thread(_INPUT_LOADER.load, request.run_id)
+
+
+@activity.defn(name="context_bootstrap_activity")
+async def benchmark_context(request: ContextBootstrapInput) -> ContextBootstrapResult:
+    return ContextBootstrapResult(AGENT_SCHEMA_VERSION, request.run_id, 1, request.run_id)
+
+
+@activity.defn(name="model_decision_activity")
+async def benchmark_model(request: ModelDecisionInput) -> ModelDecisionResult:
     await asyncio.sleep(_FAKE_DELAY_SECONDS)
-    authority = await asyncio.to_thread(
-        _LIFECYCLE.complete,
-        UUID(request.run_id),
-        f"outbox benchmark completed: {request.run_id}",
-    )
+    return ModelDecisionResult(AGENT_SCHEMA_VERSION, request.operation_id, "final",
+                               request.run_id, (), 2, "stop", "benchmark reply")
+
+
+@activity.defn(name="finalize_agent_result_activity")
+async def complete_agent(request: FinalizeResultInput) -> dict[str, str]:
+    authority = await asyncio.to_thread(_LIFECYCLE.complete, UUID(request.run_id),
+                                        f"outbox benchmark completed: {request.run_id}")
     return asdict(authority)
 
 
@@ -75,20 +107,24 @@ async def finalize_cancelled(request: WebRunWorkflowInput) -> dict[str, str]:
 
 
 async def serve(args: argparse.Namespace) -> None:
-    global _FAKE_DELAY_SECONDS, _LIFECYCLE
+    global _FAKE_DELAY_SECONDS, _LIFECYCLE, _INPUT_LOADER
     _FAKE_DELAY_SECONDS = args.fake_delay_seconds
     _LIFECYCLE = WebRunLifecycleService(args.worker_database_url)
     client = await Client.connect(args.temporal_host, namespace=args.temporal_namespace)
+    store = AgentDataStore(args.worker_database_url)
+    _INPUT_LOADER = ChatRunInputLoader(store)
+    segments = SegmentActivities(store)
     lifecycle_worker = Worker(
         client,
         task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-        workflows=[WebRunWorkflow],
-        activities=[prepare_run, finalize_failed, finalize_cancelled],
+        workflows=[AgentLifecycleWorkflow],
+        activities=[prepare_run, load_input, complete_agent, finalize_failed, finalize_cancelled],
     )
     agent_worker = Worker(
         client,
         task_queue=WEB_AGENT_TASK_QUEUE,
-        activities=[execute_agent],
+        workflows=[AgentRunWorkflow, ReactAgentWorkflow],
+        activities=[segments.acquire, segments.release, benchmark_context, benchmark_model],
     )
     outbox = OutboxService(args.worker_database_url)
     dispatcher = WebOutboxDispatcher(

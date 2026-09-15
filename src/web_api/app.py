@@ -590,17 +590,10 @@ def create_app(
             "capabilities": {
                 "qq_long_term_memory_shared": True,
                 "qq_self_service_binding": True,
-                "durable_agent": settings.durable_agent_enabled,
+                "durable_agent": True,
                 "file_upload": settings.web_file_upload_enabled,
-                "file_transform": (
-                    settings.web_file_transform_enabled
-                    and settings.durable_agent_enabled
-                ),
-                "agent_strategies": (
-                    ["react", "plan_and_execute"]
-                    if settings.durable_agent_enabled
-                    else ["react"]
-                ),
+                "file_transform": settings.web_file_transform_enabled,
+                "agent_strategies": ["react", "plan_and_execute"],
             },
         }
 
@@ -936,13 +929,6 @@ def create_app(
         if len(payload.file_ids) > settings.file_max_count_per_message:
             return _error(
                 request, 422, "file_processing_limit", "附件数量超过限制。"
-            )
-        if payload.agent_strategy == "plan_and_execute" and not settings.durable_agent_enabled:
-            return _error(
-                request,
-                409,
-                "agent_strategy_disabled",
-                "计划模式尚未启用。",
             )
         try:
             content = _normalize_content(payload.content)

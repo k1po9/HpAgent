@@ -32,7 +32,6 @@ class WebApiSettings:
     fake_executor_content: str = "这是由测试执行器生成的回复。"
     fake_executor_failure_code: str = "fake_executor_failure"
     real_agent_enabled: bool = False
-    durable_agent_enabled: bool = False
     web_file_upload_enabled: bool = False
     web_file_transform_enabled: bool = False
     web_file_shell_enabled: bool = False
@@ -66,8 +65,6 @@ class WebApiSettings:
             raise ValueError("FILE_MAX_COUNT_PER_MESSAGE must be between 1 and 20")
         if self.run_budget_mode not in {"off", "observe", "enforce"}:
             raise ValueError("RUN_BUDGET_MODE must be off, observe, or enforce")
-        if self.web_file_transform_enabled and not self.durable_agent_enabled:
-            raise ValueError("file transforms require the Durable Agent")
         if self.web_file_transform_enabled and not self.web_file_upload_enabled:
             raise ValueError("file transforms require file uploads")
         if self.web_file_shell_enabled and not self.web_file_upload_enabled:
@@ -149,8 +146,6 @@ class WebApiSettings:
                 "WEB_FAKE_EXECUTOR_FAILURE_CODE", "fake_executor_failure"
             ),
             real_agent_enabled=os.getenv("WEB_REAL_AGENT_ENABLED", "false").lower() == "true",
-            durable_agent_enabled=os.getenv("DURABLE_AGENT_ENABLED", "false").lower()
-            == "true",
             web_file_upload_enabled=os.getenv(
                 "WEB_FILE_UPLOAD_ENABLED", "false"
             ).lower() == "true",

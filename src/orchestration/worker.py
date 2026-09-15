@@ -8,8 +8,8 @@ Orchestration Worker —— Temporal Worker 启动与依赖组装。
   4. 连接 Temporal → 启动 Worker → 渠道监听
 
 架构:
-  QQ / Web legacy → AgentExecutionFacade → DefaultBrainActionLoop
-  Web durable → DurableWebRunWorkflow → AgentRunWorkflow → Strategy Workflow
+  QQ legacy → AgentExecutionFacade → DefaultBrainActionLoop
+  Web durable → AgentLifecycleWorkflow → AgentRunWorkflow → Strategy Workflow
       ↓
   BrainEngine / ActionRuntime / Surface adapters
 """
@@ -114,9 +114,6 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_activities.runtime import DurableAgentActivities
     from agent_activities.segments import SegmentActivities
     from agent_activities.store import AgentDataStore
-    from agent_execution.audit import LoggingExecutionAuditSinkFactory
-    from agent_execution.brain_action_loop import DefaultBrainActionLoop
-    from agent_execution.facade import AgentExecutionFacade
     from agent_execution.run_budget import RunBudgetService
     from agent_execution.tracing import (
         PostgresTraceRepository,
@@ -124,12 +121,9 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         TracingWebEventSinkFactory,
     )
     from agent_execution.web_adapters import (
-        LifecycleWebReplySink,
         PostgresWebRequestLoader,
-        TemporalActivityControl,
     )
     from agent_execution.web_events import RedisWebRunEventSinkFactory
-    from agent_execution.web_host import WebExecutionHost
     from application.context_assembly import ContextAssemblyService
     from file_domain.approvals import FileActionApprovalService
     from file_domain.persistent import PersistentWebFileService
@@ -142,14 +136,12 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         ArtifactOutboxDispatcher,
         TemporalArtifactClient,
     )
-    from orchestration.web_activities import (
-        execute_agent_activity,
+    from orchestration.run_lifecycle_activities import (
         finalize_cancelled_activity,
         finalize_failed_activity,
-        inject_agent_data_store,
         inject_agent_event_factory,
-        inject_web_execution_host,
-        inject_web_lifecycle,
+        inject_agent_run_loader,
+        inject_run_lifecycle,
         load_agent_run_input_activity,
         prepare_run_activity,
     )
@@ -211,26 +203,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     context = ContextAssemblyService(
         worker_database_url, deps.context_builder, deps.hindsight_client
     )
-    facade = AgentExecutionFacade(
-        DefaultBrainActionLoop(
-            deps.brain_engine,
-            deps.action_runtime,
-            max_tool_turns=config.agent.max_tool_turns,
-            cancel_cleanup_timeout_seconds=(
-                config.temporal.web_cancel_cleanup_timeout_seconds
-            ),
-        )
-    )
-    # P0/P1-3: Web real execution must acquire the shared Account lock, recover
-    # the Run's bound Session workspace, and create the Session Sandbox before
-    # the Facade selects tools.  ``deps.workspace_isolation.account_locks`` is
-    # the same registry QQ uses, so QQ and Web serialize per Account.
-    # P0/P1-3/Web-workspace-provisioning: Web real execution acquires the shared
-    # Account lock, provisions any missing local repo / session branch (safely,
-    # inside the lock) and creates the Session Sandbox before the Facade selects
-    # tools.  ``deps.workspace_isolation.account_locks`` is the same registry QQ
-    # uses, so QQ and Web serialize per Account; ``deps.git_repo_manager`` is the
-    # same manager QQ uses, so there is exactly one Git implementation.
+    # Chat resources use the same account locks and Sandbox as QQ.
     resource_prep = SessionResourceRecoveryService(
         worker_database_url,
         deps.sandbox_manager,
@@ -239,22 +212,14 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         deps.run_file_workspace,
     )
     loader = PostgresWebRequestLoader(worker_database_url, context)
-    web_host = WebExecutionHost(
-        loader,
-        facade,
-        event_factory,
-        LifecycleWebReplySink(lifecycle),
-        TemporalActivityControl(),
-        LoggingExecutionAuditSinkFactory(),
-        resource_prep=resource_prep,
-    )
-    inject_web_lifecycle(lifecycle)
-    inject_web_execution_host(web_host)
+    inject_run_lifecycle(lifecycle)
     agent_store = AgentDataStore(
         worker_database_url,
         lease_ttl_seconds=config.temporal.agent_execution_lease_ttl_seconds,
     )
-    inject_agent_data_store(agent_store, max_turns=config.agent.max_tool_turns)
+    from agent_execution.chat_run_input import ChatRunInputLoader
+
+    inject_agent_run_loader(ChatRunInputLoader(agent_store, max_turns=config.agent.max_tool_turns))
     inject_agent_event_factory(event_factory)
     canonicalizer = W3libSourceCanonicalizer()
     research_activities = ResearchActivities(
@@ -345,7 +310,6 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
             segment_activities.release,
             segment_activities.begin_wait,
             segment_activities.finish_wait,
-            execute_agent_activity,
             durable_activities.context_bootstrap,
             durable_activities.model_decision,
             durable_activities.tool_execution,
@@ -360,10 +324,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         OutboxService(worker_database_url),
         TemporalOutboxDispatcher(
             execution_store,
-            TemporalClientAdapter(
-                client,
-                durable_agent_enabled=config.temporal.durable_agent_enabled,
-            ),
+            TemporalClientAdapter(client),
             lifecycle,
         ),
         worker_id=f"hpagent-web-dispatcher-{os.getpid()}",
@@ -741,8 +702,6 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         file_output_publisher = OutputPublisher(worker_database_url, tenant_store)
         logger.info("Run file workspace enabled with isolated object/execution roots")
         if file_capability.transform_enabled:
-            if not config.temporal.durable_agent_enabled:
-                raise RuntimeError("file transforms require DURABLE_AGENT_ENABLED=true")
             from file_adapters import GotenbergConversionProvider
             gotenberg_url = os.getenv("GOTENBERG_URL", "").strip()
             if not gotenberg_url:

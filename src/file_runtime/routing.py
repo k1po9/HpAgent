@@ -9,7 +9,7 @@ from temporalio.exceptions import WorkflowAlreadyStartedError
 from document_activities.contracts import NormalizedDocumentRef, NormalizeDocumentInput
 from file_domain.models import FileResource
 from orchestration.document_workflow import NormalizeDocumentWorkflow
-from orchestration.web_workflow import WEB_LIFECYCLE_TASK_QUEUE
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 
 _COMPLEX_MEDIA_TYPES = frozenset({
     "application/pdf",

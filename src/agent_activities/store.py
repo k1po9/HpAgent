@@ -126,7 +126,7 @@ class AgentDataStore:
         with UnitOfWork(self.database_url) as uow:
             row = uow.execute(
                 "SELECT run_id,account_id,conversation_id,session_id,trigger_message_id,"
-                "agent_strategy,status FROM runs WHERE run_id=%s",
+                "agent_strategy,status,run_kind FROM runs WHERE run_id=%s",
                 (UUID(run_id),),
             ).fetchone()
         if row is None:

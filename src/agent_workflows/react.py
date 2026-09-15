@@ -20,8 +20,9 @@ from .contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
+from .ids import tool_execution_workflow_id
 from .segments import execute_segment
-from .tool_execution import ToolExecutionWorkflow, tool_execution_workflow_id
+from .tool_execution import ToolExecutionWorkflow
 
 _READ_RETRY = RetryPolicy(
     initial_interval=timedelta(seconds=1),

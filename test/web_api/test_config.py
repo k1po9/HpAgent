@@ -49,16 +49,14 @@ def test_file_capabilities_default_closed(monkeypatch):
     assert settings.web_file_shell_enabled is False
 
 
-def test_file_transform_requires_durable_agent():
-    with pytest.raises(ValueError, match="Durable Agent"):
-        _settings(web_file_transform_enabled=True, durable_agent_enabled=False)
+def test_canonical_runtime_has_no_configuration_switch():
+    assert "durable_agent_enabled" not in WebApiSettings.__dataclass_fields__
 
 
 def test_file_transform_and_shell_require_upload_capability():
     with pytest.raises(ValueError, match="require file uploads"):
         _settings(
             web_file_transform_enabled=True,
-            durable_agent_enabled=True,
             web_file_upload_enabled=False,
         )
     with pytest.raises(ValueError, match="requires file uploads"):

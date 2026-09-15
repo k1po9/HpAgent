@@ -26,11 +26,11 @@ from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from workspace.isolation import WorkspaceIsolationMode
 
+from .agent_lifecycle_workflow import AgentLifecycleWorkflow
 from .artifact_workflow import ArtifactBuildWorkflow
 from .document_workflow import NormalizeDocumentWorkflow
-from .durable_web_workflow import DurableWebRunWorkflow
 from .research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
-from .web_workflow import (
+from .run_lifecycle_contracts import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
     WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS,
     WEB_AGENT_SCHEDULE_TO_CLOSE_SECONDS,
@@ -43,7 +43,6 @@ from .web_workflow import (
     WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS,
     WEB_PREPARE_START_TO_CLOSE_SECONDS,
     WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
-    WebRunWorkflow,
 )
 
 WEB_REAL_AGENT_GATE_VERSION = "c-07-v1"
@@ -165,11 +164,9 @@ def build_web_temporal_workers(
         lifecycle=Worker(
             client,
             task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-            # Definitions are always registered. The flag only selects new
-            # starts; rollback must not strand an existing durable History.
+            # One canonical Agent lifecycle; other business workflows stay independent.
             workflows=[
-                WebRunWorkflow,
-                DurableWebRunWorkflow,
+                AgentLifecycleWorkflow,
                 ResearchReportWorkflow,
                 ResearchTaskScheduleWorkflow,
                 ArtifactBuildWorkflow,

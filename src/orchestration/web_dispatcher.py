@@ -18,12 +18,12 @@ from temporalio.service import RPCError, RPCStatusCode
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ApprovalDecisionSignal
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from common.logging import log_event
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.research_workflow import ResearchReportWorkflow, ResearchWorkflowInput
-from orchestration.web_workflow import (
+from orchestration.run_lifecycle_contracts import (
     WEB_LIFECYCLE_TASK_QUEUE,
     WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
-    WebRunWorkflow,
-    WebRunWorkflowInput,
+    RunLifecycleInput,
 )
 from web_domain.outbox import (
     WEB_OUTBOX_RECOVERY_EVENT_TYPES,
@@ -92,7 +92,6 @@ class StartDecision:
 
 class WorkflowExecutionStore(Protocol):
     def prepare_start(self, run_id: UUID) -> StartDecision: ...
-    def still_queued(self, run_id: UUID) -> bool: ...
     def record_started(self, run_id: UUID, temporal_run_id: str) -> None: ...
     def needs_cancel(self, run_id: UUID) -> bool: ...
     def current_workflow_id(self, run_id: UUID) -> str | None: ...
@@ -100,7 +99,7 @@ class WorkflowExecutionStore(Protocol):
 
 
 class TemporalWebClient(Protocol):
-    async def start_web_run(self, workflow_id: str, request: WebRunWorkflowInput) -> str: ...
+    async def start_web_run(self, workflow_id: str, request: RunLifecycleInput) -> str: ...
     async def start_research_run(
         self, workflow_id: str, request: ResearchWorkflowInput
     ) -> str: ...
@@ -131,14 +130,13 @@ class TemporalOutboxDispatcher:
         # The store commits the scheduled execution record before this method
         # calls Temporal.  Every call below is therefore outside its DB txn.
         decision = await asyncio.to_thread(self.store.prepare_start, run_id)
-        still_queued = await asyncio.to_thread(self.store.still_queued, run_id)
-        if not decision.should_start or not still_queued:
+        if not decision.should_start:
             return False
         started_at = time.monotonic()
         log_event(logger, logging.INFO, "temporal_workflow_starting", "temporal", run_id=str(run_id),
                   workflow_id=decision.workflow_id, status="started")
         temporal_run_id = await self.temporal.start_web_run(
-            decision.workflow_id, WebRunWorkflowInput(1, str(run_id))
+            decision.workflow_id, RunLifecycleInput(1, str(run_id))
         )
         await asyncio.to_thread(self.store.record_started, run_id, temporal_run_id)
         log_event(logger, logging.INFO, "temporal_workflow_started", "temporal", run_id=str(run_id),
@@ -188,24 +186,17 @@ class TemporalOutboxDispatcher:
 class TemporalClientAdapter:
     """Thin Temporal SDK adapter; retry policy is explicitly absent."""
 
-    def __init__(self, client: Client, *, durable_agent_enabled: bool = False):
+    def __init__(self, client: Client):
         self.client = client
-        self.durable_agent_enabled = durable_agent_enabled
 
-    async def start_web_run(self, workflow_id: str, request: WebRunWorkflowInput) -> str:
+    async def start_web_run(self, workflow_id: str, request: RunLifecycleInput) -> str:
         try:
-            if self.durable_agent_enabled:
-                from orchestration.durable_web_workflow import DurableWebRunWorkflow
-
-                workflow_run = DurableWebRunWorkflow.run
-            else:
-                workflow_run = WebRunWorkflow.run
             handle = await self.client.start_workflow(
-                workflow_run,
+                AgentLifecycleWorkflow.run,
                 request,
                 id=workflow_id,
                 task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-                execution_timeout=(None if self.durable_agent_enabled else timedelta(seconds=WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)),
+                execution_timeout=None,
                 id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
                 id_conflict_policy=WorkflowIDConflictPolicy.FAIL,
                 retry_policy=None,
@@ -218,10 +209,8 @@ class TemporalClientAdapter:
                 raise RuntimeError("started Workflow has no Temporal Run ID")
             return str(temporal_run_id)
         except WorkflowAlreadyStartedError as exc:
-            # A deployment may flip the durable-start flag after Temporal
-            # accepted Start but before the Outbox ack. Both HpAgent Web
-            # definitions are valid owners of the same deterministic Run ID.
-            accepted_types = {"WebRunWorkflow", "DurableWebRunWorkflow"}
+            # Recover only this canonical owner after an ambiguous Start.
+            accepted_types = {"AgentLifecycleWorkflow"}
             if exc.workflow_id != workflow_id or exc.workflow_type not in accepted_types:
                 raise RuntimeError("deterministic Workflow ID belongs to another Workflow") from exc
             if exc.run_id:

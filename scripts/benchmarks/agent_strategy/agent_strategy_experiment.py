@@ -112,7 +112,6 @@ def effective_config(values: dict[str, str]) -> dict[str, Any]:
         base_value = values.get(base_value[2:-1], "")
     return {
         "native_tools_enabled": bool(config.get("sandbox", {}).get("native_tools_enabled")),
-        "durable_agent_enabled": values.get("DURABLE_AGENT_ENABLED", "false").lower() == "true",
         "max_turns": int(config.get("agent", {}).get("max_tool_turns", 5)),
         "provider": provider,
         "model": model_value,
@@ -307,10 +306,6 @@ def check_environment(*, provision: bool = True) -> tuple[bool, dict[str, Any], 
     record("docker_services", docker_services())
     record("api_ready", api_check())
     record("database_roles", database_check(api_url, worker_url))
-    record(
-        "durable_agent_config",
-        (config["durable_agent_enabled"], f"DURABLE_AGENT_ENABLED={config['durable_agent_enabled']}"),
-    )
     record(
         "native_workspace_tools",
         (

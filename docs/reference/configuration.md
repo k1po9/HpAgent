@@ -22,13 +22,11 @@
 
 | 变量 | 默认值 | 消费者 | 说明 |
 |---|---:|---|---|
-| `DURABLE_AGENT_ENABLED` | `false` | API/Worker | 只决定新 Web Run 使用 `DurableWebRunWorkflow` 还是 legacy `WebRunWorkflow`；durable definitions 始终注册，关闭开关不会中断已开始的 durable execution |
 | `AGENT_EXECUTION_LEASE_TTL_SECONDS` | `900` | Worker | PostgreSQL account execution lease TTL；必须为正，并大于最长单次 Activity 超时且留出恢复余量 |
 
-启用前必须应用 `014_durable_agent_control_plane.sql` 与
-`015_durable_agent_hardening.sql`。`plan_and_execute` 只在 Durable Agent 开启时可选；关闭开关时
-API 仍接受默认 `react`，但拒绝需要 durable Workflow 的策略。生产中已有 Workflow History 后，
-控制流变更应使用 Temporal Worker Versioning/patch，不能通过切换开关重新解释旧 History。
+启动前应用全部 migrations（包括执行分段与等待的 `033_agent_execution_segments.sql`）。
+Web 固定使用 canonical durable lifecycle，ReAct 与 Plan-and-Execute 均可选；没有
+legacy/durable 分流开关。lease TTL 只限制执行分段，不限制 Run 总寿命。
 
 ## 模型与工具
 

@@ -66,7 +66,6 @@ file "$tmp_dir/output.pdf"
 ## 5. 启用正式写工具
 
 ```bash
-export DURABLE_AGENT_ENABLED=true
 export WEB_FILE_UPLOAD_ENABLED=true
 export WEB_FILE_TRANSFORM_ENABLED=true
 export GOTENBERG_URL=http://gotenberg:3000

@@ -8,7 +8,7 @@ from temporalio.common import RetryPolicy
 with workflow.unsafe.imports_passed_through():
     from web_artifacts.models import ArtifactBuildInput
 
-from .web_workflow import WEB_LIFECYCLE_TASK_QUEUE
+from .run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 
 # Artifact has its own Workflow type and domain lifecycle, but deliberately
 # shares the Web lifecycle Worker queue.  Keep this as an alias (not another

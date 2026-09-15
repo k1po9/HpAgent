@@ -13,6 +13,7 @@ from temporalio.exceptions import WorkflowAlreadyStartedError
 
 from actions.runtime import ActionRuntime
 from agent.protocol import ActionRequest, ActionResult
+from agent_execution.activity_control import TemporalActivityControl
 from agent_execution.brain_action_loop import DefaultBrainActionLoop
 from agent_execution.facade import (
     AgentExecutionFacade,
@@ -22,7 +23,6 @@ from agent_execution.facade import (
     StableExecutionFailure,
 )
 from agent_execution.qq_host import QQExecutionHost, QQLegacyExecutionControl, qq_execution_id
-from agent_execution.web_adapters import TemporalActivityControl
 from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
 from agent_workflows.agent_run import AgentRunWorkflow
@@ -33,10 +33,10 @@ from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from application.conversation import ConversationService
 from common.types import ChannelType, UnifiedMessage
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.document_workflow import NormalizeDocumentWorkflow
-from orchestration.durable_web_workflow import DurableWebRunWorkflow
 from orchestration.research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
 from orchestration.web_dispatcher import (
     StartDecision,
@@ -152,8 +152,7 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
     assert workers.lifecycle is not workers.agent
     assert made[0]["task_queue"] == WEB_LIFECYCLE_TASK_QUEUE
     assert made[0]["workflows"] == [
-        WebRunWorkflow,
-        DurableWebRunWorkflow,
+        AgentLifecycleWorkflow,
         ResearchReportWorkflow,
         ResearchTaskScheduleWorkflow,
         ArtifactBuildWorkflow,
@@ -175,14 +174,14 @@ def test_artifact_uses_the_registered_web_lifecycle_task_queue():
 
 @pytest.mark.asyncio
 async def test_lifecycle_activity_adapter_loads_authority_only_by_run_id():
-    from orchestration.web_activities import inject_web_lifecycle, prepare_run_activity
+    from orchestration.run_lifecycle_activities import inject_run_lifecycle, prepare_run_activity
 
     class FakeLifecycle:
         def prepare(self, run_id):
             assert str(run_id) == "00000000-0000-0000-0000-000000000001"
             return LifecycleAuthority(str(run_id), "running")
 
-    inject_web_lifecycle(FakeLifecycle())
+    inject_run_lifecycle(FakeLifecycle())
     result = await prepare_run_activity(WebRunWorkflowInput(
         WEB_WORKFLOW_SCHEMA_VERSION, "00000000-0000-0000-0000-000000000001"
     ))
@@ -259,7 +258,7 @@ async def test_temporal_adapter_recovers_already_started_with_same_identity():
     class Client:
         async def start_workflow(self, *args, **kwargs):
             raise WorkflowAlreadyStartedError(
-                kwargs["id"], "WebRunWorkflow", run_id=temporal_run_id
+                kwargs["id"], "AgentLifecycleWorkflow", run_id=temporal_run_id
             )
 
     request = WebRunWorkflowInput(1, "00000000-0000-0000-0000-000000000001")
@@ -1039,10 +1038,7 @@ async def test_td_003_dispatcher_does_not_start_a_run_cancelled_before_rpc():
 
     class Store:
         def prepare_start(self, run_id):
-            return StartDecision(run_id, web_workflow_id(run_id), True)
-
-        def still_queued(self, run_id):
-            return False
+            return StartDecision(run_id, web_workflow_id(run_id), False)
 
     class Temporal:
         async def start_web_run(self, workflow_id, request):

@@ -252,7 +252,6 @@ services:
 services:
   hpagent:
     environment:
-      DURABLE_AGENT_ENABLED: "true"
       WEB_FILE_UPLOAD_ENABLED: "true"
       WEB_FILE_TRANSFORM_ENABLED: "false"
       WEB_FILE_SHELL_ENABLED: "false"

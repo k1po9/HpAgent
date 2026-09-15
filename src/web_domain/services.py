@@ -12,7 +12,7 @@ from uuid import UUID
 
 from uuid6 import uuid7
 
-from agent_workflows.tool_execution import tool_execution_workflow_id
+from agent_workflows.ids import tool_execution_workflow_id
 from common.logging import log_event
 from persistence.repositories import (
     AccountRepository,

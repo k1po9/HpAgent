@@ -16,8 +16,8 @@ from orchestration.research_workflow import (
     ResearchReportWorkflow,
     ResearchWorkflowInput,
 )
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from orchestration.web_dispatcher import TemporalClientAdapter
-from orchestration.web_workflow import WEB_LIFECYCLE_TASK_QUEUE
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 

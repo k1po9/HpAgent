@@ -17,12 +17,12 @@ from agent_workflows.contracts import (
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.artifact_workflow import ArtifactBuildWorkflow
 from orchestration.document_workflow import NormalizeDocumentWorkflow
-from orchestration.durable_web_workflow import DurableWebRunWorkflow
 from orchestration.research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
+from orchestration.run_lifecycle_contracts import RunLifecycleInput as WebRunWorkflowInput
 from orchestration.web_workers import build_web_temporal_workers
-from orchestration.web_workflow import WebRunWorkflow, WebRunWorkflowInput
 from web_api.models import SendMessageRequest
 
 
@@ -76,7 +76,7 @@ def test_plan_evaluation_parser_supports_replan_and_safe_fallback():
     )
 
 
-def test_current_w1_registry_includes_paths_pending_w3_retirement(monkeypatch):
+def test_canonical_registry_excludes_legacy_execution(monkeypatch):
     made: list[dict] = []
 
     class FakeWorker:
@@ -90,8 +90,7 @@ def test_current_w1_registry_includes_paths_pending_w3_retirement(monkeypatch):
         agent_activities=[],
     )
     assert made[0]["workflows"] == [
-        WebRunWorkflow,
-        DurableWebRunWorkflow,
+        AgentLifecycleWorkflow,
         ResearchReportWorkflow,
         ResearchTaskScheduleWorkflow,
         ArtifactBuildWorkflow,
@@ -114,7 +113,7 @@ def test_legacy_workflow_input_contract_did_not_change():
 
 
 def test_lifecycle_does_not_acquire_a_lease_for_the_entire_agent_child():
-    source = inspect.getsource(DurableWebRunWorkflow.run)
+    source = inspect.getsource(AgentLifecycleWorkflow.run)
     assert '"load_agent_run_input_activity"' in source
     assert '"acquire_execution_lease_activity"' not in source
     assert '"release_execution_lease_activity"' not in source
@@ -147,7 +146,7 @@ async def test_already_cancelled_run_finalizes_without_waiting_for_a_signal(monk
     monkeypatch.setattr(workflow, "logger", Mock())
     monkeypatch.setattr(workflow, "info", lambda: SimpleNamespace(workflow_id="workflow", run_id="execution"))
     with pytest.raises(asyncio.CancelledError):
-        await DurableWebRunWorkflow().run(WebRunWorkflowInput(1, "run"))
+        await AgentLifecycleWorkflow().run(WebRunWorkflowInput(1, "run"))
     assert calls == ["prepare_run_activity", "finalize_cancelled_activity"]
 
 
@@ -162,6 +161,6 @@ async def test_durable_run_timeout_is_independent_of_legacy_execution_limit():
             assert kwargs["execution_timeout"] is None
             return SimpleNamespace(result_run_id="temporal-run")
 
-    assert await TemporalClientAdapter(Client(), durable_agent_enabled=True).start_web_run(
+    assert await TemporalClientAdapter(Client()).start_web_run(
         "workflow", WebRunWorkflowInput(1, "run"),
     ) == "temporal-run"

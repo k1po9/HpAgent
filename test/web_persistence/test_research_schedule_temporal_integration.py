@@ -23,7 +23,7 @@ from orchestration.research_workflow import (
     ResearchScheduleInput,
     ResearchTaskScheduleWorkflow,
 )
-from orchestration.web_workflow import WEB_LIFECYCLE_TASK_QUEUE
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from persistence.uow import UnitOfWork
 from research_domain.services import ResearchTaskCommandService, TaskBusy
 

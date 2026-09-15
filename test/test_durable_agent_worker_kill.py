@@ -3,24 +3,27 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sqlite3
 import sys
+from dataclasses import asdict
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from temporalio.client import Client
+from temporalio.worker import Replayer
 
-from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
-    AGENT_TASK_QUEUE,
     AgentRunInput,
     ChatContext,
     RunContext,
     RunSource,
 )
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 
@@ -130,6 +133,7 @@ async def test_workflow_process_kill_replays_without_repeating_completed_operati
     namespace = os.getenv("TEMPORAL_NAMESPACE", "default")
     client = await Client.connect(host, namespace=namespace)
     activity_worker = workflow_worker = replacement_worker = None
+    lifecycle_worker = lifecycle_replacement = None
     try:
         activity_worker = await _start_worker(
             "activity", host, namespace, tmp_path, "activity"
@@ -138,11 +142,13 @@ async def test_workflow_process_kill_replays_without_repeating_completed_operati
             "workflow", host, namespace, tmp_path, "workflow-1"
         )
         request = _request(strategy)
+        (tmp_path / "run-input.json").write_text(json.dumps(asdict(request)))
+        lifecycle_worker = await _start_worker("lifecycle", host, namespace, tmp_path, "lifecycle-1")
         handle = await client.start_workflow(
-            AgentRunWorkflow.run,
-            request,
+            AgentLifecycleWorkflow.run,
+            RunLifecycleInput(1, request.run_id),
             id=f"worker-kill-{request.run_id}",
-            task_queue=AGENT_TASK_QUEUE,
+            task_queue=WEB_LIFECYCLE_TASK_QUEUE,
         )
         await _wait_for(tmp_path / f"{boundary}.boundary")
 
@@ -150,12 +156,15 @@ async def test_workflow_process_kill_replays_without_repeating_completed_operati
         # released only after the Workflow Worker is confirmed dead, so the
         # replacement must rebuild state from Temporal History.
         await _terminate(workflow_worker)
+        await _terminate(lifecycle_worker)
         (tmp_path / f"{boundary}.release").touch()
         replacement_worker = await _start_worker(
             "workflow", host, namespace, tmp_path, "workflow-2"
         )
+        lifecycle_replacement = await _start_worker("lifecycle", host, namespace, tmp_path, "lifecycle-2")
         result = await asyncio.wait_for(handle.result(), timeout=30)
-        assert result.transcript_version == expected_version
+        assert result["outcome"] == "completed"
+        await Replayer(workflows=[AgentLifecycleWorkflow]).replay_workflow(await handle.fetch_history())
 
         operations, attempts, side_effects = _counts(tmp_path)
         assert operations == expected_operations
@@ -168,6 +177,8 @@ async def test_workflow_process_kill_replays_without_repeating_completed_operati
                     "WHERE plan_version IS NOT NULL"
                 ).fetchall() == [(1,)]
     finally:
+        await _terminate(lifecycle_replacement)
+        await _terminate(lifecycle_worker)
         await _terminate(replacement_worker)
         await _terminate(workflow_worker)
         await _terminate(activity_worker)

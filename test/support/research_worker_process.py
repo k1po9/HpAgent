@@ -13,7 +13,7 @@ from orchestration.research_workflow import (
     ResearchReportWorkflow,
     ResearchTaskScheduleWorkflow,
 )
-from orchestration.web_workflow import WEB_LIFECYCLE_TASK_QUEUE
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 
 
 def result(request, stage, *, sufficient=None):

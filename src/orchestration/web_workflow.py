@@ -6,80 +6,32 @@ or the legacy QQ execution chain.  Activities own all side effects.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal, TypedDict
 
 from temporalio import workflow
-from temporalio.common import RetryPolicy
 from temporalio.exceptions import ActivityError, ApplicationError, is_cancelled_exception
 
-WEB_LIFECYCLE_TASK_QUEUE = "hpagent-web-lifecycle"
-WEB_AGENT_TASK_QUEUE = "hpagent-web-agent"
-WEB_WORKFLOW_SCHEMA_VERSION = 1
-WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS = 3000
-WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS = 120
-WEB_PREPARE_START_TO_CLOSE_SECONDS = 15
-WEB_AGENT_SCHEDULE_TO_CLOSE_SECONDS = 2100
-WEB_AGENT_START_TO_CLOSE_SECONDS = 1800
-WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS = 15
-WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS = 45
-WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS = 300
-WEB_FINALIZE_START_TO_CLOSE_SECONDS = 20
-WEB_CANCEL_CLEANUP_TIMEOUT_SECONDS = 30
-
-
-@dataclass(frozen=True)
-class WebRunWorkflowInput:
-    """The complete, deliberately minimal, Workflow input contract."""
-
-    schema_version: int
-    run_id: str
-
-    def validate(self) -> None:
-        if self.schema_version != WEB_WORKFLOW_SCHEMA_VERSION:
-            raise ApplicationError("unsupported WebRunWorkflow schema", non_retryable=True)
-        if not self.run_id:
-            raise ApplicationError("run_id is required", non_retryable=True)
-
-
-class RunAuthority(TypedDict):
-    run_id: str
-    status: Literal["queued", "running", "cancelling", "cancelled", "completed", "failed"]
-
-
-@dataclass(frozen=True)
-class FailureInput:
-    schema_version: int
-    run_id: str
-    error_code: str
-    error_message: str
-
-
-_LIFECYCLE_RETRY = RetryPolicy(
-    initial_interval=timedelta(seconds=1),
-    backoff_coefficient=2.0,
-    maximum_interval=timedelta(seconds=10),
-    maximum_attempts=5,
+from .run_lifecycle_contracts import (
+    _AGENT_NO_RETRY,
+    _FINALIZE_RETRY,
+    _LIFECYCLE_RETRY,
+    _STABLE_FAILURE_MESSAGES,
+    WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS,
+    WEB_AGENT_SCHEDULE_TO_CLOSE_SECONDS,
+    WEB_AGENT_START_TO_CLOSE_SECONDS,
+    WEB_AGENT_TASK_QUEUE,
+    WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS,
+    WEB_FINALIZE_START_TO_CLOSE_SECONDS,
+    WEB_LIFECYCLE_TASK_QUEUE,
+    WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS,
+    WEB_PREPARE_START_TO_CLOSE_SECONDS,
+    WEB_WORKFLOW_SCHEMA_VERSION,
+    FailureInput,
+    RunAuthority,
 )
-_FINALIZE_RETRY = RetryPolicy(
-    initial_interval=timedelta(seconds=1),
-    backoff_coefficient=2.0,
-    maximum_interval=timedelta(seconds=10),
-    maximum_attempts=10,
+from .run_lifecycle_contracts import (
+    RunLifecycleInput as WebRunWorkflowInput,
 )
-_AGENT_NO_RETRY = RetryPolicy(maximum_attempts=1)
-_STABLE_FAILURE_MESSAGES = {
-    "context_build_failed": "上下文构建失败。",
-    "memory_isolation_violation": "长期记忆隔离校验失败。",
-    "model_unavailable": "模型暂时不可用。",
-    "model_timeout": "模型调用超时。",
-    "tool_failed": "工具执行失败。",
-    "tool_timeout": "工具执行超时。",
-    "side_effect_audit_unavailable": "副作用审计暂不可用。",
-    "run_timeout": "执行总时长超时。",
-    "workspace_recovery_required": "工作区需要人工恢复。",
-}
 
 
 @workflow.defn

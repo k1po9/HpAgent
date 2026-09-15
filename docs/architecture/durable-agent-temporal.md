@@ -1,57 +1,34 @@
 # Durable Agent Temporal 改造实施说明
 
-## MVP 范围
+## 当前实现（Phase 3 W1-C）
 
-当前 Durable Agent MVP 仅包含 `react` 与 `plan_and_execute` 两种策略，以及两者共用的
-`AgentStepWorkflow`、PostgreSQL transcript/operation data plane、durable lease 与
-fencing。Legacy `WebRunWorkflow` 和 `DefaultBrainActionLoop` 继续保留，用于旧 History、
-feature-flag rollback 和 QQ legacy 路径。
-
-Blackboard 的统一 contract、`AgentRunWorkflow` router 扩展点和架构设计保持
-Reserved / Planned；Blackboard Workflow、多 Agent 并行协调、QQ durable ownership
-统一与 Continue-As-New 均不属于本次 MVP。
-
-## 真实执行链与边界
-
-改造前 Web 链路为：
+Web Command 在 PG 中创建 Run + Outbox，Dispatcher 固定启动 `AgentLifecycleWorkflow`。
+生产 Worker 只注册这一 Agent lifecycle；`WebRunWorkflow`、legacy Activity 与 Host
+源码暂留 W3 退役，已无 Web 生产入口或注册。QQ 仍使用旧链，W2 尚未实施。
 
 ```text
-Outbox → WebRunWorkflow → execute_agent_activity
-       → WebExecutionHost → AgentExecutionFacade
-       → DefaultBrainActionLoop → BrainEngine / ActionRuntime
+Web Command → Run + Outbox → Dispatcher → AgentLifecycleWorkflow
+  prepare → source input loader → AgentRunWorkflow
+    ReAct / Plan-and-Execute → segmented Activities
+  finalize completed / failed / cancelled
 ```
 
-`DefaultBrainActionLoop` 同时承担 context recall/compose、tool selection、模型决策、
-tool side-effect audit、工具执行、turn/max-turn 控制、forced final、heartbeat、取消和
-日志。`WebRunWorkflow` 只能看到单个 Agent Activity 的 started/completed/failed。
+生命周期输入仅携带 Run ID。`ChatRunInputLoader` 校验 Chat 所属 Conversation、Session、
+trigger Message，构造 `RunSource` / `RunContext`。Chat loader、资源准备、事件工厂与终态
+服务由装配注入；核心 Workflow 不固定 surface/profile，也不把聊天实体作为初始参数。
+`ChatExecutionBindings` 明确承接当前 Chat capability 的 Session 与 transcript 绑定。
+非 Chat 产品入口及相应数据／资源适配器尚未实现，不能将合同扩展口称为可运行的新入口。
 
-workspace 生命周期由 `SessionResourceRecoveryService` 恢复，它通过共享的进程内
-`AccountLockRegistry` 在整个 legacy `Facade.execute()` 期间持锁。这个锁不能跨
-Activity 或 Worker，因此 durable 路径增加 PostgreSQL lease/fencing；进程锁在每个
-workspace Activity 内仍用于本地互斥和 QQ legacy 兼容。
-
-## 新拓扑
-
-```text
-DurableWebRunWorkflow
-  ├─ prepare_run_activity
-  ├─ acquire_execution_lease_activity
-  ├─ AgentRunWorkflow
-  │    ├─ ReactAgentWorkflow
-  │    └─ PlanAndExecuteWorkflow
-  │          └─ AgentStepWorkflow
-  ├─ finalize_agent_result_activity
-  └─ release_execution_lease_activity
-```
-
-旧 `WebRunWorkflow` 与输入 contract 保持不变。`DURABLE_AGENT_ENABLED` 只决定新
-Run 启动哪个顶层 Workflow；durable definitions 始终注册，因此关闭开关不会阻断
-已经开始的 durable execution。
+所有 capability attempts 分别 acquire → execute → release。Retry backoff 和 durable
+wait 不持有执行租约；恢复取得新 token。Run 无固定总执行超时，业务等待有独立 deadline。
+分段 Activity 持续心跳以接收取消，清理后释放 segment。Workspace 仍通过共享的
+`AccountLockRegistry`、Sandbox 和 PG ownership 恢复，未合并其他文件生命周期。
 
 ## 状态与持久化
 
 Migration `014_durable_agent_control_plane.sql` 增加基础控制面，
-`015_durable_agent_hardening.sql` 增加 operation intent/uncertain 状态与 fencing 加固：
+`015_durable_agent_hardening.sql` 增加 operation intent/uncertain，
+`033_agent_execution_segments.sql` 增加 segment 与 durable wait 状态：
 
 - `runs.agent_strategy`：`react | plan_and_execute`；
 - `agent_transcripts` / `agent_transcript_events`：模型上下文、决策和工具 raw result；
@@ -71,7 +48,7 @@ model content 和 tool raw result 不进入长期 History。
 | tool execution | 600s，45s heartbeat，最多 3 次 | `{run}:...:tool:{call}` |
 | planning | 300s，最多 3 次 | `{run}:plan:{v}:planner` |
 | plan evaluation | 60s，最多 5 次 | `{run}:plan:{v}:step:{id}:evaluation` |
-| finalization/lease | lifecycle retry policy | stable result/lease identity |
+| finalization / segment controls | short Activity retry policy | stable result / segment identity |
 
 Tool Activity 在外部调用前写入 compact durable intent（tool、arguments hash、side
 effect class、fencing token）。如果外部调用和 operation completion 已持久化但
@@ -85,7 +62,7 @@ tool fail closed。
 - Business Workflow 独占 completed/failed/cancelled terminal transaction；Agent
   Workflow 不直接更新 Run terminal state。
 - 每个 workspace Activity 执行前验证并续租 fencing token；旧 token fail closed。
-- 旧 Workflow definition 和 v1 input 未修改；新 definitions 从 schema version 1 开始。
+- canonical lifecycle schema 为 1，Agent DTO schema 为 3；新目标 histories 单独捕获并 replay，不宣称兼容 legacy History。
 
 ## 日志和 progress
 
@@ -102,7 +79,7 @@ Workflow 控制状态支持 durable replay；Activity 以稳定 operation id 去
 必须先 reconciliation，无法确认时转为 `uncertain` 并 fail-closed，绝不盲目重放。
 这不是对所有 Tool 的通用 exactly-once 承诺。
 
-Web Activity 在 durable lease 外仍持有共享的进程内 `AccountLockRegistry`，因此当前
+Web workspace Activity 在执行分段内同时取得共享的进程内 `AccountLockRegistry`，因此当前
 单进程部署与 QQ legacy 执行保持互斥；但 Web durable lease 并不表示 QQ/Web 已统一
 durable ownership。QQ 的 durable lease 接入属于后续范围。
 
@@ -125,7 +102,7 @@ Activity 超时并留出安全余量。Activity 开始时续租，并在 workspa
 
 ## 故障注入验证现状
 
-当前仓库已将原先的“后续故障注入”落为可复现实验，并保留逐次证据：
+以下为 W1-C 之前的历史实验记录；本次切换的当前验证以 W1-C 实施报告为准：
 
 - Workflow Worker SIGKILL：覆盖 ReAct 的 model/tool 边界与 Plan-and-Execute 的 step/final
   evaluation 边界，已提交的一轮为 50/50 恢复，未观察到重复 operation 或额外重复副作用。
