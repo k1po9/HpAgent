@@ -2,16 +2,16 @@ from __future__ import annotations
 
 import pytest
 
-from agent_execution.brain_action_loop import DefaultBrainActionLoop
+from agent_activities.runtime import DurableAgentActivities
 from application.memory_reflection import MemoryReflectionService
 from application.session_archive import SessionArchiveService
 
 
-def test_shared_loop_strips_leaked_xml_tool_calls_from_final_reply():
-    assert DefaultBrainActionLoop._safe_final_content(
+def test_durable_model_activity_strips_leaked_xml_tool_calls_from_final_reply():
+    assert DurableAgentActivities._safe_final_content(
         "before <tool_call>{}</tool_call> after"
     ) == "before  after"
-    assert DefaultBrainActionLoop._safe_final_content(
+    assert DurableAgentActivities._safe_final_content(
         "<tool_call>{}</tool_call>"
     ) == "抱歉，我暂时无法处理这个消息，请稍后重试。"
 

@@ -20,7 +20,7 @@ from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.artifact_workflow import ArtifactBuildWorkflow
 from orchestration.document_workflow import NormalizeDocumentWorkflow
 from orchestration.research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
-from orchestration.run_lifecycle_contracts import RunLifecycleInput as WebRunWorkflowInput
+from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from orchestration.web_workers import build_web_temporal_workers
 from web_api.models import SendMessageRequest
 
@@ -102,7 +102,7 @@ def test_canonical_registry_excludes_legacy_execution(monkeypatch):
 
 
 def test_legacy_workflow_input_contract_did_not_change():
-    assert list(WebRunWorkflowInput.__dataclass_fields__) == [
+    assert list(RunLifecycleInput.__dataclass_fields__) == [
         "schema_version",
         "run_id",
     ]
@@ -142,7 +142,7 @@ async def test_already_cancelled_run_finalizes_without_waiting_for_a_signal(monk
     monkeypatch.setattr(workflow, "logger", Mock())
     monkeypatch.setattr(workflow, "info", lambda: SimpleNamespace(workflow_id="workflow", run_id="execution"))
     with pytest.raises(asyncio.CancelledError):
-        await AgentLifecycleWorkflow().run(WebRunWorkflowInput(1, "run"))
+        await AgentLifecycleWorkflow().run(RunLifecycleInput(1, "run"))
     assert calls == ["prepare_run_activity", "finalize_cancelled_activity"]
 
 
@@ -158,7 +158,7 @@ async def test_durable_run_timeout_is_independent_of_legacy_execution_limit():
             return SimpleNamespace(result_run_id="temporal-run")
 
     assert await TemporalClientAdapter(Client()).start_web_run(
-        "workflow", WebRunWorkflowInput(1, "run"),
+        "workflow", RunLifecycleInput(1, "run"),
     ) == "temporal-run"
 
 

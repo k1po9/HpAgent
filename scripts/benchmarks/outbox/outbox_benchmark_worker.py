@@ -31,9 +31,7 @@ from orchestration.run_lifecycle_contracts import (
     WEB_AGENT_TASK_QUEUE,
     WEB_LIFECYCLE_TASK_QUEUE,
     FailureInput,
-)
-from orchestration.run_lifecycle_contracts import (
-    RunLifecycleInput as WebRunWorkflowInput,
+    RunLifecycleInput,
 )
 from orchestration.web_dispatcher import (
     TemporalClientAdapter,
@@ -49,7 +47,7 @@ _FAKE_DELAY_SECONDS: float
 
 
 @activity.defn(name="prepare_run_activity")
-async def prepare_run(request: WebRunWorkflowInput) -> dict[str, str]:
+async def prepare_run(request: RunLifecycleInput) -> dict[str, str]:
     info = activity.info()
     authority = await asyncio.to_thread(
         _LIFECYCLE.prepare,
@@ -64,7 +62,7 @@ _INPUT_LOADER: ChatRunInputLoader
 
 
 @activity.defn(name="load_agent_run_input_activity")
-async def load_input(request: WebRunWorkflowInput) -> AgentRunInput:
+async def load_input(request: RunLifecycleInput) -> AgentRunInput:
     return await asyncio.to_thread(_INPUT_LOADER.load, request.run_id)
 
 
@@ -99,7 +97,7 @@ async def finalize_failed(failure: FailureInput) -> dict[str, str]:
 
 
 @activity.defn(name="finalize_cancelled_activity")
-async def finalize_cancelled(request: WebRunWorkflowInput) -> dict[str, str]:
+async def finalize_cancelled(request: RunLifecycleInput) -> dict[str, str]:
     authority = await asyncio.to_thread(
         _LIFECYCLE.finalize_cancelled, UUID(request.run_id)
     )

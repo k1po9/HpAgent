@@ -91,6 +91,7 @@ def graph(source):
         package = mod if path.endswith("/__init__.py") else mod.rpartition(".")[0]
 
         def add(target, line):
+            target = target.removeprefix("src.")
             parts = target.split(".")
             for size in range(1, len(parts) + 1):
                 candidate = ".".join(parts[:size])
@@ -199,7 +200,8 @@ def build_report():
         "head_at_scan": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
         "source_sha256": hashlib.sha256("".join(p + "\0" + text for p, text in sorted(current.values())).encode()).hexdigest(),
         "roots": ROOTS, "baseline_counts": dict(Counter(row["baseline_status"] for row in rows)),
-        "retained_lazy_exports": ["orchestration.OrchestrationWorkflow -> orchestration.workflow"],
+        "retained_lazy_exports": (["orchestration.OrchestrationWorkflow -> orchestration.workflow"]
+                                  if "orchestration.workflow" in edges.get("orchestration", set()) else []),
         "counts": dict(Counter(row["status"] for row in rows)),
         "forbidden_canonical_imports": sorted(blocked), "dynamic_imports": dynamic,
         "reachable_modules": sorted(live),

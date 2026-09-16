@@ -457,8 +457,6 @@ class WorkerDependencies:
     brain_engine: object = None
     action_runtime: object = None
     hindsight_client: object = None
-    qq_execution_host: object = None
-    session_archive: object = None
     memory_reflection: object = None
     metrics: object = None
     scheduler: "TaskScheduler" = None
@@ -571,9 +569,9 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
       6. SandboxManager（依赖 3+4+5）
       7. PromptLoader → HindsightClient → HarnessContextBuilder
       8. PostgresAccountService + ChannelRouter
-      9. SessionStore（依赖 2+7）
-     10. AgentExecutionFacade + QQExecutionHost
-     11. archive / reflection / metrics application services
+      9. PG-backed QQ command ingress
+     10. Shared BrainEngine + ActionRuntime capabilities
+     11. scheduled reflection / metrics application services
     """
     # Hard gate: no shared-worktree Agent process starts without an explicit,
     # validated isolation topology and its OS process lock.

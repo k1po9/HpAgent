@@ -14,8 +14,8 @@ from typing import Any, Dict, Optional
 
 import yaml
 
-from common.types import ChannelType, UnifiedMessage
 from channels.router import ChannelRouter
+from common.types import ChannelType, UnifiedMessage
 
 logger = logging.getLogger("HpAgent.ReplyService")
 
@@ -23,7 +23,7 @@ logger = logging.getLogger("HpAgent.ReplyService")
 class ReplyService:
     """回复发送应用服务。
 
-    QQExecutionHost 只需要交付内容和 user_message，
+    调用方交付内容和 user_message，
     本服务负责渠道路由、群聊 @ 策略和工具进度提示。
     """
 

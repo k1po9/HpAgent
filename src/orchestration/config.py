@@ -297,18 +297,14 @@ class ModelsConfig:
 class TemporalConfig:
     """Temporal Server 连接配置。"""
     host: str = "localhost:7233"
-    # QQ legacy queue.  It must not be reused by WebRunWorkflow.
+    # Scheduled memory reflection/metrics queue; separate from canonical Agent queues.
     task_queue: str = "hpagent-task-queue"
     web_lifecycle_task_queue: str = "hpagent-web-lifecycle"
     web_agent_task_queue: str = "hpagent-web-agent"
     web_workflow_execution_timeout_seconds: int = 3000
     web_prepare_schedule_to_close_seconds: int = 120
     web_prepare_start_to_close_seconds: int = 15
-    web_agent_schedule_to_close_seconds: int = 2100
-    web_agent_start_to_close_seconds: int = 1800
     web_agent_heartbeat_interval_seconds: int = 15
-    web_agent_heartbeat_timeout_seconds: int = 45
-    web_cancel_cleanup_timeout_seconds: int = 30
     web_finalize_schedule_to_close_seconds: int = 300
     web_finalize_start_to_close_seconds: int = 20
     # Outbox lease auto-recovery.  A claimed (processing) Outbox row whose lease

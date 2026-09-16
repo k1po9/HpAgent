@@ -314,7 +314,7 @@ docker compose exec -T app-postgres psql -U hpagent_worker -d hpagent -c "
 
 # Temporal 侧 Workflow 状态
 docker compose exec -T temporal tctl --address localhost:7233 workflow list \
-  --query "WorkflowType='WebRunWorkflow'" --pagesize 20
+  --query "WorkflowType='AgentLifecycleWorkflow'" --pagesize 20
 ```
 
 ## 7.2 判断

@@ -3,8 +3,8 @@
 ## 当前实现（Phase 3 W1 + W2-A/B/C）
 
 Web Command 在 PG 中创建 Run + Outbox，Dispatcher 固定启动 `AgentLifecycleWorkflow`。
-生产 Worker 只注册这一 Agent lifecycle；`WebRunWorkflow`、legacy Activity 与 Host
-源码暂留 W3 退役，已无 Web 生产入口或注册。W2-A 已提取共享 Conversation
+生产 Worker 只注册这一 Agent lifecycle；W3-B 已删除 `WebRunWorkflow`、legacy
+Activity、Host/Facade/loop 与旧 QQ turn Workflow。W2-A 已提取共享 Conversation
 命令；W2-B 已将 QQ ingress 接入同一 PG command / Outbox / durable 链。
 W2-C 已接入独立 PG delivery 状态与 QQ 投递消费者；W2-D 已通过 G06，见 W2 总实施报告。
 
@@ -37,7 +37,7 @@ PG authority 上检查活跃 Run。未来队列、中断或追加策略须同步
 
 错误类型、失败策略、预算投影和 Outbox consumer 暂保持原物理路径；命令直接使用共享
 PG repositories，不将这些独立能力迁入 Conversation。QQ ingress、持久化回复投递、
-跨入口 G06 E2E 和 legacy retirement 均不能由 W2-A 的领域测试替代。
+跨入口 G06 E2E 不能由 W2-A 的领域测试替代。
 
 生命周期输入仅携带 Run ID。`ChatRunInputLoader` 校验 Chat 所属 Conversation、Session、
 trigger Message，构造 `RunSource` / `RunContext`。Chat loader、资源准备、事件工厂与终态
@@ -106,8 +106,8 @@ Workflow 控制状态支持 durable replay；Activity 以稳定 operation id 去
 必须先 reconciliation，无法确认时转为 `uncertain` 并 fail-closed，绝不盲目重放。
 这不是对所有 Tool 的通用 exactly-once 承诺。
 
-Web workspace Activity 在执行分段内同时取得共享的进程内 `AccountLockRegistry`，因此当前
-单进程部署与 QQ legacy 执行保持互斥；但 Web durable lease 并不表示 QQ/Web 已统一
+Chat workspace Activity 在执行分段内同时取得共享的进程内 `AccountLockRegistry`；Web
+与 QQ 已通过同一个 durable lifecycle 执行，segment lease 与 Conversation admission
 durable ownership。QQ 的 durable lease 接入属于后续范围。
 
 `AGENT_EXECUTION_LEASE_TTL_SECONDS` 统一配置执行租约 TTL，生产值必须大于最长单次
@@ -158,8 +158,8 @@ Session 使用绑定 Conversation 的 PG active Session，终态后继续复用�
 非触发群消息仅进入可选 ambient cache；缓存失效不会改变触发判定。触发时选中的
 群上下文及来源 ID 随 Message 提交 PG，执行不重新读取缓存。长期记忆只保留 PG
 已提交用户消息与最终回答，群 recall 使用隔离的来源 context key。
-生产不再构造 QQ Host/Facade/loop/SessionStore，不再注册旧 QQ Workflow/Activity；
-历史实现留待 W3 删除。W2-C 已接入最终回复 delivery，W2-D 已完成 G06 验证。
+生产不构造 QQ Host/Facade/loop/SessionStore，也不注册旧 QQ Workflow/Activity；
+这些 runtime 实现已在 W3-B 删除。W2-C 已接入最终回复 delivery，W2-D 已完成 G06 验证。
 验证与限制见 [W2-B 报告](../../artifacts/architecture-audit/phase3/W2_B_implementation_report.md)。
 
 ## QQ delivery（W2-C）

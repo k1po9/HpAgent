@@ -1,0 +1,65 @@
+Isolated PG / Temporal fixtures: hpagent-w1b-test-63c28961e9
+.......F................................................................ [ 38%]
+........................................................................ [ 76%]
+....F........................................                            [100%]
+=================================== FAILURES ===================================
+________ test_distinct_first_deliveries_share_binding_and_pg_admission _________
+test/web_persistence/test_qq_canonical_ingress.py:188: in test_distinct_first_deliveries_share_binding_and_pg_admission
+    results = await asyncio.gather(adapter.accept(qq_message("a"), "napcat"),
+src/application/conversation.py:102: in accept
+    return await asyncio.to_thread(
+/usr/lib/python3.12/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/concurrent/futures/thread.py:58: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/persistence/uow.py:23: in wrapped
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+src/conversation_domain/surface_commands.py:77: in execute
+    uow.execute(
+src/persistence/uow.py:59: in execute
+    return self.connection.execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:300: in execute
+    raise ex.with_traceback(None)
+E   psycopg.errors.UniqueViolation: duplicate key value violates unique constraint "uq_conversations__account_conversation"
+E   DETAIL:  Key (account_id, conversation_id)=(895ab75d-b8b8-4c47-9944-96f949024741, b8dab2ae-a4e4-504a-9200-9d03db4e477b) already exists.
+_ test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect _
+/usr/lib/python3.12/asyncio/tasks.py:520: in wait_for
+    return await fut
+           ^^^^^^^^^
+.venv/lib/python3.12/site-packages/temporalio/client/_workflow.py:225: in result
+    async for event in self._fetch_history_events_for_run(
+.venv/lib/python3.12/site-packages/temporalio/client/_workflow.py:1828: in __anext__
+    await self.fetch_next_page()
+.venv/lib/python3.12/site-packages/temporalio/client/_workflow.py:1792: in fetch_next_page
+    resp = await self._client.workflow_service.get_workflow_execution_history(
+.venv/lib/python3.12/site-packages/temporalio/bridge/services_generated.py:740: in get_workflow_execution_history
+    return await self._client._rpc_call(
+.venv/lib/python3.12/site-packages/temporalio/service.py:475: in _rpc_call
+    resp = await client.call(
+.venv/lib/python3.12/site-packages/temporalio/bridge/client.py:168: in call
+    resp.ParseFromString(await resp_fut)
+                         ^^^^^^^^^^^^^^
+E   asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+test/web_persistence/test_durable_agent_activity_worker_kill.py:167: in test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect
+    await asyncio.wait_for(handle.result(), timeout=20)
+/usr/lib/python3.12/asyncio/tasks.py:519: in wait_for
+    async with timeouts.timeout(timeout):
+/usr/lib/python3.12/asyncio/timeouts.py:115: in __aexit__
+    raise TimeoutError from exc_val
+E   TimeoutError
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /home/hp/workspace/HpAgent_web/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED test/web_persistence/test_qq_canonical_ingress.py::test_distinct_first_deliveries_share_binding_and_pg_admission
+FAILED test/web_persistence/test_durable_agent_activity_worker_kill.py::test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect
+2 failed, 187 passed, 1 warning in 839.78s (0:13:59)

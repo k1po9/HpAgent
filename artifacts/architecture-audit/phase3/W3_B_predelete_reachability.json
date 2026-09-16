@@ -1,0 +1,531 @@
+{
+  "baseline": "378ca723b977426b2045e293aecd622cef337e87",
+  "roots": [
+    "main",
+    "web_api.__main__",
+    "web_api.app",
+    "orchestration.web_worker",
+    "orchestration.document_worker",
+    "persistence.migrate"
+  ],
+  "prerequisite_change": "Remove dormant orchestration.OrchestrationWorkflow lazy export; scheduled workflows already owned by memory.workflows in W3-A.",
+  "targets": [
+    {
+      "path": "src/agent/protocol.py",
+      "module": "agent.protocol",
+      "sha256": "546cef434854a53ac6a3cef49b8a45ec5434b2a9a21d72de3dc985a262bc421a",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/__init__.py",
+      "module": "agent_execution",
+      "sha256": "f16f94bf6a3f96691972f5738dc5cf11bda183e20690e6fe7c480a07ae61ccb6",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent_execution/activity_control.py:1",
+        "src/agent_execution/audit.py:1",
+        "src/agent_execution/audit.py:9",
+        "src/agent_execution/brain_action_loop.py:1",
+        "src/agent_execution/brain_action_loop.py:12",
+        "src/agent_execution/brain_action_loop.py:23",
+        "src/agent_execution/chat_bindings.py:1",
+        "src/agent_execution/chat_run_input.py:1",
+        "src/agent_execution/facade.py:1",
+        "src/agent_execution/model_budget_context.py:1",
+        "src/agent_execution/qq_host.py:1",
+        "src/agent_execution/qq_host.py:12",
+        "src/agent_execution/qq_host.py:16",
+        "src/agent_execution/run_budget.py:1",
+        "src/agent_execution/tracing/__init__.py:1",
+        "src/agent_execution/tracing/context.py:1",
+        "src/agent_execution/tracing/instrumentation.py:1",
+        "src/agent_execution/tracing/lifecycle.py:1",
+        "src/agent_execution/tracing/metadata.py:1",
+        "src/agent_execution/tracing/models.py:1",
+        "src/agent_execution/tracing/repository.py:1",
+        "src/agent_execution/tracing/sink.py:1",
+        "src/agent_execution/web_adapters.py:1",
+        "src/agent_execution/web_adapters.py:6",
+        "src/agent_execution/web_events.py:1",
+        "src/agent_execution/web_host.py:1",
+        "src/agent_execution/web_host.py:10",
+        "src/agent_execution/web_host.py:16",
+        "src/orchestration/web_activities.py:10"
+      ]
+    },
+    {
+      "path": "src/agent_execution/activity_control.py",
+      "module": "agent_execution.activity_control",
+      "sha256": "99f532c77b70bbbfdd1b35457313fac4e1fcb9f4779f65af2f2a22cd5fef4da5",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/audit.py",
+      "module": "agent_execution.audit",
+      "sha256": "c71c696e565006b181a44dfdfbb8134c1734a40adb027f71ee10ae13d20714e2",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/brain_action_loop.py",
+      "module": "agent_execution.brain_action_loop",
+      "sha256": "87780a05bfafe76fb936ea71f6ba07803070c43b0f6eccede757071a5507a4c8",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/chat_bindings.py",
+      "module": "agent_execution.chat_bindings",
+      "sha256": "bf62736eb207496c570d1f9c38d91d7cf9f0f8ff252b7d3a525a9aeb11f939da",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/chat_run_input.py",
+      "module": "agent_execution.chat_run_input",
+      "sha256": "2b3eaa01eba80ffa2c47442ae1a2affccb5acb7a0696c0755b1dc9b1443f055c",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/facade.py",
+      "module": "agent_execution.facade",
+      "sha256": "e289b904287e7a2fc8def024530e699965ae85b0a34c63cf3c15eb1fc862c40f",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent_execution/audit.py:9",
+        "src/agent_execution/brain_action_loop.py:12",
+        "src/agent_execution/brain_action_loop.py:23",
+        "src/agent_execution/qq_host.py:12",
+        "src/agent_execution/qq_host.py:16",
+        "src/agent_execution/web_adapters.py:6",
+        "src/agent_execution/web_host.py:10",
+        "src/agent_execution/web_host.py:16"
+      ]
+    },
+    {
+      "path": "src/agent_execution/model_budget_context.py",
+      "module": "agent_execution.model_budget_context",
+      "sha256": "3df7210aae850753bfc2b1237a8eb9084be0449d7f9496d5d0b215a768632bb1",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/qq_host.py",
+      "module": "agent_execution.qq_host",
+      "sha256": "46d55e1fb48db6308d2151aac0898382c9285f8f9161ef14b327e1ecb7857efd",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/run_budget.py",
+      "module": "agent_execution.run_budget",
+      "sha256": "08381aa2c11e65408be224254e2dc382cea989468cbd34348d0bf7179ce0dacd",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/tracing/__init__.py",
+      "module": "agent_execution.tracing",
+      "sha256": "c4a7d7588f40b9ed65ca9738b2e07ac321b2e88a3138346664ed7ed8b0fc39f5",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent_execution/tracing/context.py:1",
+        "src/agent_execution/tracing/instrumentation.py:1",
+        "src/agent_execution/tracing/lifecycle.py:1",
+        "src/agent_execution/tracing/metadata.py:1",
+        "src/agent_execution/tracing/models.py:1",
+        "src/agent_execution/tracing/repository.py:1",
+        "src/agent_execution/tracing/sink.py:1"
+      ]
+    },
+    {
+      "path": "src/agent_execution/tracing/context.py",
+      "module": "agent_execution.tracing.context",
+      "sha256": "8d32099a0094d1f482289510d75ea14204d0679f27baa17a755be6d4546de352",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/tracing/instrumentation.py",
+      "module": "agent_execution.tracing.instrumentation",
+      "sha256": "99d627c3ee37312b964db3ba1d88392640fa5553dd68f3a972f05db651d2e805",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/tracing/lifecycle.py",
+      "module": "agent_execution.tracing.lifecycle",
+      "sha256": "61c34c15ebaf3d23bf4caeda51c50d49d19148a06062ccffc365777a8a0616f0",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/tracing/metadata.py",
+      "module": "agent_execution.tracing.metadata",
+      "sha256": "ed660aa0a898dbf382b81aafb078f045bda7abfe4a10fa96d0b6644b16872d51",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/tracing/models.py",
+      "module": "agent_execution.tracing.models",
+      "sha256": "cbc60f13a13dc508bb0dba8bdf086166cfa65ce5da1b2dd56c7f4adc4b1c6e6f",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/tracing/repository.py",
+      "module": "agent_execution.tracing.repository",
+      "sha256": "28d4110b164ebe88fa3de8d57ce0f94c1022b3d9080fa71ec2b97ec3be6dea46",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/tracing/sink.py",
+      "module": "agent_execution.tracing.sink",
+      "sha256": "a2bc9559b22c89fd9749450bca0c3f179271efe775de196b74394342b1a5f6ce",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/web_adapters.py",
+      "module": "agent_execution.web_adapters",
+      "sha256": "2f360699743c2e356a362f1ee1b75791f52bcb7031c7a2347992d3f93b03109e",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/web_events.py",
+      "module": "agent_execution.web_events",
+      "sha256": "c98877237d02022a3f65479d5ea6a9c559a5d19ce59170d6a302790ba9f5daf3",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent_execution/web_host.py",
+      "module": "agent_execution.web_host",
+      "sha256": "9b38229abc5c5e637732c58cd7427e3b18d6395cf7def6debdaef1c32d48c6de",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/orchestration/web_activities.py:10"
+      ]
+    },
+    {
+      "path": "src/harness/__init__.py",
+      "module": "harness",
+      "sha256": "d05f0a53b90d6bfaefe9977b401bd41b3facd55d9940ae3e2671d12fc543ccd2",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/harness/activities.py:1",
+        "src/harness/context_builder.py:1",
+        "src/harness/prompts.py:1"
+      ]
+    },
+    {
+      "path": "src/harness/activities.py",
+      "module": "harness.activities",
+      "sha256": "d1ef4f07288bcf18ffe1da1dc5d770902c94bbe4cd51584f5c3545e9b0b33a1f",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/harness/context_builder.py",
+      "module": "harness.context_builder",
+      "sha256": "de29d22c2f210fdc6ccb5b7a6a450d3c434336cbf188e9a3172199f16acf70d8",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/harness/__init__.py:3"
+      ]
+    },
+    {
+      "path": "src/harness/prompts.py",
+      "module": "harness.prompts",
+      "sha256": "67d9787320d5fef66f953bcf9f2f7c2d6a00112333e0c7e2bbcd2f6e689c61f0",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/orchestration/scheduler.py",
+      "module": "orchestration.scheduler",
+      "sha256": "04c39e55c701bfc8b3b48ee0fb47a267ccbf468e7c208f2aa80a25caf3d3f148",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/orchestration/web_activities.py",
+      "module": "orchestration.web_activities",
+      "sha256": "d30e3a397ed53d4cbc173436c4bb7ff0c19cb4cda621dac8da5557fd6bf8357a",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/orchestration/web_workflow.py",
+      "module": "orchestration.web_workflow",
+      "sha256": "a4deec7bc665595c6cb7ee3be7f90bc619fcebdebf0fa1505014da1da17f7128",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/orchestration/workflow.py",
+      "module": "orchestration.workflow",
+      "sha256": "4746622517e4e98bd6a914a5977e2dbe5493dca68f483751b4eb920e291f7358",
+      "canonical_chain": "",
+      "remaining_source_importers": []
+    },
+    {
+      "path": "src/agent/__init__.py",
+      "module": "agent",
+      "sha256": "e496f37cfd9b1629de8477ff9cf343dfc0d0ac49c972f156449d09068f3d4a96",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/adapters.py:1",
+        "src/agent/adapters.py:12",
+        "src/agent/adapters.py:13",
+        "src/agent/adapters.py:14",
+        "src/agent/bus.py:1",
+        "src/agent/bus.py:11",
+        "src/agent/compensation.py:1",
+        "src/agent/compensation.py:12",
+        "src/agent/compensation.py:13",
+        "src/agent/composite.py:1",
+        "src/agent/composite.py:15",
+        "src/agent/composite.py:16",
+        "src/agent/composite.py:17",
+        "src/agent/composite.py:18",
+        "src/agent/composite.py:19",
+        "src/agent/context.py:1",
+        "src/agent/factory.py:1",
+        "src/agent/factory.py:17",
+        "src/agent/factory.py:18",
+        "src/agent/factory.py:19",
+        "src/agent/factory.py:20",
+        "src/agent/factory.py:21",
+        "src/agent/factory.py:32",
+        "src/agent/interfaces.py:1",
+        "src/agent/interfaces.py:18",
+        "src/agent/llm_agent.py:1",
+        "src/agent/llm_agent.py:13",
+        "src/agent/llm_agent.py:14",
+        "src/agent/llm_agent.py:15",
+        "src/agent/orchestrator.py:1",
+        "src/agent/orchestrator.py:25",
+        "src/agent/orchestrator.py:26",
+        "src/agent/orchestrator.py:27",
+        "src/agent/registry.py:1",
+        "src/agent/registry.py:10",
+        "src/agent/registry.py:9",
+        "src/agent/runner.py:1",
+        "src/agent/runner.py:13",
+        "src/agent/runner.py:14",
+        "src/agent/runner.py:20",
+        "src/agent/runner.py:21",
+        "src/agent/runner.py:22",
+        "src/agent/strategies.py:1",
+        "src/agent/strategies.py:22",
+        "src/agent/strategies.py:23",
+        "src/agent/strategies.py:24",
+        "src/agent/types.py:1"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/adapters.py",
+      "module": "agent.adapters",
+      "sha256": "e9c2ec7e505150d72abbb7beed6ba70822769ccf4b4adeb2fb791d89e31ae8c6",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:17"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/bus.py",
+      "module": "agent.bus",
+      "sha256": "4909c8e800005a906e249d1adb1fcff05eb52624b3291ca36dc417fa1ec8bc47",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:18",
+        "src/agent/factory.py:17"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/compensation.py",
+      "module": "agent.compensation",
+      "sha256": "76982a3818348a93b93a1df4c5657c8884fa939a47528798b03ee54a286c50c8",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:19"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/composite.py",
+      "module": "agent.composite",
+      "sha256": "e37540d6c71fef1af3e8e06b692f0a1154fc4c95aa06e3cc200900f7ec814228",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:20"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/context.py",
+      "module": "agent.context",
+      "sha256": "4994512b60b247d8f0aa057e67735c8ca4919247b555edd585bb5cff0a76d0ec",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:21",
+        "src/agent/adapters.py:12",
+        "src/agent/compensation.py:12",
+        "src/agent/composite.py:15",
+        "src/agent/llm_agent.py:13",
+        "src/agent/orchestrator.py:25",
+        "src/agent/runner.py:13",
+        "src/agent/strategies.py:22"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/factory.py",
+      "module": "agent.factory",
+      "sha256": "50909eea2acc0da696d35e830ac09b6b6a119cb7fc152e9d76caf6659da46445",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:22",
+        "src/agent/runner.py:14"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/interfaces.py",
+      "module": "agent.interfaces",
+      "sha256": "871595bcfaf0a0e19d6982c1e6d9f798d1b4374f3d04c25a538473fb74f568a9",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:28",
+        "src/agent/adapters.py:13",
+        "src/agent/bus.py:11",
+        "src/agent/composite.py:16",
+        "src/agent/factory.py:18",
+        "src/agent/llm_agent.py:14",
+        "src/agent/orchestrator.py:26",
+        "src/agent/registry.py:9",
+        "src/agent/strategies.py:23"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/llm_agent.py",
+      "module": "agent.llm_agent",
+      "sha256": "7b97aa7c76d66d46863086a0593456064381f299ef0f56b4d38f94d59128f58f",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:34",
+        "src/agent/runner.py:20"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/orchestrator.py",
+      "module": "agent.orchestrator",
+      "sha256": "ba647aee80be18caafcfc16cc6c75558640d501ad998913b7247d5a21a8be4c9",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:35",
+        "src/agent/composite.py:17",
+        "src/agent/factory.py:19",
+        "src/agent/runner.py:21"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/registry.py",
+      "module": "agent.registry",
+      "sha256": "bdd1fe418e8561aa1f50bd8c23fd42e6a2e0b5e40ff735bb926d46774bff38ae",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:36",
+        "src/agent/factory.py:20"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/runner.py",
+      "module": "agent.runner",
+      "sha256": "044974cc7d2487f83aac7b84587846fab11289b98fcbfa409306bbddc5495c6c",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:37"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/strategies.py",
+      "module": "agent.strategies",
+      "sha256": "7a95272a5cbcd0353cfb7d1db9c07cb89a8ce2cbb862f861ef8e687b6deccc64",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:38",
+        "src/agent/composite.py:18",
+        "src/agent/factory.py:21"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    },
+    {
+      "path": "src/agent/types.py",
+      "module": "agent.types",
+      "sha256": "113b8e3263f764ca3891ed4d6601a66987792c12c180efe41d972cbd60653a34",
+      "canonical_chain": "",
+      "remaining_source_importers": [
+        "src/agent/__init__.py:55",
+        "src/agent/adapters.py:14",
+        "src/agent/compensation.py:13",
+        "src/agent/composite.py:19",
+        "src/agent/factory.py:32",
+        "src/agent/interfaces.py:18",
+        "src/agent/llm_agent.py:15",
+        "src/agent/orchestrator.py:27",
+        "src/agent/registry.py:10",
+        "src/agent/runner.py:22",
+        "src/agent/strategies.py:24"
+      ],
+      "decision": "Experimental execution/registry subtree; only test/test_agent consumers remain. No production, script or dynamic registry caller; shared protocol already extracted."
+    }
+  ],
+  "dynamic_imports": [
+    {
+      "path": "src/research_domain/services.py",
+      "line": 223,
+      "target": "re"
+    },
+    {
+      "path": "src/research_activities/runtime.py",
+      "line": 494,
+      "target": "re"
+    },
+    {
+      "path": "src/research_activities/runtime.py",
+      "line": 494,
+      "target": "re"
+    },
+    {
+      "path": "src/agent_activities/runtime.py",
+      "line": 241,
+      "target": "uuid"
+    },
+    {
+      "path": "src/agent_activities/runtime.py",
+      "line": 242,
+      "target": "uuid"
+    },
+    {
+      "path": "src/agent_activities/runtime.py",
+      "line": 1434,
+      "target": "uuid"
+    }
+  ]
+}

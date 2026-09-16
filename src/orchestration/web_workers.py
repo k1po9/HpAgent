@@ -32,11 +32,7 @@ from .document_workflow import NormalizeDocumentWorkflow
 from .research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
 from .run_lifecycle_contracts import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
-    WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS,
-    WEB_AGENT_SCHEDULE_TO_CLOSE_SECONDS,
-    WEB_AGENT_START_TO_CLOSE_SECONDS,
     WEB_AGENT_TASK_QUEUE,
-    WEB_CANCEL_CLEANUP_TIMEOUT_SECONDS,
     WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS,
     WEB_FINALIZE_START_TO_CLOSE_SECONDS,
     WEB_LIFECYCLE_TASK_QUEUE,
@@ -135,13 +131,9 @@ def validate_web_worker_startup(config: Any, worker_database_url: str | None) ->
         "web_workflow_execution_timeout_seconds": WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
         "web_prepare_schedule_to_close_seconds": WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS,
         "web_prepare_start_to_close_seconds": WEB_PREPARE_START_TO_CLOSE_SECONDS,
-        "web_agent_schedule_to_close_seconds": WEB_AGENT_SCHEDULE_TO_CLOSE_SECONDS,
-        "web_agent_start_to_close_seconds": WEB_AGENT_START_TO_CLOSE_SECONDS,
         "web_agent_heartbeat_interval_seconds": WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
-        "web_agent_heartbeat_timeout_seconds": WEB_AGENT_HEARTBEAT_TIMEOUT_SECONDS,
         "web_finalize_schedule_to_close_seconds": WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS,
         "web_finalize_start_to_close_seconds": WEB_FINALIZE_START_TO_CLOSE_SECONDS,
-        "web_cancel_cleanup_timeout_seconds": WEB_CANCEL_CLEANUP_TIMEOUT_SECONDS,
     }
     for field, expected in frozen_values.items():
         if getattr(config, field) != expected:

@@ -1,0 +1,19 @@
+# Focused runtime, ownership, lifecycle and replay contracts
+.venv/bin/pytest -q test/test_durable_agent_contract.py test/test_application_services.py test/test_observability_preflight.py test/test_qq_execution_compat.py test/test_trace_events.py test/test_w1_gate_resources.py test/test_w3_survivor_ownership.py test/test_web_temporal_contract.py test/test_w3b_runtime_retirement.py test/test_agent_segment_replay.py
+
+# Actual production composition registry plus static reachability
+.venv/bin/python scripts/audit_w3b_runtime.py
+
+# Full relevant integration set, using disposable PostgreSQL/Redis/Temporal resources
+.venv/bin/python scripts/verify_w3b_contracts.py
+
+# Isolated rerun of the two initial failures
+.venv/bin/python scripts/verify_w3b_contracts.py test/web_persistence/test_qq_canonical_ingress.py::test_distinct_first_deliveries_share_binding_and_pg_admission test/web_persistence/test_durable_agent_activity_worker_kill.py::test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect
+
+# W3-B integration scope excluding the reproduced W3-C admission-authority race
+.venv/bin/python scripts/verify_w3b_contracts.py -k 'not test_distinct_first_deliveries_share_binding_and_pg_admission'
+
+# Static gates
+.venv/bin/ruff check <changed Python files>
+git diff --check
+git diff --cached --check

@@ -1,23 +1,15 @@
 from __future__ import annotations
 
-import ast
 import asyncio
-import inspect
-from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
-from temporalio.common import RetryPolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
-from actions.contracts import ActionRequest, ActionResult
+from actions.contracts import ActionRequest
 from actions.runtime import ActionRuntime
 from agent_activities.control import TemporalActivityControl
-from agent_execution.brain_action_loop import DefaultBrainActionLoop
-from agent_execution.facade import AgentExecutionFacade, ExecutionResult, NullExecutionAuditSink
-from agent_execution.qq_host import QQExecutionHost, QQLegacyExecutionControl, qq_execution_id
-from agent_execution.web_host import WebExecutionHost
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ApprovalDecisionSignal
@@ -25,13 +17,18 @@ from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from application.conversation import normalize_qq_message
-from application.execution_contracts import ExecutionRequest, StableExecutionFailure
 from common.types import ChannelType, UnifiedMessage
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.document_workflow import NormalizeDocumentWorkflow
 from orchestration.research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
+from orchestration.run_lifecycle_contracts import (
+    WEB_AGENT_TASK_QUEUE,
+    WEB_LIFECYCLE_TASK_QUEUE,
+    WEB_WORKFLOW_SCHEMA_VERSION,
+    RunLifecycleInput,
+)
 from orchestration.web_dispatcher import (
     StartDecision,
     TemporalClientAdapter,
@@ -46,27 +43,16 @@ from orchestration.web_workers import (
     validate_standalone_web_worker_topology,
     validate_web_worker_startup,
 )
-from orchestration.web_workflow import (
-    _AGENT_NO_RETRY,
-    WEB_AGENT_TASK_QUEUE,
-    WEB_LIFECYCLE_TASK_QUEUE,
-    WEB_WORKFLOW_SCHEMA_VERSION,
-    WebRunWorkflow,
-    WebRunWorkflowInput,
-)
 from web_domain.lifecycle import LifecycleAuthority
 from web_domain.run_events import RedisWebRunEventSinkFactory
-from workspace.isolation import WorkspaceRecoveryRequired
 
 
-def test_web_temporal_defaults_are_isolated_from_qq_queue():
+def test_agent_queues_are_isolated_from_scheduled_memory_queue():
     config = TemporalConfig()
     assert config.task_queue == "hpagent-task-queue"
     assert config.web_lifecycle_task_queue == WEB_LIFECYCLE_TASK_QUEUE
     assert config.web_agent_task_queue == WEB_AGENT_TASK_QUEUE
     assert len({config.task_queue, config.web_lifecycle_task_queue, config.web_agent_task_queue}) == 3
-    assert config.web_agent_heartbeat_timeout_seconds == 45
-    assert config.web_cancel_cleanup_timeout_seconds == 30
     assert config.web_real_agent_enabled is False
 
 
@@ -82,7 +68,7 @@ def test_web_worker_startup_fails_closed_without_c07_gate_or_database():
     with pytest.raises(RuntimeError, match="greater than 660 seconds"):
         validate_web_worker_startup(config, "postgresql://worker")
     config.agent_execution_lease_ttl_seconds = 900
-    config.web_agent_heartbeat_timeout_seconds = 44
+    config.web_finalize_start_to_close_seconds = 21
     with pytest.raises(RuntimeError, match="frozen Workflow contract"):
         validate_web_worker_startup(config, "postgresql://worker")
 
@@ -109,30 +95,12 @@ def test_standalone_web_worker_accepts_session_worktree_with_gate():
 
 
 def test_web_workflow_input_is_minimal_and_versioned():
-    assert list(WebRunWorkflowInput.__dataclass_fields__) == ["schema_version", "run_id"]
-    WebRunWorkflowInput(WEB_WORKFLOW_SCHEMA_VERSION, "run-1").validate()
+    assert list(RunLifecycleInput.__dataclass_fields__) == ["schema_version", "run_id"]
+    RunLifecycleInput(WEB_WORKFLOW_SCHEMA_VERSION, "run-1").validate()
     with pytest.raises(Exception):
-        WebRunWorkflowInput(2, "run-1").validate()
+        RunLifecycleInput(2, "run-1").validate()
     with pytest.raises(Exception):
-        WebRunWorkflowInput(WEB_WORKFLOW_SCHEMA_VERSION, "").validate()
-
-
-def test_agent_activity_has_an_explicit_single_attempt_policy():
-    assert isinstance(_AGENT_NO_RETRY, RetryPolicy)
-    assert _AGENT_NO_RETRY.maximum_attempts == 1
-
-
-def test_workflow_only_schedules_activities_and_uses_separate_agent_queue():
-    source = inspect.getsource(WebRunWorkflow)
-    tree = ast.parse(source)
-    names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
-    assert "WEB_LIFECYCLE_TASK_QUEUE" in names
-    assert "WEB_AGENT_TASK_QUEUE" in names
-    assert "execute_agent_activity" in source
-    assert "finalize_failed_activity" in source
-    assert "finalize_cancelled_activity" in source
-    for forbidden in ("psycopg", "redis", "ChannelRouter", "ResourcePool", "open("):
-        assert forbidden not in source
+        RunLifecycleInput(WEB_WORKFLOW_SCHEMA_VERSION, "").validate()
 
 
 def test_worker_composition_uses_two_web_task_queues(monkeypatch):
@@ -177,7 +145,7 @@ async def test_lifecycle_activity_adapter_loads_authority_only_by_run_id():
             return LifecycleAuthority(str(run_id), "running")
 
     inject_run_lifecycle(FakeLifecycle())
-    result = await prepare_run_activity(WebRunWorkflowInput(
+    result = await prepare_run_activity(RunLifecycleInput(
         WEB_WORKFLOW_SCHEMA_VERSION, "00000000-0000-0000-0000-000000000001"
     ))
     assert result == {
@@ -212,7 +180,7 @@ async def test_dispatcher_uses_deterministic_id_and_rechecks_cancel_after_start(
     class Temporal:
         async def start_web_run(self, workflow_id, request):
             assert workflow_id == f"hpagent-web-run-{run_id}"
-            assert request == WebRunWorkflowInput(1, run_id)
+            assert request == RunLifecycleInput(1, run_id)
             return "temporal-run"
 
         async def cancel_web_run(self, workflow_id):
@@ -256,7 +224,7 @@ async def test_temporal_adapter_recovers_already_started_with_same_identity():
                 kwargs["id"], "AgentLifecycleWorkflow", run_id=temporal_run_id
             )
 
-    request = WebRunWorkflowInput(1, "00000000-0000-0000-0000-000000000001")
+    request = RunLifecycleInput(1, "00000000-0000-0000-0000-000000000001")
     recovered = await TemporalClientAdapter(Client()).start_web_run(
         web_workflow_id(request.run_id), request
     )
@@ -364,100 +332,6 @@ async def test_temporal_start_temporarily_unavailable_is_retried_then_processed(
     assert calls == ["processed"]
 
 
-@pytest.mark.asyncio
-async def test_facade_has_no_reply_sink_and_delegates_to_channel_neutral_loop():
-    class Control:
-        def cancelled(self):
-            return False
-
-    class Events:
-        def for_run(self, run_id):
-            return self
-
-        async def progress(self, phase, summary):
-            return None
-
-    class Loop:
-        async def execute(self, request, control, events, audit):
-            return ExecutionResult(request.user_content, 0)
-
-    result = await AgentExecutionFacade(Loop()).execute(
-        ExecutionRequest("x", "a", "c", "s", "hello", ()), Control(), Events()
-    )
-    assert result == ExecutionResult("hello", 0)
-
-
-@pytest.mark.asyncio
-async def test_qq_host_uses_stable_message_identity_and_legacy_reply_sink():
-    calls: list[str] = []
-    message = {
-        "message_id": "qq-message-1",
-        "account_id": "account",
-        "session_id": "session",
-        "sender_id": "sender",
-        "channel_type": "napcat",
-        "content": "hello",
-        "metadata": {},
-    }
-    expected = qq_execution_id("hpagent-account", "qq-message-1")
-
-    class Loader:
-        async def load(self, user_message, execution_id):
-            assert user_message is message
-            assert execution_id == expected
-            return ExecutionRequest(
-                execution_id,
-                "account",
-                "",
-                "session",
-                "hello",
-                (),
-                trigger_message_id="qq-message-1",
-                interaction_profile="qq_private",
-            )
-
-    class Events:
-        def for_execution(self, execution_id, user_message):
-            return self
-
-        async def progress(self, phase, summary):
-            return None
-
-    class Replies:
-        async def complete(self, user_message, result):
-            calls.append("reply")
-
-    class Retention:
-        async def retain(self, request, result, user_message):
-            calls.append("retain")
-
-    class Control:
-        def cancelled(self):
-            return False
-
-    class Loop:
-        async def execute(self, request, control, events, audit):
-            calls.append(request.execution_id)
-            return ExecutionResult("done", 2)
-
-    host = QQExecutionHost(
-        Loader(),
-        AgentExecutionFacade(Loop()),
-        Events(),
-        Replies(),
-        Control(),
-        retention=Retention(),
-    )
-    result = await host.execute("hpagent-account", message)
-    assert result == {
-        "content": "done",
-        "turns": 2,
-        "session_id": "session",
-        "account_id": "account",
-    }
-    assert calls == [expected, "reply", "retain"]
-
-
 def test_qq_ingress_key_is_derived_from_protocol_identity():
     message = UnifiedMessage(
         message_id="random-local-id", sender_id="sender", channel_type=ChannelType.NAPCAT,
@@ -467,170 +341,6 @@ def test_qq_ingress_key_is_derived_from_protocol_identity():
     message.message_id = "another-random-local-id"
     assert normalize_qq_message(message, "napcat").message_key == source.message_key
     assert source.origin["external_message_id"] == "qq-message-1"
-
-
-@pytest.mark.asyncio
-async def test_web_host_loads_by_run_id_and_only_then_calls_complete():
-    calls: list[str] = []
-
-    class Loader:
-        async def load(self, run_id):
-            calls.append("load")
-            return ExecutionRequest(run_id, "account", "conversation", "session", "hello", ())
-
-    class Control:
-        def cancelled(self):
-            return False
-
-    class Events:
-        def for_run(self, run_id):
-            return self
-
-        async def progress(self, phase, summary):
-            return None
-
-    class Loop:
-        async def execute(self, request, control, events, audit):
-            calls.append("execute")
-            return ExecutionResult("done", 1)
-
-    class Replies:
-        async def complete(self, run_id, result):
-            calls.append("complete")
-            assert run_id == "run"
-            assert result.content == "done"
-
-    host = WebExecutionHost(Loader(), AgentExecutionFacade(Loop()), Events(), Replies(), Control())
-    assert (await host.execute("run")).content == "done"
-    assert calls == ["load", "execute", "complete"]
-
-
-@pytest.mark.asyncio
-async def test_web_host_acquires_resource_lease_before_facade_execution():
-    # P0/P1-3: SessionResourceRecoveryService.lease_for_run must be entered
-    # before the Facade selects tools, and the Account lock must be held for
-    # the whole execution (AE-021).
-    calls: list[str] = []
-
-    run_uuid = "00000000-0000-0000-0000-00000000000a"
-    account_uuid = "00000000-0000-0000-0000-0000000000aa"
-
-    class Loader:
-        async def load(self, run_id):
-            return ExecutionRequest(
-                run_id, account_uuid, "conversation", "session", "hello", ()
-            )
-
-    class Control:
-        def cancelled(self):
-            return False
-
-    class Events:
-        def for_run(self, run_id):
-            return self
-
-        async def progress(self, phase, summary):
-            return None
-
-    class Loop:
-        async def execute(self, request, control, events, audit):
-            calls.append(f"execute:{'lease-held' if held[0] else 'no-lease'}")
-            return ExecutionResult("done", 1)
-
-    class Replies:
-        async def complete(self, run_id, result):
-            calls.append("complete")
-
-    held: list[bool] = [False]
-
-    class Prep:
-        @asynccontextmanager
-        async def lease_for_run(self, account_id, run_id, control=None):
-            held[0] = True
-            calls.append(f"lease:{account_id}:{run_id}")
-            try:
-                yield
-            finally:
-                calls.append("lease-released")
-                held[0] = False
-
-    host = WebExecutionHost(
-        Loader(), AgentExecutionFacade(Loop()), Events(), Replies(), Control(),
-        resource_prep=Prep(),
-    )
-    assert (await host.execute(run_uuid)).content == "done"
-    assert calls == [
-        f"lease:{account_uuid}:{run_uuid}",
-        "execute:lease-held",
-        "lease-released",
-        "complete",
-    ]
-
-
-@pytest.mark.asyncio
-async def test_web_host_maps_workspace_recovery_required_to_stable_failure():
-    # Resource preparation is not a retryable internal error: an unprovable
-    # workspace recovery must surface as a stable workspace_recovery_required
-    # failure and never reach the ReplySink (no terminal state written).
-    run_uuid = "00000000-0000-0000-0000-00000000000b"
-    account_uuid = "00000000-0000-0000-0000-0000000000bb"
-    calls: list[str] = []
-
-    class Loader:
-        async def load(self, run_id):
-            return ExecutionRequest(
-                run_id, account_uuid, "conversation", "session", "hello", ()
-            )
-
-    class Control:
-        def cancelled(self):
-            return False
-
-    class Events:
-        def for_run(self, run_id):
-            return self
-
-        async def progress(self, phase, summary):
-            return None
-
-    class Loop:
-        async def execute(self, request, control, events, audit):
-            raise AssertionError("facade must not run when resource preparation fails")
-
-    class Replies:
-        async def complete(self, run_id, result):
-            calls.append("complete")
-
-    class Prep:
-        @asynccontextmanager
-        async def lease_for_run(self, account_id, run_id, control=None):
-            raise WorkspaceRecoveryRequired("dirty state belongs to another Session")
-            yield  # pragma: no cover
-
-    host = WebExecutionHost(
-        Loader(), AgentExecutionFacade(Loop()), Events(), Replies(), Control(),
-        resource_prep=Prep(),
-    )
-    with pytest.raises(StableExecutionFailure) as excinfo:
-        await host.execute(run_uuid)
-    assert excinfo.value.code == "workspace_recovery_required"
-    assert calls == []
-
-
-@pytest.mark.asyncio
-async def test_agent_activity_returns_only_after_host_completion():
-    from orchestration.web_activities import execute_agent_activity, inject_web_execution_host
-
-    class Host:
-        async def execute(self, run_id):
-            assert run_id == "00000000-0000-0000-0000-000000000001"
-            return ExecutionResult("done", 0)
-
-    inject_web_execution_host(Host())
-    result = await execute_agent_activity(WebRunWorkflowInput(
-        1, "00000000-0000-0000-0000-000000000001"
-    ))
-    assert result["status"] == "completed"
 
 
 def test_temporal_execution_control_is_safe_outside_temporal_context():
@@ -690,144 +400,6 @@ async def test_td_016_new_event_sink_never_reuses_a_previous_stream_id():
 
 
 @pytest.mark.asyncio
-async def test_brain_action_loop_uses_control_and_finishes_without_reply_sink():
-    class Control:
-        def cancelled(self):
-            return False
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Decision:
-        has_actions = False
-        content = "done"
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            assert kwargs["channel_overrides"] == {"timeout": 12}
-            return Decision()
-
-    result = await DefaultBrainActionLoop(Brain(), Actions()).execute(
-        ExecutionRequest(
-            "r",
-            "a",
-            "c",
-            "s",
-            "hello",
-            ({"role": "user", "content": "hello"},),
-            metadata={"channel_overrides": {"timeout": 12}},
-        ),
-        Control(), Events(), NullExecutionAuditSink(),
-    )
-    assert result == ExecutionResult(
-        "done",
-        1,
-        (
-            {"role": "user", "content": "hello"},
-            {"role": "assistant", "content": "done"},
-        ),
-    )
-
-
-@pytest.mark.asyncio
-async def test_web_context_rewrite_precedes_account_scoped_recall():
-    calls: list[str] = []
-
-    class Control:
-        def cancelled(self):
-            return False
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Context:
-        async def recall_long_term(self, recall_query):
-            calls.append(f"recall:{recall_query}")
-            return ("memory",)
-
-        def compose(self, memories):
-            calls.append(f"compose:{memories[0]}")
-            return ({"role": "user", "content": "isolated"},)
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Decision:
-        has_actions = False
-        content = "done"
-
-    class Brain:
-        async def rewrite_recall_query(self, **kwargs):
-            calls.append("rewrite")
-            return "rewritten", ()
-
-        async def generate_chat_decision(self, **kwargs):
-            assert kwargs["messages"][0]["content"] == "isolated"
-            return Decision()
-
-    request = ExecutionRequest(
-        "run",
-        "account",
-        "conversation",
-        "session",
-        "hello",
-        (),
-        context_provider=Context(),
-    )
-    result = await DefaultBrainActionLoop(Brain(), Actions()).execute(
-        request, Control(), Events(), NullExecutionAuditSink()
-    )
-    assert result.content == "done"
-    assert calls == ["rewrite", "recall:rewritten", "compose:memory"]
-
-
-@pytest.mark.asyncio
-async def test_brain_action_loop_cancels_an_inflight_model_call():
-    class Control:
-        checks = 0
-
-        def cancelled(self):
-            self.checks += 1
-            return self.checks > 1
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            await asyncio.sleep(60)
-
-    with pytest.raises(asyncio.CancelledError):
-        await DefaultBrainActionLoop(Brain(), Actions()).execute(
-            ExecutionRequest("r", "a", "c", "s", "hello", ()),
-            Control(),
-            Events(),
-            NullExecutionAuditSink(),
-        )
-
-
-@pytest.mark.asyncio
 async def test_action_runtime_cache_is_partitioned_and_cleared_by_execution():
     class Sandbox:
         async def select_tools(self, query, top_k):
@@ -875,115 +447,6 @@ async def test_ae_030_tool_invocation_key_is_stable_for_activity_redelivery():
     assert first.metadata["invocation_key"] == (
         "tool-invocation:stable-execution:tool-call"
     )
-
-
-@pytest.mark.asyncio
-async def test_ae_028_side_effect_intent_audit_fails_closed_before_tool_execution():
-    executed = []
-    action = ActionRequest("call", "external_write", {})
-
-    class Control:
-        def cancelled(self):
-            return False
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-        def side_effect_class(self, session_id, tool_name):
-            return "external_write"
-
-        async def execute_request(self, request, **kwargs):
-            executed.append(request.id)
-
-    class Decision:
-        has_actions = True
-        content = ""
-        action_requests = [action]
-        stop_reason = "tool_use"
-        input_context = {}
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            return Decision()
-
-    with pytest.raises(StableExecutionFailure) as failure:
-        await DefaultBrainActionLoop(Brain(), Actions()).execute(
-            ExecutionRequest("run", "a", "c", "s", "hello", ()),
-            Control(),
-            Events(),
-            NullExecutionAuditSink(),
-        )
-    assert failure.value.code == "side_effect_audit_unavailable"
-    assert executed == []
-
-
-@pytest.mark.asyncio
-async def test_td_022_cancel_hostile_tool_is_detached_within_cleanup_budget():
-    late_results = []
-    tool_started = {"value": False}
-
-    class Control:
-        def cancelled(self):
-            return tool_started["value"]
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-        async def execute_request(self, request, **kwargs):
-            tool_started["value"] = True
-            try:
-                await asyncio.sleep(60)
-            except asyncio.CancelledError:
-                # Simulate a cancellation-hostile thread/SDK returning late.
-                await asyncio.sleep(0.1)
-                late_results.append("ignored")
-                return ActionResult(request=request, output="late")
-
-    request = ActionRequest("tool-1", "unsafe_tool", {})
-
-    class FirstDecision:
-        has_actions = True
-        content = ""
-        action_requests = [request]
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            return FirstDecision()
-
-    loop = DefaultBrainActionLoop(
-        Brain(),
-        Actions(),
-        cancel_cleanup_timeout_seconds=0.01,
-        cancel_poll_interval_seconds=0.01,
-    )
-    with pytest.raises(asyncio.CancelledError):
-        await asyncio.wait_for(
-            loop.execute(
-                ExecutionRequest("run", "a", "c", "s", "hello", ()),
-                Control(),
-                Events(),
-                NullExecutionAuditSink(),
-            ),
-            timeout=0.1,
-        )
-    await asyncio.sleep(0.15)
-    assert late_results == ["ignored"]
 
 
 @pytest.mark.asyncio
@@ -1081,416 +544,3 @@ async def test_td_012_td_014_reconciler_converges_every_temporal_close_fact(
     assert expected in calls
     if run_status == "completed":
         assert not any(call[0] == "failed" for call in calls)
-
-
-@pytest.mark.asyncio
-async def test_deadline_expired_prevents_model_call():
-    model_calls: list[str] = []
-
-    class Control:
-        @property
-        def deadline(self):
-            return datetime.now(UTC) - timedelta(seconds=1)
-
-        def cancelled(self):
-            return False
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            model_calls.append("called")
-            raise AssertionError("model must not be called after the deadline")
-
-    with pytest.raises(StableExecutionFailure) as failure:
-        await DefaultBrainActionLoop(Brain(), Actions()).execute(
-            ExecutionRequest("r", "a", "c", "s", "hello", ()),
-            Control(),
-            Events(),
-            NullExecutionAuditSink(),
-        )
-    assert failure.value.code == "run_timeout"
-    assert model_calls == []
-
-
-@pytest.mark.asyncio
-async def test_model_over_deadline_is_stable_model_timeout():
-    class Control:
-        def __init__(self):
-            self._deadline = datetime.now(UTC) + timedelta(seconds=1.3)
-
-        @property
-        def deadline(self):
-            return self._deadline
-
-        def cancelled(self):
-            return False
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            await asyncio.sleep(5)
-
-    loop = DefaultBrainActionLoop(
-        Brain(),
-        Actions(),
-        cancel_cleanup_timeout_seconds=0.5,
-        cancel_poll_interval_seconds=0.05,
-    )
-    with pytest.raises(StableExecutionFailure) as failure:
-        await loop.execute(
-            ExecutionRequest("r", "a", "c", "s", "hello", ()),
-            Control(),
-            Events(),
-            NullExecutionAuditSink(),
-        )
-    assert failure.value.code == "model_timeout"
-
-
-@pytest.mark.asyncio
-async def test_tool_over_deadline_is_run_timeout():
-    class Control:
-        def __init__(self):
-            self._deadline = datetime.now(UTC) + timedelta(seconds=1.3)
-
-        @property
-        def deadline(self):
-            return self._deadline
-
-        def cancelled(self):
-            return False
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-        async def execute_request(self, request, **kwargs):
-            await asyncio.sleep(5)
-
-    request = ActionRequest("tool-1", "safe_tool", {})
-
-    class FirstDecision:
-        has_actions = True
-        content = ""
-        action_requests = [request]
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            return FirstDecision()
-
-    loop = DefaultBrainActionLoop(
-        Brain(),
-        Actions(),
-        cancel_cleanup_timeout_seconds=0.5,
-        cancel_poll_interval_seconds=0.05,
-    )
-    with pytest.raises(StableExecutionFailure) as failure:
-        await loop.execute(
-            ExecutionRequest("run", "a", "c", "s", "hello", ()),
-            Control(),
-            Events(),
-            NullExecutionAuditSink(),
-        )
-    # The Activity's global deadline expiring while a tool is in flight is a
-    # whole-Run timeout, not an unexpected cancellation: the Workflow must
-    # finalize it as run_timeout instead of treating it as a user cancel.
-    assert failure.value.code == "run_timeout"
-
-
-@pytest.mark.asyncio
-async def test_tool_per_call_cap_is_tool_timeout():
-    class Control:
-        @property
-        def deadline(self):
-            return datetime.max.replace(tzinfo=UTC)
-
-        def cancelled(self):
-            return False
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-        async def execute_request(self, request, **kwargs):
-            await asyncio.sleep(5)
-
-    request = ActionRequest("tool-1", "safe_tool", {})
-
-    class FirstDecision:
-        has_actions = True
-        content = ""
-        action_requests = [request]
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            return FirstDecision()
-
-    loop = DefaultBrainActionLoop(
-        Brain(),
-        Actions(),
-        cancel_cleanup_timeout_seconds=0.5,
-        cancel_poll_interval_seconds=0.05,
-        deadline_margin_seconds=0.0,
-        tool_timeout_seconds=0.2,
-    )
-    with pytest.raises(StableExecutionFailure) as failure:
-        await loop.execute(
-            ExecutionRequest("run", "a", "c", "s", "hello", ()),
-            Control(),
-            Events(),
-            NullExecutionAuditSink(),
-        )
-    # A per-tool call cap expiring is a single-tool timeout, independent of the
-    # (infinite) whole-Run deadline.
-    assert failure.value.code == "tool_timeout"
-
-
-@pytest.mark.asyncio
-async def test_cancel_wins_over_deadline():
-    class Control:
-        @property
-        def deadline(self):
-            return datetime.now(UTC) - timedelta(seconds=1)
-
-        def cancelled(self):
-            return True
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            raise AssertionError("model must not be called")
-
-    with pytest.raises(asyncio.CancelledError):
-        await DefaultBrainActionLoop(Brain(), Actions()).execute(
-            ExecutionRequest("r", "a", "c", "s", "hello", ()),
-            Control(),
-            Events(),
-            NullExecutionAuditSink(),
-        )
-
-
-@pytest.mark.asyncio
-async def test_cancellation_is_not_swallowed_by_deadline_timeout():
-    cancel_toggled = {"value": False}
-
-    class Control:
-        def __init__(self):
-            # Larger than the 1.0s safety margin so the model is entered and
-            # toggles cancellation well before the deadline would expire.
-            self._deadline = datetime.now(UTC) + timedelta(seconds=1.4)
-
-        @property
-        def deadline(self):
-            return self._deadline
-
-        def cancelled(self):
-            return cancel_toggled["value"]
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            await asyncio.sleep(0.1)
-            cancel_toggled["value"] = True
-            await asyncio.sleep(5)
-
-    loop = DefaultBrainActionLoop(
-        Brain(),
-        Actions(),
-        cancel_cleanup_timeout_seconds=0.5,
-        cancel_poll_interval_seconds=0.02,
-    )
-    with pytest.raises(asyncio.CancelledError):
-        await loop.execute(
-            ExecutionRequest("r", "a", "c", "s", "hello", ()),
-            Control(),
-            Events(),
-            NullExecutionAuditSink(),
-        )
-
-
-@pytest.mark.asyncio
-async def test_deadline_detaches_late_model_result():
-    late_results: list[str] = []
-
-    class Control:
-        def __init__(self):
-            # Larger than the 1.0s safety margin so the model is entered.
-            self._deadline = datetime.now(UTC) + timedelta(seconds=1.15)
-
-        @property
-        def deadline(self):
-            return self._deadline
-
-        def cancelled(self):
-            return False
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            try:
-                await asyncio.sleep(60)
-            except asyncio.CancelledError:
-                # Cancellation-hostile model: it returns late, after the budget.
-                await asyncio.sleep(0.1)
-                late_results.append("late-model-result")
-
-    loop = DefaultBrainActionLoop(
-        Brain(),
-        Actions(),
-        cancel_cleanup_timeout_seconds=0.01,
-        cancel_poll_interval_seconds=0.01,
-    )
-    with pytest.raises(StableExecutionFailure) as failure:
-        await loop.execute(
-            ExecutionRequest("r", "a", "c", "s", "hello", ()),
-            Control(),
-            Events(),
-            NullExecutionAuditSink(),
-        )
-    assert failure.value.code == "model_timeout"
-    await asyncio.sleep(0.15)
-    assert late_results == ["late-model-result"]
-
-
-@pytest.mark.asyncio
-async def test_deadline_during_recall_is_run_timeout():
-    calls: list[str] = []
-
-    class Control:
-        def __init__(self):
-            # Larger than the 1.0s safety margin so rewrite is entered before
-            # the deadline expires; recall then crosses it.
-            self._deadline = datetime.now(UTC) + timedelta(seconds=1.1)
-
-        @property
-        def deadline(self):
-            return self._deadline
-
-        def cancelled(self):
-            return False
-
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Context:
-        async def recall_long_term(self, recall_query):
-            await asyncio.sleep(5)
-
-        def compose(self, memories):
-            calls.append("compose")
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Brain:
-        async def rewrite_recall_query(self, **kwargs):
-            calls.append("rewrite")
-            return "rewritten", ()
-
-    request = ExecutionRequest(
-        "run", "a", "c", "s", "hello", (), context_provider=Context(),
-    )
-    with pytest.raises(StableExecutionFailure) as failure:
-        await DefaultBrainActionLoop(Brain(), Actions()).execute(
-            request, Control(), Events(), NullExecutionAuditSink(),
-        )
-    assert failure.value.code == "run_timeout"
-    assert calls == ["rewrite"]
-
-
-@pytest.mark.asyncio
-async def test_qq_infinite_deadline_control_is_a_no_op():
-    class Events:
-        async def progress(self, phase, summary):
-            return None
-
-    class Actions:
-        def reset_turn(self, session_id, execution_id):
-            return None
-
-        async def select_tools(self, **kwargs):
-            return []
-
-    class Decision:
-        has_actions = False
-        content = "done"
-
-    class Brain:
-        async def generate_chat_decision(self, **kwargs):
-            return Decision()
-
-    result = await DefaultBrainActionLoop(Brain(), Actions()).execute(
-        ExecutionRequest("r", "a", "c", "s", "hello", ()),
-        QQLegacyExecutionControl(),
-        Events(),
-        NullExecutionAuditSink(),
-    )
-    assert result.content == "done"

@@ -1,27 +1,29 @@
 # HpAgent
 
-HpAgent 是一个同时面向 QQ 与 Web 的 Agent 应用。两种入口保留各自的接入、状态和输出方式；QQ 与 Web legacy 路径共享 `AgentExecutionFacade → DefaultBrainActionLoop`，Web 还可启用 Temporal durable Agent Workflow。PostgreSQL 保存 Web 领域数据、Agent transcript/operation 与统一身份，Hindsight 保存长期记忆，Sandbox/Workspace 隔离工具执行。
+HpAgent 是一个同时面向 QQ 与 Web 的 Agent 应用。两种入口共享 Conversation Command、PostgreSQL Run/Outbox 与 canonical durable Agent runtime。Hindsight 保存长期记忆，Sandbox/Workspace 隔离工具执行。
 
 ## 当前架构
 
 ```text
-QQ User ── QQ Channel ── ConversationService ── QQ Workflow ── QQExecutionHost ─┐
-                                                                               ├─ AgentExecutionFacade
-Browser ── FastAPI ── PostgreSQL/Outbox ── WebRunWorkflow ── WebExecutionHost ─┘
-                                                                                      │
-                                                                          DefaultBrainActionLoop
-                                                                                      │
-                                                                    BrainEngine + ActionRuntime
-                                                                                      │
-                                                               Models / Sandbox / Tools / Memory
+Browser ── FastAPI ──────────────┐
+                                ├─ Conversation Command ── PG Run + Outbox
+QQ User ── QQ Channel / Ingress ─┘                              │
+                                                   AgentLifecycleWorkflow
+                                                              │
+                                                       AgentRunWorkflow
+                                                              │
+                                                 ReAct / Plan-and-Execute
+                                                              │
+                                                  Durable Agent Activities
+                                                              │
+                                                   BrainEngine + ActionRuntime
 ```
 
-- QQ 与 Web 不共享 transport 或短期状态模型。
-- QQ 与 Web legacy 路径共享单一 Agent loop；Durable Agent MVP 的策略范围固定为
-  `react` 与 `plan_and_execute`。
+- QQ 与 Web 共享 PG Conversation/Message/Session 和 Run authority，各自负责协议接入与结果展示/投递。
+- Runtime 固定为 durable Agent，策略为 `react` 或 `plan_and_execute`。
+- Research、Document、Artifact 保留各自独立 Workflow。
 - 统一账号事实源是 PostgreSQL `accounts` 与 `identity_bindings`；QQ 不回退到 JSON 账号库。
-- Blackboard 相关 contract、router 扩展点和设计属于 Reserved / Planned，不属于本次
-  MVP，也未接入当前生产运行时。
+- 实验 Multi-Agent 执行/注册实现已退役；Blackboard 仍不属于当前能力。
 
 ## 技术栈
 
@@ -36,8 +38,9 @@ Browser ── FastAPI ── PostgreSQL/Outbox ── WebRunWorkflow ── Web
 | 路径 | 职责 |
 |---|---|
 | `src/main.py` | Agent/QQ Worker 入口 |
-| `src/bootstrap/qq.py` | QQ Surface、统一 Facade 与应用服务组装 |
-| `src/agent_execution/` | QQ/Web Host、Facade、唯一 single-agent loop |
+| `src/bootstrap/qq.py` | QQ Surface 与共享 Brain/Actions、反思/指标服务组装 |
+| `src/conversation_domain/` | 共享 Conversation commands、会话规则与 Chat Run 输入 |
+| `src/tracing/` | 共享 Trace contracts、存储和事件投影 |
 | `src/agent_workflows/` | Durable ReAct、Plan-and-Execute 与策略路由 Workflow |
 | `src/agent_activities/` | Context/Model/Tool Activities 与 Agent PostgreSQL data plane |
 | `src/orchestration/` | Temporal Workflow、Activity、Web Outbox/Reconciler |
@@ -90,13 +93,12 @@ docker compose --profile tools up -d temporal-web
 `AgentRunWorkflow` → ReAct / Plan-and-Execute。没有 legacy/durable 分流开关。
 发送消息 API 通过 `agent_strategy` 选择 `react` 或 `plan_and_execute`。
 `AGENT_EXECUTION_LEASE_TTL_SECONDS=900` 控制执行分段租约，不限制 Run 的总寿命。
-等待释放租约，恢复后重新获取 fencing token。QQ 暂时保留旧入口，后续在 W2 收敛。
+等待释放租约，恢复后重新获取 fencing token。QQ 同样通过 PG Run/Outbox 进入这一执行链。
 
 Durable Agent MVP 提供 ReAct 与 Plan-and-Execute 的 durable Workflow 控制流。模型、
 工具和计划操作使用稳定 operation ID；只读或具备明确幂等语义的 Tool 可安全重试，
 不可确认的非幂等副作用采用 reconciliation / fail-closed，避免自动重复执行。此能力
-不等同于承诺所有 Tool exactly-once；Blackboard、QQ durable ownership 统一和
-Continue-As-New 均不属于本次 MVP。
+不等同于承诺所有 Tool exactly-once；Blackboard 与 Continue-As-New 均不属于当前实现。
 
 ## 常用命令
 

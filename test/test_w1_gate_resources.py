@@ -15,7 +15,7 @@ async def test_startup_failure_releases_shared_resources(monkeypatch, failure):
 
     scheduler = SimpleNamespace(register_handler=Mock())
     deps = SimpleNamespace(
-        qq_execution_host=object(), session_archive=object(), memory_reflection=object(),
+        memory_reflection=object(),
         metrics=object(), scheduler=scheduler, mcp_manager=SimpleNamespace(disconnect=AsyncMock()),
         workspace_isolation=SimpleNamespace(close=Mock()),
     )

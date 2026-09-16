@@ -118,7 +118,6 @@ def test_retirement_graph_has_no_unextracted_runtime_dependencies():
         sys.path.pop(0)
     assert report["forbidden_canonical_imports"] == []
     by_module = {row["module"]: row for row in rows if row["module"]}
-    assert by_module["agent.protocol"]["baseline_status"] == "SURVIVOR_EXTRACT_REQUIRED"
-    assert by_module["agent.protocol"]["status"] == "SAFE_TO_DELETE_AFTER_W3_A"
+    assert "agent.protocol" not in by_module  # W3-B removed the forwarding surface.
     assert by_module["session.store"]["status"] == "STILL_REACHABLE"
     assert by_module["orchestration.run_lifecycle_contracts"]["status"] == "STILL_REACHABLE"

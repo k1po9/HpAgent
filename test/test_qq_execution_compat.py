@@ -2,33 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from agent_execution.facade import ExecutionResult
-from agent_execution.qq_host import (
-    QQLegacyRequestLoader,
-    ReplyServiceQQEventSinkFactory,
-    TurnMemoryQQAuditSinkFactory,
-    TurnMemoryQQRetentionSink,
-)
-from application.execution_contracts import ExecutionRequest
 from application.reply import ReplyService
-from harness.activities import (
-    inject_services,
-    process_turn_activity,
-)
-
-
-class _UnusedService:
-    pass
-
-
-def _inject_host(host):
-    unused = _UnusedService()
-    inject_services(
-        qq_execution_host=host,
-        session_archive=unused,
-        memory_reflection=unused,
-        metrics=unused,
-    )
 
 
 def _group_message():
@@ -76,13 +50,10 @@ async def test_ae_012_013_qq_final_and_progress_preserve_router_behavior():
     reply._tool_hints = {"search": "正在搜索"}
     message = _group_message()
 
-    events = ReplyServiceQQEventSinkFactory(reply).for_execution(
-        "execution", message
-    )
-    await events.tool_progress(("search",))
+    from types import SimpleNamespace
+
+    await reply.send_progress([SimpleNamespace(name="search")], message)
     await reply.send_final("answer", message)
-    await events.close()
-    await events.tool_progress(("late",))
 
     assert [item.content for item in sent] == [
         "[CQ:at,qq=sender] 正在搜索",
@@ -104,140 +75,3 @@ async def test_ae_014_qq_channel_failure_does_not_raise_from_reply_service():
     message = _group_message()
     message["metadata"] = {"detail_type": "private"}
     assert await reply.send_final("computed result", message) is False
-
-
-@pytest.mark.asyncio
-async def test_qq_retain_uses_per_execution_document_after_reply():
-    """Phase F：QQ retain 只取用户消息 + 最终答案，用稳定 qq-execution:{id}。
-
-    不再使用 facade 的 memory_observations，也不再反复覆盖同一 session document。
-    """
-    retained = []
-
-    class Memory:
-        async def retain_document(self, **kwargs):
-            retained.append(kwargs)
-            return 1
-
-    request = ExecutionRequest(
-        "execution", "account", "", "session", "question", ()
-    )
-    await TurnMemoryQQRetentionSink(Memory()).retain(
-        request,
-        ExecutionResult("answer", 1, ()),
-        _group_message(),
-    )
-
-    assert retained[0]["document_id"] == "qq-execution:execution"
-    assert retained[0]["events"] == [
-        {"role": "user", "content": "question"},
-        {"role": "assistant", "content": "answer"},
-    ]
-    assert retained[0]["account_id"] == "account"
-    assert retained[0]["session_id"] == "session"
-    assert retained[0]["metadata"]["source"] == "qq"
-
-
-@pytest.mark.asyncio
-async def test_ae_030_qq_loader_is_retry_idempotent_and_sanitizes_metadata():
-    recorded = []
-    events = []
-
-    class Event:
-        def __init__(self, metadata):
-            self.metadata = metadata
-
-    class Memory:
-        async def ensure_session(self, session_id, account_id, channel_type):
-            return None
-
-        async def load_recent_events(self, session_id, limit):
-            return list(events)
-
-        async def record_user_message(self, **kwargs):
-            recorded.append(kwargs)
-            event = Event(kwargs["metadata"])
-            events.append(event)
-            return event
-
-        async def recall_memories(self, **kwargs):
-            return (), "memory"
-
-    class Context:
-        def build(self, **kwargs):
-            return [{"role": "user", "content": "isolated"}]
-
-    class GroupContext:
-        async def subscribe(self, group_id, session_id):
-            return None
-
-        async def get_window(self, group_id):
-            return "recent group conversation"
-
-    message = _group_message()
-    message["metadata"]["sender_name"] = "Alice"
-    message["metadata"]["access_token"] = "must-not-cross-port"
-    loader = QQLegacyRequestLoader(Memory(), Context(), GroupContext())
-    first = await loader.load(message, "stable-execution")
-    second = await loader.load(message, "stable-execution")
-
-    assert len(recorded) == 1
-    assert first.execution_id == second.execution_id == "stable-execution"
-    assert first.context == second.context
-    assert first.metadata is not None
-    assert "access_token" not in first.metadata
-    assert first.metadata["execution_id"] == "stable-execution"
-    assert first.group_context_text == "recent group conversation"
-    assert first.sender_name == "Alice"
-    memories = await first.context_provider.recall_long_term("rewritten")
-    assert memories == ("memory",)
-
-
-@pytest.mark.asyncio
-async def test_qq_audit_adapter_keeps_model_and_tool_events_in_legacy_memory():
-    calls = []
-
-    class Memory:
-        async def record_model_message(self, **kwargs):
-            calls.append(("model", kwargs))
-
-        async def record_tool_result(self, **kwargs):
-            calls.append(("tool", kwargs))
-
-    class Result:
-        display_result = "summary"
-        error = None
-        output = "raw"
-        metadata = {"safe": True}
-
-    request = ExecutionRequest(
-        "execution", "account", "", "session", "question", ()
-    )
-    audit = TurnMemoryQQAuditSinkFactory(Memory()).for_execution(
-        "execution", request
-    )
-    await audit.model_step(
-        "execution", 1, "thinking", ({"name": "search"},), "tool_use", None
-    )
-    await audit.tool_result("execution", "call", "search", Result())
-
-    assert [item[0] for item in calls] == ["model", "tool"]
-    assert calls[0][1]["session_id"] == "session"
-    assert calls[1][1]["result"] == "summary"
-
-
-@pytest.mark.asyncio
-async def test_qq_activity_uses_shared_host_and_never_falls_back_after_failure():
-    calls = []
-
-    class NewHost:
-        async def execute(self, workflow_id, user_message):
-            calls.append(("new", workflow_id))
-            raise RuntimeError("new path failed after selection")
-
-    message = _group_message()
-    _inject_host(NewHost())
-    with pytest.raises(RuntimeError, match="new path failed"):
-        await process_turn_activity(message)
-
-    assert calls == [("new", "direct-session")]

@@ -1,92 +1,59 @@
 # 04 — 关键时序
 
-## Web Chat
+## Web / QQ canonical Run
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser
-    participant A as FastAPI
-    participant D as PostgreSQL/Outbox
-    participant T as Temporal
-    participant H as WebExecutionHost
-    participant F as AgentExecutionFacade
-    participant C as Brain/Action/Sandbox
-    participant S as SSE
-    participant M as Hindsight
+    participant S as Web or QQ surface
+    participant C as Conversation Command
+    participant P as PostgreSQL / Outbox
+    participant D as Dispatcher
+    participant L as AgentLifecycleWorkflow
+    participant A as AgentRunWorkflow
+    participant X as Durable Activities
+    participant O as Web SSE or QQ delivery
 
-    B->>A: send message (idempotency key)
-    A->>D: message + run + start_run outbox (one transaction)
-    A-->>B: accepted run_id
-    D->>T: dispatcher starts WebRunWorkflow
-    T->>H: execute_agent_activity(run_id)
-    H->>F: execute(request, control, sinks)
-    F->>C: model/tool loop
-    C-->>F: result
-    F-->>H: ExecutionResult
-    H->>D: complete run/message
-    D-->>S: terminal/online event
-    S-->>B: progress and terminal snapshot
-    D->>M: retain_memory outbox worker
+    S->>C: message / cancel / retry
+    C->>P: Message + Session + Run + Outbox (one transaction)
+    P->>D: claim start_run
+    D->>L: start deterministic workflow ID
+    L->>X: prepare + load source input
+    L->>A: execute child Agent workflow
+    A->>X: context / model / tool / planning segments
+    X->>P: operation results + transcript events
+    A-->>L: stable result reference
+    L->>X: finalize authoritative result
+    X->>P: terminal Run + Message + delivery/outbox
+    P-->>O: committed result projection
 ```
 
-Outbox recovery reclaims expired leases. Reconciler compares active PostgreSQL runs with Temporal facts after worker/process interruption.
+Web and QQ enter the same chain. QQ protocol identity and group context are frozen at ingress;
+execution does not return to a channel-specific Host. QQ delivery retries committed payload
+without creating a new Run or model call.
 
-## QQ Chat
-
-```mermaid
-sequenceDiagram
-    participant Q as QQ
-    participant I as Channel/Ingress
-    participant C as ConversationService
-    participant T as QQ Workflow
-    participant H as QQExecutionHost
-    participant F as AgentExecutionFacade
-    participant L as DefaultBrainActionLoop
-    participant R as ReplyService
-    participant M as Hindsight
-
-    Q->>I: message
-    I->>C: normalized UnifiedMessage
-    C->>C: resolve PostgreSQL identity and prepare workspace
-    C->>T: start/signal user_message
-    T->>H: process_turn_activity
-    H->>F: ExecutionRequest + QQ sinks
-    F->>L: execute
-    L->>M: rewrite + recall
-    L->>L: model/tool iterations
-    L-->>F: ExecutionResult
-    H->>R: final/progress reply
-    R-->>Q: QQ reply
-    H->>M: retain per-execution document
-```
-
-`execution_id` 由 Workflow ID 与 message ID 确定生成；Activity retry 会复用同一 ID，用户事件与副作用审计按 execution 隔离。
-
-## Web Failure / Cancel
+## Failure / recovery
 
 ```mermaid
 sequenceDiagram
-    participant B as Browser
-    participant A as API
-    participant D as PostgreSQL/Outbox
+    participant P as PostgreSQL / Outbox
     participant T as Temporal
-    participant H as WebExecutionHost
+    participant X as Durable Activity
 
-    alt User cancel
-        B->>A: cancel run
-        A->>D: cancel_requested + cancel_run outbox
-        D->>T: cancel workflow
-        T->>H: cancellation observed at checkpoint
-        H->>D: finalize cancelled
-    else Model/tool/run timeout or stable failure
-        H-->>T: StableExecutionFailure(error_code)
-        T->>D: finalize failed
-    else Dispatcher/worker interruption
-        D->>D: recover expired outbox lease
-        D->>T: retry idempotent dispatch/activity
-        D->>D: reconciler converges terminal state
+    alt Dispatcher loses Start response
+        P->>T: retry deterministic Start
+        T-->>P: existing canonical Run ID
+    else Worker or Activity exits
+        T->>X: replay / retry stable operation ID
+        X->>P: validate fencing and deduplicate result/intent
+    else User cancels
+        P->>T: cancel canonical lifecycle
+        T->>X: heartbeat cancellation
+        X->>P: finalize cancelled
+    else Unsafe side effect cannot be reconciled
+        X->>P: mark operation uncertain
+        T-->>P: fail Run through lifecycle finalizer
     end
-    D-->>B: SSE terminal snapshot; reconnect resumes by cursor
 ```
 
-Temporal retry只重做可重试边界；数据库 terminal transition、Outbox claim 和 execution-scoped audit 提供幂等保护。Workspace 无法安全恢复时使用稳定 `workspace_recovery_required` 失败码收口。
+Canonical phase3 History fixtures cover lifecycle, ReAct, Plan-and-Execute and tool approval.
+History for deleted `WebRunWorkflow` retired with that Workflow type.

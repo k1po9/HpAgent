@@ -9,7 +9,6 @@ import pytest
 
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.store import ToolOperationState
-from agent_execution.web_host import WebExecutionHost
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     ChatContext,
@@ -502,53 +501,45 @@ async def test_deduplicated_tool_activity_still_projects_tool_node(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_web_host_closes_agent_root_after_authoritative_reply():
+@pytest.mark.parametrize("commit_fails", [False, True])
+async def test_canonical_finalize_closes_root_only_after_authoritative_commit(commit_fails):
+    from agent_workflows.contracts import FinalizeResultInput
+
     run_id = str(uuid4())
-    recorded: list[tuple] = []
-
-    class Loader:
-        async def load(self, _run_id):
-            return ExecutionRequest(run_id, str(uuid4()), str(uuid4()), str(uuid4()), "hi", ())
-
-    class Facade:
-        async def execute(self, request, control, events, audit):
-            return SimpleNamespace(content="done", tool_turns=1, memory_observations=())
+    recorded = []
+    root_id = trace_node_id(run_id, "agent_execution")
 
     class Events:
-        async def started(self):
-            return None
-
-        async def progress(self, phase, summary):
-            return None
-
-        async def trace_start(self, node_id, parent_id, name, node_type, metadata=None):
-            recorded.append(("start", node_id, parent_id, name))
+        async def trace_start(self, *args, **kwargs):
+            recorded.append(("start", args[0]))
 
         async def trace_end(self, node_id, status, metadata=None):
-            recorded.append(("end", node_id, status, metadata))
+            recorded.append(("end", node_id, status))
 
         async def close(self):
             recorded.append(("close",))
 
-    class EventFactory:
-        def for_run(self, _run_id):
-            return Events()
+    class Lifecycle:
+        def complete(self, value, content):
+            assert str(value) == run_id and content == "done"
+            if commit_fails:
+                raise RuntimeError("commit failed")
+            recorded.append(("committed",))
+            return SimpleNamespace(run_id=run_id, status="completed")
 
-    class Replies:
-        async def complete(self, _run_id, result):
-            assert result.content == "done"
-
-    class Control:
-        def cancelled(self):
-            return False
-
-    result = await WebExecutionHost(
-        Loader(), Facade(), EventFactory(), Replies(), Control()
-    ).execute(run_id)
-
-    assert result.content == "done"
-    assert recorded[0][0] == "start"
-    assert recorded[0][2:] == (None, "AgentExecution")
-    assert recorded[1][0] == "end"
-    assert recorded[1][2] == "completed"
+    runtime = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
+        store=SimpleNamespace(result_content=lambda ref: "done"),
+        loader=None, brain=None, actions=None,
+        event_factory=SimpleNamespace(for_run=lambda value: Events()),
+        lifecycle=Lifecycle(), resource_prep=None,
+    )
+    request = FinalizeResultInput(AGENT_SCHEMA_VERSION, run_id, "result")
+    if commit_fails:
+        with pytest.raises(RuntimeError, match="commit failed"):
+            await runtime.finalize_agent_result(request)
+        assert ("end", root_id, "completed") not in recorded
+    else:
+        assert (await runtime.finalize_agent_result(request))["status"] == "completed"
+        assert recorded.index(("committed",)) < recorded.index(("end", root_id, "completed"))
     assert recorded[-1] == ("close",)

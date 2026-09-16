@@ -1,0 +1,29 @@
+Isolated PG / Temporal fixtures: hpagent-w1b-test-a6f2ce8fe6
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_distinct_first_deliveries_share_binding_and_pg_admission _________
+test/web_persistence/test_qq_canonical_ingress.py:188: in test_distinct_first_deliveries_share_binding_and_pg_admission
+    results = await asyncio.gather(adapter.accept(qq_message("a"), "napcat"),
+src/application/conversation.py:102: in accept
+    return await asyncio.to_thread(
+/usr/lib/python3.12/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/concurrent/futures/thread.py:58: in run
+    result = self.fn(*self.args, **self.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/persistence/uow.py:23: in wrapped
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+src/conversation_domain/surface_commands.py:77: in execute
+    uow.execute(
+src/persistence/uow.py:59: in execute
+    return self.connection.execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:300: in execute
+    raise ex.with_traceback(None)
+E   psycopg.errors.UniqueViolation: duplicate key value violates unique constraint "uq_conversations__account_conversation"
+E   DETAIL:  Key (account_id, conversation_id)=(5ede852e-e3d6-4ce2-8b96-eec66fa9dec1, 6ce476be-6cd5-556e-bfab-5c2cd5da4229) already exists.
+=========================== short test summary info ============================
+FAILED test/web_persistence/test_qq_canonical_ingress.py::test_distinct_first_deliveries_share_binding_and_pg_admission
+1 failed, 1 passed in 25.86s
