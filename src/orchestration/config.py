@@ -433,11 +433,7 @@ class AgentConfig:
     max_history_turns: int = 10
     max_tool_turns: int = 20
     recall_top_n: int = 5
-    event_fetch_limit: int = 100
-    activity_timeout: int = 300    # process_turn Activity 超时（秒）
-    archive_timeout: int = 10
     reflect_interval_hours: int = 6    # 记忆反思间隔（小时）
-    idle_timeout_minutes: int = 5      # 会话空闲自动关闭时间（分钟）
 
     # 工具结果摘要（替代简单截断）
     tool_result_summary_enabled: bool = True            # 启用 LLM 摘要替代截断

@@ -31,6 +31,9 @@ def test_composition_has_no_session_store_or_workspace_sqlite_authority() -> Non
     assert "session" not in AppConfig.__dataclass_fields__
     assert "wal_enabled" not in AgentConfig.__dataclass_fields__
     assert "checkpoint_interval" not in AgentConfig.__dataclass_fields__
+    assert set(AgentConfig.__dataclass_fields__).isdisjoint({
+        "event_fetch_limit", "activity_timeout", "archive_timeout", "idle_timeout_minutes",
+    })
     assert "session_store" not in inspect.signature(ActionRuntime).parameters
     assert "file_store" not in inspect.signature(build_qq_runtime).parameters
 

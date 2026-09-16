@@ -1,0 +1,25 @@
+2026-09-16 19:30:03 [WARNING] HpAgent.Config: Prompts dir not found: /app/config/prompts, using defaults
+2026-09-16 19:30:03 [INFO ] HpAgent: === HpAgent ===
+2026-09-16 19:30:03 [INFO ] HpAgent: Model (chat): fixture:fixture
+2026-09-16 19:30:03 [INFO ] HpAgent: Temporal: temporal:7233
+2026-09-16 19:30:03 [INFO ] HpAgent: Redis: enabled
+2026-09-16 19:30:03 [INFO ] HpAgent: Hindsight: disabled
+2026-09-16 19:30:03 [INFO ] HpAgent: Sandbox: time=30s mem=256MB
+2026-09-16 19:30:03 [INFO ] HpAgent: Log dir: /app/.data/logs
+2026-09-16 19:30:03 [INFO ] HpAgent.ResourcePool: Model endpoint registered: id=chat:0:fixture:fixture provider=fixture model=fixture format=openai max_tokens=2048 timeout=30.0s extra_body_keys=[]
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: Model chain configured: category=chat endpoints=['chat:0:fixture:fixture']
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: Model chains registered: chat=1
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: Redis connected: redis://redis:6379/0
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: GroupContextStore initialized: window=80 ttl=86400s density_threshold=2.0
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: Nsjail disabled
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: Workspace root initialized: root=/tmp/w3e-workspace
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: TaskScheduler initialized: data_dir=/app/.data/scheduler poll_interval=15.0s
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: GitRepoManager initialized: repos_root=/tmp/w3e-workspace
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: Shared Agent capabilities and QQ protocol services assembled
+2026-09-16 19:30:03 [INFO ] HpAgent.Scheduler: Scheduler handler registered: user_reminder
+2026-09-16 19:30:03 [INFO ] HpAgent.OrchestrationWorker: TaskScheduler disabled by config
+2026-09-16 19:30:05 [INFO ] HpAgent.OrchestrationWorker: Web real-Agent composition passed C-07 gate
+2026-09-16 19:30:05 [INFO ] HpAgent.OrchestrationWorker: Orchestration Worker started on task_queue='hpagent-task-queue' (channels: none)
+2026-09-16 19:30:05 [INFO ] HpAgent.OrchestrationWorker: Reflect schedule skipped: no accounts registered
+2026-09-16 19:30:06 [INFO ] HpAgent.OrchestrationWorker: Metrics report schedule created: id=hpagent-metrics-schedule every=30m
+2026-09-16 19:30:06 [INFO ] HpAgent.OrchestrationWorker: Periodic schedules configured: reflect=every-6h metrics=every-30m

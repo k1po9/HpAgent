@@ -1,0 +1,14 @@
+api No broken requirements found.
+migrate No broken requirements found.
+worker No broken requirements found.
+document No broken requirements found.
+
+Fresh image applied all 36 migrations
+API /health/ready PASS
+Traceback (most recent call last):
+  File "/home/hp/workspace/HpAgent_web/artifacts/architecture-audit/phase3/W3_E_install_probe.py", line 115, in <module>
+    actual = until(lambda: asyncio.run(pollers(f'127.0.0.1:{port(temp,7233)}')), timeout=90)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hp/workspace/HpAgent_web/artifacts/architecture-audit/phase3/W3_E_install_probe.py", line 47, in until
+    raise RuntimeError(f'readiness timeout: {error}')
+RuntimeError: readiness timeout: None

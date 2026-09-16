@@ -1,0 +1,9 @@
+api No broken requirements found.
+migrate No broken requirements found.
+worker No broken requirements found.
+document No broken requirements found.
+
+Fresh image applied all 36 migrations
+API /health/ready PASS
+Live Temporal queue pollers: {"hpagent-web-lifecycle:1": 1, "hpagent-web-lifecycle:2": 1, "hpagent-web-agent:1": 1, "hpagent-web-agent:2": 1, "hpagent-task-queue:1": 1, "hpagent-task-queue:2": 1, "hpagent-document:2": 1}
+PASS fresh API/migrate/worker/document image installation and production entrypoint startup
