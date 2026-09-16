@@ -27,7 +27,8 @@ survivors to their owning capabilities before these modules were removed. The W3
 captures every production task queue at the composition boundary and rejects retired Workflow,
 Activity and runtime type names.
 
-QQ SessionStore/WAL, SQLite workspace metadata and other historical state authorities are outside
-this runtime-deletion step and remain available for the separate state-authority review.
+W3-C subsequently removed QQ SessionStore/WAL, SQLite session metadata and historical archive
+adapters. Workspace, Redis, Hindsight, QQ delivery and file capabilities retain their independent
+state responsibilities.
 
 Current evidence is stored under `artifacts/architecture-audit/phase3/W3_B_*`.

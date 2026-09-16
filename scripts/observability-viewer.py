@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """HpAgent Execution Observatory (P0).
 
-Read-only local viewer for structured JSONL logs, Web PostgreSQL state, and
-QQ WAL/history.  It deliberately has no business write endpoints and no
+Read-only local viewer for structured JSONL logs and canonical PostgreSQL state.
+It deliberately has no business write endpoints and no
 Temporal/Redis/Hindsight live dependencies.
 """
 from __future__ import annotations
@@ -218,7 +218,7 @@ class IncrementalJsonlReader:
 
 
 class PostgresReader:
-    """On-demand, read-only PostgreSQL snapshots for Web runs."""
+    """On-demand, read-only PostgreSQL snapshots for canonical Web/QQ runs."""
 
     def __init__(self, database_url: str | None, cache_ttl_seconds: float = 5.0) -> None:
         self.database_url = database_url
@@ -243,7 +243,7 @@ class PostgresReader:
     def recent_runs(self, limit: int = 100) -> list[dict[str, Any]]:
         limit = min(max(limit, 1), 500)
         sql = (
-            "SELECT r.*,m.content AS trigger_content FROM hpagent.runs r "
+            "SELECT r.*,m.content AS trigger_content,m.origin AS trigger_origin FROM hpagent.runs r "
             "JOIN hpagent.messages m ON m.message_id=r.trigger_message_id "
             "ORDER BY r.updated_at DESC,r.run_id DESC LIMIT %s"
         )
@@ -366,100 +366,6 @@ class PostgresReader:
             return result
 
 
-class QQSessionReader:
-    """mtime-cached reader for active WAL and archived history.jsonl."""
-
-    def __init__(self, wal_dir: Path, workspace_dir: Path) -> None:
-        self.wal_dir = wal_dir
-        self.workspace_dir = workspace_dir
-        self._stamp: tuple[tuple[str, int, int], ...] = ()
-        self._executions: dict[str, dict[str, Any]] = {}
-        self._refresh_lock = threading.Lock()
-        self._last_refresh_check = 0.0
-        self.last_error: str | None = None
-
-    def _files(self) -> list[tuple[Path, str, str | None]]:
-        files: list[tuple[Path, str, str | None]] = []
-        archived: set[str] = set()
-        if self.workspace_dir.exists():
-            for path in self.workspace_dir.glob("*/sessions/*/history.jsonl"):
-                session_id = path.parent.name
-                account_id = path.parents[2].name
-                files.append((path, "history.jsonl", account_id))
-                archived.add(session_id)
-        if self.wal_dir.exists():
-            for path in self.wal_dir.glob("*.wal"):
-                if path.stem not in archived and not path.stem.startswith("reflect-"):
-                    files.append((path, "wal", None))
-        return files
-
-    def refresh(self) -> dict[str, dict[str, Any]]:
-        with self._refresh_lock:
-            now = time.monotonic()
-            if now - self._last_refresh_check < 1.0:
-                return self._executions
-            self._last_refresh_check = now
-            return self._refresh_files()
-
-    def _refresh_files(self) -> dict[str, dict[str, Any]]:
-        files = self._files()
-        stamp = tuple(sorted((str(path), path.stat().st_mtime_ns, path.stat().st_size) for path, _, _ in files))
-        if stamp == self._stamp:
-            return self._executions
-        executions: dict[str, dict[str, Any]] = {}
-        try:
-            for path, source, inferred_account in files:
-                records = _read_json_lines(path)
-                boundaries: list[tuple[int, str]] = []
-                for index, record in enumerate(records):
-                    metadata = record.get("metadata") if isinstance(record.get("metadata"), dict) else {}
-                    execution_id = _string(metadata.get("execution_id"))
-                    if record.get("event_type") == "user_message" and execution_id:
-                        boundaries.append((index, execution_id))
-                for position, (start, execution_id) in enumerate(boundaries):
-                    end = boundaries[position + 1][0] if position + 1 < len(boundaries) else len(records)
-                    segment = records[start:end]
-                    first = segment[0]
-                    content = first.get("content") if isinstance(first.get("content"), dict) else {}
-                    metadata = first.get("metadata") if isinstance(first.get("metadata"), dict) else {}
-                    executions[execution_id] = {
-                        "execution_id": execution_id, "session_id": str(first.get("session_id") or path.stem),
-                        "account_id": str(content.get("account_id") or inferred_account or ""),
-                        "surface": "qq", "source": source, "source_path": str(path),
-                        "events": segment, "started_at": _iso_ts(_parse_ts(first.get("timestamp"))),
-                        "activity_at": _iso_ts(max((_parse_ts(item.get("timestamp")) for item in segment), default=0)),
-                        "summary": str(content.get("content") or "")[:180],
-                    }
-            self._stamp = stamp
-            self._executions = executions
-            self.last_error = None
-        except Exception as exc:
-            self.last_error = f"{type(exc).__name__}: {exc}"
-        return self._executions
-
-    def executions(self) -> list[dict[str, Any]]:
-        return list(self.refresh().values())
-
-    def snapshot(self, execution_id: str) -> dict[str, Any] | None:
-        return self.refresh().get(execution_id)
-
-
-def _read_json_lines(path: Path) -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
-    try:
-        with path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                try:
-                    record = json.loads(line)
-                    if isinstance(record, dict):
-                        records.append(record)
-                except json.JSONDecodeError:
-                    continue
-    except OSError:
-        return []
-    return records
-
-
 def normalize_status(raw: str | None, events: list[ObservationEvent]) -> str:
     status = (raw or "").lower()
     if status in {"failed", "error", "timed_out", "terminated"}:
@@ -528,12 +434,10 @@ class Observatory:
         self,
         logs: IncrementalJsonlReader,
         postgres: PostgresReader,
-        qq: QQSessionReader,
         max_events_per_execution: int = 1_500,
     ) -> None:
         self.logs = logs
         self.postgres = postgres
-        self.qq = qq
         self.max_events_per_execution = max_events_per_execution
 
     def executions(self) -> list[dict[str, Any]]:
@@ -563,8 +467,11 @@ class Observatory:
         for run in self.postgres.recent_runs():
             key = str(run["run_id"])
             entry = results.setdefault(key, {"trace_key": key, "event_count": 0, "summary": ""})
+            origin = run.get("trigger_origin") or {}
+            channel = str(origin.get("channel_type") or "web") if isinstance(origin, dict) else "web"
             entry.update({
-                "surface": "web", "run_id": key, "execution_id": entry.get("execution_id") or key,
+                "surface": "web" if channel == "web" else "qq",
+                "run_id": key, "execution_id": entry.get("execution_id") or key,
                 "workflow_id": str(run["workflow_id"]), "session_id": str(run["session_id"]),
                 "account_id": str(run["account_id"]), "conversation_id": str(run["conversation_id"]),
                 "started_at": entry.get("started_at") or _json_default(run["created_at"]),
@@ -573,19 +480,6 @@ class Observatory:
                 "authoritative_status": str(run["status"]),
                 "summary": entry.get("summary") or str(run.get("trigger_content") or "")[:180],
             })
-        for execution in self.qq.executions():
-            key = execution["execution_id"]
-            entry = results.setdefault(key, {"trace_key": key, "event_count": 0})
-            entry.update({
-                "surface": "qq", "execution_id": key,
-                "session_id": entry.get("session_id") or execution["session_id"],
-                "account_id": entry.get("account_id") or execution["account_id"],
-                "started_at": entry.get("started_at") or execution["started_at"],
-                "activity_at": max(str(entry.get("activity_at") or ""), execution["activity_at"]),
-                "summary": entry.get("summary") or execution["summary"],
-                "qq_source": execution["source"],
-            })
-            entry["status"] = entry.get("status") if entry.get("status") not in {None, "unknown"} else "unknown"
         return sorted(results.values(), key=lambda item: item.get("activity_at") or "", reverse=True)[:300]
 
     def detail(self, trace_key: str) -> dict[str, Any] | None:
@@ -597,8 +491,7 @@ class Observatory:
         if not run_id and not trace_key.startswith("qq-turn-"):
             run_id = trace_key
         postgres = self.postgres.snapshot(run_id) if run_id else None
-        qq = self.qq.snapshot(trace_key)
-        if not events and postgres is None and qq is None:
+        if not events and postgres is None:
             return None
         summary = next((item for item in self.executions() if item["trace_key"] == trace_key), {})
         anomalies: list[str] = []
@@ -609,12 +502,11 @@ class Observatory:
         return {
             "summary": summary, "waterfall": pair_lifecycle(events),
             "events": [asdict(event) for event in sorted(events, key=lambda item: (item.ts_epoch, item.sequence))],
-            "postgres": postgres, "qq_session": qq, "anomalies": anomalies,
+            "postgres": postgres, "anomalies": anomalies,
             "sources": {
                 "postgres": "AUTHORITATIVE" if postgres else None,
                 "workflow_executions": "DURABLE" if postgres else None,
                 "outbox": "DURABLE" if postgres else None,
-                "qq_session": "DURABLE" if qq else None,
                 "jsonl": "OBSERVED" if events else None,
                 "waterfall": "DERIVED",
             },
@@ -622,8 +514,6 @@ class Observatory:
 
     def debug_detail(self, trace_key: str) -> dict[str, Any]:
         summary = next((item for item in self.executions() if item["trace_key"] == trace_key), None)
-        if summary and summary.get("surface") == "qq" or trace_key.startswith("qq-turn-"):
-            return {"available": False, "reason": "web_run_required"}
         _, all_events = self.logs.after(0)
         run_id = next(
             (event.run_id for event in reversed(all_events) if event.trace_key == trace_key and event.run_id),
@@ -634,7 +524,6 @@ class Observatory:
 
     def health(self) -> dict[str, Any]:
         self.logs.scan()
-        self.qq.refresh()
         recent_runs = self.postgres.recent_runs() if self.postgres.database_url else []
         return {
             "status": "ok", "sources": {
@@ -652,7 +541,6 @@ class Observatory:
                     "recent_run_count": len(recent_runs),
                     "error": self.postgres.last_error,
                 },
-                "qq_wal_history": {"status": "degraded" if self.qq.last_error else "ok", "executions": len(self.qq._executions), "error": self.qq.last_error},
                 "temporal": {"status": "not_connected", "phase": "P1"},
                 "redis": {"status": "not_connected", "phase": "P1"},
                 "hindsight": {"status": "not_connected", "phase": "P1"},
@@ -692,8 +580,8 @@ function reconstructTranscriptBefore(sequence){const messages=[];for(const e of 
 function inspectTranscript(sequence){selectedNodeIndex=null;selectedTranscriptSequence=sequence;renderInspector()}
 function lifecycleBox(n){const lifecycle=stateBox('Lifecycle',{status:n.status,elapsed_ms:n.elapsed_ms,activity_attempt:n.activity_attempt,stop_reason:n.stop_reason,tool_count:n.tool_count,operation_id:n.operation_id,result_ref:n.result_ref,tool_call_id:n.tool_call_id,error_code:n.error_code});return n.component==='tool'?lifecycle+toolSummaryBox(n,findOperation(n.operation_id,n.result_ref),findTranscriptEvent(n.operation_id)):lifecycle}
 function toolSummaryBox(n,op,te){const semantic=toolSemanticState(n),raw=te?.payload?.raw_result||{};return `<div class="summarybox tool-summary ${semantic.status}"><div class="kv"><b>Tool</b><span>${esc(n.tool||te?.payload?.message?.name||'—')}</span><b>Invocation</b><span>${esc(op?.status||n.status||'unknown')}</span><b>Semantic Result</b><span class="status ${esc(semantic.status)}">${esc(semantic.status.toUpperCase())}</span><b>Error</b><span>${esc(semantic.error||raw.error||'—')}</span><b>Side Effect</b><span>${esc(te?.payload?.side_effect_class||op?.result_payload?.side_effect_class||'—')}</span><b>Transcript Version</b><span>${esc(op?.result_payload?.transcript_version??te?.sequence??'—')}</span></div></div>`}
-function renderInspector(){if(!detail)return;const p=detail.postgres,q=detail.qq_session,src=detail.sources;let html='<h2>Debug Inspector</h2>';if(selectedNodeIndex==null&&selectedTranscriptSequence==null){html+='<h3>SOURCE BADGES</h3>'+Object.entries(src).filter(x=>x[1]).map(([k,v])=>`<div class="row"><span>${esc(k)}</span><span class="source">${esc(v)}</span></div>`).join('');if(p)html+='<h3>POSTGRESQL</h3>'+stateBox('run',p.run)+stateBox('messages',p.messages)+stateBox('workflow executions',p.workflow_executions)+stateBox('outbox',p.outbox_events);if(q)html+='<h3>QQ SESSION</h3>'+stateBox(q.source,q.events)}
-if(debugLoading)html+='<div class="empty">Loading durable debug evidence…</div>';else if(debugDetail&&!debugDetail.available){html+=debugDetail.reason==='web_run_required'?'<div class="empty">Durable Agent drill-down is available for Web runs.</div>':`<div class="warning">Durable Debug Unavailable<br>${esc(debugDetail.error||debugDetail.reason)}</div>`}else if(debugDetail?.available){const d=durable(),tr=d.transcript;if(d.truncated?.events||d.truncated?.operations)html+=`<div class="warning">Showing first 1000 ${d.truncated.events?'events ':''}${d.truncated.operations?'operations':''}</div>`;if(selectedTranscriptSequence!=null){const e=durableEvents().find(x=>x.sequence===selectedTranscriptSequence);if(e)html+=`<h3>TRANSCRIPT EVENT #${esc(e.sequence)}</h3>`+stateBox(e.event_type,e)}else if(selectedNodeIndex!=null){const n=detail.waterfall[selectedNodeIndex],op=findOperation(n.operation_id,n.result_ref),te=findTranscriptEvent(n.operation_id);html+=`<h3>${esc(n.component)} · ${esc(n.event)}</h3>`+lifecycleBox(n);if(op){if(['intent_recorded','uncertain'].includes(op.status))html+=`<div class="warning">SIDE EFFECT STATE · ${esc(op.status.toUpperCase())}</div>`;html+=stateBox('Durable Operation',op)}if(n.component==='model'||(te&&te.event_type==='model_decision')){const e=te;html+='<h3>MODEL OUTPUT</h3>'+stateBox('message',e?.payload?.message||null)+stateBox('tool calls',e?.payload?.message?.tool_calls||[]);if(e)html+='<h3>DURABLE TRANSCRIPT BEFORE DECISION</h3>'+stateBox('messages',reconstructTranscriptBefore(e.sequence));if(op)html+=stateBox('Operation Result',op.result_payload);if(e)html+=stateBox('Transcript Event Payload',e.payload)}else if(n.component==='tool'||(te&&te.event_type==='tool_result')){const call=findToolCall(n.tool_call_id,te?.sequence||Infinity);html+='<h3>TOOL EXECUTION</h3>'+stateBox('arguments',call||{tool_call_id:n.tool_call_id,name:n.tool,arguments:null})+stateBox('tool result',te?.payload||null);if(op)html+=stateBox('Operation Result / Intent',op.result_payload)}else if(te)html+=stateBox('Transcript Event',te)}else if(tr){html+='<h3>TRANSCRIPT</h3>'+stateBox('identity',tr)+durableEvents().map(e=>`<div class="timeline" onclick="inspectTranscript(${Number(e.sequence)})"><b>#${esc(e.sequence)} ${esc(e.event_type)}</b><div class="id">${esc(e.operation_id||'')}</div></div>`).join('')+stateBox('operations',durableOperations())}else html+='<div class="empty">No durable transcript yet.</div>'}document.getElementById('state').innerHTML=html}
+function renderInspector(){if(!detail)return;const p=detail.postgres,src=detail.sources;let html='<h2>Debug Inspector</h2>';if(selectedNodeIndex==null&&selectedTranscriptSequence==null){html+='<h3>SOURCE BADGES</h3>'+Object.entries(src).filter(x=>x[1]).map(([k,v])=>`<div class="row"><span>${esc(k)}</span><span class="source">${esc(v)}</span></div>`).join('');if(p)html+='<h3>POSTGRESQL</h3>'+stateBox('run',p.run)+stateBox('messages',p.messages)+stateBox('workflow executions',p.workflow_executions)+stateBox('outbox',p.outbox_events)}
+if(debugLoading)html+='<div class="empty">Loading durable debug evidence…</div>';else if(debugDetail&&!debugDetail.available){html+=`<div class="warning">Durable Debug Unavailable<br>${esc(debugDetail.error||debugDetail.reason)}</div>`}else if(debugDetail?.available){const d=durable(),tr=d.transcript;if(d.truncated?.events||d.truncated?.operations)html+=`<div class="warning">Showing first 1000 ${d.truncated.events?'events ':''}${d.truncated.operations?'operations':''}</div>`;if(selectedTranscriptSequence!=null){const e=durableEvents().find(x=>x.sequence===selectedTranscriptSequence);if(e)html+=`<h3>TRANSCRIPT EVENT #${esc(e.sequence)}</h3>`+stateBox(e.event_type,e)}else if(selectedNodeIndex!=null){const n=detail.waterfall[selectedNodeIndex],op=findOperation(n.operation_id,n.result_ref),te=findTranscriptEvent(n.operation_id);html+=`<h3>${esc(n.component)} · ${esc(n.event)}</h3>`+lifecycleBox(n);if(op){if(['intent_recorded','uncertain'].includes(op.status))html+=`<div class="warning">SIDE EFFECT STATE · ${esc(op.status.toUpperCase())}</div>`;html+=stateBox('Durable Operation',op)}if(n.component==='model'||(te&&te.event_type==='model_decision')){const e=te;html+='<h3>MODEL OUTPUT</h3>'+stateBox('message',e?.payload?.message||null)+stateBox('tool calls',e?.payload?.message?.tool_calls||[]);if(e)html+='<h3>DURABLE TRANSCRIPT BEFORE DECISION</h3>'+stateBox('messages',reconstructTranscriptBefore(e.sequence));if(op)html+=stateBox('Operation Result',op.result_payload);if(e)html+=stateBox('Transcript Event Payload',e.payload)}else if(n.component==='tool'||(te&&te.event_type==='tool_result')){const call=findToolCall(n.tool_call_id,te?.sequence||Infinity);html+='<h3>TOOL EXECUTION</h3>'+stateBox('arguments',call||{tool_call_id:n.tool_call_id,name:n.tool,arguments:null})+stateBox('tool result',te?.payload||null);if(op)html+=stateBox('Operation Result / Intent',op.result_payload)}else if(te)html+=stateBox('Transcript Event',te)}else if(tr){html+='<h3>TRANSCRIPT</h3>'+stateBox('identity',tr)+durableEvents().map(e=>`<div class="timeline" onclick="inspectTranscript(${Number(e.sequence)})"><b>#${esc(e.sequence)} ${esc(e.event_type)}</b><div class="id">${esc(e.operation_id||'')}</div></div>`).join('')+stateBox('operations',durableOperations())}else html+='<div class="empty">No durable transcript yet.</div>'}document.getElementById('state').innerHTML=html}
 function safeJsonStringify(data){try{const text=JSON.stringify(data,null,2);return text===undefined?'null':text}catch(e){console.error('JSON render failed:',e);return JSON.stringify({viewer_error:'json_render_failed',message:String(e)},null,2)}}
 function syntaxHighlightJson(data){const json=safeJsonStringify(data),token=/("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"\s*:|"(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"|-?\d+(?:\.\d+)?(?:[eE][+\-]?\d+)?|\btrue\b|\bfalse\b|\bnull\b)/g;let out='',last=0;for(const match of json.matchAll(token)){out+=esc(json.slice(last,match.index));const value=match[0],trim=value.trim(),cls=trim.endsWith(':')?'json-key':trim.startsWith('"')?'json-string':/^(true|false)$/.test(trim)?'json-bool':trim==='null'?'json-null':'json-number';out+=`<span class="${cls}">${esc(value)}</span>`;last=match.index+value.length}return out+esc(json.slice(last))}
 async function copyJson(button){const text=button.closest('.state').querySelector('pre').textContent;try{if(navigator.clipboard?.writeText)await navigator.clipboard.writeText(text);else throw Error('clipboard unavailable')}catch(e){const area=document.createElement('textarea');area.value=text;area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();document.execCommand('copy');area.remove()}const old=button.textContent;button.textContent='Copied ✓';setTimeout(()=>button.textContent=old,1200)}
@@ -757,24 +645,6 @@ def make_handler(observatory: Observatory):
     return Handler
 
 
-def _load_storage_paths(config_path: Path) -> tuple[Path, Path]:
-    wal = PROJECT_ROOT / ".data/active-sessions"
-    workspace = PROJECT_ROOT / ".data/workspace"
-    try:
-        import yaml
-        config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-        wal = _resolve_path((config.get("session") or {}).get("backup_dir", str(wal)), config_path)
-        workspace = _resolve_path((config.get("workspace") or {}).get("root", str(workspace)), config_path)
-    except (OSError, ImportError, ValueError):
-        pass
-    return wal, workspace
-
-
-def _resolve_path(raw: str, config_path: Path) -> Path:
-    path = Path(raw)
-    return path if path.is_absolute() else (config_path.parent.parent / path).resolve()
-
-
 def default_database_url() -> str | None:
     configured = os.getenv("OBSERVABILITY_DATABASE_URL") or os.getenv("WORKER_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
     if configured:
@@ -795,11 +665,9 @@ def database_target(database_url: str | None) -> str:
 
 
 def build_observatory(args: argparse.Namespace) -> Observatory:
-    wal, workspace = _load_storage_paths(Path(args.config))
     return Observatory(
         IncrementalJsonlReader(Path(args.log_dir), args.max_events),
         PostgresReader(args.database_url),
-        QQSessionReader(wal, workspace),
     )
 
 
@@ -807,7 +675,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="HpAgent local execution observatory (read-only P0)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8091)
-    parser.add_argument("--config", default=str(PROJECT_ROOT / "config/config.yaml"))
     parser.add_argument("--log-dir", default=os.getenv("LOG_DIR", str(PROJECT_ROOT / ".data/logs")))
     parser.add_argument("--database-url", default=default_database_url())
     parser.add_argument("--max-events", type=int, default=30_000)

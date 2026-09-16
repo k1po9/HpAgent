@@ -159,7 +159,8 @@ Session 使用绑定 Conversation 的 PG active Session，终态后继续复用�
 群上下文及来源 ID 随 Message 提交 PG，执行不重新读取缓存。长期记忆只保留 PG
 已提交用户消息与最终回答，群 recall 使用隔离的来源 context key。
 生产不构造 QQ Host/Facade/loop/SessionStore，也不注册旧 QQ Workflow/Activity；
-这些 runtime 实现已在 W3-B 删除。W2-C 已接入最终回复 delivery，W2-D 已完成 G06 验证。
+runtime 已在 W3-B 删除，SessionStore/WAL/checkpoint authority 已在 W3-C 删除。
+W2-C 已接入最终回复 delivery，W2-D 已完成 G06 验证。
 验证与限制见 [W2-B 报告](../../artifacts/architecture-audit/phase3/W2_B_implementation_report.md)。
 
 ## QQ delivery（W2-C）

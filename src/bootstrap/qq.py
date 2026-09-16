@@ -12,7 +12,6 @@ from application.metrics import MetricsSnapshotService
 from application.reply import ReplyService
 from brain.engine import BrainEngine
 from memory.maintenance import HindsightMaintenance
-from storage.file_store import LocalFileStore
 
 
 @dataclass(frozen=True)
@@ -37,7 +36,6 @@ def build_qq_runtime(
     sandbox_manager: Any,
     resource_pool: Any,
     prompt_loader: Any,
-    file_store: LocalFileStore,
 ) -> QQRuntimeServices:
     """Build protocol delivery and shared capabilities; no QQ Host, loop or SessionStore."""
     validate_unified_account_backend(worker_database_url)

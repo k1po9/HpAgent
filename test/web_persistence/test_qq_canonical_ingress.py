@@ -56,6 +56,32 @@ async def test_redelivery_uses_stable_provider_id_and_one_atomic_run(db, account
     assert origin["external_message_id"] == "1" and origin["channel_type"] == "napcat"
 
 
+async def test_restart_rebuilds_qq_state_from_postgres_authority(
+    db, account_id, worker_database_url,
+):
+    bind(db, account_id)
+    original = qq_message("restart-stable", "before restart")
+    first = await service(worker_database_url).accept(original, "napcat")
+
+    # A fresh surface/service instance has no in-memory SessionStore or WAL to
+    # recover. Provider idempotency and the active Session come from PostgreSQL.
+    replayed = await service(worker_database_url).accept(original, "napcat")
+    assert replayed.replayed
+    assert replayed["run_id"] == first["run_id"]
+    assert replayed["session_id"] == first["session_id"]
+
+    await service(worker_database_url).accept(
+        qq_message("restart-cancel", "/cancel"), "napcat"
+    )
+    after = await service(worker_database_url).accept(
+        qq_message("restart-next", "after restart"), "napcat"
+    )
+    assert after["session_id"] == first["session_id"]
+    assert after["run_id"] != first["run_id"]
+    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 1
+    assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 2
+
+
 async def test_account_room_bot_thread_mapping_and_shared_session_rule(db, account_id, worker_database_url):
     bind(db, account_id)
     adapter = service(worker_database_url)

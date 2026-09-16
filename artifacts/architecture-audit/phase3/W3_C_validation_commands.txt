@@ -1,0 +1,16 @@
+# Focused state-authority and retained capability contracts
+.venv/bin/pytest -q test/test_w3c_state_authority.py test/test_application_services.py test/test_observability_viewer.py test/test_qq_canonical_protocol.py test/test_w3_survivor_ownership.py test/test_w3b_runtime_retirement.py test/test_action_result_semantics.py test/test_durable_agent_hardening.py test/test_web_temporal_contract.py
+
+# Isolated PostgreSQL/Temporal persistence, redelivery, isolation and workspace integration
+.venv/bin/python scripts/verify_w3b_contracts.py test/web_persistence/test_qq_canonical_ingress.py test/web_persistence/test_w2_cross_surface.py test/web_persistence/test_conversation_commands.py test/web_persistence/test_outbox_and_lifecycle.py test/web_persistence/test_qq_delivery.py test/web_persistence/test_workspace_provisioning_integration.py
+
+# Restart/recovery contracts
+.venv/bin/python scripts/verify_w3b_contracts.py test/test_web_outbox_recovery.py test/test_durable_agent_worker_kill.py test/web_persistence/test_durable_agent_activity_worker_kill.py
+
+# Reachability, ownership and production registry
+.venv/bin/python scripts/audit_w3c_authority.py
+
+# Static gates
+.venv/bin/ruff check <changed Python files>
+git diff --check
+git diff --cached --check

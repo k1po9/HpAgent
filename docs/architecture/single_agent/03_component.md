@@ -38,7 +38,8 @@ W3-B 已删除旧 QQ turn Workflow/Activity、`QQExecutionHost`、`WebExecutionH
 `execute_agent_activity`，以及未接入生产的实验 Multi-Agent factory/registry/runtime。
 共享 DTO、Trace、预算、上下文、反思和 scheduler survivor 已在 W3-A 迁入各自 capability。
 
-QQ SessionStore/WAL、SQLite workspace metadata 与 archive helpers 属于后续 state-authority
-审查范围；本阶段没有将它们作为 runtime 删除。
+W3-C 已删除 QQ `SessionStore`、WAL/checkpoint、SQLite session metadata、archive helpers
+和相关 viewer/migration adapter。Workspace 隔离、Git workspace、Run file workspace 与
+tenant file store 保留其独立文件职责，不作为 Conversation authority。
 
 当前实现与恢复边界见 [Durable Agent Temporal 改造实施说明](../durable-agent-temporal.md)。

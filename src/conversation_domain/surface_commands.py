@@ -76,7 +76,11 @@ class SurfaceConversationCommands:
                 cid = uuid5(account_id, "surface-conversation:" + binding_key)
                 uow.execute(
                     "INSERT INTO conversations(account_id,conversation_id) VALUES (%s,%s) "
-                    "ON CONFLICT (conversation_id) DO NOTHING", (account_id, cid),
+                    # Both the UUID primary key and the composite ownership key
+                    # identify this deterministic row. Concurrent first ingress
+                    # may observe either constraint first, so accept either as
+                    # the same canonical Conversation.
+                    "ON CONFLICT DO NOTHING", (account_id, cid),
                 )
                 uow.execute(
                     "INSERT INTO conversation_bindings(account_id,binding_key,conversation_id,route) "

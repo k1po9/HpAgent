@@ -50,8 +50,6 @@ from resources.resource_pool import ResourcePool
 from sandbox.git_repo import GitRepoManager
 from sandbox.nsjail import NsjailConfig
 from sandbox.sandbox_manager import SandboxManager
-from session.db import WorkspaceDB
-from storage.file_store import LocalFileStore
 from storage.tenant_file_store import TenantFileStore
 from workspace.file_capability_config import FileCapabilityConfig
 from workspace.file_scope import RunFileWorkspace
@@ -444,8 +442,6 @@ class WorkerDependencies:
     account_service: object
     channel_router: "ChannelRouter"
     sandbox_manager: "SandboxManager"
-    file_store: "LocalFileStore"
-    workspace_db: "WorkspaceDB"
     workspace_root: Path
     mcp_manager: object  # MCPToolManager | None，用于 shutdown cleanup
     resource_pool: "ResourcePool"
@@ -565,7 +561,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
       2. Redis（可选）
       3. NsjailConfig
       4. setup_tools() → mcp_mgr, skill_definitions, retriever
-      5. workspace_root + LocalFileStore + WorkspaceDB
+      5. workspace_root + file/workspace capabilities
       6. SandboxManager（依赖 3+4+5）
       7. PromptLoader → HindsightClient → HarnessContextBuilder
       8. PostgresAccountService + ChannelRouter
@@ -671,11 +667,9 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     # 必须在 SandboxManager 之前调用，因为 SandboxManager 需要这些产物
     mcp_mgr, skill_definitions, retriever = await setup_tools(config)
 
-    # ── 5. 工作区存储 ──
+    # ── 5. 工作区能力 ──
     workspace_root = Path(config.workspace.root)
-    file_store = LocalFileStore(workspace_root)
-    workspace_db = WorkspaceDB(config.workspace.db_path or str(workspace_root / "workspace.db"))
-    logger.info("Workspace storage initialized: root=%s", workspace_root)
+    logger.info("Workspace root initialized: root=%s", workspace_root)
     run_file_workspace = None
     file_output_publisher = None
     file_conversion_provider = None
@@ -778,7 +772,6 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         sandbox_manager=sandbox_manager,
         resource_pool=resource_pool,
         prompt_loader=prompt_loader,
-        file_store=file_store,
     )
     logger.info("Shared Agent capabilities and QQ protocol services assembled")
     return WorkerDependencies(
@@ -786,8 +779,6 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         channel_router=channel_router,
         reply_service=qq_runtime.reply_service,
         sandbox_manager=sandbox_manager,
-        file_store=file_store,
-        workspace_db=workspace_db,
         workspace_root=workspace_root,
         mcp_manager=mcp_mgr,
         resource_pool=resource_pool,

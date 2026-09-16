@@ -119,5 +119,5 @@ def test_retirement_graph_has_no_unextracted_runtime_dependencies():
     assert report["forbidden_canonical_imports"] == []
     by_module = {row["module"]: row for row in rows if row["module"]}
     assert "agent.protocol" not in by_module  # W3-B removed the forwarding surface.
-    assert by_module["session.store"]["status"] == "STILL_REACHABLE"
+    assert not any(module == "session" or module.startswith("session.") for module in by_module)
     assert by_module["orchestration.run_lifecycle_contracts"]["status"] == "STILL_REACHABLE"

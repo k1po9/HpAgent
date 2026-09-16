@@ -15,7 +15,6 @@ from typing import Any, Dict, List, cast
 
 from actions.contracts import ActionRequest, ActionResult
 from common.token_counter import estimate_messages_tokens
-from common.types import Event, EventType
 
 logger = logging.getLogger("HpAgent.ActionRuntime")
 
@@ -31,7 +30,6 @@ class ActionRuntime:
         self,
         *,
         sandbox_manager: Any = None,
-        session_store: Any = None,
         resource_pool: Any = None,
         prompts: Any = None,
         tool_rag_top_k: int = 8,
@@ -40,7 +38,6 @@ class ActionRuntime:
         tool_result_summary_max_chars: int = 1000,
     ):
         self._sandbox = sandbox_manager
-        self._session = session_store
         self._model = resource_pool
         self._prompts = prompts
         self._tool_rag_top_k = tool_rag_top_k
@@ -112,13 +109,6 @@ class ActionRuntime:
                 self._tool_rag_top_k,
                 len(tools),
             )
-
-            if session_id and self._session is not None:
-                await self._session.append_events(session_id, Event(
-                    session_id=session_id,
-                    event_type=EventType.TOOL_RETRIEVAL,
-                    content=audit,
-                ))
 
             return tools
         except Exception as e:
@@ -327,20 +317,6 @@ class ActionRuntime:
                 result_dict["summary"] = summary
                 result_dict["metadata"] = result_dict.get("metadata") or {}
                 result_dict["metadata"]["summarized"] = True
-                if session_id and self._session is not None:
-                    await self._session.append_events(session_id, Event(
-                        session_id=session_id,
-                        event_type=EventType.TOOL_SUMMARY,
-                        content={
-                            "tool_name": tool_name,
-                            "original_chars": len(output),
-                            "summary_chars": len(summary),
-                            "summary": summary,
-                            "input_context": self._snapshot_context(
-                                messages, model_selector="fast",
-                            ),
-                        },
-                    ))
             else:
                 result_dict["output"] = output[:self._tool_result_summary_max_chars]
         except Exception as e:

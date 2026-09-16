@@ -370,7 +370,6 @@ class SandboxConfig:
 class WorkspaceConfig:
     """用户工作区配置。"""
     root: str = ".data/workspace"
-    db_path: str = ""
     workspace_isolation_mode: str = ""
     agent_worker_replicas: int = 1
     prefork_enabled: bool = False
@@ -433,13 +432,6 @@ class ResearchConfig:
 
 
 @dataclass
-class SessionConfig:
-    """会话存储配置。"""
-    backup_dir: str = ".data/active-sessions"
-    redis_ttl: int = 86400
-
-
-@dataclass
 class MultiAgentConfig:
     """多Agent模式配置。"""
     strategy: str = "supervisor"       # supervisor | council | workflow
@@ -461,12 +453,10 @@ class AgentConfig:
     idle_timeout_minutes: int = 5      # 会话空闲自动关闭时间（分钟）
     multi_agent: MultiAgentConfig = field(default_factory=MultiAgentConfig)
 
-    checkpoint_interval: int = 10           # 每 N 轮写入中间检查点（0=禁用）
     # 工具结果摘要（替代简单截断）
     tool_result_summary_enabled: bool = True            # 启用 LLM 摘要替代截断
     tool_result_summary_threshold: int = 4000           # 超过此字符数触发摘要
     tool_result_summary_max_chars: int = 1000           # 摘要最大字符数（注入 LLM 的）
-    wal_enabled: bool = True             # 启用 WAL 预写日志
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Prompt 配置 —— 从 config/prompts/*.yaml 加载
@@ -588,7 +578,6 @@ class AppConfig:
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
     hindsight: HindsightConfig = field(default_factory=HindsightConfig)
     research: ResearchConfig = field(default_factory=ResearchConfig)
-    session: SessionConfig = field(default_factory=SessionConfig)
     channels: ChannelsConfig = field(default_factory=ChannelsConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     prompts: PromptsConfig = field(default_factory=PromptsConfig)
@@ -688,10 +677,6 @@ class AppConfig:
         ws = Path(self.workspace.root)
         if not ws.is_absolute():
             self.workspace.root = str(_root / ws)
-        sess = Path(self.session.backup_dir)
-        if not sess.is_absolute():
-            self.session.backup_dir = str(_root / sess)
-
         # models.yaml 中的工具相关路径（同样相对于项目根）
         mcp_path = Path(self.models.mcp.config_path)
         if not mcp_path.is_absolute():
@@ -793,7 +778,6 @@ class AppConfig:
             sandbox=_populate(SandboxConfig, raw.get("sandbox"), "sandbox"),
             workspace=_populate(WorkspaceConfig, raw.get("workspace"), "workspace"),
             hindsight=_populate(HindsightConfig, raw.get("hindsight"), "hindsight"),
-            session=_populate(SessionConfig, raw.get("session"), "session"),
             channels=_populate(ChannelsConfig, raw.get("channels"), "channels"),
             agent=_populate(AgentConfig, raw.get("agent"), "agent"),
         )

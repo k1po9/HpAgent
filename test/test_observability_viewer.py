@@ -141,51 +141,6 @@ def test_lifecycle_pairing_uses_correlation_dimensions() -> None:
     assert nodes[1]["error_code"] == "tool_timeout"
 
 
-def test_qq_reader_maps_turn_segment_from_execution_user_event(tmp_path: Path) -> None:
-    wal = tmp_path / "active"
-    workspace = tmp_path / "workspace"
-    path = wal / "session-1.wal"
-    _write(
-        path,
-        {"event_id": "u1", "session_id": "session-1", "timestamp": 1, "event_type": "user_message", "content": {"content": "hello", "account_id": "a1"}, "metadata": {"execution_id": "qq-turn-1"}},
-        {"event_id": "m1", "session_id": "session-1", "timestamp": 2, "event_type": "model_message", "content": {"text": "hi"}, "metadata": {}},
-        {"event_id": "u2", "session_id": "session-1", "timestamp": 3, "event_type": "user_message", "content": {"content": "next", "account_id": "a1"}, "metadata": {"execution_id": "qq-turn-2"}},
-    )
-    reader = viewer.QQSessionReader(wal, workspace)
-    first = reader.snapshot("qq-turn-1")
-    assert first["source"] == "wal"
-    assert [event["event_id"] for event in first["events"]] == ["u1", "m1"]
-    assert first["summary"] == "hello"
-
-
-def test_qq_archived_history_takes_precedence_over_wal(tmp_path: Path) -> None:
-    wal = tmp_path / "active"
-    workspace = tmp_path / "workspace"
-    record = {"event_id": "u1", "session_id": "session-1", "timestamp": 1, "event_type": "user_message", "content": {"content": "archived", "account_id": "a1"}, "metadata": {"execution_id": "qq-turn-1"}}
-    _write(wal / "session-1.wal", {**record, "content": {"content": "wal", "account_id": "a1"}})
-    _write(workspace / "a1/sessions/session-1/history.jsonl", record)
-    snapshot = viewer.QQSessionReader(wal, workspace).snapshot("qq-turn-1")
-    assert snapshot["source"] == "history.jsonl"
-    assert snapshot["summary"] == "archived"
-
-
-def test_qq_reader_throttles_unchanged_file_checks(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    reader = viewer.QQSessionReader(tmp_path / "active", tmp_path / "workspace")
-    file_checks = 0
-
-    def files() -> list[tuple[Path, str, str | None]]:
-        nonlocal file_checks
-        file_checks += 1
-        return []
-
-    monkeypatch.setattr(reader, "_files", files)
-    reader.refresh()
-    reader.refresh()
-    assert file_checks == 1
-
-
 class _FakeConnection:
     def __init__(self) -> None:
         self.queries: list[str] = []
@@ -252,7 +207,6 @@ def test_observatory_merges_web_logs_and_authoritative_run(tmp_path: Path, monke
     }])
     observatory = viewer.Observatory(
         viewer.IncrementalJsonlReader(tmp_path), postgres,
-        viewer.QQSessionReader(tmp_path / "wal", tmp_path / "workspace"),
     )
     execution = observatory.executions()[0]
     assert execution["trace_key"] == "r1"
@@ -273,12 +227,31 @@ def test_postgres_run_is_visible_without_jsonl(
     }])
     observatory = viewer.Observatory(
         viewer.IncrementalJsonlReader(tmp_path), postgres,
-        viewer.QQSessionReader(tmp_path / "wal", tmp_path / "workspace"),
     )
 
     assert [item["trace_key"] for item in observatory.executions()] == [
         "database-run"
     ]
+
+
+def test_qq_run_surface_comes_from_postgres_origin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    postgres = viewer.PostgresReader("postgresql://example")
+    monkeypatch.setattr(postgres, "recent_runs", lambda: [{
+        "run_id": "qq-run", "workflow_id": "wf1", "session_id": "s1",
+        "account_id": "a1", "conversation_id": "c1",
+        "created_at": "2026-08-12T01:00:00Z",
+        "updated_at": "2026-08-12T01:00:02Z", "status": "completed",
+        "trigger_content": "from qq",
+        "trigger_origin": {"channel_type": "napcat"},
+    }])
+    execution = viewer.Observatory(
+        viewer.IncrementalJsonlReader(tmp_path), postgres,
+    ).executions()[0]
+
+    assert execution["surface"] == "qq"
+    assert execution["run_id"] == "qq-run"
 
 
 def test_jsonl_execution_is_visible_when_postgres_is_unavailable(
@@ -292,7 +265,6 @@ def test_jsonl_execution_is_visible_when_postgres_is_unavailable(
     monkeypatch.setattr(postgres, "recent_runs", lambda: [])
     observatory = viewer.Observatory(
         viewer.IncrementalJsonlReader(tmp_path), postgres,
-        viewer.QQSessionReader(tmp_path / "wal", tmp_path / "workspace"),
     )
 
     assert [item["trace_key"] for item in observatory.executions()] == ["log-run"]
@@ -306,7 +278,6 @@ def test_health_exposes_source_diagnostics(
     monkeypatch.setattr(postgres, "recent_runs", lambda: [{"run_id": "r1"}])
     observatory = viewer.Observatory(
         viewer.IncrementalJsonlReader(tmp_path), postgres,
-        viewer.QQSessionReader(tmp_path / "wal", tmp_path / "workspace"),
     )
 
     sources = observatory.health()["sources"]
@@ -337,7 +308,6 @@ def test_execution_detail_has_per_trace_memory_bound(tmp_path: Path, monkeypatch
     monkeypatch.setattr(postgres, "snapshot", lambda _: None)
     observatory = viewer.Observatory(
         viewer.IncrementalJsonlReader(tmp_path), postgres,
-        viewer.QQSessionReader(tmp_path / "wal", tmp_path / "workspace"),
         max_events_per_execution=3,
     )
     detail = observatory.detail("e1")
