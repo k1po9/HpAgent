@@ -106,10 +106,10 @@ class TestHindsightClientDisabled:
         result = asyncio.run(client.recall("query", "u1", "s1"))
         assert result == []
 
-    def test_retain_disabled(self):
+    def test_retain_document_disabled(self):
         client = HindsightClient(enabled=False)
-        result = asyncio.run(client.retain([], "u1", "s1"))
-        assert result == 0
+        result = asyncio.run(client.retain_document([], "u1", "document:1"))
+        assert result.accepted is False
 
     def test_reflect_disabled(self):
         client = HindsightClient(enabled=False)
@@ -149,13 +149,13 @@ class TestHindsightClientNoServer:
         result = asyncio.run(client.recall("query", "u1", "s1"))
         assert result == []
 
-    def test_retain_no_server(self):
+    def test_retain_document_no_server(self):
         client = HindsightClient(
             base_url="http://127.0.0.1:19999",
             timeout=1.0,
         )
-        result = asyncio.run(client.retain([], "u1", "s1"))
-        assert result == 0
+        result = asyncio.run(client.retain_document([], "u1", "document:1"))
+        assert result.accepted is False
 
     def test_reflect_no_server(self):
         client = HindsightClient(

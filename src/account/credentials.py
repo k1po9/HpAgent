@@ -2,23 +2,12 @@
 from __future__ import annotations
 
 import secrets
-from typing import Protocol
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 from account.identity import normalize_web_subject
 from persistence.uow import UnitOfWork
-
-
-class CredentialVerifier(Protocol):
-    def verify(self, username: str, password: str) -> str | None: ...
-
-
-class PresenceAwareCredentialVerifier(CredentialVerifier, Protocol):
-    def verify_with_presence(
-        self, username: str, password: str
-    ) -> tuple[bool, str | None]: ...
 
 
 class PostgresPasswordCredentialAdapter:
@@ -30,11 +19,6 @@ class PostgresPasswordCredentialAdapter:
         self._dummy_hash = self._hasher.hash(secrets.token_urlsafe(24))
 
     def verify(self, username: str, password: str) -> str | None:
-        return self.verify_with_presence(username, password)[1]
-
-    def verify_with_presence(
-        self, username: str, password: str
-    ) -> tuple[bool, str | None]:
         subject = normalize_web_subject(username)
         encoded = self._dummy_hash
         found = False
@@ -66,22 +50,4 @@ class PostgresPasswordCredentialAdapter:
             verified = self._hasher.verify(encoded, password)
         except (VerifyMismatchError, InvalidHashError):
             verified = False
-        return found, subject if found and usable and verified else None
-
-
-class FallbackCredentialAdapter:
-    """Temporary DB-first compatibility bridge for legacy configured hashes."""
-
-    def __init__(
-        self,
-        primary: PresenceAwareCredentialVerifier,
-        fallback: CredentialVerifier,
-    ):
-        self._primary = primary
-        self._fallback = fallback
-
-    def verify(self, username: str, password: str) -> str | None:
-        present, verified = self._primary.verify_with_presence(username, password)
-        if present:
-            return verified
-        return self._fallback.verify(username, password)
+        return subject if found and usable and verified else None

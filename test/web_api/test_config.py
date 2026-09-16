@@ -30,12 +30,6 @@ def test_fake_executor_is_rejected_in_production():
         _settings(environment="production", fake_executor_enabled=True)
 
 
-def test_real_web_agent_feature_flag_defaults_to_off(monkeypatch):
-    monkeypatch.delenv("WEB_REAL_AGENT_ENABLED", raising=False)
-    monkeypatch.setenv("APP_DATABASE_URL", "postgresql://unused")
-    assert WebApiSettings.from_env().real_agent_enabled is False
-
-
 def test_file_capabilities_default_closed(monkeypatch):
     monkeypatch.setenv("APP_DATABASE_URL", "postgresql://unused")
     for name in (
@@ -51,6 +45,7 @@ def test_file_capabilities_default_closed(monkeypatch):
 
 def test_canonical_runtime_has_no_configuration_switch():
     assert "durable_agent_enabled" not in WebApiSettings.__dataclass_fields__
+    assert "real_agent_enabled" not in WebApiSettings.__dataclass_fields__
 
 
 def test_file_transform_and_shell_require_upload_capability():

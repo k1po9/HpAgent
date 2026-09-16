@@ -67,7 +67,6 @@ async def capture_registries():
     from orchestration import worker
     from orchestration.config import AppConfig
     from orchestration.document_worker import build_document_worker
-    from orchestration.web_workers import WEB_REAL_AGENT_GATE_VERSION
 
     snapshots = []
 
@@ -80,7 +79,6 @@ async def capture_registries():
         return Mock()
 
     config = AppConfig()
-    config.temporal.web_real_agent_gate_version = WEB_REAL_AGENT_GATE_VERSION
     deps = SimpleNamespace(
         workspace_isolation=SimpleNamespace(account_locks=Mock(), close=Mock()),
         sandbox_manager=Mock(), redis_client=None, context_builder=Mock(), hindsight_client=None,

@@ -72,7 +72,7 @@ async def test_ingress_sends_fixed_unbound_reply_and_logs_structured_warning(cap
     assert "channel_type=napcat" in caplog.text
     assert "sender_id=qq-user" in caplog.text
 
-    # 拒绝路径只调用一次 accept，绝不回落 accounts.json。
+    # 拒绝路径只调用一次 accept。
     assert conversation.calls == 1
     assert len(reply.sent) == 1
     content, user_message = reply.sent[0]

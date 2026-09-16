@@ -452,8 +452,6 @@ services:
 
       # Web real-Agent
       - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
-      - WEB_REAL_AGENT_ENABLED=${WEB_REAL_AGENT_ENABLED:-true}
-      - WEB_REAL_AGENT_GATE_VERSION=c-07-v1
       - AGENT_EXECUTION_LEASE_TTL_SECONDS=${AGENT_EXECUTION_LEASE_TTL_SECONDS:-900}
 
       # Web file workspace (read-only P0 rollout)
@@ -667,7 +665,6 @@ services:
       QQ_BINDING_CODE_PEPPER: ${QQ_BINDING_CODE_PEPPER:-development-qq-binding-code-pepper}
       QQ_BINDING_CHALLENGE_SECONDS: ${QQ_BINDING_CHALLENGE_SECONDS:-300}
 
-      WEB_CREDENTIALS_JSON: ${WEB_CREDENTIALS_JSON:-{}}
 
       WEB_FAKE_EXECUTOR_ENABLED: "false"
 

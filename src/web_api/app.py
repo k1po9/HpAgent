@@ -22,10 +22,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from uuid6 import uuid7
 
-from account.credentials import (
-    FallbackCredentialAdapter,
-    PostgresPasswordCredentialAdapter,
-)
+from account.credentials import PostgresPasswordCredentialAdapter
 from account.identity_binding_service import (
     ChallengeNotFound,
     IdentityBindingService,
@@ -74,7 +71,6 @@ from web_domain.file_services import FileService
 from .auth import (
     AuthContext,
     AuthService,
-    ConfiguredPasswordCredentialAdapter,
     CredentialAdapter,
 )
 from .command_projection import command_body
@@ -273,18 +269,7 @@ def create_app(
         api_pool.wait()
         app.state.api_pool = api_pool
         app.state.auth = AuthService(api_pool, settings)
-        postgres_credentials = PostgresPasswordCredentialAdapter(api_pool)
-        app.state.credentials = (
-            credential_adapter
-            or (
-                FallbackCredentialAdapter(
-                    postgres_credentials,
-                    ConfiguredPasswordCredentialAdapter(settings.credential_records),
-                )
-                if settings.credential_records
-                else postgres_credentials
-            )
-        )
+        app.state.credentials = credential_adapter or PostgresPasswordCredentialAdapter(api_pool)
         app.state.registration = RegistrationService(api_pool)
         app.state.identity_bindings = IdentityBindingService(
             api_pool,

@@ -85,7 +85,7 @@ docker compose --profile qq up -d napcat
 docker compose --profile tools up -d temporal-web
 ```
 
-数据库 migration 完成后，用户可在 Web 自助注册并通过 QQ 消息中的真实 sender identity 完成绑定；`scripts/bootstrap_identity.py` 继续保留给管理员。旧 `WEB_CREDENTIALS_JSON` 用户可通过 `scripts/migrate_web_credentials.py` 导入 PostgreSQL。API 与 Worker 必须配置相同的 `QQ_BINDING_CODE_PEPPER`，Worker 缺少 `WORKER_DATABASE_URL` 会拒绝启动。
+数据库 migration 完成后，用户可在 Web 自助注册并通过 QQ 消息中的真实 sender identity 完成绑定；`scripts/bootstrap_identity.py` 继续保留给管理员。Web credential 只由 PostgreSQL 管理。API 与 Worker 必须配置相同的 `QQ_BINDING_CODE_PEPPER`，Worker 缺少 `WORKER_DATABASE_URL` 会拒绝启动。
 
 ### Canonical Durable Agent
 

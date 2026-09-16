@@ -27,7 +27,6 @@ async def test_startup_failure_releases_shared_resources(monkeypatch, failure):
     monkeypatch.setattr(worker, "compose_web_workers", Mock(side_effect=RuntimeError("compose")))
     config = AppConfig()
     config.scheduler.enabled = False
-    config.temporal.web_real_agent_enabled = True
     with pytest.raises(RuntimeError, match=failure):
         await start_worker(config)
     deps.mcp_manager.disconnect.assert_awaited_once()

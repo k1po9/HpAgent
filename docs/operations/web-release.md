@@ -42,8 +42,6 @@ PostgreSQL / Temporal / Hindsight。
 ```text
 [ ] HPAGENT_ENV=production
 [ ] WEB_PUBLIC_ORIGIN=https://<真实公网 origin>（必填，拒绝 https://localhost）
-[ ] WEB_REAL_AGENT_ENABLED=true
-[ ] WEB_REAL_AGENT_GATE_VERSION=c-07-v1
 [ ] WORKER_DATABASE_URL 已配置，QQ/Web 统一身份 migration 与 bootstrap 已完成
 [ ] WEB_FAKE_EXECUTOR_ENABLED=false（生产不允许 true，启动即拒绝）
 [ ] WORKSPACE_ISOLATION_MODE=single_process_account_lock 且 Agent Worker replicas=1
@@ -105,9 +103,7 @@ app-postgres (healthy)
 |---|---|
 | `HPAGENT_ENV=production` + `WEB_FAKE_EXECUTOR_ENABLED=true` | API 启动失败 |
 | 生产缺 `WEB_PUBLIC_ORIGIN` / 非 `https://` / 是 `https://localhost` | API 启动失败 |
-| `WEB_REAL_AGENT_ENABLED=true` + gate 版本 ≠ `c-07-v1` | Worker 启动失败 |
-| 缺 `WORKER_DATABASE_URL` | Worker 启动失败，QQ 绝不回退 `accounts.json` |
-| `single_process_account_lock` + 第二个独立 Web Worker | 独立入口 fail-closed（`orchestration.web_worker`） |
+| 缺 `WORKER_DATABASE_URL` | Worker 启动失败 |
 | 生产 secret 长度 < 32 bytes | API 启动失败 |
 
 ---
@@ -211,7 +207,6 @@ docker compose down -v    # 会删除 volume，可能直接删掉用户数据
 WEB_CURSOR_SECRET
 WEB_SESSION_TOKEN_PEPPER
 WEB_CSRF_SIGNING_KEY
-WEB_CREDENTIALS_JSON
 HPAGENT_WORKER_PASSWORD
 HPAGENT_API_PASSWORD
 HPAGENT_MIGRATE_PASSWORD
@@ -377,8 +372,8 @@ Web → Account A
 QQ  → Account B
 ```
 
-必须**失败**，**不得**自动 merge。`accounts.json` 时代的 `merge-account.py` 是运维
-工具，不是自动行为。
+必须**失败**，**不得**自动 merge。账号合并只由 PostgreSQL identity binding
+服务按明确的业务约束处理。
 
 ## 8.3 故障表现
 

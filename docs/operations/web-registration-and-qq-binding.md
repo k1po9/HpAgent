@@ -10,16 +10,8 @@ Session。
 API 与 QQ Worker 必须配置相同的 `QQ_BINDING_CODE_PEPPER`。生产值至少 32
 字节并通过 secret manager 注入。`QQ_BINDING_CHALLENGE_SECONDS` 默认为 300。
 
-`WEB_CREDENTIALS_JSON` 仅保留为过渡期 DB-first fallback。已有环境应先执行：
-
-```bash
-MIGRATION_DATABASE_URL=postgresql://... \
-WEB_CREDENTIALS_JSON='{"alice":"$argon2id$..."}' \
-python scripts/migrate_web_credentials.py
-```
-
-脚本只导入已有 active Web Identity，并且不会覆盖已存在的数据库 credential。
-核实所有用户均已导入后，可移除 `WEB_CREDENTIALS_JSON`。
+Web credential 只存储在 PostgreSQL。新用户通过注册流程创建 credential；管理员
+bootstrap 使用 `scripts/bootstrap_identity.py`。
 
 ## 用户流程
 

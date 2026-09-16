@@ -314,10 +314,6 @@ class TemporalConfig:
     # timeout so the loop observes leases before they can starve the queue.
     web_outbox_lease_timeout_seconds: int = 60
     web_outbox_recovery_interval_seconds: int = 15
-    # C-07 is the release gate.  A checked-in default must never run Web's
-    # real Agent path merely because the Temporal workers are present.
-    web_real_agent_enabled: bool = False
-    web_real_agent_gate_version: str = ""
     # Must exceed any single model/tool Activity timeout plus safety margin.
     agent_execution_lease_ttl_seconds: int = 900
 
@@ -432,14 +428,6 @@ class ResearchConfig:
 
 
 @dataclass
-class MultiAgentConfig:
-    """多Agent模式配置。"""
-    strategy: str = "supervisor"       # supervisor | council | workflow
-    max_review_rounds: int = 10
-    agents_config: str = "config/agents.yaml"
-
-
-@dataclass
 class AgentConfig:
     """Agent 行为参数。"""
     max_history_turns: int = 10
@@ -448,10 +436,8 @@ class AgentConfig:
     event_fetch_limit: int = 100
     activity_timeout: int = 300    # process_turn Activity 超时（秒）
     archive_timeout: int = 10
-    mode: str = "single"               # "single" | "multi"
     reflect_interval_hours: int = 6    # 记忆反思间隔（小时）
     idle_timeout_minutes: int = 5      # 会话空闲自动关闭时间（分钟）
-    multi_agent: MultiAgentConfig = field(default_factory=MultiAgentConfig)
 
     # 工具结果摘要（替代简单截断）
     tool_result_summary_enabled: bool = True            # 启用 LLM 摘要替代截断
@@ -530,36 +516,6 @@ class PromptsConfig:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Agent 定义 —— 从 config/agents.yaml 加载（多Agent模式）
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@dataclass
-class AgentEntry:
-    """单个 Agent 的能力定义。"""
-    tag: str = ""
-    model_selector: str = "chat"
-    system_prompt: str = ""
-    tools: list = field(default_factory=list)
-    tool_executor: Any = None
-    max_tool_turns: int = 5
-    cost_tier: str = "default"
-    priority: int = 0
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AgentEntry":
-        return cls(
-            tag=data.get("tag", ""),
-            model_selector=data.get("model_selector", "chat"),
-            system_prompt=data.get("system_prompt", ""),
-            tools=data.get("tools", []),
-            tool_executor=data.get("tool_executor"),
-            max_tool_turns=data.get("max_tool_turns", 5),
-            cost_tier=data.get("cost_tier", "default"),
-            priority=data.get("priority", 0),
-        )
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # 顶层配置
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -567,7 +523,7 @@ class AgentEntry:
 class AppConfig:
     """应用配置根结构。
 
-    从 config.yaml + models.yaml + prompts/*.yaml + agents.yaml 一次性加载。
+    从 config.yaml + models.yaml + prompts/*.yaml 一次性加载。
     所有配置统一存放在此 dataclass 中，Worker 通过属性访问。
     """
     models: ModelsConfig = field(default_factory=ModelsConfig)
@@ -581,7 +537,6 @@ class AppConfig:
     channels: ChannelsConfig = field(default_factory=ChannelsConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     prompts: PromptsConfig = field(default_factory=PromptsConfig)
-    agents: List[AgentEntry] = field(default_factory=list)
 
     # ══════════════════════════════════════════════════════════════════════
     # YAML 加载
@@ -646,15 +601,6 @@ class AppConfig:
         else:
             logger.warning("Prompts dir not found: %s, using defaults", prompts_dir)
 
-        # 加载 Agent 定义（多Agent模式）
-        agents_path = config_dir / "agents.yaml"
-        if agents_path.exists():
-            with open(agents_path, "r", encoding="utf-8") as _f:
-                agents_raw = yaml.safe_load(_f) or {}
-            for item in agents_raw.get("agents", []):
-                config.agents.append(AgentEntry.from_dict(item))
-            logger.info("Agents loaded: %d from %s", len(config.agents), agents_path)
-
         # 将相对路径解析为项目根目录下的绝对路径
         # config_dir = {project_root}/config/，因此 project_root = config_dir.parent
         config._resolve_data_paths(config_dir.parent)
@@ -696,12 +642,6 @@ class AppConfig:
             self.temporal.host = environ["TEMPORAL_HOST"]
         if environ.get("TEMPORAL_TASK_QUEUE"):
             self.temporal.task_queue = environ["TEMPORAL_TASK_QUEUE"]
-        if environ.get("WEB_REAL_AGENT_ENABLED"):
-            self.temporal.web_real_agent_enabled = environ["WEB_REAL_AGENT_ENABLED"].lower() in (
-                "1", "true", "yes", "on"
-            )
-        if environ.get("WEB_REAL_AGENT_GATE_VERSION"):
-            self.temporal.web_real_agent_gate_version = environ["WEB_REAL_AGENT_GATE_VERSION"]
         if environ.get("AGENT_EXECUTION_LEASE_TTL_SECONDS"):
             self.temporal.agent_execution_lease_ttl_seconds = int(
                 environ["AGENT_EXECUTION_LEASE_TTL_SECONDS"]

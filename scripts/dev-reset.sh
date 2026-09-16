@@ -8,7 +8,7 @@
 #   ./scripts/dev-reset.sh --kill           # 只杀 HpAgent 进程
 #   ./scripts/dev-reset.sh --clean          # 只清 Temporal workflow
 #   ./scripts/dev-reset.sh --clean-workspace # 清 workspace 数据（accounts/repo/sessions/DB）
-#   ./scripts/dev-reset.sh --clean-data     # 清所有 .data/ （workspace + sessions + logs + accounts.json）
+#   ./scripts/dev-reset.sh --clean-data     # 清所有 .data/（workspace + logs）
 #   ./scripts/dev-reset.sh --full           # 以上全部
 
 set -euo pipefail
@@ -108,7 +108,6 @@ clean_all_data() {
 
     if [[ -d "$DATA_DIR" ]]; then
         # 保留目录结构但清空内容
-        rm -rf "$DATA_DIR"/accounts.json 2>/dev/null || true
         rm -rf "$DATA_DIR"/workspace 2>/dev/null || true
         rm -rf "$DATA_DIR"/sessions 2>/dev/null || true
         rm -rf "$DATA_DIR"/logs 2>/dev/null || true
@@ -130,7 +129,7 @@ usage() {
     echo "  --kill             只杀 HpAgent 进程"
     echo "  --clean            只清 Temporal 残留 workflow"
     echo "  --clean-workspace  清 workspace 数据（accounts/repo/sessions/DB）"
-    echo "  --clean-data       清所有 .data/ （workspace + sessions + logs + accounts.json）"
+    echo "  --clean-data       清所有 .data/（workspace + logs）"
     echo "  --full             以上全部"
     echo ""
     echo "Data paths:"

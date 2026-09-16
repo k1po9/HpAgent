@@ -370,9 +370,6 @@ class SSEGateway:
         if not isinstance(event_type, str) or not event_type:
             return None
         payload = data.get("payload")
-        if not isinstance(payload, dict) and isinstance(data.get("phase"), str):
-            # Legacy transport payload: progress fields at the top level.
-            payload = {"phase": data.get("phase"), "summary": data.get("summary")}
         if not isinstance(payload, dict):
             payload = {}
         return {

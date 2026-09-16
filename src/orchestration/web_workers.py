@@ -24,7 +24,6 @@ from agent_workflows.contracts import (
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
-from workspace.isolation import WorkspaceIsolationMode
 
 from .agent_lifecycle_workflow import AgentLifecycleWorkflow
 from .artifact_workflow import ArtifactBuildWorkflow
@@ -40,8 +39,6 @@ from .run_lifecycle_contracts import (
     WEB_PREPARE_START_TO_CLOSE_SECONDS,
     WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
 )
-
-WEB_REAL_AGENT_GATE_VERSION = "c-07-v1"
 
 
 @dataclass(frozen=True)
@@ -72,40 +69,8 @@ def validate_web_outbox_recovery(
         )
 
 
-def validate_standalone_web_worker_topology(
-    workspace_isolation_mode: str, web_real_agent_enabled: bool
-) -> None:
-    """Fail-closed gate for the independent ``web_worker`` entrypoint.
-
-    A separate Web Worker process is only structurally valid under the
-    ``session_worktree`` topology.  Under ``single_process_account_lock`` (the
-    default and only implemented topology) QQ and Web must share one process and
-    one ``AccountLockRegistry`` (AE-021); a second process would race the main
-    Worker for the workspace process lock and split the registry.  The
-    standalone entrypoint therefore refuses to start in that mode and requires
-    the C-07 real-Agent gate to be explicitly enabled.
-    """
-    if workspace_isolation_mode == WorkspaceIsolationMode.SINGLE_PROCESS_ACCOUNT_LOCK.value:
-        raise RuntimeError(
-            "standalone Web Worker is invalid under "
-            f"'{WorkspaceIsolationMode.SINGLE_PROCESS_ACCOUNT_LOCK.value}': "
-            "QQ and Web must share one process and one AccountLockRegistry "
-            "(AE-021); a second process would race the main Worker for the "
-            "workspace process lock and split the registry.  Enable Web on the "
-            "main worker (WEB_REAL_AGENT_ENABLED=true) instead, or switch "
-            f"WORKSPACE_ISOLATION_MODE to "
-            f"'{WorkspaceIsolationMode.SESSION_WORKTREE.value}'."
-        )
-    if not web_real_agent_enabled:
-        raise RuntimeError("standalone Web Worker requires WEB_REAL_AGENT_ENABLED=true")
-
-
 def validate_web_worker_startup(config: Any, worker_database_url: str | None) -> None:
-    """Fail closed before constructing any real-Agent Web worker."""
-    if config.web_real_agent_gate_version != WEB_REAL_AGENT_GATE_VERSION:
-        raise RuntimeError(
-            f"WEB real Agent requires WEB_REAL_AGENT_GATE_VERSION={WEB_REAL_AGENT_GATE_VERSION}"
-        )
+    """Validate canonical Web/QQ worker configuration before construction."""
     try:
         validate_web_outbox_recovery(
             config.web_outbox_lease_timeout_seconds,

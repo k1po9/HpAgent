@@ -18,10 +18,9 @@ from uuid import uuid4
 
 from uuid6 import uuid7
 
-# Contract stable progress phases (hpagent-web-api-contract.md §12.4) plus the
-# legacy phase names emitted by Phase D callers/tests.  The Gateway may normalize
-# a legacy phase; an unknown phase degrades to the generic "正在处理" hint on the
-# client and never becomes Message content.
+# Contract-stable progress phases emitted by the canonical lifecycle and Agent
+# activities. An unknown phase degrades to a generic client hint and never
+# becomes Message content.
 PROGRESS_PHASES = frozenset(
     {
         "assembling_context",

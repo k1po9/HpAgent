@@ -8,7 +8,7 @@ import psycopg
 import pytest
 
 from conversation_domain.commands import CommandService
-from persistence.repositories import RunRepository
+from persistence.repositories import MessageRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import ConversationBusy
 
@@ -140,8 +140,8 @@ def test_db_009_and_015_context_filters_status_and_account(
         )
     CommandService(worker_database_url).complete_run(account_id, run_id, "done")
     with UnitOfWork(database_url) as uow:
-        visible = RunRepository().context_messages(uow, account_id, conversation_id, 2)
-        hidden = RunRepository().context_messages(uow, uuid4(), conversation_id, 2)
+        visible = MessageRepository().context_messages(uow, account_id, conversation_id, 2)
+        hidden = MessageRepository().context_messages(uow, uuid4(), conversation_id, 2)
     assert [row["status"] for row in visible] == ["accepted", "completed"]
     assert hidden == []
 
@@ -176,7 +176,7 @@ def test_run_timestamps_tolerate_a_small_system_clock_rollback(
 def test_db_015_cross_account_context_is_empty(db, account_id, database_url):
     _, conversation_id, _ = _conversation_and_run(database_url, account_id)
     with UnitOfWork(database_url) as uow:
-        assert RunRepository().context_messages(uow, uuid4(), conversation_id, 100) == []
+        assert MessageRepository().context_messages(uow, uuid4(), conversation_id, 100) == []
 
 
 def test_db_016_retry_cannot_change_context_watermark(

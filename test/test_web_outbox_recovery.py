@@ -22,10 +22,7 @@ import pytest
 from account.validation import validate_unified_account_backend
 from orchestration.config import AppConfig, TemporalConfig
 from orchestration.web_dispatcher import run_web_outbox_recovery_loop
-from orchestration.web_workers import (
-    WEB_REAL_AGENT_GATE_VERSION,
-    validate_web_worker_startup,
-)
+from orchestration.web_workers import validate_web_worker_startup
 from web_domain.outbox import WEB_OUTBOX_RECOVERY_EVENT_TYPES
 
 
@@ -91,7 +88,7 @@ def test_outbox_recovery_env_overrides():
 
 
 def test_unified_account_gate_rejects_missing_worker_database_url():
-    # G-02 §10.5：统一身份启用但缺 WORKER_DATABASE_URL → fail closed，不回退 accounts.json。
+    # Unified identity requires the PostgreSQL worker connection.
     with pytest.raises(RuntimeError, match="WORKER_DATABASE_URL"):
         validate_unified_account_backend(None)
 
@@ -102,8 +99,6 @@ def test_unified_account_gate_accepts_worker_database_url():
 
 def test_web_worker_startup_rejects_invalid_outbox_recovery_config():
     config = TemporalConfig()
-    config.web_real_agent_gate_version = WEB_REAL_AGENT_GATE_VERSION
-
     config.web_outbox_lease_timeout_seconds = 0
     with pytest.raises(RuntimeError, match="lease_timeout_seconds must be positive"):
         validate_web_worker_startup(config, "postgresql://worker")

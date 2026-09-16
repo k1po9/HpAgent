@@ -367,7 +367,7 @@ def _build_web_background_tasks(
     ``composition.workers`` 上 —— 那里只有 lifecycle/agent（C-07）。
     """
     # 惰性导入与 compose_web_workers 一致：web 组合产物只在
-    # web_real_agent_enabled 时构建，模块顶层不引 Temporal 侧依赖。
+    # Canonical Web/QQ workers are composed here without module-level Temporal side effects.
     from orchestration.artifact_dispatcher import (
         run_artifact_dispatcher_loop,
         run_artifact_outbox_recovery_loop,
@@ -754,9 +754,6 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
 
     # ── 8. Surface composition ──
     channel_router = ChannelRouter()
-    if config.agent.mode != "single":
-        raise RuntimeError("agent.mode=multi is experimental and inactive")
-
     # ── 11. GitRepoManager ──
     git_repo_manager = GitRepoManager(repos_root=workspace_root)
     logger.info("GitRepoManager initialized: repos_root=%s", workspace_root)
@@ -879,22 +876,17 @@ async def start_worker(config: AppConfig) -> None:
         web_memory_retention = None
         web_artifact_dispatcher = None
         research_schedule_manager = None
-        if config.temporal.web_real_agent_enabled or any(
-            name in {"napcat", "official_qq"} for name in config.channels.enabled
-        ):
-            composition = compose_web_workers(client, config, deps)
-            web_workers = composition.workers
-            web_dispatcher = composition.dispatcher
-            web_reconciler = composition.reconciler
-            # Phase F: MemoryRetentionService 挂在组合层（composition.memory_retention），
-            # 不在 composition.workers 上 —— 那里只有 lifecycle/agent（C-07）。
-            web_memory_retention = composition.memory_retention
-            web_artifact_dispatcher = composition.artifact_dispatcher
-            from orchestration.research_schedule import ResearchScheduleManager
+        composition = compose_web_workers(client, config, deps)
+        web_workers = composition.workers
+        web_dispatcher = composition.dispatcher
+        web_reconciler = composition.reconciler
+        web_memory_retention = composition.memory_retention
+        web_artifact_dispatcher = composition.artifact_dispatcher
+        from orchestration.research_schedule import ResearchScheduleManager
 
-            research_schedule_manager = ResearchScheduleManager(
-                os.environ["WORKER_DATABASE_URL"], client
-            )
+        research_schedule_manager = ResearchScheduleManager(
+            os.environ["WORKER_DATABASE_URL"], client
+        )
 
         # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
         _channel_factories = {

@@ -119,10 +119,6 @@ class RunRepository:
             (account_id, run_id),
         ).fetchone())
 
-    def context_messages(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, watermark: int) -> list[dict[str, Any]]:
-        """Compatibility alias; new Web context code uses MessageRepository."""
-        return MessageRepository().context_messages(uow, account_id, conversation_id, watermark)
-
     def context_subject(
         self, uow: UnitOfWork, account_id: UUID, run_id: UUID
     ) -> dict[str, Any] | None:

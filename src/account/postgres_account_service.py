@@ -3,14 +3,14 @@
 Phase F 统一身份：QQ 与 Web 都解析到 ``accounts.account_id``，Hindsight
 bank 因而天然统一为 ``hpagent-u-{account_id}``。
 
-与旧 ``AccountService``（accounts.json）的最小兼容接口：
+为渠道入口提供 PostgreSQL identity binding 查询接口：
   - ``resolve(channel_type, channel_user_id) -> str | None``
   - ``list_all_ids() -> list[str]``
 
 行为约束（Phase F 设计决策）:
   - **只读**：本服务只 SELECT ``identity_bindings`` / ``accounts``，
     绝不自动创建 Account 或 IdentityBinding。
-  - **不降级**：解析不到活跃绑定返回 ``None``，绝不回落到 accounts.json。
+  - 解析不到活跃绑定时返回 ``None``。
   - **失败即失败**：SELECT 本身失败（DB 挂/连接/权限）抛
     ``IdentityResolutionUnavailable``，绝不伪装成"未绑定"；ingress 回复
     "服务暂时不可用"而不是"账号尚未绑定"。
@@ -56,7 +56,7 @@ class PostgresAccountService:
 
         QQ: normalized = "{channel}:{subject}"（napcat / official_qq）
         Web: normalized = subject.strip().casefold()
-             必须与 ``ConfiguredPasswordCredentialAdapter.normalize`` 完全一致。
+             必须与 ``normalize_web_subject`` 完全一致。
         """
         return normalize_channel_subject(channel_type, channel_user_id)
 

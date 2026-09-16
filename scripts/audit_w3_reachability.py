@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE = "630ce8de2f1f72a1663a95a8f8ffa3db622d8fff"
 ROOTS = (
-    "main", "web_api.__main__", "web_api.app", "orchestration.web_worker",
+    "main", "web_api.__main__", "web_api.app",
     "orchestration.document_worker", "persistence.migrate",
 )
 SCOPES = ("agent_execution", "harness", "orchestration", "session", "storage", "agent")
@@ -188,8 +188,6 @@ def build_report():
     rows.extend([
         {"module": "", "path": "scripts/session-viewer.py", "baseline_status": "UNKNOWN",
          "status": "UNKNOWN", "reason": "Operational WAL/archive viewer; reads files rather than importing SessionStore. Operator usage cannot be proved from the runtime import graph."},
-        {"module": "", "path": "scripts/merge-account.py", "baseline_status": "UNKNOWN",
-         "status": "UNKNOWN", "reason": "Operational JSON rewrite script; no production module import is evidence of operator usage. Review explicitly in W3-B; never run to delete personal data."},
         {"module": "", "path": "persistence/migrations/*", "baseline_status": "STILL_REACHABLE",
          "status": "STILL_REACHABLE", "reason": "Canonical clean-schema installation chain; no migration deletion authorized."},
     ])

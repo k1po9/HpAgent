@@ -12,8 +12,6 @@ import asyncio
 import os
 import sys
 
-import pytest
-
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from memory.hindsight_client import HindsightClient
@@ -132,19 +130,3 @@ def test_async_retain_is_surfaced_on_the_receipt():
     )
     assert receipt.async_processing is True
     assert client.posts[0][1]["async"] is True
-
-
-def test_legacy_retain_delegates_and_still_returns_int():
-    client = _CapturingClient()
-    count = asyncio.run(client.retain([{"role": "user", "content": "hi"}], "u1", "s1"))
-    assert isinstance(count, int)
-    assert count == 1
-    _, body = client.posts[0]
-    assert body["items"][0]["document_id"] == "session:s1"
-    assert body["async"] is True
-    assert body["items"][0]["metadata"] == {"session_id": "s1", "sender_name": ""}
-
-
-def test_legacy_retain_disabled_mode_returns_zero():
-    client = HindsightClient(enabled=False)
-    assert asyncio.run(client.retain([{"role": "user", "content": "hi"}], "u1", "s1")) == 0

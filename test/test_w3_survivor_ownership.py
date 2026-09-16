@@ -35,7 +35,7 @@ class Guard(importlib.abc.MetaPathFinder):
             raise AssertionError('canonical import reached retired owner: ' + fullname)
 sys.meta_path.insert(0, Guard())
 for name in (
-    'main', 'web_api.app', 'orchestration.web_worker', 'orchestration.document_worker',
+    'main', 'web_api.app', 'orchestration.document_worker',
     'agent_activities.runtime', 'document_activities.runtime', 'research_activities.runtime',
     'memory.activities', 'memory.workflows', 'sandbox.tools.local.reminder',
 ):

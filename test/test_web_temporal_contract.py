@@ -37,12 +37,7 @@ from orchestration.web_dispatcher import (
     web_workflow_id,
 )
 from orchestration.web_reconciler import ReconcileCandidate, TemporalFact, WebRunReconciler
-from orchestration.web_workers import (
-    WEB_REAL_AGENT_GATE_VERSION,
-    build_web_temporal_workers,
-    validate_standalone_web_worker_topology,
-    validate_web_worker_startup,
-)
+from orchestration.web_workers import build_web_temporal_workers, validate_web_worker_startup
 from web_domain.lifecycle import LifecycleAuthority
 from web_domain.run_events import RedisWebRunEventSinkFactory
 
@@ -53,14 +48,10 @@ def test_agent_queues_are_isolated_from_scheduled_memory_queue():
     assert config.web_lifecycle_task_queue == WEB_LIFECYCLE_TASK_QUEUE
     assert config.web_agent_task_queue == WEB_AGENT_TASK_QUEUE
     assert len({config.task_queue, config.web_lifecycle_task_queue, config.web_agent_task_queue}) == 3
-    assert config.web_real_agent_enabled is False
 
 
-def test_web_worker_startup_fails_closed_without_c07_gate_or_database():
+def test_web_worker_startup_fails_closed_without_database():
     config = TemporalConfig()
-    with pytest.raises(RuntimeError):
-        validate_web_worker_startup(config, "postgresql://worker")
-    config.web_real_agent_gate_version = WEB_REAL_AGENT_GATE_VERSION
     with pytest.raises(RuntimeError):
         validate_web_worker_startup(config, None)
     validate_web_worker_startup(config, "postgresql://worker")
@@ -71,27 +62,6 @@ def test_web_worker_startup_fails_closed_without_c07_gate_or_database():
     config.web_finalize_start_to_close_seconds = 21
     with pytest.raises(RuntimeError, match="frozen Workflow contract"):
         validate_web_worker_startup(config, "postgresql://worker")
-
-
-def test_standalone_web_worker_fails_closed_under_single_process_account_lock():
-    # P0-2: a separate Web Worker process racing the main Worker for the
-    # workspace process lock (and splitting the AccountLockRegistry) must be a
-    # hard configuration error, never a silently-duplicated QQ deployment.
-    with pytest.raises(RuntimeError, match="single_process_account_lock"):
-        validate_standalone_web_worker_topology("single_process_account_lock", True)
-    with pytest.raises(RuntimeError, match="must share one process"):
-        validate_standalone_web_worker_topology("single_process_account_lock", False)
-
-
-def test_standalone_web_worker_requires_real_agent_gate():
-    with pytest.raises(RuntimeError, match="WEB_REAL_AGENT_ENABLED=true"):
-        validate_standalone_web_worker_topology("session_worktree", False)
-
-
-def test_standalone_web_worker_accepts_session_worktree_with_gate():
-    # session_worktree is the only topology where a separate Web Worker process
-    # is structurally valid; with the gate on, the entrypoint may proceed.
-    validate_standalone_web_worker_topology("session_worktree", True)
 
 
 def test_web_workflow_input_is_minimal_and_versioned():

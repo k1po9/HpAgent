@@ -47,7 +47,7 @@ async def test_web_and_qq_bindings_point_to_same_account(db, worker_database_url
     _binding(db, account, "web", "user@example.com", external="user@example.com")
     _binding(db, account, "qq", "napcat:10002", external="10002")
     service = PostgresAccountService(worker_database_url)
-    # Web 归一化必须与 ConfiguredPasswordCredentialAdapter.normalize 一致：
+    # Web identity 使用统一的 normalize_web_subject 规则：
     # subject.strip().casefold() → "user@example.com" 命中。
     web = await service.resolve("web", "User@Example.com")
     qq = await service.resolve("napcat", "10002")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 def _secret(name: str, default: str) -> bytes:
@@ -21,7 +21,6 @@ class WebApiSettings:
     qq_binding_challenge_seconds: int = 300
     environment: str = "development"
     worker_database_url: str | None = None
-    credential_records: dict[str, str] = field(default_factory=dict)
     session_absolute_seconds: int = 7 * 24 * 60 * 60
     session_idle_seconds: int = 24 * 60 * 60
     cursor_ttl_seconds: int = 24 * 60 * 60
@@ -31,7 +30,6 @@ class WebApiSettings:
     fake_executor_mode: str = "success"
     fake_executor_content: str = "这是由测试执行器生成的回复。"
     fake_executor_failure_code: str = "fake_executor_failure"
-    real_agent_enabled: bool = False
     web_file_upload_enabled: bool = False
     web_file_transform_enabled: bool = False
     web_file_shell_enabled: bool = False
@@ -93,7 +91,6 @@ class WebApiSettings:
         cursor_keys = json.loads(os.getenv("WEB_CURSOR_KEYS_JSON", "{}"))
         if not cursor_keys:
             cursor_keys = {key_id: os.getenv("WEB_CURSOR_SECRET", "development-cursor-secret")}
-        credentials = json.loads(os.getenv("WEB_CREDENTIALS_JSON", "{}"))
         environment = os.getenv("HPAGENT_ENV", "development")
         # G-02 §10.2：生产必须显式配置最终用户真正访问的 HTTPS origin，
         # 不得沿用开发默认值或内部服务地址（http://hpagent-api:8080）。
@@ -131,7 +128,6 @@ class WebApiSettings:
                 os.getenv("QQ_BINDING_CHALLENGE_SECONDS", "300")
             ),
             environment=environment,
-            credential_records=credentials,
             cookie_secure=os.getenv("WEB_COOKIE_SECURE", "true").lower() == "true",
             fake_executor_enabled=os.getenv("WEB_FAKE_EXECUTOR_ENABLED", "false").lower()
             == "true",
@@ -145,7 +141,6 @@ class WebApiSettings:
             fake_executor_failure_code=os.getenv(
                 "WEB_FAKE_EXECUTOR_FAILURE_CODE", "fake_executor_failure"
             ),
-            real_agent_enabled=os.getenv("WEB_REAL_AGENT_ENABLED", "false").lower() == "true",
             web_file_upload_enabled=os.getenv(
                 "WEB_FILE_UPLOAD_ENABLED", "false"
             ).lower() == "true",

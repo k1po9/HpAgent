@@ -83,7 +83,6 @@ test -f .env || cp .env.example .env
 HPAGENT_ENV=development
 WEB_PUBLIC_ORIGIN=http://127.0.0.1:5173
 WEB_COOKIE_SECURE=false
-WEB_CREDENTIALS_JSON={}
 
 HPAGENT_MIGRATE_PASSWORD=change-me
 HPAGENT_API_PASSWORD=change-me

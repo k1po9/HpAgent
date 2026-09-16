@@ -7,11 +7,8 @@ from datetime import UTC, datetime, timedelta
 from typing import Protocol
 from uuid import UUID
 
-from argon2 import PasswordHasher
-from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from uuid6 import uuid7
 
-from account.identity import normalize_web_subject
 from persistence.uow import UnitOfWork
 
 from .config import WebApiSettings
@@ -20,29 +17,6 @@ from .security import csrf_digest, csrf_token, token_digest
 
 class CredentialAdapter(Protocol):
     def verify(self, username: str, password: str) -> str | None: ...
-
-
-class ConfiguredPasswordCredentialAdapter:
-    """Argon2id verifier whose values are supplied by a secret-backed config."""
-
-    def __init__(self, records: dict[str, str]):
-        self._records = {self.normalize(name): value for name, value in records.items()}
-        self._hasher = PasswordHasher()
-        self._dummy_hash = self._hasher.hash(secrets.token_urlsafe(24))
-
-    @staticmethod
-    def normalize(value: str) -> str:
-        return str(normalize_web_subject(value))
-
-    def verify(self, username: str, password: str) -> str | None:
-        subject = self.normalize(username)
-        encoded = self._records.get(subject, self._dummy_hash)
-        verified = False
-        try:
-            verified = bool(self._hasher.verify(encoded, password))
-        except (VerifyMismatchError, InvalidHashError):
-            pass
-        return subject if verified and subject in self._records else None
 
 
 @dataclass(frozen=True)

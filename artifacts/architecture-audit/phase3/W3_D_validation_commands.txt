@@ -1,0 +1,11 @@
+.venv/bin/pytest -q test/test_web_temporal_contract.py test/test_web_outbox_recovery.py test/web_api/test_config.py test/test_w1_gate_resources.py test/test_w3_survivor_ownership.py test/test_w3b_runtime_retirement.py test/test_hindsight.py test/test_hindsight_retain_document.py test/test_durable_agent_contract.py test/test_durable_agent_hardening.py test/test_action_result_semantics.py
+.venv/bin/python scripts/verify_w3b_contracts.py test/web_persistence/test_identity_self_service.py test/web_persistence/test_postgres_account_service.py test/web_persistence/test_phase_a_invariants.py
+.venv/bin/python scripts/verify_w3b_contracts.py test/web_api/test_sse_gateway.py
+.venv/bin/pytest --collect-only -q
+.venv/bin/python scripts/audit_w3d_compatibility.py
+env -u DURABLE_AGENT_ENABLED -u WEB_REAL_AGENT_ENABLED -u WEB_REAL_AGENT_GATE_VERSION -u WEB_CREDENTIALS_JSON PYTHONPATH=src .venv/bin/python <minimal clean AppConfig/WebApiSettings construction>
+docker compose config --quiet
+rg retired config/import/definition/path surfaces
+.venv/bin/ruff check <all changed Python files>
+git diff --check
+git diff --quiet -- artifacts/architecture-audit/phase2_2

@@ -11,7 +11,7 @@
 # 前置条件（真实生产组合）：
 #   - 已配置模型 API key（MINIMAX_API_KEY / SILICONFLOW_API_KEY 等）
 #   - 已运行 scripts/bootstrap_identity.py（WEB_UNIFIED_ACCOUNT_ENABLED=true 时）
-#   - WEB_CREDENTIALS_JSON 含 smoke 用户，或使用环境变量覆盖
+#   - PostgreSQL 中已注册 smoke 用户，或使用环境变量覆盖凭据
 #   - HPAGENT_ENV=production 时不得启用 WEB_FAKE_EXECUTOR_ENABLED
 #
 # 用法:
@@ -89,7 +89,7 @@ code="$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR" -b "$JAR" \
   -H 'Content-Type: application/json' -H 'Accept: application/json' \
   -d "{\"username\":\"$SMOKE_USER\",\"password\":\"$SMOKE_PASSWORD\",\"return_to\":\"/\"}" \
   "$GATEWAY_URL/auth/login")"
-[[ "$code" == "303" ]] || fail "login expected 303, got $code (check SMOKE_USER/SMOKE_PASSWORD and WEB_CREDENTIALS_JSON)"
+[[ "$code" == "303" ]] || fail "login expected 303, got $code (check PostgreSQL identity and SMOKE_USER/SMOKE_PASSWORD)"
 pass "login (303) -> $SMOKE_USER"
 
 ME="$(curl -s -b "$JAR" -c "$JAR" "$GATEWAY_URL/api/v1/me")"

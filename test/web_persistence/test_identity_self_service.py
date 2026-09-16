@@ -4,12 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
 import pytest
-from argon2 import PasswordHasher
 
-from account.credentials import (
-    FallbackCredentialAdapter,
-    PostgresPasswordCredentialAdapter,
-)
+from account.credentials import PostgresPasswordCredentialAdapter
 from account.identity_binding_service import (
     ChallengeExpired,
     ChallengeNotFound,
@@ -21,7 +17,6 @@ from account.registration_service import (
     RegistrationService,
     UsernameAlreadyExists,
 )
-from web_api.auth import ConfiguredPasswordCredentialAdapter
 
 pytestmark = pytest.mark.postgres
 
@@ -65,7 +60,7 @@ def test_registration_password_policy_leaves_no_partial_account(db, database_url
     assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 0
 
 
-def test_database_credential_is_authoritative_over_legacy_fallback(db, database_url):
+def test_missing_database_credential_cannot_authenticate(db, database_url):
     registration = RegistrationService(database_url)
     registration.register("alice", "database-password")
     bob_account, bob_binding = uuid4(), uuid4()
@@ -76,20 +71,11 @@ def test_database_credential_is_authoritative_over_legacy_fallback(db, database_
         "VALUES (%s,%s,'web','bob','bob',now())",
         (bob_binding, bob_account),
     )
-    hasher = PasswordHasher()
-    adapter = FallbackCredentialAdapter(
-        PostgresPasswordCredentialAdapter(database_url),
-        ConfiguredPasswordCredentialAdapter(
-            {
-                "alice": hasher.hash("legacy-password"),
-                "bob": hasher.hash("legacy-password"),
-            }
-        ),
-    )
+    adapter = PostgresPasswordCredentialAdapter(database_url)
 
     assert adapter.verify("alice", "database-password") == "alice"
-    assert adapter.verify("alice", "legacy-password") is None
-    assert adapter.verify("bob", "legacy-password") == "bob"
+    assert adapter.verify("alice", "wrong-password") is None
+    assert adapter.verify("bob", "any-password") is None
 
 
 def test_binding_unbound_qq_and_single_use(db, database_url, worker_database_url):

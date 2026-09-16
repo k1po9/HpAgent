@@ -146,7 +146,9 @@ class HindsightClient:
 
         client = HindsightClient(base_url="http://localhost:8001")
         memories = await client.recall("用户偏好", user_id="u1", session_id="s1")
-        count = await client.retain(events, user_id="u1", session_id="s1")
+        receipt = await client.retain_document(
+            events, user_id="u1", document_id="qq-execution:execution-1"
+        )
         insights = await client.reflect(user_id="u1")
 
     Args:
@@ -323,7 +325,6 @@ class HindsightClient:
 
         Web:    document_id = "web-run:{run_id}"    （async_retain=False）
         QQ:     document_id = "qq-execution:{execution_id}"
-        legacy: document_id = "session:{session_id}"（async_retain=True）
 
         Returns:
             RetainReceipt。accepted=False 表示请求失败（Outbox 应重试）。
@@ -378,41 +379,6 @@ class HindsightClient:
             operation_id=result.get("operation_id"),
             async_processing=async_retain,
         )
-
-    async def retain(
-        self,
-        events: List[Dict[str, Any]],
-        user_id: str,
-        session_id: str,
-        async_retain: bool = True,
-        channel_type: str = "",
-        group_id: str = "",
-        sender_name: str = "",
-        iso_timestamp: str = "",
-        scope: str = "",
-    ) -> int:
-        """从对话事件中提取可记忆信息并持久化（legacy 会话级接口）。
-
-        委托给 ``retain_document``，使用 ``session:{session_id}`` 作为
-        document_id，保持旧调用语义兼容（doc §26）。
-
-        Returns:
-            已提交的 memory item 数量，失败返回 0。
-        """
-        receipt = await self.retain_document(
-            events,
-            user_id,
-            f"session:{session_id}",
-            async_retain=async_retain,
-            channel_type=channel_type,
-            group_id=group_id,
-            sender_name=sender_name,
-            iso_timestamp=iso_timestamp,
-            scope=scope,
-            session_id=session_id,
-            metadata={"session_id": session_id, "sender_name": sender_name},
-        )
-        return receipt.items_count
 
     # ── retain helpers ────────────────────────────────────────────────────
 
