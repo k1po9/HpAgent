@@ -23,7 +23,7 @@ import pytest
 import redis.asyncio as aioredis
 from uuid6 import uuid7
 
-from agent_execution.run_budget import RunBudgetService
+from resources.run_budget import RunBudgetService
 from web_api.sse import SSEGateway
 
 pytestmark = pytest.mark.postgres

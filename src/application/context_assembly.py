@@ -7,9 +7,9 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, Sequence
 from uuid import UUID
 
+from application.context_builder import HarnessContextBuilder
 from common.logging import log_event
 from common.types import Event, EventType
-from harness.context_builder import HarnessContextBuilder
 from memory.hindsight_client import MemoryItem
 from persistence.repositories import FileRepository, MessageRepository, RunRepository
 from persistence.uow import UnitOfWork

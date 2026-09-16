@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from agent_execution.tracing.models import TraceEventNode, TraceTree
 from persistence.uow import UnitOfWork
+from tracing.models import TraceEventNode, TraceTree
 from web_domain.errors import ResourceNotFound, VersionConflict
 from web_domain.failures import is_failure_retryable
 from web_domain.run_usage_projection import load_run_budget_projection

@@ -9,7 +9,6 @@ import psycopg
 import pytest
 from temporalio.exceptions import ApplicationError
 
-from agent.protocol import BrainDecision
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.store import AgentDataStore
 from agent_workflows.contracts import (
@@ -20,6 +19,7 @@ from agent_workflows.contracts import (
     RunSource,
 )
 from agent_workflows.lifecycle_contracts import FinishWaitInput, SegmentInput, WaitInput
+from brain.contracts import BrainDecision
 
 pytestmark = pytest.mark.postgres
 

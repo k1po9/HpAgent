@@ -8,8 +8,8 @@ from application.context_assembly import (
     RunFileContext,
     WebContextBase,
 )
+from application.context_builder import HarnessContextBuilder
 from common.types import Event, EventType
-from harness.context_builder import HarnessContextBuilder
 from memory.hindsight_client import MemoryItem
 
 

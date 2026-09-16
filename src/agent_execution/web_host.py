@@ -7,19 +7,13 @@ import time
 from typing import Protocol
 from uuid import UUID
 
-from agent_execution.tracing import trace_end, trace_node_id, trace_start
+from agent_execution.facade import ExecutionControl, ExecutionResult
+from application.execution_contracts import EventSink, ExecutionRequest, StableExecutionFailure
 from common.logging import log_event
+from tracing import trace_end, trace_node_id, trace_start
 from workspace.isolation import WorkspaceRecoveryRequired
 
-from .facade import (
-    AgentExecutionFacade,
-    EventSink,
-    ExecutionAuditSinkFactory,
-    ExecutionControl,
-    ExecutionRequest,
-    ExecutionResult,
-    StableExecutionFailure,
-)
+from .facade import AgentExecutionFacade, ExecutionAuditSinkFactory
 
 logger = logging.getLogger("HpAgent.WebExecutionHost")
 

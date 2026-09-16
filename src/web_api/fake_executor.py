@@ -4,7 +4,6 @@ import asyncio
 import contextlib
 from uuid import UUID
 
-from agent_execution.web_events import RedisWebRunEventSinkFactory
 from common.types import ModelResponse
 from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork
@@ -12,6 +11,7 @@ from web_artifacts.build import ArtifactBuildService
 from web_artifacts.generator import WebArtifactGenerator
 from web_artifacts.outbox import ArtifactOutboxService
 from web_domain.outbox import OutboxService
+from web_domain.run_events import RedisWebRunEventSinkFactory
 
 from .config import WebApiSettings
 

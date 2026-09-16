@@ -5,8 +5,8 @@ from types import SimpleNamespace
 import pytest
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
-from agent_execution.chat_run_input import ChatRunInputLoader
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, AgentRunInput, RunContext, RunSource
+from conversation_domain.run_input import ChatRunInputLoader
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.run_lifecycle_activities import (

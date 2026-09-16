@@ -9,12 +9,7 @@ from uuid import uuid4
 import pytest
 
 from agent_execution.brain_action_loop import DefaultBrainActionLoop
-from agent_execution.facade import (
-    ExecutionRequest,
-    ExecutionResult,
-    NullExecutionAuditSink,
-    StableExecutionFailure,
-)
+from agent_execution.facade import ExecutionResult, NullExecutionAuditSink
 from agent_execution.qq_host import (
     QQExecutionHost,
     QQLegacyContextProvider,
@@ -23,6 +18,7 @@ from agent_execution.qq_host import (
 )
 from agent_execution.web_host import WebExecutionHost
 from application.context_assembly import ContextAssemblyService, WebContextBase
+from application.execution_contracts import ExecutionRequest, StableExecutionFailure
 
 
 class _Control:

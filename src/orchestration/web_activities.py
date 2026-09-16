@@ -7,8 +7,8 @@ import logging
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from agent_execution.facade import StableExecutionFailure
 from agent_execution.web_host import WebExecutionHost
+from application.execution_contracts import StableExecutionFailure
 from orchestration.run_lifecycle_contracts import RunLifecycleInput as WebRunWorkflowInput
 
 from .run_lifecycle_contracts import WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS

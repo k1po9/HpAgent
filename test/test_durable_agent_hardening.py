@@ -9,8 +9,8 @@ from uuid import uuid4
 import pytest
 from temporalio.exceptions import ApplicationError
 
+from actions.contracts import ActionRequest, ActionResult
 from actions.runtime import ActionRuntime
-from agent.protocol import ActionRequest, ActionResult
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.side_effects import UnsupportedToolSideEffectReconciler
@@ -20,7 +20,6 @@ from agent_activities.store import (
     ToolOperationState,
     TranscriptVersionConflict,
 )
-from agent_execution.chat_bindings import ChatExecutionBindings
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     ChatContext,
@@ -32,6 +31,7 @@ from agent_workflows.contracts import (
     ToolExecutionInput,
 )
 from agent_workflows.lifecycle_contracts import SegmentInput
+from conversation_domain.execution_bindings import ChatExecutionBindings
 from sandbox.tools.adapters.mcp import CachedTool, MCPToolManager, _build_langchain_tool
 from web_domain.failures import is_failure_retryable
 

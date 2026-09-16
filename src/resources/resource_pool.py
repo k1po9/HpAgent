@@ -15,11 +15,11 @@ import logging
 import time
 from typing import Any, Dict, List, Optional
 
-from agent_execution.model_budget_context import current_model_budget
 from common.errors import ModelAPIError
 from common.interfaces import IResources
 from common.model_usage import canonical_model_usage
 from common.token_counter import estimate_messages_tokens
+from resources.model_budget_context import current_model_budget
 
 from .credentials import CredentialManager
 from .model_client import ModelClient

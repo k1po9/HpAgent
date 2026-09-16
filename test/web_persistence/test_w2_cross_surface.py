@@ -5,11 +5,11 @@ import pytest
 from support.qq_messages import qq_message
 
 from application.context_assembly import ContextAssemblyService
+from application.context_builder import HarnessContextBuilder
 from conversation_domain.commands import CommandService
 from conversation_domain.sessions import ConversationSessionService
-from harness.context_builder import HarnessContextBuilder
-from web_persistence.test_qq_canonical_ingress import bind, service
 from web_domain.errors import ConversationBusy
+from web_persistence.test_qq_canonical_ingress import bind, service
 
 pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
 

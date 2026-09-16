@@ -12,17 +12,16 @@ from temporalio.client import Client, WorkflowFailureError
 from temporalio.exceptions import ApplicationError
 from temporalio.worker import Replayer
 
-from agent.protocol import BrainDecision
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
-from agent_execution.chat_bindings import ChatExecutionBindings
-from agent_execution.chat_run_input import ChatRunInputLoader
-from agent_execution.web_adapters import PostgresWebRequestLoader
-from agent_execution.web_events import RedisWebRunEventSinkFactory
+from application.chat_execution import PostgresWebRequestLoader
 from application.context_assembly import ContextAssemblyService
+from application.context_builder import HarnessContextBuilder
+from brain.contracts import BrainDecision
 from conversation_domain.commands import CommandService
-from harness.context_builder import HarnessContextBuilder
+from conversation_domain.execution_bindings import ChatExecutionBindings
+from conversation_domain.run_input import ChatRunInputLoader
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_activities import (
     finalize_cancelled_activity,
@@ -43,6 +42,7 @@ from orchestration.web_workers import build_web_temporal_workers
 from sandbox.git_repo import GitRepoManager
 from web_domain.lifecycle import WebRunLifecycleService
 from web_domain.outbox import OutboxService
+from web_domain.run_events import RedisWebRunEventSinkFactory
 from web_domain.workflow_execution import PostgresWorkflowExecutionStore
 from workspace.isolation import AccountLockRegistry, SessionResourceRecoveryService
 

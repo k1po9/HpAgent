@@ -15,16 +15,7 @@ from uuid import UUID
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from agent.protocol import ActionRequest
-from agent_execution.facade import StableExecutionFailure
-from agent_execution.model_budget_context import model_budget_scope
-from agent_execution.run_budget import RunBudgetExhausted
-from agent_execution.tracing import (
-    model_observation_metadata,
-    trace_end,
-    trace_node_id,
-    trace_start,
-)
+from actions.contracts import ActionRequest
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     ApprovalStatusInput,
@@ -43,7 +34,16 @@ from agent_workflows.contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
+from application.execution_contracts import StableExecutionFailure
 from common.logging import log_event
+from resources.model_budget_context import model_budget_scope
+from resources.run_budget import RunBudgetExhausted
+from tracing import (
+    model_observation_metadata,
+    trace_end,
+    trace_node_id,
+    trace_start,
+)
 
 from .context_contracts import ExecutionContextBindings
 from .fencing import fenced_activity
@@ -234,7 +234,7 @@ class DurableAgentActivities:
 
     @asynccontextmanager
     async def _workspace(self, request: Any):
-        from agent_execution.activity_control import TemporalActivityControl
+        from agent_activities.control import TemporalActivityControl
 
         control = TemporalActivityControl()
         async with self.resource_prep.lease_for_run(

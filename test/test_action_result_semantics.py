@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
+from actions.contracts import ActionRequest, ActionResult
 from actions.runtime import ActionRuntime
-from agent.protocol import ActionRequest, ActionResult
 
 
 def test_action_result_preserves_explicit_failure_semantics() -> None:

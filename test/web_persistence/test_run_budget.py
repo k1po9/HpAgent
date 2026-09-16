@@ -4,10 +4,10 @@ from uuid import uuid4
 
 import pytest
 
-from agent_execution.model_budget_context import current_model_budget, model_budget_scope
-from agent_execution.run_budget import RunBudgetExhausted, RunBudgetService
 from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork
+from resources.model_budget_context import current_model_budget, model_budget_scope
+from resources.run_budget import RunBudgetExhausted, RunBudgetService
 from web_domain.run_usage_projection import load_run_budget_projection
 
 from .test_phase_a_invariants import _conversation_and_run

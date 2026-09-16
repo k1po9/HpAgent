@@ -7,8 +7,8 @@ import pytest
 from support.qq_messages import qq_message
 
 from agent_activities.store import AgentDataStore
-from agent_execution.chat_run_input import ChatRunInputLoader
 from application.context_assembly import ContextAssemblyService
+from application.context_builder import HarnessContextBuilder
 from application.conversation import ConversationService, UnboundIdentity
 from application.ingress import (
     BUSY_REPLY,
@@ -18,9 +18,9 @@ from application.ingress import (
 )
 from application.memory_retention import MemoryRetentionService
 from conversation_domain.commands import CommandService
+from conversation_domain.run_input import ChatRunInputLoader
 from conversation_domain.sessions import ConversationSessionService
 from conversation_domain.surface_commands import SurfaceConversationCommands
-from harness.context_builder import HarnessContextBuilder
 from memory.hindsight_client import RetainReceipt
 from web_domain.errors import ConversationBusy, IdempotencyConflict
 

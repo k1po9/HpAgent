@@ -5,7 +5,6 @@ from uuid import UUID, uuid4
 import pytest
 from uuid6 import uuid7
 
-from agent_execution.run_budget import RunBudgetExhausted, RunBudgetService
 from orchestration.research_workflow import ResearchIterationInput, ResearchWorkflowInput
 from persistence.uow import UnitOfWork
 from research_activities import ResearchActivities
@@ -18,6 +17,7 @@ from research_domain.models import (
 )
 from research_domain.persistence import ResearchRepository
 from research_domain.services import ResearchTaskCommandService
+from resources.run_budget import RunBudgetExhausted, RunBudgetService
 from web_artifacts.services import ArtifactService
 from web_domain.errors import ResourceNotFound
 

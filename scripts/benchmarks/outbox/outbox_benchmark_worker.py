@@ -14,7 +14,6 @@ from temporalio.worker import Worker
 
 from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
-from agent_execution.chat_run_input import ChatRunInputLoader
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
@@ -26,6 +25,7 @@ from agent_workflows.contracts import (
     ModelDecisionResult,
 )
 from agent_workflows.react import ReactAgentWorkflow
+from conversation_domain.run_input import ChatRunInputLoader
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_contracts import (
     WEB_AGENT_TASK_QUEUE,

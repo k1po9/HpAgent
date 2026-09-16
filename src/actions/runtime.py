@@ -13,7 +13,7 @@ import hashlib
 import logging
 from typing import Any, Dict, List, cast
 
-from agent.protocol import ActionRequest, ActionResult
+from actions.contracts import ActionRequest, ActionResult
 from common.token_counter import estimate_messages_tokens
 from common.types import Event, EventType
 

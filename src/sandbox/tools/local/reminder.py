@@ -10,10 +10,13 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from application.scheduler import TaskScheduler
 
 logger = logging.getLogger("HpAgent.Reminder")
 
@@ -138,8 +141,10 @@ def create_reminder_tool(session_context: dict) -> StructuredTool:
         if cron_expr:
             # 周期任务：用 cron 表达式，计算首次触发时间
             try:
+                from datetime import datetime as dt
+                from datetime import timezone as tz
+
                 from croniter import croniter
-                from datetime import datetime as dt, timezone as tz
                 now = dt.now(tz=tz.utc)
                 cron = croniter(cron_expr, now)
                 trigger_at = cron.get_next(float)
@@ -148,7 +153,7 @@ def create_reminder_tool(session_context: dict) -> StructuredTool:
         else:
             trigger_at = _calc_trigger(delay_minutes, at_time)
 
-        from orchestration.scheduler import ScheduledTask
+        from application.scheduler import ScheduledTask
 
         task = ScheduledTask(
             task_type="user_reminder",

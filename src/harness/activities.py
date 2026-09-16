@@ -1,17 +1,19 @@
 """Temporal Activities for QQ execution and scheduled application services."""
 from __future__ import annotations
 
-import json
 import logging
 import time
-from typing import Any, Dict, List, cast
+from typing import Any, Dict, cast
 
 from temporalio import activity
 
+from memory.activities import inject_scheduled_services as inject_scheduled_services
+from memory.activities import metrics_report_activity as metrics_report_activity
+from memory.activities import reflect_activity as reflect_activity
+from memory.activities import reflect_batch_activity as reflect_batch_activity
+
 _qq_execution_host: Any = None
 _session_archive: Any = None
-_memory_reflection: Any = None
-_metrics: Any = None
 
 
 def inject_services(
@@ -24,17 +26,10 @@ def inject_services(
     """Inject frozen Activity dependencies before the Worker starts."""
     if qq_execution_host is None:
         raise RuntimeError("QQExecutionHost is required")
-    global _qq_execution_host, _session_archive, _memory_reflection, _metrics
+    global _qq_execution_host, _session_archive
     _qq_execution_host = qq_execution_host
     _session_archive = session_archive
-    _memory_reflection = memory_reflection
-    _metrics = metrics
-
-
-def inject_scheduled_services(*, memory_reflection: Any, metrics: Any) -> None:
-    """Production schedule composition, with no legacy turn/Session dependencies."""
-    global _memory_reflection, _metrics
-    _memory_reflection, _metrics = memory_reflection, metrics
+    inject_scheduled_services(memory_reflection=memory_reflection, metrics=metrics)
 
 
 def _required(value: Any, name: str) -> Any:
@@ -81,26 +76,3 @@ async def archive_session_activity(session_id: str) -> Dict[str, Any]:
             "archive_session_activity FAILED sid=%s", session_id
         )
         return {"ok": False, "error": str(exc)}
-
-
-@activity.defn
-async def reflect_activity(account_id: str) -> Dict[str, Any]:
-    service = _required(_memory_reflection, "MemoryReflectionService")
-    return cast(Dict[str, Any], await service.reflect(account_id))
-
-
-@activity.defn
-async def reflect_batch_activity(account_ids: List[str]) -> Dict[str, Any]:
-    service = _required(_memory_reflection, "MemoryReflectionService")
-    return cast(Dict[str, Any], await service.reflect_batch(account_ids))
-
-
-@activity.defn
-async def metrics_report_activity() -> Dict[str, Any]:
-    service = _required(_metrics, "MetricsSnapshotService")
-    snapshot = await service.snapshot()
-    logging.getLogger("HpAgent.Metrics").info(
-        "HindsightMetrics|%s",
-        json.dumps(snapshot, ensure_ascii=False, default=str),
-    )
-    return cast(Dict[str, Any], snapshot)

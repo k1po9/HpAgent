@@ -4,7 +4,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Mapping
 
-from .facade import ExecutionAuditSink, ExecutionRequest
+from application.execution_contracts import ExecutionRequest
+
+from .facade import ExecutionAuditSink
 
 logger = logging.getLogger("HpAgent.ExecutionAudit")
 

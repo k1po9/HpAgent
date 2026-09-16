@@ -10,9 +10,9 @@ from uuid import UUID
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from agent_execution.tracing import trace_end, trace_node_id, trace_start
 from agent_workflows.contracts import AgentRunInput
 from orchestration.run_lifecycle_contracts import FailureInput, RunLifecycleInput
+from tracing import trace_end, trace_node_id, trace_start
 from web_domain.errors import DomainError
 
 

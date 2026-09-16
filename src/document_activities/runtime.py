@@ -9,12 +9,12 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from temporalio import activity
 
-from agent_execution.run_budget import RunBudgetService
-from agent_execution.tracing.repository import PostgresTraceRepository
 from file_domain.persistence import NormalizedDocumentRepository
 from file_domain.serialization import normalized_document_to_dict
 from file_runtime import FileResourceResolver
 from persistence.uow import UnitOfWork, retryable_transaction
+from resources.run_budget import RunBudgetService
+from tracing.repository import PostgresTraceRepository
 
 from .contracts import NormalizedDocumentRef, NormalizeDocumentInput
 

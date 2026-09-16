@@ -1,0 +1,106 @@
+"""Chat execution adapters; identity and context derive from the Run in PostgreSQL."""
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from uuid import UUID
+
+from application.context_assembly import (
+    ContextAssemblyService,
+    ContextIsolationError,
+    WebContextBase,
+)
+from application.execution_contracts import ExecutionRequest, StableExecutionFailure
+from common.logging import log_event
+
+logger = logging.getLogger("HpAgent.WebRequestLoader")
+
+
+class WebExecutionContextProvider:
+    """Per-Run two-phase context port; mutable state is never shared."""
+
+    def __init__(self, service: ContextAssemblyService, base: WebContextBase):
+        self._service = service
+        self._base = base
+
+    async def recall_long_term(self, recall_query: str):
+        try:
+            return await self._service.recall_long_term(self._base, recall_query)
+        except ContextIsolationError as exc:
+            raise StableExecutionFailure("memory_isolation_violation") from exc
+
+    def compose(self, memories):
+        try:
+            return tuple(self._service.compose(self._base, memories))
+        except ContextIsolationError as exc:
+            raise StableExecutionFailure("context_build_failed") from exc
+
+
+class PostgresWebRequestLoader:
+    def __init__(self, database_url: object, context: ContextAssemblyService):
+        self._database_url = database_url
+        self._context = context
+
+    async def load(self, run_id: str) -> ExecutionRequest:
+        from persistence.uow import UnitOfWork
+
+        def load_base():
+            with UnitOfWork(self._database_url) as uow:
+                row = uow.execute("SELECT account_id FROM runs WHERE run_id=%s", (UUID(run_id),)).fetchone()
+            if row is None:
+                raise ValueError("run not found")
+            return self._context.load_base(row["account_id"], UUID(run_id))
+
+        started_at = time.monotonic()
+        correlation = {"run_id": run_id, "execution_id": run_id}
+        log_event(
+            logger,
+            logging.INFO,
+            "context_assembly_started",
+            "context",
+            status="started",
+            **correlation,
+        )
+        try:
+            base = await asyncio.to_thread(load_base)
+            correlation["surface"] = base.origin.get("channel_type", "web")
+            # Long-term recall remains inside the execution loop, where a rewrite
+            # query exists; this loader only provides the frozen short-term snapshot.
+            context = tuple(self._context.compose(base, ()))
+        except (ContextIsolationError, ValueError) as exc:
+            logger.exception("Web context assembly failed", extra={
+                "event": "context_assembly_failed", "component": "context", **correlation,
+                "status": "failed", "elapsed_ms": round((time.monotonic() - started_at) * 1000),
+                "error_code": "context_build_failed",
+            })
+            raise StableExecutionFailure("context_build_failed") from exc
+        log_event(
+            logger,
+            logging.INFO,
+            "context_assembly_completed",
+            "context",
+            **correlation,
+            conversation_id=str(base.conversation_id),
+            session_id=str(base.session_id),
+            account_id=str(base.account_id),
+            status="success",
+            message_count=len(base.short_term_events),
+            run_file_count=len(base.run_files),
+            run_file_names=[item.logical_name for item in base.run_files],
+            resource_context_injected=bool(base.run_files),
+            elapsed_ms=round((time.monotonic() - started_at) * 1000),
+        )
+        return ExecutionRequest(
+            execution_id=run_id,
+            account_id=str(base.account_id),
+            conversation_id=str(base.conversation_id),
+            session_id=str(base.session_id),
+            user_content=base.trigger_content,
+            context=context,
+            trigger_message_id=str(base.trigger_message_id),
+            interaction_profile=base.interaction_profile,
+            metadata={"run_id": run_id, "surface": base.origin.get("channel_type", "web"),
+                      "origin": base.origin},
+            context_provider=WebExecutionContextProvider(self._context, base),
+        )

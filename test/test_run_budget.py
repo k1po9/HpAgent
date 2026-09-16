@@ -4,12 +4,12 @@ from types import SimpleNamespace
 
 import pytest
 
-from agent_execution.model_budget_context import current_model_budget, model_budget_scope
-from agent_execution.run_budget import DIMENSIONS, RunBudgetConflict, _amounts
 from common.errors import ModelAPIError
 from common.model_usage import canonical_model_usage
 from common.types import ModelResponse
+from resources.model_budget_context import current_model_budget, model_budget_scope
 from resources.resource_pool import ResourcePool
+from resources.run_budget import DIMENSIONS, RunBudgetConflict, _amounts
 from web_domain.run_usage_projection import budget_dto
 
 

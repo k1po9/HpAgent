@@ -10,8 +10,9 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+from actions.contracts import ActionRequest
+from brain.contracts import BrainDecision
 from common.token_counter import estimate_messages_tokens
-from agent.protocol import ActionRequest, BrainDecision
 
 logger = logging.getLogger(__name__)
 

@@ -26,25 +26,25 @@ from temporalio.client import Client
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
 from account.identity_binding_service import IdentityBindingService
+from application.context_builder import HarnessContextBuilder
 from application.conversation import ConversationService
 from application.identity_commands import IdentityCommandService
 from application.ingress import MessageIngressService
+from application.prompts import PromptLoader
+from application.scheduler import TaskScheduler
 from bootstrap.qq import build_qq_runtime
 from channels.napcat import NapCatChannel
 from channels.official_qq import OfficialQQChannel
 from channels.router import ChannelRouter
 from common.types import ChannelType, UnifiedMessage
-from harness.activities import (
+from memory.activities import (
     inject_scheduled_services,
     metrics_report_activity,
     reflect_activity,
     reflect_batch_activity,
 )
-from harness.context_builder import HarnessContextBuilder
-from harness.prompts import PromptLoader
+from memory.workflows import MetricsReportWorkflow, ReflectWorkflow
 from orchestration.config import AppConfig, SandboxConfig
-from orchestration.scheduler import TaskScheduler
-from orchestration.workflow import MetricsReportWorkflow, ReflectWorkflow
 from resources.credentials import CredentialManager, ModelEndpoint
 from resources.resource_pool import ResourcePool
 from sandbox.git_repo import GitRepoManager
@@ -111,18 +111,11 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from agent_activities.runtime import DurableAgentActivities
     from agent_activities.segments import SegmentActivities
     from agent_activities.store import AgentDataStore
-    from agent_execution.chat_bindings import ChatExecutionBindings
-    from agent_execution.run_budget import RunBudgetService
-    from agent_execution.tracing import (
-        PostgresTraceRepository,
-        TraceLifecycleObserver,
-        TracingWebEventSinkFactory,
-    )
-    from agent_execution.web_adapters import (
+    from application.chat_execution import (
         PostgresWebRequestLoader,
     )
-    from agent_execution.web_events import RedisWebRunEventSinkFactory
     from application.context_assembly import ContextAssemblyService
+    from conversation_domain.execution_bindings import ChatExecutionBindings
     from file_domain.approvals import FileActionApprovalService
     from file_domain.persistent import PersistentWebFileService
     from file_runtime import ResearchMarkdownPublisher
@@ -168,11 +161,18 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         StaticWebContentProvider,
         W3libSourceCanonicalizer,
     )
+    from resources.run_budget import RunBudgetService
+    from tracing import (
+        PostgresTraceRepository,
+        TraceLifecycleObserver,
+        TracingWebEventSinkFactory,
+    )
     from web_artifacts.build import ArtifactBuildService
     from web_artifacts.generator import WebArtifactGenerator
     from web_artifacts.outbox import ArtifactOutboxService
     from web_domain.lifecycle import WebRunLifecycleService
     from web_domain.outbox import OutboxService
+    from web_domain.run_events import RedisWebRunEventSinkFactory
     from web_domain.workflow_execution import PostgresWorkflowExecutionStore
     from workspace.isolation import SessionResourceRecoveryService
 
@@ -215,7 +215,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         worker_database_url,
         lease_ttl_seconds=config.temporal.agent_execution_lease_ttl_seconds,
     )
-    from agent_execution.chat_run_input import ChatRunInputLoader
+    from conversation_domain.run_input import ChatRunInputLoader
 
     inject_agent_run_loader(ChatRunInputLoader(agent_store, max_turns=config.agent.max_tool_turns))
     inject_agent_event_factory(event_factory)

@@ -9,20 +9,6 @@ import pytest
 
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.store import ToolOperationState
-from agent_execution.chat_bindings import ChatExecutionBindings
-from agent_execution.facade import ExecutionRequest
-from agent_execution.tracing import (
-    TraceEvent,
-    TraceEventNode,
-    TraceLifecycleObserver,
-    TraceRun,
-    TraceTree,
-    model_observation_metadata,
-    sanitize_trace_metadata,
-    trace_node_id,
-)
-from agent_execution.tracing.sink import TraceEventSink, TracingWebEventSinkFactory
-from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
@@ -33,7 +19,21 @@ from agent_workflows.contracts import (
     RunSource,
     ToolExecutionInput,
 )
+from application.execution_contracts import ExecutionRequest
+from conversation_domain.execution_bindings import ChatExecutionBindings
+from tracing import (
+    TraceEvent,
+    TraceEventNode,
+    TraceLifecycleObserver,
+    TraceRun,
+    TraceTree,
+    model_observation_metadata,
+    sanitize_trace_metadata,
+    trace_node_id,
+)
+from tracing.sink import TraceEventSink, TracingWebEventSinkFactory
 from web_api.queries import trace_tree_dto
+from web_domain.run_events import RedisWebRunEventSinkFactory
 
 
 @pytest.mark.asyncio
@@ -64,7 +64,7 @@ async def test_trace_sink_persists_and_projects_start_and_end_events(monkeypatch
     async def in_process(function, *args):
         return function(*args)
 
-    monkeypatch.setattr("agent_execution.tracing.sink.asyncio.to_thread", in_process)
+    monkeypatch.setattr("tracing.sink.asyncio.to_thread", in_process)
 
     downstream = RedisWebRunEventSinkFactory(Redis()).for_run(str(run_id))
     sink = TraceEventSink(str(run_id), downstream, Repository())
@@ -147,7 +147,7 @@ async def test_trace_persistence_failure_does_not_block_online_projection(monkey
     async def in_process(function, *args):
         return function(*args)
 
-    monkeypatch.setattr("agent_execution.tracing.sink.asyncio.to_thread", in_process)
+    monkeypatch.setattr("tracing.sink.asyncio.to_thread", in_process)
 
     sink = TraceEventSink(
         str(run_id), RedisWebRunEventSinkFactory(Redis()).for_run(str(run_id)), Repository()
@@ -187,7 +187,7 @@ async def test_tracing_factory_reuses_online_stream_until_root_terminal(monkeypa
     async def in_process(function, *args):
         return function(*args)
 
-    monkeypatch.setattr("agent_execution.tracing.sink.asyncio.to_thread", in_process)
+    monkeypatch.setattr("tracing.sink.asyncio.to_thread", in_process)
 
     class Repository:
         def create_trace_run(self, *_args):

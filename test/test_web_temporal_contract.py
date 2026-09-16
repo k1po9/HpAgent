@@ -11,19 +11,12 @@ import pytest
 from temporalio.common import RetryPolicy
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
+from actions.contracts import ActionRequest, ActionResult
 from actions.runtime import ActionRuntime
-from agent.protocol import ActionRequest, ActionResult
-from agent_execution.activity_control import TemporalActivityControl
+from agent_activities.control import TemporalActivityControl
 from agent_execution.brain_action_loop import DefaultBrainActionLoop
-from agent_execution.facade import (
-    AgentExecutionFacade,
-    ExecutionRequest,
-    ExecutionResult,
-    NullExecutionAuditSink,
-    StableExecutionFailure,
-)
+from agent_execution.facade import AgentExecutionFacade, ExecutionResult, NullExecutionAuditSink
 from agent_execution.qq_host import QQExecutionHost, QQLegacyExecutionControl, qq_execution_id
-from agent_execution.web_events import RedisWebRunEventSinkFactory
 from agent_execution.web_host import WebExecutionHost
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
@@ -32,6 +25,7 @@ from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from application.conversation import normalize_qq_message
+from application.execution_contracts import ExecutionRequest, StableExecutionFailure
 from common.types import ChannelType, UnifiedMessage
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
@@ -61,6 +55,7 @@ from orchestration.web_workflow import (
     WebRunWorkflowInput,
 )
 from web_domain.lifecycle import LifecycleAuthority
+from web_domain.run_events import RedisWebRunEventSinkFactory
 from workspace.isolation import WorkspaceRecoveryRequired
 
 

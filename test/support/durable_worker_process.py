@@ -15,11 +15,10 @@ from temporalio.client import Client
 from temporalio.common import RetryPolicy
 from temporalio.worker import Worker
 
-from agent.protocol import ActionResult
+from actions.contracts import ActionResult
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.side_effects import UnsupportedToolSideEffectReconciler
 from agent_activities.store import AgentDataStore
-from agent_execution.chat_bindings import ChatExecutionBindings
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import (
@@ -46,6 +45,7 @@ from agent_workflows.contracts import (
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
+from conversation_domain.execution_bindings import ChatExecutionBindings
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
 

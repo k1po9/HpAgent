@@ -37,7 +37,6 @@ from account.registration_service import (
     RegistrationService,
     UsernameAlreadyExists,
 )
-from agent_execution.tracing.repository import PostgresTraceRepository
 from common.logging import log_event
 from conversation_domain.commands import CommandService
 from file_domain.approvals import ApprovalNotPending, FileActionApprovalService
@@ -51,6 +50,7 @@ from research_domain.services import (
     TaskNotActive,
 )
 from storage.tenant_file_store import TenantFileStore
+from tracing.repository import PostgresTraceRepository
 from web_artifacts.services import ArtifactService
 from web_domain.errors import (
     ConversationBusy,

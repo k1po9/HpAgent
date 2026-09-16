@@ -12,8 +12,9 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from agent_execution.facade import ExecutionRequest, ExecutionResult
+from agent_execution.facade import ExecutionResult
 from agent_execution.qq_host import TurnMemoryQQRetentionSink
+from application.execution_contracts import ExecutionRequest
 
 
 class _FakeMemory:

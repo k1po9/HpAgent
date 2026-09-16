@@ -14,9 +14,6 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from temporalio import activity
 from uuid6 import uuid7
 
-from agent_execution.model_budget_context import model_budget_scope
-from agent_execution.run_budget import RunBudgetService
-from agent_execution.tracing.repository import PostgresTraceRepository
 from conversation_domain.commands import CommandService
 from orchestration.research_workflow import (
     ResearchIterationInput,
@@ -39,6 +36,9 @@ from research_domain.providers import (
     SourceDiscoveryProvider,
 )
 from research_domain.services import ResearchTaskCommandService, TaskBusy, TaskNotActive
+from resources.model_budget_context import model_budget_scope
+from resources.run_budget import RunBudgetService
+from tracing.repository import PostgresTraceRepository
 from web_domain.errors import ResourceNotFound
 
 

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from agent_execution.facade import ExecutionRequest, ExecutionResult
+from agent_execution.facade import ExecutionResult
 from agent_execution.qq_host import (
     QQLegacyRequestLoader,
     ReplyServiceQQEventSinkFactory,
     TurnMemoryQQAuditSinkFactory,
     TurnMemoryQQRetentionSink,
 )
+from application.execution_contracts import ExecutionRequest
 from application.reply import ReplyService
 from harness.activities import (
     inject_services,
