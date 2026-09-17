@@ -10,7 +10,7 @@ import pytest
 
 
 def _load_module():
-    path = Path(__file__).parents[1] / "scripts" / "observability-viewer.py"
+    path = Path(__file__).parents[1] / "scripts" / "operations" / "observability-viewer.py"
     spec = importlib.util.spec_from_file_location("observability_viewer", path)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)

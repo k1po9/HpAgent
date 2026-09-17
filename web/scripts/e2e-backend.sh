@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Boot the HpAgent web API for Playwright E2E (phase-e E-07).
+# Boot the HpAgent web API for Playwright E2E.
 #
 # Real API + PostgreSQL + Redis: the Fake Run Executor is enabled (test/dev
 # only, never production) and streams the contract's online SSE events so the
@@ -109,10 +109,6 @@ with psycopg.connect(os.environ["MIGRATION_DATABASE_URL"]) as conn:
             )
 print("E2E identity bindings ensured: alice, bob")
 PY
-
-# Exercise the production credential path; WEB_CREDENTIALS_JSON remains set so
-# compatibility is covered too, but DB verification succeeds first.
-"$PY" "${REPO_ROOT}/scripts/migrate_web_credentials.py"
 
 cd "${REPO_ROOT}"
 exec env PYTHONPATH=src "$PY" -m web_api

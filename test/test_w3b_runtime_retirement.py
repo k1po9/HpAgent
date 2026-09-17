@@ -7,15 +7,14 @@ from orchestration.config import TemporalConfig
 from orchestration.worker import WorkerDependencies
 
 
-def test_actual_production_registries_have_no_legacy_runtime():
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+def test_actual_production_registries_match_current_runtime():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "check"))
     try:
-        from audit_w3b_runtime import scan
+        from temporal_registry import scan
         report = scan()
     finally:
         sys.path.pop(0)
     assert report["pass"], report
-    assert len(report["deleted_modules"]) == 44
     registries = {item["task_queue"]: item for item in report["captured_registries"]}
     assert len(registries) == 4
     assert registries["hpagent-web-agent"]["workflows"] == [

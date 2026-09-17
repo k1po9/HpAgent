@@ -348,4 +348,4 @@ jobs:
       - name: Production frontend build (G-T01)
         run: cd web && npm run build
       - name: Gateway smoke — SPA fallback /api proxy / SSE no-buffering (G-T02~T04)
-        run: ./scripts/gateway-smoke.sh
+        run: ./scripts/check/gateway-smoke.sh

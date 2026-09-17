@@ -311,7 +311,7 @@ services:
       - "127.0.0.1:9999:9999"
 
     volumes:
-      - ./scripts/start-all.sh:/app/start-all.sh:ro
+      - ./scripts/operations/start-hindsight.sh:/app/start-all.sh:ro
 
     depends_on:
       hindsight-postgres:

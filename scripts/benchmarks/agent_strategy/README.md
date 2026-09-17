@@ -22,8 +22,7 @@ formal task/strategy pairs rather than starting over.
 ## Safety and fairness prerequisites
 
 1. Use a dedicated benchmark account, not a personal or production account.
-2. Start the real Web API, Outbox dispatcher, Temporal, and durable Agent Worker with
-   canonical Agent lifecycle（W1-C 后无 runtime 分流开关）.
+2. Start the real Web API, Outbox dispatcher, Temporal, and the canonical durable Agent Worker.
 3. Configure one provider/model and the same temperature, tool set, max turns, and Worker
    configuration for both strategies. Do not change them during a run group. If the Worker omits
    `temperature`, record `--temperature provider-default` rather than inventing a number.

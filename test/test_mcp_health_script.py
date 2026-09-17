@@ -4,7 +4,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/check_mcp_health.py"
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/check/mcp-health.py"
 SPEC = importlib.util.spec_from_file_location("check_mcp_health", SCRIPT_PATH)
 assert SPEC and SPEC.loader
 health = importlib.util.module_from_spec(SPEC)

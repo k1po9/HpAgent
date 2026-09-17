@@ -34,7 +34,7 @@ tasks:
   - id: simple_007
     level: simple
     prompt: Read flags.env and return the value of FEATURE_DURABLE inside <answer> tags.
-    files: {flags.env: "FEATURE_LEGACY=disabled\nFEATURE_DURABLE=enabled\n"}
+    files: {flags.env: "FEATURE_OPTIONAL=disabled\nFEATURE_DURABLE=enabled\n"}
     grader: {type: tag_equals, value: enabled}
   - id: simple_008
     level: simple

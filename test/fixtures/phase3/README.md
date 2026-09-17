@@ -24,4 +24,4 @@ were captured from canonical `AgentLifecycleWorkflow` in isolated Temporal names
 transcript, segment and terminal commits are real; model/action/Sandbox services
 use controlled test substitutes. These are newly captured target histories, not
 converted legacy fixtures. Both are replayed offline in `test_agent_segment_replay.py`.
-Reproduce into a new directory with `scripts/capture_web_workflow_history.py`.
+These frozen fixtures are replay inputs; regeneration is intentionally not part of current tooling.

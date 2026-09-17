@@ -14,7 +14,8 @@ docker compose --profile f4-e2e up -d f4-e2e-model
 HPAGENT_MODELS_PATH=/app/config/models.f4-e2e.yaml \
 WEB_FILE_TRANSFORM_ENABLED=true \
 NO_PROXY=localhost,127.0.0.1,::1,f4-e2e-model,searxng,gotenberg,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api \
-  docker compose up -d --no-deps --force-recreate hpagent
+  docker compose -f docker-compose.yaml -f test/fixtures/f4-e2e-compose.yaml \
+    up -d --no-deps --force-recreate hpagent
 WEB_PUBLIC_ORIGIN=http://localhost:5173 \
   docker compose up -d --no-deps --force-recreate hpagent-api
 

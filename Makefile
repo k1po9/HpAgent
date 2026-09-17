@@ -39,7 +39,7 @@ db-down:
 
 ci: lint typecheck test-existing test-db test-api
 
-# Phase E frontend gate (phase-e-report.md §8); E2E runs via `make e2e`.
+# Frontend quality gate; browser E2E runs separately via `make e2e`.
 ci-web: web-lint web-typecheck web-build web-test
 
 web-install:
