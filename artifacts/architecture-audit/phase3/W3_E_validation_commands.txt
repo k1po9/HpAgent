@@ -1,0 +1,70 @@
+# Initial state / scope
+git status --short
+git rev-parse HEAD
+git branch --show-current
+# Read Phase 2.2 delivery gates, retirement plan/CSV; W3-A/B/C/D reports.
+# Targeted rg in src, config, scripts, Compose and .env.example; direct composition/caller inspection.
+
+# Focused, pre-fix
+.venv/bin/pytest -q test/test_w3_survivor_ownership.py test/test_w3b_runtime_retirement.py test/test_w3c_state_authority.py test/test_durable_agent_contract.py test/test_durable_agent_hardening.py test/test_web_temporal_contract.py test/test_qq_canonical_protocol.py test/test_qq_delivery_adapter.py test/test_agent_segment_replay.py test/test_w1_gate_resources.py test/web_api/test_config.py
+
+# Post-fix regression
+.venv/bin/pytest -q test/test_w3c_state_authority.py test/web_api/test_config.py
+
+# Disposable PostgreSQL/Redis + isolated Temporal namespace; real migrations
+.venv/bin/python scripts/verify_w3b_contracts.py test/web_persistence/test_qq_canonical_ingress.py test/web_persistence/test_w2_cross_surface.py test/web_persistence/test_web_temporal_e2e.py test/web_persistence/test_qq_delivery.py test/web_persistence/test_agent_segment_temporal.py test/test_durable_agent_temporal_integration.py test/test_durable_agent_worker_kill.py test/web_persistence/test_durable_agent_activity_worker_kill.py test/test_tool_execution_approval_temporal.py test/test_web_outbox_recovery.py test/web_persistence/test_memory_retention.py
+
+# Recompute without overwriting historical W3-C output
+PYTHONPATH=src:scripts .venv/bin/python - <<'PY'
+import json
+from audit_w3c_authority import scan
+result = scan()
+print(json.dumps(result, indent=2))
+raise SystemExit(not result['pass'])
+PY
+
+# Tracked compatibility probe actually executed inline in Python:
+# git ls-files src config scripts .env.example docker-compose.yaml
+# For existing .py/.yaml/.yml/.sh/.txt/.example files except audit_*:
+# reject audit_w3d_compatibility.FORBIDDEN_CONFIGURATION;
+# AST-reject FORBIDDEN_DEFINITIONS in Python; assert no scan_imports();
+# assert REMOVED_PATHS absent; construct AppConfig();
+# os.environ.clear(); APP_DATABASE_URL=postgresql://unused; WebApiSettings.from_env();
+# assert requirements.txt bytes equal src/requirements.txt bytes.
+# Initial WebApiSettings() probe failed for missing constructor arguments;
+# corrected probe completed successfully and is recorded in compatibility output.
+
+.venv/bin/pytest --collect-only -q
+.venv/bin/ruff check src/orchestration/config.py test/test_w3c_state_authority.py
+git diff --check
+git diff --quiet -- artifacts/architecture-audit/phase2_2
+docker compose config --quiet
+
+# Initial image builds; failed at external network access (superseded by successful proxy follow-up below)
+docker build -f src/Dockerfile.web-api -t hpagent-w3e-api:closure .
+docker build -f src/Dockerfile.migrate -t hpagent-w3e-migrate:closure .
+docker build -f src/Dockerfile -t hpagent-w3e-worker:closure src
+docker build -f src/Dockerfile.document -t hpagent-w3e-document:closure src
+
+# Additional post-run read-only migration-table probe tried docker port
+# hpagent-w1b-test-07c03b295a 5432; failed because completed fixture was already removed.
+# No query executed and no additional schema verification claimed.
+
+# 2026-09-17 proxy follow-up; actual successful build commands
+# /root/.bashrc defines proxy_all_on; Docker daemon already had the same proxy.
+# No Docker restart was performed.
+export HTTP_PROXY=http://172.24.192.1:19674 HTTPS_PROXY=http://172.24.192.1:19674
+export http_proxy="$HTTP_PROXY" https_proxy="$HTTPS_PROXY"
+export NO_PROXY=localhost,127.0.0.1,::1 no_proxy=localhost,127.0.0.1,::1
+docker build --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg NO_PROXY --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy -f src/Dockerfile.web-api -t hpagent-w3e-api:closure .
+docker build --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg NO_PROXY --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy -f src/Dockerfile.migrate -t hpagent-w3e-migrate:closure .
+docker build --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg NO_PROXY --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy -f src/Dockerfile -t hpagent-w3e-worker:closure src
+docker build --build-arg HTTP_PROXY --build-arg HTTPS_PROXY --build-arg NO_PROXY --build-arg http_proxy --build-arg https_proxy --build-arg no_proxy -f src/Dockerfile.document -t hpagent-w3e-document:closure src
+# Earlier upper-case-only attempts and interrupted/retried network failures retained separately.
+docker run --rm --entrypoint python hpagent-w3e-document:closure -c 'import orchestration.document_worker; import docling; print("Document entrypoint + Docling import PASS")'
+docker run --rm --entrypoint python hpagent-w3e-document:closure -m pip check
+.venv/bin/python artifacts/architecture-audit/phase3/W3_E_install_probe.py
+# Probe initially omitted Document file-store mount; corrected read-only mount and reran successfully.
+docker image inspect hpagent-w3e-api:closure hpagent-w3e-migrate:closure hpagent-w3e-worker:closure hpagent-w3e-document:closure --format '{{json .RepoTags}} {{.Id}} {{.Created}}'
+git diff --check
+git diff --quiet -- artifacts/architecture-audit/phase2_2

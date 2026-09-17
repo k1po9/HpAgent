@@ -1,0 +1,72 @@
+{
+  "experiment": "activity_worker_recovery",
+  "environment": {
+    "git_commit": "3c192760c30dae6a9125926b46c7a3c3d993ccb5",
+    "branch": "feat/hpagent-web",
+    "timestamp": "2026-08-18T15:26:46.257093+00:00",
+    "python_version": "3.12.3",
+    "temporal_sdk_version": "1.31.0",
+    "docker_compose_version": "5.3.1",
+    "host_os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "logical_cpu_count": 8,
+    "benchmark_config": {
+      "temporal_host": "localhost:7233",
+      "temporal_namespace": "hpagent-activity-benchmark-final",
+      "database_name": "hpagent_activity_benchmark",
+      "cases": {
+        "A1": 5,
+        "A2": 5,
+        "A3": 10
+      },
+      "timeout_seconds": 30
+    }
+  },
+  "definitions": {
+    "safe_outcome_rate": "trials with correct retry completion or non-idempotent uncertain fail-closed outcome / all trials",
+    "activity_retry_observed_rate": "trials with persisted activity attempt count >= 2 / all trials",
+    "unsafe_duplicate_side_effect_rate": "A3 trials with independently observed external side-effect count > 1 / all A3 trials",
+    "kill_to_terminal_latency_ms": "monotonic elapsed time from Activity Worker SIGKILL until Workflow terminal result",
+    "percentile_method": "linear interpolation at (n-1)*q over safe outcomes"
+  },
+  "trials": 20,
+  "safe_outcomes": 20,
+  "safe_outcome_rate": 1.0,
+  "unexpected_failures": 0,
+  "unexpected_failure_rate": 0.0,
+  "activity_retry_observed": 20,
+  "activity_retry_observed_rate": 1.0,
+  "kill_to_terminal_latency_ms": {
+    "p50": 3998.718,
+    "p95": 4129.283
+  },
+  "cases": {
+    "A1": {
+      "trials": 5,
+      "safe_outcomes": 5,
+      "safe_outcome_rate": 1.0,
+      "activity_retry_observed": 5,
+      "eventually_completed": 5
+    },
+    "A2": {
+      "trials": 5,
+      "safe_outcomes": 5,
+      "safe_outcome_rate": 1.0,
+      "activity_retry_observed": 5,
+      "eventually_completed": 5
+    },
+    "A3": {
+      "trials": 10,
+      "safe_outcomes": 10,
+      "safe_outcome_rate": 1.0,
+      "activity_retry_observed": 10,
+      "eventually_completed": 0
+    }
+  },
+  "a3": {
+    "safe_reconciled_success_count": 0,
+    "uncertain_fail_closed_count": 10,
+    "unsafe_duplicate_side_effect_count": 0,
+    "unsafe_duplicate_side_effect_rate": 0.0
+  },
+  "failures": []
+}

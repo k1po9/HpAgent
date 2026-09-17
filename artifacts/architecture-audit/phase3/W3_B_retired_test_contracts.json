@@ -1,0 +1,962 @@
+[
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_qq_infinite_deadline_control_is_a_no_op",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_deadline_during_recall_is_run_timeout",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_deadline_detaches_late_model_result",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_cancellation_is_not_swallowed_by_deadline_timeout",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_cancel_wins_over_deadline",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_tool_per_call_cap_is_tool_timeout",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_tool_over_deadline_is_run_timeout",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_model_over_deadline_is_stable_model_timeout",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_deadline_expired_prevents_model_call",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_td_022_cancel_hostile_tool_is_detached_within_cleanup_budget",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_ae_028_side_effect_intent_audit_fails_closed_before_tool_execution",
+    "reason": "Legacy audit adapter/Redis events retired; canonical operation intent, fencing and side-effect recovery retain the safety contract.",
+    "replacement": "test/test_durable_agent_hardening.py::test_non_idempotent_ack_gap_fails_closed_when_reconciliation_is_unsupported; test/web_persistence/test_durable_agent_activity_worker_kill.py::test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_brain_action_loop_cancels_an_inflight_model_call",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_web_context_rewrite_precedes_account_scoped_recall",
+    "reason": "Account/group memory recall is owned by PG context assembly; old QQ context provider is removed.",
+    "replacement": "test/web_persistence/test_qq_canonical_ingress.py::test_group_snapshot_context_and_memory_come_from_committed_pg; test/web_persistence/test_phase_c_context.py"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_brain_action_loop_uses_control_and_finishes_without_reply_sink",
+    "reason": "Port completion/Trace ordering to canonical finalize Activity and real Run completion.",
+    "replacement": "test/test_trace_events.py::test_canonical_finalize_closes_root_only_after_authoritative_commit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_agent_activity_returns_only_after_host_completion",
+    "reason": "Port completion/Trace ordering to canonical finalize Activity and real Run completion.",
+    "replacement": "test/test_trace_events.py::test_canonical_finalize_closes_root_only_after_authoritative_commit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_web_host_maps_workspace_recovery_required_to_stable_failure",
+    "reason": "Keep canonical workspace/lease gates and E2E recovery; obsolete Host wrapper removed.",
+    "replacement": "test/test_workspace_isolation.py; test/test_w1_gate_resources.py; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_web_host_acquires_resource_lease_before_facade_execution",
+    "reason": "Keep canonical workspace/lease gates and E2E recovery; obsolete Host wrapper removed.",
+    "replacement": "test/test_workspace_isolation.py; test/test_w1_gate_resources.py; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_web_host_loads_by_run_id_and_only_then_calls_complete",
+    "reason": "Legacy loop/Host/Activity routing or wrapper-only behavior removed; canonical registered execution replaces it.",
+    "replacement": "test/test_w3b_runtime_retirement.py::test_actual_production_registries_have_no_legacy_runtime; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_qq_host_uses_stable_message_identity_and_legacy_reply_sink",
+    "reason": "Preserve identity/dedup/delivery assertions at canonical PG ingress and result delivery boundaries.",
+    "replacement": "test/web_persistence/test_qq_canonical_ingress.py::test_redelivery_uses_stable_provider_id_and_one_atomic_run; test/web_persistence/test_qq_delivery.py::test_delivery_failure_retries_committed_result_without_execution"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_facade_has_no_reply_sink_and_delegates_to_channel_neutral_loop",
+    "reason": "Port completion/Trace ordering to canonical finalize Activity and real Run completion.",
+    "replacement": "test/test_trace_events.py::test_canonical_finalize_closes_root_only_after_authoritative_commit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_workflow_only_schedules_activities_and_uses_separate_agent_queue",
+    "reason": "Legacy loop/Host/Activity routing or wrapper-only behavior removed; canonical registered execution replaces it.",
+    "replacement": "test/test_w3b_runtime_retirement.py::test_actual_production_registries_have_no_legacy_runtime; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_web_temporal_contract.py",
+    "test": "test_agent_activity_has_an_explicit_single_attempt_policy",
+    "reason": "Old whole-turn deadline/detached-task/single-attempt semantics retired. Canonical cancellation, per-Activity retry and segment lease semantics are verified instead; do not claim identical timeout policy.",
+    "replacement": "test/test_durable_agent_contract.py::test_segment_capability_retry_is_bounded_and_releases_between_attempts; test/test_durable_agent_contract.py::test_durable_run_timeout_is_independent_of_legacy_execution_limit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_observability_preflight.py",
+    "test": "test_qq_memory_retain_failure_is_logged_and_preserved",
+    "reason": "Replace old per-execution/Session retention assumptions with committed PG Run retention and failure isolation.",
+    "replacement": "test/web_persistence/test_qq_canonical_ingress.py::test_group_snapshot_context_and_memory_come_from_committed_pg; test/web_persistence/test_memory_retention.py::test_hindsight_failure_leaves_run_completed_and_surfaces_accepted_false"
+  },
+  {
+    "file": "test/test_observability_preflight.py",
+    "test": "test_qq_memory_recall_reports_degradation",
+    "reason": "Account/group memory recall is owned by PG context assembly; old QQ context provider is removed.",
+    "replacement": "test/web_persistence/test_qq_canonical_ingress.py::test_group_snapshot_context_and_memory_come_from_committed_pg; test/web_persistence/test_phase_c_context.py"
+  },
+  {
+    "file": "test/test_observability_preflight.py",
+    "test": "test_qq_host_agent_lifecycle_uses_execution_and_workflow_ids",
+    "reason": "Legacy loop/Host/Activity routing or wrapper-only behavior removed; canonical registered execution replaces it.",
+    "replacement": "test/test_w3b_runtime_retirement.py::test_actual_production_registries_have_no_legacy_runtime; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_observability_preflight.py",
+    "test": "test_web_host_agent_lifecycle_has_full_correlation",
+    "reason": "Legacy loop/Host/Activity routing or wrapper-only behavior removed; canonical registered execution replaces it.",
+    "replacement": "test/test_w3b_runtime_retirement.py::test_actual_production_registries_have_no_legacy_runtime; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_observability_preflight.py",
+    "test": "test_model_call_lifecycle_is_complete",
+    "reason": "Ported to actual DurableAgentActivities.model_decision for normal/final model steps, success/failure, correlation and cleanup.",
+    "replacement": "test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup"
+  },
+  {
+    "file": "test/test_trace_events.py",
+    "test": "test_web_host_closes_agent_root_after_authoritative_reply",
+    "reason": "Port completion/Trace ordering to canonical finalize Activity and real Run completion.",
+    "replacement": "test/test_trace_events.py::test_canonical_finalize_closes_root_only_after_authoritative_commit; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_qq_execution_compat.py",
+    "test": "test_qq_activity_uses_shared_host_and_never_falls_back_after_failure",
+    "reason": "Legacy loop/Host/Activity routing or wrapper-only behavior removed; canonical registered execution replaces it.",
+    "replacement": "test/test_w3b_runtime_retirement.py::test_actual_production_registries_have_no_legacy_runtime; test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle"
+  },
+  {
+    "file": "test/test_qq_execution_compat.py",
+    "test": "test_qq_audit_adapter_keeps_model_and_tool_events_in_legacy_memory",
+    "reason": "Legacy audit adapter/Redis events retired; canonical operation intent, fencing and side-effect recovery retain the safety contract.",
+    "replacement": "test/test_durable_agent_hardening.py::test_non_idempotent_ack_gap_fails_closed_when_reconciliation_is_unsupported; test/web_persistence/test_durable_agent_activity_worker_kill.py::test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect"
+  },
+  {
+    "file": "test/test_qq_execution_compat.py",
+    "test": "test_ae_030_qq_loader_is_retry_idempotent_and_sanitizes_metadata",
+    "reason": "Preserve identity/dedup/delivery assertions at canonical PG ingress and result delivery boundaries.",
+    "replacement": "test/web_persistence/test_qq_canonical_ingress.py::test_redelivery_uses_stable_provider_id_and_one_atomic_run; test/web_persistence/test_qq_delivery.py::test_delivery_failure_retries_committed_result_without_execution"
+  },
+  {
+    "file": "test/test_qq_execution_compat.py",
+    "test": "test_qq_retain_uses_per_execution_document_after_reply",
+    "reason": "Replace old per-execution/Session retention assumptions with committed PG Run retention and failure isolation.",
+    "replacement": "test/web_persistence/test_qq_canonical_ingress.py::test_group_snapshot_context_and_memory_come_from_committed_pg; test/web_persistence/test_memory_retention.py::test_hindsight_failure_leaves_run_completed_and_surfaces_accepted_false"
+  },
+  {
+    "file": "test/test_qq_retention_document.py",
+    "test": "test_qq_retention_uses_per_execution_document_id",
+    "reason": "Replace old per-execution/Session retention assumptions with committed PG Run retention and failure isolation.",
+    "replacement": "test/web_persistence/test_qq_canonical_ingress.py::test_group_snapshot_context_and_memory_come_from_committed_pg; test/web_persistence/test_memory_retention.py::test_hindsight_failure_leaves_run_completed_and_surfaces_accepted_false"
+  },
+  {
+    "file": "test/test_qq_retention_document.py",
+    "test": "test_qq_retention_does_not_reuse_session_document",
+    "reason": "Replace old per-execution/Session retention assumptions with committed PG Run retention and failure isolation.",
+    "replacement": "test/web_persistence/test_qq_canonical_ingress.py::test_group_snapshot_context_and_memory_come_from_committed_pg; test/web_persistence/test_memory_retention.py::test_hindsight_failure_leaves_run_completed_and_surfaces_accepted_false"
+  },
+  {
+    "file": "test/test_web_temporal_replay.py",
+    "test": "test_web_run_workflow_replays_frozen_v1_completed_history",
+    "reason": "Retire old Workflow History compatibility with its deleted Workflow; retain canonical lifecycle/ReAct/Plan/tool approval History replay. No claim to replay deleted runtime history.",
+    "replacement": "test/test_agent_segment_replay.py::test_w1b_completed_segment_histories_replay_offline"
+  },
+  {
+    "file": "test/test_agent/test_adapters.py",
+    "test": "test_execute_without_harness",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_adapters.py",
+    "test": "test_capability_property",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_adapters.py",
+    "test": "test_max_concurrency_default",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_bus.py",
+    "test": "test_send_to_subscriber",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_bus.py",
+    "test": "test_broadcast_to_multiple",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_compensation.py",
+    "test": "test_instance_isolation",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_compensation.py",
+    "test": "test_get_nonexistent",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_composite.py",
+    "test": "test_single_layer_composition",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_composite.py",
+    "test": "test_sub_task_failure_propagates",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_composite.py",
+    "test": "test_allow_partial_success",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_set_and_get",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_missing_key_returns_none",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_namespace_isolation",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_overwrite",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_delete",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_cas_success",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_cas_failure_on_mismatch",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_concurrent_writes",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_concurrent_cas",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_default_construction",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_custom_config",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_context.py",
+    "test": "test_unique_trace_ids",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_council.py",
+    "test": "test_three_agent_council",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_council.py",
+    "test": "test_council_partial_failure",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_council.py",
+    "test": "test_council_all_fail",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_factory.py",
+    "test": "test_adapter_extracts_content",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_factory.py",
+    "test": "test_adapter_handles_none_content",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_factory.py",
+    "test": "test_builds_runnable_orchestrator",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_factory.py",
+    "test": "test_builds_council_with_real_judge",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_factory.py",
+    "test": "test_builds_council_with_majority_judge",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_factory.py",
+    "test": "test_builds_workflow_from_dag",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_integration.py",
+    "test": "test_supervisor_delegates_to_workflow_agent",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_integration.py",
+    "test": "test_council_with_workflow_voters",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_interfaces.py",
+    "test": "test_cannot_instantiate_directly",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_interfaces.py",
+    "test": "test_concrete_subclass_works",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_interfaces.py",
+    "test": "test_lifecycle_defaults_are_noop",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_interfaces.py",
+    "test": "test_cannot_instantiate_directly",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_interfaces.py",
+    "test": "test_on_batch_completed_default_returns_empty",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_interfaces.py",
+    "test": "test_cannot_instantiate_directly",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_interfaces.py",
+    "test": "test_cannot_instantiate_directly",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_basic_execution",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_system_prompt_in_messages",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_context_injection",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_history_formatting",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_capability_spec",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_default_capability",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_failure_returns_failed_result",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_tool_loop_without_executor",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_tool_loop_with_executor",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_llm_agent.py",
+    "test": "test_max_tool_turns_limit",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_empty_plan",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_single_task_success",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_sequential_execution",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_parallel_execution",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_timeout_preserves_completed",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_base_exception_propagates",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_handoff_injects_new_task",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_tasks_removed_by_outcome",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_retry_re_adds_to_pending",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_orchestrator.py",
+    "test": "test_compensation_on_terminate",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_parses_simple_plan",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_parses_markdown_fenced_json",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_fallback_on_llm_failure",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_fallback_on_malformed_json",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_empty_tasks_list_triggers_fallback",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_custom_default_tags",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_reviewer_says_done",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_reviewer_injects_new_tasks",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_fallback_done_on_llm_failure",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_max_rounds_forces_done",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_judge_selects_best",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_judge_no_consensus_when_empty",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_fallback_to_majority_on_llm_failure",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_real_llm.py",
+    "test": "test_handles_markdown_fenced_json",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_registry.py",
+    "test": "test_register_and_find",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_registry.py",
+    "test": "test_find_best_returns_none_for_no_match",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_registry.py",
+    "test": "test_find_best_prefers_higher_priority",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_registry.py",
+    "test": "test_find_best_filters_by_min_priority",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_registry.py",
+    "test": "test_healthy_agents",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_registry.py",
+    "test": "test_availability",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_runner.py",
+    "test": "test_execute_single_agent_supervisor",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_runner.py",
+    "test": "test_council_strategy",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_runner.py",
+    "test": "test_synthesize_fallback",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_runner.py",
+    "test": "test_execute_with_history_and_memories",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_always",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_never",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_all_succeeded",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_all_succeeded_with_failure",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_any_failed",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_task_status_check",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_empty_predicate_returns_true",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_concat",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_first",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_last",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_merge",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_empty",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_initialize_plan_from_dag",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_get_ready_batch_all_independent",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_get_ready_batch_respects_dependencies",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_get_ready_batch_after_dep_completes",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_on_batch_completed_all_success",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_strategies.py",
+    "test": "test_on_batch_completed_with_failure",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_supervisor.py",
+    "test": "test_single_round_planning",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_supervisor.py",
+    "test": "test_multi_round_planning",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_supervisor.py",
+    "test": "test_reviewer_terminates_early",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_default_construction",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_full_construction",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_all_statuses_exist",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_handed_off_is_separate_from_completed",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_default",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_full",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_failed_task_cannot_handoff",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_handed_off_status_explicit",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_trace_id_propagation",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_structured_error",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_spec_and_requirement_match",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_spec_insufficient_tags",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_spec_insufficient_priority",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_default",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_with_tasks_and_deps",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_branch_condition",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_default_noop",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_termination",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_new_tasks_injection",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  },
+  {
+    "file": "test/test_agent/test_types.py",
+    "test": "test_defaults",
+    "reason": "Experimental MultiAgent-only contract; retired with its unreachable factory/registry/runtime. Not a canonical product regression.",
+    "replacement": "None: unsupported experimental feature removed, not replaced by a production feature."
+  }
+]

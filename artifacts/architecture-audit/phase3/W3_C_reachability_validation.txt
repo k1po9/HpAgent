@@ -1,0 +1,10 @@
+{
+  "pass": true,
+  "retired_modules_remaining": [],
+  "retired_paths_remaining": [],
+  "retired_imports": [],
+  "retired_definitions": [],
+  "forbidden_config_or_composition": [],
+  "missing_retained_systems": [],
+  "runtime_registry_pass": true
+}

@@ -10,6 +10,8 @@ import asyncio
 import json
 import os
 import sys
+import time
+
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -139,6 +141,32 @@ class TestNsjailExecutor:
         assert "execution_id" in result.metadata
         assert "elapsed_ms" in result.metadata
 
+    @pytest.mark.asyncio
+    async def test_td_009_cancel_escalates_from_sigterm_to_sigkill(self, monkeypatch):
+        calls = []
+
+        class Process:
+            returncode = None
+
+            def terminate(self):
+                calls.append("terminate")
+
+            def kill(self):
+                calls.append("kill")
+                self.returncode = -9
+
+            async def wait(self):
+                calls.append("wait")
+                return self.returncode
+
+        async def immediate_timeout(awaitable, timeout):
+            awaitable.close()
+            raise asyncio.TimeoutError
+
+        monkeypatch.setattr(asyncio, "wait_for", immediate_timeout)
+        await NsjailExecutor._stop_process(Process())
+        assert calls == ["terminate", "kill", "wait"]
+
 
 def test_nsjail_config_defaults_are_safe():
     config = NsjailConfig()
@@ -148,6 +176,29 @@ def test_nsjail_config_defaults_are_safe():
     assert config.user == "nobody"
     assert config.time_limit > 0
     assert config.memory_limit_mb > 0
+
+
+@pytest.mark.asyncio
+async def test_td_022_real_cancel_hostile_child_is_killed_within_budget():
+    proc = await asyncio.create_subprocess_exec(
+        "/bin/bash",
+        "-c",
+        "trap '' TERM; while true; do sleep 1; done",
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL,
+    )
+    started = time.monotonic()
+    try:
+        # Give bash enough time to install its SIGTERM trap.
+        await asyncio.sleep(0.1)
+        await NsjailExecutor._stop_process(proc)
+    finally:
+        if proc.returncode is None:
+            proc.kill()
+            await proc.wait()
+
+    assert proc.returncode == -9
+    assert time.monotonic() - started < 5
 
 
 if __name__ == "__main__":

@@ -1,0 +1,8 @@
+Focused/runtime contracts: 129 passed, 1 warning in 22.77s
+Isolated PostgreSQL/Temporal fixture: hpagent-w1b-test-0215bb50f0
+Persistence contracts: 31 passed in 207.10s
+Isolated SSE gateway contracts: 13 passed, 1 warning in 75.47s
+Full collection: 686 tests collected in 5.77s
+Clean minimal AppConfig/WebApiSettings construction: PASS
+docker compose config --quiet: PASS
+Phase 2.2 frozen evidence: unchanged

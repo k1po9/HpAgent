@@ -1,0 +1,9 @@
+﻿id,name,node,kind,gate,evidence,profiles
+R1,Main Worker / QQ,DEPLOY:hpagent,production_process,valid config; agent.mode=single; selected channel,src/entrypoint.sh:5,agent;web;web-prod
+R2,Web API,DEPLOY:hpagent-api,production_process,valid WebSettings / database,src/Dockerfile.web-api:10,web;web-prod
+R3,Web lifecycle Worker + background consumers,ROOT:WEB_LIFECYCLE,production_worker,WEB_REAL_AGENT_ENABLED; C-07 gate; database/topology checks,src/orchestration/worker.py:930,agent;web;web-prod
+R4,Web Agent Worker,ROOT:WEB_AGENT,production_worker,WEB_REAL_AGENT_ENABLED; new durable starts additionally DURABLE_AGENT_ENABLED,src/orchestration/web_workers.py:180,agent;web;web-prod
+R5,Standalone Web Worker,src/orchestration/web_worker.py::main,conditional_process,single_process_account_lock REJECTED; session_worktree structurally admitted but not implemented isolation,src/orchestration/web_worker.py:93,no compose service
+R6,Document Activity Worker,DEPLOY:hpagent-document-worker,production_process,database / Temporal / document image; heavy-normalization request,src/Dockerfile.document:20,agent;web;web-prod
+R7,Browser frontend,DEPLOY:web-gateway,production_browser,web-gateway web-prod; web-dev development,web/src/main.tsx:1,web-prod;web
+R8,SQL migration runner,DEPLOY:hpagent-migrate,ops_process,MIGRATE_DATABASE_URL,src/Dockerfile.migrate:17,agent;web;web-prod

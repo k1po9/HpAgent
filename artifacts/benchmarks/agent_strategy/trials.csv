@@ -1,0 +1,165 @@
+experiment,run_group,task_id,level,strategy,repetition,success,latency_ms,model_calls,tool_calls,planning_calls,turns,input_tokens,output_tokens,total_tokens,failure_type,failure_reason,run_id,workflow_id,conversation_id,run_status,workspace_relative_path,started_at,completed_at
+agent_strategy,formal-01,simple_001,simple,react,1,True,14256.823,2,1,0,2,,,,,,01a01615-621c-7f6a-9688-1222e9f5e9d4,web-run-01a01615-621c-7f6a-9688-1222e9f5e9d4,01a01615-618a-749d-a946-ef7d3a35da47,completed,agent_strategy_benchmark/formal-01-simple_001-react-r1-6821e418/simple_001,2026-08-18T18:14:55.235994+00:00,2026-08-18T18:15:09.492866+00:00
+agent_strategy,formal-01,simple_001,simple,plan_and_execute,1,True,20261.468,5,1,2,5,,,,,,01a01615-9a25-7c1a-ac09-562830e391ef,web-run-01a01615-9a25-7c1a-ac09-562830e391ef,01a01615-99c8-7c62-a3ef-b4b6b8adf1f2,completed,agent_strategy_benchmark/formal-01-simple_001-plan_and_execute-r1-13776cb6/simple_001,2026-08-18T18:15:09.586222+00:00,2026-08-18T18:15:29.365093+00:00
+agent_strategy,formal-01,simple_002,simple,react,1,True,12227.408,2,1,0,2,,,,,,01a01615-e7c2-774c-8d79-6d38bed2042e,web-run-01a01615-e7c2-774c-8d79-6d38bed2042e,01a01615-e766-79aa-a006-594074dbecc8,completed,agent_strategy_benchmark/formal-01-simple_002-react-r1-d6948f0e/simple_002,2026-08-18T18:15:29.455987+00:00,2026-08-18T18:15:41.683439+00:00
+agent_strategy,formal-01,simple_002,simple,plan_and_execute,1,True,18295.797,5,1,2,5,,,,,,01a01616-17e9-7fc4-8e8d-9329f40ffd3f,web-run-01a01616-17e9-7fc4-8e8d-9329f40ffd3f,01a01616-1787-7acc-84bf-4c2617620410,completed,agent_strategy_benchmark/formal-01-simple_002-plan_and_execute-r1-fb9b01af/simple_002,2026-08-18T18:15:41.778304+00:00,2026-08-18T18:16:00.074155+00:00
+agent_strategy,formal-01,simple_003,simple,react,1,True,16262.352,2,1,0,2,,,,,,01a01616-5fc3-7e7b-aee5-a14f32c36441,web-run-01a01616-5fc3-7e7b-aee5-a14f32c36441,01a01616-5f5c-7918-8354-bf9d994bce11,completed,agent_strategy_benchmark/formal-01-simple_003-react-r1-9d3df805/simple_003,2026-08-18T18:16:00.172967+00:00,2026-08-18T18:16:15.967642+00:00
+agent_strategy,formal-01,simple_003,simple,plan_and_execute,1,False,24298.118,3,1,1,3,,,,model_error,model_unavailable: 模型暂时不可用。,01a01616-9ddf-7086-aec1-6eda961e3081,web-run-01a01616-9ddf-7086-aec1-6eda961e3081,01a01616-9d7d-75e6-a9dc-f3bd29e5ba68,failed,agent_strategy_benchmark/formal-01-simple_003-plan_and_execute-r1-9481a8d3/simple_003,2026-08-18T18:16:16.074756+00:00,2026-08-18T18:16:40.372922+00:00
+agent_strategy,formal-01,simple_004,simple,react,1,False,24310.935,6,5,0,6,,,,incorrect_result,missing_answer_tag,01a01616-fd3e-734e-a011-68c6b274976c,web-run-01a01616-fd3e-734e-a011-68c6b274976c,01a01616-fcc8-7875-894c-7b31f36b650e,completed,agent_strategy_benchmark/formal-01-simple_004-react-r1-fdfbd069/simple_004,2026-08-18T18:16:40.490230+00:00,2026-08-18T18:17:04.291105+00:00
+agent_strategy,formal-01,simple_004,simple,plan_and_execute,1,False,28400.924,8,2,3,8,,,,incorrect_result,missing_answer_tag,01a01617-5a94-79fe-9ac6-6ca1d0492d37,web-run-01a01617-5a94-79fe-9ac6-6ca1d0492d37,01a01617-5a35-795e-9c0c-533e938d269e,completed,agent_strategy_benchmark/formal-01-simple_004-plan_and_execute-r1-029ac8bc/simple_004,2026-08-18T18:17:04.384264+00:00,2026-08-18T18:17:32.374564+00:00
+agent_strategy,formal-01,simple_005,simple,react,1,True,10214.183,2,1,0,2,,,,,,01a01617-c84e-7c8f-b35e-c4e23345c135,web-run-01a01617-c84e-7c8f-b35e-c4e23345c135,01a01617-c7ec-7b22-b9d0-c90e6a0eec56,completed,agent_strategy_benchmark/formal-01-simple_005-react-r1-b647b2b1/simple_005,2026-08-18T18:17:32.475410+00:00,2026-08-18T18:17:42.689643+00:00
+agent_strategy,formal-01,simple_005,simple,plan_and_execute,1,False,34359.181,6,2,2,6,,,,incorrect_result,missing_answer_tag,01a01617-f0a7-716f-81f4-4a251fb4cfc8,web-run-01a01617-f0a7-716f-81f4-4a251fb4cfc8,01a01617-f036-7231-a140-530492a19f4e,completed,agent_strategy_benchmark/formal-01-simple_005-plan_and_execute-r1-af0f9901/simple_005,2026-08-18T18:17:42.803191+00:00,2026-08-18T18:18:16.614444+00:00
+agent_strategy,formal-01,simple_006,simple,react,1,True,14198.037,2,1,0,2,,,,,,01a01618-752d-79f6-a241-9363ac2d6370,web-run-01a01618-752d-79f6-a241-9363ac2d6370,01a01618-74ba-74d3-bd28-505f66aa8db5,completed,agent_strategy_benchmark/formal-01-simple_006-react-r1-2eb26373/simple_006,2026-08-18T18:18:16.733922+00:00,2026-08-18T18:18:30.434125+00:00
+agent_strategy,formal-01,simple_006,simple,plan_and_execute,1,True,23159.992,7,3,2,7,,,,,,01a01618-ab02-7d6c-ac47-b395b6bfa9d0,web-run-01a01618-ab02-7d6c-ac47-b395b6bfa9d0,01a01618-aab6-7e90-a18b-7ae42547fcb1,completed,agent_strategy_benchmark/formal-01-simple_006-plan_and_execute-r1-915287ed/simple_006,2026-08-18T18:18:30.515100+00:00,2026-08-18T18:18:53.675131+00:00
+agent_strategy,formal-01,simple_007,simple,react,1,True,10173.906,2,1,0,2,,,,,,01a01619-05e3-7136-b838-e61bf2b51568,web-run-01a01619-05e3-7136-b838-e61bf2b51568,01a01619-057b-74ea-b366-363a550f91d1,completed,agent_strategy_benchmark/formal-01-simple_007-react-r1-ff38065c/simple_007,2026-08-18T18:18:53.770484+00:00,2026-08-18T18:19:03.461582+00:00
+agent_strategy,formal-01,simple_007,simple,plan_and_execute,1,False,20231.72,3,1,1,3,,,,model_error,model_unavailable: 模型暂时不可用。,01a01619-2c05-78d4-91ad-2439373e1b5f,web-run-01a01619-2c05-78d4-91ad-2439373e1b5f,01a01619-2bb6-7e9a-a944-5ca3e955ba6a,failed,agent_strategy_benchmark/formal-01-simple_007-plan_and_execute-r1-90a48552/simple_007,2026-08-18T18:19:03.541325+00:00,2026-08-18T18:19:23.773083+00:00
+agent_strategy,formal-01,simple_008,simple,react,1,True,10287.094,2,1,0,2,,,,,,01a01619-7b64-7200-9fa6-706b54da1dac,web-run-01a01619-7b64-7200-9fa6-706b54da1dac,01a01619-7b0e-7c16-b89e-2c63b7d8629e,completed,agent_strategy_benchmark/formal-01-simple_008-react-r1-11981f33/simple_008,2026-08-18T18:19:23.857472+00:00,2026-08-18T18:19:33.594988+00:00
+agent_strategy,formal-01,simple_008,simple,plan_and_execute,1,True,28324.793,8,2,3,8,,,,,,01a01619-a1e7-7ada-a16d-030b406cec2a,web-run-01a01619-a1e7-7ada-a16d-030b406cec2a,01a01619-a172-749f-b501-ad9f83baeba3,completed,agent_strategy_benchmark/formal-01-simple_008-plan_and_execute-r1-fd36d8dd/simple_008,2026-08-18T18:19:33.714805+00:00,2026-08-18T18:20:01.483178+00:00
+agent_strategy,formal-01,simple_009,simple,react,1,True,14260.824,2,1,0,2,,,,,,01a0161a-0ec7-7589-a852-6bdbbcd739fd,web-run-01a0161a-0ec7-7589-a852-6bdbbcd739fd,01a0161a-0e5f-7155-accb-42b48b51aa4c,completed,agent_strategy_benchmark/formal-01-simple_009-react-r1-0851b8ff/simple_009,2026-08-18T18:20:01.589230+00:00,2026-08-18T18:20:15.850262+00:00
+agent_strategy,formal-01,simple_009,simple,plan_and_execute,1,False,14279.244,5,1,2,5,,,,incorrect_result,missing_answer_tag,01a0161a-470b-7bab-b483-0fe440ccd91b,web-run-01a0161a-470b-7bab-b483-0fe440ccd91b,01a0161a-468e-7753-8885-87a9a49ed5f1,completed,agent_strategy_benchmark/formal-01-simple_009-plan_and_execute-r1-2f78b270/simple_009,2026-08-18T18:20:15.987542+00:00,2026-08-18T18:20:29.701906+00:00
+agent_strategy,formal-01,simple_010,simple,react,1,True,10230.794,2,1,0,2,,,,,,01a0161a-7cfb-77f4-949f-58c7c77e8da9,web-run-01a0161a-7cfb-77f4-949f-58c7c77e8da9,01a0161a-7c99-72ea-a2e0-aa551fb11f89,completed,agent_strategy_benchmark/formal-01-simple_010-react-r1-94f9435d/simple_010,2026-08-18T18:20:29.800826+00:00,2026-08-18T18:20:40.031676+00:00
+agent_strategy,formal-01,simple_010,simple,plan_and_execute,1,True,24287.466,5,1,2,5,,,,,,01a0161a-a560-7d3d-9b23-5d0a34b3c84d,web-run-01a0161a-a560-7d3d-9b23-5d0a34b3c84d,01a0161a-a4f3-7bb4-9c57-52e8e0f4a2db,completed,agent_strategy_benchmark/formal-01-simple_010-plan_and_execute-r1-f47a44a5/simple_010,2026-08-18T18:20:40.144617+00:00,2026-08-18T18:21:03.739758+00:00
+agent_strategy,formal-01,medium_001,medium,react,1,False,12223.817,2,2,0,2,,,,incorrect_result,"expected='replicas,timeout', actual='replicas, timeout'",01a0161b-01fb-7a24-b8c6-8427df329304,web-run-01a0161b-01fb-7a24-b8c6-8427df329304,01a0161b-018e-7e5e-b2e3-21f03801f45e,completed,agent_strategy_benchmark/formal-01-medium_001-react-r1-e070070e/medium_001,2026-08-18T18:21:03.846752+00:00,2026-08-18T18:21:16.070616+00:00
+agent_strategy,formal-01,medium_001,medium,plan_and_execute,1,False,26325.898,5,2,2,5,,,,incorrect_result,"expected='replicas,timeout', actual='replicas, timeout'",01a0161b-321d-7f0c-a919-fb2188342b02,web-run-01a0161b-321d-7f0c-a919-fb2188342b02,01a0161b-31b8-7bec-b114-e43fed14c9aa,completed,agent_strategy_benchmark/formal-01-medium_001-plan_and_execute-r1-9f8b400a/medium_001,2026-08-18T18:21:16.168746+00:00,2026-08-18T18:21:41.974583+00:00
+agent_strategy,formal-01,medium_002,medium,react,1,True,12223.861,3,2,0,3,,,,,,01a0161b-9750-724a-b46a-799ca1a205e7,web-run-01a0161b-9750-724a-b46a-799ca1a205e7,01a0161b-96ed-76b4-a234-07eeb3ea4508,completed,agent_strategy_benchmark/formal-01-medium_002-react-r1-c3ffec93/medium_002,2026-08-18T18:21:42.080001+00:00,2026-08-18T18:21:54.304028+00:00
+agent_strategy,formal-01,medium_002,medium,plan_and_execute,1,True,22307.303,6,3,2,6,,,,,,01a0161b-c772-7281-b263-a1b5d9a93c68,web-run-01a0161b-c772-7281-b263-a1b5d9a93c68,01a0161b-c712-78f8-893e-ee3163557880,completed,agent_strategy_benchmark/formal-01-medium_002-plan_and_execute-r1-51669e35/medium_002,2026-08-18T18:21:54.400802+00:00,2026-08-18T18:22:16.125010+00:00
+agent_strategy,formal-01,medium_003,medium,react,1,False,22276.915,6,6,0,6,,,,incorrect_result,missing_answer_tag,01a0161c-1cbb-723c-ba3c-41c431876f01,web-run-01a0161c-1cbb-723c-ba3c-41c431876f01,01a0161c-1c51-73c9-9ac3-bc7a653767ee,completed,agent_strategy_benchmark/formal-01-medium_003-react-r1-fcd07254/medium_003,2026-08-18T18:22:16.234762+00:00,2026-08-18T18:22:37.746408+00:00
+agent_strategy,formal-01,medium_003,medium,plan_and_execute,1,False,36345.126,10,6,2,10,,,,incorrect_result,missing_answer_tag,01a0161c-7112-751d-bd74-d39fb056dcf1,web-run-01a0161c-7112-751d-bd74-d39fb056dcf1,01a0161c-70c1-7d69-80c2-d4e3ac43c3d3,completed,agent_strategy_benchmark/formal-01-medium_003-plan_and_execute-r1-87e41988/medium_003,2026-08-18T18:22:37.826119+00:00,2026-08-18T18:23:13.453809+00:00
+agent_strategy,formal-01,medium_004,medium,react,1,True,10176.561,2,2,0,2,,,,,,01a0161c-fc9c-71c4-adfc-38115c317876,web-run-01a0161c-fc9c-71c4-adfc-38115c317876,01a0161c-fc40-782d-9ebb-c3d0dad9a9e7,completed,agent_strategy_benchmark/formal-01-medium_004-react-r1-7009c971/medium_004,2026-08-18T18:23:13.549786+00:00,2026-08-18T18:23:23.726385+00:00
+agent_strategy,formal-01,medium_004,medium,plan_and_execute,1,True,20250.773,6,3,2,6,,,,,,01a0161d-24b5-7eda-9f9e-147a3c2815ee,web-run-01a0161d-24b5-7eda-9f9e-147a3c2815ee,01a0161d-2461-7590-b736-5193278781a7,completed,agent_strategy_benchmark/formal-01-medium_004-plan_and_execute-r1-851dde64/medium_004,2026-08-18T18:23:23.812805+00:00,2026-08-18T18:23:43.249807+00:00
+agent_strategy,formal-01,medium_005,medium,react,1,False,22278.54,6,9,0,6,,,,incorrect_result,missing_answer_tag,01a0161d-7105-77c0-8a19-4f4c1e8b01c6,web-run-01a0161d-7105-77c0-8a19-4f4c1e8b01c6,01a0161d-70a3-7532-a04a-e2f2bbb23146,completed,agent_strategy_benchmark/formal-01-medium_005-react-r1-b41d1147/medium_005,2026-08-18T18:23:43.349976+00:00,2026-08-18T18:24:05.628563+00:00
+agent_strategy,formal-01,medium_005,medium,plan_and_execute,1,True,16246.813,5,1,2,5,,,,,,01a0161d-c864-7c6d-b87e-0dcc6f7496ea,web-run-01a0161d-c864-7c6d-b87e-0dcc6f7496ea,01a0161d-c80f-799d-8ea1-57c417737be1,completed,agent_strategy_benchmark/formal-01-medium_005-plan_and_execute-r1-302f2314/medium_005,2026-08-18T18:24:05.715828+00:00,2026-08-18T18:24:21.291480+00:00
+agent_strategy,formal-01,medium_006,medium,react,1,False,22480.282,5,4,0,5,,,,incorrect_result,missing_answer_tag,01a0161e-05bc-7aa7-9ee0-45b875d2d5bc,web-run-01a0161e-05bc-7aa7-9ee0-45b875d2d5bc,01a0161e-053f-7243-afc4-8b36ced8e3a2,completed,agent_strategy_benchmark/formal-01-medium_006-react-r1-64f71af8/medium_006,2026-08-18T18:24:21.415432+00:00,2026-08-18T18:24:43.895769+00:00
+agent_strategy,formal-01,medium_006,medium,plan_and_execute,1,False,52519.234,9,7,2,9,,,,incorrect_result,"expected='alpha,gamma,beta', actual='alpha, gamma, beta, END'",01a0181c-d3d4-7d39-afb7-992a89386c8f,web-run-01a0181c-d3d4-7d39-afb7-992a89386c8f,01a0181c-d35e-7633-9b6a-370446350e5f,completed,agent_strategy_benchmark/formal-01-medium_006-plan_and_execute-r1-7d69e8c6/medium_006,2026-08-19T03:42:17.538284+00:00,2026-08-19T03:43:09.156155+00:00
+agent_strategy,formal-01,medium_007,medium,react,1,True,26360.793,3,4,0,3,,,,,,01a0181d-9df0-74dd-b595-c1d2e28d06c2,web-run-01a0181d-9df0-74dd-b595-c1d2e28d06c2,01a0181d-9d79-749d-9923-8b9de8db1bfe,completed,agent_strategy_benchmark/formal-01-medium_007-react-r1-b7b42c70/medium_007,2026-08-19T03:43:09.274111+00:00,2026-08-19T03:43:35.148933+00:00
+agent_strategy,formal-01,medium_007,medium,plan_and_execute,1,True,26322.467,5,2,2,5,,,,,,01a0181e-0363-7caa-86e1-38774c44bafb,web-run-01a0181e-0363-7caa-86e1-38774c44bafb,01a0181e-02ff-708b-9c23-823bce953d6f,completed,agent_strategy_benchmark/formal-01-medium_007-plan_and_execute-r1-12703099/medium_007,2026-08-19T03:43:35.250000+00:00,2026-08-19T03:44:01.572521+00:00
+agent_strategy,formal-01,medium_008,medium,react,1,False,24352.859,2,1,0,2,,,,incorrect_result,missing_answer_tag,01a0181e-6a9d-799d-b812-d128e5f6a4c7,web-run-01a0181e-6a9d-799d-b812-d128e5f6a4c7,01a0181e-6a38-7846-b5b7-6d634063317d,completed,agent_strategy_benchmark/formal-01-medium_008-react-r1-a28ba041/medium_008,2026-08-19T03:44:01.672413+00:00,2026-08-19T03:44:25.565112+00:00
+agent_strategy,formal-01,medium_008,medium,plan_and_execute,1,True,22317.485,6,4,2,6,,,,,,01a0181e-c862-7baa-baa5-49bb0dc3cd58,web-run-01a0181e-c862-7baa-baa5-49bb0dc3cd58,01a0181e-c7ef-71c2-8061-339d7f10a99f,completed,agent_strategy_benchmark/formal-01-medium_008-plan_and_execute-r1-76684f6d/medium_008,2026-08-19T03:44:25.675498+00:00,2026-08-19T03:44:47.508196+00:00
+agent_strategy,formal-01,medium_009,medium,react,1,False,16231.045,1,1,0,1,,,,execution_error,tool_side_effect_uncertain: 工具可能已执行，无法安全确认结果。,01a0181f-1dfb-7d91-b9ba-cac96db78aaf,web-run-01a0181f-1dfb-7d91-b9ba-cac96db78aaf,01a0181f-1da5-7686-b546-204bc514a4ae,failed,agent_strategy_benchmark/formal-01-medium_009-react-r1-1bdc474d/medium_009,2026-08-19T03:44:47.596346+00:00,2026-08-19T03:45:03.827433+00:00
+agent_strategy,formal-01,medium_009,medium,plan_and_execute,1,True,16234.664,5,2,2,5,,,,,,01a0181f-5db4-7734-836c-e4b90c04e058,web-run-01a0181f-5db4-7734-836c-e4b90c04e058,01a0181f-5d63-7156-ace9-113627ec35db,completed,agent_strategy_benchmark/formal-01-medium_009-plan_and_execute-r1-72cbc719/medium_009,2026-08-19T03:45:03.908981+00:00,2026-08-19T03:45:19.590594+00:00
+agent_strategy,formal-01,medium_010,medium,react,1,True,18226.352,2,1,0,2,,,,,,01a0181f-9b46-7afb-a330-799bfe3b2b4e,web-run-01a0181f-9b46-7afb-a330-799bfe3b2b4e,01a0181f-9af6-729b-9e94-6a1e42c730f8,completed,agent_strategy_benchmark/formal-01-medium_010-react-r1-915a68e5/medium_010,2026-08-19T03:45:19.669341+00:00,2026-08-19T03:45:37.895732+00:00
+agent_strategy,formal-01,medium_010,medium,plan_and_execute,1,True,24367.403,5,1,2,5,,,,,,01a0181f-e2c8-705c-8f3d-fc841e0057d8,web-run-01a0181f-e2c8-705c-8f3d-fc841e0057d8,01a0181f-e278-7cf8-a5c6-62c4afd17d41,completed,agent_strategy_benchmark/formal-01-medium_010-plan_and_execute-r1-44bb83fb/medium_010,2026-08-19T03:45:37.973903+00:00,2026-08-19T03:46:01.868259+00:00
+agent_strategy,formal-01,complex_001,complex,react,1,False,21341.507,4,3,0,4,,,,incorrect_result,"F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________________________ test_clamp __________________________________
+
+    def test_clamp():
+>       assert clamp(5, 0, 10) == 5
+E       assert 10 == 5
+E        +  where 10 = clamp(5, 0, 10)
+
+test_math_utils.py:4: AssertionError
+=========================== short test summary info ============================
+FAILED test_math_utils.py::test_clamp - assert 10 == 5
+1 failed in 0.11s
+
+",01a01820-40bb-77be-ad23-79c8b973bc74,web-run-01a01820-40bb-77be-ad23-79c8b973bc74,01a01820-404b-7b0f-b011-952d4e461bed,completed,agent_strategy_benchmark/formal-01-complex_001-react-r1-46b4e7ac/complex_001,2026-08-19T03:46:02.019878+00:00,2026-08-19T03:46:22.865891+00:00
+agent_strategy,formal-01,complex_001,complex,plan_and_execute,1,False,48477.313,12,8,2,12,,,,incorrect_result,"F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________________________ test_clamp __________________________________
+
+    def test_clamp():
+>       assert clamp(5, 0, 10) == 5
+E       assert 10 == 5
+E        +  where 10 = clamp(5, 0, 10)
+
+test_math_utils.py:4: AssertionError
+=========================== short test summary info ============================
+FAILED test_math_utils.py::test_clamp - assert 10 == 5
+1 failed in 0.11s
+
+",01a01820-927f-7aa2-a4c5-291b176e11a8,web-run-01a01820-927f-7aa2-a4c5-291b176e11a8,01a01820-9224-7549-9b15-cd05c93badf9,completed,agent_strategy_benchmark/formal-01-complex_001-plan_and_execute-r1-f477b3ab/complex_001,2026-08-19T03:46:22.956713+00:00,2026-08-19T03:47:10.906334+00:00
+agent_strategy,formal-01,complex_002,complex,react,1,False,28828.857,6,5,0,6,,,,incorrect_result,"F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________________________ test_values __________________________________
+
+    def test_values():
+        assert parse_bool('true') is True
+>       assert parse_bool('FALSE') is False
+E       AssertionError: assert True is False
+E        +  where True = parse_bool('FALSE')
+
+test_parser.py:6: AssertionError
+=========================== short test summary info ============================
+FAILED test_parser.py::test_values - AssertionError: assert True is False
+1 failed in 0.10s
+
+",01a01821-4e5d-7c2d-ba5a-a9f201c5cb4f,web-run-01a01821-4e5d-7c2d-ba5a-a9f201c5cb4f,01a01821-4dcd-7561-98f2-ed94faac3107,completed,agent_strategy_benchmark/formal-01-complex_002-react-r1-e4223be0/complex_002,2026-08-19T03:47:11.042672+00:00,2026-08-19T03:47:39.397984+00:00
+agent_strategy,formal-01,complex_002,complex,plan_and_execute,1,False,32341.443,5,2,2,5,,,,execution_error,internal_execution_error: 执行未能完成。,01a01821-bda9-7c83-8004-6999ebcf5214,web-run-01a01821-bda9-7c83-8004-6999ebcf5214,01a01821-bd18-7dd5-a27d-dcf35a9e3c83,failed,agent_strategy_benchmark/formal-01-complex_002-plan_and_execute-r1-54fd183a/complex_002,2026-08-19T03:47:39.544388+00:00,2026-08-19T03:48:11.410193+00:00
+agent_strategy,formal-01,complex_003,complex,react,1,False,28279.314,4,5,0,4,,,,incorrect_result,"F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________________________ test_total __________________________________
+
+    def test_total():
+        rows=[{'qty':2,'price':5},{'qty':3,'price':7}]
+>       assert inventory_total(rows) == 31
+E       AssertionError: assert 12 == 31
+E        +  where 12 = inventory_total([{'price': 5, 'qty': 2}, {'price': 7, 'qty': 3}])
+
+test_inventory.py:5: AssertionError
+=========================== short test summary info ============================
+FAILED test_inventory.py::test_total - AssertionError: assert 12 == 31
+1 failed in 0.14s
+
+",01a01822-3ade-74be-a455-88b794a0d448,web-run-01a01822-3ade-74be-a455-88b794a0d448,01a01822-3a2d-7c82-a37d-cb19ae6456ae,completed,agent_strategy_benchmark/formal-01-complex_003-react-r1-a20fe262/complex_003,2026-08-19T03:48:11.594064+00:00,2026-08-19T03:48:39.373359+00:00
+agent_strategy,formal-01,complex_003,complex,plan_and_execute,1,False,36270.974,5,2,2,5,,,,incorrect_result,"F                                                                        [100%]
+=================================== FAILURES ===================================
+__________________________________ test_total __________________________________
+
+    def test_total():
+        rows=[{'qty':2,'price':5},{'qty':3,'price':7}]
+>       assert inventory_total(rows) == 31
+E       AssertionError: assert 12 == 31
+E        +  where 12 = inventory_total([{'price': 5, 'qty': 2}, {'price': 7, 'qty': 3}])
+
+test_inventory.py:5: AssertionError
+=========================== short test summary info ============================
+FAILED test_inventory.py::test_total - AssertionError: assert 12 == 31
+1 failed in 0.09s
+
+",01a01822-a7bf-710b-ad29-60413ccd0544,web-run-01a01822-a7bf-710b-ad29-60413ccd0544,01a01822-a760-7463-b1b7-904e1a610590,completed,agent_strategy_benchmark/formal-01-complex_003-plan_and_execute-r1-0b5a7688/complex_003,2026-08-19T03:48:39.470063+00:00,2026-08-19T03:49:15.279353+00:00
+agent_strategy,formal-01,complex_004,complex,react,1,False,22374.41,4,4,0,4,,,,execution_error,internal_execution_error: 执行未能完成。,01a01823-3451-7a8e-8929-b4341748e80a,web-run-01a01823-3451-7a8e-8929-b4341748e80a,01a01823-33a2-79b9-a562-8613a7706dce,failed,agent_strategy_benchmark/formal-01-complex_004-react-r1-0d208dd5/complex_004,2026-08-19T03:49:15.447827+00:00,2026-08-19T03:49:37.822286+00:00
+agent_strategy,formal-01,complex_004,complex,plan_and_execute,1,True,125072.747,18,12,4,18,,,,,,01a01823-8c47-75f5-a971-8522b4738f45,web-run-01a01823-8c47-75f5-a971-8522b4738f45,01a01823-8bb0-7a5d-838b-b1cef815773f,completed,agent_strategy_benchmark/formal-01-complex_004-plan_and_execute-r1-038df8ba/complex_004,2026-08-19T03:49:37.975091+00:00,2026-08-19T03:51:40.774632+00:00
+agent_strategy,formal-01,complex_005,complex,react,1,True,40257.825,4,4,0,4,,,,,,01a01825-6c64-76e3-85dd-65b72c832d67,web-run-01a01825-6c64-76e3-85dd-65b72c832d67,01a01825-6bf7-75ea-9d1a-561a75b2c693,completed,agent_strategy_benchmark/formal-01-complex_005-react-r1-cde7f2e2/complex_005,2026-08-19T03:51:40.878541+00:00,2026-08-19T03:52:20.141984+00:00
+agent_strategy,formal-01,complex_005,complex,plan_and_execute,1,False,56725.467,11,9,2,11,,,,incorrect_result,"F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________________________ test_dedupe __________________________________
+
+    def test_dedupe():
+>       assert dedupe(['b','a','b','c','a']) == ['b','a','c']
+E       AssertionError: assert ['a', 'b', 'c'] == ['b', 'a', 'c']
+E
+E         At index 0 diff: 'a' != 'b'
+E         Use -v to get more diff
+
+test_sequences.py:4: AssertionError
+=========================== short test summary info ============================
+FAILED test_sequences.py::test_dedupe - AssertionError: assert ['a', 'b', 'c'...
+1 failed in 0.13s
+
+",01a01826-066a-7624-8714-30e967390473,web-run-01a01826-066a-7624-8714-30e967390473,01a01826-05c1-75c0-ab1f-ead9c1471dc5,completed,agent_strategy_benchmark/formal-01-complex_005-plan_and_execute-r1-68996527/complex_005,2026-08-19T03:52:20.311804+00:00,2026-08-19T03:53:16.554847+00:00
+agent_strategy,formal-01,complex_006,complex,react,1,False,22315.256,3,3,0,3,,,,execution_error,internal_execution_error: 执行未能完成。,01a01826-e30b-7a9c-a114-f465b14b141a,web-run-01a01826-e30b-7a9c-a114-f465b14b141a,01a01826-e22d-7d08-8424-ffc1dea685e7,failed,agent_strategy_benchmark/formal-01-complex_006-react-r1-1d66b75f/complex_006,2026-08-19T03:53:16.782722+00:00,2026-08-19T03:53:38.589114+00:00
+agent_strategy,formal-01,complex_006,complex,plan_and_execute,1,False,28474.242,7,3,2,7,,,,incorrect_result,"F                                                                        [100%]
+=================================== FAILURES ===================================
+_________________________________ test_nested __________________________________
+
+    def test_nested():
+        data={'service':{'limits':{'timeout':45}}}
+>       assert get_nested(data, 'service.limits.timeout') == 45
+E       AssertionError: assert None == 45
+E        +  where None = get_nested({'service': {'limits': {'timeout': 45}}}, 'service.limits.timeout')
+
+test_config_reader.py:5: AssertionError
+=========================== short test summary info ============================
+FAILED test_config_reader.py::test_nested - AssertionError: assert None == 45
+1 failed in 0.15s
+
+",01a01827-38ee-7e1a-82f5-9df2b26dbd22,web-run-01a01827-38ee-7e1a-82f5-9df2b26dbd22,01a01827-3831-7f84-982f-580bcea81279,completed,agent_strategy_benchmark/formal-01-complex_006-plan_and_execute-r1-f5117424/complex_006,2026-08-19T03:53:38.782409+00:00,2026-08-19T03:54:06.753905+00:00
+agent_strategy,formal-01,complex_007,complex,react,1,True,34495.811,4,5,0,4,,,,,,01a01827-a704-70e2-9ce5-d745813799d4,web-run-01a01827-a704-70e2-9ce5-d745813799d4,01a01827-a638-76cc-bbc2-5cf90e4aa11e,completed,agent_strategy_benchmark/formal-01-complex_007-react-r1-621507bd/complex_007,2026-08-19T03:54:06.909905+00:00,2026-08-19T03:54:40.893264+00:00
+agent_strategy,formal-01,complex_007,complex,plan_and_execute,1,True,48591.754,10,7,2,10,,,,,,01a01828-2c1e-701b-b8cb-05624885fba6,web-run-01a01828-2c1e-701b-b8cb-05624885fba6,01a01828-2b90-70d7-8e40-c795e99d635e,completed,agent_strategy_benchmark/formal-01-complex_007-plan_and_execute-r1-05c9b866/complex_007,2026-08-19T03:54:41.038343+00:00,2026-08-19T03:55:29.097381+00:00
+agent_strategy,formal-01,complex_008,complex,react,1,False,88.09,,,,,,,,environment_error,RuntimeError: benchmark repo has changes outside the managed benchmark directory; refusing to overwrite it,,,01a01828-e7de-79c6-835e-3c5dfe8750cc,,,2026-08-19T03:55:29.104329+00:00,2026-08-19T03:55:29.192467+00:00
+agent_strategy,formal-01,complex_008,complex,plan_and_execute,1,False,90.672,,,,,,,,environment_error,RuntimeError: benchmark repo has changes outside the managed benchmark directory; refusing to overwrite it,,,01a01828-e83d-7d87-877f-09deafa3f41d,,,2026-08-19T03:55:29.197794+00:00,2026-08-19T03:55:29.288516+00:00
+agent_strategy,formal-01,complex_009,complex,react,1,False,82.714,,,,,,,,environment_error,RuntimeError: benchmark repo has changes outside the managed benchmark directory; refusing to overwrite it,,,01a01828-e89b-7b86-bf5e-aed6ddd85ba1,,,2026-08-19T03:55:29.292599+00:00,2026-08-19T03:55:29.375363+00:00
+agent_strategy,formal-01,complex_009,complex,plan_and_execute,1,False,76.823,,,,,,,,environment_error,RuntimeError: benchmark repo has changes outside the managed benchmark directory; refusing to overwrite it,,,01a01828-e8f1-759c-8bb8-2cecfd5d3fd4,,,2026-08-19T03:55:29.380123+00:00,2026-08-19T03:55:29.457002+00:00
+agent_strategy,formal-01,complex_010,complex,react,1,False,86.333,,,,,,,,environment_error,RuntimeError: benchmark repo has changes outside the managed benchmark directory; refusing to overwrite it,,,01a01828-e944-7b4c-811d-87f1053eda71,,,2026-08-19T03:55:29.461717+00:00,2026-08-19T03:55:29.548100+00:00
+agent_strategy,formal-01,complex_010,complex,plan_and_execute,1,False,74.909,,,,,,,,environment_error,RuntimeError: benchmark repo has changes outside the managed benchmark directory; refusing to overwrite it,,,01a01828-e99d-71ce-8988-61d2c3b85c3d,,,2026-08-19T03:55:29.552454+00:00,2026-08-19T03:55:29.627418+00:00

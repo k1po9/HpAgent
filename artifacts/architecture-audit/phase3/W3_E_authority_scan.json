@@ -1,0 +1,145 @@
+{
+  "baseline": "2ca53e1676d9930778b42601bdfcb3edc5257b8e",
+  "source_sha256": "582dd74d11789b4961c69f4275017b89c2f4dd63fec0ef53547ac2f6f5484b2d",
+  "authority_map": {
+    "conversation_message_session": {
+      "authority": "PostgreSQL",
+      "owners": [
+        "src/conversation_domain",
+        "src/persistence"
+      ]
+    },
+    "run_lifecycle_execution": {
+      "authority": "PostgreSQL + Temporal",
+      "owners": [
+        "src/agent_activities",
+        "src/agent_workflows",
+        "src/orchestration"
+      ]
+    },
+    "qq_delivery": {
+      "authority": "PostgreSQL qq_deliveries",
+      "owners": [
+        "src/application/qq_delivery.py",
+        "src/conversation_domain/delivery.py"
+      ]
+    },
+    "redis": {
+      "authority": "optional cache / online events / ambient context",
+      "owners": [
+        "src/storage/redis.py",
+        "src/web_domain/run_events.py",
+        "src/memory/group_context.py"
+      ]
+    },
+    "long_term_memory": {
+      "authority": "Hindsight",
+      "owners": [
+        "src/memory/hindsight_client.py",
+        "src/application/memory_retention.py"
+      ]
+    },
+    "workspace": {
+      "authority": "workspace-specific files, Git and isolation state",
+      "owners": [
+        "src/workspace",
+        "src/sandbox/git_repo.py"
+      ]
+    },
+    "file_document_artifact": {
+      "authority": "PostgreSQL metadata + tenant/workspace object state",
+      "owners": [
+        "src/file_domain",
+        "src/file_runtime",
+        "src/document_activities",
+        "src/web_artifacts"
+      ]
+    }
+  },
+  "retired_modules_remaining": [],
+  "retired_paths_remaining": [],
+  "retired_imports": [],
+  "retired_definitions": [],
+  "forbidden_config_or_composition": [],
+  "missing_retained_systems": [],
+  "runtime_registry_pass": true,
+  "captured_registries": [
+    {
+      "task_queue": "hpagent-web-lifecycle",
+      "workflows": [
+        "AgentLifecycleWorkflow",
+        "ResearchReportWorkflow",
+        "ResearchTaskScheduleWorkflow",
+        "ArtifactBuildWorkflow",
+        "NormalizeDocumentWorkflow"
+      ],
+      "activities": [
+        "prepare_run_activity",
+        "load_agent_run_input_activity",
+        "finalize_failed_activity",
+        "finalize_cancelled_activity",
+        "finalize_agent_result_activity",
+        "execute_artifact_build_activity",
+        "prepare_research_activity",
+        "trigger_scheduled_research_activity",
+        "create_research_plan_activity",
+        "discover_research_sources_activity",
+        "rank_research_sources_activity",
+        "fetch_research_sources_activity",
+        "normalize_research_sources_activity",
+        "extract_research_evidence_activity",
+        "assess_research_corroboration_activity",
+        "analyze_research_gaps_activity",
+        "synthesize_research_report_activity",
+        "verify_research_citations_activity",
+        "compare_previous_research_activity",
+        "publish_research_artifact_activity",
+        "complete_research_activity",
+        "fail_research_activity"
+      ]
+    },
+    {
+      "task_queue": "hpagent-web-agent",
+      "workflows": [
+        "AgentRunWorkflow",
+        "ReactAgentWorkflow",
+        "PlanAndExecuteWorkflow",
+        "AgentStepWorkflow",
+        "ToolExecutionWorkflow"
+      ],
+      "activities": [
+        "acquire_agent_segment_activity",
+        "release_agent_segment_activity",
+        "begin_agent_wait_activity",
+        "finish_agent_wait_activity",
+        "context_bootstrap_activity",
+        "model_decision_activity",
+        "tool_execution_activity",
+        "file_action_approval_status_activity",
+        "approved_file_action_execution_activity",
+        "planning_activity",
+        "evaluate_plan_activity"
+      ]
+    },
+    {
+      "task_queue": "hpagent-document",
+      "workflows": [],
+      "activities": [
+        "normalize_document_activity"
+      ]
+    },
+    {
+      "task_queue": "hpagent-task-queue",
+      "workflows": [
+        "ReflectWorkflow",
+        "MetricsReportWorkflow"
+      ],
+      "activities": [
+        "reflect_activity",
+        "reflect_batch_activity",
+        "metrics_report_activity"
+      ]
+    }
+  ],
+  "pass": true
+}

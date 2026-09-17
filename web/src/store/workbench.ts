@@ -1,0 +1,794 @@
+/**
+ * Workbench state (phase-e E-03/E-04/E-06).
+ *
+ * Single source of truth for the conversation list, the active conversation's
+ * message history, and the active Run. Backend IDs are the stable keys: after a
+ * refresh the whole view is rebuilt from the API, never from an assistant-ui
+ * local cache.
+ *
+ * - `send` generates one Idempotency-Key per user intent, shows a temp user
+ *   message, then replaces it with the authoritative user/assistant message ids
+ *   and Run from the POST (contract API-013).
+ * - While a Run is active the conversation is busy: the composer is gated and
+ *   double-sends are ignored, but the backend 409 remains the final arbiter.
+ * - `stop`/`retry` call the cancel/retry APIs; only a safely retryable failed
+ *   Run can be retried, reusing the original user message.
+ * - Run state is watched live over the SSE subscription (E-06). Deltas stream
+ *   into the pending assistant Message as a volatile buffer; `run.progress`
+ *   lives only in the run-status area. On degraded/connect loss the feed stops
+ *   permanently and the store recovers by querying the Run, polling with
+ *   backoff (1s/2s/3s/5s) while it stays active. A terminal SSE snapshot always
+ *   replaces the local delta buffer.
+ */
+import { create } from "zustand";
+import { api as defaultApi } from "../api/client";
+import { HpApi } from "../api/resources";
+import { openRunFeed, type RunFeed, type RunProgress } from "../sse/runFeed";
+import { useAuth } from "./auth";
+import { newIdempotencyKey } from "../utils/idempotency";
+import { useTraceStore } from "../components/trace/traceStore";
+import {
+  HpCommandError,
+  type AgentStrategy,
+  type HpConversation,
+  type HpMessage,
+  type HpFile,
+  type HpRun,
+  type HpRunStatus,
+} from "../api/types";
+
+const TERMINAL_RUN_STATUS = new Set<HpRunStatus>(["completed", "failed", "cancelled"]);
+
+export function isTerminalRunStatus(status: HpRunStatus): boolean {
+  return TERMINAL_RUN_STATUS.has(status);
+}
+
+export function isCancellableRunStatus(status: HpRunStatus): boolean {
+  return status === "queued" || status === "running";
+}
+
+export function isRetryableRun(run: HpRun): boolean {
+  return run.status === "failed" && run.failure?.retryable !== false;
+}
+
+/** Human-readable label for the run status area (progress lives here, not in content). */
+export function runStatusLabel(status: HpRunStatus): string {
+  switch (status) {
+    case "queued":
+      return "排队中…";
+    case "running":
+      return "运行中…";
+    case "cancelling":
+      return "正在停止…";
+    case "completed":
+      return "已完成";
+    case "failed":
+      return "运行失败";
+    case "cancelled":
+      return "已停止";
+  }
+}
+
+const POLL_DELAYS = [1000, 2000, 3000, 5000] as const;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export interface WorkbenchDeps {
+  api: HpApi;
+  /** fetch override for the SSE subscription (tests swap this for a mock). */
+  fetchImpl?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  /** Session invalidated mid-stream: defaults to flipping the app to login. */
+  onAuthExpired?: () => void;
+}
+
+export type UploadAttachmentStatus = "uploading" | "ready" | "failed";
+
+export interface UploadAttachment {
+  localId: string;
+  name: string;
+  size: number;
+  status: UploadAttachmentStatus;
+  fileId: string | null;
+  file: HpFile | null;
+  error: string | null;
+}
+
+export interface WorkbenchState {
+  // Conversation list
+  conversations: HpConversation[];
+  conversationsLoaded: boolean;
+  loadingConversations: boolean;
+  creatingConversation: boolean;
+  conversationsError: string | null;
+
+  // Active conversation
+  activeConversationId: string | null;
+  messages: HpMessage[];
+  messageCursor: string | null;
+  hasMoreMessages: boolean;
+  loadingMessages: boolean;
+  loadingMoreMessages: boolean;
+  attachments: UploadAttachment[];
+
+  // Active Run
+  activeRun: HpRun | null;
+  activeRunError: string | null;
+  /** Volatile `run.progress` hint; shown only in the run-status area (E-06). */
+  activeRunProgress: RunProgress | null;
+  /** True when the SSE stream degraded/connection was lost (recovering by poll). */
+  degraded: boolean;
+  polling: boolean;
+  sending: boolean;
+  stopping: boolean;
+  agentStrategy: AgentStrategy;
+
+  // Transient UI error (dismissible)
+  error: string | null;
+
+  // Bumped whenever a new Run becomes authoritative so stale pollers stop.
+  pollGeneration: number;
+
+  loadConversations: () => Promise<void>;
+  createConversation: () => Promise<void>;
+  selectConversation: (id: string) => Promise<void>;
+  loadMoreMessages: () => Promise<void>;
+  addAttachments: (files: File[]) => Promise<void>;
+  removeAttachment: (localId: string) => Promise<void>;
+  sendMessage: (content: string) => Promise<boolean>;
+  setAgentStrategy: (strategy: AgentStrategy) => void;
+  stopRun: () => Promise<void>;
+  retryRun: () => Promise<void>;
+  refreshActiveRun: () => Promise<void>;
+  clearError: () => void;
+}
+
+/** Replace the temp user message with authoritative ids; append the assistant msg. */
+function replaceTempMessage(
+  messages: HpMessage[],
+  tempId: string,
+  userMessage: HpMessage,
+  assistantMessage: HpMessage,
+): HpMessage[] {
+  const next = messages.filter((m) => m.message_id !== tempId);
+  return [...next, userMessage, assistantMessage];
+}
+
+/** Update the assistant message for a Run in place (by id, then by run). */
+function reconcileAssistantMessage(messages: HpMessage[], assistant: HpMessage): HpMessage[] {
+  const byId = messages.findIndex((m) => m.message_id === assistant.message_id);
+  if (byId >= 0) {
+    const next = messages.slice();
+    next[byId] = assistant;
+    return next;
+  }
+  const byRun = messages.findIndex(
+    (m) => m.role === "assistant" && m.produced_by_run_id === assistant.produced_by_run_id,
+  );
+  if (byRun >= 0) {
+    const next = messages.slice();
+    next[byRun] = assistant;
+    return next;
+  }
+  return [...messages, assistant];
+}
+
+/**
+ * Append a volatile SSE delta to the pending assistant Message (E-06).
+ *
+ * Deltas are an in-memory display buffer only: they are never written to the
+ * backend, and a terminal snapshot fully replaces them. Matching is by
+ * message_id first, then by the Run that produced the pending assistant Message.
+ */
+function appendDelta(
+  messages: HpMessage[],
+  runId: string,
+  messageId: string,
+  delta: string,
+): HpMessage[] {
+  const idx = messages.findIndex(
+    (m) => m.message_id === messageId || (m.role === "assistant" && m.produced_by_run_id === runId),
+  );
+  if (idx < 0) return messages;
+  const next = messages.slice();
+  const current = next[idx];
+  if (!current) return messages;
+  next[idx] = { ...current, content: `${current.content ?? ""}${delta}` };
+  return next;
+}
+
+function messageErrorText(err: unknown): string {
+  if (err instanceof HpCommandError) {
+    return err.error.message;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return "发生未知错误，请重试。";
+}
+
+export function createWorkbenchStore(
+  deps: WorkbenchDeps = {
+    api: new HpApi(defaultApi),
+    onAuthExpired: () => useAuth.getState().expire(),
+  },
+) {
+  const { api } = deps;
+
+  return create<WorkbenchState>()((set, get) => {
+    /** The live SSE feed for the current Run, if any; closed on switch/stop. */
+    let activeFeed: RunFeed | null = null;
+    let budgetRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const closeFeed = (): void => {
+      if (activeFeed) {
+        activeFeed.close();
+        activeFeed = null;
+      }
+      if (budgetRefreshTimer) {
+        clearTimeout(budgetRefreshTimer);
+        budgetRefreshTimer = null;
+      }
+    };
+
+    async function refreshRunBudgetOnly(runId: string, generation: number): Promise<void> {
+      try {
+        const snapshot = await api.getRun(runId);
+        const latest = get();
+        if (latest.pollGeneration !== generation || latest.activeRun?.run_id !== runId) return;
+        set({ activeRun: { ...latest.activeRun, budget: snapshot.run.budget } });
+      } catch {
+        // Terminal confirmation or degraded polling will provide the next refresh.
+      }
+    }
+
+    function scheduleBudgetRefresh(runId: string, generation: number, delay: number): void {
+      if (budgetRefreshTimer) clearTimeout(budgetRefreshTimer);
+      budgetRefreshTimer = setTimeout(() => {
+        budgetRefreshTimer = null;
+        void refreshRunBudgetOnly(runId, generation);
+      }, delay);
+    }
+    /** Poll a Run until terminal; stops when a newer Run supersedes it. */
+    function startPolling(runId: string): void {
+      const generation = get().pollGeneration;
+      void (async () => {
+        let attempt = 0;
+        for (;;) {
+          const delay = POLL_DELAYS[Math.min(attempt, POLL_DELAYS.length - 1)] ?? 5000;
+          await sleep(delay);
+          attempt += 1;
+          const current = get();
+          if (current.pollGeneration !== generation) return;
+          if (current.activeRun?.run_id !== runId) return;
+          if (current.activeRun && isTerminalRunStatus(current.activeRun.status)) {
+            set({ polling: false, degraded: false });
+            return;
+          }
+          try {
+            const snapshot = await api.getRun(runId);
+            const latest = get();
+            if (latest.pollGeneration !== generation) return;
+            const run = snapshot.run;
+            const terminal = isTerminalRunStatus(run.status);
+            set({
+              activeRun: run,
+              messages: reconcileAssistantMessage(latest.messages, snapshot.assistant_message),
+              ...(terminal ? { activeRunError: null } : {}),
+              polling: !terminal,
+              degraded: terminal ? false : get().degraded,
+            });
+            if (terminal) return;
+          } catch {
+            // Transient fetch error: keep polling with the current backoff.
+          }
+        }
+      })();
+    }
+
+    /** One authoritative GET after a terminal SSE event (contract §12.4). */
+    async function confirmRun(runId: string, generation: number): Promise<void> {
+      try {
+        const snapshot = await api.getRun(runId);
+        const latest = get();
+        if (latest.pollGeneration !== generation || latest.activeRun?.run_id !== runId) return;
+        set({
+          activeRun: snapshot.run,
+          messages: reconcileAssistantMessage(latest.messages, snapshot.assistant_message),
+        });
+      } catch {
+        // The SSE snapshot is already authoritative; nothing to correct.
+      }
+    }
+
+    /**
+     * Watch a Run live over SSE (E-06). Deltas stream into the pending Message;
+     * progress lands in the run-status area; a terminal snapshot replaces the
+     * buffer. On degraded/connect loss the feed stops permanently and recovery
+     * queries the Run, polling while it stays active (contract §13.2).
+     */
+    function startRunMonitor(runId: string): void {
+      useTraceStore.getState().followRun(runId);
+      const generation = get().pollGeneration;
+      closeFeed();
+
+      const current = get();
+      if (current.activeRun && isTerminalRunStatus(current.activeRun.status)) {
+        set({ polling: false, degraded: false, activeRunProgress: null });
+        return;
+      }
+      set({ polling: true, degraded: false, activeRunProgress: null });
+
+      const stale = (): boolean => {
+        const latest = get();
+        return latest.pollGeneration !== generation || latest.activeRun?.run_id !== runId;
+      };
+
+      try {
+        const feed = openRunFeed(
+          runId,
+          {
+            onSnapshot: (snapshot) => {
+              if (stale()) return;
+              // Only a terminal Run dismisses a `conversation_busy` notice;
+              // while a foreign Run is still executing the notice stays up.
+              const terminal = isTerminalRunStatus(snapshot.run.status);
+              set({
+                activeRun: snapshot.run,
+                messages: reconcileAssistantMessage(get().messages, snapshot.assistant_message),
+                ...(terminal ? { activeRunError: null } : {}),
+              });
+              if (terminal) {
+                set({ polling: false, degraded: false, activeRunProgress: null });
+              }
+            },
+            onDelta: (messageId, delta) => {
+              if (stale()) return;
+              set({ messages: appendDelta(get().messages, runId, messageId, delta) });
+            },
+            onProgress: (progress) => {
+              if (stale()) return;
+              set({ activeRunProgress: progress });
+            },
+            onStatus: (status) => {
+              if (stale()) return;
+              set((s) => (s.activeRun ? { activeRun: { ...s.activeRun, status } } : {}));
+            },
+            onTrace: (event) => {
+              if (stale()) return;
+              useTraceStore.getState().applyEvent(runId, event);
+              const node = useTraceStore.getState().nodes[event.nodeId];
+              if (node?.type === "llm") {
+                scheduleBudgetRefresh(runId, generation, event.action === "start" ? 150 : 0);
+              }
+            },
+            onTerminal: (snapshot) => {
+              if (stale()) return;
+              // The committed snapshot overrides the volatile delta buffer, then
+              // a single GET corrects any drift (contract §12.4 run.completed).
+              set({
+                activeRun: snapshot.run,
+                messages: reconcileAssistantMessage(get().messages, snapshot.assistant_message),
+                activeRunError: null,
+                activeRunProgress: null,
+                polling: false,
+                degraded: false,
+              });
+              void confirmRun(runId, generation);
+              void useTraceStore.getState().loadTrace();
+            },
+            onDegraded: () => {
+              if (stale()) return;
+              // Delta assembly is permanently stopped; recover by querying the
+              // Run and, while active, polling with backoff (contract §13).
+              set({ degraded: true, activeRunProgress: null });
+              startPolling(runId);
+            },
+            onAuthExpired: () => {
+              deps.onAuthExpired?.();
+            },
+          },
+          { fetchImpl: deps.fetchImpl },
+        );
+        activeFeed = feed;
+        void feed.done.then(() => {
+          if (activeFeed === feed) activeFeed = null;
+        });
+      } catch {
+        // Synchronous construction failure (never expected): poll instead.
+        set({ degraded: true });
+        startPolling(runId);
+      }
+    }
+
+    /** Re-fetch the active Run from the conversation detail (busy recovery). */
+    async function refreshActiveRun(): Promise<void> {
+      const conversationId = get().activeConversationId;
+      if (!conversationId) {
+        set({ activeRun: null, activeRunError: null });
+        return;
+      }
+      try {
+        const detail = await api.getConversationDetail(conversationId);
+        const active = detail.active_run;
+        set((s) => ({
+          activeRun: active?.run ?? null,
+          // A `conversation_busy` message is deliberately preserved: learning
+          // that a foreign Run is active is not a reason to hide the notice —
+          // it clears when that Run reaches terminal (see the run monitor).
+          activeRunProgress: null,
+          degraded: false,
+          pollGeneration: active ? s.pollGeneration + 1 : s.pollGeneration,
+        }));
+        if (active) {
+          startRunMonitor(active.run.run_id);
+        }
+      } catch {
+        // Keep whatever Run we had; a later poll or user action will re-sync.
+      }
+    }
+
+    return {
+      conversations: [],
+      conversationsLoaded: false,
+      loadingConversations: false,
+      creatingConversation: false,
+      conversationsError: null,
+      activeConversationId: null,
+      messages: [],
+      messageCursor: null,
+      hasMoreMessages: false,
+      loadingMessages: false,
+      loadingMoreMessages: false,
+      attachments: [],
+      activeRun: null,
+      activeRunError: null,
+      activeRunProgress: null,
+      degraded: false,
+      polling: false,
+      sending: false,
+      stopping: false,
+      agentStrategy: "react",
+      error: null,
+      pollGeneration: 0,
+
+      loadConversations: async () => {
+        if (get().loadingConversations) return;
+        set({ loadingConversations: true, conversationsError: null });
+        try {
+          const page = await api.listConversations();
+          set({
+            loadingConversations: false,
+            conversationsLoaded: true,
+            conversations: page.items,
+          });
+        } catch (err) {
+          set({
+            loadingConversations: false,
+            conversationsError: messageErrorText(err),
+          });
+        }
+      },
+
+      createConversation: async () => {
+        if (get().creatingConversation) return;
+        closeFeed();
+        useTraceStore.getState().reset();
+        set({ creatingConversation: true, error: null });
+        try {
+          const result = await api.createConversation(newIdempotencyKey());
+          const conversation = result.conversation;
+          set((s) => ({
+            creatingConversation: false,
+            conversations: [
+              conversation,
+              ...s.conversations.filter((c) => c.conversation_id !== conversation.conversation_id),
+            ],
+            activeConversationId: conversation.conversation_id,
+            messages: [],
+            attachments: [],
+            messageCursor: null,
+            hasMoreMessages: false,
+            activeRun: null,
+            activeRunError: null,
+            activeRunProgress: null,
+            degraded: false,
+            error: null,
+            pollGeneration: s.pollGeneration + 1,
+          }));
+        } catch (err) {
+          set({ creatingConversation: false, error: messageErrorText(err) });
+        }
+      },
+
+      selectConversation: async (id) => {
+        if (id === get().activeConversationId) return;
+        closeFeed();
+        useTraceStore.getState().reset();
+        set((s) => ({
+          activeConversationId: id,
+          messages: [],
+          attachments: [],
+          messageCursor: null,
+          hasMoreMessages: true,
+          activeRun: null,
+          activeRunError: null,
+          activeRunProgress: null,
+          degraded: false,
+          error: null,
+          pollGeneration: s.pollGeneration + 1,
+        }));
+        set({ loadingMessages: true });
+        try {
+          const [detail, page] = await Promise.all([
+            api.getConversationDetail(id),
+            api.listMessages(id),
+          ]);
+          const active = detail.active_run;
+          set((s) => ({
+            loadingMessages: false,
+            // The API normalizes each page to chat order (oldest first), so
+            // send-time appends land at the end naturally.
+            messages: page.items,
+            messageCursor: page.next_cursor,
+            hasMoreMessages: page.has_more,
+            activeRun: active?.run ?? null,
+            activeRunError: null,
+            activeRunProgress: null,
+            degraded: false,
+            pollGeneration: s.pollGeneration + 1,
+          }));
+          if (active) {
+            startRunMonitor(active.run.run_id);
+          }
+        } catch (err) {
+          set({ loadingMessages: false, error: messageErrorText(err) });
+        }
+      },
+
+      loadMoreMessages: async () => {
+        const conversationId = get().activeConversationId;
+        const cursor = get().messageCursor;
+        if (!conversationId || !cursor || get().loadingMoreMessages) return;
+        set({ loadingMoreMessages: true });
+        try {
+          const page = await api.listMessages(conversationId, cursor);
+          const seen = new Set(get().messages.map((m) => m.message_id));
+          const fresh = page.items.filter((m) => !seen.has(m.message_id));
+          set((s) => ({
+            loadingMoreMessages: false,
+            // Older pages are also returned oldest-first; prepend unchanged.
+            messages: fresh.concat(s.messages),
+            messageCursor: page.next_cursor,
+            hasMoreMessages: page.has_more,
+          }));
+        } catch (err) {
+          set({ loadingMoreMessages: false, error: messageErrorText(err) });
+        }
+      },
+
+      addAttachments: async (selectedFiles) => {
+        const conversationId = get().activeConversationId;
+        if (!conversationId || selectedFiles.length === 0) return;
+        const active = get().activeRun;
+        if (get().sending || (active && !isTerminalRunStatus(active.status))) return;
+
+        const available = Math.max(0, 10 - get().attachments.length);
+        const accepted = selectedFiles.slice(0, available);
+        if (accepted.length === 0) {
+          set({ error: "每条消息最多添加 10 个附件。" });
+          return;
+        }
+        if (accepted.length < selectedFiles.length) {
+          set({ error: "每条消息最多添加 10 个附件，多余文件未加入。" });
+        }
+
+        const queued = accepted.map<UploadAttachment>((file) => ({
+          localId: newIdempotencyKey(),
+          name: file.name,
+          size: file.size,
+          status: "uploading",
+          fileId: null,
+          file: null,
+          error: null,
+        }));
+        set((state) => ({ attachments: [...state.attachments, ...queued] }));
+
+        await Promise.all(
+          accepted.map(async (browserFile, index) => {
+            const attachment = queued[index];
+            if (!attachment) return;
+            try {
+              const created = await api.createUpload(
+                conversationId,
+                browserFile,
+                newIdempotencyKey(),
+              );
+              set((state) => ({
+                attachments: state.attachments.map((item) =>
+                  item.localId === attachment.localId
+                    ? { ...item, fileId: created.file.file_id }
+                    : item,
+                ),
+              }));
+              if (!get().attachments.some((item) => item.localId === attachment.localId)) {
+                await api.deleteFile(created.file.file_id);
+                return;
+              }
+              const uploaded = await api.uploadContent(created.content_url, browserFile);
+              set((state) => ({
+                attachments: state.attachments.map((item) =>
+                  item.localId === attachment.localId
+                    ? { ...item, status: "ready", fileId: uploaded.file_id, file: uploaded }
+                    : item,
+                ),
+              }));
+              if (!get().attachments.some((item) => item.localId === attachment.localId)) {
+                await api.deleteFile(uploaded.file_id);
+              }
+            } catch (err) {
+              set((state) => ({
+                attachments: state.attachments.map((item) =>
+                  item.localId === attachment.localId
+                    ? { ...item, status: "failed", error: messageErrorText(err) }
+                    : item,
+                ),
+              }));
+            }
+          }),
+        );
+      },
+
+      removeAttachment: async (localId) => {
+        const attachment = get().attachments.find((item) => item.localId === localId);
+        if (!attachment) return;
+        set((state) => ({
+          attachments: state.attachments.filter((item) => item.localId !== localId),
+        }));
+        if (attachment.fileId) {
+          try {
+            await api.deleteFile(attachment.fileId);
+          } catch (err) {
+            set({ error: messageErrorText(err) });
+          }
+        }
+      },
+
+      sendMessage: async (content) => {
+        const conversationId = get().activeConversationId;
+        const trimmed = content.trim();
+        if (!conversationId || !trimmed) return false;
+        // Only a live Run blocks sending: after a terminal Run the composer is
+        // re-enabled so a long conversation continues in place (E-07).
+        const active = get().activeRun;
+        if (get().sending || get().stopping || (active && !isTerminalRunStatus(active.status))) {
+          return false;
+        }
+        const attachments = get().attachments;
+        if (attachments.some((item) => item.status !== "ready" || !item.fileId)) {
+          set({ error: "请等待附件上传完成，或移除上传失败的附件。" });
+          return false;
+        }
+
+        const idempotencyKey = newIdempotencyKey();
+        const tempId = `temp:${idempotencyKey}`;
+        const tempMessage: HpMessage = {
+          message_id: tempId,
+          conversation_id: conversationId,
+          role: "user",
+          status: "accepted",
+          content: trimmed,
+          sequence: 0,
+          client_request_id: null,
+          produced_by_run_id: null,
+          created_at: new Date().toISOString(),
+          completed_at: null,
+        };
+        set((s) => ({ sending: true, error: null, messages: [...s.messages, tempMessage] }));
+
+        try {
+          const result = await api.sendMessage(conversationId, trimmed, {
+            idempotencyKey,
+            agentStrategy: get().agentStrategy,
+            fileIds: attachments.map((item) => item.fileId as string),
+          });
+          set((s) => ({
+            sending: false,
+            messages: replaceTempMessage(
+              s.messages,
+              tempId,
+              result.user_message,
+              result.assistant_message,
+            ),
+            activeRun: result.run,
+            activeRunError: null,
+            activeRunProgress: null,
+            degraded: false,
+            attachments: [],
+            pollGeneration: s.pollGeneration + 1,
+          }));
+          startRunMonitor(result.run.run_id);
+          return true;
+        } catch (err) {
+          const messages = get().messages.filter((m) => m.message_id !== tempId);
+          if (err instanceof HpCommandError && err.code === "conversation_busy") {
+            set({ sending: false, messages, activeRunError: err.error.message });
+            void refreshActiveRun();
+          } else {
+            set({ sending: false, messages, error: messageErrorText(err) });
+          }
+          return false;
+        }
+      },
+
+      setAgentStrategy: (agentStrategy) => {
+        const active = get().activeRun;
+        if (active && !isTerminalRunStatus(active.status)) return;
+        set({ agentStrategy });
+      },
+
+      stopRun: async () => {
+        const run = get().activeRun;
+        if (!run || !isCancellableRunStatus(run.status) || get().stopping) return;
+        set({ stopping: true, error: null });
+        try {
+          await api.cancelRun(run.run_id, newIdempotencyKey());
+          // The SSE monitor (or its polling fallback) observes the terminal
+          // cancelled snapshot.
+        } catch (err) {
+          if (err instanceof HpCommandError && err.code === "run_not_cancellable") {
+            void refreshActiveRun();
+          } else {
+            set({ error: messageErrorText(err) });
+          }
+        } finally {
+          set({ stopping: false });
+        }
+      },
+
+      retryRun: async () => {
+        const run = get().activeRun;
+        if (!run || !isRetryableRun(run)) return;
+        if (get().sending || get().stopping) return;
+        set({ sending: true, error: null });
+        try {
+          const result = await api.retryRun(run.run_id, newIdempotencyKey());
+          set((s) => ({
+            sending: false,
+            messages: reconcileAssistantMessage(s.messages, result.assistant_message),
+            activeRun: result.run,
+            activeRunError: null,
+            activeRunProgress: null,
+            degraded: false,
+            pollGeneration: s.pollGeneration + 1,
+          }));
+          startRunMonitor(result.run.run_id);
+        } catch (err) {
+          if (err instanceof HpCommandError && err.code === "conversation_busy") {
+            set({ sending: false, activeRunError: err.error.message });
+            void refreshActiveRun();
+          } else if (err instanceof HpCommandError && err.code === "run_not_retryable") {
+            set({ sending: false, error: "当前状态不可重试。" });
+            void refreshActiveRun();
+          } else if (err instanceof HpCommandError && err.code === "run_retry_not_safe") {
+            set({
+              sending: false,
+              error: "任务中存在无法确认是否已完成的外部操作，请检查结果后重新发起任务。",
+            });
+            void refreshActiveRun();
+          } else {
+            set({ sending: false, error: messageErrorText(err) });
+          }
+        }
+      },
+
+      refreshActiveRun,
+
+      clearError: () => set({ error: null, activeRunError: null }),
+    };
+  });
+}
+
+/** Singleton bound to the real API client. */
+export const useWorkbench = createWorkbenchStore();

@@ -1,0 +1,24 @@
+$ git merge-base --is-ancestor 630ce8de2f1f72a1663a95a8f8ffa3db622d8fff HEAD
+exit_code=0
+$ git diff --check
+exit_code=0
+$ git diff --cached --check
+exit_code=0
+$ .venv/bin/ruff check scripts/audit_w3_reachability.py scripts/benchmarks/outbox/outbox_benchmark_worker.py src/actions/contracts.py src/actions/runtime.py src/agent/protocol.py src/agent_activities/control.py src/agent_activities/runtime.py src/agent_execution/activity_control.py src/agent_execution/audit.py src/agent_execution/brain_action_loop.py src/agent_execution/chat_bindings.py src/agent_execution/chat_run_input.py src/agent_execution/facade.py src/agent_execution/model_budget_context.py src/agent_execution/qq_host.py src/agent_execution/run_budget.py src/agent_execution/tracing/__init__.py src/agent_execution/tracing/context.py src/agent_execution/tracing/instrumentation.py src/agent_execution/tracing/lifecycle.py src/agent_execution/tracing/metadata.py src/agent_execution/tracing/models.py src/agent_execution/tracing/repository.py src/agent_execution/tracing/sink.py src/agent_execution/web_adapters.py src/agent_execution/web_events.py src/agent_execution/web_host.py src/application/chat_execution.py src/application/context_assembly.py src/application/context_builder.py src/application/execution_contracts.py src/application/prompts.py src/application/scheduler.py src/bootstrap/qq.py src/brain/contracts.py src/brain/engine.py src/conversation_domain/execution_bindings.py src/conversation_domain/run_input.py src/document_activities/runtime.py src/harness/activities.py src/harness/context_builder.py src/harness/prompts.py src/memory/activities.py src/memory/maintenance.py src/memory/workflows.py src/orchestration/run_lifecycle_activities.py src/orchestration/scheduler.py src/orchestration/web_activities.py src/orchestration/worker.py src/orchestration/workflow.py src/research_activities/runtime.py src/resources/model_budget_context.py src/resources/resource_pool.py src/resources/run_budget.py src/sandbox/tools/local/reminder.py src/tracing/__init__.py src/tracing/context.py src/tracing/instrumentation.py src/tracing/lifecycle.py src/tracing/metadata.py src/tracing/models.py src/tracing/repository.py src/tracing/sink.py src/web_api/app.py src/web_api/fake_executor.py src/web_api/queries.py src/web_domain/run_events.py test/support/durable_worker_process.py test/test_action_result_semantics.py test/test_context_assembly.py test/test_durable_agent_hardening.py test/test_observability_preflight.py test/test_qq_execution_compat.py test/test_qq_retention_document.py test/test_run_budget.py test/test_trace_events.py test/test_w1c_cutover_contract.py test/test_w3_survivor_ownership.py test/test_web_temporal_contract.py test/web_api/test_sse_gateway.py test/web_persistence/test_agent_trace.py test/web_persistence/test_phase_c_context.py test/web_persistence/test_qq_canonical_ingress.py test/web_persistence/test_research_r0_r2.py test/web_persistence/test_run_budget.py test/web_persistence/test_w1_source_data_plane.py test/web_persistence/test_w2_cross_surface.py test/web_persistence/test_web_temporal_e2e.py
+All checks passed!
+exit_code=0
+$ .venv/bin/python scripts/audit_w3_reachability.py
+{
+  "counts": {
+    "SAFE_TO_DELETE_AFTER_W3_A": 46,
+    "STILL_REACHABLE": 38,
+    "UNKNOWN": 2
+  },
+  "forbidden_canonical_imports": [],
+  "source_sha256": "a355ba021f6ebea8bfacbd29e5695cf2b87a822bf27fc9115c847b3bef4d942e"
+}
+exit_code=0
+phase2_2 frozen diff: EMPTY
+phase2_1 user changes: NOT STAGED
+deleted files: NONE
+Ruff changed Python files: 88

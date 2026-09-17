@@ -1,0 +1,151 @@
+"""Composition helpers for the isolated Web Temporal workers.
+
+The caller supplies Activity implementations so the lifecycle worker never
+imports or constructs Agent/Sandbox dependencies as a side effect of this
+module.  QQ continues to be composed by ``orchestration.worker`` unchanged.
+"""
+from __future__ import annotations
+
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import timedelta
+from typing import Any
+
+from temporalio.client import Client
+from temporalio.worker import Worker
+
+from account.validation import validate_unified_account_backend
+from agent_workflows.agent_run import AgentRunWorkflow
+from agent_workflows.agent_step import AgentStepWorkflow
+from agent_workflows.contracts import (
+    DURABLE_LEASE_SAFETY_MARGIN_SECONDS,
+    DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS,
+)
+from agent_workflows.plan_execute import PlanAndExecuteWorkflow
+from agent_workflows.react import ReactAgentWorkflow
+from agent_workflows.tool_execution import ToolExecutionWorkflow
+
+from .agent_lifecycle_workflow import AgentLifecycleWorkflow
+from .artifact_workflow import ArtifactBuildWorkflow
+from .document_workflow import NormalizeDocumentWorkflow
+from .research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
+from .run_lifecycle_contracts import (
+    WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
+    WEB_AGENT_TASK_QUEUE,
+    WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS,
+    WEB_FINALIZE_START_TO_CLOSE_SECONDS,
+    WEB_LIFECYCLE_TASK_QUEUE,
+    WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS,
+    WEB_PREPARE_START_TO_CLOSE_SECONDS,
+    WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
+)
+
+
+@dataclass(frozen=True)
+class WebTemporalWorkers:
+    lifecycle: Worker
+    agent: Worker
+
+
+def validate_web_outbox_recovery(
+    lease_timeout_seconds: int,
+    recovery_interval_seconds: float,
+) -> None:
+    """Outbox auto-recovery config must never produce ``recover_expired(0)``.
+
+    ``lease_timeout_seconds`` and ``recovery_interval_seconds`` must both be
+    positive and the interval must be strictly smaller than the timeout, so a
+    lease is observed as expired on a later sweep rather than at the exact
+    timeout boundary.
+    """
+    if lease_timeout_seconds <= 0:
+        raise ValueError("web_outbox_lease_timeout_seconds must be positive")
+    if recovery_interval_seconds <= 0:
+        raise ValueError("web_outbox_recovery_interval_seconds must be positive")
+    if recovery_interval_seconds >= lease_timeout_seconds:
+        raise ValueError(
+            "web_outbox_recovery_interval_seconds must be smaller than "
+            "web_outbox_lease_timeout_seconds"
+        )
+
+
+def validate_web_worker_startup(config: Any, worker_database_url: str | None) -> None:
+    """Validate canonical Web/QQ worker configuration before construction."""
+    try:
+        validate_web_outbox_recovery(
+            config.web_outbox_lease_timeout_seconds,
+            config.web_outbox_recovery_interval_seconds,
+        )
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+    validate_unified_account_backend(worker_database_url)
+    minimum_lease_ttl = (
+        DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS
+        + DURABLE_LEASE_SAFETY_MARGIN_SECONDS
+    )
+    if config.agent_execution_lease_ttl_seconds <= minimum_lease_ttl:
+        raise RuntimeError(
+            "agent_execution_lease_ttl_seconds must be greater than "
+            f"{minimum_lease_ttl} seconds"
+        )
+    if config.web_lifecycle_task_queue != WEB_LIFECYCLE_TASK_QUEUE:
+        raise RuntimeError("Web lifecycle task queue differs from frozen Workflow contract")
+    if config.web_agent_task_queue != WEB_AGENT_TASK_QUEUE:
+        raise RuntimeError("Web Agent task queue differs from frozen Workflow contract")
+    frozen_values = {
+        "web_workflow_execution_timeout_seconds": WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
+        "web_prepare_schedule_to_close_seconds": WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS,
+        "web_prepare_start_to_close_seconds": WEB_PREPARE_START_TO_CLOSE_SECONDS,
+        "web_agent_heartbeat_interval_seconds": WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
+        "web_finalize_schedule_to_close_seconds": WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS,
+        "web_finalize_start_to_close_seconds": WEB_FINALIZE_START_TO_CLOSE_SECONDS,
+    }
+    for field, expected in frozen_values.items():
+        if getattr(config, field) != expected:
+            raise RuntimeError(f"{field} differs from frozen Workflow contract")
+
+
+def build_web_temporal_workers(
+    client: Client,
+    *,
+    lifecycle_activities: Sequence[Any],
+    agent_activities: Sequence[Any],
+) -> WebTemporalWorkers:
+    """Build, but do not start, the Web lifecycle and Agent workers.
+
+    D-02/D-06 provide the concrete Activity lists.  Keeping construction
+    separate permits the composition root to start neither worker until the
+    C-07 real-Agent gate is enabled.
+    """
+    return WebTemporalWorkers(
+        lifecycle=Worker(
+            client,
+            task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+            # One canonical Agent lifecycle; other business workflows stay independent.
+            workflows=[
+                AgentLifecycleWorkflow,
+                ResearchReportWorkflow,
+                ResearchTaskScheduleWorkflow,
+                ArtifactBuildWorkflow,
+                NormalizeDocumentWorkflow,
+            ],
+            activities=list(lifecycle_activities),
+        ),
+        agent=Worker(
+            client,
+            task_queue=WEB_AGENT_TASK_QUEUE,
+            workflows=[
+                AgentRunWorkflow,
+                ReactAgentWorkflow,
+                PlanAndExecuteWorkflow,
+                AgentStepWorkflow,
+                ToolExecutionWorkflow,
+            ],
+            activities=list(agent_activities),
+            # Temporal otherwise throttles heartbeat RPCs to most of the
+            # heartbeat timeout, which delays cancellation beyond our budget.
+            max_heartbeat_throttle_interval=timedelta(
+                seconds=WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS
+            ),
+        ),
+    )

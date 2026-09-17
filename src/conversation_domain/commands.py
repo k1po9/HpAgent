@@ -1,0 +1,633 @@
+"""Shared Chat commands; PG owns admission and atomic Message/Run/Outbox writes."""
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
+from typing import Any, cast
+from uuid import UUID, uuid5
+
+from uuid6 import uuid7
+
+from agent_workflows.ids import tool_execution_workflow_id
+from common.logging import log_event
+from persistence.command_result import CommandResult
+from persistence.repositories import (
+    AccountRepository,
+    ConversationRepository,
+    FileRepository,
+    IdempotencyRepository,
+    MessageRepository,
+    OutboxRepository,
+    RunBudgetRepository,
+    RunRepository,
+    SessionRepository,
+    WorkflowExecutionRepository,
+)
+from persistence.uow import UnitOfWork, retryable_transaction
+from web_domain.errors import (
+    ConversationBusy,
+    FileAlreadyBound,
+    FileNotReady,
+    IdempotencyConflict,
+    ResourceNotFound,
+    RunNotCancellable,
+    RunNotRetryable,
+    RunRetryNotSafe,
+)
+from web_domain.failures import is_failure_retryable
+from web_domain.run_usage_projection import load_run_budget_projection
+
+from .admission import AdmissionPolicy, SingleActiveRunAdmission
+from .sessions import ConversationSessionService
+
+logger = logging.getLogger("HpAgent.ConversationCommands")
+
+
+def _id() -> UUID:
+    """Generate application-owned UUIDv7 values; PostgreSQL needs no UUID extension."""
+    return uuid7()
+
+
+def _digest(value: object) -> bytes:
+    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).digest()
+
+
+def message_request_id(key: str) -> UUID:
+    """Map a stable surface key to the shared Message deduplication identity.
+
+    Web supplies its validated UUID. Other adapters supply a namespaced stable
+    key derived from provider/bot/room/thread/message identity (at most 128 chars).
+    Account ownership remains part of the PG unique constraint. This function
+    neither resolves identity nor binds different Conversations together.
+    """
+    if not key or len(key) > 128:
+        raise ValueError("message key must contain between 1 and 128 characters")
+    try:
+        return UUID(key)
+    except ValueError:
+        return uuid5(UUID("a8381adf-1d37-5d1b-9b21-3946f56bfd48"), key)
+
+
+class CommandService:
+    def __init__(
+        self, database_url: object, *, budget_mode: str = "observe",
+        budget_policy_version: str = "file-p0-v1",
+        budget_limits: Mapping[str, int] | None = None,
+        final_response_reserve_tokens: int = 1024,
+        admission_policy: AdmissionPolicy | None = None,
+    ):
+        self.database_url = database_url
+        self.accounts = AccountRepository()
+        self.conversations = ConversationRepository()
+        self.messages = MessageRepository()
+        self.runs = RunRepository()
+        self.files = FileRepository()
+        self.budgets = RunBudgetRepository()
+        self.sessions = SessionRepository()
+        self.admission_policy = admission_policy or SingleActiveRunAdmission()
+        self.session_service = ConversationSessionService(database_url)
+        self.workflows = WorkflowExecutionRepository()
+        self.idempotency = IdempotencyRepository()
+        self.outbox = OutboxRepository()
+        self.budget_mode = budget_mode
+        self.budget_policy_version = budget_policy_version
+        self.budget_limits = dict(budget_limits or {
+            "model_input_tokens": 80000, "model_output_tokens": 20000,
+            "model_total_tokens": 100000, "model_calls": 20, "tool_calls": 20,
+            "bytes_scanned": 512 * 1024 * 1024,
+            "bytes_returned_to_model": 2 * 1024 * 1024,
+            "bytes_written": 512 * 1024 * 1024,
+            "output_file_bytes": 128 * 1024 * 1024, "wall_time_ms": 600000,
+        })
+        self.final_response_reserve_tokens = final_response_reserve_tokens
+
+    @retryable_transaction
+    def create_conversation(self, account_id: UUID, key: str, title: str = "") -> CommandResult:
+        payload = {"title": title}
+        with UnitOfWork(self.database_url) as uow:
+            existing = self._claim(uow, account_id, "create_conversation", key, payload)
+            if existing:
+                return existing
+            if not self.accounts.require_active(uow, account_id):
+                raise ResourceNotFound()
+            conversation_id = _id()
+            self.conversations.create(uow, conversation_id, account_id, title)
+            row = uow.execute(
+                "SELECT * FROM conversations WHERE account_id=%s AND conversation_id=%s",
+                (account_id, conversation_id),
+            ).fetchone()
+            result = {
+                "conversation_id": str(conversation_id),
+                "conversation": self._conversation_dto(row),
+            }
+            self._complete(uow, account_id, "create_conversation", key, 201, result)
+            return CommandResult(201, result)
+
+    @retryable_transaction
+    def send_message(
+        self,
+        account_id: UUID,
+        conversation_id: UUID,
+        key: str,
+        content: str,
+        agent_strategy: str = "react",
+        file_ids: tuple[UUID, ...] = (),
+    ) -> CommandResult:
+        with UnitOfWork(self.database_url) as uow:
+            return self._send_message_in_uow(uow, account_id, conversation_id, key, content, agent_strategy, file_ids)
+
+    def _send_message_in_uow(
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, key: str, content: str, agent_strategy: str = "react", file_ids: tuple[UUID, ...] = ()
+    ) -> CommandResult:
+        if agent_strategy not in {"react", "plan_and_execute"}:
+            raise ValueError("unsupported agent strategy")
+        request_id = message_request_id(key)
+        payload: dict[str, Any] = {
+            "conversation_id": str(conversation_id), "content": content
+        }
+        if agent_strategy != "react":
+            payload["agent_strategy"] = agent_strategy
+        if file_ids:
+            payload["file_ids"] = [str(file_id) for file_id in file_ids]
+        existing = self._claim(uow, account_id, "send_message", key, payload)
+        if existing:
+            return existing
+        conversation = self.conversations.lock_active(uow, account_id, conversation_id)
+        if not conversation:
+            raise ResourceNotFound()
+        retained = self.messages.find_initial_by_client_request(uow, account_id, request_id)
+        if retained:
+            if retained["conversation_id"] != conversation_id or retained["content"] != content:
+                raise IdempotencyConflict()
+            result = self._send_result_for_run(uow, retained["run_id"])
+            if (
+                result["run"]["agent_strategy"] != agent_strategy
+                or sorted(item["file_id"] for item in result["user_message"]["files"])
+                != sorted(str(file_id) for file_id in file_ids)
+            ):
+                raise IdempotencyConflict()
+            self._complete(uow, account_id, "send_message", key, 202, result)
+            return CommandResult(202, result)
+        self.admission_policy.admit_in_locked_conversation(uow, conversation_id)
+        if len(set(file_ids)) != len(file_ids):
+            raise FileAlreadyBound()
+        input_files = self.files.lock_ready_inputs(
+            uow, account_id, conversation_id, file_ids
+        )
+        if len(input_files) != len(file_ids):
+            scoped_count = (
+                uow.execute(
+                    "SELECT count(*) AS count FROM stored_files WHERE account_id=%s "
+                    "AND conversation_id=%s AND file_id=ANY(%s)",
+                    (account_id, conversation_id, list(file_ids)),
+                ).fetchone()["count"]
+                if file_ids else 0
+            )
+            if scoped_count != len(file_ids):
+                raise ResourceNotFound()
+            raise FileNotReady()
+        session_id = self.session_service.get_or_create_in_locked_conversation(
+            uow, account_id, conversation_id
+        )
+        allocated = self.conversations.allocate_messages(
+            uow, account_id, conversation_id, 2
+        )
+        user_message_id, run_id, assistant_message_id = _id(), _id(), _id()
+        workflow_id = f"hpagent-web-run-{run_id}"
+        self.messages.insert_user(
+            uow, user_message_id, account_id, conversation_id, content,
+            allocated - 1, request_id
+        )
+        self.runs.insert(
+            uow, run_id, account_id, conversation_id, session_id, user_message_id,
+            workflow_id, allocated - 1, agent_strategy=agent_strategy
+        )
+        self.messages.insert_assistant(
+            uow, assistant_message_id, account_id, conversation_id, allocated, run_id
+        )
+        self.files.bind_inputs(
+            uow, account_id, conversation_id, user_message_id, run_id, input_files
+        )
+        self._create_budget(uow, run_id, account_id, conversation_id)
+        self._outbox(uow, account_id, conversation_id, run_id, "start_run")
+        result = self._send_result_for_run(uow, run_id)
+        self._complete(uow, account_id, "send_message", key, 202, result)
+        log_event(logger, logging.INFO, "run_created", "run", run_id=str(run_id),
+                  conversation_id=str(conversation_id), session_id=str(session_id), status="started")
+        return CommandResult(202, result)
+
+    @retryable_transaction
+    def cancel_run(self, account_id: UUID, run_id: UUID, key: str) -> CommandResult:
+        with UnitOfWork(self.database_url) as uow:
+            return self._cancel_run_in_uow(uow, account_id, run_id, key)
+
+    def _cancel_run_in_uow(
+        self, uow: UnitOfWork, account_id: UUID, run_id: UUID, key: str
+    ) -> CommandResult:
+        """Persist cancellation and, for dispatched Runs, its Outbox signal."""
+        payload = {"run_id": str(run_id)}
+        existing = self._claim(uow, account_id, "cancel_run", key, payload)
+        if existing:
+            return existing
+        conversation_id = self.runs.discover_conversation(uow, account_id, run_id)
+        if conversation_id is None:
+            raise ResourceNotFound()
+        self.conversations.get_for_account(uow, account_id, conversation_id, lock=True)
+        run = self.runs.get_for_account(uow, account_id, run_id, lock=True)
+        if run is None:
+            raise ResourceNotFound()
+        if run["status"] in ("completed", "failed"):
+            raise RunNotCancellable()
+        if run["status"] == "cancelled":
+            result = self._snapshot_for_run(uow, run_id)
+            result.update({"run_id": str(run_id), "status": "cancelled"})
+            response_status = 200
+        elif run["status"] == "queued" and not self.workflows.has_current(uow, run_id):
+            self._set_terminal(
+                uow, account_id, run["conversation_id"], run_id, "cancelled"
+            )
+            result = self._snapshot_for_run(uow, run_id)
+            result.update({"run_id": str(run_id), "status": "cancelled"})
+            response_status = 200
+        else:
+            self.runs.set_cancelling(uow, run_id)
+            pending_approvals = uow.execute(
+                "UPDATE file_action_approvals SET status='cancelled',updated_at=now() "
+                "WHERE account_id=%s AND run_id=%s AND status='pending' RETURNING *",
+                (account_id, run_id),
+            ).fetchall()
+            for approval in pending_approvals:
+                approval_event_id = _id()
+                self.outbox.enqueue(
+                    uow, approval_event_id, account_id,
+                    "file_action_approval_decided",
+                    f"file-approval:{approval['approval_id']}:cancelled",
+                    run["conversation_id"], run_id,
+                    json.dumps({
+                        "approval_id": str(approval["approval_id"]),
+                        "operation_id": approval["operation_id"],
+                        "tool_execution_workflow_id": tool_execution_workflow_id(
+                            str(run_id), approval["operation_id"]
+                        ),
+                        "version": 1,
+                    }),
+                )
+            self._outbox(uow, account_id, run["conversation_id"], run_id, "cancel_run")
+            result = self._snapshot_for_run(uow, run_id)
+            result.update({"run_id": str(run_id), "status": "cancelling"})
+            response_status = 202
+        self._complete(
+            uow, account_id, "cancel_run", key, response_status, result
+        )
+        return CommandResult(response_status, result)
+
+    @retryable_transaction
+    def retry_run(self, account_id: UUID, source_run_id: UUID, key: str) -> CommandResult:
+        payload = {"run_id": str(source_run_id)}
+        with UnitOfWork(self.database_url) as uow:
+            existing = self._claim(uow, account_id, "retry_run", key, payload)
+            if existing:
+                return existing
+            conversation_id = self.runs.discover_conversation(uow, account_id, source_run_id)
+            if conversation_id is None:
+                raise ResourceNotFound()
+            conversation = self.conversations.get_for_account(
+                uow, account_id, conversation_id, lock=True
+            )
+            source = self.runs.get_for_account(uow, account_id, source_run_id, lock=True)
+            if source is None:
+                raise ResourceNotFound()
+            if source["status"] != "failed":
+                raise RunNotRetryable()
+            failure_code = str(source.get("failure_code") or "")
+            if not is_failure_retryable(failure_code):
+                log_event(
+                    logger,
+                    logging.WARNING,
+                    "run_retry_rejected",
+                    "run",
+                    run_id=str(source_run_id),
+                    account_id=str(account_id),
+                    failure_code=failure_code,
+                    reason="unsafe_side_effect_state",
+                    status="rejected",
+                )
+                raise RunRetryNotSafe(failure_code)
+            child = self.runs.direct_retry(uow, source_run_id)
+            if child:
+                result = self._retry_result_for_run(uow, source_run_id, child["run_id"])
+                response_status = 200
+                resource_reused = True
+            else:
+                if conversation is None or conversation["status"] != "active":
+                    raise ResourceNotFound()
+                self.admission_policy.admit_in_locked_conversation(
+                    uow, source["conversation_id"]
+                )
+                session_id = self.session_service.get_or_create_in_locked_conversation(
+                    uow, account_id, source["conversation_id"]
+                )
+                sequence = self.conversations.allocate_messages(
+                    uow, account_id, source["conversation_id"], 1
+                )
+                run_id = _id()
+                assistant_message_id = _id()
+                self.runs.insert(
+                    uow, run_id, account_id, source["conversation_id"], session_id,
+                    source["trigger_message_id"], f"hpagent-web-run-{run_id}",
+                    source["context_message_seq"], source_run_id,
+                    str(source.get("agent_strategy") or "react"),
+                )
+                self.messages.insert_assistant(
+                    uow, assistant_message_id, account_id, source["conversation_id"],
+                    sequence, run_id
+                )
+                self.files.copy_retry_inputs(uow, source_run_id, run_id)
+                self._create_budget(
+                    uow, run_id, account_id, source["conversation_id"]
+                )
+                self._outbox(uow, account_id, source["conversation_id"], run_id, "start_run")
+                result = self._retry_result_for_run(uow, source_run_id, run_id)
+                response_status = 202
+                resource_reused = False
+            self._complete(
+                uow, account_id, "retry_run", key, response_status, result
+            )
+            return CommandResult(
+                response_status, result, resource_reused=resource_reused
+            )
+
+    @retryable_transaction
+    def start_run(self, account_id: UUID, run_id: UUID) -> bool:
+        """Move a queued Run to running through the formal lifecycle boundary."""
+        with UnitOfWork(self.database_url) as uow:
+            run = self._lock_owned_run(uow, account_id, run_id)
+            if run["status"] == "running":
+                return True
+            if run["status"] != "queued":
+                return False
+            changed = uow.execute(
+                "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),"
+                "version=version+1,"
+                "updated_at=now() WHERE run_id=%s AND status='queued' RETURNING run_id",
+                (run_id,),
+            ).fetchone()
+            return changed is not None
+
+    @retryable_transaction
+    def complete_run(self, account_id: UUID, run_id: UUID, content: str) -> bool:
+        """Lifecycle adapter entrypoint; callers invoke it only after external work."""
+        with UnitOfWork(self.database_url) as uow:
+            run = self._lock_owned_run(uow, account_id, run_id)
+            if run["status"] in ("completed", "failed", "cancelled"):
+                return bool(run["status"] == "completed")
+            if run["status"] not in ("running", "cancelling"):
+                raise ConversationBusy()
+            self.messages.set_terminal(uow, run_id, "completed", content)
+            # Output publication is durable before terminalization, but files
+            # become user-visible only with the completed assistant message.
+            uow.execute(
+                "INSERT INTO message_files(account_id,conversation_id,message_id,file_id,role,ordinal) "
+                "SELECT rf.account_id,rf.conversation_id,m.message_id,rf.file_id,'output',"
+                "row_number() OVER (ORDER BY rf.created_at,rf.file_id)-1 "
+                "FROM run_files rf JOIN messages m ON m.produced_by_run_id=rf.run_id "
+                "WHERE rf.run_id=%s AND rf.direction='output' "
+                "ON CONFLICT (message_id,file_id) DO NOTHING",
+                (run_id,),
+            )
+            self.runs.set_terminal(uow, run_id, "completed")
+            from conversation_domain.delivery import enqueue_qq_result
+
+            enqueue_qq_result(uow, run_id)
+            self._outbox(uow, account_id, run["conversation_id"], run_id, "retain_memory")
+            self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "completed")
+            log_event(logger, logging.INFO, "run_completed", "run", run_id=str(run_id),
+                      execution_id=str(run_id), account_id=str(account_id),
+                      conversation_id=str(run["conversation_id"]),
+                      status="success", run_status="completed")
+            return True
+
+    @retryable_transaction
+    def fail_run(self, account_id: UUID, run_id: UUID, failure_code: str, failure_message: str | None = None) -> bool:
+        """Atomically record a safe terminal failure and its notification."""
+        with UnitOfWork(self.database_url) as uow:
+            run = self._lock_owned_run(uow, account_id, run_id)
+            if run["status"] in ("completed", "failed", "cancelled"):
+                return bool(run["status"] == "failed")
+            self.messages.set_terminal(uow, run_id, "failed")
+            self.runs.set_terminal(uow, run_id, "failed", failure_code, failure_message)
+            self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "failed")
+            log_event(logger, logging.ERROR, "run_failed", "run", run_id=str(run_id),
+                      execution_id=str(run_id), account_id=str(account_id),
+                      conversation_id=str(run["conversation_id"]),
+                      status="failed", run_status="failed", error_code=failure_code)
+            return True
+
+    @retryable_transaction
+    def cancelled_run(self, account_id: UUID, run_id: UUID) -> bool:
+        """Converge a Workflow cancellation callback into one atomic terminal fact."""
+        with UnitOfWork(self.database_url) as uow:
+            run = self._lock_owned_run(uow, account_id, run_id)
+            if run["status"] in ("completed", "failed", "cancelled"):
+                return bool(run["status"] == "cancelled")
+            self.messages.set_terminal(uow, run_id, "aborted")
+            self.runs.set_terminal(uow, run_id, "cancelled")
+            self._outbox(
+                uow, account_id, run["conversation_id"], run_id,
+                "publish_terminal_event", "cancelled"
+            )
+            log_event(logger, logging.INFO, "run_cancelled", "run", run_id=str(run_id),
+                      execution_id=str(run_id), account_id=str(account_id),
+                      conversation_id=str(run["conversation_id"]),
+                      status="cancelled", run_status="cancelled")
+            return True
+
+    def _claim(
+        self, uow: UnitOfWork, account_id: UUID, operation: str,
+        key: str, payload: object
+    ) -> CommandResult | None:
+        digest = _digest(payload)
+        row = self.idempotency.claim(
+            uow, _id(), account_id, operation, key, digest,
+            datetime.now(UTC) + timedelta(days=7),
+        )
+        if row is None:
+            return None
+        if row is None or bytes(row["request_hash"]) != digest:
+            raise IdempotencyConflict()
+        if row["status"] == "completed":
+            return CommandResult(
+                int(row["response_status"]),
+                cast(dict[str, Any], row["response_body"]),
+                replayed=True,
+                resource_reused=(operation == "retry_run" and int(row["response_status"]) == 200),
+            )
+        raise ConversationBusy()
+
+    def _complete(
+        self, uow: UnitOfWork, account_id: UUID, operation: str, key: str,
+        response_status: int, result: dict[str, Any]
+    ) -> None:
+        self.idempotency.complete(
+            uow, account_id, operation, key, response_status, json.dumps(result)
+        )
+
+    def _send_result_for_run(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
+        snapshot = self._snapshot_for_run(uow, run_id)
+        user = uow.execute(
+            "SELECT m.* FROM messages m JOIN runs r ON r.trigger_message_id=m.message_id "
+            "WHERE r.run_id=%s", (run_id,)
+        ).fetchone()
+        run = snapshot["run"]
+        user_dto = self._message_dto(user)
+        user_dto["files"] = self._message_file_dtos(uow, user["message_id"])
+        return {
+            "message_id": user and str(user["message_id"]),
+            "run_id": str(run_id),
+            "session_id": run["session_id"],
+            "user_message": user_dto,
+            "assistant_message": snapshot["assistant_message"],
+            "run": run,
+        }
+
+    def _retry_result_for_run(
+        self, uow: UnitOfWork, source_run_id: UUID, run_id: UUID
+    ) -> dict[str, Any]:
+        snapshot = self._snapshot_for_run(uow, run_id)
+        return {
+            "run_id": str(run_id),
+            "source_run_id": str(source_run_id),
+            "retry_of_run_id": str(source_run_id),
+            "assistant_message": snapshot["assistant_message"],
+            "run": snapshot["run"],
+        }
+
+    def _snapshot_for_run(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
+        run = uow.execute("SELECT * FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+        message = uow.execute(
+            "SELECT * FROM messages WHERE produced_by_run_id=%s", (run_id,)
+        ).fetchone()
+        run_dto = self._run_dto(run)
+        run_dto["budget"] = load_run_budget_projection(uow, run_id)
+        message_dto = self._message_dto(message)
+        message_dto["files"] = self._message_file_dtos(uow, message["message_id"])
+        return {"run": run_dto, "assistant_message": message_dto}
+
+    @staticmethod
+    def _timestamp(value: datetime | None) -> str | None:
+        return value.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z") if value else None
+
+    @classmethod
+    def _conversation_dto(cls, row: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            "conversation_id": str(row["conversation_id"]), "title": row["title"],
+            "status": row["status"], "last_message_seq": row["last_message_seq"],
+            "metadata_version": row["metadata_version"],
+            "created_at": cls._timestamp(row["created_at"]),
+            "updated_at": cls._timestamp(row["updated_at"]),
+        }
+
+    @classmethod
+    def _message_dto(cls, row: Mapping[str, Any]) -> dict[str, Any]:
+        return {
+            "message_id": str(row["message_id"]),
+            "conversation_id": str(row["conversation_id"]), "role": row["role"],
+            "status": row["status"], "content": row["content"],
+            "sequence": row["sequence"],
+            "client_request_id": str(row["client_request_id"]) if row["client_request_id"] else None,
+            "produced_by_run_id": str(row["produced_by_run_id"]) if row["produced_by_run_id"] else None,
+            "created_at": cls._timestamp(row["created_at"]),
+            "completed_at": cls._timestamp(row["completed_at"]),
+        }
+
+    @classmethod
+    def _run_dto(cls, row: Mapping[str, Any]) -> dict[str, Any]:
+        failure = None
+        if row["status"] == "failed":
+            failure = {
+                "code": row["failure_code"],
+                "message": row["failure_message"] or "Agent 暂时无法完成本次请求，请稍后重试。",
+                "retryable": is_failure_retryable(row["failure_code"]),
+            }
+        return {
+            "run_id": str(row["run_id"]), "conversation_id": str(row["conversation_id"]),
+            "session_id": str(row["session_id"]),
+            "trigger_message_id": str(row["trigger_message_id"]),
+            "retry_of_run_id": str(row["retry_of_run_id"]) if row["retry_of_run_id"] else None,
+            "agent_strategy": str(row.get("agent_strategy") or "react"),
+            "status": row["status"], "failure": failure, "version": row["version"],
+            "created_at": cls._timestamp(row["created_at"]),
+            "started_at": cls._timestamp(row["started_at"]),
+            "finished_at": cls._timestamp(row["finished_at"]),
+            "updated_at": cls._timestamp(row["updated_at"]),
+        }
+
+    @staticmethod
+    def _message_file_dtos(uow: UnitOfWork, message_id: UUID) -> list[dict[str, Any]]:
+        rows = uow.execute(
+            "SELECT sf.* FROM message_files mf JOIN stored_files sf "
+            "ON sf.account_id=mf.account_id AND sf.conversation_id=mf.conversation_id "
+            "AND sf.file_id=mf.file_id WHERE mf.message_id=%s ORDER BY mf.ordinal",
+            (message_id,),
+        ).fetchall()
+        return [
+            {
+                "file_id": str(row["file_id"]), "file_name": row["display_name"],
+                "purpose": row["purpose"], "status": row["status"],
+                "size_bytes": row["size_bytes"],
+            }
+            for row in rows
+        ]
+
+    def _outbox(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, run_id: UUID, event_type: str, terminal_status: str | None = None) -> None:
+        key = f"terminal:{run_id}:{terminal_status}" if event_type == "publish_terminal_event" else f"{event_type.replace('_', '-')}:{run_id}"
+        event_id = _id()
+        payload = {"run_id": str(run_id), "version": 1}
+        if terminal_status:
+            payload["terminal_status"] = terminal_status
+            payload["terminal_event_id"] = str(event_id)
+        self.outbox.enqueue(
+            uow, event_id, account_id, event_type, key, conversation_id, run_id,
+            json.dumps(payload),
+        )
+
+    def _set_terminal(
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
+        run_id: UUID, status: str
+    ) -> None:
+        message_status = {"failed": "failed", "cancelled": "aborted"}[status]
+        self.messages.set_terminal(uow, run_id, message_status)
+        self.runs.set_terminal(uow, run_id, status)
+        self._outbox(
+            uow, account_id, conversation_id, run_id, "publish_terminal_event", status
+        )
+
+    def _create_budget(
+        self, uow: UnitOfWork, run_id: UUID, account_id: UUID,
+        conversation_id: UUID,
+    ) -> None:
+        self.budgets.create_snapshot(
+            uow, run_id, account_id, conversation_id,
+            self.budget_policy_version, self.budget_mode,
+            json.dumps(self.budget_limits, sort_keys=True),
+            self.final_response_reserve_tokens,
+        )
+
+    def _lock_owned_run(
+        self, uow: UnitOfWork, account_id: UUID, run_id: UUID
+    ) -> dict[str, Any]:
+        conversation_id = self.runs.discover_conversation(uow, account_id, run_id)
+        if conversation_id is None:
+            raise ResourceNotFound()
+        conversation = self.conversations.get_for_account(
+            uow, account_id, conversation_id, lock=True
+        )
+        if conversation is None:
+            raise ResourceNotFound()
+        run = self.runs.get_for_account(uow, account_id, run_id, lock=True)
+        if run is None or run["conversation_id"] != conversation_id:
+            raise ResourceNotFound()
+        return cast(dict[str, Any], run)

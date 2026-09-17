@@ -1,0 +1,13 @@
+Proxy source: /root/.bashrc proxy_on/docker_proxy_on/proxy_all_on.
+Windows gateway: 172.24.192.1; HTTP proxy port: 19674.
+proxy_all_on calls proxy_on then docker_proxy_on; the latter rewrites Docker systemd proxy settings and restarts Docker.
+Docker info already reported HTTP/HTTPS proxy http://172.24.192.1:19674 and live-restore=false.
+No daemon restart/config rewrite was needed. Proxy variables were set explicitly for the build processes.
+Host proxy tests: PyPI /simple/aiohttp/ returned HTTP 200; Docker auth HEAD returned HTTP 405 (endpoint allows GET/POST); files.pythonhosted.org metadata GET returned HTTP 200.
+Fresh python:3.12-slim container with HTTPS_PROXY reached PyPI via urllib with HTTP 200.
+Builds pass HTTP_PROXY, HTTPS_PROXY and NO_PROXY. Document retry also passes lowercase http_proxy, https_proxy and no_proxy for APT.
+First proxy API/migrate attempts encountered SSL EOF on a wheel metadata transfer; successful host recheck justified a retry.
+First Document proxy attempt lacked lowercase proxy parameters and was interrupted; next attempt encountered registry EOF; final attempt preserves both cases.
+No TLS verification bypass, package version change, Dockerfile edit or dependency mirror substitution was used.
+Final result: all four unchanged repository Dockerfiles built successfully. Worker required an additional retry after proxy APT 502; API/migrate required a retry after large-wheel read timeout. Cached retries succeeded.
+All four images pass pip check; fresh image migration/startup probe passes after correcting its missing Document read-only file-store mount. See W3_E_install_validation.txt.

@@ -18,7 +18,10 @@ import dataclasses
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Any
+from typing import TYPE_CHECKING, Any, Dict, List
+
+if TYPE_CHECKING:
+    from resources.credentials import ModelEndpoint
 
 logger = logging.getLogger("HpAgent.Config")
 
@@ -55,8 +58,6 @@ class ToolRagConfig:
     """工具 RAG 检索配置。"""
     enabled: bool = True
     top_k: int = 8                          # 最终返回工具数量上限
-    max_merged_multiplier: float = 1.5      # 多路检索合并缓冲系数（max_merged = top_k * multiplier）
-    per_query_min: int = 3                  # 多路检索每查询最少召回数
     persist_path: str = "tools/vectors"
 
 
@@ -185,6 +186,7 @@ class ModelsConfig:
             FileNotFoundError: 文件不存在。
         """
         import os as _os2
+
         import yaml
 
         config_file = Path(path)
@@ -295,7 +297,25 @@ class ModelsConfig:
 class TemporalConfig:
     """Temporal Server 连接配置。"""
     host: str = "localhost:7233"
+    # Scheduled memory reflection/metrics queue; separate from canonical Agent queues.
     task_queue: str = "hpagent-task-queue"
+    web_lifecycle_task_queue: str = "hpagent-web-lifecycle"
+    web_agent_task_queue: str = "hpagent-web-agent"
+    web_workflow_execution_timeout_seconds: int = 3000
+    web_prepare_schedule_to_close_seconds: int = 120
+    web_prepare_start_to_close_seconds: int = 15
+    web_agent_heartbeat_interval_seconds: int = 15
+    web_finalize_schedule_to_close_seconds: int = 300
+    web_finalize_start_to_close_seconds: int = 20
+    # Outbox lease auto-recovery.  A claimed (processing) Outbox row whose lease
+    # is older than web_outbox_lease_timeout_seconds is returned to pending by a
+    # dedicated recovery loop that runs every web_outbox_recovery_interval_seconds.
+    # Both values must be positive and the interval must be smaller than the
+    # timeout so the loop observes leases before they can starve the queue.
+    web_outbox_lease_timeout_seconds: int = 60
+    web_outbox_recovery_interval_seconds: int = 15
+    # Must exceed any single model/tool Activity timeout plus safety margin.
+    agent_execution_lease_ttl_seconds: int = 900
 
 
 @dataclass
@@ -346,8 +366,10 @@ class SandboxConfig:
 class WorkspaceConfig:
     """用户工作区配置。"""
     root: str = ".data/workspace"
-    db_path: str = ""
-    cleanup_max_age_days: int = 30
+    workspace_isolation_mode: str = ""
+    agent_worker_replicas: int = 1
+    prefork_enabled: bool = False
+    agent_activity_processes: int = 1
 
 
 @dataclass
@@ -391,18 +413,18 @@ class HindsightConfig:
 
 
 @dataclass
-class SessionConfig:
-    """会话存储配置。"""
-    backup_dir: str = ".data/active-sessions"
-    redis_ttl: int = 86400
-
-
-@dataclass
-class MultiAgentConfig:
-    """多Agent模式配置。"""
-    strategy: str = "supervisor"       # supervisor | council | workflow
-    max_review_rounds: int = 10
-    agents_config: str = "config/agents.yaml"
+class ResearchConfig:
+    """Research source, bounded iteration and evidence thresholds."""
+    searxng_url: str = "http://searxng:8080"
+    search_timeout_seconds: float = 15.0
+    fetch_timeout_seconds: float = 20.0
+    browser_timeout_seconds: float = 30.0
+    min_content_chars: int = 240
+    max_sources: int = 30
+    max_fetches: int = 20
+    max_iterations: int = 3
+    min_evidence: int = 3
+    min_distinct_sources: int = 2
 
 
 @dataclass
@@ -411,27 +433,12 @@ class AgentConfig:
     max_history_turns: int = 10
     max_tool_turns: int = 20
     recall_top_n: int = 5
-    event_fetch_limit: int = 100
-    activity_timeout: int = 300    # process_turn Activity 超时（秒）
-    archive_timeout: int = 10
-    mode: str = "single"               # "single" | "multi"
     reflect_interval_hours: int = 6    # 记忆反思间隔（小时）
-    idle_timeout_minutes: int = 5      # 会话空闲自动关闭时间（分钟）
-    multi_agent: MultiAgentConfig = field(default_factory=MultiAgentConfig)
 
-    # —— 上下文工程参数 ——
-    context_budget: int = 256000            # 总上下文 token 预算
-    generation_headroom: int = 16000        # 留给模型输出的 token 空间
-    summary_budget: int = 2000              # 运行摘要最大 token
-    memories_budget: int = 2000             # 召回记忆最大 token
-    compress_interval: int = 8              # 每 N 轮触发历史压缩（0=禁用）
-    checkpoint_interval: int = 10           # 每 N 轮写入中间检查点（0=禁用）
     # 工具结果摘要（替代简单截断）
     tool_result_summary_enabled: bool = True            # 启用 LLM 摘要替代截断
     tool_result_summary_threshold: int = 4000           # 超过此字符数触发摘要
     tool_result_summary_max_chars: int = 1000           # 摘要最大字符数（注入 LLM 的）
-    wal_enabled: bool = True             # 启用 WAL 预写日志
-    inherit_context: bool = True         # 跨会话上下文继承
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Prompt 配置 —— 从 config/prompts/*.yaml 加载
@@ -505,36 +512,6 @@ class PromptsConfig:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Agent 定义 —— 从 config/agents.yaml 加载（多Agent模式）
-# ═══════════════════════════════════════════════════════════════════════════════
-
-@dataclass
-class AgentEntry:
-    """单个 Agent 的能力定义。"""
-    tag: str = ""
-    model_selector: str = "chat"
-    system_prompt: str = ""
-    tools: list = field(default_factory=list)
-    tool_executor: Any = None
-    max_tool_turns: int = 5
-    cost_tier: str = "default"
-    priority: int = 0
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "AgentEntry":
-        return cls(
-            tag=data.get("tag", ""),
-            model_selector=data.get("model_selector", "chat"),
-            system_prompt=data.get("system_prompt", ""),
-            tools=data.get("tools", []),
-            tool_executor=data.get("tool_executor"),
-            max_tool_turns=data.get("max_tool_turns", 5),
-            cost_tier=data.get("cost_tier", "default"),
-            priority=data.get("priority", 0),
-        )
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # 顶层配置
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -542,7 +519,7 @@ class AgentEntry:
 class AppConfig:
     """应用配置根结构。
 
-    从 config.yaml + models.yaml + prompts/*.yaml + agents.yaml 一次性加载。
+    从 config.yaml + models.yaml + prompts/*.yaml 一次性加载。
     所有配置统一存放在此 dataclass 中，Worker 通过属性访问。
     """
     models: ModelsConfig = field(default_factory=ModelsConfig)
@@ -552,11 +529,10 @@ class AppConfig:
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
     hindsight: HindsightConfig = field(default_factory=HindsightConfig)
-    session: SessionConfig = field(default_factory=SessionConfig)
+    research: ResearchConfig = field(default_factory=ResearchConfig)
     channels: ChannelsConfig = field(default_factory=ChannelsConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
     prompts: PromptsConfig = field(default_factory=PromptsConfig)
-    agents: List[AgentEntry] = field(default_factory=list)
 
     # ══════════════════════════════════════════════════════════════════════
     # YAML 加载
@@ -588,6 +564,7 @@ class AppConfig:
             FileNotFoundError: 配置文件不存在。
         """
         import os as _os
+
         import yaml
 
         config_file = Path(path)
@@ -603,7 +580,9 @@ class AppConfig:
 
         # 加载模型配置
         if not models_path:
-            models_path = str(config_dir / "models.yaml")
+            models_path = _os.getenv(
+                "HPAGENT_MODELS_PATH", str(config_dir / "models.yaml")
+            )
         mp = Path(models_path)
         if mp.exists():
             config.models = ModelsConfig.from_yaml(str(mp))
@@ -617,15 +596,6 @@ class AppConfig:
             logger.info("Prompts loaded from %s", prompts_dir)
         else:
             logger.warning("Prompts dir not found: %s, using defaults", prompts_dir)
-
-        # 加载 Agent 定义（多Agent模式）
-        agents_path = config_dir / "agents.yaml"
-        if agents_path.exists():
-            with open(agents_path, "r", encoding="utf-8") as _f:
-                agents_raw = yaml.safe_load(_f) or {}
-            for item in agents_raw.get("agents", []):
-                config.agents.append(AgentEntry.from_dict(item))
-            logger.info("Agents loaded: %d from %s", len(config.agents), agents_path)
 
         # 将相对路径解析为项目根目录下的绝对路径
         # config_dir = {project_root}/config/，因此 project_root = config_dir.parent
@@ -649,10 +619,6 @@ class AppConfig:
         ws = Path(self.workspace.root)
         if not ws.is_absolute():
             self.workspace.root = str(_root / ws)
-        sess = Path(self.session.backup_dir)
-        if not sess.is_absolute():
-            self.session.backup_dir = str(_root / sess)
-
         # models.yaml 中的工具相关路径（同样相对于项目根）
         mcp_path = Path(self.models.mcp.config_path)
         if not mcp_path.is_absolute():
@@ -672,10 +638,26 @@ class AppConfig:
             self.temporal.host = environ["TEMPORAL_HOST"]
         if environ.get("TEMPORAL_TASK_QUEUE"):
             self.temporal.task_queue = environ["TEMPORAL_TASK_QUEUE"]
+        if environ.get("AGENT_EXECUTION_LEASE_TTL_SECONDS"):
+            self.temporal.agent_execution_lease_ttl_seconds = int(
+                environ["AGENT_EXECUTION_LEASE_TTL_SECONDS"]
+            )
+        if environ.get("WEB_OUTBOX_LEASE_TIMEOUT_SECONDS"):
+            self.temporal.web_outbox_lease_timeout_seconds = int(
+                environ["WEB_OUTBOX_LEASE_TIMEOUT_SECONDS"]
+            )
+        if environ.get("WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"):
+            self.temporal.web_outbox_recovery_interval_seconds = int(
+                environ["WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"]
+            )
         if environ.get("HINDSIGHT_URL"):
             self.hindsight.base_url = environ["HINDSIGHT_URL"]
+        if environ.get("SEARXNG_URL"):
+            self.research.searxng_url = environ["SEARXNG_URL"]
         if environ.get("WORKSPACE_ROOT"):
             self.workspace.root = environ["WORKSPACE_ROOT"]
+        if environ.get("WORKSPACE_ISOLATION_MODE"):
+            self.workspace.workspace_isolation_mode = environ["WORKSPACE_ISOLATION_MODE"]
         if environ.get("REDIS_URL"):
             self.redis.url = environ["REDIS_URL"]
 
@@ -732,7 +714,6 @@ class AppConfig:
             sandbox=_populate(SandboxConfig, raw.get("sandbox"), "sandbox"),
             workspace=_populate(WorkspaceConfig, raw.get("workspace"), "workspace"),
             hindsight=_populate(HindsightConfig, raw.get("hindsight"), "hindsight"),
-            session=_populate(SessionConfig, raw.get("session"), "session"),
             channels=_populate(ChannelsConfig, raw.get("channels"), "channels"),
             agent=_populate(AgentConfig, raw.get("agent"), "agent"),
         )

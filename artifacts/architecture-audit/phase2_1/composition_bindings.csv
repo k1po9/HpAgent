@@ -1,0 +1,78 @@
+﻿caller_owner,receiver,concrete_type,evidence,config_gates
+src/agent_execution/qq_host.py::QQLegacyContextProvider,self._memory,src/application/memory.py::TurnMemoryService,src/bootstrap/qq.py:80,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::QQLegacyRequestLoader,self._memory,src/application/memory.py::TurnMemoryService,src/bootstrap/qq.py:80,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::TurnMemoryQQRetentionSink,self._memory,src/application/memory.py::TurnMemoryService,src/bootstrap/qq.py:80,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::TurnMemoryQQAuditSink,self._memory,src/application/memory.py::TurnMemoryService,src/bootstrap/qq.py:80,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::TurnMemoryQQAuditSinkFactory,self._memory,src/application/memory.py::TurnMemoryService,src/bootstrap/qq.py:80,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::ReplyServiceQQSink,self._reply,src/application/reply.py::ReplyService,src/bootstrap/qq.py:82,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::ReplyServiceQQEventSink,self._reply,src/application/reply.py::ReplyService,src/bootstrap/qq.py:82,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::ReplyServiceQQEventSinkFactory,self._reply,src/application/reply.py::ReplyService,src/bootstrap/qq.py:82,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::QQLegacyContextProvider,self._context,src/harness/context_builder.py::HarnessContextBuilder,src/orchestration/worker.py:796,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::QQLegacyRequestLoader,self._context,src/harness/context_builder.py::HarnessContextBuilder,src/orchestration/worker.py:796,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::QQExecutionHost,self._events,src/agent_execution/qq_host.py::ReplyServiceQQEventSinkFactory,src/bootstrap/qq.py:102,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::QQExecutionHost,self._audit,src/agent_execution/qq_host.py::TurnMemoryQQAuditSinkFactory,src/bootstrap/qq.py:106,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::QQExecutionHost,self._retention,src/agent_execution/qq_host.py::TurnMemoryQQRetentionSink,src/bootstrap/qq.py:107,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::QQExecutionHost,self._loader,src/agent_execution/qq_host.py::QQLegacyRequestLoader,src/bootstrap/qq.py:98,injected concrete service; request/config branch
+src/agent_execution/qq_host.py::QQExecutionHost,self._replies,src/agent_execution/qq_host.py::ReplyServiceQQSink,src/bootstrap/qq.py:103,injected concrete service; request/config branch
+src/actions/runtime.py::ActionRuntime,self._sandbox,src/sandbox/sandbox_manager.py::SandboxManager,src/bootstrap/qq.py:87,injected concrete service; request/config branch
+src/actions/runtime.py::ActionRuntime,self._session,src/session/store.py::SessionStore,src/bootstrap/qq.py:87,injected concrete service; request/config branch
+src/actions/runtime.py::ActionRuntime,self._model,src/resources/resource_pool.py::ResourcePool,src/bootstrap/qq.py:87,injected concrete service; request/config branch
+src/actions/runtime.py::ActionRuntime,self._prompts,src/harness/prompts.py::PromptLoader,src/bootstrap/qq.py:87,injected concrete service; request/config branch
+src/application/session_archive.py::SessionArchiveService,self._memory,src/application/memory.py::TurnMemoryService,src/bootstrap/qq.py:80,injected concrete service; request/config branch
+src/application/memory_reflection.py::MemoryReflectionService,self._memory,src/application/memory.py::TurnMemoryService,src/bootstrap/qq.py:80,injected concrete service; request/config branch
+src/application/metrics.py::MetricsSnapshotService,self._memory,src/application/memory.py::TurnMemoryService,src/bootstrap/qq.py:80,injected concrete service; request/config branch
+src/session/store.py::SessionStore,self._hindsight,src/memory/hindsight_client.py::HindsightClient,src/orchestration/worker.py:781,hindsight.enabled and constructed client
+src/session/store.py::SessionStore,self._cache,src/storage/redis.py::RedisCache,src/orchestration/worker.py:671,Redis configured and cache constructed
+src/brain/engine.py::BrainEngine,self._model,src/resources/resource_pool.py::ResourcePool,src/orchestration/worker.py:650,injected concrete service; request/config branch
+src/resources/resource_pool.py::ResourcePool,client,src/resources/model_client.py::ModelClient,src/resources/resource_pool.py:79,selected initialized model endpoint
+src/agent_activities/runtime.py::DurableAgentActivities,self.loader,src/agent_execution/web_adapters.py::PostgresWebRequestLoader,src/orchestration/worker.py:293,injected concrete service; request/config branch
+src/agent_activities/runtime.py::DurableAgentActivities,self.brain,src/brain/engine.py::BrainEngine,src/orchestration/worker.py:293,injected concrete service; request/config branch
+src/agent_activities/runtime.py::DurableAgentActivities,self.actions,src/actions/runtime.py::ActionRuntime,src/orchestration/worker.py:293,injected concrete service; request/config branch
+src/agent_activities/runtime.py::DurableAgentActivities,self.resource_prep,src/workspace/isolation.py::SessionResourceRecoveryService,src/orchestration/worker.py:293,injected concrete service; request/config branch
+src/agent_activities/runtime.py::DurableAgentActivities,self.lifecycle,src/web_domain/lifecycle.py::WebRunLifecycleService,src/orchestration/worker.py:293,injected concrete service; request/config branch
+src/agent_activities/runtime.py::DurableAgentActivities,self.approval_service,src/file_domain/approvals.py::FileActionApprovalService,src/orchestration/worker.py:293,injected concrete service; request/config branch
+src/agent_activities/runtime.py::DurableAgentActivities,self.persistent_file_service,src/file_domain/persistent.py::PersistentWebFileService,src/orchestration/worker.py:293,injected concrete service; request/config branch
+src/agent_execution/web_host.py::WebExecutionHost,self._loader,src/agent_execution/web_adapters.py::PostgresWebRequestLoader,src/orchestration/worker.py:242,injected concrete service; request/config branch
+src/agent_execution/web_host.py::WebExecutionHost,self._replies,src/agent_execution/web_adapters.py::LifecycleWebReplySink,src/orchestration/worker.py:242,injected concrete service; request/config branch
+src/agent_execution/web_host.py::WebExecutionHost,self._events,src/agent_execution/tracing/sink.py::TracingWebEventSinkFactory,src/orchestration/worker.py:242,injected concrete service; request/config branch
+src/agent_execution/web_host.py::WebExecutionHost,self._resource_prep,src/workspace/isolation.py::SessionResourceRecoveryService,src/orchestration/worker.py:242,injected concrete service; request/config branch
+src/orchestration/web_dispatcher.py::TemporalOutboxDispatcher,self.store,src/web_domain/workflow_execution.py::PostgresWorkflowExecutionStore,src/orchestration/worker.py:357,injected concrete service; request/config branch
+src/orchestration/web_dispatcher.py::TemporalOutboxDispatcher,self.temporal,src/orchestration/web_dispatcher.py::TemporalClientAdapter,src/orchestration/worker.py:357,injected concrete service; request/config branch
+src/orchestration/web_dispatcher.py::TemporalOutboxDispatcher,self.cancellation_finalizer,src/web_domain/lifecycle.py::WebRunLifecycleService,src/orchestration/worker.py:357,injected concrete service; request/config branch
+src/orchestration/web_reconciler.py::WebRunReconciler,self._store,src/orchestration/web_reconcile_adapters.py::LifecycleReconcileStore,src/orchestration/worker.py:367,injected concrete service; request/config branch
+src/orchestration/web_reconciler.py::WebRunReconciler,self._temporal,src/orchestration/web_reconciler.py::TemporalInspectorAdapter,src/orchestration/worker.py:367,injected concrete service; request/config branch
+src/orchestration/artifact_dispatcher.py::ArtifactOutboxDispatcher,self.temporal,src/orchestration/artifact_dispatcher.py::TemporalArtifactClient,src/orchestration/worker.py:382,injected concrete service; request/config branch
+src/orchestration/artifact_dispatcher.py::ArtifactOutboxDispatcher,self.outbox,src/web_artifacts/outbox.py::ArtifactOutboxService,src/orchestration/worker.py:382,injected concrete service; request/config branch
+src/research_activities/runtime.py::ResearchActivities,self.discovery,src/research_adapters/discovery.py::CompositeSourceDiscoveryProvider,src/orchestration/worker.py:260,injected concrete service; request/config branch
+src/research_activities/runtime.py::ResearchActivities,self.content,src/research_adapters/web.py::StaticWebContentProvider,src/orchestration/worker.py:260,injected concrete service; request/config branch
+src/research_activities/runtime.py::ResearchActivities,self.canonicalizer,src/research_adapters/web.py::W3libSourceCanonicalizer,src/orchestration/worker.py:260,injected concrete service; request/config branch
+src/research_activities/runtime.py::ResearchActivities,self.synthesis,src/research_adapters/synthesis.py::ResourcePoolResearchSynthesizer,src/orchestration/worker.py:260,injected concrete service; request/config branch
+src/research_activities/runtime.py::ResearchActivities,self.markdown_publisher,src/file_runtime/research_output.py::ResearchMarkdownPublisher,src/orchestration/worker.py:260,injected concrete service; request/config branch
+src/orchestration/worker.py::_setup_reflect_schedule,account_service,src/account/postgres_account_service.py::PostgresAccountService,src/orchestration/worker.py:1074,injected concrete service; request/config branch
+src/orchestration/worker.py::_run_web_dispatcher_loop,dispatcher,src/orchestration/web_dispatcher.py::WebOutboxDispatcher,src/orchestration/worker.py:415,injected concrete service; request/config branch
+src/orchestration/worker.py::_run_web_reconciler_loop,reconciler,src/orchestration/web_reconciler.py::WebRunReconciler,src/orchestration/worker.py:417,injected concrete service; request/config branch
+src/orchestration/worker.py,deps.sandbox_manager,src/sandbox/sandbox_manager.py::SandboxManager,src/orchestration/worker.py:756,injected concrete service; request/config branch
+src/orchestration/worker.py,deps.account_service,src/account/postgres_account_service.py::PostgresAccountService,src/orchestration/worker.py:825,injected concrete service; request/config branch
+src/orchestration/worker.py,deps.hindsight_client,src/memory/hindsight_client.py::HindsightClient,src/orchestration/worker.py:781,injected concrete service; request/config branch
+src/orchestration/worker.py,deps.run_file_workspace,src/workspace/file_scope.py::RunFileWorkspace,src/orchestration/worker.py:732,injected concrete service; request/config branch
+src/sandbox/tools/local/file_read.py::create_file_read_tools.inspect_pdf,adapter,src/file_adapters/pdf.py::PdfAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=pdf
+src/sandbox/tools/local/file_read.py::create_file_read_tools.read_pdf_pages,adapter,src/file_adapters/pdf.py::PdfAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=pdf
+src/sandbox/tools/local/file_read.py::create_file_read_tools.extract_pdf_tables,adapter,src/file_adapters/pdf.py::PdfAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=pdf
+src/sandbox/tools/local/file_read.py::create_file_read_tools.inspect_docx,adapter,src/file_adapters/docx.py::DocxAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=docx
+src/sandbox/tools/local/file_read.py::create_file_read_tools.read_docx_paragraphs,adapter,src/file_adapters/docx.py::DocxAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=docx
+src/sandbox/tools/local/file_read.py::create_file_read_tools.extract_docx_tables,adapter,src/file_adapters/docx.py::DocxAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=docx
+src/sandbox/tools/local/file_read.py::create_file_read_tools.inspect_workbook,adapter,src/file_adapters/xlsx.py::XlsxAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=xlsx
+src/sandbox/tools/local/file_read.py::create_file_read_tools.read_sheet_range,adapter,src/file_adapters/xlsx.py::XlsxAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=xlsx
+src/sandbox/tools/local/file_read.py::create_file_read_tools.inspect_presentation,adapter,src/file_adapters/pptx.py::PptxAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=pptx
+src/sandbox/tools/local/file_read.py::create_file_read_tools.read_slide,adapter,src/file_adapters/pptx.py::PptxAdapter,src/sandbox/tools/local/file_read.py:71,FileAdapterRegistry capability=pptx
+src/sandbox/tools/local/file_read.py::create_file_read_tools._read_default_view,adapter,src/file_adapters/markitdown.py::MarkItDownFastTextViewProvider,src/sandbox/tools/local/file_read.py:70,FileAdapterRegistry capability=fast_text
+src/sandbox/tools/local/file_read.py::create_file_read_tools,adapters,src/file_runtime/registry.py::FileAdapterRegistry,src/sandbox/tools/local/file_read.py:126,injected concrete service; request/config branch
+src/sandbox/tools/adapters/mcp.py::MCPToolManager._connect_one,session,src/sandbox/tools/adapters/mcp.py::MCPSession,src/sandbox/tools/adapters/mcp.py:1464,streamable HTTP
+src/sandbox/tools/adapters/mcp.py::MCPToolManager.connect._connect_and_cache,session,src/sandbox/tools/adapters/mcp.py::MCPSession,src/sandbox/tools/adapters/mcp.py:1464,streamable HTTP
+src/sandbox/tools/adapters/mcp.py::_build_langchain_tool,session,src/sandbox/tools/adapters/mcp.py::MCPSession,src/sandbox/tools/adapters/mcp.py:1464,streamable HTTP
+src/sandbox/tools/adapters/mcp.py::MCPToolManager._connect_one,session,src/sandbox/tools/adapters/mcp.py::MCPSessionSSE,src/sandbox/tools/adapters/mcp.py:1456,transport=sse or /sse URL
+src/sandbox/tools/adapters/mcp.py::MCPToolManager.connect._connect_and_cache,session,src/sandbox/tools/adapters/mcp.py::MCPSessionSSE,src/sandbox/tools/adapters/mcp.py:1456,transport=sse or /sse URL
+src/sandbox/tools/adapters/mcp.py::_build_langchain_tool,session,src/sandbox/tools/adapters/mcp.py::MCPSessionSSE,src/sandbox/tools/adapters/mcp.py:1456,transport=sse or /sse URL
+src/sandbox/tools/adapters/mcp.py::MCPToolManager._connect_one,session,src/sandbox/tools/adapters/mcp.py::MCPSessionStdio,src/sandbox/tools/adapters/mcp.py:1433,transport=stdio
+src/sandbox/tools/adapters/mcp.py::MCPToolManager.connect._connect_and_cache,session,src/sandbox/tools/adapters/mcp.py::MCPSessionStdio,src/sandbox/tools/adapters/mcp.py:1433,transport=stdio
+src/sandbox/tools/adapters/mcp.py::_build_langchain_tool,session,src/sandbox/tools/adapters/mcp.py::MCPSessionStdio,src/sandbox/tools/adapters/mcp.py:1433,transport=stdio

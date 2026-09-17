@@ -1,0 +1,3 @@
+PASS tracked source/config/scripts: no retired flags, definitions, imports or paths; AppConfig and clean-environment WebApiSettings.from_env construct; runtime requirements copies equal
+Initial probe incorrectly called WebApiSettings() without its six required arguments; probe corrected to from_env. No product change needed.
+Ignored local config/config.yaml retains old settings; loader warns on unknown keys and only populates declared dataclass fields. Local file left unchanged.

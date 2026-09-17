@@ -1,0 +1,238 @@
+{
+  "experiment": "agent_strategy",
+  "design": {
+    "complete_balanced_design": true,
+    "coverage": {
+      "complex/plan_and_execute": 10,
+      "complex/react": 10,
+      "medium/plan_and_execute": 10,
+      "medium/react": 10,
+      "simple/plan_and_execute": 10,
+      "simple/react": 10
+    },
+    "repetitions": [
+      1
+    ],
+    "fairness_config": {
+      "model": "MiniMax-M3",
+      "provider": "minimax",
+      "temperature": "provider-default",
+      "max_turns": "5",
+      "manifest_sha256": "e56a94d290a862e2ad98ba0588817d8047dd381122517590c88917a58b7e53e7"
+    }
+  },
+  "overall": {
+    "react": {
+      "trials": 30,
+      "successes": 15,
+      "evaluable_trials": 27,
+      "evaluable_successes": 15,
+      "success_rate": 0.5,
+      "evaluable_success_rate": 0.5555555555555556,
+      "latency_ms": {
+        "average": 19301.717,
+        "p50": 18226.352,
+        "p95": 32795.725
+      },
+      "average_model_calls": 3.148,
+      "average_tool_calls": 2.778,
+      "average_planning_calls": 0.0,
+      "average_turns": 3.148,
+      "average_total_tokens": null,
+      "failure_types": {
+        "environment_error": 3,
+        "execution_error": 3,
+        "incorrect_result": 9
+      }
+    },
+    "plan_and_execute": {
+      "trials": 30,
+      "successes": 14,
+      "evaluable_trials": 27,
+      "evaluable_successes": 14,
+      "success_rate": 0.4666666666666667,
+      "evaluable_success_rate": 0.5185185185185185,
+      "latency_ms": {
+        "average": 32410.734,
+        "p50": 26322.467,
+        "p95": 55463.597
+      },
+      "average_model_calls": 6.852,
+      "average_tool_calls": 3.296,
+      "average_planning_calls": 2.074,
+      "average_turns": 6.852,
+      "average_total_tokens": null,
+      "failure_types": {
+        "environment_error": 3,
+        "execution_error": 1,
+        "incorrect_result": 10,
+        "model_error": 2
+      }
+    }
+  },
+  "by_level": {
+    "simple": {
+      "react": {
+        "trials": 10,
+        "successes": 9,
+        "evaluable_trials": 10,
+        "evaluable_successes": 9,
+        "success_rate": 0.9,
+        "evaluable_success_rate": 0.9,
+        "latency_ms": {
+          "average": 13642.236,
+          "p50": 13212.722,
+          "p95": 20689.073
+        },
+        "average_model_calls": 2.4,
+        "average_tool_calls": 1.4,
+        "average_planning_calls": 0.0,
+        "average_turns": 2.4,
+        "average_total_tokens": null,
+        "failure_types": {
+          "incorrect_result": 1
+        }
+      },
+      "plan_and_execute": {
+        "trials": 10,
+        "successes": 5,
+        "evaluable_trials": 10,
+        "evaluable_successes": 5,
+        "success_rate": 0.5,
+        "evaluable_success_rate": 0.5,
+        "latency_ms": {
+          "average": 23589.87,
+          "p50": 23723.729,
+          "p95": 31677.965
+        },
+        "average_model_calls": 5.5,
+        "average_tool_calls": 1.5,
+        "average_planning_calls": 2.0,
+        "average_turns": 5.5,
+        "average_total_tokens": null,
+        "failure_types": {
+          "incorrect_result": 3,
+          "model_error": 2
+        }
+      }
+    },
+    "medium": {
+      "react": {
+        "trials": 10,
+        "successes": 4,
+        "evaluable_trials": 10,
+        "evaluable_successes": 4,
+        "success_rate": 0.4,
+        "evaluable_success_rate": 0.4,
+        "latency_ms": {
+          "average": 18683.103,
+          "p50": 20251.633,
+          "p95": 25457.223
+        },
+        "average_model_calls": 3.2,
+        "average_tool_calls": 3.2,
+        "average_planning_calls": 0.0,
+        "average_turns": 3.2,
+        "average_total_tokens": null,
+        "failure_types": {
+          "execution_error": 1,
+          "incorrect_result": 5
+        }
+      },
+      "plan_and_execute": {
+        "trials": 10,
+        "successes": 7,
+        "evaluable_trials": 10,
+        "evaluable_successes": 7,
+        "success_rate": 0.7,
+        "evaluable_success_rate": 0.7,
+        "latency_ms": {
+          "average": 26323.717,
+          "p50": 23342.444,
+          "p95": 45240.885
+        },
+        "average_model_calls": 6.2,
+        "average_tool_calls": 3.1,
+        "average_planning_calls": 2.0,
+        "average_turns": 6.2,
+        "average_total_tokens": null,
+        "failure_types": {
+          "incorrect_result": 3
+        }
+      }
+    },
+    "complex": {
+      "react": {
+        "trials": 10,
+        "successes": 2,
+        "evaluable_trials": 7,
+        "evaluable_successes": 2,
+        "success_rate": 0.2,
+        "evaluable_success_rate": 0.2857142857142857,
+        "latency_ms": {
+          "average": 28270.426,
+          "p50": 28279.314,
+          "p95": 38529.221
+        },
+        "average_model_calls": 4.143,
+        "average_tool_calls": 4.143,
+        "average_planning_calls": 0.0,
+        "average_turns": 4.143,
+        "average_total_tokens": null,
+        "failure_types": {
+          "environment_error": 3,
+          "execution_error": 2,
+          "incorrect_result": 3
+        }
+      },
+      "plan_and_execute": {
+        "trials": 10,
+        "successes": 2,
+        "evaluable_trials": 7,
+        "evaluable_successes": 2,
+        "success_rate": 0.2,
+        "evaluable_success_rate": 0.2857142857142857,
+        "latency_ms": {
+          "average": 53707.706,
+          "p50": 48477.313,
+          "p95": 104568.563
+        },
+        "average_model_calls": 9.714,
+        "average_tool_calls": 6.143,
+        "average_planning_calls": 2.286,
+        "average_turns": 9.714,
+        "average_total_tokens": null,
+        "failure_types": {
+          "environment_error": 3,
+          "execution_error": 1,
+          "incorrect_result": 4
+        }
+      }
+    }
+  },
+  "paired_outcomes": {
+    "simple": {
+      "pairs": 10,
+      "both_success": 5,
+      "react_only_success": 4,
+      "plan_only_success": 0,
+      "both_failed": 1
+    },
+    "medium": {
+      "pairs": 10,
+      "both_success": 4,
+      "react_only_success": 0,
+      "plan_only_success": 3,
+      "both_failed": 3
+    },
+    "complex": {
+      "pairs": 7,
+      "both_success": 1,
+      "react_only_success": 1,
+      "plan_only_success": 1,
+      "both_failed": 4
+    }
+  },
+  "environment_failure_records": 6,
+  "token_usage_available": false
+}

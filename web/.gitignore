@@ -1,0 +1,20 @@
+# 依赖与构建产物
+node_modules/
+dist/
+coverage/
+
+# 构建/类型增量文件
+*.tsbuildinfo
+vite.config.js
+vite.config.js.map
+vite.config.d.ts
+
+# 运行时
+*.log
+.env
+.env.local
+.env.*.local
+
+# 测试与 E2E 产物
+test-results/
+playwright-report/

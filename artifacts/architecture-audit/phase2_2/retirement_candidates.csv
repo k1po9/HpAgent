@@ -1,0 +1,17 @@
+﻿candidate_id,path,symbol,decision_ids,disposition,prerequisites,gate_ids,earliest_package,implementation_status,old_production_evidence_required
+R01,src/orchestration/web_workflow.py,WebRunWorkflow,ACD-09,EXTRACT_THEN_DELETE,queue/FailureInput/其他共享 DTO 迁出，durable 生命周期就绪,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R02,src/orchestration/web_activities.py,execute_agent_activity,ACD-09,DELETE_SELECTED_SYMBOLS,保留/中立化 prepare/lease/finalize；删除旧 Host 注入与执行 Activity,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R03,src/agent_execution/brain_action_loop.py,DefaultBrainActionLoop,ACD-01;ACD-09,DELETE_AFTER_TARGET,QQ/Web 两入口都使用 durable，必要语义已迁移,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R04,src/agent_execution/facade.py,AgentExecutionFacade,ACD-03;ACD-09,EXTRACT_THEN_DELETE,StableExecutionFailure/EventSink 等仍需合同迁出,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R05,src/agent_execution/qq_host.py,QQExecutionHost,ACD-01;ACD-09,REPLACE_THEN_DELETE,QQ PG 命令、记忆和 delivery 已接入,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R06,src/agent_execution/web_host.py,WebExecutionHost,ACD-01;ACD-09,REPLACE_THEN_DELETE,中立 loader/lifecycle/event 等必要适配保全,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R07,src/orchestration/workflow.py,OrchestrationWorkflow,ACD-04;ACD-09,DELETE_SELECTED_SYMBOLS,ReflectWorkflow/MetricsReportWorkflow 必要能力单独保全,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R08,src/harness/activities.py,process_turn_activity,ACD-03;ACD-09,DELETE_SELECTED_SYMBOLS,archive/reflection/metrics/context/prompt 必要消费者迁出,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R09,src/session/store.py,SessionStore,ACD-04;ACD-09,REPLACE_THEN_DELETE,正式会话权威转 PG，Action/Memory/Archive 全部必要消费者重接,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R10,src/agent,,ACD-03;ACD-10,EXTRACT_THEN_DELETE,正式 protocol 迁出；非目标实验/Multi-Agent 的所有入口、配置、测试处置,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R11,src/account/account_service.py,AccountService,ACD-10,DELETE_AFTER_TARGET,PG 身份/账户绑定目标测试与消费者核验,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R12,src/account/models.py,Account,ACD-10,DELETE_IF_NO_TARGET_CONSUMER,检查 account/__init__ 与所有目标消费者，必要合同先迁出,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R13,scripts/merge-account.py,,ACD-10,DELETE_OBSOLETE_OPS,目标运维无 JSON 账号用途；不是执行脚本删除实际数据,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R14,src/orchestration/web_dispatcher.py,TemporalClientAdapter,ACD-08;ACD-09,REMOVE_BRANCH_KEEP_CAPABILITY,删除 durable flag/legacy type 分支；保留目标 Outbox 幂等启动,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R15,config/agents.yaml,,ACD-08;ACD-10,DELETE_NON_TARGET_CONFIG,所有正式装配不再加载；不删除其他真实能力配置,G03;G05;G11,W3,NOT_IMPLEMENTED,false
+R16,persistence/migrations,,ACD-10;ACD-13,KEEP_REQUIRED_SCHEMA_REVIEW_COMPAT_ONLY,逐 SQL 对象审查 obsolete compatibility；全新 schema/函数/权限必须可创建,G03;G05;G11,W3,NOT_IMPLEMENTED,false

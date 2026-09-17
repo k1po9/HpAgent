@@ -61,7 +61,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Optional, Callable, Awaitable
+from typing import Any, Awaitable, Callable, Optional
 
 import aiohttp
 import websockets
@@ -145,7 +145,7 @@ class OfficialQQChannel(BaseChannel):
         _heartbeat_task: 心跳发送 task。
         _token_refresh_task: token 刷新 task。
         _reconnect_task: 重连 task。
-        _sent_msg_ids: 已处理消息 ID 去重集合（含 TTL）。
+        _sent_msg_ids: 仅用于非 durable 出站回复的成功发送缓存（含 TTL）。
         _last_send_time: 上次发送时间（防风控）。
         _shutdown: 关闭信号。
     """
@@ -391,6 +391,9 @@ class OfficialQQChannel(BaseChannel):
             "detail_type": None,
             "event_type": event_type,
             "msg_id": event_data.get("id"),
+            "bot_id": self._app_id,
+            "thread_id": str(event_data.get("thread_id") or ""),
+            "is_at_bot": event_type in {"GROUP_AT_MESSAGE_CREATE", "AT_MESSAGE_CREATE"},
             "timestamp": event_data.get("timestamp", ""),
         }
 
@@ -497,6 +500,7 @@ class OfficialQQChannel(BaseChannel):
             return None
 
         return UnifiedMessage(
+            message_id=str(event_data.get("id") or ""),
             sender_id=sender_id,
             content=content,
             channel_type=ChannelType.OFFICIAL_QQ,
@@ -543,16 +547,18 @@ class OfficialQQChannel(BaseChannel):
         if msg_id:
             payload["msg_id"] = msg_id
 
+        if message.metadata.get("msg_seq"):
+            payload["msg_seq"] = message.metadata["msg_seq"]
+
         payload["msg_type"] = 0  # 纯文本
 
         # 去重检查
         dedup_key = f"{url}:{message.content[:50]}"
         now = time.time()
         self._clean_dedup_cache(now)
-        if dedup_key in self._sent_msg_ids:
+        if not message.metadata.get("delivery_id") and dedup_key in self._sent_msg_ids:
             logger.debug("QQ official bot: duplicate message skipped")
             return True
-        self._sent_msg_ids[dedup_key] = now
 
         # 发送 HTTP 请求
         try:
@@ -563,6 +569,8 @@ class OfficialQQChannel(BaseChannel):
             }
             async with self._session.post(url, json=payload, headers=headers) as resp:
                 if resp.status == 200 or resp.status == 204:
+                    if not message.metadata.get("delivery_id"):
+                        self._sent_msg_ids[dedup_key] = now
                     logger.info("QQ official bot: message sent to %s → %s", detail_type, url)
                     return True
                 elif resp.status == 401:
@@ -573,6 +581,8 @@ class OfficialQQChannel(BaseChannel):
                     headers["Authorization"] = f"QQBot {token}"
                     async with self._session.post(url, json=payload, headers=headers) as resp2:
                         if resp2.status in (200, 204):
+                            if not message.metadata.get("delivery_id"):
+                                self._sent_msg_ids[dedup_key] = now
                             logger.info("QQ official bot: message sent after token refresh")
                             return True
                         body = await resp2.text()
@@ -584,6 +594,8 @@ class OfficialQQChannel(BaseChannel):
                     return False
         except Exception as e:
             logger.error("QQ official bot: send error: %s", e)
+            if message.metadata.get("delivery_id"):
+                raise
             return False
 
     def _build_send_payload(
@@ -682,16 +694,7 @@ class OfficialQQChannel(BaseChannel):
             if channel_message is None:
                 return
 
-            # 去重：根据 msg_id 检查是否已处理
-            msg_id = channel_message.metadata.get("msg_id")
-            if msg_id:
-                now = time.time()
-                self._clean_dedup_cache(now)
-                if msg_id in self._sent_msg_ids:
-                    logger.debug("QQ official bot: duplicate event skipped: %s", msg_id)
-                    return
-                self._sent_msg_ids[msg_id] = now
-
+            # Inbound redelivery must reach PG ingress receipts, including after failures.
             if self._callback:
                 await self._callback(channel_message)
 

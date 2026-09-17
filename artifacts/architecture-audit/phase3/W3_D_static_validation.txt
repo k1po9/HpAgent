@@ -1,0 +1,11 @@
+CONFIG/ENV SCAN
+PASS: retired migration environment/config keys absent
+IMPORT/DEFINITION SCAN
+PASS: retired wrappers, definitions, and imports absent
+REMOVED PATHS
+PASS: config/agents.yaml absent
+PASS: scripts/merge-account.py absent
+PASS: scripts/migrate_web_credentials.py absent
+PASS: src/account/account_service.py absent
+PASS: src/account/models.py absent
+PASS: src/orchestration/web_worker.py absent

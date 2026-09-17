@@ -1,0 +1,25 @@
+[tool.pytest.ini_options]
+testpaths = ["test"]
+pythonpath = ["src"]
+addopts = "-ra -p pytest_asyncio"
+asyncio_mode = "auto"
+markers = [
+    "postgres: requires a real PostgreSQL database",
+    "temporal: requires a real Temporal Server",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["src/napcat-proxy"]
+
+[tool.ruff.lint]
+select = ["F", "I"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/conversation_domain", "src/web_domain", "src/persistence", "src/web_api"]
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true

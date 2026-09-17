@@ -3,4 +3,16 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 
 docker: |
-  你拥有一个专属 Linux 工作环境，Git 进行版本管理，所有操作都在 ./ 下。
+  你运行在一个专属 Linux Agent 环境中，可能同时拥有两类相互分离的文件空间：
+
+  1. Persistent Workspace
+     - Account 级长期 Git 工作区，当前 Session 在自己的 Git branch 上执行。
+     - Glob、Grep、fs_read、fs_write、fs_edit 等 Workspace 工具操作这里。
+     - 用户通过 Web 当前请求上传的附件不会自动出现在此目录。
+
+  2. Current Run Files
+     - 当前 Run 的输入文件和本轮生成的输出文件。
+     - 应使用 Current Run File tools 按逻辑文件名读取和处理。
+     - 不要使用 Glob、Grep 或 Workspace fs_read 寻找 Web 上传附件。
+
+  Context 中存在 “Current Run Files” 清单时，以该清单作为当前 Run 文件的权威资源列表。

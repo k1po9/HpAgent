@@ -1,0 +1,19 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.document
+#1 transferring dockerfile:
+#1 transferring dockerfile: 566B done
+#1 DONE 0.2s
+
+#2 resolve image config for docker-image://docker.io/docker/dockerfile:1
+#2 ERROR: failed to authorize: DeadlineExceeded: failed to fetch anonymous token: Get "https://auth.docker.io/token?scope=repository%3Adocker%2Fdockerfile%3Apull&service=registry.docker.io": dial tcp 198.18.0.97:443: i/o timeout
+------
+ > resolve image config for docker-image://docker.io/docker/dockerfile:1:
+------
+Dockerfile.document:1
+--------------------
+   1 | >>> # syntax=docker/dockerfile:1
+   2 |     FROM python:3.11-slim
+   3 |     
+--------------------
+ERROR: failed to build: failed to solve: DeadlineExceeded: failed to fetch anonymous token: Get "https://auth.docker.io/token?scope=repository%3Adocker%2Fdockerfile%3Apull&service=registry.docker.io": dial tcp 198.18.0.97:443: i/o timeout

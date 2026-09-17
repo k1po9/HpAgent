@@ -1,0 +1,11 @@
+# Prototype only. Production Research runs use Task/Run/Outbox/Temporal and do
+# not load this file from the configured tools/skills directory.
+name: daily_report_prototype
+description: "Historical search-to-template demo; not a production Research workflow."
+type: prototype
+pipeline:
+  steps:
+    - id: search
+      tool: web_search_placeholder
+      arguments:
+        query: "$topic"

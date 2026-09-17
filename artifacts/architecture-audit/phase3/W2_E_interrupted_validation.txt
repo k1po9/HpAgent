@@ -1,0 +1,765 @@
+Isolated PG / Temporal fixtures: hpagent-w1b-test-60b71257d5
+.............EEEEEEEEEEEEEEEEEEEEEE..................................... [ 35%]
+...................................................................EE... [ 71%]
+E.......EEEEEEEEEEEEEEEFFEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE               [100%]
+==================================== ERRORS ====================================
+_______ ERROR at setup of test_web_canonical_lifecycle[react-failed-web] _______
+test/web_persistence/conftest.py:43: in db
+    connection.execute(f"TRUNCATE {table} CASCADE")
+.venv/lib/python3.12/site-packages/psycopg/connection.py:300: in execute
+    raise ex.with_traceback(None)
+E   psycopg.errors.AdminShutdown: terminating connection due to administrator command
+_____ ERROR at setup of test_web_canonical_lifecycle[react-cancelled-web] ______
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_web_canonical_lifecycle[plan_and_execute-failed-web] __
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_web_canonical_lifecycle[plan_and_execute-cancelled-web] _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+____ ERROR at setup of test_web_canonical_lifecycle[react-completed-napcat] ____
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+____ ERROR at setup of test_web_canonical_lifecycle[react-cancelled-napcat] ____
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_context_uses_only_frozen_visible_messages_of_its_conversation _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_retry_context_reuses_the_original_watermark_without_duplicate_trigger _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_______ ERROR at setup of test_context_refuses_cross_account_run_lookup ________
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_______ ERROR at setup of test_load_completed_run_only_returns_completed _______
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+________ ERROR at setup of test_failed_run_is_skipped_without_hindsight ________
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+______ ERROR at setup of test_cancelled_run_is_skipped_without_hindsight _______
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_hindsight_failure_leaves_run_completed_and_surfaces_accepted_false _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_surface_keys_replay_from_pg_across_command_instances __
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_independent_surface_callers_race_at_one_pg_admission_slot _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_retained_replay_compares_file_identity_independent_of_storage_order _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_same_account_keeps_distinct_conversations_and_enforces_ownership _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_admission_policy_runs_in_command_transaction_for_send_and_retry _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_outbox_failure_rolls_back_admission_message_session_and_run _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_web_sessions_are_unique_per_conversation_and_same_account_can_progress _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_session_rotation_creates_a_successor_after_failed_session _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_session_rotation_refuses_to_replace_session_of_active_run _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_delivery_failure_retries_committed_result_without_execution _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+__ ERROR at setup of test_partial_chunks_resume_and_lost_sender_is_uncertain ___
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_same_account_web_private_group_context_rotation_cancel_retry _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_______ ERROR at setup of test_db_008_concurrent_retry_returns_one_child _______
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+___ ERROR at setup of test_db_010_terminal_failure_before_outbox_rolls_back ____
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+____ ERROR at setup of test_db_011_and_012_claim_crash_then_lease_recovery _____
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+________ ERROR at setup of test_db_012_expired_lease_returns_to_pending ________
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+____ ERROR at setup of test_db_013_late_completion_cannot_overwrite_failed _____
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_____ ERROR at setup of test_db_019_cancel_queued_before_start_is_terminal _____
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_db_020_start_and_cancel_converge_without_duplicate_execution _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+________ ERROR at setup of test_db_021_start_dead_letter_converges_run _________
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_db_022_terminal_dead_letter_does_not_revert_completed _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+________ ERROR at setup of test_terminal_outbox_carries_stable_event_id ________
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_db_024_expired_lease_recovery_keeps_single_outbox_and_deterministic_id _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_db_025_killed_worker_lease_recovered_by_replacement_dispatcher _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+__ ERROR at setup of test_db_028_recovery_never_steals_other_consumers_leases __
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_db_026_dispatcher_crash_after_claim_recovers_and_dispatches_once _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+__ ERROR at setup of test_db_027_lifecycle_txn_failure_rolls_back_atomically ___
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: FATAL:  the database system is shutting down
+_ ERROR at setup of test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect _
+test/web_persistence/conftest.py:40: in db
+    with psycopg.connect(migration_database_url, autocommit=True) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+____ ERROR at setup of test_b01_health_unknown_fields_and_security_headers _____
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_____ ERROR at setup of test_api_001_login_me_logout_and_unknown_identity ______
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+____ ERROR at setup of test_api_022_csrf_and_origin_fail_before_transaction ____
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+__________ ERROR at setup of test_api_002_cross_account_is_opaque_404 __________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+___ ERROR at setup of test_api_018_conversation_replay_list_cursor_and_etag ____
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_ ERROR at setup of test_api_016_and_019_metadata_etag_ignores_message_sequence _
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_______ ERROR at setup of test_api_003_004_005_send_idempotency_and_busy _______
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+______ ERROR at setup of test_api_006_messages_are_paginated_in_sequence _______
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+________ ERROR at setup of test_api_007_cancelled_run_cannot_be_retried ________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+________ ERROR at setup of test_api_rejects_retry_while_run_is_running _________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_____ ERROR at setup of test_api_rejects_retry_after_uncertain_side_effect _____
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_____ ERROR at setup of test_b05_fake_executor_completed_refresh_recovery ______
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_______ ERROR at setup of test_api_008_running_cancel_reaches_cancelled ________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+________________ ERROR at setup of test_b05_failure_then_retry _________________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+___________ ERROR at setup of test_message_limits_and_empty_content ____________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_____ ERROR at setup of test_concurrent_different_messages_allow_only_one ______
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+__ ERROR at setup of test_api_003_concurrent_same_key_returns_same_resources ___
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_ ERROR at setup of test_api_021_claimed_start_is_not_started_after_direct_cancel _
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_________ ERROR at setup of test_sse_route_requires_auth_and_ownership _________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+______ ERROR at setup of test_sse_http_terminal_snapshot_refresh_recovery ______
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+______ ERROR at setup of test_sse_http_redis_unavailable_degrades_to_poll ______
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_ ERROR at setup of test_sse_http_fake_executor_streams_online_events_then_terminal _
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+___________ ERROR at setup of test_sse_connection_limit_returns_503 ____________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+__________ ERROR at setup of test_sse_snapshot_and_handshake_ordering __________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+______ ERROR at setup of test_sse_stream_id_change_degrades_sequence_gap _______
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+________ ERROR at setup of test_sse_handshake_buffer_overflow_degrades _________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_ ERROR at setup of test_sse_terminal_via_publisher[completed-run.completed-completed] _
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_ ERROR at setup of test_sse_terminal_via_publisher[failed-run.failed-failed] __
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_ ERROR at setup of test_sse_terminal_via_publisher[cancelled-run.cancelled-aborted] _
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+________ ERROR at setup of test_sse_terminal_snapshot_overrides_deltas _________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_____ ERROR at setup of test_sse_terminal_duplicate_delivery_is_idempotent _____
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+_____________ ERROR at setup of test_sse_auth_expired_on_keepalive _____________
+test/web_api/conftest.py:45: in migration_database_url
+    migrate(value)
+src/persistence/migrate.py:14: in migrate
+    with psycopg.connect(url, autocommit=False) as connection:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/psycopg/connection.py:122: in connect
+    raise last_ex.with_traceback(None)
+E   psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 32771 failed: Connection refused
+E   	Is the server running on that host and accepting TCP/IP connections?
+=================================== FAILURES ===================================
+_ test_workflow_process_kill_replays_without_repeating_completed_operations[react-react-tool-expected_operations0-4] _
+test/test_durable_agent_worker_kill.py:51: in _wait_for
+    await asyncio.sleep(0.05)
+/usr/lib/python3.12/asyncio/tasks.py:665: in sleep
+    return await future
+           ^^^^^^^^^^^^
+E   asyncio.exceptions.CancelledError
+
+The above exception was the direct cause of the following exception:
+test/test_durable_agent_worker_kill.py:138: in test_workflow_process_kill_replays_without_repeating_completed_operations
+    activity_worker = await _start_worker(
+test/test_durable_agent_worker_kill.py:76: in _start_worker
+    await _wait_for(state_dir / f"{ready_name}.ready")
+test/test_durable_agent_worker_kill.py:49: in _wait_for
+    async with asyncio.timeout(timeout):
+/usr/lib/python3.12/asyncio/timeouts.py:115: in __aexit__
+    raise TimeoutError from exc_val
+E   TimeoutError
+----------------------------- Captured stderr call -----------------------------
+Traceback (most recent call last):
+  File "/home/hp/workspace/HpAgent_web/test/support/durable_worker_process.py", line 417, in <module>
+    main()
+  File "/home/hp/workspace/HpAgent_web/test/support/durable_worker_process.py", line 413, in main
+    asyncio.run(_serve(parser.parse_args()))
+  File "/usr/lib/python3.12/asyncio/runners.py", line 194, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/asyncio/base_events.py", line 687, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/home/hp/workspace/HpAgent_web/test/support/durable_worker_process.py", line 338, in _serve
+    client = await Client.connect(args.host, namespace=args.namespace)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hp/workspace/HpAgent_web/.venv/lib/python3.12/site-packages/temporalio/client/_client.py", line 251, in connect
+    service_client = await next_function(connect_config)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hp/workspace/HpAgent_web/.venv/lib/python3.12/site-packages/temporalio/service.py", line 316, in connect
+    return await _BridgeServiceClient.connect(config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hp/workspace/HpAgent_web/.venv/lib/python3.12/site-packages/temporalio/service.py", line 413, in connect
+    await client._connected_client()
+  File "/home/hp/workspace/HpAgent_web/.venv/lib/python3.12/site-packages/temporalio/service.py", line 432, in _connected_client
+    self._bridge_client = await temporalio.bridge.client.Client.connect(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/hp/workspace/HpAgent_web/.venv/lib/python3.12/site-packages/temporalio/bridge/client.py", line 114, in connect
+    await temporalio.bridge.temporal_sdk_bridge.connect_client(
+RuntimeError: Failed client connect: `get_system_info` call error after connection: Status { code: Unknown, message: "transport error", source: Some(tonic::transport::Error(Transport, hyper::Error(Io, Kind(ConnectionReset)))) }
+_ test_workflow_process_kill_replays_without_repeating_completed_operations[plan_and_execute-plan-step-2-expected_operations1-5] _
+test/test_durable_agent_worker_kill.py:134: in test_workflow_process_kill_replays_without_repeating_completed_operations
+    client = await Client.connect(host, namespace=namespace)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/temporalio/client/_client.py:251: in connect
+    service_client = await next_function(connect_config)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/temporalio/service.py:316: in connect
+    return await _BridgeServiceClient.connect(config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.venv/lib/python3.12/site-packages/temporalio/service.py:413: in connect
+    await client._connected_client()
+.venv/lib/python3.12/site-packages/temporalio/service.py:432: in _connected_client
+    self._bridge_client = await temporalio.bridge.client.Client.connect(
+.venv/lib/python3.12/site-packages/temporalio/bridge/client.py:114: in connect
+    await temporalio.bridge.temporal_sdk_bridge.connect_client(
+E   RuntimeError: Failed client connect: `get_system_info` call error after connection: Status { code: Unknown, message: "transport error", source: Some(tonic::transport::Error(Transport, hyper::Error(Io, Kind(ConnectionReset)))) }
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /home/hp/workspace/HpAgent_web/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle[react-failed-web]
+ERROR test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle[react-cancelled-web]
+ERROR test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle[plan_and_execute-failed-web]
+ERROR test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle[plan_and_execute-cancelled-web]
+ERROR test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle[react-completed-napcat]
+ERROR test/web_persistence/test_web_temporal_e2e.py::test_web_canonical_lifecycle[react-cancelled-napcat]
+ERROR test/web_persistence/test_phase_c_context.py::test_context_uses_only_frozen_visible_messages_of_its_conversation
+ERROR test/web_persistence/test_phase_c_context.py::test_retry_context_reuses_the_original_watermark_without_duplicate_trigger
+ERROR test/web_persistence/test_phase_c_context.py::test_context_refuses_cross_account_run_lookup
+ERROR test/web_persistence/test_memory_retention.py::test_load_completed_run_only_returns_completed
+ERROR test/web_persistence/test_memory_retention.py::test_failed_run_is_skipped_without_hindsight
+ERROR test/web_persistence/test_memory_retention.py::test_cancelled_run_is_skipped_without_hindsight
+ERROR test/web_persistence/test_memory_retention.py::test_hindsight_failure_leaves_run_completed_and_surfaces_accepted_false
+ERROR test/web_persistence/test_conversation_commands.py::test_surface_keys_replay_from_pg_across_command_instances
+ERROR test/web_persistence/test_conversation_commands.py::test_independent_surface_callers_race_at_one_pg_admission_slot
+ERROR test/web_persistence/test_conversation_commands.py::test_retained_replay_compares_file_identity_independent_of_storage_order
+ERROR test/web_persistence/test_conversation_commands.py::test_same_account_keeps_distinct_conversations_and_enforces_ownership
+ERROR test/web_persistence/test_conversation_commands.py::test_admission_policy_runs_in_command_transaction_for_send_and_retry
+ERROR test/web_persistence/test_conversation_commands.py::test_outbox_failure_rolls_back_admission_message_session_and_run
+ERROR test/web_persistence/test_phase_c_sessions.py::test_web_sessions_are_unique_per_conversation_and_same_account_can_progress
+ERROR test/web_persistence/test_phase_c_sessions.py::test_session_rotation_creates_a_successor_after_failed_session
+ERROR test/web_persistence/test_phase_c_sessions.py::test_session_rotation_refuses_to_replace_session_of_active_run
+ERROR test/web_persistence/test_qq_delivery.py::test_delivery_failure_retries_committed_result_without_execution
+ERROR test/web_persistence/test_qq_delivery.py::test_partial_chunks_resume_and_lost_sender_is_uncertain
+ERROR test/web_persistence/test_w2_cross_surface.py::test_same_account_web_private_group_context_rotation_cancel_retry
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_008_concurrent_retry_returns_one_child
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_010_terminal_failure_before_outbox_rolls_back
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_011_and_012_claim_crash_then_lease_recovery
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_012_expired_lease_returns_to_pending
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_013_late_completion_cannot_overwrite_failed
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_019_cancel_queued_before_start_is_terminal
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_020_start_and_cancel_converge_without_duplicate_execution
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_021_start_dead_letter_converges_run
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_022_terminal_dead_letter_does_not_revert_completed
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_terminal_outbox_carries_stable_event_id
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_024_expired_lease_recovery_keeps_single_outbox_and_deterministic_id
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_025_killed_worker_lease_recovered_by_replacement_dispatcher
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_028_recovery_never_steals_other_consumers_leases
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_026_dispatcher_crash_after_claim_recovers_and_dispatches_once
+ERROR test/web_persistence/test_outbox_and_lifecycle.py::test_db_027_lifecycle_txn_failure_rolls_back_atomically
+ERROR test/web_persistence/test_durable_agent_activity_worker_kill.py::test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect
+ERROR test/web_api/test_phase_b_api.py::test_b01_health_unknown_fields_and_security_headers
+ERROR test/web_api/test_phase_b_api.py::test_api_001_login_me_logout_and_unknown_identity
+ERROR test/web_api/test_phase_b_api.py::test_api_022_csrf_and_origin_fail_before_transaction
+ERROR test/web_api/test_phase_b_api.py::test_api_002_cross_account_is_opaque_404
+ERROR test/web_api/test_phase_b_api.py::test_api_018_conversation_replay_list_cursor_and_etag
+ERROR test/web_api/test_phase_b_api.py::test_api_016_and_019_metadata_etag_ignores_message_sequence
+ERROR test/web_api/test_phase_b_api.py::test_api_003_004_005_send_idempotency_and_busy
+ERROR test/web_api/test_phase_b_api.py::test_api_006_messages_are_paginated_in_sequence
+ERROR test/web_api/test_phase_b_api.py::test_api_007_cancelled_run_cannot_be_retried
+ERROR test/web_api/test_phase_b_api.py::test_api_rejects_retry_while_run_is_running
+ERROR test/web_api/test_phase_b_api.py::test_api_rejects_retry_after_uncertain_side_effect
+ERROR test/web_api/test_phase_b_api.py::test_b05_fake_executor_completed_refresh_recovery
+ERROR test/web_api/test_phase_b_api.py::test_api_008_running_cancel_reaches_cancelled
+ERROR test/web_api/test_phase_b_api.py::test_b05_failure_then_retry - psycopg...
+ERROR test/web_api/test_phase_b_api.py::test_message_limits_and_empty_content
+ERROR test/web_api/test_phase_b_api.py::test_concurrent_different_messages_allow_only_one
+ERROR test/web_api/test_phase_b_api.py::test_api_003_concurrent_same_key_returns_same_resources
+ERROR test/web_api/test_phase_b_api.py::test_api_021_claimed_start_is_not_started_after_direct_cancel
+ERROR test/web_api/test_phase_b_api.py::test_sse_route_requires_auth_and_ownership
+ERROR test/web_api/test_sse_gateway.py::test_sse_http_terminal_snapshot_refresh_recovery
+ERROR test/web_api/test_sse_gateway.py::test_sse_http_redis_unavailable_degrades_to_poll
+ERROR test/web_api/test_sse_gateway.py::test_sse_http_fake_executor_streams_online_events_then_terminal
+ERROR test/web_api/test_sse_gateway.py::test_sse_connection_limit_returns_503
+ERROR test/web_api/test_sse_gateway.py::test_sse_snapshot_and_handshake_ordering
+ERROR test/web_api/test_sse_gateway.py::test_sse_stream_id_change_degrades_sequence_gap
+ERROR test/web_api/test_sse_gateway.py::test_sse_handshake_buffer_overflow_degrades
+ERROR test/web_api/test_sse_gateway.py::test_sse_terminal_via_publisher[completed-run.completed-completed]
+ERROR test/web_api/test_sse_gateway.py::test_sse_terminal_via_publisher[failed-run.failed-failed]
+ERROR test/web_api/test_sse_gateway.py::test_sse_terminal_via_publisher[cancelled-run.cancelled-aborted]
+ERROR test/web_api/test_sse_gateway.py::test_sse_terminal_snapshot_overrides_deltas
+ERROR test/web_api/test_sse_gateway.py::test_sse_terminal_duplicate_delivery_is_idempotent
+ERROR test/web_api/test_sse_gateway.py::test_sse_auth_expired_on_keepalive - ...
+FAILED test/test_durable_agent_worker_kill.py::test_workflow_process_kill_replays_without_repeating_completed_operations[react-react-tool-expected_operations0-4]
+FAILED test/test_durable_agent_worker_kill.py::test_workflow_process_kill_replays_without_repeating_completed_operations[plan_and_execute-plan-step-2-expected_operations1-5]
+2 failed, 127 passed, 1 warning, 73 errors in 214.19s (0:03:34)
+Error response from daemon: No such container: hpagent-w1b-test-60b71257d5
+Error response from daemon: No such container: hpagent-w2a-redis-efb464cee9

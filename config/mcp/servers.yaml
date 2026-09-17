@@ -23,6 +23,9 @@
 # ── 工具配置 ──────────────────────────────────────────────
 # tools.<name>.hint    群聊进度提示（括号表示悄悄话）
 # tools.<name>.enrich  追加到 LLM 工具描述的用法提示
+# tools.<name>.side_effect_class  Durable retry class: read_only /
+#                                  idempotent_write / non_idempotent_write
+# tools.<name>.idempotency_key_argument  provider 接收 operation ID 的参数名
 #
 # ════════════════════════════════════════════════════════
 
@@ -35,9 +38,11 @@ servers:
     required: false
     tools:
       tavily-search:
+        side_effect_class: read_only
         hint: "（爪子敲键盘上网冲浪中 🌊）"
         enrich: " 用于搜索网页信息。实时性较强的数据（股价、天气、新闻）请优先调用对应专业工具。"
       tavily-extract:
+        side_effect_class: read_only
         hint: "（正在阅读网页内容 📖）"
         enrich: " 用于提取/阅读网页正文内容。"
 
@@ -64,54 +69,67 @@ servers:
     #   STOCK_SDK_MCP_TOOLS: "core"
     tools:
       get_quotes_by_query:
+        side_effect_class: read_only
         hint: "（正在查询股票行情 📈）"
         enrich: " 优先用于按名称、代码或拼音查询A股、港股、美股实时行情。"
 
       get_a_share_quotes:
+        side_effect_class: read_only
         hint: "（正在查询A股行情 🏦）"
         enrich: " 用于已知A股代码时批量查询实时行情和估值字段。"
 
       get_hk_quotes:
+        side_effect_class: read_only
         hint: "（正在查询港股行情 🇭🇰）"
         enrich: " 用于查询港股实时行情。"
 
       get_us_quotes:
+        side_effect_class: read_only
         hint: "（正在查询美股行情 🇺🇸）"
         enrich: " 用于查询美股实时行情。"
 
       search_stock:
+        side_effect_class: read_only
         hint: "（正在搜索股票代码 🔍）"
         enrich: " 名称或代码不确定时使用，支持名称、代码和拼音模糊搜索。"
 
       get_today_timeline:
+        side_effect_class: read_only
         hint: "（正在查看当日分时走势 📉）"
         enrich: " 用于查看A股当日分时价格和成交走势。"
 
       get_history_kline:
+        side_effect_class: read_only
         hint: "（正在读取历史K线 📊）"
         enrich: " 用于查询A股日线、周线或月线历史行情。"
 
       get_kline_with_indicators:
+        side_effect_class: read_only
         hint: "（正在计算技术指标 🧮）"
         enrich: " 需要MA、MACD、BOLL、KDJ或RSI等技术指标时优先使用。"
 
       analyze_stock:
+        side_effect_class: read_only
         hint: "（正在进行个股综合分析 🧐）"
         enrich: " 用于一次获取个股行情、K线、技术指标、资金流和分红信息。"
 
       compare_stocks:
+        side_effect_class: read_only
         hint: "（正在对比多只股票 ⚖️）"
         enrich: " 用于并排比较2至10只股票的行情和指标。"
 
       scan_market:
+        side_effect_class: read_only
         hint: "（正在按条件筛选股票 🔭）"
         enrich: " 用于根据涨跌幅、换手率、量比、市盈率等条件选股。"
 
       get_market_overview:
+        side_effect_class: read_only
         hint: "（正在查看市场全景 🌏）"
         enrich: " 用于获取主要指数、热门行业概念和市场涨跌统计。"
 
       get_sector_analysis:
+        side_effect_class: read_only
         hint: "（正在分析行业板块 🧭）"
         enrich: " 用于查询板块行情、K线及龙头成分股。"
 
@@ -131,21 +149,27 @@ servers:
     request_timeout: 15
     tools:
       maps_geo:
+        side_effect_class: read_only
         hint: "（展开地图看了看 🗺️）"
         enrich: " 用于地址→坐标转换（地理编码）。"
       maps_ip_location:
+        side_effect_class: read_only
         hint: "（查了查IP在哪 📍）"
         enrich: " 用于IP地址归属地查询。"
       maps_around_search:
+        side_effect_class: read_only
         hint: "（在地图周围找了找 🔍）"
         enrich: " 用于周边POI搜索。"
       maps_text_search:
+        side_effect_class: read_only
         hint: "（在地图上搜了一下 📝）"
         enrich: " 用于关键词地点搜索。"
       maps_search_detail:
+        side_effect_class: read_only
         hint: "（正在查看地图详情 🏠）"
         enrich: " 用于查看地点/POI详情。"
       maps_bicycling:
+        side_effect_class: read_only
         hint: "（正在规划骑行路线 🚲）"
         enrich: " 用于骑行路径规划。"
 
@@ -155,13 +179,17 @@ servers:
     description: "八字/五行/命理推算"
     tools:
       getBaziDetail:
+        side_effect_class: read_only
         hint: "（正在排盘推演八字 ☯️）"
       getSolarTimes:
+        side_effect_class: read_only
         hint: "（正在计算日出日落 🌅）"
       getChineseCalendar:
+        side_effect_class: read_only
         hint: "（翻了翻老黄历 📜）"
         enrich: " 用于查询农历日期。"
       getSolarTerms:
+        side_effect_class: read_only
         hint: "（数了数节气 🍃）"
         enrich: " 用于查询节气信息。"
 
@@ -171,6 +199,7 @@ servers:
     description: "菜谱查询"
     tools:
       mcp_howtocook_whatToEat:
+        side_effect_class: read_only
         hint: "（正在翻菜谱 🍳）"
 
   # ── 12306 火车票 ──────────────────────────────────────────
@@ -179,15 +208,19 @@ servers:
     description: "12306 火车票查询"
     tools:
       get-tickets:
+        side_effect_class: read_only
         hint: "（正在刷火车票 🚄）"
         enrich: " 用于查询火车票余票和班次。"
       get-interline-tickets:
+        side_effect_class: read_only
         hint: "（正在计算中转路线 🔄）"
         enrich: " 用于查询中转火车票方案。"
       get-station-code-by-names:
+        side_effect_class: read_only
         hint: "（正在查车站代码 🚉）"
         enrich: " 用于查询火车站三字码。"
       get-station-code-of-citys:
+        side_effect_class: read_only
         hint: "（正在查城市车站 🏙️）"
         enrich: " 用于查询城市所有火车站。"
 

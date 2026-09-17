@@ -1,0 +1,385 @@
+{
+  "baseline": "378ca723b977426b2045e293aecd622cef337e87",
+  "roots": [
+    "main",
+    "web_api.__main__",
+    "web_api.app",
+    "orchestration.web_worker",
+    "orchestration.document_worker",
+    "persistence.migrate"
+  ],
+  "source_sha256": "eed37ab01ae112345bf48f443c72b86c8dcdb0ce84f7ec9e015783e7518a0bcf",
+  "deleted_modules": [
+    "agent",
+    "agent.adapters",
+    "agent.bus",
+    "agent.compensation",
+    "agent.composite",
+    "agent.context",
+    "agent.factory",
+    "agent.interfaces",
+    "agent.llm_agent",
+    "agent.orchestrator",
+    "agent.protocol",
+    "agent.registry",
+    "agent.runner",
+    "agent.strategies",
+    "agent.types",
+    "agent_execution",
+    "agent_execution.activity_control",
+    "agent_execution.audit",
+    "agent_execution.brain_action_loop",
+    "agent_execution.chat_bindings",
+    "agent_execution.chat_run_input",
+    "agent_execution.facade",
+    "agent_execution.model_budget_context",
+    "agent_execution.qq_host",
+    "agent_execution.run_budget",
+    "agent_execution.tracing",
+    "agent_execution.tracing.context",
+    "agent_execution.tracing.instrumentation",
+    "agent_execution.tracing.lifecycle",
+    "agent_execution.tracing.metadata",
+    "agent_execution.tracing.models",
+    "agent_execution.tracing.repository",
+    "agent_execution.tracing.sink",
+    "agent_execution.web_adapters",
+    "agent_execution.web_events",
+    "agent_execution.web_host",
+    "harness",
+    "harness.activities",
+    "harness.context_builder",
+    "harness.prompts",
+    "orchestration.scheduler",
+    "orchestration.web_activities",
+    "orchestration.web_workflow",
+    "orchestration.workflow"
+  ],
+  "retired_definitions": [],
+  "remaining_retired_modules": [],
+  "retired_import_violations": [],
+  "retired_canonical_reachability": [],
+  "registered_retired_types": [],
+  "missing_required_workflows": [],
+  "captured_registries": [
+    {
+      "task_queue": "hpagent-web-lifecycle",
+      "workflows": [
+        "AgentLifecycleWorkflow",
+        "ResearchReportWorkflow",
+        "ResearchTaskScheduleWorkflow",
+        "ArtifactBuildWorkflow",
+        "NormalizeDocumentWorkflow"
+      ],
+      "activities": [
+        "prepare_run_activity",
+        "load_agent_run_input_activity",
+        "finalize_failed_activity",
+        "finalize_cancelled_activity",
+        "finalize_agent_result_activity",
+        "execute_artifact_build_activity",
+        "prepare_research_activity",
+        "trigger_scheduled_research_activity",
+        "create_research_plan_activity",
+        "discover_research_sources_activity",
+        "rank_research_sources_activity",
+        "fetch_research_sources_activity",
+        "normalize_research_sources_activity",
+        "extract_research_evidence_activity",
+        "assess_research_corroboration_activity",
+        "analyze_research_gaps_activity",
+        "synthesize_research_report_activity",
+        "verify_research_citations_activity",
+        "compare_previous_research_activity",
+        "publish_research_artifact_activity",
+        "complete_research_activity",
+        "fail_research_activity"
+      ]
+    },
+    {
+      "task_queue": "hpagent-web-agent",
+      "workflows": [
+        "AgentRunWorkflow",
+        "ReactAgentWorkflow",
+        "PlanAndExecuteWorkflow",
+        "AgentStepWorkflow",
+        "ToolExecutionWorkflow"
+      ],
+      "activities": [
+        "acquire_agent_segment_activity",
+        "release_agent_segment_activity",
+        "begin_agent_wait_activity",
+        "finish_agent_wait_activity",
+        "context_bootstrap_activity",
+        "model_decision_activity",
+        "tool_execution_activity",
+        "file_action_approval_status_activity",
+        "approved_file_action_execution_activity",
+        "planning_activity",
+        "evaluate_plan_activity"
+      ]
+    },
+    {
+      "task_queue": "hpagent-document",
+      "workflows": [],
+      "activities": [
+        "normalize_document_activity"
+      ]
+    },
+    {
+      "task_queue": "hpagent-task-queue",
+      "workflows": [
+        "ReflectWorkflow",
+        "MetricsReportWorkflow"
+      ],
+      "activities": [
+        "reflect_activity",
+        "reflect_batch_activity",
+        "metrics_report_activity"
+      ]
+    }
+  ],
+  "composition": {
+    "run_dispatcher": "WebOutboxDispatcher",
+    "run_temporal_adapter": "TemporalClientAdapter -> AgentLifecycleWorkflow.run",
+    "artifact_dispatcher": "ArtifactOutboxDispatcher",
+    "reminder_handlers": [
+      "user_reminder"
+    ]
+  },
+  "canonical_registration_callsites": [
+    {
+      "path": "src/agent_workflows/agent_run.py",
+      "line": 40,
+      "call": "workflow.execute_child_workflow(target, request, id=f'hpagent-agent-{request.strategy}-{request.run_id}', task_queue=AGENT_TASK_QUEUE, result_type=AgentResult)"
+    },
+    {
+      "path": "src/agent_workflows/agent_step.py",
+      "line": 85,
+      "call": "workflow.execute_child_workflow(ToolExecutionWorkflow.run, tool_input, id=tool_execution_workflow_id(request.agent.run_id, tool_input.operation_id), task_queue=AGENT_TASK_QUEUE, result_type=ToolExecutionResult)"
+    },
+    {
+      "path": "src/agent_workflows/plan_execute.py",
+      "line": 71,
+      "call": "workflow.execute_child_workflow(AgentStepWorkflow.run, AgentStepInput(AGENT_SCHEMA_VERSION, request, context.transcript_id, transcript_version, plan_id, plan_version, step), id=f'hpagent-agent-step-{request.run_id}-{plan_version}-{step.step_id}', task_queue=AGENT_TASK_QUEUE)"
+    },
+    {
+      "path": "src/agent_workflows/react.py",
+      "line": 147,
+      "call": "workflow.execute_child_workflow(ToolExecutionWorkflow.run, tool_input, id=tool_execution_workflow_id(request.run_id, tool_input.operation_id), task_queue=AGENT_TASK_QUEUE, result_type=ToolExecutionResult)"
+    },
+    {
+      "path": "src/agent_workflows/segments.py",
+      "line": 32,
+      "call": "workflow.execute_activity(name, request, task_queue=AGENT_TASK_QUEUE, result_type=result_type, start_to_close_timeout=timedelta(seconds=20), retry_policy=_CONTROL_RETRY, cancellation_type=workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED)"
+    },
+    {
+      "path": "src/agent_workflows/segments.py",
+      "line": 71,
+      "call": "workflow.execute_activity(name, current, **options, retry_policy=_SINGLE_ATTEMPT, cancellation_type=workflow.ActivityCancellationType.WAIT_CANCELLATION_COMPLETED)"
+    },
+    {
+      "path": "src/agent_workflows/tool_execution.py",
+      "line": 69,
+      "call": "workflow.execute_activity('file_action_approval_status_activity', ApprovalStatusInput(AGENT_SCHEMA_VERSION, request.account_id, request.run_id, request.operation_id, result.approval_id), task_queue=AGENT_TASK_QUEUE, result_type=ApprovalStatusResult, start_to_close_timeout=timedelta(seconds=30), retry_policy=_READ_RETRY)"
+    },
+    {
+      "path": "src/conversation_domain/commands.py",
+      "line": 453,
+      "call": "self.idempotency.claim(uow, _id(), account_id, operation, key, digest, datetime.now(UTC) + timedelta(days=7))"
+    },
+    {
+      "path": "src/file_domain/approvals.py",
+      "line": 123,
+      "call": "self.idempotency.claim(uow, uuid7(), account_id, operation, key, digest, datetime.now(UTC) + timedelta(days=7))"
+    },
+    {
+      "path": "src/file_runtime/routing.py",
+      "line": 48,
+      "call": "self.client.start_workflow(NormalizeDocumentWorkflow.run, request, id=workflow_id, task_queue=self.workflow_task_queue, id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE, id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING)"
+    },
+    {
+      "path": "src/memory/workflows.py",
+      "line": 20,
+      "call": "workflow.execute_activity('reflect_batch_activity', args=[account_ids], start_to_close_timeout=timedelta(seconds=120), retry_policy=RetryPolicy(initial_interval=timedelta(seconds=5), maximum_attempts=2))"
+    },
+    {
+      "path": "src/memory/workflows.py",
+      "line": 41,
+      "call": "workflow.execute_activity('metrics_report_activity', args=[], start_to_close_timeout=timedelta(seconds=30), retry_policy=RetryPolicy(initial_interval=timedelta(seconds=5), maximum_attempts=2))"
+    },
+    {
+      "path": "src/orchestration/agent_lifecycle_workflow.py",
+      "line": 89,
+      "call": "workflow.execute_activity('prepare_run_activity', request, task_queue=WEB_LIFECYCLE_TASK_QUEUE, schedule_to_close_timeout=timedelta(seconds=WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS), start_to_close_timeout=timedelta(seconds=WEB_PREPARE_START_TO_CLOSE_SECONDS), retry_policy=_LIFECYCLE_RETRY)"
+    },
+    {
+      "path": "src/orchestration/agent_lifecycle_workflow.py",
+      "line": 116,
+      "call": "workflow.execute_activity('load_agent_run_input_activity', request, task_queue=WEB_LIFECYCLE_TASK_QUEUE, result_type=AgentRunInput, start_to_close_timeout=timedelta(seconds=20), retry_policy=_LIFECYCLE_RETRY)"
+    },
+    {
+      "path": "src/orchestration/agent_lifecycle_workflow.py",
+      "line": 124,
+      "call": "workflow.execute_child_workflow(AgentRunWorkflow.run, identity, id=f'hpagent-agent-run-{request.run_id}', task_queue=AGENT_TASK_QUEUE)"
+    },
+    {
+      "path": "src/orchestration/agent_lifecycle_workflow.py",
+      "line": 152,
+      "call": "workflow.execute_activity('finalize_agent_result_activity', FinalizeResultInput(AGENT_SCHEMA_VERSION, request.run_id, agent_result.result_ref), task_queue=WEB_LIFECYCLE_TASK_QUEUE, schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS), start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS), retry_policy=_FINALIZE_RETRY)"
+    },
+    {
+      "path": "src/orchestration/agent_lifecycle_workflow.py",
+      "line": 189,
+      "call": "workflow.execute_activity('finalize_cancelled_activity', request, task_queue=WEB_LIFECYCLE_TASK_QUEUE, schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS), start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS), retry_policy=_FINALIZE_RETRY)"
+    },
+    {
+      "path": "src/orchestration/agent_lifecycle_workflow.py",
+      "line": 238,
+      "call": "workflow.execute_activity('finalize_failed_activity', FailureInput(1, request.run_id, error_code, _DURABLE_FAILURE_MESSAGES.get(error_code, '执行未能完成。')), task_queue=WEB_LIFECYCLE_TASK_QUEUE, schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS), start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS), retry_policy=_FINALIZE_RETRY)"
+    },
+    {
+      "path": "src/orchestration/agent_lifecycle_workflow.py",
+      "line": 204,
+      "call": "workflow.execute_activity('finalize_cancelled_activity', request, task_queue=WEB_LIFECYCLE_TASK_QUEUE, schedule_to_close_timeout=timedelta(seconds=WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS), start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS), retry_policy=_FINALIZE_RETRY)"
+    },
+    {
+      "path": "src/orchestration/artifact_dispatcher.py",
+      "line": 32,
+      "call": "self.client.start_workflow(ArtifactBuildWorkflow.run, ArtifactBuildInput(1, str(version_id)), id=workflow_id, task_queue=ARTIFACT_TASK_QUEUE, id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE, id_conflict_policy=WorkflowIDConflictPolicy.FAIL, retry_policy=None)"
+    },
+    {
+      "path": "src/orchestration/artifact_workflow.py",
+      "line": 24,
+      "call": "workflow.execute_activity('execute_artifact_build_activity', request, task_queue=ARTIFACT_TASK_QUEUE, start_to_close_timeout=timedelta(minutes=10), retry_policy=RetryPolicy(maximum_attempts=3))"
+    },
+    {
+      "path": "src/orchestration/document_worker.py",
+      "line": 21,
+      "call": "Worker(client, task_queue=DOCUMENT_TASK_QUEUE, activities=[activities.normalize_document], max_concurrent_activities=1)"
+    },
+    {
+      "path": "src/orchestration/document_workflow.py",
+      "line": 18,
+      "call": "workflow.execute_activity('normalize_document_activity', request, task_queue=DOCUMENT_TASK_QUEUE, start_to_close_timeout=timedelta(minutes=30), retry_policy=RetryPolicy(maximum_attempts=2))"
+    },
+    {
+      "path": "src/orchestration/research_workflow.py",
+      "line": 88,
+      "call": "workflow.execute_activity('trigger_scheduled_research_activity', {'schema_version': request.schema_version, 'account_id': request.account_id, 'task_id': request.task_id, 'schedule_version': request.schedule_version, 'fire_id': workflow.info().run_id}, task_queue=WEB_LIFECYCLE_TASK_QUEUE, start_to_close_timeout=timedelta(seconds=30), schedule_to_close_timeout=timedelta(seconds=60), retry_policy=_RESEARCH_RETRY)"
+    },
+    {
+      "path": "src/orchestration/research_workflow.py",
+      "line": 117,
+      "call": "workflow.execute_activity(activity_name, request, task_queue=WEB_LIFECYCLE_TASK_QUEUE, start_to_close_timeout=timedelta(seconds=timeout), schedule_to_close_timeout=timedelta(seconds=timeout * 2), retry_policy=_RESEARCH_RETRY)"
+    },
+    {
+      "path": "src/orchestration/research_workflow.py",
+      "line": 152,
+      "call": "workflow.execute_activity('analyze_research_gaps_activity', iteration_request, task_queue=WEB_LIFECYCLE_TASK_QUEUE, start_to_close_timeout=timedelta(seconds=30), schedule_to_close_timeout=timedelta(seconds=60), retry_policy=_RESEARCH_RETRY)"
+    },
+    {
+      "path": "src/orchestration/research_workflow.py",
+      "line": 169,
+      "call": "workflow.execute_activity(activity_name, request, task_queue=WEB_LIFECYCLE_TASK_QUEUE, start_to_close_timeout=timedelta(seconds=timeout), schedule_to_close_timeout=timedelta(seconds=timeout * 2), retry_policy=_RESEARCH_RETRY)"
+    },
+    {
+      "path": "src/orchestration/research_workflow.py",
+      "line": 178,
+      "call": "workflow.execute_activity('fail_research_activity', request, task_queue=WEB_LIFECYCLE_TASK_QUEUE, start_to_close_timeout=timedelta(seconds=30), schedule_to_close_timeout=timedelta(seconds=60), retry_policy=_RESEARCH_RETRY)"
+    },
+    {
+      "path": "src/orchestration/research_workflow.py",
+      "line": 139,
+      "call": "workflow.execute_activity(activity_name, iteration_request, task_queue=WEB_LIFECYCLE_TASK_QUEUE, start_to_close_timeout=timedelta(seconds=timeout), schedule_to_close_timeout=timedelta(seconds=timeout * 2), heartbeat_timeout=timedelta(seconds=15) if activity_name == 'fetch_research_sources_activity' else None, retry_policy=_RESEARCH_RETRY)"
+    },
+    {
+      "path": "src/orchestration/web_dispatcher.py",
+      "line": 194,
+      "call": "self.client.start_workflow(AgentLifecycleWorkflow.run, request, id=workflow_id, task_queue=WEB_LIFECYCLE_TASK_QUEUE, execution_timeout=None, id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE, id_conflict_policy=WorkflowIDConflictPolicy.FAIL, retry_policy=None)"
+    },
+    {
+      "path": "src/orchestration/web_dispatcher.py",
+      "line": 244,
+      "call": "self.client.start_workflow(ResearchReportWorkflow.run, request, id=workflow_id, task_queue=WEB_LIFECYCLE_TASK_QUEUE, execution_timeout=timedelta(seconds=WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS), id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE, id_conflict_policy=WorkflowIDConflictPolicy.FAIL, retry_policy=None)"
+    },
+    {
+      "path": "src/orchestration/web_workers.py",
+      "line": 156,
+      "call": "Worker(client, task_queue=WEB_LIFECYCLE_TASK_QUEUE, workflows=[AgentLifecycleWorkflow, ResearchReportWorkflow, ResearchTaskScheduleWorkflow, ArtifactBuildWorkflow, NormalizeDocumentWorkflow], activities=list(lifecycle_activities))"
+    },
+    {
+      "path": "src/orchestration/web_workers.py",
+      "line": 169,
+      "call": "Worker(client, task_queue=WEB_AGENT_TASK_QUEUE, workflows=[AgentRunWorkflow, ReactAgentWorkflow, PlanAndExecuteWorkflow, AgentStepWorkflow, ToolExecutionWorkflow], activities=list(agent_activities), max_heartbeat_throttle_interval=timedelta(seconds=WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS))"
+    },
+    {
+      "path": "src/orchestration/worker.py",
+      "line": 281,
+      "call": "build_web_temporal_workers(client, lifecycle_activities=[prepare_run_activity, load_agent_run_input_activity, finalize_failed_activity, finalize_cancelled_activity, durable_activities.finalize_agent_result, execute_artifact_build_activity, research_activities.prepare_research_activity, research_activities.trigger_scheduled_research_activity, research_activities.create_research_plan_activity, research_activities.discover_research_sources_activity, research_activities.rank_research_sources_activity, research_activities.fetch_research_sources_activity, research_activities.normalize_research_sources_activity, research_activities.extract_research_evidence_activity, research_activities.assess_research_corroboration_activity, research_activities.analyze_research_gaps_activity, research_activities.synthesize_research_report_activity, research_activities.verify_research_citations_activity, research_activities.compare_previous_research_activity, research_activities.publish_research_artifact_activity, research_activities.complete_research_activity, research_activities.fail_research_activity], agent_activities=[segment_activities.acquire, segment_activities.release, segment_activities.begin_wait, segment_activities.finish_wait, durable_activities.context_bootstrap, durable_activities.model_decision, durable_activities.tool_execution, durable_activities.file_action_approval_status, persistent_overwrite.execute, durable_activities.planning, durable_activities.evaluate_plan])"
+    },
+    {
+      "path": "src/orchestration/worker.py",
+      "line": 854,
+      "call": "deps.scheduler.register_handler('user_reminder', _handle_user_reminder)"
+    },
+    {
+      "path": "src/orchestration/worker.py",
+      "line": 873,
+      "call": "Worker(client, task_queue=config.temporal.task_queue, workflows=[ReflectWorkflow, MetricsReportWorkflow], workflow_runner=UnsandboxedWorkflowRunner(), activities=[reflect_activity, reflect_batch_activity, metrics_report_activity])"
+    },
+    {
+      "path": "src/orchestration/worker.py",
+      "line": 1023,
+      "call": "ch.start_monitor(handle_message)"
+    },
+    {
+      "path": "src/research_domain/services.py",
+      "line": 325,
+      "call": "self.idempotency.claim(uow, uuid7(), account_id, operation, key, digest, datetime.now(UTC) + timedelta(days=7))"
+    },
+    {
+      "path": "src/web_artifacts/services.py",
+      "line": 187,
+      "call": "self.idempotency.claim(uow, uuid7(), account_id, operation, key, digest, datetime.now(UTC) + timedelta(days=7))"
+    },
+    {
+      "path": "src/web_domain/file_services.py",
+      "line": 97,
+      "call": "self.idempotency.claim(uow, uuid7(), account_id, 'create_upload', key, digest, datetime.now(UTC) + timedelta(hours=24))"
+    }
+  ],
+  "dynamic_imports": [
+    {
+      "path": "src/research_domain/services.py",
+      "line": 223,
+      "target": "re"
+    },
+    {
+      "path": "src/research_activities/runtime.py",
+      "line": 494,
+      "target": "re"
+    },
+    {
+      "path": "src/research_activities/runtime.py",
+      "line": 494,
+      "target": "re"
+    },
+    {
+      "path": "src/agent_activities/runtime.py",
+      "line": 241,
+      "target": "uuid"
+    },
+    {
+      "path": "src/agent_activities/runtime.py",
+      "line": 242,
+      "target": "uuid"
+    },
+    {
+      "path": "src/agent_activities/runtime.py",
+      "line": 1434,
+      "target": "uuid"
+    }
+  ],
+  "pass": true
+}

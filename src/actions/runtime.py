@@ -1,21 +1,16 @@
 """ActionRuntime —— 工具选择、执行、审计和结果后处理的统一入口。
 
-TurnOrchestrator 不再直接面向 SandboxManager/Sandbox。
-它只向 ActionRuntime 请求：
-  - reset_turn(session_id)
-  - select_tools(...)
-  - execute(...)
-  - clear_session(session_id)
+Durable Activities use an explicit resource key and execution identity for every
+operation; the runtime has no surface-specific or session-only fallback.
 """
 from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
+from actions.contracts import ActionRequest, ActionResult
 from common.token_counter import estimate_messages_tokens
-from common.types import Event, EventType
-from agent.protocol import ActionRequest, ActionResult
 
 logger = logging.getLogger("HpAgent.ActionRuntime")
 
@@ -24,14 +19,13 @@ class ActionRuntime:
     """行动运行时 facade。
 
     这一层保留 Sandbox 的核心能力，同时把工具 RAG 查询拼接、缓存、
-    审计事件写入和长结果摘要从 TurnOrchestrator 中移出。
+    审计事件写入和长结果摘要从执行 Host 中移出。
     """
 
     def __init__(
         self,
         *,
         sandbox_manager: Any = None,
-        session_store: Any = None,
         resource_pool: Any = None,
         prompts: Any = None,
         tool_rag_top_k: int = 8,
@@ -40,21 +34,27 @@ class ActionRuntime:
         tool_result_summary_max_chars: int = 1000,
     ):
         self._sandbox = sandbox_manager
-        self._session = session_store
         self._model = resource_pool
         self._prompts = prompts
         self._tool_rag_top_k = tool_rag_top_k
         self._tool_result_summary_enabled = tool_result_summary_enabled
         self._tool_result_summary_threshold = tool_result_summary_threshold
         self._tool_result_summary_max_chars = tool_result_summary_max_chars
-        self._tools_cache: Dict[str, tuple] = {}
+        self._tools_cache: Dict[tuple[str, str], tuple[str, List[Dict[str, Any]]]] = {}
 
-    def reset_turn(self, session_id: str) -> None:
-        """清理上一轮残留的 tool hints。"""
+    @staticmethod
+    def _execution_cache_key(resource_key: str, execution_id: str) -> tuple[str, str]:
+        if not resource_key or not execution_id:
+            raise ValueError("resource_key and execution_id are required")
+        return resource_key, execution_id
+
+    def reset_execution(self, resource_key: str, execution_id: str) -> None:
+        """Clear only the mutable state owned by this execution."""
+        self._tools_cache.pop(self._execution_cache_key(resource_key, execution_id), None)
         if self._sandbox is None:
             return
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
             sandbox.reset_hints()
         except Exception:
             pass
@@ -63,28 +63,35 @@ class ActionRuntime:
         self,
         *,
         user_content: str = "",
-        session_id: str = "",
+        resource_key: str,
+        execution_id: str,
         group_context_text: str = "",
     ) -> List[Dict[str, Any]]:
         """完成工具选择管线，并写入工具检索审计事件。"""
+        cache_key = self._execution_cache_key(resource_key, execution_id)
         rag_query = self._build_rag_query(user_content, group_context_text)
         if self._sandbox is None:
             return []
 
         try:
-            if session_id:
-                query_hash = hashlib.md5(user_content.encode()).hexdigest()
-                if session_id in self._tools_cache:
-                    last_hash, cached = self._tools_cache[session_id]
-                    if query_hash == last_hash:
-                        logger.info("select_tools: cache hit session=%s", session_id)
-                        return cached
+            query_hash = hashlib.md5(user_content.encode()).hexdigest()
+            if cache_key in self._tools_cache:
+                last_hash, cached = self._tools_cache[cache_key]
+                if query_hash == last_hash:
+                    logger.info(
+                        "select_tools: cache hit resource=%s execution=%s",
+                        resource_key,
+                        execution_id,
+                    )
+                    return cached
 
-            sandbox = self._sandbox.get_sandbox_for_session(session_id)
-            tools, audit = await sandbox.select_tools(rag_query, self._tool_rag_top_k)
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+            raw_tools, audit = await sandbox.select_tools(
+                rag_query, self._tool_rag_top_k
+            )
+            tools = cast(List[Dict[str, Any]], raw_tools)
 
-            if session_id:
-                self._tools_cache[session_id] = (query_hash, tools)
+            self._tools_cache[cache_key] = (query_hash, tools)
 
             logger.info(
                 "select_tools: query=%s top_k=%d -> %d tools",
@@ -93,63 +100,143 @@ class ActionRuntime:
                 len(tools),
             )
 
-            if session_id and self._session is not None:
-                await self._session.append_events(session_id, Event(
-                    session_id=session_id,
-                    event_type=EventType.TOOL_RETRIEVAL,
-                    content=audit,
-                ))
-
             return tools
         except Exception as e:
-            logger.warning("Tool retrieval failed for sid=%s: %s", session_id, e)
+            logger.warning("Tool retrieval failed for resource=%s: %s", resource_key, e)
             return []
 
-    async def execute(
+    async def _execute(
         self,
         *,
         tool_name: str,
         arguments: Dict[str, Any],
-        session_id: str = "",
+        resource_key: str,
+        execution_id: str,
         user_query: str = "",
     ) -> Dict[str, Any]:
         """执行工具，并按配置对长输出做语义摘要。"""
+        self._execution_cache_key(resource_key, execution_id)
         if self._sandbox is None:
-            return {"output": None, "error": "SandboxManager not configured"}
+            return {
+                "success": False,
+                "output": None,
+                "error": "SandboxManager not configured",
+                "metadata": {},
+            }
 
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
             result, _audit = await sandbox.execute(tool_name, arguments)
-            result_dict = result.to_dict()
+            result_dict = cast(Dict[str, Any], result.to_dict())
+            result_dict.setdefault("success", result_dict.get("error") is None)
+            result_dict.setdefault("output", None)
+            result_dict.setdefault("error", None)
+            result_dict.setdefault("metadata", {})
 
             if self._tool_result_summary_enabled:
                 result_dict = await self._summarize_if_needed(
-                    result_dict, tool_name, user_query, session_id,
+                    result_dict, tool_name, user_query, resource_key,
                 )
 
             return result_dict
         except Exception as e:
-            return {"output": None, "error": str(e)}
+            return {
+                "success": False,
+                "output": None,
+                "error": str(e),
+                "metadata": {},
+            }
 
 
     async def execute_request(
         self,
         request: ActionRequest,
         *,
-        session_id: str = "",
+        resource_key: str,
+        execution_id: str,
         user_query: str = "",
+        idempotency_key: str = "",
     ) -> ActionResult:
-        result = await self.execute(
-            tool_name=request.name,
-            arguments=request.arguments,
-            session_id=session_id,
+        self._execution_cache_key(resource_key, execution_id)
+        executed_request = request
+        if idempotency_key and self._sandbox is not None:
+            try:
+                sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+                key_argument = sandbox.get_tool_metadata(request.name).get(
+                    "idempotency_key_argument"
+                )
+            except Exception:
+                key_argument = None
+            if isinstance(key_argument, str) and key_argument:
+                arguments = dict(request.arguments)
+                # The runtime owns durable operation identity. Never allow a
+                # model-supplied value to select another idempotency record.
+                arguments[key_argument] = idempotency_key
+                executed_request = ActionRequest(
+                    request.id,
+                    request.name,
+                    arguments,
+                )
+        result = await self._execute(
+            tool_name=executed_request.name,
+            arguments=executed_request.arguments,
+            resource_key=resource_key,
+            execution_id=execution_id,
             user_query=user_query,
         )
+        metadata = dict(result.get("metadata") or {})
+        metadata.setdefault(
+            "invocation_key",
+            f"tool-invocation:{execution_id}:{request.id}",
+        )
+        if idempotency_key:
+            # Providers that expose an idempotency facility can consume
+            # this stable operation identifier; it is also retained in the
+            # result for reconciliation/audit adapters.
+            metadata.setdefault("idempotency_key", idempotency_key)
+        result["metadata"] = metadata
         return ActionResult.from_runtime_result(request, result)
 
-    def clear_session(self, session_id: str) -> None:
-        """会话结束时清理行动运行时的会话级缓存。"""
-        self._tools_cache.pop(session_id, None)
+    def clear_execution(self, resource_key: str, execution_id: str) -> None:
+        """Fence late completion from retaining per-execution cache state."""
+        self._tools_cache.pop(self._execution_cache_key(resource_key, execution_id), None)
+
+    def side_effect_class(self, resource_key: str, tool_name: str) -> str:
+        """Read trusted registry metadata; unknown tools fail closed upstream."""
+        if self._sandbox is None:
+            return "unknown"
+        try:
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+            value = sandbox.get_tool_metadata(tool_name).get(
+                "side_effect_class", "unknown"
+            )
+            return str(value)
+        except Exception:
+            return "unknown"
+
+    def budget_reservation(self, resource_key: str, tool_name: str) -> Dict[str, int]:
+        """Return trusted per-tool reservation bounds from registry metadata."""
+        if self._sandbox is None:
+            return {"tool_calls": 1}
+        try:
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+            configured = sandbox.get_tool_metadata(tool_name).get(
+                "budget_reservation"
+            )
+            if not isinstance(configured, dict):
+                return {"tool_calls": 1}
+            values = {
+                str(dimension): int(amount)
+                for dimension, amount in configured.items()
+                if isinstance(dimension, str)
+                and isinstance(amount, int)
+                and not isinstance(amount, bool)
+                and amount >= 0
+            }
+            values["tool_calls"] = max(1, values.get("tool_calls", 0))
+            return values
+        except Exception:
+            return {"tool_calls": 1}
 
     def _build_rag_query(self, user_content: str, group_context_text: str) -> str:
         rag_query = user_content
@@ -214,20 +301,6 @@ class ActionRuntime:
                 result_dict["summary"] = summary
                 result_dict["metadata"] = result_dict.get("metadata") or {}
                 result_dict["metadata"]["summarized"] = True
-                if session_id and self._session is not None:
-                    await self._session.append_events(session_id, Event(
-                        session_id=session_id,
-                        event_type=EventType.TOOL_SUMMARY,
-                        content={
-                            "tool_name": tool_name,
-                            "original_chars": len(output),
-                            "summary_chars": len(summary),
-                            "summary": summary,
-                            "input_context": self._snapshot_context(
-                                messages, model_selector="fast",
-                            ),
-                        },
-                    ))
             else:
                 result_dict["output"] = output[:self._tool_result_summary_max_chars]
         except Exception as e:

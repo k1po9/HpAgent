@@ -1,0 +1,545 @@
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from types import SimpleNamespace
+from uuid import uuid4
+
+import pytest
+
+from agent_activities.runtime import DurableAgentActivities
+from agent_activities.store import ToolOperationState
+from agent_workflows.contracts import (
+    AGENT_SCHEMA_VERSION,
+    ChatContext,
+    CompactToolCall,
+    ContextBootstrapInput,
+    RunContext,
+    RunSource,
+    ToolExecutionInput,
+)
+from application.execution_contracts import ExecutionRequest
+from conversation_domain.execution_bindings import ChatExecutionBindings
+from tracing import (
+    TraceEvent,
+    TraceEventNode,
+    TraceLifecycleObserver,
+    TraceRun,
+    TraceTree,
+    model_observation_metadata,
+    sanitize_trace_metadata,
+    trace_node_id,
+)
+from tracing.sink import TraceEventSink, TracingWebEventSinkFactory
+from web_api.queries import trace_tree_dto
+from web_domain.run_events import RedisWebRunEventSinkFactory
+
+
+@pytest.mark.asyncio
+async def test_trace_sink_persists_and_projects_start_and_end_events(monkeypatch):
+    run_id, node_id = uuid4(), uuid4()
+    writes: list[tuple] = []
+    published: list[dict] = []
+
+    class Repository:
+        def create_trace_run(self, *args):
+            writes.append(("run", *args))
+
+        def start_event(self, *args):
+            writes.append(("start", *args))
+
+        def finish_event(self, *args):
+            writes.append(("end", *args))
+
+            class Event:
+                duration_ms = 42
+
+            return Event()
+
+    class Redis:
+        async def publish(self, _topic, payload):
+            published.append(json.loads(payload))
+
+    async def in_process(function, *args):
+        return function(*args)
+
+    monkeypatch.setattr("tracing.sink.asyncio.to_thread", in_process)
+
+    downstream = RedisWebRunEventSinkFactory(Redis()).for_run(str(run_id))
+    sink = TraceEventSink(str(run_id), downstream, Repository())
+
+    await sink.started()
+    await sink.trace_start(str(node_id), None, "AgentExecution", "agent", {"safe": True})
+    await sink.trace_end(str(node_id), "completed", {"turns": 1})
+
+    assert [item[0] for item in writes] == ["run", "start", "end"]
+    assert [item["event_type"] for item in published] == [
+        "run.started",
+        "trace.event",
+        "trace.event",
+    ]
+    assert published[1]["payload"]["action"] == "start"
+    assert published[1]["payload"]["metadata"] == {"schema_version": 1}
+    assert published[2]["payload"]["duration_ms"] == 42
+    assert published[2]["payload"]["metadata"] == {"schema_version": 1}
+
+
+def test_trace_metadata_drops_file_content_paths_and_queries() -> None:
+    safe = sanitize_trace_metadata("FileSearch", {
+        "query": "customer-secret-canary",
+        "path": "/tenant/private/customer.log",
+        "matches": ["customer-secret-canary"],
+        "query_mode": "literal",
+        "match_count": 2,
+        "scanned_bytes": 100,
+        "returned_bytes": 20,
+        "truncated": False,
+    })
+
+    assert safe == {
+        "schema_version": 1,
+        "query_mode": "literal",
+        "match_count": 2,
+        "scanned_bytes": 100,
+        "returned_bytes": 20,
+        "truncated": False,
+    }
+    assert "customer-secret-canary" not in json.dumps(safe)
+
+
+def test_trace_metadata_bounds_strings_and_nested_usage() -> None:
+    safe = sanitize_trace_metadata("LLMCall", {
+        "model": "m" * 10_000,
+        "token_usage": {
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "total_tokens": 14,
+            "usage_source": "provider",
+            "raw_prompt": "secret",
+        },
+        "prompt": "secret",
+    })
+
+    assert len(safe["model"]) == 256
+    assert safe["token_usage"] == {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "total_tokens": 14,
+        "usage_source": "provider",
+    }
+    assert len(json.dumps(safe).encode()) <= 4096
+
+
+@pytest.mark.asyncio
+async def test_trace_persistence_failure_does_not_block_online_projection(monkeypatch):
+    run_id, node_id = uuid4(), uuid4()
+    published: list[dict] = []
+
+    class Repository:
+        def start_event(self, *_args):
+            raise ConnectionError("database unavailable")
+
+    class Redis:
+        async def publish(self, _topic, payload):
+            published.append(json.loads(payload))
+
+    async def in_process(function, *args):
+        return function(*args)
+
+    monkeypatch.setattr("tracing.sink.asyncio.to_thread", in_process)
+
+    sink = TraceEventSink(
+        str(run_id), RedisWebRunEventSinkFactory(Redis()).for_run(str(run_id)), Repository()
+    )
+    await sink.trace_start(str(node_id), None, "LLMCall", "llm")
+
+    assert sink.degraded is True
+    assert published[0]["event_type"] == "trace.event"
+
+
+@pytest.mark.asyncio
+async def test_invalid_trace_node_id_only_degrades_persistence():
+    run_id = uuid4()
+    published: list[dict] = []
+
+    class Repository:
+        pass
+
+    class Redis:
+        async def publish(self, _topic, payload):
+            published.append(json.loads(payload))
+
+    sink = TraceEventSink(
+        str(run_id), RedisWebRunEventSinkFactory(Redis()).for_run(str(run_id)), Repository()
+    )
+    await sink.trace_start("runtime-node", None, "ToolExecution", "tool")
+
+    assert sink.degraded is True
+    assert published[0]["payload"]["node_id"] == "runtime-node"
+
+
+@pytest.mark.asyncio
+async def test_tracing_factory_reuses_online_stream_until_root_terminal(monkeypatch):
+    run_id = str(uuid4())
+    payloads: list[dict] = []
+
+    async def in_process(function, *args):
+        return function(*args)
+
+    monkeypatch.setattr("tracing.sink.asyncio.to_thread", in_process)
+
+    class Repository:
+        def create_trace_run(self, *_args):
+            return object()
+
+        def start_event(self, *_args):
+            return object()
+
+        def finish_event(self, *_args):
+            return SimpleNamespace(duration_ms=1)
+
+    class Redis:
+        async def publish(self, _topic, payload):
+            payloads.append(json.loads(payload))
+
+    factory = TracingWebEventSinkFactory(
+        RedisWebRunEventSinkFactory(Redis()), Repository()
+    )
+    first = factory.for_run(run_id)
+    await first.progress("starting", "first activity")
+    await first.close()
+    second = factory.for_run(run_id)
+    await second.progress("calling_model", "second activity")
+
+    assert second is first
+    assert payloads[0]["stream_id"] == payloads[1]["stream_id"]
+    assert [item["event_seq"] for item in payloads] == [1, 2]
+
+    root_id = trace_node_id(run_id, "agent_execution")
+    await second.trace_start(root_id, None, "AgentExecution", "agent")
+    await second.trace_end(root_id, "completed")
+
+    assert factory.for_run(run_id) is not first
+
+
+def test_trace_node_ids_are_stable_and_operation_scoped():
+    run_id = str(uuid4())
+
+    assert trace_node_id(run_id, "agent_execution") == trace_node_id(
+        run_id, "agent_execution"
+    )
+    assert trace_node_id(run_id, "llm_call", "turn:1") != trace_node_id(
+        run_id, "llm_call", "turn:2"
+    )
+
+
+def test_trace_tree_dto_exposes_safe_nested_http_contract():
+    trace_run_id, run_id, account_id, conversation_id, root_id = (
+        uuid4() for _ in range(5)
+    )
+    started_at = datetime(2026, 8, 22, tzinfo=UTC)
+    tree = TraceTree(
+        run=TraceRun(
+            trace_run_id=trace_run_id,
+            run_id=run_id,
+            account_id=account_id,
+            conversation_id=conversation_id,
+            strategy="react",
+            status="completed",
+            started_at=started_at,
+            ended_at=started_at,
+            metadata={"source": "web"},
+        ),
+        roots=(
+            TraceEventNode(
+                TraceEvent(
+                    trace_event_id=root_id,
+                    trace_run_id=trace_run_id,
+                    parent_event_id=None,
+                    event_type="agent",
+                    name="AgentExecution",
+                    status="completed",
+                    started_at=started_at,
+                    ended_at=started_at,
+                    duration_ms=10,
+                    metadata={"strategy": "react"},
+                )
+            ),
+        ),
+    )
+
+    dto = trace_tree_dto(tree)
+
+    assert "account_id" not in dto["run"]
+    assert dto["run"]["run_id"] == str(run_id)
+    assert dto["roots"][0]["event"]["trace_event_id"] == str(root_id)
+    assert dto["roots"][0]["event"]["metadata"] == {"strategy": "react"}
+
+
+def test_model_observation_excludes_content_and_keeps_usage():
+    decision = SimpleNamespace(
+        content="must not be retained",
+        raw_response=SimpleNamespace(
+            content="also private",
+            model="model-a",
+            provider="provider-a",
+            endpoint_id="chat-primary",
+            usage={
+                "input_tokens": 10,
+                "output_tokens": 4,
+                "total_tokens": 14,
+                "usage_source": "provider",
+            },
+        ),
+    )
+
+    assert model_observation_metadata(decision) == {
+        "model": "model-a",
+        "provider": "provider-a",
+        "endpoint_id": "chat-primary",
+        "token_usage": {
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "total_tokens": 14,
+            "usage_source": "provider",
+        },
+    }
+
+
+def test_terminal_observer_creates_and_closes_the_stable_root():
+    run_id = uuid4()
+    calls: list[tuple] = []
+
+    class Repository:
+        def start_event(self, *args):
+            calls.append(("start", *args))
+
+        def finish_event(self, *args):
+            calls.append(("end", *args))
+
+    TraceLifecycleObserver(Repository()).observe_terminal(
+        run_id, "failed", {"error_code": "model_unavailable"}
+    )
+
+    expected = trace_node_id(str(run_id), "agent_execution")
+    assert calls[0][-1] == {"terminal_fallback": True}
+    assert str(calls[0][2]) == expected
+    assert str(calls[1][2]) == expected
+    assert calls[1][3] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypatch):
+    async def in_process(function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr("agent_activities.runtime.asyncio.to_thread", in_process)
+    run_id, account_id, conversation_id, session_id = (str(uuid4()) for _ in range(4))
+    recorded: list[tuple] = []
+
+    class Events:
+        async def progress(self, phase, summary):
+            return None
+
+        async def trace_start(self, node_id, parent_id, name, node_type, metadata=None):
+            recorded.append(("start", node_id, parent_id, name, node_type, metadata))
+
+        async def trace_end(self, node_id, status, metadata=None):
+            recorded.append(("end", node_id, status, metadata))
+
+        async def close(self):
+            recorded.append(("close",))
+
+    events = Events()
+
+    class EventFactory:
+        def for_run(self, _run_id):
+            return events
+
+    class Store:
+        def validate_and_renew_lease(self, *_args):
+            return None
+
+        def begin_operation(self, *_args):
+            return None
+
+        def create_transcript(self, **_kwargs):
+            return 1
+
+        def fail_operation(self, *_args):
+            raise AssertionError("context should not fail")
+
+    class Memory:
+        async def recall_long_term(self, query):
+            assert query == "rewritten"
+            return ("memory",)
+
+        def compose(self, memories):
+            assert memories == ("memory",)
+            return ({"role": "user", "content": "hello"},)
+
+    request = ContextBootstrapInput(
+        schema_version=AGENT_SCHEMA_VERSION,
+        run_id=run_id,
+        account_id=account_id,
+        strategy="react",
+        operation_id=f"{run_id}:react:context",
+        source=RunSource("chat", conversation_id),
+        context=RunContext(chat=ChatContext(conversation_id, session_id, None), surface="web"),
+    )
+
+    class Loader:
+        async def load(self, _run_id):
+            return ExecutionRequest(
+                run_id,
+                account_id,
+                conversation_id,
+                session_id,
+                "hello",
+                ({"role": "user", "content": "hello"},),
+                context_provider=Memory(),
+            )
+
+    class Brain:
+        async def rewrite_recall_query(self, **_kwargs):
+            return "rewritten", [{"role": "user", "content": "hello"}]
+
+    activities = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
+        store=Store(),
+        loader=Loader(),
+        brain=Brain(),
+        actions=object(),
+        event_factory=EventFactory(),
+        resource_prep=object(),
+        lifecycle=None,
+    )
+    result = await activities.context_bootstrap(request)
+
+    assert result.transcript_version == 1
+    assert [item[3] for item in recorded if item[0] == "start"] == [
+        "AgentExecution",
+        "ContextAssembly",
+        "MemoryQueryRewrite",
+        "MemoryRecall",
+    ]
+    completed = [item for item in recorded if item[0] == "end"]
+    assert [item[2] for item in completed] == ["completed", "completed", "completed"]
+    assert completed[1][3]["memory_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_deduplicated_tool_activity_still_projects_tool_node(monkeypatch):
+    async def in_process(function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr("agent_activities.runtime.asyncio.to_thread", in_process)
+    run_id, account_id, conversation_id, session_id = (str(uuid4()) for _ in range(4))
+    operation_id = f"{run_id}:react:turn:1:tool:call-1"
+    recorded: list[tuple] = []
+
+    class Events:
+        async def trace_start(self, node_id, parent_id, name, node_type, metadata=None):
+            recorded.append(("start", node_id, name, metadata))
+
+        async def trace_end(self, node_id, status, metadata=None):
+            recorded.append(("end", node_id, status, metadata))
+
+        async def close(self):
+            recorded.append(("close",))
+
+    class EventFactory:
+        def for_run(self, _run_id):
+            return Events()
+
+    class Store:
+        def begin_tool_operation(self, _operation_id, _run_id):
+            return ToolOperationState(
+                "completed",
+                {
+                    "schema_version": AGENT_SCHEMA_VERSION,
+                    "operation_id": operation_id,
+                    "result_ref": f"agent-tool-result:{operation_id}",
+                    "transcript_version": 2,
+                    "display_summary": "done",
+                },
+            )
+
+    request = ToolExecutionInput(
+        schema_version=AGENT_SCHEMA_VERSION,
+        run_id=run_id,
+        account_id=account_id,
+        strategy="react",
+        transcript_id=f"agent-transcript:{run_id}",
+        transcript_version=1,
+        turn=1,
+        operation_id=operation_id,
+        lease_token=1,
+        tool_call=CompactToolCall("call-1", "read_tool", "decision#call-1"),
+        source=RunSource("chat", conversation_id),
+        context=RunContext(chat=ChatContext(conversation_id, session_id, None), surface="web"),
+    )
+    activities = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
+        store=Store(),
+        loader=None,
+        brain=None,
+        actions=object(),
+        event_factory=EventFactory(),
+        resource_prep=object(),
+        lifecycle=None,
+    )
+
+    result = await activities.tool_execution(request)
+
+    assert result.transcript_version == 2
+    assert recorded[0][0] == "start"
+    assert recorded[0][2] == "ToolExecution"
+    assert recorded[0][3]["tool_name"] == "read_tool"
+    assert recorded[1][0] == "end"
+    assert recorded[1][2:] == ("completed", {"deduplicated": True})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("commit_fails", [False, True])
+async def test_canonical_finalize_closes_root_only_after_authoritative_commit(commit_fails):
+    from agent_workflows.contracts import FinalizeResultInput
+
+    run_id = str(uuid4())
+    recorded = []
+    root_id = trace_node_id(run_id, "agent_execution")
+
+    class Events:
+        async def trace_start(self, *args, **kwargs):
+            recorded.append(("start", args[0]))
+
+        async def trace_end(self, node_id, status, metadata=None):
+            recorded.append(("end", node_id, status))
+
+        async def close(self):
+            recorded.append(("close",))
+
+    class Lifecycle:
+        def complete(self, value, content):
+            assert str(value) == run_id and content == "done"
+            if commit_fails:
+                raise RuntimeError("commit failed")
+            recorded.append(("committed",))
+            return SimpleNamespace(run_id=run_id, status="completed")
+
+    runtime = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(),
+        store=SimpleNamespace(result_content=lambda ref: "done"),
+        loader=None, brain=None, actions=None,
+        event_factory=SimpleNamespace(for_run=lambda value: Events()),
+        lifecycle=Lifecycle(), resource_prep=None,
+    )
+    request = FinalizeResultInput(AGENT_SCHEMA_VERSION, run_id, "result")
+    if commit_fails:
+        with pytest.raises(RuntimeError, match="commit failed"):
+            await runtime.finalize_agent_result(request)
+        assert ("end", root_id, "completed") not in recorded
+    else:
+        assert (await runtime.finalize_agent_result(request))["status"] == "completed"
+        assert recorded.index(("committed",)) < recorded.index(("end", root_id, "completed"))
+    assert recorded[-1] == ("close",)

@@ -1,0 +1,22 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/app/orchestration/document_worker.py", line 56, in <module>
+    main()
+  File "/app/orchestration/document_worker.py", line 52, in main
+    asyncio.run(main_async())
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 190, in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/app/orchestration/document_worker.py", line 31, in main_async
+    store = TenantFileReader(
+            ^^^^^^^^^^^^^^^^^
+  File "/app/storage/tenant_file_store.py", line 282, in __init__
+    raise FileStoreError("file store root is unavailable")
+storage.tenant_file_store.FileStoreError: file store root is unavailable

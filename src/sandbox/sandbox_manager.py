@@ -9,21 +9,44 @@ SandboxManager —— 沙箱池管理器，按会话创建 workspace 绑定的�
 
 每个会话一个 Sandbox，会话结束时销毁。
 """
-from typing import Dict, List, Optional, Any
-from threading import RLock
-from pathlib import Path
-import os
-import uuid
-import time
 import logging
+import os
+import time
+import uuid
+from pathlib import Path
+from threading import RLock
+from typing import Any, Dict, List, Optional
 
-from .sandbox import Sandbox
-from .nsjail import NsjailConfig, NsjailExecutor
-from sandbox.tools.registry import ToolRegistry
-from sandbox.tools.local import LOCAL_TOOL_FACTORIES
 from common.errors import SandboxNotFoundError
+from sandbox.tools.local import LOCAL_TOOL_FACTORIES
+from sandbox.tools.registry import ToolRegistry
+from sandbox.tools.routing import ToolRouter, routing_for
+from sandbox.tools.routing.context import ToolSelectionContextBuilder
+
+from .nsjail import NsjailConfig, NsjailExecutor
+from .sandbox import Sandbox
 
 logger = logging.getLogger("HpAgent.SandboxManager")
+
+_LOCAL_SIDE_EFFECT_CLASS = {
+    "fs_read": "read_only",
+    "Glob": "read_only",
+    "Grep": "read_only",
+    "list_reminders": "read_only",
+    "fs_write": "idempotent_write",
+    "fs_edit": "non_idempotent_write",
+    "Bash": "non_idempotent_write",
+    "create_reminder": "non_idempotent_write",
+    "cancel_reminder": "non_idempotent_write",
+}
+
+
+def _declare_local_side_effect(tool: Any, name: str) -> None:
+    metadata = dict(getattr(tool, "metadata", {}) or {})
+    metadata["side_effect_class"] = _LOCAL_SIDE_EFFECT_CLASS.get(
+        name, "unknown"
+    )
+    tool.metadata = metadata
 
 
 class SandboxManager:
@@ -43,10 +66,14 @@ class SandboxManager:
         mcp_manager: Any = None,
         skill_definitions: Optional[List[dict]] = None,
         retriever: Any = None,
-        max_merged_multiplier: float = 1.5,
-        per_query_min: int = 3,
         native_tools_enabled: bool = True,
         nsjail_enabled: bool = True,
+        host_bash_enabled: bool = False,
+        file_tools_enabled: bool = False,
+        file_output_publisher: Any = None,
+        file_conversion_provider: Any = None,
+        file_document_router: Any = None,
+        scheduler: Any = None,
     ):
         self._nsjail_config = nsjail_config or NsjailConfig()
         self._redis_cache = redis_cache
@@ -55,14 +82,50 @@ class SandboxManager:
         self._mcp_manager = mcp_manager
         self._skill_definitions = skill_definitions or []
         self._retriever = retriever
-        self._max_merged_multiplier = max_merged_multiplier
-        self._per_query_min = per_query_min
         self._native_tools_enabled = native_tools_enabled
         self._nsjail_enabled = nsjail_enabled
+        # FILE-P0-04: host Bash is an explicit capability, never implied by
+        # enabling otherwise-safe native tools.
+        self._host_bash_enabled = host_bash_enabled
+        self._file_tools_enabled = file_tools_enabled
+        self._file_output_publisher = file_output_publisher
+        self._file_conversion_provider = file_conversion_provider
+        self._file_document_router = file_document_router
+        self._scheduler = scheduler
 
         self._sandboxes: Dict[str, Sandbox] = {}
         self._session_to_sandbox: Dict[str, str] = {}
+        self._run_file_scopes: Dict[str, Any] = {}
+        self._session_active_file_run: Dict[str, str] = {}
         self._lock = RLock()
+
+    def bind_run_file_scope(self, run_id: str, session_id: str, scope: Any) -> None:
+        with self._lock:
+            if run_id in self._run_file_scopes or session_id in self._session_active_file_run:
+                raise RuntimeError("Run file scope is already bound")
+            self._run_file_scopes[run_id] = scope
+            self._session_active_file_run[session_id] = run_id
+
+    def configure_file_document_router(self, router: Any) -> None:
+        """Inject the Temporal client after worker composition, before Web sessions start."""
+        with self._lock:
+            self._file_document_router = router
+
+    def get_run_file_scope(self, run_id: str) -> Any | None:
+        with self._lock:
+            return self._run_file_scopes.get(run_id)
+
+    def get_active_run_file_scope(self, session_id: str) -> Any | None:
+        with self._lock:
+            run_id = self._session_active_file_run.get(session_id)
+            return self._run_file_scopes.get(run_id) if run_id else None
+
+    def unbind_run_file_scope(self, run_id: str) -> None:
+        with self._lock:
+            self._run_file_scopes.pop(run_id, None)
+            for session_id, active_run_id in tuple(self._session_active_file_run.items()):
+                if active_run_id == run_id:
+                    del self._session_active_file_run[session_id]
 
     def create_session_sandbox(
         self,
@@ -84,7 +147,7 @@ class SandboxManager:
             if session_id in self._session_to_sandbox:
                 return self._session_to_sandbox[session_id]
 
-        registry = ToolRegistry(retriever=self._retriever, per_query_min=self._per_query_min)
+        registry = ToolRegistry()
 
         # ── 提醒工具（无条件注册，不依赖 native_tools_enabled） ──
         reminder_keys = ("create_reminder", "list_reminders", "cancel_reminder")
@@ -96,24 +159,51 @@ class SandboxManager:
         }
         for name in reminder_keys:
             factory = LOCAL_TOOL_FACTORIES.get(name)
-            if factory is None:
+            if factory is None or self._scheduler is None:
                 continue
-            tool = factory(ctx)
-            registry.register(tool, category="native")
+            tool = factory(ctx, self._scheduler)
+            _declare_local_side_effect(tool, name)
+            registry.register(tool, category="native", routing=routing_for(tool, "native"))
 
         if self._native_tools_enabled:
             for name, factory in LOCAL_TOOL_FACTORIES.items():
                 if name in reminder_keys:
                     continue  # 提醒工具已在上方无条件注册
+                if name == "Bash" and not self._host_bash_enabled:
+                    continue
                 tool = factory(workspace_path)
-                registry.register(tool, category="native")
+                _declare_local_side_effect(tool, name)
+                registry.register(tool, category="native", routing=routing_for(tool, "native"))
             logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
         else:
             logger.debug("Session sandbox: native tools disabled")
 
+        if self._file_tools_enabled and ctx.get("channel_type") == "web":
+            from sandbox.tools.local.file_analysis import create_file_analysis_tools
+            from sandbox.tools.local.file_read import create_file_read_tools
+            from sandbox.tools.local.file_write import create_file_write_tools
+
+            scope_provider = lambda sid=session_id: self.get_active_run_file_scope(sid)
+            for tool in (
+                create_file_analysis_tools(scope_provider)
+                + create_file_read_tools(
+                    scope_provider,
+                    document_router=self._file_document_router,
+                    account_id_provider=lambda value=str(ctx.get("account_id", "")): value,
+                )
+            ):
+                registry.register(tool, category="native", routing=routing_for(tool, "native"))
+            if self._file_output_publisher is not None:
+                for tool in create_file_write_tools(
+                    scope_provider,
+                    self._file_output_publisher,
+                    self._file_conversion_provider,
+                ):
+                    registry.register(tool, category="native", routing=routing_for(tool, "native"))
+
         if self._mcp_manager:
             for tool in self._mcp_manager.get_cached_tools():
-                registry.register(tool, category="mcp")
+                registry.register(tool, category="mcp", routing=routing_for(tool, "mcp"))
             logger.debug("Session sandbox: %d MCP tools registered",
                          len(self._mcp_manager.get_cached_tools()))
 
@@ -121,7 +211,7 @@ class SandboxManager:
             from sandbox.tools.skills.engine import build_skill_tool_from_definition
             for skill_def in self._skill_definitions:
                 skill_tool = build_skill_tool_from_definition(skill_def, registry)
-                registry.register(skill_tool, category="skill")
+                registry.register(skill_tool, category="skill", routing=routing_for(skill_tool, "skill"))
             logger.debug("Session sandbox: %d skills registered", len(self._skill_definitions))
 
         registry.freeze()
@@ -145,12 +235,23 @@ class SandboxManager:
             nsjail_executor = NsjailExecutor(self._nsjail_config)
             logger.debug("Session sandbox: nsjail executor enabled")
 
+        scope_provider = lambda sid=session_id: self.get_active_run_file_scope(sid)
+        context_provider = ToolSelectionContextBuilder(
+            surface=str(ctx.get("channel_type") or "unknown"),
+            workspace_path=workspace_path, run_scope_provider=scope_provider,
+            available_services=(
+                frozenset({"gotenberg"})
+                if self._file_conversion_provider is not None else frozenset()
+            ),
+        )
+        router = ToolRouter(registry, self._retriever)
         sandbox = Sandbox(
             workspace_path=workspace_path,
             tool_registry=registry,
             sandbox_id=sandbox_id,
             nsjail_executor=nsjail_executor,
-            max_merged_multiplier=self._max_merged_multiplier,
+            tool_router=router,
+            selection_context_provider=context_provider,
         )
 
         with self._lock:
@@ -241,3 +342,13 @@ class SandboxManager:
                     if sbid == sid:
                         del self._session_to_sandbox[session_id]
             return len(to_destroy)
+
+    def close(self) -> None:
+        """Destroy all process-owned sandboxes and clear runtime bindings."""
+        with self._lock:
+            for sandbox in self._sandboxes.values():
+                sandbox.destroy()
+            self._sandboxes.clear()
+            self._session_to_sandbox.clear()
+            self._run_file_scopes.clear()
+            self._session_active_file_run.clear()

@@ -1,0 +1,59 @@
+{
+  "branch": "feat/hpagent-web",
+  "benchmark_date": "2026-08-18",
+  "temporal_workflow_worker": {
+    "trials": 50,
+    "recovery_successes": 50,
+    "duplicate_operation_trials": 0,
+    "duplicate_side_effect_trials": 0,
+    "recovery_latency_ms": {"p50": 10485.010, "p95": 10683.786}
+  },
+  "temporal_activity_worker": {
+    "trials": 20,
+    "safe_outcomes": 20,
+    "activity_retry_observed": 20,
+    "a3_uncertain_fail_closed": 10,
+    "a3_unsafe_duplicate_side_effects": 0,
+    "kill_to_terminal_latency_ms": {"p50": 3998.718, "p95": 4129.283}
+  },
+  "transactional_outbox": {
+    "accepted_requests": 30,
+    "eventually_processed_runs": 30,
+    "lost_runs": 0,
+    "duplicate_workflows": 0,
+    "backlog_drain_time_ms": 11916.932,
+    "eventual_completion_latency_ms": {"p50": 9718.245, "p95": 12664.568}
+  },
+  "agent_strategy": {
+    "model": "MiniMax-M3",
+    "max_turns": 5,
+    "recorded_slots": 60,
+    "environment_failure_records": 6,
+    "evaluable_pairs": 27,
+    "react": {
+      "successes": 15,
+      "evaluable_trials": 27,
+      "success_rate": 0.5556,
+      "average_latency_ms": 19301.717,
+      "p95_latency_ms": 32795.725,
+      "average_model_calls": 3.148,
+      "average_tool_calls": 2.778
+    },
+    "plan_and_execute": {
+      "successes": 14,
+      "evaluable_trials": 27,
+      "success_rate": 0.5185,
+      "average_latency_ms": 32410.734,
+      "p95_latency_ms": 55463.597,
+      "average_model_calls": 6.852,
+      "average_tool_calls": 3.296
+    },
+    "paired_outcomes": {
+      "both_success": 10,
+      "react_only_success": 5,
+      "plan_only_success": 4,
+      "both_failed": 8
+    },
+    "validity_note": "complex_008 through complex_010 are environment failures and are excluded from evaluable metrics"
+  }
+}

@@ -5,13 +5,19 @@ FROM python:3.11-slim
 ENV DEBIAN_FRONTEND=noninteractive
 
 # 替换 Debian APT 源为国内源（加速构建）
-RUN sed -i 's/deb.debian.org/mirror.iscas.ac.cn/g' /etc/apt/sources.list.d/debian.sources
+# RUN sed -i 's/deb.debian.org/mirror.iscas.ac.cn/g' /etc/apt/sources.list.d/debian.sources
 
 # 安装运行时依赖 + nsjail（OS 级沙箱隔离执行）+ Node.js（stock-sdk MCP）
-RUN apt-get update -o Acquire::Check-Valid-Until=false && apt-get install -y \
+RUN apt-get update \
+      -o Acquire::Check-Valid-Until=false \
+      -o Acquire::Retries=5 \
+    && apt-get install -y --fix-missing \
+      -o Acquire::Retries=5 \
+      --no-install-recommends \
     ca-certificates \
     curl \
     nodejs \
+    git \
     npm \
     && rm -rf /var/lib/apt/lists/*
 
@@ -28,7 +34,15 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+    pip install \
+    -r requirements.txt \
+    --index-url https://pypi.org/simple \
+    --timeout 120 \
+    --retries 10 
+
+# Browser binary is installed in the Worker image but Chromium is launched only
+# when static httpx+Trafilatura extraction is insufficient.
+RUN python -m playwright install --with-deps chromium
 
 COPY . .
 

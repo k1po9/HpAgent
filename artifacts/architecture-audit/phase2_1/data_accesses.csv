@@ -1,0 +1,743 @@
+﻿path,symbol,operation,resource,evidence,method
+scripts/benchmarks/agent_strategy/agent_strategy_benchmark.py,operation_metrics,FROM,agent_operations,scripts/benchmarks/agent_strategy/agent_strategy_benchmark.py:324,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,seed_identity,INSERT INTO,accounts,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:111,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,seed_identity,INSERT INTO,identity_bindings,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:113,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,ensure_benchmark_database,FROM,pg_database,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:80,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,reset_benchmark_data,FROM,pg_tables,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:94,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,load_initial_facts,FROM,workflow_executions,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:223,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,load_initial_facts,FROM,runs,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:223,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,load_initial_facts,JOIN,messages,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:223,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,load_initial_facts,JOIN,outbox_events,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:223,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,terminal_count,FROM,runs,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:298,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,terminal_count,FROM,outbox_events,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:301,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,load_final_facts,FROM,workflow_executions,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:342,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,load_final_facts,FROM,messages,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:342,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,load_final_facts,FROM,runs,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:342,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,load_final_facts,JOIN,outbox_events,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:342,SQL_LITERAL
+scripts/benchmarks/outbox/outbox_recovery_benchmark.py,load_final_facts,JOIN,workflow_executions,scripts/benchmarks/outbox/outbox_recovery_benchmark.py:342,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,reset_database,INSERT INTO,hpagent.accounts,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:106,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,create_account,INSERT INTO,hpagent.accounts,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:115,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,ensure_database,FROM,pg_database,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:77,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,reset_database,FROM,pg_tables,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:93,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,a3_facts,FROM,agent_operations,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:296,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,fake_counts,FROM,activity_attempts,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:267,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,a3_facts,FROM,side_effect_counter,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:305,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,fake_counts,FROM,sqlite_master,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:274,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,fake_counts,FROM,idempotent_business_state,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:279,SQL_LITERAL
+scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py,fake_counts,FROM,effect_invocations,scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py:284,SQL_LITERAL
+scripts/benchmarks/temporal/temporal_recovery_benchmark.py,counts,FROM,operations,scripts/benchmarks/temporal/temporal_recovery_benchmark.py:168,SQL_LITERAL
+scripts/benchmarks/temporal/temporal_recovery_benchmark.py,counts,FROM,attempts,scripts/benchmarks/temporal/temporal_recovery_benchmark.py:171,SQL_LITERAL
+scripts/benchmarks/temporal/temporal_recovery_benchmark.py,counts,FROM,side_effects,scripts/benchmarks/temporal/temporal_recovery_benchmark.py:173,SQL_LITERAL
+scripts/migrate_web_credentials.py,main,INSERT INTO,web_credentials,scripts/migrate_web_credentials.py:61,SQL_LITERAL
+scripts/migrate_web_credentials.py,main,FROM,identity_bindings,scripts/migrate_web_credentials.py:52,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.recent_runs,FROM,hpagent.runs,scripts/observability-viewer.py:246,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.recent_runs,JOIN,hpagent.messages,scripts/observability-viewer.py:246,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.snapshot,FROM,hpagent.runs,scripts/observability-viewer.py:275,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.durable_debug_snapshot,FROM,hpagent.agent_transcripts,scripts/observability-viewer.py:327,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.durable_debug_snapshot,FROM,hpagent.agent_operations,scripts/observability-viewer.py:339,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.snapshot,FROM,hpagent.messages,scripts/observability-viewer.py:281,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.snapshot,FROM,hpagent.sessions,scripts/observability-viewer.py:285,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.snapshot,FROM,hpagent.conversations,scripts/observability-viewer.py:288,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.snapshot,FROM,hpagent.workflow_executions,scripts/observability-viewer.py:291,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.snapshot,FROM,hpagent.outbox_events,scripts/observability-viewer.py:294,SQL_LITERAL
+scripts/observability-viewer.py,PostgresReader.durable_debug_snapshot,FROM,hpagent.agent_transcript_events,scripts/observability-viewer.py:334,SQL_LITERAL
+src/account/bootstrap.py,_insert_binding,INSERT INTO,identity_bindings,src/account/bootstrap.py:118,SQL_LITERAL
+src/account/bootstrap.py,_find_active_account,FROM,identity_bindings,src/account/bootstrap.py:102,SQL_LITERAL
+src/account/bootstrap.py,bootstrap_identity,INSERT INTO,accounts,src/account/bootstrap.py:85,SQL_LITERAL
+src/account/credentials.py,PostgresPasswordCredentialAdapter.verify_with_presence,FROM,identity_bindings,src/account/credentials.py:45,SQL_LITERAL
+src/account/credentials.py,PostgresPasswordCredentialAdapter.verify_with_presence,JOIN,accounts,src/account/credentials.py:45,SQL_LITERAL
+src/account/credentials.py,PostgresPasswordCredentialAdapter.verify_with_presence,JOIN,web_credentials,src/account/credentials.py:45,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consume_pending_qq_challenge,UPDATE,identity_binding_challenges,src/account/identity_binding_service.py:260,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consolidate_empty_web_account,UPDATE,web_auth_sessions,src/account/identity_binding_service.py:328,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consolidate_empty_web_account,UPDATE,identity_bindings,src/account/identity_binding_service.py:333,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consolidate_empty_web_account,UPDATE,identity_binding_challenges,src/account/identity_binding_service.py:338,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consolidate_empty_web_account,UPDATE,identity_binding_challenges,src/account/identity_binding_service.py:343,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consolidate_empty_web_account,UPDATE,accounts,src/account/identity_binding_service.py:348,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consume_pending_qq_challenge,INSERT INTO,identity_bindings,src/account/identity_binding_service.py:240,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService.consume_qq_challenge,UPDATE,identity_binding_challenges,src/account/identity_binding_service.py:190,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consume_pending_qq_challenge,FROM,accounts,src/account/identity_binding_service.py:217,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consume_pending_qq_challenge,FROM,identity_bindings,src/account/identity_binding_service.py:223,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consolidate_empty_web_account,FROM,identity_bindings,src/account/identity_binding_service.py:283,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consolidate_empty_web_account,FROM,identity_bindings,src/account/identity_binding_service.py:293,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService.create_qq_challenge,UPDATE,identity_binding_challenges,src/account/identity_binding_service.py:94,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService.create_qq_challenge,INSERT INTO,identity_binding_challenges,src/account/identity_binding_service.py:100,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService.get_qq_challenge,FROM,identity_binding_challenges,src/account/identity_binding_service.py:120,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService.get_identity_summary,FROM,identity_bindings,src/account/identity_binding_service.py:137,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService.consume_qq_challenge,FROM,identity_binding_challenges,src/account/identity_binding_service.py:168,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consume_pending_qq_challenge,FROM,identity_bindings,src/account/identity_binding_service.py:233,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consolidate_empty_web_account,FROM,web_credentials,src/account/identity_binding_service.py:300,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService._consume_pending_qq_challenge,FROM,accounts,src/account/identity_binding_service.py:249,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService.create_qq_challenge,FROM,accounts,src/account/identity_binding_service.py:87,SQL_LITERAL
+src/account/identity_binding_service.py,IdentityBindingService.consume_qq_challenge,FROM,identity_bindings,src/account/identity_binding_service.py:177,SQL_LITERAL
+src/account/postgres_account_service.py,PostgresAccountService._resolve_sync,FROM,identity_bindings,src/account/postgres_account_service.py:80,SQL_LITERAL
+src/account/postgres_account_service.py,PostgresAccountService._resolve_sync,JOIN,accounts,src/account/postgres_account_service.py:80,SQL_LITERAL
+src/account/postgres_account_service.py,PostgresAccountService.list_all_ids,FROM,accounts,src/account/postgres_account_service.py:112,SQL_LITERAL
+src/account/registration_service.py,RegistrationService.register,INSERT INTO,accounts,src/account/registration_service.py:57,SQL_LITERAL
+src/account/registration_service.py,RegistrationService.register,INSERT INTO,identity_bindings,src/account/registration_service.py:59,SQL_LITERAL
+src/account/registration_service.py,RegistrationService.register,INSERT INTO,web_credentials,src/account/registration_service.py:65,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore._complete_operation,UPDATE,agent_operations,src/agent_activities/store.py:378,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.acquire_lease,INSERT INTO,account_execution_leases,src/agent_activities/store.py:55,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.begin_operation,UPDATE,agent_operations,src/agent_activities/store.py:171,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.begin_tool_operation,UPDATE,agent_operations,src/agent_activities/store.py:206,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.fail_operation,UPDATE,agent_operations,src/agent_activities/store.py:217,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.mark_operation_uncertain,UPDATE,agent_operations,src/agent_activities/store.py:240,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.create_transcript,INSERT INTO,agent_transcripts,src/agent_activities/store.py:259,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.complete_operation_with_event,INSERT INTO,agent_transcript_events,src/agent_activities/store.py:353,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.complete_operation_with_event,UPDATE,agent_transcripts,src/agent_activities/store.py:358,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.begin_tool_operation,UPDATE,agent_operations,src/agent_activities/store.py:200,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.create_transcript,INSERT INTO,agent_transcript_events,src/agent_activities/store.py:276,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.create_transcript,UPDATE,agent_transcripts,src/agent_activities/store.py:281,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.acquire_lease,FROM,account_execution_leases,src/agent_activities/store.py:60,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.validate_and_renew_lease,UPDATE,account_execution_leases,src/agent_activities/store.py:86,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.release_lease,UPDATE,account_execution_leases,src/agent_activities/store.py:100,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.run_identity,FROM,runs,src/agent_activities/store.py:110,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.operation_result,FROM,agent_operations,src/agent_activities/store.py:121,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.tool_call_arguments,FROM,agent_operations,src/agent_activities/store.py:135,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.begin_operation,INSERT INTO,agent_operations,src/agent_activities/store.py:154,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.begin_operation,FROM,agent_operations,src/agent_activities/store.py:162,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.begin_tool_operation,INSERT INTO,agent_operations,src/agent_activities/store.py:182,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.begin_tool_operation,FROM,agent_operations,src/agent_activities/store.py:190,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.record_operation_intent,UPDATE,agent_operations,src/agent_activities/store.py:229,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.create_transcript,FROM,agent_transcripts,src/agent_activities/store.py:270,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.load_messages,FROM,agent_transcripts,src/agent_activities/store.py:299,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.load_messages,FROM,agent_transcript_events,src/agent_activities/store.py:305,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.complete_operation_with_event,FROM,agent_transcripts,src/agent_activities/store.py:334,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.result_content,FROM,agent_operations,src/agent_activities/store.py:386,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.acquire_lease,UPDATE,account_execution_leases,src/agent_activities/store.py:73,SQL_LITERAL
+src/agent_activities/store.py,AgentDataStore.complete_operation_with_event,FROM,agent_transcript_events,src/agent_activities/store.py:342,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService._finish,UPDATE,run_budgets,src/agent_execution/run_budget.py:218,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService.release,UPDATE,run_usage_ledger,src/agent_execution/run_budget.py:253,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService.release,UPDATE,run_budgets,src/agent_execution/run_budget.py:258,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService.reserve,UPDATE,run_budgets,src/agent_execution/run_budget.py:135,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService.reserve,UPDATE,run_budgets,src/agent_execution/run_budget.py:148,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService._finish,UPDATE,run_usage_ledger,src/agent_execution/run_budget.py:207,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService.reserve,FROM,run_budgets,src/agent_execution/run_budget.py:87,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService.reserve,FROM,run_usage_ledger,src/agent_execution/run_budget.py:94,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService.reserve,INSERT INTO,run_usage_ledger,src/agent_execution/run_budget.py:141,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService._finish,FROM,run_budgets,src/agent_execution/run_budget.py:178,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService._finish,FROM,run_usage_ledger,src/agent_execution/run_budget.py:185,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService.release,FROM,run_budgets,src/agent_execution/run_budget.py:233,SQL_LITERAL
+src/agent_execution/run_budget.py,RunBudgetService.release,FROM,run_usage_ledger,src/agent_execution/run_budget.py:238,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.finish_event,UPDATE,trace_events,src/agent_execution/tracing/repository.py:127,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.finish_event,UPDATE,trace_runs,src/agent_execution/tracing/repository.py:135,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.create_trace_run,INSERT INTO,trace_runs,src/agent_execution/tracing/repository.py:35,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.create_trace_run,FROM,runs,src/agent_execution/tracing/repository.py:35,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.start_event,INSERT INTO,trace_events,src/agent_execution/tracing/repository.py:63,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.finish_event,FROM,trace_events,src/agent_execution/tracing/repository.py:99,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.finish_event,JOIN,trace_runs,src/agent_execution/tracing/repository.py:99,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.finish_event,UPDATE,trace_events,src/agent_execution/tracing/repository.py:108,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.finish_event,FROM,trace_runs,src/agent_execution/tracing/repository.py:108,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.get_trace_tree,FROM,trace_runs,src/agent_execution/tracing/repository.py:145,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.get_trace_tree,FROM,trace_events,src/agent_execution/tracing/repository.py:151,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.create_trace_run,FROM,trace_runs,src/agent_execution/tracing/repository.py:44,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.start_event,FROM,trace_events,src/agent_execution/tracing/repository.py:80,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.finish_event,FROM,trace_events,src/agent_execution/tracing/repository.py:118,SQL_LITERAL
+src/agent_execution/tracing/repository.py,PostgresTraceRepository.finish_event,JOIN,trace_runs,src/agent_execution/tracing/repository.py:118,SQL_LITERAL
+src/agent_execution/web_adapters.py,PostgresWebRequestLoader.load.load_base,FROM,runs,src/agent_execution/web_adapters.py:55,SQL_LITERAL
+src/application/memory_retention.py,MemoryRetentionService.load_completed_run,FROM,runs,src/application/memory_retention.py:60,SQL_LITERAL
+src/application/memory_retention.py,MemoryRetentionService.load_completed_run,JOIN,messages,src/application/memory_retention.py:60,SQL_LITERAL
+src/application/memory_retention.py,MemoryRetentionService.load_completed_run,JOIN,messages,src/application/memory_retention.py:60,SQL_LITERAL
+src/application/session_archive.py,SessionArchiveService.archive,UPDATE,failed,src/application/session_archive.py:111,SQL_LITERAL
+src/document_activities/runtime.py,DocumentActivities._trace_parent,FROM,trace_events,src/document_activities/runtime.py:91,SQL_LITERAL
+src/document_activities/runtime.py,DocumentActivities._trace_parent,JOIN,trace_runs,src/document_activities/runtime.py:91,SQL_LITERAL
+src/document_activities/runtime.py,DocumentActivities._ledger_state,FROM,run_usage_ledger,src/document_activities/runtime.py:102,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.consume,UPDATE,file_action_approvals,src/file_domain/approvals.py:214,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.decide,UPDATE,file_action_approvals,src/file_domain/approvals.py:141,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.request,INSERT INTO,file_action_approvals,src/file_domain/approvals.py:88,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.list_for_run,FROM,file_action_approvals,src/file_domain/approvals.py:106,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.decide,FROM,file_action_approvals,src/file_domain/approvals.py:135,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.decide,UPDATE,file_action_approvals,src/file_domain/approvals.py:147,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.authoritative_status,FROM,file_action_approvals,src/file_domain/approvals.py:162,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.cancel,UPDATE,file_action_approvals,src/file_domain/approvals.py:181,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.consume,FROM,file_action_approvals,src/file_domain/approvals.py:199,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.authoritative_status,UPDATE,file_action_approvals,src/file_domain/approvals.py:170,SQL_LITERAL
+src/file_domain/approvals.py,FileActionApprovalService.list_for_run,FROM,runs,src/file_domain/approvals.py:110,SQL_LITERAL
+src/file_domain/persistence.py,NormalizedDocumentRepository.find_by_operation,FROM,normalized_documents,src/file_domain/persistence.py:17,SQL_LITERAL
+src/file_domain/persistence.py,NormalizedDocumentRepository.insert,INSERT INTO,normalized_documents,src/file_domain/persistence.py:31,SQL_LITERAL
+src/file_domain/persistent.py,PersistentFileRepository.create,INSERT INTO,persistent_file_revisions,src/file_domain/persistent.py:88,SQL_LITERAL
+src/file_domain/persistent.py,PersistentFileRepository.advance,INSERT INTO,persistent_file_revisions,src/file_domain/persistent.py:119,SQL_LITERAL
+src/file_domain/persistent.py,PersistentFileRepository.get,FROM,persistent_file_destinations,src/file_domain/persistent.py:59,SQL_LITERAL
+src/file_domain/persistent.py,PersistentFileRepository.create,FROM,persistent_file_destinations,src/file_domain/persistent.py:71,SQL_LITERAL
+src/file_domain/persistent.py,PersistentFileRepository.create,INSERT INTO,persistent_file_destinations,src/file_domain/persistent.py:81,SQL_LITERAL
+src/file_domain/persistent.py,PersistentFileRepository.advance,UPDATE,persistent_file_destinations,src/file_domain/persistent.py:102,SQL_LITERAL
+src/file_domain/persistent.py,PersistentWebFileService._source,FROM,stored_files,src/file_domain/persistent.py:261,SQL_LITERAL
+src/file_domain/persistent.py,PersistentWebFileService._source,JOIN,run_files,src/file_domain/persistent.py:261,SQL_LITERAL
+src/file_domain/persistent.py,PersistentWebFileService._source,JOIN,runs,src/file_domain/persistent.py:261,SQL_LITERAL
+src/file_domain/persistent.py,PersistentWebFileService._approval,FROM,file_action_approvals,src/file_domain/persistent.py:274,SQL_LITERAL
+src/file_domain/persistent.py,PersistentFileRepository.advance,FROM,persistent_file_destinations,src/file_domain/persistent.py:111,SQL_LITERAL
+src/file_runtime/output.py,OutputPublisher.publish,INSERT INTO,run_files,src/file_runtime/output.py:85,SQL_LITERAL
+src/file_runtime/output.py,OutputPublisher._existing_in_uow,FROM,run_files,src/file_runtime/output.py:125,SQL_LITERAL
+src/file_runtime/output.py,OutputPublisher._existing_in_uow,JOIN,stored_files,src/file_runtime/output.py:125,SQL_LITERAL
+src/file_runtime/output.py,OutputPublisher.publish,FROM,runs,src/file_runtime/output.py:61,SQL_LITERAL
+src/file_runtime/output.py,OutputPublisher.publish,INSERT INTO,stored_files,src/file_runtime/output.py:76,SQL_LITERAL
+src/file_runtime/output.py,OutputPublisher.publish,FROM,stored_files,src/file_runtime/output.py:91,SQL_LITERAL
+src/orchestration/research_schedule.py,ResearchScheduleManager._mark_applied,UPDATE,tasks,src/orchestration/research_schedule.py:51,SQL_LITERAL
+src/orchestration/research_schedule.py,ResearchScheduleManager._pending,FROM,tasks,src/orchestration/research_schedule.py:41,SQL_LITERAL
+src/persistence/migrate.py,migrate,FROM,hpagent.schema_migrations,src/persistence/migrate.py:31,SQL_LITERAL
+src/persistence/migrate.py,migrate,INSERT INTO,hpagent.schema_migrations,src/persistence/migrate.py:38,SQL_LITERAL
+src/persistence/migrate.py,migrate,UPDATE,hpagent.schema_migrations,src/persistence/migrate.py:44,SQL_LITERAL
+src/persistence/repositories.py,ConversationRepository.create,INSERT INTO,conversations,src/persistence/repositories.py:50,SQL_LITERAL
+src/persistence/repositories.py,MessageRepository.insert_user,INSERT INTO,messages,src/persistence/repositories.py:88,SQL_LITERAL
+src/persistence/repositories.py,MessageRepository.insert_assistant,INSERT INTO,messages,src/persistence/repositories.py:98,SQL_LITERAL
+src/persistence/repositories.py,MessageRepository.set_terminal,UPDATE,messages,src/persistence/repositories.py:107,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.insert,INSERT INTO,runs,src/persistence/repositories.py:176,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.set_cancelling,UPDATE,runs,src/persistence/repositories.py:185,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.set_terminal,UPDATE,runs,src/persistence/repositories.py:195,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.insert_upload,INSERT INTO,stored_files,src/persistence/repositories.py:223,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.mark_rejected,UPDATE,stored_files,src/persistence/repositories.py:254,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.copy_retry_inputs,INSERT INTO,run_files,src/persistence/repositories.py:322,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.copy_retry_inputs,FROM,run_files,src/persistence/repositories.py:322,SQL_LITERAL
+src/persistence/repositories.py,RunBudgetRepository.create_snapshot,INSERT INTO,run_budgets,src/persistence/repositories.py:352,SQL_LITERAL
+src/persistence/repositories.py,SessionRepository.get_or_create_active,INSERT INTO,sessions,src/persistence/repositories.py:388,SQL_LITERAL
+src/persistence/repositories.py,SessionRepository.create_successor,INSERT INTO,sessions,src/persistence/repositories.py:418,SQL_LITERAL
+src/persistence/repositories.py,IdempotencyRepository.complete,UPDATE,idempotency_commands,src/persistence/repositories.py:457,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.enqueue,INSERT INTO,outbox_events,src/persistence/repositories.py:470,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.recover_expired,UPDATE,outbox_events,src/persistence/repositories.py:498,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.mark_deleted_if_unbound,UPDATE,stored_files,src/persistence/repositories.py:275,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.bind_inputs,UPDATE,stored_files,src/persistence/repositories.py:301,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.bind_inputs,INSERT INTO,message_files,src/persistence/repositories.py:308,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.bind_inputs,INSERT INTO,run_files,src/persistence/repositories.py:313,SQL_LITERAL
+src/persistence/repositories.py,ConversationRepository.lock_active,FROM,conversations,src/persistence/repositories.py:32,SQL_LITERAL
+src/persistence/repositories.py,MessageRepository.find_initial_by_client_request,FROM,messages,src/persistence/repositories.py:72,SQL_LITERAL
+src/persistence/repositories.py,MessageRepository.find_initial_by_client_request,JOIN,runs,src/persistence/repositories.py:72,SQL_LITERAL
+src/persistence/repositories.py,MessageRepository.find_initial_by_client_request,JOIN,messages,src/persistence/repositories.py:72,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.discover_conversation,FROM,runs,src/persistence/repositories.py:148,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.direct_retry,FROM,runs,src/persistence/repositories.py:162,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.direct_retry,JOIN,messages,src/persistence/repositories.py:162,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.mark_deleted_if_unbound,FROM,message_files,src/persistence/repositories.py:267,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.mark_deleted_if_unbound,FROM,run_files,src/persistence/repositories.py:267,SQL_LITERAL
+src/persistence/repositories.py,SessionRepository.transition_active,UPDATE,sessions,src/persistence/repositories.py:400,SQL_LITERAL
+src/persistence/repositories.py,IdempotencyRepository.claim,INSERT INTO,idempotency_commands,src/persistence/repositories.py:438,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.claim_batch,FROM,outbox_events,src/persistence/repositories.py:481,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.claim_batch,UPDATE,SKIP,src/persistence/repositories.py:481,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.claim_batch,UPDATE,outbox_events,src/persistence/repositories.py:481,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.claim_batch,FROM,candidates,src/persistence/repositories.py:481,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.lock_owned_event,FROM,outbox_events,src/persistence/repositories.py:516,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.discover_context,FROM,outbox_events,src/persistence/repositories.py:523,SQL_LITERAL
+src/persistence/repositories.py,AccountRepository.is_active,FROM,accounts,src/persistence/repositories.py:15,SQL_LITERAL
+src/persistence/repositories.py,MessageRepository.context_messages,FROM,messages,src/persistence/repositories.py:61,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.context_subject,FROM,runs,src/persistence/repositories.py:131,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.context_subject,JOIN,conversations,src/persistence/repositories.py:131,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.context_subject,JOIN,sessions,src/persistence/repositories.py:131,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.context_subject,JOIN,messages,src/persistence/repositories.py:131,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.has_active,FROM,runs,src/persistence/repositories.py:155,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.list_ready_for_run,FROM,run_files,src/persistence/repositories.py:208,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.list_ready_for_run,JOIN,stored_files,src/persistence/repositories.py:208,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.mark_ready,UPDATE,stored_files,src/persistence/repositories.py:244,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.lock_ready_inputs,FROM,stored_files,src/persistence/repositories.py:288,SQL_LITERAL
+src/persistence/repositories.py,SessionRepository.get_active,FROM,sessions,src/persistence/repositories.py:365,SQL_LITERAL
+src/persistence/repositories.py,SessionRepository.get_or_create_active,FROM,sessions,src/persistence/repositories.py:383,SQL_LITERAL
+src/persistence/repositories.py,SessionRepository.create_successor,FROM,sessions,src/persistence/repositories.py:413,SQL_LITERAL
+src/persistence/repositories.py,WorkflowExecutionRepository.has_current,FROM,workflow_executions,src/persistence/repositories.py:428,SQL_LITERAL
+src/persistence/repositories.py,IdempotencyRepository.claim,FROM,idempotency_commands,src/persistence/repositories.py:447,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.mark_processed,UPDATE,outbox_events,src/persistence/repositories.py:508,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.mark_retryable_failure,UPDATE,outbox_events,src/persistence/repositories.py:533,SQL_LITERAL
+src/persistence/repositories.py,OutboxRepository.mark_dead_letter,UPDATE,outbox_events,src/persistence/repositories.py:545,SQL_LITERAL
+src/persistence/repositories.py,ConversationRepository.get_for_account,FROM,conversations,src/persistence/repositories.py:26,SQL_LITERAL
+src/persistence/repositories.py,ConversationRepository.allocate_messages,UPDATE,conversations,src/persistence/repositories.py:41,SQL_LITERAL
+src/persistence/repositories.py,RunRepository.get_for_account,FROM,runs,src/persistence/repositories.py:118,SQL_LITERAL
+src/persistence/repositories.py,FileRepository.get_for_account,FROM,stored_files,src/persistence/repositories.py:235,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._rank,UPDATE,source_records,src/research_activities/runtime.py:357,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._complete,UPDATE,workflow_executions,src/research_activities/runtime.py:755,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._fail,UPDATE,workflow_executions,src/research_activities/runtime.py:794,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._prepare,UPDATE,runs,src/research_activities/runtime.py:212,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._complete,UPDATE,runs,src/research_activities/runtime.py:749,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._fail,UPDATE,runs,src/research_activities/runtime.py:786,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._budget_ledger_entry,FROM,run_usage_ledger,src/research_activities/runtime.py:136,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._prepare,FROM,runs,src/research_activities/runtime.py:206,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._create_plan,FROM,tasks,src/research_activities/runtime.py:245,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._create_plan,JOIN,runs,src/research_activities/runtime.py:245,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._extract_evidence,FROM,source_records,src/research_activities/runtime.py:486,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._extract_evidence,JOIN,source_contents,src/research_activities/runtime.py:486,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._extract_evidence,JOIN,evidence_items,src/research_activities/runtime.py:486,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._assess_corroboration,FROM,evidence_items,src/research_activities/runtime.py:542,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._analyze_gaps,FROM,evidence_items,src/research_activities/runtime.py:567,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._publish,FROM,runs,src/research_activities/runtime.py:685,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._publish,JOIN,tasks,src/research_activities/runtime.py:685,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._publish,FROM,research_claims,src/research_activities/runtime.py:689,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._publish,JOIN,research_citations,src/research_activities/runtime.py:689,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._publish,JOIN,evidence_items,src/research_activities/runtime.py:689,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._publish,JOIN,source_records,src/research_activities/runtime.py:689,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._complete,FROM,runs,src/research_activities/runtime.py:738,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._fail,FROM,runs,src/research_activities/runtime.py:775,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._discover,FROM,source_records,src/research_activities/runtime.py:300,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._discover,FROM,source_records,src/research_activities/runtime.py:306,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._rank,FROM,source_records,src/research_activities/runtime.py:365,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._fetch,FROM,source_records,src/research_activities/runtime.py:384,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._normalized_count,FROM,source_records,src/research_activities/runtime.py:464,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._extract_evidence,FROM,evidence_items,src/research_activities/runtime.py:522,SQL_LITERAL
+src/research_activities/runtime.py,ResearchActivities._synthesize,FROM,research_claims,src/research_activities/runtime.py:604,SQL_LITERAL
+src/research_domain/persistence.py,TaskRepository.insert,INSERT INTO,tasks,src/research_domain/persistence.py:36,SQL_LITERAL
+src/research_domain/persistence.py,TaskRepository.mark_triggered,UPDATE,tasks,src/research_domain/persistence.py:55,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.create_plan,INSERT INTO,research_plans,src/research_domain/persistence.py:91,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.store_content,INSERT INTO,source_contents,src/research_domain/persistence.py:193,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.store_content,UPDATE,source_records,src/research_domain/persistence.py:198,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.mark_fetch_failed,UPDATE,source_records,src/research_domain/persistence.py:220,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.save_stage_result,INSERT INTO,research_stage_results,src/research_domain/persistence.py:268,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.start_iteration,INSERT INTO,research_iterations,src/research_domain/persistence.py:275,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.save_corroboration,UPDATE,research_iterations,src/research_domain/persistence.py:284,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.save_gap_analysis,UPDATE,research_iterations,src/research_domain/persistence.py:299,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.save_report,INSERT INTO,research_reports,src/research_domain/persistence.py:321,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.verify_citations,UPDATE,research_reports,src/research_domain/persistence.py:420,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.compare_previous_report,UPDATE,research_reports,src/research_domain/persistence.py:518,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.store_content,UPDATE,source_records,src/research_domain/persistence.py:186,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.save_report,INSERT INTO,research_claims,src/research_domain/persistence.py:331,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.verify_citations,UPDATE,research_citations,src/research_domain/persistence.py:397,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.verify_citations,UPDATE,research_claims,src/research_domain/persistence.py:416,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.load_plan,FROM,research_plans,src/research_domain/persistence.py:98,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.load_plan,JOIN,tasks,src/research_domain/persistence.py:98,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.store_content,FROM,source_records,src/research_domain/persistence.py:174,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.store_content,FROM,source_records,src/research_domain/persistence.py:179,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.add_evidence,INSERT INTO,evidence_items,src/research_domain/persistence.py:237,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.stage_result,FROM,research_stage_results,src/research_domain/persistence.py:255,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.load_report,FROM,research_reports,src/research_domain/persistence.py:316,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.save_report,INSERT INTO,research_citations,src/research_domain/persistence.py:345,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.verify_citations,FROM,research_citations,src/research_domain/persistence.py:360,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.verify_citations,JOIN,evidence_items,src/research_domain/persistence.py:360,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.verify_citations,JOIN,research_claims,src/research_domain/persistence.py:360,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.verify_citations,JOIN,source_records,src/research_domain/persistence.py:360,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.verify_citations,JOIN,source_contents,src/research_domain/persistence.py:360,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.verify_citations,FROM,research_claims,src/research_domain/persistence.py:403,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.compare_previous_report,FROM,runs,src/research_domain/persistence.py:431,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.compare_previous_report,FROM,research_reports,src/research_domain/persistence.py:436,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.compare_previous_report,JOIN,runs,src/research_domain/persistence.py:436,SQL_LITERAL
+src/research_domain/persistence.py,TaskRepository.lock_active,FROM,tasks,src/research_domain/persistence.py:48,SQL_LITERAL
+src/research_domain/persistence.py,TaskRepository.update_schedule,UPDATE,tasks,src/research_domain/persistence.py:73,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.create_plan,FROM,runs,src/research_domain/persistence.py:87,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.add_candidates,FROM,runs,src/research_domain/persistence.py:116,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.add_candidates,INSERT INTO,source_records,src/research_domain/persistence.py:124,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.evidence_sources,FROM,source_records,src/research_domain/persistence.py:228,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.evidence_sources,JOIN,source_contents,src/research_domain/persistence.py:228,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.evidence_for_synthesis,FROM,evidence_items,src/research_domain/persistence.py:307,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.evidence_for_synthesis,JOIN,source_records,src/research_domain/persistence.py:307,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.compare_previous_report.snapshot,FROM,research_claims,src/research_domain/persistence.py:444,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.compare_previous_report.snapshot,JOIN,research_citations,src/research_domain/persistence.py:444,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.compare_previous_report.snapshot,JOIN,evidence_items,src/research_domain/persistence.py:444,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.compare_previous_report.snapshot,JOIN,source_records,src/research_domain/persistence.py:444,SQL_LITERAL
+src/research_domain/persistence.py,ResearchRepository.fetch_candidates,FROM,source_records,src/research_domain/persistence.py:158,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.trigger_task,INSERT INTO,runs,src/research_domain/services.py:126,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.trigger_task,INSERT INTO,runs,src/research_domain/services.py:151,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.trigger_task,FROM,runs,src/research_domain/services.py:115,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.get_run,FROM,runs,src/research_domain/services.py:256,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.get_run,JOIN,research_reports,src/research_domain/services.py:256,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.list_evidence,FROM,evidence_items,src/research_domain/services.py:279,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.list_evidence,JOIN,source_records,src/research_domain/services.py:279,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.list_evidence,JOIN,runs,src/research_domain/services.py:279,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.get_report,FROM,research_reports,src/research_domain/services.py:303,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.get_report,JOIN,runs,src/research_domain/services.py:303,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.trigger_task,FROM,runs,src/research_domain/services.py:137,SQL_LITERAL
+src/research_domain/services.py,ResearchTaskCommandService.list_evidence,FROM,runs,src/research_domain/services.py:289,SQL_LITERAL
+src/session/db.py,WorkspaceDB.upsert_user,INSERT INTO,users,src/session/db.py:71,SQL_LITERAL
+src/session/db.py,WorkspaceDB.insert_session,INSERT INTO,sessions,src/session/db.py:87,SQL_LITERAL
+src/session/db.py,WorkspaceDB.complete_session,UPDATE,sessions,src/session/db.py:147,SQL_LITERAL
+src/session/db.py,WorkspaceDB.get_session,FROM,sessions,src/session/db.py:117,SQL_LITERAL
+src/web_api/auth.py,AuthService.login,UPDATE,web_auth_sessions,src/web_api/auth.py:81,SQL_LITERAL
+src/web_api/auth.py,AuthService.login,INSERT INTO,web_auth_sessions,src/web_api/auth.py:91,SQL_LITERAL
+src/web_api/auth.py,AuthService.authenticate,UPDATE,web_auth_sessions,src/web_api/auth.py:138,SQL_LITERAL
+src/web_api/auth.py,AuthService.revoke,UPDATE,web_auth_sessions,src/web_api/auth.py:156,SQL_LITERAL
+src/web_api/auth.py,AuthService.login,FROM,identity_bindings,src/web_api/auth.py:71,SQL_LITERAL
+src/web_api/auth.py,AuthService.login,JOIN,accounts,src/web_api/auth.py:71,SQL_LITERAL
+src/web_api/auth.py,AuthService.login,UPDATE,OF,src/web_api/auth.py:71,SQL_LITERAL
+src/web_api/auth.py,AuthService.authenticate,FROM,web_auth_sessions,src/web_api/auth.py:120,SQL_LITERAL
+src/web_api/auth.py,AuthService.authenticate,JOIN,accounts,src/web_api/auth.py:120,SQL_LITERAL
+src/web_api/auth.py,AuthService.authenticate,JOIN,identity_bindings,src/web_api/auth.py:120,SQL_LITERAL
+src/web_api/auth.py,AuthService.authenticate,UPDATE,OF,src/web_api/auth.py:120,SQL_LITERAL
+src/web_api/fake_executor.py,FakeRunExecutor._handle,FROM,runs,src/web_api/fake_executor.py:81,SQL_LITERAL
+src/web_api/fake_executor.py,FakeRunExecutor._stream_online,FROM,messages,src/web_api/fake_executor.py:121,SQL_LITERAL
+src/web_api/queries.py,QueryService._message_files,FROM,message_files,src/web_api/queries.py:344,SQL_LITERAL
+src/web_api/queries.py,QueryService._message_files,JOIN,stored_files,src/web_api/queries.py:344,SQL_LITERAL
+src/web_api/queries.py,QueryService.get_conversation,FROM,conversations,src/web_api/queries.py:140,SQL_LITERAL
+src/web_api/queries.py,QueryService.get_conversation,FROM,runs,src/web_api/queries.py:147,SQL_LITERAL
+src/web_api/queries.py,QueryService.get_conversation,JOIN,messages,src/web_api/queries.py:147,SQL_LITERAL
+src/web_api/queries.py,QueryService.list_messages,FROM,conversations,src/web_api/queries.py:232,SQL_LITERAL
+src/web_api/queries.py,QueryService.get_run,FROM,runs,src/web_api/queries.py:283,SQL_LITERAL
+src/web_api/queries.py,QueryService.get_run,JOIN,messages,src/web_api/queries.py:283,SQL_LITERAL
+src/web_api/queries.py,QueryService.rename_conversation,UPDATE,conversations,src/web_api/queries.py:300,SQL_LITERAL
+src/web_api/queries.py,QueryService.rename_conversation,FROM,conversations,src/web_api/queries.py:308,SQL_LITERAL
+src/web_api/queries.py,QueryService.list_conversations,FROM,conversations,src/web_api/queries.py:187,SQL_LITERAL
+src/web_api/queries.py,QueryService.list_messages,FROM,messages,src/web_api/queries.py:246,SQL_LITERAL
+src/web_api/sse.py,load_run_snapshot,FROM,runs,src/web_api/sse.py:64,SQL_LITERAL
+src/web_api/sse.py,load_run_snapshot,JOIN,messages,src/web_api/sse.py:64,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._prepare,UPDATE,artifact_versions,src/web_artifacts/build.py:62,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._complete,UPDATE,artifact_versions,src/web_artifacts/build.py:74,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._complete,UPDATE,artifacts,src/web_artifacts/build.py:79,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._complete,FROM,artifact_versions,src/web_artifacts/build.py:79,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._fail,UPDATE,artifact_versions,src/web_artifacts/build.py:86,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._prepare,FROM,artifact_versions,src/web_artifacts/build.py:49,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._prepare,JOIN,artifacts,src/web_artifacts/build.py:49,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._prepare,JOIN,messages,src/web_artifacts/build.py:49,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._prepare,JOIN,artifact_versions,src/web_artifacts/build.py:49,SQL_LITERAL
+src/web_artifacts/build.py,ArtifactBuildService._prepare,UPDATE,OF,src/web_artifacts/build.py:49,SQL_LITERAL
+src/web_artifacts/outbox.py,ArtifactOutboxService.fail_version,UPDATE,artifact_versions,src/web_artifacts/outbox.py:57,SQL_LITERAL
+src/web_artifacts/outbox.py,ArtifactOutboxService.recover_expired,UPDATE,artifact_outbox_events,src/web_artifacts/outbox.py:68,SQL_LITERAL
+src/web_artifacts/outbox.py,ArtifactOutboxService.claim,FROM,artifact_outbox_events,src/web_artifacts/outbox.py:17,SQL_LITERAL
+src/web_artifacts/outbox.py,ArtifactOutboxService.claim,UPDATE,SKIP,src/web_artifacts/outbox.py:17,SQL_LITERAL
+src/web_artifacts/outbox.py,ArtifactOutboxService.claim,UPDATE,artifact_outbox_events,src/web_artifacts/outbox.py:17,SQL_LITERAL
+src/web_artifacts/outbox.py,ArtifactOutboxService.claim,FROM,candidates,src/web_artifacts/outbox.py:17,SQL_LITERAL
+src/web_artifacts/outbox.py,ArtifactOutboxService.mark_processed,UPDATE,artifact_outbox_events,src/web_artifacts/outbox.py:28,SQL_LITERAL
+src/web_artifacts/outbox.py,ArtifactOutboxService.retry,UPDATE,artifact_outbox_events,src/web_artifacts/outbox.py:38,SQL_LITERAL
+src/web_artifacts/outbox.py,ArtifactOutboxService.dead_letter,UPDATE,artifact_outbox_events,src/web_artifacts/outbox.py:48,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService._enqueue,INSERT INTO,artifact_outbox_events,src/web_artifacts/services.py:210,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.create_artifact,INSERT INTO,artifacts,src/web_artifacts/services.py:53,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.create_artifact,INSERT INTO,artifact_versions,src/web_artifacts/services.py:58,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.create_version,INSERT INTO,artifact_versions,src/web_artifacts/services.py:100,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService._detail,FROM,artifact_versions,src/web_artifacts/services.py:158,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService._artifact_row,FROM,artifacts,src/web_artifacts/services.py:167,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService._version_row,FROM,artifact_versions,src/web_artifacts/services.py:177,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.create_artifact,FROM,messages,src/web_artifacts/services.py:42,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.create_version,FROM,artifacts,src/web_artifacts/services.py:80,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.create_version,FROM,artifact_versions,src/web_artifacts/services.py:88,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.create_version,FROM,artifact_versions,src/web_artifacts/services.py:93,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.list_for_message,FROM,messages,src/web_artifacts/services.py:116,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.list_for_message,FROM,artifacts,src/web_artifacts/services.py:122,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.list_versions,FROM,artifact_versions,src/web_artifacts/services.py:143,SQL_LITERAL
+src/web_artifacts/services.py,ArtifactService.list_for_message,FROM,artifact_versions,src/web_artifacts/services.py:128,SQL_LITERAL
+src/web_domain/file_cleanup.py,FileCleanupService._complete,UPDATE,stored_files,src/web_domain/file_cleanup.py:72,SQL_LITERAL
+src/web_domain/file_cleanup.py,FileCleanupService._claim,UPDATE,stored_files,src/web_domain/file_cleanup.py:62,SQL_LITERAL
+src/web_domain/file_cleanup.py,FileCleanupService._claim,FROM,stored_files,src/web_domain/file_cleanup.py:50,SQL_LITERAL
+src/web_domain/file_cleanup.py,FileCleanupService._claim,FROM,message_files,src/web_domain/file_cleanup.py:50,SQL_LITERAL
+src/web_domain/file_cleanup.py,FileCleanupService._claim,FROM,run_files,src/web_domain/file_cleanup.py:50,SQL_LITERAL
+src/web_domain/file_cleanup.py,FileCleanupService._claim,UPDATE,SKIP,src/web_domain/file_cleanup.py:50,SQL_LITERAL
+src/web_domain/file_services.py,FileService.lineage,FROM,stored_files,src/web_domain/file_services.py:202,SQL_LITERAL
+src/web_domain/file_services.py,FileService.lineage,FROM,stored_files,src/web_domain/file_services.py:202,SQL_LITERAL
+src/web_domain/file_services.py,FileService.lineage,JOIN,lineage,src/web_domain/file_services.py:202,SQL_LITERAL
+src/web_domain/file_services.py,FileService.lineage,FROM,lineage,src/web_domain/file_services.py:202,SQL_LITERAL
+src/web_domain/file_services.py,FileService._output_is_visible,FROM,message_files,src/web_domain/file_services.py:232,SQL_LITERAL
+src/web_domain/lifecycle.py,WebRunLifecycleService.prepare,UPDATE,workflow_executions,src/web_domain/lifecycle.py:70,SQL_LITERAL
+src/web_domain/lifecycle.py,WebRunLifecycleService.prepare,UPDATE,runs,src/web_domain/lifecycle.py:77,SQL_LITERAL
+src/web_domain/lifecycle.py,WebRunLifecycleService.prepare,FROM,runs,src/web_domain/lifecycle.py:53,SQL_LITERAL
+src/web_domain/lifecycle.py,WebRunLifecycleService._authority,FROM,runs,src/web_domain/lifecycle.py:139,SQL_LITERAL
+src/web_domain/lifecycle.py,WebRunLifecycleService._account_for,FROM,runs,src/web_domain/lifecycle.py:147,SQL_LITERAL
+src/web_domain/lifecycle.py,WebRunLifecycleService.prepare,FROM,workflow_executions,src/web_domain/lifecycle.py:60,SQL_LITERAL
+src/web_domain/outbox.py,OutboxService.dead_letter,UPDATE,runs,src/web_domain/outbox.py:126,SQL_LITERAL
+src/web_domain/run_usage_projection.py,load_run_budget_projection,FROM,run_budgets,src/web_domain/run_usage_projection.py:96,SQL_LITERAL
+src/web_domain/run_usage_projection.py,load_run_budget_projection,FROM,run_usage_ledger,src/web_domain/run_usage_projection.py:99,SQL_LITERAL
+src/web_domain/services.py,CommandService.complete_run,INSERT INTO,message_files,src/web_domain/services.py:384,SQL_LITERAL
+src/web_domain/services.py,CommandService.complete_run,FROM,run_files,src/web_domain/services.py:384,SQL_LITERAL
+src/web_domain/services.py,CommandService.complete_run,JOIN,messages,src/web_domain/services.py:384,SQL_LITERAL
+src/web_domain/services.py,CommandService._send_result_for_run,FROM,messages,src/web_domain/services.py:469,SQL_LITERAL
+src/web_domain/services.py,CommandService._send_result_for_run,JOIN,runs,src/web_domain/services.py:469,SQL_LITERAL
+src/web_domain/services.py,CommandService._snapshot_for_run,FROM,runs,src/web_domain/services.py:499,SQL_LITERAL
+src/web_domain/services.py,CommandService._snapshot_for_run,FROM,messages,src/web_domain/services.py:501,SQL_LITERAL
+src/web_domain/services.py,CommandService._message_file_dtos,FROM,message_files,src/web_domain/services.py:561,SQL_LITERAL
+src/web_domain/services.py,CommandService._message_file_dtos,JOIN,stored_files,src/web_domain/services.py:561,SQL_LITERAL
+src/web_domain/services.py,CommandService.create_conversation,FROM,conversations,src/web_domain/services.py:119,SQL_LITERAL
+src/web_domain/services.py,CommandService.start_run,UPDATE,runs,src/web_domain/services.py:364,SQL_LITERAL
+src/web_domain/services.py,CommandService.cancel_run,UPDATE,file_action_approvals,src/web_domain/services.py:250,SQL_LITERAL
+src/web_domain/services.py,CommandService.send_message,FROM,stored_files,src/web_domain/services.py:174,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.prepare_start,INSERT INTO,workflow_executions,src/web_domain/workflow_execution.py:42,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.record_started,UPDATE,workflow_executions,src/web_domain/workflow_execution.py:58,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.record_cancel_requested,UPDATE,workflow_executions,src/web_domain/workflow_execution.py:82,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.record_temporal_fact,UPDATE,workflow_executions,src/web_domain/workflow_execution.py:113,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.prepare_start,FROM,runs,src/web_domain/workflow_execution.py:20,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.prepare_start,FROM,workflow_executions,src/web_domain/workflow_execution.py:24,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.still_queued,FROM,runs,src/web_domain/workflow_execution.py:51,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.needs_cancel,FROM,runs,src/web_domain/workflow_execution.py:67,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.current_workflow_id,FROM,workflow_executions,src/web_domain/workflow_execution.py:74,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.reconcile_candidates,FROM,runs,src/web_domain/workflow_execution.py:92,SQL_LITERAL
+src/web_domain/workflow_execution.py,PostgresWorkflowExecutionStore.reconcile_candidates,JOIN,workflow_executions,src/web_domain/workflow_execution.py:92,SQL_LITERAL
+src/workspace/file_scope.py,RunFileWorkspace.load_rows,FROM,runs,src/workspace/file_scope.py:75,SQL_LITERAL
+src/workspace/file_scope.py,RunFileWorkspace.load_rows,FROM,run_files,src/workspace/file_scope.py:81,SQL_LITERAL
+src/workspace/file_scope.py,RunFileWorkspace.load_rows,JOIN,stored_files,src/workspace/file_scope.py:81,SQL_LITERAL
+test/support/durable_worker_process.py,_record,INSERT INTO,attempts,test/support/durable_worker_process.py:123,SQL_LITERAL
+test/support/durable_worker_process.py,_record_activity_attempt,INSERT INTO,activity_attempts,test/support/durable_worker_process.py:224,SQL_LITERAL
+test/support/durable_worker_process.py,_record_idempotent_effect,INSERT INTO,idempotent_business_state,test/support/durable_worker_process.py:246,SQL_LITERAL
+test/support/durable_worker_process.py,_record_idempotent_effect,INSERT INTO,effect_invocations,test/support/durable_worker_process.py:251,SQL_LITERAL
+test/support/durable_worker_process.py,_CountingNonIdempotentActions.execute_request,INSERT INTO,side_effect_counter,test/support/durable_worker_process.py:77,SQL_LITERAL
+test/support/durable_worker_process.py,tool_activity,INSERT INTO,side_effects,test/support/durable_worker_process.py:201,SQL_LITERAL
+test/support/durable_worker_process.py,_record_activity_attempt,FROM,activity_attempts,test/support/durable_worker_process.py:228,SQL_LITERAL
+test/test_durable_agent_worker_kill.py,_counts,FROM,operations,test/test_durable_agent_worker_kill.py:84,SQL_LITERAL
+test/test_durable_agent_worker_kill.py,_counts,FROM,attempts,test/test_durable_agent_worker_kill.py:89,SQL_LITERAL
+test/test_durable_agent_worker_kill.py,_counts,FROM,side_effects,test/test_durable_agent_worker_kill.py:92,SQL_LITERAL
+test/test_durable_agent_worker_kill.py,test_workflow_process_kill_replays_without_repeating_completed_operations,FROM,operations,test/test_durable_agent_worker_kill.py:160,SQL_LITERAL
+test/test_file_workspace_migration_contract.py,test_upload_contract_retains_declared_digest_separately,UPDATE,ON,test/test_file_workspace_migration_contract.py:29,SQL_LITERAL
+test/test_file_workspace_migration_contract.py,test_upload_contract_retains_declared_digest_separately,FROM,hpagent_api,test/test_file_workspace_migration_contract.py:29,SQL_LITERAL
+test/web_api/conftest.py,seed_identity.seed,INSERT INTO,accounts,test/web_api/conftest.py:84,SQL_LITERAL
+test/web_api/conftest.py,seed_identity.seed,INSERT INTO,identity_bindings,test/web_api/conftest.py:86,SQL_LITERAL
+test/web_api/test_identity_self_service.py,test_existing_qq_account_becomes_web_session_account,INSERT INTO,accounts,test/web_api/test_identity_self_service.py:115,SQL_LITERAL
+test/web_api/test_identity_self_service.py,test_existing_qq_account_becomes_web_session_account,INSERT INTO,identity_bindings,test/web_api/test_identity_self_service.py:117,SQL_LITERAL
+test/web_api/test_identity_self_service.py,test_register_duplicate_and_password_policy_are_safe,FROM,accounts,test/web_api/test_identity_self_service.py:56,SQL_LITERAL
+test/web_api/test_identity_self_service.py,test_register_reports_success_when_session_creation_fails,FROM,accounts,test/web_api/test_identity_self_service.py:76,SQL_LITERAL
+test/web_api/test_phase_b_api.py,test_api_006_messages_are_paginated_in_sequence,UPDATE,conversations,test/web_api/test_phase_b_api.py:220,SQL_LITERAL
+test/web_api/test_phase_b_api.py,test_api_rejects_retry_while_run_is_running,UPDATE,runs,test/web_api/test_phase_b_api.py:264,SQL_LITERAL
+test/web_api/test_phase_b_api.py,test_api_006_messages_are_paginated_in_sequence,INSERT INTO,messages,test/web_api/test_phase_b_api.py:215,SQL_LITERAL
+test/web_api/test_phase_b_api.py,test_api_022_csrf_and_origin_fail_before_transaction,FROM,conversations,test/web_api/test_phase_b_api.py:108,SQL_LITERAL
+test/web_api/test_research_file_composition.py,test_web_research_report_becomes_downloadable_assistant_attachment,FROM,hpagent.run_files,test/web_api/test_research_file_composition.py:140,SQL_LITERAL
+test/web_api/test_research_file_composition.py,test_web_research_report_becomes_downloadable_assistant_attachment,JOIN,hpagent.stored_files,test/web_api/test_research_file_composition.py:140,SQL_LITERAL
+test/web_api/test_sse_gateway.py,enqueue_terminal,INSERT INTO,outbox_events,test/web_api/test_sse_gateway.py:139,SQL_LITERAL
+test/web_api/test_sse_gateway.py,mark_terminal,UPDATE,messages,test/web_api/test_sse_gateway.py:103,SQL_LITERAL
+test/web_api/test_sse_gateway.py,mark_terminal,UPDATE,messages,test/web_api/test_sse_gateway.py:109,SQL_LITERAL
+test/web_api/test_sse_gateway.py,mark_terminal,UPDATE,runs,test/web_api/test_sse_gateway.py:115,SQL_LITERAL
+test/web_api/test_sse_gateway.py,mark_terminal,UPDATE,runs,test/web_api/test_sse_gateway.py:122,SQL_LITERAL
+test/web_persistence/conftest.py,account,INSERT INTO,accounts,test/web_persistence/conftest.py:49,SQL_LITERAL
+test/web_persistence/test_bootstrap_identity.py,_binding,INSERT INTO,identity_bindings,test/web_persistence/test_bootstrap_identity.py:22,SQL_LITERAL
+test/web_persistence/test_bootstrap_identity.py,test_case_e_conflict_raises_without_merging,INSERT INTO,accounts,test/web_persistence/test_bootstrap_identity.py:62,SQL_LITERAL
+test/web_persistence/test_bootstrap_identity.py,test_both_bound_to_same_account_is_noop,INSERT INTO,accounts,test/web_persistence/test_bootstrap_identity.py:78,SQL_LITERAL
+test/web_persistence/test_bootstrap_identity.py,test_qq_only_creates_web_binding_on_same_account,INSERT INTO,accounts,test/web_persistence/test_bootstrap_identity.py:94,SQL_LITERAL
+test/web_persistence/test_bootstrap_identity.py,_counts,FROM,accounts,test/web_persistence/test_bootstrap_identity.py:30,SQL_LITERAL
+test/web_persistence/test_bootstrap_identity.py,_counts,FROM,identity_bindings,test/web_persistence/test_bootstrap_identity.py:32,SQL_LITERAL
+test/web_persistence/test_bootstrap_identity.py,_counts,FROM,identity_bindings,test/web_persistence/test_bootstrap_identity.py:35,SQL_LITERAL
+test/web_persistence/test_command_service.py,test_send_message_atomically_binds_ready_input_file_to_message_and_run,INSERT INTO,stored_files,test/web_persistence/test_command_service.py:50,SQL_LITERAL
+test/web_persistence/test_command_service.py,test_send_message_atomically_binds_ready_input_file_to_message_and_run,FROM,message_files,test/web_persistence/test_command_service.py:75,SQL_LITERAL
+test/web_persistence/test_command_service.py,test_send_message_atomically_binds_ready_input_file_to_message_and_run,FROM,run_files,test/web_persistence/test_command_service.py:79,SQL_LITERAL
+test/web_persistence/test_command_service.py,test_db_025_create_conversation_replay,FROM,conversations,test/web_persistence/test_command_service.py:19,SQL_LITERAL
+test/web_persistence/test_command_service.py,test_db_003_send_is_atomic_and_busy,FROM,runs,test/web_persistence/test_command_service.py:35,SQL_LITERAL
+test/web_persistence/test_command_service.py,test_db_003_send_is_atomic_and_busy,FROM,messages,test/web_persistence/test_command_service.py:39,SQL_LITERAL
+test/web_persistence/test_command_service.py,test_db_003_send_is_atomic_and_busy,FROM,outbox_events,test/web_persistence/test_command_service.py:40,SQL_LITERAL
+test/web_persistence/test_command_service.py,test_send_message_atomically_binds_ready_input_file_to_message_and_run,FROM,stored_files,test/web_persistence/test_command_service.py:83,SQL_LITERAL
+test/web_persistence/test_document_worker_persistence.py,test_document_activity_persists_once_and_replays_compact_ref,INSERT INTO,stored_files,test/web_persistence/test_document_worker_persistence.py:29,SQL_LITERAL
+test/web_persistence/test_document_worker_persistence.py,test_document_activity_persists_once_and_replays_compact_ref,FROM,normalized_documents,test/web_persistence/test_document_worker_persistence.py:67,SQL_LITERAL
+test/web_persistence/test_durable_agent_activity_worker_kill.py,test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect,FROM,agent_operations,test/web_persistence/test_durable_agent_activity_worker_kill.py:162,SQL_LITERAL
+test/web_persistence/test_durable_agent_activity_worker_kill.py,test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect,FROM,agent_operations,test/web_persistence/test_durable_agent_activity_worker_kill.py:183,SQL_LITERAL
+test/web_persistence/test_durable_agent_activity_worker_kill.py,test_activity_worker_sigkill_redelivers_intent_without_repeating_side_effect,FROM,side_effect_counter,test/web_persistence/test_durable_agent_activity_worker_kill.py:195,SQL_LITERAL
+test/web_persistence/test_f4_2_approval_temporal.py,test_api_outbox_signal_resumes_with_postgres_authority,UPDATE,hpagent.outbox_events,test/web_persistence/test_f4_2_approval_temporal.py:91,SQL_LITERAL
+test/web_persistence/test_f4_2_approval_temporal.py,test_api_outbox_signal_resumes_with_postgres_authority,FROM,hpagent.outbox_events,test/web_persistence/test_f4_2_approval_temporal.py:125,SQL_LITERAL
+test/web_persistence/test_file_action_approvals.py,test_approval_rejects_cross_tenant_access_and_second_decision,INSERT INTO,accounts,test/web_persistence/test_file_action_approvals.py:94,SQL_LITERAL
+test/web_persistence/test_file_action_approvals.py,test_approval_is_owned_idempotent_and_single_use,FROM,hpagent.outbox_events,test/web_persistence/test_file_action_approvals.py:56,SQL_LITERAL
+test/web_persistence/test_file_action_approvals.py,test_authoritative_expiry_and_cancel_are_terminal_and_compact,FROM,hpagent.outbox_events,test/web_persistence/test_file_action_approvals.py:129,SQL_LITERAL
+test/web_persistence/test_file_action_approvals.py,test_run_cancel_atomically_cancels_pending_approval_and_enqueues_wake,FROM,hpagent.file_action_approvals,test/web_persistence/test_file_action_approvals.py:148,SQL_LITERAL
+test/web_persistence/test_file_action_approvals.py,test_run_cancel_atomically_cancels_pending_approval_and_enqueues_wake,FROM,hpagent.outbox_events,test/web_persistence/test_file_action_approvals.py:152,SQL_LITERAL
+test/web_persistence/test_file_cleanup.py,test_expired_crashed_upload_removes_staging_and_canonical_orphan,UPDATE,stored_files,test/web_persistence/test_file_cleanup.py:37,SQL_LITERAL
+test/web_persistence/test_file_cleanup.py,test_bound_ready_file_is_never_claimed_by_ttl_cleanup,UPDATE,stored_files,test/web_persistence/test_file_cleanup.py:80,SQL_LITERAL
+test/web_persistence/test_file_cleanup.py,test_expired_crashed_upload_removes_staging_and_canonical_orphan,FROM,stored_files,test/web_persistence/test_file_cleanup.py:52,SQL_LITERAL
+test/web_persistence/test_file_cleanup.py,test_bound_ready_file_is_never_claimed_by_ttl_cleanup,FROM,stored_files,test/web_persistence/test_file_cleanup.py:94,SQL_LITERAL
+test/web_persistence/test_file_lineage.py,test_database_versions_branch_lineage_and_api_returns_root_first,INSERT INTO,stored_files,test/web_persistence/test_file_lineage.py:31,SQL_LITERAL
+test/web_persistence/test_file_lineage.py,test_docx_to_pdf_tool_records_source_lineage,INSERT INTO,stored_files,test/web_persistence/test_file_lineage.py:119,SQL_LITERAL
+test/web_persistence/test_file_lineage.py,test_database_ignores_caller_supplied_child_version,INSERT INTO,stored_files,test/web_persistence/test_file_lineage.py:78,SQL_LITERAL
+test/web_persistence/test_file_lineage.py,test_database_ignores_caller_supplied_child_version,UPDATE,stored_files,test/web_persistence/test_file_lineage.py:95,SQL_LITERAL
+test/web_persistence/test_file_lineage.py,test_database_ignores_caller_supplied_child_version,INSERT INTO,stored_files,test/web_persistence/test_file_lineage.py:85,SQL_LITERAL
+test/web_persistence/test_file_lineage.py,test_database_versions_branch_lineage_and_api_returns_root_first,FROM,message_files,test/web_persistence/test_file_lineage.py:59,SQL_LITERAL
+test/web_persistence/test_file_lineage.py,test_database_versions_branch_lineage_and_api_returns_root_first,JOIN,messages,test/web_persistence/test_file_lineage.py:59,SQL_LITERAL
+test/web_persistence/test_file_output_persistence.py,test_output_publish_is_idempotent_and_binds_on_completion,FROM,message_files,test/web_persistence/test_file_output_persistence.py:51,SQL_LITERAL
+test/web_persistence/test_file_output_persistence.py,test_output_publish_is_idempotent_and_binds_on_completion,JOIN,messages,test/web_persistence/test_file_output_persistence.py:51,SQL_LITERAL
+test/web_persistence/test_file_output_persistence.py,test_write_retry_after_publish_before_ack_returns_same_output,FROM,run_files,test/web_persistence/test_file_output_persistence.py:123,SQL_LITERAL
+test/web_persistence/test_file_output_persistence.py,test_write_retry_after_publish_before_ack_returns_same_output,JOIN,stored_files,test/web_persistence/test_file_output_persistence.py:123,SQL_LITERAL
+test/web_persistence/test_file_output_persistence.py,test_output_publish_is_idempotent_and_binds_on_completion,FROM,run_files,test/web_persistence/test_file_output_persistence.py:42,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,_qq_account,INSERT INTO,accounts,test/web_persistence/test_identity_self_service.py:31,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,_qq_account,INSERT INTO,identity_bindings,test/web_persistence/test_identity_self_service.py:33,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_registration_and_postgres_login_are_atomic_and_normalized,UPDATE,identity_bindings,test/web_persistence/test_identity_self_service.py:55,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_database_credential_is_authoritative_over_legacy_fallback,INSERT INTO,accounts,test/web_persistence/test_identity_self_service.py:72,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_database_credential_is_authoritative_over_legacy_fallback,INSERT INTO,identity_bindings,test/web_persistence/test_identity_self_service.py:74,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_challenge_rotation_expiry_and_invalid_code,UPDATE,identity_binding_challenges,test/web_persistence/test_identity_self_service.py:144,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_challenge_rotation_expiry_and_invalid_code,UPDATE,identity_binding_challenges,test/web_persistence/test_identity_self_service.py:149,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_web_account_with_business_data_is_not_auto_consolidated,INSERT INTO,conversations,test/web_persistence/test_identity_self_service.py:194,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_challenge_rotation_expiry_and_invalid_code,FROM,identity_binding_challenges,test/web_persistence/test_identity_self_service.py:156,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_registration_and_postgres_login_are_atomic_and_normalized,FROM,accounts,test/web_persistence/test_identity_self_service.py:49,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_registration_and_postgres_login_are_atomic_and_normalized,FROM,web_credentials,test/web_persistence/test_identity_self_service.py:50,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_registration_and_postgres_login_are_atomic_and_normalized,FROM,accounts,test/web_persistence/test_identity_self_service.py:53,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_registration_password_policy_leaves_no_partial_account,FROM,accounts,test/web_persistence/test_identity_self_service.py:65,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_binding_unbound_qq_and_single_use,FROM,identity_bindings,test/web_persistence/test_identity_self_service.py:107,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_concurrent_challenge_consume_is_idempotent,FROM,identity_bindings,test/web_persistence/test_identity_self_service.py:129,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_empty_web_account_consolidates_into_existing_qq_account,FROM,identity_bindings,test/web_persistence/test_identity_self_service.py:180,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_empty_web_account_consolidates_into_existing_qq_account,FROM,accounts,test/web_persistence/test_identity_self_service.py:183,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_web_account_with_business_data_is_not_auto_consolidated,FROM,identity_bindings,test/web_persistence/test_identity_self_service.py:205,SQL_LITERAL
+test/web_persistence/test_identity_self_service.py,test_web_account_with_business_data_is_not_auto_consolidated,FROM,accounts,test/web_persistence/test_identity_self_service.py:208,SQL_LITERAL
+test/web_persistence/test_memory_retention.py,test_load_completed_run_only_returns_completed,FROM,runs,test/web_persistence/test_memory_retention.py:52,SQL_LITERAL
+test/web_persistence/test_memory_retention.py,test_hindsight_failure_leaves_run_completed_and_surfaces_accepted_false,FROM,runs,test/web_persistence/test_memory_retention.py:108,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,_running,UPDATE,hpagent.runs,test/web_persistence/test_outbox_and_lifecycle.py:22,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_010_terminal_failure_before_outbox_rolls_back,UPDATE,runs,test/web_persistence/test_outbox_and_lifecycle.py:85,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_010_terminal_failure_before_outbox_rolls_back,UPDATE,messages,test/web_persistence/test_outbox_and_lifecycle.py:88,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_010_terminal_failure_before_outbox_rolls_back,UPDATE,runs,test/web_persistence/test_outbox_and_lifecycle.py:93,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_024_expired_lease_recovery_keeps_single_outbox_and_deterministic_id,UPDATE,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:269,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_028_recovery_never_steals_other_consumers_leases,UPDATE,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:382,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_026_dispatcher_crash_after_claim_recovers_and_dispatches_once,UPDATE,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:418,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_012_expired_lease_returns_to_pending,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:124,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_020_start_and_cancel_converge_without_duplicate_execution.schedule,FROM,conversations,test/web_persistence/test_outbox_and_lifecycle.py:164,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_020_start_and_cancel_converge_without_duplicate_execution,UPDATE,workflow_executions,test/web_persistence/test_outbox_and_lifecycle.py:187,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_terminal_outbox_carries_stable_event_id,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:243,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_025_killed_worker_lease_recovered_by_replacement_dispatcher,UPDATE,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:336,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_013_late_completion_cannot_overwrite_failed,FROM,runs,test/web_persistence/test_outbox_and_lifecycle.py:138,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_020_start_and_cancel_converge_without_duplicate_execution.schedule,INSERT INTO,workflow_executions,test/web_persistence/test_outbox_and_lifecycle.py:172,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_020_start_and_cancel_converge_without_duplicate_execution,FROM,runs,test/web_persistence/test_outbox_and_lifecycle.py:182,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_021_start_dead_letter_converges_run,FROM,runs,test/web_persistence/test_outbox_and_lifecycle.py:212,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_024_expired_lease_recovery_keeps_single_outbox_and_deterministic_id,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:277,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_028_recovery_never_steals_other_consumers_leases,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:390,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_008_concurrent_retry_returns_one_child,FROM,hpagent.idempotency_commands,test/web_persistence/test_outbox_and_lifecycle.py:72,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_010_terminal_failure_before_outbox_rolls_back,FROM,runs,test/web_persistence/test_outbox_and_lifecycle.py:96,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_010_terminal_failure_before_outbox_rolls_back,FROM,messages,test/web_persistence/test_outbox_and_lifecycle.py:98,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_019_cancel_queued_before_start_is_terminal,FROM,workflow_executions,test/web_persistence/test_outbox_and_lifecycle.py:151,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_020_start_and_cancel_converge_without_duplicate_execution.schedule,FROM,runs,test/web_persistence/test_outbox_and_lifecycle.py:168,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_020_start_and_cancel_converge_without_duplicate_execution,FROM,runs,test/web_persistence/test_outbox_and_lifecycle.py:192,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_020_start_and_cancel_converge_without_duplicate_execution,FROM,workflow_executions,test/web_persistence/test_outbox_and_lifecycle.py:194,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_021_start_dead_letter_converges_run,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:215,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_022_terminal_dead_letter_does_not_revert_completed,FROM,runs,test/web_persistence/test_outbox_and_lifecycle.py:233,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_024_expired_lease_recovery_keeps_single_outbox_and_deterministic_id,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:288,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_026_dispatcher_crash_after_claim_recovers_and_dispatches_once,FROM,workflow_executions,test/web_persistence/test_outbox_and_lifecycle.py:452,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_026_dispatcher_crash_after_claim_recovers_and_dispatches_once,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:455,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_026_dispatcher_crash_after_claim_recovers_and_dispatches_once,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:459,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_027_lifecycle_txn_failure_rolls_back_atomically,FROM,runs,test/web_persistence/test_outbox_and_lifecycle.py:484,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_027_lifecycle_txn_failure_rolls_back_atomically,FROM,messages,test/web_persistence/test_outbox_and_lifecycle.py:487,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_027_lifecycle_txn_failure_rolls_back_atomically,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:491,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_008_concurrent_retry_returns_one_child,FROM,hpagent.runs,test/web_persistence/test_outbox_and_lifecycle.py:68,SQL_LITERAL
+test/web_persistence/test_outbox_and_lifecycle.py,test_db_025_killed_worker_lease_recovered_by_replacement_dispatcher,FROM,outbox_events,test/web_persistence/test_outbox_and_lifecycle.py:348,SQL_LITERAL
+test/web_persistence/test_permissions.py,test_worker_can_read_identity_bindings_after_009,FROM,identity_bindings,test/web_persistence/test_permissions.py:43,SQL_LITERAL
+test/web_persistence/test_permissions.py,test_worker_has_narrow_identity_control_plane_write,UPDATE,identity_bindings,test/web_persistence/test_permissions.py:50,SQL_LITERAL
+test/web_persistence/test_permissions.py,test_api_cannot_forge_workflow_execution,INSERT INTO,hpagent.workflow_executions,test/web_persistence/test_permissions.py:26,SQL_LITERAL
+test/web_persistence/test_permissions.py,test_worker_cannot_modify_web_auth_sessions,FROM,hpagent.web_auth_sessions,test/web_persistence/test_permissions.py:36,SQL_LITERAL
+test/web_persistence/test_permissions.py,test_worker_has_narrow_identity_control_plane_write,INSERT INTO,accounts,test/web_persistence/test_permissions.py:53,SQL_LITERAL
+test/web_persistence/test_permissions.py,test_artifact_runtime_permissions_are_split_by_responsibility,UPDATE,hpagent.artifact_versions,test/web_persistence/test_permissions.py:63,SQL_LITERAL
+test/web_persistence/test_permissions.py,test_artifact_runtime_permissions_are_split_by_responsibility,INSERT INTO,hpagent.artifacts,test/web_persistence/test_permissions.py:68,SQL_LITERAL
+test/web_persistence/test_permissions.py,test_runtime_roles_cannot_modify_migration_history,INSERT INTO,hpagent.schema_migrations,test/web_persistence/test_permissions.py:18,SQL_LITERAL
+test/web_persistence/test_persistent_web_files.py,test_create_retry_and_overwrite_approval_are_exact_and_tenant_scoped,INSERT INTO,hpagent.accounts,test/web_persistence/test_persistent_web_files.py:91,SQL_LITERAL
+test/web_persistence/test_persistent_web_files.py,test_destination_change_after_approval_fails_closed,UPDATE,hpagent.persistent_file_destinations,test/web_persistence/test_persistent_web_files.py:180,SQL_LITERAL
+test/web_persistence/test_persistent_web_files.py,test_create_retry_and_overwrite_approval_are_exact_and_tenant_scoped,FROM,hpagent.persistent_file_destinations,test/web_persistence/test_persistent_web_files.py:68,SQL_LITERAL
+test/web_persistence/test_persistent_web_files.py,test_create_retry_and_overwrite_approval_are_exact_and_tenant_scoped,JOIN,hpagent.persistent_file_revisions,test/web_persistence/test_persistent_web_files.py:68,SQL_LITERAL
+test/web_persistence/test_persistent_web_files.py,test_create_retry_and_overwrite_approval_are_exact_and_tenant_scoped,FROM,hpagent.file_action_approvals,test/web_persistence/test_persistent_web_files.py:77,SQL_LITERAL
+test/web_persistence/test_persistent_web_files.py,test_recoverable_grant_cas_and_immutable_history,FROM,hpagent.file_action_approvals,test/web_persistence/test_persistent_web_files.py:125,SQL_LITERAL
+test/web_persistence/test_persistent_web_files.py,test_recoverable_grant_cas_and_immutable_history,FROM,hpagent.persistent_file_revisions,test/web_persistence/test_persistent_web_files.py:152,SQL_LITERAL
+test/web_persistence/test_persistent_web_files.py,test_recoverable_grant_cas_and_immutable_history,FROM,hpagent.stored_files,test/web_persistence/test_persistent_web_files.py:159,SQL_LITERAL
+test/web_persistence/test_persistent_web_files.py,test_approved_executor_reconciles_ack_loss_without_duplicate_revision,FROM,hpagent.persistent_file_revisions,test/web_persistence/test_persistent_web_files.py:239,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_migration_checksum_rejects_changed_history,UPDATE,schema_migrations,test/web_persistence/test_phase_a_hardening.py:120,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_retryable_outbox_failure_honors_owner_and_schedule,UPDATE,outbox_events,test/web_persistence/test_phase_a_hardening.py:390,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_migration_checksum_rejects_changed_history,UPDATE,schema_migrations,test/web_persistence/test_phase_a_hardening.py:127,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,INSERT INTO,identity_bindings,test/web_persistence/test_phase_a_hardening.py:139,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,INSERT INTO,web_auth_sessions,test/web_persistence/test_phase_a_hardening.py:145,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,UPDATE,web_auth_sessions,test/web_persistence/test_phase_a_hardening.py:152,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,UPDATE,identity_bindings,test/web_persistence/test_phase_a_hardening.py:157,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,DELETE FROM,web_auth_sessions,test/web_persistence/test_phase_a_hardening.py:162,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,DELETE FROM,identity_bindings,test/web_persistence/test_phase_a_hardening.py:165,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,INSERT INTO,sessions,test/web_persistence/test_phase_a_hardening.py:170,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,UPDATE,sessions,test/web_persistence/test_phase_a_hardening.py:175,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,DELETE FROM,sessions,test/web_persistence/test_phase_a_hardening.py:178,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,DELETE FROM,outbox_events,test/web_persistence/test_phase_a_hardening.py:181,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,DELETE FROM,messages,test/web_persistence/test_phase_a_hardening.py:182,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,DELETE FROM,run_usage_ledger,test/web_persistence/test_phase_a_hardening.py:183,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,DELETE FROM,run_budgets,test/web_persistence/test_phase_a_hardening.py:184,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_trigger_old_new_paths_support_legal_insert_update_delete,DELETE FROM,runs,test/web_persistence/test_phase_a_hardening.py:185,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_retry_child_revalidates_source_status,UPDATE,runs,test/web_persistence/test_phase_a_hardening.py:199,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_retry_child_revalidates_source_context,UPDATE,runs,test/web_persistence/test_phase_a_hardening.py:213,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_retry_child_revalidates_source_trigger_change,INSERT INTO,messages,test/web_persistence/test_phase_a_hardening.py:236,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_retry_child_revalidates_source_trigger_change,UPDATE,runs,test/web_persistence/test_phase_a_hardening.py:241,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_terminal_run_and_message_cannot_revert,UPDATE,runs,test/web_persistence/test_phase_a_hardening.py:287,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_terminal_run_and_message_cannot_revert,UPDATE,messages,test/web_persistence/test_phase_a_hardening.py:289,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_failed_run_cannot_convert_to_completed,UPDATE,runs,test/web_persistence/test_phase_a_hardening.py:302,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_terminal_run_and_message_cannot_revert,UPDATE,hpagent.runs,test/web_persistence/test_phase_a_hardening.py:271,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_outbox_claim_filters_owned_types_and_does_not_block,INSERT INTO,outbox_events,test/web_persistence/test_phase_a_hardening.py:345,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_idempotency_freezes_http_status_and_full_send_result,FROM,idempotency_commands,test/web_persistence/test_phase_a_hardening.py:421,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_migration_checksum_rejects_changed_history,FROM,schema_migrations,test/web_persistence/test_phase_a_hardening.py:117,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_outbox_dead_letter_requires_current_lease,FROM,outbox_events,test/web_persistence/test_phase_a_hardening.py:311,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_concurrent_migration_is_locked_and_all_checksums_are_recorded,FROM,schema_migrations,test/web_persistence/test_phase_a_hardening.py:110,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_retry_child_revalidates_source_trigger_change,UPDATE,conversations,test/web_persistence/test_phase_a_hardening.py:231,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_legal_failed_source_and_retry_commit,FROM,runs,test/web_persistence/test_phase_a_hardening.py:254,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_terminal_run_and_message_cannot_revert,FROM,messages,test/web_persistence/test_phase_a_hardening.py:281,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_idempotency_freezes_http_status_and_full_send_result,FROM,outbox_events,test/web_persistence/test_phase_a_hardening.py:428,SQL_LITERAL
+test/web_persistence/test_phase_a_hardening.py,test_retry_freezes_complete_result,FROM,idempotency_commands,test/web_persistence/test_phase_a_hardening.py:445,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_002_run_cannot_reference_other_conversation_message,INSERT INTO,accounts,test/web_persistence/test_phase_a_invariants.py:31,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_002_run_cannot_reference_other_conversation_message,INSERT INTO,conversations,test/web_persistence/test_phase_a_invariants.py:34,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_002_run_cannot_reference_other_conversation_message,INSERT INTO,sessions,test/web_persistence/test_phase_a_invariants.py:39,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_002_run_cannot_reference_other_conversation_message,INSERT INTO,messages,test/web_persistence/test_phase_a_invariants.py:43,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_007_only_one_active_session,INSERT INTO,conversations,test/web_persistence/test_phase_a_invariants.py:118,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_007_only_one_active_session,INSERT INTO,sessions,test/web_persistence/test_phase_a_invariants.py:122,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_run_timestamps_tolerate_a_small_system_clock_rollback,UPDATE,runs,test/web_persistence/test_phase_a_invariants.py:154,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_run_timestamps_tolerate_a_small_system_clock_rollback,UPDATE,messages,test/web_persistence/test_phase_a_invariants.py:158,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_024_metadata_version_allows_one_writer,INSERT INTO,conversations,test/web_persistence/test_phase_a_invariants.py:232,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_auth_session_rejects_qq_binding,INSERT INTO,identity_bindings,test/web_persistence/test_phase_a_invariants.py:295,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_revoking_binding_with_live_auth_session_is_rejected,INSERT INTO,identity_bindings,test/web_persistence/test_phase_a_invariants.py:315,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_revoking_binding_with_live_auth_session_is_rejected,INSERT INTO,web_auth_sessions,test/web_persistence/test_phase_a_invariants.py:320,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_session_predecessor_must_be_earlier,INSERT INTO,conversations,test/web_persistence/test_phase_a_invariants.py:338,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_session_predecessor_must_be_earlier,INSERT INTO,sessions,test/web_persistence/test_phase_a_invariants.py:342,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_changing_predecessor_sequence_cannot_invalidate_successor,INSERT INTO,conversations,test/web_persistence/test_phase_a_invariants.py:361,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_changing_predecessor_sequence_cannot_invalidate_successor,INSERT INTO,sessions,test/web_persistence/test_phase_a_invariants.py:365,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_changing_predecessor_sequence_cannot_invalidate_successor,INSERT INTO,sessions,test/web_persistence/test_phase_a_invariants.py:370,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_002_run_cannot_reference_other_conversation_message,INSERT INTO,runs,test/web_persistence/test_phase_a_invariants.py:50,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_007_only_one_active_session,INSERT INTO,sessions,test/web_persistence/test_phase_a_invariants.py:127,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_009_and_015_context_filters_status_and_account,UPDATE,hpagent.runs,test/web_persistence/test_phase_a_invariants.py:138,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_016_retry_cannot_change_context_watermark,INSERT INTO,runs,test/web_persistence/test_phase_a_invariants.py:200,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_016_retry_cannot_change_context_watermark,INSERT INTO,messages,test/web_persistence/test_phase_a_invariants.py:206,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_018_reverse_terminal_mismatch_is_rejected,UPDATE,messages,test/web_persistence/test_phase_a_invariants.py:221,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_auth_session_rejects_qq_binding,INSERT INTO,web_auth_sessions,test/web_persistence/test_phase_a_invariants.py:302,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_revoking_binding_with_live_auth_session_is_rejected,UPDATE,identity_bindings,test/web_persistence/test_phase_a_invariants.py:327,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_session_predecessor_must_be_earlier,INSERT INTO,sessions,test/web_persistence/test_phase_a_invariants.py:348,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_changing_predecessor_sequence_cannot_invalidate_successor,UPDATE,sessions,test/web_persistence/test_phase_a_invariants.py:377,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_run_timestamps_tolerate_a_small_system_clock_rollback,FROM,runs,test/web_persistence/test_phase_a_invariants.py:167,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_run_timestamps_tolerate_a_small_system_clock_rollback,FROM,messages,test/web_persistence/test_phase_a_invariants.py:170,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_016_retry_cannot_change_context_watermark,FROM,runs,test/web_persistence/test_phase_a_invariants.py:188,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_024_metadata_version_allows_one_writer,UPDATE,conversations,test/web_persistence/test_phase_a_invariants.py:236,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_024_metadata_version_allows_one_writer,UPDATE,conversations,test/web_persistence/test_phase_a_invariants.py:241,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_serialization_failure_retries_the_entire_transaction.update_title,UPDATE,conversations,test/web_persistence/test_phase_a_invariants.py:276,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_004_two_conversations_send_independently,FROM,conversations,test/web_persistence/test_phase_a_invariants.py:73,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_003_two_connections_compete_for_same_conversation,FROM,runs,test/web_persistence/test_phase_a_invariants.py:94,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_003_two_connections_compete_for_same_conversation,FROM,messages,test/web_persistence/test_phase_a_invariants.py:95,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_005_concurrent_same_key_replays_same_result,FROM,outbox_events,test/web_persistence/test_phase_a_invariants.py:112,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_db_016_retry_cannot_change_context_watermark,UPDATE,conversations,test/web_persistence/test_phase_a_invariants.py:194,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_serialization_failure_retries_the_entire_transaction.update_title,FROM,conversations,test/web_persistence/test_phase_a_invariants.py:269,SQL_LITERAL
+test/web_persistence/test_phase_a_invariants.py,test_serialization_failure_retries_the_entire_transaction,FROM,conversations,test/web_persistence/test_phase_a_invariants.py:287,SQL_LITERAL
+test/web_persistence/test_phase_c_context.py,test_context_uses_only_frozen_visible_messages_of_its_conversation,INSERT INTO,messages,test/web_persistence/test_phase_c_context.py:33,SQL_LITERAL
+test/web_persistence/test_phase_c_sessions.py,test_session_rotation_creates_a_successor_after_failed_session,FROM,sessions,test/web_persistence/test_phase_c_sessions.py:43,SQL_LITERAL
+test/web_persistence/test_phase_c_sessions.py,test_session_rotation_creates_a_successor_after_failed_session,FROM,sessions,test/web_persistence/test_phase_c_sessions.py:45,SQL_LITERAL
+test/web_persistence/test_phase_c_sessions.py,test_web_sessions_are_unique_per_conversation_and_same_account_can_progress,FROM,sessions,test/web_persistence/test_phase_c_sessions.py:29,SQL_LITERAL
+test/web_persistence/test_phase_c_sessions.py,test_web_sessions_are_unique_per_conversation_and_same_account_can_progress,FROM,sessions,test/web_persistence/test_phase_c_sessions.py:31,SQL_LITERAL
+test/web_persistence/test_postgres_account_service.py,_account,INSERT INTO,accounts,test/web_persistence/test_postgres_account_service.py:23,SQL_LITERAL
+test/web_persistence/test_postgres_account_service.py,_binding,INSERT INTO,identity_bindings,test/web_persistence/test_postgres_account_service.py:29,SQL_LITERAL
+test/web_persistence/test_postgres_account_service.py,test_revoked_binding_is_not_resolved,INSERT INTO,identity_bindings,test/web_persistence/test_postgres_account_service.py:80,SQL_LITERAL
+test/web_persistence/test_postgres_account_service.py,test_disabled_account_is_not_resolved,INSERT INTO,accounts,test/web_persistence/test_postgres_account_service.py:98,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_budget_dimensions_fail_closed,UPDATE,hpagent.run_budgets,test/web_persistence/test_research_r0_r2.py:141,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_claim_rejects_unknown_cross_run_and_cross_tenant_evidence,INSERT INTO,hpagent.source_records,test/web_persistence/test_research_r0_r2.py:166,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_claim_rejects_unknown_cross_run_and_cross_tenant_evidence,INSERT INTO,hpagent.source_contents,test/web_persistence/test_research_r0_r2.py:172,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_claim_rejects_unknown_cross_run_and_cross_tenant_evidence,INSERT INTO,hpagent.evidence_items,test/web_persistence/test_research_r0_r2.py:176,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_claim_rejects_unknown_cross_run_and_cross_tenant_evidence,INSERT INTO,hpagent.accounts,test/web_persistence/test_research_r0_r2.py:183,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,UPDATE,hpagent.research_citations,test/web_persistence/test_research_r0_r2.py:342,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,INSERT INTO,accounts,test/web_persistence/test_research_r0_r2.py:354,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_fetch_activity_retry_reuses_original_budget_reservation,UPDATE,source_records,test/web_persistence/test_research_r0_r2.py:450,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_budget_dimensions_fail_closed,FROM,hpagent.run_budgets,test/web_persistence/test_research_r0_r2.py:149,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_trigger_task_is_atomic_idempotent_and_links_research_run,FROM,runs,test/web_persistence/test_research_r0_r2.py:43,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_trigger_task_is_atomic_idempotent_and_links_research_run,FROM,outbox_events,test/web_persistence/test_research_r0_r2.py:48,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_trigger_task_is_atomic_idempotent_and_links_research_run,FROM,run_budgets,test/web_persistence/test_research_r0_r2.py:52,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_source_authority_and_fetch_priority_are_provider_independent,FROM,source_records,test/web_persistence/test_research_r0_r2.py:94,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,source_records,test/web_persistence/test_research_r0_r2.py:283,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,runs,test/web_persistence/test_research_r0_r2.py:290,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,trace_runs,test/web_persistence/test_research_r0_r2.py:292,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,research_reports,test/web_persistence/test_research_r0_r2.py:298,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,research_citations,test/web_persistence/test_research_r0_r2.py:302,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,artifacts,test/web_persistence/test_research_r0_r2.py:334,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,JOIN,artifact_versions,test/web_persistence/test_research_r0_r2.py:334,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,hpagent.research_citations,test/web_persistence/test_research_r0_r2.py:348,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,research_reports,test/web_persistence/test_research_r0_r2.py:388,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_fetch_activity_retry_reuses_original_budget_reservation,FROM,run_usage_ledger,test/web_persistence/test_research_r0_r2.py:458,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,evidence_items,test/web_persistence/test_research_r0_r2.py:288,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,run_budgets,test/web_persistence/test_research_r0_r2.py:294,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,evidence_items,test/web_persistence/test_research_r0_r2.py:306,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_research_activities_persist_deduplicated_source_and_evidence,FROM,artifacts,test/web_persistence/test_research_r0_r2.py:392,SQL_LITERAL
+test/web_persistence/test_research_r0_r2.py,test_fetch_activity_retry_reuses_original_budget_reservation,FROM,source_records,test/web_persistence/test_research_r0_r2.py:446,SQL_LITERAL
+test/web_persistence/test_research_schedule_temporal_integration.py,test_real_schedule_fires_through_task_command_budget_and_outbox,FROM,runs,test/web_persistence/test_research_schedule_temporal_integration.py:79,SQL_LITERAL
+test/web_persistence/test_research_schedule_temporal_integration.py,test_real_schedule_fires_through_task_command_budget_and_outbox,JOIN,outbox_events,test/web_persistence/test_research_schedule_temporal_integration.py:79,SQL_LITERAL
+test/web_persistence/test_research_schedule_temporal_integration.py,test_real_schedule_fires_through_task_command_budget_and_outbox,JOIN,run_budgets,test/web_persistence/test_research_schedule_temporal_integration.py:79,SQL_LITERAL
+test/web_persistence/test_run_budget.py,test_reserve_settle_and_temporal_replay_are_idempotent,FROM,run_budgets,test/web_persistence/test_run_budget.py:58,SQL_LITERAL
+test/web_persistence/test_run_budget.py,test_released_model_attempt_is_unmetered_and_not_consumed,FROM,run_budgets,test/web_persistence/test_run_budget.py:156,SQL_LITERAL
+test/web_persistence/test_run_budget.py,test_model_provider_activity_attempts_settle_independently,FROM,run_budgets,test/web_persistence/test_run_budget.py:126,SQL_LITERAL
+test/web_persistence/test_run_budget.py,test_model_provider_activity_attempts_settle_independently,FROM,run_usage_ledger,test/web_persistence/test_run_budget.py:133,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_001_active_identity_is_unique,INSERT INTO,identity_bindings,test/web_persistence/test_schema_contract.py:14,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_014_auth_binding_cannot_cross_account,INSERT INTO,identity_bindings,test/web_persistence/test_schema_contract.py:22,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_018_pending_message_cannot_be_completed,INSERT INTO,conversations,test/web_persistence/test_schema_contract.py:41,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_023_sequence_does_not_change_metadata_version,INSERT INTO,conversations,test/web_persistence/test_schema_contract.py:48,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_023_sequence_does_not_change_metadata_version,UPDATE,conversations,test/web_persistence/test_schema_contract.py:49,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_001_active_identity_is_unique,INSERT INTO,identity_bindings,test/web_persistence/test_schema_contract.py:16,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_014_auth_binding_cannot_cross_account,INSERT INTO,web_auth_sessions,test/web_persistence/test_schema_contract.py:24,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_017_deferred_trigger_rejects_run_without_agent_message,INSERT INTO,conversations,test/web_persistence/test_schema_contract.py:31,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_017_deferred_trigger_rejects_run_without_agent_message,INSERT INTO,sessions,test/web_persistence/test_schema_contract.py:32,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_017_deferred_trigger_rejects_run_without_agent_message,INSERT INTO,messages,test/web_persistence/test_schema_contract.py:33,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_017_deferred_trigger_rejects_run_without_agent_message,INSERT INTO,runs,test/web_persistence/test_schema_contract.py:34,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_018_pending_message_cannot_be_completed,INSERT INTO,messages,test/web_persistence/test_schema_contract.py:43,SQL_LITERAL
+test/web_persistence/test_schema_contract.py,test_db_023_sequence_does_not_change_metadata_version,FROM,conversations,test/web_persistence/test_schema_contract.py:50,SQL_LITERAL
+test/web_persistence/test_web_artifacts.py,test_artifact_rejects_cross_account_and_idempotency_payload_change,INSERT INTO,accounts,test/web_persistence/test_web_artifacts.py:76,SQL_LITERAL
+test/web_persistence/test_web_artifacts.py,test_api_role_can_create_version_and_failed_version_is_not_parent,UPDATE,artifact_versions,test/web_persistence/test_web_artifacts.py:117,SQL_LITERAL
+test/web_persistence/test_web_artifacts.py,test_real_temporal_artifact_outbox_to_persisted_html,FROM,artifact_versions,test/web_persistence/test_web_artifacts.py:170,SQL_LITERAL
+test/web_persistence/test_web_artifacts.py,test_create_artifact_is_atomic_idempotent_and_does_not_block_chat,FROM,artifacts,test/web_persistence/test_web_artifacts.py:58,SQL_LITERAL
+test/web_persistence/test_web_artifacts.py,test_create_artifact_is_atomic_idempotent_and_does_not_block_chat,FROM,artifact_versions,test/web_persistence/test_web_artifacts.py:59,SQL_LITERAL
+test/web_persistence/test_web_artifacts.py,test_create_artifact_is_atomic_idempotent_and_does_not_block_chat,FROM,artifact_outbox_events,test/web_persistence/test_web_artifacts.py:60,SQL_LITERAL
+test/web_persistence/test_web_artifacts.py,test_real_temporal_artifact_outbox_to_persisted_html,FROM,artifact_outbox_events,test/web_persistence/test_web_artifacts.py:177,SQL_LITERAL
+test/web_persistence/test_web_temporal_e2e.py,test_td_002_real_db_prepare_backfills_lost_start_ack,FROM,runs,test/web_persistence/test_web_temporal_e2e.py:81,SQL_LITERAL
+test/web_persistence/test_web_temporal_e2e.py,test_td_002_real_db_prepare_backfills_lost_start_ack,FROM,workflow_executions,test/web_persistence/test_web_temporal_e2e.py:132,SQL_LITERAL
+test/web_persistence/test_web_temporal_e2e.py,test_td_002_real_db_prepare_backfills_lost_start_ack,FROM,messages,test/web_persistence/test_web_temporal_e2e.py:138,SQL_LITERAL
+test/web_persistence/test_web_temporal_e2e.py,test_td_002_real_db_prepare_backfills_lost_start_ack,FROM,runs,test/web_persistence/test_web_temporal_e2e.py:129,SQL_LITERAL
+test/web_persistence/test_web_temporal_lifecycle.py,test_td_007_cancel_and_complete_race_has_one_database_terminal,UPDATE,runs,test/web_persistence/test_web_temporal_lifecycle.py:21,SQL_LITERAL
+test/web_persistence/test_web_temporal_lifecycle.py,test_td_007_cancel_and_complete_race_has_one_database_terminal,FROM,messages,test/web_persistence/test_web_temporal_lifecycle.py:33,SQL_LITERAL
+test/web_persistence/test_web_temporal_lifecycle.py,test_td_010_retried_lifecycle_finalizer_is_logically_idempotent,FROM,runs,test/web_persistence/test_web_temporal_lifecycle.py:66,SQL_LITERAL
+test/web_persistence/test_web_temporal_lifecycle.py,test_td_007_cancel_and_complete_race_has_one_database_terminal,FROM,runs,test/web_persistence/test_web_temporal_lifecycle.py:30,SQL_LITERAL
+test/web_persistence/test_web_temporal_lifecycle.py,test_td_007_cancel_and_complete_race_has_one_database_terminal,FROM,outbox_events,test/web_persistence/test_web_temporal_lifecycle.py:36,SQL_LITERAL
+test/web_persistence/test_web_temporal_lifecycle.py,test_td_010_retried_lifecycle_finalizer_is_logically_idempotent,FROM,outbox_events,test/web_persistence/test_web_temporal_lifecycle.py:70,SQL_LITERAL
+test/web_persistence/test_workspace_provisioning_integration.py,test_fresh_account_first_conversation_provisions_workspace,FROM,runs,test/web_persistence/test_workspace_provisioning_integration.py:52,SQL_LITERAL
+test/web_persistence/test_workspace_provisioning_integration.py,test_same_conversation_second_message_reuses_session,FROM,runs,test/web_persistence/test_workspace_provisioning_integration.py:81,SQL_LITERAL
+test/web_persistence/test_workspace_provisioning_integration.py,test_same_conversation_second_message_reuses_session,FROM,runs,test/web_persistence/test_workspace_provisioning_integration.py:100,SQL_LITERAL
+test/web_persistence/test_workspace_provisioning_integration.py,test_new_conversation_creates_new_session_branch,FROM,runs,test/web_persistence/test_workspace_provisioning_integration.py:122,SQL_LITERAL
+test/web_persistence/test_workspace_provisioning_integration.py,test_new_conversation_creates_new_session_branch,FROM,runs,test/web_persistence/test_workspace_provisioning_integration.py:144,SQL_LITERAL

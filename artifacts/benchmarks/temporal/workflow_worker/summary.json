@@ -1,0 +1,152 @@
+{
+  "experiment": "temporal_recovery",
+  "environment": {
+    "git_commit": "3c192760c30dae6a9125926b46c7a3c3d993ccb5",
+    "branch": "feat/hpagent-web",
+    "timestamp": "2026-08-18T05:32:10.607593+00:00",
+    "python_version": "3.12.3",
+    "temporal_sdk_version": "1.31.0",
+    "docker_compose_version": "5.3.1",
+    "host_os": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "cpu": "x86_64",
+    "logical_cpu_count": 8,
+    "memory_bytes": 3541700608,
+    "benchmark_config": {
+      "host": "localhost:7233",
+      "namespace": "hpagent-benchmark",
+      "trials_per_case": 10,
+      "total_trials": 50,
+      "trial_timeout_seconds": 45,
+      "cases": [
+        {
+          "case_id": "T1",
+          "strategy": "react",
+          "fault_boundary": "react-model-decision",
+          "expected_operations": {
+            "context": 1,
+            "model": 2,
+            "tool": 1
+          },
+          "expected_transcript_version": 4,
+          "expected_side_effects": 1
+        },
+        {
+          "case_id": "T2",
+          "strategy": "react",
+          "fault_boundary": "react-tool-before-side-effect",
+          "expected_operations": {
+            "context": 1,
+            "model": 2,
+            "tool": 1
+          },
+          "expected_transcript_version": 4,
+          "expected_side_effects": 1
+        },
+        {
+          "case_id": "T3",
+          "strategy": "react",
+          "fault_boundary": "react-tool-after-side-effect-before-ack",
+          "expected_operations": {
+            "context": 1,
+            "model": 2,
+            "tool": 1
+          },
+          "expected_transcript_version": 4,
+          "expected_side_effects": 1
+        },
+        {
+          "case_id": "T4",
+          "strategy": "plan_and_execute",
+          "fault_boundary": "plan-step-2",
+          "expected_operations": {
+            "context": 1,
+            "planning": 1,
+            "model": 3,
+            "evaluation": 2
+          },
+          "expected_transcript_version": 5,
+          "expected_side_effects": 0
+        },
+        {
+          "case_id": "T5",
+          "strategy": "plan_and_execute",
+          "fault_boundary": "plan-final-evaluation",
+          "expected_operations": {
+            "context": 1,
+            "planning": 1,
+            "model": 3,
+            "evaluation": 2
+          },
+          "expected_transcript_version": 5,
+          "expected_side_effects": 0
+        }
+      ]
+    }
+  },
+  "definitions": {
+    "recovery_success_rate": "successful invariant-checked workflow recoveries / all injected-fault trials",
+    "duplicate_operation_rate": "trials with operation attempts exceeding unique operation ids / all trials",
+    "duplicate_side_effect_rate": "trials with side effects exceeding the expected count / trials that execute side effects",
+    "recovery_latency_ms": "monotonic elapsed time from SIGKILL request until workflow result",
+    "percentile_method": "linear interpolation at (n-1)*q over successful trials"
+  },
+  "trials": 50,
+  "recovery_success": 50,
+  "recovery_success_rate": 1.0,
+  "duplicate_operation_trials": 0,
+  "duplicate_operation_rate": 0.0,
+  "duplicate_side_effect_trials": 0,
+  "duplicate_side_effect_rate": 0.0,
+  "recovery_latency_ms": {
+    "p50": 10485.01,
+    "p95": 10683.786
+  },
+  "cases": {
+    "T1": {
+      "trials": 10,
+      "recovery_success": 10,
+      "recovery_success_rate": 1.0,
+      "recovery_latency_ms": {
+        "p50": 10516.122,
+        "p95": 10613.623
+      }
+    },
+    "T2": {
+      "trials": 10,
+      "recovery_success": 10,
+      "recovery_success_rate": 1.0,
+      "recovery_latency_ms": {
+        "p50": 10474.946,
+        "p95": 10605.096
+      }
+    },
+    "T3": {
+      "trials": 10,
+      "recovery_success": 10,
+      "recovery_success_rate": 1.0,
+      "recovery_latency_ms": {
+        "p50": 10411.926,
+        "p95": 10530.92
+      }
+    },
+    "T4": {
+      "trials": 10,
+      "recovery_success": 10,
+      "recovery_success_rate": 1.0,
+      "recovery_latency_ms": {
+        "p50": 10655.599,
+        "p95": 10748.09
+      }
+    },
+    "T5": {
+      "trials": 10,
+      "recovery_success": 10,
+      "recovery_success_rate": 1.0,
+      "recovery_latency_ms": {
+        "p50": 10430.708,
+        "p95": 10471.494
+      }
+    }
+  },
+  "failures": []
+}

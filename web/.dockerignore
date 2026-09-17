@@ -1,0 +1,9 @@
+# Build 上下文瘦身：这些在镜像构建阶段由 npm ci / npm run build 重新生成。
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.tsbuildinfo
+*.log
+.env
+.env.*

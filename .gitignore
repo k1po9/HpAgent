@@ -21,9 +21,9 @@ wheels/
 MANIFEST
 .pytest_cache/
 .coverage
+test-results/
 htmlcov/
 .env
-.env.example
 config.yaml
 .venv
 venv/
@@ -38,6 +38,7 @@ ENV/
 *.log
 channel/
 .claude/
+.serena/
 
 # 运行时数据（日志 / 会话 / 工作区 / QQ 凭证）
 .data/

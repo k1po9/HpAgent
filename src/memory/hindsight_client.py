@@ -123,6 +123,19 @@ class MemoryItem:
         )
 
 
+@dataclass(frozen=True)
+class RetainReceipt:
+    """retain_document 的结果 —— 让 Outbox Worker 区分成功/失败。
+
+    accepted=False → 重试；accepted=True → mark processed。
+    """
+
+    accepted: bool
+    items_count: int = 0
+    operation_id: str | None = None
+    async_processing: bool = False
+
+
 class HindsightClient:
     """Hindsight 记忆服务客户端（v0.6.1），per-user bank 隔离。
 
@@ -133,7 +146,9 @@ class HindsightClient:
 
         client = HindsightClient(base_url="http://localhost:8001")
         memories = await client.recall("用户偏好", user_id="u1", session_id="s1")
-        count = await client.retain(events, user_id="u1", session_id="s1")
+        receipt = await client.retain_document(
+            events, user_id="u1", document_id="qq-execution:execution-1"
+        )
         insights = await client.reflect(user_id="u1")
 
     Args:
@@ -286,71 +301,62 @@ class HindsightClient:
     # API 1: retain —— 从对话事件中提取并存储记忆
     # ═══════════════════════════════════════════════════════════════════════════
 
-    async def retain(
+    async def retain_document(
         self,
         events: List[Dict[str, Any]],
         user_id: str,
-        session_id: str,
-        async_retain: bool = True,
+        document_id: str,
+        *,
+        async_retain: bool = False,
         channel_type: str = "",
         group_id: str = "",
         sender_name: str = "",
         iso_timestamp: str = "",
         scope: str = "",
-    ) -> int:
-        """从对话事件中提取可记忆信息并持久化。
+        session_id: str = "",
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> RetainReceipt:
+        """把一组事件作为单个幂等 document 提交到用户 bank。
 
-        Hindsight 服务端在 retain 时自动执行:
-          - 事实提取 (fact extraction)
-          - 实体识别 (entity extraction)
-          - 观察整合 (observation consolidation，如 enable_observations 开启)
+        Phase F 统一 Retain API（doc §21-25）：
+          - ``user_id`` 决定 bank（hpagent-u-{user_id}）
+          - ``document_id`` 决定 memory source 的幂等身份
+            二者绝对不能混。
 
-        Args:
-            events:        对话事件列表 [{"role": "user", "content": "..."}, ...]。
-            user_id:       用户 ID。
-            session_id:    会话 ID。
-            async_retain:  是否异步提交（默认 True，不阻塞调用方）。
-            channel_type:  渠道类型（napcat/console/web），用于 context 和 tags。
-            group_id:      群 ID（群聊时）。
-            sender_name:   发送者名称，用于 context 描述。
-            iso_timestamp: ISO 8601 格式时间戳，保留原始时序。
-            scope:         对话范围（"private" / "group"）。
+        Web:    document_id = "web-run:{run_id}"    （async_retain=False）
+        QQ:     document_id = "qq-execution:{execution_id}"
 
         Returns:
-            已提交的 memory item 数量，失败返回 0。
+            RetainReceipt。accepted=False 表示请求失败（Outbox 应重试）。
         """
+        if not document_id:
+            return RetainReceipt(accepted=False, items_count=0)
+
         bank_id = self._bank_id_for(user_id)
         if not await self._ensure_bank(bank_id):
             self.metrics.retain_failure += 1
-            return 0
+            return RetainReceipt(accepted=False, items_count=0)
 
-        # 构建 context 描述（渠道感知 + 群/私聊上下文）
         context_str = self._build_context(channel_type, group_id, sender_name, scope)
-
-        # 构建标签体系（不含 user:{id}——bank 已提供用户级隔离）
         item_tags_base = self._build_tags(session_id, channel_type, group_id, scope)
 
-        # 合并所有事件为单条 item，使用会话级 document_id。
-        # Hindsight 要求 batch 内 document_id 唯一，且单条全文提交能
-        # 让 LLM 利用完整上下文做更准确的事实提取。
+        # 合并所有事件为单条 item。Hindsight 要求 batch 内 document_id 唯一，
+        # 单条全文提交能让 LLM 利用完整上下文做更准确的事实提取。
         merged_content = "\n\n".join(
             f"[{e.get('role', 'user')}]: {e['content']}"
             for e in events
             if e.get("content")
         )
         if not merged_content:
-            return 0
+            return RetainReceipt(accepted=False, items_count=0)
 
         items = [{
             "content": merged_content,
             "context": context_str,
-            "document_id": f"session:{session_id}",
+            "document_id": document_id,
             "timestamp": iso_timestamp,
             "tags": list(item_tags_base),
-            "metadata": {
-                "session_id": session_id,
-                "sender_name": sender_name,
-            },
+            "metadata": dict(metadata or {}),
         }]
 
         t0 = time_mod.monotonic()
@@ -363,9 +369,16 @@ class HindsightClient:
         self.metrics.retain_latency_ms.append(elapsed_ms)
         if result is None:
             self.metrics.retain_failure += 1
-            return 0
+            return RetainReceipt(
+                accepted=False, items_count=0, async_processing=async_retain
+            )
         self.metrics.retain_success += 1
-        return result.get("items_count", 0)
+        return RetainReceipt(
+            accepted=True,
+            items_count=int(result.get("items_count", 0)),
+            operation_id=result.get("operation_id"),
+            async_processing=async_retain,
+        )
 
     # ── retain helpers ────────────────────────────────────────────────────
 

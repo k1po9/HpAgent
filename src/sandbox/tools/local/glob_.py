@@ -1,6 +1,6 @@
-import os
 import glob as _glob
 import json
+import os
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
@@ -48,7 +48,7 @@ def create_glob_tool(workspace_root: str):
 
     return StructuredTool.from_function(
         name="Glob",
-        description="Find files matching a pattern in a directory. Returns relative paths sorted by modification time (newest first). Max 200 results.",
+        description="Find files matching a pattern in the persistent Git workspace. This does not list files uploaded with the current Web Run. Returns at most 200 relative paths.",
         args_schema=GlobInput,
         coroutine=glob_,
     )
