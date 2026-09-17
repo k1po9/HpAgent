@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Protocol
 
 
 @dataclass(frozen=True)
@@ -68,3 +68,34 @@ class ActionResult:
         if self.success is not None:
             return not self.success
         return self.error is not None
+
+
+class ActionCapability(Protocol):
+    """Stable tool capability consumed by durable Agent Activities."""
+
+    def reset_execution(self, resource_key: str, execution_id: str) -> None: ...
+
+    async def select_tools(
+        self,
+        *,
+        resource_key: str,
+        execution_id: str,
+        user_content: str,
+        group_context_text: str = "",
+    ) -> list[dict[str, Any]]: ...
+
+    def side_effect_class(self, resource_key: str, tool_name: str) -> str: ...
+
+    def budget_reservation(self, resource_key: str, tool_name: str) -> dict[str, int]: ...
+
+    async def execute_request(
+        self,
+        request: ActionRequest,
+        *,
+        resource_key: str,
+        execution_id: str,
+        user_query: str = "",
+        idempotency_key: str = "",
+    ) -> ActionResult: ...
+
+    def clear_execution(self, resource_key: str, execution_id: str) -> None: ...

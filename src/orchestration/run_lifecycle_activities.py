@@ -28,11 +28,6 @@ class RunInputLoader(Protocol):
     def load(self, run_id: str) -> AgentRunInput: ...
 
 
-_lifecycle: RunLifecyclePort | None = None
-_run_input_loader: RunInputLoader | None = None
-_agent_event_factory: Any | None = None
-
-
 async def _lifecycle_call(function, *args):
     try:
         return await asyncio.to_thread(function, *args)
@@ -40,78 +35,82 @@ async def _lifecycle_call(function, *args):
         raise ApplicationError("Run lifecycle invariant rejected", non_retryable=True) from exc
 
 
-def inject_run_lifecycle(service: RunLifecyclePort) -> None:
-    global _lifecycle
-    _lifecycle = service
+class RunLifecycleActivities:
+    """Lifecycle Activity collection with explicit instance-owned dependencies."""
 
+    def __init__(
+        self,
+        lifecycle: RunLifecyclePort,
+        run_input_loader: RunInputLoader,
+        event_factory: Any | None = None,
+    ) -> None:
+        self._lifecycle = lifecycle
+        self._run_input_loader = run_input_loader
+        self._event_factory = event_factory
 
-def inject_agent_run_loader(loader: RunInputLoader) -> None:
-    global _run_input_loader
-    _run_input_loader = loader
+    @activity.defn(name="prepare_run_activity")
+    async def prepare_run(self, request: RunLifecycleInput) -> dict[str, str]:
+        request.validate()
+        try:
+            info = activity.info()
+        except RuntimeError:
+            info = None
+        if info is not None:
+            authority = await _lifecycle_call(
+                self._lifecycle.prepare,
+                UUID(request.run_id),
+                info.workflow_id,
+                info.workflow_run_id,
+            )
+        else:
+            authority = await _lifecycle_call(
+                self._lifecycle.prepare, UUID(request.run_id)
+            )
+        return asdict(authority)
 
-
-def inject_agent_event_factory(factory: Any) -> None:
-    global _agent_event_factory
-    _agent_event_factory = factory
-
-
-def _service() -> RunLifecyclePort:
-    if _lifecycle is None:
-        raise RuntimeError("Run lifecycle was not injected")
-    return _lifecycle
-
-
-@activity.defn
-async def prepare_run_activity(request: RunLifecycleInput) -> dict[str, str]:
-    request.validate()
-    try:
-        info = activity.info()
-    except RuntimeError:
-        info = None
-    if info is not None:
-        authority = await _lifecycle_call(
-            _service().prepare,
-            UUID(request.run_id),
-            info.workflow_id,
-            info.workflow_run_id,
+    @activity.defn(name="finalize_failed_activity")
+    async def finalize_failed(self, failure: FailureInput) -> dict[str, str]:
+        events = (
+            self._event_factory.for_run(failure.run_id)
+            if self._event_factory is not None
+            else None
         )
-    else:
-        # Direct unit invocation has no Temporal Activity context.
-        authority = await _lifecycle_call(_service().prepare, UUID(request.run_id))
-    return asdict(authority)
-
-
-@activity.defn
-async def finalize_failed_activity(failure: FailureInput) -> dict[str, str]:
-    events = (
-        _agent_event_factory.for_run(failure.run_id) if _agent_event_factory is not None else None
-    )
-    authority = asdict(
-        await _lifecycle_call(
-            _service().finalize_failed,
-            UUID(failure.run_id),
-            failure.error_code,
-            failure.error_message,
+        authority = asdict(
+            await _lifecycle_call(
+                self._lifecycle.finalize_failed,
+                UUID(failure.run_id),
+                failure.error_code,
+                failure.error_message,
+            )
         )
-    )
-    await _finish_root_trace(
-        failure.run_id,
-        "failed",
-        {"error_code": failure.error_code},
-        events=events,
-    )
-    return authority
+        await _finish_root_trace(
+            failure.run_id,
+            "failed",
+            {"error_code": failure.error_code},
+            events=events,
+        )
+        return authority
 
+    @activity.defn(name="finalize_cancelled_activity")
+    async def finalize_cancelled(self, request: RunLifecycleInput) -> dict[str, str]:
+        request.validate()
+        events = (
+            self._event_factory.for_run(request.run_id)
+            if self._event_factory is not None
+            else None
+        )
+        authority = asdict(
+            await _lifecycle_call(
+                self._lifecycle.finalize_cancelled, UUID(request.run_id)
+            )
+        )
+        await _finish_root_trace(request.run_id, "cancelled", events=events)
+        return authority
 
-@activity.defn
-async def finalize_cancelled_activity(request: RunLifecycleInput) -> dict[str, str]:
-    request.validate()
-    events = (
-        _agent_event_factory.for_run(request.run_id) if _agent_event_factory is not None else None
-    )
-    authority = asdict(await _lifecycle_call(_service().finalize_cancelled, UUID(request.run_id)))
-    await _finish_root_trace(request.run_id, "cancelled", events=events)
-    return authority
+    @activity.defn(name="load_agent_run_input_activity")
+    async def load_agent_run_input(self, request: RunLifecycleInput) -> AgentRunInput:
+        request.validate()
+        return await asyncio.to_thread(self._run_input_loader.load, request.run_id)
 
 
 async def _finish_root_trace(
@@ -129,11 +128,3 @@ async def _finish_root_trace(
         await trace_end(events, root_node_id, status, metadata)
     finally:
         await events.close()
-
-
-@activity.defn
-async def load_agent_run_input_activity(request: RunLifecycleInput) -> AgentRunInput:
-    request.validate()
-    if _run_input_loader is None:
-        raise RuntimeError("Run input loader was not injected")
-    return await asyncio.to_thread(_run_input_loader.load, request.run_id)

@@ -80,15 +80,32 @@ async def capture_registries():
 
     config = AppConfig()
     deps = SimpleNamespace(
-        workspace_isolation=SimpleNamespace(account_locks=Mock(), close=Mock()),
-        sandbox_manager=Mock(), redis_client=None, context_builder=Mock(), hindsight_client=None,
-        git_repo_manager=Mock(), run_file_workspace=None, resource_pool=Mock(),
-        file_output_publisher=None, tenant_file_store=Mock(), brain_engine=Mock(), action_runtime=Mock(),
-        memory_reflection=Mock(), metrics=Mock(), scheduler=Mock(), mcp_manager=None,
+        infrastructure=SimpleNamespace(
+            workspace_isolation=SimpleNamespace(account_locks=Mock()),
+            sandbox_manager=Mock(),
+            redis_client=None,
+            git_repo_manager=Mock(),
+            run_file_workspace=None,
+            resource_pool=Mock(),
+            file_output_publisher=None,
+            tenant_file_store=Mock(),
+        ),
+        shared=SimpleNamespace(
+            context_builder=Mock(),
+            hindsight_client=None,
+            brain_engine=Mock(),
+            action_runtime=Mock(),
+            memory_reflection=Mock(),
+            metrics=Mock(),
+            account_service=Mock(),
+        ),
+        qq=SimpleNamespace(channel_router=Mock(), reply_service=Mock()),
+        scheduler=Mock(),
+        close=AsyncMock(),
     )
     with patch.dict(os.environ, WORKER_DATABASE_URL="postgresql://registry-only/unused"), \
             patch("orchestration.web_workers.Worker", side_effect=record):
-        composition = worker.compose_web_workers(Mock(), config, deps)
+        composition = worker.compose_durable_runtime(Mock(), config, deps)
     with patch("orchestration.document_worker.Worker", side_effect=record):
         build_document_worker(Mock(), SimpleNamespace(normalize_document=DocumentActivities.normalize_document))
 
@@ -102,7 +119,6 @@ async def capture_registries():
     config.scheduler.enabled = False
     with patch.object(worker, "init_dependencies", AsyncMock(return_value=deps)), \
             patch.object(worker.Client, "connect", AsyncMock()), \
-            patch.object(worker, "inject_scheduled_services"), \
             patch.object(worker, "Worker", side_effect=stop_after_memory_registry):
         try:
             await worker.start_worker(config)

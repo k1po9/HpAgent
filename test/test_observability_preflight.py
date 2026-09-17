@@ -68,7 +68,7 @@ async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog,
         complete_operation_with_event=Mock(return_value=2),
         fail_operation=Mock(),
     )
-    actions = SimpleNamespace(reset_turn=Mock(), select_tools=AsyncMock(return_value=[]),
+    actions = SimpleNamespace(reset_execution=Mock(), select_tools=AsyncMock(return_value=[]),
                               clear_execution=Mock())
     events = SimpleNamespace(progress=AsyncMock(), trace_start=AsyncMock(),
                              trace_end=AsyncMock(), close=AsyncMock())

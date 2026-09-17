@@ -15,7 +15,7 @@ from uuid import UUID
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from actions.contracts import ActionRequest
+from actions.contracts import ActionCapability, ActionRequest
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     ApprovalStatusInput,
@@ -35,6 +35,7 @@ from agent_workflows.contracts import (
     ToolExecutionResult,
 )
 from application.execution_contracts import StableExecutionFailure
+from brain.contracts import BrainCapability
 from common.logging import log_event
 from resources.model_budget_context import model_budget_scope
 from resources.run_budget import RunBudgetExhausted
@@ -71,8 +72,8 @@ class DurableAgentActivities:
         *,
         store: AgentDataStore,
         loader: Any,
-        brain: Any,
-        actions: Any,
+        brain: BrainCapability,
+        actions: ActionCapability,
         event_factory: Any,
         resource_prep: Any,
         lifecycle: Any,
@@ -494,7 +495,7 @@ class DurableAgentActivities:
                 await asyncio.to_thread(
                     self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
                 )
-                self.actions.reset_turn(self.context_bindings.session_key(request), request.run_id)
+                self.actions.reset_execution(self.context_bindings.session_key(request), request.run_id)
                 with model_budget_scope(
                     self.run_budget, request.run_id, request.operation_id,
                     execution_attempt=request.execution_attempt,
@@ -505,7 +506,7 @@ class DurableAgentActivities:
                     else:
                         tools = await self.actions.select_tools(
                             user_content=request.objective or self._last_user_content(model_messages),
-                            session_id=self.context_bindings.session_key(request),
+                            resource_key=self.context_bindings.session_key(request),
                             execution_id=request.run_id,
                         )
                         decision = await self.brain.generate_chat_decision(
@@ -902,7 +903,7 @@ class DurableAgentActivities:
                         ):
                             result_value = await self.actions.execute_request(
                                 action,
-                                session_id=self.context_bindings.session_key(request),
+                                resource_key=self.context_bindings.session_key(request),
                                 execution_id=request.run_id,
                                 user_query="",
                                 idempotency_key=request.operation_id,

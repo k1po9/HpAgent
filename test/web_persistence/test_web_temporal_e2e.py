@@ -23,15 +23,7 @@ from conversation_domain.commands import CommandService
 from conversation_domain.execution_bindings import ChatExecutionBindings
 from conversation_domain.run_input import ChatRunInputLoader
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
-from orchestration.run_lifecycle_activities import (
-    finalize_cancelled_activity,
-    finalize_failed_activity,
-    inject_agent_event_factory,
-    inject_agent_run_loader,
-    inject_run_lifecycle,
-    load_agent_run_input_activity,
-    prepare_run_activity,
-)
+from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from orchestration.web_dispatcher import (
     TemporalClientAdapter,
@@ -81,7 +73,7 @@ class Brain:
 
 
 class Actions:
-    def reset_turn(self, *args):
+    def reset_execution(self, *args):
         pass
 
     def clear_execution(self, *args):
@@ -164,17 +156,17 @@ async def test_web_canonical_lifecycle(
             worker_database_url, sandbox, AccountLockRegistry(), GitRepoManager(tmp_path)
         ),
     )
-    inject_run_lifecycle(lifecycle)
-    inject_agent_run_loader(ChatRunInputLoader(store))
-    inject_agent_event_factory(events)
+    lifecycle_activities = RunLifecycleActivities(
+        lifecycle, ChatRunInputLoader(store), events
+    )
     segments = SegmentActivities(store)
     workers = build_web_temporal_workers(
         client,
         lifecycle_activities=[
-            prepare_run_activity,
-            load_agent_run_input_activity,
-            finalize_failed_activity,
-            finalize_cancelled_activity,
+            lifecycle_activities.prepare_run,
+            lifecycle_activities.load_agent_run_input,
+            lifecycle_activities.finalize_failed,
+            lifecycle_activities.finalize_cancelled,
             runtime.finalize_agent_result,
         ],
         agent_activities=[

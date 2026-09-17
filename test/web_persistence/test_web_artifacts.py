@@ -10,10 +10,7 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from conversation_domain.commands import CommandService
-from orchestration.artifact_activities import (
-    execute_artifact_build_activity,
-    inject_artifact_build_service,
-)
+from orchestration.artifact_activities import ArtifactActivities
 from orchestration.artifact_dispatcher import (
     ArtifactOutboxDispatcher,
     TemporalArtifactClient,
@@ -138,7 +135,7 @@ async def test_real_temporal_artifact_outbox_to_persisted_html(
     )
     version_id = UUID(created["version"]["artifact_version_id"])
 
-    inject_artifact_build_service(
+    activities = ArtifactActivities(
         ArtifactBuildService(worker_database_url, _Generator())
     )
     client = await Client.connect(temporal_host)
@@ -146,7 +143,7 @@ async def test_real_temporal_artifact_outbox_to_persisted_html(
         client,
         task_queue=ARTIFACT_TASK_QUEUE,
         workflows=[ArtifactBuildWorkflow],
-        activities=[execute_artifact_build_activity],
+        activities=[activities.execute],
     )
     dispatcher = ArtifactOutboxDispatcher(
         ArtifactOutboxService(worker_database_url),

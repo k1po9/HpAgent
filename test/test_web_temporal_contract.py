@@ -107,15 +107,15 @@ def test_artifact_uses_the_registered_web_lifecycle_task_queue():
 
 @pytest.mark.asyncio
 async def test_lifecycle_activity_adapter_loads_authority_only_by_run_id():
-    from orchestration.run_lifecycle_activities import inject_run_lifecycle, prepare_run_activity
+    from orchestration.run_lifecycle_activities import RunLifecycleActivities
 
     class FakeLifecycle:
         def prepare(self, run_id):
             assert str(run_id) == "00000000-0000-0000-0000-000000000001"
             return LifecycleAuthority(str(run_id), "running")
 
-    inject_run_lifecycle(FakeLifecycle())
-    result = await prepare_run_activity(RunLifecycleInput(
+    activities = RunLifecycleActivities(FakeLifecycle(), object())
+    result = await activities.prepare_run(RunLifecycleInput(
         WEB_WORKFLOW_SCHEMA_VERSION, "00000000-0000-0000-0000-000000000001"
     ))
     assert result == {
@@ -382,19 +382,19 @@ async def test_action_runtime_cache_is_partitioned_and_cleared_by_execution():
     runtime = ActionRuntime(sandbox_manager=Sandboxes())
     first, second = await asyncio.gather(
         runtime.select_tools(
-            user_content="first", session_id="session", execution_id="run-1"
+            user_content="first", resource_key="session", execution_id="run-1"
         ),
         runtime.select_tools(
-            user_content="second", session_id="session", execution_id="run-2"
+            user_content="second", resource_key="session", execution_id="run-2"
         ),
     )
     assert first == [{"name": "first"}]
     assert second == [{"name": "second"}]
-    assert set(runtime._tools_cache) == {"session:run-1", "session:run-2"}
+    assert set(runtime._tools_cache) == {("session", "run-1"), ("session", "run-2")}
 
     runtime.clear_execution("session", "run-1")
-    assert set(runtime._tools_cache) == {"session:run-2"}
-    runtime.clear_session("session")
+    assert set(runtime._tools_cache) == {("session", "run-2")}
+    runtime.clear_execution("session", "run-2")
     assert runtime._tools_cache == {}
 
 
@@ -405,13 +405,13 @@ async def test_ae_030_tool_invocation_key_is_stable_for_activity_redelivery():
     async def execute(**kwargs):
         return {"output": "ok", "metadata": {}}
 
-    runtime.execute = execute
+    runtime._execute = execute
     action = ActionRequest("tool-call", "tool", {})
     first = await runtime.execute_request(
-        action, session_id="session", execution_id="stable-execution"
+        action, resource_key="session", execution_id="stable-execution"
     )
     second = await runtime.execute_request(
-        action, session_id="session", execution_id="stable-execution"
+        action, resource_key="session", execution_id="stable-execution"
     )
     assert first.metadata["invocation_key"] == second.metadata["invocation_key"]
     assert first.metadata["invocation_key"] == (

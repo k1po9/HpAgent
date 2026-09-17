@@ -619,13 +619,13 @@ async def test_declared_provider_idempotency_argument_receives_operation_id():
         captured.update(kwargs)
         return {"output": "ok", "metadata": {}}
 
-    runtime.execute = execute
+    runtime._execute = execute
     result = await runtime.execute_request(
         ActionRequest(
             "call-1", "provider_write",
             {"value": 1, "request_id": "model-controlled-value"},
         ),
-        session_id="session",
+        resource_key="session",
         execution_id="run",
         idempotency_key="operation-123",
     )

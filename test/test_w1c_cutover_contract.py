@@ -9,10 +9,7 @@ from agent_workflows.contracts import AGENT_SCHEMA_VERSION, AgentRunInput, RunCo
 from conversation_domain.run_input import ChatRunInputLoader
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.config import TemporalConfig
-from orchestration.run_lifecycle_activities import (
-    inject_agent_run_loader,
-    load_agent_run_input_activity,
-)
+from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from orchestration.web_dispatcher import TemporalClientAdapter
 
@@ -39,8 +36,10 @@ async def test_lifecycle_loader_accepts_source_owned_non_chat_input():
         context=RunContext(context_ref="ctx"),
         strategy="react",
     )
-    inject_agent_run_loader(SimpleNamespace(load=lambda run_id: expected))
-    assert await load_agent_run_input_activity(RunLifecycleInput(1, "run")) == expected
+    activities = RunLifecycleActivities(
+        SimpleNamespace(), SimpleNamespace(load=lambda run_id: expected)
+    )
+    assert await activities.load_agent_run_input(RunLifecycleInput(1, "run")) == expected
 
 
 def test_chat_loader_rejects_missing_conversation_instead_of_stringifying_none():
@@ -62,7 +61,7 @@ def test_production_cutover_has_no_legacy_switch_or_host():
     root = Path(__file__).parents[1]
     source = (root / "src/orchestration/worker.py").read_text()
     composition = source[
-        source.index("def compose_web_workers(") : source.index("def _build_web_background_tasks(")
+        source.index("def compose_durable_runtime(") : source.index("class BackgroundTasks:")
     ]
     for legacy in (
         "WebExecutionHost",

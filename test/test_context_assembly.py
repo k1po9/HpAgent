@@ -9,6 +9,7 @@ from application.context_assembly import (
     WebContextBase,
 )
 from application.context_builder import HarnessContextBuilder
+from application.interaction_profiles import select_interaction_profile
 from common.types import Event, EventType
 from memory.hindsight_client import MemoryItem
 
@@ -77,3 +78,48 @@ def test_run_file_manifest_is_injected_without_changing_user_message():
 
 def test_empty_run_file_manifest_adds_no_resource_section():
     assert ContextAssemblyService._format_run_file_context(()) == ""
+
+
+def test_context_builder_uses_explicit_profile_not_transport_content():
+    event = Event(
+        session_id="context",
+        event_type=EventType.USER_MESSAGE,
+        content={"content": "hello", "channel_type": "web"},
+    )
+    messages = HarnessContextBuilder().build(
+        [event], interaction_profile="qq_private"
+    )
+    assert messages[0]["content"] == "你是 nono，一只有趣的猫。"
+    assert messages[-1] == {"role": "user", "content": "hello"}
+
+
+def test_context_event_projects_profile_into_metadata_only():
+    event = ContextAssemblyService._message_to_event({
+        "role": "user",
+        "content": "hello",
+        "origin": {
+            "channel_type": "napcat",
+            "scope": "group",
+            "interaction_profile": "qq_group",
+        },
+    })
+    assert event.content == {"content": "hello"}
+    assert event.metadata["interaction_profile"] == "qq_group"
+    assert event.metadata["interaction_source"] == "napcat"
+
+
+@pytest.mark.parametrize(
+    ("origin", "strategy", "expected"),
+    [
+        ({}, "react", "web_chat"),
+        ({}, "plan_and_execute", "web_plan"),
+        ({"interaction_profile": "qq_private"}, "react", "qq_private"),
+        ({"interaction_profile": "qq_group"}, "react", "qq_group"),
+        ({"channel_type": "official_qq", "scope": "private"}, "react", "qq_private"),
+        ({"channel_type": "napcat", "scope": "group"}, "react", "qq_group"),
+    ],
+)
+def test_source_profile_selector_preserves_all_profiles_and_legacy_rows(
+    origin, strategy, expected
+):
+    assert select_interaction_profile(origin, strategy) == expected

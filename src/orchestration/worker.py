@@ -4,7 +4,7 @@ Orchestration Worker —— Temporal Worker 启动与依赖组装。
 启动序列:
   1. AppConfig.from_yaml() → 加载全量结构化配置
   2. init_dependencies()    → 按 config 组装所有依赖
-  3. inject_services()     → 注入定时应用服务到 Activities
+  3. 构造 instance-owned Activities
   4. 连接 Temporal → 启动 Worker → 渠道监听
 
 架构:
@@ -26,23 +26,18 @@ from temporalio.client import Client
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
 from account.identity_binding_service import IdentityBindingService
-from application.context_builder import HarnessContextBuilder
 from application.conversation import ConversationService
 from application.identity_commands import IdentityCommandService
 from application.ingress import MessageIngressService
 from application.prompts import PromptLoader
 from application.scheduler import TaskScheduler
-from bootstrap.qq import build_qq_runtime
+from bootstrap.qq import QQSurfaceServices, build_qq_surface_services
+from bootstrap.shared_runtime import SharedAgentServices, build_shared_agent_services
 from channels.napcat import NapCatChannel
 from channels.official_qq import OfficialQQChannel
 from channels.router import ChannelRouter
 from common.types import ChannelType, UnifiedMessage
-from memory.activities import (
-    inject_scheduled_services,
-    metrics_report_activity,
-    reflect_activity,
-    reflect_batch_activity,
-)
+from memory.activities import ScheduledMemoryActivities
 from memory.workflows import MetricsReportWorkflow, ReflectWorkflow
 from orchestration.config import AppConfig, SandboxConfig
 from resources.credentials import CredentialManager, ModelEndpoint
@@ -81,8 +76,8 @@ def load_worker_qq_binding_code_pepper() -> bytes:
 
 
 @dataclasses.dataclass
-class WebWorkerComposition:
-    """``compose_web_workers`` 的产物 —— Web Temporal workers + 后台任务边界。
+class DurableRuntimeComposition:
+    """Canonical durable workers, dispatchers and reconcilers.
 
     单一进程部署（QQ + Web 同进程，AE-021 的 ``single_process_account_lock``）
     与独立 Web Worker 入口都通过同一个组合函数组装，保证二者使用同一个
@@ -95,7 +90,9 @@ class WebWorkerComposition:
     artifact_dispatcher: object = None
 
 
-def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> WebWorkerComposition:
+def compose_durable_runtime(
+    client, config: AppConfig, deps: WorkerDependencies
+) -> DurableRuntimeComposition:
     """组装 Web lifecycle/agent Worker、Outbox Dispatcher 与 Reconciler。
 
     Web real Agent 或任一 QQ channel 启用时组装唯一 canonical runtime（C-07 门禁）。
@@ -117,23 +114,12 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     from file_domain.approvals import FileActionApprovalService
     from file_domain.persistent import PersistentWebFileService
     from file_runtime import ResearchMarkdownPublisher
-    from orchestration.artifact_activities import (
-        execute_artifact_build_activity,
-        inject_artifact_build_service,
-    )
+    from orchestration.artifact_activities import ArtifactActivities
     from orchestration.artifact_dispatcher import (
         ArtifactOutboxDispatcher,
         TemporalArtifactClient,
     )
-    from orchestration.run_lifecycle_activities import (
-        finalize_cancelled_activity,
-        finalize_failed_activity,
-        inject_agent_event_factory,
-        inject_agent_run_loader,
-        inject_run_lifecycle,
-        load_agent_run_input_activity,
-        prepare_run_activity,
-    )
+    from orchestration.run_lifecycle_activities import RunLifecycleActivities
     from orchestration.web_dispatcher import (
         TemporalClientAdapter,
         TemporalOutboxDispatcher,
@@ -176,10 +162,12 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
 
     validate_web_worker_startup(config.temporal, worker_database_url)
     assert worker_database_url is not None
-    assert deps.workspace_isolation is not None, "workspace isolation is required"
+    infrastructure = deps.infrastructure
+    shared = deps.shared
+    assert infrastructure.workspace_isolation is not None, "workspace isolation is required"
     from file_runtime.routing import TemporalDocumentRouter
 
-    deps.sandbox_manager.configure_file_document_router(
+    infrastructure.sandbox_manager.configure_file_document_router(
         TemporalDocumentRouter(
             client,
             direct_read_max_bytes=int(
@@ -189,7 +177,7 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     )
     trace_repository = PostgresTraceRepository(worker_database_url)
     event_factory = TracingWebEventSinkFactory(
-        RedisWebRunEventSinkFactory(deps.redis_client),
+        RedisWebRunEventSinkFactory(infrastructure.redis_client),
         trace_repository,
     )
     lifecycle = WebRunLifecycleService(
@@ -197,26 +185,28 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         TraceLifecycleObserver(trace_repository, event_factory.detach_run),
     )
     context = ContextAssemblyService(
-        worker_database_url, deps.context_builder, deps.hindsight_client
+        worker_database_url, shared.context_builder, shared.hindsight_client
     )
     # Chat resources use the same account locks and Sandbox as QQ.
     resource_prep = SessionResourceRecoveryService(
         worker_database_url,
-        deps.sandbox_manager,
-        deps.workspace_isolation.account_locks,
-        deps.git_repo_manager,
-        deps.run_file_workspace,
+        infrastructure.sandbox_manager,
+        infrastructure.workspace_isolation.account_locks,
+        infrastructure.git_repo_manager,
+        infrastructure.run_file_workspace,
     )
     loader = PostgresWebRequestLoader(worker_database_url, context)
-    inject_run_lifecycle(lifecycle)
     agent_store = AgentDataStore(
         worker_database_url,
         lease_ttl_seconds=config.temporal.agent_execution_lease_ttl_seconds,
     )
     from conversation_domain.run_input import ChatRunInputLoader
 
-    inject_agent_run_loader(ChatRunInputLoader(agent_store, max_turns=config.agent.max_tool_turns))
-    inject_agent_event_factory(event_factory)
+    lifecycle_activities = RunLifecycleActivities(
+        lifecycle,
+        ChatRunInputLoader(agent_store, max_turns=config.agent.max_tool_turns),
+        event_factory,
+    )
     canonicalizer = W3libSourceCanonicalizer()
     research_activities = ResearchActivities(
         worker_database_url,
@@ -237,26 +227,26 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
             min_content_chars=config.research.min_content_chars,
         ),
         canonicalizer,
-        ResourcePoolResearchSynthesizer(deps.resource_pool),
+        ResourcePoolResearchSynthesizer(infrastructure.resource_pool),
         max_sources=config.research.max_sources,
         max_fetches=config.research.max_fetches,
         max_iterations=config.research.max_iterations,
         min_evidence=config.research.min_evidence,
         min_distinct_sources=config.research.min_distinct_sources,
         markdown_publisher=(
-            ResearchMarkdownPublisher(deps.file_output_publisher)
-            if deps.file_output_publisher is not None else None
+            ResearchMarkdownPublisher(infrastructure.file_output_publisher)
+            if infrastructure.file_output_publisher is not None else None
         ),
     )
     persistent_files = PersistentWebFileService(
-        worker_database_url, deps.tenant_file_store
+        worker_database_url, infrastructure.tenant_file_store
     )
     durable_activities = DurableAgentActivities(
         context_bindings=ChatExecutionBindings(),
         store=agent_store,
         loader=loader,
-        brain=deps.brain_engine,
-        actions=deps.action_runtime,
+        brain=shared.brain_engine,
+        actions=shared.action_runtime,
         event_factory=event_factory,
         resource_prep=resource_prep,
         lifecycle=lifecycle,
@@ -270,21 +260,21 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     artifact_build = ArtifactBuildService(
         worker_database_url,
         WebArtifactGenerator(
-            deps.resource_pool,
+            infrastructure.resource_pool,
             max_bytes=int(os.getenv("ARTIFACT_HTML_MAX_BYTES", str(1024 * 1024))),
         ),
     )
-    inject_artifact_build_service(artifact_build)
+    artifact_activities = ArtifactActivities(artifact_build)
     segment_activities = SegmentActivities(durable_activities.store)
     workers = build_web_temporal_workers(
         client,
         lifecycle_activities=[
-            prepare_run_activity,
-            load_agent_run_input_activity,
-            finalize_failed_activity,
-            finalize_cancelled_activity,
+            lifecycle_activities.prepare_run,
+            lifecycle_activities.load_agent_run_input,
+            lifecycle_activities.finalize_failed,
+            lifecycle_activities.finalize_cancelled,
             durable_activities.finalize_agent_result,
-            execute_artifact_build_activity,
+            artifact_activities.execute,
             research_activities.prepare_research_activity,
             research_activities.trigger_scheduled_research_activity,
             research_activities.create_research_plan_activity,
@@ -334,11 +324,11 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
     # If it is not, retain_memory rows stay pending and are consumed on a later
     # healthy boot (doc §46) — never dead-lettered just because Hindsight was down.
     memory_retention = None
-    if deps.hindsight_client is not None:
+    if shared.hindsight_client is not None:
         from application.memory_retention import MemoryRetentionService
 
         memory_retention = MemoryRetentionService(
-            worker_database_url, deps.hindsight_client
+            worker_database_url, shared.hindsight_client
         )
         logger.info("MemoryRetentionService composed (retain_memory consumer)")
     artifact_dispatcher = ArtifactOutboxDispatcher(
@@ -346,27 +336,48 @@ def compose_web_workers(client, config: AppConfig, deps: WorkerDependencies) -> 
         worker_id=f"hpagent-artifact-dispatcher-{os.getpid()}",
     )
     logger.info("Web real-Agent composition passed C-07 gate")
-    return WebWorkerComposition(workers, dispatcher, reconciler, memory_retention,
-                                artifact_dispatcher)
+    return DurableRuntimeComposition(
+        workers, dispatcher, reconciler, memory_retention, artifact_dispatcher
+    )
+
+
+class BackgroundTasks:
+    """Composition-owned set of cancellable process background tasks."""
+
+    def __init__(self) -> None:
+        self._tasks: set[asyncio.Task] = set()
+
+    def create(self, coroutine) -> asyncio.Task:
+        task = asyncio.create_task(coroutine)
+        self._tasks.add(task)
+        return task
+
+    async def close(self) -> None:
+        tasks = tuple(self._tasks)
+        self._tasks.clear()
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def _build_web_background_tasks(
     *,
+    tasks: BackgroundTasks,
     web_dispatcher,
     web_reconciler,
     web_memory_retention,
     lease_timeout_seconds: int,
     recovery_interval_seconds: float,
     artifact_dispatcher=None,
-) -> tuple[asyncio.Task | None, ...]:
+) -> None:
     """把 Web 组合产物变成可取消的后台任务，供 ``start_worker`` 前台运行。
 
     Dispatcher / Reconciler / 过期 lease 恢复 / Memory Retention（Phase F）各占
     一条独立任务，从不共享 lease 所有权。``web_memory_retention`` 必须来自
-    ``WebWorkerComposition.memory_retention``（组合层）；它**不在**
+    ``DurableRuntimeComposition.memory_retention``（组合层）；它**不在**
     ``composition.workers`` 上 —— 那里只有 lifecycle/agent（C-07）。
     """
-    # 惰性导入与 compose_web_workers 一致：web 组合产物只在
     # Canonical Web/QQ workers are composed here without module-level Temporal side effects.
     from orchestration.artifact_dispatcher import (
         run_artifact_dispatcher_loop,
@@ -374,22 +385,20 @@ def _build_web_background_tasks(
     )
     from orchestration.web_dispatcher import run_web_outbox_recovery_loop
 
-    dispatcher_task = asyncio.create_task(_run_web_dispatcher_loop(web_dispatcher))
-    reconciler_task = asyncio.create_task(
+    tasks.create(_run_web_dispatcher_loop(web_dispatcher))
+    tasks.create(
         _run_web_reconciler_loop(web_reconciler)
     )
     # Expired-lease auto-recovery runs on its own cadence, never in the fast
     # Dispatcher poll; validate_web_worker_startup already guaranteed both
     # values are positive and interval < timeout.
-    recovery_task = asyncio.create_task(
+    tasks.create(
         run_web_outbox_recovery_loop(
             web_dispatcher.outbox,
             lease_timeout_seconds,
             recovery_interval_seconds,
         )
     )
-    memory_retention_task = None
-    memory_retention_recovery_task = None
     if web_memory_retention is not None:
         # Phase F: retain_memory consumer + its own expired-lease sweep.  Both
         # run independently of the start/cancel Dispatcher and never share its
@@ -398,14 +407,14 @@ def _build_web_background_tasks(
             run_memory_retention_loop,
         )
 
-        memory_retention_task = asyncio.create_task(
+        tasks.create(
             run_memory_retention_loop(
                 web_dispatcher.outbox,
                 web_memory_retention,
                 worker_id=f"hpagent-memory-{os.getpid()}",
             )
         )
-        memory_retention_recovery_task = asyncio.create_task(
+        tasks.create(
             run_web_outbox_recovery_loop(
                 web_dispatcher.outbox,
                 lease_timeout_seconds,
@@ -413,53 +422,49 @@ def _build_web_background_tasks(
                 event_types={"retain_memory"},
             )
         )
-    artifact_dispatcher_task = asyncio.create_task(
-        run_artifact_dispatcher_loop(artifact_dispatcher)
-    ) if artifact_dispatcher is not None else None
-    artifact_recovery_task = asyncio.create_task(
-        run_artifact_outbox_recovery_loop(
-            artifact_dispatcher.outbox, lease_timeout_seconds, recovery_interval_seconds
+    if artifact_dispatcher is not None:
+        tasks.create(run_artifact_dispatcher_loop(artifact_dispatcher))
+        tasks.create(
+            run_artifact_outbox_recovery_loop(
+                artifact_dispatcher.outbox,
+                lease_timeout_seconds,
+                recovery_interval_seconds,
+            )
         )
-    ) if artifact_dispatcher is not None else None
-    base_tasks = (
-        dispatcher_task,
-        reconciler_task,
-        recovery_task,
-        memory_retention_task,
-        memory_retention_recovery_task,
-    )
-    if artifact_dispatcher is None:
-        return base_tasks
-    return base_tasks + (artifact_dispatcher_task, artifact_recovery_task)
+
+
+@dataclasses.dataclass
+class SharedInfrastructure:
+    """Process-owned infrastructure shared by canonical capabilities."""
+
+    sandbox_manager: SandboxManager
+    workspace_root: Path
+    mcp_manager: object | None
+    resource_pool: ResourcePool
+    git_repo_manager: GitRepoManager
+    group_context: object | None
+    redis_client: object | None
+    workspace_isolation: WorkspaceIsolationRuntime
+    run_file_workspace: object | None
+    tenant_file_store: object | None
+    file_output_publisher: object | None
 
 
 @dataclasses.dataclass
 class WorkerDependencies:
-    """init_dependencies() 的返回值 —— 所有组装好的共享依赖。
+    """Typed results of infrastructure, shared Agent and QQ composition.
 
-    使用 dataclass 而非裸 tuple，避免位置耦合，便于后续扩展。
+    The attached exit stack owns all acquired process resources and unwinds
+    them in reverse acquisition order.
     """
-    account_service: object
-    channel_router: "ChannelRouter"
-    sandbox_manager: "SandboxManager"
-    workspace_root: Path
-    mcp_manager: object  # MCPToolManager | None，用于 shutdown cleanup
-    resource_pool: "ResourcePool"
-    git_repo_manager: "GitRepoManager"
-    group_context: object  # GroupContextStore | None，群聊短期上下文缓存
-    redis_client: object = None
-    reply_service: object = None
-    context_builder: object = None
-    brain_engine: object = None
-    action_runtime: object = None
-    hindsight_client: object = None
-    memory_reflection: object = None
-    metrics: object = None
-    scheduler: "TaskScheduler" = None
-    workspace_isolation: "WorkspaceIsolationRuntime | None" = None
-    run_file_workspace: object = None
-    tenant_file_store: object = None
-    file_output_publisher: object = None
+    infrastructure: SharedInfrastructure
+    shared: SharedAgentServices
+    qq: QQSurfaceServices
+    scheduler: TaskScheduler
+    resource_stack: AsyncExitStack
+
+    async def close(self) -> None:
+        await self.resource_stack.aclose()
 
 
 
@@ -501,6 +506,11 @@ async def setup_tools(config: AppConfig):
                         mcp_mgr.server_count, len(mcp_mgr.get_cached_tools()))
         except Exception as e:
             logger.warning("MCP tools loading failed: %s", e)
+            if mcp_mgr is not None:
+                try:
+                    await mcp_mgr.disconnect()
+                except Exception:
+                    logger.warning("MCP partial startup cleanup failed", exc_info=True)
             mcp_mgr = None
 
     # Skills（可选）—— 支持两种格式:
@@ -554,6 +564,20 @@ def _build_nsjail_config(sandbox: SandboxConfig) -> NsjailConfig:
 
 
 async def init_dependencies(config: AppConfig) -> WorkerDependencies:
+    resource_stack = AsyncExitStack()
+    await resource_stack.__aenter__()
+    try:
+        dependencies = await _init_dependencies(config, resource_stack)
+        await resource_stack.aclose()
+        return dependencies
+    except BaseException:
+        await resource_stack.aclose()
+        raise
+
+
+async def _init_dependencies(
+    config: AppConfig, resource_stack: AsyncExitStack
+) -> WorkerDependencies:
     """初始化共享依赖、统一 Agent Facade 与 Surface adapters。
 
     初始化顺序（严格遵守拓扑依赖 DAG）：
@@ -580,6 +604,7 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         hosts_share_lock_registry=True,
     )
     workspace_isolation.start()
+    resource_stack.callback(workspace_isolation.close)
 
     # ── 1. 凭据 + 资源池 ──
     credential_manager = CredentialManager()
@@ -626,9 +651,12 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
 
             from storage.redis import RedisCache
             redis_client = aioredis.from_url(redis_url, decode_responses=False)
+            resource_stack.push_async_callback(redis_client.aclose)
             redis_cache = RedisCache(redis_client, default_ttl=config.redis.default_ttl)
             logger.info("Redis connected: %s", redis_url)
         except Exception as e:
+            redis_client = None
+            redis_cache = None
             logger.warning("DEGRADATION: Redis unavailable (%s) → falling back to in-memory storage", e)
 
     # ── 2b. 群聊短期上下文缓存（依赖 Redis 客户端）──
@@ -666,6 +694,8 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
     # ── 4. 共享工具基础设施（MCP + Skills + RAG）────
     # 必须在 SandboxManager 之前调用，因为 SandboxManager 需要这些产物
     mcp_mgr, skill_definitions, retriever = await setup_tools(config)
+    if mcp_mgr is not None:
+        resource_stack.push_async_callback(mcp_mgr.disconnect)
 
     # ── 5. 工作区能力 ──
     workspace_root = Path(config.workspace.root)
@@ -722,7 +752,9 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         ),
         file_output_publisher=file_output_publisher,
         file_conversion_provider=file_conversion_provider,
+        scheduler=scheduler,
     )
+    resource_stack.callback(sandbox_manager.close)
 
     # ── 7. Prompt + Hindsight + 上下文构建器 ──
     prompt_loader = PromptLoader(config.prompts)
@@ -747,52 +779,44 @@ async def init_dependencies(config: AppConfig) -> WorkerDependencies:
         except Exception as e:
             logger.warning("DEGRADATION: Hindsight unavailable (%s) → long-term memory disabled", e)
 
-    context_builder = HarnessContextBuilder(
-        prompt_loader=prompt_loader,
-        enable_tool_guidance=True,
-    )
-
-    # ── 8. Surface composition ──
+    # ── 8. Shared and surface composition ──
     channel_router = ChannelRouter()
     # ── 11. GitRepoManager ──
     git_repo_manager = GitRepoManager(repos_root=workspace_root)
     logger.info("GitRepoManager initialized: repos_root=%s", workspace_root)
 
-    qq_runtime = build_qq_runtime(
+    shared = build_shared_agent_services(
         config=config,
         worker_database_url=os.getenv("WORKER_DATABASE_URL"),
-        redis_cache=redis_cache,
-        hindsight_client=hindsight_client,
-        context_builder=context_builder,
-        channel_router=channel_router,
-        group_context=group_context,
         sandbox_manager=sandbox_manager,
         resource_pool=resource_pool,
+        hindsight_client=hindsight_client,
+        prompt_loader=prompt_loader,
+    )
+    qq = build_qq_surface_services(
+        channel_router=channel_router,
+        group_context=group_context,
         prompt_loader=prompt_loader,
     )
     logger.info("Shared Agent capabilities and QQ protocol services assembled")
     return WorkerDependencies(
-        account_service=qq_runtime.account_service,
-        channel_router=channel_router,
-        reply_service=qq_runtime.reply_service,
-        sandbox_manager=sandbox_manager,
-        workspace_root=workspace_root,
-        mcp_manager=mcp_mgr,
-        resource_pool=resource_pool,
-        git_repo_manager=git_repo_manager,
-        group_context=group_context,
-        redis_client=redis_client,
-        context_builder=context_builder,
-        brain_engine=qq_runtime.brain_engine,
-        action_runtime=qq_runtime.action_runtime,
-        hindsight_client=hindsight_client,
-        memory_reflection=qq_runtime.memory_reflection,
-        metrics=qq_runtime.metrics,
+        infrastructure=SharedInfrastructure(
+            sandbox_manager=sandbox_manager,
+            workspace_root=workspace_root,
+            mcp_manager=mcp_mgr,
+            resource_pool=resource_pool,
+            git_repo_manager=git_repo_manager,
+            group_context=group_context,
+            redis_client=redis_client,
+            workspace_isolation=workspace_isolation,
+            run_file_workspace=run_file_workspace,
+            tenant_file_store=(tenant_store if file_capability.upload_enabled else None),
+            file_output_publisher=file_output_publisher,
+        ),
+        shared=shared,
+        qq=qq,
         scheduler=scheduler,
-        workspace_isolation=workspace_isolation,
-        run_file_workspace=run_file_workspace,
-        tenant_file_store=(tenant_store if file_capability.upload_enabled else None),
-        file_output_publisher=file_output_publisher,
+        resource_stack=resource_stack.pop_all(),
     )
 
 
@@ -800,16 +824,13 @@ async def start_worker(config: AppConfig) -> None:
     """完整启动流程: 组装依赖 → 连接 Temporal → 启动 Worker + 渠道监听。"""
     deps = await init_dependencies(config)
 
-    qq_delivery_task = None
     active_channels: list = []
-    sandbox_cleanup_task = file_cleanup_task = scheduler_task = None
-    web_dispatcher_task = web_reconciler_task = web_outbox_recovery_task = None
-    memory_retention_task = memory_retention_recovery_task = None
-    artifact_dispatcher_task = artifact_recovery_task = research_schedule_task = None
+    background_tasks = BackgroundTasks()
+    runtime_stop_attempted = False
     try:
-        inject_scheduled_services(
-            memory_reflection=deps.memory_reflection,
-            metrics=deps.metrics,
+        scheduled_memory = ScheduledMemoryActivities(
+            memory_reflection=deps.shared.memory_reflection,
+            metrics=deps.shared.metrics,
         )
 
         # ── 注册提醒 handler ──
@@ -837,17 +858,14 @@ async def start_worker(config: AppConfig) -> None:
                 content=content,
                 metadata=metadata,
             )
-            await deps.channel_router.send(msg)
+            await deps.qq.channel_router.send(msg)
 
         deps.scheduler.register_handler("user_reminder", _handle_user_reminder)
 
         # ── 加载持久化任务 + 注入 scheduler 到 reminder 模块 + 启动轮询 ──
-        scheduler_task = None
         if config.scheduler.enabled:
             await deps.scheduler.load()
-            from sandbox.tools.local.reminder import inject_scheduler
-            inject_scheduler(deps.scheduler)
-            scheduler_task = asyncio.create_task(
+            background_tasks.create(
                 deps.scheduler.poll_loop(interval=config.scheduler.poll_interval)
             )
             logger.info("TaskScheduler poll_loop started")
@@ -864,9 +882,9 @@ async def start_worker(config: AppConfig) -> None:
             workflows=[ReflectWorkflow, MetricsReportWorkflow],
             workflow_runner=UnsandboxedWorkflowRunner(),
             activities=[
-                reflect_activity,
-                reflect_batch_activity,
-                metrics_report_activity,
+                scheduled_memory.reflect,
+                scheduled_memory.reflect_batch,
+                scheduled_memory.metrics_report,
             ],
         )
 
@@ -876,7 +894,7 @@ async def start_worker(config: AppConfig) -> None:
         web_memory_retention = None
         web_artifact_dispatcher = None
         research_schedule_manager = None
-        composition = compose_web_workers(client, config, deps)
+        composition = compose_durable_runtime(client, config, deps)
         web_workers = composition.workers
         web_dispatcher = composition.dispatcher
         web_reconciler = composition.reconciler
@@ -910,7 +928,7 @@ async def start_worker(config: AppConfig) -> None:
             channel = factory()
             if hasattr(channel, "bot_name"):
                 channel.bot_name = getattr(config.prompts, "bot_name", "bot")
-            deps.channel_router.register(ch_type, channel)
+            deps.qq.channel_router.register(ch_type, channel)
             active_channels.append(channel)
             logger.info("Channel registered: %s", ch_name)
 
@@ -925,9 +943,9 @@ async def start_worker(config: AppConfig) -> None:
             )
         ))
         ingress_service = MessageIngressService(
-            group_context=deps.group_context,
+            group_context=deps.infrastructure.group_context,
             conversation_service=conversation_service,
-            reply_service=deps.reply_service,
+            reply_service=deps.qq.reply_service,
             identity_command_service=IdentityCommandService(
                 IdentityBindingService(
                     os.environ["WORKER_DATABASE_URL"],
@@ -941,34 +959,26 @@ async def start_worker(config: AppConfig) -> None:
             await ingress_service.handle(message)
 
         # ── 并发运行 Worker + 渠道监听 ──
-        sandbox_cleanup_task = asyncio.create_task(
-            _run_sandbox_cleanup_loop(deps.sandbox_manager, interval=300)
+        background_tasks.create(
+            _run_sandbox_cleanup_loop(
+                deps.infrastructure.sandbox_manager, interval=300
+            )
         )
-        file_cleanup_task = None
-        if deps.run_file_workspace is not None:
+        if deps.infrastructure.run_file_workspace is not None:
             from web_domain.file_cleanup import FileCleanupService
 
             cleanup_interval = int(os.getenv("FILE_CLEANUP_INTERVAL_SECONDS", "300"))
             if cleanup_interval <= 0:
                 raise RuntimeError("FILE_CLEANUP_INTERVAL_SECONDS must be positive")
-            file_cleanup_task = asyncio.create_task(
+            background_tasks.create(
                 _run_file_cleanup_loop(
                     FileCleanupService(
-                        deps.run_file_workspace.database,
-                        deps.run_file_workspace.store,
+                        deps.infrastructure.run_file_workspace.database,
+                        deps.infrastructure.run_file_workspace.store,
                     ),
                     interval=cleanup_interval,
                 )
             )
-        web_dispatcher_task = None
-        web_reconciler_task = None
-        web_outbox_recovery_task = None
-        memory_retention_task = None
-        memory_retention_recovery_task = None
-        artifact_dispatcher_task = None
-        artifact_recovery_task = None
-        research_schedule_task = None
-
         async with AsyncExitStack() as worker_stack:
             await worker_stack.enter_async_context(worker)
             if (
@@ -978,15 +988,8 @@ async def start_worker(config: AppConfig) -> None:
             ):
                 await worker_stack.enter_async_context(web_workers.lifecycle)
                 await worker_stack.enter_async_context(web_workers.agent)
-                (
-                    web_dispatcher_task,
-                    web_reconciler_task,
-                    web_outbox_recovery_task,
-                    memory_retention_task,
-                    memory_retention_recovery_task,
-                    artifact_dispatcher_task,
-                    artifact_recovery_task,
-                ) = _build_web_background_tasks(
+                _build_web_background_tasks(
+                    tasks=background_tasks,
                     web_dispatcher=web_dispatcher,
                     web_reconciler=web_reconciler,
                     web_memory_retention=web_memory_retention,
@@ -999,7 +1002,7 @@ async def start_worker(config: AppConfig) -> None:
                         run_research_schedule_reconciler_loop,
                     )
 
-                    research_schedule_task = asyncio.create_task(
+                    background_tasks.create(
                         run_research_schedule_reconciler_loop(research_schedule_manager)
                     )
             for ch in active_channels:
@@ -1007,9 +1010,12 @@ async def start_worker(config: AppConfig) -> None:
 
             from application.qq_delivery import QQDeliveryAdapter, QQDeliveryService
 
-            qq_delivery_task = asyncio.create_task(QQDeliveryService(
-                os.environ["WORKER_DATABASE_URL"], QQDeliveryAdapter(deps.channel_router),
-            ).run())
+            background_tasks.create(
+                QQDeliveryService(
+                    os.environ["WORKER_DATABASE_URL"],
+                    QQDeliveryAdapter(deps.qq.channel_router),
+                ).run()
+            )
             channel_names = [ch.channel_type.value for ch in active_channels]
             logger.info(
                 "Orchestration Worker started on task_queue='%s' (channels: %s)",
@@ -1018,7 +1024,7 @@ async def start_worker(config: AppConfig) -> None:
             )
 
             # 设置定期记忆反思 Schedule
-            await _setup_reflect_schedule(client, deps.account_service, config)
+            await _setup_reflect_schedule(client, deps.shared.account_service, config)
 
             # 设置定期指标报告 Schedule（每 30 分钟）
             await _setup_metrics_schedule(client, config)
@@ -1028,49 +1034,33 @@ async def start_worker(config: AppConfig) -> None:
                 config.agent.reflect_interval_hours,
             )
 
-            await asyncio.Future()
-    finally:
-        if qq_delivery_task is not None:
-            qq_delivery_task.cancel()
             try:
-                await qq_delivery_task
-            except asyncio.CancelledError:
-                pass
-        await _shutdown_worker_resources(
-            active_channels=active_channels,
-            sandbox_cleanup_task=sandbox_cleanup_task,
-            file_cleanup_task=file_cleanup_task,
-            scheduler_task=scheduler_task,
-            web_dispatcher_task=web_dispatcher_task,
-            web_reconciler_task=web_reconciler_task,
-            web_outbox_recovery_task=web_outbox_recovery_task,
-            memory_retention_task=memory_retention_task,
-            memory_retention_recovery_task=memory_retention_recovery_task,
-            artifact_dispatcher_task=artifact_dispatcher_task,
-            artifact_recovery_task=artifact_recovery_task,
-            research_schedule_task=research_schedule_task,
-            deps=deps,
-        )
+                await asyncio.Future()
+            finally:
+                # Stop ingress and dispatcher producers before Temporal Worker
+                # contexts drain, then release shared infrastructure outside.
+                runtime_stop_attempted = True
+                await _stop_worker_runtime(
+                    active_channels=active_channels,
+                    background_tasks=background_tasks,
+                )
+    finally:
+        if not runtime_stop_attempted:
+            await _stop_worker_runtime(
+                active_channels=active_channels,
+                background_tasks=background_tasks,
+            )
+        await deps.close()
+        logger.info("Worker shutdown complete")
 
 
-async def _shutdown_worker_resources(
+async def _stop_worker_runtime(
     *,
     active_channels,
-    sandbox_cleanup_task,
-    file_cleanup_task,
-    scheduler_task,
-    web_dispatcher_task,
-    web_reconciler_task,
-    web_outbox_recovery_task,
-    memory_retention_task,
-    memory_retention_recovery_task,
-    artifact_dispatcher_task,
-    artifact_recovery_task,
-    research_schedule_task,
-    deps,
+    background_tasks: BackgroundTasks,
 ) -> None:
-    """Always release monitors/background tasks, including task cancellation."""
-    logger.info("Worker shutting down, cleaning up resources...")
+    """Stop ingress and background producers before Temporal Workers drain."""
+    logger.info("Worker stopping channels and background tasks...")
 
     for ch in active_channels:
         ch_name = ch.channel_type.value
@@ -1080,83 +1070,7 @@ async def _shutdown_worker_resources(
         except Exception as e:
             logger.warning("%s stop_monitor failed: %s", ch_name, e)
 
-    if sandbox_cleanup_task is not None:
-        sandbox_cleanup_task.cancel()
-        try:
-            await sandbox_cleanup_task
-        except asyncio.CancelledError:
-            pass
-
-    if file_cleanup_task is not None:
-        file_cleanup_task.cancel()
-        try:
-            await file_cleanup_task
-        except asyncio.CancelledError:
-            pass
-
-    if scheduler_task is not None:
-        scheduler_task.cancel()
-        try:
-            await scheduler_task
-        except asyncio.CancelledError:
-            pass
-
-    if web_dispatcher_task is not None:
-        web_dispatcher_task.cancel()
-        try:
-            await web_dispatcher_task
-        except asyncio.CancelledError:
-            pass
-
-    if web_reconciler_task is not None:
-        web_reconciler_task.cancel()
-        try:
-            await web_reconciler_task
-        except asyncio.CancelledError:
-            pass
-
-    if web_outbox_recovery_task is not None:
-        web_outbox_recovery_task.cancel()
-        try:
-            await web_outbox_recovery_task
-        except asyncio.CancelledError:
-            pass
-
-    if memory_retention_task is not None:
-        memory_retention_task.cancel()
-        try:
-            await memory_retention_task
-        except asyncio.CancelledError:
-            pass
-
-    if memory_retention_recovery_task is not None:
-        memory_retention_recovery_task.cancel()
-        try:
-            await memory_retention_recovery_task
-        except asyncio.CancelledError:
-            pass
-
-    for task in (artifact_dispatcher_task, artifact_recovery_task, research_schedule_task):
-        if task is not None:
-            task.cancel()
-    for task in (artifact_dispatcher_task, artifact_recovery_task, research_schedule_task):
-        if task is not None:
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-
-    if deps.mcp_manager is not None:
-        try:
-            await deps.mcp_manager.disconnect()
-            logger.info("MCP connections closed")
-        except Exception as e:
-            logger.warning("MCP disconnect failed: %s", e)
-
-    if deps.workspace_isolation is not None:
-        deps.workspace_isolation.close()
-
-    logger.info("Worker shutdown complete")
+    await background_tasks.close()
 
 
 async def _run_sandbox_cleanup_loop(sandbox_manager, interval: int = 300) -> None:

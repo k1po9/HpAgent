@@ -73,6 +73,7 @@ class SandboxManager:
         file_output_publisher: Any = None,
         file_conversion_provider: Any = None,
         file_document_router: Any = None,
+        scheduler: Any = None,
     ):
         self._nsjail_config = nsjail_config or NsjailConfig()
         self._redis_cache = redis_cache
@@ -90,6 +91,7 @@ class SandboxManager:
         self._file_output_publisher = file_output_publisher
         self._file_conversion_provider = file_conversion_provider
         self._file_document_router = file_document_router
+        self._scheduler = scheduler
 
         self._sandboxes: Dict[str, Sandbox] = {}
         self._session_to_sandbox: Dict[str, str] = {}
@@ -157,9 +159,9 @@ class SandboxManager:
         }
         for name in reminder_keys:
             factory = LOCAL_TOOL_FACTORIES.get(name)
-            if factory is None:
+            if factory is None or self._scheduler is None:
                 continue
-            tool = factory(ctx)
+            tool = factory(ctx, self._scheduler)
             _declare_local_side_effect(tool, name)
             registry.register(tool, category="native", routing=routing_for(tool, "native"))
 
@@ -340,3 +342,13 @@ class SandboxManager:
                     if sbid == sid:
                         del self._session_to_sandbox[session_id]
             return len(to_destroy)
+
+    def close(self) -> None:
+        """Destroy all process-owned sandboxes and clear runtime bindings."""
+        with self._lock:
+            for sandbox in self._sandboxes.values():
+                sandbox.destroy()
+            self._sandboxes.clear()
+            self._session_to_sandbox.clear()
+            self._run_file_scopes.clear()
+            self._session_active_file_run.clear()

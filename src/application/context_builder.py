@@ -4,13 +4,8 @@ HarnessContextBuilder —— 事件历史 → LLM messages 的转换器。
 将应用层提供的事件历史快照转换为
 LLM API 接受的标准 messages 格式: [{"role": "system", ...}, {"role": "user", ...}, ...]。
 
-渠道感知设计：
-  system prompt 根据消息来源渠道（ChannelType）动态选择：
-    NAPCAT  → 猫娘 nono 聊天身份
-    CONSOLE → CLI 精炼助手身份
-    WEB     → Web Markdown 助手身份
-  渠道信息在第一帧 USER_MESSAGE 的 content["channel_type"] 中，
-  由 build() 时自动检测并按对应渠道组装身份 prompt。
+Surface adapters select a semantic interaction profile. This capability only
+consumes that profile and never infers a concrete transport implementation.
 
 prompt 拼接顺序（_build_system_prompt）：
   渠道身份（含风格） → 跨渠道检测 → 工具纪律 → 环境感知
@@ -22,9 +17,10 @@ prompt 拼接顺序（_build_system_prompt）：
 import logging
 from typing import Any, Dict, List, Optional
 
+from application.interaction_profiles import identity_key_for_profile
 from application.prompts import PromptLoader
 from common.token_counter import estimate_tokens
-from common.types import ChannelType, Event, EventType
+from common.types import Event, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +64,6 @@ class HarnessContextBuilder:
         self,
         events: List[Event],
         max_turns: int = 20,
-        channel_type: Optional[ChannelType] = None,
         recalled_memories: str = "",
         *,
         interaction_profile: str = "",
@@ -90,7 +85,6 @@ class HarnessContextBuilder:
         Args:
             events:             历史事件列表。
             max_turns:          最多保留对话轮次（token_budget=0 时生效）。
-            channel_type:       可选强制指定渠道（legacy compatibility）。
             interaction_profile: 显式交互风格；Web 使用 ``web_chat``，不负责路由。
             recalled_memories:  从 Hindsight 召回的格式化记忆文本。
             token_budget:       上下文总 token 预算（0=关闭 token 感知）。
@@ -115,10 +109,8 @@ class HarnessContextBuilder:
                 + ("\n\n" + extra_context if extra_context else "")
             )
 
-        profile_channel = self._channel_for_profile(interaction_profile)
-        effective_channel = profile_channel or channel_type
         system_content = self._build_system_prompt(
-            events, effective_channel, recalled_memories,
+            events, interaction_profile, recalled_memories,
             in_session_summary=in_session_summary,
             extra_context=extra_context,
             remaining_turns=remaining_turns,
@@ -181,46 +173,12 @@ class HarnessContextBuilder:
 
         return messages
 
-    @staticmethod
-    def _channel_for_profile(profile: str) -> Optional[ChannelType]:
-        """Compatibility mapping while profiles replace channel-based prompt selection."""
-        return {
-            "web_chat": ChannelType.WEB,
-            "qq_private": ChannelType.NAPCAT,
-            "qq_group": ChannelType.NAPCAT,
-            "console": ChannelType.CONSOLE,
-        }.get(profile)
-
-    # ── 渠道检测 ──────────────────────────────────────────────────────────
-
-    def _detect_channel(
-        self,
-        events: List[Event],
-        override: Optional[ChannelType] = None,
-    ) -> Optional[ChannelType]:
-        """确定当前对话所属渠道。
-
-        优先级: 显式传入 > events 中第一条 USER_MESSAGE 的 channel_type > None。
-        """
-        if override is not None:
-            return override
-        for event in events:
-            if event.event_type == EventType.USER_MESSAGE:
-                raw = event.content.get("channel_type") if isinstance(event.content, dict) else None
-                if raw:
-                    try:
-                        return ChannelType(raw)
-                    except ValueError:
-                        logger.debug("未知 channel_type 值: %s，回退默认身份", raw)
-                break
-        return None
-
     # ── 内部: prompt 拼接 ─────────────────────────────────────────────────
 
     def _build_system_prompt(
         self,
         events: List[Event],
-        channel_type: Optional[ChannelType] = None,
+        interaction_profile: str = "",
         recalled_memories: str = "",
         *,
         in_session_summary: str = "",
@@ -237,8 +195,7 @@ class HarnessContextBuilder:
         """
         parts: List[str] = []
 
-        channel = self._detect_channel(events, channel_type)
-        identity = self._pick_identity(channel)
+        identity = self._pick_identity(interaction_profile)
         parts.append(identity)
 
         cross_channel = self._build_cross_channel_hint(events)
@@ -246,12 +203,12 @@ class HarnessContextBuilder:
             parts.append(cross_channel)
 
         if self._enable_tool_guidance and self._prompts:
-            # 优先加载渠道特定的工具约束（如 tool_enforcement_napcat），
+            # 优先加载 profile 特定的工具约束（existing prompt keys are retained），
             # 找不到则回退到通用 tool_enforcement
             guidance = ""
-            if channel:
-                ch_key = self._prompts.identity_map.get(channel.value, channel.value)
-                guidance = self._prompts.get_guidance(f"tool_enforcement_{ch_key}")
+            if interaction_profile:
+                profile_key = identity_key_for_profile(interaction_profile)
+                guidance = self._prompts.get_guidance(f"tool_enforcement_{profile_key}")
             if not guidance:
                 guidance = self._prompts.get_guidance("tool_enforcement")
             if guidance:
@@ -295,24 +252,25 @@ class HarnessContextBuilder:
 
         return "\n\n".join(parts)
 
-    def _pick_identity(self, channel: Optional[ChannelType]) -> str:
-        """根据渠道选择身份声明 prompt（含风格引导，已合并至 identities.yaml）。
+    def _pick_identity(self, interaction_profile: str) -> str:
+        """Select identity prompt from the surface-provided semantic profile.
 
         优先级: 自定义 system_prompt > 渠道映射表 > 默认身份。
         """
         if self._system_prompt:
             return self._system_prompt
         if self._prompts:
-            if channel:
-                ch_key = self._prompts.identity_map.get(channel.value, channel.value)
-                identity = self._prompts.get_identity(ch_key)
+            if interaction_profile:
+                identity = self._prompts.get_identity(
+                    identity_key_for_profile(interaction_profile)
+                )
                 if identity:
                     return identity
             return self._prompts.get_identity("default")
         # 无 PromptLoader 时的回退
-        if channel == ChannelType.NAPCAT:
+        if interaction_profile in {"qq_private", "qq_group"}:
             return "你是 nono，一只有趣的猫。"
-        if channel == ChannelType.WEB:
+        if interaction_profile in {"web_chat", "web_plan"}:
             return "你是 HpAgent，一个 Web 智能助手。"
         return "你是 HpAgent，一个智能 AI 助手。"
 
@@ -324,14 +282,14 @@ class HarnessContextBuilder:
         """
         if not self._prompts:
             return ""
-        channels = set()
+        sources = set()
         for e in events:
             if e.event_type == EventType.USER_MESSAGE:
-                ch = e.content.get("channel_type", "") if isinstance(e.content, dict) else ""
-                if ch:
-                    channels.add(ch)
-        if len(channels) > 1:
-            return self._prompts.format_cross_channel(", ".join(sorted(channels)))
+                source = e.metadata.get("interaction_source", "")
+                if source:
+                    sources.add(str(source))
+        if len(sources) > 1:
+            return self._prompts.format_cross_channel(", ".join(sorted(sources)))
         return ""
 
     def _build_environment_hints(self) -> str:

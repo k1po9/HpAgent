@@ -56,7 +56,7 @@ class Events:
 
 
 class Actions:
-    def reset_turn(self, key, run_id): assert key == "source:context"
+    def reset_execution(self, key, run_id): assert key == "source:context"
     def clear_execution(self, key, run_id): assert key == "source:context"
     async def select_tools(self, **kwargs): return []
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from account.identity import normalize_channel_subject
+from application.interaction_profiles import QQ_GROUP, QQ_PRIVATE
 from common.types import UnifiedMessage
 from conversation_domain.surface_commands import (
     IdentityNotBound,
@@ -69,6 +70,7 @@ def normalize_qq_message(message: UnifiedMessage, channel: str) -> QQEnvelope:
              "room_id": room, "thread_id": str(metadata.get("thread_id") or "")}
     key = "qq:" + stable_key([route, message.sender_id, str(external_id)])
     origin = {**route, "sender_id": message.sender_id, "external_message_id": str(external_id),
+              "interaction_profile": QQ_GROUP if scope in {"group", "guild"} else QQ_PRIVATE,
               "metadata": {k: metadata[k] for k in (
                   "detail_type", "group_id", "group_openid", "guild_id", "channel_id",
                   "user_openid", "member_openid", "msg_id", "message_id", "sender_name",

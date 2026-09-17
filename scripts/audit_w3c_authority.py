@@ -101,7 +101,7 @@ def scan() -> dict[str, object]:
     )
     runtime = scan_runtime()
     from actions.runtime import ActionRuntime
-    from bootstrap.qq import build_qq_runtime
+    from bootstrap.qq import build_qq_surface_services
     from orchestration.config import AgentConfig, AppConfig, WorkspaceConfig
     from orchestration.worker import WorkerDependencies
 
@@ -115,7 +115,9 @@ def scan() -> dict[str, object]:
             "WorkerDependencies.workspace_db": WorkerDependencies.__dataclass_fields__,
             "WorkerDependencies.file_store": WorkerDependencies.__dataclass_fields__,
             "ActionRuntime.session_store": inspect.signature(ActionRuntime).parameters,
-            "build_qq_runtime.file_store": inspect.signature(build_qq_runtime).parameters,
+            "build_qq_surface_services.file_store": inspect.signature(
+                build_qq_surface_services
+            ).parameters,
         }.items()
         if field.rpartition(".")[2] in fields
     )

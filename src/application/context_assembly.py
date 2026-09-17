@@ -8,6 +8,10 @@ from typing import Any, Protocol, Sequence
 from uuid import UUID
 
 from application.context_builder import HarnessContextBuilder
+from application.interaction_profiles import (
+    interaction_source,
+    select_interaction_profile,
+)
 from common.logging import log_event
 from common.types import Event, EventType
 from memory.hindsight_client import MemoryItem
@@ -120,12 +124,8 @@ class ContextAssemblyService:
             short_term_events=events,
             run_files=run_files,
             origin=dict(subject.get("origin") or {}),
-            interaction_profile=(
-                ("qq_group" if subject["origin"].get("scope") in {"group", "guild"} else "qq_private")
-                if (subject.get("origin") or {}).get("channel_type") in {"napcat", "official_qq"}
-                else "web_plan"
-                if subject.get("agent_strategy") == "plan_and_execute"
-                else "web_chat"
+            interaction_profile=select_interaction_profile(
+                subject.get("origin"), str(subject.get("agent_strategy") or "react")
             ),
         )
 
@@ -163,7 +163,6 @@ class ContextAssemblyService:
                 user_id=str(base.account_id),
                 session_id=str(base.session_id),
                 top_n=self._recall_top_n,
-                channel_type=base.origin.get("channel_type", "web"),
                 scope="group" if base.origin.get("scope") in {"group", "guild"} else "private",
                 group_id=(base.origin.get("context_key", "")
                           if base.origin.get("scope") in {"group", "guild"} else ""),
@@ -232,11 +231,16 @@ class ContextAssemblyService:
     @staticmethod
     def _message_to_event(row: dict[str, Any]) -> Event:
         if row["role"] == "user":
+            origin = dict(row.get("origin") or {})
             return Event(
                 session_id="conversation-context",
                 event_type=EventType.USER_MESSAGE,
-                content={"content": row["content"], "channel_type": (row.get("origin") or {}).get("channel_type", "web")},
-                metadata=dict(row.get("origin") or {}),
+                content={"content": row["content"]},
+                metadata={
+                    **origin,
+                    "interaction_profile": select_interaction_profile(origin),
+                    "interaction_source": interaction_source(origin),
+                },
             )
         return Event(
             session_id="conversation-context",

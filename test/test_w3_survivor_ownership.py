@@ -10,11 +10,7 @@ import pytest
 from temporalio import activity, workflow
 
 from application.scheduler import TaskScheduler
-from memory.activities import (
-    inject_scheduled_services,
-    metrics_report_activity,
-    reflect_batch_activity,
-)
+from memory.activities import ScheduledMemoryActivities
 from memory.maintenance import HindsightMaintenance
 from memory.workflows import MetricsReportWorkflow, ReflectWorkflow
 
@@ -71,30 +67,59 @@ async def test_extracted_scheduled_services_preserve_names_and_account_isolation
             return {"recall_calls": 7}
 
     maintenance = HindsightMaintenance(Hindsight())
-    try:
-        inject_scheduled_services(
-            memory_reflection=MemoryReflectionService(maintenance),
-            metrics=MetricsSnapshotService(maintenance),
-        )
-        assert await reflect_batch_activity(["first", "failed", "last"]) == {
-            "results": {"first": 4, "failed": -1, "last": 4}, "total": 3,
-        }
-        assert await metrics_report_activity() == {"recall_calls": 7}
-        assert activity._Definition.from_callable(reflect_batch_activity).name == "reflect_batch_activity"
-        assert activity._Definition.from_callable(metrics_report_activity).name == "metrics_report_activity"
-        assert workflow._Definition.from_class(ReflectWorkflow).name == "ReflectWorkflow"
-        assert workflow._Definition.from_class(MetricsReportWorkflow).name == "MetricsReportWorkflow"
-    finally:
-        inject_scheduled_services(memory_reflection=None, metrics=None)
+    activities = ScheduledMemoryActivities(
+        memory_reflection=MemoryReflectionService(maintenance),
+        metrics=MetricsSnapshotService(maintenance),
+    )
+    assert await activities.reflect_batch(["first", "failed", "last"]) == {
+        "results": {"first": 4, "failed": -1, "last": 4}, "total": 3,
+    }
+    assert await activities.metrics_report() == {"recall_calls": 7}
+    assert activity._Definition.from_callable(activities.reflect_batch).name == "reflect_batch_activity"
+    assert activity._Definition.from_callable(activities.metrics_report).name == "metrics_report_activity"
+    assert workflow._Definition.from_class(ReflectWorkflow).name == "ReflectWorkflow"
+    assert workflow._Definition.from_class(MetricsReportWorkflow).name == "MetricsReportWorkflow"
 
 
 @pytest.mark.asyncio
-async def test_reminder_tools_use_extracted_scheduler_and_persist_account_scope(tmp_path, monkeypatch):
+async def test_scheduled_activity_collections_keep_instance_owned_dependencies():
+    class Reflection:
+        def __init__(self, marker):
+            self.marker = marker
+
+        async def reflect(self, account_id):
+            return {"marker": self.marker, "account_id": account_id}
+
+    class Metrics:
+        def __init__(self, marker):
+            self.marker = marker
+
+        async def snapshot(self):
+            return {"marker": self.marker}
+
+    first = ScheduledMemoryActivities(
+        memory_reflection=Reflection("first"), metrics=Metrics("first")
+    )
+    second = ScheduledMemoryActivities(
+        memory_reflection=Reflection("second"), metrics=Metrics("second")
+    )
+
+    assert await first.reflect("account") == {
+        "marker": "first",
+        "account_id": "account",
+    }
+    assert await second.metrics_report() == {"marker": "second"}
+    assert await first.metrics_report() == {"marker": "first"}
+
+
+@pytest.mark.asyncio
+async def test_reminder_tools_use_extracted_scheduler_and_persist_account_scope(tmp_path):
     from sandbox.tools.local import reminder
 
     scheduler = TaskScheduler(tmp_path)
-    monkeypatch.setattr(reminder, "_scheduler", scheduler)
-    tool = reminder.create_reminder_tool({"account_id": "account-a", "channel_type": "napcat"})
+    tool = reminder.create_reminder_tool(
+        {"account_id": "account-a", "channel_type": "napcat"}, scheduler
+    )
     # Tool schema is the public invocation boundary, so exercise it rather than
     # constructing ScheduledTask directly.
     result = await tool.ainvoke({"content": "check report", "delay_minutes": 5})

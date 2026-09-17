@@ -5,7 +5,7 @@ import inspect
 from pathlib import Path
 
 from actions.runtime import ActionRuntime
-from bootstrap.qq import build_qq_runtime
+from bootstrap.qq import build_qq_surface_services
 from orchestration.config import AgentConfig, AppConfig, WorkspaceConfig
 from orchestration.worker import WorkerDependencies
 
@@ -35,7 +35,7 @@ def test_composition_has_no_session_store_or_workspace_sqlite_authority() -> Non
         "event_fetch_limit", "activity_timeout", "archive_timeout", "idle_timeout_minutes",
     })
     assert "session_store" not in inspect.signature(ActionRuntime).parameters
-    assert "file_store" not in inspect.signature(build_qq_runtime).parameters
+    assert "file_store" not in inspect.signature(build_qq_surface_services).parameters
 
 
 def test_retained_state_systems_still_have_independent_owners() -> None:

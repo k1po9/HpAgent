@@ -35,8 +35,8 @@ async def test_action_runtime_exception_returns_uniform_failure() -> None:
         def get_sandbox_for_session(self, session_id):
             return Sandbox()
 
-    result = await ActionRuntime(sandbox_manager=Sandboxes()).execute(
-        tool_name="broken", arguments={}, session_id="session"
+    result = await ActionRuntime(sandbox_manager=Sandboxes())._execute(
+        tool_name="broken", arguments={}, resource_key="session", execution_id="run"
     )
 
     assert result == {
@@ -45,3 +45,12 @@ async def test_action_runtime_exception_returns_uniform_failure() -> None:
         "error": "adapter exploded",
         "metadata": {},
     }
+
+
+@pytest.mark.asyncio
+async def test_action_runtime_rejects_empty_execution_identity() -> None:
+    runtime = ActionRuntime()
+    with pytest.raises(ValueError, match="resource_key and execution_id are required"):
+        await runtime.select_tools(
+            user_content="hello", resource_key="session", execution_id=""
+        )

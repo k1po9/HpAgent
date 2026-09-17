@@ -7,17 +7,12 @@ from temporalio import activity
 from web_artifacts.build import ArtifactBuildService
 from web_artifacts.models import ArtifactBuildInput
 
-_build_service: ArtifactBuildService | None = None
 
+class ArtifactActivities:
+    def __init__(self, build_service: ArtifactBuildService) -> None:
+        self._build_service = build_service
 
-def inject_artifact_build_service(service: ArtifactBuildService) -> None:
-    global _build_service
-    _build_service = service
-
-
-@activity.defn
-async def execute_artifact_build_activity(request: ArtifactBuildInput) -> dict[str, str]:
-    request.validate()
-    if _build_service is None:
-        raise RuntimeError("ArtifactBuildService was not injected")
-    return await _build_service.execute(UUID(request.artifact_version_id))
+    @activity.defn(name="execute_artifact_build_activity")
+    async def execute(self, request: ArtifactBuildInput) -> dict[str, str]:
+        request.validate()
+        return await self._build_service.execute(UUID(request.artifact_version_id))

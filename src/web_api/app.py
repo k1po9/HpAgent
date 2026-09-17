@@ -6,7 +6,7 @@ import html
 import json
 import logging
 import re
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any, Awaitable, Callable, cast
 from urllib.parse import quote, urlsplit
@@ -259,97 +259,89 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        api_pool = ConnectionPool(
-            settings.database_url,
-            min_size=1,
-            max_size=10,
-            kwargs={"row_factory": dict_row},
-            open=True,
-        )
-        api_pool.wait()
-        app.state.api_pool = api_pool
-        app.state.auth = AuthService(api_pool, settings)
-        app.state.credentials = credential_adapter or PostgresPasswordCredentialAdapter(api_pool)
-        app.state.registration = RegistrationService(api_pool)
-        app.state.identity_bindings = IdentityBindingService(
-            api_pool,
-            settings.qq_binding_code_pepper,
-            settings.qq_binding_challenge_seconds,
-        )
-        app.state.commands = CommandService(
-            api_pool,
-            budget_mode=settings.run_budget_mode,
-            budget_policy_version=settings.run_budget_policy_version,
-        )
-        app.state.research_tasks = ResearchTaskCommandService(
-            api_pool, budget_mode=settings.run_budget_mode
-        )
-        app.state.file_approvals = FileActionApprovalService(api_pool)
-        app.state.persistent_files = PersistentFileRepository(api_pool)
-        if settings.web_file_upload_enabled:
-            file_root = Path(settings.file_store_root).resolve()
-            application_root = Path.cwd().resolve()
-            if file_root == application_root or file_root.is_relative_to(application_root):
-                raise RuntimeError("FILE_STORE_ROOT must be outside the application/Git workspace")
-            app.state.file_service = FileService(
-                api_pool,
-                TenantFileStore(file_root, max_bytes=settings.file_max_bytes),
-                max_bytes=settings.file_max_bytes,
-            )
-        app.state.artifacts = ArtifactService(api_pool)
-        app.state.queries = QueryService(
-            api_pool,
-            CursorCodec(
-                settings.cursor_signing_keys,
-                settings.active_cursor_key_id,
-                settings.cursor_ttl_seconds,
-            ),
-        )
-        app.state.trace_repository = PostgresTraceRepository(api_pool)
-        # Phase E: SSE Gateway + Terminal Event Publisher over the raw Web Run
-        # Redis channel.  Redis is optional: without it the SSE Gateway degrades
-        # to snapshot + stream.degraded(redis_unavailable) and the client polls.
-        redis_client = None
-        if settings.redis_url:
-            import redis.asyncio as aioredis
-
-            redis_client = aioredis.from_url(settings.redis_url, decode_responses=False)
-            app.state.redis_client = redis_client
-        app.state.sse_gateway = SSEGateway(api_pool, settings, redis_client)
-        publisher = None
-        if redis_client is not None:
-            publisher = TerminalEventPublisher(api_pool, redis_client, settings)
-            publisher.start()
-            app.state.terminal_publisher = publisher
-        fake = None
-        fake_artifact = None
-        if settings.fake_executor_enabled:
-            worker_pool = ConnectionPool(
-                settings.worker_database_url or "",
+        async with AsyncExitStack() as resources:
+            api_pool = ConnectionPool(
+                settings.database_url,
                 min_size=1,
-                max_size=4,
+                max_size=10,
                 kwargs={"row_factory": dict_row},
                 open=True,
             )
-            worker_pool.wait()
-            app.state.worker_pool = worker_pool
-            fake = FakeRunExecutor(worker_pool, settings, redis_client)
-            fake.start()
-            fake_artifact = FakeArtifactExecutor(worker_pool, settings)
-            fake_artifact.start()
-        try:
-            yield
-        finally:
-            if fake:
-                if fake_artifact:
-                    await fake_artifact.stop()
-                await fake.stop()
-                app.state.worker_pool.close()
-            if publisher:
-                await publisher.stop()
+            resources.callback(api_pool.close)
+            api_pool.wait()
+            app.state.api_pool = api_pool
+            app.state.auth = AuthService(api_pool, settings)
+            app.state.credentials = credential_adapter or PostgresPasswordCredentialAdapter(api_pool)
+            app.state.registration = RegistrationService(api_pool)
+            app.state.identity_bindings = IdentityBindingService(
+                api_pool,
+                settings.qq_binding_code_pepper,
+                settings.qq_binding_challenge_seconds,
+            )
+            app.state.commands = CommandService(
+                api_pool,
+                budget_mode=settings.run_budget_mode,
+                budget_policy_version=settings.run_budget_policy_version,
+            )
+            app.state.research_tasks = ResearchTaskCommandService(
+                api_pool, budget_mode=settings.run_budget_mode
+            )
+            app.state.file_approvals = FileActionApprovalService(api_pool)
+            app.state.persistent_files = PersistentFileRepository(api_pool)
+            if settings.web_file_upload_enabled:
+                file_root = Path(settings.file_store_root).resolve()
+                application_root = Path.cwd().resolve()
+                if file_root == application_root or file_root.is_relative_to(application_root):
+                    raise RuntimeError("FILE_STORE_ROOT must be outside the application/Git workspace")
+                app.state.file_service = FileService(
+                    api_pool,
+                    TenantFileStore(file_root, max_bytes=settings.file_max_bytes),
+                    max_bytes=settings.file_max_bytes,
+                )
+            app.state.artifacts = ArtifactService(api_pool)
+            app.state.queries = QueryService(
+                api_pool,
+                CursorCodec(
+                    settings.cursor_signing_keys,
+                    settings.active_cursor_key_id,
+                    settings.cursor_ttl_seconds,
+                ),
+            )
+            app.state.trace_repository = PostgresTraceRepository(api_pool)
+            # Redis is optional; the gateway degrades to snapshot + polling.
+            redis_client = None
+            if settings.redis_url:
+                import redis.asyncio as aioredis
+
+                redis_client = aioredis.from_url(
+                    settings.redis_url, decode_responses=False
+                )
+                resources.push_async_callback(redis_client.aclose)
+                app.state.redis_client = redis_client
+            app.state.sse_gateway = SSEGateway(api_pool, settings, redis_client)
             if redis_client is not None:
-                await redis_client.aclose()
-            api_pool.close()
+                publisher = TerminalEventPublisher(api_pool, redis_client, settings)
+                publisher.start()
+                resources.push_async_callback(publisher.stop)
+                app.state.terminal_publisher = publisher
+            if settings.fake_executor_enabled:
+                worker_pool = ConnectionPool(
+                    settings.worker_database_url or "",
+                    min_size=1,
+                    max_size=4,
+                    kwargs={"row_factory": dict_row},
+                    open=True,
+                )
+                resources.callback(worker_pool.close)
+                worker_pool.wait()
+                app.state.worker_pool = worker_pool
+                fake = FakeRunExecutor(worker_pool, settings, redis_client)
+                fake.start()
+                resources.push_async_callback(fake.stop)
+                fake_artifact = FakeArtifactExecutor(worker_pool, settings)
+                fake_artifact.start()
+                resources.push_async_callback(fake_artifact.stop)
+            yield
 
     app = FastAPI(
         title="HpAgent Web API",

@@ -1,11 +1,7 @@
 """ActionRuntime —— 工具选择、执行、审计和结果后处理的统一入口。
 
-执行循环不直接面向 SandboxManager/Sandbox。
-它只向 ActionRuntime 请求：
-  - reset_turn(session_id, execution_id)
-  - select_tools(...)
-  - execute(...)
-  - clear_session(session_id)
+Durable Activities use an explicit resource key and execution identity for every
+operation; the runtime has no surface-specific or session-only fallback.
 """
 from __future__ import annotations
 
@@ -44,25 +40,21 @@ class ActionRuntime:
         self._tool_result_summary_enabled = tool_result_summary_enabled
         self._tool_result_summary_threshold = tool_result_summary_threshold
         self._tool_result_summary_max_chars = tool_result_summary_max_chars
-        self._tools_cache: Dict[str, tuple[str, List[Dict[str, Any]]]] = {}
+        self._tools_cache: Dict[tuple[str, str], tuple[str, List[Dict[str, Any]]]] = {}
 
     @staticmethod
-    def _execution_cache_key(session_id: str, execution_id: str = "") -> str:
-        """Partition mutable selection state by both Session and execution.
+    def _execution_cache_key(resource_key: str, execution_id: str) -> tuple[str, str]:
+        if not resource_key or not execution_id:
+            raise ValueError("resource_key and execution_id are required")
+        return resource_key, execution_id
 
-        The legacy QQ path does not yet pass an execution id, so its historical
-        session-scoped behavior remains intact. Web and the new QQ Host always
-        pass a stable execution id and therefore cannot share a cache entry.
-        """
-        return f"{session_id}:{execution_id}" if execution_id else session_id
-
-    def reset_turn(self, session_id: str, execution_id: str = "") -> None:
+    def reset_execution(self, resource_key: str, execution_id: str) -> None:
         """Clear only the mutable state owned by this execution."""
-        self._tools_cache.pop(self._execution_cache_key(session_id, execution_id), None)
+        self._tools_cache.pop(self._execution_cache_key(resource_key, execution_id), None)
         if self._sandbox is None:
             return
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
             sandbox.reset_hints()
         except Exception:
             pass
@@ -71,37 +63,35 @@ class ActionRuntime:
         self,
         *,
         user_content: str = "",
-        session_id: str = "",
-        execution_id: str = "",
+        resource_key: str,
+        execution_id: str,
         group_context_text: str = "",
     ) -> List[Dict[str, Any]]:
         """完成工具选择管线，并写入工具检索审计事件。"""
+        cache_key = self._execution_cache_key(resource_key, execution_id)
         rag_query = self._build_rag_query(user_content, group_context_text)
         if self._sandbox is None:
             return []
 
         try:
-            cache_key = self._execution_cache_key(session_id, execution_id)
-            if session_id:
-                query_hash = hashlib.md5(user_content.encode()).hexdigest()
-                if cache_key in self._tools_cache:
-                    last_hash, cached = self._tools_cache[cache_key]
-                    if query_hash == last_hash:
-                        logger.info(
-                            "select_tools: cache hit session=%s execution=%s",
-                            session_id,
-                            execution_id or "legacy",
-                        )
-                        return cached
+            query_hash = hashlib.md5(user_content.encode()).hexdigest()
+            if cache_key in self._tools_cache:
+                last_hash, cached = self._tools_cache[cache_key]
+                if query_hash == last_hash:
+                    logger.info(
+                        "select_tools: cache hit resource=%s execution=%s",
+                        resource_key,
+                        execution_id,
+                    )
+                    return cached
 
-            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
             raw_tools, audit = await sandbox.select_tools(
                 rag_query, self._tool_rag_top_k
             )
             tools = cast(List[Dict[str, Any]], raw_tools)
 
-            if session_id:
-                self._tools_cache[cache_key] = (query_hash, tools)
+            self._tools_cache[cache_key] = (query_hash, tools)
 
             logger.info(
                 "select_tools: query=%s top_k=%d -> %d tools",
@@ -112,19 +102,20 @@ class ActionRuntime:
 
             return tools
         except Exception as e:
-            logger.warning("Tool retrieval failed for sid=%s: %s", session_id, e)
+            logger.warning("Tool retrieval failed for resource=%s: %s", resource_key, e)
             return []
 
-    async def execute(
+    async def _execute(
         self,
         *,
         tool_name: str,
         arguments: Dict[str, Any],
-        session_id: str = "",
-        execution_id: str = "",
+        resource_key: str,
+        execution_id: str,
         user_query: str = "",
     ) -> Dict[str, Any]:
         """执行工具，并按配置对长输出做语义摘要。"""
+        self._execution_cache_key(resource_key, execution_id)
         if self._sandbox is None:
             return {
                 "success": False,
@@ -134,7 +125,7 @@ class ActionRuntime:
             }
 
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
             result, _audit = await sandbox.execute(tool_name, arguments)
             result_dict = cast(Dict[str, Any], result.to_dict())
             result_dict.setdefault("success", result_dict.get("error") is None)
@@ -144,7 +135,7 @@ class ActionRuntime:
 
             if self._tool_result_summary_enabled:
                 result_dict = await self._summarize_if_needed(
-                    result_dict, tool_name, user_query, session_id,
+                    result_dict, tool_name, user_query, resource_key,
                 )
 
             return result_dict
@@ -161,15 +152,16 @@ class ActionRuntime:
         self,
         request: ActionRequest,
         *,
-        session_id: str = "",
-        execution_id: str = "",
+        resource_key: str,
+        execution_id: str,
         user_query: str = "",
         idempotency_key: str = "",
     ) -> ActionResult:
+        self._execution_cache_key(resource_key, execution_id)
         executed_request = request
         if idempotency_key and self._sandbox is not None:
             try:
-                sandbox = self._sandbox.get_sandbox_for_session(session_id)
+                sandbox = self._sandbox.get_sandbox_for_session(resource_key)
                 key_argument = sandbox.get_tool_metadata(request.name).get(
                     "idempotency_key_argument"
                 )
@@ -185,37 +177,36 @@ class ActionRuntime:
                     request.name,
                     arguments,
                 )
-        result = await self.execute(
+        result = await self._execute(
             tool_name=executed_request.name,
             arguments=executed_request.arguments,
-            session_id=session_id,
+            resource_key=resource_key,
             execution_id=execution_id,
             user_query=user_query,
         )
-        if execution_id:
-            metadata = dict(result.get("metadata") or {})
-            metadata.setdefault(
-                "invocation_key",
-                f"tool-invocation:{execution_id}:{request.id}",
-            )
-            if idempotency_key:
-                # Providers that expose an idempotency facility can consume
-                # this stable operation identifier; it is also retained in the
-                # result for reconciliation/audit adapters.
-                metadata.setdefault("idempotency_key", idempotency_key)
-            result["metadata"] = metadata
+        metadata = dict(result.get("metadata") or {})
+        metadata.setdefault(
+            "invocation_key",
+            f"tool-invocation:{execution_id}:{request.id}",
+        )
+        if idempotency_key:
+            # Providers that expose an idempotency facility can consume
+            # this stable operation identifier; it is also retained in the
+            # result for reconciliation/audit adapters.
+            metadata.setdefault("idempotency_key", idempotency_key)
+        result["metadata"] = metadata
         return ActionResult.from_runtime_result(request, result)
 
-    def clear_execution(self, session_id: str, execution_id: str) -> None:
+    def clear_execution(self, resource_key: str, execution_id: str) -> None:
         """Fence late completion from retaining per-execution cache state."""
-        self._tools_cache.pop(self._execution_cache_key(session_id, execution_id), None)
+        self._tools_cache.pop(self._execution_cache_key(resource_key, execution_id), None)
 
-    def side_effect_class(self, session_id: str, tool_name: str) -> str:
+    def side_effect_class(self, resource_key: str, tool_name: str) -> str:
         """Read trusted registry metadata; unknown tools fail closed upstream."""
         if self._sandbox is None:
             return "unknown"
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
             value = sandbox.get_tool_metadata(tool_name).get(
                 "side_effect_class", "unknown"
             )
@@ -223,12 +214,12 @@ class ActionRuntime:
         except Exception:
             return "unknown"
 
-    def budget_reservation(self, session_id: str, tool_name: str) -> Dict[str, int]:
+    def budget_reservation(self, resource_key: str, tool_name: str) -> Dict[str, int]:
         """Return trusted per-tool reservation bounds from registry metadata."""
         if self._sandbox is None:
             return {"tool_calls": 1}
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(session_id)
+            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
             configured = sandbox.get_tool_metadata(tool_name).get(
                 "budget_reservation"
             )
@@ -246,13 +237,6 @@ class ActionRuntime:
             return values
         except Exception:
             return {"tool_calls": 1}
-
-    def clear_session(self, session_id: str) -> None:
-        """会话结束时清理行动运行时的会话级缓存。"""
-        prefix = f"{session_id}:"
-        for key in tuple(self._tools_cache):
-            if key == session_id or key.startswith(prefix):
-                self._tools_cache.pop(key, None)
 
     def _build_rag_query(self, user_content: str, group_context_text: str) -> str:
         rag_query = user_content

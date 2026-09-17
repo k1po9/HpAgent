@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Protocol
 
 from actions.contracts import ActionRequest
 
@@ -28,3 +28,26 @@ class BrainDecision:
             request.to_model_event_tool_call(raw_calls[idx] if idx < len(raw_calls) else None)
             for idx, request in enumerate(self.action_requests)
         ]
+
+
+class BrainCapability(Protocol):
+    """Model-facing operations required by durable Agent Activities."""
+
+    async def rewrite_recall_query(
+        self, *, user_content: str, group_context_text: str = "", sender_name: str = ""
+    ) -> tuple[str, Optional[list[dict[str, str]]]]: ...
+
+    async def generate_chat_decision(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: Optional[list[dict[str, Any]]] = None,
+        channel_overrides: Optional[dict[str, Any]] = None,
+    ) -> BrainDecision: ...
+
+    async def generate_final_decision(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        channel_overrides: Optional[dict[str, Any]] = None,
+    ) -> BrainDecision: ...

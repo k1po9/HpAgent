@@ -1,8 +1,7 @@
 """
 用户提醒工具 —— TaskScheduler 的 consumer。
 
-作为本地工具注册到 Sandbox，LLM 可直接调用。
-通过模块级单例 _scheduler 访问调度器（worker 启动时注入）。
+作为本地工具注册到 Sandbox，LLM 可直接调用。调度器由工具工厂显式注入。
 """
 
 from __future__ import annotations
@@ -19,16 +18,6 @@ if TYPE_CHECKING:
     from application.scheduler import TaskScheduler
 
 logger = logging.getLogger("HpAgent.Reminder")
-
-# 模块级单例（worker 启动时通过 inject_scheduler 注入）
-_scheduler: Optional["TaskScheduler"] = None
-
-
-def inject_scheduler(scheduler: "TaskScheduler") -> None:
-    """注入 TaskScheduler 实例（worker 启动时调用一次）。"""
-    global _scheduler
-    _scheduler = scheduler
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Pydantic 输入模型
@@ -101,20 +90,13 @@ def _ts_to_str(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
-def _ensure_scheduler() -> "TaskScheduler":
-    """确保 scheduler 已注入。"""
-    if _scheduler is None:
-        raise RuntimeError(
-            "TaskScheduler not injected. Call inject_scheduler() at worker startup."
-        )
-    return _scheduler
-
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # 工具工厂函数
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def create_reminder_tool(session_context: dict) -> StructuredTool:
+def create_reminder_tool(
+    session_context: dict, scheduler: "TaskScheduler"
+) -> StructuredTool:
     """创建「创建提醒」工具。
 
     Args:
@@ -127,8 +109,6 @@ def create_reminder_tool(session_context: dict) -> StructuredTool:
         at_time: Optional[str] = None,
         cron_expr: Optional[str] = None,
     ) -> str:
-        scheduler = _ensure_scheduler()
-
         # 互斥校验
         provided = sum(
             1 for v in (delay_minutes, at_time, cron_expr) if v is not None
@@ -183,7 +163,9 @@ def create_reminder_tool(session_context: dict) -> StructuredTool:
     )
 
 
-def create_list_reminders_tool(session_context: dict) -> StructuredTool:
+def create_list_reminders_tool(
+    session_context: dict, scheduler: "TaskScheduler"
+) -> StructuredTool:
     """创建「列出提醒」工具。
 
     Args:
@@ -191,7 +173,6 @@ def create_list_reminders_tool(session_context: dict) -> StructuredTool:
     """
 
     async def _execute(status: str = "pending") -> str:
-        scheduler = _ensure_scheduler()
         account_id = session_context.get("account_id", "")
 
         tasks = scheduler.list_by_filter(
@@ -228,7 +209,9 @@ def create_list_reminders_tool(session_context: dict) -> StructuredTool:
     )
 
 
-def create_cancel_reminder_tool(session_context: dict) -> StructuredTool:
+def create_cancel_reminder_tool(
+    session_context: dict, scheduler: "TaskScheduler"
+) -> StructuredTool:
     """创建「取消提醒」工具。
 
     Args:
@@ -236,7 +219,6 @@ def create_cancel_reminder_tool(session_context: dict) -> StructuredTool:
     """
 
     async def _execute(reminder_id: str) -> str:
-        scheduler = _ensure_scheduler()
         account_id = session_context.get("account_id", "")
 
         # 查找任务，确保属于当前用户

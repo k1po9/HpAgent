@@ -75,6 +75,6 @@ def test_production_composition_has_no_qq_execution_queue():
     source = inspect.getsource(worker.start_worker)
     assert "OrchestrationWorkflow" not in source and "process_turn_activity" not in source
     assert "SurfaceConversationCommands" in source
-    assert "QQExecutionHost" not in inspect.getsource(qq.build_qq_runtime)
-    assert "SessionStore(" not in inspect.getsource(qq.build_qq_runtime)
-    assert "DefaultBrainActionLoop" not in inspect.getsource(qq.build_qq_runtime)
+    assert "QQExecutionHost" not in inspect.getsource(qq.build_qq_surface_services)
+    assert "SessionStore(" not in inspect.getsource(qq.build_qq_surface_services)
+    assert "DefaultBrainActionLoop" not in inspect.getsource(qq.build_qq_surface_services)
