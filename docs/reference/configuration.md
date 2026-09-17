@@ -1,75 +1,75 @@
-# Configuration Reference
+# 配置参考
 
-Precedence is environment variables over `config/config.yaml` defaults. Compose supplies container URLs and database DSNs. Model YAML references environment variables with `${NAME}` placeholders; secrets are never committed to YAML.
+配置优先级为：环境变量覆盖 `config/config.yaml` 默认值。Compose 会注入 Container 内部服务地址和数据库 DSN。Model YAML 通过 `${NAME}` 引用环境变量，Secret 不写入 YAML。
 
-## Environment variables
+## 环境变量
 
-| Variable | Required | Default | Owner | Purpose |
+| 变量 | 是否必需 | 默认值 | 所有者 | 用途 |
 | --- | --- | --- | --- | --- |
-| `HPAGENT_MIGRATE_PASSWORD` | deployment | `hpagent_migrate` in Compose | PostgreSQL | Migration-role password. |
-| `HPAGENT_API_PASSWORD` | deployment | `hpagent_api` in Compose | PostgreSQL/API | API-role password. |
-| `HPAGENT_WORKER_PASSWORD` | deployment | `hpagent_worker` in Compose | PostgreSQL/worker | Worker-role password. |
-| `HPAGENT_ENV` | no | `development` | API/worker | Runtime environment and production safety checks. |
-| `APP_DATABASE_URL` | host runtime | none | API/migrations | Application or migration PostgreSQL DSN; Compose constructs it. |
-| `WORKER_DATABASE_URL` | yes for worker | none | worker | Worker PostgreSQL DSN; Compose constructs it. |
-| `REDIS_URL` | no | config/Compose value | API/worker | Redis endpoint. |
-| `TEMPORAL_HOST` | yes for durable runtime | `localhost:7233` | workers | Temporal frontend address. |
-| `TEMPORAL_TASK_QUEUE` | no | `hpagent-task-queue` | worker | Scheduled-memory/default queue override. |
-| `HINDSIGHT_URL` | no | `http://localhost:8001` | worker | Hindsight API endpoint. |
-| `HINDSIGHT_API_LLM_*` | yes when Hindsight LLM is enabled | none | Hindsight | Provider, base URL, key, and model. |
-| `SILICONFLOW_API_KEY` | model-dependent | none | models/Hindsight | Embedding and rerank credential. |
-| `SILICONFLOW_BASE_URL` | model-dependent | none | models/Hindsight | Provider endpoint. |
-| `SILICONFLOW_EMBEDDING_MODEL` | model-dependent | none | models/Hindsight | Embedding model. |
-| `SILICONFLOW_RERANK_MODEL` | model-dependent | none | models/Hindsight | Rerank model. |
-| `MINIMAX_API_KEY` | model-dependent | none | models | MiniMax credential. |
-| `MINIMAX_API_BASE_URL` | model-dependent | none | models | MiniMax OpenAI-compatible endpoint. |
-| `MINIMAX_FLAGSHIP_MODEL` | current chat chain | none | models | Fast/chat/reasoning model name. |
-| `ALIBABA_BAILIAN_*` | fallback-dependent | none | models | Bailian key, endpoint, and fast model. |
-| `DEEPSEEK_*` | optional | documented in `.env.example` | models/checks | DeepSeek endpoint, key, and model names. |
-| `HPAGENT_MODELS_PATH` | no | `/app/config/models.yaml` | worker | Alternate model configuration path. |
-| `WEB_PUBLIC_ORIGIN` | yes when exposed | `https://localhost` in Compose | API | Allowed browser origin. |
-| `WEB_COOKIE_SECURE` | production | `false` | API | Secure-cookie enforcement. |
-| `WEB_CURSOR_SECRET` / `WEB_CURSOR_KEYS_JSON` | deployment | development value | API | Cursor signing key or key ring. |
-| `WEB_SESSION_TOKEN_PEPPER` | deployment | development value | API | Session token pepper. |
-| `WEB_CSRF_SIGNING_KEY` | deployment | development value | API | CSRF signing key. |
-| `QQ_BINDING_CODE_PEPPER` | deployment | development value | API/worker | Shared QQ binding-code pepper. |
-| `QQ_BINDING_CHALLENGE_SECONDS` | no | `300` | API/worker | Binding challenge TTL. |
-| `QQ_OFFICIAL_APP_ID` / `QQ_OFFICIAL_CLIENT_SECRET` | official QQ only | empty | QQ adapter | Official bot credentials. |
-| `QQ_OFFICIAL_SANDBOX` | no | `false` | QQ adapter | Official QQ sandbox endpoint selection. |
-| `NAPCAT_ACCOUNT` / `NAPCAT_QUICK_PASSWORD` | NapCat only | empty | NapCat | NapCat login. |
-| `WORKSPACE_ROOT` | no | `.data/workspace` | worker | Account workspace root. |
-| `WORKSPACE_ISOLATION_MODE` | no | `single_process_account_lock` | worker | Workspace concurrency mode. |
-| `AGENT_EXECUTION_LEASE_TTL_SECONDS` | no | `900` | worker | Execution lease duration. |
-| `WEB_FILE_UPLOAD_ENABLED` | no | `true` | API/worker | Upload capability flag. |
-| `WEB_FILE_TRANSFORM_ENABLED` | no | `false` | API/worker | Transform/output capability flag. |
-| `WEB_FILE_SHELL_ENABLED` | no | `false` | API/worker | File shell capability flag. |
-| `FILE_STORE_ROOT` / `FILE_RUN_ROOT` / `DOCUMENT_RUN_ROOT` | Compose-managed | volume paths | file/document | Blob and execution directories. |
-| `FILE_MAX_BYTES` | no | `134217728` | file | Per-file byte limit. |
-| `FILE_DIRECT_READ_MAX_BYTES` | no | `1048576` | file | Direct-read threshold. |
-| `FILE_MAX_COUNT_PER_MESSAGE` | no | `10` | API | Upload count limit. |
-| `GOTENBERG_URL` | no | `http://gotenberg:3000` in Compose | file | Conversion service endpoint. |
-| `SEARXNG_URL` | no | `http://searxng:8080` in Compose | research | Search endpoint. |
-| `SEARXNG_SECRET` | deployment | development value | SearXNG | Search service secret. |
-| `RUN_BUDGET_MODE` | no | `enforce` | worker/API | Run budget enforcement mode. |
-| `LOG_LEVEL` | no | `INFO` | all Python services | Console log threshold. |
-| `LOG_DIR` | no | `.data/logs` | Python services | Structured log directory. |
-| `WEB_GATEWAY_PORT` | no | `80` | gateway | Public host port. |
-| `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | no | empty/local service list | builds/runtime | Proxy routing. |
+| `HPAGENT_MIGRATE_PASSWORD` | 部署必需 | Compose 中为 `hpagent_migrate` | PostgreSQL | Migration Role 密码。 |
+| `HPAGENT_API_PASSWORD` | 部署必需 | Compose 中为 `hpagent_api` | PostgreSQL/API | API Role 密码。 |
+| `HPAGENT_WORKER_PASSWORD` | 部署必需 | Compose 中为 `hpagent_worker` | PostgreSQL/Worker | Worker Role 密码。 |
+| `HPAGENT_ENV` | 否 | `development` | API/Worker | 运行环境与生产安全检查。 |
+| `APP_DATABASE_URL` | 宿主机运行时 | 无 | API/Migration | Application 或 Migration PostgreSQL DSN；Compose 自动构造。 |
+| `WORKER_DATABASE_URL` | Worker 必需 | 无 | Worker | Worker PostgreSQL DSN；Compose 自动构造。 |
+| `REDIS_URL` | 否 | 配置或 Compose 值 | API/Worker | Redis Endpoint。 |
+| `TEMPORAL_HOST` | Durable Runtime 必需 | `localhost:7233` | Worker | Temporal Frontend 地址。 |
+| `TEMPORAL_TASK_QUEUE` | 否 | `hpagent-task-queue` | Worker | Scheduled Memory/默认 Queue Override。 |
+| `HINDSIGHT_URL` | 否 | `http://localhost:8001` | Worker | Hindsight API 地址。 |
+| `HINDSIGHT_API_LLM_*` | 启用 Hindsight LLM 时 | 无 | Hindsight | Provider、Base URL、Key 和 Model。 |
+| `SILICONFLOW_API_KEY` | 取决于模型配置 | 无 | Model/Hindsight | Embedding 与 Rerank 凭据。 |
+| `SILICONFLOW_BASE_URL` | 取决于模型配置 | 无 | Model/Hindsight | Provider Endpoint。 |
+| `SILICONFLOW_EMBEDDING_MODEL` | 取决于模型配置 | 无 | Model/Hindsight | Embedding Model。 |
+| `SILICONFLOW_RERANK_MODEL` | 取决于模型配置 | 无 | Model/Hindsight | Rerank Model。 |
+| `MINIMAX_API_KEY` | 取决于模型配置 | 无 | Model | MiniMax 凭据。 |
+| `MINIMAX_API_BASE_URL` | 取决于模型配置 | 无 | Model | MiniMax OpenAI-compatible Endpoint。 |
+| `MINIMAX_FLAGSHIP_MODEL` | 当前 Chat Chain | 无 | Model | Fast/Chat/Reasoning Model Name。 |
+| `ALIBABA_BAILIAN_*` | 取决于 Fallback | 无 | Model | Bailian Key、Endpoint 和 Fast Model。 |
+| `DEEPSEEK_*` | 可选 | 见 `.env.example` | Model/Check | DeepSeek Endpoint、Key 和 Model Name。 |
+| `HPAGENT_MODELS_PATH` | 否 | `/app/config/models.yaml` | Worker | 替代 Model Config 路径。 |
+| `WEB_PUBLIC_ORIGIN` | 对外服务时必需 | Compose 中为 `https://localhost` | API | 允许的浏览器 Origin。 |
+| `WEB_COOKIE_SECURE` | 生产必需 | `false` | API | Secure Cookie 开关。 |
+| `WEB_CURSOR_SECRET` / `WEB_CURSOR_KEYS_JSON` | 部署必需 | 开发值 | API | Cursor 签名 Key 或 Key Ring。 |
+| `WEB_SESSION_TOKEN_PEPPER` | 部署必需 | 开发值 | API | Session Token Pepper。 |
+| `WEB_CSRF_SIGNING_KEY` | 部署必需 | 开发值 | API | CSRF 签名 Key。 |
+| `QQ_BINDING_CODE_PEPPER` | 部署必需 | 开发值 | API/Worker | API 与 Worker 共享的 QQ Binding Pepper。 |
+| `QQ_BINDING_CHALLENGE_SECONDS` | 否 | `300` | API/Worker | Binding Challenge TTL。 |
+| `QQ_OFFICIAL_APP_ID` / `QQ_OFFICIAL_CLIENT_SECRET` | Official QQ 时 | 空 | QQ Adapter | Official Bot 凭据。 |
+| `QQ_OFFICIAL_SANDBOX` | 否 | `false` | QQ Adapter | Official QQ Sandbox Endpoint 开关。 |
+| `NAPCAT_ACCOUNT` / `NAPCAT_QUICK_PASSWORD` | NapCat 时 | 空 | NapCat | NapCat 登录信息。 |
+| `WORKSPACE_ROOT` | 否 | `.data/workspace` | Worker | Account Workspace Root。 |
+| `WORKSPACE_ISOLATION_MODE` | 否 | `single_process_account_lock` | Worker | Workspace 并发模式。 |
+| `AGENT_EXECUTION_LEASE_TTL_SECONDS` | 否 | `900` | Worker | Execution Lease 时长。 |
+| `WEB_FILE_UPLOAD_ENABLED` | 否 | `true` | API/Worker | Upload 能力开关。 |
+| `WEB_FILE_TRANSFORM_ENABLED` | 否 | `false` | API/Worker | Transform/Output 能力开关。 |
+| `WEB_FILE_SHELL_ENABLED` | 否 | `false` | API/Worker | File Shell 能力开关。 |
+| `FILE_STORE_ROOT` / `FILE_RUN_ROOT` / `DOCUMENT_RUN_ROOT` | Compose 管理 | Volume 路径 | File/Document | Blob 与执行目录。 |
+| `FILE_MAX_BYTES` | 否 | `134217728` | File | 单文件大小上限。 |
+| `FILE_DIRECT_READ_MAX_BYTES` | 否 | `1048576` | File | Direct Read 阈值。 |
+| `FILE_MAX_COUNT_PER_MESSAGE` | 否 | `10` | API | 每条消息上传数量上限。 |
+| `GOTENBERG_URL` | 否 | Compose 中为 `http://gotenberg:3000` | File | 转换服务 Endpoint。 |
+| `SEARXNG_URL` | 否 | Compose 中为 `http://searxng:8080` | Research | 搜索 Endpoint。 |
+| `SEARXNG_SECRET` | 部署必需 | 开发值 | SearXNG | 搜索服务 Secret。 |
+| `RUN_BUDGET_MODE` | 否 | `enforce` | Worker/API | Run Budget 执行模式。 |
+| `LOG_LEVEL` | 否 | `INFO` | Python Service | Console Log Threshold。 |
+| `LOG_DIR` | 否 | `.data/logs` | Python Service | Structured Log 目录。 |
+| `WEB_GATEWAY_PORT` | 否 | `80` | Gateway | 对外 Host Port。 |
+| `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | 否 | 空/本地服务列表 | Build/Runtime | Proxy 路由。 |
 
-`.env.example` is the deployment template. Source settings may expose additional tuning variables for SSE buffers, Outbox recovery, cleanup intervals, and budget policy; leave them at source defaults unless operating evidence calls for a change.
+`.env.example` 是部署模板。Source Settings 还提供 SSE Buffer、Outbox Recovery、Cleanup Interval 和 Budget Policy 等调优变量；没有运维证据时应保留代码默认值。
 
-## Model configuration
+## 模型配置
 
-`config/models.yaml` defines providers and ordered chains for `fast`, `chat`, `embedding`, `image`, and `reasoning`, plus one reranker. Provider entries contain endpoint format and environment references; credentials stay in `.env`. Tool retrieval, MCP configuration path, skill path, and surface-specific token/timeout overrides are declared in the same file.
+`config/models.yaml` 定义 Provider，以及 `fast`、`chat`、`embedding`、`image`、`reasoning` 的有序 Model Chain 和一个 Reranker。Provider Entry 包含 API Format 和环境变量引用，凭据只保存在 `.env`。同一文件还声明 Tool Retrieval、MCP Config Path、Skill Path 和各 Surface 的 Token/Timeout Override。
 
-## Prompt configuration
+## Prompt 配置
 
-`config/prompts/` contains the system prompt, identities, environment description, guidance, and tool summary. Treat prompt changes as runtime behavior changes and cover them with relevant tests or evaluation.
+`config/prompts/` 包含 System Prompt、Identity、Environment、Guidance 和 Tool Summary。Prompt 变更属于运行行为变更，应配套相关测试或 Evaluation。
 
 ## MCP
 
-`config/mcp/servers.yaml` declares MCP processes/endpoints and environment references. Validate syntax and initialization with `python scripts/check/mcp-health.py`.
+`config/mcp/servers.yaml` 声明 MCP Process/Endpoint 与环境变量引用。使用 `python scripts/check/mcp-health.py` 验证语法和初始化。
 
 ## Research
 
-`config/searxng/settings.yml` is a template rendered by `config/searxng/entrypoint.sh` using `SEARXNG_SECRET` and deployment proxy settings. `SEARXNG_URL` tells HpAgent where to query it.
+`config/searxng/settings.yml` 是模板，`config/searxng/entrypoint.sh` 使用 `SEARXNG_SECRET` 和部署 Proxy 设置生成实际配置。`SEARXNG_URL` 告诉 HpAgent 查询地址。

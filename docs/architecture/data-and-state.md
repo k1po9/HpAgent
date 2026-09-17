@@ -1,28 +1,28 @@
-# Data and State Ownership
+# 数据与状态归属
 
 ## PostgreSQL
 
-Application PostgreSQL is authoritative for accounts, identity bindings, conversations, messages, sessions, Runs, Outbox events, workflow-execution facts, transcripts, operations, leases, fencing tokens, delivery state, traces, files, research records, and artifacts. State transitions that must agree are committed in one transaction.
+应用 PostgreSQL 是 Account、Identity Binding、Conversation、Message、Session、Run、Outbox、Workflow Execution Fact、Transcript、Operation、Lease、Fencing Token、Delivery、Trace、File、Research 和 Artifact 状态的权威来源。必须保持一致的状态转换在同一个事务中提交。
 
-Important ownership groups:
+主要归属：
 
-- **Identity and conversation:** `accounts`, identity bindings, conversations, messages, sessions.
-- **Execution:** Runs, workflow executions, Outbox events, agent transcripts, operations, waits, execution segments, leases, and fencing tokens.
-- **Delivery and trace:** QQ deliveries, trace runs, and trace events.
-- **Files and workspace metadata:** stored files, message/run bindings, persistent revisions, approvals, budgets, and usage ledger.
-- **Research and artifacts:** tasks, plans, sources, evidence, reports, artifacts, and artifact versions.
-- **Heavy documents:** normalized-document operation results and status.
+- **身份与对话**：Account、Identity Binding、Conversation、Message、Session。
+- **执行**：Run、Workflow Execution、Outbox、Agent Transcript、Operation、Wait、Execution Segment、Lease 和 Fencing Token。
+- **投递与追踪**：QQ Delivery、Trace Run 和 Trace Event。
+- **文件与 Workspace 元数据**：Stored File、Message/Run Binding、Persistent Revision、Approval、Budget 和 Usage Ledger。
+- **Research 与 Artifact**：Task、Plan、Source、Evidence、Report、Artifact 和 Artifact Version。
+- **Heavy Document**：Normalized Document Operation 的结果与状态。
 
 ## Redis
 
-Redis owns transient coordination and cache data such as short-lived session/event context, notifications, and tool/runtime caches. Losing Redis may degrade in-flight convenience state, but it does not replace committed PostgreSQL business state.
+Redis 负责短期 Session/Event Context、通知和工具/运行时缓存等临时协调状态。Redis 丢失可能影响进行中的便利状态，但不会取代 PostgreSQL 已提交的业务事实。
 
 ## Hindsight
 
-Hindsight owns long-term semantic memory banks and retrieval indexes. HpAgent stores stable account and Run correlation metadata around memory operations; it does not duplicate the semantic index in application PostgreSQL.
+Hindsight 负责长期语义 Memory Bank 和检索索引。HpAgent 在应用 PostgreSQL 中保留稳定的 Account 与 Run 关联元数据，但不会复制语义索引。
 
-## Git and filesystem storage
+## Git 与文件存储
 
-Account-scoped Git workspaces own editable project history and working files. File-store volumes own uploaded and generated blobs; PostgreSQL owns their metadata, lineage, permissions, and Run associations. Temporary Run and document directories are execution material, not business authority.
+账号级 Git Workspace 负责可编辑项目的历史和工作文件。File Store Volume 保存上传及生成的 Blob；PostgreSQL 保存其元数据、Lineage、权限和 Run 关联。临时 Run/Document 目录只是执行材料，不是业务权威。
 
-PostgreSQL, Redis, Hindsight, and Git therefore own different categories of state. They are cooperating stores, not duplicate authorities.
+因此 PostgreSQL、Redis、Hindsight 与 Git 分别拥有不同类别的状态，它们是协作存储，而不是重复权威。

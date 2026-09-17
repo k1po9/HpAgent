@@ -1,6 +1,6 @@
-# Operations Runbook
+# 运行手册
 
-## Start, stop, and restart
+## 启动、停止与重启
 
 ```bash
 docker compose --profile web up -d --build
@@ -9,7 +9,7 @@ docker compose --profile web down
 docker compose --profile web restart hpagent hpagent-document-worker hpagent-api
 ```
 
-## Health and status
+## 健康与状态
 
 ```bash
 docker compose --profile web ps
@@ -27,9 +27,9 @@ curl --fail http://127.0.0.1:8001/health
 docker compose --profile web up hpagent-migrate
 ```
 
-The migration container exits after applying the checksummed SQL history. A nonzero exit blocks API and worker startup.
+Migration Container 执行带 Checksum 的 SQL 历史后退出；非零退出会阻止 API 和 Worker 启动。
 
-## Logs and checks
+## 日志与检查
 
 ```bash
 ./scripts/operations/logs.sh --api
@@ -38,19 +38,19 @@ python scripts/check/mcp-health.py --help
 ./scripts/check/gateway-smoke.sh
 ```
 
-## Development reset
+## 开发环境重置
 
-`./scripts/dev/reset.sh --help` describes scoped local cleanup. It can terminate local worker processes, terminate matching Temporal workflows, or remove `.data` workspace/log files. For a fully disposable Compose environment, stop it and explicitly remove volumes only when data loss is intended:
+`./scripts/dev/reset.sh --help` 列出各类本地清理选项。它可以终止本地 Worker、终止匹配的 Temporal Workflow，或删除 `.data` 中的 Workspace/Log。只在确认允许丢失数据时，才对完全可丢弃的 Compose 环境删除 Volume：
 
 ```bash
 docker compose --profile web down --volumes
 ```
 
-## Backup
+## 备份
 
 ```bash
 ./scripts/operations/backup.sh
 BACKUP_DIR=/secure/location ./scripts/operations/backup.sh
 ```
 
-See [Backup and Restore](backup-restore.md) before a restore or destructive reset.
+执行恢复或破坏性重置前，请先阅读[备份与恢复](backup-restore.md)。

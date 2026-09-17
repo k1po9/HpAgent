@@ -1,39 +1,39 @@
-# Troubleshooting
+# 故障排查
 
-## API is not ready
+## API 未 Ready
 
 ```bash
 docker compose --profile web ps
 ./scripts/operations/logs.sh hpagent-migrate hpagent-api app-postgres --tail 200 --no-follow
 ```
 
-Check that migration completed successfully, application role passwords match `.env`, and `app-postgres` is healthy.
+确认 Migration 成功、应用角色密码与 `.env` 一致，并且 `app-postgres` 健康。
 
-## Run remains queued
+## Run 一直处于 Queued
 
-Inspect `hpagent`, `temporal`, and `app-postgres` logs. Confirm the `hpagent-web-lifecycle` and `hpagent-web-agent` workers are running and that the Outbox dispatcher can connect with `WORKER_DATABASE_URL`.
+检查 `hpagent`、`temporal` 和 `app-postgres` 日志。确认 `hpagent-web-lifecycle` 与 `hpagent-web-agent` Worker 正在 Poll，Outbox Dispatcher 可通过 `WORKER_DATABASE_URL` 连接数据库。
 
-## Model calls fail
+## 模型调用失败
 
-Compare `.env` provider variables with `config/models.yaml`. Empty base URLs, keys, or model names make the selected chain unusable. Use `python scripts/check/models.py --help` before running the live connectivity check.
+对照 `config/models.yaml` 检查 `.env` 中的 Provider 变量。Base URL、Key 或 Model Name 为空会导致对应链不可用。执行实时连接检查前先运行 `python scripts/check/models.py --help`。
 
-## Memory is unavailable
+## Memory 不可用
 
 ```bash
 curl --fail http://127.0.0.1:8001/health
 ./scripts/operations/logs.sh hindsight hindsight-postgres --tail 200 --no-follow
 ```
 
-Verify Hindsight model and SiliconFlow embedding/rerank variables. Memory degradation should not transfer application-state authority away from PostgreSQL.
+检查 Hindsight LLM 以及 SiliconFlow Embedding/Rerank 变量。Memory 降级不会改变 PostgreSQL 的应用状态权威。
 
-## Research returns no sources
+## Research 没有来源
 
-Check `curl --fail http://127.0.0.1:8085/`, `SEARXNG_URL`, proxy settings, and `searxng` logs. The service reads `config/searxng/settings.yml` through its generated runtime configuration.
+检查 `curl --fail http://127.0.0.1:8085/`、`SEARXNG_URL`、代理设置和 `searxng` 日志。服务会根据 `config/searxng/settings.yml` 生成运行时配置。
 
-## Document normalization is stuck
+## Document Normalization 卡住
 
-Inspect `hpagent-document-worker`, `temporal`, `gotenberg`, and PostgreSQL logs. Confirm the `hpagent-document` activity worker is polling and the file-store/document-run volumes are mounted.
+检查 `hpagent-document-worker`、`temporal`、`gotenberg` 与 PostgreSQL 日志。确认 `hpagent-document` Activity Worker 正在 Poll，File Store 与 Document Run Volume 已挂载。
 
-## QQ receives no reply
+## QQ 没有回复
 
-Determine whether the Run completed. If it did not, troubleshoot execution. If it completed, inspect `qq_deliveries`, worker delivery logs, provider credentials, and NapCat/official QQ connectivity. Delivery retries do not execute the Run again.
+先判断 Run 是否完成：未完成则排查执行；已完成则检查 `qq_deliveries`、Worker Delivery Log、Provider Credential 和 NapCat/Official QQ 连接。Delivery Retry 不会重新执行 Run。

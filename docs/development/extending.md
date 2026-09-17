@@ -1,22 +1,22 @@
-# Extending HpAgent
+# 扩展 HpAgent
 
-## Add a tool
+## 添加工具
 
-Implement the tool under the appropriate `src/sandbox/tools/` adapter, declare its schema and side-effect/idempotency metadata, register it in the tool registry, and add focused contract tests. Any write must use the current execution identity and respect workspace, file, approval, budget, and fencing boundaries.
+在对应的 `src/sandbox/tools/` Adapter 下实现工具，声明 Schema、Side-effect 和 Idempotency Metadata，在 Tool Registry 中注册，并添加聚焦的契约测试。任何写操作都必须使用当前 Execution Identity，并遵守 Workspace、File、Approval、Budget 与 Fencing 边界。
 
-## Add an MCP capability
+## 添加 MCP 能力
 
-Declare the server in `config/mcp/servers.yaml`, keep credentials in environment variables, and validate discovery with `python scripts/check/mcp-health.py`. MCP adapters must present the same Action result and side-effect semantics as local tools.
+在 `config/mcp/servers.yaml` 声明 Server，凭据使用环境变量，并通过 `python scripts/check/mcp-health.py` 验证发现与初始化。MCP Adapter 必须遵循与本地工具相同的 Action Result 和副作用语义。
 
-## Add an application capability
+## 添加应用能力
 
-Place domain rules in a domain package, coordination in application services, and provider/storage details in adapters. Admit durable work through PostgreSQL plus Outbox when callers need transactional acceptance. Web and QQ should remain presentation surfaces over the shared command boundary.
+领域规则放入 Domain Package，协调逻辑放入 Application Service，Provider/Storage 细节放入 Adapter。需要事务性接收的持久化工作通过 PostgreSQL + Outbox 进入系统。Web 与 QQ 继续作为统一命令边界之上的表现层。
 
-## Add a Temporal workflow or activity
+## 添加 Temporal Workflow 或 Activity
 
-- Keep workflow code deterministic and move I/O into activities.
-- Use stable workflow, Run, and operation identifiers.
-- Define retry and timeout behavior deliberately; classify permanent errors.
-- Persist idempotency and side-effect facts before external writes.
-- Register the workflow/activity on its owning queue and test registry presence.
-- Cover cancellation, replay compatibility, restart recovery, lease reacquisition, and stale fencing where applicable.
+- Workflow 必须保持确定性，I/O 放入 Activity。
+- 使用稳定的 Workflow、Run 与 Operation ID。
+- 明确定义 Retry 与 Timeout，并区分永久错误。
+- 外部写入前持久化幂等与副作用事实。
+- 注册到能力所属 Queue，并测试 Registry。
+- 按适用范围覆盖 Cancellation、Replay Compatibility、Restart Recovery、Lease Reacquisition 与 Stale Fencing。

@@ -1,34 +1,34 @@
-# Important Sequences
+# 关键时序
 
 ## Web Agent Run
 
-1. FastAPI authenticates the account and admits a message through `CommandService`.
-2. PostgreSQL commits message, Run, session, idempotency, and Outbox state.
-3. The dispatcher starts `AgentLifecycleWorkflow`, which starts `AgentRunWorkflow`.
-4. ReAct or Plan-and-Execute invokes Context, Brain, and Actions through activities.
-5. The result and trace commit to PostgreSQL; terminal publication wakes Web SSE clients.
+1. FastAPI 认证 Account，通过 `CommandService` 接收消息。
+2. PostgreSQL 一次提交 Message、Run、Session、Idempotency 和 Outbox。
+3. Dispatcher 启动 `AgentLifecycleWorkflow`，后者启动 `AgentRunWorkflow`。
+4. ReAct 或 Plan-and-Execute 通过 Activity 调用 Context、Brain 和 Actions。
+5. 结果与 Trace 提交到 PostgreSQL；Terminal Publication 唤醒 Web SSE Client。
 
-## QQ Agent Run and Delivery
+## QQ Agent Run 与 Delivery
 
-1. The QQ adapter normalizes provider identity, room/thread facts, mentions, and message identity.
-2. The same command boundary commits conversation and Run state.
-3. The canonical lifecycle and agent workflows execute the Run.
-4. QQ delivery reads the committed result, sends formatted parts, and records delivery state independently.
+1. QQ Adapter 标准化 Provider Identity、Room/Thread、Mention 和 Message Identity。
+2. 统一命令边界提交 Conversation 与 Run。
+3. 标准 Lifecycle 和 Agent Workflow 执行 Run。
+4. QQ Delivery 读取已提交结果、发送格式化分片，并独立记录投递状态。
 
-## Durable Wait and Resume
+## Durable Wait 与 Resume
 
-1. An activity records an approval/wait requirement and the workflow waits for a signal.
-2. The API commits the user's decision and signals the workflow.
-3. Execution reacquires the account lease, receives a fresh fencing token when needed, and resumes from persisted transcript and operation state.
+1. Activity 记录 Approval/Wait 需求，Workflow 等待 Signal。
+2. API 提交用户决定并向 Workflow 发送 Signal。
+3. 执行重新获取 Account Lease，按需取得新 Fencing Token，并从已持久化的 Transcript 与 Operation 状态恢复。
 
 ## Research
 
-1. A task Run starts `ResearchReportWorkflow`.
-2. Activities plan, search SearXNG, acquire content, extract evidence, and synthesize a report.
-3. Each durable stage writes PostgreSQL state; clients query progress, evidence, and the final report.
+1. Task Run 启动 `ResearchReportWorkflow`。
+2. Activity 依次规划、搜索 SearXNG、获取内容、提取 Evidence 并综合 Report。
+3. 每个持久化阶段写入 PostgreSQL；Client 查询进度、Evidence 和最终 Report。
 
 ## Heavy Document
 
-1. File analysis requests normalization with a stable operation identifier.
-2. `NormalizeDocumentWorkflow` schedules the activity on `hpagent-document`.
-3. The dedicated worker reads the stored file, performs conversion/normalization in its Run directory, settles usage, and records the normalized result.
+1. File Analysis 使用稳定 Operation ID 请求规范化。
+2. `NormalizeDocumentWorkflow` 将 Activity 调度到 `hpagent-document`。
+3. 独立 Worker 读取 Stored File，在 Run 目录转换/规范化、结算 Usage 并记录结果。

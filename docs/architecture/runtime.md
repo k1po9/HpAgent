@@ -1,28 +1,28 @@
-# Runtime
+# 运行时
 
-## Command admission
+## 命令接收
 
-Web and QQ adapters translate requests into application commands. `CommandService` opens a PostgreSQL transaction that records messages, session/run state, idempotency facts, and an Outbox event atomically. A request is admitted only when that transaction commits.
+Web 和 QQ Adapter 将请求转换为应用命令。`CommandService` 在同一个 PostgreSQL 事务中写入 Message、Session/Run、幂等事实和 Outbox Event。只有事务提交成功，命令才算被系统接收。
 
-## Dispatch and lifecycle
+## 分发与生命周期
 
-The Outbox dispatcher leases pending events and starts `AgentLifecycleWorkflow` on `hpagent-web-lifecycle`. The lifecycle workflow prepares the Run, records its Temporal identity, starts `AgentRunWorkflow` on `hpagent-web-agent`, and finalizes success, failure, or cancellation.
+Outbox Dispatcher 租用待处理事件，并在 `hpagent-web-lifecycle` 队列启动 `AgentLifecycleWorkflow`。Lifecycle Workflow 准备 Run、记录 Temporal Identity、在 `hpagent-web-agent` 队列启动 `AgentRunWorkflow`，最终完成成功、失败或取消状态。
 
-`AgentRunWorkflow` selects the requested execution strategy:
+`AgentRunWorkflow` 根据请求选择执行策略：
 
-- **ReAct** alternates model decisions and tool execution.
-- **Plan-and-Execute** builds a plan and executes durable steps.
+- **ReAct**：交替执行模型决策和工具调用。
+- **Plan-and-Execute**：先生成计划，再持久化执行各步骤。
 
-Child workflows and activities carry stable Run and operation identities. Activities perform all nondeterministic I/O: database access, model calls, tools, workspace changes, memory, research discovery, artifact building, and document normalization.
+Child Workflow 和 Activity 携带稳定的 Run 与 Operation Identity。所有非确定性 I/O 都在 Activity 中完成，包括数据库、模型、工具、Workspace、Memory、Research、Artifact 和 Document 操作。
 
-## Shared runtime
+## 共享运行时
 
-The main worker composition owns one shared resource pool, workspace isolation runtime, sandbox manager, Brain, Action runtime, Redis client, optional MCP manager, and Hindsight-backed memory collaborators. `Context` assembles conversation state, memory recall, files, workspace facts, prompts, and the source interaction profile for the Brain.
+主 Worker 的 Composition Root 拥有一份 Resource Pool、Workspace Isolation Runtime、Sandbox Manager、Brain、Action Runtime、Redis Client、可选 MCP Manager 和 Hindsight Memory 协作者。`Context` 将对话状态、记忆召回、文件、Workspace 信息、Prompt 和来源 Interaction Profile 组装后交给 Brain。
 
-`Brain` owns model-facing decisions. `Actions` selects and invokes local tools, MCP tools, and sandbox operations. Mutable tool-selection state is scoped by resource and execution identity.
+`Brain` 负责面向模型的决策；`Actions` 负责选择和调用本地工具、MCP 工具及 Sandbox 操作。可变的工具选择状态按 Resource 与 Execution Identity 隔离。
 
-## Independent durable capabilities
+## 独立持久化能力
 
-Research and artifact workflows are registered with the durable runtime but remain application capabilities rather than agent strategies. Heavy document normalization is executed by the dedicated `hpagent-document-worker` process on `hpagent-document` so expensive conversion cannot consume the main agent activity capacity.
+Research 和 Artifact Workflow 注册在同一 Durable Runtime 中，但它们是应用能力，不是 Agent Strategy。Heavy Document Normalization 在独立的 `hpagent-document-worker` 进程和 `hpagent-document` 队列执行，避免高开销转换占用主 Agent Activity 容量。
 
-See [Temporal Reference](../reference/temporal.md) for queues and workflow names.
+队列与 Workflow 名称见 [Temporal 参考](../reference/temporal.md)。

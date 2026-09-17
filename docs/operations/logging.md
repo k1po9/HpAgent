@@ -1,24 +1,24 @@
-# Logging
+# 日志
 
-## Compose logs
+## Compose 日志
 
-Use the repository entry point instead of remembering profile flags:
+统一使用仓库日志入口，无需记忆 Profile 参数：
 
 ```bash
-./scripts/operations/logs.sh                         # follow all services
+./scripts/operations/logs.sh                         # 实时查看全部服务
 ./scripts/operations/logs.sh --api                   # FastAPI
-./scripts/operations/logs.sh --worker                # main + document workers
-./scripts/operations/logs.sh --qq                    # worker + NapCat
-./scripts/operations/logs.sh --infra                 # data/durability services
+./scripts/operations/logs.sh --worker                # 主 Worker + Document Worker
+./scripts/operations/logs.sh --qq                    # Worker + NapCat
+./scripts/operations/logs.sh --infra                 # 数据与持久化服务
 ./scripts/operations/logs.sh --api -n 100 --no-follow
 ./scripts/operations/logs.sh temporal redis -n 200
 ```
 
-Direct Compose equivalents remain valid: `docker compose --profile web logs -f --tail 200 hpagent` and `docker compose --profile web logs -f --tail 200 hpagent-api`.
+直接使用 Compose 也有效：`docker compose --profile web logs -f --tail 200 hpagent` 和 `docker compose --profile web logs -f --tail 200 hpagent-api`。
 
-## Structured application logs
+## 结构化应用日志
 
-The main worker writes `.data/logs/hpagent.jsonl` and `.data/logs/hpagent-error.log`. The API writes `.data/logs/web-api.jsonl` and `.data/logs/web-api-error.log`. JSONL records include `ts`, `level`, `logger`, `msg`, and, for lifecycle events, `event`, `component`, and correlation fields.
+主 Worker 写入 `.data/logs/hpagent.jsonl` 和 `.data/logs/hpagent-error.log`；API 写入 `.data/logs/web-api.jsonl` 和 `.data/logs/web-api-error.log`。JSONL 包含 `ts`、`level`、`logger`、`msg`；Lifecycle Event 还包含 `event`、`component` 和关联字段。
 
 ```bash
 jq 'select(.run_id == "RUN_UUID")' .data/logs/*.jsonl
@@ -28,24 +28,24 @@ jq 'select(.operation_id == "OPERATION_ID")' .data/logs/*.jsonl
 jq 'select(.level == "ERROR")' .data/logs/*.jsonl
 ```
 
-When only container output is available:
+只有 Container 输出时：
 
 ```bash
 ./scripts/operations/logs.sh --worker --no-follow | grep -F 'RUN_UUID'
 ./scripts/operations/logs.sh --qq --no-follow | grep -F 'MESSAGE_OR_DELIVERY_ID'
 ```
 
-## Trace a Run
+## 追踪一次 Run
 
-1. Start with `run_id` from the API response, SSE event, or QQ delivery row.
-2. Find `conversation_id`, execution events, and `workflow_id` in JSONL or `GET /api/v1/runs/{run_id}` and `/trace`.
-3. Follow `operation_id` for tool, file, research, or document side effects.
-4. Check `lease_token`/fencing-related events when a Run resumes or a worker restarts.
+1. 从 API Response、SSE Event 或 QQ Delivery Row 获取 `run_id`。
+2. 在 JSONL 或 `GET /api/v1/runs/{run_id}`、`/trace` 中查找 `conversation_id`、执行事件和 `workflow_id`。
+3. 使用 `operation_id` 追踪 Tool、File、Research 或 Document 副作用。
+4. Run 恢复或 Worker 重启时，检查 `lease_token`/Fencing Event。
 
-QQ ingress/delivery records may also carry provider message identity, `delivery_id`, and `msg_seq`. Search the normalized provider message identifier first, then pivot to `run_id`.
+QQ Ingress/Delivery 还可能包含 Provider Message Identity、`delivery_id` 和 `msg_seq`。先搜索标准化 Provider Message ID，再转到 `run_id`。
 
-## Execution failure versus delivery failure
+## 区分执行失败与投递失败
 
-An execution failure leaves the Run failed and appears in lifecycle/agent events. A delivery failure occurs after a result is committed: the Run may be completed while `qq_deliveries` is `failed` or `uncertain`. Inspect worker logs for delivery events and PostgreSQL delivery state; retrying delivery must not start a new Run.
+执行失败会让 Run 进入 Failed，并出现在 Lifecycle/Agent Event 中。投递失败发生在结果提交之后：Run 可能已 Completed，但 `qq_deliveries` 状态为 `failed` 或 `uncertain`。此时检查 Worker Delivery Log 与 PostgreSQL Delivery State；重试投递不能创建新 Run。
 
-`LOG_LEVEL` controls console verbosity. JSONL retains DEBUG and above and rotates daily for 30 files; Compose also rotates selected container JSON logs by size.
+`LOG_LEVEL` 控制 Console 日志级别。JSONL 保留 DEBUG 及以上日志，每日轮转并保留 30 份；部分 Compose Container 日志按大小轮转。

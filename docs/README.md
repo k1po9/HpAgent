@@ -1,33 +1,33 @@
-# HpAgent Documentation
+# HpAgent 文档
 
-`docs/` describes the current system. Historical implementation plans and closure evidence are not part of current documentation; repository history and `artifacts/` retain evidence when needed.
+`docs/` 只描述当前系统。历史实施计划和关闭证据不属于当前文档；需要时可从 Git 历史和 `artifacts/` 获取。
 
-## Architecture
+## 架构
 
-- [Overview](architecture/overview.md) — context, layers, surfaces, and the canonical execution flow.
-- [Runtime](architecture/runtime.md) — command admission, dispatch, workflows, strategies, and activities.
-- [Data and State](architecture/data-and-state.md) — state ownership and persistence boundaries.
-- [Capabilities](architecture/capabilities.md) — agent, tools, memory, files, research, artifacts, and documents.
-- [Reliability](architecture/reliability.md) — durability, retries, leases, fencing, idempotency, and cancellation.
-- [Sequences](architecture/sequences.md) — the important end-to-end paths.
+- [架构总览](architecture/overview.md)：系统上下文、逻辑分层、入口和标准执行流。
+- [运行时](architecture/runtime.md)：命令接收、分发、Workflow、策略和 Activity。
+- [数据与状态](architecture/data-and-state.md)：状态归属和持久化边界。
+- [能力边界](architecture/capabilities.md)：Agent、工具、记忆、文件、研究、Artifact 和文档。
+- [可靠性](architecture/reliability.md)：持久化、重试、Lease、Fencing、幂等与取消。
+- [关键时序](architecture/sequences.md)：核心端到端流程。
 
-## Development
+## 开发
 
-- [Setup](development/setup.md)
-- [Testing](development/testing.md)
-- [Extending HpAgent](development/extending.md)
+- [环境搭建](development/setup.md)
+- [测试](development/testing.md)
+- [扩展 HpAgent](development/extending.md)
 
-## Operations
+## 运维
 
-- [Deployment](operations/deployment.md)
-- [Runbook](operations/runbook.md)
-- [Logging](operations/logging.md)
-- [Troubleshooting](operations/troubleshooting.md)
-- [Backup and Restore](operations/backup-restore.md)
+- [部署](operations/deployment.md)
+- [运行手册](operations/runbook.md)
+- [日志](operations/logging.md)
+- [故障排查](operations/troubleshooting.md)
+- [备份与恢复](operations/backup-restore.md)
 
-## Reference
+## 参考
 
-- [Configuration](reference/configuration.md)
-- [Repository Layout](reference/repository-layout.md)
+- [配置](reference/configuration.md)
+- [仓库结构](reference/repository-layout.md)
 - [Temporal](reference/temporal.md)
 - [HTTP API](reference/api.md)

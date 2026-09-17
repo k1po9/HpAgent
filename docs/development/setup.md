@@ -1,12 +1,12 @@
-# Development Setup
+# 开发环境搭建
 
-## Dependencies
+## 依赖
 
-- Docker Engine and Docker Compose v2 for the supported service topology.
-- Python 3.11+ for host-side backend development (CI uses Python 3.12).
-- Node.js 20+ and npm for host-side frontend development.
+- Docker Engine 与 Docker Compose v2：运行受支持的服务拓扑。
+- Python 3.11+：宿主机后端开发（CI 使用 Python 3.12）。
+- Node.js 20+ 与 npm：宿主机前端开发。
 
-## Environment and models
+## 环境与模型
 
 ```bash
 cp .env.example .env
@@ -14,9 +14,9 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 ```
 
-Fill the provider variables referenced by `config/models.yaml`. Secrets belong in `.env`, never in YAML. Review feature flags and replace development security values before exposing the service.
+填写 `config/models.yaml` 引用的 Provider 环境变量。Secret 只放在 `.env`，不要写入 YAML。对外暴露服务前，检查 Feature Flag 并替换开发环境安全值。
 
-## Initial startup
+## 首次启动
 
 ```bash
 docker compose --profile web up -d --build
@@ -24,22 +24,22 @@ docker compose --profile web ps
 curl --fail http://127.0.0.1:8080/health/ready
 ```
 
-The Web profile includes the application and Temporal PostgreSQL instances, Redis, Hindsight, SearXNG, Gotenberg, migration job, API, main worker, document worker, and Vite frontend. Migrations are a dependency of the API and workers. To run them explicitly:
+Web Profile 包含应用 PostgreSQL、Temporal PostgreSQL、Redis、Hindsight、SearXNG、Gotenberg、Migration Job、API、主 Worker、Document Worker 和 Vite 前端。Migration 是 API 与 Worker 的启动依赖。显式执行：
 
 ```bash
 docker compose --profile web up hpagent-migrate
 ```
 
-## Host-side frontend
+## 宿主机前端
 
 ```bash
 make web-install
 make web-dev
 ```
 
-Vite listens on <http://127.0.0.1:5173> and proxies API traffic according to `web/vite.config.ts`. The Compose `web-dev` service is the simpler full-stack default.
+Vite 监听 <http://127.0.0.1:5173>，并根据 `web/vite.config.ts` 代理 API。完整开发栈优先使用 Compose 的 `web-dev` 服务。
 
-## Useful optional services
+## 可选服务
 
 ```bash
 docker compose --profile tools up -d temporal-web  # http://127.0.0.1:8088
@@ -47,4 +47,4 @@ docker compose --profile qq up -d napcat
 ./scripts/dev/mcp.sh
 ```
 
-Use `./scripts/operations/logs.sh` while developing and `docker compose --profile web down` to stop the topology.
+开发时使用 `./scripts/operations/logs.sh` 查看日志；使用 `docker compose --profile web down` 停止服务。
