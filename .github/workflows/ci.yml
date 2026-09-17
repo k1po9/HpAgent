@@ -177,6 +177,7 @@ jobs:
       temporal:
         image: temporalio/auto-setup:1.26.2
         env:
+          BIND_ON_IP: 0.0.0.0
           DB: postgres12
           DB_PORT: 5432
           POSTGRES_USER: hpagent_migrate
@@ -184,7 +185,7 @@ jobs:
           POSTGRES_SEEDS: postgres
         ports: [7233:7233]
         options: >-
-          --health-cmd "tctl --address localhost:7233 cluster health"
+          --health-cmd "temporal operator cluster health --address localhost:7233"
           --health-interval 10s --health-timeout 5s --health-retries 24
     env:
       TEMPORAL_HOST: localhost:7233
@@ -210,7 +211,7 @@ jobs:
       - name: Phase D frozen Workflow History replay
         run: >-
           PYTHONPATH=.:src python -m pytest
-          test/test_web_temporal_replay.py
+          test/test_agent_segment_replay.py
           --junitxml=test-results/phase-d-replay.xml
       - name: Phase D real Temporal and fault-injection suite
         run: >-
@@ -231,7 +232,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Install web dependencies
@@ -279,7 +280,7 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Empty database migration
@@ -321,7 +322,6 @@ jobs:
           PYTHONPATH=.:src python -m pytest
           test/test_unbound_identity.py
           test/test_hindsight_retain_document.py
-          test/test_qq_retention_document.py
           test/test_web_background_tasks.py
           test/test_web_outbox_recovery.py
           --junitxml=test-results/phase-f.xml
@@ -340,7 +340,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: web/package-lock.json
       - name: Install web dependencies

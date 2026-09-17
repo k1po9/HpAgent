@@ -1,14 +1,14 @@
 /**
- * Stop + Retry E2E (phase-e E-04/E-07).
+ * Stop E2E (phase-e E-04/E-07).
  *
- * A live Run is cancelled from the run-status strip; the terminal cancelled
- * snapshot appears and Retry reuses the original user message to produce a
- * completed reply.
+ * A live Run is cancelled from the run-status strip and the terminal snapshot
+ * does not offer Retry. Cancelled Runs are intentionally not retryable; only
+ * safely classified failed Runs may use the retry endpoint.
  */
 import { expect, test } from "@playwright/test";
-import { createConversation, expectReply, login, sendMessage } from "./helpers";
+import { createConversation, login, sendMessage } from "./helpers";
 
-test("stops a running Run, then retries it to completion", async ({ page }) => {
+test("stops a running Run without offering Retry", async ({ page }) => {
   await login(page);
   await createConversation(page);
 
@@ -18,13 +18,9 @@ test("stops a running Run, then retries it to completion", async ({ page }) => {
   await expect(page.locator("[data-testid='stop-run']")).toBeVisible();
   await page.locator("[data-testid='stop-run']").click();
 
-  // The cancelled terminal snapshot surfaces with a Retry action.
+  // The cancelled terminal snapshot is authoritative and cannot be retried.
   await expect(page.locator("[data-testid='run-label']")).toHaveText("已停止", {
     timeout: 15_000,
   });
-  await expect(page.locator("[data-testid='retry-run']")).toBeVisible();
-
-  // Retry reuses the original user message and completes.
-  await page.locator("[data-testid='retry-run']").click();
-  await expectReply(page);
+  await expect(page.locator("[data-testid='retry-run']")).toHaveCount(0);
 });

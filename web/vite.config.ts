@@ -18,6 +18,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
+    // Each jsdom worker is memory-heavy; bound concurrency so clean CI runners
+    // do not time out while spawning one process per test file.
+    maxWorkers: 4,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     css: false,

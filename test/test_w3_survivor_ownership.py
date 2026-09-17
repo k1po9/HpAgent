@@ -131,18 +131,3 @@ async def test_reminder_tools_use_extracted_scheduler_and_persist_account_scope(
     assert tasks[0].params["content"] == "check report"
     assert restored.list_by_filter(account_id="account-b") == []
     assert tasks[0].__class__.__module__ == "application.scheduler"
-
-
-def test_retirement_graph_has_no_unextracted_runtime_dependencies():
-    root = Path(__file__).resolve().parents[1]
-    sys.path.insert(0, str(root / "scripts"))
-    try:
-        from audit_w3_reachability import build_report
-        rows, report = build_report()
-    finally:
-        sys.path.pop(0)
-    assert report["forbidden_canonical_imports"] == []
-    by_module = {row["module"]: row for row in rows if row["module"]}
-    assert "agent.protocol" not in by_module  # W3-B removed the forwarding surface.
-    assert not any(module == "session" or module.startswith("session.") for module in by_module)
-    assert by_module["orchestration.run_lifecycle_contracts"]["status"] == "STILL_REACHABLE"

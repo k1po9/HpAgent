@@ -15,6 +15,9 @@ const WEB_BASE = `http://localhost:${WEB_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // The approval spec exercises the live Agent/Temporal/file-tool stack via
+  // `npm run test:e2e:f4`; the default suite deliberately uses Fake Executor.
+  testIgnore: ["f4-approval.spec.ts"],
   timeout: 60_000,
   expect: { timeout: 15_000 },
   // The specs share real infrastructure (one API/PostgreSQL/Redis, the same

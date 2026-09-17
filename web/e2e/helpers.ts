@@ -33,7 +33,9 @@ export async function createConversation(page: Page): Promise<void> {
 export async function sendMessage(page: Page, text: string): Promise<void> {
   const composer = page.getByPlaceholder(COMPOSER_PLACEHOLDER);
   await composer.fill(text);
-  await composer.press("Enter");
+  const send = page.getByRole("button", { name: "发送" });
+  await expect(send).toBeEnabled();
+  await send.click();
   await expect(page.locator(".hp-msg").filter({ hasText: text }).first()).toBeVisible();
 }
 

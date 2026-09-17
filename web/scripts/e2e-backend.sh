@@ -63,10 +63,10 @@ EOF
 export WEB_TERMINAL_PUBLISHER_POLL_SECONDS=0.1
 export WEB_SSE_KEEPALIVE_SECONDS=15
 
-# Provision one argon2id hash shared by the E2E accounts (same password).
+# Provision the predefined E2E accounts through the canonical registration
+# service. Registration persists both the identity binding and the password
+# credential required by the production authentication adapter.
 E2E_PASSWORD="${E2E_PASSWORD:-e2e-password}"
-E2E_HASH="$("$PY" -c "from argon2 import PasswordHasher; print(PasswordHasher().hash('${E2E_PASSWORD}'))")"
-export WEB_CREDENTIALS_JSON="{\"alice\":\"${E2E_HASH}\",\"bob\":\"${E2E_HASH}\"}"
 
 # Ensure the schema is present (no-op when already applied).
 (
@@ -74,41 +74,24 @@ export WEB_CREDENTIALS_JSON="{\"alice\":\"${E2E_HASH}\",\"bob\":\"${E2E_HASH}\"}
   PYTHONPATH=src APP_DATABASE_URL="${MIGRATION_DATABASE_URL}" "$PY" -m persistence.migrate
 )
 
-# Migrations create the schema only — logins additionally need an active 'web'
-# identity binding (and an owning account) for each credential. Provision both,
-# idempotently: a binding that already exists (previous run) is left untouched.
-"$PY" - <<'PY'
+# Migrations create the schema only. Keep setup idempotent for local reruns,
+# while CI always exercises this against an empty database.
+(
+cd "${REPO_ROOT}"
+E2E_PASSWORD="${E2E_PASSWORD}" PYTHONPATH=src "$PY" - <<'PY'
 import os
-from uuid import uuid4
 
-import psycopg
+from account.registration_service import RegistrationService, UsernameAlreadyExists
 
-with psycopg.connect(os.environ["MIGRATION_DATABASE_URL"]) as conn:
-    with conn.cursor() as cur:
-        # Tables live in the `hpagent` schema (the migrations SET search_path).
-        cur.execute("SET search_path TO hpagent, public")
-        for subject in ("alice", "bob"):
-            normalized = subject.strip().casefold()
-            cur.execute(
-                "SELECT 1 FROM identity_bindings "
-                "WHERE provider='web' AND normalized_subject_id=%s AND status='active'",
-                (normalized,),
-            )
-            if cur.fetchone():
-                continue
-            account_id, binding_id = uuid4(), uuid4()
-            cur.execute(
-                "INSERT INTO accounts(account_id) VALUES (%s) ON CONFLICT DO NOTHING",
-                (account_id,),
-            )
-            cur.execute(
-                "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,"
-                "external_subject_id,normalized_subject_id,verified_at) "
-                "VALUES (%s,%s,'web',%s,%s,now()) ON CONFLICT DO NOTHING",
-                (binding_id, account_id, subject, normalized),
-            )
-print("E2E identity bindings ensured: alice, bob")
+registration = RegistrationService(os.environ["MIGRATION_DATABASE_URL"])
+for subject in ("alice", "bob"):
+    try:
+        registration.register(subject, os.environ["E2E_PASSWORD"])
+    except UsernameAlreadyExists:
+        pass
+print("E2E accounts ensured: alice, bob")
 PY
+)
 
 cd "${REPO_ROOT}"
 exec env PYTHONPATH=src "$PY" -m web_api
