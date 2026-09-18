@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
+from typing import Literal
 from uuid import UUID
 
 from persistence.uow import UnitOfWork
+
+PromptVisibility = Literal["none", "summary", "full_safe"]
 
 
 class EntitlementState(str, Enum):
@@ -22,7 +25,7 @@ class AccountEntitlement:
     account_id: UUID
     model_access_tier: str
     daily_token_limit: int | None
-    prompt_visibility: str
+    prompt_visibility: PromptVisibility
     expires_at: datetime | None
     version: int
     provisioned_by_invite_id: UUID | None

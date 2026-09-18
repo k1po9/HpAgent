@@ -38,6 +38,7 @@ from application.execution_contracts import StableExecutionFailure
 from brain.contracts import BrainCapability
 from common.logging import log_event
 from resources.model_budget_context import model_budget_scope
+from resources.model_governance_errors import classify_model_governance_failure
 from resources.run_budget import RunBudgetExhausted
 from tracing import (
     model_observation_metadata,
@@ -393,8 +394,11 @@ class DurableAgentActivities:
                 {"message_count": len(messages), "memory_count": memory_count},
             )
         except Exception as exc:
+            governance = classify_model_governance_failure(exc)
             code = (
-                exc.code
+                governance.code
+                if governance is not None
+                else exc.code
                 if isinstance(exc, StableExecutionFailure)
                 else "context_build_failed"
             )
@@ -405,6 +409,10 @@ class DurableAgentActivities:
             log_event(context_logger, logging.ERROR, "context_bootstrap_failed", "context", **fields, status="failed", error_code=code)
             if isinstance(exc, ApplicationError):
                 raise
+            if governance is not None:
+                raise ApplicationError(
+                    governance.safe_message, type=governance.code, non_retryable=True
+                ) from exc
             raise ApplicationError(
                 "上下文构建失败。",
                 type=code,
@@ -576,6 +584,13 @@ class DurableAgentActivities:
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
             raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
         except Exception as exc:
+            governance = classify_model_governance_failure(exc)
+            if governance is not None:
+                trace_metadata = {"error_code": governance.code}
+                await asyncio.to_thread(self.store.fail_operation, request.operation_id, governance.code)
+                raise ApplicationError(
+                    governance.safe_message, type=governance.code, non_retryable=True
+                ) from exc
             if isinstance(exc, RunBudgetExhausted):
                 trace_metadata = {"error_code": exc.code}
                 await asyncio.to_thread(
@@ -1069,7 +1084,11 @@ class DurableAgentActivities:
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
             raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
         except Exception as exc:
-            code = getattr(exc, "type", None) or "tool_failed"
+            governance = classify_model_governance_failure(exc)
+            code = (
+                governance.code if governance is not None
+                else getattr(exc, "type", None) or "tool_failed"
+            )
             trace_metadata = {"error_code": str(code)}
             if str(code) == "tool_side_effect_uncertain":
                 pass
@@ -1085,6 +1104,10 @@ class DurableAgentActivities:
             log_event(tool_logger, logging.ERROR, "tool_execution_failed", "tool", **fields, status="failed", error_code=code, elapsed_ms=round((time.monotonic() - started) * 1000))
             if isinstance(exc, ApplicationError):
                 raise
+            if governance is not None:
+                raise ApplicationError(
+                    governance.safe_message, type=governance.code, non_retryable=True
+                ) from exc
             raise ApplicationError("工具执行失败。", type="tool_failed", non_retryable=True) from exc
         finally:
             if heartbeat_task is not None:
@@ -1240,7 +1263,9 @@ class DurableAgentActivities:
                 version,
             )
         except Exception as exc:
+            governance = classify_model_governance_failure(exc)
             failure_code = (
+                governance.code if governance is not None else
                 exc.code if isinstance(exc, RunBudgetExhausted) else "planning_failed"
             )
             await asyncio.to_thread(
@@ -1255,6 +1280,10 @@ class DurableAgentActivities:
             await events.close()
             if isinstance(exc, ApplicationError):
                 raise
+            if governance is not None:
+                raise ApplicationError(
+                    governance.safe_message, type=governance.code, non_retryable=True
+                ) from exc
             if isinstance(exc, RunBudgetExhausted):
                 raise ApplicationError(
                     "Run 执行预算已耗尽。", type=exc.code, non_retryable=True
@@ -1371,6 +1400,7 @@ class DurableAgentActivities:
                     messages=evaluation_messages
                 )
         except Exception as exc:
+            governance = classify_model_governance_failure(exc)
             await trace_end(
                 events,
                 model_node_id,
@@ -1381,6 +1411,10 @@ class DurableAgentActivities:
             if isinstance(exc, RunBudgetExhausted):
                 raise ApplicationError(
                     "Run 执行预算已耗尽。", type=exc.code, non_retryable=True
+                ) from exc
+            if governance is not None:
+                raise ApplicationError(
+                    governance.safe_message, type=governance.code, non_retryable=True
                 ) from exc
             raise
         await trace_end(

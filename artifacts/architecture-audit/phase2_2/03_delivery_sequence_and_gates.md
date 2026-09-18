@@ -5,9 +5,9 @@
 
 > **W5 delivery reconciliation (2026-09-18):** the table below remains the R2.1 plan.
 > Current HEAD completed the narrower Account Access Governance + quota + immutable snapshot +
-> governed invocation + prompt-visibility subset and closed its G12 gate. The originally bundled
-> `AuthorizationPolicy` / durable human-review branch is outside that closure and remains future
-> work. Evidence: `phase3/W5_implementation_report.md`.
+> governed invocation + prompt-visibility scope and closed final G12. The originally bundled
+> `AuthorizationPolicy` / durable human-review branch was superseded and removed, not deferred.
+> Historical W5/G12 rows below remain design-history evidence only.
 
 ## 工作包与依赖
 
@@ -33,6 +33,11 @@ W3 删除依赖 ACD-03 的“救出正式协议”，W4 才做完整协议整理
 W1/G04 用通用等待场景验证长于 lease TTL 的等待、worker 重启、取消、重复唤醒、重新 acquire/新 token 传播与旧 token 拒绝，不依赖 W5 UI 或 Model Review 实现。W5 只接入模型授权状态和等待原因；文件审批与 external wait 同样遵守 W1 合同。Conversation admission slot 是独立 policy，首版可保留等待 Run 的单活跃占位，但不得因此持有 execution lease。
 
 ## 门禁
+
+Current closure gate: **G12 · Model Access Governance / Model Input Observability**. It requires
+pre-dispatch entitlement/tier/quota enforcement, immutable canonical request candidates whose hash
+binds the resolved URL, explicit dispatch outcome projection, and capturing-provider equality. The
+R2.1 Model Review gate below is historical and no longer requires approve/reject/wait/every_call.
 
 已有测试仅是可复用场景入口，本轮只读未执行。后续应为目标修改或替换旧合同断言，新增缺失行为测试；跳过依赖真实 PG/Temporal 的用例不能记成通过。
 

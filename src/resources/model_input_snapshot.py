@@ -5,6 +5,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any, Mapping
+from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
 
 from psycopg.types.json import Jsonb
@@ -13,7 +14,19 @@ from uuid6 import uuid7
 from persistence.uow import UnitOfWork, retryable_transaction
 from resources.model_client import MODEL_REQUEST_SERIALIZER_VERSION, PreparedModelRequest
 
-SNAPSHOT_HASH_VERSION = "model-input-sha256-v1"
+SNAPSHOT_HASH_VERSION = "model-input-sha256-v2"
+
+
+def canonicalize_resolved_url(value: str) -> str:
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("resolved provider URL must be absolute http(s)")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("resolved provider URL must not contain credentials, query, or fragment")
+    host = parsed.hostname.lower()
+    if parsed.port is not None:
+        host = f"{host}:{parsed.port}"
+    return urlunsplit((parsed.scheme.lower(), host, parsed.path or "/", "", ""))
 
 
 @dataclass(frozen=True)
@@ -25,7 +38,7 @@ class ModelInputSnapshotRef:
 
 
 def semantic_request_hash(
-    *, endpoint_id: str, provider: str, model: str, api_format: str,
+    *, endpoint_id: str, provider: str, model: str, api_format: str, resolved_url: str,
     payload: Mapping[str, Any],
     serializer_version: str = MODEL_REQUEST_SERIALIZER_VERSION,
 ) -> bytes:
@@ -36,6 +49,7 @@ def semantic_request_hash(
         "provider": provider,
         "model": model,
         "api_format": api_format,
+        "resolved_url": canonicalize_resolved_url(resolved_url),
         "provider_request_body": dict(payload),
     }
     return hashlib.sha256(json.dumps(
@@ -47,6 +61,7 @@ def snapshot_content_hash(prepared: PreparedModelRequest) -> bytes:
     return semantic_request_hash(
         endpoint_id=prepared.endpoint_id, provider=prepared.provider,
         model=prepared.model, api_format=prepared.api_format,
+        resolved_url=prepared.url,
         payload=prepared.body(), serializer_version=prepared.serializer_version,
     )
 
@@ -64,13 +79,13 @@ class SnapshotRepository:
         self, *, account_id: UUID, run_id: UUID, model_call_id: UUID,
         operation_id: str, execution_attempt: int, call_ordinal: int,
         fallback_attempt: int, phase: str, endpoint_id: str, provider: str,
-        model: str, api_format: str, payload: Mapping[str, Any],
+        model: str, api_format: str, resolved_url: str, payload: Mapping[str, Any],
         entitlement_version: int,
         serializer_version: str = MODEL_REQUEST_SERIALIZER_VERSION,
     ) -> ModelInputSnapshotRef:
         digest = semantic_request_hash(
             endpoint_id=endpoint_id, provider=provider, model=model,
-            api_format=api_format, payload=payload,
+            api_format=api_format, resolved_url=resolved_url, payload=payload,
             serializer_version=serializer_version,
         )
         return self._insert(
@@ -78,7 +93,7 @@ class SnapshotRepository:
             operation_id=operation_id, execution_attempt=execution_attempt,
             call_ordinal=call_ordinal, fallback_attempt=fallback_attempt,
             phase=phase, endpoint_id=endpoint_id, provider=provider, model=model,
-            api_format=api_format, payload=payload, digest=digest,
+            api_format=api_format, resolved_url=canonicalize_resolved_url(resolved_url), payload=payload, digest=digest,
             serializer_version=serializer_version,
             entitlement_version=entitlement_version,
         )
@@ -96,7 +111,7 @@ class SnapshotRepository:
             call_ordinal=call_ordinal, fallback_attempt=fallback_attempt,
             phase=phase, endpoint_id=prepared.endpoint_id,
             provider=prepared.provider, model=prepared.model,
-            api_format=prepared.api_format, payload=prepared.body(),
+            api_format=prepared.api_format, resolved_url=prepared.url, payload=prepared.body(),
             serializer_version=prepared.serializer_version,
             entitlement_version=entitlement_version,
         )
@@ -105,7 +120,7 @@ class SnapshotRepository:
         self, *, account_id: UUID, run_id: UUID, model_call_id: UUID,
         operation_id: str, execution_attempt: int, call_ordinal: int,
         fallback_attempt: int, phase: str, endpoint_id: str, provider: str,
-        model: str, api_format: str, payload: Mapping[str, Any], digest: bytes,
+        model: str, api_format: str, resolved_url: str, payload: Mapping[str, Any], digest: bytes,
         serializer_version: str, entitlement_version: int,
     ) -> ModelInputSnapshotRef:
         with UnitOfWork(self.database) as uow:
@@ -118,13 +133,13 @@ class SnapshotRepository:
             row = uow.execute(
                 "INSERT INTO model_input_snapshots(snapshot_id,account_id,run_id,"
                 "model_call_id,operation_id,execution_attempt,call_ordinal,fallback_attempt,"
-                "phase,endpoint_id,provider,model,api_format,provider_request_body,"
+                "phase,endpoint_id,provider,model,api_format,resolved_url,provider_request_body,"
                 "content_hash,serializer_version,entitlement_version) VALUES "
-                "(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
                 "ON CONFLICT(account_id,run_id,operation_id) DO NOTHING RETURNING *",
                 (uuid7(), account_id, run_id, model_call_id, operation_id,
                  execution_attempt, call_ordinal, fallback_attempt, phase,
-                 endpoint_id, provider, model, api_format, Jsonb(dict(payload)), digest,
+                 endpoint_id, provider, model, api_format, resolved_url, Jsonb(dict(payload)), digest,
                  serializer_version, entitlement_version),
             ).fetchone()
             if row is None:

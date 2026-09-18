@@ -8,8 +8,9 @@
 > provisioning, Entitlement and daily quota, endpoint-tier enforcement, prepared provider
 > requests, immutable `ModelInputSnapshot`, governed dispatch, conservative uncertain-outcome
 > accounting, compact Trace references, and Account-owned prompt projections. The broader
-> ACD-17 durable human Model Review, frozen `AuthorizationPolicy`, review records, and review
-> wait/UI remain **NOT IMPLEMENTED**. See `phase3/W5_implementation_report.md`.
+> The historical ACD-17 Human Model Review / `AuthorizationPolicy` / approve-reject / durable
+> review wait target was superseded by the final W5 product decision. It was intentionally
+> removed, not deferred. See `phase3/W5_F_implementation_report.md`.
 
 R2.1 仅定点修订 ACD-01/04/17 及其引用：Agent Runtime 与 Conversation 解耦；W1 冻结 suspend-safe Run/lease 合同；busy 与人工审阅频率成为可替换 policy。未重新审计全部 ACD，Research fixed workflow、WorkspaceQueryService 与 legacy retirement 结论保持 R2。所有目标继续 NOT IMPLEMENTED。
 

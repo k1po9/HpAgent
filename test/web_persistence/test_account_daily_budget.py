@@ -13,6 +13,7 @@ from resources.account_daily_budget import (
     AccountModelEntitlementUnavailable,
 )
 from resources.model_budget_coordinator import ModelBudgetCoordinator
+from resources.model_governance_errors import ModelAccessTierDenied
 from resources.run_budget import RunBudgetConflict, RunBudgetError, RunBudgetService
 
 pytestmark = pytest.mark.postgres
@@ -174,6 +175,31 @@ def test_unavailable_entitlement_denies_new_reservation(
         )
     with pytest.raises(AccountModelEntitlementUnavailable):
         AccountDailyBudgetService(worker_database_url).reserve(account_id, "denied", 1)
+
+
+def test_atomic_reserve_rejects_stale_or_downgraded_entitlement(
+    db, account_id, worker_database_url,
+):
+    _entitle(db, account_id)
+    budget = AccountDailyBudgetService(worker_database_url)
+    db.execute(
+        "UPDATE account_entitlements SET version=version+1 WHERE account_id=%s",
+        (account_id,),
+    )
+    with pytest.raises(AccountModelEntitlementUnavailable, match="version changed"):
+        budget.reserve(
+            account_id, "stale", 1,
+            expected_entitlement_version=1, endpoint_access_tier="standard",
+        )
+    with pytest.raises(ModelAccessTierDenied):
+        budget.reserve(
+            account_id, "downgraded", 1,
+            expected_entitlement_version=2, endpoint_access_tier="premium",
+        )
+    assert db.execute(
+        "SELECT count(*) FROM account_model_usage_ledger WHERE account_id=%s",
+        (account_id,),
+    ).fetchone()[0] == 0
 
 
 def test_coordinator_reserve_rolls_both_back_when_run_fails(

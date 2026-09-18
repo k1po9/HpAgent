@@ -586,6 +586,9 @@ def test_uncertain_side_effect_failures_are_not_run_retryable():
     assert is_failure_retryable("tool_side_effect_uncertain") is False
     assert is_failure_retryable("side_effect_reconciliation_failed") is False
     assert is_failure_retryable("model_unavailable") is True
+    assert is_failure_retryable("account_model_entitlement_unavailable") is False
+    assert is_failure_retryable("account_daily_model_budget_exhausted") is False
+    assert is_failure_retryable("model_access_tier_denied") is False
 
 
 @pytest.mark.asyncio

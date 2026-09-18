@@ -20,7 +20,9 @@ from common.errors import ModelAPIError
 from common.interfaces import IResources
 from common.model_usage import canonical_model_usage
 from common.token_counter import estimate_messages_tokens, estimate_tokens
+from resources.account_daily_budget import AccountModelEntitlementUnavailable
 from resources.model_budget_context import current_model_call
+from resources.model_governance_errors import ModelAccessTierDenied
 
 from .credentials import CredentialManager
 from .model_client import ModelClient, ModelDispatchError
@@ -148,6 +150,8 @@ class ResourcePool(IResources):
         last_error = None
         chain_start = time.monotonic()
         attempt = 0
+        configured_candidates = 0
+        tier_denied_candidates = 0
         call_context = current_model_call()
         governed = any((self._entitlements, self._budget, self._snapshots))
         if governed and not all((self._entitlements, self._budget, self._snapshots)):
@@ -162,6 +166,7 @@ class ResourcePool(IResources):
             model_info = self._model_clients.get(model_id)
             if not model_info:
                 continue
+            configured_candidates += 1
             client = model_info["client"]
             t0 = time.monotonic()
             budget_operation_id = ""
@@ -176,8 +181,7 @@ class ResourcePool(IResources):
                 )
                 entitlement = getattr(lookup, "entitlement", None)
                 if getattr(getattr(lookup, "state", None), "value", None) != "valid" or entitlement is None:
-                    last_error = ModelAPIError("model entitlement unavailable")
-                    break
+                    raise AccountModelEntitlementUnavailable("model entitlement unavailable")
                 endpoint_tier = str(model_info.get("access_tier", "standard"))
                 account_tier = str(entitlement.model_access_tier)
                 if account_tier != "owner" and account_tier != endpoint_tier:
@@ -186,6 +190,7 @@ class ResourcePool(IResources):
                         model_id, account_tier, endpoint_tier,
                     )
                     last_error = ModelAPIError("model endpoint access tier denied")
+                    tier_denied_candidates += 1
                     continue
                 try:
                     prepared = client.prepare_request(
@@ -224,6 +229,7 @@ class ResourcePool(IResources):
                         freeze, **common_snapshot, endpoint_id=prepared.endpoint_id,
                         provider=prepared.provider, model=prepared.model,
                         api_format=prepared.api_format, payload=body,
+                        resolved_url=prepared.url,
                         serializer_version=prepared.serializer_version,
                     )
                 else:
@@ -239,6 +245,8 @@ class ResourcePool(IResources):
                     reservation,
                     final_response=call_context.final_response,
                     snapshot_id=snapshot.snapshot_id,
+                    expected_entitlement_version=entitlement.version,
+                    endpoint_access_tier=endpoint_tier,
                 )
                 quota_date = mutation.account.quota_date
                 should_settle = not (
@@ -354,6 +362,8 @@ class ResourcePool(IResources):
                 raise
 
         chain_elapsed = (time.monotonic() - chain_start) * 1000
+        if configured_candidates and tier_denied_candidates == configured_candidates:
+            raise ModelAccessTierDenied("no endpoint permitted by account model tier")
         if last_error:
             raise ModelAPIError(
                 f"All models in group '{model_selector}' failed (chain_total=%.0fms)."

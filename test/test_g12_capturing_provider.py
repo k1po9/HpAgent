@@ -32,6 +32,7 @@ class _Snapshots:
             provider=values["provider"],
             model=values["model"],
             api_format=values["api_format"],
+            resolved_url=values["resolved_url"],
             payload=values["payload"],
             serializer_version=values["serializer_version"],
         )
@@ -151,7 +152,8 @@ async def test_g12_captured_dispatch_body_equals_snapshot_and_hash(monkeypatch, 
         endpoint_id=snapshot.endpoint_id,
         provider=snapshot.provider,
         model=snapshot.model,
-        api_format=snapshot.api_format,
+            api_format=snapshot.api_format,
+            resolved_url=snapshot.resolved_url,
         payload=captured["body"],
         serializer_version=snapshot.serializer_version,
     )
@@ -160,4 +162,3 @@ async def test_g12_captured_dispatch_body_equals_snapshot_and_hash(monkeypatch, 
     assert "G12-CREDENTIAL-MUST-NOT-PERSIST" not in repr(snapshot.payload)
     assert "G12-CREDENTIAL-MUST-NOT-PERSIST" not in repr(result)
     assert any(key.lower() in {"authorization", "x-api-key"} for key in captured["headers"])
-

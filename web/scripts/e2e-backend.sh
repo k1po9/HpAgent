@@ -67,6 +67,10 @@ export WEB_SSE_KEEPALIVE_SECONDS=15
 # service. Registration persists both the identity binding and the password
 # credential required by the production authentication adapter.
 E2E_PASSWORD="${E2E_PASSWORD:-e2e-password}"
+E2E_RUNTIME_DIR="${REPO_ROOT}/web/.e2e-runtime"
+mkdir -p "${E2E_RUNTIME_DIR}"
+chmod 700 "${E2E_RUNTIME_DIR}"
+rm -f "${E2E_RUNTIME_DIR}/registration-invite"
 
 # Ensure the schema is present (no-op when already applied).
 (
@@ -78,7 +82,7 @@ E2E_PASSWORD="${E2E_PASSWORD:-e2e-password}"
 # while CI always exercises this against an empty database.
 (
 cd "${REPO_ROOT}"
-E2E_PASSWORD="${E2E_PASSWORD}" PYTHONPATH=src "$PY" - <<'PY'
+E2E_PASSWORD="${E2E_PASSWORD}" E2E_RUNTIME_DIR="${E2E_RUNTIME_DIR}" PYTHONPATH=src "$PY" - <<'PY'
 import os
 
 from account.registration_service import RegistrationService, UsernameAlreadyExists
@@ -92,6 +96,11 @@ for subject in ("alice", "bob"):
         registration.register(subject, os.environ["E2E_PASSWORD"], invite.code)
     except UsernameAlreadyExists:
         pass
+invite = invites.create(EntitlementProfile("e2e", None, "full_safe"), max_redemptions=1)
+path = os.path.join(os.environ["E2E_RUNTIME_DIR"], "registration-invite")
+with open(path, "x", encoding="utf-8") as handle:
+    handle.write(invite.code)
+os.chmod(path, 0o600)
 print("E2E accounts ensured: alice, bob")
 PY
 )

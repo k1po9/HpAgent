@@ -12,6 +12,7 @@ from typing import Any, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 from uuid6 import uuid7
 
 from conversation_domain.commands import CommandService
@@ -37,6 +38,7 @@ from research_domain.providers import (
 )
 from research_domain.services import ResearchTaskCommandService, TaskBusy, TaskNotActive
 from resources.model_budget_context import model_budget_scope
+from resources.model_governance_errors import classify_model_governance_failure
 from resources.run_budget import RunBudgetService
 from tracing.repository import PostgresTraceRepository
 from web_domain.errors import ResourceNotFound
@@ -186,10 +188,15 @@ class ResearchActivities:
             await asyncio.to_thread(self._save_stage_result, operation_id, run_id, stage, compact)
             await asyncio.to_thread(self.trace.finish_event, run_id, event_id, "completed", compact)
             return self._ref(run_id, stage, compact)
-        except Exception:
+        except Exception as exc:
             await asyncio.to_thread(
                 self.trace.finish_event, run_id, event_id, "failed", {"error": "stage_failed"}
             )
+            governance = classify_model_governance_failure(exc)
+            if governance is not None:
+                raise ApplicationError(
+                    governance.safe_message, type=governance.code, non_retryable=True
+                ) from exc
             raise
 
     @activity.defn

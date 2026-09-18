@@ -134,9 +134,8 @@ and Trace sentinel exclusion. W1 lease/fencing code was not changed by W5.
 - Focused governance/call-site regression command covering model input/governance/configuration,
   budgets, Research, Artifact, Trace, and durable Agent integration — **67 passed, 5 skipped**;
   skips require `TEMPORAL_HOST`.
-- The broad non-PostgreSQL command began successfully but was terminated by the execution host
-  after 73% without a pytest summary; it is retained in `W5_E_python_validation.txt` and is not
-  counted as passing evidence.
+- The broad non-PostgreSQL evidence in `W5_E_python_validation.txt` contains the completed summary:
+  **465 passed, 23 skipped, 249 deselected**. Skipped cases are not counted as passed.
 - Disposable in-memory PostgreSQL 16, fresh migrations 001–039, API and Worker roles; focused
   provisioning/quota/snapshot/visibility/schema/permission suites — **66 passed** with one
   upstream Starlette/httpx deprecation warning; `W5_E_postgres_validation.txt`.
@@ -166,10 +165,10 @@ conservative uncertainty; intended Agent/Research/auxiliary reachability; owned 
 visibility; compact non-authoritative Trace; unchanged W1 fencing; relevant regressions; and
 source-true documentation.
 
-## Known future work
+## Superseded historical scope
 
 The original ACD-17 combined snapshots with frozen `AuthorizationPolicy`, durable human review,
-review records/commands, approval binding, wait/reacquire behavior, and approval UI. W5 implements
-the snapshot/governance/visibility subset only. Those human-review capabilities remain future work,
-and this report does not mark the bundled historical ACD-17 fully implemented. Workspace Query is
-also outside W5. Research remains a fixed Workflow.
+review records/commands, approval binding, wait/reacquire behavior, and approval UI. That historical
+bundle was superseded by the final W5 product decision: human-review capabilities were intentionally
+removed, not deferred. Final ACD-17 covers snapshot/governed invocation/entitlement/account quota/
+prompt visibility/observability. Workspace Query is outside W5. Research remains a fixed Workflow.

@@ -5,12 +5,23 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
-MINIMAL_FIELDS = frozenset({"snapshot_id", "content_hash", "model_call_id"})
+MINIMAL_FIELDS = frozenset({"snapshot_id", "content_hash", "model_call_id", "dispatch_status"})
 SUMMARY_FIELDS = frozenset({
     "snapshot_id", "content_hash", "model_call_id", "phase", "fallback_attempt",
     "endpoint_id", "provider", "model", "api_format", "created_at", "message_count",
-    "tool_count",
+    "tool_count", "resolved_url", "dispatch_status",
 })
+
+
+def _dispatch_status(row: Mapping[str, Any]) -> str:
+    state = row.get("usage_state")
+    if state is None or state == "released":
+        return "not_dispatched"
+    if state == "reserved":
+        return "reserved_or_in_flight"
+    if state == "settled" and row.get("usage_source") in {"provider", "measured"}:
+        return "succeeded"
+    return "uncertain"
 
 
 def _timestamp(value: datetime) -> str:
@@ -30,6 +41,7 @@ def minimal_projection(row: Mapping[str, Any]) -> dict[str, Any]:
         "snapshot_id": str(row["snapshot_id"]),
         "content_hash": bytes(row["content_hash"]).hex(),
         "model_call_id": str(row["model_call_id"]),
+        "dispatch_status": _dispatch_status(row),
     }
 
 
@@ -45,6 +57,8 @@ def summary_projection(row: Mapping[str, Any]) -> dict[str, Any]:
         "provider": str(row["provider"]),
         "model": str(row["model"]),
         "api_format": str(row["api_format"]),
+        "resolved_url": row.get("resolved_url"),
+        "dispatch_status": _dispatch_status(row),
         "created_at": _timestamp(row["created_at"]),
         "message_count": _count(body, "messages", "contents", "input"),
         "tool_count": _count(body, "tools", "functions"),

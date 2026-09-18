@@ -5,6 +5,9 @@ NON_RETRYABLE_FAILURE_CODES = frozenset(
     {
         "tool_side_effect_uncertain",
         "side_effect_reconciliation_failed",
+        "account_model_entitlement_unavailable",
+        "account_daily_model_budget_exhausted",
+        "model_access_tier_denied",
     }
 )
 

@@ -41,6 +41,8 @@ class ModelBudgetCoordinator:
         final_response: bool = False,
         at: datetime | None = None,
         snapshot_id: UUID | None = None,
+        expected_entitlement_version: int | None = None,
+        endpoint_access_tier: str | None = None,
     ) -> CoordinatedBudgetMutation:
         self._require_matching_total(requested_total_tokens, run_amounts)
         with UnitOfWork(self.database) as uow:
@@ -51,6 +53,8 @@ class ModelBudgetCoordinator:
                 requested_total_tokens,
                 at=at,
                 snapshot_id=snapshot_id,
+                expected_entitlement_version=expected_entitlement_version,
+                endpoint_access_tier=endpoint_access_tier,
             )
             run = self.run_budget.reserve_in_uow(
                 uow,

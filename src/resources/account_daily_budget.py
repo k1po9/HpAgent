@@ -8,19 +8,22 @@ from uuid import UUID
 
 from account.entitlement_service import EntitlementService, EntitlementState
 from persistence.uow import UnitOfWork, retryable_transaction
+from resources.model_governance_errors import ModelAccessTierDenied, ModelGovernanceError
 from resources.run_budget import USAGE_SOURCES
 
 
-class AccountDailyBudgetError(RuntimeError):
+class AccountDailyBudgetError(ModelGovernanceError):
     """Base class for stable Account quota protocol failures."""
 
 
 class AccountModelEntitlementUnavailable(AccountDailyBudgetError):
     code = "account_model_entitlement_unavailable"
+    safe_message = "账户模型权限不可用。"
 
 
 class AccountDailyBudgetExhausted(AccountDailyBudgetError):
     code = "account_daily_model_budget_exhausted"
+    safe_message = "账户今日模型额度已耗尽。"
 
 
 class AccountDailyBudgetConflict(AccountDailyBudgetError):
@@ -63,10 +66,16 @@ class AccountDailyBudgetService:
 
     @retryable_transaction
     def reserve(
-        self, account_id: UUID, operation_id: str, tokens: int, *, at: datetime | None = None
+        self, account_id: UUID, operation_id: str, tokens: int, *, at: datetime | None = None,
+        expected_entitlement_version: int | None = None,
+        endpoint_access_tier: str | None = None,
     ) -> AccountBudgetMutation:
         with UnitOfWork(self.database) as uow:
-            return self.reserve_in_uow(uow, account_id, operation_id, tokens, at=at)
+            return self.reserve_in_uow(
+                uow, account_id, operation_id, tokens, at=at,
+                expected_entitlement_version=expected_entitlement_version,
+                endpoint_access_tier=endpoint_access_tier,
+            )
 
     def reserve_in_uow(
         self,
@@ -77,12 +86,21 @@ class AccountDailyBudgetService:
         *,
         at: datetime | None = None,
         snapshot_id: UUID | None = None,
+        expected_entitlement_version: int | None = None,
+        endpoint_access_tier: str | None = None,
     ) -> AccountBudgetMutation:
         requested = _tokens(tokens)
         operation_id = _operation(operation_id)
         lookup = self.entitlements.get_in_uow(uow, account_id, now=at)
         if lookup.state is not EntitlementState.VALID or lookup.entitlement is None:
             raise AccountModelEntitlementUnavailable(f"model entitlement is {lookup.state.value}")
+        if (expected_entitlement_version is not None
+                and lookup.entitlement.version != expected_entitlement_version):
+            raise AccountModelEntitlementUnavailable("model entitlement version changed")
+        if endpoint_access_tier is not None:
+            tier = lookup.entitlement.model_access_tier
+            if tier != "owner" and tier != endpoint_access_tier:
+                raise ModelAccessTierDenied("model endpoint access tier denied")
         day = self.quota_date(at)
         uow.execute(
             "INSERT INTO account_daily_model_budgets(account_id,quota_date) VALUES (%s,%s) "

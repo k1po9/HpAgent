@@ -45,6 +45,14 @@ def test_snapshot_is_owner_scoped_secret_free_and_replay_safe(
             "WHERE snapshot_id=%s", (first.snapshot_id,),
         ).fetchone()
     assert "SNAPSHOT-SECRET-SENTINEL" not in row["body"]
+    assert first.content_hash != repository.create(
+        **{**values, "operation_id": f"model:{model_call_id}:a1:f2:url", "fallback_attempt": 2},
+        prepared=ModelClient({
+            "api_key": "SNAPSHOT-SECRET-SENTINEL", "base_url": "https://other.test/v1",
+            "model": "model-a", "endpoint_id": "chat:0", "provider": "example",
+            "api_format": "openai",
+        }).prepare_request([{"role": "user", "content": "hello"}]),
+    ).content_hash
 
 
 def test_snapshot_binds_atomic_account_and_run_reservation(

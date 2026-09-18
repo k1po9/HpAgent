@@ -7,8 +7,8 @@
 > Current HEAD implements Account/Entitlement governance, Account/day plus Run budget
 > coordination, prepared-request freezing into immutable `ModelInputSnapshot`, endpoint-tier
 > and fallback enforcement, conservative uncertain accounting, compact Trace refs, and owned
-> visibility projection. Durable human Model Review and frozen `AuthorizationPolicy`
-> evaluation remain target-only. See `phase3/W5_implementation_report.md`.
+> visibility projection. The historical durable Human Model Review and frozen
+> `AuthorizationPolicy` target was superseded and removed from final W5 scope, not deferred.
 
 **Current：** QQ 直接 start/signal account 级会话 Workflow；Web 在 PG 建 Run/Outbox 后分 legacy/durable；QQ Redis/WAL 与 Web PG 保存短期交互状态。现有 durable 的 profile、trace、loader、workspace session_context 仍含 Web 假设。
 

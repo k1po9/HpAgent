@@ -11,6 +11,7 @@ from common.types import ModelResponse
 from resources.model_budget_context import model_budget_scope
 from resources.model_client import ModelClient, ModelDispatchError
 from resources.model_input_snapshot import snapshot_content_hash
+from resources.model_governance_errors import ModelAccessTierDenied
 from resources.resource_pool import ResourcePool
 from tracing.metadata import sanitize_trace_metadata
 
@@ -50,6 +51,21 @@ def test_semantic_hash_is_stable_and_binds_request_identity() -> None:
     assert snapshot_content_hash(original) != snapshot_content_hash(
         _client("e").prepare_request([], max_tokens=6)
     )
+    other_url = ModelClient({
+        "endpoint_id": "e", "provider": "provider", "api_key": "secret",
+        "base_url": "https://other.example/v1", "model": "model-e",
+        "api_format": "openai", "max_tokens": 41,
+        "extra_body": {"temperature": 0.2},
+    }).prepare_request([], max_tokens=5)
+    assert snapshot_content_hash(original) != snapshot_content_hash(other_url)
+
+    unsafe = ModelClient({
+        "endpoint_id": "e", "provider": "provider", "api_key": "secret",
+        "base_url": "https://example.test/v1?credential=secret", "model": "model-e",
+        "api_format": "openai",
+    }).prepare_request([], max_tokens=5)
+    with pytest.raises(ValueError, match="query"):
+        snapshot_content_hash(unsafe)
 
 
 class _Entitlements:
@@ -159,8 +175,9 @@ async def test_disallowed_tier_and_quota_denial_never_dispatch(monkeypatch):
     denied = _Transport(_client(), ModelResponse(content="bad"))
     pool, snapshots, _budget = _pool({"primary": denied}, tier="basic")
     with model_budget_scope(uuid4(), uuid4(), "tier"):
-        with pytest.raises(Exception):
+        with pytest.raises(ModelAccessTierDenied) as denied_error:
             await pool.generate([{"role": "user", "content": "hello"}], "chat")
+    assert denied_error.value.code == "model_access_tier_denied"
     assert denied.prepared == 0 and denied.dispatched == [] and snapshots.items == []
 
     quota_transport = _Transport(_client(), ModelResponse(content="bad"))
@@ -171,6 +188,8 @@ async def test_disallowed_tier_and_quota_denial_never_dispatch(monkeypatch):
             await pool.generate([{"role": "user", "content": "hello"}], "chat")
     assert len(snapshots.items) == 1
     assert quota_transport.dispatched == []
+    assert quota.calls[0][2]["expected_entitlement_version"] == 3
+    assert quota.calls[0][2]["endpoint_access_tier"] == "standard"
 
 
 def test_trace_accepts_snapshot_refs_and_rejects_prompt_or_secret_fields() -> None:

@@ -7,7 +7,8 @@
 > R2.1 source baseline. Current HEAD contains migrations 037–039, prepared model requests,
 > immutable snapshots, governed `ResourcePool` dispatch, Account/day budget coordination,
 > model-input query routes, and the Trace-panel projection. The implemented W5 subset and G12
-> evidence are indexed by `phase3/W5_implementation_report.md`; durable human review is absent.
+> evidence are indexed by `phase3/W5_implementation_report.md`; durable human review was
+> intentionally removed from final W5 scope and is not future work.
 
 E01–E25 继承原锚点且哈希核对；E26–E43 继承 R2；R2.1 定向补充 E44/E45，未重审全部 ACD。这里证明当前实现/差距，不能证明目标已实现。未生产前提来自用户 U-PREPROD，不来自 E 表。测试源码均只读未执行。
 

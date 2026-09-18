@@ -88,8 +88,10 @@ def test_owned_list_and_visibility_projections_are_current_and_immutable(
     assert set(item) == {
         "snapshot_id", "content_hash", "model_call_id", "phase", "fallback_attempt",
         "endpoint_id", "provider", "model", "api_format", "created_at", "message_count",
-        "tool_count",
+        "tool_count", "resolved_url", "dispatch_status",
     }
+    assert item["resolved_url"] == "https://example.test/v1/chat/completions"
+    assert item["dispatch_status"] == "not_dispatched"
     assert PROMPT_SENTINEL not in json.dumps(summary)
     assert item["message_count"] == 1
     assert item["tool_count"] == 1
@@ -125,6 +127,7 @@ def test_owned_list_and_visibility_projections_are_current_and_immutable(
             "snapshot_id": item["snapshot_id"],
             "content_hash": item["content_hash"],
             "model_call_id": item["model_call_id"],
+            "dispatch_status": "not_dispatched",
         }],
     }
     denied = client.get(f"/api/v1/model-inputs/{snapshot.snapshot_id}")

@@ -3,6 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any, Protocol
 
+from resources.model_governance_errors import classify_model_governance_failure
+
 
 class ModelResource(Protocol):
     async def generate(self, *, messages: list[dict[str, Any]], model_selector: str,
@@ -39,6 +41,9 @@ class WebArtifactGenerator:
         except TimeoutError as exc:
             raise ArtifactGenerationError("artifact_model_timeout", "模型调用超时。") from exc
         except Exception as exc:
+            governance = classify_model_governance_failure(exc)
+            if governance is not None:
+                raise ArtifactGenerationError(governance.code, governance.safe_message) from exc
             raise ArtifactGenerationError("artifact_model_unavailable", "模型暂时不可用。") from exc
         return self.harden(str(getattr(response, "content", "") or ""))
 

@@ -9,8 +9,10 @@
 > endpoint eligibility, Account/day + Run accounting, fallback-attempt snapshots, conservative
 > uncertain settlement, compact Trace refs, and owned `none` / `summary` / `full_safe`
 > projections. It does **not** implement the proposed `AuthorizationPolicy`, review records or
-> commands, approval binding, durable review wait, or human-review UI. ACD-17 as bundled here is
-> therefore only partially implemented. See `phase3/W5_implementation_report.md`.
+> commands, approval binding, durable review wait, or human-review UI because those elements were
+> superseded and removed from final W5 scope, not deferred. This document preserves the R2.1
+> historical proposal; final ACD-17 covers snapshot/governed invocation/entitlement/account quota/
+> prompt visibility/observability.
 
 ## Current / Target / Required migration/refactor
 
