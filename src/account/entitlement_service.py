@@ -40,13 +40,23 @@ class EntitlementService:
 
     def get(self, account_id: UUID) -> EntitlementLookup:
         with UnitOfWork(self._database) as uow:
-            row = uow.execute(
-                "SELECT a.status,e.model_access_tier,e.daily_token_limit,e.prompt_visibility,"
-                "e.expires_at,e.version,e.provisioned_by_invite_id "
-                "FROM accounts a LEFT JOIN account_entitlements e USING(account_id) "
-                "WHERE a.account_id=%s",
-                (account_id,),
-            ).fetchone()
+            return self.get_in_uow(uow, account_id)
+
+    def get_in_uow(
+        self,
+        uow: UnitOfWork,
+        account_id: UUID,
+        *,
+        now: datetime | None = None,
+    ) -> EntitlementLookup:
+        """Resolve access inside a caller-owned transaction."""
+        row = uow.execute(
+            "SELECT a.status,e.model_access_tier,e.daily_token_limit,e.prompt_visibility,"
+            "e.expires_at,e.version,e.provisioned_by_invite_id "
+            "FROM accounts a LEFT JOIN account_entitlements e USING(account_id) "
+            "WHERE a.account_id=%s",
+            (account_id,),
+        ).fetchone()
         if not row or row["status"] != "active":
             return EntitlementLookup(EntitlementState.ACCOUNT_UNAVAILABLE)
         if row["model_access_tier"] is None:
@@ -60,6 +70,8 @@ class EntitlementService:
             row["version"],
             row["provisioned_by_invite_id"],
         )
-        if entitlement.expires_at is not None and entitlement.expires_at <= datetime.now(UTC):
+        if entitlement.expires_at is not None and entitlement.expires_at <= (
+            now or datetime.now(UTC)
+        ):
             return EntitlementLookup(EntitlementState.EXPIRED, entitlement)
         return EntitlementLookup(EntitlementState.VALID, entitlement)
