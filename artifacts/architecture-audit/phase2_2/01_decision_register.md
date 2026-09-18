@@ -3,6 +3,13 @@
 > Historical architecture evidence. Not current architecture documentation.
 > 修订 R2.1；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。
 
+> **Current reconciliation (W5, 2026-09-18):** statuses below preserve the R2.1
+> design-time record. ACD-17 is now **partially implemented**: Account Access Governance,
+> Account/day quota, endpoint tiers, exact immutable provider-request snapshots, governed
+> invocation/fallback, uncertainty settlement, compact Trace refs, and Account-owned prompt
+> visibility are current facts. `AuthorizationPolicy`, human review decisions, durable review
+> waits, and approval UI are not implemented. See `phase3/W5_implementation_report.md`.
+
 用户指定的 canonical 方向已经明确；具体命名/合同/busy 策略等为审计建议。REVERSED 表示推翻原结论；REVISED 表示依新目标重写；RETAINED_AND_RESCOPED 表示保留方向并调整边界；NEW 表示新增。R2 已重审原 16 项并新增 17/18；R2.1 只修订 01/04/17 及相关合同。本轮不采纳任何“已经完成代码改造”的状态。
 
 ## ACD-01 · Web / QQ 共用唯一 Durable Agent 主线
@@ -422,6 +429,10 @@
 **后续回退：** 保持已验证共进程模式；未来 worktree 方案以 workspace 绑定和资源完整性验证回退，不仅切枚举值。
 
 ## ACD-17 · ModelInputSnapshot 与 Durable Model Review
+
+**Post-R2.1 implementation status:** **PARTIALLY IMPLEMENTED**. Migrations 037–039 and
+W5-A–E implement the snapshot/governed-dispatch and visibility subset. The bundled durable
+human-review portion remains a future target, so this original decision is not fully complete.
 
 | 项目 | 记录 |
 | --- | --- |

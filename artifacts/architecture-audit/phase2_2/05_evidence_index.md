@@ -3,6 +3,12 @@
 > Historical architecture evidence. Not current architecture documentation.
 > 修订 R2.1；所有目标改造 NOT IMPLEMENTED，代码事实与目标分列。
 
+> **Current evidence addendum (2026-09-18):** the negative evidence below applies to the
+> R2.1 source baseline. Current HEAD contains migrations 037–039, prepared model requests,
+> immutable snapshots, governed `ResourcePool` dispatch, Account/day budget coordination,
+> model-input query routes, and the Trace-panel projection. The implemented W5 subset and G12
+> evidence are indexed by `phase3/W5_implementation_report.md`; durable human review is absent.
+
 E01–E25 继承原锚点且哈希核对；E26–E43 继承 R2；R2.1 定向补充 E44/E45，未重审全部 ACD。这里证明当前实现/差距，不能证明目标已实现。未生产前提来自用户 U-PREPROD，不来自 E 表。测试源码均只读未执行。
 
 | ID | 复核项 | 源码位置 | CURRENT FACT |

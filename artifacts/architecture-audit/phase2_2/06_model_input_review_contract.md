@@ -3,6 +3,15 @@
 > Historical architecture evidence. Not current architecture documentation.
 > ACD-17，TARGET DECISION / NOT IMPLEMENTED；字段与状态为建议合同，无对应已实现表/API。
 
+> **W5 implementation reconciliation (2026-09-18):** that sentence is preserved as a fact
+> about the R2.1 baseline. Current HEAD implements the narrower non-human-review subset:
+> prepared effective provider bodies, immutable snapshots/hashes, Account/Entitlement and
+> endpoint eligibility, Account/day + Run accounting, fallback-attempt snapshots, conservative
+> uncertain settlement, compact Trace refs, and owned `none` / `summary` / `full_safe`
+> projections. It does **not** implement the proposed `AuthorizationPolicy`, review records or
+> commands, approval binding, durable review wait, or human-review UI. ACD-17 as bundled here is
+> therefore only partially implemented. See `phase3/W5_implementation_report.md`.
+
 ## Current / Target / Required migration/refactor
 
 **Current：** E29 的 model_decision_activity 读取 transcript、加 objective、选 tools、调用 Brain；E30 的 input_context 是调用后诊断投影。E31 在 provider 发送前仍转换 messages/tools 和合并 max_tokens/extra_body，E32 还可能换 fallback endpoint。E41 的 planning/evaluate 独立调用模型。E33 有文件审批 wait，但不存在模型输入审批。E37 context bootstrap 可先调用 fast 模型重写记忆检索词。

@@ -3,6 +3,12 @@
 > Historical architecture evidence. Not current architecture documentation.
 > TARGET DECISION / NOT IMPLEMENTED。本轮未执行下表工作包。R1 门禁定义已被替代，尤其 G05 不再是线上 History 退役门禁，G06 改为双入口领域验证。
 
+> **W5 delivery reconciliation (2026-09-18):** the table below remains the R2.1 plan.
+> Current HEAD completed the narrower Account Access Governance + quota + immutable snapshot +
+> governed invocation + prompt-visibility subset and closed its G12 gate. The originally bundled
+> `AuthorizationPolicy` / durable human-review branch is outside that closure and remains future
+> work. Evidence: `phase3/W5_implementation_report.md`.
+
 ## 工作包与依赖
 
 | 包 | 依赖 / ACD | 最小交付与退出条件 |

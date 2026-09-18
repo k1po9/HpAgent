@@ -3,6 +3,13 @@
 > Historical architecture evidence. Not current architecture documentation.
 > 以下 TARGET DECISION 尚未实施；CURRENT FACT 见 E01–E45。逻辑 owner 不等于新增独立服务/数据库。
 
+> **W5 current-state reconciliation (2026-09-18):** this target document predates W5.
+> Current HEAD implements Account/Entitlement governance, Account/day plus Run budget
+> coordination, prepared-request freezing into immutable `ModelInputSnapshot`, endpoint-tier
+> and fallback enforcement, conservative uncertain accounting, compact Trace refs, and owned
+> visibility projection. Durable human Model Review and frozen `AuthorizationPolicy`
+> evaluation remain target-only. See `phase3/W5_implementation_report.md`.
+
 **Current：** QQ 直接 start/signal account 级会话 Workflow；Web 在 PG 建 Run/Outbox 后分 legacy/durable；QQ Redis/WAL 与 Web PG 保存短期交互状态。现有 durable 的 profile、trace、loader、workspace session_context 仍含 Web 假设。
 
 **Target：** Web/QQ 对话触发的 Agent Run 统一经 Conversation → PG Message/Session/Run/Outbox → Durable Runtime。Conversation 是 Chat 的 source/context owner，Agent Runtime 保持 surface-neutral、conversation-neutral。Research、Artifact Build、Document 独立执行，共享设施而不合并内部控制流。
