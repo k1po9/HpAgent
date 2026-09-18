@@ -270,12 +270,19 @@ def provision_runtime(config: dict[str, Any], api_url: str, worker_url: str) -> 
     existing = load_runtime()
     if existing is not None:
         return existing, "reused existing 0600 benchmark runtime config"
+    from account.invite_service import EntitlementProfile, RegistrationInviteService
     from sandbox.git_repo import GitRepoManager
 
     username = "agent-benchmark-" + datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     password = secrets.token_urlsafe(32)
+    invite = RegistrationInviteService(os.environ["MIGRATION_DATABASE_URL"]).create(
+        EntitlementProfile("benchmark", None, "full_safe")
+    )
     with httpx.Client(base_url="http://127.0.0.1:8080", timeout=15) as client:
-        response = client.post("/auth/register", json={"username": username, "password": password})
+        response = client.post(
+            "/auth/register",
+            json={"username": username, "password": password, "invite_code": invite.code},
+        )
         response.raise_for_status()
         account_id = str(response.json()["account"]["account_id"])
     workspace_root = ROOT / ".data" / "workspace"

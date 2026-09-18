@@ -110,6 +110,11 @@ def seed_identity(migration_url: str) -> UUID:
         connection.execute("SET search_path=hpagent,public")
         connection.execute("INSERT INTO accounts(account_id) VALUES (%s)", (account_id,))
         connection.execute(
+            "INSERT INTO account_entitlements(account_id,model_access_tier,prompt_visibility) "
+            "VALUES (%s,'benchmark','full_safe')",
+            (account_id,),
+        )
+        connection.execute(
             "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,"
             "external_subject_id,normalized_subject_id,verified_at) "
             "VALUES (%s,%s,'web',%s,%s,now())",

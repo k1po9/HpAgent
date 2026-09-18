@@ -93,7 +93,12 @@ describe("ApiClient auth recovery", () => {
       });
     };
     const c = new ApiClient(authMock);
-    expect(await c.register("alice", "correct-password")).toBe(true);
+    expect(await c.register("alice", "correct-password", "invite-secret")).toBe(true);
+    expect(JSON.parse(String(seen[0]?.init?.body))).toEqual({
+      username: "alice",
+      password: "correct-password",
+      invite_code: "invite-secret",
+    });
     const challenge = await c.createQqBindingChallenge();
     expect(challenge.code).toBe("HP-483921");
     expect(seen.map((call) => call.url)).toEqual([
@@ -113,7 +118,7 @@ describe("ApiClient auth recovery", () => {
         }),
     );
 
-    expect(await c.register("alice", "correct-password")).toBe(false);
+    expect(await c.register("alice", "correct-password", "invite-secret")).toBe(false);
   });
 
   it("rotates the CSRF token exactly once on csrf_invalid, then retries", async () => {

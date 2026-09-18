@@ -41,11 +41,42 @@ describe("LoginForm autocomplete", () => {
     await user.type(screen.getByLabelText("用户名"), "alice");
     await user.type(screen.getByLabelText("密码", { selector: "input" }), "correct-password");
     await user.type(screen.getByLabelText("确认密码"), "correct-password");
+    await user.type(screen.getByLabelText("邀请码"), "invite-secret");
     await user.click(screen.getByRole("button", { name: "注册" }));
 
     expect(await screen.findByText(/注册成功，但自动登录失败/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "HpAgent 登录" })).toBeInTheDocument();
     expect(screen.getByLabelText("用户名")).toHaveValue("alice");
     expect(screen.getByLabelText("密码")).toHaveValue("correct-password");
+  });
+
+  it("renders the server's safe invite error", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              error: {
+                code: "registration_invite_invalid",
+                message: "邀请码无效或不可用。",
+                request_id: null,
+                retryable: false,
+                details: {},
+              },
+            }),
+            { status: 403, headers: { "Content-Type": "application/json" } },
+          ),
+      ),
+    );
+    render(<LoginForm />);
+    await user.click(screen.getByRole("button", { name: "没有账号？注册" }));
+    await user.type(screen.getByLabelText("用户名"), "alice");
+    await user.type(screen.getByLabelText("密码", { selector: "input" }), "correct-password");
+    await user.type(screen.getByLabelText("确认密码"), "correct-password");
+    await user.type(screen.getByLabelText("邀请码"), "bad-secret");
+    await user.click(screen.getByRole("button", { name: "注册" }));
+    expect(await screen.findByText("邀请码无效或不可用。")).toBeInTheDocument();
   });
 });

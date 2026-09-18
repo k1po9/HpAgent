@@ -82,11 +82,14 @@ E2E_PASSWORD="${E2E_PASSWORD}" PYTHONPATH=src "$PY" - <<'PY'
 import os
 
 from account.registration_service import RegistrationService, UsernameAlreadyExists
+from account.invite_service import EntitlementProfile, RegistrationInviteService
 
 registration = RegistrationService(os.environ["MIGRATION_DATABASE_URL"])
+invites = RegistrationInviteService(os.environ["MIGRATION_DATABASE_URL"])
 for subject in ("alice", "bob"):
     try:
-        registration.register(subject, os.environ["E2E_PASSWORD"])
+        invite = invites.create(EntitlementProfile("e2e", None, "full_safe"))
+        registration.register(subject, os.environ["E2E_PASSWORD"], invite.code)
     except UsernameAlreadyExists:
         pass
 print("E2E accounts ensured: alice, bob")

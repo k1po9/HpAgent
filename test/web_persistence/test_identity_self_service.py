@@ -12,6 +12,11 @@ from account.identity_binding_service import (
     IdentityBindingService,
     IdentityConflict,
 )
+from account.invite_service import (
+    EntitlementProfile,
+    RegistrationInviteService,
+    hash_invite_code,
+)
 from account.registration_service import (
     InvalidPassword,
     RegistrationService,
@@ -19,6 +24,19 @@ from account.registration_service import (
 )
 
 pytestmark = pytest.mark.postgres
+
+
+def _invite(database_url, *, max_redemptions=1):
+    return RegistrationInviteService(database_url).create(
+        EntitlementProfile("standard", 100_000, "summary"),
+        max_redemptions=max_redemptions,
+    ).code
+
+
+def _register(database_url, migration_database_url, username="alice", password="correct-password"):
+    return RegistrationService(database_url).register(
+        username, password, _invite(migration_database_url)
+    )
 
 
 def _qq_account(db, channel="napcat", subject="123456"):
@@ -34,9 +52,9 @@ def _qq_account(db, channel="napcat", subject="123456"):
     return account_id
 
 
-def test_registration_and_postgres_login_are_atomic_and_normalized(db, database_url):
+def test_registration_and_postgres_login_are_atomic_and_normalized(db, database_url, migration_database_url):
     registration = RegistrationService(database_url)
-    result = registration.register(" Alice ", "correct-password")
+    result = registration.register(" Alice ", "correct-password", _invite(migration_database_url))
     adapter = PostgresPasswordCredentialAdapter(database_url)
 
     assert adapter.verify("ALICE", "correct-password") == "alice"
@@ -44,7 +62,12 @@ def test_registration_and_postgres_login_are_atomic_and_normalized(db, database_
     assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 1
     assert db.execute("SELECT count(*) FROM web_credentials").fetchone()[0] == 1
     with pytest.raises(UsernameAlreadyExists):
-        registration.register("aLiCe", "another-password")
+        duplicate_invite = _invite(migration_database_url)
+        registration.register("aLiCe", "another-password", duplicate_invite)
+    assert db.execute(
+        "SELECT redemption_count FROM registration_invites WHERE code_hash=%s",
+        (hash_invite_code(duplicate_invite),),
+    ).fetchone()[0] == 0
     assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 1
     db.execute(
         "UPDATE identity_bindings SET status='revoked',revoked_at=now() "
@@ -54,15 +77,15 @@ def test_registration_and_postgres_login_are_atomic_and_normalized(db, database_
     assert adapter.verify("alice", "correct-password") is None
 
 
-def test_registration_password_policy_leaves_no_partial_account(db, database_url):
+def test_registration_password_policy_leaves_no_partial_account(db, database_url, migration_database_url):
     with pytest.raises(InvalidPassword):
-        RegistrationService(database_url).register("alice", "short")
+        RegistrationService(database_url).register("alice", "short", _invite(migration_database_url))
     assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 0
 
 
-def test_missing_database_credential_cannot_authenticate(db, database_url):
+def test_missing_database_credential_cannot_authenticate(db, database_url, migration_database_url):
     registration = RegistrationService(database_url)
-    registration.register("alice", "database-password")
+    registration.register("alice", "database-password", _invite(migration_database_url))
     bob_account, bob_binding = uuid4(), uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (bob_account,))
     db.execute(
@@ -78,8 +101,8 @@ def test_missing_database_credential_cannot_authenticate(db, database_url):
     assert adapter.verify("bob", "any-password") is None
 
 
-def test_binding_unbound_qq_and_single_use(db, database_url, worker_database_url):
-    web = RegistrationService(database_url).register("alice", "correct-password")
+def test_binding_unbound_qq_and_single_use(db, database_url, worker_database_url, migration_database_url):
+    web = _register(database_url, migration_database_url)
     api_service = IdentityBindingService(database_url, b"test-pepper", 300)
     service = IdentityBindingService(worker_database_url, b"test-pepper", 300)
     challenge = api_service.create_qq_challenge(web.account_id)
@@ -95,9 +118,9 @@ def test_binding_unbound_qq_and_single_use(db, database_url, worker_database_url
 
 
 def test_concurrent_challenge_consume_is_idempotent(
-    db, database_url, worker_database_url
+    db, database_url, worker_database_url, migration_database_url
 ):
-    web = RegistrationService(database_url).register("alice", "correct-password")
+    web = _register(database_url, migration_database_url)
     challenge = IdentityBindingService(
         database_url, b"test-pepper", 300
     ).create_qq_challenge(web.account_id)
@@ -118,9 +141,9 @@ def test_concurrent_challenge_consume_is_idempotent(
 
 
 def test_challenge_rotation_expiry_and_invalid_code(
-    db, database_url, worker_database_url
+    db, database_url, worker_database_url, migration_database_url
 ):
-    web = RegistrationService(database_url).register("alice", "correct-password")
+    web = _register(database_url, migration_database_url)
     api_service = IdentityBindingService(database_url, b"test-pepper", 300)
     worker_service = IdentityBindingService(worker_database_url, b"test-pepper", 300)
     old = api_service.create_qq_challenge(web.account_id)
@@ -150,10 +173,10 @@ def test_challenge_rotation_expiry_and_invalid_code(
 
 
 def test_empty_web_account_consolidates_into_existing_qq_account(
-    db, database_url, worker_database_url
+    db, database_url, worker_database_url, migration_database_url
 ):
     qq_account = _qq_account(db)
-    web = RegistrationService(database_url).register("alice", "correct-password")
+    web = _register(database_url, migration_database_url)
     api_service = IdentityBindingService(database_url, b"test-pepper", 300)
     service = IdentityBindingService(worker_database_url, b"test-pepper", 300)
     challenge = api_service.create_qq_challenge(web.account_id)
@@ -172,10 +195,10 @@ def test_empty_web_account_consolidates_into_existing_qq_account(
 
 
 def test_web_account_with_business_data_is_not_auto_consolidated(
-    db, database_url, worker_database_url
+    db, database_url, worker_database_url, migration_database_url
 ):
     qq_account = _qq_account(db)
-    web = RegistrationService(database_url).register("alice", "correct-password")
+    web = _register(database_url, migration_database_url)
     db.execute(
         "INSERT INTO conversations(conversation_id,account_id,title) VALUES (%s,%s,'used')",
         (uuid4(), web.account_id),

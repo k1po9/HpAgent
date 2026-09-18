@@ -8,6 +8,7 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
+from account.invite_service import EntitlementProfile, RegistrationInviteService
 from persistence.migrate import migrate
 from web_api.app import create_app
 from web_api.config import WebApiSettings
@@ -68,6 +69,7 @@ def db(migration_database_url: str):
         connection.execute("SET search_path TO hpagent, public")
         for table in (
             "artifact_outbox_events", "artifact_versions", "artifacts",
+            "account_entitlements", "registration_invites",
             "identity_binding_challenges", "web_credentials",
             "outbox_events", "idempotency_commands", "workflow_executions",
             "messages", "runs", "sessions", "web_auth_sessions",
@@ -145,6 +147,17 @@ def client_factory(database_url: str, worker_database_url: str):
     yield factory
     for client in reversed(clients):
         client.__exit__(None, None, None)
+
+
+@pytest.fixture
+def invite_factory(migration_database_url: str):
+    def create(*, max_redemptions: int = 1) -> str:
+        return RegistrationInviteService(migration_database_url).create(
+            EntitlementProfile("standard", 100_000, "summary"),
+            max_redemptions=max_redemptions,
+        ).code
+
+    return create
 
 
 def login(client: TestClient, username: str = "alice") -> str:

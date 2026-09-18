@@ -85,6 +85,12 @@ def bootstrap_identity(
                     "INSERT INTO accounts(account_id) VALUES (%s) ON CONFLICT DO NOTHING",
                     (account_id,),
                 )
+                cursor.execute(
+                    "INSERT INTO account_entitlements(account_id,model_access_tier,"
+                    "prompt_visibility) VALUES (%s,'owner','full_safe') "
+                    "ON CONFLICT(account_id) DO NOTHING",
+                    (account_id,),
+                )
                 _insert_binding(cursor, account_id, "web", web_subject.strip(), web_norm, "web")
                 _insert_binding(cursor, account_id, "qq", qq_subject.strip(), qq_norm, qq_channel)
                 result = BootstrapResult(status="created", account_id=str(account_id))

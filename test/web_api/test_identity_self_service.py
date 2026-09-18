@@ -17,11 +17,11 @@ def _headers(csrf: str) -> dict[str, str]:
     }
 
 
-def test_register_auto_login_logout_and_database_login(client_factory, db):
+def test_register_auto_login_logout_and_database_login(client_factory, db, invite_factory):
     client = client_factory(postgres_credentials=True)
     registered = client.post(
         "/auth/register",
-        json={"username": " Alice ", "password": "correct-password"},
+        json={"username": " Alice ", "password": "correct-password", "invite_code": invite_factory()},
     )
     assert registered.status_code == 201
     assert "HttpOnly" in registered.headers["set-cookie"]
@@ -39,24 +39,36 @@ def test_register_auto_login_logout_and_database_login(client_factory, db):
     assert logged_in.status_code == 303
 
 
-def test_register_duplicate_and_password_policy_are_safe(client_factory, db):
+def test_register_duplicate_and_password_policy_are_safe(client_factory, db, invite_factory):
     client = client_factory(postgres_credentials=True)
     assert client.post(
-        "/auth/register", json={"username": "alice", "password": "correct-password"}
+        "/auth/register", json={"username": "alice", "password": "correct-password", "invite_code": invite_factory()}
     ).status_code == 201
     duplicate = client.post(
-        "/auth/register", json={"username": " ALICE ", "password": "another-password"}
+        "/auth/register", json={"username": " ALICE ", "password": "another-password", "invite_code": invite_factory()}
     )
     assert duplicate.status_code == 409
     assert duplicate.json()["error"]["code"] == "username_already_exists"
     weak = client.post(
-        "/auth/register", json={"username": "bob", "password": "short"}
+        "/auth/register", json={"username": "bob", "password": "short", "invite_code": invite_factory()}
     )
     assert weak.status_code == 422
     assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 1
 
 
-def test_register_reports_success_when_session_creation_fails(client_factory, db):
+def test_register_invalid_invite_uses_stable_safe_error(client_factory, db):
+    client = client_factory(postgres_credentials=True)
+    response = client.post(
+        "/auth/register",
+        json={"username": "alice", "password": "correct-password", "invite_code": "unknown-secret"},
+    )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "registration_invite_invalid"
+    assert response.json()["error"]["message"] == "邀请码无效或不可用。"
+    assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 0
+
+
+def test_register_reports_success_when_session_creation_fails(client_factory, db, invite_factory):
     client = client_factory(postgres_credentials=True)
 
     def fail_session_creation(_subject):
@@ -66,7 +78,7 @@ def test_register_reports_success_when_session_creation_fails(client_factory, db
 
     response = client.post(
         "/auth/register",
-        json={"username": "alice", "password": "correct-password"},
+        json={"username": "alice", "password": "correct-password", "invite_code": invite_factory()},
     )
 
     assert response.status_code == 201
@@ -77,11 +89,11 @@ def test_register_reports_success_when_session_creation_fails(client_factory, db
 
 
 def test_qq_challenge_updates_me_without_entering_agent(
-    client_factory, db, worker_database_url
+    client_factory, db, worker_database_url, invite_factory
 ):
     client = client_factory(postgres_credentials=True)
     assert client.post(
-        "/auth/register", json={"username": "alice", "password": "correct-password"}
+        "/auth/register", json={"username": "alice", "password": "correct-password", "invite_code": invite_factory()}
     ).status_code == 201
     csrf = client.get("/api/v1/me").json()["csrf_token"]
     created = client.post(
@@ -109,7 +121,7 @@ def test_qq_challenge_updates_me_without_entering_agent(
 
 
 def test_existing_qq_account_becomes_web_session_account(
-    client_factory, db, worker_database_url
+    client_factory, db, worker_database_url, invite_factory
 ):
     qq_account, qq_binding = uuid4(), uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (qq_account,))
@@ -122,7 +134,7 @@ def test_existing_qq_account_becomes_web_session_account(
     )
     client = client_factory(postgres_credentials=True)
     client.post(
-        "/auth/register", json={"username": "alice", "password": "correct-password"}
+        "/auth/register", json={"username": "alice", "password": "correct-password", "invite_code": invite_factory()}
     )
     old_account = client.get("/api/v1/me").json()["account"]["account_id"]
     csrf = client.get("/api/v1/me").json()["csrf_token"]

@@ -28,6 +28,7 @@ from account.identity_binding_service import (
     IdentityBindingService,
     mask_qq_subject,
 )
+from account.invite_service import InvalidRegistrationInvite
 from account.registration_service import (
     InvalidPassword,
     InvalidUsername,
@@ -493,8 +494,10 @@ def create_app(
     def register(payload: RegisterRequest, request: Request):
         try:
             result = request.app.state.registration.register(
-                payload.username, payload.password
+                payload.username, payload.password, payload.invite_code
             )
+        except InvalidRegistrationInvite:
+            return _error(request, 403, "registration_invite_invalid", "邀请码无效或不可用。")
         except UsernameAlreadyExists:
             return _error(
                 request, 409, "username_already_exists", "用户名已存在。"

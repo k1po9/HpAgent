@@ -14,6 +14,7 @@ export function LoginForm() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [registeredPendingLogin, setRegisteredPendingLogin] = useState(false);
@@ -30,7 +31,7 @@ export function LoginForm() {
         if (password !== confirmation) {
           throw new Error("两次输入的密码不一致。");
         }
-        const sessionEstablished = await api.register(username, password);
+        const sessionEstablished = await api.register(username, password, inviteCode);
         if (!sessionEstablished) {
           setRegisteredPendingLogin(true);
           setMode("login");
@@ -91,19 +92,33 @@ export function LoginForm() {
             />
           </label>
           {mode === "register" ? (
-            <label>
-              <Text as="span" size="2" color="gray">
-                确认密码
-              </Text>
-              <TextField.Root
-                type="password"
-                value={confirmation}
-                onChange={(e) => setConfirmation(e.target.value)}
-                autoComplete="new-password"
-                minLength={8}
-                required
-              />
-            </label>
+            <>
+              <label>
+                <Text as="span" size="2" color="gray">
+                  确认密码
+                </Text>
+                <TextField.Root
+                  type="password"
+                  value={confirmation}
+                  onChange={(e) => setConfirmation(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                />
+              </label>
+              <label>
+                <Text as="span" size="2" color="gray">
+                  邀请码
+                </Text>
+                <TextField.Root
+                  type="password"
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value)}
+                  autoComplete="off"
+                  required
+                />
+              </label>
+            </>
           ) : null}
           {error ? (
             <Text size="2" color="red">

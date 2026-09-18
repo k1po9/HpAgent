@@ -55,6 +55,10 @@ def test_idempotent_double_run(db, migration_database_url):
     assert second.status == "noop"
     assert first.account_id == second.account_id
     assert _counts(db) == (1, 1, 1)
+    assert db.execute(
+        "SELECT model_access_tier,prompt_visibility FROM account_entitlements "
+        "WHERE account_id=%s", (first.account_id,)
+    ).fetchone() == ("owner", "full_safe")
 
 
 def test_case_e_conflict_raises_without_merging(db, migration_database_url):
