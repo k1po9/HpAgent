@@ -40,6 +40,7 @@ class ModelBudgetCoordinator:
         *,
         final_response: bool = False,
         at: datetime | None = None,
+        snapshot_id: UUID | None = None,
     ) -> CoordinatedBudgetMutation:
         self._require_matching_total(requested_total_tokens, run_amounts)
         with UnitOfWork(self.database) as uow:
@@ -49,6 +50,7 @@ class ModelBudgetCoordinator:
                 operation_id,
                 requested_total_tokens,
                 at=at,
+                snapshot_id=snapshot_id,
             )
             run = self.run_budget.reserve_in_uow(
                 uow,

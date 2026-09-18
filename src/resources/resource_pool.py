@@ -11,6 +11,7 @@ ResourcePool —— 模型调用池，实现 IResources 接口。
     失败自动切换到 openai:gpt4。
 """
 import asyncio
+import json
 import logging
 import time
 from typing import Any, Dict, List, Optional
@@ -18,11 +19,11 @@ from typing import Any, Dict, List, Optional
 from common.errors import ModelAPIError
 from common.interfaces import IResources
 from common.model_usage import canonical_model_usage
-from common.token_counter import estimate_messages_tokens
-from resources.model_budget_context import current_model_budget
+from common.token_counter import estimate_messages_tokens, estimate_tokens
+from resources.model_budget_context import current_model_call
 
 from .credentials import CredentialManager
-from .model_client import ModelClient
+from .model_client import ModelClient, ModelDispatchError
 
 logger = logging.getLogger("HpAgent.ResourcePool")
 
@@ -38,8 +39,14 @@ class ResourcePool(IResources):
         response = await pool.generate(model_selector="default", messages=[...])
     """
 
-    def __init__(self, credential_manager: CredentialManager):
+    def __init__(
+        self, credential_manager: CredentialManager, *, entitlement_service: Any = None,
+        budget_coordinator: Any = None, snapshot_repository: Any = None,
+    ):
         self._credential_manager = credential_manager
+        self._entitlements = entitlement_service
+        self._budget = budget_coordinator
+        self._snapshots = snapshot_repository
         self._model_clients: Dict[str, Any] = {}          # endpoint_id → {"client": ModelClient, ...}
         self._fallback_groups: Dict[str, List[str]] = {}  # group_name → [endpoint_id, ...]
 
@@ -78,6 +85,7 @@ class ResourcePool(IResources):
                     client_cfg["extra_body"] = ep.extra["extra_body"]
             client = ModelClient(config=client_cfg)
             self._model_clients[client_id] = {"client": client, "priority": 0}
+            self._model_clients[client_id]["access_tier"] = ep.access_tier
             client_ids.append(client_id)
             logger.info(
                 "Model endpoint registered: id=%s provider=%s model=%s "
@@ -140,7 +148,14 @@ class ResourcePool(IResources):
         last_error = None
         chain_start = time.monotonic()
         attempt = 0
-        budget_context = current_model_budget()
+        call_context = current_model_call()
+        governed = any((self._entitlements, self._budget, self._snapshots))
+        if governed and not all((self._entitlements, self._budget, self._snapshots)):
+            raise RuntimeError("model governance services are only partially configured")
+        if governed and call_context is None:
+            raise RuntimeError("production model call is missing ModelCallContext")
+        if call_context is not None:
+            call_ordinal, model_call_id = call_context.begin_logical_call()
 
         for model_id in candidate_ids:
             attempt += 1
@@ -152,38 +167,94 @@ class ResourcePool(IResources):
             budget_operation_id = ""
             reservation: dict[str, int] | None = None
             should_settle = False
-            if budget_context is not None and budget_context.service is not None:
-                budget_operation_id = budget_context.next_operation_id(
-                    attempt, model_id
+            quota_date = None
+            prepared = None
+            snapshot = None
+            if governed and call_context is not None:
+                lookup = await asyncio.to_thread(
+                    self._entitlements.get, call_context.account_id
                 )
-                input_tokens = estimate_messages_tokens(messages)
-                output_tokens = int(
-                    max_tokens
-                    if max_tokens is not None
-                    else getattr(client, "_max_tokens", 2048)
+                entitlement = getattr(lookup, "entitlement", None)
+                if getattr(getattr(lookup, "state", None), "value", None) != "valid" or entitlement is None:
+                    last_error = ModelAPIError("model entitlement unavailable")
+                    break
+                endpoint_tier = str(model_info.get("access_tier", "standard"))
+                account_tier = str(entitlement.model_access_tier)
+                if account_tier != "owner" and account_tier != endpoint_tier:
+                    logger.info(
+                        "Skipping endpoint %s: Account tier %s cannot use %s",
+                        model_id, account_tier, endpoint_tier,
+                    )
+                    last_error = ModelAPIError("model endpoint access tier denied")
+                    continue
+                try:
+                    prepared = client.prepare_request(
+                        messages, tools, stream, max_tokens=max_tokens,
+                    )
+                except Exception as exc:
+                    last_error = exc
+                    continue
+                body = prepared.body()
+                budget_operation_id = call_context.attempt_operation_id(
+                    model_call_id, attempt, model_id
                 )
+                input_tokens = estimate_messages_tokens(list(body.get("messages") or []))
+                if body.get("tools"):
+                    input_tokens += estimate_tokens(json.dumps(
+                        body["tools"], ensure_ascii=False, sort_keys=True,
+                    ))
+                output_tokens = max(0, int(body.get("max_tokens", 0)))
                 reservation = {
                     "model_input_tokens": input_tokens,
                     "model_output_tokens": max(0, output_tokens),
                     "model_total_tokens": input_tokens + max(0, output_tokens),
                     "model_calls": 1,
                 }
-                mutation = await asyncio.to_thread(
-                    budget_context.service.reserve,
-                    budget_context.run_id,
-                    budget_operation_id,
-                    reservation,
-                    final_response=budget_context.final_response,
+                common_snapshot = dict(
+                    account_id=call_context.account_id, run_id=call_context.run_id,
+                    model_call_id=model_call_id, operation_id=budget_operation_id,
+                    execution_attempt=call_context.execution_attempt,
+                    call_ordinal=call_ordinal, fallback_attempt=attempt,
+                    phase=call_context.phase,
+                    entitlement_version=entitlement.version,
                 )
+                freeze = getattr(self._snapshots, "freeze", None)
+                if freeze is not None:
+                    snapshot = await asyncio.to_thread(
+                        freeze, **common_snapshot, endpoint_id=prepared.endpoint_id,
+                        provider=prepared.provider, model=prepared.model,
+                        api_format=prepared.api_format, payload=body,
+                        serializer_version=prepared.serializer_version,
+                    )
+                else:
+                    snapshot = await asyncio.to_thread(
+                        self._snapshots.create, **common_snapshot, prepared=prepared,
+                    )
+                mutation = await asyncio.to_thread(
+                    self._budget.reserve,
+                    call_context.account_id,
+                    call_context.run_id,
+                    budget_operation_id,
+                    reservation["model_total_tokens"],
+                    reservation,
+                    final_response=call_context.final_response,
+                    snapshot_id=snapshot.snapshot_id,
+                )
+                quota_date = mutation.account.quota_date
                 should_settle = not (
-                    getattr(mutation, "replayed", False)
-                    and getattr(mutation, "state", "") in {"settled", "released"}
+                    getattr(mutation.account, "replayed", False)
+                    and getattr(mutation.account, "state", "") in {"settled", "released"}
                 )
             try:
-                result = await client.generate(
-                    messages=messages, tools=tools, stream=stream,
-                    max_tokens=max_tokens,
-                )
+                if prepared is None and hasattr(client, "prepare_request"):
+                    prepared = client.prepare_request(messages, tools, stream, max_tokens)
+                if prepared is not None and hasattr(client, "send_prepared"):
+                    result = await client.send_prepared(prepared)
+                else:
+                    result = await client.generate(
+                        messages=messages, tools=tools, stream=stream,
+                        max_tokens=max_tokens,
+                    )
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 elapsed_s = (time.monotonic() - t0)
                 if should_settle and reservation is not None:
@@ -192,18 +263,19 @@ class ResourcePool(IResources):
                         messages=messages,
                         output_text=getattr(result, "content", None),
                     )
-                    await asyncio.to_thread(
-                        budget_context.service.settle,
-                        budget_context.run_id,
-                        budget_operation_id,
-                        {
+                    actual = {
                             "model_input_tokens": int(usage["input_tokens"]),
                             "model_output_tokens": int(usage["output_tokens"]),
                             "model_total_tokens": int(usage["total_tokens"]),
                             "model_calls": 1,
-                        },
-                        str(usage["usage_source"]),
-                    )
+                    }
+                    if governed:
+                        await asyncio.to_thread(
+                            self._budget.settle, call_context.account_id,
+                            call_context.run_id, budget_operation_id,
+                            int(usage["total_tokens"]), actual,
+                            str(usage["usage_source"]), quota_date=quota_date,
+                        )
                     should_settle = False
 
                 # 延迟预算回退：若当前模型响应慢但后面还有候选，主动超时触发 fallback
@@ -232,16 +304,34 @@ class ResourcePool(IResources):
                     result.endpoint_id = model_id
                     result.model = getattr(client, "model", None)
                     result.provider = getattr(client, "provider", None)
+                    if snapshot is not None:
+                        result.model_call_id = str(model_call_id)
+                        result.snapshot_id = str(snapshot.snapshot_id)
+                        digest = getattr(snapshot, "content_hash", None)
+                        result.content_hash = (
+                            digest.hex() if isinstance(digest, bytes)
+                            else getattr(snapshot, "content_hash_hex", str(digest or ""))
+                        )
+                        result.fallback_attempt = attempt
+                        result.provider_outcome = "succeeded"
                 except (AttributeError, TypeError):
                     pass
                 return result
             except (ModelAPIError, ConnectionError, TimeoutError) as e:
                 if should_settle and reservation is not None:
-                    await asyncio.to_thread(
-                        budget_context.service.release,
-                        budget_context.run_id,
-                        budget_operation_id,
-                    )
+                    if governed and isinstance(e, ModelDispatchError):
+                        await asyncio.to_thread(
+                            self._budget.settle, call_context.account_id,
+                            call_context.run_id, budget_operation_id,
+                            reservation["model_total_tokens"], reservation, "estimated",
+                            quota_date=quota_date,
+                        )
+                    elif governed:
+                        await asyncio.to_thread(
+                            self._budget.release, call_context.account_id,
+                            call_context.run_id, budget_operation_id,
+                            quota_date=quota_date,
+                        )
                     should_settle = False
                 elapsed = (time.monotonic() - t0) * 1000
                 chain_elapsed = (time.monotonic() - chain_start) * 1000
@@ -255,11 +345,11 @@ class ResourcePool(IResources):
                 continue
             except Exception:
                 if should_settle and reservation is not None:
-                    await asyncio.to_thread(
-                        budget_context.service.release,
-                        budget_context.run_id,
-                        budget_operation_id,
-                    )
+                    if governed:
+                        await asyncio.to_thread(
+                            self._budget.release, call_context.account_id,
+                            call_context.run_id, budget_operation_id, quota_date=quota_date,
+                        )
                 # 不可恢复错误 → 直接抛出
                 raise
 

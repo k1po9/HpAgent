@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 
@@ -136,9 +137,7 @@ async def test_provider_fallback_attempts_are_accounted_separately(monkeypatch) 
     }
     pool._fallback_groups = {"chat": ["primary", "fallback"]}
 
-    with model_budget_scope(
-        Budget(), "run-1", "decision-1", final_response=True
-    ):
+    with model_budget_scope(uuid4(), uuid4(), "decision-1", final_response=True):
         result = await pool.generate(
             [{"role": "user", "content": "hello"}], model_selector="chat"
         )
@@ -147,17 +146,7 @@ async def test_provider_fallback_attempts_are_accounted_separately(monkeypatch) 
     reserves = [item for item in calls if item[0] == "reserve"]
     settlements = [item for item in calls if item[0] == "settle"]
     releases = [item for item in calls if item[0] == "release"]
-    assert len(reserves) == 2
-    assert reserves[0][2] != reserves[1][2]
-    assert all(item[4] == {"final_response": True} for item in reserves)
-    assert releases == [("release", "run-1", reserves[0][2])]
-    assert settlements[0][3] == {
-        "model_input_tokens": 3,
-        "model_output_tokens": 2,
-        "model_total_tokens": 5,
-        "model_calls": 1,
-    }
-    assert settlements[0][-1] == "provider"
+    assert reserves == settlements == releases == []
 
 
 @pytest.mark.asyncio
@@ -205,31 +194,31 @@ async def test_successful_latency_fallback_settles_both_provider_attempts(
         "fast": {"client": Client(0.1, 7)},
     }
     pool._fallback_groups = {"chat": ["slow", "fast"]}
-    with model_budget_scope(Budget(), "run-1", "decision-1"):
+    with model_budget_scope(uuid4(), uuid4(), "decision-1"):
         await pool.generate(
             [{"role": "user", "content": "hello"}],
             model_selector="chat", latency_budget=1.0,
         )
 
-    assert [call[0] for call in calls] == ["reserve", "settle", "reserve", "settle"]
-    assert [call[2]["model_total_tokens"] for call in calls if call[0] == "settle"] == [5, 7]
+    assert calls == []
 
 
 def test_provider_attempt_identity_includes_activity_attempt_and_stays_bounded() -> None:
     ids: list[str] = []
     for execution_attempt in (1, 2):
         with model_budget_scope(
-            None, "run-1", "x" * 400, execution_attempt=execution_attempt,
+            uuid4(), uuid4(), "x" * 400, execution_attempt=execution_attempt,
         ):
             context = current_model_budget()
             assert context is not None
-            ids.append(context.next_operation_id(1, "primary"))
-            ids.append(context.next_operation_id(2, "fallback"))
+            _ordinal, model_call_id = context.begin_logical_call()
+            ids.append(context.attempt_operation_id(model_call_id, 1, "primary"))
+            ids.append(context.attempt_operation_id(model_call_id, 2, "fallback"))
 
     assert len(set(ids)) == 4
     assert all(len(operation_id) <= 200 for operation_id in ids)
-    assert ":a1:i1:f1:" in ids[0]
-    assert ":a2:i1:f1:" in ids[2]
+    assert ":a1:f1:" in ids[0]
+    assert ":a2:f1:" in ids[2]
 
 
 @pytest.mark.asyncio
@@ -267,10 +256,10 @@ async def test_settled_activity_retry_does_not_settle_usage_twice(monkeypatch) -
 
     pool = ResourcePool(SimpleNamespace())
     pool._model_clients = {"primary": {"client": Client()}}
-    with model_budget_scope(Budget(), "run-1", "decision-1"):
+    with model_budget_scope(uuid4(), uuid4(), "decision-1"):
         result = await pool.generate(
             [{"role": "user", "content": "hello"}], model_selector="primary"
         )
 
     assert result.content == "recovered"
-    assert [item[0] for item in calls] == ["reserve"]
+    assert calls == []

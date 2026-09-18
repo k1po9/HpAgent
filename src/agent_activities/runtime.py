@@ -310,8 +310,9 @@ class DurableAgentActivities:
                 )
                 try:
                     with model_budget_scope(
-                        self.run_budget, request.run_id,
+                        request.account_id, request.run_id,
                         f"{request.operation_id}:memory-rewrite",
+                        phase="memory_query_rewrite",
                         execution_attempt=request.execution_attempt,
                     ):
                         recall_query, rewrite_context = await self.brain.rewrite_recall_query(
@@ -497,7 +498,8 @@ class DurableAgentActivities:
                 )
                 self.actions.reset_execution(self.context_bindings.session_key(request), request.run_id)
                 with model_budget_scope(
-                    self.run_budget, request.run_id, request.operation_id,
+                    request.account_id, request.run_id, request.operation_id,
+                    phase=model_phase,
                     execution_attempt=request.execution_attempt,
                     final_response=request.final_only,
                 ):
@@ -897,8 +899,9 @@ class DurableAgentActivities:
                             ) from exc
                     try:
                         with model_budget_scope(
-                            self.run_budget, request.run_id,
+                            request.account_id, request.run_id,
                             f"{request.operation_id}:tool-summary",
+                            phase="tool_result_summary",
                             execution_attempt=request.execution_attempt,
                         ):
                             result_value = await self.actions.execute_request(
@@ -1185,7 +1188,8 @@ class DurableAgentActivities:
             position = 1 if planning_messages and planning_messages[0].get("role") == "system" else 0
             planning_messages.insert(position, planning_instruction)
             with model_budget_scope(
-                self.run_budget, request.run_id, request.operation_id,
+                request.account_id, request.run_id, request.operation_id,
+                phase="planning",
                 execution_attempt=request.execution_attempt,
             ):
                 decision = await self.brain.generate_final_decision(
@@ -1359,7 +1363,8 @@ class DurableAgentActivities:
         )
         try:
             with model_budget_scope(
-                self.run_budget, request.run_id, request.operation_id,
+                request.account_id, request.run_id, request.operation_id,
+                phase="plan_evaluation",
                 execution_attempt=request.execution_attempt,
             ):
                 model_result = await self.brain.generate_final_decision(

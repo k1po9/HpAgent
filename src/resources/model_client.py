@@ -12,17 +12,72 @@ ModelClient —— 单个模型 API 的 HTTP 客户端。
 调用链路:
   Harness.call_model_activity → ResourcePool.generate → ModelClient.generate → httpx POST
 """
+import hashlib
 import json
 import logging
 import re
 import time
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional
 
 from common.errors import ModelAPIError
 from common.model_usage import canonical_model_usage
 from common.types import ModelResponse, StopReason, ToolCall
 
 logger = logging.getLogger("HpAgent.ModelClient")
+
+MODEL_REQUEST_SERIALIZER_VERSION = "hpagent-provider-request-v1"
+
+
+def _freeze(value: Any) -> Any:
+    if isinstance(value, dict):
+        return MappingProxyType({str(k): _freeze(v) for k, v in value.items()})
+    if isinstance(value, list):
+        return tuple(_freeze(v) for v in value)
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {k: _thaw(v) for k, v in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw(v) for v in value]
+    return value
+
+
+def canonical_request_json(payload: Mapping[str, Any]) -> bytes:
+    return json.dumps(
+        _thaw(payload), ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+@dataclass(frozen=True)
+class PreparedModelRequest:
+    """Credential-free, immutable provider request prepared before dispatch."""
+
+    endpoint_id: str
+    provider: str
+    model: str
+    api_format: str
+    url: str
+    payload: Mapping[str, Any]
+    serializer_version: str
+    _payload_digest: bytes
+
+    def body(self) -> dict[str, Any]:
+        return _thaw(self.payload)
+
+    def verify_immutable(self) -> None:
+        if hashlib.sha256(canonical_request_json(self.payload)).digest() != self._payload_digest:
+            raise ValueError("prepared model request mutated after freeze")
+
+
+class ModelDispatchError(ModelAPIError):
+    """A failure after HTTP dispatch began; provider receipt is uncertain."""
+
+    dispatched = True
 
 
 class ModelClient:
@@ -80,14 +135,53 @@ class ModelClient:
         max_tokens: Optional[int] = None,
     ) -> ModelResponse:
         """调用模型生成回复。max_tokens 覆盖实例默认值。"""
+        prepared = self.prepare_request(messages, tools, stream, max_tokens)
+        return await self.send_prepared(prepared, on_text_delta=on_text_delta)
+
+    def prepare_request(
+        self,
+        messages: List[Dict[str, Any]],
+        tools: Optional[List[Dict[str, Any]]] = None,
+        stream: bool = False,
+        max_tokens: Optional[int] = None,
+    ) -> PreparedModelRequest:
+        payload = self._build_payload(messages, tools, stream, max_tokens=max_tokens)
+        frozen = _freeze(payload)
+        return PreparedModelRequest(
+            endpoint_id=self.endpoint_id,
+            provider=self.provider,
+            model=self.model,
+            api_format=self.api_format,
+            url=self._build_url(),
+            payload=frozen,
+            serializer_version=MODEL_REQUEST_SERIALIZER_VERSION,
+            _payload_digest=hashlib.sha256(canonical_request_json(frozen)).digest(),
+        )
+
+    async def send_prepared(
+        self,
+        prepared: PreparedModelRequest,
+        on_text_delta: Optional[Callable[[str], Awaitable[None]]] = None,
+    ) -> ModelResponse:
         import httpx
 
-        url = self._build_url()
+        prepared.verify_immutable()
+        if (
+            prepared.endpoint_id != self.endpoint_id
+            or prepared.provider != self.provider
+            or prepared.model != self.model
+            or prepared.api_format != self.api_format
+            or prepared.url != self._build_url()
+            or prepared.serializer_version != MODEL_REQUEST_SERIALIZER_VERSION
+        ):
+            raise ValueError("prepared request identity does not match dispatch client")
+        url = prepared.url
         headers = self._build_headers()
-        payload = self._build_payload(messages, tools, stream, max_tokens=max_tokens)
+        payload = prepared.body()
+        stream = bool(payload.get("stream", False))
         thinking = self._extra_body.get("thinking")
         thinking_mode = thinking.get("type") if isinstance(thinking, dict) else None
-        request_tool_count = len(tools or [])
+        request_tool_count = len(payload.get("tools") or [])
         logger.debug(
             "Model request: endpoint=%s provider=%s model=%s format=%s "
             "stream=%s request_tools=%d max_tokens=%s thinking=%s",
@@ -124,7 +218,7 @@ class ModelClient:
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 tokens = canonical_model_usage(
                     self._raw_usage(response),
-                    messages=messages,
+                    messages=payload.get("messages") or [],
                     output_text=result.content,
                 )
                 result.usage = tokens
@@ -160,12 +254,14 @@ class ModelClient:
                     resp_body = e.response.text[:500]
                 except Exception:
                     resp_body = "(unable to read response body)"
-                raise ModelAPIError(
+                raise ModelDispatchError(
                     reason=f"HTTP {e.response.status_code}: {resp_body}",
                     status_code=e.response.status_code,
                 )
+            except ModelDispatchError:
+                raise
             except Exception as e:
-                raise ModelAPIError(reason=f"{type(e).__name__}: {e}")
+                raise ModelDispatchError(reason=f"{type(e).__name__}: {e}")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # URL / Headers / Payload

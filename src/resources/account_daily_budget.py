@@ -76,6 +76,7 @@ class AccountDailyBudgetService:
         tokens: int,
         *,
         at: datetime | None = None,
+        snapshot_id: UUID | None = None,
     ) -> AccountBudgetMutation:
         requested = _tokens(tokens)
         operation_id = _operation(operation_id)
@@ -94,12 +95,12 @@ class AccountDailyBudgetService:
             (account_id, day),
         ).fetchone()
         existing = uow.execute(
-            "SELECT state,reserved_tokens FROM account_model_usage_ledger "
+            "SELECT state,reserved_tokens,snapshot_id FROM account_model_usage_ledger "
             "WHERE account_id=%s AND quota_date=%s AND operation_id=%s",
             (account_id, day, operation_id),
         ).fetchone()
         if existing:
-            if int(existing["reserved_tokens"]) != requested:
+            if int(existing["reserved_tokens"]) != requested or existing["snapshot_id"] != snapshot_id:
                 raise AccountDailyBudgetConflict("operation_id was reserved with different tokens")
             return AccountBudgetMutation(
                 account_id, day, operation_id, requested, str(existing["state"]), True
@@ -111,9 +112,9 @@ class AccountDailyBudgetService:
         ):
             raise AccountDailyBudgetExhausted("Account daily model token budget exhausted")
         uow.execute(
-            "INSERT INTO account_model_usage_ledger(account_id,quota_date,operation_id,state,reserved_tokens) "
-            "VALUES (%s,%s,%s,'reserved',%s)",
-            (account_id, day, operation_id, requested),
+            "INSERT INTO account_model_usage_ledger(account_id,quota_date,operation_id,"
+            "snapshot_id,state,reserved_tokens) VALUES (%s,%s,%s,%s,'reserved',%s)",
+            (account_id, day, operation_id, snapshot_id, requested),
         )
         uow.execute(
             "UPDATE account_daily_model_budgets SET reserved_tokens=reserved_tokens+%s,updated_at=now() "

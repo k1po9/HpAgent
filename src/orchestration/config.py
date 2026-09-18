@@ -47,6 +47,7 @@ class ModelEntry:
     max_tokens: int = 2048
     timeout: float = 30.0
     extra_body: dict = field(default_factory=dict)  # 模型级请求参数，覆盖 provider 默认值
+    access_tier: str = "standard"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -164,6 +165,7 @@ class ModelsConfig:
             api_key=provider.api_key,
             base_url=provider.base_url,
             model=entry.model,
+            access_tier=entry.access_tier,
             extra={
                 "api_format": provider.api_format,
                 "max_tokens": entry.max_tokens,

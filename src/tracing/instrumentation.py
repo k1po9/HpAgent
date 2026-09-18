@@ -11,7 +11,10 @@ def model_observation_metadata(decision: object) -> dict[str, Any]:
     """Extract operational model facts without response text or reasoning."""
     raw_response = getattr(decision, "raw_response", None)
     metadata: dict[str, Any] = {}
-    for field in ("model", "provider", "endpoint_id"):
+    for field in (
+        "model", "provider", "endpoint_id", "model_call_id", "snapshot_id",
+        "content_hash", "fallback_attempt", "provider_outcome",
+    ):
         value = getattr(raw_response, field, None)
         if value:
             metadata[field] = str(value)

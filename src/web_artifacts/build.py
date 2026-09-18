@@ -5,6 +5,7 @@ from uuid import UUID
 
 from common.logging import log_event
 from persistence.uow import UnitOfWork
+from resources.model_budget_context import model_budget_scope
 
 from .generator import ArtifactGenerationError, WebArtifactGenerator
 
@@ -21,11 +22,16 @@ class ArtifactBuildService:
         if inputs["status"] == "completed":
             return {"artifact_version_id": str(version_id), "status": "completed"}
         try:
-            html = await self.generator.generate(
-                source_markdown=inputs["source_markdown"],
-                instruction=inputs["instruction"],
-                previous_html=inputs["previous_html"],
-            )
+            with model_budget_scope(
+                inputs["account_id"], inputs["run_id"],
+                f"artifact:{version_id}:generate:v1", phase="artifact_generation",
+                final_response=True,
+            ):
+                html = await self.generator.generate(
+                    source_markdown=inputs["source_markdown"],
+                    instruction=inputs["instruction"],
+                    previous_html=inputs["previous_html"],
+                )
             self._complete(version_id, html)
             log_event(logger, logging.INFO, "artifact_build_completed", "artifact",
                       artifact_version_id=str(version_id), status="success")
@@ -46,7 +52,8 @@ class ArtifactBuildService:
     def _prepare(self, version_id: UUID) -> dict[str, str | None]:
         with UnitOfWork(self.database) as uow:
             row = uow.execute(
-                "SELECT v.*,m.content AS source_markdown,p.html AS previous_html "
+                "SELECT v.*,m.content AS source_markdown,m.produced_by_run_id AS run_id,"
+                "p.html AS previous_html "
                 "FROM artifact_versions v JOIN artifacts a ON a.account_id=v.account_id "
                 "AND a.artifact_id=v.artifact_id JOIN messages m ON m.account_id=a.account_id "
                 "AND m.message_id=a.source_message_id LEFT JOIN artifact_versions p "
@@ -55,6 +62,8 @@ class ArtifactBuildService:
             ).fetchone()
             if not row:
                 raise ValueError("artifact version not found")
+            if row["run_id"] is None:
+                raise ValueError("artifact source message has no producing Run")
             if row["status"] == "completed":
                 return {"status": "completed", "source_markdown": "", "instruction": None,
                         "previous_html": None}
@@ -65,7 +74,8 @@ class ArtifactBuildService:
             )
             log_event(logger, logging.INFO, "artifact_build_started", "artifact",
                       artifact_version_id=str(version_id), status="running")
-            return {"status": "running", "source_markdown": str(row["source_markdown"]),
+            return {"status": "running", "account_id": row["account_id"],
+                    "run_id": row["run_id"], "source_markdown": str(row["source_markdown"]),
                     "instruction": row["instruction"], "previous_html": row["previous_html"]}
 
     def _complete(self, version_id: UUID, html: str) -> None:

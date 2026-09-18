@@ -25,6 +25,7 @@ from typing import Dict
 from temporalio.client import Client
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
+from account.entitlement_service import EntitlementService
 from account.identity_binding_service import IdentityBindingService
 from application.conversation import ConversationService
 from application.identity_commands import IdentityCommandService
@@ -41,6 +42,8 @@ from memory.activities import ScheduledMemoryActivities
 from memory.workflows import MetricsReportWorkflow, ReflectWorkflow
 from orchestration.config import AppConfig, SandboxConfig
 from resources.credentials import CredentialManager, ModelEndpoint
+from resources.model_budget_coordinator import ModelBudgetCoordinator
+from resources.model_input_snapshot import SnapshotRepository
 from resources.resource_pool import ResourcePool
 from sandbox.git_repo import GitRepoManager
 from sandbox.nsjail import NsjailConfig
@@ -630,7 +633,15 @@ async def _init_dependencies(
         raise RuntimeError("No models configured in models.yaml")
 
     credential_manager.register_model_chain(all_endpoints)
-    resource_pool = ResourcePool(credential_manager)
+    worker_database_url = os.getenv("WORKER_DATABASE_URL")
+    if not worker_database_url:
+        raise RuntimeError("WORKER_DATABASE_URL is required for governed model invocation")
+    resource_pool = ResourcePool(
+        credential_manager,
+        entitlement_service=EntitlementService(worker_database_url),
+        budget_coordinator=ModelBudgetCoordinator(worker_database_url),
+        snapshot_repository=SnapshotRepository(worker_database_url),
+    )
     await resource_pool.initialize_models()
     for category, ids in category_ids.items():
         resource_pool.configure_fallback_group(category, ids)

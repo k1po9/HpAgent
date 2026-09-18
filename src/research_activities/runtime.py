@@ -597,6 +597,11 @@ class ResearchActivities:
 
     async def _synthesize(self, run_id: UUID) -> int:
         with UnitOfWork(self.database) as uow:
+            owner = uow.execute(
+                "SELECT account_id FROM runs WHERE run_id=%s", (run_id,)
+            ).fetchone()
+            if owner is None:
+                raise ValueError("research Run does not exist")
             existing = self.repository.load_report(uow, run_id)
             if existing is not None:
                 return int(
@@ -609,7 +614,8 @@ class ResearchActivities:
         if not evidence:
             raise ValueError("research report requires persisted EvidenceItems")
         with model_budget_scope(
-            self.budget, str(run_id), f"research:{run_id}:Synthesis:model:v1",
+            owner["account_id"], run_id, f"research:{run_id}:Synthesis:model:v1",
+            phase="research_synthesis",
             execution_attempt=self._attempt(), final_response=True,
         ):
             report = await self.synthesis.synthesize(

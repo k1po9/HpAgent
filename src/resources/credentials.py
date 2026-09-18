@@ -9,10 +9,10 @@ CredentialManager —— API 密钥安全管理和模型退避链配置。
   - register_model_chain([ep1, ep2, ep3]) → 注册有序端点列表
   - ResourcePool.generate() 时按列表顺序逐一尝试，失败自动跳到下一个
 """
-from typing import Dict, Any, Optional, List
-from threading import RLock
-from dataclasses import dataclass, field
 import time
+from dataclasses import dataclass, field
+from threading import RLock
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -45,6 +45,7 @@ class ModelEndpoint:
     model: Optional[str] = None
     extra: Dict[str, Any] = field(default_factory=dict)
     endpoint_id: str = ""
+    access_tier: str = "standard"
 
 
 class CredentialManager:
@@ -94,6 +95,7 @@ class CredentialManager:
                         "base_url": endpoint.base_url,
                         "model": endpoint.model,
                         "index": idx,
+                        "access_tier": endpoint.access_tier,
                         **endpoint.extra,
                     },
                 )
@@ -105,6 +107,7 @@ class CredentialManager:
                     base_url=endpoint.base_url,
                     model=endpoint.model,
                     extra=endpoint.extra,
+                    access_tier=endpoint.access_tier,
                 )
                 self._model_endpoints.append(sanitized_endpoint)
 
@@ -127,6 +130,7 @@ class CredentialManager:
                     base_url=endpoint.base_url,
                     model=endpoint.model,
                     extra=endpoint.extra,
+                    access_tier=endpoint.access_tier,
                 ))
             return result
 

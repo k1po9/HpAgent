@@ -17,11 +17,12 @@ pytestmark = pytest.mark.postgres
 
 def _provider_attempt_id(run_id: str, execution_attempt: int) -> str:
     with model_budget_scope(
-        None, run_id, f"{run_id}:decision", execution_attempt=execution_attempt,
+        uuid4(), run_id, f"{run_id}:decision", execution_attempt=execution_attempt,
     ):
         context = current_model_budget()
         assert context is not None
-        return context.next_operation_id(1, "primary")
+        _ordinal, model_call_id = context.begin_logical_call()
+        return context.attempt_operation_id(model_call_id, 1, "primary")
 
 
 def _model_reservation() -> dict[str, int]:
