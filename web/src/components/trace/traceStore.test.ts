@@ -79,4 +79,38 @@ describe("traceStore", () => {
     expect(store.getState().rootIds).toEqual(["root"]);
     expect(store.getState().selectedNodeId).toBe("root");
   });
+
+  it("loads model input only on demand and caches fallback attempts independently", async () => {
+    const getModelInput = vi.fn(async (snapshotId: string) => ({
+      visibility: "summary",
+      model_input: {
+        snapshot_id: snapshotId,
+        content_hash: `hash-${snapshotId}`,
+        model_call_id: "call-1",
+        phase: "decision",
+        fallback_attempt: snapshotId === "snapshot-1" ? 1 : 2,
+        endpoint_id: "endpoint",
+        provider: "example",
+        model: "model-a",
+        api_format: "openai",
+        created_at: "2026-08-22T00:00:00Z",
+        message_count: 1,
+        tool_count: 0,
+      },
+    }));
+    const store = createTraceStore({ getRunTrace: vi.fn(), getModelInput } as never);
+
+    expect(getModelInput).not.toHaveBeenCalled();
+    await store.getState().loadModelInput("snapshot-1");
+    await store.getState().loadModelInput("snapshot-2");
+    await store.getState().loadModelInput("snapshot-1");
+
+    expect(getModelInput).toHaveBeenCalledTimes(2);
+    expect(store.getState().modelInputs["snapshot-1"]?.detail?.model_input.fallback_attempt).toBe(
+      1,
+    );
+    expect(store.getState().modelInputs["snapshot-2"]?.detail?.model_input.fallback_attempt).toBe(
+      2,
+    );
+  });
 });

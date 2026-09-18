@@ -77,6 +77,7 @@ from .auth import (
 from .command_projection import command_body
 from .config import WebApiSettings
 from .fake_executor import FakeArtifactExecutor, FakeRunExecutor
+from .model_observability_queries import ModelInputUnavailable, ModelObservabilityQueries
 from .models import (
     CreateArtifactRequest,
     CreateArtifactVersionRequest,
@@ -309,6 +310,7 @@ def create_app(
                 ),
             )
             app.state.trace_repository = PostgresTraceRepository(api_pool)
+            app.state.model_observability = ModelObservabilityQueries(api_pool)
             # Redis is optional; the gateway degrades to snapshot + polling.
             redis_client = None
             if settings.redis_url:
@@ -436,6 +438,12 @@ def create_app(
     @app.exception_handler(CsrfInvalid)
     async def csrf_invalid(request: Request, exc: CsrfInvalid):
         return _error(request, 403, "csrf_invalid", "CSRF 校验失败。", retryable=True)
+
+    @app.exception_handler(ModelInputUnavailable)
+    async def model_input_unavailable(request: Request, exc: ModelInputUnavailable):
+        return _error(
+            request, 403, "model_input_unavailable", "当前账号不可查看模型输入。"
+        )
 
     def idempotency_key(request: Request) -> str:
         values = request.headers.getlist("idempotency-key")
@@ -954,6 +962,22 @@ def create_app(
         if tree is None:
             raise ResourceNotFound()
         return trace_tree_dto(tree)
+
+    @app.get("/api/v1/runs/{run_id}/model-inputs")
+    def list_run_model_inputs(
+        run_id: UUID, request: Request, context: AuthContext = Depends(auth_context),
+    ):
+        return request.app.state.model_observability.list_run_model_snapshots(
+            context.account_id, run_id
+        )
+
+    @app.get("/api/v1/model-inputs/{snapshot_id}")
+    def get_model_input(
+        snapshot_id: UUID, request: Request, context: AuthContext = Depends(auth_context),
+    ):
+        return request.app.state.model_observability.get_model_snapshot(
+            context.account_id, snapshot_id
+        )
 
     @app.post("/api/v1/messages/{message_id}/artifacts")
     def create_artifact(message_id: UUID, payload: CreateArtifactRequest, request: Request,

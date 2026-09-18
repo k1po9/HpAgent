@@ -1,4 +1,4 @@
-import type { TraceNode } from "./traceStore";
+import type { ModelInputState, TraceNode } from "./traceStore";
 
 interface TokenUsage {
   input_tokens: number;
@@ -26,11 +26,73 @@ function formatTime(value: string | null): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
 }
 
-export function TraceDetail({ node }: { node: TraceNode | null }) {
+function ModelInputView({ state }: { state: ModelInputState }) {
+  if (state.status === "loading") return <p>正在加载 Model Input…</p>;
+  if (state.status === "unavailable") return <p>当前账号不可查看 Model Input。</p>;
+  if (state.status === "error") return <p>Model Input 暂时无法加载。</p>;
+  const detail = state.detail;
+  if (!detail) return null;
+  const input = detail.model_input;
+  return (
+    <div data-testid={`model-input-${detail.visibility}`}>
+      <dl>
+        <div>
+          <dt>Snapshot</dt>
+          <dd>{input.snapshot_id}</dd>
+        </div>
+        <div>
+          <dt>Content hash</dt>
+          <dd>{input.content_hash.slice(0, 12)}</dd>
+        </div>
+        <div>
+          <dt>Phase</dt>
+          <dd>{input.phase}</dd>
+        </div>
+        <div>
+          <dt>Fallback</dt>
+          <dd>Attempt {input.fallback_attempt}</dd>
+        </div>
+        <div>
+          <dt>Provider / model</dt>
+          <dd>
+            {input.provider} / {input.model}
+          </dd>
+        </div>
+        <div>
+          <dt>Messages / tools</dt>
+          <dd>
+            {input.message_count} / {input.tool_count}
+          </dd>
+        </div>
+      </dl>
+      {detail.visibility === "full_safe" && input.provider_request_body ? (
+        <pre data-testid="model-input-provider-body">
+          {JSON.stringify(input.provider_request_body, null, 2)}
+        </pre>
+      ) : (
+        <p>此账号仅可查看安全元数据摘要。</p>
+      )}
+    </div>
+  );
+}
+
+export function TraceDetail({
+  node,
+  modelInputs,
+  onOpenModelInput,
+}: {
+  node: TraceNode | null;
+  modelInputs: Record<string, ModelInputState>;
+  onOpenModelInput: (snapshotId: string) => Promise<void>;
+}) {
   if (!node) {
     return <div className="hp-trace-detail hp-trace-empty">选择节点查看详情。</div>;
   }
   const usage = node.type === "llm" ? tokenUsage(node.metadata.token_usage) : null;
+  const snapshotId =
+    typeof node.metadata.snapshot_id === "string" ? node.metadata.snapshot_id : null;
+  const contentHash =
+    typeof node.metadata.content_hash === "string" ? node.metadata.content_hash : null;
   return (
     <section className="hp-trace-detail" aria-label="Trace 节点详情">
       <div className="hp-trace-detail__heading">
@@ -88,6 +150,24 @@ export function TraceDetail({ node }: { node: TraceNode | null }) {
               </div>
             </dl>
           ) : null}
+        </div>
+      ) : null}
+      {snapshotId ? (
+        <div className="hp-trace-detail__model-input">
+          <div>
+            <strong>Model Input</strong>
+            <code>
+              {snapshotId.slice(0, 8)}
+              {contentHash ? ` · ${contentHash.slice(0, 12)}` : ""}
+            </code>
+          </div>
+          {!modelInputs[snapshotId] ? (
+            <button type="button" onClick={() => void onOpenModelInput(snapshotId)}>
+              查看 Model Input
+            </button>
+          ) : (
+            <ModelInputView state={modelInputs[snapshotId]} />
+          )}
         </div>
       ) : null}
       <div className="hp-trace-detail__metadata">

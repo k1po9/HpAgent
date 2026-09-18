@@ -15,6 +15,7 @@ import type {
   HpRetryResult,
   HpRunSnapshot,
   HpTraceTree,
+  HpModelInputDetail,
   HpSendResult,
   HpArtifact,
   HpArtifactSummary,
@@ -184,6 +185,13 @@ export class HpApi {
     return this.client.request<HpTraceTree>({
       method: "GET",
       path: `/api/v1/runs/${runId}/trace`,
+    });
+  }
+
+  async getModelInput(snapshotId: string): Promise<HpModelInputDetail> {
+    return this.client.request<HpModelInputDetail>({
+      method: "GET",
+      path: `/api/v1/model-inputs/${snapshotId}`,
     });
   }
 

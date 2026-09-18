@@ -180,6 +180,28 @@ export interface HpTraceTree {
   roots: HpTraceEventNode[];
 }
 
+export type HpPromptVisibility = "none" | "summary" | "full_safe";
+
+export interface HpModelInputSummary {
+  snapshot_id: string;
+  content_hash: string;
+  model_call_id: string;
+  phase: string;
+  fallback_attempt: number;
+  endpoint_id: string;
+  provider: string;
+  model: string;
+  api_format: string;
+  created_at: string;
+  message_count: number;
+  tool_count: number;
+}
+
+export interface HpModelInputDetail {
+  visibility: Exclude<HpPromptVisibility, "none">;
+  model_input: HpModelInputSummary & { provider_request_body?: Record<string, unknown> };
+}
+
 export interface HpActiveRun {
   run: HpRun;
   assistant_message: HpMessage;

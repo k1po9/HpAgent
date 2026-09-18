@@ -13,9 +13,11 @@ export function TracePanel() {
   const selectedNodeId = useTraceStore((state) => state.selectedNodeId);
   const loading = useTraceStore((state) => state.loading);
   const error = useTraceStore((state) => state.error);
+  const modelInputs = useTraceStore((state) => state.modelInputs);
   const setOpen = useTraceStore((state) => state.setOpen);
   const loadTrace = useTraceStore((state) => state.loadTrace);
   const selectNode = useTraceStore((state) => state.selectNode);
+  const loadModelInput = useTraceStore((state) => state.loadModelInput);
 
   useEffect(() => {
     if (open && runId) void loadTrace();
@@ -69,7 +71,11 @@ export function TracePanel() {
         )}
         {error && rootIds.length > 0 ? <div className="hp-trace-warning">{error}</div> : null}
       </div>
-      <TraceDetail node={selectedNode} />
+      <TraceDetail
+        node={selectedNode}
+        modelInputs={modelInputs}
+        onOpenModelInput={loadModelInput}
+      />
     </aside>
   );
 }

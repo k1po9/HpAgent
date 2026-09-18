@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { api as defaultApi } from "../../api/client";
 import { HpApi } from "../../api/resources";
 import type { HpTraceEventNode, HpTraceRun, HpTraceStatus, HpTraceTree } from "../../api/types";
+import type { HpModelInputDetail } from "../../api/types";
 import type { TraceEventUpdate } from "../../sse/runFeed";
 
 export interface TraceNode {
@@ -25,13 +26,20 @@ export interface TraceState {
   selectedNodeId: string | null;
   loading: boolean;
   error: string | null;
+  modelInputs: Record<string, ModelInputState>;
 
   setOpen: (open: boolean) => void;
   followRun: (runId: string | null) => void;
   loadTrace: () => Promise<void>;
   applyEvent: (runId: string, event: TraceEventUpdate) => void;
   selectNode: (nodeId: string) => void;
+  loadModelInput: (snapshotId: string) => Promise<void>;
   reset: () => void;
+}
+
+export interface ModelInputState {
+  status: "loading" | "loaded" | "unavailable" | "error";
+  detail?: HpModelInputDetail;
 }
 
 function flattenTree(tree: HpTraceTree): {
@@ -73,6 +81,7 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
     selectedNodeId: null,
     loading: false,
     error: null,
+    modelInputs: {},
 
     setOpen: (open) => set({ open }),
 
@@ -86,6 +95,7 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
         selectedNodeId: null,
         loading: false,
         error: null,
+        modelInputs: {},
       });
     },
 
@@ -158,6 +168,35 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
 
     selectNode: (selectedNodeId) => set({ selectedNodeId }),
 
+    loadModelInput: async (snapshotId) => {
+      const current = get().modelInputs[snapshotId];
+      if (current?.status === "loading" || current?.status === "loaded") return;
+      set((state) => ({
+        modelInputs: { ...state.modelInputs, [snapshotId]: { status: "loading" } },
+      }));
+      try {
+        const detail = await api.getModelInput(snapshotId);
+        set((state) => ({
+          modelInputs: {
+            ...state.modelInputs,
+            [snapshotId]: { status: "loaded", detail },
+          },
+        }));
+      } catch (error) {
+        const unavailable =
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "model_input_unavailable";
+        set((state) => ({
+          modelInputs: {
+            ...state.modelInputs,
+            [snapshotId]: { status: unavailable ? "unavailable" : "error" },
+          },
+        }));
+      }
+    },
+
     reset: () =>
       set({
         runId: null,
@@ -167,6 +206,7 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
         selectedNodeId: null,
         loading: false,
         error: null,
+        modelInputs: {},
       }),
   }));
 }

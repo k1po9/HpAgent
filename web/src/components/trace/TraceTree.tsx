@@ -59,6 +59,9 @@ function TraceTreeNode({
         <button type="button" className="hp-trace-tree__node" onClick={() => onSelect(node.id)}>
           <StatusIcon status={node.status} />
           <span className="hp-trace-tree__name">{node.name}</span>
+          {typeof node.metadata.snapshot_id === "string" ? (
+            <span className="hp-trace-tree__model-input">Model Input</span>
+          ) : null}
           <span className="hp-trace-tree__duration">{durationLabel(node.durationMs)}</span>
         </button>
       </div>
