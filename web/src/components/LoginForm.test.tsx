@@ -21,6 +21,7 @@ describe("LoginForm autocomplete", () => {
       "new-password",
     );
     expect(screen.getByLabelText("确认密码")).toHaveAttribute("autocomplete", "new-password");
+    expect(screen.getByLabelText("邀请码（可选）")).not.toBeRequired();
   });
 
   it("switches to login recovery after registration succeeds without a session", async () => {
@@ -41,7 +42,6 @@ describe("LoginForm autocomplete", () => {
     await user.type(screen.getByLabelText("用户名"), "alice");
     await user.type(screen.getByLabelText("密码", { selector: "input" }), "correct-password");
     await user.type(screen.getByLabelText("确认密码"), "correct-password");
-    await user.type(screen.getByLabelText("邀请码"), "invite-secret");
     await user.click(screen.getByRole("button", { name: "注册" }));
 
     expect(await screen.findByText(/注册成功，但自动登录失败/)).toBeInTheDocument();
@@ -75,7 +75,7 @@ describe("LoginForm autocomplete", () => {
     await user.type(screen.getByLabelText("用户名"), "alice");
     await user.type(screen.getByLabelText("密码", { selector: "input" }), "correct-password");
     await user.type(screen.getByLabelText("确认密码"), "correct-password");
-    await user.type(screen.getByLabelText("邀请码"), "bad-secret");
+    await user.type(screen.getByLabelText("邀请码（可选）"), "bad-secret");
     await user.click(screen.getByRole("button", { name: "注册" }));
     expect(await screen.findByText("邀请码无效或不可用。")).toBeInTheDocument();
   });

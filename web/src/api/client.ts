@@ -118,12 +118,17 @@ export class ApiClient {
     return (await this.me()) !== null;
   }
 
-  async register(username: string, password: string, inviteCode: string): Promise<boolean> {
+  async register(username: string, password: string, inviteCode?: string): Promise<boolean> {
+    const body = {
+      username,
+      password,
+      ...(inviteCode?.trim() ? { invite_code: inviteCode.trim() } : {}),
+    };
     const response = await this.fetchImpl("/auth/register", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ username, password, invite_code: inviteCode }),
+      body: JSON.stringify(body),
     });
     if (!response.ok) {
       throw await this.toError(response);

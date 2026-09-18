@@ -3,7 +3,6 @@
  * and a sign-out that returns to the login gate.
  */
 import { expect, test } from "@playwright/test";
-import { readFileSync, unlinkSync } from "node:fs";
 import { login } from "./helpers";
 
 test("rejects wrong credentials with the server's safe message", async ({ page }) => {
@@ -34,9 +33,6 @@ test("signs out back to the login gate", async ({ page }) => {
 });
 
 test("registers, auto-signs in, and can log in again", async ({ page }) => {
-  const invitePath = new URL("../.e2e-runtime/registration-invite", import.meta.url);
-  const inviteCode = readFileSync(invitePath, "utf8").trim();
-  unlinkSync(invitePath);
   const username = `e2e-register-${Date.now()}`;
   await page.goto("/");
   await page.getByRole("button", { name: "没有账号？注册" }).click();
@@ -44,7 +40,6 @@ test("registers, auto-signs in, and can log in again", async ({ page }) => {
   await page.getByLabel("用户名").fill(username);
   await page.getByLabel("密码", { exact: true }).fill("register-password");
   await page.getByLabel("确认密码").fill("register-password");
-  await page.getByLabel("邀请码").fill(inviteCode);
   await page.getByRole("button", { name: "注册", exact: true }).click();
   await expect(page.locator(".hp-workbench")).toBeVisible();
   await expect(page.getByRole("alertdialog")).toBeVisible();

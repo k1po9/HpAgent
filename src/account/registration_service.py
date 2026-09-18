@@ -10,10 +10,16 @@ from argon2 import PasswordHasher
 from uuid6 import uuid7
 
 from account.identity import normalize_web_subject
-from account.invite_service import RegistrationInviteService
+from account.invite_service import EntitlementProfile, RegistrationInviteService
 from persistence.uow import UnitOfWork
 
 logger = logging.getLogger("HpAgent.Account")
+
+DEFAULT_SELF_SERVICE_ENTITLEMENT = EntitlementProfile(
+    model_access_tier="standard",
+    daily_token_limit=50_000,
+    prompt_visibility="none",
+)
 
 
 class RegistrationError(Exception):
@@ -45,7 +51,9 @@ class RegistrationService:
         self._hasher = PasswordHasher()
         self._invites = RegistrationInviteService(database)
 
-    def register(self, username: str, password: str, invite_code: str) -> RegistrationResult:
+    def register(
+        self, username: str, password: str, invite_code: str | None = None
+    ) -> RegistrationResult:
         subject = normalize_web_subject(username)
         if not subject or len(subject) > 512:
             raise InvalidUsername("invalid username")
@@ -56,7 +64,14 @@ class RegistrationService:
         account_id, binding_id, credential_id = uuid7(), uuid7(), uuid7()
         try:
             with UnitOfWork(self._database) as uow:
-                invite_id, profile = self._invites.consume_in_uow(uow, invite_code)
+                normalized_invite = invite_code.strip() if invite_code else ""
+                if normalized_invite:
+                    invite_id, profile = self._invites.consume_in_uow(
+                        uow, normalized_invite
+                    )
+                else:
+                    invite_id = None
+                    profile = DEFAULT_SELF_SERVICE_ENTITLEMENT
                 uow.execute("INSERT INTO accounts(account_id) VALUES (%s)", (account_id,))
                 uow.execute(
                     "INSERT INTO identity_bindings(identity_binding_id,account_id,"
@@ -76,7 +91,8 @@ class RegistrationService:
                     (account_id, profile.model_access_tier, profile.daily_token_limit,
                      profile.prompt_visibility, profile.expires_at, invite_id),
                 )
-                self._invites.record_redemption_in_uow(uow, invite_id)
+                if invite_id is not None:
+                    self._invites.record_redemption_in_uow(uow, invite_id)
         except psycopg.errors.UniqueViolation as exc:
             logger.info("web_registration_conflict username=%s", subject)
             raise UsernameAlreadyExists("username already exists") from exc

@@ -17,11 +17,11 @@ def _headers(csrf: str) -> dict[str, str]:
     }
 
 
-def test_register_auto_login_logout_and_database_login(client_factory, db, invite_factory):
+def test_register_auto_login_logout_and_database_login(client_factory, db):
     client = client_factory(postgres_credentials=True)
     registered = client.post(
         "/auth/register",
-        json={"username": " Alice ", "password": "correct-password", "invite_code": invite_factory()},
+        json={"username": " Alice ", "password": "correct-password"},
     )
     assert registered.status_code == 201
     assert "HttpOnly" in registered.headers["set-cookie"]

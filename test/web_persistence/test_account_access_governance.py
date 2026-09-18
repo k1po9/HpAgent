@@ -24,6 +24,17 @@ def _create_invite(migration_database_url, **kwargs):
     )
 
 
+def test_registration_without_invite_provisions_default_entitlement(db, database_url):
+    result = RegistrationService(database_url).register("alice", "correct-password")
+
+    entitlement = db.execute(
+        "SELECT model_access_tier,daily_token_limit,prompt_visibility,expires_at,"
+        "provisioned_by_invite_id FROM account_entitlements WHERE account_id=%s",
+        (result.account_id,),
+    ).fetchone()
+    assert tuple(entitlement) == ("standard", 50_000, "none", None, None)
+
+
 def test_valid_invite_provisions_complete_account_atomically(
     db, database_url, migration_database_url
 ):

@@ -108,14 +108,13 @@ export function LoginForm() {
               </label>
               <label>
                 <Text as="span" size="2" color="gray">
-                  邀请码
+                  邀请码（可选）
                 </Text>
                 <TextField.Root
                   type="password"
                   value={inviteCode}
                   onChange={(e) => setInviteCode(e.target.value)}
                   autoComplete="off"
-                  required
                 />
               </label>
             </>

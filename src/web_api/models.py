@@ -19,7 +19,7 @@ class LoginRequest(StrictModel):
 class RegisterRequest(StrictModel):
     username: str = Field(min_length=1, max_length=512)
     password: str = Field(min_length=1, max_length=128)
-    invite_code: str = Field(min_length=1, max_length=512)
+    invite_code: str | None = Field(default=None, min_length=1, max_length=512)
 
 
 class CreateConversationRequest(StrictModel):

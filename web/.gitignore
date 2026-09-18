@@ -18,4 +18,3 @@ vite.config.d.ts
 # 测试与 E2E 产物
 test-results/
 playwright-report/
-.e2e-runtime/

@@ -93,7 +93,7 @@ describe("ApiClient auth recovery", () => {
       });
     };
     const c = new ApiClient(authMock);
-    expect(await c.register("alice", "correct-password", "invite-secret")).toBe(true);
+    expect(await c.register("alice", "correct-password", "  invite-secret  ")).toBe(true);
     expect(JSON.parse(String(seen[0]?.init?.body))).toEqual({
       username: "alice",
       password: "correct-password",
@@ -107,6 +107,26 @@ describe("ApiClient auth recovery", () => {
       "/api/v1/identity-bindings/qq/challenges",
     ]);
     expect(headerValue(seen[2]?.init?.headers, "x-csrf-token")).toBe("csrf");
+  });
+
+  it("omits an empty optional invite from registration", async () => {
+    const seen: RequestInit[] = [];
+    const c = new ApiClient(async (input, init) => {
+      seen.push(init ?? {});
+      if (String(input) === "/auth/register") {
+        return new Response(JSON.stringify({ registered: true, session_established: false }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return OK({});
+    });
+
+    expect(await c.register("alice", "correct-password", "   ")).toBe(false);
+    expect(JSON.parse(String(seen[0]?.body))).toEqual({
+      username: "alice",
+      password: "correct-password",
+    });
   });
 
   it("reports a registered account whose automatic session was not established", async () => {
