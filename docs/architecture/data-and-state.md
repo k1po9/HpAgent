@@ -6,12 +6,14 @@
 
 主要归属：
 
-- **身份与对话**：Account、Identity Binding、Conversation、Message、Session。
+- **身份与对话**：Account、Identity Binding、Account Entitlement、Registration Invite、Conversation、Message、Session。
 - **执行**：Run、Workflow Execution、Outbox、Agent Transcript、Operation、Wait、Execution Segment、Lease 和 Fencing Token。
 - **投递与追踪**：QQ Delivery、Trace Run 和 Trace Event。
 - **文件与 Workspace 元数据**：Stored File、Message/Run Binding、Persistent Revision、Approval、Budget 和 Usage Ledger。
 - **Research 与 Artifact**：Task、Plan、Source、Evidence、Report、Artifact 和 Artifact Version。
 - **Heavy Document**：Normalized Document Operation 的结果与状态。
+
+`registration_invites.entitlement_profile` 是注册凭证的配置；注册事务将其复制到 `account_entitlements`，并以 `provisioned_by_invite_id` 保留来源。普通自助注册直接写入默认 entitlement。账号后续权限以 `account_entitlements` 为准，修改邀请 profile 不会追改已注册账号。`account_daily_model_budgets` 和 `account_model_usage_ledger` 按 UTC 日期保存账号模型 token 的预留与结算；`run_budgets` 是另一个 Run 级边界。Model Input Snapshot 保存治理调用的输入记录，查询时才按账号 entitlement 投影可见字段。
 
 ## Redis
 

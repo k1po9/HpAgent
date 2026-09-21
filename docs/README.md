@@ -19,6 +19,7 @@
 
 ## 运维
 
+- [Account 与模型治理](operations/account-governance.md)
 - [部署](operations/deployment.md)
 - [运行手册](operations/runbook.md)
 - [日志](operations/logging.md)
