@@ -8,6 +8,8 @@
 4. ReAct 或 Plan-and-Execute 通过 Activity 调用 Context、Brain 和 Actions。
 5. 结果与 Trace 提交到 PostgreSQL；Terminal Publication 唤醒 Web SSE Client。
 
+模型调用内部顺序：Entitlement 与 Endpoint Tier 检查 → Prepared Model Request → Freeze Model Input Snapshot → 原子预留 Account/day 与 Run budget → Provider Dispatch → Settlement 或 Release。Snapshot 冻结与预算预留是不同事务边界。
+
 ## QQ Agent Run 与 Delivery
 
 1. QQ Adapter 标准化 Provider Identity、Room/Thread、Mention 和 Message Identity。

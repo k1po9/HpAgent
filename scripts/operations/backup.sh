@@ -2,12 +2,12 @@
 # =============================================================================
 # HpAgent application-state backup.
 #
-# 最小备份集合（§23）：
+# 当前脚本覆盖的状态：
 #   A. App PostgreSQL（accounts/identity_bindings/conversations/messages/runs/
 #      sessions/outbox_events/workflow_executions）→ pg_dump
 #   B. Workspace（.data/workspace，用户实际文件 + Git workspace）
 #   C. Hindsight PostgreSQL（长期记忆）→ pg_dump
-#   D. Temporal：重大升级前手工记录 volume 恢复方式（本脚本不强制）
+#   D. Temporal：需在部署层另行备份 PostgreSQL/volume（本脚本不包含）
 #   E. Redis：不备份（transient state）
 #
 # 用法:
@@ -35,4 +35,4 @@ echo "[backup] workspace (.data/workspace)..."
 tar czf "$OUT/workspace-$stamp.tar.gz" .data/workspace
 
 echo "[backup] done → $OUT (stamp=$stamp)"
-echo "[backup] 提示：重大升级前还应记录 Temporal 的 volume/DB 恢复方式（§23-D）。"
+echo "[backup] 提示：Temporal PostgreSQL/volume 和 File Store 需要在部署层另行备份。"

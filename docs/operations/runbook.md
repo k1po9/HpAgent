@@ -38,6 +38,12 @@ python scripts/check/mcp-health.py --help
 ./scripts/check/gateway-smoke.sh
 ```
 
+`scripts/operations/observability-viewer.py` 可在本机只读查看结构化 JSONL 日志与 PostgreSQL 执行状态；它是排障辅助工具，不是运行时服务。
+
+## 管理员身份预置与恢复
+
+正常 Web 用户绑定 QQ 使用 `POST /api/v1/identity-bindings/qq/challenges` 和 QQ ownership challenge。`scripts/operations/bootstrap-identity.py` 是使用 `MIGRATION_DATABASE_URL` 的管理员预置/恢复工具，仅用于已核实 Web 与 QQ 身份的场景；它直接写入绑定，不验证 QQ 所有权。两端身份均不存在时会建立带 `owner` entitlement 的 Account，但不会创建 Web 登录密码。已分属不同 Account 的绑定会报冲突，不由此工具合并。运行前查看 `python scripts/operations/bootstrap-identity.py --help`。
+
 ## 开发环境重置
 
 `./scripts/dev/reset.sh --help` 列出各类本地清理选项。它可以终止本地 Worker、终止匹配的 Temporal Workflow，或删除 `.data` 中的 Workspace/Log。只在确认允许丢失数据时，才对完全可丢弃的 Compose 环境删除 Volume：

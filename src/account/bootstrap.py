@@ -1,13 +1,8 @@
-"""bootstrap_identity —— 显式建立 Web/QQ 身份与同一 PostgreSQL Account 的绑定。
+"""Admin bootstrap/recovery of verified Web and QQ bindings on one Account.
 
-Phase F 身份关联必须提前显式建立（doc §12）。MVP 不支持自动 merge 不同
-Account（doc §13 Case E 直接 FAIL）。
-
-幂等语义（doc §14）：重复执行结果仍然只有 1 Account + 1 Web binding +
-1 QQ binding。
-
-本模块使用 migration/admin credential（``MIGRATION_DATABASE_URL``），
-因为 identity_bindings 属于管理面；Worker 只读。
+The normal user flow uses a QQ ownership challenge. This administrator path
+requires a migration/admin credential, is idempotent, and does not merge
+different existing Accounts or create Web login credentials.
 """
 from __future__ import annotations
 
@@ -40,7 +35,7 @@ def bootstrap_identity(
 ) -> BootstrapResult:
     """把 web_subject 与 (qq_channel, qq_subject) 关联到同一 Account。
 
-    Cases（doc §13）:
+    Cases:
       A. 两者都不存在  → 创建 Account A + Web→A + QQ→A
       B. Web 已属于 A，QQ 不存在 → QQ→A
       C. QQ 已属于 A，Web 不存在 → Web→A
@@ -68,7 +63,7 @@ def bootstrap_identity(
                 raise ValueError(
                     "identity conflict: web subject maps to "
                     f"account {web_account} but qq subject maps to {qq_account}; "
-                    "Account merge is unsupported in Phase F"
+                    "this admin bootstrap does not merge Accounts"
                 )
 
             if web_account and qq_account:

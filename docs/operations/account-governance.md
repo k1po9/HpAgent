@@ -12,6 +12,8 @@
 
 `--entitlement-expires-at` 指复制到账号的 entitlement 到期时间；`--invite-expires-at` 指邀请码自身不能再兑换的时间，两者都要求带时区的 ISO-8601 时间。`--max-redemptions` 为可兑换次数，默认 1，必须为正整数。
 
+`--profile` 的值复制到 `account_entitlements.model_access_tier`，调用模型时与 Model Endpoint 的 `access_tier` 比较。普通账号 tier 必须与端点 tier 相同；`owner` 按当前实现可访问所有 tier。`ModelEntry.access_tier` 默认 `standard`，当前 `config/models.yaml` 未显式指定时就是 `standard`。任意填写新 profile 名称不会自动创建对应模型等级或端点。
+
 ```bash
 export MIGRATION_DATABASE_URL='postgresql://...'
 python scripts/operations/create-registration-invite.py --profile standard --daily-token-limit 50000 --prompt-visibility none
@@ -23,7 +25,7 @@ python scripts/operations/create-registration-invite.py --profile standard --inv
 
 ## 两层 Token Budget
 
-`account_entitlements.daily_token_limit` 是账号级、按 UTC calendar day 计算的模型 token 配额。正整数表示每日额度，`NULL` 表示不设置 Account Daily Token Limit。它不是单轮对话限制，也不是单个 Run 的 token budget。模型调用同时经过 Account/day budget 和 Run budget：预留额度后，按实际用量结算，未使用的预留可释放。排查额度耗尽时，先确认账号 entitlement 的状态与 `daily_token_limit`，再看 `account_daily_model_budgets`、`account_model_usage_ledger` 的 UTC `quota_date` 和对应 Run 的 `run_budgets`；不要把两层额度混为一谈。
+`account_entitlements.daily_token_limit` 是账号级、按 UTC calendar day 计算的模型 token 配额。正整数表示每日额度，`NULL` 表示不设置 Account Daily Token Limit。它不是单轮对话限制，也不是单个 Run 的 token budget。模型调用先检查 entitlement 和端点 tier，准备请求、冻结 Model Input Snapshot，然后在同一 PostgreSQL 事务中原子预留 Account/day budget 与 Run budget，之后发送给 Provider，并按实际用量结算或释放预留。Snapshot 冻结不在预算预留事务内。排查额度耗尽时，先确认账号 entitlement 的状态与 `daily_token_limit`，再看 `account_daily_model_budgets`、`account_model_usage_ledger` 的 UTC `quota_date` 和对应 Run 的 `run_budgets`；不要把两层额度混为一谈。
 
 ## Prompt / Model Input 可见性
 

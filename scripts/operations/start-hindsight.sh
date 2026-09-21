@@ -1,28 +1,6 @@
 #!/bin/bash
 set -e
 
-# =============================================================================
-# Embedded pg0 data integrity check (#675)
-#
-# When using embedded pg0, check if the data directory has existing PostgreSQL
-# data before starting. If the directory exists but appears empty/corrupt
-# (e.g., missing PG_VERSION file), log a warning. This helps diagnose data
-# loss scenarios where a container restart caused the data directory to be
-# wiped despite a volume mount being present.
-# =============================================================================
-PG0_DATA_DIR="${HOME}/.pg0"
-if [ -d "$PG0_DATA_DIR" ]; then
-    # Look for actual PostgreSQL data directories (pg0 creates subdirs per instance)
-    if compgen -G "$PG0_DATA_DIR"/*/PG_VERSION > /dev/null 2>&1; then
-        echo "✅ Existing pg0 data directory detected at $PG0_DATA_DIR"
-    elif [ "$(ls -A "$PG0_DATA_DIR" 2>/dev/null)" ]; then
-        echo "⚠️  WARNING: pg0 data directory exists at $PG0_DATA_DIR but no PG_VERSION found."
-        echo "   This may indicate data corruption or an incomplete previous shutdown."
-        echo "   If you see all migrations running from scratch after this, your data may have been lost."
-        echo "   See: https://github.com/vectorize-io/hindsight/issues/675"
-    fi
-fi
-
 # Service flags (default to true if not set)
 ENABLE_API="${HINDSIGHT_ENABLE_API:-true}"
 ENABLE_CP="${HINDSIGHT_ENABLE_CP:-true}"
@@ -39,18 +17,10 @@ if [ "${HINDSIGHT_WAIT_FOR_DEPS:-false}" = "true" ]; then
     MAX_RETRIES="${HINDSIGHT_RETRY_MAX:-0}"  # 0 = infinite
     RETRY_INTERVAL="${HINDSIGHT_RETRY_INTERVAL:-10}"
 
-    # Check if external database is configured (skip check for embedded pg0)
-    SKIP_DB_CHECK=false
-    if [ -z "${HINDSIGHT_API_DATABASE_URL}" ]; then
-        SKIP_DB_CHECK=true
-    else
-        DB_CHECK_HOST=$(echo "$HINDSIGHT_API_DATABASE_URL" | sed -E 's|.*@([^:/]+):([0-9]+)/.*|\1 \2|')
-    fi
+    # Current Compose always configures the dedicated hindsight-postgres service.
+    DB_CHECK_HOST=$(echo "$HINDSIGHT_API_DATABASE_URL" | sed -E 's|.*@([^:/]+):([0-9]+)/.*|\1 \2|')
 
     check_db() {
-        if $SKIP_DB_CHECK; then
-            return 0
-        fi
         if command -v pg_isready &> /dev/null; then
             pg_isready -h $(echo $DB_CHECK_HOST | cut -d' ' -f1) -p $(echo $DB_CHECK_HOST | cut -d' ' -f2) &>/dev/null
         else
@@ -94,16 +64,13 @@ if [ "${HINDSIGHT_WAIT_FOR_DEPS:-false}" = "true" ]; then
 fi
 
 # =============================================================================
-# Graceful shutdown handler (#675)
+# Graceful shutdown handler
 #
 # Docker sends SIGTERM on `docker stop`/`docker restart`. Without a trap, child
-# processes (hindsight-api + pg0, control-plane) are killed abruptly. For the
-# embedded pg0 database this can cause data loss when the data directory is on
-# a Docker volume that gets remounted after restart.
+# processes (hindsight-api and control-plane) are killed abruptly.
 #
 # The trap forwards SIGTERM to all tracked child PIDs so that:
 #   - hindsight-api receives the signal and can run its shutdown hooks
-#   - pg0 gets a clean PostgreSQL shutdown (checkpoint + WAL flush)
 #   - The control-plane Node.js process exits cleanly
 # =============================================================================
 # Guard against concurrent cleanup (e.g., child crash + SIGTERM arriving together)
@@ -120,7 +87,7 @@ cleanup() {
             kill -TERM "$pid" 2>/dev/null
         fi
     done
-    # Give processes time to shut down cleanly (pg0 needs to flush WAL).
+    # Give child processes time to shut down cleanly.
     # NOTE: Docker's default stop_grace_period is 10s. If you use the default,
     # either set stop_grace_period: 30s in your compose file / docker stop -t 30,
     # or Docker will SIGKILL the container before this timeout expires.

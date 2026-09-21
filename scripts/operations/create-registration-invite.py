@@ -25,7 +25,7 @@ def _timestamp(value: str | None) -> datetime | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create an invite-gated Account entitlement")
+    parser = argparse.ArgumentParser(description="Create an optional registration invite with an Account entitlement profile")
     parser.add_argument("--profile", required=True, help="Model access tier")
     parser.add_argument("--daily-token-limit", type=int)
     parser.add_argument(

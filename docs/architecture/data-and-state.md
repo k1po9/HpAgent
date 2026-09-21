@@ -13,7 +13,7 @@
 - **Research 与 Artifact**：Task、Plan、Source、Evidence、Report、Artifact 和 Artifact Version。
 - **Heavy Document**：Normalized Document Operation 的结果与状态。
 
-`registration_invites.entitlement_profile` 是注册凭证的配置；注册事务将其复制到 `account_entitlements`，并以 `provisioned_by_invite_id` 保留来源。普通自助注册直接写入默认 entitlement。账号后续权限以 `account_entitlements` 为准，修改邀请 profile 不会追改已注册账号。`account_daily_model_budgets` 和 `account_model_usage_ledger` 按 UTC 日期保存账号模型 token 的预留与结算；`run_budgets` 是另一个 Run 级边界。Model Input Snapshot 保存治理调用的输入记录，查询时才按账号 entitlement 投影可见字段。
+`registration_invites.entitlement_profile` 是注册凭证的配置；注册事务将其复制到 `account_entitlements`，并以 `provisioned_by_invite_id` 保留来源。普通自助注册直接写入默认 entitlement。账号后续权限以 `account_entitlements` 为准，修改邀请 profile 不会追改已注册账号。`account_daily_model_budgets` 和 `account_model_usage_ledger` 按 UTC 日期保存账号模型 token 的预留与结算；`run_budgets` 是另一个 Run 级边界。两种预算在一次预留事务中协调。Model Input Snapshot 在预算预留前单独冻结，查询时才按账号 entitlement 投影可见字段。
 
 ## Redis
 

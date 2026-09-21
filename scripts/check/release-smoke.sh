@@ -10,7 +10,7 @@
 #
 # 前置条件（真实生产组合）：
 #   - 已配置模型 API key（MINIMAX_API_KEY / SILICONFLOW_API_KEY 等）
-#   - 需要时已运行 scripts/operations/bootstrap-identity.py
+#   - 已有可登录 Web 账号；QQ 身份绑定不是此 Web smoke 的前置条件
 #   - PostgreSQL 中已注册 smoke 用户，或使用环境变量覆盖凭据
 #   - HPAGENT_ENV=production 时不得启用 WEB_FAKE_EXECUTOR_ENABLED
 #

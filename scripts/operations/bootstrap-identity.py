@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-bootstrap_identity —— 显式把 Web 与 QQ 身份绑定到同一 PostgreSQL Account。
+管理员预置或恢复 Web/QQ 与同一 PostgreSQL Account 的身份绑定。
 
 绑定建立后，Web 与 QQ 解析到同一个 ``accounts.account_id``，
 共享同一个 Hindsight bank（``hpagent-u-{account_id}``）。
@@ -12,8 +12,10 @@ bootstrap_identity —— 显式把 Web 与 QQ 身份绑定到同一 PostgreSQL 
       --qq-channel napcat \
       --qq-subject 123456789
 
-幂等：重复执行结果不变（1 Account + 1 Web binding + 1 QQ binding）。
-Case E（Web 与 QQ 已分别绑定到不同 Account）会 FAIL 并退出非零码。
+正常用户绑定使用 API 的 QQ ownership challenge；此工具凭管理员数据库权限直接
+写入已核实的身份，不能替代 QQ 所有权验证。两端都不存在时会创建 owner
+entitlement，但不会创建 Web 登录密码。重复执行幂等；两端属于不同 Account
+时退出非零码，不执行 Account 合并。
 """
 from __future__ import annotations
 
@@ -30,7 +32,7 @@ from account.bootstrap import bootstrap_identity  # noqa: E402
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Bind a Web subject and a QQ subject to the same PostgreSQL Account"
+        description="Admin bootstrap/recovery of verified Web and QQ bindings on one Account"
     )
     parser.add_argument("--web-subject", required=True, help="Web username (e.g. huangpei)")
     parser.add_argument(
