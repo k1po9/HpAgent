@@ -18,8 +18,11 @@ services:
     environment:
       TZ: UTC
       POSTGRES_USER: hpagent_migrate
-      POSTGRES_PASSWORD: ${HPAGENT_MIGRATE_PASSWORD:-hpagent_migrate}
+      POSTGRES_PASSWORD: ${HPAGENT_MIGRATE_PASSWORD:?未配置迁移密码}
       POSTGRES_DB: hpagent
+
+      HPAGENT_API_PASSWORD: ${HPAGENT_API_PASSWORD:?未配置API密码}
+      HPAGENT_WORKER_PASSWORD: ${HPAGENT_WORKER_PASSWORD:?未配置Worker密码}
 
     ports:
       - "127.0.0.1:5434:5432"

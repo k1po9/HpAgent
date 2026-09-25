@@ -6,9 +6,9 @@
 
 | 变量 | 是否必需 | 默认值 | 所有者 | 用途 |
 | --- | --- | --- | --- | --- |
-| `HPAGENT_MIGRATE_PASSWORD` | 部署必需 | Compose 中为 `hpagent_migrate` | PostgreSQL | Migration Role 密码。 |
-| `HPAGENT_API_PASSWORD` | 部署必需 | Compose 中为 `hpagent_api` | PostgreSQL/API | API Role 密码。 |
-| `HPAGENT_WORKER_PASSWORD` | 部署必需 | Compose 中为 `hpagent_worker` | PostgreSQL/Worker | Worker Role 密码。 |
+| `HPAGENT_MIGRATE_PASSWORD` | 部署必需 | 无，Compose 启动前必须设置 | PostgreSQL | Migration Role 密码。 |
+| `HPAGENT_API_PASSWORD` | 部署必需 | 无，Compose 启动前必须设置 | PostgreSQL/API | API Role 密码。 |
+| `HPAGENT_WORKER_PASSWORD` | 部署必需 | 无，Compose 启动前必须设置 | PostgreSQL/Worker | Worker Role 密码。 |
 | `HPAGENT_ENV` | 否 | `development` | API/Worker | 运行环境与生产安全检查。 |
 | `APP_DATABASE_URL` | 宿主机运行时 | 无 | API/Migration | Application 或 Migration PostgreSQL DSN；Compose 自动构造。 |
 | `WORKER_DATABASE_URL` | Worker 必需 | 无 | Worker | Worker PostgreSQL DSN；Compose 自动构造。 |

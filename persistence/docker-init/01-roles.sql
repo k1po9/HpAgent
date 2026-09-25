@@ -1,3 +1,17 @@
--- Local-development roles. Production credentials must be injected by the deployer.
-CREATE ROLE hpagent_api LOGIN PASSWORD 'hpagent_api' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
-CREATE ROLE hpagent_worker LOGIN PASSWORD 'hpagent_worker' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+-- 全新 PostgreSQL 数据目录初始化时执行。
+-- 密码由 Compose 注入容器环境。
+
+\getenv api_password HPAGENT_API_PASSWORD
+\getenv worker_password HPAGENT_WORKER_PASSWORD
+
+SELECT format(
+    'CREATE ROLE hpagent_api LOGIN PASSWORD %L
+     NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT',
+    :'api_password'
+) \gexec
+
+SELECT format(
+    'CREATE ROLE hpagent_worker LOGIN PASSWORD %L
+     NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT',
+    :'worker_password'
+) \gexec
