@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from web_api.models import CreateUploadRequest, SendMessageRequest
-from web_domain.errors import FileUploadInvalid
+from web_domain.errors import FileUploadInvalid, UnsupportedFileType
 from web_domain.file_services import FileService
 
 
@@ -36,3 +36,25 @@ def test_display_name_never_preserves_a_client_path() -> None:
     assert display == "service.log"
     with pytest.raises(FileUploadInvalid):
         FileService._names("../")
+
+
+@pytest.mark.parametrize(("declared", "expected"), [
+    ("text/markdown", "text/markdown"),
+    ("text/markdown; charset=utf-8", "text/markdown"),
+    ("text/x-markdown", "text/markdown"),
+    ("", "text/markdown"),
+    ("text/plain", "text/plain"),
+])
+def test_markdown_declared_type_compatibility(declared: str, expected: str) -> None:
+    assert FileService._declared_type(declared, "笔记.MD") == expected
+    assert FileService._requires_utf8(expected, "笔记.MD") is True
+
+
+def test_other_file_types_keep_mime_restrictions() -> None:
+    assert FileService._declared_type("text/plain", "note.txt") == "text/plain"
+    with pytest.raises(UnsupportedFileType):
+        FileService._declared_type("text/x-markdown", "note.exe")
+    with pytest.raises(UnsupportedFileType):
+        FileService._declared_type("", "note.exe")
+    with pytest.raises(UnsupportedFileType):
+        FileService._declared_type("application/x-msdownload", "note.md")

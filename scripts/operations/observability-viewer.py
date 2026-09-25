@@ -20,12 +20,20 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse, urlsplit
+from uuid import UUID
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 TERMINAL_EVENTS = {
     "agent_execution_completed", "agent_execution_failed", "run_completed",
     "run_failed", "run_cancelled",
 }
+ARTIFACT_EVENT_FIELDS = frozenset({
+    "ts", "level", "event", "component", "status", "artifact_id",
+    "artifact_version_id", "source_run_id", "workflow_id", "model_call_id",
+    "provider", "model", "endpoint_id", "exception_type", "error_code",
+    "failure_code", "retryable", "attempt", "artifact_outbox_event_id",
+    "attempt_count",
+})
 START_SUFFIXES = ("_started", "_starting")
 END_SUFFIXES = ("_completed", "_failed", "_cancelled", "_degraded", "_skipped")
 
@@ -78,6 +86,16 @@ class ObservationEvent:
     surface: str | None = None
     request_id: str | None = None
     run_id: str | None = None
+    artifact_id: str | None = None
+    artifact_version_id: str | None = None
+    source_run_id: str | None = None
+    model_call_id: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    endpoint_id: str | None = None
+    exception_type: str | None = None
+    retryable: bool | None = None
+    attempt: int | None = None
     execution_id: str | None = None
     workflow_id: str | None = None
     conversation_id: str | None = None
@@ -100,11 +118,15 @@ class ObservationEvent:
 
     @classmethod
     def from_json(cls, raw: dict[str, Any], source_file: str, sequence: int) -> "ObservationEvent":
+        if raw.get("artifact_version_id"):
+            raw = {key: value for key, value in raw.items() if key in ARTIFACT_EVENT_FIELDS}
         epoch = _parse_ts(raw.get("ts") or raw.get("timestamp"))
         execution_id = _string(raw.get("execution_id"))
         run_id = _string(raw.get("run_id"))
         surface = _string(raw.get("surface"))
-        if not surface:
+        if raw.get("artifact_version_id"):
+            surface = "artifact"
+        elif not surface:
             if run_id:
                 surface = "web"
             elif execution_id and execution_id.startswith("qq-turn-"):
@@ -115,6 +137,15 @@ class ObservationEvent:
             event=str(raw.get("event") or "unknown"), component=str(raw.get("component") or "unknown"),
             status=_string(raw.get("status")), surface=surface,
             request_id=_string(raw.get("request_id")), run_id=run_id,
+            artifact_id=_string(raw.get("artifact_id")),
+            artifact_version_id=_string(raw.get("artifact_version_id")),
+            source_run_id=_string(raw.get("source_run_id")),
+            model_call_id=_string(raw.get("model_call_id")),
+            provider=_string(raw.get("provider")), model=_string(raw.get("model")),
+            endpoint_id=_string(raw.get("endpoint_id")),
+            exception_type=_string(raw.get("exception_type")),
+            retryable=raw.get("retryable") if isinstance(raw.get("retryable"), bool) else None,
+            attempt=_integer(raw.get("attempt")),
             execution_id=execution_id, workflow_id=_string(raw.get("workflow_id")),
             conversation_id=_string(raw.get("conversation_id")), session_id=_string(raw.get("session_id")),
             account_id=_string(raw.get("account_id")), tool_call_id=_string(raw.get("tool_call_id")),
@@ -123,12 +154,15 @@ class ObservationEvent:
             activity_attempt=_integer(raw.get("activity_attempt")),
             stop_reason=_string(raw.get("stop_reason")), tool_count=_integer(raw.get("tool_count")),
             turn=_integer(raw.get("turn")), phase=_string(raw.get("phase")),
-            elapsed_ms=_number(raw.get("elapsed_ms")), error_code=_string(raw.get("error_code")),
+            elapsed_ms=_number(raw.get("elapsed_ms")),
+            error_code=_string(raw.get("error_code") or raw.get("failure_code")),
             source_file=source_file, sequence=sequence, raw=raw,
         )
 
     @property
     def trace_key(self) -> str | None:
+        if self.artifact_version_id:
+            return f"artifact:{self.artifact_version_id}"
         return self.execution_id or self.run_id or self.workflow_id
 
 
@@ -148,6 +182,14 @@ def _number(value: Any) -> float | None:
         return float(value) if value is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _valid_uuid(value: str) -> bool:
+    try:
+        UUID(value)
+        return True
+    except (TypeError, ValueError):
+        return False
 
 
 @dataclass
@@ -228,6 +270,8 @@ class PostgresReader:
         self._recent_cache: dict[int, tuple[float, list[dict[str, Any]]]] = {}
         self._snapshot_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
         self._debug_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+        self._artifact_recent_cache: dict[int, tuple[float, list[dict[str, Any]]]] = {}
+        self._artifact_cache: dict[str, tuple[float, dict[str, Any] | None]] = {}
 
     def _connect(self):
         if not self.database_url:
@@ -308,6 +352,93 @@ class PostgresReader:
                 oldest = min(self._snapshot_cache, key=lambda key: self._snapshot_cache[key][0])
                 del self._snapshot_cache[oldest]
             self._snapshot_cache[run_id] = (time.monotonic(), result)
+            return result
+
+    def recent_artifacts(self, limit: int = 100) -> list[dict[str, Any]]:
+        if not self.database_url:
+            return []
+        limit = min(max(limit, 1), 300)
+        with self._cache_lock:
+            cached = self._artifact_recent_cache.get(limit)
+            if cached and time.monotonic() - cached[0] < self.cache_ttl_seconds:
+                return cached[1]
+            try:
+                with self._connect() as connection:
+                    rows = connection.execute(
+                        "SELECT v.artifact_version_id,v.artifact_id,v.version,v.status,"
+                        "v.failure_code,v.created_at,v.started_at,v.completed_at,v.updated_at,"
+                        "COALESCE(m.produced_by_run_id,a.research_run_id) AS source_run_id,"
+                        "o.status AS outbox_status "
+                        "FROM hpagent.artifact_versions v JOIN hpagent.artifacts a "
+                        "ON a.account_id=v.account_id AND a.artifact_id=v.artifact_id "
+                        "LEFT JOIN hpagent.messages m ON m.account_id=a.account_id "
+                        "AND m.message_id=a.source_message_id "
+                        "LEFT JOIN LATERAL (SELECT status FROM hpagent.artifact_outbox_events "
+                        "WHERE artifact_version_id=v.artifact_version_id "
+                        "ORDER BY created_at DESC LIMIT 1) o ON true "
+                        "ORDER BY v.updated_at DESC,v.artifact_version_id DESC LIMIT %s",
+                        (limit,),
+                    ).fetchall()
+                result = [dict(row) for row in rows]
+                self.last_error = None
+            except Exception as exc:
+                self.last_error = type(exc).__name__
+                result = []
+            self._artifact_recent_cache[limit] = (time.monotonic(), result)
+            return result
+
+    def artifact_snapshot(self, version_id: str, model_call_ids: list[str] | None = None) -> dict[str, Any] | None:
+        if not self.database_url:
+            return None
+        try:
+            version_id = str(UUID(version_id))
+        except ValueError:
+            return None
+        call_ids = sorted({str(UUID(value)) for value in (model_call_ids or [])[:100]
+                           if _valid_uuid(value)})
+        cache_key = version_id + ":" + ",".join(call_ids)
+        with self._cache_lock:
+            cached = self._artifact_cache.get(cache_key)
+            if cached and time.monotonic() - cached[0] < self.cache_ttl_seconds:
+                return cached[1]
+            try:
+                with self._connect() as connection:
+                    version = connection.execute(
+                        "SELECT v.artifact_version_id,v.artifact_id,v.version,v.parent_version_id,"
+                        "v.status,v.failure_code,v.created_at,v.started_at,v.completed_at,"
+                        "a.source_message_id,COALESCE(m.produced_by_run_id,a.research_run_id) AS source_run_id "
+                        "FROM hpagent.artifact_versions v JOIN hpagent.artifacts a "
+                        "ON a.account_id=v.account_id AND a.artifact_id=v.artifact_id "
+                        "LEFT JOIN hpagent.messages m ON m.account_id=a.account_id "
+                        "AND m.message_id=a.source_message_id WHERE v.artifact_version_id=%s",
+                        (version_id,),
+                    ).fetchone()
+                    outbox = []
+                    snapshots = []
+                    if version:
+                        outbox = connection.execute(
+                            "SELECT artifact_outbox_event_id,status,attempt_count,last_error_code,"
+                            "created_at,available_at,processed_at,updated_at "
+                            "FROM hpagent.artifact_outbox_events WHERE artifact_version_id=%s "
+                            "ORDER BY created_at,artifact_outbox_event_id LIMIT 20",
+                            (version_id,),
+                        ).fetchall()
+                    if version and call_ids:
+                        snapshots = connection.execute(
+                            "SELECT snapshot_id,model_call_id,fallback_attempt,provider,model,"
+                            "endpoint_id,created_at FROM hpagent.model_input_snapshots "
+                            "WHERE model_call_id=ANY(%s::uuid[]) AND phase='artifact_generation' "
+                            "ORDER BY created_at LIMIT 100", (call_ids,),
+                        ).fetchall()
+                result = ({"version": dict(version), "outbox": [dict(row) for row in outbox],
+                           "model_snapshots": [dict(row) for row in snapshots]} if version else None)
+                self.last_error = None
+            except Exception as exc:
+                self.last_error = type(exc).__name__
+                result = None
+            if len(self._artifact_cache) >= 256:
+                self._artifact_cache.pop(next(iter(self._artifact_cache)))
+            self._artifact_cache[cache_key] = (time.monotonic(), result)
             return result
 
     def durable_debug_snapshot(
@@ -450,6 +581,23 @@ class Observatory:
         for key, events in grouped.items():
             ordered = sorted(events, key=lambda item: (item.ts_epoch, item.sequence))
             latest = ordered[-1]
+            if latest.artifact_version_id:
+                results[key] = {
+                    "trace_key": key, "kind": "artifact", "surface": "artifact",
+                    "artifact_id": next((item.artifact_id for item in reversed(ordered) if item.artifact_id), None),
+                    "artifact_version_id": latest.artifact_version_id,
+                    "source_run_id": next((item.source_run_id for item in reversed(ordered) if item.source_run_id), None),
+                    "workflow_id": next((item.workflow_id for item in reversed(ordered) if item.workflow_id), None),
+                    "started_at": ordered[0].ts, "activity_at": latest.ts,
+                    "status": normalize_status(latest.status, ordered),
+                    "observed_status": latest.status, "summary": latest.event,
+                    "event_count": len(ordered),
+                    "components": sorted({item.component for item in ordered}),
+                    "search_text": " ".join(str(value) for item in ordered for value in (
+                        item.event, item.error_code, item.model_call_id,
+                    ) if value),
+                }
+                continue
             summary = next((str(item.raw.get("summary") or item.raw.get("msg") or "") for item in ordered if item.event in {"request_received", "agent_execution_started"}), "")
             results[key] = {
                 "trace_key": key, "surface": latest.surface or ("web" if latest.run_id else "qq" if key.startswith("qq-turn-") else None),
@@ -480,9 +628,28 @@ class Observatory:
                 "authoritative_status": str(run["status"]),
                 "summary": entry.get("summary") or str(run.get("trigger_content") or "")[:180],
             })
+        for version in self.postgres.recent_artifacts():
+            version_id = str(version["artifact_version_id"])
+            key = f"artifact:{version_id}"
+            entry = results.setdefault(key, {"trace_key": key, "event_count": 0})
+            entry.update({
+                "kind": "artifact", "surface": "artifact",
+                "artifact_id": str(version["artifact_id"]),
+                "artifact_version_id": version_id,
+                "source_run_id": _string(version.get("source_run_id")),
+                "version": version["version"],
+                "outbox_status": version.get("outbox_status"),
+                "started_at": entry.get("started_at") or _json_default(version["created_at"]),
+                "activity_at": max(str(entry.get("activity_at") or ""), _json_default(version["updated_at"])),
+                "status": normalize_status(str(version["status"]), grouped.get(key, [])),
+                "authoritative_status": str(version["status"]),
+                "summary": f"Artifact version {version['version']}",
+            })
         return sorted(results.values(), key=lambda item: item.get("activity_at") or "", reverse=True)[:300]
 
     def detail(self, trace_key: str) -> dict[str, Any] | None:
+        if trace_key.startswith("artifact:"):
+            return self._artifact_detail(trace_key)
         _, all_events = self.logs.after(0)
         events = [event for event in all_events if event.trace_key == trace_key][
             -self.max_events_per_execution:
@@ -512,7 +679,51 @@ class Observatory:
             },
         }
 
+    def _artifact_detail(self, trace_key: str) -> dict[str, Any] | None:
+        version_id = trace_key.removeprefix("artifact:")
+        _, all_events = self.logs.after(0)
+        events = [event for event in all_events if event.artifact_version_id == version_id][
+            -self.max_events_per_execution:
+        ]
+        call_ids = [event.model_call_id for event in events if event.model_call_id]
+        postgres = self.postgres.artifact_snapshot(version_id, call_ids)
+        if not events and postgres is None:
+            return None
+        summary = next((item for item in self.executions() if item["trace_key"] == trace_key), {})
+        ordered = sorted(events, key=lambda item: (item.ts_epoch, item.sequence))
+        calls: dict[str, dict[str, Any]] = {}
+        for event in ordered:
+            if not event.model_call_id or not event.event.startswith("artifact_model_call_"):
+                continue
+            call = calls.setdefault(event.model_call_id, {"model_call_id": event.model_call_id})
+            for name in ("provider", "model", "endpoint_id", "exception_type", "error_code", "retryable", "attempt"):
+                value = getattr(event, name)
+                if value is not None:
+                    call[name] = value
+            call["outcome"] = ("success" if event.event.endswith("_succeeded") else
+                               "failed" if event.event.endswith("_failed") else "started")
+        for snapshot in (postgres or {}).get("model_snapshots", []):
+            call = calls.setdefault(str(snapshot["model_call_id"]), {"model_call_id": str(snapshot["model_call_id"])})
+            for name in ("provider", "model", "endpoint_id"):
+                call.setdefault(name, snapshot[name])
+        return {
+            "kind": "artifact", "summary": summary, "postgres": postgres,
+            "model_calls": list(calls.values()),
+            "workflow_id": next((event.workflow_id for event in reversed(ordered) if event.workflow_id), None),
+            "temporal_status": "unavailable",
+            "timeline": [{"ts": event.ts, "event": event.event, "component": event.component,
+                          "status": event.status, "error_code": event.error_code,
+                          "model_call_id": event.model_call_id, "source": "OBSERVED"}
+                         for event in ordered],
+            "events": [asdict(event) for event in ordered],
+            "sources": {"postgres": "AUTHORITATIVE" if postgres else "UNAVAILABLE",
+                        "jsonl": "OBSERVED" if events else "UNAVAILABLE",
+                        "timeline": "DERIVED FROM JSONL", "temporal": "NOT CONNECTED"},
+        }
+
     def debug_detail(self, trace_key: str) -> dict[str, Any]:
+        if trace_key.startswith("artifact:"):
+            return {"available": False, "reason": "artifact_has_no_agent_transcript"}
         summary = next((item for item in self.executions() if item["trace_key"] == trace_key), None)
         _, all_events = self.logs.after(0)
         run_id = next(
@@ -552,7 +763,7 @@ HTML = r'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta n
 <style>
 :root{--bg:#071018;--panel:#0d1924;--panel2:#122231;--line:#24394a;--text:#d9e7f0;--muted:#7992a5;--cyan:#4fd1c5;--green:#5bd68b;--red:#ff6b76;--amber:#ffc857;--blue:#6dafff;--purple:#bb86fc}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:13px Inter,ui-sans-serif,system-ui,sans-serif}header{height:58px;padding:0 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:20px;background:#09141e}h1{font-size:17px;margin:0;letter-spacing:.3px}.live{color:var(--green)}.health{display:flex;gap:7px;margin-left:auto}.badge,.source{border:1px solid var(--line);padding:2px 7px;border-radius:20px;font-size:10px;color:var(--muted)}.source{color:var(--cyan)}.filters{padding:10px 14px;border-bottom:1px solid var(--line);display:flex;gap:8px;background:var(--panel)}select,input{background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:5px;padding:6px 8px}.filters input{flex:1}.layout{height:calc(100vh - 105px);display:grid;grid-template-columns:310px minmax(420px,1fr) 390px}.left,.main,.right{overflow:auto}.left{border-right:1px solid var(--line);padding:10px}.main{padding:14px 18px}.right{border-left:1px solid var(--line);padding:12px;background:#09141e}.card{padding:10px;border:1px solid var(--line);border-radius:7px;margin-bottom:7px;cursor:pointer;background:var(--panel)}.card:hover,.card.on{border-color:var(--cyan);background:var(--panel2)}.row{display:flex;justify-content:space-between;gap:8px}.id{font:11px ui-monospace,monospace;color:var(--blue);overflow:hidden;text-overflow:ellipsis}.summary{color:var(--muted);font-size:11px;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status{font-weight:700;font-size:10px;text-transform:uppercase}.running,.started{color:var(--blue)}.success,.completed{color:var(--green)}.failed,.uncertain{color:var(--red)}.degraded,.intent_recorded{color:var(--amber)}.cancelled{color:var(--muted)}h2{font-size:15px;margin:0 0 10px}h3{font-size:11px;color:var(--muted);letter-spacing:1.1px;margin:18px 0 8px}.summarybox,.state{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:12px;margin-bottom:12px}.kv{display:grid;grid-template-columns:100px 1fr;gap:4px 8px;font-size:11px}.kv b{color:var(--muted);font-weight:500}.kv span{font-family:ui-monospace,monospace;overflow-wrap:anywhere}.node{display:grid;grid-template-columns:95px 90px 1fr 85px;gap:9px;border-left:3px solid var(--blue);padding:9px 10px;margin:5px 0;background:var(--panel);border-radius:0 6px 6px 0}.node.clickable{cursor:pointer}.node.clickable:hover,.node.on{background:var(--panel2);outline:1px solid var(--cyan)}.node.failed{border-color:var(--red)}.node.degraded{border-color:var(--amber)}.node .time{color:var(--muted);font:10px ui-monospace,monospace}.node .component{font-weight:700;text-transform:uppercase}.node .detail{color:var(--text)}.node .duration{text-align:right;color:var(--cyan);font-family:ui-monospace,monospace}.tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;padding:7px;cursor:pointer}.tabs button.on{color:var(--cyan);border-color:var(--cyan)}pre{white-space:pre-wrap;word-break:break-word;background:#050b10;border:1px solid var(--line);padding:9px;border-radius:6px;font:10px ui-monospace,monospace;max-height:360px;overflow:auto}.raw{border-top:1px solid var(--line);padding:7px 0}.raw summary{cursor:pointer;color:var(--blue)}.empty{color:var(--muted);padding:40px;text-align:center}.anomaly{border:1px solid #6b4d1b;background:#2b2110;color:var(--amber);padding:8px;border-radius:6px;margin:6px 0}.warning{border:1px solid var(--amber);color:var(--amber);padding:9px;border-radius:6px;margin:8px 0}.timeline{border-left:2px solid var(--line);padding:6px 8px;margin:4px 0;cursor:pointer}.timeline:hover{border-color:var(--cyan);background:var(--panel2)}
 .state>summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer}.copy-json{background:var(--panel2);color:var(--cyan);border:1px solid var(--line);border-radius:5px;padding:3px 7px;cursor:pointer}.tool-summary.failed{border-color:var(--red)}.semantic-failed{color:var(--red);font-weight:800;margin-left:8px}.tool-error{color:var(--red);font-size:11px;margin-top:4px;overflow-wrap:anywhere}.json-key{color:var(--blue)}.json-string{color:var(--green)}.json-number{color:var(--purple)}.json-bool{color:var(--amber);font-weight:700}.json-null{color:var(--muted);font-style:italic}
-</style></head><body><header><h1>HpAgent Execution Observatory</h1><span class="live">LIVE ●</span><div class="health" id="health"></div></header><div class="filters"><select id="surface"><option value="">All surfaces</option><option value="web">Web</option><option value="qq">QQ</option></select><select id="status"><option value="">All statuses</option><option>running</option><option>success</option><option>failed</option><option>degraded</option><option>cancelled</option></select><select id="component"><option value="">All components</option><option>web_api</option><option>run</option><option>dispatcher</option><option>temporal</option><option>context</option><option>agent</option><option>model</option><option>tool</option><option>memory</option><option>sse</option></select><input id="search" placeholder="Search execution / run / workflow / session / tool / error"></div><div class="layout"><aside class="left" id="list"></aside><main class="main" id="main"><div class="empty">Select an execution</div></main><aside class="right" id="state"><div class="empty">State Inspector</div></aside></div>
+</style></head><body><header><h1>HpAgent Execution Observatory</h1><span class="live">LIVE ●</span><div class="health" id="health"></div></header><div class="filters"><select id="surface"><option value="">All surfaces</option><option value="web">Web</option><option value="qq">QQ</option><option value="artifact">Artifact</option></select><select id="status"><option value="">All statuses</option><option>running</option><option>success</option><option>failed</option><option>degraded</option><option>cancelled</option></select><select id="component"><option value="">All components</option><option>web_api</option><option>run</option><option>dispatcher</option><option>temporal</option><option>context</option><option>agent</option><option>model</option><option>tool</option><option>memory</option><option>sse</option><option>artifact</option><option>artifact_dispatcher</option></select><input id="search" placeholder="Search execution / run / workflow / session / tool / error"></div><div class="layout"><aside class="left" id="list"></aside><main class="main" id="main"><div class="empty">Select an execution</div></main><aside class="right" id="state"><div class="empty">State Inspector</div></aside></div>
 <script>
 let executions=[],selected=null,detail=null,debugDetail=null,debugLoading=false,currentHealth=null,selectedNodeIndex=null,selectedTranscriptSequence=null,detailSignature='',pendingDetailRender=false,pollTimer=null,pollInFlight=false;let rawFilters={component:'',status:'',event:''};const POLL_INTERVAL_MS=2500,FETCH_TIMEOUT_MS=8000;const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const short=s=>{s=String(s||'');return s.length>48?s.slice(0,25)+'…'+s.slice(-12):s};
 async function get(url){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),FETCH_TIMEOUT_MS);try{const r=await fetch(url,{signal:controller.signal});if(!r.ok)throw Error(r.status);return await r.json()}finally{clearTimeout(timer)}}
@@ -563,9 +774,10 @@ async function poll(){if(document.hidden||pollInFlight)return;pollInFlight=true;
 function renderHealth(h){document.getElementById('health').innerHTML=Object.entries(h.sources).slice(0,3).map(([k,v])=>`<span class="badge ${v.status==='ok'||v.status==='configured'?'success':'degraded'}">${esc(k)} ${esc(v.status)}</span>`).join('')}
 function emptyExecutionsHtml(){const sources=currentHealth?.sources||{},jsonl=sources.jsonl||{},postgres=sources.postgres||{};return `<div class="empty"><b>No executions loaded</b><br>JSONL: ${esc(jsonl.status||'unknown')} · ${esc(jsonl.files??0)} files · ${esc(jsonl.events_cached??0)} events<br>PostgreSQL: ${esc(postgres.status||'unknown')} · ${esc(postgres.recent_run_count??0)} runs${postgres.error?`<br><span class="failed">${esc(postgres.error)}</span>`:''}</div>`}
 function renderList(){try{const surface=document.getElementById('surface').value,status=document.getElementById('status').value,component=document.getElementById('component').value,q=document.getElementById('search').value.toLowerCase();const list=executions.filter(x=>(!surface||x.surface===surface)&&(!status||x.status===status)&&(!component||(x.components||[]).includes(component))&&(!q||safeJsonStringify(x).toLowerCase().includes(q)));document.getElementById('list').innerHTML=`<h2>Executions <span class="badge">${list.length}</span></h2>`+(list.length?list.map(x=>`<div class="card ${selected===x.trace_key?'on':''}" onclick="choose('${esc(x.trace_key)}')"><div class="row"><b>${esc((x.surface||'?').toUpperCase())}</b><span class="status ${esc(x.status)}">${esc(x.status)}</span></div><div class="id">${esc(short(x.trace_key))}</div><div class="summary">${esc(x.summary||x.activity_at||'')}</div></div>`).join(''):emptyExecutionsHtml())}catch(e){console.error('viewer list render failed:',e);document.getElementById('list').innerHTML=emptyExecutionsHtml()}}
-async function choose(key){try{selected=key;selectedNodeIndex=null;selectedTranscriptSequence=null;debugDetail=null;debugLoading=true;rawFilters={component:'',status:'',event:''};renderList();const normal=get('/api/execution/'+encodeURIComponent(key));loadDebug(key);applyDetail(await normal,{force:true})}catch(e){console.error('viewer execution load failed:',e)}}
+async function choose(key){try{selected=key;selectedNodeIndex=null;selectedTranscriptSequence=null;debugDetail=null;debugLoading=!key.startsWith('artifact:');rawFilters={component:'',status:'',event:''};renderList();const normal=get('/api/execution/'+encodeURIComponent(key));if(!key.startsWith('artifact:'))loadDebug(key);applyDetail(await normal,{force:true})}catch(e){console.error('viewer execution load failed:',e)}}
 async function loadDebug(key){try{const loaded=await get('/api/execution/'+encodeURIComponent(key)+'/debug');if(selected===key)debugDetail=loaded}catch(e){console.error('viewer debug load failed:',e);if(selected===key)debugDetail={available:false,reason:'database_unavailable',error:String(e)}}finally{if(selected===key){debugLoading=false;try{renderDetail()}catch(e){console.error('viewer detail render failed:',e)}}}}
-function renderDetail(){if(!detail)return;const s=detail.summary||{};const ids=[['execution',s.execution_id],['run',s.run_id],['workflow',s.workflow_id],['account',s.account_id],['session',s.session_id],['conversation',s.conversation_id]].filter(x=>x[1]);document.getElementById('main').innerHTML=`<div class="summarybox"><div class="row"><h2>${esc((s.surface||'?').toUpperCase())} Execution</h2><span class="status ${esc(s.status)}">${esc(s.status)}</span></div><div class="kv">${ids.map(x=>`<b>${x[0]}</b><span>${esc(x[1])}</span>`).join('')}</div></div>${(detail.anomalies||[]).map(x=>`<div class="anomaly">STATE DIVERGENCE · ${esc(x)}</div>`).join('')}<h2>Execution Waterfall <span class="source">DERIVED</span></h2><div>${detail.waterfall.length?detail.waterfall.map(nodeHtml).join(''):'<div class="empty">No correlated JSONL lifecycle events</div>'}</div><div class="tabs"><button class="on">Raw Events</button></div><div class="filters"><select id="rawcomponent"><option value="">All components</option>${[...new Set(detail.events.map(e=>e.component))].sort().map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="rawstatus"><option value="">All outcomes</option><option value="failed">failed</option><option value="degraded">degraded</option></select><input id="rawevent" placeholder="Filter event name"></div><div id="rawlist"></div>`;document.getElementById('rawcomponent').value=rawFilters.component;document.getElementById('rawstatus').value=rawFilters.status;document.getElementById('rawevent').value=rawFilters.event;['rawcomponent','rawstatus','rawevent'].forEach(id=>document.getElementById(id).addEventListener(id==='rawevent'?'input':'change',renderRaw));renderRaw();renderInspector()}
+function renderDetail(){if(!detail)return;if(detail.kind==='artifact'){renderArtifactDetail();return}const s=detail.summary||{};const ids=[['execution',s.execution_id],['run',s.run_id],['workflow',s.workflow_id],['account',s.account_id],['session',s.session_id],['conversation',s.conversation_id]].filter(x=>x[1]);document.getElementById('main').innerHTML=`<div class="summarybox"><div class="row"><h2>${esc((s.surface||'?').toUpperCase())} Execution</h2><span class="status ${esc(s.status)}">${esc(s.status)}</span></div><div class="kv">${ids.map(x=>`<b>${x[0]}</b><span>${esc(x[1])}</span>`).join('')}</div></div>${(detail.anomalies||[]).map(x=>`<div class="anomaly">STATE DIVERGENCE · ${esc(x)}</div>`).join('')}<h2>Execution Waterfall <span class="source">DERIVED</span></h2><div>${detail.waterfall.length?detail.waterfall.map(nodeHtml).join(''):'<div class="empty">No correlated JSONL lifecycle events</div>'}</div><div class="tabs"><button class="on">Raw Events</button></div><div class="filters"><select id="rawcomponent"><option value="">All components</option>${[...new Set(detail.events.map(e=>e.component))].sort().map(x=>`<option>${esc(x)}</option>`).join('')}</select><select id="rawstatus"><option value="">All outcomes</option><option value="failed">failed</option><option value="degraded">degraded</option></select><input id="rawevent" placeholder="Filter event name"></div><div id="rawlist"></div>`;document.getElementById('rawcomponent').value=rawFilters.component;document.getElementById('rawstatus').value=rawFilters.status;document.getElementById('rawevent').value=rawFilters.event;['rawcomponent','rawstatus','rawevent'].forEach(id=>document.getElementById(id).addEventListener(id==='rawevent'?'input':'change',renderRaw));renderRaw();renderInspector()}
+function renderArtifactDetail(){const s=detail.summary||{},p=detail.postgres||{},v=p.version||{},o=(p.outbox||[]).at(-1)||{},wf=detail.workflow_id||s.workflow_id;const fields=[['Artifact ID',v.artifact_id||s.artifact_id],['Artifact Version ID',v.artifact_version_id||s.artifact_version_id],['Source Run ID',v.source_run_id||s.source_run_id],['Version',v.version||s.version],['Version status',v.status||'unavailable'],['Outbox status',o.status||s.outbox_status||'unavailable'],['Workflow ID',wf||'not observed'],['Temporal live status','unavailable (not persisted)'],['Failure code',v.failure_code||'—']];document.getElementById('main').innerHTML=`<div class="summarybox"><div class="row"><h2>ARTIFACT Execution</h2><span class="status ${esc(s.status)}">${esc(s.status||'unknown')}</span></div><div class="kv">${fields.map(([k,val])=>`<b>${esc(k)}</b><span>${esc(val)}</span>`).join('')}</div></div><h2>Model calls <span class="source">OBSERVED / SNAPSHOT</span></h2>${detail.model_calls.length?detail.model_calls.map(c=>`<div class="summarybox"><div class="kv">${[['Call ID',c.model_call_id],['Provider',c.provider],['Model',c.model],['Endpoint',c.endpoint_id],['Outcome',c.outcome||'not observed'],['Error code',c.error_code],['Exception',c.exception_type],['Retryable',c.retryable],['Attempt',c.attempt]].filter(x=>x[1]!==undefined&&x[1]!==null).map(([k,val])=>`<b>${esc(k)}</b><span>${esc(val)}</span>`).join('')}</div></div>`).join(''):'<div class="empty">No correlated model call observed</div>'}<h2>Artifact lifecycle <span class="source">DERIVED FROM JSONL</span></h2>${detail.timeline.length?detail.timeline.map(t=>`<div class="node ${esc(t.status||'')}"><div class="time">${esc((t.ts||'').slice(11,23))}</div><div class="component">${esc(t.component)}</div><div class="detail">${esc(t.event)} · ${esc(t.error_code||'')}</div><div class="duration">OBSERVED</div></div>`).join(''):'<div class="empty">No correlated JSONL events</div>'}`;document.getElementById('state').innerHTML='<h2>Artifact evidence</h2>'+Object.entries(detail.sources).map(([k,val])=>`<div class="row"><span>${esc(k)}</span><span class="source">${esc(val)}</span></div>`).join('')+stateBox('Version (PostgreSQL)',v)+stateBox('Outbox (PostgreSQL)',p.outbox||[])+stateBox('Model snapshots (PostgreSQL)',p.model_snapshots||[])+stateBox('Observed events (safe fields)',detail.events.map(e=>e.raw))}
 function renderRaw(){const c=document.getElementById('rawcomponent').value,s=document.getElementById('rawstatus').value,q=document.getElementById('rawevent').value.toLowerCase();rawFilters={component:c,status:s,event:document.getElementById('rawevent').value};const rows=detail.events.filter(e=>(!c||e.component===c)&&(!q||e.event.toLowerCase().includes(q))&&(!s||(s==='failed'?(e.status==='failed'||e.level==='ERROR'):e.status==='degraded')));document.getElementById('rawlist').innerHTML=rows.map(e=>`<details class="raw"><summary>${esc(e.ts)} · ${esc(e.component)} · ${esc(e.event)} · ${esc(e.status||'')}</summary><button onclick="navigator.clipboard.writeText(this.nextElementSibling.textContent)">Copy JSON</button><pre>${esc(JSON.stringify(e.raw,null,2))}</pre></details>`).join('')||'<div class="empty">No matching raw events</div>'}
 function toolSemanticState(n){if(!n||n.component!=='tool')return {status:'unknown',error:null};const te=findTranscriptEvent(n.operation_id),raw=te?.payload?.raw_result;if(raw?.success===false)return {status:'failed',error:raw.error||'tool failed'};if(raw?.success===true)return {status:'success',error:null};return {status:'unknown',error:null}}
 function nodeHtml(n,index){const semantic=n.component==='tool'?toolSemanticState(n):{status:'unknown',error:null};const more=[n.event,n.phase,n.tool,n.turn!=null?'turn '+n.turn:null,n.error_code].filter(Boolean).join(' · ');const linked=n.operation_id||n.result_ref||n.tool_call_id,status=semantic.status==='failed'?'failed':n.status;return `<div class="node ${esc(status)} ${linked?'clickable':''} ${selectedNodeIndex===index?'on':''}" onclick="inspectNode(${index})"><div class="time">${esc((n.ts||'').slice(11,23))}</div><div class="component">${esc(n.component)}${semantic.status==='failed'?'<span class="semantic-failed">❌ TOOL FAILED</span>':''}</div><div class="detail">${esc(more)}${semantic.error?`<div class="tool-error">${esc(semantic.error)}</div>`:''}</div><div class="duration">${n.elapsed_ms==null?'—':esc(Math.round(n.elapsed_ms)+' ms')}</div></div>`}
@@ -649,7 +861,7 @@ def default_database_url() -> str | None:
     configured = os.getenv("OBSERVABILITY_DATABASE_URL") or os.getenv("WORKER_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
     if configured:
         return configured
-    password = os.getenv("HPAGENT_WORKER_PASSWORD", "hpagent_worker")
+    password = os.getenv("HPAGENT_WORKER_PASSWORD", "postgresql_worker_123")
     return f"postgresql://hpagent_worker:{password}@127.0.0.1:5434/hpagent"
 
 

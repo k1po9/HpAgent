@@ -64,7 +64,7 @@ class SendMessageRequest(StrictModel):
 class CreateUploadRequest(StrictModel):
     file_name: str = Field(min_length=1, max_length=255)
     size_bytes: int = Field(ge=0)
-    content_type: str = Field(min_length=1, max_length=255)
+    content_type: str = Field(max_length=255)
     sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 

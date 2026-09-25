@@ -17,16 +17,24 @@ class ArtifactBuildService:
         self.database = database
         self.generator = generator
 
-    async def execute(self, version_id: UUID) -> dict[str, str]:
+    async def execute(self, version_id: UUID, *, workflow_id: str | None = None) -> dict[str, str]:
         inputs = self._prepare(version_id)
         if inputs["status"] == "completed":
             return {"artifact_version_id": str(version_id), "status": "completed"}
+        call_context = None
+        base_fields = dict(artifact_id=str(inputs["artifact_id"]),
+                           artifact_version_id=str(version_id),
+                           source_run_id=str(inputs["run_id"]), workflow_id=workflow_id)
+        log_event(logger, logging.INFO, "artifact_build_started", "artifact",
+                  **base_fields, status="running")
         try:
             with model_budget_scope(
                 inputs["account_id"], inputs["run_id"],
                 f"artifact:{version_id}:generate:v1", phase="artifact_generation",
-                final_response=True,
-            ):
+                final_response=True, artifact_id=base_fields["artifact_id"],
+                artifact_version_id=str(version_id),
+                workflow_id=base_fields["workflow_id"],
+            ) as call_context:
                 html = await self.generator.generate(
                     source_markdown=inputs["source_markdown"],
                     instruction=inputs["instruction"],
@@ -34,19 +42,38 @@ class ArtifactBuildService:
                 )
             self._complete(version_id, html)
             log_event(logger, logging.INFO, "artifact_build_completed", "artifact",
-                      artifact_version_id=str(version_id), status="success")
+                      **base_fields, status="success",
+                      model_call_id=str(call_context.model_call_id) if call_context.model_call_id else None)
             return {"artifact_version_id": str(version_id), "status": "completed"}
         except ArtifactGenerationError as exc:
             self._fail(version_id, exc.code, exc.safe_message)
+            if call_context and call_context.model_call_id and not call_context.failure_logged:
+                log_event(logger, logging.WARNING, "artifact_model_call_failed", "artifact",
+                          **base_fields, model_call_id=str(call_context.model_call_id),
+                          endpoint_id=call_context.endpoint_id, provider=call_context.provider,
+                          model=call_context.model, attempt=call_context.attempt,
+                          exception_type=exc.exception_type or type(exc).__name__,
+                          error_code=exc.code, retryable=exc.retryable)
             log_event(logger, logging.WARNING, "artifact_build_failed", "artifact",
-                      artifact_version_id=str(version_id), status="failed",
-                      failure_code=exc.code)
+                      **base_fields, status="failed", error_code=exc.code,
+                      exception_type=exc.exception_type or type(exc).__name__,
+                      retryable=exc.retryable,
+                      model_call_id=str(call_context.model_call_id) if call_context and call_context.model_call_id else None,
+                      provider=call_context.provider if call_context else None,
+                      model=call_context.model if call_context else None,
+                      endpoint_id=call_context.endpoint_id if call_context else None,
+                      attempt=call_context.attempt if call_context else None)
             return {"artifact_version_id": str(version_id), "status": "failed"}
-        except Exception:
+        except Exception as exc:
             self._fail(version_id, "artifact_build_failed", "Artifact 生成失败。")
             log_event(logger, logging.ERROR, "artifact_build_failed", "artifact",
-                      artifact_version_id=str(version_id), status="failed",
-                      failure_code="artifact_build_failed")
+                      **base_fields, status="failed", error_code="artifact_build_failed",
+                      exception_type=type(exc).__name__, retryable=False,
+                      model_call_id=str(call_context.model_call_id) if call_context and call_context.model_call_id else None,
+                      provider=call_context.provider if call_context else None,
+                      model=call_context.model if call_context else None,
+                      endpoint_id=call_context.endpoint_id if call_context else None,
+                      attempt=call_context.attempt if call_context else None)
             return {"artifact_version_id": str(version_id), "status": "failed"}
 
     def _prepare(self, version_id: UUID) -> dict[str, str | None]:
@@ -72,10 +99,9 @@ class ArtifactBuildService:
                 "completed_at=NULL,html=NULL,failure_code=NULL,failure_message=NULL,updated_at=now() "
                 "WHERE artifact_version_id=%s", (version_id,),
             )
-            log_event(logger, logging.INFO, "artifact_build_started", "artifact",
-                      artifact_version_id=str(version_id), status="running")
             return {"status": "running", "account_id": row["account_id"],
-                    "run_id": row["run_id"], "source_markdown": str(row["source_markdown"]),
+                    "run_id": row["run_id"], "artifact_id": row["artifact_id"],
+                    "source_markdown": str(row["source_markdown"]),
                     "instruction": row["instruction"], "previous_html": row["previous_html"]}
 
     def _complete(self, version_id: UUID, html: str) -> None:

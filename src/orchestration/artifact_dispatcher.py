@@ -64,7 +64,8 @@ class ArtifactOutboxDispatcher:
                 await asyncio.to_thread(self.outbox.mark_processed, event_id, self.worker_id)
                 log_event(logger, logging.INFO, "artifact_outbox_processed",
                           "artifact_dispatcher", artifact_outbox_event_id=str(event_id),
-                          artifact_version_id=str(version_id), status="success")
+                          artifact_version_id=str(version_id),
+                          workflow_id=artifact_workflow_id(version_id), status="success")
             except Exception as exc:
                 if int(event["attempt_count"]) >= self.max_attempts:
                     await asyncio.to_thread(self.outbox.dead_letter, event_id, self.worker_id,

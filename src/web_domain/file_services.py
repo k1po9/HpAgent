@@ -40,7 +40,7 @@ from .errors import (
 )
 
 ALLOWED_DECLARED_TYPES = {
-    "text/plain", "text/x-log", "application/log", "application/octet-stream",
+    "text/plain", "text/markdown", "text/x-log", "application/log", "application/octet-stream",
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -48,7 +48,7 @@ ALLOWED_DECLARED_TYPES = {
 }
 
 BINARY_DECLARED_TYPES = ALLOWED_DECLARED_TYPES - {
-    "text/plain", "text/x-log", "application/log", "application/octet-stream",
+    "text/plain", "text/markdown", "text/x-log", "application/log", "application/octet-stream",
 }
 BINARY_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx"}
 
@@ -82,10 +82,8 @@ class FileService:
     ) -> CommandResult:
         if size_bytes < 0 or size_bytes > self.max_bytes:
             raise FileTooLarge()
-        normalized_type = content_type.split(";", 1)[0].strip().lower()
-        if normalized_type not in ALLOWED_DECLARED_TYPES:
-            raise UnsupportedFileType()
         original_name, display_name = self._names(file_name)
+        normalized_type = self._declared_type(content_type, display_name)
         payload = {
             "conversation_id": str(conversation_id), "file_name": original_name,
             "size_bytes": size_bytes, "content_type": normalized_type, "sha256": sha256,
@@ -251,6 +249,15 @@ class FileService:
         if content_type == "application/octet-stream":
             return not any(display_name.casefold().endswith(ext) for ext in BINARY_EXTENSIONS)
         return True
+
+    @staticmethod
+    def _declared_type(content_type: str, display_name: str) -> str:
+        normalized = content_type.split(";", 1)[0].strip().lower()
+        if display_name.casefold().endswith(".md") and normalized in {"", "text/x-markdown"}:
+            normalized = "text/markdown"
+        if normalized not in ALLOWED_DECLARED_TYPES:
+            raise UnsupportedFileType()
+        return normalized
 
     @staticmethod
     def _dto(row: Any) -> dict[str, Any]:

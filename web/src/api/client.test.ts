@@ -5,6 +5,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { ApiClient } from "./client";
+import { HpApi } from "./resources";
 import { HpCommandError } from "./types";
 
 const OK = (body: unknown, headers: Record<string, string> = {}) =>
@@ -346,5 +347,27 @@ describe("ApiClient auth recovery", () => {
         c.request({ method: "GET", path: "/api/v1/conversations" }),
       ).rejects.toMatchObject({ status, code });
     }
+  });
+});
+
+describe("Markdown upload MIME metadata", () => {
+  it.each([
+    ["text/markdown", "text/markdown"],
+    ["text/x-markdown", "text/markdown"],
+    ["", "text/markdown"],
+    ["text/plain", "text/plain"],
+  ])("maps browser MIME %s for .md to %s", async (browserType, declaredType) => {
+    let body: Record<string, unknown> | undefined;
+    const client = new ApiClient(async (_input, init) => {
+      body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return OK({ file: {}, content_url: "/api/v1/uploads/file/content" });
+    });
+    const api = new HpApi(client);
+    await api.createUpload(
+      "conversation",
+      new File(["# 中文"], "笔记.md", { type: browserType }),
+      "key",
+    );
+    expect(body?.content_type).toBe(declaredType);
   });
 });

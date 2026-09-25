@@ -23,6 +23,15 @@ class ModelCallContext:
     execution_attempt: int = 1
     final_response: bool = False
     call_ordinal: int = 0
+    artifact_id: str | None = None
+    artifact_version_id: str | None = None
+    workflow_id: str | None = None
+    model_call_id: UUID | None = None
+    endpoint_id: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    attempt: int | None = None
+    failure_logged: bool = False
 
     def begin_logical_call(self) -> tuple[int, UUID]:
         self.call_ordinal += 1
@@ -59,19 +68,25 @@ def model_budget_scope(
     phase: str = "model",
     execution_attempt: int = 1,
     final_response: bool = False,
-) -> Iterator[None]:
+    artifact_id: str | None = None,
+    artifact_version_id: str | None = None,
+    workflow_id: str | None = None,
+) -> Iterator[ModelCallContext]:
     """Bind one durable operation without leaking it to concurrent Runs."""
     def identity_uuid(value: object, namespace: str) -> UUID:
         try:
             return UUID(str(value))
         except (TypeError, ValueError, AttributeError):
             return uuid5(NAMESPACE_URL, f"hpagent:{namespace}:{value}")
-    token = _CURRENT.set(ModelCallContext(
+    context = ModelCallContext(
         identity_uuid(account_id, "account"), identity_uuid(run_id, "run"),
         operation_id, phase, execution_attempt, final_response,
-    ))
+        artifact_id=artifact_id, artifact_version_id=artifact_version_id,
+        workflow_id=workflow_id,
+    )
+    token = _CURRENT.set(context)
     try:
-        yield
+        yield context
     finally:
         _CURRENT.reset(token)
 

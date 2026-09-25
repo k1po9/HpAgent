@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 import pytest
 
@@ -387,3 +389,154 @@ def test_durable_debug_snapshot_degrades_on_database_failure(monkeypatch: pytest
     snapshot = reader.durable_debug_snapshot("run-1")
     assert snapshot["reason"] == "database_unavailable"
     assert "database down" in reader.last_error
+
+
+def test_artifact_versions_are_separate_from_source_agent_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    first, second = str(uuid4()), str(uuid4())
+    _write(tmp_path / "worker.jsonl",
+           _log("agent_execution_completed", run_id="source-run", status="success"),
+           _log("artifact_build_started", component="artifact", artifact_id="artifact-1",
+                artifact_version_id=first, source_run_id="source-run"),
+           _log("artifact_model_call_started", component="artifact", artifact_version_id=first,
+                source_run_id="source-run", model_call_id="call-1", provider="p", model="m",
+                endpoint_id="endpoint-1", attempt=1),
+           _log("artifact_model_call_succeeded", component="artifact", artifact_version_id=first,
+                source_run_id="source-run", model_call_id="call-1", provider="p", model="m",
+                endpoint_id="endpoint-1", attempt=1),
+           _log("artifact_build_completed", component="artifact", artifact_version_id=first,
+                source_run_id="source-run", status="success"),
+           _log("artifact_outbox_dead_letter", component="artifact_dispatcher",
+                artifact_version_id=second, status="failed", failure_code="artifact_dispatch_exhausted"))
+    postgres = viewer.PostgresReader(None)
+    monkeypatch.setattr(postgres, "recent_runs", lambda: [])
+    monkeypatch.setattr(postgres, "recent_artifacts", lambda: [
+        {"artifact_version_id": first, "artifact_id": "artifact-1", "version": 1,
+         "source_run_id": "source-run", "status": "completed", "outbox_status": "processed",
+         "created_at": "2026-08-12T01:00:00Z", "updated_at": "2026-08-12T01:00:03Z"},
+        {"artifact_version_id": second, "artifact_id": "artifact-1", "version": 2,
+         "source_run_id": "source-run", "status": "failed", "outbox_status": "dead_letter",
+         "created_at": "2026-08-12T01:00:00Z", "updated_at": "2026-08-12T01:00:04Z"},
+    ])
+    monkeypatch.setattr(postgres, "artifact_snapshot", lambda version, _calls: {
+        "version": {"artifact_version_id": version, "artifact_id": "artifact-1",
+                    "source_run_id": "source-run", "status": "completed" if version == first else "failed",
+                    "version": 1 if version == first else 2,
+                    "failure_code": None if version == first else "artifact_build_failed"},
+        "outbox": [{"status": "processed" if version == first else "dead_letter"}],
+        "model_snapshots": [],
+    })
+    observatory = viewer.Observatory(viewer.IncrementalJsonlReader(tmp_path), postgres)
+    listed = {item["trace_key"]: item for item in observatory.executions()}
+    assert set(listed) == {"source-run", f"artifact:{first}", f"artifact:{second}"}
+    assert listed[f"artifact:{first}"]["source_run_id"] == "source-run"
+    assert listed[f"artifact:{first}"]["status"] == "success"
+    assert listed[f"artifact:{second}"]["status"] == "failed"
+    detail = observatory.detail(f"artifact:{first}")
+    assert detail["model_calls"][0]["outcome"] == "success"
+    assert detail["model_calls"][0]["endpoint_id"] == "endpoint-1"
+    assert detail["temporal_status"] == "unavailable"
+    assert detail["timeline"][0]["event"] == "artifact_build_started"
+    assert observatory.detail(f"artifact:{second}")["postgres"]["outbox"][0]["status"] == "dead_letter"
+    assert observatory.debug_detail(f"artifact:{first}")["available"] is False
+
+
+def test_artifact_failure_redacts_raw_log_and_degrades_without_postgres(tmp_path: Path) -> None:
+    version = str(uuid4())
+    _write(tmp_path / "worker.jsonl", _log(
+        "artifact_model_call_failed", component="artifact", artifact_version_id=version,
+        source_run_id="source-run", model_call_id="call-1", provider="p", model="m",
+        endpoint_id="endpoint-1", error_code="artifact_model_timeout",
+        exception_type="ReadTimeout", retryable=True, status="failed",
+        api_key="sk-secret", authorization="Bearer secret", prompt="secret prompt",
+        exception_text="secret exception",
+    ))
+    observatory = viewer.Observatory(
+        viewer.IncrementalJsonlReader(tmp_path), viewer.PostgresReader(None))
+    detail = observatory.detail(f"artifact:{version}")
+    assert detail["postgres"] is None
+    assert detail["sources"]["postgres"] == "UNAVAILABLE"
+    assert detail["model_calls"][0]["error_code"] == "artifact_model_timeout"
+    assert detail["model_calls"][0]["exception_type"] == "ReadTimeout"
+    serialized = json.dumps(detail)
+    assert "sk-secret" not in serialized
+    assert "Bearer secret" not in serialized
+    assert "secret prompt" not in serialized
+    assert "secret exception" not in serialized
+
+
+def test_artifact_database_state_remains_visible_without_jsonl(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    version = str(uuid4())
+    postgres = viewer.PostgresReader("postgresql://example")
+    monkeypatch.setattr(postgres, "recent_runs", lambda: [])
+    monkeypatch.setattr(postgres, "recent_artifacts", lambda: [{
+        "artifact_version_id": version, "artifact_id": str(uuid4()), "version": 2,
+        "source_run_id": str(uuid4()), "status": "failed", "outbox_status": "dead_letter",
+        "created_at": "2026-08-12T01:00:00Z", "updated_at": "2026-08-12T01:00:02Z",
+    }])
+    monkeypatch.setattr(postgres, "artifact_snapshot", lambda _version, _calls: {
+        "version": {"artifact_version_id": version, "version": 2, "status": "failed",
+                    "failure_code": "artifact_build_failed"},
+        "outbox": [{"status": "dead_letter", "last_error_code": "artifact_dispatch_exhausted"}],
+        "model_snapshots": [],
+    })
+    observatory = viewer.Observatory(viewer.IncrementalJsonlReader(tmp_path), postgres)
+    detail = observatory.detail(f"artifact:{version}")
+    assert detail["sources"]["jsonl"] == "UNAVAILABLE"
+    assert detail["timeline"] == []
+    assert detail["postgres"]["version"]["failure_code"] == "artifact_build_failed"
+    assert detail["postgres"]["outbox"][0]["last_error_code"] == "artifact_dispatch_exhausted"
+    assert detail["workflow_id"] is None
+    assert detail["temporal_status"] == "unavailable"
+
+
+def test_artifact_viewer_html_keeps_agent_inspector_and_valid_script() -> None:
+    html = viewer.HTML
+    assert '<option value="artifact">Artifact</option>' in html
+    assert "function renderArtifactDetail()" in html
+    assert "function renderInspector()" in html
+    assert "function toolSummaryBox(n,op,te)" in html
+    script = html.split("<script>", 1)[1].split("</script>", 1)[0]
+    result = subprocess.run(["node", "--check"], input=script, text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_artifact_postgres_queries_are_bounded_read_only_and_exclude_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    version_id, call_id = str(uuid4()), str(uuid4())
+
+    class Connection:
+        def __init__(self):
+            self.queries: list[tuple[str, Any]] = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def execute(self, query, params):
+            self.queries.append((query, params))
+            if "FROM hpagent.artifact_versions" in query:
+                row = {"artifact_version_id": version_id, "artifact_id": str(uuid4()),
+                       "version": 1, "status": "failed", "source_run_id": str(uuid4()),
+                       "failure_code": "artifact_model_timeout"}
+                return SimpleNamespace(fetchall=lambda: [row], fetchone=lambda: row)
+            if "FROM hpagent.artifact_outbox_events" in query:
+                return SimpleNamespace(fetchall=lambda: [{"status": "processed"}])
+            if "FROM hpagent.model_input_snapshots" in query:
+                return SimpleNamespace(fetchall=lambda: [{"model_call_id": call_id,
+                    "provider": "p", "model": "m", "endpoint_id": "endpoint-1"}])
+            raise AssertionError(query)
+
+    connection = Connection()
+    reader = viewer.PostgresReader("postgresql://example")
+    monkeypatch.setattr(reader, "_connect", lambda: connection)
+    assert len(reader.recent_artifacts(limit=9999)) == 1
+    snapshot = reader.artifact_snapshot(version_id, [call_id])
+    assert snapshot["model_snapshots"][0]["provider"] == "p"
+    assert connection.queries[0][1] == (300,)
+    assert all(query.lstrip().startswith("SELECT") for query, _ in connection.queries)
+    assert all("provider_request_body" not in query and "v.html" not in query
+               and "v.instruction" not in query and "last_error_message" not in query
+               for query, _ in connection.queries)

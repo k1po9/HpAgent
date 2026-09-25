@@ -18,6 +18,7 @@ from orchestration.artifact_dispatcher import (
 )
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from web_artifacts.build import ArtifactBuildService
+from web_artifacts.generator import WebArtifactGenerator
 from web_artifacts.outbox import ArtifactOutboxService
 from web_artifacts.services import ArtifactService
 from web_domain.errors import IdempotencyConflict, ResourceNotFound
@@ -28,6 +29,28 @@ pytestmark = pytest.mark.postgres
 class _Generator:
     async def generate(self, **_kwargs):
         return "<!doctype html><html><head></head><body>ok</body></html>"
+
+
+@pytest.mark.asyncio
+async def test_model_failure_persists_safe_code_and_failed_state(
+    db, account_id, database_url, worker_database_url
+):
+    _, _, message_id = _completed_assistant(account_id, database_url, worker_database_url)
+    created = ArtifactService(database_url).create_artifact(account_id, message_id, str(uuid4()))
+    version_id = UUID(created["version"]["artifact_version_id"])
+
+    class FailingModel:
+        async def generate(self, **_kwargs):
+            raise TimeoutError("secret token from provider")
+
+    result = await ArtifactBuildService(
+        worker_database_url, WebArtifactGenerator(FailingModel())
+    ).execute(version_id)
+    assert result["status"] == "failed"
+    assert db.execute(
+        "SELECT status,html,failure_code,failure_message FROM artifact_versions "
+        "WHERE artifact_version_id=%s", (version_id,),
+    ).fetchone() == ("failed", None, "artifact_model_timeout", "模型调用超时。")
 
 
 def _completed_assistant(account_id, database_url, worker_database_url):

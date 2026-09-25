@@ -121,7 +121,11 @@ export class HpApi {
       body: {
         file_name: file.name,
         size_bytes: file.size,
-        content_type: file.type || "text/plain",
+        content_type: file.name.toLowerCase().endsWith(".md")
+          ? file.type === "text/x-markdown" || !file.type
+            ? "text/markdown"
+            : file.type
+          : file.type || "text/plain",
       },
       idempotencyKey,
       signal,

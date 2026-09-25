@@ -33,6 +33,8 @@ export QQ_BINDING_CODE_PEPPER="e2e-qq-binding-code-pepper-0123456789abcdef"
 # Fake executor: slow enough to click Stop and for a second tab to race the
 # conversation-busy guard, fast enough to not drag the suite.
 export WEB_FAKE_EXECUTOR_ENABLED=true
+export WEB_FILE_UPLOAD_ENABLED=true
+export FILE_STORE_ROOT="${FILE_STORE_ROOT:-/tmp/hpagent-e2e-file-store}"
 export WEB_FAKE_EXECUTOR_DELAY_SECONDS="${WEB_FAKE_EXECUTOR_DELAY_SECONDS:-4}"
 export WEB_FAKE_EXECUTOR_MODE=success
 export WEB_FAKE_EXECUTOR_CONTENT="$(cat <<'EOF'

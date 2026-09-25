@@ -22,6 +22,7 @@ from types import MappingProxyType
 from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional
 
 from common.errors import ModelAPIError
+from common.logging import log_event
 from common.model_usage import canonical_model_usage
 from common.types import ModelResponse, StopReason, ToolCall
 
@@ -200,15 +201,9 @@ class ModelClient:
             try:
                 response = await client.post(url, json=payload, headers=headers)
                 if response.status_code >= 400:
-                    logger.error(
-                        "Model HTTP error: endpoint=%s provider=%s model=%s "
-                        "status=%d body=%s",
-                        self.endpoint_id,
-                        self.provider,
-                        self.model,
-                        response.status_code,
-                        response.text[:1000],
-                    )
+                    log_event(logger, logging.WARNING, "model_http_error", "model",
+                              endpoint_id=self.endpoint_id, provider=self.provider,
+                              model=self.model, http_status=response.status_code)
                 response.raise_for_status()
                 if stream:
                     result = await self._parse_stream(response, on_text_delta)
@@ -249,19 +244,14 @@ class ModelClient:
                     )
                 return result
             except httpx.HTTPStatusError as e:
-                # 捕获响应体，确保降级日志能看到具体报错内容
-                try:
-                    resp_body = e.response.text[:500]
-                except Exception:
-                    resp_body = "(unable to read response body)"
                 raise ModelDispatchError(
-                    reason=f"HTTP {e.response.status_code}: {resp_body}",
+                    reason=f"HTTP {e.response.status_code}",
                     status_code=e.response.status_code,
-                )
+                ) from e
             except ModelDispatchError:
                 raise
             except Exception as e:
-                raise ModelDispatchError(reason=f"{type(e).__name__}: {e}")
+                raise ModelDispatchError(reason=type(e).__name__) from e
 
     # ═══════════════════════════════════════════════════════════════════════════
     # URL / Headers / Payload

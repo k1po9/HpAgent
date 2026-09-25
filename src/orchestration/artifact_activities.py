@@ -15,4 +15,6 @@ class ArtifactActivities:
     @activity.defn(name="execute_artifact_build_activity")
     async def execute(self, request: ArtifactBuildInput) -> dict[str, str]:
         request.validate()
-        return await self._build_service.execute(UUID(request.artifact_version_id))
+        return await self._build_service.execute(
+            UUID(request.artifact_version_id), workflow_id=activity.info().workflow_id,
+        )

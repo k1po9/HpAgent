@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from common.errors import ModelAPIError
 from common.interfaces import IResources
+from common.logging import log_event
 from common.model_usage import canonical_model_usage
 from common.token_counter import estimate_messages_tokens, estimate_tokens
 from resources.account_daily_budget import AccountModelEntitlementUnavailable
@@ -160,6 +161,7 @@ class ResourcePool(IResources):
             raise RuntimeError("production model call is missing ModelCallContext")
         if call_context is not None:
             call_ordinal, model_call_id = call_context.begin_logical_call()
+            call_context.model_call_id = model_call_id
 
         for model_id in candidate_ids:
             attempt += 1
@@ -168,6 +170,21 @@ class ResourcePool(IResources):
                 continue
             configured_candidates += 1
             client = model_info["client"]
+            if call_context is not None:
+                call_context.endpoint_id = model_id
+                call_context.provider = getattr(client, "provider", None)
+                call_context.model = getattr(client, "model", None)
+                call_context.attempt = attempt
+                call_context.failure_logged = False
+                event_fields = dict(
+                    artifact_id=call_context.artifact_id,
+                    artifact_version_id=call_context.artifact_version_id,
+                    source_run_id=str(call_context.run_id),
+                    workflow_id=call_context.workflow_id,
+                    model_call_id=str(model_call_id),
+                    endpoint_id=model_id, provider=call_context.provider,
+                    model=call_context.model, attempt=attempt,
+                )
             t0 = time.monotonic()
             budget_operation_id = ""
             reservation: dict[str, int] | None = None
@@ -253,6 +270,8 @@ class ResourcePool(IResources):
                     getattr(mutation.account, "replayed", False)
                     and getattr(mutation.account, "state", "") in {"settled", "released"}
                 )
+            if call_context is not None and call_context.artifact_version_id:
+                log_event(logger, logging.INFO, "artifact_model_call_started", "artifact", **event_fields)
             try:
                 if prepared is None and hasattr(client, "prepare_request"):
                     prepared = client.prepare_request(messages, tools, stream, max_tokens)
@@ -324,6 +343,9 @@ class ResourcePool(IResources):
                         result.provider_outcome = "succeeded"
                 except (AttributeError, TypeError):
                     pass
+                if call_context is not None and call_context.artifact_version_id:
+                    log_event(logger, logging.INFO, "artifact_model_call_succeeded", "artifact",
+                              **event_fields)
                 return result
             except (ModelAPIError, ConnectionError, TimeoutError) as e:
                 if should_settle and reservation is not None:
@@ -346,9 +368,16 @@ class ResourcePool(IResources):
                 logger.warning(
                     "DEGRADATION: endpoint %s failed (%s) → trying next in chain [%s] "
                     "(attempt %d/%d, attempt_latency=%.0fms chain_total=%.0fms)",
-                    model_id, e, model_selector,
+                    model_id, type(e).__name__, model_selector,
                     attempt, len(candidate_ids), elapsed, chain_elapsed,
                 )
+                if call_context is not None and call_context.artifact_version_id:
+                    from web_artifacts.generator import classify_model_failure
+                    failure = classify_model_failure(e)
+                    log_event(logger, logging.WARNING, "artifact_model_call_failed", "artifact",
+                              **event_fields, exception_type=failure.exception_type,
+                              error_code=failure.code, retryable=failure.retryable)
+                    call_context.failure_logged = True
                 last_error = e
                 continue
             except Exception:
