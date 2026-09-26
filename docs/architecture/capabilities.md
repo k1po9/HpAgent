@@ -20,7 +20,7 @@ Context Assembly 在模型执行前从 Hindsight 召回长期记忆。完成的 
 
 ## File 与 Workspace
 
-File 能力负责上传、校验、内容访问、Run Binding、Persistent Destination、Lineage、Approval 和生成输出。Workspace 提供账号级 Git Repository 与 Run 级执行目录。元数据保存在 PostgreSQL，Blob 与 Worktree 保存在专用存储。
+File 能力负责上传、校验、不可变对象、Run 绑定和生成输出。账号级长期文件 Workspace 用稳定目录与 entry ID 组织对象；Conversation/Task 授权控制 Agent 发现与读取，Run 冻结候选并在选择时固定版本。发布输出与保存长期入口是两次独立操作。PostgreSQL 是目录、授权、修订、操作与保留引用的权威；TenantFileStore 保存字节，RunFileWorkspace 仅按需物化临时副本。Git Repository 是代码任务的独立能力，不参与普通文件保存与 GC。详见 [Workspace v4.1](workspace-v4.1.md)。
 
 ## Research
 

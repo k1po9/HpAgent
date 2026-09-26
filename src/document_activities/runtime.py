@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -15,6 +14,8 @@ from file_runtime import FileResourceResolver
 from persistence.uow import UnitOfWork, retryable_transaction
 from resources.run_budget import RunBudgetService
 from tracing.repository import PostgresTraceRepository
+from workspace.blocking import run_blocking
+from workspace.resources import ResourceDenied, ResourcePolicy
 
 from .contracts import NormalizedDocumentRef, NormalizeDocumentInput
 
@@ -43,7 +44,17 @@ class DocumentActivities:
     @retryable_transaction
     def _find(self, operation_id: str) -> dict[str, Any] | None:
         with UnitOfWork(self.database) as uow:
-            return self.repository.find_by_operation(uow, operation_id)
+            row = self.repository.find_by_operation(uow, operation_id)
+            if row is not None:
+                run = uow.execute(
+                    "SELECT account_id,status FROM runs WHERE run_id=%s",
+                    (row["run_id"],),
+                ).fetchone()
+                if run is None or run["status"] not in {"queued", "running"} or not ResourcePolicy(
+                    self.database
+                )._file_authorized_in_uow(uow, run["account_id"], row["run_id"], row["file_id"]):
+                    raise ResourceDenied("normalized document authority was revoked")
+            return row
 
     @retryable_transaction
     def _persist(
@@ -52,6 +63,15 @@ class DocumentActivities:
         truncated: bool,
     ) -> dict[str, Any]:
         with UnitOfWork(self.database) as uow:
+            run = uow.execute(
+                "SELECT status FROM runs WHERE account_id=%s AND run_id=%s FOR UPDATE",
+                (UUID(request.account_id), UUID(request.run_id)),
+            ).fetchone()
+            if run is None or run["status"] not in {"queued", "running"} or not ResourcePolicy(
+                self.database
+            )._file_authorized_in_uow(uow, UUID(request.account_id), UUID(request.run_id),
+                                       UUID(request.file_id)):
+                raise ResourceDenied("normalized document authority was revoked")
             return self.repository.insert(
                 uow,
                 document_ref=document_ref,
@@ -69,7 +89,7 @@ class DocumentActivities:
         account_id, run_id, file_id = map(
             UUID, (request.account_id, request.run_id, request.file_id)
         )
-        with self.workspace.prepare(account_id, run_id) as scope:
+        with self.workspace.prepare(account_id, run_id, include_selected=True) as scope:
             resource = FileResourceResolver(scope).resolve(file_id)
             document = self.provider.parse(resource)
             payload = normalized_document_to_dict(document)
@@ -77,7 +97,7 @@ class DocumentActivities:
         return payload, scanned_bytes
 
     def _input_size(self, request: NormalizeDocumentInput) -> int:
-        rows = self.workspace.load_rows(UUID(request.account_id), UUID(request.run_id))
+        rows = self.workspace.load_rows(UUID(request.account_id), UUID(request.run_id), include_selected=True)
         file_id = UUID(request.file_id)
         row = next((item for item in rows if item["file_id"] == file_id), None)
         if row is None:
@@ -113,11 +133,11 @@ class DocumentActivities:
             (f"{operation_id}:wall", {"wall_time_ms": 1}),
         )
         for ledger_operation, actual in operations:
-            state = await asyncio.to_thread(
+            state = await run_blocking(
                 self._ledger_state, run_id, ledger_operation
             )
             if state == "reserved":
-                await asyncio.to_thread(
+                await run_blocking(
                     self.budget.settle, run_id, ledger_operation, actual, "estimated"
                 )
 
@@ -128,7 +148,7 @@ class DocumentActivities:
         if request.schema_version != 1 or not request.operation_id.strip():
             raise ValueError("unsupported document Activity request")
         UUID(request.account_id), UUID(request.run_id), UUID(request.file_id)
-        existing = await asyncio.to_thread(self._find, request.operation_id)
+        existing = await run_blocking(self._find, request.operation_id)
         if existing is not None:
             await self._settle_replayed_budget(
                 UUID(request.run_id), request.operation_id,
@@ -138,8 +158,8 @@ class DocumentActivities:
 
         run_id = UUID(request.run_id)
         event_id = uuid5(NAMESPACE_URL, f"hpagent:document:{request.operation_id}")
-        parent_event_id = await asyncio.to_thread(self._trace_parent, run_id)
-        await asyncio.to_thread(
+        parent_event_id = await run_blocking(self._trace_parent, run_id)
+        await run_blocking(
             self.trace.start_event, run_id, event_id, parent_event_id,
             "DocumentNormalization", "document_activity",
             {"operation_id": request.operation_id, "file_id": request.file_id},
@@ -149,17 +169,17 @@ class DocumentActivities:
         wall_operation = f"{request.operation_id}:wall"
         declared_size = 0
         try:
-            declared_size = await asyncio.to_thread(self._input_size, request)
-            await asyncio.to_thread(
+            declared_size = await run_blocking(self._input_size, request)
+            await run_blocking(
                 self.budget.reserve, run_id, bytes_operation,
                 {"bytes_scanned": declared_size},
             )
-            await asyncio.to_thread(
+            await run_blocking(
                 self.budget.reserve, run_id, wall_operation, {"wall_time_ms": 600_000}
             )
-            payload, scanned_bytes = await asyncio.to_thread(self._normalize, request)
+            payload, scanned_bytes = await run_blocking(self._normalize, request)
             metadata = payload.get("metadata", {})
-            row = await asyncio.to_thread(
+            row = await run_blocking(
                 self._persist,
                 request,
                 f"normalized-document:{request.run_id}:{request.file_id}",
@@ -168,17 +188,17 @@ class DocumentActivities:
                 len(payload.get("tables", [])),
                 bool(metadata.get("truncated", False)),
             )
-            await asyncio.to_thread(
+            await run_blocking(
                 self.budget.settle, run_id, bytes_operation,
                 {"bytes_scanned": scanned_bytes}, "measured",
             )
             elapsed_ms = max(1, int((time.monotonic() - started) * 1000))
-            await asyncio.to_thread(
+            await run_blocking(
                 self.budget.settle, run_id, wall_operation,
                 {"wall_time_ms": elapsed_ms}, "measured",
             )
             compact = self._result(row)
-            await asyncio.to_thread(
+            await run_blocking(
                 self.trace.finish_event, run_id, event_id, "completed", compact
             )
             return compact
@@ -188,18 +208,18 @@ class DocumentActivities:
                 (bytes_operation, {"bytes_scanned": declared_size}),
                 (wall_operation, {"wall_time_ms": elapsed_ms}),
             ):
-                state = await asyncio.to_thread(
+                state = await run_blocking(
                     self._ledger_state, run_id, ledger_operation
                 )
                 if state == "reserved":
-                    await asyncio.to_thread(
+                    await run_blocking(
                         self.budget.settle,
                         run_id,
                         ledger_operation,
                         actual,
                         "estimated",
                     )
-            await asyncio.to_thread(
+            await run_blocking(
                 self.trace.finish_event, run_id, event_id, "failed",
                 {"operation_id": request.operation_id},
             )

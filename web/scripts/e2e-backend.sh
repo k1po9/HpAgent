@@ -23,7 +23,7 @@ export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
 
 # The browser origin the API accepts for CSRF (vite dev server). Cookies are
 # non-secure because E2E runs over plain http://localhost.
-export WEB_PUBLIC_ORIGIN="${WEB_PUBLIC_ORIGIN:-http://localhost:5173}"
+export WEB_PUBLIC_ORIGIN="${WEB_PUBLIC_ORIGIN:-http://localhost:${WEB_DEV_PORT:-5173}}"
 export WEB_COOKIE_SECURE=false
 export WEB_CURSOR_SECRET="e2e-cursor-secret-0123456789abcdef-32bytes"
 export WEB_SESSION_TOKEN_PEPPER="e2e-session-pepper-0123456789abcdef-32bytes"

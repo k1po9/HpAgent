@@ -164,6 +164,7 @@ class ResearchReportWorkflow:
                 ("verify_research_citations_activity", 60),
                 ("compare_previous_research_activity", 60),
                 ("publish_research_artifact_activity", 60),
+                ("save_research_workspace_activity", 60),
                 ("complete_research_activity", 30),
             ):
                 await workflow.execute_activity(

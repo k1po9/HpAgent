@@ -23,6 +23,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 
 stages: list[str] = []
 sufficient_after = 1
+save_attempts = 0
 
 
 def _result(request, stage: str, count: int = 1, *, sufficient: bool | None = None):
@@ -109,6 +110,15 @@ async def publish(request: ResearchWorkflowInput):
     return _result(request, "PublishArtifact", 1)
 
 
+@activity.defn(name="save_research_workspace_activity")
+async def save(request: ResearchWorkflowInput):
+    global save_attempts
+    save_attempts += 1
+    if save_attempts == 1:
+        raise RuntimeError("injected failure after publication")
+    return _result(request, "WorkspaceSave", 1)
+
+
 @activity.defn(name="complete_research_activity")
 async def complete(request: ResearchWorkflowInput):
     return _result(request, "Complete", 1)
@@ -121,11 +131,12 @@ async def fail(request: ResearchWorkflowInput):
 
 @pytest.mark.parametrize("stop_after", [1, 4])
 async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_after):
-    global sufficient_after
+    global sufficient_after, save_attempts
     temporal_host = os.getenv("TEMPORAL_HOST")
     if not temporal_host:
         pytest.skip("TEMPORAL_HOST is required")
     stages.clear()
+    save_attempts = 0
     sufficient_after = stop_after
     namespace = os.getenv("TEMPORAL_TEST_NAMESPACE", "hpagent-research-test")
     bootstrap = await Client.connect(temporal_host)
@@ -158,6 +169,7 @@ async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_af
             verify,
             compare,
             publish,
+            save,
             complete,
             fail,
         ],
@@ -186,7 +198,8 @@ async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_af
             f"GapAnalysis:{iteration}",
         ])
     expected.extend([
-        "Synthesis", "CitationVerification", "DailyDiff", "PublishArtifact", "Complete"
+        "Synthesis", "CitationVerification", "DailyDiff", "PublishArtifact", "WorkspaceSave", "Complete"
     ])
     assert stages == expected
+    assert save_attempts == 2
     assert not any(stage.endswith(":4") for stage in stages)

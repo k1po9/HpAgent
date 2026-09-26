@@ -1,4 +1,0 @@
-services:
-  hpagent:
-    volumes:
-      - ./test/fixtures/models.f4-e2e.yaml:/app/config/models.f4-e2e.yaml:ro

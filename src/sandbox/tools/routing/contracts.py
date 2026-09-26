@@ -48,6 +48,11 @@ NATIVE_ROUTING_SPECS: dict[str, ToolRoutingSpec] = {
     "list_reminders": ToolRoutingSpec("reminder.list"),
     "cancel_reminder": ToolRoutingSpec("reminder.cancel"),
 
+    "list_run_candidates": _run_context("file.candidates.list", exposure=ToolExposure.ALWAYS),
+    "select_run_candidate": _run_context("file.candidates.select", exposure=ToolExposure.FRONT_DOOR,
+                                         front_door_family="current_run_candidate",
+                                         front_door_priority=95),
+
     # Current Run file reads.
     "read_file": _run_resource(
         "file.read", *_READ_FILE_EXTENSIONS,
@@ -85,8 +90,6 @@ NATIVE_ROUTING_SPECS: dict[str, ToolRoutingSpec] = {
         "file.convert.pdf", "docx", "xlsx", "pptx",
         required_services=frozenset({"gotenberg"}),
     ),
-    # PersistentWebFileService currently accepts any owned input/output Run file.
-    "save_persistent_file": _run_resource("file.persist", directions=_BOTH_DIRECTIONS),
 }
 
 

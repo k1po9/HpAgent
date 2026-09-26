@@ -41,6 +41,8 @@ class CreateResearchTaskRequest(StrictModel):
     title: str = Field(min_length=1, max_length=200)
     objective: str = Field(min_length=1, max_length=20000)
     conversation_id: UUID | None = None
+    output_directory_id: UUID | None = None
+    output_required: bool = False
     source_strategy: SourceStrategyRequest = Field(default_factory=SourceStrategyRequest)
 
 
@@ -49,6 +51,13 @@ class UpdateResearchScheduleRequest(StrictModel):
     timezone: str = Field(default="UTC", min_length=1, max_length=100)
     expression: str | None = Field(default=None, max_length=20)
     enabled: bool = False
+
+
+class UpdateResearchOutputRequest(StrictModel):
+    output_directory_id: UUID
+    required: bool = True
+    operation: Literal["create_child", "update_content"] = "create_child"
+    output_entry_id: UUID | None = None
 
 
 class RenameConversationRequest(StrictModel):
@@ -70,6 +79,37 @@ class CreateUploadRequest(StrictModel):
 
 class EmptyRequest(StrictModel):
     pass
+
+
+class CreateWorkspaceDirectoryRequest(StrictModel):
+    parent_id: UUID
+    name: str = Field(min_length=1, max_length=255)
+
+
+class SaveWorkspaceFileRequest(StrictModel):
+    parent_id: UUID
+    file_id: UUID
+    name: str = Field(min_length=1, max_length=255)
+
+
+class UpdateWorkspaceFileRequest(StrictModel):
+    run_id: UUID
+    file_id: UUID
+    expected_revision: int = Field(ge=1)
+    expected_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class MoveWorkspaceNodeRequest(StrictModel):
+    parent_id: UUID
+    name: str = Field(min_length=1, max_length=255)
+    preview_token: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class GrantConversationResourceRequest(StrictModel):
+    node_id: UUID
+    operations: list[Literal["list_metadata", "read_content", "create_child",
+                             "update_content", "delete_entry"]] = Field(min_length=1, max_length=5)
+    recursive: bool = False
 
 
 class CreateArtifactRequest(StrictModel):

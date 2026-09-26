@@ -17,6 +17,8 @@ make test-db
 make test-api
 ```
 
+Workspace v4.1 的 PostgreSQL/API 回归位于 `test/web_persistence/test_workspace_v41_p*.py` 和 `test/web_api/test_workspace_v41_p*.py`；浏览器场景位于 `web/e2e/workspace-p1.spec.ts`、`workspace-p3.spec.ts`。这些测试会创建或清理数据库业务行，应使用专用隔离数据库。P5 的 1k/10k 实测条件与尚缺的运行场景见[总体验收](../implementation/workspace-v4.1/ACCEPTANCE.md)。
+
 标记为 `temporal` 的测试需要可访问的 Temporal Server。可靠性与 Worker Recovery 测试可能创建临时进程或容器；不要直接对共享环境运行未经确认的测试。
 
 ## Web

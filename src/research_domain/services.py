@@ -24,6 +24,7 @@ from persistence.uow import UnitOfWork, retryable_transaction
 from research_domain.models import SourceStrategy
 from research_domain.persistence import TaskRepository
 from web_domain.errors import DomainError, IdempotencyConflict, ResourceNotFound
+from workspace.resources import ResourcePolicy
 
 
 class TaskNotActive(DomainError):
@@ -60,6 +61,73 @@ class ResearchTaskCommandService:
         self.budgets = RunBudgetRepository()
         self.budget_mode = budget_mode
 
+    def list_tasks(self, account_id: UUID, before: UUID | None = None) -> dict[str, Any]:
+        with UnitOfWork(self.database) as uow:
+            rows = uow.execute(
+                "SELECT t.task_id,t.title,t.status,t.created_at,t.output_directory_id,"
+                "t.output_required,t.output_operation,t.output_entry_id,"
+                "t.schedule_type,t.schedule_timezone,t.schedule_expression,"
+                "n.name AS output_directory_name "
+                "FROM tasks t LEFT JOIN workspace_nodes n ON n.node_id=t.output_directory_id "
+                "WHERE t.account_id=%s "
+                "AND (%s::uuid IS NULL OR t.task_id<%s::uuid) "
+                "ORDER BY t.task_id DESC LIMIT 51",
+                (account_id, before, before),
+            ).fetchall()
+            page = rows[:50]
+            return {"items": [
+                {"task_id": str(row["task_id"]), "title": row["title"],
+                 "status": row["status"], "created_at": row["created_at"].isoformat(),
+                 "output_directory_id": str(row["output_directory_id"]) if row["output_directory_id"] else None,
+                 "output_directory_name": row["output_directory_name"],
+                 "output_required": row["output_required"],
+                 "output_operation": row["output_operation"],
+                 "output_entry_id": str(row["output_entry_id"]) if row["output_entry_id"] else None,
+                 "schedule_type": row["schedule_type"],
+                 "schedule_timezone": row["schedule_timezone"],
+                 "schedule_expression": row["schedule_expression"]}
+                for row in page
+            ], "next_before": str(page[-1]["task_id"]) if len(rows) > 50 else None}
+
+    def list_runs(
+        self, account_id: UUID, task_id: UUID, before: UUID | None = None,
+    ) -> dict[str, Any]:
+        with UnitOfWork(self.database) as uow:
+            if uow.execute(
+                "SELECT 1 FROM tasks WHERE account_id=%s AND task_id=%s",
+                (account_id, task_id),
+            ).fetchone() is None:
+                raise ResourceNotFound()
+            rows = uow.execute(
+                "SELECT r.run_id,r.status,r.failure_code,r.created_at,sf.file_id,sf.display_name,"
+                "i.state AS save_state,i.entry_id,i.failure_code AS save_failure_code "
+                "FROM runs r LEFT JOIN LATERAL ("
+                "SELECT sf.file_id,sf.display_name FROM run_files rf "
+                "JOIN stored_files sf ON sf.account_id=rf.account_id "
+                "AND sf.file_id=rf.file_id AND sf.status='ready' "
+                "WHERE rf.account_id=r.account_id AND rf.run_id=r.run_id "
+                "AND rf.direction='output' ORDER BY rf.created_at LIMIT 1"
+                ") sf ON true LEFT JOIN research_run_save_intents i ON i.run_id=r.run_id "
+                "WHERE r.account_id=%s AND r.task_id=%s "
+                "AND (%s::uuid IS NULL OR r.run_id<%s::uuid) "
+                "ORDER BY r.run_id DESC LIMIT 51",
+                (account_id, task_id, before, before),
+            ).fetchall()
+            page = rows[:50]
+            return {"items": [{
+                "run_id": str(row["run_id"]), "status": row["status"],
+                "failure_code": row["failure_code"],
+                "save_status": row["save_state"],
+                "save_entry_id": str(row["entry_id"]) if row["entry_id"] else None,
+                "save_failure_code": row["save_failure_code"],
+                "created_at": row["created_at"].isoformat(),
+                "published_file": ({"file_id": str(row["file_id"]),
+                    "file_name": row["display_name"],
+                    "download_url": f"/api/v1/files/{row['file_id']}/content"}
+                    if row["file_id"] else None),
+            } for row in page],
+                "next_before": str(page[-1]["run_id"]) if len(rows) > 50 else None}
+
     @retryable_transaction
     def create_task(
         self,
@@ -70,6 +138,8 @@ class ResearchTaskCommandService:
         source_strategy: SourceStrategy | None = None,
         *,
         conversation_id: UUID | None = None,
+        output_directory_id: UUID | None = None,
+        output_required: bool = False,
     ) -> TaskCommandResult:
         title = title.strip()
         objective = objective.strip()
@@ -79,6 +149,8 @@ class ResearchTaskCommandService:
         payload = {"title": title, "objective": objective, "source_strategy": strategy.to_dict()}
         if conversation_id is not None:
             payload["conversation_id"] = str(conversation_id)
+        payload.update(output_directory_id=str(output_directory_id) if output_directory_id else None,
+                       output_required=output_required)
         with UnitOfWork(self.database) as uow:
             replay = self._claim(uow, account_id, "create_task", key, payload)
             if replay:
@@ -93,6 +165,28 @@ class ResearchTaskCommandService:
             self.tasks.insert(
                 uow, task_id, account_id, title, objective, strategy.to_dict(), conversation_id
             )
+            if output_directory_id is not None:
+                directory = uow.execute(
+                    "SELECT 1 FROM workspace_nodes WHERE account_id=%s AND node_id=%s "
+                    "AND kind='directory' AND deleted_at IS NULL",
+                    (account_id, output_directory_id),
+                ).fetchone()
+                if directory is None:
+                    raise ResourceNotFound()
+                uow.execute(
+                    "UPDATE tasks SET output_directory_id=%s,output_required=%s WHERE task_id=%s",
+                    (output_directory_id, output_required, task_id),
+                )
+                ResourcePolicy._version(uow, account_id, "task", task_id)
+                for operation in ("list_metadata", "read_content", "create_child"):
+                    uow.execute(
+                        "INSERT INTO resource_grants(grant_id,account_id,subject_kind,"
+                        "subject_id,node_id,operation,recursive) "
+                        "VALUES (%s,%s,'task',%s,%s,%s,true)",
+                        (uuid7(), account_id, task_id, output_directory_id, operation),
+                    )
+            elif output_required:
+                raise ValueError("required output needs a directory")
             body = {"task_id": str(task_id), "task_type": "research_report", "status": "active"}
             if conversation_id is not None:
                 body["conversation_id"] = str(conversation_id)
@@ -177,6 +271,61 @@ class ResearchTaskCommandService:
                 json.dumps(limits, sort_keys=True),
                 0,
             )
+            ResourcePolicy(self.database).snapshot_in_uow(
+                uow, account_id, run_id, task_id, "task"
+            )
+            if task["output_directory_id"] is not None:
+                target_entry = task["output_entry_id"]
+                expected_revision = None
+                expected_sha256 = None
+                if task["output_operation"] == "update_content":
+                    base = uow.execute(
+                        "SELECT d.current_revision,d.current_file_id,d.current_sha256 "
+                        "FROM workspace_nodes n JOIN persistent_file_destinations d "
+                        "ON d.destination_id=n.destination_id AND d.account_id=n.account_id "
+                        "WHERE n.account_id=%s AND n.node_id=%s AND n.parent_id=%s "
+                        "AND n.deleted_at IS NULL FOR SHARE OF d",
+                        (account_id, target_entry, task["output_directory_id"]),
+                    ).fetchone()
+                    if base is None:
+                        raise ResourceNotFound()
+                    grants = ResourcePolicy._grants(uow, account_id, "task", task_id,
+                                                     target_entry, "read_content")
+                    if not grants:
+                        raise ResourceNotFound()
+                    fixed = uow.execute(
+                        "UPDATE run_resource_candidates SET fixed_file_id=%s,"
+                        "fixed_revision=%s,fixed_at=now() WHERE run_id=%s AND node_id=%s "
+                        "RETURNING logical_name",
+                        (base["current_file_id"], base["current_revision"], run_id,
+                         target_entry),
+                    ).fetchone()
+                    if fixed is None:
+                        raise ResourceNotFound()
+                    uow.execute(
+                        "INSERT INTO run_resource_access(access_id,account_id,run_id,file_id,"
+                        "node_id,basis,grant_id) VALUES (%s,%s,%s,%s,%s,'workspace_grant',%s)",
+                        (uuid7(), account_id, run_id, base["current_file_id"], target_entry,
+                         grants[0]["grant_id"]),
+                    )
+                    uow.execute(
+                        "INSERT INTO run_files(account_id,conversation_id,run_id,file_id,"
+                        "direction,logical_name) VALUES (%s,%s,%s,%s,'input',%s)",
+                        (account_id, conversation_id, run_id, base["current_file_id"],
+                         fixed["logical_name"]),
+                    )
+                    expected_revision = base["current_revision"]
+                    expected_sha256 = base["current_sha256"]
+                uow.execute(
+                    "INSERT INTO research_run_save_intents(run_id,account_id,target_directory_id,"
+                    "operation,output_kind,policy_version,required,operation_id,"
+                    "target_entry_id,expected_revision,expected_sha256) "
+                    "VALUES (%s,%s,%s,%s,'research_markdown',%s,%s,%s,%s,%s,%s)",
+                    (run_id, account_id, task["output_directory_id"],
+                     task["output_operation"], task["output_policy_version"],
+                     task["output_required"], f"workspace-save:{run_id}:research_markdown",
+                     target_entry, expected_revision, expected_sha256),
+                )
             self.outbox.enqueue(
                 uow,
                 uuid7(),
@@ -199,6 +348,59 @@ class ResearchTaskCommandService:
                 body["conversation_id"] = str(conversation_id)
             self._complete(uow, account_id, "trigger_task", key, 202, body)
             return TaskCommandResult(202, body)
+
+    @retryable_transaction
+    def update_output(self, account_id: UUID, task_id: UUID, directory_id: UUID,
+                      required: bool, operation: str = "create_child",
+                      entry_id: UUID | None = None) -> dict[str, Any]:
+        if operation not in {"create_child", "update_content"} or (
+            (operation == "create_child") != (entry_id is None)
+        ):
+            raise ValueError("invalid Task output operation")
+        with UnitOfWork(self.database) as uow:
+            task = self.tasks.lock_active(uow, account_id, task_id)
+            if task is None:
+                raise ResourceNotFound()
+            if uow.execute(
+                "SELECT 1 FROM workspace_nodes WHERE account_id=%s AND node_id=%s "
+                "AND kind='directory' AND deleted_at IS NULL",
+                (account_id, directory_id),
+            ).fetchone() is None:
+                raise ResourceNotFound()
+            if entry_id is not None:
+                if uow.execute(
+                    "SELECT 1 FROM workspace_nodes n JOIN persistent_file_destinations d "
+                    "ON d.destination_id=n.destination_id AND d.account_id=n.account_id "
+                    "WHERE n.account_id=%s AND n.node_id=%s AND n.parent_id=%s "
+                    "AND n.kind='file' AND n.deleted_at IS NULL",
+                    (account_id, entry_id, directory_id),
+                ).fetchone() is None:
+                    raise ResourceNotFound()
+            ResourcePolicy._version(uow, account_id, "task", task_id)
+            for permission in ("list_metadata", "read_content",
+                               "create_child" if operation == "create_child" else "update_content"):
+                if not ResourcePolicy._grants(uow, account_id, "task", task_id,
+                                              entry_id or directory_id, permission):
+                    uow.execute(
+                        "INSERT INTO resource_grants(grant_id,account_id,subject_kind,"
+                        "subject_id,node_id,operation,recursive) "
+                        "VALUES (%s,%s,'task',%s,%s,%s,true)",
+                        (uuid7(), account_id, task_id, entry_id or directory_id, permission),
+                    )
+            uow.execute(
+                "UPDATE resource_policy_versions SET version=version+1 WHERE account_id=%s "
+                "AND subject_kind='task' AND subject_id=%s", (account_id, task_id),
+            )
+            uow.execute(
+                "UPDATE tasks SET output_directory_id=%s,output_required=%s,"
+                "output_operation=%s,output_entry_id=%s,"
+                "output_policy_version=output_policy_version+1,"
+                "updated_at=now(),version=version+1 WHERE task_id=%s",
+                (directory_id, required, operation, entry_id, task_id),
+            )
+            return {"task_id": str(task_id), "output_directory_id": str(directory_id),
+                    "output_required": required, "operation": operation,
+                    "output_entry_id": str(entry_id) if entry_id else None}
 
     @retryable_transaction
     def update_schedule(
@@ -256,15 +458,29 @@ class ResearchTaskCommandService:
                 "SELECT r.run_id,r.task_id,r.status,r.failure_code,r.failure_message,"
                 "r.created_at,r.started_at,r.finished_at,rr.report_markdown,"
                 "rr.report_structured_json,rr.citation_status,rr.artifact_id,"
-                "rr.artifact_version_id FROM runs r LEFT JOIN research_reports rr "
-                "ON rr.run_id=r.run_id WHERE r.account_id=%s AND r.task_id=%s "
+                "rr.artifact_version_id,i.state AS save_status,i.entry_id AS save_entry_id,"
+                "i.failure_code AS save_failure_code FROM runs r LEFT JOIN research_reports rr "
+                "ON rr.run_id=r.run_id LEFT JOIN research_run_save_intents i "
+                "ON i.run_id=r.run_id WHERE r.account_id=%s AND r.task_id=%s "
                 "AND r.run_id=%s AND r.run_kind='research'",
                 (account_id, task_id, run_id),
             ).fetchone()
             if row is None:
                 raise ResourceNotFound()
             result = dict(row)
-            for key in ("run_id", "task_id", "artifact_id", "artifact_version_id"):
+            output = uow.execute(
+                "SELECT sf.file_id,sf.display_name FROM run_files rf JOIN stored_files sf "
+                "ON sf.account_id=rf.account_id AND sf.file_id=rf.file_id "
+                "WHERE rf.account_id=%s AND rf.run_id=%s AND rf.direction='output' "
+                "AND sf.status='ready' ORDER BY rf.created_at LIMIT 1",
+                (account_id, run_id),
+            ).fetchone()
+            result["published_file"] = (
+                {"file_id": str(output["file_id"]), "file_name": output["display_name"],
+                 "download_url": f"/api/v1/files/{output['file_id']}/content"}
+                if output else None
+            )
+            for key in ("run_id", "task_id", "artifact_id", "artifact_version_id", "save_entry_id"):
                 result[key] = str(result[key]) if result[key] is not None else None
             for key in ("created_at", "started_at", "finished_at"):
                 result[key] = result[key].isoformat() if result[key] is not None else None

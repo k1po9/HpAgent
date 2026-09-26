@@ -26,8 +26,18 @@
 ## Research
 
 1. Task Run 启动 `ResearchReportWorkflow`。
-2. Activity 依次规划、搜索 SearXNG、获取内容、提取 Evidence 并综合 Report。
-3. 每个持久化阶段写入 PostgreSQL；Client 查询进度、Evidence 和最终 Report。
+2. Run 创建时冻结 Task 输入候选与 Workspace 保存意图；Activity 按当前内容权限选取固定历史基线。
+3. Activity 依次规划、搜索 SearXNG、获取内容、提取 Evidence 并综合 Report。
+4. 先发布 Run 输出，再按冻结的目录/版本目标执行 Workspace 保存；required 保存成功后才提交 Run completed。
+5. 每个持久化阶段写入 PostgreSQL；Client 可查询进度、Evidence、已发布文件、保存状态和最终 Report。
+
+## 长期文件使用与版本更新
+
+1. 所有者把 ready 文件对象保存为 Workspace entry；字节和来源不变。
+2. Conversation 或 Task 授权目标 entry/目录。新 Run 在创建事务中冻结有界候选集合，搜索只在该集合内分页。
+3. Agent 首次选择时校验当前权限并固定 file/revision，再按需物化；每次受控读取再次检查权限。
+4. 新输出先发布为不可变 Run 文件。长期保存创建 entry；更新既有 entry 则以预期 revision/hash 进行 CAS 提交。
+5. 移除入口只解除该长期引用。统一 GC 在消息、Run、修订、固定对象及 pending operation 均不保留时回收字节。
 
 ## Heavy Document
 

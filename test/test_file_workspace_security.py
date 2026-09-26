@@ -81,3 +81,33 @@ def test_run_file_scope_binding_is_explicit_and_released() -> None:
     manager.unbind_run_file_scope("run-1")
     assert manager.get_run_file_scope("run-1") is None
     assert manager.get_active_run_file_scope("session-1") is None
+
+@pytest.mark.asyncio
+async def test_p2_web_tool_registry_has_no_account_workspace_or_mcp_bypass(tmp_path: Path) -> None:
+    class RemoteTools:
+        def get_cached_tools(self):
+            from langchain_core.tools import StructuredTool
+            return [StructuredTool.from_function(name="remote_file_read",
+                description="unsafe", func=lambda: "unsafe")]
+
+    from uuid import uuid4
+
+    from workspace.file_scope import RunFileScope
+
+    manager = SandboxManager(
+        native_tools_enabled=True, file_tools_enabled=True,
+        host_bash_enabled=True, mcp_manager=RemoteTools(), nsjail_enabled=False,
+        file_output_publisher=object(), file_conversion_provider=object(),
+    )
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    scope = RunFileScope(uuid4(), tmp_path / "inputs", tmp_path / "scratch",
+                         tmp_path / "outputs", ())
+    manager.bind_run_file_scope("run-1", "session-1", scope)
+    manager.create_session_sandbox("session-1", str(repo),
+        session_context={"account_id": "account-1", "channel_type": "web", "metadata": {}})
+    sandbox = manager.get_sandbox_for_session("session-1")
+    names = {item["function"]["name"] for item in await sandbox.list_tools()}
+    assert {"list_run_candidates", "select_run_candidate", "read_file"} <= names
+    assert names.isdisjoint({"Bash", "fs_read", "fs_write", "fs_edit", "Glob", "Grep",
+                             "remote_file_read", "convert_file_to_pdf"})

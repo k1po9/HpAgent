@@ -1,6 +1,6 @@
 # HpAgent 文档
 
-`docs/` 只描述当前系统。历史实施计划和关闭证据不属于当前文档；需要时可从 Git 历史和 `artifacts/` 获取。
+架构、开发、运维和参考文档描述当前系统；`implementation/` 保存 Workspace v4.1 的阶段证据与验收边界。
 
 ## 架构
 
@@ -10,6 +10,7 @@
 - [能力边界](architecture/capabilities.md)：Agent、工具、记忆、文件、研究、Artifact 和文档。
 - [可靠性](architecture/reliability.md)：持久化、重试、Lease、Fencing、幂等与取消。
 - [关键时序](architecture/sequences.md)：核心端到端流程。
+- [Workspace v4.1](architecture/workspace-v4.1.md)：长期文件目录、授权、Run 快照、版本、保存与 GC。
 
 ## 开发
 
@@ -32,3 +33,7 @@
 - [仓库结构](reference/repository-layout.md)
 - [Temporal](reference/temporal.md)
 - [HTTP API](reference/api.md)
+
+## 实施与验收
+
+- [Workspace P0～P5 记录与总体验收](implementation/workspace-v4.1/README.md)

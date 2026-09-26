@@ -203,7 +203,7 @@ class FileRepository:
         return list(uow.execute(
             "SELECT rf.logical_name,rf.direction,sf.size_bytes,sf.encoding,sf.content_type "
             "FROM run_files rf JOIN stored_files sf ON sf.account_id=rf.account_id "
-            "AND sf.conversation_id=rf.conversation_id AND sf.file_id=rf.file_id "
+            "AND sf.file_id=rf.file_id "
             "WHERE rf.account_id=%s AND rf.run_id=%s AND sf.status='ready' "
             "ORDER BY rf.direction,rf.logical_name",
             (account_id, run_id),
@@ -256,23 +256,8 @@ class FileRepository:
     def mark_deleted_if_unbound(
         self, uow: UnitOfWork, account_id: UUID, file_id: UUID,
     ) -> str:
-        row = self.get_for_account(uow, account_id, file_id, lock=True)
-        if row is None:
-            return "not_found"
-        bound = uow.execute(
-            "SELECT 1 FROM message_files WHERE file_id=%s UNION ALL "
-            "SELECT 1 FROM run_files WHERE file_id=%s LIMIT 1",
-            (file_id, file_id),
-        ).fetchone()
-        if bound:
-            return "bound"
-        if row["status"] != "deleted":
-            uow.execute(
-                "UPDATE stored_files SET status='deleted',deleted_at=now(),expires_at=now() "
-                "WHERE account_id=%s AND file_id=%s",
-                (account_id, file_id),
-            )
-        return "deleted"
+        from web_domain.file_lifecycle import claim_file_deletion
+        return claim_file_deletion(uow, account_id, file_id)
 
     def lock_ready_inputs(
         self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
@@ -281,10 +266,10 @@ class FileRepository:
         if not file_ids:
             return []
         return list(uow.execute(
-            "SELECT * FROM stored_files WHERE account_id=%s AND conversation_id=%s "
-            "AND file_id=ANY(%s) AND purpose='input' AND status='ready' "
+            "SELECT * FROM stored_files WHERE account_id=%s "
+            "AND file_id=ANY(%s) AND status='ready' "
             "ORDER BY created_at,file_id FOR UPDATE",
-            (account_id, conversation_id, list(file_ids)),
+            (account_id, list(file_ids)),
         ).fetchall())
 
     def bind_inputs(
@@ -295,8 +280,8 @@ class FileRepository:
         if files:
             uow.execute(
                 "UPDATE stored_files SET expires_at=NULL WHERE account_id=%s "
-                "AND conversation_id=%s AND file_id=ANY(%s)",
-                (account_id, conversation_id, [file["file_id"] for file in files]),
+                "AND purpose='input' AND file_id=ANY(%s)",
+                (account_id, [file["file_id"] for file in files]),
             )
         for ordinal, file in enumerate(files):
             logical_name = self._unique_logical_name(str(file["display_name"]), used_names)

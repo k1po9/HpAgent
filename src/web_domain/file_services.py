@@ -191,6 +191,35 @@ class FileService:
             metadata = dict(row)
         return self._dto(metadata), self.store.open(str(metadata["storage_key"]))
 
+    def list_candidates(
+        self, account_id: UUID, conversation_id: UUID, before: UUID | None = None,
+    ) -> dict[str, Any]:
+        """Metadata only; selected file IDs are rechecked when a Run is created."""
+        with UnitOfWork(self.database) as uow:
+            conversation = self.conversations.get_for_account(uow, account_id, conversation_id)
+            if conversation is None or conversation["status"] != "active":
+                raise ResourceNotFound()
+            rows = uow.execute(
+                "SELECT sf.* FROM stored_files sf WHERE sf.account_id=%s "
+                "AND sf.status='ready' AND (%s::uuid IS NULL OR sf.file_id<%s::uuid) "
+                "AND NOT EXISTS (SELECT 1 FROM conversation_resource_files crf "
+                "WHERE crf.account_id=sf.account_id AND crf.conversation_id=%s "
+                "AND crf.file_id=sf.file_id AND crf.available=false) "
+                "AND ((sf.conversation_id=%s AND sf.purpose='input' AND EXISTS ("
+                "SELECT 1 FROM message_files mf WHERE mf.account_id=sf.account_id "
+                "AND mf.file_id=sf.file_id AND mf.conversation_id=%s AND mf.role='input')) "
+                "OR (sf.purpose='output' AND EXISTS (SELECT 1 FROM run_files rf "
+                "JOIN runs r ON r.account_id=rf.account_id AND r.run_id=rf.run_id "
+                "WHERE rf.account_id=sf.account_id AND rf.file_id=sf.file_id "
+                "AND rf.direction='output' AND r.conversation_id=%s))) "
+                "ORDER BY sf.file_id DESC LIMIT 51",
+                (account_id, before, before, conversation_id, conversation_id,
+                 conversation_id, conversation_id),
+            ).fetchall()
+            page = rows[:50]
+            return {"items": [self._dto(row) for row in page],
+                    "next_before": str(page[-1]["file_id"]) if len(rows) > 50 else None}
+
     def lineage(self, account_id: UUID, file_id: UUID) -> list[dict[str, Any]]:
         with UnitOfWork(self.database) as uow:
             current = self.files.get_for_account(uow, account_id, file_id)
@@ -203,7 +232,6 @@ class FileService:
                 " UNION ALL"
                 " SELECT parent.*,lineage.depth+1 FROM stored_files parent "
                 " JOIN lineage ON parent.account_id=lineage.account_id "
-                " AND parent.conversation_id=lineage.conversation_id "
                 " AND parent.file_id=lineage.parent_file_id"
                 ") SELECT * FROM lineage ORDER BY depth DESC",
                 (account_id, file_id),
@@ -226,9 +254,12 @@ class FileService:
     def _output_is_visible(uow: UnitOfWork, row: Any) -> bool:
         if row["purpose"] != "output":
             return True
+        if row["status"] != "ready":
+            return False
         return uow.execute(
-            "SELECT 1 FROM message_files WHERE account_id=%s AND file_id=%s "
-            "AND role='output'",
+            "SELECT 1 FROM run_files rf JOIN runs r ON r.account_id=rf.account_id "
+            "AND r.run_id=rf.run_id WHERE rf.account_id=%s AND rf.file_id=%s "
+            "AND rf.direction='output'",
             (row["account_id"], row["file_id"]),
         ).fetchone() is not None
 

@@ -361,8 +361,8 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
     with pytest.raises(ResourceNotFound):
         ArtifactService(database_url).get_artifact(other_account, report["artifact_id"])
 
-    # A later successful Run of the same Task owns a different Artifact while
-    # its structured snapshot compares against the prior successful report.
+    # A later successful Run owns a different Artifact. With no authorized
+    # Workspace history entry, the baseline stays empty despite the same Task.
     second = commands.trigger_task(account_id, UUID(task.body["task_id"]), str(uuid7()))
     second_request = ResearchWorkflowInput(1, second.body["run_id"])
     second_iteration = ResearchIterationInput(1, second.body["run_id"], 1)
@@ -392,8 +392,8 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
             "SELECT count(*) AS count FROM artifacts WHERE research_run_id IN (%s,%s)",
             (run_id, second.body["run_id"]),
         ).fetchone()["count"]
-    assert str(second_report["previous_run_id"]) == run_id
-    assert len(second_report["daily_diff"]["continuing"]) == 1
+    assert second_report["previous_run_id"] is None
+    assert len(second_report["daily_diff"]["continuing"]) == 0
     assert artifact_count == 2
 
 

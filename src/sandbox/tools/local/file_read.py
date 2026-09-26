@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from collections.abc import Callable
 from typing import Any
@@ -19,6 +18,7 @@ from file_adapters import (
 )
 from file_domain.models import FileResource
 from file_runtime import FileAdapterRegistry, FileResourceResolver
+from workspace.blocking import run_blocking
 
 
 class FileInput(BaseModel):
@@ -147,7 +147,7 @@ def create_file_read_tools(
                 "normalized_document_ref": reference,
                 "truncated": bool(reference["truncated"]),
             })
-        view = await asyncio.to_thread(adapter.convert, resource, max_chars=max_chars)
+        view = await run_blocking(adapter.convert, resource, max_chars=max_chars)
         return _encode(resource, {
             "route": "bounded_direct_read",
             "text": view.text, "media_type": view.media_type,
@@ -159,31 +159,31 @@ def create_file_read_tools(
 
     async def inspect_pdf(file: str) -> str:
         resource, adapter = resolve(file, "pdf")
-        return _encode(resource, await asyncio.to_thread(adapter.inspect, resource))
+        return _encode(resource, await run_blocking(adapter.inspect, resource))
 
     async def read_pdf_pages(
         file: str, start_page: int, end_page: int, max_chars: int = 32_000
     ) -> str:
         resource, adapter = resolve(file, "pdf")
-        result = await asyncio.to_thread(
+        result = await run_blocking(
             adapter.read_pages, resource, start_page, end_page, max_chars
         )
         return _encode(resource, result)
 
     async def extract_pdf_tables(file: str, page: int, max_rows: int = 100) -> str:
         resource, adapter = resolve(file, "pdf")
-        result = await asyncio.to_thread(adapter.extract_tables, resource, page, max_rows)
+        result = await run_blocking(adapter.extract_tables, resource, page, max_rows)
         return _encode(resource, result)
 
     async def inspect_docx(file: str) -> str:
         resource, adapter = resolve(file, "docx")
-        return _encode(resource, await asyncio.to_thread(adapter.inspect, resource))
+        return _encode(resource, await run_blocking(adapter.inspect, resource))
 
     async def read_docx_paragraphs(
         file: str, start: int = 0, limit: int = 50, max_chars: int = 32_000
     ) -> str:
         resource, adapter = resolve(file, "docx")
-        result = await asyncio.to_thread(
+        result = await run_blocking(
             adapter.read_paragraphs, resource, start, limit, max_chars
         )
         return _encode(resource, result)
@@ -192,21 +192,21 @@ def create_file_read_tools(
         file: str, table_index: int = 0, max_rows: int = 100
     ) -> str:
         resource, adapter = resolve(file, "docx")
-        result = await asyncio.to_thread(
+        result = await run_blocking(
             adapter.extract_tables, resource, table_index, max_rows
         )
         return _encode(resource, result)
 
     async def inspect_workbook(file: str) -> str:
         resource, adapter = resolve(file, "xlsx")
-        return _encode(resource, await asyncio.to_thread(adapter.inspect, resource))
+        return _encode(resource, await run_blocking(adapter.inspect, resource))
 
     async def read_sheet_range(
         file: str, sheet: str, start_row: int, end_row: int,
         start_column: int, end_column: int,
     ) -> str:
         resource, adapter = resolve(file, "xlsx")
-        result = await asyncio.to_thread(
+        result = await run_blocking(
             adapter.read_range, resource, sheet, start_row, end_row,
             start_column, end_column, 10_000,
         )
@@ -214,11 +214,11 @@ def create_file_read_tools(
 
     async def inspect_presentation(file: str) -> str:
         resource, adapter = resolve(file, "pptx")
-        return _encode(resource, await asyncio.to_thread(adapter.inspect, resource))
+        return _encode(resource, await run_blocking(adapter.inspect, resource))
 
     async def read_slide(file: str, slide: int, max_chars: int = 16_000) -> str:
         resource, adapter = resolve(file, "pptx")
-        result = await asyncio.to_thread(adapter.read_slide, resource, slide, max_chars)
+        result = await run_blocking(adapter.read_slide, resource, slide, max_chars)
         return _encode(resource, result)
 
     scope_hint = " Use the logical filename from Current Run Files; this tool only reads the Current Run File Scope."

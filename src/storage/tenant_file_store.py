@@ -156,6 +156,20 @@ class TenantFileStore:
             raise FileStoreError("output source must be a regular file")
         key = self.staging_key(file_id)
         target = self._key_path(key)
+        # A previous attempt may have died after staging or after object publication.
+        # The deterministic file ID is safe to reuse only for identical bytes.
+        if target.exists():
+            old = hashlib.sha256()
+            new = hashlib.sha256()
+            with target.open("rb") as stream:
+                while chunk := stream.read(64 * 1024):
+                    old.update(chunk)
+            with source_path.open("rb") as stream:
+                while chunk := stream.read(64 * 1024):
+                    new.update(chunk)
+            if old.digest() != new.digest() or target.stat().st_size != source_path.stat().st_size:
+                raise FileStoreError("staged output conflicts with retry")
+            return StagedFile(key, target.stat().st_size, old.hexdigest(), "binary")
         digest = hashlib.sha256()
         total = 0
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)

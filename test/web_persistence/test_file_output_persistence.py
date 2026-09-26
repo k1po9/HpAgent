@@ -9,7 +9,6 @@ from conversation_domain.commands import CommandService
 from file_runtime import OutputPublisher
 from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
-from web_domain.errors import ResourceNotFound
 from web_domain.file_services import FileService
 from workspace.file_scope import RunFileScope
 
@@ -43,8 +42,10 @@ def test_output_publish_is_idempotent_and_binds_on_completion(
     ).fetchone()[0] == 1
 
     files = FileService(database_url, store, max_bytes=1024)
-    with pytest.raises(ResourceNotFound):
-        files.download(account_id, first.file_id)
+    metadata, stream = files.download(account_id, first.file_id)
+    with stream:
+        assert stream.read() == b"immutable-output"
+    assert metadata["file_id"] == str(first.file_id)
 
     CommandService(worker_database_url).complete_run(account_id, run_id, "done")
     bound = db.execute(

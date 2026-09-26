@@ -50,6 +50,7 @@ def test_research_workflow_input_and_history_payload_are_compact():
         "verify_research_citations_activity",
         "compare_previous_research_activity",
         "publish_research_artifact_activity",
+        "save_research_workspace_activity",
         "complete_research_activity",
     ):
         assert activity_name in source

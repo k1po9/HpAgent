@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Flex, Spinner, Text } from "@radix-ui/themes";
 import { ChatPane } from "./components/ChatPane";
 import { ConversationSidebar } from "./components/ConversationSidebar";
@@ -9,7 +9,14 @@ import { useArtifacts } from "./store/artifacts";
 import { ArtifactPanel } from "./components/ArtifactPanel";
 import { RegistrationQqGate } from "./components/RegistrationQqGate";
 import { TracePanel } from "./components/trace/TracePanel";
+import { ResearchOutputs } from "./components/ResearchOutputs";
+import { WorkspacePanel } from "./components/WorkspacePanel";
 import { useTraceStore } from "./components/trace/traceStore";
+import { api as transport } from "./api/client";
+import { HpApi } from "./api/resources";
+import { newIdempotencyKey } from "./utils/idempotency";
+
+const workspaceApi = new HpApi(transport);
 
 /**
  * Auth gate: probe `/api/v1/me` on mount; signed-in sessions open the chat
@@ -63,6 +70,7 @@ function Workbench() {
   const loadingConversations = useWorkbench((s) => s.loadingConversations);
   const creatingConversation = useWorkbench((s) => s.creatingConversation);
   const activeConversationId = useWorkbench((s) => s.activeConversationId);
+  const activeRunId = useWorkbench((s) => s.activeRun?.run_id ?? null);
   const account = useAuth((s) => s.account);
   const identities = useAuth((s) => s.identities);
   const justRegistered = useAuth((s) => s.justRegistered);
@@ -75,6 +83,31 @@ function Workbench() {
   const openArtifactId = useArtifacts((s) => s.openArtifactId);
   const resetArtifacts = useArtifacts((s) => s.reset);
   const [startQqBinding, setStartQqBinding] = useState(false);
+  const [selectedDirectoryId, setSelectedDirectoryId] = useState<string | null>(null);
+  const [workspaceRefresh, setWorkspaceRefresh] = useState(0);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+
+  const saveToWorkspace = useCallback(
+    async (file: { file_id: string; file_name: string }) => {
+      if (!selectedDirectoryId) {
+        setWorkspaceError("请先选择 Workspace 目标目录");
+        return;
+      }
+      try {
+        await workspaceApi.saveWorkspaceFile(
+          selectedDirectoryId,
+          file.file_id,
+          file.file_name,
+          newIdempotencyKey(),
+        );
+        setWorkspaceRefresh((value) => value + 1);
+        setWorkspaceError(null);
+      } catch {
+        setWorkspaceError("保存失败：同名入口已存在或文件不可用");
+      }
+    },
+    [selectedDirectoryId],
+  );
 
   const initialSelectionDone = useRef(false);
 
@@ -125,7 +158,20 @@ function Workbench() {
           startQqBinding={startQqBinding}
         />
         <Flex direction="column" className="hp-chatpane">
-          {activeConversationId ? <ChatPane /> : <EmptySelection />}
+          <WorkspacePanel
+            accountId={account?.account_id ?? null}
+            currentRunId={activeRunId}
+            conversationId={activeConversationId}
+            refreshSignal={workspaceRefresh}
+            onSelectDirectory={setSelectedDirectoryId}
+          />
+          {workspaceError ? <p role="alert">{workspaceError}</p> : null}
+          <ResearchOutputs onSaveFile={(file) => void saveToWorkspace(file)} />
+          {activeConversationId ? (
+            <ChatPane onSaveFile={(file) => void saveToWorkspace(file)} />
+          ) : (
+            <EmptySelection />
+          )}
         </Flex>
         <TracePanel />
         {openArtifactId ? <ArtifactPanel /> : null}

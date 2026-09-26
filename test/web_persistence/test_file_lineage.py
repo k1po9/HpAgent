@@ -72,6 +72,9 @@ def test_database_ignores_caller_supplied_child_version(
 ):
     api = CommandService(database_url)
     conversation_id = UUID(api.create_conversation(account_id, str(uuid4()))["conversation_id"])
+    run_id = UUID(api.send_message(
+        account_id, conversation_id, str(uuid4()), "create a version"
+    )["run_id"])
     parent_id, child_id = uuid4(), uuid4()
     for file_id, name in ((parent_id, "parent.docx"),):
         db.execute(
@@ -84,10 +87,10 @@ def test_database_ignores_caller_supplied_child_version(
     row = db.execute(
         "INSERT INTO stored_files(file_id,account_id,conversation_id,purpose,status,"
         "original_name,display_name,storage_key,content_type,encoding,size_bytes,sha256,"
-        "parent_file_id,version,ready_at) VALUES (%s,%s,%s,'output','ready','child.docx',"
-        "'child.docx',%s,'application/docx','binary',1,%s,%s,999,now()) RETURNING version",
+        "parent_file_id,version,source_run_id,ready_at) VALUES (%s,%s,%s,'output','ready','child.docx',"
+        "'child.docx',%s,'application/docx','binary',1,%s,%s,999,%s,now()) RETURNING version",
         (child_id, account_id, conversation_id,
-         f"accounts/{account_id}/objects/{child_id}/blob", "b" * 64, parent_id),
+         f"accounts/{account_id}/objects/{child_id}/blob", "b" * 64, parent_id, run_id),
     ).fetchone()
     assert row[0] == 2
     with pytest.raises(psycopg.errors.RaiseException, match="lineage is immutable"):

@@ -165,7 +165,7 @@ class SandboxManager:
             _declare_local_side_effect(tool, name)
             registry.register(tool, category="native", routing=routing_for(tool, "native"))
 
-        if self._native_tools_enabled:
+        if self._native_tools_enabled and not self._file_tools_enabled:
             for name, factory in LOCAL_TOOL_FACTORIES.items():
                 if name in reminder_keys:
                     continue  # 提醒工具已在上方无条件注册
@@ -182,10 +182,12 @@ class SandboxManager:
             from sandbox.tools.local.file_analysis import create_file_analysis_tools
             from sandbox.tools.local.file_read import create_file_read_tools
             from sandbox.tools.local.file_write import create_file_write_tools
+            from sandbox.tools.local.run_candidates import create_run_candidate_tools
 
             scope_provider = lambda sid=session_id: self.get_active_run_file_scope(sid)
             for tool in (
-                create_file_analysis_tools(scope_provider)
+                create_run_candidate_tools(scope_provider)
+                + create_file_analysis_tools(scope_provider)
                 + create_file_read_tools(
                     scope_provider,
                     document_router=self._file_document_router,
@@ -199,15 +201,17 @@ class SandboxManager:
                     self._file_output_publisher,
                     self._file_conversion_provider,
                 ):
+                    if tool.name == "convert_file_to_pdf":
+                        continue
                     registry.register(tool, category="native", routing=routing_for(tool, "native"))
 
-        if self._mcp_manager:
+        if self._mcp_manager and not self._file_tools_enabled:
             for tool in self._mcp_manager.get_cached_tools():
                 registry.register(tool, category="mcp", routing=routing_for(tool, "mcp"))
             logger.debug("Session sandbox: %d MCP tools registered",
                          len(self._mcp_manager.get_cached_tools()))
 
-        if self._skill_definitions:
+        if self._skill_definitions and not self._file_tools_enabled:
             from sandbox.tools.skills.engine import build_skill_tool_from_definition
             for skill_def in self._skill_definitions:
                 skill_tool = build_skill_tool_from_definition(skill_def, registry)

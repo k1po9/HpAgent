@@ -1,12 +1,18 @@
 """Recoverable TTL cleanup for unbound file objects and upload staging."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
+from common.logging import log_event
 from persistence.uow import UnitOfWork, retryable_transaction
 from storage.tenant_file_store import FileStoreError, TenantFileStore
+
+from .file_lifecycle import claim_file_deletion
+
+logger = logging.getLogger("HpAgent.FileCleanup")
 
 
 @dataclass(frozen=True)
@@ -38,6 +44,8 @@ class FileCleanupService:
                         UUID(str(row["account_id"])), file_id
                     ))
             except (OSError, FileStoreError):
+                log_event(logger, logging.WARNING, "file_gc_retry", "file_cleanup",
+                          account_id=str(row["account_id"]), file_id=str(file_id))
                 continue
             self._complete(file_id)
             deleted += 1
@@ -50,20 +58,12 @@ class FileCleanupService:
                 "SELECT sf.file_id,sf.account_id,sf.storage_key FROM stored_files sf "
                 "WHERE sf.expires_at<=now() AND sf.status IN "
                 "('uploading','ready','rejected','deleted') "
-                "AND NOT EXISTS (SELECT 1 FROM message_files mf "
-                "WHERE mf.file_id=sf.file_id) "
-                "AND NOT EXISTS (SELECT 1 FROM run_files rf "
-                "WHERE rf.file_id=sf.file_id) "
                 "ORDER BY sf.expires_at,sf.file_id FOR UPDATE SKIP LOCKED LIMIT %s",
                 (limit,),
             ).fetchall())
-            for row in rows:
-                uow.execute(
-                    "UPDATE stored_files SET status='deleted',deleted_at=COALESCE(deleted_at,now()) "
-                    "WHERE file_id=%s",
-                    (row["file_id"],),
-                )
-            return rows
+            return [row for row in rows if claim_file_deletion(
+                uow, row["account_id"], row["file_id"]
+            ) == "deleted"]
 
     @retryable_transaction
     def _complete(self, file_id: UUID) -> None:

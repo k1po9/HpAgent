@@ -156,6 +156,12 @@ def _path(scope_provider: Callable[[], Any | None], logical_name: str) -> tuple[
         or logical_name in {".", ".."} or "\x00" in logical_name
     ):
         raise ValueError("invalid logical file name")
+    matches = [item for item in scope.inputs if item.logical_name == logical_name]
+    if len(matches) != 1:
+        raise ValueError("file is not an input of the active Run")
+    if scope.authorize is None:
+        raise PermissionError("Run file authority is unavailable")
+    scope.authorize(matches[0].file_id)
     path = (scope.inputs_root / candidate).absolute()
     if not path.is_relative_to(scope.inputs_root) or path.is_symlink():
         raise ValueError("file escapes Run input scope")

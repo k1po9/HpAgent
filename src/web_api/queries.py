@@ -75,9 +75,9 @@ def run_dto(row: dict[str, Any]) -> dict[str, Any]:
         }
     return {
         "run_id": str(row["run_id"]),
-        "conversation_id": str(row["conversation_id"]),
-        "session_id": str(row["session_id"]),
-        "trigger_message_id": str(row["trigger_message_id"]),
+        "conversation_id": str(row["conversation_id"]) if row["conversation_id"] else None,
+        "session_id": str(row["session_id"]) if row["session_id"] else None,
+        "trigger_message_id": str(row["trigger_message_id"]) if row["trigger_message_id"] else None,
         "retry_of_run_id": str(row["retry_of_run_id"]) if row["retry_of_run_id"] else None,
         "agent_strategy": str(row.get("agent_strategy") or "react"),
         "status": row["status"],
@@ -342,8 +342,8 @@ class QueryService:
             return result
         rows = uow.execute(
             "SELECT mf.message_id,sf.* FROM message_files mf JOIN stored_files sf "
-            "ON sf.account_id=mf.account_id AND sf.conversation_id=mf.conversation_id "
-            "AND sf.file_id=mf.file_id WHERE mf.account_id=%s "
+            "ON sf.account_id=mf.account_id AND sf.file_id=mf.file_id "
+            "WHERE mf.account_id=%s "
             "AND mf.message_id=ANY(%s) ORDER BY mf.message_id,mf.ordinal",
             (account_id, message_ids),
         ).fetchall()

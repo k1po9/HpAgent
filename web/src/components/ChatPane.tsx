@@ -7,7 +7,7 @@ import { useAuth } from "../store/auth";
 import { useArtifacts } from "../store/artifacts";
 import { RunStatus } from "./RunStatus";
 import { useTraceStore } from "./trace/traceStore";
-import { ApprovalCard } from "./ApprovalCard";
+import type { HpFile } from "../api/types";
 
 /**
  * The active conversation pane (phase-e E-03/E-04).
@@ -15,7 +15,7 @@ import { ApprovalCard } from "./ApprovalCard";
  * Composes the assistant-ui chat surface with the run-status strip. The store
  * owns all authoritative state; this component only maps store → UI.
  */
-export function ChatPane() {
+export function ChatPane({ onSaveFile }: { onSaveFile?: (file: HpFile) => void }) {
   const messages = useWorkbench((s) => s.messages);
   const activeRun = useWorkbench((s) => s.activeRun);
   const activeRunError = useWorkbench((s) => s.activeRunError);
@@ -24,6 +24,10 @@ export function ChatPane() {
   const stopping = useWorkbench((s) => s.stopping);
   const sending = useWorkbench((s) => s.sending);
   const attachments = useWorkbench((s) => s.attachments);
+  const fileCandidates = useWorkbench((s) => s.fileCandidates);
+  const fileCandidatesNext = useWorkbench((s) => s.fileCandidatesNext);
+  const loadFileCandidates = useWorkbench((s) => s.loadFileCandidates);
+  const selectExistingFile = useWorkbench((s) => s.selectExistingFile);
   const addAttachments = useWorkbench((s) => s.addAttachments);
   const removeAttachment = useWorkbench((s) => s.removeAttachment);
   const agentStrategy = useWorkbench((s) => s.agentStrategy);
@@ -109,7 +113,6 @@ export function ChatPane() {
         onStop={handleCancel}
         onRetry={handleRetry}
       />
-      <ApprovalCard runId={activeRun?.run_id ?? null} />
       {error ? (
         <button type="button" className="hp-error" onClick={handleDismissError}>
           <Text size="2" color="red">
@@ -158,6 +161,27 @@ export function ChatPane() {
         </Button>
       </Flex>
       <Box style={{ flex: 1, minHeight: 0 }}>
+        {fileUploadEnabled ? (
+          <details
+            onToggle={(event) => {
+              if (event.currentTarget.open) void loadFileCandidates();
+            }}
+          >
+            <summary>选择已有文件</summary>
+            <div style={{ maxHeight: 160, overflowY: "auto" }}>
+              {fileCandidates.map((file) => (
+                <button key={file.file_id} type="button" onClick={() => selectExistingFile(file)}>
+                  {file.file_name} · {file.purpose === "output" ? "已发布输出" : "历史附件"}
+                </button>
+              ))}
+              {fileCandidatesNext ? (
+                <button type="button" onClick={() => void loadFileCandidates(true)}>
+                  更多文件
+                </button>
+              ) : null}
+            </div>
+          </details>
+        ) : null}
         <HpThread
           messages={messages}
           activeRun={activeRun}
@@ -166,6 +190,7 @@ export function ChatPane() {
           sendDisabled={sending || attachments.some((attachment) => attachment.status !== "ready")}
           onFilesSelected={handleFilesSelected}
           onRemoveAttachment={handleRemoveAttachment}
+          onSaveFile={onSaveFile}
           onSend={handleSend}
           onCancel={handleCancel}
         />

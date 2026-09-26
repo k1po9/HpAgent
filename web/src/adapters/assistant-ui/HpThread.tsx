@@ -32,6 +32,7 @@ export interface HpThreadProps {
   sendDisabled: boolean;
   onFilesSelected: (files: File[]) => void;
   onRemoveAttachment: (localId: string) => void;
+  onSaveFile?: (file: HpFile) => void;
   onSend: (content: string) => boolean | Promise<boolean>;
   onCancel: () => void;
 }
@@ -49,7 +50,13 @@ function HpTextPart({ text }: { text: string }) {
   );
 }
 
-function HpMessageView({ filesByMessageId }: { filesByMessageId: Record<string, HpFile[]> }) {
+function HpMessageView({
+  filesByMessageId,
+  onSaveFile,
+}: {
+  filesByMessageId: Record<string, HpFile[]>;
+  onSaveFile?: (file: HpFile) => void;
+}) {
   const message = useAuiState((s) => s.message);
   const files = filesByMessageId[message.id] ?? [];
   const artifacts = useArtifacts((s) => s.artifactsByMessageId[message.id]);
@@ -79,15 +86,21 @@ function HpMessageView({ filesByMessageId }: { filesByMessageId: Record<string, 
       {files.length ? (
         <div className="hp-msg__files" aria-label="消息附件">
           {files.map((file) => (
-            <a
-              className="hp-msg__file"
-              href={file.download_url ?? undefined}
-              aria-disabled={!file.download_url}
-              key={file.file_id}
-            >
-              <FileText size={14} aria-hidden="true" />
-              <span>{file.file_name}</span>
-            </a>
+            <span key={file.file_id}>
+              <a
+                className="hp-msg__file"
+                href={file.download_url ?? undefined}
+                aria-disabled={!file.download_url}
+              >
+                <FileText size={14} aria-hidden="true" />
+                <span>{file.file_name}</span>
+              </a>
+              {file.status === "ready" && onSaveFile ? (
+                <button type="button" onClick={() => onSaveFile(file)}>
+                  保存到 Workspace
+                </button>
+              ) : null}
+            </span>
           ))}
         </div>
       ) : null}
@@ -115,6 +128,7 @@ export function HpThread({
   sendDisabled,
   onFilesSelected,
   onRemoveAttachment,
+  onSaveFile,
   onSend,
   onCancel,
 }: HpThreadProps) {
@@ -134,7 +148,7 @@ export function HpThread({
             </Flex>
           </ThreadPrimitive.Empty>
           <ThreadPrimitive.Messages>
-            {() => <HpMessageView filesByMessageId={filesByMessageId} />}
+            {() => <HpMessageView filesByMessageId={filesByMessageId} onSaveFile={onSaveFile} />}
           </ThreadPrimitive.Messages>
         </ThreadPrimitive.Viewport>
         <ComposerPrimitive.Root className="hp-composer">

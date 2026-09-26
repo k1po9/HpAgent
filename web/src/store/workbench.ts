@@ -93,6 +93,7 @@ export interface UploadAttachment {
   fileId: string | null;
   file: HpFile | null;
   error: string | null;
+  existing?: boolean;
 }
 
 export interface WorkbenchState {
@@ -111,6 +112,8 @@ export interface WorkbenchState {
   loadingMessages: boolean;
   loadingMoreMessages: boolean;
   attachments: UploadAttachment[];
+  fileCandidates: HpFile[];
+  fileCandidatesNext: string | null;
 
   // Active Run
   activeRun: HpRun | null;
@@ -135,6 +138,8 @@ export interface WorkbenchState {
   selectConversation: (id: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   addAttachments: (files: File[]) => Promise<void>;
+  selectExistingFile: (file: HpFile) => void;
+  loadFileCandidates: (more?: boolean) => Promise<void>;
   removeAttachment: (localId: string) => Promise<void>;
   sendMessage: (content: string) => Promise<boolean>;
   setAgentStrategy: (strategy: AgentStrategy) => void;
@@ -442,6 +447,8 @@ export function createWorkbenchStore(
       loadingMessages: false,
       loadingMoreMessages: false,
       attachments: [],
+      fileCandidates: [],
+      fileCandidatesNext: null,
       activeRun: null,
       activeRunError: null,
       activeRunProgress: null,
@@ -488,6 +495,8 @@ export function createWorkbenchStore(
             activeConversationId: conversation.conversation_id,
             messages: [],
             attachments: [],
+            fileCandidates: [],
+            fileCandidatesNext: null,
             messageCursor: null,
             hasMoreMessages: false,
             activeRun: null,
@@ -510,6 +519,8 @@ export function createWorkbenchStore(
           activeConversationId: id,
           messages: [],
           attachments: [],
+          fileCandidates: [],
+          fileCandidatesNext: null,
           messageCursor: null,
           hasMoreMessages: true,
           activeRun: null,
@@ -640,13 +651,55 @@ export function createWorkbenchStore(
         );
       },
 
+      selectExistingFile: (file) => {
+        if (
+          file.status !== "ready" ||
+          get().attachments.length >= 10 ||
+          get().attachments.some((item) => item.fileId === file.file_id)
+        )
+          return;
+        set((state) => ({
+          attachments: [
+            ...state.attachments,
+            {
+              localId: newIdempotencyKey(),
+              name: file.file_name,
+              size: file.size_bytes ?? 0,
+              status: "ready",
+              fileId: file.file_id,
+              file,
+              error: null,
+              existing: true,
+            },
+          ],
+        }));
+      },
+
+      loadFileCandidates: async (more = false) => {
+        const conversationId = get().activeConversationId;
+        if (!conversationId) return;
+        try {
+          const page = await api.listFileCandidates(
+            conversationId,
+            more ? get().fileCandidatesNext : null,
+          );
+          if (get().activeConversationId !== conversationId) return;
+          set((state) => ({
+            fileCandidates: more ? [...state.fileCandidates, ...page.items] : page.items,
+            fileCandidatesNext: page.next_before,
+          }));
+        } catch (err) {
+          set({ error: messageErrorText(err) });
+        }
+      },
+
       removeAttachment: async (localId) => {
         const attachment = get().attachments.find((item) => item.localId === localId);
         if (!attachment) return;
         set((state) => ({
           attachments: state.attachments.filter((item) => item.localId !== localId),
         }));
-        if (attachment.fileId) {
+        if (attachment.fileId && !attachment.existing) {
           try {
             await api.deleteFile(attachment.fileId);
           } catch (err) {

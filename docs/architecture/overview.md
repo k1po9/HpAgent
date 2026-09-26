@@ -38,4 +38,4 @@ QQ Provider ─► Adapter ─┘                         │
 
 Worker Composition Root 只构造一份共享基础设施，并注入 Workflow Activity。Web API 只负责接收命令和查询投影；QQ Ingress 复用同一命令边界，QQ Delivery 只消费已提交结果。
 
-延伸阅读：[运行时](runtime.md)、[状态归属](data-and-state.md)、[可靠性](reliability.md)和[关键时序](sequences.md)。
+延伸阅读：[运行时](runtime.md)、[状态归属](data-and-state.md)、[Workspace v4.1](workspace-v4.1.md)、[可靠性](reliability.md)和[关键时序](sequences.md)。

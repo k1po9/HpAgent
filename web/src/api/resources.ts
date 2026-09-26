@@ -21,8 +21,6 @@ import type {
   HpArtifactSummary,
   HpArtifactVersion,
   HpFile,
-  HpFileApproval,
-  HpPersistentFileDestination,
 } from "./types";
 
 export interface SendMessageOptions {
@@ -62,6 +60,416 @@ export class HpApi {
     return this.client.request<HpConversationDetail>({
       method: "GET",
       path: `/api/v1/conversations/${id}`,
+    });
+  }
+
+  async listFileCandidates(
+    conversationId: string,
+    before?: string | null,
+  ): Promise<{
+    items: HpFile[];
+    next_before: string | null;
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/conversations/${conversationId}/file-candidates${before ? `?before=${before}` : ""}`,
+    });
+  }
+
+  async listResearchTasks(before?: string | null): Promise<{
+    items: Array<{
+      task_id: string;
+      title: string;
+      status: string;
+      output_directory_id: string | null;
+      output_directory_name: string | null;
+      output_required: boolean;
+      output_operation: string;
+      output_entry_id: string | null;
+      schedule_type: string;
+      schedule_timezone: string;
+      schedule_expression: string | null;
+    }>;
+    next_before: string | null;
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/tasks${before ? `?before=${before}` : ""}`,
+    });
+  }
+
+  async createResearchTask(
+    title: string,
+    objective: string,
+    directoryId: string,
+    idempotencyKey: string,
+  ): Promise<{ task: { task_id: string } }> {
+    return this.client.request({
+      method: "POST",
+      path: "/api/v1/tasks",
+      idempotencyKey,
+      body: { title, objective, output_directory_id: directoryId, output_required: true },
+    });
+  }
+
+  async setResearchOutput(
+    taskId: string,
+    directoryId: string,
+    operation: "create_child" | "update_content" = "create_child",
+    entryId: string | null = null,
+  ): Promise<void> {
+    await this.client.request({
+      method: "PUT",
+      path: `/api/v1/tasks/${taskId}/output`,
+      body: {
+        output_directory_id: directoryId,
+        required: true,
+        operation,
+        output_entry_id: entryId,
+      },
+    });
+  }
+
+  async triggerResearchTask(taskId: string, idempotencyKey: string): Promise<void> {
+    await this.client.request({
+      method: "POST",
+      path: `/api/v1/tasks/${taskId}/runs`,
+      body: {},
+      idempotencyKey,
+    });
+  }
+
+  async grantResearchInput(taskId: string, nodeId: string, recursive: boolean): Promise<void> {
+    await this.client.request({
+      method: "POST",
+      path: `/api/v1/tasks/${taskId}/resources`,
+      body: { node_id: nodeId, operations: ["list_metadata", "read_content"], recursive },
+    });
+  }
+
+  async setResearchSchedule(
+    taskId: string,
+    timezone: string,
+    expression: string,
+    idempotencyKey: string,
+  ): Promise<void> {
+    await this.client.request({
+      method: "PUT",
+      path: `/api/v1/tasks/${taskId}/schedule`,
+      idempotencyKey,
+      body: { schedule_type: "daily", timezone, expression, enabled: true },
+    });
+  }
+
+  async listResearchRuns(
+    taskId: string,
+    before?: string | null,
+  ): Promise<{
+    items: Array<{
+      run_id: string;
+      status: string;
+      failure_code: string | null;
+      save_status: string | null;
+      save_entry_id: string | null;
+      save_failure_code: string | null;
+      published_file: {
+        file_id: string;
+        file_name: string;
+        download_url: string;
+      } | null;
+    }>;
+    next_before: string | null;
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/tasks/${taskId}/runs${before ? `?before=${before}` : ""}`,
+    });
+  }
+
+  async getResearchReport(
+    taskId: string,
+    runId: string,
+  ): Promise<{
+    report: { report_markdown: string };
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/tasks/${taskId}/runs/${runId}/report`,
+    });
+  }
+
+  async getWorkspace(): Promise<{
+    workspace_id: string;
+    root_id: string;
+    nodes: Array<{
+      node_id: string;
+      parent_id: string | null;
+      kind: "directory" | "file";
+      name: string;
+      file_id: string | null;
+      destination_id: string | null;
+      revision: number | null;
+      source: {
+        purpose: "input" | "output";
+        conversation_id: string | null;
+        run_id: string | null;
+        sha256: string;
+        size_bytes: number;
+      } | null;
+    }>;
+  }> {
+    return this.client.request({ method: "GET", path: "/api/v1/workspace" });
+  }
+
+  async searchWorkspace(
+    filters: {
+      name?: string;
+      content_type?: string;
+      purpose?: string;
+      task_id?: string;
+      source_run_id?: string;
+      from_date?: string;
+      to_date?: string;
+      summary?: string;
+    },
+    after?: string | null,
+  ): Promise<{
+    items: Array<{
+      node_id: string;
+      name: string;
+      file_id: string;
+      content_type: string | null;
+      size_bytes: number | null;
+      purpose: string;
+      source_run_id: string | null;
+      source_task_id: string | null;
+      revision: number | null;
+    }>;
+    next_after: string | null;
+  }> {
+    const query = new URLSearchParams({ limit: "50" });
+    for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
+    if (after) query.set("after", after);
+    return this.client.request({ method: "GET", path: `/api/v1/workspace/search?${query}` });
+  }
+
+  async getWorkspaceSpace(): Promise<{
+    physical_files: number;
+    physical_bytes: number;
+    files_with_active_entry: number;
+    bytes_with_active_entry: number;
+  }> {
+    return this.client.request({ method: "GET", path: "/api/v1/workspace/space" });
+  }
+
+  async getFileRetention(fileId: string): Promise<{
+    physical_bytes: number;
+    references: Record<string, number>;
+    explanation: string;
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/workspace/files/${fileId}/retention`,
+    });
+  }
+
+  async listConversationResources(conversationId: string): Promise<{
+    grants: Array<{
+      grant_id: string;
+      node_id: string;
+      name: string;
+      kind: "file" | "directory";
+      operation:
+        "list_metadata" | "read_content" | "create_child" | "update_content" | "delete_entry";
+      recursive: boolean;
+    }>;
+    attachments: Array<{ file_id: string; name: string; available: boolean }>;
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/conversations/${conversationId}/resources`,
+    });
+  }
+
+  async grantConversationResource(
+    conversationId: string,
+    nodeId: string,
+    operations: Array<
+      "list_metadata" | "read_content" | "create_child" | "update_content" | "delete_entry"
+    >,
+    recursive: boolean,
+  ): Promise<{ grant_ids: string[] }> {
+    return this.client.request({
+      method: "POST",
+      path: `/api/v1/conversations/${conversationId}/resources`,
+      body: { node_id: nodeId, operations, recursive },
+    });
+  }
+
+  async revokeConversationResource(
+    conversationId: string,
+    grantId: string,
+  ): Promise<{
+    affected_runs: Array<{ run_id: string; stop_state: "stopping" | "stopped" }>;
+  }> {
+    return this.client.request({
+      method: "DELETE",
+      path: `/api/v1/conversations/${conversationId}/resources/${grantId}`,
+    });
+  }
+
+  async revokeConversationAttachment(
+    conversationId: string,
+    fileId: string,
+  ): Promise<{
+    affected_runs: Array<{ run_id: string; stop_state: "stopping" | "stopped" }>;
+  }> {
+    return this.client.request({
+      method: "DELETE",
+      path: `/api/v1/conversations/${conversationId}/attachments/${fileId}`,
+    });
+  }
+
+  async listRunResources(
+    runId: string,
+    after?: string | null,
+  ): Promise<{
+    count: number;
+    next: string | null;
+    candidates: Array<{
+      node_id: string;
+      logical_name: string;
+      name: string;
+      content_type: string | null;
+      size_bytes: number | null;
+      fixed: boolean;
+      read: boolean;
+    }>;
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/runs/${runId}/resources${after ? `?after=${encodeURIComponent(after)}` : ""}`,
+    });
+  }
+
+  async createWorkspaceDirectory(parentId: string, name: string): Promise<{ node_id: string }> {
+    return this.client.request({
+      method: "POST",
+      path: "/api/v1/workspace/directories",
+      body: { parent_id: parentId, name },
+    });
+  }
+
+  async saveWorkspaceFile(
+    parentId: string,
+    fileId: string,
+    name: string,
+    idempotencyKey: string,
+  ): Promise<{ node_id: string }> {
+    return this.client.request({
+      method: "POST",
+      path: "/api/v1/workspace/files",
+      body: { parent_id: parentId, file_id: fileId, name },
+      idempotencyKey,
+    });
+  }
+
+  async getWorkspaceVersions(nodeId: string): Promise<{
+    current: {
+      node_id: string;
+      destination_id: string | null;
+      revision: number | null;
+      file_id: string;
+      sha256: string;
+    };
+    revisions: Array<{
+      revision: number;
+      file_id: string;
+      sha256: string;
+      operation_id: string;
+      created_at: string;
+      source: {
+        purpose: "input" | "output";
+        conversation_id: string | null;
+        run_id: string | null;
+      };
+    }>;
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/workspace/nodes/${nodeId}/versions`,
+    });
+  }
+
+  async listRunPublishedFiles(runId: string): Promise<{
+    files: Array<{ file_id: string; name: string; sha256: string }>;
+  }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/runs/${runId}/published-files`,
+    });
+  }
+
+  async upgradeWorkspaceFile(nodeId: string): Promise<{
+    node_id: string;
+    destination_id: string;
+    revision: number;
+    file_id: string;
+    sha256: string;
+  }> {
+    return this.client.request({
+      method: "POST",
+      path: `/api/v1/workspace/nodes/${nodeId}/upgrade`,
+      body: {},
+    });
+  }
+
+  async updateWorkspaceFile(
+    nodeId: string,
+    runId: string,
+    fileId: string,
+    expectedRevision: number,
+    expectedSha256: string,
+    operationId: string,
+  ): Promise<{ node_id: string; destination_id: string; revision: number; file_id: string }> {
+    return this.client.request({
+      method: "POST",
+      path: `/api/v1/workspace/nodes/${nodeId}/versions`,
+      body: {
+        run_id: runId,
+        file_id: fileId,
+        expected_revision: expectedRevision,
+        expected_sha256: expectedSha256,
+      },
+      idempotencyKey: operationId,
+    });
+  }
+
+  async previewWorkspaceNode(nodeId: string): Promise<{
+    preview_token: string;
+    potentially_affected_runs: string[];
+  }> {
+    return this.client.request({ method: "GET", path: `/api/v1/workspace/nodes/${nodeId}/impact` });
+  }
+
+  async moveWorkspaceNode(
+    nodeId: string,
+    parentId: string,
+    name: string,
+    previewToken: string,
+  ): Promise<{ node_id: string }> {
+    return this.client.request({
+      method: "PATCH",
+      path: `/api/v1/workspace/nodes/${nodeId}`,
+      body: { parent_id: parentId, name, preview_token: previewToken },
+    });
+  }
+
+  async removeWorkspaceNode(nodeId: string, previewToken: string): Promise<void> {
+    await this.client.request({
+      method: "DELETE",
+      path: `/api/v1/workspace/nodes/${nodeId}`,
+      headers: { "X-Workspace-Preview": previewToken },
     });
   }
 
@@ -153,35 +561,6 @@ export class HpApi {
     return this.client.request<HpRunSnapshot>({
       method: "GET",
       path: `/api/v1/runs/${runId}`,
-    });
-  }
-
-  async listFileApprovals(runId: string): Promise<{ approvals: HpFileApproval[] }> {
-    return this.client.request({
-      method: "GET",
-      path: `/api/v1/runs/${runId}/file-action-approvals`,
-    });
-  }
-
-  async decideFileApproval(
-    approvalId: string,
-    decision: "approve" | "reject",
-    idempotencyKey: string,
-  ): Promise<{ approval: HpFileApproval }> {
-    return this.client.request({
-      method: "POST",
-      path: `/api/v1/file-action-approvals/${approvalId}/${decision}`,
-      body: {},
-      idempotencyKey,
-    });
-  }
-
-  async getPersistentFile(logicalPath: string): Promise<{
-    destination: HpPersistentFileDestination;
-  }> {
-    return this.client.request({
-      method: "GET",
-      path: `/api/v1/persistent-files/${logicalPath.split("/").map(encodeURIComponent).join("/")}`,
     });
   }
 

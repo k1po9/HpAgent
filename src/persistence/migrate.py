@@ -8,6 +8,42 @@ from pathlib import Path
 import psycopg
 
 
+def verify_schema(database: object) -> None:
+    """Fail service startup when the applied schema differs from this checkout."""
+    root = Path(__file__).resolve().parents[2] / "persistence" / "migrations"
+    expected = {path.name: sha256(path.read_bytes()).hexdigest()
+                for path in root.glob("*.sql")}
+    if isinstance(database, str):
+        connection = psycopg.connect(database)
+        close = True
+    else:
+        context = database.connection()
+        connection = context.__enter__()
+        close = False
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT version,checksum FROM hpagent.schema_migrations")
+            applied = {row["version"] if isinstance(row, dict) else row[0]:
+                       row["checksum"] if isinstance(row, dict) else row[1]
+                       for row in cursor.fetchall()}
+        if applied != expected:
+            missing = sorted(expected.keys() - applied.keys())
+            extra = sorted(applied.keys() - expected.keys())
+            changed = sorted(key for key in expected.keys() & applied.keys()
+                             if expected[key] != applied[key])
+            raise RuntimeError("Workspace schema mismatch; run explicit migrations or "
+                               f"rebuild the development database. missing={missing}, "
+                               f"extra={extra}, changed={changed}")
+    except psycopg.Error as exc:
+        raise RuntimeError("Workspace schema is missing or unreadable; run explicit "
+                           "migrations or rebuild the development database") from exc
+    finally:
+        if close:
+            connection.close()
+        else:
+            context.__exit__(None, None, None)
+
+
 def migrate(database_url: str | None = None) -> None:
     url = database_url or os.environ["APP_DATABASE_URL"]
     root = Path(__file__).resolve().parents[2] / "persistence" / "migrations"

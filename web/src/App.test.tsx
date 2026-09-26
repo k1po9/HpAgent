@@ -49,6 +49,24 @@ beforeEach(() => {
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === "/api/v1/me") return json({ ...ME, capabilities });
+    if (url === "/api/v1/conversations/c1/resources") return json({ grants: [], attachments: [] });
+    if (/^\/api\/v1\/runs\/[^/]+\/resources/.test(url))
+      return json({ count: 0, next: null, candidates: [] });
+    if (url === "/api/v1/workspace")
+      return json({
+        workspace_id: "w1",
+        root_id: "root",
+        nodes: [
+          {
+            node_id: "root",
+            parent_id: null,
+            kind: "directory",
+            name: "",
+            file_id: null,
+            source: null,
+          },
+        ],
+      });
     if (url === "/api/v1/identity-bindings/qq/challenges") {
       return json({
         challenge_id: "challenge-1",

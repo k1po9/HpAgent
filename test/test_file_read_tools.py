@@ -58,7 +58,8 @@ def _scope(tmp_path: Path) -> RunFileScope:
         )
         for name, media_type in media_types.items()
     )
-    return RunFileScope(uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs", items)
+    return RunFileScope(uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs",
+                        items, authorize=lambda _file_id: None)
 
 
 def _tools(scope: RunFileScope):
@@ -213,7 +214,8 @@ async def test_small_text_keeps_bounded_direct_read(tmp_path: Path) -> None:
     (inputs / "small.txt").write_text("small text", encoding="utf-8")
     item = RunFileInput(uuid4(), "small.txt", 10, "utf-8", "text/plain")
     scope = RunFileScope(
-        uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs", (item,)
+        uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs", (item,),
+        authorize=lambda _file_id: None,
     )
 
     class Router:

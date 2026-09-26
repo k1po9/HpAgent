@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import mimetypes
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,25 +46,49 @@ class OutputPublisher:
         if not operation_id or len(operation_id) > 200:
             raise ValueError("operation_id must contain 1 to 200 characters")
         name = self._logical_name(logical_name)
+        source = (scope.outputs_root / name).absolute()
+        if not source.is_relative_to(scope.outputs_root) or source.is_symlink():
+            raise FileStoreError("output escapes the active Run scope")
         existing = self._existing(scope.run_id, operation_id)
         if existing is not None:
             if existing.logical_name != name or existing.parent_file_id != parent_file_id:
                 raise RuntimeError("output operation belongs to another logical file")
+            if source.is_file():
+                digest = hashlib.sha256()
+                with source.open("rb") as stream:
+                    while chunk := stream.read(64 * 1024):
+                        digest.update(chunk)
+                if digest.hexdigest() != existing.sha256:
+                    raise RuntimeError("output operation belongs to another content")
             return PublishedOutput(**{**existing.__dict__, "deduplicated": True})
 
-        source = (scope.outputs_root / name).absolute()
-        if not source.is_relative_to(scope.outputs_root) or source.is_symlink():
-            raise FileStoreError("output escapes the active Run scope")
         file_id = uuid5(_OUTPUT_NAMESPACE, f"{scope.run_id}:{operation_id}")
         staged = self.store.stage_output(file_id, source)
         with UnitOfWork(self.database) as uow:
             subject = uow.execute(
-                "SELECT account_id,conversation_id FROM runs WHERE run_id=%s FOR UPDATE",
+                "SELECT account_id,status FROM runs WHERE run_id=%s FOR UPDATE", (scope.run_id,)
+            ).fetchone()
+            if subject is None or subject["status"] not in {"queued", "running"}:
+                self.store.delete_staging(file_id)
+                raise RuntimeError("authoritative Run is not active")
+            intent = uow.execute(
+                "INSERT INTO output_publish_operations(account_id,run_id,operation_id,file_id,"
+                "logical_name,sha256) VALUES (%s,%s,%s,%s,%s,%s) "
+                "ON CONFLICT (run_id,operation_id) DO UPDATE SET operation_id=EXCLUDED.operation_id "
+                "RETURNING account_id,file_id,logical_name,sha256",
+                (subject["account_id"], scope.run_id, operation_id, file_id, name, staged.sha256),
+            ).fetchone()
+            if (intent["account_id"] != subject["account_id"] or intent["file_id"] != file_id
+                    or intent["logical_name"] != name or intent["sha256"] != staged.sha256):
+                raise RuntimeError("output operation belongs to another content or logical file")
+        with UnitOfWork(self.database) as uow:
+            subject = uow.execute(
+                "SELECT account_id,conversation_id,status FROM runs WHERE run_id=%s FOR UPDATE",
                 (scope.run_id,),
             ).fetchone()
-            if subject is None:
+            if subject is None or subject["status"] not in {"queued", "running"}:
                 self.store.delete_staging(file_id)
-                raise RuntimeError("authoritative Run is unavailable")
+                raise RuntimeError("authoritative Run is not active")
             conflict = self._existing_in_uow(uow, scope.run_id, operation_id)
             if conflict is not None:
                 self.store.delete_staging(file_id)
@@ -71,13 +96,15 @@ class OutputPublisher:
                     raise RuntimeError("output operation belongs to another logical file")
                 return PublishedOutput(**{**conflict.__dict__, "deduplicated": True})
             published = self.store.publish(subject["account_id"], file_id, staged)
+            if published.sha256 != staged.sha256:
+                raise FileStoreError("published object conflicts with staged output")
             media_type = content_type or mimetypes.guess_type(name)[0] or "application/octet-stream"
             uow.execute(
-                "INSERT INTO stored_files(file_id,account_id,conversation_id,purpose,status,"
+                "INSERT INTO stored_files(file_id,account_id,conversation_id,source_run_id,purpose,status,"
                 "original_name,display_name,storage_key,content_type,encoding,size_bytes,sha256,"
-                "parent_file_id,ready_at) VALUES (%s,%s,%s,'output','ready',%s,%s,%s,%s,"
+                "parent_file_id,ready_at) VALUES (%s,%s,%s,%s,'output','ready',%s,%s,%s,%s,"
                 "%s,%s,%s,%s,now()) RETURNING version",
-                (file_id, subject["account_id"], subject["conversation_id"], name, name,
+                (file_id, subject["account_id"], subject["conversation_id"], scope.run_id, name, name,
                  published.storage_key, media_type, encoding, published.size_bytes,
                  published.sha256, parent_file_id),
             ).fetchone()
@@ -90,6 +117,11 @@ class OutputPublisher:
             stored = uow.execute(
                 "SELECT version FROM stored_files WHERE file_id=%s", (file_id,)
             ).fetchone()
+            uow.execute(
+                "UPDATE output_publish_operations SET status='completed',completed_at=now() "
+                "WHERE run_id=%s AND operation_id=%s",
+                (scope.run_id, operation_id),
+            )
             return PublishedOutput(
                 file_id, name, media_type, published.size_bytes, published.sha256,
                 parent_file_id, int(stored["version"]),

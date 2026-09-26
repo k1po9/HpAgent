@@ -558,17 +558,6 @@ services:
 
     restart: unless-stopped
 
-  f4-e2e-model:
-    profiles: ["f4-e2e"]
-    image: ${HPAGENT_API_IMAGE:-hpagent/hpagent-api:offline}
-    command: ["python", "/fixture/f4_e2e_model.py"]
-    volumes:
-      - ./test/support:/fixture:ro
-    networks:
-      - app-network
-    restart: "no"
-
-
   # ============================================================
   # FastAPI
   #

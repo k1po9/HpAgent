@@ -42,6 +42,8 @@ jq 'select(.level == "ERROR")' .data/logs/*.jsonl
 3. 使用 `operation_id` 追踪 Tool、File、Research 或 Document 副作用。
 4. Run 恢复或 Worker 重启时，检查 `lease_token`/Fencing Event。
 
+Workspace entry 可通过 `GET /api/v1/workspace/nodes/{node_id}/trace` 关联来源 Run/Task、版本和保存 operation，以及候选固定、物化与首次读取；`GET /api/v1/workspace/files/{file_id}/retention` 说明引用及物理字节。结构化事件 `workspace_request_rejected`、`workspace_cas_conflict`、`workspace_stop_unconfirmed`、`file_gc_retry` 只记录代码与对象 ID，不记录文件正文或存储凭据。
+
 QQ Ingress/Delivery 还可能包含 Provider Message Identity、`delivery_id` 和 `msg_seq`。先搜索标准化 Provider Message ID，再转到 `run_id`。
 
 ## 区分执行失败与投递失败

@@ -8,7 +8,8 @@ HpAgent 是一个支持 Web 与 QQ 双入口、以统一对话模型和持久化
 - 使用 PostgreSQL 事务与 Outbox 可靠接收任务，再交由 Temporal 持久化执行。
 - ReAct 与 Plan-and-Execute 策略共享 Context、Brain、Actions、Memory 和 Workspace。
 - Hindsight 提供长期记忆，Redis 提供临时协调与缓存。
-- 支持本地工具、MCP、Sandbox、文件处理和账号级 Git Workspace。
+- 支持本地工具、MCP、Sandbox、账号级长期文件 Workspace 与可选的 Git 代码工作区。
+- 长期文件可跨 Conversation 授权使用；Run 冻结候选范围、按需固定版本和物化文件。
 - Research 是独立于 Agent 策略的固定证据研究流程。
 - Artifact 用于从消息或研究结果生成带版本的交付物。
 - 高开销文档规范化由独立的 Temporal Activity Worker 执行。
@@ -36,6 +37,7 @@ Web SSE / QQ Delivery
 ```
 
 运行时、状态归属、能力边界、可靠性和关键时序请参阅[架构文档](docs/architecture/overview.md)。
+长期文件、目录、授权、版本、保存与 GC 的当前契约见 [Workspace v4.1](docs/architecture/workspace-v4.1.md)。
 
 ## 快速开始
 
@@ -144,4 +146,4 @@ artifacts/    审计与 Benchmark 证据
 
 ## 文档
 
-从 [docs/README.md](docs/README.md) 开始。
+从 [docs/README.md](docs/README.md) 开始。Workspace P0～P5 的[阶段记录与总体验收](docs/implementation/workspace-v4.1/README.md)单独保存，记录已验证路径及尚未完成的运行验收。

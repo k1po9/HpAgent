@@ -16,7 +16,7 @@ def _scope(tmp_path: Path, content: bytes):
     target = inputs / "service.log"
     target.write_bytes(content)
     item = RunFileInput(uuid4(), "service.log", len(content), "utf-8")
-    return SimpleNamespace(inputs_root=inputs, inputs=(item,))
+    return SimpleNamespace(inputs_root=inputs, inputs=(item,), authorize=lambda _file_id: None)
 
 
 def _tools(scope, limits: FileToolLimits | None = None):

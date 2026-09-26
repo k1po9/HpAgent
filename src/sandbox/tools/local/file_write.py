@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 from collections.abc import Callable
 from typing import Any, Literal
@@ -12,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from file_adapters import DocxWriter, GotenbergConversionProvider, PptxWriter, XlsxWriter
 from file_runtime import FileResourceResolver, OutputPublisher
+from workspace.blocking import run_blocking
 
 
 class DocxBlock(BaseModel):
@@ -90,12 +90,6 @@ class ReplaceSlideInput(BaseModel):
     operation_id: str = Field(default="", max_length=200)
 
 
-class SavePersistentFileInput(BaseModel):
-    logical_path: str = Field(min_length=1, max_length=500)
-    source_file_id: str
-    operation_id: str = Field(default="", max_length=200)
-
-
 def _result(output: Any, *, scanned_bytes: int = 0) -> str:
     payload = {
         "file_id": str(output.file_id), "file": output.logical_name,
@@ -129,7 +123,7 @@ def create_file_write_tools(
 
     async def create_docx(output_name: str, blocks: list[DocxBlock], operation_id: str = "") -> str:
         current = active_scope()
-        replayed = await asyncio.to_thread(
+        replayed = await run_blocking(
             publisher.replay, current, operation_id, output_name
         )
         if replayed is not None:
@@ -137,8 +131,8 @@ def create_file_write_tools(
         data = [block.model_dump() for block in blocks]
         if sum(len(block["text"]) for block in data) > 200_000:
             raise ValueError("DOCX content exceeds bounded character limit")
-        await asyncio.to_thread(DocxWriter().create, current.outputs_root, output_name, data)
-        output = await asyncio.to_thread(
+        await run_blocking(DocxWriter().create, current.outputs_root, output_name, data)
+        output = await run_blocking(
             publisher.publish, current, operation_id, output_name,
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         )
@@ -148,7 +142,7 @@ def create_file_write_tools(
         output_name: str, sheets: list[WorkbookSheet], operation_id: str = ""
     ) -> str:
         current = active_scope()
-        replayed = await asyncio.to_thread(
+        replayed = await run_blocking(
             publisher.replay, current, operation_id, output_name
         )
         if replayed is not None:
@@ -158,8 +152,8 @@ def create_file_write_tools(
             raise ValueError("workbook exceeds bounded cell limit")
         if any(len(row) > 100 for sheet in data for row in sheet["rows"]):
             raise ValueError("workbook row exceeds bounded column limit")
-        await asyncio.to_thread(XlsxWriter().create, current.outputs_root, output_name, data)
-        output = await asyncio.to_thread(
+        await run_blocking(XlsxWriter().create, current.outputs_root, output_name, data)
+        output = await run_blocking(
             publisher.publish, current, operation_id, output_name,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
@@ -169,14 +163,14 @@ def create_file_write_tools(
         output_name: str, slides: list[PresentationSlide], operation_id: str = ""
     ) -> str:
         current = active_scope()
-        replayed = await asyncio.to_thread(
+        replayed = await run_blocking(
             publisher.replay, current, operation_id, output_name
         )
         if replayed is not None:
             return _result(replayed)
         data = [slide.model_dump() for slide in slides]
-        await asyncio.to_thread(PptxWriter().create, current.outputs_root, output_name, data)
-        output = await asyncio.to_thread(
+        await run_blocking(PptxWriter().create, current.outputs_root, output_name, data)
+        output = await run_blocking(
             publisher.publish, current, operation_id, output_name,
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         )
@@ -187,15 +181,15 @@ def create_file_write_tools(
             raise RuntimeError("Gotenberg conversion is unavailable")
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
-        replayed = await asyncio.to_thread(
+        replayed = await run_blocking(
             publisher.replay, current, operation_id, output_name, resource.file_id
         )
         if replayed is not None:
             return _result(replayed, scanned_bytes=resource.size_bytes)
-        await asyncio.to_thread(
+        await run_blocking(
             conversion_provider.convert_to_pdf, resource, current.outputs_root, output_name
         )
-        output = await asyncio.to_thread(
+        output = await run_blocking(
             publisher.publish, current, operation_id, output_name, "application/pdf",
             parent_file_id=resource.file_id,
         )
@@ -207,16 +201,16 @@ def create_file_write_tools(
     ) -> str:
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
-        replayed = await asyncio.to_thread(
+        replayed = await run_blocking(
             publisher.replay, current, operation_id, output_name, resource.file_id
         )
         if replayed is not None:
             return _result(replayed, scanned_bytes=resource.size_bytes)
-        _, replacements = await asyncio.to_thread(
+        _, replacements = await run_blocking(
             DocxWriter().replace_text, resource, current.outputs_root, output_name,
             find, replace, max_replacements,
         )
-        output = await asyncio.to_thread(
+        output = await run_blocking(
             publisher.publish, current, operation_id, output_name,
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             parent_file_id=resource.file_id,
@@ -233,16 +227,16 @@ def create_file_write_tools(
             raise ValueError("DOCX section exceeds bounded character limit")
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
-        replayed = await asyncio.to_thread(
+        replayed = await run_blocking(
             publisher.replay, current, operation_id, output_name, resource.file_id
         )
         if replayed is not None:
             return _result(replayed, scanned_bytes=resource.size_bytes)
-        await asyncio.to_thread(
+        await run_blocking(
             DocxWriter().append_section, resource, current.outputs_root, output_name,
             heading, paragraphs,
         )
-        output = await asyncio.to_thread(
+        output = await run_blocking(
             publisher.publish, current, operation_id, output_name,
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             parent_file_id=resource.file_id,
@@ -257,16 +251,16 @@ def create_file_write_tools(
             raise ValueError("workbook patch exceeds bounded cell limit")
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
-        replayed = await asyncio.to_thread(
+        replayed = await run_blocking(
             publisher.replay, current, operation_id, output_name, resource.file_id
         )
         if replayed is not None:
             return _result(replayed, scanned_bytes=resource.size_bytes)
-        await asyncio.to_thread(
+        await run_blocking(
             XlsxWriter().write_range, resource, current.outputs_root, output_name,
             sheet, start_row, start_column, values,
         )
-        output = await asyncio.to_thread(
+        output = await run_blocking(
             publisher.publish, current, operation_id, output_name,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             parent_file_id=resource.file_id,
@@ -279,24 +273,21 @@ def create_file_write_tools(
     ) -> str:
         current = active_scope()
         resource = FileResourceResolver(current).resolve(file)
-        replayed = await asyncio.to_thread(
+        replayed = await run_blocking(
             publisher.replay, current, operation_id, output_name, resource.file_id
         )
         if replayed is not None:
             return _result(replayed, scanned_bytes=resource.size_bytes)
-        await asyncio.to_thread(
+        await run_blocking(
             PptxWriter().replace_slide, resource, current.outputs_root, output_name,
             slide, title, body,
         )
-        output = await asyncio.to_thread(
+        output = await run_blocking(
             publisher.publish, current, operation_id, output_name,
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             parent_file_id=resource.file_id,
         )
         return _result(output, scanned_bytes=resource.size_bytes)
-
-    async def save_persistent_file(**_arguments: Any) -> str:
-        raise RuntimeError("save_persistent_file is executed by the durable tool runtime")
 
     definitions = [
         ("create_docx", "Create and publish a bounded DOCX output.", CreateDocxInput, create_docx),
@@ -307,7 +298,6 @@ def create_file_write_tools(
         ("append_docx_section", "Append a bounded section and publish a new DOCX version.", AppendDocxSectionInput, append_docx_section),
         ("write_sheet_range", "Write a bounded XLSX range and publish a new version.", WriteSheetRangeInput, write_sheet_range),
         ("replace_slide", "Replace one PPTX slide and publish a new version.", ReplaceSlideInput, replace_slide),
-        ("save_persistent_file", "Save a Run output to an account-owned persistent logical path.", SavePersistentFileInput, save_persistent_file),
     ]
     tools = [
         StructuredTool.from_function(
@@ -333,6 +323,4 @@ def create_file_write_tools(
             },
             "trace_json_fields": {"deduplicated": "deduplicated", "size_bytes": "output_bytes"},
         }
-        if tool.name == "save_persistent_file":
-            tool.metadata["side_effect_class"] = "non_idempotent_write"
     return tools

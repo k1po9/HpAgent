@@ -39,6 +39,7 @@ from web_domain.errors import (
 )
 from web_domain.failures import is_failure_retryable
 from web_domain.run_usage_projection import load_run_budget_projection
+from workspace.resources import ResourceDenied, ResourcePolicy
 
 from .admission import AdmissionPolicy, SingleActiveRunAdmission
 from .sessions import ConversationSessionService
@@ -85,6 +86,7 @@ class CommandService:
         self.messages = MessageRepository()
         self.runs = RunRepository()
         self.files = FileRepository()
+        self.resource_policy = ResourcePolicy(database_url)
         self.budgets = RunBudgetRepository()
         self.sessions = SessionRepository()
         self.admission_policy = admission_policy or SingleActiveRunAdmission()
@@ -181,14 +183,20 @@ class CommandService:
             scoped_count = (
                 uow.execute(
                     "SELECT count(*) AS count FROM stored_files WHERE account_id=%s "
-                    "AND conversation_id=%s AND file_id=ANY(%s)",
-                    (account_id, conversation_id, list(file_ids)),
+                    "AND file_id=ANY(%s)",
+                    (account_id, list(file_ids)),
                 ).fetchone()["count"]
                 if file_ids else 0
             )
             if scoped_count != len(file_ids):
                 raise ResourceNotFound()
             raise FileNotReady()
+        file_authorities = []
+        for file in input_files:
+            authority = self._explicit_file_authority(uow, account_id, conversation_id, file)
+            if authority is None:
+                raise ResourceDenied("file is not authorized for this Conversation")
+            file_authorities.append(authority)
         session_id = self.session_service.get_or_create_in_locked_conversation(
             uow, account_id, conversation_id
         )
@@ -211,6 +219,20 @@ class CommandService:
         self.files.bind_inputs(
             uow, account_id, conversation_id, user_message_id, run_id, input_files
         )
+        for file, authority in zip(input_files, file_authorities, strict=True):
+            basis, node_id, grant_id = authority
+            uow.execute(
+                "INSERT INTO run_resource_access(access_id,account_id,run_id,file_id,"
+                "node_id,basis,grant_id) VALUES (%s,%s,%s,%s,%s,%s,%s)",
+                (_id(), account_id, run_id, file["file_id"], node_id, basis, grant_id),
+            )
+            if basis == "explicit_attachment":
+                uow.execute(
+                    "INSERT INTO conversation_resource_files(account_id,conversation_id,file_id) "
+                    "VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
+                    (account_id, conversation_id, file["file_id"]),
+                )
+        self.resource_policy.snapshot_in_uow(uow, account_id, run_id, conversation_id)
         self._create_budget(uow, run_id, account_id, conversation_id)
         self._outbox(uow, account_id, conversation_id, run_id, "start_run")
         result = self._send_result_for_run(uow, run_id)
@@ -218,6 +240,44 @@ class CommandService:
         log_event(logger, logging.INFO, "run_created", "run", run_id=str(run_id),
                   conversation_id=str(conversation_id), session_id=str(session_id), status="started")
         return CommandResult(202, result)
+
+    def _explicit_file_authority(self, uow: UnitOfWork, account_id: UUID,
+                                 conversation_id: UUID, file: dict[str, Any]
+                                 ) -> tuple[str, UUID | None, UUID | None] | None:
+        if file["conversation_id"] == conversation_id:
+            available = uow.execute(
+                "SELECT available FROM conversation_resource_files WHERE account_id=%s "
+                "AND conversation_id=%s AND file_id=%s",
+                (account_id, conversation_id, file["file_id"]),
+            ).fetchone()
+            return (("explicit_attachment", None, None) if available is None or available["available"]
+                    else None)
+        if file.get("source_run_id") is not None and uow.execute(
+            "SELECT 1 FROM runs WHERE account_id=%s AND run_id=%s AND conversation_id=%s",
+            (account_id, file["source_run_id"], conversation_id),
+        ).fetchone():
+            available = uow.execute(
+                "SELECT available FROM conversation_resource_files WHERE account_id=%s "
+                "AND conversation_id=%s AND file_id=%s",
+                (account_id, conversation_id, file["file_id"]),
+            ).fetchone()
+            return (("explicit_attachment", None, None) if available is None or available["available"]
+                    else None)
+        nodes = uow.execute(
+            "SELECT n.node_id FROM workspace_nodes n "
+            "LEFT JOIN persistent_file_destinations d ON d.account_id=n.account_id "
+            "AND d.destination_id=n.destination_id WHERE n.account_id=%s "
+            "AND COALESCE(n.file_id,d.current_file_id)=%s "
+            "AND n.deleted_at IS NULL ORDER BY n.node_id",
+            (account_id, file["file_id"]),
+        ).fetchall()
+        for row in nodes:
+            grants = self.resource_policy._grants(
+                uow, account_id, "conversation", conversation_id, row["node_id"],
+                "read_content")
+            if grants:
+                return ("workspace_grant", row["node_id"], grants[0]["grant_id"])
+        return None
 
     @retryable_transaction
     def cancel_run(self, account_id: UUID, run_id: UUID, key: str) -> CommandResult:
@@ -345,7 +405,19 @@ class CommandService:
                     uow, assistant_message_id, account_id, source["conversation_id"],
                     sequence, run_id
                 )
+                frozen_ids = [row["file_id"] for row in uow.execute(
+                    "SELECT file_id FROM run_files WHERE run_id=%s AND direction='input'",
+                    (source_run_id,),
+                ).fetchall()]
+                ready_count = uow.execute(
+                    "SELECT count(*) AS count FROM stored_files WHERE account_id=%s "
+                    "AND file_id=ANY(%s) AND status='ready'",
+                    (account_id, frozen_ids),
+                ).fetchone()["count"]
+                if ready_count != len(frozen_ids):
+                    raise FileNotReady()
                 self.files.copy_retry_inputs(uow, source_run_id, run_id)
+                self.resource_policy.copy_retry_in_uow(uow, source_run_id, run_id)
                 self._create_budget(
                     uow, run_id, account_id, source["conversation_id"]
                 )
@@ -387,11 +459,10 @@ class CommandService:
             if run["status"] not in ("running", "cancelling"):
                 raise ConversationBusy()
             self.messages.set_terminal(uow, run_id, "completed", content)
-            # Output publication is durable before terminalization, but files
-            # become user-visible only with the completed assistant message.
+            # The assistant message records actual outputs from this Run.
             uow.execute(
                 "INSERT INTO message_files(account_id,conversation_id,message_id,file_id,role,ordinal) "
-                "SELECT rf.account_id,rf.conversation_id,m.message_id,rf.file_id,'output',"
+                "SELECT rf.account_id,m.conversation_id,m.message_id,rf.file_id,'output',"
                 "row_number() OVER (ORDER BY rf.created_at,rf.file_id)-1 "
                 "FROM run_files rf JOIN messages m ON m.produced_by_run_id=rf.run_id "
                 "WHERE rf.run_id=%s AND rf.direction='output' "
@@ -569,8 +640,8 @@ class CommandService:
     def _message_file_dtos(uow: UnitOfWork, message_id: UUID) -> list[dict[str, Any]]:
         rows = uow.execute(
             "SELECT sf.* FROM message_files mf JOIN stored_files sf "
-            "ON sf.account_id=mf.account_id AND sf.conversation_id=mf.conversation_id "
-            "AND sf.file_id=mf.file_id WHERE mf.message_id=%s ORDER BY mf.ordinal",
+            "ON sf.account_id=mf.account_id AND sf.file_id=mf.file_id "
+            "WHERE mf.message_id=%s ORDER BY mf.ordinal",
             (message_id,),
         ).fetchall()
         return [

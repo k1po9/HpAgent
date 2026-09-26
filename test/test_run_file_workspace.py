@@ -68,6 +68,7 @@ def test_run_scope_rematerializes_prior_output_for_next_version(tmp_path: Path) 
         "encoding": "binary", "content_type": "application/docx",
     }]
     with workspace.prepare_rows(run_id, rows) as scope:
+        scope.authorize = lambda _file_id: None
         resource = FileResourceResolver(scope).resolve(str(file_id))
         assert resource.local_path == scope.outputs_root / "report-v2.docx"
         assert resource.local_path.read_bytes() == b"prior output"

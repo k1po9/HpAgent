@@ -28,6 +28,7 @@ docker compose --profile web up hpagent-migrate
 ```
 
 Migration Container 执行带 Checksum 的 SQL 历史后退出；非零退出会阻止 API 和 Worker 启动。
+API 和 Worker 启动时只读核对迁移清单及校验和。Schema 缺失或不匹配会明确失败；正常启动不会迁移、清库或切换旧 Workspace 路径。开发期旧数据不兼容目标 schema 时，应先停止旧 Worker 并明确处置旧 Workflow，再在**可丢弃的开发环境**中手工重建数据库和重新运行迁移。不要对共享数据执行重建命令。
 
 ## 日志与检查
 

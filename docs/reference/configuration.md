@@ -37,13 +37,13 @@
 | `QQ_OFFICIAL_APP_ID` / `QQ_OFFICIAL_CLIENT_SECRET` | Official QQ 时 | 空 | QQ Adapter | Official Bot 凭据。 |
 | `QQ_OFFICIAL_SANDBOX` | 否 | `false` | QQ Adapter | Official QQ Sandbox Endpoint 开关。 |
 | `NAPCAT_ACCOUNT` / `NAPCAT_QUICK_PASSWORD` | NapCat 时 | 空 | NapCat | NapCat 登录信息。 |
-| `WORKSPACE_ROOT` | 否 | `.data/workspace` | Worker | Account Workspace Root。 |
-| `WORKSPACE_ISOLATION_MODE` | 否 | `single_process_account_lock` | Worker | Workspace 并发模式。 |
+| `WORKSPACE_ROOT` | 否 | `.data/workspace` | Worker | Git 代码工作区根；不是长期文件目录。 |
+| `WORKSPACE_ISOLATION_MODE` | 否 | `single_process_account_lock` | Worker | Git/执行工作区并发模式。 |
 | `AGENT_EXECUTION_LEASE_TTL_SECONDS` | 否 | `900` | Worker | Execution Lease 时长。 |
 | `WEB_FILE_UPLOAD_ENABLED` | 否 | `true` | API/Worker | Upload 能力开关。 |
 | `WEB_FILE_TRANSFORM_ENABLED` | 否 | `false` | API/Worker | Transform/Output 能力开关。 |
 | `WEB_FILE_SHELL_ENABLED` | 否 | `false` | API/Worker | File Shell 能力开关。 |
-| `FILE_STORE_ROOT` / `FILE_RUN_ROOT` / `DOCUMENT_RUN_ROOT` | Compose 管理 | Volume 路径 | File/Document | Blob 与执行目录。 |
+| `FILE_STORE_ROOT` / `FILE_RUN_ROOT` / `DOCUMENT_RUN_ROOT` | Compose 管理 | Volume 路径 | File/Document | 长期文件字节与临时执行目录；目录/授权/修订在 PostgreSQL。 |
 | `FILE_MAX_BYTES` | 否 | `134217728` | File | 单文件大小上限。 |
 | `FILE_DIRECT_READ_MAX_BYTES` | 否 | `1048576` | File | Direct Read 阈值。 |
 | `FILE_MAX_COUNT_PER_MESSAGE` | 否 | `10` | API | 每条消息上传数量上限。 |

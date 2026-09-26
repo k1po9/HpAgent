@@ -20,7 +20,8 @@ def test_migration_031_adds_persistent_revisions_and_recoverable_binding():
     sql = Path("persistence/migrations/031_persistent_web_file_foundation.sql").read_text()
     assert "CREATE TABLE persistent_file_destinations" in sql
     assert "CREATE TABLE persistent_file_revisions" in sql
-    assert "UNIQUE(account_id,logical_path)" in sql
+    p3 = Path("persistence/migrations/044_workspace_v41_p3.sql").read_text()
+    assert "DROP CONSTRAINT uq_persistent_file_revisions__file" in p3
     assert "UNIQUE(destination_id,operation_id)" in sql
     assert "execution_id=operation_id" in sql
     assert "execution_fencing_token >= 1" in sql
@@ -50,4 +51,5 @@ def test_api_exposes_owned_list_and_idempotent_decision_routes():
     assert ("/api/v1/runs/{run_id}/file-action-approvals", ("GET",)) in routes
     assert ("/api/v1/file-action-approvals/{approval_id}/approve", ("POST",)) in routes
     assert ("/api/v1/file-action-approvals/{approval_id}/reject", ("POST",)) in routes
-    assert ("/api/v1/persistent-files/{logical_path:path}", ("GET",)) in routes
+    assert ("/api/v1/persistent-files/{logical_path:path}", ("GET",)) not in routes
+    assert ("/api/v1/workspace/nodes/{node_id}/versions", ("GET",)) in routes

@@ -12,6 +12,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from uuid6 import uuid7
 
 from persistence.uow import UnitOfWork
+from research_domain.history import authorized_history
 from research_domain.models import (
     EvidenceItem,
     ResearchPlan,
@@ -432,12 +433,8 @@ class ResearchRepository:
         ).fetchone()
         if current_run is None:
             raise LookupError(f"research Run not found: {run_id}")
-        previous = uow.execute(
-            "SELECT rr.run_id FROM research_reports rr JOIN runs r ON r.run_id=rr.run_id "
-            "WHERE r.task_id=%s AND r.status='completed' AND r.created_at<%s "
-            "ORDER BY r.created_at DESC,r.run_id DESC LIMIT 1",
-            (current_run["task_id"], current_run["created_at"]),
-        ).fetchone()
+        history = authorized_history(uow, run_id)
+        previous = history[0] if history else None
 
         def snapshot(target: UUID) -> dict[str, Any]:
             rows = uow.execute(
@@ -459,7 +456,7 @@ class ResearchRepository:
             ]}
 
         current = snapshot(run_id)
-        prior = snapshot(UUID(str(previous["run_id"]))) if previous else {"claims": []}
+        prior = previous["snapshot"] if previous else {"claims": []}
         unmatched = list(prior["claims"])
         diff: dict[str, list[dict[str, Any]]] = {
             "new": [], "changed": [], "continuing": [], "invalidated": []

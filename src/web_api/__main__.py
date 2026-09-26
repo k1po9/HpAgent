@@ -18,7 +18,7 @@ def main() -> None:
         json_filename="web-api.jsonl",
         error_log_filename="web-api-error.log",
     )
-    uvicorn.run(create_app(), host="0.0.0.0", port=8080, access_log=False)
+    uvicorn.run(create_app(), host="0.0.0.0", port=int(os.getenv("WEB_API_PORT", "8080")), access_log=False)
 
 
 if __name__ == "__main__":

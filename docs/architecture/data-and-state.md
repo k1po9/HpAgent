@@ -9,7 +9,7 @@
 - **身份与对话**：Account、Identity Binding、Account Entitlement、Registration Invite、Conversation、Message、Session。
 - **执行**：Run、Workflow Execution、Outbox、Agent Transcript、Operation、Wait、Execution Segment、Lease 和 Fencing Token。
 - **投递与追踪**：QQ Delivery、Trace Run 和 Trace Event。
-- **文件与 Workspace 元数据**：Stored File、Message/Run Binding、Persistent Revision、Approval、Budget 和 Usage Ledger。
+- **长期文件与 Workspace**：Stored File、目录/条目、修订、Conversation/Task 授权、Run 候选/访问、发布/保存 Operation、Message/Run Binding，以及文件 Budget 和 Usage Ledger。
 - **Research 与 Artifact**：Task、Plan、Source、Evidence、Report、Artifact 和 Artifact Version。
 - **Heavy Document**：Normalized Document Operation 的结果与状态。
 
@@ -23,8 +23,8 @@ Redis 负责短期 Session/Event Context、通知和工具/运行时缓存等临
 
 Hindsight 负责长期语义 Memory Bank 和检索索引。HpAgent 在应用 PostgreSQL 中保留稳定的 Account 与 Run 关联元数据，但不会复制语义索引。
 
-## Git 与文件存储
+## 长期文件、Git 与字节存储
 
-账号级 Git Workspace 负责可编辑项目的历史和工作文件。File Store Volume 保存上传及生成的 Blob；PostgreSQL 保存其元数据、Lineage、权限和 Run 关联。临时 Run/Document 目录只是执行材料，不是业务权威。
+账号级长期文件 Workspace 的目录、入口、来源、版本、授权、Run 固定结果和保存操作都以 PostgreSQL 为权威。TenantFileStore 保存不可变字节；同一 `file_id` 的多个入口不复制字节。Run 的 inputs/scratch/outputs 是临时执行材料，结束后回收。普通文件能力不依赖 Git。
 
-因此 PostgreSQL、Redis、Hindsight 与 Git 分别拥有不同类别的状态，它们是协作存储，而不是重复权威。
+账号级 Git 工作区只服务代码任务。Redis 与 Hindsight 分别提供临时协调和长期语义记忆，不决定文件所有权或物理回收。详见 [Workspace v4.1](workspace-v4.1.md)。

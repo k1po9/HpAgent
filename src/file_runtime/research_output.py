@@ -23,9 +23,6 @@ class ResearchMarkdownPublisher:
             for directory in (inputs, scratch, outputs):
                 directory.mkdir()
             scope = RunFileScope(run_id, inputs, scratch, outputs, ())
-            replayed = self.publisher.replay(scope, operation_id, logical_name)
-            if replayed is not None:
-                return replayed
             (outputs / logical_name).write_text(markdown, encoding="utf-8")
             return self.publisher.publish(
                 scope, operation_id, logical_name, "text/markdown; charset=utf-8",

@@ -25,7 +25,8 @@ def _scope(tmp_path: Path, *, content_type: str | None = "text/plain") -> RunFil
     item = RunFileInput(
         uuid4(), "notes.txt", 5, "utf-8", content_type, "a" * 64
     )
-    return RunFileScope(uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs", (item,))
+    return RunFileScope(uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs",
+                        (item,), authorize=lambda _file_id: None)
 
 
 def test_resolver_uses_only_authoritative_run_inputs(tmp_path: Path) -> None:

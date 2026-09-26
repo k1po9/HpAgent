@@ -9,15 +9,12 @@
  */
 import { defineConfig, devices } from "@playwright/test";
 
-const BACKEND_PORT = 8080;
-const WEB_PORT = 5173;
+const BACKEND_PORT = Number(process.env.WEB_API_PORT ?? 8080);
+const WEB_PORT = Number(process.env.WEB_DEV_PORT ?? 5173);
 const WEB_BASE = `http://localhost:${WEB_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
-  // The approval spec exercises the live Agent/Temporal/file-tool stack via
-  // `npm run test:e2e:f4`; the default suite deliberately uses Fake Executor.
-  testIgnore: ["f4-approval.spec.ts"],
   timeout: 60_000,
   expect: { timeout: 15_000 },
   // The specs share real infrastructure (one API/PostgreSQL/Redis, the same
@@ -41,7 +38,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: "npm run dev",
+      command: `npm run dev -- --port ${WEB_PORT}`,
       url: WEB_BASE,
       reuseExistingServer: false,
       timeout: 60_000,

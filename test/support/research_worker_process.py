@@ -47,6 +47,7 @@ synthesize = simple("synthesize_research_report_activity", "Synthesis")
 verify = simple("verify_research_citations_activity", "CitationVerification")
 compare = simple("compare_previous_research_activity", "DailyDiff")
 publish = simple("publish_research_artifact_activity", "PublishArtifact")
+save = simple("save_research_workspace_activity", "WorkspaceSave")
 complete = simple("complete_research_activity", "Complete")
 fail = simple("fail_research_activity", "Failed")
 
@@ -81,7 +82,7 @@ async def main() -> None:
         workflows=[ResearchReportWorkflow, ResearchTaskScheduleWorkflow],
         activities=[
             prepare, plan, discover, rank, fetch, normalize, evidence, corroborate,
-            gaps, synthesize, verify, compare, publish, complete, fail, trigger_schedule,
+            gaps, synthesize, verify, compare, publish, save, complete, fail, trigger_schedule,
         ],
     )
     async with worker:

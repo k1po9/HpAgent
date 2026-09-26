@@ -105,7 +105,6 @@ def compose_durable_runtime(
     """
     worker_database_url = os.getenv("WORKER_DATABASE_URL")
 
-    from agent_activities.persistent_overwrite import PersistentOverwriteActivities
     from agent_activities.runtime import DurableAgentActivities
     from agent_activities.segments import SegmentActivities
     from agent_activities.store import AgentDataStore
@@ -115,7 +114,6 @@ def compose_durable_runtime(
     from application.context_assembly import ContextAssemblyService
     from conversation_domain.execution_bindings import ChatExecutionBindings
     from file_domain.approvals import FileActionApprovalService
-    from file_domain.persistent import PersistentWebFileService
     from file_runtime import ResearchMarkdownPublisher
     from orchestration.artifact_activities import ArtifactActivities
     from orchestration.artifact_dispatcher import (
@@ -165,19 +163,15 @@ def compose_durable_runtime(
 
     validate_web_worker_startup(config.temporal, worker_database_url)
     assert worker_database_url is not None
+    from persistence.migrate import verify_schema
+    verify_schema(worker_database_url)
     infrastructure = deps.infrastructure
     shared = deps.shared
     assert infrastructure.workspace_isolation is not None, "workspace isolation is required"
-    from file_runtime.routing import TemporalDocumentRouter
-
-    infrastructure.sandbox_manager.configure_file_document_router(
-        TemporalDocumentRouter(
-            client,
-            direct_read_max_bytes=int(
-                os.getenv("FILE_DIRECT_READ_MAX_BYTES", str(1024 * 1024))
-            ),
-        )
-    )
+    # P2: the detached normalization workflow can outlive cancellation of its
+    # parent Run. Keep that route unavailable until cancellation propagation
+    # and descendant-stop confirmation are established.
+    infrastructure.sandbox_manager.configure_file_document_router(None)
     trace_repository = PostgresTraceRepository(worker_database_url)
     event_factory = TracingWebEventSinkFactory(
         RedisWebRunEventSinkFactory(infrastructure.redis_client),
@@ -241,9 +235,6 @@ def compose_durable_runtime(
             if infrastructure.file_output_publisher is not None else None
         ),
     )
-    persistent_files = PersistentWebFileService(
-        worker_database_url, infrastructure.tenant_file_store
-    )
     durable_activities = DurableAgentActivities(
         context_bindings=ChatExecutionBindings(),
         store=agent_store,
@@ -255,10 +246,6 @@ def compose_durable_runtime(
         lifecycle=lifecycle,
         run_budget=RunBudgetService(worker_database_url),
         approval_service=FileActionApprovalService(worker_database_url),
-        persistent_file_service=persistent_files,
-    )
-    persistent_overwrite = PersistentOverwriteActivities(
-        agent_store, persistent_files
     )
     artifact_build = ArtifactBuildService(
         worker_database_url,
@@ -292,6 +279,7 @@ def compose_durable_runtime(
             research_activities.verify_research_citations_activity,
             research_activities.compare_previous_research_activity,
             research_activities.publish_research_artifact_activity,
+            research_activities.save_research_workspace_activity,
             research_activities.complete_research_activity,
             research_activities.fail_research_activity,
         ],
@@ -304,7 +292,6 @@ def compose_durable_runtime(
             durable_activities.model_decision,
             durable_activities.tool_execution,
             durable_activities.file_action_approval_status,
-            persistent_overwrite.execute,
             durable_activities.planning,
             durable_activities.evaluate_plan,
         ],

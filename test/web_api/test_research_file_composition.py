@@ -25,7 +25,7 @@ def _headers(csrf: str, key: str | None = None) -> dict[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_web_research_report_becomes_downloadable_assistant_attachment(
+async def test_standalone_research_report_becomes_downloadable_run_output(
     tmp_path, seed_identity, client_factory, worker_database_url, db,
 ):
     seed_identity("research-composition-user")
@@ -38,16 +38,11 @@ async def test_web_research_report_becomes_downloadable_assistant_attachment(
     )
     assert login.status_code == 303
     csrf = client.get("/api/v1/me").json()["csrf_token"]
-    conversation = client.post(
-        "/api/v1/conversations", json={"title": "Agent Memory research"},
-        headers=_headers(csrf, str(uuid4())),
-    ).json()["conversation"]
     objective = "Research recent Agent Memory technical changes."
     created = client.post(
         "/api/v1/tasks",
         json={
             "title": "Agent Memory", "objective": objective,
-            "conversation_id": conversation["conversation_id"],
         },
         headers=_headers(csrf, str(uuid4())),
     )
@@ -120,20 +115,28 @@ async def test_web_research_report_becomes_downloadable_assistant_attachment(
     report = client.get(
         f"/api/v1/tasks/{task_id}/runs/{run_id}/report"
     ).json()["report"]
-    messages = client.get(
-        f"/api/v1/conversations/{conversation['conversation_id']}/messages"
-    ).json()["items"]
-    assistant = messages[-1]
     assert run["status"] == "completed"
     assert evidence and report["artifact_id"]
     assert report["report_markdown"].startswith(markdown)
-    assert assistant["status"] == "completed"
-    assert len(assistant["files"]) == 1
-    attachment = assistant["files"][0]
+    attachment = run["published_file"]
+    assert attachment is not None
+    history_tasks = client.get("/api/v1/tasks").json()["items"]
+    assert any(item["task_id"] == task_id for item in history_tasks)
+    history_runs = client.get(f"/api/v1/tasks/{task_id}/runs").json()["items"]
+    assert history_runs[0]["published_file"] == attachment
     assert attachment["file_name"] == "research-report.md"
     downloaded = client.get(attachment["download_url"])
     assert downloaded.status_code == 200
     assert downloaded.content.decode("utf-8") == report["report_markdown"]
+    chat = client.post(
+        "/api/v1/conversations", json={"title": "Read Task output"},
+        headers=_headers(csrf, str(uuid4())),
+    ).json()["conversation"]
+    candidates = client.get(
+        f"/api/v1/conversations/{chat['conversation_id']}/file-candidates"
+    ).json()["items"]
+    # A new Conversation has no Workspace grant and cannot discover Task output.
+    assert all(item["file_id"] != attachment["file_id"] for item in candidates)
     client.cookies.clear()
     assert client.get(attachment["download_url"]).status_code == 401
     rows = db.execute(
@@ -144,3 +147,7 @@ async def test_web_research_report_becomes_downloadable_assistant_attachment(
     ).fetchone()
     assert rows[0] == 1
     assert rows[1] == "utf-8"
+    assert db.execute(
+        "SELECT sf.conversation_id,sf.source_run_id FROM stored_files sf "
+        "WHERE sf.file_id=%s", (UUID(attachment["file_id"]),),
+    ).fetchone() == (None, UUID(run_id))

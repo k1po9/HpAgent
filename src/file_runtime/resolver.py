@@ -30,6 +30,9 @@ class FileResourceResolver:
         if len(candidates) > 1:
             raise LookupError("logical file name is ambiguous; use file_id")
         item = candidates[0]
+        if self.scope.authorize is None:
+            raise PermissionError("Run file authority is unavailable")
+        self.scope.authorize(item.file_id)
         root = self.scope.inputs_root if item.direction == "input" else self.scope.outputs_root
         path = (root / item.logical_name).absolute()
         if not path.is_relative_to(root) or path.is_symlink():
