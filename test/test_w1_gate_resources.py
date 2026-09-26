@@ -76,6 +76,7 @@ async def test_web_lifespan_startup_failure_closes_acquired_pool(monkeypatch):
 
     pool = SimpleNamespace(wait=Mock(), close=Mock())
     monkeypatch.setattr(app_module, "ConnectionPool", Mock(return_value=pool))
+    monkeypatch.setattr(app_module, "verify_schema", Mock())
     settings = WebApiSettings(
         database_url="postgresql://unused",
         public_origin="https://example.test",

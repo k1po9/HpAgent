@@ -41,6 +41,7 @@ async def test_replace_docx_text_creates_child_version(tmp_path):
         uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs",
         (RunFileInput(source_id, "source.docx", (inputs / "source.docx").stat().st_size,
                       "binary", "application/docx"),),
+        authorize=lambda file_id: None,
     )
     tools = {tool.name: tool for tool in create_file_write_tools(lambda: scope, _Publisher())}
     result = json.loads(await tools["replace_docx_text"].ainvoke({
@@ -75,6 +76,7 @@ async def test_write_sheet_range_creates_child_without_formula_engine(tmp_path):
         uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs",
         (RunFileInput(source_id, "source.xlsx", (inputs / "source.xlsx").stat().st_size,
                       "binary", "application/xlsx"),),
+        authorize=lambda file_id: None,
     )
     tools = {tool.name: tool for tool in create_file_write_tools(lambda: scope, _Publisher())}
     result = json.loads(await tools["write_sheet_range"].ainvoke({
@@ -104,6 +106,7 @@ async def test_replace_slide_creates_child_version(tmp_path):
         uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs",
         (RunFileInput(source_id, "source.pptx", (inputs / "source.pptx").stat().st_size,
                       "binary", "application/pptx"),),
+        authorize=lambda file_id: None,
     )
     tools = {tool.name: tool for tool in create_file_write_tools(lambda: scope, _Publisher())}
     result = json.loads(await tools["replace_slide"].ainvoke({

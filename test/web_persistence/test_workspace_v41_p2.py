@@ -10,6 +10,7 @@ import pytest
 from conversation_domain.commands import CommandService
 from file_runtime import FileResourceResolver
 from storage.tenant_file_store import TenantFileStore
+from web_domain.errors import ResourceNotFound
 from workspace.catalog import WorkspaceCatalog
 from workspace.file_scope import RunFileScopeUnavailable, RunFileWorkspace
 from workspace.resources import ResourceDenied, ResourcePolicy, SnapshotLimitExceeded
@@ -38,6 +39,68 @@ def _conversation(commands, account):
 
 def _run(commands, account, conversation):
     return UUID(commands.send_message(account, conversation, str(uuid4()), "read")['run_id'])
+
+
+@pytest.mark.parametrize("directory_first", [True, False])
+def test_revoking_either_grant_order_rechecks_all_selected_authority(
+    db, account_id, database_url, tmp_path, directory_first,
+):
+    commands = CommandService(database_url)
+    catalog = WorkspaceCatalog(database_url, commands)
+    policy = ResourcePolicy(database_url)
+    tree = catalog.initialize(account_id)
+    parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料"))
+    origin = _conversation(commands, account_id)
+    reader = _conversation(commands, account_id)
+    store = TenantFileStore(tmp_path / "store", max_bytes=1024)
+    file_id = _file(db, store, account_id, origin, "read.txt", b"read")
+    node_id = catalog.save_file(account_id, parent, file_id, "read.txt", "save:read")
+    list_grant = UUID(policy.grant(account_id, "conversation", reader, parent,
+                                  ["list_metadata"], True)[0])
+    directory_read = UUID(policy.grant(account_id, "conversation", reader, parent,
+                                       ["read_content"], True)[0])
+    file_read = UUID(policy.grant(account_id, "conversation", reader, node_id,
+                                  ["read_content"], False)[0])
+    run_id = _run(commands, account_id, reader)
+    assert policy.select(account_id, run_id, node_id)["file_id"] == str(file_id)
+    first, last = ((directory_read, file_read) if directory_first
+                   else (file_read, directory_read))
+    assert policy.revoke(account_id, first, commands) == []
+    assert policy.candidates(account_id, run_id)["count"] == 1
+    assert policy.revoke(account_id, last, commands) == [run_id]
+    assert db.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] in {
+        "cancelling", "cancelled",
+    }
+    assert policy.revoke(account_id, last, commands) == []
+    policy.revoke(account_id, list_grant, commands)
+    with pytest.raises(ResourceNotFound):
+        policy.candidates(account_id, run_id)
+
+
+def test_revoked_metadata_disappears_from_frozen_candidates_before_select(
+    db, account_id, database_url, tmp_path,
+):
+    commands = CommandService(database_url)
+    catalog = WorkspaceCatalog(database_url, commands)
+    policy = ResourcePolicy(database_url)
+    tree = catalog.initialize(account_id)
+    parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料"))
+    origin = _conversation(commands, account_id)
+    reader = _conversation(commands, account_id)
+    store = TenantFileStore(tmp_path / "store", max_bytes=1024)
+    file_id = _file(db, store, account_id, origin, "secret.txt", b"secret")
+    node_id = catalog.save_file(account_id, parent, file_id, "secret.txt", "save:secret")
+    list_grant = UUID(policy.grant(account_id, "conversation", reader, node_id,
+                                  ["list_metadata"], False)[0])
+    policy.grant(account_id, "conversation", reader, node_id, ["read_content"], False)
+    run_id = _run(commands, account_id, reader)
+    assert policy.candidates(account_id, run_id)["count"] == 1
+    assert policy.revoke(account_id, list_grant, commands) == []
+    assert policy.candidates(account_id, run_id) == {
+        "count": 0, "next": None, "candidates": [],
+    }
+    with pytest.raises(ResourceDenied):
+        policy.select(account_id, run_id, node_id)
 
 
 def test_cross_conversation_candidate_and_file_id_are_run_scoped(

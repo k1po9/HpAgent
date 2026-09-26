@@ -844,6 +844,23 @@ def create_app(
             response.headers["Idempotency-Replayed"] = "true"
         return response
 
+    @app.post("/api/v1/workspace/uploads")
+    def create_workspace_upload(
+        payload: CreateUploadRequest, request: Request,
+        context: AuthContext = Depends(csrf_guard),
+        key: str = Depends(idempotency_key),
+        files: FileService = Depends(file_service),
+    ):
+        result = files.create_workspace_upload(
+            context.account_id, key, payload.file_name, payload.size_bytes,
+            payload.content_type, payload.sha256,
+        )
+        response = JSONResponse(status_code=result.response_status, content=result.body)
+        response.headers["Location"] = result.body["content_url"]
+        if result.replayed:
+            response.headers["Idempotency-Replayed"] = "true"
+        return response
+
     @app.put("/api/v1/uploads/{file_id}/content")
     async def upload_content(
         file_id: UUID,
@@ -941,12 +958,15 @@ def create_app(
     @app.delete("/api/v1/conversations/{conversation_id}/resources/{grant_id}")
     def revoke_conversation_resource(conversation_id: UUID, grant_id: UUID,
                                      request: Request,
-                                     context: AuthContext = Depends(csrf_guard)):
+        context: AuthContext = Depends(csrf_guard)):
         policy: ResourcePolicy = request.app.state.resource_policy
-        if not any(item["grant_id"] == str(grant_id) for item in policy.grants(
-            context.account_id, "conversation", conversation_id
-        )):
-            raise ResourceNotFound()
+        with UnitOfWork(request.app.state.api_pool) as uow:
+            if uow.execute(
+                "SELECT 1 FROM resource_grants WHERE account_id=%s AND grant_id=%s "
+                "AND subject_kind='conversation' AND subject_id=%s",
+                (context.account_id, grant_id, conversation_id),
+            ).fetchone() is None:
+                raise ResourceNotFound()
         affected = policy.revoke(context.account_id, grant_id, request.app.state.commands)
         with UnitOfWork(request.app.state.api_pool) as uow:
             statuses = {row["run_id"]: row["status"] for row in uow.execute(

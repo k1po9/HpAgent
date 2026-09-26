@@ -66,7 +66,7 @@ def test_case_e_conflict_raises_without_merging(db, migration_database_url):
     db.execute("INSERT INTO accounts(account_id) VALUES (%s),(%s)", (a, b))
     _binding(db, a, "web", "user@example.com")
     _binding(db, b, "qq", "napcat:10002")
-    with pytest.raises(ValueError, match="merge is unsupported"):
+    with pytest.raises(ValueError, match="does not merge Accounts"):
         bootstrap_identity(
             migration_database_url,
             web_subject="user@example.com",

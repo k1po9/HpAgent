@@ -225,6 +225,33 @@ export function WorkspacePanel({
   return (
     <section aria-label="长期 Workspace" style={{ padding: 12, maxHeight: 350, overflowY: "auto" }}>
       <strong>长期 Workspace</strong>
+      <label>
+        上传到 Workspace
+        <input
+          aria-label="上传到 Workspace"
+          type="file"
+          disabled={!tree || busy}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file || !tree) return;
+            const destination =
+              selected?.kind === "directory"
+                ? selected.node_id
+                : (selected?.parent_id ?? tree.root_id);
+            void mutate(async () => {
+              const created = await api.createWorkspaceUpload(file, crypto.randomUUID());
+              const ready = await api.uploadContent(created.content_url, file);
+              await api.saveWorkspaceFile(
+                destination,
+                ready.file_id,
+                file.name,
+                crypto.randomUUID(),
+              );
+            });
+            event.target.value = "";
+          }}
+        />
+      </label>
       {space ? (
         <p>
           账户物理文件 {space.physical_files} 个 · {space.physical_bytes} bytes； 活动入口覆盖{" "}

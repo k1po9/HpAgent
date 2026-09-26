@@ -13,6 +13,7 @@ from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
 from web_domain.file_services import FileService
 from workspace.file_scope import RunFileInput, RunFileScope
+from workspace.resources import ResourcePolicy
 
 pytestmark = pytest.mark.postgres
 
@@ -137,6 +138,8 @@ async def test_docx_to_pdf_tool_records_source_lineage(
             source_id, "source.docx", source_path.stat().st_size, "binary",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ),),
+        authorize=lambda file_id: ResourcePolicy(worker_database_url).check_file(
+            account_id, run_id, file_id),
     )
 
     class Conversion:

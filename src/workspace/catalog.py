@@ -184,13 +184,16 @@ class WorkspaceCatalog:
                 ).fetchone() is None:
                     raise ResourceDenied("file is not this Run's published output")
             file = uow.execute(
-                "SELECT purpose,conversation_id,expires_at FROM stored_files "
+                "SELECT purpose,conversation_id,source_workspace_id,expires_at FROM stored_files "
                 "WHERE account_id=%s AND file_id=%s AND status='ready' FOR UPDATE",
                 (account_id, file_id),
             ).fetchone()
             if file is None:
                 raise WorkspaceNotFound("file is not ready in this account")
-            if file["purpose"] == "input" and file["conversation_id"] is None:
+            if file["purpose"] == "input" and not (
+                file["conversation_id"] is not None or
+                file["source_workspace_id"] == workspace_id
+            ):
                 raise WorkspaceConflict("upload source is unavailable")
             if file["purpose"] == "output" and uow.execute(
                 "SELECT 1 FROM run_files WHERE account_id=%s AND file_id=%s "

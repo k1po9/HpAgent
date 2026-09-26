@@ -127,10 +127,13 @@ class ResourcePolicy:
             )
             affected: set[UUID] = set()
             rows = uow.execute(
-                "SELECT DISTINCT r.run_id,a.file_id FROM run_resource_access a "
-                "JOIN runs r ON r.run_id=a.run_id WHERE a.account_id=%s "
-                "AND a.grant_id=%s AND r.status IN ('queued','running','cancelling')",
-                (account_id, grant_id),
+                "SELECT DISTINCT a.run_id,a.file_id FROM run_resource_access a "
+                "JOIN runs r ON r.account_id=a.account_id AND r.run_id=a.run_id "
+                "JOIN run_resource_snapshots s ON s.account_id=a.account_id "
+                "AND s.run_id=a.run_id WHERE a.account_id=%s "
+                "AND a.basis='workspace_grant' AND s.subject_kind=%s "
+                "AND s.subject_id=%s AND r.status IN ('queued','running','cancelling')",
+                (account_id, grant["subject_kind"], grant["subject_id"]),
             ).fetchall()
             for row in rows:
                 if not self._file_authorized_in_uow(uow, account_id,
@@ -214,19 +217,37 @@ class ResourcePolicy:
             snapshot = uow.execute(
                 "SELECT s.* FROM run_resource_snapshots s JOIN runs r ON r.run_id=s.run_id "
                 "WHERE s.account_id=%s AND s.run_id=%s AND r.account_id=%s "
-                "AND s.status='ready'", (account_id, run_id, account_id),
+                "AND r.status IN ('queued','running') AND s.status='ready'",
+                (account_id, run_id, account_id),
             ).fetchone()
             if snapshot is None:
+                raise ResourceNotFound()
+            uow.execute(
+                "SELECT version FROM resource_policy_versions WHERE account_id=%s "
+                "AND subject_kind=%s AND subject_id=%s FOR SHARE",
+                (account_id, snapshot["subject_kind"], snapshot["subject_id"]),
+            ).fetchone()
+            run = uow.execute(
+                "SELECT status FROM runs WHERE account_id=%s AND run_id=%s FOR SHARE",
+                (account_id, run_id),
+            ).fetchone()
+            if run is None or run["status"] not in {"queued", "running"}:
                 raise ResourceNotFound()
             rows = uow.execute(
                 "SELECT node_id,logical_name,display_name,content_type,size_bytes,"
                 "fixed_file_id,first_read_at FROM run_resource_candidates "
-                "WHERE run_id=%s AND logical_name>%s ORDER BY logical_name LIMIT %s",
-                (run_id, after or "", min(max(limit, 1), 100) + 1),
+                "WHERE run_id=%s ORDER BY logical_name",
+                (run_id,),
             ).fetchall()
-            page = list(rows[:limit])
-            return {"count": snapshot["candidate_count"],
-                    "next": page[-1]["logical_name"] if len(rows) > limit else None,
+            allowed = [row for row in rows if self._grants(
+                uow, account_id, snapshot["subject_kind"], snapshot["subject_id"],
+                row["node_id"], "list_metadata"
+            )]
+            page_size = min(max(limit, 1), 100)
+            remaining = [row for row in allowed if row["logical_name"] > (after or "")]
+            page = remaining[:page_size]
+            return {"count": len(allowed),
+                    "next": page[-1]["logical_name"] if len(remaining) > page_size else None,
                     "candidates": [{"node_id": str(r["node_id"]),
                      "logical_name": r["logical_name"], "name": r["display_name"],
                      "content_type": r["content_type"], "size_bytes": r["size_bytes"],
@@ -261,6 +282,9 @@ class ResourcePolicy:
                 "SELECT subject_kind,subject_id FROM run_resource_snapshots WHERE run_id=%s",
                 (run_id,),
             ).fetchone()
+            if not self._grants(uow, account_id, snapshot["subject_kind"],
+                                snapshot["subject_id"], node_id, "list_metadata"):
+                raise ResourceDenied("current list_metadata permission is absent")
             grants = self._grants(uow, account_id, snapshot["subject_kind"],
                                   snapshot["subject_id"], node_id, "read_content")
             if not grants:

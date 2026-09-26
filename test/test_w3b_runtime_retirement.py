@@ -7,7 +7,8 @@ from orchestration.config import TemporalConfig
 from orchestration.worker import WorkerDependencies
 
 
-def test_actual_production_registries_match_current_runtime():
+def test_actual_production_registries_match_current_runtime(monkeypatch):
+    monkeypatch.setattr("persistence.migrate.verify_schema", lambda database: None)
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "check"))
     try:
         from temporal_registry import scan

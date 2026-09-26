@@ -540,6 +540,27 @@ export class HpApi {
     });
   }
 
+  async createWorkspaceUpload(
+    file: File,
+    idempotencyKey: string,
+  ): Promise<{
+    file: HpFile;
+    content_url: string;
+  }> {
+    return this.client.request({
+      method: "POST",
+      path: "/api/v1/workspace/uploads",
+      body: {
+        file_name: file.name,
+        size_bytes: file.size,
+        content_type: file.name.toLowerCase().endsWith(".md")
+          ? "text/markdown"
+          : file.type || "text/plain",
+      },
+      idempotencyKey,
+    });
+  }
+
   async uploadContent(contentUrl: string, file: File, signal?: AbortSignal): Promise<HpFile> {
     const result = await this.client.request<{ file: HpFile }>({
       method: "PUT",

@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
+import pytest
+
 from workspace.resources import ResourcePolicy
+
+pytestmark = pytest.mark.postgres
 
 
 def _headers(csrf: str, key: str | None = None) -> dict[str, str]:
@@ -68,5 +72,9 @@ def test_conversation_grant_snapshot_revoke_and_owner_download(
                             headers=_headers(csrf))
     assert revoked.status_code == 200
     assert revoked.json()["affected_runs"] == [{"run_id": run_id, "stop_state": "stopped"}]
+    repeated = client.delete(f"/api/v1/conversations/{b}/resources/{read_grant}",
+                             headers=_headers(csrf))
+    assert repeated.status_code == 200
+    assert repeated.json()["affected_runs"] == []
     assert client.get(f"/api/v1/files/{file_id}/content").content == payload
     assert client.get(f"/api/v1/runs/{run_id}").json()["run"]["status"] == "cancelled"

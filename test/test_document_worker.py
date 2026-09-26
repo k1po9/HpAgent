@@ -130,11 +130,12 @@ def test_activity_resolves_only_the_authoritative_run_file(tmp_path: Path) -> No
     item = RunFileInput(
         document.resource.file_id, "private.pdf", 3, "binary", "application/pdf"
     )
-    scope = RunFileScope(uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs", (item,))
+    scope = RunFileScope(uuid4(), inputs, tmp_path / "scratch", tmp_path / "outputs",
+                         (item,), authorize=lambda file_id: None)
 
     class Workspace:
         @contextmanager
-        def prepare(self, account_id, run_id):
+        def prepare(self, account_id, run_id, *, include_selected=False):
             yield scope
 
     provider = SimpleNamespace(parse=lambda resource: document)

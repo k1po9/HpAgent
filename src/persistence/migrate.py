@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from hashlib import sha256
 from pathlib import Path
+from typing import Any, cast
 
 import psycopg
 
@@ -17,7 +18,7 @@ def verify_schema(database: object) -> None:
         connection = psycopg.connect(database)
         close = True
     else:
-        context = database.connection()
+        context = cast(Any, database).connection()
         connection = context.__enter__()
         close = False
     try:

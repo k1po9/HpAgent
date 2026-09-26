@@ -211,15 +211,15 @@ class FileRepository:
 
     def insert_upload(
         self, uow: UnitOfWork, file_id: UUID, account_id: UUID,
-        conversation_id: UUID, original_name: str, display_name: str,
+        conversation_id: UUID | None, original_name: str, display_name: str,
         declared_size: int, content_type: str, declared_sha256: str | None,
-        expires_at: datetime,
+        expires_at: datetime, *, source_workspace_id: UUID | None = None,
     ) -> None:
         uow.execute(
-            "INSERT INTO stored_files(file_id,account_id,conversation_id,purpose,status,"
+            "INSERT INTO stored_files(file_id,account_id,conversation_id,source_workspace_id,purpose,status,"
             "original_name,display_name,content_type,size_bytes,declared_sha256,expires_at) "
-            "VALUES (%s,%s,%s,'input','uploading',%s,%s,%s,%s,%s,%s)",
-            (file_id, account_id, conversation_id, original_name, display_name,
+            "VALUES (%s,%s,%s,%s,'input','uploading',%s,%s,%s,%s,%s,%s)",
+            (file_id, account_id, conversation_id, source_workspace_id, original_name, display_name,
              content_type, declared_size, declared_sha256, expires_at),
         )
 
@@ -257,7 +257,7 @@ class FileRepository:
         self, uow: UnitOfWork, account_id: UUID, file_id: UUID,
     ) -> str:
         from web_domain.file_lifecycle import claim_file_deletion
-        return claim_file_deletion(uow, account_id, file_id)
+        return cast(str, claim_file_deletion(uow, account_id, file_id))
 
     def lock_ready_inputs(
         self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,

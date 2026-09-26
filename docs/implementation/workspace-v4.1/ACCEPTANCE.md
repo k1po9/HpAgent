@@ -1,45 +1,90 @@
-# Workspace v4.1 — P0～P5 总体验收
+# Workspace v4.1 — P0～P5 整改验收
 
-## 架构对应关系
+基线：`main@6118639d5bc57ac67fe407e3c827d43ca0fc272e`。设计依据：`docs/architecture/workspace-v4.1.md`。本轮使用隔离 PostgreSQL 数据库、Temporal namespace `hpagent-acceptance-20260926`、独立 TenantFileStore 和 Redis 测试 DB；现有开发库未清理或迁移。001～052 的迁移校验和未修改，新增 053。
 
-Account 所有权与文件来源由 `stored_files` / `runs` 表达；长期位置为 `account_workspaces` / `workspace_nodes`；版本链为 `persistent_file_destinations` / `persistent_file_revisions`；持续授权和 Run 固定集合由 `resource_grants` / `run_resource_candidates` / `run_resource_access` 表达；发布、保存、版本提交分别由 `output_publish_operations`、`workspace_save_operations` / `research_run_save_intents`、`workspace_version_operations` 恢复。字节由 TenantFileStore 保存，RunFileWorkspace 按需复制至临时目录。检索和可见性为 `WorkspaceDiscovery`，GC 使用 `claim_file_deletion` 单一内核。
+## 本轮命令与实际结果
+
+以下 PostgreSQL URL 均指向隔离数据库；API 与 Worker 使用各自角色。矩阵中的字母引用此表。
+
+| 代号 | 实际命令 | 结果 |
+|---|---|---|
+| U | `.venv/bin/python -m pytest -q -m 'not postgres' test --tb=line` | 最终复跑 492 passed，26 skipped，285 deselected。 |
+| P | `PYTHONPATH=src .venv/bin/python -m pytest -q --tb=line -m postgres test/web_persistence` | 216 passed，19 skipped；隔离 PostgreSQL。19 项需要额外 Temporal 条件，本命令不计验收。 |
+| P2 | 同上，目标为 `test_workspace_v41_p2.py` 与 `test_resource_account_integrity.py` | 11 passed，真实 PostgreSQL。 |
+| D | 同一隔离 PostgreSQL 环境运行 `test_workspace_docx_chain.py` | 1 passed；真实 DOCX 字节、文件编辑工具、发布、CAS revision 2、旧 Run revision 1 与冲突另存。 |
+| A | `PYTHONPATH=src .venv/bin/python -m pytest -q --tb=line -m postgres test/web_api` | 最终复跑 46 passed，22 deselected；隔离 PostgreSQL/Redis。直接上传在不先 GET Workspace 的条件下又复跑 2 passed。 |
+| T | `TEMPORAL_HOST=127.0.0.1:7233 TEMPORAL_NAMESPACE=TEMPORAL_TEST_NAMESPACE=hpagent-acceptance-20260926` 下运行 `test_web_temporal_integration.py`、`test_web_temporal_e2e.py`、`test_web_temporal_lifecycle.py`、`test_research_worker_kill.py` | 15 passed。现有 Research SIGKILL 测试仅覆盖 fetch 边界。 |
+| T2 | 同一隔离 Temporal 环境运行 `test_workspace_v41_p4_temporal.py`、`test_durable_agent_activity_worker_kill.py` | 2 passed；覆盖现有保存 Activity 重试与 Durable Activity Worker 崩溃测试，未覆盖本轮要求的发布/保存全部强杀窗口。 |
+| T3 | 同一隔离 Temporal 环境运行 `test_workspace_research_sigkill.py` | 最终复跑 2 passed；真实 Worker 分别在发布提交、长期保存提交后遭 SIGKILL，新 Worker 恢复。断言非空历史基线、保存意图和发布 operation ID 不变，报告、发布、entry 各一份。 |
+| T4 | 同一隔离 Temporal 环境运行 `test_workspace_temporal_revoke_tool.py` | 1 passed；真实 Worker 执行阻塞文件读取，撤销后数据库进入 `cancelling` 且新读取拒绝；阻塞工具退出后 Run 临时目录才清理。客户端发送 cancel 后，测试专用 Workflow 在工具释放时仍正常返回；最终状态由测试在退出后手动确认，生产 Outbox 到回调链未覆盖。 |
+| F | `cd web && npm run typecheck && npm run lint && npm run test -- --run && npm run build` | 全部通过；82 个前端单测、生产构建通过。 |
+| B | `cd web && npx playwright test --project=chromium`，由 `web/scripts/e2e-backend.sh` 启动隔离服务 | 第二次完整运行 17 passed。第一次 16 passed、1 failed；trace 显示 Vite 资源 `ERR_NETWORK_CHANGED`，失败的 multi-tab 用例单独复跑 2 passed。 |
+| S | `PYTHONPATH=src .venv/bin/python scripts/acceptance/workspace_scale.py` | 1k/10k 不同文件、发现、选择与按需物化通过；600 候选显式拒绝。 |
+| L | `.venv/bin/python -m ruff check`（本轮 Python 修改文件）与 `.venv/bin/python -m mypy` | 通过；mypy 检查 37 个源文件。 |
+
+### 规模测量
+
+| Workspace 条目 | 不同文件 | 单文件 / 总字节 | Run 候选 | 实际物化 | 发现 | 选择并物化 | 峰值 RSS / 初始峰值增长 |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1,000 | 1,000 | 128 / 128,000 bytes | 400 | 20 个，2,560 bytes | 1.441 s | 7.728 s | 40,920 / 640 KiB |
+| 10,000 | 10,000 | 128 / 1,280,000 bytes | 400 | 20 个，2,560 bytes | 1.966 s | 14.934 s | 40,920 / 640 KiB |
+
+单进程 `ru_maxrss` 记录的是峰值，不代表生产 Worker 总内存。数据装载分别耗时 105.802 s 与累计 1110.135 s。每个 Run 遵守 500 候选上限，未尝试一次物化 10k 文件。
 
 ## I01～I19 证据矩阵
 
-| 编号 | 结论 | 具体证据与缺口 |
-|---|---|---|
-| I01 | 通过 | P1 零复制双 entry 与跨账户拒绝；P5 1k/10k 同 file_id 只计 7 bytes。 |
-| I02 | 通过 | P1/P3 移动改名与历史、hash 不变测试；Chromium P1/P3。 |
-| I03 | 通过 | P0 独立 Research 输出 source Run 且 Conversation NULL；P4 30 次独立 Run。 |
-| I04 | 通过 | P0 `test_published_docx_is_later_input_without_rewriting_origin`；purpose=output、direction=input。 |
-| I05 | 通过 | P2 候选冻结、选前/选后版本和 500 上限；P3 旧 Run v1；P5 10k 显式拒绝。 |
-| I06 | 部分通过 | candidate/fixed/materialized/read、published/saved 分表及时间可区分；缺少真实 10k 按需物化测量。 |
-| I07 | 通过 | P2 撤销与并集、失败 Run 重试拒绝；P3 取消或无更新授权不得提交；P4 摘要撤销拒绝。 |
-| I08 | 部分通过 | P2 数据库停止状态与阻塞 adapter 退出验证；真实 Temporal 文件工具 Activity 停止确认未跑。 |
-| I09 | 通过 | Run scope 回收与 published/store 对象分离测试；P1 长期入口下载。 |
-| I10 | 通过 | P0 独立 Task 报告输出、无助手消息下载；旧 Research API 测试已改为无授权不可跨聊天发现。 |
-| I11 | 通过 | P4 Task 目录 ID、目录改名、运行中改目标仍旧目标、保存重试。 |
-| I12 | 通过 | P3 历史版本 operation 重放；P4 已提交保存 operation 重放。 |
-| I13 | 通过 | P3 并发 CAS 一个成功，失败输出 ready 可另存，旧 Run 修订仍可下载。 |
-| I14 | 通过 | P1 GC/保存并发及失败重试；P3 修订、当前指针和固定对象保护。 |
-| I15 | 通过 | P4 固定历史基线与撤销摘要拒绝；P5 摘要索引需 read_content、绑定 file_id/hash。 |
-| I16 | 通过 | P4 required operation 未提交不能 completed；真实 Temporal 保存 Activity 故障重试。 |
-| I17 | 通过 | P5 隔离空库 001～052 初始化；API/Worker schema gate、假迁移不匹配明确失败且不清库。 |
-| I18 | 通过（静态） | 当前 `src/web_api`、`src/workspace`、`src/file_runtime` 与 Web 文件 API 无旧 logical_path 用户路由、旧 persistent-file 工具/审批卡、迁移开关或双读写；历史 SQL 031 作为空库迁移过程保留，最终 schema 已无 logical_path。未把其他领域的合法 fallback/Git 工具误删。 |
-| I19 | 通过 | 普通 Workspace 文件、Run 输入、保存、版本、下载和 GC 路径不调用 Git；Git 工具只保留代码任务能力。 |
+“通过”只用于本轮真实执行覆盖的断言；静态检查和旧阶段报告不代替运行验收。
 
-## 关键链路
+| 编号 | 源码证据 | 本轮命令与实际结果 | 结论及未验收项 |
+|---|---|---|---|
+| I01 | `src/workspace/catalog.py:save_file` 建 entry，`src/web_domain/file_services.py` 发布唯一对象。 | A：直接上传保存后 `physical_bytes` 等于原始字节；S：10k 不同对象计数。 | 通过。 |
+| I02 | `src/workspace/catalog.py:move` 更新 node 位置和名称。 | A：直接上传后移动并下载，内容不变；B：P1 浏览器移动下载通过。 | 通过。 |
+| I03 | `stored_files.source_run_id`、`runs.task_id`、Research 保存意图。 | P：P4 30 次独立 Research Run；T3：发布/保存两个提交后强杀窗口恢复通过。 | 通过本轮独立 Task 来源与恢复场景。 |
+| I04 | `src/workspace/file_scope.py` 的 Run 输入绑定保留文件来源。 | P：P0 发布 DOCX 后作为下一 Run 输入的用例通过。 | 通过该输入来源契约；完整 DOCX 编辑链见 I13。 |
+| I05 | `src/workspace/resources.py:snapshot_in_uow` 冻结候选并限制 500。 | P2 候选不扩张通过；S 中 400 候选按需使用、600 候选拒绝。 | 通过。 |
+| I06 | `run_resource_candidates`、`run_resource_access`、`RunFileWorkspace` 区分选择/物化/读取。 | P2 读取状态通过；S 在 1k/10k 条目下各只物化 20 个。 | 通过；内存仅测单进程峰值。 |
+| I07 | `ResourcePolicy.revoke` 对主体全部已选资源重算；`candidates` 重查元数据权限。 | P2：目录/文件两种撤销顺序、仍有效/全失效、重复撤销、冻结候选隐藏通过；T4：真实 Worker 新读取拒绝。 | 通过撤销后权限收敛；生产取消确认链见 I08。 |
+| I08 | `src/workspace/resources.py`、`src/workspace/file_scope.py`、Durable 取消链路。 | P2 受控阻塞 adapter；T4 真实 Worker 证明 `cancelling` 与工具退出/临时目录清理分离。 | 部分通过：T4 的 Temporal cancel 与最终确认由测试显式调用，生产 Outbox 自动派发和回调未验收。 |
+| I09 | `src/web_domain/file_lifecycle.py` 引用检查，`src/web_domain/file_cleanup.py` 清理。 | A：直接上传 entry 保留时拒绝删除，移除后 GC 删除持久字节；P：P1 GC 竞态和失败重试通过。 | 通过本轮 GC 契约。 |
+| I10 | P0/P4 的独立 Research Run 来源与 Workspace 保存代码。 | P：独立输出、30 次受控 Research Run 与保存；T3 发布/保存强杀恢复通过。 | 通过本轮受控 Research 链；外部 provider 未运行。 |
+| I11 | Research Task 冻结目录与保存操作 ID。 | P：P4 目标改动、固定旧目标与保存重试测试通过。 | 通过该持久化契约。 |
+| I12 | `output_publish_operations`、`workspace_save_operations`、`workspace_version_operations`。 | A：直接上传创建重放；P：P0 发布、P3 版本、P4 保存重试；T3：两个跨进程提交后强杀窗口均恢复且 operation ID 不变。 | 通过本轮指定故障窗口；其它故障点未逐一枚举。 |
+| I13 | `src/workspace/catalog.py` CAS 更新保留冲突输出。 | P：P3 并发 CAS；D：真实 DOCX 字节、文件工具、PostgreSQL 与 FileStore 完成上传→授权→修改→发布→revision 2→旧 Run 仍读 revision 1→冲突另存。 | 通过。 |
+| I14 | `claim_file_deletion` 行锁下检查 entry、revision 与 Run 绑定。 | A：直接上传 GC；P：P1 并发、失败重试及修订保留通过。 | 通过本轮 GC 并发契约。 |
+| I15 | `src/workspace/discovery.py` 以 file_id/hash 与当前权限过滤摘要。 | P：P4 历史读撤销及 P5 摘要搜索授权测试通过。 | 通过该数据库契约。 |
+| I16 | Research required 保存意图与 Durable/Outbox/Temporal 主链。 | T+T2+T3：19 个真实 Temporal 测试通过；T3 发布与 Workspace 保存提交后 Worker SIGKILL，新 Worker 恢复，业务结果各一份。 | 通过本轮两个跨进程故障窗口。 |
+| I17 | `src/persistence/migrate.py` Schema Gate；迁移 053。 | 隔离空库 001～053 成功；U 中 Gate 替身测试和 B 真实服务启动通过。 | 通过。 |
+| I18 | 普通 Workspace 路径位于 `src/workspace`、`src/web_api/app.py`、`web/src`。 | A：直接访问旧 `/api/v1/persistent-files/{logical_path}` 返回 404，最终 schema 无 `persistent_file_destinations.logical_path`；旧工具和审批卡仅静态审查。 | 部分通过，旧工具/卡的动态不可达探针未运行。 |
+| I19 | 普通文件链由 PostgreSQL、TenantFileStore、RunFileWorkspace 构成。 | A/B/S 执行文件流程，未设置 Git 工作区依赖。 | 部分通过；缺少显式无 Git 环境断言。 |
 
-1. **A PDF → 保存 → B 授权读取**：P2 API TestClient 上传实际 PDF 字节、保存 entry、授权 B、Run 固定候选；C 未授权 `file_id` 注入 403，撤销后停止。P0 PDF 重试物化字节测试。两项互补，尚无同一浏览器脚本贯穿 Agent 模型读取。
-2. **Agent DOCX → 保存 → C 更新 → 旧 Run 旧版本**：P0 发布 DOCX 可作为后续 input；P3 跨 Conversation 更新、CAS 和旧 Run 版本测试使用文本 fixture。完整 DOCX 编辑业务链尚未以同一测试跑通，标为部分通过。
-3. **独立 Research Task → 历史输入 → 发布 → 自动保存 → 下载**：P4 30 次受控依赖运行、固定授权历史、独立发布与保存；真实 Temporal Worker 保存重试；P0/P4 API 独立输出下载。外部 Research provider 未运行。
-4. **移动/撤销 → 活动 Run 停止与提交拒绝**：P2 影响预览、取消状态与受控读取拒绝；P3 提交拒绝。真实 Temporal 文件工具停止确认未完成。
-5. **GC 与保存/固定并发**：P1 GC/保存竞态与重试，P2/P3 固定和修订保留；未跑 10k 并发压力。
-6. **发布/保存/版本故障恢复和历史幂等**：P0 发布后 DB 故障重试、P3 发布完成后保存服务重建与历史版本重放、P4 保存失败自动重试和已提交 operation 补状态；跨进程强杀的全窗口矩阵未完成。
-7. **空库与启动**：隔离库 001～052 迁移、Chromium API 启动通过；schema gate 假记录探针明确失败且不删数据。
+## 整改根因与缺口
 
-## 运行条件与环境重建
+- 指定 Actions Run `36240313481` 的 Job 元数据确认 PostgreSQL 契约、旧单元测试、lint/typecheck 三项失败。GitHub 日志 API 与网页读取均遇网络超时；失败内容按相同基线本地复现。旧契约失效是身份冲突文案、手工 Run scope 缺少授权回调、旧测试删除 Run 前未清资源快照；Document Worker 替身缺少 `include_selected`，两个 Schema Gate 替身没有真实连接，另有 mypy 两处错误。
+- 直接 Workspace 上传不创建 Conversation/Message：`conversation_id=NULL`、真实 `source_workspace_id`。API/浏览器验证上传、幂等、失败后新操作重试、保存、移动、下载与跨 Conversation 授权候选；API 还验证移除 entry 后 GC 删除字节。
+- 迁移 053 使用复合 FK 约束资源表的账户一致性，触发器核验多态主体与 Run。P2 的绕过 API 直接 SQL 恶意 ID 测试通过。
+- 真实 Temporal 文件工具、Research 发布/保存强杀与完整 DOCX 业务链已补跑。T4 的取消与最终确认由测试显式触发，尚未证明生产 Outbox 自动派发及生命周期回调；I18 的旧工具/审批卡、I19 的无 Git 环境断言也仍缺动态验证，因此不得宣布 P0～P5 全部通过。
+- 本轮提交已保存在本地 `codex/workspace-v41-final-acceptance`。GitHub HTTPS 推送两次、SSH 22/443 和 Actions 日志 API 均连接超时；新 HEAD 的远端 Actions 结果尚未取得，属于未验收项。
 
-仅对 `hpagent_p5_20260926` 隔离库和 P5 Temporal namespace 执行初始化、探针及规模数据插入。现有开发数据库未重建。若维护者要重建开发库，应先停止旧 API/Worker 和处置旧 Workflow，然后明确执行 `dropdb --force` / `createdb`，运行 `PYTHONPATH=src .venv/bin/python -m persistence.migrate`，再启动新 API/Worker；普通服务启动只校验 schema，不自动迁移或清库。旧业务数据没有兼容路径。
+## 架构流程
 
-**最终判断：代码基本完成，但真实 Temporal 文件工具撤销停止、跨进程强杀恢复的全故障窗口、完整 DOCX 编辑链以及 1k/10k 物化规模运行验收尚未完成。** 不进入 Optional P6。
+```mermaid
+flowchart LR
+  A[Account Workspace] --> N[workspace_nodes: 目录与长期 entry]
+  U[Conversation 或 Workspace 直接上传] --> SF[stored_files: 来源和不可变对象]
+  O[Run 输出发布] --> SF
+  SF --> TFS[TenantFileStore: 唯一持久字节]
+  N --> SF
+  N --> D[persistent_file_destinations 与 revisions]
+  D --> SF
+  G[resource_grants: 当前授权] --> S[Run 创建: 冻结最多 500 候选]
+  N --> S
+  S --> C[选择时固定 file_id 与 revision]
+  G --> C
+  C --> R[每次读取重查 read_content]
+  R --> M[RunFileWorkspace: 按需物化]
+  TFS --> M
+  O --> N
+  SF --> GC[引用检查与 GC]
+  N --> GC
+  D --> GC
+```

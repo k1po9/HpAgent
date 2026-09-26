@@ -121,6 +121,59 @@ class FileService:
             )
             return CommandResult(201, body)
 
+    @retryable_transaction
+    def create_workspace_upload(
+        self, account_id: UUID, key: str, file_name: str, size_bytes: int,
+        content_type: str, sha256: str | None,
+    ) -> CommandResult:
+        if size_bytes < 0 or size_bytes > self.max_bytes:
+            raise FileTooLarge()
+        original_name, display_name = self._names(file_name)
+        normalized_type = self._declared_type(content_type, display_name)
+        with UnitOfWork(self.database) as uow:
+            available = uow.execute(
+                "SELECT 1 FROM account_workspaces WHERE account_id=%s", (account_id,),
+            ).fetchone()
+        if available is None:
+            from workspace.catalog import WorkspaceCatalog
+            WorkspaceCatalog(self.database).initialize(account_id)
+        payload = {"source": "workspace", "file_name": original_name,
+                   "size_bytes": size_bytes, "content_type": normalized_type,
+                   "sha256": sha256}
+        digest = hashlib.sha256(json.dumps(
+            payload, sort_keys=True, separators=(",", ":")
+        ).encode()).digest()
+        with UnitOfWork(self.database) as uow:
+            existing = self.idempotency.claim(
+                uow, uuid7(), account_id, "create_workspace_upload", key, digest,
+                datetime.now(UTC) + timedelta(hours=24),
+            )
+            if existing:
+                if bytes(existing["request_hash"]) != digest:
+                    raise IdempotencyConflict()
+                if existing["status"] == "completed":
+                    return CommandResult(int(existing["response_status"]),
+                                         existing["response_body"], replayed=True)
+                raise FileUploadInvalid()
+            workspace = uow.execute(
+                "SELECT workspace_id FROM account_workspaces WHERE account_id=%s",
+                (account_id,),
+            ).fetchone()
+            if workspace is None:
+                raise ResourceNotFound()
+            file_id = uuid7()
+            self.files.insert_upload(
+                uow, file_id, account_id, None, original_name, display_name,
+                size_bytes, normalized_type, sha256,
+                datetime.now(UTC) + self.upload_ttl,
+                source_workspace_id=workspace["workspace_id"],
+            )
+            body = {"file": self._dto(self.files.get_for_account(uow, account_id, file_id)),
+                    "content_url": f"/api/v1/uploads/{file_id}/content"}
+            self.idempotency.complete(uow, account_id, "create_workspace_upload", key,
+                                      201, json.dumps(body))
+            return CommandResult(201, body)
+
     async def upload_content(
         self, account_id: UUID, file_id: UUID, chunks: AsyncIterable[bytes],
     ) -> dict[str, Any]:
