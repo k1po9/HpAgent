@@ -1,5 +1,75 @@
 # Workspace v4.1 — P0～P5 整改验收
 
+## 2026-09-27 封版增量整改（基线 main@e19e72905a6afbc25308a785a6881e467a3520c2）
+
+本节记录本轮新增证据；下方 2026-09-26 的矩阵保留为上轮历史记录。代码与测试提交为 `262d35efc27c199a46547bf1ac8811fd8a9dea68`（main）。文档封版提交 SHA 以本文件所在 Git 提交为准。GitHub 远端 CI **未验收**：本地主机访问 GitHub 超时，不能沿用基线 Run `36296419943` 的成功状态。
+
+- 独立 Research Task 撤销最后一项读取授权原会在 `CommandService._cancel_run_in_uow` 的 Conversation 查找处抛 `ResourceNotFound`，导致撤权事务回滚。现在以真实 Task 归属锁定 Run，持久化 `cancelling` 与 Outbox 意图；Task 撤权 API 核验账户、Task 和 grant 归属，重复撤销幂等。`ResourcePolicy` 仍按全部现存授权求并集。
+- Research 启动与撤销竞争由启动派发后的取消状态复查收敛；Workflow 等待 Activity 真正完成取消，再由生产生命周期回调终结。Reconciler 纳入 Research Run。阻塞工具未退出时仅报告 `stopping`，临时目录仍保留。
+- `PYTHONPATH=src TEMPORAL_HOST=localhost:7233 TEMPORAL_TEST_NAMESPACE=hpagent-v41-final-20260927 .venv/bin/python -m pytest -q test/web_api/test_workspace_research_cancel_chain.py`：隔离 PostgreSQL/Temporal 下 **2 passed**（正常生产取消链、Outbox 首次失败后重试与重复投递）；测试未手动调用 `handle.cancel()` 或 `cancelled_run()`。
+- 本轮非 PostgreSQL 测试：`PYTHONPATH=src .venv/bin/python -m pytest -q -m 'not postgres' test` **493 passed，26 skipped，290 deselected**；`make lint typecheck PYTHON=.venv/bin/python` 通过（mypy 37 个源文件）；前端 typecheck、lint、82 个单测和 build 通过；Chromium 浏览器 E2E **17 passed**。上述命令执行于本轮提交前，完整远端 CI 尚未运行。
+- I18 动态探针：旧 `logical_path` API 返回 404；当前工具注册表不含旧保存工具且直接执行拒绝；浏览器流程未出现旧审批卡。I19 在隔离 PostgreSQL/FileStore 下显式令 GitRepoManager 调用失败，直接上传、Conversation/Task 授权、按需物化、发布、CAS、下载和 GC 链路通过，未创建 `.git`。
+- 第一轮全量 PostgreSQL＋Temporal 测试停于缺少测试固定 namespace `hpagent-research-test`；创建后该 schedule 集成测试单独 **1 passed**。第二轮 `PYTHONPATH=src .venv/bin/python -m pytest -q -m postgres test/web_persistence test/web_api` 在隔离库完成：**254 passed，36 skipped，22 deselected，0 failed**，耗时 3448.17 秒。Temporal 条件用例单独运行：`test_workspace_temporal_revoke_tool.py`、`test_workspace_research_sigkill.py`、`test_workspace_v41_p4_temporal.py`、`test_research_schedule_temporal_integration.py`、`test_durable_agent_activity_worker_kill.py`、`test_web_temporal_e2e.py`、`test_workspace_research_cancel_chain.py` 共 **16 passed**；`test_agent_segment_temporal.py`、`test_web_artifacts.py` 共 **13 passed**。Redis SSE API `test_sse_gateway.py` 在隔离 Redis DB 14 下 **13 passed**。
+
+本轮 I07 已由目录/文件授权并集、重复撤销及正文/候选拒绝的 PostgreSQL 测试补证。I08 的生产闭环由上述两个真实 Worker/Outbox 测试补证；I18、I19 有动态测试证据。四项**本地验收通过**；新 HEAD 的 GitHub CI 仍未验收。生产环境的外部 Research provider、任意时刻 Worker 强杀和所有工具隔离边界没有在本轮穷举。
+
+### I01～I19 本轮最终状态
+
+| 编号 | 状态与本轮证据 |
+|---|---|
+| I01 | 本地通过；直接上传零复制、全量 PostgreSQL 回归。 |
+| I02 | 本地通过；直接上传移动/下载、浏览器 E2E。 |
+| I03 | 本地通过；独立 Task 来源及历史 SIGKILL 恢复测试。 |
+| I04 | 本地通过；Run 输入来源及 DOCX 链路。 |
+| I05 | 本地通过；冻结候选与 500 上限的既有测试回归。 |
+| I06 | 本地通过；按需物化和规模测试证据见下表。 |
+| I07 | 本地通过；多重授权并集、最后授权撤销、重复撤销和动态读取拒绝。 |
+| I08 | 本地通过；真实 Task API→Outbox→Temporal→阻塞工具退出→清理→生命周期终态，含派发失败重试和重复投递。 |
+| I09 | 本地通过；文件引用和 GC 回归。 |
+| I10 | 本地通过；独立 Research Task、输出和保存回归；外部 provider 未验收。 |
+| I11 | 本地通过；Research 冻结目标及保存意图回归。 |
+| I12 | 本地通过；发布、保存、CAS 的操作 ID 和既有强杀窗口测试。 |
+| I13 | 本地通过；真实 DOCX 发布、revision 2、旧 revision 1、冲突另存。 |
+| I14 | 本地通过；引用锁定及 GC 竞态回归。 |
+| I15 | 本地通过；授权过滤的历史发现回归。 |
+| I16 | 本地通过；真实 Temporal 恢复测试；未穷举所有故障窗口。 |
+| I17 | 本地通过；001～053 迁移、Schema Gate 与隔离库服务启动。 |
+| I18 | 本地通过；旧 API、工具注册表、浏览器审批卡动态探针。合法 Coding Git 工具保留。 |
+| I19 | 本地通过；显式禁用 GitRepoManager 后执行普通文件链，断言未创建 `.git`。 |
+
+### 本轮实际架构
+
+```mermaid
+flowchart LR
+  A[Account Workspace] --> N[长期目录与 entry]
+  C[Conversation] --> G[resource_grants 当前授权]
+  T[独立 Research Task 无需 Conversation] --> G
+  N --> G
+  G --> F[Run 冻结最多 500 候选]
+  F --> D[每次候选元数据/正文动态鉴权]
+  D --> RW[RunFileWorkspace 按需物化/短期执行]
+  TF[TenantFileStore 唯一持久字节] --> RW
+  RW --> OP[OutputPublisher 不可变结果发布]
+  OP --> SF[stored_files]
+  SF --> TF
+  SF --> WS[WorkspaceSaveService 长期保存]
+  WS --> N
+  WS --> CAS[CAS revision 更新/冲突另存]
+  CAS --> N
+  N --> GC[引用释放与 GC]
+  SF --> GC
+  G -->|最后有效授权撤销| CA[PostgreSQL Run cancelling 与 Outbox]
+  CA --> TE[Temporal 取消传播]
+  TE -->|工具实际退出| RW
+  TE --> LC[生命周期回调 cancelled]
+  LC --> PG[PostgreSQL 元数据权威]
+  A --> PG
+  C --> PG
+  T --> PG
+  OP --> PG
+  WS --> PG
+```
+
 基线：`main@6118639d5bc57ac67fe407e3c827d43ca0fc272e`。设计依据：`docs/architecture/workspace-v4.1.md`。本轮使用隔离 PostgreSQL 数据库、Temporal namespace `hpagent-acceptance-20260926`、独立 TenantFileStore 和 Redis 测试 DB；现有开发库未清理或迁移。001～052 的迁移校验和未修改，新增 053。
 
 ## 本轮命令与实际结果
