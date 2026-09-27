@@ -1,6 +1,36 @@
 # Workspace v4.1 — P0～P5 整改验收
 
-## 独立 Research Task 终态与直接取消收尾（本地，完整回归待验收）
+## 当前状态（main@770569dcec02b339196da45d60877fc8f86cf95f）
+
+`770569d` 已推送；[GitHub Actions Run 36328286836](https://github.com/k1po9/HpAgent/actions/runs/36328286836) 为 Success，10 个 Job 全部成功。下表的“远端”仅表示相应自动化在该提交的 CI 中执行成功，不把 CI 未运行的本地专项场景算作远端验收。源码契约见[架构说明](../../architecture/workspace-v4.1.md)，具体命令、数据条件及阶段证据见下方历史记录。
+
+| 项 | 已实现 | 本地运行证据 | `770569d` 远端 CI 证据与边界 |
+|---|---|---|---|
+| I01 | 是 | 零复制直接上传、保存与规模测量通过 | PostgreSQL/API 通过；规模脚本未纳入 CI |
+| I02 | 是 | 移动、下载、浏览器通过 | API/浏览器通过 |
+| I03 | 是 | 独立 Task 来源、跨进程恢复通过 | 相关 PostgreSQL/API 通过；专项强杀未纳入 CI |
+| I04 | 是 | Run 输入来源及 DOCX 链路通过 | PostgreSQL 契约通过 |
+| I05 | 是 | 冻结候选、500 上限通过 | PostgreSQL 契约通过；规模脚本未纳入 CI |
+| I06 | 是 | 选择、读取、按需物化及 1k/10k 测量通过 | PostgreSQL 契约通过；规模测量未纳入 CI |
+| I07 | 是 | 授权并集、撤销和动态拒绝通过 | PostgreSQL/API 契约通过；真实 Worker 证据来自本地 |
+| I08 | 是 | 独立 Task 撤权→Outbox→真实 Temporal→工具退出→清理→终态 **2 passed** | API 套件因无 `TEMPORAL_HOST` 跳过该真实链路；**远端专项未验收** |
+| I09 | 是 | 引用释放和 GC 通过 | PostgreSQL/API 契约通过 |
+| I10 | 是 | 独立 Research、保存及恢复通过 | PostgreSQL/API 契约通过；外部 Provider 未验收 |
+| I11 | 是 | 固定目标和保存意图通过 | PostgreSQL 契约通过 |
+| I12 | 是 | 发布/保存/CAS 幂等和指定强杀窗口通过 | PostgreSQL 契约通过；指定强杀窗口仅有本地证据 |
+| I13 | 是 | DOCX revision 2、旧 revision 1、冲突另存通过 | PostgreSQL 契约通过 |
+| I14 | 是 | 引用锁定与 GC 竞态通过 | PostgreSQL 契约通过 |
+| I15 | 是 | 历史发现与摘要授权通过 | PostgreSQL 契约通过 |
+| I16 | 是 | 真实 Temporal 恢复、发布/保存强杀通过 | CI Temporal Job 通过；本地专项故障窗口未全部纳入 |
+| I17 | 是 | 001～053 空库迁移与 Schema Gate 通过 | 迁移、PostgreSQL/API Gate 通过 |
+| I18 | 是 | 旧 API、工具注册表、审批卡动态不可达通过 | 相关 API/浏览器自动化通过 |
+| I19 | 是 | 禁用 GitRepoManager 的普通文件链通过 | 相关 PostgreSQL 契约通过 |
+
+独立 Task 的聊天终态事件误入 Outbox 和直接取消响应 `KeyError` 已在 `770569d` 修复；`test_research_terminal_cancel.py` 的 API 测试已由远端 API Job 执行。聊天 Run 终态契约保留。输出 `create_child`/`update_content` 授权撤销会阻断未授权提交；是否还需**立即主动停止**相关 Run，当前契约及动态证据尚未定论，列为待核验事项。
+
+保留边界：外部 Research Provider 未运行；故障窗口未穷举；1k/10k 测量使用每文件 128 bytes、每 Run 400 候选、仅物化 20 个文件，不能推断大文件或一次物化 10k 文件的性能。远端整体 CI Success 不替代上述未覆盖条件。
+
+## 历史记录：独立 Research Task 终态与直接取消收尾（提交时状态）
 
 基线：`main@cb3b5e2a918ef204cb34c84420d216d6e8d83812`。本节只记录独立 Task 终态事件和直接取消响应的局部修复，不改变下方历史全链路验收记录。此提交的完整 PostgreSQL/Temporal/前端/浏览器回归及新 HEAD 远端 CI **待统一验收**；本轮没有运行，也没有推送。
 
@@ -9,7 +39,7 @@
 - 定向 PostgreSQL/API：`test/web_api/test_research_terminal_cancel.py` 与 `test_phase_b_api.py::test_api_007_cancelled_run_cannot_be_retried`，**4 passed**；覆盖 queued 取消、running 取消、重复请求和回调、正常失败、旧终态 Outbox 行的确认处理。聊天 Run 的 running 取消及三项终态 Outbox 契约单独 **4 passed**。
 - 静态检查：修改的 Python 文件 Ruff **通过**；mypy **37 个源文件无错误**。本轮未执行完整 CI 或完整 Temporal 矩阵。
 
-## 2026-09-27 封版增量整改（基线 main@e19e72905a6afbc25308a785a6881e467a3520c2）
+## 历史记录：2026-09-27 封版增量整改（基线 main@e19e72905a6afbc25308a785a6881e467a3520c2）
 
 本节记录本轮新增证据；下方 2026-09-26 的矩阵保留为上轮历史记录。代码与测试提交为 `262d35efc27c199a46547bf1ac8811fd8a9dea68`（main）。文档封版提交 SHA 以本文件所在 Git 提交为准。GitHub 远端 CI **未验收**：本地主机访问 GitHub 超时，不能沿用基线 Run `36296419943` 的成功状态。
 
@@ -22,7 +52,7 @@
 
 本轮 I07 已由目录/文件授权并集、重复撤销及正文/候选拒绝的 PostgreSQL 测试补证。I08 的生产闭环由上述两个真实 Worker/Outbox 测试补证；I18、I19 有动态测试证据。四项**本地验收通过**；新 HEAD 的 GitHub CI 仍未验收。生产环境的外部 Research provider、任意时刻 Worker 强杀和所有工具隔离边界没有在本轮穷举。
 
-### I01～I19 本轮最终状态
+### I01～I19 该轮状态（提交时）
 
 | 编号 | 状态与本轮证据 |
 |---|---|
@@ -78,6 +108,8 @@ flowchart LR
   OP --> PG
   WS --> PG
 ```
+
+## 历史记录：2026-09-26 阶段验收
 
 基线：`main@6118639d5bc57ac67fe407e3c827d43ca0fc272e`。设计依据：`docs/architecture/workspace-v4.1.md`。本轮使用隔离 PostgreSQL 数据库、Temporal namespace `hpagent-acceptance-20260926`、独立 TenantFileStore 和 Redis 测试 DB；现有开发库未清理或迁移。001～052 的迁移校验和未修改，新增 053。
 
