@@ -469,8 +469,9 @@ class CommandService:
             from conversation_domain.delivery import enqueue_qq_result
 
             enqueue_qq_result(uow, run_id)
-            self._outbox(uow, account_id, run["conversation_id"], run_id, "retain_memory")
-            self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "completed")
+            if run["conversation_id"] is not None:
+                self._outbox(uow, account_id, run["conversation_id"], run_id, "retain_memory")
+                self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "completed")
             log_event(logger, logging.INFO, "run_completed", "run", run_id=str(run_id),
                       execution_id=str(run_id), account_id=str(account_id),
                       conversation_id=str(run["conversation_id"]),
@@ -488,7 +489,8 @@ class CommandService:
                 return False
             self.messages.set_terminal(uow, run_id, "failed")
             self.runs.set_terminal(uow, run_id, "failed", failure_code, failure_message)
-            self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "failed")
+            if run["conversation_id"] is not None:
+                self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "failed")
             log_event(logger, logging.ERROR, "run_failed", "run", run_id=str(run_id),
                       execution_id=str(run_id), account_id=str(account_id),
                       conversation_id=str(run["conversation_id"]),
@@ -504,10 +506,11 @@ class CommandService:
                 return bool(run["status"] == "cancelled")
             self.messages.set_terminal(uow, run_id, "aborted")
             self.runs.set_terminal(uow, run_id, "cancelled")
-            self._outbox(
-                uow, account_id, run["conversation_id"], run_id,
-                "publish_terminal_event", "cancelled"
-            )
+            if run["conversation_id"] is not None:
+                self._outbox(
+                    uow, account_id, run["conversation_id"], run_id,
+                    "publish_terminal_event", "cancelled"
+                )
             log_event(logger, logging.INFO, "run_cancelled", "run", run_id=str(run_id),
                       execution_id=str(run_id), account_id=str(account_id),
                       conversation_id=str(run["conversation_id"]),
@@ -670,9 +673,10 @@ class CommandService:
         message_status = {"failed": "failed", "cancelled": "aborted"}[status]
         self.messages.set_terminal(uow, run_id, message_status)
         self.runs.set_terminal(uow, run_id, status)
-        self._outbox(
-            uow, account_id, conversation_id, run_id, "publish_terminal_event", status
-        )
+        if conversation_id is not None:
+            self._outbox(
+                uow, account_id, conversation_id, run_id, "publish_terminal_event", status
+            )
 
     def _create_budget(
         self, uow: UnitOfWork, run_id: UUID, account_id: UUID,

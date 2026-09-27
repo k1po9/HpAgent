@@ -1,5 +1,14 @@
 # Workspace v4.1 — P0～P5 整改验收
 
+## 独立 Research Task 终态与直接取消收尾（本地，完整回归待验收）
+
+基线：`main@cb3b5e2a918ef204cb34c84420d216d6e8d83812`。本节只记录独立 Task 终态事件和直接取消响应的局部修复，不改变下方历史全链路验收记录。此提交的完整 PostgreSQL/Temporal/前端/浏览器回归及新 HEAD 远端 CI **待统一验收**；本轮没有运行，也没有推送。
+
+- 根因：queued 取消的 `_set_terminal()`、running 取消回调 `cancelled_run()`、正常失败 `fail_run()` 均可能为 `conversation_id=NULL` 的独立 Task 写入 `publish_terminal_event`。`TerminalEventPublisher` 用 `load_run_snapshot()` 的 `runs JOIN messages` 查询聊天快照，独立 Task 无 Assistant Message，故该行会重试。HTTP 取消接口又总以 `command_body(..., "run", "assistant_message")` 投影，独立 Task 的 `run_id/status` 结果触发 `KeyError`。
+- 修复：独立 Task 的 Run 终态仍由原 CommandService 持久化，Task 历史、Research 报告和审计主链不变；仅有 Conversation 的 Run 写聊天专属终态和记忆 Outbox。消费端确认处理此前可能入队的独立 Task 终态行，不发送聊天 SSE。直接取消接口对独立 Task 返回稳定的 `run_id/status`，普通聊天 Run 继续返回原 `run/assistant_message` 契约；账户隔离、幂等和 Temporal 取消编排继续共用原路径。
+- 定向 PostgreSQL/API：`test/web_api/test_research_terminal_cancel.py` 与 `test_phase_b_api.py::test_api_007_cancelled_run_cannot_be_retried`，**4 passed**；覆盖 queued 取消、running 取消、重复请求和回调、正常失败、旧终态 Outbox 行的确认处理。聊天 Run 的 running 取消及三项终态 Outbox 契约单独 **4 passed**。
+- 静态检查：修改的 Python 文件 Ruff **通过**；mypy **37 个源文件无错误**。本轮未执行完整 CI 或完整 Temporal 矩阵。
+
 ## 2026-09-27 封版增量整改（基线 main@e19e72905a6afbc25308a785a6881e467a3520c2）
 
 本节记录本轮新增证据；下方 2026-09-26 的矩阵保留为上轮历史记录。代码与测试提交为 `262d35efc27c199a46547bf1ac8811fd8a9dea68`（main）。文档封版提交 SHA 以本文件所在 Git 提交为准。GitHub 远端 CI **未验收**：本地主机访问 GitHub 超时，不能沿用基线 Run `36296419943` 的成功状态。

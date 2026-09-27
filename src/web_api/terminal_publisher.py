@@ -109,6 +109,9 @@ class TerminalEventPublisher:
                 "publish_terminal_event payload has an unknown terminal_status",
             )
             return
+        if event.get("conversation_id") is None:
+            await asyncio.to_thread(self.outbox.mark_processed, event_id, self.worker_id)
+            return
         try:
             snapshot = await asyncio.to_thread(
                 load_run_snapshot, self.database, account_id, UUID(run_id)
