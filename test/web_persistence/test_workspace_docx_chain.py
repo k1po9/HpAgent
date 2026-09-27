@@ -9,8 +9,11 @@ from docx import Document
 
 from conversation_domain.commands import CommandService
 from file_runtime import FileResourceResolver, OutputPublisher
+from research_domain.services import ResearchTaskCommandService
+from sandbox.git_repo import GitRepoManager
 from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
+from web_domain.file_cleanup import FileCleanupService
 from web_domain.file_services import FileService
 from workspace.catalog import WorkspaceCatalog, WorkspaceVersionConflict
 from workspace.file_scope import RunFileWorkspace
@@ -20,8 +23,13 @@ pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
 
 
 async def test_real_docx_upload_edit_revision_and_conflict_save(
-    db, account_id, database_url, worker_database_url, tmp_path,
+    db, account_id, database_url, worker_database_url, tmp_path, monkeypatch,
 ):
+    def no_git(*args, **kwargs):
+        raise AssertionError("ordinary Workspace files invoked GitRepoManager")
+
+    monkeypatch.setattr(GitRepoManager, "repo_path", no_git)
+    monkeypatch.setattr(GitRepoManager, "ensure_session_workspace", no_git)
     store = TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024)
     files = FileService(database_url, store, max_bytes=1024 * 1024)
     catalog = WorkspaceCatalog(database_url)
@@ -59,6 +67,13 @@ async def test_real_docx_upload_edit_revision_and_conflict_save(
 
     old_run = authorized_run()
     edit_run = authorized_run()
+    tasks = ResearchTaskCommandService(database_url)
+    task_id = UUID(tasks.create_task(account_id, str(uuid4()), "Reader", "Read DOCX")
+                   .body["task_id"])
+    policy.grant(account_id, "task", task_id, entry,
+                 ["list_metadata", "read_content"], False)
+    task_run = UUID(tasks.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    assert policy.select(account_id, task_run, entry)["file_id"] == str(first_file)
     publisher = OutputPublisher(worker_database_url, store)
     workspace = RunFileWorkspace(worker_database_url, store, tmp_path / "execution")
     with workspace.prepare(account_id, edit_run, include_selected=True) as scope:
@@ -80,6 +95,9 @@ async def test_real_docx_upload_edit_revision_and_conflict_save(
     with workspace.prepare(account_id, old_run, include_selected=True) as scope:
         old = FileResourceResolver(scope).resolve(str(first_file))
         assert Document(old.local_path).paragraphs[0].text == "revision one"
+    with workspace.prepare(account_id, task_run, include_selected=True) as scope:
+        assert Document(FileResourceResolver(scope).resolve(str(first_file)).local_path) \
+            .paragraphs[0].text == "revision one"
     assert db.execute("SELECT fixed_revision FROM run_resource_candidates "
                       "WHERE run_id=%s AND node_id=%s", (old_run, entry)).fetchone()[0] == 1
     with pytest.raises(WorkspaceVersionConflict):
@@ -91,3 +109,21 @@ async def test_real_docx_upload_edit_revision_and_conflict_save(
     assert Document(files.download(account_id, conflict_file)[1]).paragraphs[0].text == (
         "revision alternate"
     )
+    # A separate direct upload has its long-lived reference released and its
+    # bytes collected without creating a Git workspace.
+    disposable = files.create_workspace_upload(account_id, str(uuid4()), "gc.txt",
+                                               2, "text/plain", None)
+    disposable_id = UUID(disposable["file"]["file_id"])
+
+    async def disposable_chunks():
+        yield b"gc"
+
+    await files.upload_content(account_id, disposable_id, disposable_chunks())
+    disposable_entry = catalog.save_file(account_id, parent, disposable_id,
+                                         "gc.txt", "save:gitless-gc")
+    catalog.remove(account_id, disposable_entry)
+    files.delete(account_id, disposable_id)
+    assert FileCleanupService(worker_database_url, store).cleanup_once().deleted == 1
+    assert db.execute("SELECT storage_key FROM stored_files WHERE file_id=%s",
+                      (disposable_id,)).fetchone()[0] is None
+    assert not list(tmp_path.rglob(".git"))

@@ -41,6 +41,9 @@ export function ResearchOutputs({
   const [runs, setRuns] = useState<Run[]>([]);
   const [runsBefore, setRunsBefore] = useState<string | null>(null);
   const [taskId, setTaskId] = useState<string | null>(null);
+  const [taskGrants, setTaskGrants] = useState<
+    Awaited<ReturnType<HpApi["listResearchResources"]>>["grants"]
+  >([]);
   const [error, setError] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<Awaited<ReturnType<HpApi["getWorkspace"]>> | null>(
     null,
@@ -128,8 +131,12 @@ export function ResearchOutputs({
         setScheduleTimezone(task.schedule_timezone);
         setScheduleTime(task.schedule_expression ?? "09:00");
       }
-      const page = await api.listResearchRuns(selected, more ? runsBefore : null);
+      const [page, resources] = await Promise.all([
+        api.listResearchRuns(selected, more ? runsBefore : null),
+        api.listResearchResources(selected),
+      ]);
       setTaskId(selected);
+      setTaskGrants(resources.grants);
       setRuns(more ? [...runs, ...page.items] : page.items);
       setRunsBefore(page.next_before);
       setError(null);
@@ -261,11 +268,33 @@ export function ResearchOutputs({
                       "directory";
                     void api
                       .grantResearchInput(task.task_id, inputNodeId, recursive)
+                      .then(() => api.listResearchResources(task.task_id))
+                      .then((resources) => setTaskGrants(resources.grants))
                       .catch(() => setError("授权 Task 输入失败"));
                   }}
                 >
                   授权读取输入
                 </button>
+                <div aria-label="Task 资源授权">
+                  {taskGrants.map((grant) => (
+                    <div key={grant.grant_id}>
+                      <span>
+                        {grant.name} · {grant.operation}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void api
+                            .revokeResearchResource(task.task_id, grant.grant_id)
+                            .then(() => loadRuns(task.task_id))
+                            .catch(() => setError("撤销 Task 授权失败"));
+                        }}
+                      >
+                        撤销授权
+                      </button>
+                    </div>
+                  ))}
+                </div>
                 <select
                   aria-label="Task 输出类型"
                   value={task.output_operation}
@@ -354,7 +383,7 @@ export function ResearchOutputs({
             {runs.map((run) => (
               <div key={run.run_id}>
                 <span>
-                  {run.status} · {run.run_id.slice(0, 8)}
+                  {run.status === "cancelling" ? "停止中" : run.status} · {run.run_id.slice(0, 8)}
                 </span>
                 {run.save_status ? (
                   <span>

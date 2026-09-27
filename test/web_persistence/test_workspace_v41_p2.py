@@ -9,6 +9,7 @@ import pytest
 
 from conversation_domain.commands import CommandService
 from file_runtime import FileResourceResolver
+from research_domain.services import ResearchTaskCommandService
 from storage.tenant_file_store import TenantFileStore
 from web_domain.errors import ResourceNotFound
 from workspace.catalog import WorkspaceCatalog
@@ -39,6 +40,40 @@ def _conversation(commands, account):
 
 def _run(commands, account, conversation):
     return UUID(commands.send_message(account, conversation, str(uuid4()), "read")['run_id'])
+
+
+def test_independent_task_last_input_revoke_persists_cancellation(
+    db, account_id, database_url, tmp_path,
+):
+    commands = CommandService(database_url)
+    catalog = WorkspaceCatalog(database_url, commands)
+    policy = ResourcePolicy(database_url)
+    tree = catalog.initialize(account_id)
+    parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料"))
+    origin = _conversation(commands, account_id)
+    store = TenantFileStore(tmp_path / "store", max_bytes=1024)
+    file_id = _file(db, store, account_id, origin, "task.txt", b"task input")
+    node_id = catalog.save_file(account_id, parent, file_id, "task.txt", "save:task")
+    tasks = ResearchTaskCommandService(database_url)
+    task_id = UUID(tasks.create_task(account_id, str(uuid4()), "Task", "Read input").body["task_id"])
+    grants = policy.grant(account_id, "task", task_id, node_id,
+                          ["list_metadata", "read_content"], False)
+    another_read = UUID(policy.grant(account_id, "task", task_id, parent,
+                                    ["read_content"], True)[0])
+    run_id = UUID(tasks.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    db.execute("UPDATE runs SET status='running',started_at=now() WHERE run_id=%s", (run_id,))
+    db.execute("INSERT INTO workflow_executions(workflow_execution_id,account_id,run_id,"
+               "workflow_id) VALUES (%s,%s,%s,%s)",
+               (uuid4(), account_id, run_id, f"hpagent-research-{run_id}"))
+    assert policy.select(account_id, run_id, node_id)["file_id"] == str(file_id)
+    assert policy.revoke(account_id, UUID(grants[1]), commands) == []
+    policy.check_file(account_id, run_id, file_id)
+    assert policy.revoke(account_id, another_read, commands) == [run_id]
+    assert db.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] == "cancelling"
+    assert db.execute("SELECT revoked_at IS NOT NULL FROM resource_grants WHERE grant_id=%s",
+                      (another_read,)).fetchone()[0]
+    with pytest.raises(ResourceDenied):
+        policy.check_file(account_id, run_id, file_id)
 
 
 @pytest.mark.parametrize("directory_first", [True, False])

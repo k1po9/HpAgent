@@ -292,24 +292,18 @@ class CommandService:
         existing = self._claim(uow, account_id, "cancel_run", key, payload)
         if existing:
             return existing
-        conversation_id = self.runs.discover_conversation(uow, account_id, run_id)
-        if conversation_id is None:
-            raise ResourceNotFound()
-        self.conversations.get_for_account(uow, account_id, conversation_id, lock=True)
-        run = self.runs.get_for_account(uow, account_id, run_id, lock=True)
-        if run is None:
-            raise ResourceNotFound()
+        run = self._lock_owned_run(uow, account_id, run_id)
         if run["status"] in ("completed", "failed"):
             raise RunNotCancellable()
         if run["status"] == "cancelled":
-            result = self._snapshot_for_run(uow, run_id)
+            result = self._snapshot_for_run(uow, run_id) if run["conversation_id"] else {}
             result.update({"run_id": str(run_id), "status": "cancelled"})
             response_status = 200
         elif run["status"] == "queued" and not self.workflows.has_current(uow, run_id):
             self._set_terminal(
                 uow, account_id, run["conversation_id"], run_id, "cancelled"
             )
-            result = self._snapshot_for_run(uow, run_id)
+            result = self._snapshot_for_run(uow, run_id) if run["conversation_id"] else {}
             result.update({"run_id": str(run_id), "status": "cancelled"})
             response_status = 200
         else:
@@ -336,7 +330,7 @@ class CommandService:
                     }),
                 )
             self._outbox(uow, account_id, run["conversation_id"], run_id, "cancel_run")
-            result = self._snapshot_for_run(uow, run_id)
+            result = self._snapshot_for_run(uow, run_id) if run["conversation_id"] else {}
             result.update({"run_id": str(run_id), "status": "cancelling"})
             response_status = 202
         self._complete(
@@ -456,6 +450,8 @@ class CommandService:
             run = self._lock_owned_run(uow, account_id, run_id)
             if run["status"] in ("completed", "failed", "cancelled"):
                 return bool(run["status"] == "completed")
+            if run["run_kind"] == "research" and run["status"] == "cancelling":
+                raise ConversationBusy()
             if run["status"] not in ("running", "cancelling"):
                 raise ConversationBusy()
             self.messages.set_terminal(uow, run_id, "completed", content)
@@ -488,6 +484,8 @@ class CommandService:
             run = self._lock_owned_run(uow, account_id, run_id)
             if run["status"] in ("completed", "failed", "cancelled"):
                 return bool(run["status"] == "failed")
+            if run["run_kind"] == "research" and run["status"] == "cancelling":
+                return False
             self.messages.set_terminal(uow, run_id, "failed")
             self.runs.set_terminal(uow, run_id, "failed", failure_code, failure_message)
             self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "failed")
@@ -653,7 +651,7 @@ class CommandService:
             for row in rows
         ]
 
-    def _outbox(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, run_id: UUID, event_type: str, terminal_status: str | None = None) -> None:
+    def _outbox(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID | None, run_id: UUID, event_type: str, terminal_status: str | None = None) -> None:
         key = f"terminal:{run_id}:{terminal_status}" if event_type == "publish_terminal_event" else f"{event_type.replace('_', '-')}:{run_id}"
         event_id = _id()
         payload = {"run_id": str(run_id), "version": 1}
@@ -666,7 +664,7 @@ class CommandService:
         )
 
     def _set_terminal(
-        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID | None,
         run_id: UUID, status: str
     ) -> None:
         message_status = {"failed": "failed", "cancelled": "aborted"}[status]
@@ -691,14 +689,17 @@ class CommandService:
         self, uow: UnitOfWork, account_id: UUID, run_id: UUID
     ) -> dict[str, Any]:
         conversation_id = self.runs.discover_conversation(uow, account_id, run_id)
-        if conversation_id is None:
-            raise ResourceNotFound()
-        conversation = self.conversations.get_for_account(
+        if conversation_id is not None and self.conversations.get_for_account(
             uow, account_id, conversation_id, lock=True
-        )
-        if conversation is None:
+        ) is None:
             raise ResourceNotFound()
         run = self.runs.get_for_account(uow, account_id, run_id, lock=True)
         if run is None or run["conversation_id"] != conversation_id:
+            raise ResourceNotFound()
+        if conversation_id is None and (
+            run["run_kind"] != "research" or run["task_id"] is None or
+            uow.execute("SELECT 1 FROM tasks WHERE account_id=%s AND task_id=%s",
+                        (account_id, run["task_id"])).fetchone() is None
+        ):
             raise ResourceNotFound()
         return cast(dict[str, Any], run)

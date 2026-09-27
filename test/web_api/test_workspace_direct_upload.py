@@ -62,6 +62,9 @@ def test_direct_upload_save_download_and_cross_conversation(
     assert client.get(f"/api/v1/files/{file_id}/content").content == body
     assert client.get("/api/v1/workspace/space").json()["physical_bytes"] == len(body)
     assert client.get("/api/v1/persistent-files/legacy/path").status_code == 404
+    assert client.post("/api/v1/persistent-files/legacy/path", json={
+        "logical_path": "legacy/path", "file_id": file_id,
+    }, headers=_headers(csrf, str(uuid4()))).status_code == 404
     assert db.execute(
         "SELECT count(*) FROM information_schema.columns WHERE table_schema='hpagent' "
         "AND table_name='persistent_file_destinations' AND column_name='logical_path'"

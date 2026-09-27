@@ -748,6 +748,30 @@ def create_app(
         )
         return {"grant_ids": ids}
 
+    @app.delete("/api/v1/tasks/{task_id}/resources/{grant_id}")
+    def revoke_task_resource(task_id: UUID, grant_id: UUID, request: Request,
+                             context: AuthContext = Depends(csrf_guard)):
+        with UnitOfWork(request.app.state.api_pool) as uow:
+            if uow.execute(
+                "SELECT 1 FROM resource_grants g JOIN tasks t "
+                "ON t.account_id=g.account_id AND t.task_id=g.subject_id "
+                "WHERE g.account_id=%s AND g.grant_id=%s AND g.subject_kind='task' "
+                "AND g.subject_id=%s",
+                (context.account_id, grant_id, task_id),
+            ).fetchone() is None:
+                raise ResourceNotFound()
+        affected = request.app.state.resource_policy.revoke(
+            context.account_id, grant_id, request.app.state.commands
+        )
+        with UnitOfWork(request.app.state.api_pool) as uow:
+            statuses = {row["run_id"]: row["status"] for row in uow.execute(
+                "SELECT run_id,status FROM runs WHERE account_id=%s AND run_id=ANY(%s)",
+                (context.account_id, affected),
+            ).fetchall()}
+        return {"affected_runs": [{"run_id": str(run_id),
+                "stop_state": "stopped" if statuses.get(run_id) == "cancelled" else "stopping"}
+                for run_id in affected]}
+
     @app.put("/api/v1/tasks/{task_id}/schedule")
     def update_research_schedule(
         task_id: UUID,

@@ -57,11 +57,15 @@ def test_research_workflow_input_and_history_payload_are_compact():
 
 
 @pytest.mark.asyncio
-async def test_research_outbox_dispatch_uses_persisted_deterministic_workflow_id():
+@pytest.mark.parametrize("cancel_during_start", [False, True])
+async def test_research_outbox_dispatch_uses_persisted_deterministic_workflow_id(
+    cancel_during_start,
+):
     run_id = UUID("00000000-0000-0000-0000-000000000123")
 
     class Store:
         recorded = None
+        cancel_recorded = None
 
         def prepare_start(self, value):
             return StartDecision(value, f"hpagent-research-{value}", True)
@@ -72,13 +76,28 @@ async def test_research_outbox_dispatch_uses_persisted_deterministic_workflow_id
         def record_started(self, value, temporal_run_id):
             self.recorded = (value, temporal_run_id)
 
+        def needs_cancel(self, value):
+            return cancel_during_start
+
+        def record_cancel_requested(self, value):
+            self.cancel_recorded = value
+
     class Temporal:
+        cancelled = None
+
         async def start_research_run(self, workflow_id, request):
             assert workflow_id == f"hpagent-research-{run_id}"
             assert request == ResearchWorkflowInput(1, str(run_id))
             return "temporal-run-id"
 
+        async def cancel_web_run(self, workflow_id):
+            self.cancelled = workflow_id
+            return True
+
     store = Store()
-    dispatcher = TemporalOutboxDispatcher(store, Temporal())
+    temporal = Temporal()
+    dispatcher = TemporalOutboxDispatcher(store, temporal)
     assert await dispatcher.dispatch_research_start(run_id)
     assert store.recorded == (run_id, "temporal-run-id")
+    assert temporal.cancelled == (f"hpagent-research-{run_id}" if cancel_during_start else None)
+    assert store.cancel_recorded == (run_id if cancel_during_start else None)

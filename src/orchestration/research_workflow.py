@@ -6,13 +6,15 @@ source text, normalized records and evidence remain in PostgreSQL.
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import NotRequired, TypedDict, cast
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
-from temporalio.exceptions import ActivityError, ApplicationError
+from temporalio.exceptions import ActivityError, ApplicationError, is_cancelled_exception
+from temporalio.workflow import ActivityCancellationType
 
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 
@@ -68,6 +70,7 @@ class ResearchStageRef(TypedDict):
     ref: str
     item_count: int
     sufficient: NotRequired[bool]
+    cancelled: NotRequired[bool]
 
 
 _RESEARCH_RETRY = RetryPolicy(
@@ -121,7 +124,10 @@ class ResearchReportWorkflow:
                     start_to_close_timeout=timedelta(seconds=timeout),
                     schedule_to_close_timeout=timedelta(seconds=timeout * 2),
                     retry_policy=_RESEARCH_RETRY,
+                    cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
+                if workflow.cancellation_reason() is not None:
+                    raise asyncio.CancelledError
             for iteration in range(1, 4):
                 iteration_request = ResearchIterationInput(
                     schema_version=RESEARCH_WORKFLOW_SCHEMA_VERSION,
@@ -148,7 +154,10 @@ class ResearchReportWorkflow:
                             else None
                         ),
                         retry_policy=_RESEARCH_RETRY,
+                        cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                     )
+                    if workflow.cancellation_reason() is not None:
+                        raise asyncio.CancelledError
                 gap = await workflow.execute_activity(
                     "analyze_research_gaps_activity",
                     iteration_request,
@@ -156,7 +165,10 @@ class ResearchReportWorkflow:
                     start_to_close_timeout=timedelta(seconds=30),
                     schedule_to_close_timeout=timedelta(seconds=60),
                     retry_policy=_RESEARCH_RETRY,
+                    cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
+                if workflow.cancellation_reason() is not None:
+                    raise asyncio.CancelledError
                 if gap.get("sufficient", False):
                     break
             for activity_name, timeout in (
@@ -174,9 +186,14 @@ class ResearchReportWorkflow:
                     start_to_close_timeout=timedelta(seconds=timeout),
                     schedule_to_close_timeout=timedelta(seconds=timeout * 2),
                     retry_policy=_RESEARCH_RETRY,
+                    cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
-        except ActivityError:
-            await workflow.execute_activity(
+                if workflow.cancellation_reason() is not None:
+                    raise asyncio.CancelledError
+        except ActivityError as exc:
+            if is_cancelled_exception(exc) or workflow.cancellation_reason() is not None:
+                raise asyncio.CancelledError from exc
+            failure = await workflow.execute_activity(
                 "fail_research_activity",
                 request,
                 task_queue=WEB_LIFECYCLE_TASK_QUEUE,
@@ -184,6 +201,8 @@ class ResearchReportWorkflow:
                 schedule_to_close_timeout=timedelta(seconds=60),
                 retry_policy=_RESEARCH_RETRY,
             )
+            if failure.get("cancelled", False) or workflow.cancellation_reason() is not None:
+                raise asyncio.CancelledError from exc
             raise
         return {
             "schema_version": RESEARCH_WORKFLOW_SCHEMA_VERSION,

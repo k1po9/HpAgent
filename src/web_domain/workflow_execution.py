@@ -91,7 +91,7 @@ class PostgresWorkflowExecutionStore:
             rows = uow.execute(
                 "SELECT r.run_id,r.status AS run_status,w.workflow_id FROM runs r "
                 "LEFT JOIN workflow_executions w ON w.run_id=r.run_id AND w.is_current "
-                "WHERE r.run_kind='chat' AND (r.status IN ('queued','running','cancelling') OR "
+                "WHERE r.run_kind IN ('chat','research') AND (r.status IN ('queued','running','cancelling') OR "
                 "(r.status IN ('completed','failed','cancelled') AND "
                 "w.status IN ('scheduled','running','cancel_requested'))) "
                 "ORDER BY r.updated_at,r.run_id LIMIT %s",

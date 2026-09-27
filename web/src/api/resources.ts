@@ -147,6 +147,24 @@ export class HpApi {
     });
   }
 
+  async listResearchResources(taskId: string): Promise<{
+    grants: Array<{ grant_id: string; node_id: string; name: string; operation: string }>;
+  }> {
+    return this.client.request({ method: "GET", path: `/api/v1/tasks/${taskId}/resources` });
+  }
+
+  async revokeResearchResource(
+    taskId: string,
+    grantId: string,
+  ): Promise<{
+    affected_runs: Array<{ run_id: string; stop_state: "stopping" | "stopped" }>;
+  }> {
+    return this.client.request({
+      method: "DELETE",
+      path: `/api/v1/tasks/${taskId}/resources/${grantId}`,
+    });
+  }
+
   async setResearchSchedule(
     taskId: string,
     timezone: string,

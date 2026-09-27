@@ -880,15 +880,20 @@ class ResearchActivities:
     async def fail_research_activity(self, request: ResearchWorkflowInput) -> ResearchStageRef:
         request.validate()
         run_id = UUID(request.run_id)
-        await asyncio.to_thread(self._fail, run_id)
-        return self._ref(run_id, "Failed", {"item_count": 0})
+        cancelled = await asyncio.to_thread(self._fail, run_id)
+        result = self._ref(run_id, "Failed", {"item_count": 0})
+        if cancelled:
+            result["cancelled"] = True
+        return result
 
     @retryable_transaction
-    def _fail(self, run_id: UUID) -> None:
+    def _fail(self, run_id: UUID) -> bool:
         with UnitOfWork(self.database) as uow:
             run = uow.execute(
-                "SELECT account_id,conversation_id FROM runs WHERE run_id=%s", (run_id,)
+                "SELECT account_id,conversation_id,status FROM runs WHERE run_id=%s", (run_id,)
             ).fetchone()
+            if run is not None and run["status"] in {"cancelling", "cancelled"}:
+                return True
             intent = uow.execute(
                 "SELECT failure_code FROM research_run_save_intents WHERE run_id=%s "
                 "AND state='pending'", (run_id,),
@@ -917,6 +922,10 @@ class ResearchActivities:
                      else "Research stage failed.", run_id),
                 )
         with UnitOfWork(self.database) as uow:
+            status = uow.execute("SELECT status FROM runs WHERE run_id=%s",
+                                 (run_id,)).fetchone()["status"]
+            if status in {"cancelling", "cancelled"}:
+                return True
             uow.execute(
                 "UPDATE workflow_executions SET status='failed',"
                 "closed_at=COALESCE(closed_at,now()),updated_at=now(),version=version+1 "
@@ -932,3 +941,4 @@ class ResearchActivities:
             )
         except LookupError:
             pass
+        return False

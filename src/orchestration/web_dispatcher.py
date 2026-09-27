@@ -159,6 +159,9 @@ class TemporalOutboxDispatcher:
             decision.workflow_id, ResearchWorkflowInput(1, str(run_id))
         )
         await asyncio.to_thread(self.store.record_started, run_id, temporal_run_id)
+        if await asyncio.to_thread(self.store.needs_cancel, run_id):
+            if await self.temporal.cancel_web_run(decision.workflow_id):
+                await asyncio.to_thread(self.store.record_cancel_requested, run_id)
         return True
 
     async def dispatch_cancel(self, run_id: UUID) -> bool:

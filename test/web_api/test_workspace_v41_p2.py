@@ -16,6 +16,42 @@ def _headers(csrf: str, key: str | None = None) -> dict[str, str]:
     return headers
 
 
+def test_task_grant_revoke_checks_owner_task_and_replay(
+    tmp_path, seed_identity, client_factory,
+):
+    seed_identity("task-resource-owner")
+    seed_identity("task-resource-other")
+    owner = client_factory(file_upload_enabled=True, file_store_root=str(tmp_path / "store"))
+    other = client_factory(file_upload_enabled=True, file_store_root=str(tmp_path / "store"))
+    for client, username in ((owner, "task-resource-owner"), (other, "task-resource-other")):
+        assert client.post("/auth/login", json={"username": username,
+            "password": "correct-password"}, follow_redirects=False).status_code == 303
+    csrf = owner.get("/api/v1/me").json()["csrf_token"]
+    other_csrf = other.get("/api/v1/me").json()["csrf_token"]
+    tree = owner.get("/api/v1/workspace").json()
+    info = next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料")
+    task = owner.post("/api/v1/tasks", json={"title": "Grant test", "objective": "Read",
+        "output_required": False}, headers=_headers(csrf, str(uuid4())))
+    assert task.status_code == 201, task.text
+    task_id = task.json()["task"]["task_id"]
+    second = owner.post("/api/v1/tasks", json={"title": "Second", "objective": "Read",
+        "output_required": False}, headers=_headers(csrf, str(uuid4())))
+    assert second.status_code == 201, second.text
+    other_task_id = second.json()["task"]["task_id"]
+    grant = owner.post(f"/api/v1/tasks/{task_id}/resources", json={
+        "node_id": info, "operations": ["list_metadata", "read_content"],
+        "recursive": True,
+    }, headers=_headers(csrf))
+    assert grant.status_code == 201, grant.text
+    grant_id = grant.json()["grant_ids"][1]
+    path = f"/api/v1/tasks/{task_id}/resources/{grant_id}"
+    assert other.delete(path, headers=_headers(other_csrf)).status_code == 404
+    assert owner.delete(f"/api/v1/tasks/{other_task_id}/resources/{grant_id}",
+                        headers=_headers(csrf)).status_code == 404
+    assert owner.delete(path, headers=_headers(csrf)).json() == {"affected_runs": []}
+    assert owner.delete(path, headers=_headers(csrf)).json() == {"affected_runs": []}
+
+
 def test_conversation_grant_snapshot_revoke_and_owner_download(
     tmp_path, seed_identity, client_factory, db, database_url,
 ):

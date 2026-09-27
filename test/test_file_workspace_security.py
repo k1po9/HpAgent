@@ -111,3 +111,6 @@ async def test_p2_web_tool_registry_has_no_account_workspace_or_mcp_bypass(tmp_p
     assert {"list_run_candidates", "select_run_candidate", "read_file"} <= names
     assert names.isdisjoint({"Bash", "fs_read", "fs_write", "fs_edit", "Glob", "Grep",
                              "remote_file_read", "convert_file_to_pdf"})
+    assert "save_persistent_file" not in names
+    result, _ = await sandbox.execute("save_persistent_file", {})
+    assert not result.success

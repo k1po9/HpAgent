@@ -82,6 +82,64 @@ async def execute(activities, run_id):
 
 
 @pytest.mark.asyncio
+async def test_task_output_grant_revocation_blocks_required_save(
+    database_url, worker_database_url, account_id, tmp_path,
+):
+    catalog = WorkspaceCatalog(database_url)
+    tree = catalog.initialize(account_id)
+    parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "成果"))
+    target = catalog.create_directory(account_id, parent, "撤权输出")
+    tasks = ResearchTaskCommandService(database_url)
+    task_id = UUID(tasks.create_task(account_id, str(uuid4()), "Daily", "Track facts",
+                                     output_directory_id=target,
+                                     output_required=True).body["task_id"])
+    run_id = UUID(tasks.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    activities = ResearchActivities(worker_database_url, Discovery(), Content(),
+        Canonicalizer(), Synthesis(), min_evidence=1, min_distinct_sources=1,
+        markdown_publisher=ResearchMarkdownPublisher(OutputPublisher(
+            worker_database_url, TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024))))
+    request = ResearchWorkflowInput(1, str(run_id))
+    iteration = ResearchIterationInput(1, str(run_id), 1)
+    await activities.prepare_research_activity(request)
+    await activities.create_research_plan_activity(request)
+    for stage in (
+        activities.discover_research_sources_activity,
+        activities.rank_research_sources_activity,
+        activities.fetch_research_sources_activity,
+        activities.normalize_research_sources_activity,
+        activities.extract_research_evidence_activity,
+        activities.assess_research_corroboration_activity,
+        activities.analyze_research_gaps_activity,
+    ):
+        await stage(iteration)
+    for stage in (
+        activities.synthesize_research_report_activity,
+        activities.verify_research_citations_activity,
+        activities.compare_previous_research_activity,
+        activities.publish_research_artifact_activity,
+    ):
+        await stage(request)
+    with UnitOfWork(database_url) as uow:
+        grant_id = uow.execute(
+            "SELECT grant_id FROM resource_grants WHERE account_id=%s AND subject_kind='task' "
+            "AND subject_id=%s AND node_id=%s AND operation='create_child' "
+            "AND revoked_at IS NULL", (account_id, task_id, target),
+        ).fetchone()["grant_id"]
+    assert ResourcePolicy(database_url).revoke(account_id, grant_id) == []
+    with pytest.raises(ResourceDenied, match="create_child"):
+        activities._save_workspace(run_id)
+    with pytest.raises(RuntimeError, match="required_workspace_save_incomplete"):
+        await activities.complete_research_activity(request)
+    with UnitOfWork(database_url) as uow:
+        assert uow.execute("SELECT status FROM runs WHERE run_id=%s",
+                           (run_id,)).fetchone()["status"] == "running"
+        assert uow.execute("SELECT failure_code FROM research_run_save_intents WHERE run_id=%s",
+                           (run_id,)).fetchone()["failure_code"] == "ResourceDenied"
+        assert uow.execute("SELECT count(*) AS n FROM workspace_save_operations "
+                           "WHERE source_run_id=%s", (run_id,)).fetchone()["n"] == 0
+
+
+@pytest.mark.asyncio
 async def test_thirty_standalone_runs_use_bounded_authorized_history_and_save(
     database_url, worker_database_url, account_id, tmp_path,
 ):

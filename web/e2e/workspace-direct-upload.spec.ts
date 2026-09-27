@@ -25,4 +25,29 @@ test("uploads directly to Workspace without creating a conversation", async ({ p
     .getByRole("link", { name: "下载" })
     .click();
   expect(await readFile(await (await download).path(), "utf-8")).toBe(body);
+  await expect(page.locator(".hp-approval")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /save_persistent_file|保存持久文件/ })).toHaveCount(
+    0,
+  );
+  const research = page.getByText("Research 输出", { exact: true });
+  await research.click();
+  await page.getByLabel("Task 标题").fill(`撤权-${Date.now()}`);
+  await page.getByLabel("Research 目标").fill("读取选定 Workspace 文件");
+  const input = page.getByLabel("Task 输入文件或目录");
+  const inputId = await input.locator("option").filter({ hasText: name }).getAttribute("value");
+  expect(inputId).toBeTruthy();
+  await input.selectOption(inputId!);
+  await page.getByRole("button", { name: "创建 Research Task" }).click();
+  const taskTitle = page.getByRole("button", { name: /撤权-/ });
+  await taskTitle.click();
+  const grant = page
+    .getByLabel("Task 资源授权")
+    .locator(":scope > div")
+    .filter({
+      hasText: `${name} · read_content`,
+    })
+    .first();
+  await expect(grant).toBeVisible();
+  await grant.getByRole("button", { name: "撤销授权" }).click();
+  await expect(grant).toHaveCount(0);
 });
