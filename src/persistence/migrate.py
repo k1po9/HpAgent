@@ -20,7 +20,7 @@ def _service() -> str:
 def get_migrations_dir() -> Path:
     """Resolve the one runtime migration source shared by migrate and gates."""
     configured = os.getenv("HPAGENT_MIGRATIONS_DIR")
-    return Path(configured) if configured else Path.cwd() / "persistence" / "migrations"
+    return Path(configured) if configured else Path("/opt/hpagent/migrations")
 
 
 def _migration_files() -> tuple[Path, list[Path]]:

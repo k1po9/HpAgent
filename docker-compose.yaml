@@ -349,7 +349,7 @@ services:
   #
   # 会随 agent / web / web-prod 启动。
   #
-  # src 和 persistence 都直接挂载，
+  # src 和 migration SQL 直接挂载，
   # 修改 Python migration 或 SQL 后无需 rebuild。
   # ============================================================
 
@@ -372,12 +372,12 @@ services:
 
     environment:
       APP_DATABASE_URL: postgresql://hpagent_migrate:${HPAGENT_MIGRATE_PASSWORD:-hpagent_migrate}@app-postgres:5432/hpagent
-      HPAGENT_MIGRATIONS_DIR: /app/persistence/migrations
+      HPAGENT_MIGRATIONS_DIR: /opt/hpagent/migrations
       HPAGENT_SERVICE: hpagent-migrate
 
     volumes:
       - ./src:/app/src:ro
-      - ./persistence:/app/persistence:ro
+      - ./persistence/migrations:/opt/hpagent/migrations:ro
 
     depends_on:
       app-postgres:
@@ -465,7 +465,7 @@ services:
 
       # Web real-Agent
       - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
-      - HPAGENT_MIGRATIONS_DIR=/app/persistence/migrations
+      - HPAGENT_MIGRATIONS_DIR=/opt/hpagent/migrations
       - HPAGENT_SERVICE=hpagent
       - AGENT_EXECUTION_LEASE_TTL_SECONDS=${AGENT_EXECUTION_LEASE_TTL_SECONDS:-900}
 
@@ -529,7 +529,7 @@ services:
       # 不需要重新 docker build。
       # --------------------------------------------------------
       - ./src:/app
-      - ./persistence:/app/persistence:ro
+      - ./persistence/migrations:/opt/hpagent/migrations:ro
 
       # Runtime Data
       - ./.data:/app/.data
@@ -657,7 +657,7 @@ services:
       HPAGENT_ENV: ${HPAGENT_ENV:-development}
 
       APP_DATABASE_URL: postgresql://hpagent_api:${HPAGENT_API_PASSWORD:-hpagent_api}@app-postgres:5432/hpagent
-      HPAGENT_MIGRATIONS_DIR: /app/persistence/migrations
+      HPAGENT_MIGRATIONS_DIR: /opt/hpagent/migrations
       HPAGENT_SERVICE: hpagent-api
 
       WEB_PUBLIC_ORIGIN: ${WEB_PUBLIC_ORIGIN:-https://localhost}
@@ -696,7 +696,7 @@ services:
       - ./src:/app/src:ro
 
       # verify_schema() 需要读取当前 checkout 的 migration SQL，与 hpagent-migrate 使用同一份 schema truth source。
-      - ./persistence:/app/persistence:ro
+      - ./persistence/migrations:/opt/hpagent/migrations:ro
 
       # API 写 web-api.jsonl / web-api-error.log；宿主机可直接联合查询
       - ./.data:/app/.data

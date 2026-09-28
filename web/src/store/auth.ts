@@ -32,7 +32,7 @@ export const useAuth = create<AuthState>((set) => ({
   justRegistered: false,
 
   check: async () => {
-    set((state) => state.status === "signedIn" ? {} : { status: "checking" });
+    set((state) => (state.status === "signedIn" ? {} : { status: "checking" }));
     try {
       const me = await api.me();
       if (me === null) {

@@ -1,7 +1,6 @@
 # One-shot schema migration runner (P1-6 compose DB gate).
 #
-# Build context is the repo root. The Python package and audited SQL land
-# under /app; HPAGENT_MIGRATIONS_DIR names the same path in every service.
+# Build context is the repo root. Python code and audited SQL use separate paths.
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -9,6 +8,6 @@ COPY requirements.txt /app/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r /app/requirements.txt
 COPY src /app/src
-COPY persistence /app/persistence
+COPY persistence/migrations /opt/hpagent/migrations
 ENV PYTHONPATH=/app/src PYTHONUNBUFFERED=1
 CMD ["python", "-m", "persistence.migrate"]

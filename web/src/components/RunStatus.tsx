@@ -40,12 +40,16 @@ export function RunStatus({
   onStop,
   onRetry,
 }: RunStatusProps) {
-  const [now, setNow] = useState(Date.now());
+  const [warnedRun, setWarnedRun] = useState<string | null>(null);
+  const queuedRunId = activeRun?.status === "queued" ? activeRun.run_id : null;
+  const queuedCreatedAt = activeRun?.status === "queued" ? activeRun.created_at : null;
   useEffect(() => {
-    if (activeRun?.status !== "queued") return;
-    const timer = window.setInterval(() => setNow(Date.now()), 5000);
-    return () => window.clearInterval(timer);
-  }, [activeRun?.status]);
+    if (!queuedRunId || !queuedCreatedAt) return;
+    const elapsed = Date.now() - Date.parse(queuedCreatedAt);
+    const delay = Math.max(0, 60_000 - elapsed);
+    const timer = window.setTimeout(() => setWarnedRun(queuedRunId), delay);
+    return () => window.clearTimeout(timer);
+  }, [queuedRunId, queuedCreatedAt]);
   if (!activeRun && !busyMessage && !progress) {
     return null;
   }
@@ -75,8 +79,7 @@ export function RunStatus({
           <Text size="2" weight="medium" data-testid="run-label">
             {runStatusLabel(activeRun.status)}
           </Text>
-          {activeRun.status === "queued" &&
-          now - Date.parse(activeRun.created_at) >= 60000 ? (
+          {activeRun.status === "queued" && warnedRun === activeRun.run_id ? (
             <Text size="2" color="orange" role="status">
               仍在等待执行 Worker 接管
             </Text>

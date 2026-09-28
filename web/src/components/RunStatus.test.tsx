@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { HpRun } from "../api/types";
 import { RunStatus } from "./RunStatus";
@@ -28,9 +28,15 @@ function failedRun(retryable: boolean): HpRun {
 
 describe("RunStatus retry safety", () => {
   it("explains a Run that has remained queued", () => {
+    vi.useFakeTimers();
     render(
       <RunStatus
-        activeRun={{ ...failedRun(true), status: "queued", created_at: "2020-01-01T00:00:00Z", failure: null }}
+        activeRun={{
+          ...failedRun(true),
+          status: "queued",
+          created_at: "2020-01-01T00:00:00Z",
+          failure: null,
+        }}
         busyMessage={null}
         progress={null}
         degraded={false}
@@ -39,7 +45,29 @@ describe("RunStatus retry safety", () => {
         onRetry={vi.fn()}
       />,
     );
+    act(() => vi.runOnlyPendingTimers());
     expect(screen.getByText("仍在等待执行 Worker 接管")).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it("shows the queued warning after 60 seconds", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-17T00:00:00Z"));
+    render(
+      <RunStatus
+        activeRun={{ ...failedRun(true), status: "queued", failure: null }}
+        busyMessage={null}
+        progress={null}
+        degraded={false}
+        stopping={false}
+        onStop={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("仍在等待执行 Worker 接管")).not.toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(screen.getByText("仍在等待执行 Worker 接管")).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("shows used, reserved, estimated, and unmetered usage distinctly", () => {

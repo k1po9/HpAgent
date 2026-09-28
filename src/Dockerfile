@@ -44,7 +44,7 @@ RUN printf 'Acquire::Retries "5";\n' > /etc/apt/apt.conf.d/80-retries \
     && python -m playwright install --with-deps chromium
 
 COPY src /app
-COPY persistence /app/persistence
+COPY persistence/migrations /opt/hpagent/migrations
 
 COPY src/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
