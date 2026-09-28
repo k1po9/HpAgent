@@ -1,0 +1,12 @@
+.git
+.venv
+.data
+.pytest_cache
+.mypy_cache
+.ruff_cache
+web/node_modules
+web/dist
+dist
+artifacts
+**/__pycache__
+**/*.pyc

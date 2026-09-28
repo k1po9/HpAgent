@@ -372,6 +372,8 @@ services:
 
     environment:
       APP_DATABASE_URL: postgresql://hpagent_migrate:${HPAGENT_MIGRATE_PASSWORD:-hpagent_migrate}@app-postgres:5432/hpagent
+      HPAGENT_MIGRATIONS_DIR: /app/persistence/migrations
+      HPAGENT_SERVICE: hpagent-migrate
 
     volumes:
       - ./src:/app/src:ro
@@ -417,13 +419,21 @@ services:
       - web-prod
 
     build:
-      context: ./src
+      context: .
+      dockerfile: src/Dockerfile
       args:
         HTTP_PROXY: ${HTTP_PROXY:-}
         HTTPS_PROXY: ${HTTPS_PROXY:-}
         NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1}
 
     image: ${HPAGENT_IMAGE:-hpagent/hpagent:offline}
+
+    healthcheck:
+      test: ["CMD", "python", "-m", "orchestration.worker_health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
     ports:
       - "127.0.0.1:8082:8082"
@@ -455,6 +465,8 @@ services:
 
       # Web real-Agent
       - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
+      - HPAGENT_MIGRATIONS_DIR=/app/persistence/migrations
+      - HPAGENT_SERVICE=hpagent
       - AGENT_EXECUTION_LEASE_TTL_SECONDS=${AGENT_EXECUTION_LEASE_TTL_SECONDS:-900}
 
       # Web file workspace (read-only P0 rollout)
@@ -517,6 +529,7 @@ services:
       # 不需要重新 docker build。
       # --------------------------------------------------------
       - ./src:/app
+      - ./persistence:/app/persistence:ro
 
       # Runtime Data
       - ./.data:/app/.data
@@ -644,6 +657,8 @@ services:
       HPAGENT_ENV: ${HPAGENT_ENV:-development}
 
       APP_DATABASE_URL: postgresql://hpagent_api:${HPAGENT_API_PASSWORD:-hpagent_api}@app-postgres:5432/hpagent
+      HPAGENT_MIGRATIONS_DIR: /app/persistence/migrations
+      HPAGENT_SERVICE: hpagent-api
 
       WEB_PUBLIC_ORIGIN: ${WEB_PUBLIC_ORIGIN:-https://localhost}
       WEB_COOKIE_SECURE: ${WEB_COOKIE_SECURE:-false}
@@ -679,6 +694,9 @@ services:
     volumes:
       # Python API 源码直接挂载
       - ./src:/app/src:ro
+
+      # verify_schema() 需要读取当前 checkout 的 migration SQL，与 hpagent-migrate 使用同一份 schema truth source。
+      - ./persistence:/app/persistence:ro
 
       # API 写 web-api.jsonl / web-api-error.log；宿主机可直接联合查询
       - ./.data:/app/.data

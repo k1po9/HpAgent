@@ -1,4 +1,5 @@
 import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
+import { useEffect, useState } from "react";
 import type { HpRun } from "../api/types";
 import type { RunProgress } from "../sse/runFeed";
 import {
@@ -39,6 +40,12 @@ export function RunStatus({
   onStop,
   onRetry,
 }: RunStatusProps) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (activeRun?.status !== "queued") return;
+    const timer = window.setInterval(() => setNow(Date.now()), 5000);
+    return () => window.clearInterval(timer);
+  }, [activeRun?.status]);
   if (!activeRun && !busyMessage && !progress) {
     return null;
   }
@@ -68,6 +75,12 @@ export function RunStatus({
           <Text size="2" weight="medium" data-testid="run-label">
             {runStatusLabel(activeRun.status)}
           </Text>
+          {activeRun.status === "queued" &&
+          now - Date.parse(activeRun.created_at) >= 60000 ? (
+            <Text size="2" color="orange" role="status">
+              仍在等待执行 Worker 接管
+            </Text>
+          ) : null}
           {degraded && running ? (
             <Text size="2" color="orange" role="status" data-testid="run-degraded">
               连接中断，任务仍在执行…

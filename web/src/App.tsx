@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Flex, Spinner, Text } from "@radix-ui/themes";
+import { Button, Flex, Spinner, Text } from "@radix-ui/themes";
 import { ChatPane } from "./components/ChatPane";
 import { ConversationSidebar } from "./components/ConversationSidebar";
 import { LoginForm } from "./components/LoginForm";
@@ -52,6 +52,15 @@ export function App() {
 
   if (status === "signedOut") {
     return <LoginForm />;
+  }
+
+  if (status === "error") {
+    return (
+      <Flex align="center" justify="center" style={{ minHeight: "60vh" }} gap="3">
+        <Text role="alert">无法连接 HpAgent API</Text>
+        <Button onClick={() => void check()}>重试</Button>
+      </Flex>
+    );
   }
 
   return <Workbench />;

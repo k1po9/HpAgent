@@ -1,10 +1,7 @@
 # One-shot schema migration runner (P1-6 compose DB gate).
 #
-# Build context is the repo root (like src/Dockerfile.web-api) so BOTH the
-# Python package (src/persistence) and the audited SQL dir (persistence/migrations)
-# land under /app.  persistence.migrate resolves its migration directory via
-# __file__.resolve().parents[2] → /app/persistence/migrations, so this layout is
-# required for the container to find the SQL files.
+# Build context is the repo root. The Python package and audited SQL land
+# under /app; HPAGENT_MIGRATIONS_DIR names the same path in every service.
 FROM python:3.12-slim
 
 WORKDIR /app

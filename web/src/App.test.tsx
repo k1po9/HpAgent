@@ -94,6 +94,13 @@ beforeEach(() => {
 });
 
 describe("App workbench", () => {
+  it("shows a retry when the API session probe fails", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法连接 HpAgent API");
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
   it("renders the conversation list and the composer after signing in", async () => {
     render(<App />);
     expect(await screen.findByText("测试对话")).toBeInTheDocument();

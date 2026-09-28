@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM python:3.11-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -32,7 +30,7 @@ RUN curl -L --retry 3 --retry-delay 10 \
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY src/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install \
     -r requirements.txt \
@@ -42,10 +40,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 # Browser binary is installed in the Worker image but Chromium is launched only
 # when static httpx+Trafilatura extraction is insufficient.
-RUN python -m playwright install --with-deps chromium
+RUN printf 'Acquire::Retries "5";\n' > /etc/apt/apt.conf.d/80-retries \
+    && python -m playwright install --with-deps chromium
 
-COPY . .
+COPY src /app
+COPY persistence /app/persistence
 
-COPY entrypoint.sh /entrypoint.sh
+COPY src/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

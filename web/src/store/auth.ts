@@ -9,7 +9,7 @@
 import { create } from "zustand";
 import { api, type MeResponse } from "../api/client";
 
-export type AuthStatus = "checking" | "signedIn" | "signedOut";
+export type AuthStatus = "checking" | "signedIn" | "signedOut" | "error";
 
 interface AuthState {
   status: AuthStatus;
@@ -32,23 +32,28 @@ export const useAuth = create<AuthState>((set) => ({
   justRegistered: false,
 
   check: async () => {
-    const me = await api.me();
-    if (me === null) {
+    set((state) => state.status === "signedIn" ? {} : { status: "checking" });
+    try {
+      const me = await api.me();
+      if (me === null) {
+        set({
+          status: "signedOut",
+          account: null,
+          identities: null,
+          capabilities: {},
+          justRegistered: false,
+        });
+        return;
+      }
       set({
-        status: "signedOut",
-        account: null,
-        identities: null,
-        capabilities: {},
-        justRegistered: false,
+        status: "signedIn",
+        account: me.account,
+        identities: me.identities,
+        capabilities: me.capabilities,
       });
-      return;
+    } catch {
+      set({ status: "error", account: null, identities: null, capabilities: {} });
     }
-    set({
-      status: "signedIn",
-      account: me.account,
-      identities: me.identities,
-      capabilities: me.capabilities,
-    });
   },
 
   markRegistered: () => set({ justRegistered: true }),

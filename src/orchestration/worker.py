@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import json
 import logging
 import os
+import time
 from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Dict
@@ -164,7 +166,12 @@ def compose_durable_runtime(
     validate_web_worker_startup(config.temporal, worker_database_url)
     assert worker_database_url is not None
     from persistence.migrate import verify_schema
-    verify_schema(worker_database_url)
+    try:
+        verify_schema(worker_database_url)
+    except Exception:
+        logger.exception("Worker schema gate failed")
+        raise
+    logger.info("schema verification passed")
     infrastructure = deps.infrastructure
     shared = deps.shared
     assert infrastructure.workspace_isolation is not None, "workspace isolation is required"
@@ -872,6 +879,7 @@ async def start_worker(config: AppConfig) -> None:
 
         # ── 连接 Temporal ──
         client = await Client.connect(config.temporal.host)
+        logger.info("Temporal connected")
 
         # ── 创建 Worker ──
         worker = Worker(
@@ -985,7 +993,9 @@ async def start_worker(config: AppConfig) -> None:
                 and web_reconciler is not None
             ):
                 await worker_stack.enter_async_context(web_workers.lifecycle)
+                logger.info("Web lifecycle worker registered: hpagent-web-lifecycle")
                 await worker_stack.enter_async_context(web_workers.agent)
+                logger.info("Web agent worker registered: hpagent-web-agent")
                 _build_web_background_tasks(
                     tasks=background_tasks,
                     web_dispatcher=web_dispatcher,
@@ -995,6 +1005,11 @@ async def start_worker(config: AppConfig) -> None:
                     lease_timeout_seconds=config.temporal.web_outbox_lease_timeout_seconds,
                     recovery_interval_seconds=config.temporal.web_outbox_recovery_interval_seconds,
                 )
+                logger.info("Web outbox dispatcher started")
+                logger.info("Web reconciler started")
+                readiness_tasks = tuple(background_tasks._tasks)
+                readiness_path = Path(os.getenv("HPAGENT_WORKER_READY_FILE", "/tmp/hpagent-worker-ready.json"))
+                background_tasks.create(_worker_readiness_loop(readiness_path, readiness_tasks))
                 if research_schedule_manager is not None:
                     from orchestration.research_schedule import (
                         run_research_schedule_reconciler_loop,
@@ -1020,6 +1035,7 @@ async def start_worker(config: AppConfig) -> None:
                 config.temporal.task_queue,
                 ", ".join(channel_names) if channel_names else "none",
             )
+            logger.info("Worker startup complete")
 
             # 设置定期记忆反思 Schedule
             await _setup_reflect_schedule(client, deps.shared.account_service, config)
@@ -1043,6 +1059,7 @@ async def start_worker(config: AppConfig) -> None:
                     background_tasks=background_tasks,
                 )
     finally:
+        Path(os.getenv("HPAGENT_WORKER_READY_FILE", "/tmp/hpagent-worker-ready.json")).unlink(missing_ok=True)
         if not runtime_stop_attempted:
             await _stop_worker_runtime(
                 active_channels=active_channels,
@@ -1050,6 +1067,25 @@ async def start_worker(config: AppConfig) -> None:
             )
         await deps.close()
         logger.info("Worker shutdown complete")
+
+
+async def _worker_readiness_loop(path: Path, critical_tasks: tuple[asyncio.Task, ...]) -> None:
+    """Refresh readiness only while the dispatcher and reconciler loops live."""
+    while True:
+        if any(task.done() for task in critical_tasks):
+            path.unlink(missing_ok=True)
+            logger.error("Worker readiness lost: background task exited")
+            return
+        payload = {
+            "pid": os.getpid(), "updated_at": time.time(),
+            "schema_verified": True, "temporal_connected": True,
+            "lifecycle_worker_started": True, "agent_worker_started": True,
+            "dispatcher_started": True,
+        }
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(payload))
+        temporary.replace(path)
+        await asyncio.sleep(5)
 
 
 async def _stop_worker_runtime(

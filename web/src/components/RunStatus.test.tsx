@@ -27,6 +27,21 @@ function failedRun(retryable: boolean): HpRun {
 }
 
 describe("RunStatus retry safety", () => {
+  it("explains a Run that has remained queued", () => {
+    render(
+      <RunStatus
+        activeRun={{ ...failedRun(true), status: "queued", created_at: "2020-01-01T00:00:00Z", failure: null }}
+        busyMessage={null}
+        progress={null}
+        degraded={false}
+        stopping={false}
+        onStop={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("仍在等待执行 Worker 接管")).toBeInTheDocument();
+  });
+
   it("shows used, reserved, estimated, and unmetered usage distinctly", () => {
     const activeRun = failedRun(true);
     activeRun.budget = {

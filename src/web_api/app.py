@@ -287,7 +287,12 @@ def create_app(
             )
             resources.callback(api_pool.close)
             api_pool.wait()
-            verify_schema(api_pool)
+            try:
+                verify_schema(api_pool)
+            except Exception:
+                import logging
+                logging.getLogger("HpAgent.WebAPI").exception("API schema gate failed")
+                raise
             app.state.api_pool = api_pool
             app.state.auth = AuthService(api_pool, settings)
             app.state.credentials = credential_adapter or PostgresPasswordCredentialAdapter(api_pool)

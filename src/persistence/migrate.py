@@ -9,11 +9,40 @@ from typing import Any, cast
 import psycopg
 
 
+class SchemaVerificationError(RuntimeError):
+    """A missing migration source or an applied schema mismatch."""
+
+
+def _service() -> str:
+    return os.getenv("HPAGENT_SERVICE", "unknown")
+
+
+def get_migrations_dir() -> Path:
+    """Resolve the one runtime migration source shared by migrate and gates."""
+    configured = os.getenv("HPAGENT_MIGRATIONS_DIR")
+    return Path(configured) if configured else Path.cwd() / "persistence" / "migrations"
+
+
+def _migration_files() -> tuple[Path, list[Path]]:
+    root = get_migrations_dir()
+    if not root.is_dir():
+        raise SchemaVerificationError(
+            f"service={_service()} migration_root={root} migration_file_count=0 "
+            "reason=migration_directory_missing"
+        )
+    files = sorted(root.glob("*.sql"))
+    if not files:
+        raise SchemaVerificationError(
+            f"service={_service()} migration_root={root} migration_file_count=0 "
+            "reason=migration_directory_empty"
+        )
+    return root, files
+
+
 def verify_schema(database: object) -> None:
     """Fail service startup when the applied schema differs from this checkout."""
-    root = Path(__file__).resolve().parents[2] / "persistence" / "migrations"
-    expected = {path.name: sha256(path.read_bytes()).hexdigest()
-                for path in root.glob("*.sql")}
+    root, files = _migration_files()
+    expected = {path.name: sha256(path.read_bytes()).hexdigest() for path in files}
     if isinstance(database, str):
         connection = psycopg.connect(database)
         close = True
@@ -32,12 +61,16 @@ def verify_schema(database: object) -> None:
             extra = sorted(applied.keys() - expected.keys())
             changed = sorted(key for key in expected.keys() & applied.keys()
                              if expected[key] != applied[key])
-            raise RuntimeError("Workspace schema mismatch; run explicit migrations or "
-                               f"rebuild the development database. missing={missing}, "
-                               f"extra={extra}, changed={changed}")
+            raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count={len(files)} "
+                f"expected_count={len(expected)} applied_count={len(applied)} "
+                f"missing={missing} extra={extra} changed={changed}"
+            )
     except psycopg.Error as exc:
-        raise RuntimeError("Workspace schema is missing or unreadable; run explicit "
-                           "migrations or rebuild the development database") from exc
+        raise SchemaVerificationError(
+            f"service={_service()} migration_root={root} migration_file_count={len(files)} "
+            "reason=schema_history_unreadable"
+        ) from exc
     finally:
         if close:
             connection.close()
@@ -46,8 +79,8 @@ def verify_schema(database: object) -> None:
 
 
 def migrate(database_url: str | None = None) -> None:
+    _, files = _migration_files()
     url = database_url or os.environ["APP_DATABASE_URL"]
-    root = Path(__file__).resolve().parents[2] / "persistence" / "migrations"
     with psycopg.connect(url, autocommit=False) as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_xact_lock(4828436630294757441)")
@@ -61,7 +94,7 @@ def migrate(database_url: str | None = None) -> None:
                 "ALTER TABLE hpagent.schema_migrations "
                 "ADD COLUMN IF NOT EXISTS checksum text"
             )
-            for migration in sorted(root.glob("*.sql")):
+            for migration in files:
                 sql = migration.read_text()
                 checksum = sha256(sql.encode()).hexdigest()
                 cursor.execute(
