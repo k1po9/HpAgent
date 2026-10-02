@@ -101,7 +101,7 @@ const RUNNING_SNAPSHOT: HpRunSnapshot = {
 };
 
 const COMPLETED_SNAPSHOT: HpRunSnapshot = {
-  run: { ...RUNNING_SNAPSHOT.run, status: "completed", finished_at: "2026-08-08T00:01:00Z" },
+  run: { ...RUNNING_SNAPSHOT.run, status: "succeeded", finished_at: "2026-08-08T00:01:00Z" },
   assistant_message: {
     ...RUNNING_SNAPSHOT.assistant_message,
     status: "completed",
@@ -181,7 +181,7 @@ describe("openRunFeed", () => {
         metadata: { strategy: "react" },
       }),
     );
-    stream.send(terminalFrame("run.completed", COMPLETED_SNAPSHOT));
+    stream.send(terminalFrame("run.succeeded", COMPLETED_SNAPSHOT));
     await feed.done;
 
     const types = p.calls.map((c) => c.type);
@@ -198,7 +198,7 @@ describe("openRunFeed", () => {
       nodeType: "agent",
     });
     const terminal = p.calls.find((c) => c.type === "terminal")?.value as HpRunSnapshot;
-    expect(terminal.run.status).toBe("completed");
+    expect(terminal.run.status).toBe("succeeded");
     expect(terminal.assistant_message.content).toBe("完整的最终回复");
   });
 

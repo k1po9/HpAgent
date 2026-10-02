@@ -1,10 +1,11 @@
-"""Independent Task terminal facts do not require chat messages or SSE."""
+"""Work Run terminal facts do not require chat messages or SSE."""
 from __future__ import annotations
 
 import asyncio
 from uuid import UUID, uuid4
 
 import pytest
+from support.work_fixtures import research_requirement
 
 from conversation_domain.commands import CommandService
 from web_api import terminal_publisher
@@ -17,21 +18,21 @@ def _headers(csrf: str, key: str) -> dict[str, str]:
             "Idempotency-Key": key}
 
 
-def _task_run(seed_identity, client_factory, username: str):
+def _work_run(seed_identity, client_factory, username: str):
     account_id = seed_identity(username)
     client = client_factory()
     assert client.post("/auth/login", json={"username": username,
         "password": "correct-password"}, follow_redirects=False).status_code == 303
     csrf = client.get("/api/v1/me").json()["csrf_token"]
-    task = client.post("/api/v1/tasks", json={"title": "Terminal check",
-        "objective": "Check independent Task", "output_required": False},
+    work = client.post("/api/v1/works", json={"title": "Terminal check",
+        "requirement": research_requirement("Check independent Work")},
         headers=_headers(csrf, str(uuid4())))
-    assert task.status_code == 201, task.text
-    task_id = task.json()["task"]["task_id"]
-    triggered = client.post(f"/api/v1/tasks/{task_id}/runs", json={},
-        headers=_headers(csrf, str(uuid4())))
+    assert work.status_code == 201, work.text
+    work_id = work.json()["work"]["work_id"]
+    triggered = client.post(f"/api/v1/works/{work_id}/advance", json={},
+        headers={**_headers(csrf, str(uuid4())), "If-Match": work.headers["ETag"]})
     assert triggered.status_code == 202, triggered.text
-    return account_id, client, csrf, task_id, UUID(triggered.json()["run"]["run_id"])
+    return account_id, client, csrf, work_id, UUID(triggered.json()["run"]["run_id"])
 
 
 def _assert_no_chat_terminal(db, run_id: UUID):
@@ -45,7 +46,7 @@ def _assert_no_chat_terminal(db, run_id: UUID):
 def test_independent_queued_cancel_api_and_replay(
     seed_identity, client_factory, db,
 ):
-    _, client, csrf, task_id, run_id = _task_run(
+    _, client, csrf, work_id, run_id = _work_run(
         seed_identity, client_factory, "task-queued-cancel")
     seed_identity("task-cancel-other-account")
     other = client_factory()
@@ -63,14 +64,14 @@ def test_independent_queued_cancel_api_and_replay(
     assert replay.json() == first.json()
     assert replay.headers["Idempotency-Replayed"] == "true"
     assert client.post(url, json={}, headers=_headers(csrf, str(uuid4()))).json() == first.json()
-    assert client.get(f"/api/v1/tasks/{task_id}/runs/{run_id}").json()["run"]["status"] == "cancelled"
+    assert client.get(f"/api/v1/runs/{run_id}").json()["run"]["status"] == "cancelled"
     _assert_no_chat_terminal(db, run_id)
 
 
 def test_independent_running_cancel_callback_and_normal_failure(
     seed_identity, client_factory, db, worker_database_url,
 ):
-    account_id, client, csrf, task_id, run_id = _task_run(
+    account_id, client, csrf, work_id, run_id = _work_run(
         seed_identity, client_factory, "task-running-cancel")
     db.execute("UPDATE runs SET status='running',started_at=now() WHERE run_id=%s",
                (run_id,))
@@ -83,10 +84,10 @@ def test_independent_running_cancel_callback_and_normal_failure(
     commands = CommandService(worker_database_url)
     assert commands.cancelled_run(account_id, run_id)
     assert commands.cancelled_run(account_id, run_id)
-    assert client.get(f"/api/v1/tasks/{task_id}/runs/{run_id}").json()["run"]["status"] == "cancelled"
+    assert client.get(f"/api/v1/runs/{run_id}").json()["run"]["status"] == "cancelled"
     _assert_no_chat_terminal(db, run_id)
 
-    _, _, _, _, failed_id = _task_run(seed_identity, client_factory, "task-normal-failure")
+    _, _, _, _, failed_id = _work_run(seed_identity, client_factory, "work-normal-failure")
     db.execute("UPDATE runs SET status='running',started_at=now() WHERE run_id=%s",
                (failed_id,))
     failed_account = db.execute("SELECT account_id FROM runs WHERE run_id=%s",
@@ -98,7 +99,7 @@ def test_independent_running_cancel_callback_and_normal_failure(
     _assert_no_chat_terminal(db, failed_id)
 
 
-def test_existing_task_terminal_outbox_row_is_consumed_without_chat_sse(monkeypatch):
+def test_work_terminal_outbox_row_is_consumed_without_chat_sse(monkeypatch):
     class Outbox:
         def __init__(self):
             self.processed = []
@@ -109,10 +110,10 @@ def test_existing_task_terminal_outbox_row_is_consumed_without_chat_sse(monkeypa
 
     class Redis:
         async def publish(self, *_):
-            raise AssertionError("independent Task must not publish chat SSE")
+            raise AssertionError("Work must not publish chat SSE")
 
     def no_snapshot(*_):
-        raise AssertionError("independent Task has no chat snapshot")
+        raise AssertionError("Work has no chat snapshot")
 
     monkeypatch.setattr(terminal_publisher, "load_run_snapshot", no_snapshot)
     publisher = terminal_publisher.TerminalEventPublisher.__new__(

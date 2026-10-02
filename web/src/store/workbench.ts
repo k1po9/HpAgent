@@ -37,7 +37,7 @@ import {
   type HpRunStatus,
 } from "../api/types";
 
-const TERMINAL_RUN_STATUS = new Set<HpRunStatus>(["completed", "failed", "cancelled"]);
+const TERMINAL_RUN_STATUS = new Set<HpRunStatus>(["succeeded", "failed", "cancelled"]);
 
 export function isTerminalRunStatus(status: HpRunStatus): boolean {
   return TERMINAL_RUN_STATUS.has(status);
@@ -60,7 +60,7 @@ export function runStatusLabel(status: HpRunStatus): string {
       return "运行中…";
     case "cancelling":
       return "正在停止…";
-    case "completed":
+    case "succeeded":
       return "已完成";
     case "failed":
       return "运行失败";
@@ -371,7 +371,7 @@ export function createWorkbenchStore(
             onTerminal: (snapshot) => {
               if (stale()) return;
               // The committed snapshot overrides the volatile delta buffer, then
-              // a single GET corrects any drift (contract §12.4 run.completed).
+              // a single GET corrects any drift (contract §12.4 run.succeeded).
               set({
                 activeRun: snapshot.run,
                 messages: reconcileAssistantMessage(get().messages, snapshot.assistant_message),

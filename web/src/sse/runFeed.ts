@@ -74,7 +74,7 @@ export interface RunFeedHandlers {
   onStatus?: (status: HpRunStatus) => void;
   /** Best-effort Trace node update, ordered with the other online events. */
   onTrace?: (update: TraceEventUpdate) => void;
-  /** Terminal RunSnapshot (run.completed/failed/cancelled); replace local state. */
+  /** Terminal RunSnapshot (run.succeeded/failed/cancelled); replace local state. */
   onTerminal?: (snapshot: HpRunSnapshot) => void;
   /** Stream degraded (stable reason) or connect failure — stop delta assembly. */
   onDegraded?: (reason: string) => void;
@@ -175,7 +175,7 @@ function isRunStatus(value: unknown): value is HpRunStatus {
     value === "queued" ||
     value === "running" ||
     value === "cancelling" ||
-    value === "completed" ||
+    value === "succeeded" ||
     value === "failed" ||
     value === "cancelled"
   );
@@ -252,7 +252,7 @@ export function openRunFeed(
         controller.abort();
         return;
       case "run.snapshot":
-      case "run.completed":
+      case "run.succeeded":
       case "run.failed":
       case "run.cancelled": {
         const snapshot = envelope.payload.snapshot;

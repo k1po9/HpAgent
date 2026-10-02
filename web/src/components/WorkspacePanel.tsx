@@ -26,7 +26,7 @@ export function WorkspacePanel({
   const [searchText, setSearchText] = useState("");
   const [searchType, setSearchType] = useState("");
   const [searchPurpose, setSearchPurpose] = useState("");
-  const [searchTask, setSearchTask] = useState("");
+  const [searchWork, setSearchWork] = useState("");
   const [searchRun, setSearchRun] = useState("");
   const [searchDate, setSearchDate] = useState("");
   const [searchSummary, setSearchSummary] = useState("");
@@ -34,7 +34,7 @@ export function WorkspacePanel({
     name: searchText,
     content_type: searchType,
     purpose: searchPurpose,
-    task_id: searchTask,
+    work_id: searchWork,
     source_run_id: searchRun,
     from_date: searchDate,
     to_date: searchDate,
@@ -289,10 +289,10 @@ export function WorkspacePanel({
           <option value="output">Run 输出</option>
         </select>
         <input
-          aria-label="来源 Task ID"
-          placeholder="Task ID"
-          value={searchTask}
-          onChange={(event) => setSearchTask(event.target.value)}
+          aria-label="来源 Work ID"
+          placeholder="Work ID"
+          value={searchWork}
+          onChange={(event) => setSearchWork(event.target.value)}
         />
         <input
           aria-label="来源 Run ID"

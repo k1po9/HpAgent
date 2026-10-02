@@ -25,7 +25,7 @@ class ChatRunInputLoader:
             raise ApplicationError(
                 "Run cannot execute", type="run_not_executable", non_retryable=True
             )
-        if identity["run_kind"] != "chat" or not all(
+        if identity["source_kind"] != "chat" or not all(
             identity.get(key)
             for key in (
                 "conversation_id",

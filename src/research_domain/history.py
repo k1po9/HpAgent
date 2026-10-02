@@ -14,7 +14,7 @@ HISTORY_BUDGET_BYTES = 8192
 def freeze_history(uow: UnitOfWork, account_id: UUID, run_id: UUID) -> None:
     if uow.execute("SELECT 1 FROM research_history_baselines WHERE run_id=%s", (run_id,)).fetchone():
         return
-    run = uow.execute("SELECT task_id,created_at FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+    run = uow.execute("SELECT work_id,created_at FROM runs WHERE run_id=%s", (run_id,)).fetchone()
     policy = ResourcePolicy(None)
     candidates = uow.execute(
         "SELECT c.node_id,sf.file_id,rr.run_id AS source_run_id,rr.snapshot,r.created_at "
@@ -25,14 +25,14 @@ def freeze_history(uow: UnitOfWork, account_id: UUID, run_id: UUID) -> None:
         "AND sf.file_id=COALESCE(n.file_id,d.current_file_id) "
         "JOIN research_reports rr ON rr.run_id=sf.source_run_id "
         "JOIN runs r ON r.run_id=rr.run_id "
-        "WHERE c.run_id=%s AND r.task_id=%s AND r.status='completed' "
+        "WHERE c.run_id=%s AND r.work_id=%s AND r.status='succeeded' "
         "AND r.created_at<%s ORDER BY r.created_at DESC,r.run_id DESC LIMIT 20",
-        (run_id, run["task_id"], run["created_at"]),
+        (run_id, run["work_id"], run["created_at"]),
     ).fetchall()
     selected = []
     used = 0
     for row in candidates:
-        if not policy._grants(uow, account_id, "task", run["task_id"],
+        if not policy._grants(uow, account_id, "work", run["work_id"],
                               row["node_id"], "read_content"):
             continue
         snapshot = row["snapshot"] if isinstance(row["snapshot"], dict) else json.loads(row["snapshot"])
@@ -42,7 +42,7 @@ def freeze_history(uow: UnitOfWork, account_id: UUID, run_id: UUID) -> None:
         selected.append({"run_id": str(row["source_run_id"]),
                          "node_id": str(row["node_id"]), "file_id": str(row["file_id"]),
                          "snapshot": snapshot, "sha256": hashlib.sha256(encoded).hexdigest(),
-                         "reason": "same_task_recent_authorized", "bytes": len(encoded)})
+                         "reason": "same_work_recent_authorized", "bytes": len(encoded)})
         used += len(encoded)
         if len(selected) == 3:
             break
@@ -55,7 +55,7 @@ def freeze_history(uow: UnitOfWork, account_id: UUID, run_id: UUID) -> None:
 
 def authorized_history(uow: UnitOfWork, run_id: UUID) -> list[dict]:
     row = uow.execute(
-        "SELECT h.account_id,h.selected,r.task_id FROM research_history_baselines h "
+        "SELECT h.account_id,h.selected,r.work_id FROM research_history_baselines h "
         "JOIN runs r ON r.run_id=h.run_id WHERE h.run_id=%s", (run_id,),
     ).fetchone()
     if row is None:
@@ -64,7 +64,7 @@ def authorized_history(uow: UnitOfWork, run_id: UUID) -> list[dict]:
     policy = ResourcePolicy(None)
     for item in selected:
         node_id = UUID(item["node_id"])
-        if not policy._grants(uow, row["account_id"], "task", row["task_id"],
+        if not policy._grants(uow, row["account_id"], "work", row["work_id"],
                               node_id, "read_content"):
             raise ResourceDenied("Research history read_content was revoked")
         current = uow.execute(

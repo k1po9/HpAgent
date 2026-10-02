@@ -178,7 +178,7 @@ function makeBackend(overrides: Partial<FakeBackend["state"]> = {}): FakeBackend
       const snapshot = state.runSnapshots[runMatch[1] ?? ""];
       if (snapshot) return OK(snapshot);
       return OK({
-        run: run({ run_id: runMatch[1], status: "completed" }),
+        run: run({ run_id: runMatch[1], status: "succeeded" }),
         assistant_message: message({
           message_id: "am-1",
           role: "assistant",
@@ -541,8 +541,8 @@ describe("workbench store", () => {
     expect(store.getState().activeRun?.status).toBe("queued");
 
     await vi.advanceTimersByTimeAsync(1000); // first poll
-    // backend default: completed snapshot
-    expect(store.getState().activeRun?.status).toBe("completed");
+    // backend default: succeeded Run snapshot
+    expect(store.getState().activeRun?.status).toBe("succeeded");
     const assistant = store.getState().messages.find((m) => m.message_id === "am-1");
     expect(assistant?.content).toBe("completed answer");
     expect(store.getState().polling).toBe(false);
@@ -555,7 +555,7 @@ describe("workbench store", () => {
     await store.getState().selectConversation("c1");
     await store.getState().sendMessage("你好");
     await vi.advanceTimersByTimeAsync(1000); // first poll resolves the completed snapshot
-    expect(store.getState().activeRun?.status).toBe("completed");
+    expect(store.getState().activeRun?.status).toBe("succeeded");
 
     const posts = () =>
       backend.calls.filter((c) => c.method === "POST" && c.url.endsWith("/messages"));
@@ -675,7 +675,7 @@ describe("workbench store", () => {
     );
 
     const completed: HpRunSnapshot = {
-      run: run({ run_id: "r1", status: "completed" }),
+      run: run({ run_id: "r1", status: "succeeded" }),
       assistant_message: message({
         message_id: assistantId,
         status: "completed",
@@ -685,13 +685,13 @@ describe("workbench store", () => {
     };
     backend.state.runSnapshots["r1"] = completed; // the confirm GET returns the same truth
     channel.send(
-      "run.completed",
+      "run.succeeded",
       "t1",
-      env("run.completed", "t1", { messageId: assistantId, payload: { snapshot: completed } }),
+      env("run.succeeded", "t1", { messageId: assistantId, payload: { snapshot: completed } }),
     );
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(store.getState().activeRun?.status).toBe("completed");
+    expect(store.getState().activeRun?.status).toBe("succeeded");
     expect(store.getState().messages.find((m) => m.message_id === assistantId)?.content).toBe(
       "完整的最终回复",
     );
@@ -813,7 +813,7 @@ describe("workbench store", () => {
     expect(store.getState().degraded).toBe(true);
     expect(store.getState().messages.find((m) => m.message_id === "am-1")?.content).toBe("一");
     await vi.advanceTimersByTimeAsync(1000);
-    expect(store.getState().activeRun?.status).toBe("completed");
+    expect(store.getState().activeRun?.status).toBe("succeeded");
     expect(store.getState().messages.find((m) => m.message_id === "am-1")?.content).toBe(
       "completed answer",
     );

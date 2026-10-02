@@ -293,7 +293,7 @@ class CommandService:
         if existing:
             return existing
         run = self._lock_owned_run(uow, account_id, run_id)
-        if run["status"] in ("completed", "failed"):
+        if run["status"] in ("succeeded", "failed"):
             raise RunNotCancellable()
         if run["status"] == "cancelled":
             result = self._snapshot_for_run(uow, run_id) if run["conversation_id"] else {}
@@ -347,6 +347,11 @@ class CommandService:
                 return existing
             conversation_id = self.runs.discover_conversation(uow, account_id, source_run_id)
             if conversation_id is None:
+                source = self.runs.get_for_account(uow, account_id, source_run_id)
+                if source and source["source_kind"] == "work":
+                    from work_domain.commands import WorkConflict
+
+                    raise WorkConflict({"work_id": source["work_id"]}, "use_work_advance")
                 raise ResourceNotFound()
             conversation = self.conversations.get_for_account(
                 uow, account_id, conversation_id, lock=True
@@ -426,96 +431,27 @@ class CommandService:
                 response_status, result, resource_reused=resource_reused
             )
 
-    @retryable_transaction
     def start_run(self, account_id: UUID, run_id: UUID) -> bool:
-        """Move a queued Run to running through the formal lifecycle boundary."""
-        with UnitOfWork(self.database_url) as uow:
-            run = self._lock_owned_run(uow, account_id, run_id)
-            if run["status"] == "running":
-                return True
-            if run["status"] != "queued":
-                return False
-            changed = uow.execute(
-                "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),"
-                "version=version+1,"
-                "updated_at=now() WHERE run_id=%s AND status='queued' RETURNING run_id",
-                (run_id,),
-            ).fetchone()
-            return changed is not None
+        from run_domain.lifecycle import RunLifecycleService
 
-    @retryable_transaction
+        return cast(bool, RunLifecycleService(self.database_url).start(account_id, run_id))
+
     def complete_run(self, account_id: UUID, run_id: UUID, content: str) -> bool:
-        """Lifecycle adapter entrypoint; callers invoke it only after external work."""
-        with UnitOfWork(self.database_url) as uow:
-            run = self._lock_owned_run(uow, account_id, run_id)
-            if run["status"] in ("completed", "failed", "cancelled"):
-                return bool(run["status"] == "completed")
-            if run["run_kind"] == "research" and run["status"] == "cancelling":
-                raise ConversationBusy()
-            if run["status"] not in ("running", "cancelling"):
-                raise ConversationBusy()
-            self.messages.set_terminal(uow, run_id, "completed", content)
-            # The assistant message records actual outputs from this Run.
-            uow.execute(
-                "INSERT INTO message_files(account_id,conversation_id,message_id,file_id,role,ordinal) "
-                "SELECT rf.account_id,m.conversation_id,m.message_id,rf.file_id,'output',"
-                "row_number() OVER (ORDER BY rf.created_at,rf.file_id)-1 "
-                "FROM run_files rf JOIN messages m ON m.produced_by_run_id=rf.run_id "
-                "WHERE rf.run_id=%s AND rf.direction='output' "
-                "ON CONFLICT (message_id,file_id) DO NOTHING",
-                (run_id,),
-            )
-            self.runs.set_terminal(uow, run_id, "completed")
-            from conversation_domain.delivery import enqueue_qq_result
+        from run_domain.lifecycle import RunLifecycleService
 
-            enqueue_qq_result(uow, run_id)
-            if run["conversation_id"] is not None:
-                self._outbox(uow, account_id, run["conversation_id"], run_id, "retain_memory")
-                self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "completed")
-            log_event(logger, logging.INFO, "run_completed", "run", run_id=str(run_id),
-                      execution_id=str(run_id), account_id=str(account_id),
-                      conversation_id=str(run["conversation_id"]),
-                      status="success", run_status="completed")
-            return True
+        return cast(bool, RunLifecycleService(self.database_url).finish(
+            account_id, run_id, "succeeded", content=content))
 
-    @retryable_transaction
     def fail_run(self, account_id: UUID, run_id: UUID, failure_code: str, failure_message: str | None = None) -> bool:
-        """Atomically record a safe terminal failure and its notification."""
-        with UnitOfWork(self.database_url) as uow:
-            run = self._lock_owned_run(uow, account_id, run_id)
-            if run["status"] in ("completed", "failed", "cancelled"):
-                return bool(run["status"] == "failed")
-            if run["run_kind"] == "research" and run["status"] == "cancelling":
-                return False
-            self.messages.set_terminal(uow, run_id, "failed")
-            self.runs.set_terminal(uow, run_id, "failed", failure_code, failure_message)
-            if run["conversation_id"] is not None:
-                self._outbox(uow, account_id, run["conversation_id"], run_id, "publish_terminal_event", "failed")
-            log_event(logger, logging.ERROR, "run_failed", "run", run_id=str(run_id),
-                      execution_id=str(run_id), account_id=str(account_id),
-                      conversation_id=str(run["conversation_id"]),
-                      status="failed", run_status="failed", error_code=failure_code)
-            return True
+        from run_domain.lifecycle import RunLifecycleService
 
-    @retryable_transaction
+        return cast(bool, RunLifecycleService(self.database_url).finish(
+            account_id, run_id, "failed", failure_code=failure_code, failure_message=failure_message))
+
     def cancelled_run(self, account_id: UUID, run_id: UUID) -> bool:
-        """Converge a Workflow cancellation callback into one atomic terminal fact."""
-        with UnitOfWork(self.database_url) as uow:
-            run = self._lock_owned_run(uow, account_id, run_id)
-            if run["status"] in ("completed", "failed", "cancelled"):
-                return bool(run["status"] == "cancelled")
-            self.messages.set_terminal(uow, run_id, "aborted")
-            self.runs.set_terminal(uow, run_id, "cancelled")
-            if run["conversation_id"] is not None:
-                self._outbox(
-                    uow, account_id, run["conversation_id"], run_id,
-                    "publish_terminal_event", "cancelled"
-                )
-            log_event(logger, logging.INFO, "run_cancelled", "run", run_id=str(run_id),
-                      execution_id=str(run_id), account_id=str(account_id),
-                      conversation_id=str(run["conversation_id"]),
-                      status="cancelled", run_status="cancelled")
-            return True
+        from run_domain.lifecycle import RunLifecycleService
+
+        return cast(bool, RunLifecycleService(self.database_url).finish(account_id, run_id, "cancelled"))
 
     def _claim(
         self, uow: UnitOfWork, account_id: UUID, operation: str,
@@ -579,6 +515,10 @@ class CommandService:
 
     def _snapshot_for_run(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
         run = uow.execute("SELECT * FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+        if run["source_kind"] == "work":
+            from work_domain.persistence import dto
+
+            return {"run": dto(run)}
         message = uow.execute(
             "SELECT * FROM messages WHERE produced_by_run_id=%s", (run_id,)
         ).fetchone()
@@ -670,13 +610,10 @@ class CommandService:
         self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID | None,
         run_id: UUID, status: str
     ) -> None:
-        message_status = {"failed": "failed", "cancelled": "aborted"}[status]
-        self.messages.set_terminal(uow, run_id, message_status)
-        self.runs.set_terminal(uow, run_id, status)
-        if conversation_id is not None:
-            self._outbox(
-                uow, account_id, conversation_id, run_id, "publish_terminal_event", status
-            )
+        from run_domain.lifecycle import RunLifecycleService
+
+        run = self.runs.get_for_account(uow, account_id, run_id)
+        RunLifecycleService(self.database_url).finish_in_uow(uow, run, status)
 
     def _create_budget(
         self, uow: UnitOfWork, run_id: UUID, account_id: UUID,
@@ -692,18 +629,6 @@ class CommandService:
     def _lock_owned_run(
         self, uow: UnitOfWork, account_id: UUID, run_id: UUID
     ) -> dict[str, Any]:
-        conversation_id = self.runs.discover_conversation(uow, account_id, run_id)
-        if conversation_id is not None and self.conversations.get_for_account(
-            uow, account_id, conversation_id, lock=True
-        ) is None:
-            raise ResourceNotFound()
-        run = self.runs.get_for_account(uow, account_id, run_id, lock=True)
-        if run is None or run["conversation_id"] != conversation_id:
-            raise ResourceNotFound()
-        if conversation_id is None and (
-            run["run_kind"] != "research" or run["task_id"] is None or
-            uow.execute("SELECT 1 FROM tasks WHERE account_id=%s AND task_id=%s",
-                        (account_id, run["task_id"])).fetchone() is None
-        ):
-            raise ResourceNotFound()
-        return cast(dict[str, Any], run)
+        from run_domain.lifecycle import RunLifecycleService
+
+        return cast(dict[str, Any], RunLifecycleService.lock(uow, account_id, run_id))

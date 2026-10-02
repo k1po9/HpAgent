@@ -20,7 +20,7 @@ import type { HpMessage, HpRun } from "../../api/types";
 import { toThreadMessageLike } from "./types";
 
 /** Terminal Run statuses: the composer un-gates once a Run is finished. */
-const TERMINAL_RUN_STATUS = new Set<HpRun["status"]>(["completed", "failed", "cancelled"]);
+const TERMINAL_RUN_STATUS = new Set<HpRun["status"]>(["succeeded", "failed", "cancelled"]);
 
 export interface HpThreadRuntimeOptions {
   messages: HpMessage[];

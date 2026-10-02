@@ -1,4 +1,4 @@
-"""Conversation/Task resource policy and Run candidate authority."""
+"""Conversation/Work resource policy and Run candidate authority."""
 from __future__ import annotations
 
 from typing import Any
@@ -30,10 +30,10 @@ class ResourcePolicy:
 
     @staticmethod
     def _subject(uow: UnitOfWork, account_id: UUID, kind: str, subject_id: UUID) -> None:
-        if kind not in {"conversation", "task"}:
+        if kind not in {"conversation", "work"}:
             raise ValueError("unknown policy subject")
         table, column = (("conversations", "conversation_id") if kind == "conversation"
-                         else ("tasks", "task_id"))
+                         else ("works", "work_id"))
         if uow.execute(
             f"SELECT 1 FROM {table} WHERE account_id=%s AND {column}=%s",
             (account_id, subject_id),

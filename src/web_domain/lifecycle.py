@@ -104,7 +104,7 @@ class WebRunLifecycleService:
             authority = cast(LifecycleAuthority, self._authority(run_id))
             self._observe_terminal(run_id, authority.status)
             return authority
-        if authority.status in ("cancelled", "completed", "failed"):
+        if authority.status in ("cancelled", "succeeded", "failed"):
             self._observe_terminal(run_id, authority.status)
             return authority
         # A Temporal/UI cancel without database cancellation evidence is not a

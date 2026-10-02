@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID, uuid4
 
 import pytest
+from support.work_fixtures import accept_research, advance_work
 from uuid6 import uuid7
 
 from orchestration.research_workflow import ResearchIterationInput, ResearchWorkflowInput
@@ -16,58 +17,60 @@ from research_domain.models import (
     content_sha256,
 )
 from research_domain.persistence import ResearchRepository
-from research_domain.services import ResearchTaskCommandService
+from research_domain.services import ResearchQueryService
 from resources.run_budget import RunBudgetExhausted, RunBudgetService
 from web_artifacts.services import ArtifactService
 from web_domain.errors import ResourceNotFound
+from work_domain.commands import WorkCommandService
+from work_domain.models import Requirement
 
 pytestmark = pytest.mark.postgres
 
 
 def test_trigger_task_is_atomic_idempotent_and_links_research_run(database_url, account_id):
-    service = ResearchTaskCommandService(database_url, budget_mode="enforce")
-    created = service.create_task(
+    service = WorkCommandService(database_url, budget_mode="enforce")
+    created = accept_research(service,
         account_id,
         str(uuid7()),
         "Research",
         "Find current primary sources",
     )
     key = str(uuid7())
-    task_id = UUID(created.body["task_id"])
-    first = service.trigger_task(account_id, task_id, key)
-    replay = service.trigger_task(account_id, task_id, key)
+    work_id = UUID(created.body["work"]["work_id"])
+    first = advance_work(service, account_id, work_id, key)
+    replay = service.advance(account_id, work_id, key, created.body['work']['row_version'])
     assert replay.replayed is True
     assert replay.body == first.body
     with UnitOfWork(database_url) as uow:
         run = uow.execute(
-            "SELECT task_id,run_kind,conversation_id,workflow_id,agent_strategy "
+            "SELECT work_id,source_kind,conversation_id,workflow_id,agent_strategy "
             "FROM runs WHERE run_id=%s",
-            (first.body["run_id"],),
+            (first.body["run"]["run_id"],),
         ).fetchone()
         event = uow.execute(
             "SELECT event_type,business_key FROM outbox_events WHERE run_id=%s",
-            (first.body["run_id"],),
+            (first.body["run"]["run_id"],),
         ).fetchone()
         budget = uow.execute(
-            "SELECT limits FROM run_budgets WHERE run_id=%s", (first.body["run_id"],)
+            "SELECT limits FROM run_budgets WHERE run_id=%s", (first.body["run"]["run_id"],)
         ).fetchone()
-    assert str(run["task_id"]) == created.body["task_id"]
-    assert run["run_kind"] == "research"
+    assert str(run["work_id"]) == created.body["work"]["work_id"]
+    assert run["source_kind"] == "work"
     assert run["conversation_id"] is None
-    assert run["workflow_id"] == f"hpagent-research-{first.body['run_id']}"
+    assert run["workflow_id"] == f"hpagent-research-{first.body['run']['run_id']}"
     assert run["agent_strategy"] is None
     assert event["event_type"] == "start_research_run"
-    assert event["business_key"] == f"start-research-run:{first.body['run_id']}"
+    assert event["business_key"] == f"start-research-run:{first.body['run']['run_id']}"
     assert budget["limits"]["source_fetches"] == 20
 
 
 def test_source_authority_and_fetch_priority_are_provider_independent(
     database_url, worker_database_url, account_id
 ):
-    commands = ResearchTaskCommandService(database_url)
-    task = commands.create_task(account_id, str(uuid7()), "Ranking", "Rank sources")
-    triggered = commands.trigger_task(account_id, UUID(task.body["task_id"]), str(uuid7()))
-    run_id = UUID(triggered.body["run_id"])
+    commands = WorkCommandService(database_url)
+    task = accept_research(commands, account_id, str(uuid7()), "Ranking", "Rank sources")
+    triggered = advance_work(commands, account_id, UUID(task.body["work"]["work_id"]), str(uuid7()))
+    run_id = UUID(triggered.body["run"]["run_id"])
     repository = ResearchRepository()
     candidates = [
         SourceCandidate(
@@ -104,26 +107,20 @@ def test_source_authority_and_fetch_priority_are_provider_independent(
     assert len(selected) == 2
 
 
-def test_daily_schedule_command_is_owned_and_idempotent(database_url, account_id):
-    service = ResearchTaskCommandService(database_url)
-    created = service.create_task(account_id, str(uuid7()), "Daily", "Track changes")
-    task_id = UUID(created.body["task_id"])
+def test_daily_timing_is_an_immutable_requirement_revision(database_url, account_id):
+    commands = WorkCommandService(database_url)
+    created = accept_research(commands, account_id, str(uuid7()), "Daily", "Track changes")
+    work = created.body["work"]
+    value = {k:v for k,v in work["requirement"].items() if k in Requirement.__dataclass_fields__}
+    value["timing"] = {"schema_version":1,"kind":"daily","timezone":"Asia/Shanghai","local_time":"08:30"}
     key = str(uuid7())
-    first = service.update_schedule(
-        account_id, task_id, key, schedule_type="daily", timezone="Asia/Shanghai",
-        expression="08:30", enabled=True,
-    )
-    replay = service.update_schedule(
-        account_id, task_id, key, schedule_type="daily", timezone="Asia/Shanghai",
-        expression="08:30", enabled=True,
-    )
-    assert first.body["enabled"] is True
-    assert replay.replayed is True
+    first = commands.revise(account_id, UUID(work["work_id"]), key, work["row_version"], Requirement.from_dict(value))
+    replay = commands.revise(account_id, UUID(work["work_id"]), key, work["row_version"], Requirement.from_dict(value))
+    assert replay.replayed and first.body == replay.body
+    assert first.body["work"]["current_requirement_revision"] == 2
+    value["timing"]["local_time"] = "25:00"
     with pytest.raises(ValueError, match="HH:MM"):
-        service.update_schedule(
-            account_id, task_id, str(uuid7()), schedule_type="daily", timezone="UTC",
-            expression="25:00", enabled=True,
-        )
+        Requirement.from_dict(value)
 
 
 @pytest.mark.parametrize(
@@ -133,10 +130,10 @@ def test_daily_schedule_command_is_owned_and_idempotent(database_url, account_id
 def test_research_budget_dimensions_fail_closed(
     dimension, database_url, worker_database_url, account_id, db
 ):
-    commands = ResearchTaskCommandService(database_url, budget_mode="enforce")
-    task = commands.create_task(account_id, str(uuid7()), "Budget", "Exhaust dimension")
-    run = commands.trigger_task(account_id, UUID(task.body["task_id"]), str(uuid7()))
-    run_id = UUID(run.body["run_id"])
+    commands = WorkCommandService(database_url, budget_mode="enforce")
+    task = accept_research(commands, account_id, str(uuid7()), "Budget", "Exhaust dimension")
+    run = advance_work(commands, account_id, UUID(task.body["work"]["work_id"]), str(uuid7()))
+    run_id = UUID(run.body["run"]["run_id"])
     db.execute(
         "UPDATE hpagent.run_budgets SET limits=jsonb_set(limits,%s,'0'::jsonb) WHERE run_id=%s",
         ([dimension], run_id),
@@ -154,19 +151,19 @@ def test_research_budget_dimensions_fail_closed(
 def test_claim_rejects_unknown_cross_run_and_cross_tenant_evidence(
     database_url, worker_database_url, account_id, db
 ):
-    commands = ResearchTaskCommandService(database_url)
-    task = commands.create_task(account_id, str(uuid7()), "A", "Source owner")
-    source_run = commands.trigger_task(
-        account_id, UUID(task.body["task_id"]), str(uuid7())
+    commands = WorkCommandService(database_url)
+    task = accept_research(commands, account_id, str(uuid7()), "A", "Source owner")
+    source_run = advance_work(commands,
+        account_id, UUID(task.body["work"]["work_id"]), str(uuid7())
     )
-    source_run_id = UUID(source_run.body["run_id"])
+    source_run_id = UUID(source_run.body["run"]["run_id"])
     source_id, evidence_id = uuid7(), uuid7()
     content_ref = f"research-content:{source_id}"
     db.execute(
-        "INSERT INTO hpagent.source_records(source_id,run_id,task_id,provider,source_type,"
+        "INSERT INTO hpagent.source_records(source_id,run_id,work_id,account_id,requirement_revision,provider,source_type,"
         "canonical_uri,fetch_status,content_ref,content_hash) "
-        "VALUES (%s,%s,%s,'test','web','https://example.com/a','fetched',%s,%s)",
-        (source_id, source_run_id, task.body["task_id"], content_ref, "a" * 64),
+        "VALUES (%s,%s,%s,%s,1,'test','web','https://example.com/a','fetched',%s,%s)",
+        (source_id, source_run_id, task.body["work"]["work_id"], account_id, content_ref, "a" * 64),
     )
     db.execute(
         "INSERT INTO hpagent.source_contents(content_ref,source_id,content_text,byte_size) "
@@ -181,36 +178,36 @@ def test_claim_rejects_unknown_cross_run_and_cross_tenant_evidence(
 
     other_account = uuid4()
     db.execute("INSERT INTO hpagent.accounts(account_id) VALUES (%s)", (other_account,))
-    other_commands = ResearchTaskCommandService(database_url)
-    other_task = other_commands.create_task(
+    other_commands = WorkCommandService(database_url)
+    other_task = accept_research(other_commands,
         other_account, str(uuid7()), "B", "Cannot cite A"
     )
-    target = other_commands.trigger_task(
-        other_account, UUID(other_task.body["task_id"]), str(uuid7())
+    target = advance_work(other_commands,
+        other_account, UUID(other_task.body["work"]["work_id"]), str(uuid7())
     )
     report = ResearchReport(
         "Invalid", "# Invalid", (ClaimDraft("Cross tenant", (str(evidence_id),)),)
     )
     with pytest.raises(ValueError, match="outside the Research Run"):
         with UnitOfWork(worker_database_url) as uow:
-            ResearchRepository().save_report(uow, UUID(target.body["run_id"]), report)
+            ResearchRepository().save_report(uow, UUID(target.body["run"]["run_id"]), report)
 
     unknown = ResearchReport(
         "Unknown", "# Unknown", (ClaimDraft("Unknown", (str(uuid7()),)),)
     )
     with pytest.raises(ValueError, match="outside the Research Run"):
         with UnitOfWork(worker_database_url) as uow:
-            ResearchRepository().save_report(uow, UUID(target.body["run_id"]), unknown)
+            ResearchRepository().save_report(uow, UUID(target.body["run"]["run_id"]), unknown)
 
 
 @pytest.mark.asyncio
 async def test_research_activities_persist_deduplicated_source_and_evidence(
     database_url, worker_database_url, account_id, db
 ):
-    commands = ResearchTaskCommandService(database_url, budget_mode="enforce")
-    task = commands.create_task(account_id, str(uuid7()), "Research", "Compare primary sources")
-    triggered = commands.trigger_task(account_id, UUID(task.body["task_id"]), str(uuid7()))
-    run_id = triggered.body["run_id"]
+    commands = WorkCommandService(database_url, budget_mode="enforce")
+    task = accept_research(commands, account_id, str(uuid7()), "Research", "Compare primary sources")
+    triggered = advance_work(commands, account_id, UUID(task.body["work"]["work_id"]), str(uuid7()))
+    run_id = triggered.body["run"]["run_id"]
 
     class Discovery:
         async def discover(self, query, *, strategy, limit):
@@ -310,7 +307,7 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
         "fetched": 1,
     }
     assert evidence_count == 1
-    assert run["status"] == "completed"
+    assert run["status"] == "succeeded"
     assert trace == {"status": "completed", "strategy": "research"}
     assert budget["sources_discovered"] == 2
     assert budget["source_fetches"] == 2
@@ -322,12 +319,12 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
     assert locator["text_span"] == {"start": 0, "end": 27}
     assert locator["excerpt"] == "same normalized source body"
     assert report["artifact_id"] is not None
-    run_view = commands.get_run(account_id, UUID(task.body["task_id"]), UUID(run_id))
+    run_view = ResearchQueryService(database_url).report(account_id, UUID(run_id))["report"]
     assert run_view["artifact_id"] == str(report["artifact_id"])
     artifact_view = ArtifactService(database_url).get_artifact(account_id, report["artifact_id"])
     assert artifact_view["artifact"]["conversation_id"] is None
     assert artifact_view["artifact"]["research_run_id"] == run_id
-    # A retry after publication committed reuses the deterministic Artifact and Version.
+    # Terminal publication replay cannot change the persisted Artifact identity.
     activities._publish(UUID(run_id))
     with UnitOfWork(database_url) as uow:
         published = uow.execute(
@@ -353,19 +350,19 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
     other_account = uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (other_account,))
     with pytest.raises(ResourceNotFound):
-        commands.get_run(other_account, UUID(task.body["task_id"]), UUID(run_id))
+        commands.get(other_account, UUID(task.body["work"]["work_id"]))
     with pytest.raises(ResourceNotFound):
-        commands.list_evidence(other_account, UUID(task.body["task_id"]), UUID(run_id))
+        ResearchQueryService(database_url).evidence(other_account, UUID(run_id))
     with pytest.raises(ResourceNotFound):
-        commands.get_report(other_account, UUID(task.body["task_id"]), UUID(run_id))
+        ResearchQueryService(database_url).report(other_account, UUID(run_id))
     with pytest.raises(ResourceNotFound):
         ArtifactService(database_url).get_artifact(other_account, report["artifact_id"])
 
     # A later successful Run owns a different Artifact. With no authorized
     # Workspace history entry, the baseline stays empty despite the same Task.
-    second = commands.trigger_task(account_id, UUID(task.body["task_id"]), str(uuid7()))
-    second_request = ResearchWorkflowInput(1, second.body["run_id"])
-    second_iteration = ResearchIterationInput(1, second.body["run_id"], 1)
+    second = advance_work(commands, account_id, UUID(task.body["work"]["work_id"]), str(uuid7()))
+    second_request = ResearchWorkflowInput(1, second.body["run"]["run_id"])
+    second_iteration = ResearchIterationInput(1, second.body["run"]["run_id"], 1)
     for call, argument in (
         (activities.prepare_research_activity, second_request),
         (activities.create_research_plan_activity, second_request),
@@ -386,11 +383,11 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
     with UnitOfWork(database_url) as uow:
         second_report = uow.execute(
             "SELECT previous_run_id,daily_diff,artifact_id FROM research_reports WHERE run_id=%s",
-            (second.body["run_id"],),
+            (second.body["run"]["run_id"],),
         ).fetchone()
         artifact_count = uow.execute(
             "SELECT count(*) AS count FROM artifacts WHERE research_run_id IN (%s,%s)",
-            (run_id, second.body["run_id"]),
+            (run_id, second.body["run"]["run_id"]),
         ).fetchone()["count"]
     assert second_report["previous_run_id"] is None
     assert len(second_report["daily_diff"]["continuing"]) == 0
@@ -401,10 +398,10 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
 async def test_fetch_activity_retry_reuses_original_budget_reservation(
     database_url, worker_database_url, account_id
 ):
-    commands = ResearchTaskCommandService(database_url, budget_mode="enforce")
-    task = commands.create_task(account_id, str(uuid7()), "Retry", "Fetch retry")
-    triggered = commands.trigger_task(account_id, UUID(task.body["task_id"]), str(uuid7()))
-    run_id = UUID(triggered.body["run_id"])
+    commands = WorkCommandService(database_url, budget_mode="enforce")
+    task = accept_research(commands, account_id, str(uuid7()), "Retry", "Fetch retry")
+    triggered = advance_work(commands, account_id, UUID(task.body["work"]["work_id"]), str(uuid7()))
+    run_id = UUID(triggered.body["run"]["run_id"])
 
     class Discovery:
         async def discover(self, query, *, strategy, limit):

@@ -279,6 +279,19 @@ class QueryService:
 
     def get_run(self, account_id: UUID, run_id: UUID) -> dict[str, Any]:
         with UnitOfWork(self.database) as uow:
+            work_run = uow.execute("SELECT * FROM runs WHERE account_id=%s AND run_id=%s AND source_kind=\'work\'", (account_id, run_id)).fetchone()
+            if work_run:
+                from work_domain.persistence import dto
+
+                published = uow.execute(
+                    "SELECT sf.* FROM run_files rf JOIN stored_files sf "
+                    "ON sf.account_id=rf.account_id AND sf.file_id=rf.file_id "
+                    "WHERE rf.account_id=%s AND rf.run_id=%s AND rf.direction='output' "
+                    "ORDER BY rf.created_at LIMIT 1", (account_id, run_id),
+                ).fetchone()
+                run = dto(work_run)
+                run["published_file"] = file_dto(published) if published else None
+                return {"run": run}
             row = uow.execute(
                 "SELECT r.*,m.message_id AS m_message_id,m.conversation_id AS m_conversation_id,"
                 "m.role AS m_role,m.status AS m_status,m.content AS m_content,"

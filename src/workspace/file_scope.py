@@ -90,12 +90,12 @@ class RunFileWorkspace:
                   include_selected: bool = False) -> list[dict[str, Any]]:
         with UnitOfWork(self.database) as uow:
             owned = uow.execute(
-                "SELECT run_kind,status FROM runs WHERE account_id=%s AND run_id=%s",
+                "SELECT source_kind,status FROM runs WHERE account_id=%s AND run_id=%s",
                 (account_id, run_id),
             ).fetchone()
             if owned is None or owned["status"] not in {"queued", "running"}:
                 raise RunFileScopeUnavailable("authoritative Run scope is unavailable")
-            if owned["run_kind"] == "chat" and uow.execute(
+            if owned["source_kind"] == "chat" and uow.execute(
                 "SELECT 1 FROM run_resource_snapshots WHERE account_id=%s AND run_id=%s "
                 "AND status='ready'", (account_id, run_id),
             ).fetchone() is None:

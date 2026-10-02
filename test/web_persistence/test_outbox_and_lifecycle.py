@@ -90,7 +90,7 @@ def test_db_010_terminal_failure_before_outbox_rolls_back(
             (run_id,),
         )
         connection.execute(
-            "UPDATE runs SET status='completed',finished_at=now() WHERE run_id=%s", (run_id,)
+            "UPDATE runs SET status='succeeded',finished_at=now() WHERE run_id=%s", (run_id,)
         )
         raise RuntimeError("injected before outbox")
     assert db.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] == "queued"
@@ -230,7 +230,7 @@ def test_db_022_terminal_dead_letter_does_not_revert_completed(
     outbox.dead_letter(
         event_id, "terminal-publisher", "redis_down", "unavailable"
     )
-    assert db.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] == "completed"
+    assert db.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] == "succeeded"
 
 
 def test_terminal_outbox_carries_stable_event_id(
@@ -242,7 +242,7 @@ def test_terminal_outbox_carries_stable_event_id(
     row = db.execute(
         "SELECT outbox_event_id,payload->>'terminal_event_id' FROM outbox_events "
         "WHERE business_key=%s",
-        (f"terminal:{run_id}:completed",),
+        (f"terminal:{run_id}:succeeded",),
     ).fetchone()
     assert str(row[0]) == row[1]
 
@@ -472,9 +472,8 @@ def test_db_027_lifecycle_txn_failure_rolls_back_atomically(
 
     # A fault inside the authoritative lifecycle transaction (here, the terminal
     # message update) must roll the whole command back atomically.
-    with patch.object(
-        service.messages,
-        "set_terminal",
+    with patch(
+        "conversation_domain.run_projection.project_terminal",
         side_effect=RuntimeError("injected lifecycle txn failure"),
     ):
         with pytest.raises(RuntimeError, match="injected lifecycle txn failure"):

@@ -36,9 +36,9 @@ from .queries import message_dto, run_dto
 _TOPIC_PREFIX = "hpagent:web:run:"
 logger = logging.getLogger("HpAgent.SSE")
 
-_TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled"})
+_TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
 _TERMINAL_EVENT_TYPES = frozenset(
-    {"run.completed", "run.failed", "run.cancelled"}
+    {"run.succeeded", "run.failed", "run.cancelled"}
 )
 
 class AsyncRedis(Protocol):

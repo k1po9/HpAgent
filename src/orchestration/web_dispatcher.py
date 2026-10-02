@@ -167,6 +167,8 @@ class TemporalOutboxDispatcher:
     async def dispatch_cancel(self, run_id: UUID) -> bool:
         workflow_id = await asyncio.to_thread(self.store.current_workflow_id, run_id)
         if workflow_id is None:
+            if self.cancellation_finalizer is not None:
+                await asyncio.to_thread(self.cancellation_finalizer.finalize_cancelled, run_id)
             return False
         found = await self.temporal.cancel_web_run(workflow_id)
         if not found:

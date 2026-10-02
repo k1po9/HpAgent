@@ -106,7 +106,7 @@ class AgentLifecycleWorkflow:
                     "phase": "prepare",
                 },
             )
-            if status == "completed":
+            if status == "succeeded":
                 return _completed(request.run_id)
             if status in ("cancelling", "cancelled"):
                 raise asyncio.CancelledError
@@ -159,9 +159,9 @@ class AgentLifecycleWorkflow:
             )
             if authority["status"] in ("cancelling", "cancelled"):
                 raise asyncio.CancelledError
-            if authority["status"] != "completed":
+            if authority["status"] != "succeeded":
                 raise ApplicationError(
-                    "Agent finalization returned non-completed status", non_retryable=True
+                    "Agent finalization returned non-succeeded status", non_retryable=True
                 )
             workflow.logger.info(
                 "agent_lifecycle_completed",
@@ -194,7 +194,7 @@ class AgentLifecycleWorkflow:
                 start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
                 retry_policy=_FINALIZE_RETRY,
             )
-            if authority["status"] == "completed":
+            if authority["status"] == "succeeded":
                 return _completed(request.run_id)
             if authority["status"] == "failed":
                 raise ApplicationError("unexpected workflow cancellation", non_retryable=True)
@@ -211,7 +211,7 @@ class AgentLifecycleWorkflow:
                     start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
                     retry_policy=_FINALIZE_RETRY,
                 )
-                if authority["status"] == "completed":
+                if authority["status"] == "succeeded":
                     return _completed(request.run_id)
                 if authority["status"] == "failed":
                     raise ApplicationError(
@@ -248,7 +248,7 @@ class AgentLifecycleWorkflow:
                 start_to_close_timeout=timedelta(seconds=WEB_FINALIZE_START_TO_CLOSE_SECONDS),
                 retry_policy=_FINALIZE_RETRY,
             )
-            if authority["status"] == "completed":
+            if authority["status"] == "succeeded":
                 return _completed(request.run_id)
             if authority["status"] == "cancelled":
                 raise asyncio.CancelledError from exc

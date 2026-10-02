@@ -74,7 +74,7 @@ class MemoryRetentionService:
             ).fetchone()
         if row is None:
             return None
-        if row["run_status"] != "completed":
+        if row["run_status"] != "succeeded":
             return None
         if row["assistant_status"] != "completed":
             return None

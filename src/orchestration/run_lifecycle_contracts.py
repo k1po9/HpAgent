@@ -34,7 +34,7 @@ class RunLifecycleInput:
 
 class RunAuthority(TypedDict):
     run_id: str
-    status: Literal["queued", "running", "cancelling", "cancelled", "completed", "failed"]
+    status: Literal["queued", "running", "cancelling", "cancelled", "succeeded", "failed"]
 
 
 @dataclass(frozen=True)

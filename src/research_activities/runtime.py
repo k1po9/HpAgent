@@ -15,7 +15,6 @@ from temporalio import activity
 from temporalio.exceptions import ApplicationError
 from uuid6 import uuid7
 
-from conversation_domain.commands import CommandService
 from orchestration.research_workflow import (
     ResearchIterationInput,
     ResearchStageRef,
@@ -37,10 +36,10 @@ from research_domain.providers import (
     SourceContentProvider,
     SourceDiscoveryProvider,
 )
-from research_domain.services import ResearchTaskCommandService, TaskBusy, TaskNotActive
 from resources.model_budget_context import model_budget_scope
 from resources.model_governance_errors import classify_model_governance_failure
 from resources.run_budget import RunBudgetService
+from run_domain.lifecycle import RunLifecycleService
 from tracing.repository import PostgresTraceRepository
 from web_domain.errors import ResourceNotFound
 from workspace.catalog import WorkspaceCatalog
@@ -71,7 +70,6 @@ class ResearchActivities:
         self.repository = ResearchRepository()
         self.budget = RunBudgetService(database)
         self.trace = PostgresTraceRepository(database)
-        self.task_commands = ResearchTaskCommandService(database)
 
     @staticmethod
     def _attempt() -> int:
@@ -79,23 +77,6 @@ class ResearchActivities:
             return int(activity.info().attempt)
         except RuntimeError:
             return 1
-
-    @activity.defn
-    async def trigger_scheduled_research_activity(
-        self, request: dict[str, Any]
-    ) -> dict[str, str | bool]:
-        if int(request.get("schema_version", 0)) != 1 or not request.get("fire_id"):
-            raise ValueError("invalid scheduled Research request")
-        account_id = UUID(str(request["account_id"]))
-        task_id = UUID(str(request["task_id"]))
-        key = f"research-schedule:{task_id}:{request['fire_id']}"
-        try:
-            result = await asyncio.to_thread(
-                self.task_commands.trigger_task, account_id, task_id, key
-            )
-        except (TaskBusy, TaskNotActive, ResourceNotFound) as exc:
-            return {"created": False, "reason": type(exc).__name__}
-        return {"created": True, "run_id": str(result.body["run_id"])}
 
     @staticmethod
     def _root_event_id(run_id: UUID) -> UUID:
@@ -147,9 +128,20 @@ class ResearchActivities:
             int(row["actual_amount"]) if row["actual_amount"] is not None else None
         )
 
+    def _assert_current(self, run_id: UUID) -> None:
+        with UnitOfWork(self.database) as uow:
+            row = uow.execute("SELECT account_id FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+            if row is None:
+                raise ResourceNotFound()
+            run = RunLifecycleService.lock(uow, row["account_id"], run_id)
+            RunLifecycleService.check_work(uow, run)
+            if run["status"] != "running":
+                raise RuntimeError("Research Run is not running")
+
     async def _run_stage(
         self, run_id: UUID, stage: str, action: Callable[[], Any]
     ) -> ResearchStageRef:
+        await asyncio.to_thread(self._assert_current, run_id)
         operation_id = f"research:{run_id}:{stage}:v1"
         existing = await asyncio.to_thread(self._load_stage_result, operation_id)
         if existing is not None:
@@ -212,19 +204,12 @@ class ResearchActivities:
     def _prepare(self, run_id: UUID) -> None:
         with UnitOfWork(self.database) as uow:
             run = uow.execute(
-                "SELECT status,run_kind,account_id FROM runs WHERE run_id=%s FOR UPDATE", (run_id,)
+                "SELECT status,executor_key,account_id FROM runs WHERE run_id=%s", (run_id,)
             ).fetchone()
-            if run is None or run["run_kind"] != "research":
+            if run is None or run["executor_key"] != "research_report":
                 raise LookupError(f"research Run not found: {run_id}")
-            if run["status"] == "queued":
-                uow.execute(
-                    "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),"
-                    "updated_at=now(),"
-                    "version=version+1 WHERE run_id=%s",
-                    (run_id,),
-                )
-            elif run["status"] not in ("running", "completed"):
-                raise RuntimeError(f"research Run cannot start from {run['status']}")
+            if not RunLifecycleService(self.database).start(run["account_id"], run_id):
+                raise RuntimeError("Research Run cannot start")
             freeze_history(uow, run["account_id"], run_id)
         self.trace.create_trace_run(run_id, {"run_kind": "research"})
         self.trace.start_event(
@@ -252,12 +237,12 @@ class ResearchActivities:
     def _create_plan(self, run_id: UUID) -> int:
         with UnitOfWork(self.database) as uow:
             task = uow.execute(
-                "SELECT t.objective,t.source_strategy FROM tasks t JOIN runs r "
-                "ON r.task_id=t.task_id WHERE r.run_id=%s",
+                "SELECT q.objective,q.spec->'source_strategy' AS source_strategy FROM work_requirements q JOIN runs r "
+                "ON r.account_id=q.account_id AND r.work_id=q.work_id AND r.requirement_revision=q.revision WHERE r.run_id=%s",
                 (run_id,),
             ).fetchone()
             if task is None:
-                raise LookupError(f"Task not found for research Run: {run_id}")
+                raise LookupError(f"Requirement not found for research Run: {run_id}")
             strategy_value = task["source_strategy"]
             if isinstance(strategy_value, str):
                 strategy_value = json.loads(strategy_value)
@@ -703,14 +688,16 @@ class ResearchActivities:
             report = self.repository.load_report(uow, run_id)
             if report is None:
                 raise LookupError(f"research report not found: {run_id}")
+            if report["artifact_version_id"] is not None:
+                return 1
             structured = report["report_structured_json"]
             if isinstance(structured, str):
                 structured = json.loads(structured)
             title = html.escape(str(structured.get("title") or "Research Report"))
             markdown = html.escape(str(report["report_markdown"]))
             run = uow.execute(
-                "SELECT r.run_id,r.created_at,t.objective FROM runs r JOIN tasks t "
-                "ON t.task_id=r.task_id WHERE r.run_id=%s", (run_id,)
+                "SELECT r.run_id,r.created_at,q.objective FROM runs r JOIN work_requirements q "
+                "ON q.account_id=r.account_id AND q.work_id=r.work_id AND q.revision=r.requirement_revision WHERE r.run_id=%s", (run_id,)
             ).fetchone()
             claims = uow.execute(
                 "SELECT cl.statement,cl.importance,cl.evidence_status,"
@@ -774,8 +761,8 @@ class ResearchActivities:
                 "ORDER BY rf.created_at LIMIT 1", (run_id,),
             ).fetchone()
             run = uow.execute(
-                "SELECT r.created_at,t.schedule_timezone FROM runs r JOIN tasks t "
-                "ON t.task_id=r.task_id WHERE r.run_id=%s", (run_id,),
+                "SELECT r.created_at,q.timing->>'timezone' AS schedule_timezone FROM runs r JOIN work_requirements q "
+                "ON q.account_id=r.account_id AND q.work_id=r.work_id AND q.revision=r.requirement_revision WHERE r.run_id=%s", (run_id,),
             ).fetchone()
         if output is None:
             with UnitOfWork(self.database) as uow:
@@ -798,7 +785,7 @@ class ResearchActivities:
                 result = catalog.update_file(
                     intent["account_id"], intent["target_entry_id"], run_id,
                     output["file_id"], intent["expected_revision"],
-                    intent["expected_sha256"], intent["operation_id"], task_auto=True,
+                    intent["expected_sha256"], intent["operation_id"], work_auto=True,
                 )
                 entry_id = UUID(result["node_id"])
         except Exception as exc:
@@ -833,10 +820,10 @@ class ResearchActivities:
                 "CASE WHEN i.operation='create_child' THEN EXISTS ("
                 "SELECT 1 FROM workspace_save_operations o WHERE o.account_id=i.account_id "
                 "AND o.operation_id=i.operation_id AND o.node_id=i.entry_id "
-                "AND o.source_kind='task_auto' AND o.source_run_id=i.run_id) "
+                "AND o.source_kind='work_auto' AND o.source_run_id=i.run_id) "
                 "ELSE EXISTS (SELECT 1 FROM workspace_version_operations o "
                 "WHERE o.account_id=i.account_id AND o.operation_id=i.operation_id "
-                "AND o.node_id=i.entry_id AND o.source_kind='task_auto' "
+                "AND o.node_id=i.entry_id AND o.source_kind='work_auto' "
                 "AND o.source_run_id=i.run_id) END AS committed "
                 "FROM research_run_save_intents i WHERE i.run_id=%s AND i.required",
                 (run_id,),
@@ -846,25 +833,22 @@ class ResearchActivities:
                 raise RuntimeError("required_workspace_save_incomplete")
         if run is None:
             raise LookupError(f"research Run not found: {run_id}")
-        if run["status"] not in {"running", "completed"}:
-            raise RuntimeError("research Run was cancelled before completion")
-        if run["conversation_id"] is not None:
-            CommandService(self.database).complete_run(
-                run["account_id"], run_id, "Research report completed."
-            )
-        else:
-            with UnitOfWork(self.database) as uow:
-                changed = uow.execute(
-                    "UPDATE runs SET status='completed',finished_at=COALESCE(finished_at,now()),"
-                    "updated_at=now(),version=version+1 WHERE run_id=%s AND status='running'",
-                    (run_id,),
-                ).rowcount
-                if changed == 0:
-                    status = uow.execute(
-                        "SELECT status FROM runs WHERE run_id=%s", (run_id,)
-                    ).fetchone()["status"]
-                    if status != "completed":
-                        raise RuntimeError("research Run was cancelled before completion")
+        with UnitOfWork(self.database) as uow:
+            owner = uow.execute("SELECT * FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+            report = self.repository.load_report(uow, run_id)
+            requirement = uow.execute(
+                "SELECT acceptance_criteria FROM work_requirements WHERE account_id=%s "
+                "AND work_id=%s AND revision=%s",
+                (owner["account_id"], owner["work_id"], owner["requirement_revision"])).fetchone()
+        if report is None or report["artifact_version_id"] is None:
+            raise RuntimeError("research_report_not_published")
+        evidence = [{"criterion_id": c["id"], "type": "research_report",
+                     "ref": str(report["artifact_version_id"])}
+                    for c in requirement["acceptance_criteria"] if "research_report" in c["evidence_types"]]
+        RunLifecycleService(self.database).finish(
+            run["account_id"], run_id, "succeeded",
+            result={"schema_version": 1, "kind": "deliverable_ready", "evidence": evidence},
+            accept_result=True)
         with UnitOfWork(self.database) as uow:
             uow.execute(
                 "UPDATE workflow_executions SET status='completed',"
@@ -905,22 +889,10 @@ class ResearchActivities:
                 )
         if run is None:
             raise LookupError(f"research Run not found: {run_id}")
-        if run["conversation_id"] is not None:
-            CommandService(self.database).fail_run(
-                run["account_id"], run_id, "research_stage_failed", "Research stage failed."
-            )
-        else:
-            with UnitOfWork(self.database) as uow:
-                uow.execute(
-                    "UPDATE runs SET status='failed',failure_code=%s,"
-                    "failure_message=%s,"
-                    "finished_at=COALESCE(finished_at,now()),updated_at=now(),version=version+1 "
-                    "WHERE run_id=%s AND status IN ('queued','running')",
-                    ("workspace_save_failed" if intent is not None and intent["failure_code"]
-                     else "research_stage_failed",
-                     "Workspace save failed." if intent is not None and intent["failure_code"]
-                     else "Research stage failed.", run_id),
-                )
+        RunLifecycleService(self.database).finish(
+            run["account_id"], run_id, "failed",
+            failure_code="workspace_save_failed" if intent is not None and intent["failure_code"] else "research_stage_failed",
+            failure_message="Research stage failed.")
         with UnitOfWork(self.database) as uow:
             status = uow.execute("SELECT status FROM runs WHERE run_id=%s",
                                  (run_id,)).fetchone()["status"]

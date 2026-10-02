@@ -1,7 +1,7 @@
 """Terminal Event Publisher: committed terminal facts only.
 
 Claims ``publish_terminal_event`` Outbox rows (consumer ``terminal-publisher``),
-publishes the full committed RunSnapshot as ``run.completed`` / ``run.failed`` /
+publishes the full committed RunSnapshot as ``run.succeeded`` / ``run.failed`` /
 ``run.cancelled`` to the raw Redis channel ``hpagent:web:run:{run_id}``, then
 marks the Outbox row processed.
 
@@ -32,7 +32,7 @@ _TOPIC_PREFIX = "hpagent:web:run:"
 logger = logging.getLogger("HpAgent.TerminalPublisher")
 
 _TERMINAL_EVENT = {
-    "completed": "run.completed",
+    "succeeded": "run.succeeded",
     "failed": "run.failed",
     "cancelled": "run.cancelled",
 }

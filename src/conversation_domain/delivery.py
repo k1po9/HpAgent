@@ -10,7 +10,7 @@ def enqueue_qq_result(uow, run_id):
         "FROM message_files mf WHERE mf.message_id=a.message_id),'[]'::jsonb)) "
         "FROM runs r JOIN messages t ON t.message_id=r.trigger_message_id "
         "JOIN messages a ON a.produced_by_run_id=r.run_id "
-        "WHERE r.run_id=%s AND r.status='completed' AND a.status='completed' "
+        "WHERE r.run_id=%s AND r.status='succeeded' AND a.status='completed' "
         "AND t.origin->>'channel_type' IN ('napcat','official_qq') "
         "ON CONFLICT (run_id) DO NOTHING",
         (run_id,),

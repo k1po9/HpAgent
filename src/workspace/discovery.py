@@ -16,8 +16,8 @@ def _item(row):
             "content_type": row["content_type"], "size_bytes": row["size_bytes"],
             "purpose": row["purpose"], "source_run_id": str(row["source_run_id"])
             if row["source_run_id"] else None, "summary": row["summary"], "summary_sha256": row["summary_sha256"],
-            "source_task_id": str(row["task_id"])
-            if row["task_id"] else None, "created_at": row["created_at"].isoformat()}
+            "source_work_id": str(row["work_id"])
+            if row["work_id"] else None, "created_at": row["created_at"].isoformat()}
 
 
 class WorkspaceDiscovery:
@@ -28,7 +28,7 @@ class WorkspaceDiscovery:
     def search(self, account_id: UUID, *, run_id: UUID | None = None,
                name: str | None = None, summary: str | None = None,
                content_type: str | None = None,
-               purpose: str | None = None, task_id: UUID | None = None,
+               purpose: str | None = None, work_id: UUID | None = None,
                source_run_id: UUID | None = None, from_date: date | None = None,
                to_date: date | None = None, after: UUID | None = None,
                limit: int = 50) -> dict:
@@ -48,7 +48,7 @@ class WorkspaceDiscovery:
             for value, sql in ((name, "n.name ILIKE %s ESCAPE '\\'"),
                                (content_type, "sf.content_type=%s"),
                                (purpose, "sf.purpose=%s"),
-                               (task_id, "r.task_id=%s"),
+                               (work_id, "r.work_id=%s"),
                                (source_run_id, "sf.source_run_id=%s"),
                                (from_date, "n.created_at >= %s"),
                                (to_date, "n.created_at < (%s::date + interval '1 day')")):
@@ -66,7 +66,7 @@ class WorkspaceDiscovery:
                 params.append(run_id)
             query = ("SELECT n.node_id,n.name,n.destination_id,d.current_revision AS revision,"
                      "sf.file_id,sf.content_type,sf.size_bytes,sf.purpose,sf.source_run_id,"
-                     "r.task_id,n.created_at,ws.summary,ws.sha256 AS summary_sha256 FROM workspace_nodes n "
+                     "r.work_id,n.created_at,ws.summary,ws.sha256 AS summary_sha256 FROM workspace_nodes n "
                      "LEFT JOIN persistent_file_destinations d ON d.account_id=n.account_id "
                      "AND d.destination_id=n.destination_id "
                      "JOIN stored_files sf ON sf.account_id=n.account_id "
@@ -128,7 +128,7 @@ class WorkspaceDiscovery:
         with UnitOfWork(self.database) as uow:
             row = uow.execute(
                 "SELECT n.node_id,n.destination_id,COALESCE(n.file_id,d.current_file_id) "
-                "AS file_id,d.current_revision,sf.source_run_id,r.task_id "
+                "AS file_id,d.current_revision,sf.source_run_id,r.work_id "
                 "FROM workspace_nodes n LEFT JOIN persistent_file_destinations d "
                 "ON d.account_id=n.account_id AND d.destination_id=n.destination_id "
                 "JOIN stored_files sf ON sf.account_id=n.account_id "
@@ -165,7 +165,7 @@ class WorkspaceDiscovery:
                     "current_revision": row["current_revision"],
                     "source_run_id": str(row["source_run_id"])
                     if row["source_run_id"] else None,
-                    "source_task_id": str(row["task_id"]) if row["task_id"] else None,
+                    "source_work_id": str(row["work_id"]) if row["work_id"] else None,
                     "publication": {"operation_id": publication["operation_id"],
                                     "status": publication["status"],
                                     "run_id": str(publication["run_id"])}

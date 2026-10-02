@@ -19,7 +19,7 @@ from agent_workflows.tool_execution import ToolExecutionWorkflow
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.artifact_workflow import ArtifactBuildWorkflow
 from orchestration.document_workflow import NormalizeDocumentWorkflow
-from orchestration.research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
+from orchestration.research_workflow import ResearchReportWorkflow
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from orchestration.web_workers import build_web_temporal_workers
 from web_api.models import SendMessageRequest
@@ -88,7 +88,6 @@ def test_canonical_registry_excludes_legacy_execution(monkeypatch):
     assert made[0]["workflows"] == [
         AgentLifecycleWorkflow,
         ResearchReportWorkflow,
-        ResearchTaskScheduleWorkflow,
         ArtifactBuildWorkflow,
         NormalizeDocumentWorkflow,
     ]

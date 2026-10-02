@@ -5,6 +5,7 @@ import os
 from uuid import UUID, uuid4
 
 import pytest
+from support.work_fixtures import accept_research, advance_work
 from temporalio.client import Client
 from temporalio.worker import Worker
 
@@ -13,8 +14,8 @@ from orchestration.research_workflow import ResearchReportWorkflow, ResearchWork
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from persistence.uow import UnitOfWork
 from research_activities import ResearchActivities
-from research_domain.services import ResearchTaskCommandService
 from storage.tenant_file_store import TenantFileStore
+from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
 
 from .test_workspace_v41_p4 import Canonicalizer, Content, Discovery, Synthesis
@@ -32,11 +33,11 @@ async def test_real_temporal_activity_retry_resumes_save_only(
     tree = catalog.initialize(account_id)
     parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "成果"))
     target = catalog.create_directory(account_id, parent, "真实 Temporal")
-    commands = ResearchTaskCommandService(database_url)
-    task_id = UUID(commands.create_task(account_id, str(uuid4()), "Daily", "Track facts",
-                                        output_directory_id=target,
-                                        output_required=True).body["task_id"])
-    run_id = UUID(commands.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    commands = WorkCommandService(database_url)
+    work_id = UUID(accept_research(commands, account_id, str(uuid4()), "Daily", "Track facts",
+                                   output_directory_id=target,
+                                   output_required=True).body["work"]["work_id"])
+    run_id = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     synthesis = Synthesis()
     activities = ResearchActivities(worker_database_url, Discovery(), Content(),
         Canonicalizer(), synthesis, min_evidence=1, min_distinct_sources=1,
@@ -85,4 +86,4 @@ async def test_real_temporal_activity_retry_resumes_save_only(
                              "WHERE run_id=%s", (run_id,)).fetchone()
         run = uow.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()
         assert intent["state"] == "succeeded" and intent["entry_id"] is not None
-        assert run["status"] == "completed"
+        assert run["status"] == "succeeded"

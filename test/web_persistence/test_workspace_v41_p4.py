@@ -5,6 +5,7 @@ import asyncio
 from uuid import UUID, uuid4
 
 import pytest
+from support.work_fixtures import accept_research, advance_work, revise_output
 
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.research_workflow import ResearchIterationInput, ResearchWorkflowInput
@@ -18,8 +19,9 @@ from research_domain.models import (
     SourceContent,
     content_sha256,
 )
-from research_domain.services import ResearchTaskCommandService
+from run_domain.lifecycle import RunLifecycleService
 from storage.tenant_file_store import TenantFileStore
+from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog, WorkspaceConflict
 from workspace.resources import ResourceDenied, ResourcePolicy
 
@@ -89,11 +91,11 @@ async def test_task_output_grant_revocation_blocks_required_save(
     tree = catalog.initialize(account_id)
     parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "成果"))
     target = catalog.create_directory(account_id, parent, "撤权输出")
-    tasks = ResearchTaskCommandService(database_url)
-    task_id = UUID(tasks.create_task(account_id, str(uuid4()), "Daily", "Track facts",
+    tasks = WorkCommandService(database_url)
+    work_id = UUID(accept_research(tasks, account_id, str(uuid4()), "Daily", "Track facts",
                                      output_directory_id=target,
-                                     output_required=True).body["task_id"])
-    run_id = UUID(tasks.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+                                     output_required=True).body["work"]["work_id"])
+    run_id = UUID(advance_work(tasks, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     activities = ResearchActivities(worker_database_url, Discovery(), Content(),
         Canonicalizer(), Synthesis(), min_evidence=1, min_distinct_sources=1,
         markdown_publisher=ResearchMarkdownPublisher(OutputPublisher(
@@ -121,9 +123,9 @@ async def test_task_output_grant_revocation_blocks_required_save(
         await stage(request)
     with UnitOfWork(database_url) as uow:
         grant_id = uow.execute(
-            "SELECT grant_id FROM resource_grants WHERE account_id=%s AND subject_kind='task' "
+            "SELECT grant_id FROM resource_grants WHERE account_id=%s AND subject_kind='work' "
             "AND subject_id=%s AND node_id=%s AND operation='create_child' "
-            "AND revoked_at IS NULL", (account_id, task_id, target),
+            "AND revoked_at IS NULL", (account_id, work_id, target),
         ).fetchone()["grant_id"]
     assert ResourcePolicy(database_url).revoke(account_id, grant_id) == []
     with pytest.raises(ResourceDenied, match="create_child"):
@@ -147,10 +149,10 @@ async def test_thirty_standalone_runs_use_bounded_authorized_history_and_save(
     tree = catalog.initialize(account_id)
     parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "成果"))
     target = catalog.create_directory(account_id, parent, "日报")
-    commands = ResearchTaskCommandService(database_url)
-    task_id = UUID(commands.create_task(account_id, str(uuid4()), "Daily", "Track facts",
+    commands = WorkCommandService(database_url)
+    work_id = UUID(accept_research(commands, account_id, str(uuid4()), "Daily", "Track facts",
                                         output_directory_id=target,
-                                        output_required=True).body["task_id"])
+                                        output_required=True).body["work"]["work_id"])
     synthesis = Synthesis()
     publisher = ResearchMarkdownPublisher(OutputPublisher(
         worker_database_url, TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024)))
@@ -159,7 +161,7 @@ async def test_thirty_standalone_runs_use_bounded_authorized_history_and_save(
                                     min_distinct_sources=1, markdown_publisher=publisher)
     run_ids = []
     for index in range(30):
-        run_id = UUID(commands.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+        run_id = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
         if index == 1:
             catalog.move(account_id, target, parent, "改名后的日报")
             with pytest.raises(WorkspaceConflict, match="still bound"):
@@ -167,10 +169,10 @@ async def test_thirty_standalone_runs_use_bounded_authorized_history_and_save(
         await execute(activities, run_id)
         run_ids.append(run_id)
     with UnitOfWork(database_url) as uow:
-        runs = uow.execute("SELECT count(*) AS n FROM runs WHERE task_id=%s AND status='completed'",
-                           (task_id,)).fetchone()["n"]
+        runs = uow.execute("SELECT count(*) AS n FROM runs WHERE work_id=%s AND status='succeeded'",
+                           (work_id,)).fetchone()["n"]
         reports = uow.execute("SELECT count(*) AS n FROM research_reports rr JOIN runs r "
-                              "ON r.run_id=rr.run_id WHERE r.task_id=%s", (task_id,)).fetchone()["n"]
+                              "ON r.run_id=rr.run_id WHERE r.work_id=%s", (work_id,)).fetchone()["n"]
         entries = uow.execute("SELECT count(*) AS n FROM research_run_save_intents "
                               "WHERE account_id=%s AND state='succeeded' AND entry_id IS NOT NULL",
                               (account_id,)).fetchone()["n"]
@@ -199,12 +201,18 @@ async def test_target_change_freezes_old_run_and_save_retry_skips_research(
     parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "成果"))
     original = catalog.create_directory(account_id, parent, "原目标")
     replacement = catalog.create_directory(account_id, parent, "新目标")
-    commands = ResearchTaskCommandService(database_url)
-    task_id = UUID(commands.create_task(account_id, str(uuid4()), "Daily", "Track facts",
+    commands = WorkCommandService(database_url)
+    work_id = UUID(accept_research(commands, account_id, str(uuid4()), "Daily", "Track facts",
                                         output_directory_id=original,
-                                        output_required=True).body["task_id"])
-    run_id = UUID(commands.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
-    commands.update_output(account_id, task_id, replacement, True)
+                                        output_required=True).body["work"]["work_id"])
+    run_id = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
+    revise_output(commands, account_id, work_id, replacement, True)
+    assert not RunLifecycleService(worker_database_url).start(account_id, run_id)
+    with UnitOfWork(database_url) as uow:
+        frozen = uow.execute("SELECT target_directory_id FROM research_run_save_intents WHERE run_id=%s", (run_id,)).fetchone()
+    assert frozen["target_directory_id"] == original
+    RunLifecycleService(worker_database_url).finish(account_id, run_id, "cancelled")
+    run_id = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     synthesis = Synthesis()
     activities = ResearchActivities(worker_database_url, Discovery(), Content(),
         Canonicalizer(), synthesis, min_evidence=1, min_distinct_sources=1,
@@ -271,16 +279,17 @@ async def test_target_change_freezes_old_run_and_save_retry_skips_research(
         source = uow.execute("SELECT source_kind,source_run_id FROM "
                              "workspace_save_operations WHERE operation_id=%s",
                              (f"workspace-save:{run_id}:research_markdown",)).fetchone()
-        assert source == {"source_kind": "task_auto", "source_run_id": run_id}
+        assert source == {"source_kind": "work_auto", "source_run_id": run_id}
         assert uow.execute("SELECT count(*) AS n FROM run_files WHERE run_id=%s AND "
                            "direction='output'", (run_id,)).fetchone()["n"] == 1
-    assert intent["target_directory_id"] == entry["parent_id"] == original
+    assert intent["target_directory_id"] == entry["parent_id"] == replacement
     assert intent["state"] == "succeeded"
     assert attempts == 3 and len(synthesis.objectives) == 1
-    detail = commands.get_run(account_id, task_id, run_id)
-    assert detail["save_status"] == "succeeded"
-    assert detail["save_entry_id"] == str(intent["entry_id"])
-    assert commands.list_runs(account_id, task_id)["items"][0]["save_status"] == "succeeded"
+    with UnitOfWork(database_url) as uow:
+        detail = uow.execute("SELECT state,entry_id FROM research_run_save_intents WHERE run_id=%s", (run_id,)).fetchone()
+    assert detail["state"] == "succeeded"
+    assert detail["entry_id"] == intent["entry_id"]
+    assert commands.records(account_id, work_id, "runs")["items"][0]["status"] == "succeeded"
 
 
 @pytest.mark.asyncio
@@ -291,23 +300,23 @@ async def test_history_read_revocation_blocks_snapshot_even_after_selection(
     tree = catalog.initialize(account_id)
     parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "成果"))
     target = catalog.create_directory(account_id, parent, "历史")
-    commands = ResearchTaskCommandService(database_url)
-    task_id = UUID(commands.create_task(account_id, str(uuid4()), "Daily", "Track facts",
+    commands = WorkCommandService(database_url)
+    work_id = UUID(accept_research(commands, account_id, str(uuid4()), "Daily", "Track facts",
                                         output_directory_id=target,
-                                        output_required=True).body["task_id"])
+                                        output_required=True).body["work"]["work_id"])
     activities = ResearchActivities(worker_database_url, Discovery(), Content(),
         Canonicalizer(), Synthesis(), min_evidence=1, min_distinct_sources=1,
         markdown_publisher=ResearchMarkdownPublisher(OutputPublisher(
             worker_database_url, TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024))))
-    first = UUID(commands.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    first = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     await execute(activities, first)
-    second = UUID(commands.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    second = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     await activities.prepare_research_activity(ResearchWorkflowInput(1, str(second)))
     with UnitOfWork(database_url) as uow:
         assert authorized_history(uow, second)[0]["run_id"] == str(first)
         grant = uow.execute("SELECT grant_id FROM resource_grants WHERE subject_id=%s "
                             "AND node_id=%s AND operation='read_content' AND revoked_at IS NULL",
-                            (task_id, target)).fetchone()["grant_id"]
+                            (work_id, target)).fetchone()["grant_id"]
     ResourcePolicy(database_url).revoke(account_id, grant)
     with UnitOfWork(database_url) as uow, pytest.raises(ResourceDenied):
         authorized_history(uow, second)
@@ -321,22 +330,22 @@ async def test_task_update_content_uses_frozen_revision(
     tree = catalog.initialize(account_id)
     parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "成果"))
     target = catalog.create_directory(account_id, parent, "版本")
-    commands = ResearchTaskCommandService(database_url)
-    task_id = UUID(commands.create_task(account_id, str(uuid4()), "Daily", "Track facts",
+    commands = WorkCommandService(database_url)
+    work_id = UUID(accept_research(commands, account_id, str(uuid4()), "Daily", "Track facts",
                                         output_directory_id=target,
-                                        output_required=True).body["task_id"])
+                                        output_required=True).body["work"]["work_id"])
     activities = ResearchActivities(worker_database_url, Discovery(), Content(),
         Canonicalizer(), Synthesis(), min_evidence=1, min_distinct_sources=1,
         markdown_publisher=ResearchMarkdownPublisher(OutputPublisher(
             worker_database_url, TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024))))
-    first = UUID(commands.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    first = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     await execute(activities, first)
     with UnitOfWork(database_url) as uow:
         entry = uow.execute("SELECT entry_id FROM research_run_save_intents WHERE run_id=%s",
                             (first,)).fetchone()["entry_id"]
     catalog.upgrade_file(account_id, entry)
-    commands.update_output(account_id, task_id, target, True, "update_content", entry)
-    second = UUID(commands.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    revise_output(commands, account_id, work_id, target, True, "update_content", entry)
+    second = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     await execute(activities, second)
     current = catalog.versions(account_id, entry)["current"]
     assert current["revision"] == 2
@@ -348,4 +357,4 @@ async def test_task_update_content_uses_frozen_revision(
                              (f"workspace-save:{second}:research_markdown",)).fetchone()
     assert intent["expected_revision"] == 1
     assert intent["entry_id"] == entry and intent["state"] == "succeeded"
-    assert source == {"source_kind": "task_auto", "source_run_id": second}
+    assert source == {"source_kind": "work_auto", "source_run_id": second}

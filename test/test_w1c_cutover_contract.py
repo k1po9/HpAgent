@@ -47,7 +47,7 @@ def test_chat_loader_rejects_missing_conversation_instead_of_stringifying_none()
         SimpleNamespace(
             run_identity=lambda run_id: {
                 "status": "running",
-                "run_kind": "chat",
+                "source_kind": "chat",
                 "conversation_id": None,
             }
         )

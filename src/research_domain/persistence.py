@@ -1,4 +1,4 @@
-"""PostgreSQL repositories for Task, source and evidence state."""
+"""PostgreSQL repositories for Research capability state."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 import re
 from collections.abc import Iterable
 from difflib import SequenceMatcher
-from typing import Any, cast
+from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from uuid6 import uuid7
@@ -22,82 +22,21 @@ from research_domain.models import (
 )
 
 
-class TaskRepository:
-    def insert(
-        self,
-        uow: UnitOfWork,
-        task_id: UUID,
-        account_id: UUID,
-        title: str,
-        objective: str,
-        source_strategy: dict[str, Any],
-        conversation_id: UUID | None = None,
-    ) -> None:
-        uow.execute(
-            "INSERT INTO tasks(task_id,account_id,conversation_id,task_type,title,objective,"
-            "source_strategy) VALUES (%s,%s,%s,'research_report',%s,%s,%s::jsonb)",
-            (task_id, account_id, conversation_id, title, objective,
-             json.dumps(source_strategy)),
-        )
-
-    def lock_active(
-        self, uow: UnitOfWork, account_id: UUID, task_id: UUID
-    ) -> dict[str, Any] | None:
-        return cast(
-            dict[str, Any] | None,
-            uow.execute(
-                "SELECT * FROM tasks WHERE account_id=%s AND task_id=%s FOR UPDATE",
-                (account_id, task_id),
-            ).fetchone(),
-        )
-
-    def mark_triggered(self, uow: UnitOfWork, task_id: UUID) -> None:
-        uow.execute(
-            "UPDATE tasks SET last_triggered_at=now(),updated_at=now(),version=version+1 "
-            "WHERE task_id=%s",
-            (task_id,),
-        )
-
-    def update_schedule(
-        self,
-        uow: UnitOfWork,
-        task_id: UUID,
-        *,
-        schedule_type: str,
-        timezone: str,
-        expression: str | None,
-        enabled: bool,
-    ) -> dict[str, Any]:
-        return cast(
-            dict[str, Any],
-            uow.execute(
-                "UPDATE tasks SET schedule_type=%s,schedule_timezone=%s,"
-                "schedule_expression=%s,schedule_enabled=%s,"
-                "schedule_version=schedule_version+CASE WHEN "
-                "(schedule_type,schedule_timezone,schedule_expression,schedule_enabled) "
-                "IS DISTINCT FROM (%s,%s,%s,%s) THEN 1 ELSE 0 END,"
-                "updated_at=now(),version=version+1 WHERE task_id=%s RETURNING *",
-                (schedule_type, timezone, expression, enabled,
-                 schedule_type, timezone, expression, enabled, task_id),
-            ).fetchone(),
-        )
-
-
 class ResearchRepository:
     def create_plan(self, uow: UnitOfWork, run_id: UUID, plan: ResearchPlan) -> None:
-        task_id = uow.execute("SELECT task_id FROM runs WHERE run_id=%s", (run_id,)).fetchone()[
-            "task_id"
-        ]
+        owner = uow.execute("SELECT work_id,account_id,requirement_revision FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+        work_id = owner["work_id"]
         uow.execute(
-            "INSERT INTO research_plans(run_id,task_id,plan_version,plan) "
-            "VALUES (%s,%s,%s,%s::jsonb) ON CONFLICT (run_id) DO NOTHING",
-            (run_id, task_id, plan.version, json.dumps(plan.to_dict())),
+            "INSERT INTO research_plans(run_id,work_id,account_id,requirement_revision,plan_version,plan) "
+            "VALUES (%s,%s,%s,%s,%s,%s::jsonb) ON CONFLICT (run_id) DO NOTHING",
+            (run_id, work_id, owner["account_id"], owner["requirement_revision"], plan.version, json.dumps(plan.to_dict())),
         )
 
     def load_plan(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
         row = uow.execute(
-            "SELECT p.plan,t.task_id,t.objective FROM research_plans p JOIN tasks t "
-            "ON t.task_id=p.task_id WHERE p.run_id=%s",
+            "SELECT p.plan,q.work_id,q.objective FROM research_plans p JOIN work_requirements q "
+            "ON q.account_id=p.account_id AND q.work_id=p.work_id AND q.revision=p.requirement_revision "
+            "WHERE p.run_id=%s",
             (run_id,),
         ).fetchone()
         if row is None:
@@ -114,24 +53,23 @@ class ResearchRepository:
         iteration: int = 1,
         question_id: str = "q1",
     ) -> list[UUID]:
-        task_id = uow.execute("SELECT task_id FROM runs WHERE run_id=%s", (run_id,)).fetchone()[
-            "task_id"
-        ]
+        owner = uow.execute("SELECT work_id,account_id,requirement_revision FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+        work_id = owner["work_id"]
         source_ids: list[UUID] = []
         for candidate in candidates:
             source_id = uuid7()
             canonical_uri = canonicalize(candidate.uri)
             row = uow.execute(
-                "INSERT INTO source_records(source_id,run_id,task_id,provider,source_type,"
-                "canonical_uri,title,publisher,published_at,source_tier,metadata,iteration,question_id) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s) "
+                "INSERT INTO source_records(source_id,run_id,work_id,provider,source_type,"
+                "canonical_uri,title,publisher,published_at,source_tier,metadata,iteration,question_id,account_id,requirement_revision) "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s) "
                 "ON CONFLICT (run_id,canonical_uri) DO UPDATE SET "
                 "metadata=source_records.metadata || EXCLUDED.metadata,updated_at=now() "
                 "RETURNING source_id",
                 (
                     source_id,
                     run_id,
-                    task_id,
+                    work_id,
                     candidate.provider,
                     candidate.source_type,
                     canonical_uri,
@@ -142,6 +80,8 @@ class ResearchRepository:
                     json.dumps({"snippet": candidate.snippet, **candidate.metadata}),
                     iteration,
                     question_id,
+                    owner["account_id"],
+                    owner["requirement_revision"],
                 ),
             ).fetchone()
             source_ids.append(UUID(str(row["source_id"])))
@@ -429,7 +369,7 @@ class ResearchRepository:
 
     def compare_previous_report(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
         current_run = uow.execute(
-            "SELECT task_id,created_at FROM runs WHERE run_id=%s", (run_id,)
+            "SELECT work_id,created_at FROM runs WHERE run_id=%s", (run_id,)
         ).fetchone()
         if current_run is None:
             raise LookupError(f"research Run not found: {run_id}")

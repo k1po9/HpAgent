@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import NotRequired, TypedDict, cast
+from typing import NotRequired, TypedDict
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -46,23 +46,6 @@ class ResearchIterationInput:
             raise ApplicationError("invalid Research iteration input", non_retryable=True)
 
 
-@dataclass(frozen=True)
-class ResearchScheduleInput:
-    schema_version: int
-    account_id: str
-    task_id: str
-    schedule_version: int
-
-    def validate(self) -> None:
-        if (
-            self.schema_version != RESEARCH_WORKFLOW_SCHEMA_VERSION
-            or not self.account_id
-            or not self.task_id
-            or self.schedule_version < 1
-        ):
-            raise ApplicationError("invalid Research schedule input", non_retryable=True)
-
-
 class ResearchStageRef(TypedDict):
     schema_version: int
     run_id: str
@@ -79,30 +62,6 @@ _RESEARCH_RETRY = RetryPolicy(
     maximum_interval=timedelta(seconds=20),
     maximum_attempts=4,
 )
-
-
-@workflow.defn
-class ResearchTaskScheduleWorkflow:
-    """Temporal Schedule entrypoint; the Activity still invokes the Task command path."""
-
-    @workflow.run
-    async def run(self, request: ResearchScheduleInput) -> dict[str, str | bool]:
-        request.validate()
-        result = await workflow.execute_activity(
-            "trigger_scheduled_research_activity",
-            {
-                "schema_version": request.schema_version,
-                "account_id": request.account_id,
-                "task_id": request.task_id,
-                "schedule_version": request.schedule_version,
-                "fire_id": workflow.info().run_id,
-            },
-            task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-            start_to_close_timeout=timedelta(seconds=30),
-            schedule_to_close_timeout=timedelta(seconds=60),
-            retry_policy=_RESEARCH_RETRY,
-        )
-        return cast(dict[str, str | bool], result)
 
 
 @workflow.defn

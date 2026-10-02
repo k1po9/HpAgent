@@ -302,7 +302,7 @@ def test_failed_run_cannot_convert_to_completed(
         migration_database_url
     ) as connection:
         connection.execute("SET search_path=hpagent,public")
-        connection.execute("UPDATE runs SET status='completed' WHERE run_id=%s", (run_id,))
+        connection.execute("UPDATE runs SET status='succeeded' WHERE run_id=%s", (run_id,))
 
 
 def test_outbox_dead_letter_requires_current_lease(

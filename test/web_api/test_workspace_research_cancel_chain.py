@@ -8,6 +8,7 @@ from contextlib import suppress
 from uuid import UUID, uuid4
 
 import pytest
+from support.work_fixtures import research_requirement
 from temporalio import activity
 from temporalio.client import Client, WorkflowExecutionStatus
 from temporalio.worker import Worker
@@ -50,7 +51,7 @@ async def _until(condition, timeout: float = 30) -> None:
 
 
 @pytest.mark.parametrize("retry_after_dispatcher_restart", [False, True])
-async def test_independent_task_revoke_uses_production_cancel_chain(
+async def test_work_revoke_uses_production_cancel_chain(
     seed_identity, client_factory, db, database_url, worker_database_url, tmp_path,
     retry_after_dispatcher_restart,
 ):
@@ -78,20 +79,19 @@ async def test_independent_task_revoke_uses_production_cancel_chain(
     }, headers=_headers(csrf, str(uuid4())))
     assert saved.status_code == 201
     node_id = UUID(saved.json()["node_id"])
-    task = client_api.post("/api/v1/tasks", json={
-        "title": "Revocable Research", "objective": "Read the selected input",
-        "output_required": False,
+    work = client_api.post("/api/v1/works", json={
+        "title": "Revocable Research", "requirement": research_requirement("Read the selected input"),
     }, headers=_headers(csrf, str(uuid4())))
-    assert task.status_code == 201, task.text
-    task_id = task.json()["task"]["task_id"]
-    granted = client_api.post(f"/api/v1/tasks/{task_id}/resources", json={
+    assert work.status_code == 201, work.text
+    work_id = work.json()["work"]["work_id"]
+    granted = client_api.post(f"/api/v1/works/{work_id}/resources", json={
         "node_id": parent, "operations": ["list_metadata", "read_content"],
         "recursive": True,
     }, headers=_headers(csrf))
     assert granted.status_code == 201
     read_grant = granted.json()["grant_ids"][1]
-    triggered = client_api.post(f"/api/v1/tasks/{task_id}/runs", json={},
-        headers=_headers(csrf, str(uuid4())))
+    triggered = client_api.post(f"/api/v1/works/{work_id}/advance", json={},
+        headers={**_headers(csrf, str(uuid4())), "If-Match": work.headers["ETag"]})
     assert triggered.status_code == 202, triggered.text
     run_id = UUID(triggered.json()["run"]["run_id"])
     store = TenantFileStore(store_root, max_bytes=1024 * 1024)
@@ -192,13 +192,11 @@ async def test_independent_task_revoke_uses_production_cancel_chain(
                 assert await asyncio.to_thread(entered.wait, 20)
                 root = execution_root / str(run_id)
                 assert root.exists()
-                revoke_path = f"/api/v1/tasks/{task_id}/resources/{read_grant}"
+                revoke_path = f"/api/v1/works/{work_id}/resources/{read_grant}"
                 revoked = await asyncio.to_thread(client_api.delete, revoke_path,
                                                   headers=_headers(csrf))
                 assert revoked.status_code == 200, revoked.text
-                assert revoked.json() == {"affected_runs": [{
-                    "run_id": str(run_id), "stop_state": "stopping",
-                }]}
+                assert revoked.json() == {"affected_run_ids": [str(run_id)]}
                 with UnitOfWork(database_url) as uow:
                     assert uow.execute("SELECT status FROM runs WHERE run_id=%s",
                                        (run_id,)).fetchone()["status"] == "cancelling"
@@ -228,7 +226,7 @@ async def test_independent_task_revoke_uses_production_cancel_chain(
                 repeated = await asyncio.to_thread(client_api.delete, revoke_path,
                                                    headers=_headers(csrf))
                 assert repeated.status_code == 200
-                assert repeated.json() == {"affected_runs": []}
+                assert repeated.json() == {"affected_run_ids": []}
                 await _until(lambda: db.execute(
                     "SELECT status FROM outbox_events WHERE run_id=%s "
                     "AND event_type='cancel_run'", (run_id,)

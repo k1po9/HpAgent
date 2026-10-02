@@ -22,7 +22,7 @@ from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.document_workflow import NormalizeDocumentWorkflow
-from orchestration.research_workflow import ResearchReportWorkflow, ResearchTaskScheduleWorkflow
+from orchestration.research_workflow import ResearchReportWorkflow
 from orchestration.run_lifecycle_contracts import (
     WEB_AGENT_TASK_QUEUE,
     WEB_LIFECYCLE_TASK_QUEUE,
@@ -87,7 +87,6 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
     assert made[0]["workflows"] == [
         AgentLifecycleWorkflow,
         ResearchReportWorkflow,
-        ResearchTaskScheduleWorkflow,
         ArtifactBuildWorkflow,
         NormalizeDocumentWorkflow,
     ]
@@ -481,8 +480,8 @@ async def test_td_003_dispatcher_does_not_start_a_run_cancelled_before_rpc():
         ("running", "not_found", ("failed", "terminal_commit_missing")),
         ("cancelling", "open", ("cancel",)),
         ("cancelling", "not_found", ("cancelled",)),
-        ("completed", "open", ("cancel",)),
-        ("completed", "failed", ("record", "failed")),
+        ("succeeded", "open", ("cancel",)),
+        ("succeeded", "failed", ("record", "failed")),
     ],
 )
 async def test_td_012_td_014_reconciler_converges_every_temporal_close_fact(
@@ -512,5 +511,5 @@ async def test_td_012_td_014_reconciler_converges_every_temporal_close_fact(
 
     await WebRunReconciler(Store(), Temporal()).run_once()
     assert expected in calls
-    if run_status == "completed":
+    if run_status == "succeeded":
         assert not any(call[0] == "failed" for call in calls)

@@ -34,7 +34,7 @@ class PostgresTraceRepository:
             row = uow.execute(
                 "INSERT INTO trace_runs(trace_run_id,run_id,account_id,conversation_id,"
                 "strategy,metadata) SELECT %s,r.run_id,r.account_id,r.conversation_id,"
-                "CASE WHEN r.run_kind='research' THEN 'research' ELSE r.agent_strategy END,"
+                "CASE WHEN r.executor_key='research_report' THEN 'research' ELSE r.agent_strategy END,"
                 "%s FROM runs r WHERE r.run_id=%s "
                 "ON CONFLICT (run_id) DO NOTHING RETURNING *",
                 (uuid7(), Jsonb(sanitize_trace_run_metadata(metadata)), run_id),

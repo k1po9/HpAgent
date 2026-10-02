@@ -11,7 +11,6 @@ from temporalio.worker import Worker
 from orchestration.research_workflow import (
     ResearchIterationInput,
     ResearchReportWorkflow,
-    ResearchTaskScheduleWorkflow,
 )
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 
@@ -79,7 +78,7 @@ async def main() -> None:
     worker = Worker(
         client,
         task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-        workflows=[ResearchReportWorkflow, ResearchTaskScheduleWorkflow],
+        workflows=[ResearchReportWorkflow],
         activities=[
             prepare, plan, discover, rank, fetch, normalize, evidence, corroborate,
             gaps, synthesize, verify, compare, publish, save, complete, fail, trigger_schedule,

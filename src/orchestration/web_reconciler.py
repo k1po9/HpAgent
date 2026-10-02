@@ -58,7 +58,7 @@ class WebRunReconciler:
                 await asyncio.to_thread(
                     self._store.record_temporal_fact, item.run_id, fact.status
                 )
-            if item.run_status in ("completed", "failed", "cancelled"):
+            if item.run_status in ("succeeded", "failed", "cancelled"):
                 if fact.status == "open":
                     await self._temporal.cancel(item.workflow_id)
                 continue

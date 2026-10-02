@@ -76,144 +76,26 @@ export class HpApi {
     });
   }
 
-  async listResearchTasks(before?: string | null): Promise<{
+  async listResearchWorks(): Promise<{
     items: Array<{
-      task_id: string;
+      work_id: string;
       title: string;
       status: string;
-      output_directory_id: string | null;
-      output_directory_name: string | null;
-      output_required: boolean;
-      output_operation: string;
-      output_entry_id: string | null;
-      schedule_type: string;
-      schedule_timezone: string;
-      schedule_expression: string | null;
+      requirement: { capability_key: string };
     }>;
     next_before: string | null;
   }> {
-    return this.client.request({
-      method: "GET",
-      path: `/api/v1/tasks${before ? `?before=${before}` : ""}`,
-    });
+    return this.client.request({ method: "GET", path: "/api/v1/works" });
   }
 
-  async createResearchTask(
-    title: string,
-    objective: string,
-    directoryId: string,
-    idempotencyKey: string,
-  ): Promise<{ task: { task_id: string } }> {
-    return this.client.request({
-      method: "POST",
-      path: "/api/v1/tasks",
-      idempotencyKey,
-      body: { title, objective, output_directory_id: directoryId, output_required: true },
-    });
-  }
-
-  async setResearchOutput(
-    taskId: string,
-    directoryId: string,
-    operation: "create_child" | "update_content" = "create_child",
-    entryId: string | null = null,
-  ): Promise<void> {
-    await this.client.request({
-      method: "PUT",
-      path: `/api/v1/tasks/${taskId}/output`,
-      body: {
-        output_directory_id: directoryId,
-        required: true,
-        operation,
-        output_entry_id: entryId,
-      },
-    });
-  }
-
-  async triggerResearchTask(taskId: string, idempotencyKey: string): Promise<void> {
-    await this.client.request({
-      method: "POST",
-      path: `/api/v1/tasks/${taskId}/runs`,
-      body: {},
-      idempotencyKey,
-    });
-  }
-
-  async grantResearchInput(taskId: string, nodeId: string, recursive: boolean): Promise<void> {
-    await this.client.request({
-      method: "POST",
-      path: `/api/v1/tasks/${taskId}/resources`,
-      body: { node_id: nodeId, operations: ["list_metadata", "read_content"], recursive },
-    });
-  }
-
-  async listResearchResources(taskId: string): Promise<{
-    grants: Array<{ grant_id: string; node_id: string; name: string; operation: string }>;
+  async listResearchRuns(workId: string): Promise<{
+    items: Array<{ run_id: string; status: string; failure_code: string | null }>;
   }> {
-    return this.client.request({ method: "GET", path: `/api/v1/tasks/${taskId}/resources` });
+    return this.client.request({ method: "GET", path: `/api/v1/works/${workId}/runs` });
   }
 
-  async revokeResearchResource(
-    taskId: string,
-    grantId: string,
-  ): Promise<{
-    affected_runs: Array<{ run_id: string; stop_state: "stopping" | "stopped" }>;
-  }> {
-    return this.client.request({
-      method: "DELETE",
-      path: `/api/v1/tasks/${taskId}/resources/${grantId}`,
-    });
-  }
-
-  async setResearchSchedule(
-    taskId: string,
-    timezone: string,
-    expression: string,
-    idempotencyKey: string,
-  ): Promise<void> {
-    await this.client.request({
-      method: "PUT",
-      path: `/api/v1/tasks/${taskId}/schedule`,
-      idempotencyKey,
-      body: { schedule_type: "daily", timezone, expression, enabled: true },
-    });
-  }
-
-  async listResearchRuns(
-    taskId: string,
-    before?: string | null,
-  ): Promise<{
-    items: Array<{
-      run_id: string;
-      status: string;
-      failure_code: string | null;
-      save_status: string | null;
-      save_entry_id: string | null;
-      save_failure_code: string | null;
-      published_file: {
-        file_id: string;
-        file_name: string;
-        download_url: string;
-      } | null;
-    }>;
-    next_before: string | null;
-  }> {
-    return this.client.request({
-      method: "GET",
-      path: `/api/v1/tasks/${taskId}/runs${before ? `?before=${before}` : ""}`,
-    });
-  }
-
-  async getResearchReport(
-    taskId: string,
-    runId: string,
-  ): Promise<{
-    report: { report_markdown: string };
-  }> {
-    return this.client.request({
-      method: "GET",
-      path: `/api/v1/tasks/${taskId}/runs/${runId}/report`,
-    });
+  async getResearchReport(runId: string): Promise<{ report: { report_markdown: string } }> {
+    return this.client.request({ method: "GET", path: `/api/v1/runs/${runId}/research/report` });
   }
 
   async getWorkspace(): Promise<{
@@ -244,7 +126,7 @@ export class HpApi {
       name?: string;
       content_type?: string;
       purpose?: string;
-      task_id?: string;
+      work_id?: string;
       source_run_id?: string;
       from_date?: string;
       to_date?: string;
@@ -260,7 +142,7 @@ export class HpApi {
       size_bytes: number | null;
       purpose: string;
       source_run_id: string | null;
-      source_task_id: string | null;
+      source_work_id: string | null;
       revision: number | null;
     }>;
     next_after: string | null;

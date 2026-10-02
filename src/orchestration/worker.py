@@ -273,7 +273,6 @@ def compose_durable_runtime(
             durable_activities.finalize_agent_result,
             artifact_activities.execute,
             research_activities.prepare_research_activity,
-            research_activities.trigger_scheduled_research_activity,
             research_activities.create_research_plan_activity,
             research_activities.discover_research_sources_activity,
             research_activities.rank_research_sources_activity,
@@ -899,19 +898,12 @@ async def start_worker(config: AppConfig) -> None:
         web_reconciler = None
         web_memory_retention = None
         web_artifact_dispatcher = None
-        research_schedule_manager = None
         composition = compose_durable_runtime(client, config, deps)
         web_workers = composition.workers
         web_dispatcher = composition.dispatcher
         web_reconciler = composition.reconciler
         web_memory_retention = composition.memory_retention
         web_artifact_dispatcher = composition.artifact_dispatcher
-        from orchestration.research_schedule import ResearchScheduleManager
-
-        research_schedule_manager = ResearchScheduleManager(
-            os.environ["WORKER_DATABASE_URL"], client
-        )
-
         # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
         _channel_factories = {
             ChannelType.NAPCAT: NapCatChannel,
@@ -1010,14 +1002,6 @@ async def start_worker(config: AppConfig) -> None:
                 readiness_tasks = tuple(background_tasks._tasks)
                 readiness_path = Path(os.getenv("HPAGENT_WORKER_READY_FILE", "/tmp/hpagent-worker-ready.json"))
                 background_tasks.create(_worker_readiness_loop(readiness_path, readiness_tasks))
-                if research_schedule_manager is not None:
-                    from orchestration.research_schedule import (
-                        run_research_schedule_reconciler_loop,
-                    )
-
-                    background_tasks.create(
-                        run_research_schedule_reconciler_loop(research_schedule_manager)
-                    )
             for ch in active_channels:
                 await ch.start_monitor(handle_message)
 

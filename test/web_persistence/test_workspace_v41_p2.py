@@ -6,12 +6,13 @@ import threading
 from uuid import UUID, uuid4
 
 import pytest
+from support.work_fixtures import accept_research, advance_work
 
 from conversation_domain.commands import CommandService
 from file_runtime import FileResourceResolver
-from research_domain.services import ResearchTaskCommandService
 from storage.tenant_file_store import TenantFileStore
 from web_domain.errors import ResourceNotFound
+from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
 from workspace.file_scope import RunFileScopeUnavailable, RunFileWorkspace
 from workspace.resources import ResourceDenied, ResourcePolicy, SnapshotLimitExceeded
@@ -54,13 +55,13 @@ def test_independent_task_last_input_revoke_persists_cancellation(
     store = TenantFileStore(tmp_path / "store", max_bytes=1024)
     file_id = _file(db, store, account_id, origin, "task.txt", b"task input")
     node_id = catalog.save_file(account_id, parent, file_id, "task.txt", "save:task")
-    tasks = ResearchTaskCommandService(database_url)
-    task_id = UUID(tasks.create_task(account_id, str(uuid4()), "Task", "Read input").body["task_id"])
-    grants = policy.grant(account_id, "task", task_id, node_id,
+    works = WorkCommandService(database_url)
+    work_id = UUID(accept_research(works, account_id, str(uuid4()), "Research", "Read input").body["work"]["work_id"])
+    grants = policy.grant(account_id, "work", work_id, node_id,
                           ["list_metadata", "read_content"], False)
-    another_read = UUID(policy.grant(account_id, "task", task_id, parent,
+    another_read = UUID(policy.grant(account_id, "work", work_id, parent,
                                     ["read_content"], True)[0])
-    run_id = UUID(tasks.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    run_id = UUID(advance_work(works, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     db.execute("UPDATE runs SET status='running',started_at=now() WHERE run_id=%s", (run_id,))
     db.execute("INSERT INTO workflow_executions(workflow_execution_id,account_id,run_id,"
                "workflow_id) VALUES (%s,%s,%s,%s)",

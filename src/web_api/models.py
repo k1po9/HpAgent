@@ -26,38 +26,16 @@ class CreateConversationRequest(StrictModel):
     title: str | None = None
 
 
-class SourceStrategyRequest(StrictModel):
-    public_web: bool = True
-    official_sources: bool = True
-    github: bool = True
-    rss: bool = True
-    uploaded_files: bool = False
-    freshness_days: int = Field(default=7, ge=0, le=3650)
-    preferred_domains: list[str] = Field(default_factory=list, max_length=100)
-    rss_feeds: list[str] = Field(default_factory=list, max_length=100)
-
-
-class CreateResearchTaskRequest(StrictModel):
+class CreateWorkRequest(StrictModel):
     title: str = Field(min_length=1, max_length=200)
-    objective: str = Field(min_length=1, max_length=20000)
+    requirement: dict
     conversation_id: UUID | None = None
-    output_directory_id: UUID | None = None
-    output_required: bool = False
-    source_strategy: SourceStrategyRequest = Field(default_factory=SourceStrategyRequest)
+    source_message_id: UUID | None = None
 
 
-class UpdateResearchScheduleRequest(StrictModel):
-    schedule_type: Literal["manual", "daily"]
-    timezone: str = Field(default="UTC", min_length=1, max_length=100)
-    expression: str | None = Field(default=None, max_length=20)
-    enabled: bool = False
-
-
-class UpdateResearchOutputRequest(StrictModel):
-    output_directory_id: UUID
-    required: bool = True
-    operation: Literal["create_child", "update_content"] = "create_child"
-    output_entry_id: UUID | None = None
+class ReviseWorkRequest(StrictModel):
+    requirement: dict
+    change_reason: str = Field(default="user_revision", min_length=1, max_length=500)
 
 
 class RenameConversationRequest(StrictModel):

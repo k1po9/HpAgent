@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID, uuid4
 
 import pytest
+from support.work_fixtures import research_requirement
 
 from workspace.resources import ResourcePolicy
 
@@ -16,7 +17,7 @@ def _headers(csrf: str, key: str | None = None) -> dict[str, str]:
     return headers
 
 
-def test_task_grant_revoke_checks_owner_task_and_replay(
+def test_work_grant_revoke_checks_owner_and_replay(
     tmp_path, seed_identity, client_factory,
 ):
     seed_identity("task-resource-owner")
@@ -30,26 +31,26 @@ def test_task_grant_revoke_checks_owner_task_and_replay(
     other_csrf = other.get("/api/v1/me").json()["csrf_token"]
     tree = owner.get("/api/v1/workspace").json()
     info = next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料")
-    task = owner.post("/api/v1/tasks", json={"title": "Grant test", "objective": "Read",
-        "output_required": False}, headers=_headers(csrf, str(uuid4())))
-    assert task.status_code == 201, task.text
-    task_id = task.json()["task"]["task_id"]
-    second = owner.post("/api/v1/tasks", json={"title": "Second", "objective": "Read",
-        "output_required": False}, headers=_headers(csrf, str(uuid4())))
+    work = owner.post("/api/v1/works", json={"title": "Grant test",
+        "requirement": research_requirement("Read")}, headers=_headers(csrf, str(uuid4())))
+    assert work.status_code == 201, work.text
+    work_id = work.json()["work"]["work_id"]
+    second = owner.post("/api/v1/works", json={"title": "Second",
+        "requirement": research_requirement("Read")}, headers=_headers(csrf, str(uuid4())))
     assert second.status_code == 201, second.text
-    other_task_id = second.json()["task"]["task_id"]
-    grant = owner.post(f"/api/v1/tasks/{task_id}/resources", json={
+    other_work_id = second.json()["work"]["work_id"]
+    grant = owner.post(f"/api/v1/works/{work_id}/resources", json={
         "node_id": info, "operations": ["list_metadata", "read_content"],
         "recursive": True,
     }, headers=_headers(csrf))
     assert grant.status_code == 201, grant.text
     grant_id = grant.json()["grant_ids"][1]
-    path = f"/api/v1/tasks/{task_id}/resources/{grant_id}"
+    path = f"/api/v1/works/{work_id}/resources/{grant_id}"
     assert other.delete(path, headers=_headers(other_csrf)).status_code == 404
-    assert owner.delete(f"/api/v1/tasks/{other_task_id}/resources/{grant_id}",
+    assert owner.delete(f"/api/v1/works/{other_work_id}/resources/{grant_id}",
                         headers=_headers(csrf)).status_code == 404
-    assert owner.delete(path, headers=_headers(csrf)).json() == {"affected_runs": []}
-    assert owner.delete(path, headers=_headers(csrf)).json() == {"affected_runs": []}
+    assert owner.delete(path, headers=_headers(csrf)).json() == {"affected_run_ids": []}
+    assert owner.delete(path, headers=_headers(csrf)).json() == {"affected_run_ids": []}
 
 
 def test_conversation_grant_snapshot_revoke_and_owner_download(

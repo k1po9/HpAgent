@@ -211,7 +211,7 @@ class WorkspaceCatalog:
                 "intent_sha256,node_id,source_kind,source_run_id) "
                 "VALUES (%s,%s,%s,%s,%s,%s)",
                 (account_id, operation_id, intent, node_id,
-                 "task_auto" if agent_run_id else "user_manual", agent_run_id),
+                 "work_auto" if agent_run_id else "user_manual", agent_run_id),
             )
             if file["purpose"] == "input" and file["expires_at"] is not None:
                 uow.execute(
@@ -312,7 +312,7 @@ class WorkspaceCatalog:
     @retryable_transaction
     def update_file(self, account_id: UUID, node_id: UUID, run_id: UUID,
                     file_id: UUID, expected_revision: int, expected_sha256: str,
-                    operation_id: str, *, task_auto: bool = False) -> dict[str, Any]:
+                    operation_id: str, *, work_auto: bool = False) -> dict[str, Any]:
         """Register an already published Run output with one historical CAS result."""
         if not operation_id or len(operation_id) > 200:
             raise WorkspaceConflict("invalid operation ID")
@@ -352,7 +352,7 @@ class WorkspaceCatalog:
                 "WHERE r.account_id=%s AND r.run_id=%s FOR UPDATE OF r",
                 (account_id, run_id),
             ).fetchone()
-            if run is None or run["status"] not in {"queued", "running", "completed"} or (
+            if run is None or run["status"] not in {"queued", "running", "succeeded"} or (
                     run["snapshot_status"] != "ready"):
                 raise ResourceDenied("Run cannot commit a Workspace revision")
             policy = ResourcePolicy(self.database)
@@ -399,8 +399,8 @@ class WorkspaceCatalog:
                 "intent_sha256,node_id,destination_id,revision,file_id,source_kind,"
                 "source_run_id) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (account_id, operation_id, intent, node_id, destination_id,
-                 revision, file_id, "task_auto" if task_auto else "user_manual",
-                 run_id if task_auto else None),
+                 revision, file_id, "work_auto" if work_auto else "user_manual",
+                 run_id if work_auto else None),
             )
             return {"node_id": str(node_id), "destination_id": str(destination_id),
                     "revision": revision, "file_id": str(file_id)}
@@ -473,10 +473,13 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             workspace_id = self._workspace(uow, account_id)
             if uow.execute(
-                "SELECT 1 FROM tasks WHERE account_id=%s AND output_directory_id=%s",
+                "SELECT 1 FROM works w JOIN work_requirements q ON q.account_id=w.account_id "
+                "AND q.work_id=w.work_id AND q.revision=w.current_requirement_revision "
+                "WHERE w.account_id=%s AND q.deliverable_policy->>'directory_id'=%s::text "
+                "AND w.status NOT IN ('stopped','completed')",
                 (account_id, node_id),
             ).fetchone() is not None:
-                raise WorkspaceConflict("Task output directory is still bound")
+                raise WorkspaceConflict("Work output directory is still bound")
             if preview_token is not None:
                 version = uow.execute(
                     "SELECT topology_version FROM account_workspaces WHERE account_id=%s",

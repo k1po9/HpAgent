@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID, uuid4
 
 import pytest
+from support.work_fixtures import research_requirement
 
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.research_workflow import ResearchIterationInput, ResearchWorkflowInput
@@ -40,17 +41,17 @@ async def test_standalone_research_report_becomes_downloadable_run_output(
     csrf = client.get("/api/v1/me").json()["csrf_token"]
     objective = "Research recent Agent Memory technical changes."
     created = client.post(
-        "/api/v1/tasks",
+        "/api/v1/works",
         json={
-            "title": "Agent Memory", "objective": objective,
+            "title": "Agent Memory", "requirement": research_requirement(objective),
         },
         headers=_headers(csrf, str(uuid4())),
     )
     assert created.status_code == 201
-    task_id = created.json()["task"]["task_id"]
+    work_id = created.json()["work"]["work_id"]
     triggered = client.post(
-        f"/api/v1/tasks/{task_id}/runs", json={},
-        headers=_headers(csrf, str(uuid4())),
+        f"/api/v1/works/{work_id}/advance", json={},
+        headers={**_headers(csrf, str(uuid4())), "If-Match": created.headers["ETag"]},
     )
     assert triggered.status_code == 202
     run_id = triggered.json()["run"]["run_id"]
@@ -108,34 +109,34 @@ async def test_standalone_research_report_becomes_downloadable_run_output(
     await activities.publish_research_artifact_activity(request)
     await activities.complete_research_activity(request)
 
-    run = client.get(f"/api/v1/tasks/{task_id}/runs/{run_id}").json()["run"]
+    run = client.get(f"/api/v1/runs/{run_id}").json()["run"]
     evidence = client.get(
-        f"/api/v1/tasks/{task_id}/runs/{run_id}/evidence"
+        f"/api/v1/runs/{run_id}/research/evidence"
     ).json()["evidence"]
     report = client.get(
-        f"/api/v1/tasks/{task_id}/runs/{run_id}/report"
+        f"/api/v1/runs/{run_id}/research/report"
     ).json()["report"]
-    assert run["status"] == "completed"
+    assert run["status"] == "succeeded"
     assert evidence and report["artifact_id"]
     assert report["report_markdown"].startswith(markdown)
     attachment = run["published_file"]
     assert attachment is not None
-    history_tasks = client.get("/api/v1/tasks").json()["items"]
-    assert any(item["task_id"] == task_id for item in history_tasks)
-    history_runs = client.get(f"/api/v1/tasks/{task_id}/runs").json()["items"]
-    assert history_runs[0]["published_file"] == attachment
+    history_works = client.get("/api/v1/works").json()["items"]
+    assert any(item["work_id"] == work_id for item in history_works)
+    history_runs = client.get(f"/api/v1/works/{work_id}/runs").json()["items"]
+    assert history_runs[0]["run_id"] == run_id
     assert attachment["file_name"] == "research-report.md"
     downloaded = client.get(attachment["download_url"])
     assert downloaded.status_code == 200
     assert downloaded.content.decode("utf-8") == report["report_markdown"]
     chat = client.post(
-        "/api/v1/conversations", json={"title": "Read Task output"},
+        "/api/v1/conversations", json={"title": "Read Work output"},
         headers=_headers(csrf, str(uuid4())),
     ).json()["conversation"]
     candidates = client.get(
         f"/api/v1/conversations/{chat['conversation_id']}/file-candidates"
     ).json()["items"]
-    # A new Conversation has no Workspace grant and cannot discover Task output.
+    # A new Conversation has no Workspace grant and cannot discover Work output.
     assert all(item["file_id"] != attachment["file_id"] for item in candidates)
     client.cookies.clear()
     assert client.get(attachment["download_url"]).status_code == 401

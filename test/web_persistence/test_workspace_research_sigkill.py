@@ -8,6 +8,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
+from support.work_fixtures import accept_research, advance_work
 from temporalio.client import Client
 
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
@@ -15,8 +16,8 @@ from orchestration.research_workflow import ResearchReportWorkflow, ResearchWork
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from persistence.uow import UnitOfWork
 from research_activities import ResearchActivities
-from research_domain.services import ResearchTaskCommandService
 from storage.tenant_file_store import TenantFileStore
+from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
 
 from .test_workspace_v41_p4 import Canonicalizer, Content, Discovery, Synthesis, execute
@@ -51,10 +52,10 @@ async def test_research_worker_sigkill_preserves_history_intent_and_results(
     tree = catalog.initialize(account_id)
     parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "成果"))
     target = catalog.create_directory(account_id, parent, f"sigkill-{phase}")
-    commands = ResearchTaskCommandService(database_url)
-    task_id = UUID(commands.create_task(account_id, str(uuid4()), "Daily", "Track facts",
-                                        output_directory_id=target,
-                                        output_required=True).body["task_id"])
+    commands = WorkCommandService(database_url)
+    work_id = UUID(accept_research(commands, account_id, str(uuid4()), "Daily", "Track facts",
+                                   output_directory_id=target,
+                                   output_required=True).body["work"]["work_id"])
     store_root = tmp_path / "store"
     store = TenantFileStore(store_root, max_bytes=1024 * 1024)
     baseline_activities = ResearchActivities(
@@ -62,9 +63,9 @@ async def test_research_worker_sigkill_preserves_history_intent_and_results(
         min_evidence=1, min_distinct_sources=1,
         markdown_publisher=ResearchMarkdownPublisher(OutputPublisher(worker_database_url, store)),
     )
-    prior = UUID(commands.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    prior = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     await execute(baseline_activities, prior)
-    run_id = UUID(commands.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
+    run_id = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     with UnitOfWork(database_url) as uow:
         before_intent = uow.execute(
             "SELECT operation_id,target_directory_id,required FROM research_run_save_intents "

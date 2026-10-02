@@ -43,12 +43,7 @@ from file_domain.approvals import ApprovalNotPending, FileActionApprovalService
 from persistence.command_result import CommandResult
 from persistence.migrate import verify_schema
 from persistence.uow import UnitOfWork
-from research_domain.models import SourceStrategy
-from research_domain.services import (
-    ResearchTaskCommandService,
-    TaskBusy,
-    TaskNotActive,
-)
+from research_domain.services import ResearchQueryService
 from storage.tenant_file_store import TenantFileStore
 from tracing.repository import PostgresTraceRepository
 from web_artifacts.services import ArtifactService
@@ -70,6 +65,8 @@ from web_domain.errors import (
     VersionConflict,
 )
 from web_domain.file_services import FileService
+from work_domain.commands import WorkCommandService, WorkConflict
+from work_domain.models import Requirement
 from workspace.catalog import (
     WorkspaceCatalog,
     WorkspaceConflict,
@@ -92,8 +89,8 @@ from .models import (
     CreateArtifactRequest,
     CreateArtifactVersionRequest,
     CreateConversationRequest,
-    CreateResearchTaskRequest,
     CreateUploadRequest,
+    CreateWorkRequest,
     CreateWorkspaceDirectoryRequest,
     EmptyRequest,
     GrantConversationResourceRequest,
@@ -101,10 +98,9 @@ from .models import (
     MoveWorkspaceNodeRequest,
     RegisterRequest,
     RenameConversationRequest,
+    ReviseWorkRequest,
     SaveWorkspaceFileRequest,
     SendMessageRequest,
-    UpdateResearchOutputRequest,
-    UpdateResearchScheduleRequest,
     UpdateWorkspaceFileRequest,
 )
 from .queries import QueryService, trace_tree_dto
@@ -307,7 +303,7 @@ def create_app(
                 budget_mode=settings.run_budget_mode,
                 budget_policy_version=settings.run_budget_policy_version,
             )
-            app.state.research_tasks = ResearchTaskCommandService(
+            app.state.works = WorkCommandService(
                 api_pool, budget_mode=settings.run_budget_mode
             )
             app.state.file_approvals = FileActionApprovalService(api_pool)
@@ -421,12 +417,13 @@ def create_app(
             RunNotRetryable: (409, "run_not_retryable", "当前运行状态不可重试。", False),
             RunRetryNotSafe: (409, "run_retry_not_safe", "任务包含无法确认的外部操作，不能自动重试。", False),
             VersionConflict: (412, "version_conflict", "对话版本已经变化。", True),
-            TaskBusy: (409, "task_busy", "该任务已有运行中的执行。", True),
-            TaskNotActive: (409, "task_not_active", "该任务当前不可触发。", False),
+            WorkConflict: (409, "work_conflict", "Work 状态或版本冲突。", True),
             ApprovalNotPending: (409, "approval_not_pending", "审批请求已处理或已过期。", False),
         }
         status, code, message, retryable = mapping.get(type(exc), (500, "service_unavailable", "服务暂不可用。", True))
         details = {"current_version": exc.current_version} if isinstance(exc, VersionConflict) else {}
+        if isinstance(exc, WorkConflict):
+            details = {"current": exc.current, "reason": exc.reason}
         if isinstance(exc, RunRetryNotSafe):
             details = {
                 "failure_code": exc.failure_code,
@@ -684,165 +681,126 @@ def create_app(
             response.headers["Idempotency-Replayed"] = "true"
         return response
 
-    @app.get("/api/v1/tasks")
-    def list_research_tasks(
-        request: Request,
-        before: UUID | None = None,
-        context: AuthContext = Depends(auth_context),
-    ):
-        return request.app.state.research_tasks.list_tasks(context.account_id, before)
-
-    @app.post("/api/v1/tasks")
-    def create_research_task(
-        payload: CreateResearchTaskRequest,
-        request: Request,
-        context: AuthContext = Depends(csrf_guard),
-        key: str = Depends(idempotency_key),
-    ):
-        strategy = SourceStrategy.from_dict(payload.source_strategy.model_dump())
-        result = request.app.state.research_tasks.create_task(
-            context.account_id, key, payload.title, payload.objective, strategy,
-            conversation_id=payload.conversation_id,
-            output_directory_id=payload.output_directory_id,
-            output_required=payload.output_required,
-        )
-        response = JSONResponse(status_code=result.status_code, content={"task": result.body})
-        response.headers["Location"] = f'/api/v1/tasks/{result.body["task_id"]}'
+    def work_response(result):
+        response = JSONResponse(status_code=result.response_status, content=result.body)
+        response.headers["ETag"] = f'"work-{result.body["work"]["work_id"]}-v{result.body["work"]["row_version"]}"'
         if result.replayed:
             response.headers["Idempotency-Replayed"] = "true"
         return response
 
-    @app.get("/api/v1/tasks/{task_id}/runs")
-    def list_research_runs(
-        task_id: UUID,
-        request: Request,
-        before: UUID | None = None,
-        context: AuthContext = Depends(auth_context),
-    ):
-        return request.app.state.research_tasks.list_runs(context.account_id, task_id, before)
+    def work_version(work_id: UUID, request: Request) -> int:
+        value = request.headers.get("If-Match")
+        if value is None:
+            raise HTTPException(428, "If-Match is required")
+        match = re.fullmatch(r'"work-([0-9a-f-]+)-v([1-9][0-9]*)"', value)
+        if not match or match.group(1) != str(work_id):
+            raise HTTPException(409, "Work version does not match")
+        return int(match.group(2))
 
-    @app.post("/api/v1/tasks/{task_id}/runs")
-    def trigger_research_task(
-        task_id: UUID,
-        payload: EmptyRequest,
-        request: Request,
-        context: AuthContext = Depends(csrf_guard),
-        key: str = Depends(idempotency_key),
-    ):
-        del payload
-        result = request.app.state.research_tasks.trigger_task(context.account_id, task_id, key)
-        response = JSONResponse(status_code=result.status_code, content={"run": result.body})
-        if result.replayed:
-            response.headers["Idempotency-Replayed"] = "true"
+    @app.get("/api/v1/works")
+    def list_works(request: Request, before: UUID | None = None,
+                   context: AuthContext = Depends(auth_context)):
+        return request.app.state.works.list(context.account_id, before)
+
+    @app.get("/api/v1/works/{work_id}")
+    def get_work(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+        body = request.app.state.works.get(context.account_id, work_id)
+        response = JSONResponse(content=body)
+        response.headers["ETag"] = f'"work-{work_id}-v{body["work"]["row_version"]}"'
         return response
 
-    @app.get("/api/v1/tasks/{task_id}/resources")
-    def task_resources(task_id: UUID, request: Request,
-                       context: AuthContext = Depends(auth_context)):
-        policy: ResourcePolicy = request.app.state.resource_policy
-        return {"grants": policy.grants(context.account_id, "task", task_id)}
+    def parse_work_requirement(value: dict) -> Requirement:
+        try:
+            return Requirement.from_dict(value)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    @app.post("/api/v1/tasks/{task_id}/resources", status_code=201)
-    def grant_task_resource(task_id: UUID, payload: GrantConversationResourceRequest,
+    @app.post("/api/v1/works")
+    def accept_work(payload: CreateWorkRequest, request: Request,
+                    context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        result = request.app.state.works.accept(
+            context.account_id, key, payload.title, parse_work_requirement(payload.requirement),
+            conversation_id=payload.conversation_id, source_message_id=payload.source_message_id)
+        response = work_response(result)
+        response.headers["Location"] = f'/api/v1/works/{result.body["work"]["work_id"]}'
+        return response
+
+    @app.post("/api/v1/works/{work_id}/revisions")
+    def revise_work(work_id: UUID, payload: ReviseWorkRequest, request: Request,
+                    context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.revise(
+            context.account_id, work_id, key, work_version(work_id, request),
+            parse_work_requirement(payload.requirement), payload.change_reason))
+
+    @app.post("/api/v1/works/{work_id}/pause")
+    def pause_work(work_id: UUID, payload: EmptyRequest, request: Request,
+                   context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.control(
+            context.account_id, work_id, key, work_version(work_id, request), "pause"))
+
+    @app.post("/api/v1/works/{work_id}/resume")
+    def resume_work(work_id: UUID, payload: EmptyRequest, request: Request,
+                    context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.control(
+            context.account_id, work_id, key, work_version(work_id, request), "resume"))
+
+    @app.post("/api/v1/works/{work_id}/stop")
+    def stop_work(work_id: UUID, payload: EmptyRequest, request: Request,
+                  context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.control(
+            context.account_id, work_id, key, work_version(work_id, request), "stop"))
+
+    @app.post("/api/v1/works/{work_id}/advance")
+    def advance_work(work_id: UUID, payload: EmptyRequest, request: Request,
+                     context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.advance(
+            context.account_id, work_id, key, work_version(work_id, request)))
+
+    @app.put("/api/v1/works/{work_id}/conversations/{conversation_id}")
+    def link_work(work_id: UUID, conversation_id: UUID, payload: EmptyRequest, request: Request,
+                  context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.link(
+            context.account_id, work_id, conversation_id, key, work_version(work_id, request)))
+
+    @app.get("/api/v1/works/{work_id}/events")
+    def work_events(work_id: UUID, request: Request, after: int = Query(0, ge=0),
+                    context: AuthContext = Depends(auth_context)):
+        return request.app.state.works.records(context.account_id, work_id, "events", after)
+
+    @app.get("/api/v1/works/{work_id}/runs")
+    def work_runs(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+        return request.app.state.works.records(context.account_id, work_id, "runs")
+
+    @app.get("/api/v1/works/{work_id}/resources")
+    def work_resources(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+        return {"grants": request.app.state.resource_policy.grants(context.account_id, "work", work_id)}
+
+    @app.post("/api/v1/works/{work_id}/resources", status_code=201)
+    def grant_work_resource(work_id: UUID, payload: GrantConversationResourceRequest,
                             request: Request, context: AuthContext = Depends(csrf_guard)):
-        if set(payload.operations) - {"list_metadata", "read_content"}:
-            raise ValueError("Task input grants only support read operations")
         ids = request.app.state.resource_policy.grant(
-            context.account_id, "task", task_id, payload.node_id,
-            payload.operations, payload.recursive,
-        )
+            context.account_id, "work", work_id, payload.node_id, payload.operations, payload.recursive)
         return {"grant_ids": ids}
 
-    @app.delete("/api/v1/tasks/{task_id}/resources/{grant_id}")
-    def revoke_task_resource(task_id: UUID, grant_id: UUID, request: Request,
+    @app.delete("/api/v1/works/{work_id}/resources/{grant_id}")
+    def revoke_work_resource(work_id: UUID, grant_id: UUID, request: Request,
                              context: AuthContext = Depends(csrf_guard)):
         with UnitOfWork(request.app.state.api_pool) as uow:
-            if uow.execute(
-                "SELECT 1 FROM resource_grants g JOIN tasks t "
-                "ON t.account_id=g.account_id AND t.task_id=g.subject_id "
-                "WHERE g.account_id=%s AND g.grant_id=%s AND g.subject_kind='task' "
-                "AND g.subject_id=%s",
-                (context.account_id, grant_id, task_id),
-            ).fetchone() is None:
+            if not uow.execute("SELECT 1 FROM resource_grants WHERE account_id=%s AND grant_id=%s "
+                               "AND subject_kind='work' AND subject_id=%s",
+                               (context.account_id, grant_id, work_id)).fetchone():
                 raise ResourceNotFound()
         affected = request.app.state.resource_policy.revoke(
-            context.account_id, grant_id, request.app.state.commands
-        )
-        with UnitOfWork(request.app.state.api_pool) as uow:
-            statuses = {row["run_id"]: row["status"] for row in uow.execute(
-                "SELECT run_id,status FROM runs WHERE account_id=%s AND run_id=ANY(%s)",
-                (context.account_id, affected),
-            ).fetchall()}
-        return {"affected_runs": [{"run_id": str(run_id),
-                "stop_state": "stopped" if statuses.get(run_id) == "cancelled" else "stopping"}
-                for run_id in affected]}
+            context.account_id, grant_id, request.app.state.commands)
+        return {"affected_run_ids": [str(run_id) for run_id in affected]}
 
-    @app.put("/api/v1/tasks/{task_id}/schedule")
-    def update_research_schedule(
-        task_id: UUID,
-        payload: UpdateResearchScheduleRequest,
-        request: Request,
-        context: AuthContext = Depends(csrf_guard),
-        key: str = Depends(idempotency_key),
-    ):
-        result = request.app.state.research_tasks.update_schedule(
-            context.account_id,
-            task_id,
-            key,
-            schedule_type=payload.schedule_type,
-            timezone=payload.timezone,
-            expression=payload.expression,
-            enabled=payload.enabled,
-        )
-        response = JSONResponse(status_code=result.status_code, content={"schedule": result.body})
-        if result.replayed:
-            response.headers["Idempotency-Replayed"] = "true"
-        return response
+    @app.get("/api/v1/runs/{run_id}/research/evidence")
+    def research_evidence(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+        return ResearchQueryService(request.app.state.api_pool).evidence(context.account_id, run_id)
 
-    @app.put("/api/v1/tasks/{task_id}/output")
-    def update_research_output(
-        task_id: UUID,
-        payload: UpdateResearchOutputRequest,
-        request: Request,
-        context: AuthContext = Depends(csrf_guard),
-    ):
-        return {"output": request.app.state.research_tasks.update_output(
-            context.account_id, task_id, payload.output_directory_id, payload.required,
-            payload.operation, payload.output_entry_id,
-        )}
-
-    @app.get("/api/v1/tasks/{task_id}/runs/{run_id}")
-    def get_research_run(
-        task_id: UUID,
-        run_id: UUID,
-        request: Request,
-        context: AuthContext = Depends(auth_context),
-    ):
-        return {"run": request.app.state.research_tasks.get_run(
-            context.account_id, task_id, run_id
-        )}
-
-    @app.get("/api/v1/tasks/{task_id}/runs/{run_id}/evidence")
-    def list_research_evidence(
-        task_id: UUID,
-        run_id: UUID,
-        request: Request,
-        context: AuthContext = Depends(auth_context),
-    ):
-        return {"evidence": request.app.state.research_tasks.list_evidence(
-            context.account_id, task_id, run_id
-        )}
-
-    @app.get("/api/v1/tasks/{task_id}/runs/{run_id}/report")
-    def get_research_report(
-        task_id: UUID,
-        run_id: UUID,
-        request: Request,
-        context: AuthContext = Depends(auth_context),
-    ):
-        return {"report": request.app.state.research_tasks.get_report(
-            context.account_id, task_id, run_id
-        )}
+    @app.get("/api/v1/runs/{run_id}/research/report")
+    def research_report(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+        return ResearchQueryService(request.app.state.api_pool).report(context.account_id, run_id)
 
     @app.get("/api/v1/conversations/{conversation_id}/file-candidates")
     def list_file_candidates(
@@ -926,14 +884,14 @@ def create_app(
                          name: str | None = Query(default=None, max_length=255),
                          summary: str | None = Query(default=None, max_length=255),
                          content_type: str | None = None, purpose: str | None = None,
-                         task_id: UUID | None = None, source_run_id: UUID | None = None,
+                         work_id: UUID | None = None, source_run_id: UUID | None = None,
                          from_date: date | None = None, to_date: date | None = None,
                          after: UUID | None = None,
                          limit: int = Query(default=50, ge=1, le=100)):
         return WorkspaceDiscovery(request.app.state.api_pool).search(
             context.account_id, name=name, summary=summary,
             content_type=content_type, purpose=purpose,
-            task_id=task_id, source_run_id=source_run_id,
+            work_id=work_id, source_run_id=source_run_id,
             from_date=from_date, to_date=to_date, after=after, limit=limit)
 
     @app.get("/api/v1/runs/{run_id}/workspace/search")
@@ -942,14 +900,14 @@ def create_app(
                              name: str | None = Query(default=None, max_length=255),
                              summary: str | None = Query(default=None, max_length=255),
                              content_type: str | None = None, purpose: str | None = None,
-                             task_id: UUID | None = None, source_run_id: UUID | None = None,
+                             work_id: UUID | None = None, source_run_id: UUID | None = None,
                              from_date: date | None = None, to_date: date | None = None,
                              after: UUID | None = None,
                              limit: int = Query(default=50, ge=1, le=100)):
         return WorkspaceDiscovery(request.app.state.api_pool).search(
             context.account_id, run_id=run_id, name=name, summary=summary,
             content_type=content_type,
-            purpose=purpose, task_id=task_id, source_run_id=source_run_id,
+            purpose=purpose, work_id=work_id, source_run_id=source_run_id,
             from_date=from_date, to_date=to_date, after=after, limit=limit)
 
     @app.get("/api/v1/workspace/space")

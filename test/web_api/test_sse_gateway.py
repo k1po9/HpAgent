@@ -32,7 +32,7 @@ _TOPIC_PREFIX = "hpagent:web:run:"
 _END = object()
 
 TERMINAL_BY_STATUS = {
-    "completed": ("run.completed", "completed"),
+    "succeeded": ("run.succeeded", "completed"),
     "failed": ("run.failed", "failed"),
     "cancelled": ("run.cancelled", "aborted"),
 }
@@ -98,6 +98,11 @@ def mark_terminal(
     """
     event_type, message_status = TERMINAL_BY_STATUS[status]
     with db.transaction():
+        if status == "cancelled":
+            db.execute(
+                "UPDATE runs SET status='cancelling', version=version+1, updated_at=now() "
+                "WHERE run_id=%s", (run_id,),
+            )
         if message_status == "completed":
             db.execute(
                 "UPDATE messages SET status='completed', content=%s, completed_at=now() "
@@ -195,7 +200,7 @@ def make_terminal_event(
         {
             "schema_version": 1,
             "event_id": event_id,
-            "event_type": "run.completed",
+            "event_type": "run.succeeded",
             "conversation_id": conversation_id,
             "run_id": run_id,
             "message_id": None,
@@ -329,7 +334,7 @@ def test_sse_http_terminal_snapshot_refresh_recovery(
     client = client_factory(redis_url=redis_url, fake_enabled=True, fake_mode="hold")
     csrf = login(client)
     run = create_running_run(client, csrf)
-    mark_terminal(db, account_id, run["conversation_id"], run["run_id"], "completed", "terminal content")
+    mark_terminal(db, account_id, run["conversation_id"], run["run_id"], "succeeded", "terminal content")
     with client.stream("GET", f"/api/v1/runs/{run['run_id']}/events") as response:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
@@ -338,7 +343,7 @@ def test_sse_http_terminal_snapshot_refresh_recovery(
         frames = collect_sse(response)
     assert [frame["event_type"] for frame in frames] == ["run.snapshot"]
     snapshot = frames[0]["payload"]["snapshot"]
-    assert snapshot["run"]["status"] == "completed"
+    assert snapshot["run"]["status"] == "succeeded"
     assert snapshot["run"]["budget"] is not None
     assert snapshot["run"]["budget"]["usage_state"] == "none"
     assert "tokens" in snapshot["run"]["budget"]
@@ -377,7 +382,7 @@ def test_sse_http_fake_executor_streams_online_events_then_terminal(
 ):
     """Phase-e exit gate: with Redis the Fake Run Executor projects the contract
     online events (run.started / run.progress / message.delta) under one
-    stream_id before the committed run.completed snapshot closes the stream."""
+    stream_id before the committed run.succeeded snapshot closes the stream."""
     seed_identity("alice")
     client = client_factory(
         redis_url=redis_url, fake_enabled=True, fake_mode="success", fake_delay=0.05
@@ -403,7 +408,7 @@ def test_sse_http_fake_executor_streams_online_events_then_terminal(
     assert "run.started" in types
     assert any(t == "run.progress" for t in types)
     assert any(t == "message.delta" for t in types)
-    assert types[-1] == "run.completed"
+    assert types[-1] == "run.succeeded"
 
     # The online events share one stream_id and a monotonic event_seq.
     online = [
@@ -616,7 +621,7 @@ async def test_sse_handshake_buffer_overflow_degrades(
 @pytest.mark.parametrize(
     "status,terminal_event,message_status",
     [
-        ("completed", "run.completed", "completed"),
+        ("succeeded", "run.succeeded", "completed"),
         ("failed", "run.failed", "failed"),
         ("cancelled", "run.cancelled", "aborted"),
     ],
@@ -626,7 +631,7 @@ async def test_sse_terminal_via_publisher(
     status, terminal_event, message_status,
 ):
     """API-012: the Outbox-driven Terminal Event Publisher turns a committed
-    terminal fact into run.completed/failed/cancelled carrying the full DB
+    terminal fact into run.succeeded/failed/cancelled carrying the full DB
     snapshot; the Gateway confirms against the DB and closes the stream."""
     account_id = seed_identity("alice")
     client = client_factory(redis_url=redis_url, fake_enabled=True, fake_mode="hold")
@@ -648,7 +653,7 @@ async def test_sse_terminal_via_publisher(
     )
     try:
         await reader.expect("run.snapshot")
-        content = "terminal final reply" if status == "completed" else None
+        content = "terminal final reply" if status == "succeeded" else None
         mark_terminal(
             db, account_id, run["conversation_id"],
             run["run_id"], status, content,
@@ -708,13 +713,13 @@ async def test_sse_terminal_snapshot_overrides_deltas(
         await reader.expect("message.delta")
         mark_terminal(
             db, account_id, run["conversation_id"],
-            run["run_id"], "completed", "committed complete reply",
+            run["run_id"], "succeeded", "committed complete reply",
         )
         enqueue_terminal(
             db, account_id, run["conversation_id"],
-            run["run_id"], "completed",
+            run["run_id"], "succeeded",
         )
-        terminal = await reader.expect("run.completed", timeout=10.0)
+        terminal = await reader.expect("run.succeeded", timeout=10.0)
         assert terminal["payload"]["snapshot"]["assistant_message"]["content"] == (
             "committed complete reply"
         )
@@ -729,7 +734,7 @@ async def test_sse_terminal_duplicate_delivery_is_idempotent(
     client_factory, seed_identity, redis_url, sync_redis, db
 ):
     """API-012: duplicate terminal delivery (at-least-once) must not produce a
-    duplicate run.completed — the Gateway closes on the first terminal event and
+    duplicate run.succeeded — the Gateway closes on the first terminal event and
     ignores anything already buffered."""
     account_id = seed_identity("alice")
     client = client_factory(redis_url=redis_url, fake_enabled=True, fake_mode="hold")
@@ -743,7 +748,7 @@ async def test_sse_terminal_duplicate_delivery_is_idempotent(
         await reader.expect("run.snapshot")
         mark_terminal(
             db, account_id, run["conversation_id"],
-            run["run_id"], "completed", "idempotent reply",
+            run["run_id"], "succeeded", "idempotent reply",
         )
         channel = f"{_TOPIC_PREFIX}{run['run_id']}"
         await asyncio.to_thread(wait_until_subscribed, sync_redis, channel)
@@ -754,7 +759,7 @@ async def test_sse_terminal_duplicate_delivery_is_idempotent(
         )
         await asyncio.to_thread(sync_redis.publish, channel, frame)
         await asyncio.to_thread(sync_redis.publish, channel, frame)
-        terminal = await reader.expect("run.completed")
+        terminal = await reader.expect("run.succeeded")
         assert terminal["event_id"] == same_event_id
         # The stream is already closed: the duplicate is never processed.
         assert await reader.next() is _END

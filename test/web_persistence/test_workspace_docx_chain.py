@@ -6,15 +6,16 @@ from uuid import UUID, uuid4
 
 import pytest
 from docx import Document
+from support.work_fixtures import accept_research, advance_work
 
 from conversation_domain.commands import CommandService
 from file_runtime import FileResourceResolver, OutputPublisher
-from research_domain.services import ResearchTaskCommandService
 from sandbox.git_repo import GitRepoManager
 from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
 from web_domain.file_cleanup import FileCleanupService
 from web_domain.file_services import FileService
+from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog, WorkspaceVersionConflict
 from workspace.file_scope import RunFileWorkspace
 from workspace.resources import ResourcePolicy
@@ -67,13 +68,13 @@ async def test_real_docx_upload_edit_revision_and_conflict_save(
 
     old_run = authorized_run()
     edit_run = authorized_run()
-    tasks = ResearchTaskCommandService(database_url)
-    task_id = UUID(tasks.create_task(account_id, str(uuid4()), "Reader", "Read DOCX")
-                   .body["task_id"])
-    policy.grant(account_id, "task", task_id, entry,
+    works = WorkCommandService(database_url)
+    work_id = UUID(accept_research(works, account_id, str(uuid4()), "Reader", "Read DOCX")
+                   .body["work"]["work_id"])
+    policy.grant(account_id, "work", work_id, entry,
                  ["list_metadata", "read_content"], False)
-    task_run = UUID(tasks.trigger_task(account_id, task_id, str(uuid4())).body["run_id"])
-    assert policy.select(account_id, task_run, entry)["file_id"] == str(first_file)
+    work_run = UUID(advance_work(works, account_id, work_id, str(uuid4())).body["run"]["run_id"])
+    assert policy.select(account_id, work_run, entry)["file_id"] == str(first_file)
     publisher = OutputPublisher(worker_database_url, store)
     workspace = RunFileWorkspace(worker_database_url, store, tmp_path / "execution")
     with workspace.prepare(account_id, edit_run, include_selected=True) as scope:
@@ -95,7 +96,7 @@ async def test_real_docx_upload_edit_revision_and_conflict_save(
     with workspace.prepare(account_id, old_run, include_selected=True) as scope:
         old = FileResourceResolver(scope).resolve(str(first_file))
         assert Document(old.local_path).paragraphs[0].text == "revision one"
-    with workspace.prepare(account_id, task_run, include_selected=True) as scope:
+    with workspace.prepare(account_id, work_run, include_selected=True) as scope:
         assert Document(FileResourceResolver(scope).resolve(str(first_file)).local_path) \
             .paragraphs[0].text == "revision one"
     assert db.execute("SELECT fixed_revision FROM run_resource_candidates "
