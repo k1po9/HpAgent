@@ -72,7 +72,7 @@ def db(migration_database_url: str):
             "account_entitlements", "registration_invites",
             "identity_binding_challenges", "web_credentials",
             "outbox_events", "idempotency_commands", "workflow_executions",
-            "messages", "runs", "sessions", "web_auth_sessions",
+            "messages", "runs", "web_auth_sessions",
             "identity_bindings", "conversations", "accounts",
         ):
             connection.execute(f"TRUNCATE {table} CASCADE")

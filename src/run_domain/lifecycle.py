@@ -43,6 +43,13 @@ class RunLifecycleService:
             raise ConversationBusy()
         return work
 
+    @staticmethod
+    def unresolved_effect(uow, work):
+        return uow.execute("SELECT operation_id FROM execution_operations WHERE account_id=%s AND work_id=%s "
+                           "AND status IN ('intent_recorded','uncertain') AND "
+                           "COALESCE(result_payload->>'side_effect_class','unknown') IN ('non_idempotent_write','unknown') "
+                           "ORDER BY started_at,operation_id LIMIT 1", (work['account_id'], work['work_id'])).fetchone()
+
     @retryable_transaction
     def start(self, account_id, run_id):
         with UnitOfWork(self.database) as uow:
@@ -117,12 +124,17 @@ class RunLifecycleService:
             raw = result.get('continuation', continuation('ready','execution_succeeded'))
             next_step = continuation(raw['kind'], raw['reason'], **{k:v for k,v in raw.items()
                                                                  if k not in {'kind','reason','schema_version'}})
+        unresolved = self.unresolved_effect(uow, work)
+        if unresolved:
+            next_step = continuation('blocked', 'side_effect_uncertain', operation_ref=unresolved['operation_id'])
         target_status = work['status']
-        if work['continuation'].get('operation_ref'):
+        if unresolved:
+            pass
+        elif work['continuation'].get('operation_ref'):
             next_step = work['continuation']
         elif run['requirement_revision'] != work['current_requirement_revision']:
             next_step = work['continuation']
-        if target_status in {'pausing','stopping'} and not work['continuation'].get('operation_ref'):
+        if target_status in {'pausing','stopping'} and not next_step.get('operation_ref'):
             target_status = {'pausing':'paused','stopping':'stopped'}[target_status]
         checkpoint = result.get('checkpoint', work['checkpoint']) if status=='succeeded' else work['checkpoint']
         work = dict(uow.execute('UPDATE works SET active_coordinator_run_id=NULL,status=%s,'
@@ -138,3 +150,27 @@ class RunLifecycleService:
 
             WorkCompletionPolicy.accept(uow, work, run)
         return True
+
+    @retryable_transaction
+    def converge_controls(self):
+        with UnitOfWork(self.database) as uow:
+            rows = uow.execute("SELECT * FROM works WHERE status IN ('pausing','stopping') "
+                               "AND active_coordinator_run_id IS NULL ORDER BY work_id FOR UPDATE SKIP LOCKED").fetchall()
+            for work in rows:
+                if self.unresolved_effect(uow, work):
+                    continue
+                # Only a confirmed operation receipt permits control convergence.
+                ref = work['continuation'].get('operation_ref')
+                if ref and not uow.execute("SELECT 1 FROM execution_operations o JOIN execution_result_receipts r "
+                                           "ON r.operation_id=o.operation_id WHERE o.account_id=%s AND o.work_id=%s "
+                                           "AND o.operation_id=%s AND o.status='completed'",
+                                           (work['account_id'], work['work_id'], ref)).fetchone():
+                    continue
+                status = 'paused' if work['status'] == 'pausing' else 'stopped'
+                work = dict(uow.execute("UPDATE works SET status=%s,control_epoch=control_epoch+1,"
+                                        "row_version=row_version+1,updated_at=now(),continuation=%s::jsonb,"
+                                        "stopped_at=CASE WHEN %s='stopped' THEN now() ELSE NULL END "
+                                        "WHERE work_id=%s RETURNING *",
+                                        (status, json.dumps(continuation('none', 'control_converged')),
+                                         status, work['work_id'])).fetchone())
+                WorkRepository.event(uow, work, status, status=status)

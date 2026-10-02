@@ -375,7 +375,7 @@ async def test_action_runtime_cache_is_partitioned_and_cleared_by_execution():
             return ([{"name": query}], {"queries": [query]})
 
     class Sandboxes:
-        def get_sandbox_for_session(self, session_id):
+        def get_sandbox_for_execution(self, session_id):
             return Sandbox()
 
     runtime = ActionRuntime(sandbox_manager=Sandboxes())

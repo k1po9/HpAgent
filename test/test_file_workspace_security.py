@@ -104,9 +104,9 @@ async def test_p2_web_tool_registry_has_no_account_workspace_or_mcp_bypass(tmp_p
     scope = RunFileScope(uuid4(), tmp_path / "inputs", tmp_path / "scratch",
                          tmp_path / "outputs", ())
     manager.bind_run_file_scope("run-1", "session-1", scope)
-    manager.create_session_sandbox("session-1", str(repo),
+    manager.create_execution_sandbox("session-1", str(repo),
         session_context={"account_id": "account-1", "channel_type": "web", "metadata": {}})
-    sandbox = manager.get_sandbox_for_session("session-1")
+    sandbox = manager.get_sandbox_for_execution("session-1")
     names = {item["function"]["name"] for item in await sandbox.list_tools()}
     assert {"list_run_candidates", "select_run_candidate", "read_file"} <= names
     assert names.isdisjoint({"Bash", "fs_read", "fs_write", "fs_edit", "Glob", "Grep",

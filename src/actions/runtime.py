@@ -54,7 +54,7 @@ class ActionRuntime:
         if self._sandbox is None:
             return
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+            sandbox = self._sandbox.get_sandbox_for_execution(resource_key)
             sandbox.reset_hints()
         except Exception:
             pass
@@ -85,7 +85,7 @@ class ActionRuntime:
                     )
                     return cached
 
-            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+            sandbox = self._sandbox.get_sandbox_for_execution(resource_key)
             raw_tools, audit = await sandbox.select_tools(
                 rag_query, self._tool_rag_top_k
             )
@@ -125,7 +125,7 @@ class ActionRuntime:
             }
 
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+            sandbox = self._sandbox.get_sandbox_for_execution(resource_key)
             result, _audit = await sandbox.execute(tool_name, arguments)
             result_dict = cast(Dict[str, Any], result.to_dict())
             result_dict.setdefault("success", result_dict.get("error") is None)
@@ -161,7 +161,7 @@ class ActionRuntime:
         executed_request = request
         if idempotency_key and self._sandbox is not None:
             try:
-                sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+                sandbox = self._sandbox.get_sandbox_for_execution(resource_key)
                 key_argument = sandbox.get_tool_metadata(request.name).get(
                     "idempotency_key_argument"
                 )
@@ -206,7 +206,7 @@ class ActionRuntime:
         if self._sandbox is None:
             return "unknown"
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+            sandbox = self._sandbox.get_sandbox_for_execution(resource_key)
             value = sandbox.get_tool_metadata(tool_name).get(
                 "side_effect_class", "unknown"
             )
@@ -219,7 +219,7 @@ class ActionRuntime:
         if self._sandbox is None:
             return {"tool_calls": 1}
         try:
-            sandbox = self._sandbox.get_sandbox_for_session(resource_key)
+            sandbox = self._sandbox.get_sandbox_for_execution(resource_key)
             configured = sandbox.get_tool_metadata(tool_name).get(
                 "budget_reservation"
             )

@@ -7,7 +7,6 @@ import pytest
 
 from conversation_domain.admission import SingleActiveRunAdmission
 from conversation_domain.commands import CommandService
-from conversation_domain.sessions import ConversationSessionService
 from web_domain.errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
 
 pytestmark = pytest.mark.postgres
@@ -27,7 +26,7 @@ def test_surface_keys_replay_from_pg_across_command_instances(db, account_id, da
     assert "events_url" not in accepted.body
     assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 1
     assert db.execute("SELECT count(*) FROM messages").fetchone()[0] == 2
-    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 1
+    assert db.execute("SELECT count(*) FROM runs WHERE session_id IS NOT NULL").fetchone()[0] == 0
     assert db.execute("SELECT event_type FROM outbox_events").fetchall() == [("start_run",)]
     with pytest.raises(IdempotencyConflict):
         second.send_message(account_id, cid, key, "changed")
@@ -93,7 +92,7 @@ def test_same_account_keeps_distinct_conversations_and_enforces_ownership(
     private, group = conversation(commands, account_id), conversation(commands, account_id)
     one = commands.send_message(account_id, private, "qq:bot:dm:42:msg:1", "private")
     two = commands.send_message(account_id, group, "qq:bot:group:42:msg:1", "group")
-    assert one["session_id"] != two["session_id"]
+    assert one["session_id"] is two["session_id"] is None
     other = uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (other,))
     with pytest.raises(ResourceNotFound):
@@ -118,13 +117,9 @@ def test_admission_policy_runs_in_command_transaction_for_send_and_retry(
     first = commands.send_message(account_id, cid, "qq:bot:msg:1", "hello")
     with pytest.raises(ConversationBusy):
         commands.send_message(account_id, cid, str(uuid4()), "busy")
-    sessions = ConversationSessionService(database_url)
-    with pytest.raises(ConversationBusy):
-        sessions.rotate_active(account_id, cid)
     CommandService(worker_database_url).fail_run(account_id, UUID(first["run_id"]), "test_failure")
-    successor = sessions.rotate_active(account_id, cid)
     retried = commands.retry_run(account_id, UUID(first["run_id"]), "qq:bot:retry:1")
-    assert retried["run"]["session_id"] == str(successor)
+    assert retried["run"]["session_id"] is None
     assert len(policy.transactions) == 3
     assert len(set(policy.transactions)) == 3
     assert db.execute("SELECT count(*) FROM runs WHERE status='queued'").fetchone()[0] == 1
@@ -143,7 +138,7 @@ def test_outbox_failure_rolls_back_admission_message_session_and_run(
         patch.setattr(commands.outbox, "enqueue", fail)
         with pytest.raises(RuntimeError, match="outbox unavailable"):
             commands.send_message(account_id, cid, "qq:bot:msg:1", "hello")
-    for table in ("messages", "sessions", "runs", "outbox_events", "run_budgets"):
+    for table in ("messages", "runs", "outbox_events", "run_budgets"):
         assert db.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 0
     assert db.execute("SELECT last_message_seq FROM conversations").fetchone()[0] == 0
     assert commands.send_message(account_id, cid, "qq:bot:msg:1", "hello")["run_id"]

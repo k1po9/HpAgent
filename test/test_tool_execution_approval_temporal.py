@@ -26,7 +26,7 @@ from agent_workflows.contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
-from agent_workflows.ids import tool_execution_workflow_id
+from agent_workflows.ids import root_execution_id, tool_execution_workflow_id
 from agent_workflows.tool_execution import (
     ToolExecutionWorkflow,
 )
@@ -69,7 +69,7 @@ async def approved_execution(request: ApprovedToolExecutionInput) -> ApprovedToo
 def _input(name: str) -> ToolExecutionInput:
     run_id = str(uuid4())
     operation_id = f"{run_id}:tool:one"
-    return ToolExecutionInput(schema_version=AGENT_SCHEMA_VERSION, run_id=run_id, account_id=str(uuid4()), strategy="react", transcript_id="transcript", transcript_version=1, turn=1, operation_id=operation_id, lease_token=1, tool_call=CompactToolCall("one", name, "arguments-ref"), source=RunSource("chat", str(uuid4())), context=RunContext(chat=ChatContext(str(uuid4()), str(uuid4()), None), surface="web"))
+    return ToolExecutionInput(schema_version=AGENT_SCHEMA_VERSION, run_id=run_id, account_id=str(uuid4()), strategy="react", transcript_id="transcript", transcript_version=1, turn=1, operation_id=operation_id, lease_token=1, tool_call=CompactToolCall("one", name, "arguments-ref"), source=RunSource("chat", str(uuid4())), context=RunContext(chat=ChatContext(str(uuid4()), str(uuid4()), None), surface="web"), execution_id=str(root_execution_id(run_id)))
 
 
 async def _client() -> Client:

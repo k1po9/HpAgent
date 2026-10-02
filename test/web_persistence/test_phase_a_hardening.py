@@ -165,19 +165,6 @@ def test_trigger_old_new_paths_support_legal_insert_update_delete(
             "DELETE FROM identity_bindings WHERE identity_binding_id=%s", (binding_id,)
         )
 
-        disposable_session = uuid4()
-        connection.execute(
-            "INSERT INTO sessions(session_id,account_id,conversation_id,sequence,status) "
-            "VALUES (%s,%s,%s,2,'failed')",
-            (disposable_session, account_id, conversation_id),
-        )
-        connection.execute(
-            "UPDATE sessions SET summary='safe' WHERE session_id=%s", (disposable_session,)
-        )
-        connection.execute(
-            "DELETE FROM sessions WHERE session_id=%s", (disposable_session,)
-        )
-
         connection.execute("DELETE FROM outbox_events WHERE run_id=%s", (run_id,))
         connection.execute("DELETE FROM messages WHERE produced_by_run_id=%s", (run_id,))
         connection.execute("DELETE FROM run_usage_ledger WHERE run_id=%s", (run_id,))

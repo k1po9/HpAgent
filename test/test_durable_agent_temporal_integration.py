@@ -31,6 +31,7 @@ from agent_workflows.contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
+from agent_workflows.ids import root_execution_id
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
@@ -124,7 +125,7 @@ def _request(strategy: str) -> AgentRunInput:
         context=RunContext(
             chat=ChatContext(str(uuid4()), str(uuid4()), str(uuid4())), surface="web"
         ),
-    )
+     execution_id=str(root_execution_id(run_id)))
 
 
 async def _run(strategy: str):

@@ -19,6 +19,7 @@ from agent_workflows.contracts import (
     RunContext,
     RunSource,
 )
+from agent_workflows.ids import root_execution_id
 from agent_workflows.lifecycle_contracts import SegmentInput, SegmentLease
 
 from .test_phase_a_invariants import _conversation_and_run
@@ -41,7 +42,7 @@ class Probes:
                 while True:
                     activity.heartbeat("active-segment")
                     await asyncio.sleep(0.05)
-            with fence_scope(request.account_id, request.run_id, request.lease_token):
+            with fence_scope(request.account_id, request.run_id, request.lease_token, execution_id=str(root_execution_id(request.run_id))):
                 previous = await asyncio.to_thread(
                     self.store.begin_operation, request.operation_id, request.run_id, "model"
                 )
@@ -114,7 +115,7 @@ def request(account_id, run_id):
         turn=1,
         operation_id=f"{run_id}:operation",
         lease_token=0,
-    )
+     execution_id=str(root_execution_id(str(run_id))))
 
 
 def worker(client, segments, probes):
@@ -146,7 +147,7 @@ def assert_no_resources(db, account_id, probes):
     assert not probes.workspace_lock.locked()
     assert (
         db.execute(
-            "SELECT owner_run_id FROM account_execution_leases WHERE account_id=%s", (account_id,)
+            "SELECT owner_segment_id FROM execution_attempt_leases WHERE account_id=%s", (account_id,)
         ).fetchone()[0]
         is None
     )

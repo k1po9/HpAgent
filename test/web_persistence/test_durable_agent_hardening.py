@@ -61,7 +61,7 @@ def test_expired_same_run_acquires_new_fence_and_rejects_old_interval(
     duplicate = store.acquire_lease(str(account_id), str(run_id))
     assert duplicate.fencing_token == first.fencing_token
     db.execute(
-        "UPDATE account_execution_leases SET lease_expires_at=now()-interval '1 second' "
+        "UPDATE execution_attempt_leases SET lease_expires_at=now()-interval '1 second' "
         "WHERE account_id=%s", (account_id,),
     )
     resumed = store.acquire_lease(str(account_id), str(run_id))

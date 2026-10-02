@@ -32,7 +32,7 @@ async def test_action_runtime_exception_returns_uniform_failure() -> None:
             raise RuntimeError("adapter exploded")
 
     class Sandboxes:
-        def get_sandbox_for_session(self, session_id):
+        def get_sandbox_for_execution(self, session_id):
             return Sandbox()
 
     result = await ActionRuntime(sandbox_manager=Sandboxes())._execute(

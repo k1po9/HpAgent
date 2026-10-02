@@ -34,11 +34,7 @@ def test_db_002_run_cannot_reference_other_conversation_message(db, account_id):
         "INSERT INTO conversations(conversation_id,account_id) VALUES (%s,%s),(%s,%s)",
         (own_conversation, account_id, other_conversation, other_account),
     )
-    session_id, message_id = uuid4(), uuid4()
-    db.execute(
-        "INSERT INTO sessions(session_id,account_id,conversation_id,sequence) VALUES (%s,%s,%s,1)",
-        (session_id, account_id, own_conversation),
-    )
+    session_id, message_id = None, uuid4()
     db.execute(
         "INSERT INTO messages(message_id,account_id,conversation_id,role,status,content,sequence,client_request_id) "
         "VALUES (%s,%s,%s,'user','accepted','x',1,%s)",
@@ -112,21 +108,6 @@ def test_db_005_concurrent_same_key_replays_same_result(db, account_id, database
     assert db.execute("SELECT count(*) FROM outbox_events").fetchone()[0] == 1
 
 
-def test_db_007_only_one_active_session(db, account_id):
-    conversation_id = uuid4()
-    db.execute(
-        "INSERT INTO conversations(conversation_id,account_id) VALUES (%s,%s)",
-        (conversation_id, account_id),
-    )
-    db.execute(
-        "INSERT INTO sessions(session_id,account_id,conversation_id,sequence) VALUES (%s,%s,%s,1)",
-        (uuid4(), account_id, conversation_id),
-    )
-    with pytest.raises(psycopg.errors.UniqueViolation):
-        db.execute(
-            "INSERT INTO sessions(session_id,account_id,conversation_id,sequence) VALUES (%s,%s,%s,2)",
-            (uuid4(), account_id, conversation_id),
-        )
 
 
 def test_db_009_and_015_context_filters_status_and_account(
@@ -327,54 +308,6 @@ def test_revoking_binding_with_live_auth_session_is_rejected(
             "UPDATE identity_bindings SET status='revoked',revoked_at=now() "
             "WHERE identity_binding_id=%s",
             (binding_id,),
-        )
-        with pytest.raises(psycopg.errors.RaiseException):
-            connection.commit()
-
-
-def test_session_predecessor_must_be_earlier(db, account_id, migration_database_url):
-    conversation_id, earlier, later = uuid4(), uuid4(), uuid4()
-    db.execute(
-        "INSERT INTO conversations(conversation_id,account_id) VALUES (%s,%s)",
-        (conversation_id, account_id),
-    )
-    db.execute(
-        "INSERT INTO sessions(session_id,account_id,conversation_id,sequence,status) VALUES (%s,%s,%s,2,'failed')",
-        (later, account_id, conversation_id),
-    )
-    with psycopg.connect(migration_database_url) as connection:
-        connection.execute("SET search_path=hpagent,public")
-        connection.execute(
-            "INSERT INTO sessions(session_id,account_id,conversation_id,sequence,status,predecessor_session_id) "
-            "VALUES (%s,%s,%s,1,'failed',%s)",
-            (earlier, account_id, conversation_id, later),
-        )
-        with pytest.raises(psycopg.errors.RaiseException):
-            connection.commit()
-
-
-def test_changing_predecessor_sequence_cannot_invalidate_successor(
-    db, account_id, migration_database_url
-):
-    conversation_id, predecessor, successor = uuid4(), uuid4(), uuid4()
-    db.execute(
-        "INSERT INTO conversations(conversation_id,account_id) VALUES (%s,%s)",
-        (conversation_id, account_id),
-    )
-    db.execute(
-        "INSERT INTO sessions(session_id,account_id,conversation_id,sequence,status) "
-        "VALUES (%s,%s,%s,1,'failed')",
-        (predecessor, account_id, conversation_id),
-    )
-    db.execute(
-        "INSERT INTO sessions(session_id,account_id,conversation_id,sequence,status,predecessor_session_id) "
-        "VALUES (%s,%s,%s,2,'failed',%s)",
-        (successor, account_id, conversation_id, predecessor),
-    )
-    with psycopg.connect(migration_database_url) as connection:
-        connection.execute("SET search_path=hpagent,public")
-        connection.execute(
-            "UPDATE sessions SET sequence=3 WHERE session_id=%s", (predecessor,)
         )
         with pytest.raises(psycopg.errors.RaiseException):
             connection.commit()

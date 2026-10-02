@@ -114,12 +114,12 @@ async def test_web_sandbox_registers_file_tools_against_active_run_only(
         native_tools_enabled=False, nsjail_enabled=False, file_tools_enabled=True
     )
     manager.bind_run_file_scope("run-1", "session-1", scope)
-    manager.create_session_sandbox(
+    manager.create_execution_sandbox(
         "session-1", str(workspace), session_context={
             "account_id": "account-1", "channel_type": "web", "metadata": {},
         }
     )
-    sandbox = manager.get_sandbox_for_session("session-1")
+    sandbox = manager.get_sandbox_for_execution("session-1")
     names = {item["function"]["name"] for item in await sandbox.list_tools()}
     assert {"inspect_file", "search_file", "count_matches", "text_stats"} <= names
     assert {

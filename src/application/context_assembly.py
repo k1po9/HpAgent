@@ -45,7 +45,8 @@ class WebContextBase:
     run_id: UUID
     account_id: UUID
     conversation_id: UUID
-    session_id: UUID
+    session_id: UUID | None
+    execution_id: UUID
     context_message_seq: int
     trigger_message_id: UUID
     trigger_content: str
@@ -95,8 +96,6 @@ class ContextAssemblyService:
                 raise ContextIsolationError("run ownership chain is unavailable")
             if subject["trigger_role"] != "user" or subject["trigger_status"] != "accepted":
                 raise ContextIsolationError("run trigger message is not an accepted user message")
-            if subject["session_status"] not in ("active", "archiving"):
-                raise ContextIsolationError("run session is not recoverable")
             rows = self._messages.context_messages(
                 uow, account_id, subject["conversation_id"], subject["context_message_seq"]
             )
@@ -117,7 +116,8 @@ class ContextAssemblyService:
             run_id=subject["run_id"],
             account_id=subject["account_id"],
             conversation_id=subject["conversation_id"],
-            session_id=subject["session_id"],
+            session_id=None,
+            execution_id=subject["execution_id"],
             context_message_seq=subject["context_message_seq"],
             trigger_message_id=subject["trigger_message_id"],
             trigger_content=subject["trigger_content"],
@@ -135,7 +135,7 @@ class ContextAssemblyService:
         """Recall account-bank memory only after query rewrite; unavailable is empty."""
         correlation = {
             "run_id": str(base.run_id),
-            "execution_id": str(base.run_id),
+            "execution_id": str(base.execution_id),
             "conversation_id": str(base.conversation_id),
             "session_id": str(base.session_id),
             "account_id": str(base.account_id),
@@ -161,7 +161,7 @@ class ContextAssemblyService:
             recalled = await self._hindsight.recall(
                 recall_query,
                 user_id=str(base.account_id),
-                session_id=str(base.session_id),
+                session_id=str(base.conversation_id),
                 top_n=self._recall_top_n,
                 scope="group" if base.origin.get("scope") in {"group", "guild"} else "private",
                 group_id=(base.origin.get("context_key", "")

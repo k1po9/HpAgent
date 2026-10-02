@@ -240,6 +240,7 @@ export function createWorkbenchStore(
     async function refreshRunBudgetOnly(runId: string, generation: number): Promise<void> {
       try {
         const snapshot = await api.getRun(runId);
+        if (snapshot.source_kind !== "chat") return;
         const latest = get();
         if (latest.pollGeneration !== generation || latest.activeRun?.run_id !== runId) return;
         set({ activeRun: { ...latest.activeRun, budget: snapshot.run.budget } });
@@ -273,6 +274,7 @@ export function createWorkbenchStore(
           }
           try {
             const snapshot = await api.getRun(runId);
+            if (snapshot.source_kind !== "chat") return;
             const latest = get();
             if (latest.pollGeneration !== generation) return;
             const run = snapshot.run;
@@ -296,6 +298,7 @@ export function createWorkbenchStore(
     async function confirmRun(runId: string, generation: number): Promise<void> {
       try {
         const snapshot = await api.getRun(runId);
+        if (snapshot.source_kind !== "chat") return;
         const latest = get();
         if (latest.pollGeneration !== generation || latest.activeRun?.run_id !== runId) return;
         set({

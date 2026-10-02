@@ -23,7 +23,6 @@ from persistence.repositories import (
     OutboxRepository,
     RunBudgetRepository,
     RunRepository,
-    SessionRepository,
     WorkflowExecutionRepository,
 )
 from persistence.uow import UnitOfWork, retryable_transaction
@@ -42,7 +41,6 @@ from web_domain.run_usage_projection import load_run_budget_projection
 from workspace.resources import ResourceDenied, ResourcePolicy
 
 from .admission import AdmissionPolicy, SingleActiveRunAdmission
-from .sessions import ConversationSessionService
 
 logger = logging.getLogger("HpAgent.ConversationCommands")
 
@@ -88,9 +86,7 @@ class CommandService:
         self.files = FileRepository()
         self.resource_policy = ResourcePolicy(database_url)
         self.budgets = RunBudgetRepository()
-        self.sessions = SessionRepository()
         self.admission_policy = admission_policy or SingleActiveRunAdmission()
-        self.session_service = ConversationSessionService(database_url)
         self.workflows = WorkflowExecutionRepository()
         self.idempotency = IdempotencyRepository()
         self.outbox = OutboxRepository()
@@ -197,9 +193,7 @@ class CommandService:
             if authority is None:
                 raise ResourceDenied("file is not authorized for this Conversation")
             file_authorities.append(authority)
-        session_id = self.session_service.get_or_create_in_locked_conversation(
-            uow, account_id, conversation_id
-        )
+        session_id = None
         allocated = self.conversations.allocate_messages(
             uow, account_id, conversation_id, 2
         )
@@ -295,15 +289,21 @@ class CommandService:
         run = self._lock_owned_run(uow, account_id, run_id)
         if run["status"] in ("succeeded", "failed"):
             raise RunNotCancellable()
+        if run["status"] != "cancelled":
+            uow.execute("INSERT INTO execution_control_events(account_id,run_id,execution_id,command_id,action) "
+                        "SELECT e.account_id,e.run_id,e.execution_id,c.idempotency_command_id,'cancel' "
+                        "FROM run_executions e JOIN idempotency_commands c ON c.account_id=e.account_id "
+                        "WHERE e.run_id=%s AND c.operation='cancel_run' AND c.idempotency_key=%s "
+                        "ON CONFLICT DO NOTHING", (run_id, key))
         if run["status"] == "cancelled":
-            result = self._snapshot_for_run(uow, run_id) if run["conversation_id"] else {}
+            result = self._snapshot_for_run(uow, run_id)
             result.update({"run_id": str(run_id), "status": "cancelled"})
             response_status = 200
         elif run["status"] == "queued" and not self.workflows.has_current(uow, run_id):
             self._set_terminal(
                 uow, account_id, run["conversation_id"], run_id, "cancelled"
             )
-            result = self._snapshot_for_run(uow, run_id) if run["conversation_id"] else {}
+            result = self._snapshot_for_run(uow, run_id)
             result.update({"run_id": str(run_id), "status": "cancelled"})
             response_status = 200
         else:
@@ -330,7 +330,7 @@ class CommandService:
                     }),
                 )
             self._outbox(uow, account_id, run["conversation_id"], run_id, "cancel_run")
-            result = self._snapshot_for_run(uow, run_id) if run["conversation_id"] else {}
+            result = self._snapshot_for_run(uow, run_id)
             result.update({"run_id": str(run_id), "status": "cancelling"})
             response_status = 202
         self._complete(
@@ -386,9 +386,7 @@ class CommandService:
                 self.admission_policy.admit_in_locked_conversation(
                     uow, source["conversation_id"]
                 )
-                session_id = self.session_service.get_or_create_in_locked_conversation(
-                    uow, account_id, source["conversation_id"]
-                )
+                session_id = None
                 sequence = self.conversations.allocate_messages(
                     uow, account_id, source["conversation_id"], 1
                 )
@@ -518,7 +516,10 @@ class CommandService:
         if run["source_kind"] == "work":
             from work_domain.persistence import dto
 
-            return {"run": dto(run)}
+            value = dto(run)
+            value["budget"] = load_run_budget_projection(uow, run_id)
+            value["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s", (run_id,)).fetchone()["execution_id"])
+            return {"source_kind": "work", "run": value}
         message = uow.execute(
             "SELECT * FROM messages WHERE produced_by_run_id=%s", (run_id,)
         ).fetchone()
@@ -526,7 +527,8 @@ class CommandService:
         run_dto["budget"] = load_run_budget_projection(uow, run_id)
         message_dto = self._message_dto(message)
         message_dto["files"] = self._message_file_dtos(uow, message["message_id"])
-        return {"run": run_dto, "assistant_message": message_dto}
+        run_dto["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s", (run_id,)).fetchone()["execution_id"])
+        return {"source_kind": "chat", "run": run_dto, "assistant_message": message_dto}
 
     @staticmethod
     def _timestamp(value: datetime | None) -> str | None:
@@ -565,8 +567,9 @@ class CommandService:
                 "retryable": is_failure_retryable(row["failure_code"]),
             }
         return {
+            "source_kind": "chat",
             "run_id": str(row["run_id"]), "conversation_id": str(row["conversation_id"]),
-            "session_id": str(row["session_id"]),
+            "session_id": str(row["session_id"]) if row["session_id"] else None,
             "trigger_message_id": str(row["trigger_message_id"]),
             "retry_of_run_id": str(row["retry_of_run_id"]) if row["retry_of_run_id"] else None,
             "agent_strategy": str(row.get("agent_strategy") or "react"),

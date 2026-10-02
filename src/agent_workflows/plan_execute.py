@@ -30,7 +30,7 @@ class PlanAndExecuteWorkflow:
     @workflow.run
     async def run(self, request: AgentRunInput) -> AgentResult:
         _validate(request)
-        plan_id = f"plan:{request.run_id}"
+        plan_id = f"plan:{request.execution_id}"
         plan_version = 1
         workflow.logger.info(
             "plan_workflow_started",
@@ -42,10 +42,11 @@ class PlanAndExecuteWorkflow:
             PlanningInput(
                 schema_version=AGENT_SCHEMA_VERSION,
                 run_id=request.run_id,
+                    execution_id=request.execution_id,
                 account_id=request.account_id,
                 transcript_id=context.transcript_id,
                 transcript_version=context.transcript_version,
-                operation_id=f"{request.run_id}:plan:{plan_version}:planner",
+                operation_id=f"{request.execution_id}:plan:{plan_version}:planner",
                 lease_token=0,
                 plan_id=plan_id,
                 plan_version=plan_version,
@@ -94,10 +95,11 @@ class PlanAndExecuteWorkflow:
                     PlanEvaluationInput(
                         schema_version=AGENT_SCHEMA_VERSION,
                         run_id=request.run_id,
+                    execution_id=request.execution_id,
                         account_id=request.account_id,
                         transcript_id=context.transcript_id,
                         transcript_version=transcript_version,
-                        operation_id=f"{request.run_id}:plan:{plan_version}:step:{step.step_id}:evaluation",
+                        operation_id=f"{request.execution_id}:plan:{plan_version}:step:{step.step_id}:evaluation",
                         lease_token=0,
                         plan_id=plan_id,
                         plan_version=plan_version,
@@ -136,10 +138,11 @@ class PlanAndExecuteWorkflow:
                         PlanningInput(
                             schema_version=AGENT_SCHEMA_VERSION,
                             run_id=request.run_id,
+                    execution_id=request.execution_id,
                             account_id=request.account_id,
                             transcript_id=context.transcript_id,
                             transcript_version=transcript_version,
-                            operation_id=f"{request.run_id}:plan:{plan_version}:planner",
+                            operation_id=f"{request.execution_id}:plan:{plan_version}:planner",
                             lease_token=0,
                             plan_id=plan_id,
                             plan_version=plan_version,
@@ -177,12 +180,13 @@ class PlanAndExecuteWorkflow:
             ModelDecisionInput(
                 schema_version=AGENT_SCHEMA_VERSION,
                 run_id=request.run_id,
+                    execution_id=request.execution_id,
                 account_id=request.account_id,
                 strategy=request.strategy,
                 transcript_id=context.transcript_id,
                 transcript_version=transcript_version,
                 turn=len(plan.steps) + 1,
-                operation_id=f"{request.run_id}:plan:{plan_version}:synthesis",
+                operation_id=f"{request.execution_id}:plan:{plan_version}:synthesis",
                 lease_token=0,
                 objective="综合所有已完成步骤，直接回答用户最初的问题。",
                 final_only=True,

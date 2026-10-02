@@ -15,8 +15,8 @@ class ExecutionContextProvider(Protocol):
 class ExecutionRequest:
     execution_id: str
     account_id: str
-    conversation_id: str
-    session_id: str
+    conversation_id: str | None
+    session_id: str | None
     user_content: str
     context: tuple[dict[str, str], ...]
     trigger_message_id: str | None = None

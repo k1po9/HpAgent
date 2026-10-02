@@ -21,7 +21,6 @@ from application.context_builder import HarnessContextBuilder
 from brain.contracts import BrainDecision
 from conversation_domain.commands import CommandService
 from conversation_domain.execution_bindings import ChatExecutionBindings
-from conversation_domain.run_input import ChatRunInputLoader
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
@@ -31,12 +30,12 @@ from orchestration.web_dispatcher import (
     WebOutboxDispatcher,
 )
 from orchestration.web_workers import build_web_temporal_workers
-from sandbox.git_repo import GitRepoManager
+from run_domain.input import RunInputLoader
 from web_domain.lifecycle import WebRunLifecycleService
 from web_domain.outbox import OutboxService
 from web_domain.run_events import RedisWebRunEventSinkFactory
 from web_domain.workflow_execution import PostgresWorkflowExecutionStore
-from workspace.isolation import AccountLockRegistry, SessionResourceRecoveryService
+from workspace.execution import ExecutionResourceService
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.postgres, pytest.mark.temporal]
 
@@ -87,9 +86,12 @@ class Sandbox:
     def __init__(self):
         self.calls = []
 
-    def create_session_sandbox(self, session_id, workspace_path, **kwargs):
-        self.calls.append(str(session_id))
-        return f"sandbox-{session_id}"
+    def create_execution_sandbox(self, execution_id, workspace_path, **kwargs):
+        self.calls.append(str(execution_id))
+        return f"sandbox-{execution_id}"
+
+    def destroy_sandbox(self, sandbox_id):
+        pass
 
 
 @pytest.mark.parametrize(
@@ -152,12 +154,12 @@ async def test_web_canonical_lifecycle(
         actions=Actions(),
         event_factory=events,
         lifecycle=lifecycle,
-        resource_prep=SessionResourceRecoveryService(
-            worker_database_url, sandbox, AccountLockRegistry(), GitRepoManager(tmp_path)
+        resource_prep=ExecutionResourceService(
+            worker_database_url, sandbox, execution_root=tmp_path / "executions"
         ),
     )
     lifecycle_activities = RunLifecycleActivities(
-        lifecycle, ChatRunInputLoader(store), events
+        lifecycle, RunInputLoader(store), events
     )
     segments = SegmentActivities(store)
     workers = build_web_temporal_workers(
@@ -264,7 +266,7 @@ async def test_web_canonical_lifecycle(
                 Path(fixture_dir, f"lifecycle_{strategy}_completed.json").write_text(
                     history.to_json()
                 )
-    assert db.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] == outcome
+    assert db.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] == ("succeeded" if outcome == "completed" else outcome)
     assert (
         db.execute(
             "SELECT count(*) FROM workflow_executions WHERE run_id=%s", (run_id,)
@@ -273,7 +275,7 @@ async def test_web_canonical_lifecycle(
     )
     assert (
         db.execute(
-            "SELECT count(*) FROM account_execution_leases WHERE owner_run_id=%s", (run_id,)
+            "SELECT count(*) FROM execution_attempt_leases WHERE run_id=%s AND lease_expires_at>clock_timestamp()", (run_id,)
         ).fetchone()[0]
         == 0
     )
@@ -288,3 +290,97 @@ async def test_web_canonical_lifecycle(
             "SELECT content FROM messages WHERE produced_by_run_id=%s", (run_id,)
         ).fetchall() == [("canonical reply",)]
         assert sandbox.calls
+
+
+async def test_blocked_work_does_not_block_same_account_chat(
+    db, account_id, database_url, worker_database_url, tmp_path
+):
+    """Real Research Activity holds its fence while original/new chats call Brain."""
+    if not os.getenv("TEMPORAL_HOST"):
+        pytest.skip("TEMPORAL_HOST required")
+    from orchestration.web_reconcile_adapters import LifecycleReconcileStore
+    from orchestration.web_reconciler import TemporalInspectorAdapter, WebRunReconciler
+    from research_activities.runtime import ResearchActivities
+    from web_domain.errors import ConversationBusy
+    from work_domain.commands import WorkCommandService
+    from work_domain.models import Requirement
+
+    chat = CommandService(database_url)
+    cid = UUID(chat.create_conversation(account_id, str(uuid4()))["conversation_id"])
+    works = WorkCommandService(database_url)
+    accepted = works.accept(
+        account_id, str(uuid4()), "Background investigation",
+        Requirement("Investigate", "research_report", {"schema_version": 1, "source_strategy": {}}),
+        conversation_id=cid,
+    )
+    wid = UUID(accepted.body["work"]["work_id"])
+    work_run = UUID(works.advance(account_id, wid, str(uuid4()), 1).body["run"]["run_id"])
+    client = await Client.connect(os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default"))
+    lifecycle = WebRunLifecycleService(worker_database_url)
+    store = AgentDataStore(worker_database_url)
+    events = RedisWebRunEventSinkFactory(None)
+    brain, sandbox = Brain("completed"), Sandbox()
+    runtime = DurableAgentActivities(
+        context_bindings=ChatExecutionBindings(), store=store,
+        loader=PostgresWebRequestLoader(worker_database_url, ContextAssemblyService(worker_database_url, HarnessContextBuilder())),
+        brain=brain, actions=Actions(), event_factory=events, lifecycle=lifecycle,
+        resource_prep=ExecutionResourceService(worker_database_url, sandbox, execution_root=tmp_path / "executions"),
+    )
+    entered = asyncio.Event()
+
+    class BlockedResearch(ResearchActivities):
+        async def _create_plan(self, run_id):
+            entered.set()
+            await asyncio.Event().wait()
+
+    research = BlockedResearch(worker_database_url, None, None, None, None)
+    controls = RunLifecycleActivities(lifecycle, RunInputLoader(store), events)
+    segments = SegmentActivities(store)
+    workers = build_web_temporal_workers(
+        client,
+        lifecycle_activities=[controls.prepare_run, controls.load_agent_run_input,
+                              controls.finalize_failed, controls.finalize_cancelled, runtime.finalize_agent_result,
+                              research.prepare_research_activity, research.create_research_plan_activity,
+                              research.fail_research_activity],
+        agent_activities=[segments.acquire, segments.release, segments.begin_wait, segments.finish_wait,
+                          runtime.context_bootstrap, runtime.model_decision, runtime.tool_execution,
+                          runtime.planning, runtime.evaluate_plan],
+    )
+    executions = PostgresWorkflowExecutionStore(worker_database_url)
+    dispatch = WebOutboxDispatcher(
+        OutboxService(worker_database_url),
+        TemporalOutboxDispatcher(executions, TemporalClientAdapter(client), lifecycle), "phase2-concurrency",
+    )
+    async with AsyncExitStack() as stack:
+        await stack.enter_async_context(workers.lifecycle)
+        await stack.enter_async_context(workers.agent)
+        # The Main acceptance turn is short and completes independently.
+        first = chat.send_message(account_id, cid, str(uuid4()), "Please start the investigation")
+        await dispatch.run_once()
+        await asyncio.wait_for(entered.wait(), 20)
+        work_handle = client.get_workflow_handle(executions.current_workflow_id(work_run))
+        result = await asyncio.wait_for(client.get_workflow_handle(executions.current_workflow_id(UUID(first["run_id"]))).result(), 30)
+        assert result["outcome"] == "completed"
+        other = UUID(chat.create_conversation(account_id, str(uuid4()))["conversation_id"])
+        following = [chat.send_message(account_id, target, str(uuid4()), "Continue chatting") for target in (cid, other)]
+        with pytest.raises(ConversationBusy):
+            chat.send_message(account_id, cid, str(uuid4()), "Concurrent same chat")
+        await dispatch.run_once()
+        for message in following:
+            handle = client.get_workflow_handle(executions.current_workflow_id(UUID(message["run_id"])))
+            assert (await asyncio.wait_for(handle.result(), 30))["outcome"] == "completed"
+        assert brain.calls >= 3
+        assert works.get(account_id, wid)["work"]["active_coordinator_run_id"] == str(work_run)
+        assert db.execute("SELECT status FROM runs WHERE run_id=%s", (work_run,)).fetchone()[0] == "running"
+        assert db.execute("SELECT count(*) FROM messages WHERE produced_by_run_id=%s", (work_run,)).fetchone()[0] == 0
+        assert not list(tmp_path.rglob(".git"))
+        # Run cancellation preserves the Work mandate and reconciles its pointer.
+        chat.cancel_run(account_id, work_run, str(uuid4()))
+        await dispatch.run_once()
+        with pytest.raises(WorkflowFailureError):
+            await asyncio.wait_for(work_handle.result(), 20)
+        reconcile = WebRunReconciler(LifecycleReconcileStore(executions, lifecycle), TemporalInspectorAdapter(client))
+        await reconcile.run_once()
+        current = works.get(account_id, wid)["work"]
+        assert current["status"] == "active" and current["active_coordinator_run_id"] is None
+        assert db.execute("SELECT status FROM runs WHERE run_id=%s", (work_run,)).fetchone()[0] == "cancelled"

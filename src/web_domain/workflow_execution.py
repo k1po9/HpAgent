@@ -8,6 +8,7 @@ from uuid6 import uuid7
 from orchestration.web_dispatcher import StartDecision, web_workflow_id
 from orchestration.web_reconciler import ReconcileCandidate
 from persistence.uow import UnitOfWork, retryable_transaction
+from run_domain.lifecycle import RunLifecycleService
 
 
 class PostgresWorkflowExecutionStore:
@@ -17,9 +18,12 @@ class PostgresWorkflowExecutionStore:
     @retryable_transaction
     def prepare_start(self, run_id: UUID) -> StartDecision:
         with UnitOfWork(self.database_url) as uow:
-            run = uow.execute("SELECT * FROM runs WHERE run_id=%s FOR UPDATE", (run_id,)).fetchone()
+            run = uow.execute("SELECT * FROM runs WHERE run_id=%s", (run_id,)).fetchone()
             if run is None:
                 return StartDecision(run_id, web_workflow_id(run_id), False)
+            run = RunLifecycleService.lock(uow, run['account_id'], run_id)
+            if run['source_kind'] == 'work' and run['status'] in {'queued','running'}:
+                RunLifecycleService.check_work(uow, run)
             row = uow.execute(
                 "SELECT workflow_id,temporal_run_id,status FROM workflow_executions "
                 "WHERE run_id=%s AND is_current FOR UPDATE",
@@ -39,9 +43,9 @@ class PostgresWorkflowExecutionStore:
                 return StartDecision(run_id, str(run["workflow_id"]), False)
             workflow_id = str(run["workflow_id"])
             uow.execute(
-                "INSERT INTO workflow_executions(workflow_execution_id,account_id,conversation_id,run_id,workflow_id) "
-                "VALUES (%s,%s,%s,%s,%s)",
-                (uuid7(), run["account_id"], run["conversation_id"], run_id, workflow_id),
+                "INSERT INTO workflow_executions(workflow_execution_id,account_id,conversation_id,run_id,workflow_id,execution_id) "
+                "SELECT %s,%s,%s,%s,%s,execution_id FROM run_executions WHERE account_id=%s AND run_id=%s AND role='root'",
+                (uuid7(), run["account_id"], run["conversation_id"], run_id, workflow_id, run["account_id"], run_id),
             )
             return StartDecision(run_id, workflow_id, True)
 

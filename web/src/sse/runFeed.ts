@@ -21,7 +21,7 @@
  * active.
  */
 import { eventsUrl } from "../api/resources";
-import type { HpRunSnapshot, HpRunStatus } from "../api/types";
+import type { HpChatRunSnapshot, HpRunStatus } from "../api/types";
 import { openSseStream, SseConnectError, type SseFrame, type SseStreamHandle } from "./sseClient";
 
 export const SSE_DEGRADE_REASONS = [
@@ -65,7 +65,7 @@ export interface SseEnvelope {
 
 export interface RunFeedHandlers {
   /** Initial committed snapshot (first frame of a healthy connection). */
-  onSnapshot?: (snapshot: HpRunSnapshot) => void;
+  onSnapshot?: (snapshot: HpChatRunSnapshot) => void;
   /** Volatile delta text for one pending assistant Message. */
   onDelta?: (messageId: string, delta: string) => void;
   /** Volatile progress hint; display in the run-status area only. */
@@ -75,7 +75,7 @@ export interface RunFeedHandlers {
   /** Best-effort Trace node update, ordered with the other online events. */
   onTrace?: (update: TraceEventUpdate) => void;
   /** Terminal RunSnapshot (run.succeeded/failed/cancelled); replace local state. */
-  onTerminal?: (snapshot: HpRunSnapshot) => void;
+  onTerminal?: (snapshot: HpChatRunSnapshot) => void;
   /** Stream degraded (stable reason) or connect failure — stop delta assembly. */
   onDegraded?: (reason: string) => void;
   /** Session invalidated mid-stream (auth.expired / 401 connect). */
@@ -161,12 +161,12 @@ class StreamSequencer {
   }
 }
 
-function isRunSnapshot(value: unknown): value is HpRunSnapshot {
+function isRunSnapshot(value: unknown): value is HpChatRunSnapshot {
   return (
     typeof value === "object" &&
     value !== null &&
-    (value as HpRunSnapshot).run !== undefined &&
-    (value as HpRunSnapshot).assistant_message !== undefined
+    (value as HpChatRunSnapshot).run !== undefined &&
+    (value as HpChatRunSnapshot).assistant_message !== undefined
   );
 }
 

@@ -74,6 +74,7 @@ def run_dto(row: dict[str, Any]) -> dict[str, Any]:
             "retryable": is_failure_retryable(row["failure_code"]),
         }
     return {
+        "source_kind": row["source_kind"],
         "run_id": str(row["run_id"]),
         "conversation_id": str(row["conversation_id"]) if row["conversation_id"] else None,
         "session_id": str(row["session_id"]) if row["session_id"] else None,
@@ -130,7 +131,7 @@ def trace_tree_dto(tree: TraceTree) -> dict[str, Any]:
 
 
 class QueryService:
-    def __init__(self, database: object, cursors: CursorCodec):
+    def __init__(self, database: object, cursors: CursorCodec | None = None):
         self.database = database
         self.cursors = cursors
 
@@ -161,6 +162,8 @@ class QueryService:
     def list_conversations(
         self, account_id: UUID, limit: int, cursor: str | None
     ) -> dict[str, Any]:
+        if self.cursors is None:
+            raise ValueError("pagination requires a cursor codec")
         before: tuple[datetime, UUID] | None = None
         if cursor:
             body = self.cursors.decode(cursor)
@@ -214,6 +217,8 @@ class QueryService:
     def list_messages(
         self, account_id: UUID, conversation_id: UUID, limit: int, cursor: str | None
     ) -> dict[str, Any]:
+        if self.cursors is None:
+            raise ValueError("pagination requires a cursor codec")
         before_sequence: int | None = None
         if cursor:
             body = self.cursors.decode(cursor)
@@ -290,8 +295,10 @@ class QueryService:
                     "ORDER BY rf.created_at LIMIT 1", (account_id, run_id),
                 ).fetchone()
                 run = dto(work_run)
+                run["budget"] = load_run_budget_projection(uow, run_id)
                 run["published_file"] = file_dto(published) if published else None
-                return {"run": run}
+                run["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s", (run_id,)).fetchone()["execution_id"])
+                return {"source_kind": "work", "run": run}
             row = uow.execute(
                 "SELECT r.*,m.message_id AS m_message_id,m.conversation_id AS m_conversation_id,"
                 "m.role AS m_role,m.status AS m_status,m.content AS m_content,"
@@ -344,7 +351,8 @@ class QueryService:
         ).get(row["m_message_id"], [])
         run = run_dto(row)
         run["budget"] = load_run_budget_projection(uow, row["run_id"])
-        return {"run": run, "assistant_message": message_dto(message, files)}
+        run["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s", (row["run_id"],)).fetchone()["execution_id"])
+        return {"source_kind": "chat", "run": run, "assistant_message": message_dto(message, files)}
 
     @staticmethod
     def _message_files(

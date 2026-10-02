@@ -13,6 +13,8 @@ class LifecycleReconcileStore:
         self._lifecycle = lifecycle
 
     def candidates(self, limit: int):
+        from run_domain.lifecycle import RunLifecycleService
+        RunLifecycleService(self._executions.database_url).converge_controls()
         return self._executions.reconcile_candidates(limit)
 
     def finalize_failed(self, run_id: str, code: str, message: str) -> None:

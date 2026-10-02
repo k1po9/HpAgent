@@ -136,9 +136,13 @@ class WorkCommandService:
         return work
 
     @staticmethod
-    def _cancel_coordinator(uow, work):
+    def _cancel_coordinator(uow, work, command_id=None, action=None):
         run_id = work['active_coordinator_run_id']
         if run_id:
+            if command_id is not None:
+                uow.execute('INSERT INTO execution_control_events(account_id,run_id,execution_id,command_id,action) '
+                            'SELECT account_id,run_id,execution_id,%s,%s FROM run_executions WHERE run_id=%s '
+                            'ON CONFLICT DO NOTHING', (command_id, action, run_id))
             run = uow.execute('SELECT * FROM runs WHERE account_id=%s AND run_id=%s FOR UPDATE',
                               (work['account_id'], run_id)).fetchone()
             if run['status'] in {'queued', 'running'}:
@@ -166,7 +170,7 @@ class WorkCommandService:
                 raise WorkConflict(work, 'work_not_revisable')
             revision = work['current_requirement_revision'] + 1
             self.repo.insert_requirement(uow, account_id, work_id, revision, value, command, reason)
-            self._cancel_coordinator(uow, work)
+            self._cancel_coordinator(uow, work, command, "revise")
             checkpoint = {**work['checkpoint'], 'requirement_revision': revision, 'needs_review': True,
                           'checkpoint_version': work['checkpoint']['checkpoint_version']+1}
             next_step = (continuation('at_time', due_at=value['timing']['due_at'])
@@ -196,14 +200,18 @@ class WorkCommandService:
             allowed = {'pause': {'active'}, 'resume': {'paused'}, 'stop': {'active','pausing','paused'}}
             if work['status'] not in allowed[action]:
                 raise WorkConflict(work, 'invalid_work_transition')
-            unresolved = bool(work['active_coordinator_run_id'] or work['continuation'].get('operation_ref'))
+            from run_domain.lifecycle import RunLifecycleService
+            effect = RunLifecycleService.unresolved_effect(uow, work)
+            unresolved = bool(work['active_coordinator_run_id'] or work['continuation'].get('operation_ref') or effect)
+            if effect:
+                work['continuation'] = continuation('blocked', 'side_effect_uncertain', operation_ref=effect['operation_id'])
             status = {'pause': 'pausing' if unresolved else 'paused',
                       'stop': 'stopping' if unresolved else 'stopped', 'resume': 'active'}[action]
-            self._cancel_coordinator(uow, work)
+            self._cancel_coordinator(uow, work, command, action if action != "resume" else None)
             work = dict(uow.execute('UPDATE works SET status=%s,control_epoch=control_epoch+1,'
-                                    'row_version=row_version+1,updated_at=now(),'
+                                    'row_version=row_version+1,updated_at=now(),continuation=%s::jsonb,'
                                     'stopped_at=CASE WHEN %s=\'stopped\' THEN now() ELSE NULL END '
-                                    'WHERE work_id=%s RETURNING *', (status, status, work_id)).fetchone())
+                                    'WHERE work_id=%s RETURNING *', (status, json.dumps(work['continuation']), status, work_id)).fetchone())
             event = {'pausing':'pause_requested','paused':'paused','stopping':'stop_requested',
                      'stopped':'stopped','active':'resumed'}[status]
             self.repo.event(uow, work, event, command_id=command, status=status)
@@ -240,6 +248,9 @@ class WorkCommandService:
             if not AccountRepository().require_active(uow, account_id):
                 raise ResourceNotFound()
             requirement = self.repo.requirement(uow, account_id, work_id, work['current_requirement_revision'])
+            from run_domain.lifecycle import RunLifecycleService
+            if work['continuation'].get('operation_ref') or RunLifecycleService.unresolved_effect(uow, work):
+                raise WorkConflict(work, 'work_effect_uncertain')
             if work['continuation']['kind'] in {'awaiting_input','awaiting_delivery'}:
                 raise WorkConflict(work, 'work_awaiting_receipt')
             if work['continuation'].get('due_at') and datetime.fromisoformat(work['continuation']['due_at']) > datetime.now(UTC):

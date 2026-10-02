@@ -25,11 +25,10 @@ def test_db_014_auth_binding_cannot_cross_account(db, account_id):
 
 
 def test_db_017_deferred_trigger_rejects_run_without_agent_message(db, account_id, database_url):
-    conversation, session, user, run = uuid4(), uuid4(), uuid4(), uuid4()
+    conversation, session, user, run = uuid4(), None, uuid4(), uuid4()
     with psycopg.connect(database_url, autocommit=False) as tx:
         tx.execute("SET search_path TO hpagent, public")
         tx.execute("INSERT INTO conversations(conversation_id,account_id,last_message_seq) VALUES (%s,%s,1)", (conversation, account_id))
-        tx.execute("INSERT INTO sessions(session_id,account_id,conversation_id,sequence) VALUES (%s,%s,%s,1)", (session, account_id, conversation))
         tx.execute("INSERT INTO messages(message_id,account_id,conversation_id,role,status,content,sequence,client_request_id) VALUES (%s,%s,%s,'user','accepted','hello',1,%s)", (user, account_id, conversation, uuid4()))
         tx.execute("INSERT INTO runs(run_id,account_id,conversation_id,session_id,trigger_message_id,workflow_id,context_message_seq) VALUES (%s,%s,%s,%s,%s,%s,1)", (run, account_id, conversation, session, user, f"hpagent-web-run-{run}"))
         with pytest.raises(psycopg.errors.RaiseException):

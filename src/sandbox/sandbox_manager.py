@@ -2,8 +2,8 @@
 SandboxManager —— 沙箱池管理器，按会话创建 workspace 绑定的沙箱。
 
 核心职责:
-  1. 创建: create_session_sandbox() → 用 LOCAL_TOOL_FACTORIES 创建 workspace 绑定的本地工具
-  2. 查询: get_sandbox_for_session() / get_sandbox()
+  1. 创建: create_execution_sandbox() → 用 LOCAL_TOOL_FACTORIES 创建 workspace 绑定的本地工具
+  2. 查询: get_sandbox_for_execution() / get_sandbox()
   3. 销毁: destroy_sandbox()
   4. 空闲回收: cleanup_idle_sandboxes()
 
@@ -94,20 +94,20 @@ class SandboxManager:
         self._scheduler = scheduler
 
         self._sandboxes: Dict[str, Sandbox] = {}
-        self._session_to_sandbox: Dict[str, str] = {}
+        self._execution_to_sandbox: Dict[str, str] = {}
         self._run_file_scopes: Dict[str, Any] = {}
-        self._session_active_file_run: Dict[str, str] = {}
+        self._execution_active_file_run: Dict[str, str] = {}
         self._lock = RLock()
 
-    def bind_run_file_scope(self, run_id: str, session_id: str, scope: Any) -> None:
+    def bind_run_file_scope(self, run_id: str, execution_id: str, scope: Any) -> None:
         with self._lock:
-            if run_id in self._run_file_scopes or session_id in self._session_active_file_run:
+            if run_id in self._run_file_scopes or execution_id in self._execution_active_file_run:
                 raise RuntimeError("Run file scope is already bound")
             self._run_file_scopes[run_id] = scope
-            self._session_active_file_run[session_id] = run_id
+            self._execution_active_file_run[execution_id] = run_id
 
     def configure_file_document_router(self, router: Any) -> None:
-        """Inject the Temporal client after worker composition, before Web sessions start."""
+        """Inject the Temporal client after worker composition, before Executions start."""
         with self._lock:
             self._file_document_router = router
 
@@ -115,37 +115,37 @@ class SandboxManager:
         with self._lock:
             return self._run_file_scopes.get(run_id)
 
-    def get_active_run_file_scope(self, session_id: str) -> Any | None:
+    def get_active_run_file_scope(self, execution_id: str) -> Any | None:
         with self._lock:
-            run_id = self._session_active_file_run.get(session_id)
+            run_id = self._execution_active_file_run.get(execution_id)
             return self._run_file_scopes.get(run_id) if run_id else None
 
     def unbind_run_file_scope(self, run_id: str) -> None:
         with self._lock:
             self._run_file_scopes.pop(run_id, None)
-            for session_id, active_run_id in tuple(self._session_active_file_run.items()):
+            for execution_id, active_run_id in tuple(self._execution_active_file_run.items()):
                 if active_run_id == run_id:
-                    del self._session_active_file_run[session_id]
+                    del self._execution_active_file_run[execution_id]
 
-    def create_session_sandbox(
+    def create_execution_sandbox(
         self,
-        session_id: str,
+        execution_id: str,
         workspace_path: str,
         user_uuid: str = "",
         session_context: Optional[dict] = None,
     ) -> str:
-        """为会话创建 workspace 绑定的沙箱（幂等——已存在则返回现有 ID）。
+        """为 Execution 创建 workspace 绑定的沙箱（幂等——已存在则返回现有 ID）。
 
         Args:
-            session_id: 会话 ID。
+            execution_id: Execution attempt 资源键。
             workspace_path: 工作区路径。
             user_uuid: 用户 UUID。
             session_context: 会话上下文 dict，包含 account_id、sender_id、
                             channel_type、metadata。供提醒工具等绑定用。
         """
         with self._lock:
-            if session_id in self._session_to_sandbox:
-                return self._session_to_sandbox[session_id]
+            if execution_id in self._execution_to_sandbox:
+                return self._execution_to_sandbox[execution_id]
 
         registry = ToolRegistry()
 
@@ -184,7 +184,7 @@ class SandboxManager:
             from sandbox.tools.local.file_write import create_file_write_tools
             from sandbox.tools.local.run_candidates import create_run_candidate_tools
 
-            scope_provider = lambda sid=session_id: self.get_active_run_file_scope(sid)
+            scope_provider = lambda sid=execution_id: self.get_active_run_file_scope(sid)
             for tool in (
                 create_run_candidate_tools(scope_provider)
                 + create_file_analysis_tools(scope_provider)
@@ -220,7 +220,7 @@ class SandboxManager:
 
         registry.freeze()
 
-        # 首次创建沙箱时同步工具向量库（增量，后续 session 跳过已有工具）
+        # 首次创建沙箱时同步工具向量库（增量，后续 Execution 跳过已有工具）
         if self._retriever is not None:
             try:
                 self._retriever._store.sync(
@@ -239,7 +239,7 @@ class SandboxManager:
             nsjail_executor = NsjailExecutor(self._nsjail_config)
             logger.debug("Session sandbox: nsjail executor enabled")
 
-        scope_provider = lambda sid=session_id: self.get_active_run_file_scope(sid)
+        scope_provider = lambda sid=execution_id: self.get_active_run_file_scope(sid)
         context_provider = ToolSelectionContextBuilder(
             surface=str(ctx.get("channel_type") or "unknown"),
             workspace_path=workspace_path, run_scope_provider=scope_provider,
@@ -260,7 +260,7 @@ class SandboxManager:
 
         with self._lock:
             self._sandboxes[sandbox_id] = sandbox
-            self._session_to_sandbox[session_id] = sandbox_id
+            self._execution_to_sandbox[execution_id] = sandbox_id
 
         tool_counts = registry.count_by_category()
         reminder_count = sum(
@@ -280,11 +280,11 @@ class SandboxManager:
             bash_isolation = "unavailable"
 
         logger.info(
-            "Session sandbox created: id=%s session=%s user=%s "
+            "Execution sandbox created: id=%s execution=%s user=%s "
             "tools(total=%d native_general=%d reminders=%d mcp=%d skills=%d) "
             "bash_registered=%s bash_isolation=%s",
             sandbox_id,
-            session_id,
+            execution_id,
             user_uuid,
             sum(tool_counts.values()),
             native_general_count,
@@ -296,11 +296,11 @@ class SandboxManager:
         )
         return sandbox_id
 
-    def get_sandbox_for_session(self, session_id: str) -> Sandbox:
+    def get_sandbox_for_execution(self, execution_id: str) -> Sandbox:
         with self._lock:
-            sandbox_id = self._session_to_sandbox.get(session_id)
+            sandbox_id = self._execution_to_sandbox.get(execution_id)
             if not sandbox_id:
-                raise SandboxNotFoundError(f"No sandbox for session: {session_id}")
+                raise SandboxNotFoundError(f"No sandbox for Execution: {execution_id}")
             sandbox = self._sandboxes.get(sandbox_id)
             if not sandbox:
                 raise SandboxNotFoundError(sandbox_id)
@@ -319,9 +319,9 @@ class SandboxManager:
             if not sandbox:
                 return False
             sandbox.destroy()
-            for sid, sbid in list(self._session_to_sandbox.items()):
+            for sid, sbid in list(self._execution_to_sandbox.items()):
                 if sbid == sandbox_id:
-                    del self._session_to_sandbox[sid]
+                    del self._execution_to_sandbox[sid]
             return True
 
     def list_sandboxes(self) -> List[Dict[str, Any]]:
@@ -342,9 +342,9 @@ class SandboxManager:
             for sid in to_destroy:
                 self._sandboxes[sid].destroy()
                 del self._sandboxes[sid]
-                for session_id, sbid in list(self._session_to_sandbox.items()):
+                for execution_id, sbid in list(self._execution_to_sandbox.items()):
                     if sbid == sid:
-                        del self._session_to_sandbox[session_id]
+                        del self._execution_to_sandbox[execution_id]
             return len(to_destroy)
 
     def close(self) -> None:
@@ -353,6 +353,6 @@ class SandboxManager:
             for sandbox in self._sandboxes.values():
                 sandbox.destroy()
             self._sandboxes.clear()
-            self._session_to_sandbox.clear()
+            self._execution_to_sandbox.clear()
             self._run_file_scopes.clear()
-            self._session_active_file_run.clear()
+            self._execution_active_file_run.clear()

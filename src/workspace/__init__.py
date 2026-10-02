@@ -2,7 +2,6 @@
 
 from .isolation import (
     AccountLockRegistry,
-    SessionResourceRecoveryService,
     WorkspaceIsolationMode,
     WorkspaceIsolationRuntime,
     WorkspaceRecoveryGuard,
@@ -15,5 +14,4 @@ __all__ = [
     "WorkspaceIsolationRuntime",
     "WorkspaceRecoveryGuard",
     "WorkspaceRecoveryRequired",
-    "SessionResourceRecoveryService",
 ]

@@ -3,7 +3,7 @@ from typing import Any, Protocol
 
 
 class ExecutionContextBindings(Protocol):
-    def session_key(self, request: Any) -> str:
+    def resource_key(self, request: Any) -> str:
         """Return the source adapter's resource key for the Action capability."""
         ...
 

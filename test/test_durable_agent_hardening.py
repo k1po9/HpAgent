@@ -30,6 +30,7 @@ from agent_workflows.contracts import (
     RunSource,
     ToolExecutionInput,
 )
+from agent_workflows.ids import root_execution_id
 from agent_workflows.lifecycle_contracts import SegmentInput
 from conversation_domain.execution_bindings import ChatExecutionBindings
 from sandbox.tools.adapters.mcp import CachedTool, MCPToolManager, _build_langchain_tool
@@ -177,7 +178,7 @@ def request() -> ToolExecutionInput:
         tool_call=CompactToolCall("call-1", "write_tool", "decision:1#call-1"),
         source=RunSource("chat", str(uuid4())),
         context=RunContext(chat=ChatContext(str(uuid4()), str(uuid4()), None), surface="web"),
-    )
+     execution_id=str(root_execution_id(run_id)))
 
 
 def activities(store: Store, actions: Actions, **kwargs) -> DurableAgentActivities:
@@ -347,7 +348,7 @@ async def test_plan_activity_logging_does_not_duplicate_correlation_fields():
             plan_version=1,
             source=RunSource("chat", identity[1]),
             context=RunContext(chat=ChatContext(identity[1], identity[2], None), surface="web"),
-        )
+         execution_id=str(root_execution_id(run_id)))
     )
     assert len(planned.steps) == 1
     evaluated = await durable.evaluate_plan(
@@ -366,7 +367,7 @@ async def test_plan_activity_logging_does_not_duplicate_correlation_fields():
             step_count=1,
             source=RunSource("chat", identity[1]),
             context=RunContext(chat=ChatContext(identity[1], identity[2], None), surface="web"),
-        )
+         execution_id=str(root_execution_id(run_id)))
     )
     assert evaluated.decision == "complete"
 
@@ -598,7 +599,7 @@ async def test_busy_segment_returns_control_without_holding_activity_slot():
             raise LeaseConflict("busy")
 
     result = await SegmentActivities(BusyStore()).acquire(
-        SegmentInput(1, str(uuid4()), str(uuid4()), str(uuid4()))
+        SegmentInput(2, str(uuid4()), str(uuid4()), str(uuid4()), execution_id=str(root_execution_id(str(uuid4()))))
     )
     assert result.acquired is False
     assert result.fencing_token == 0
@@ -613,7 +614,7 @@ async def test_declared_provider_idempotency_argument_receives_operation_id():
             return {"idempotency_key_argument": "request_id"}
 
     class Sandboxes:
-        def get_sandbox_for_session(self, session_id: str):
+        def get_sandbox_for_execution(self, session_id: str):
             return Sandbox()
 
     runtime = ActionRuntime(sandbox_manager=Sandboxes())

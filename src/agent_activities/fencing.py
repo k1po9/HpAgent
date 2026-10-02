@@ -8,14 +8,14 @@ from functools import wraps
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-execution_fence: ContextVar[tuple[str, str, int] | None] = ContextVar(
+execution_fence: ContextVar[tuple[str, str, str, int] | None] = ContextVar(
     "execution_fence", default=None
 )
 
 
 @contextmanager
-def fence_scope(account_id: str, run_id: str, token: int):
-    reset = execution_fence.set((account_id, run_id, token))
+def fence_scope(account_id: str, run_id: str, token: int, execution_id: str):
+    reset = execution_fence.set((account_id, run_id, execution_id, token))
     try:
         yield
     finally:
@@ -34,7 +34,7 @@ async def _heartbeat_segment(request):
 def fenced_activity(function):
     @wraps(function)
     async def wrapped(self, request):
-        with fence_scope(request.account_id, request.run_id, request.lease_token):
+        with fence_scope(request.account_id, request.run_id, request.lease_token, request.execution_id):
             heartbeat = asyncio.create_task(_heartbeat_segment(request))
             try:
                 return await function(self, request)

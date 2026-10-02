@@ -84,9 +84,8 @@ def load_worker_qq_binding_code_pepper() -> bytes:
 class DurableRuntimeComposition:
     """Canonical durable workers, dispatchers and reconcilers.
 
-    单一进程部署（QQ + Web 同进程，AE-021 的 ``single_process_account_lock``）
-    与独立 Web Worker 入口都通过同一个组合函数组装，保证二者使用同一个
-    ``SessionResourceRecoveryService`` 与共享 ``AccountLockRegistry``。
+    QQ + Web 同进程与独立 Web Worker 都通过同一组合函数组装，
+    使用按 root Execution 隔离的 ``ExecutionResourceService``。
     """
     workers: object  # WebTemporalWorkers
     dispatcher: object  # WebOutboxDispatcher
@@ -102,8 +101,8 @@ def compose_durable_runtime(
 
     Web real Agent 或任一 QQ channel 启用时组装唯一 canonical runtime（C-07 门禁）。
     该方法不启动任何 Worker/后台任务，也不注册 QQ/scheduler/channel/schedule；
-    调用方决定进程边界。Web 真实执行会经 ``SessionResourceRecoveryService``
-    获取共享 Account 执行锁、恢复 Run 绑定 Session 的 workspace 并创建 Sandbox。
+    调用方决定进程边界。Web 真实执行会经 ``ExecutionResourceService``
+    按 root Execution 准备独立 scratch 和 Sandbox，不取得 Account 执行锁。
     """
     worker_database_url = os.getenv("WORKER_DATABASE_URL")
 
@@ -161,7 +160,7 @@ def compose_durable_runtime(
     from web_domain.outbox import OutboxService
     from web_domain.run_events import RedisWebRunEventSinkFactory
     from web_domain.workflow_execution import PostgresWorkflowExecutionStore
-    from workspace.isolation import SessionResourceRecoveryService
+    from workspace.execution import ExecutionResourceService
 
     validate_web_worker_startup(config.temporal, worker_database_url)
     assert worker_database_url is not None
@@ -191,24 +190,23 @@ def compose_durable_runtime(
     context = ContextAssemblyService(
         worker_database_url, shared.context_builder, shared.hindsight_client
     )
-    # Chat resources use the same account locks and Sandbox as QQ.
-    resource_prep = SessionResourceRecoveryService(
+    # Chat and QQ use independent Execution resources.
+    resource_prep = ExecutionResourceService(
         worker_database_url,
         infrastructure.sandbox_manager,
-        infrastructure.workspace_isolation.account_locks,
-        infrastructure.git_repo_manager,
         infrastructure.run_file_workspace,
+        execution_root=infrastructure.workspace_root / "executions",
     )
     loader = PostgresWebRequestLoader(worker_database_url, context)
     agent_store = AgentDataStore(
         worker_database_url,
         lease_ttl_seconds=config.temporal.agent_execution_lease_ttl_seconds,
     )
-    from conversation_domain.run_input import ChatRunInputLoader
+    from run_domain.input import RunInputLoader
 
     lifecycle_activities = RunLifecycleActivities(
         lifecycle,
-        ChatRunInputLoader(agent_store, max_turns=config.agent.max_tool_turns),
+        RunInputLoader(agent_store, max_turns=config.agent.max_tool_turns),
         event_factory,
     )
     canonicalizer = W3libSourceCanonicalizer()
@@ -467,7 +465,7 @@ class WorkerDependencies:
 async def setup_tools(config: AppConfig):
     """启动时加载共享工具基础设施（MCP + Skills + RAG）。
 
-    本地工具（fs_read 等）在 per-session 沙箱创建时才实例化，
+    本地工具（fs_read 等）在 per-Execution 沙箱创建时才实例化，
     因为它们需要绑定 workspace 路径。
 
     Returns:
@@ -599,7 +597,6 @@ async def _init_dependencies(
         agent_activity_processes=config.workspace.agent_activity_processes,
         hosts_share_lock_registry=True,
     )
-    workspace_isolation.start()
     resource_stack.callback(workspace_isolation.close)
 
     # ── 1. 凭据 + 资源池 ──

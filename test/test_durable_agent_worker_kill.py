@@ -22,6 +22,7 @@ from agent_workflows.contracts import (
     RunContext,
     RunSource,
 )
+from agent_workflows.ids import root_execution_id
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
 
@@ -42,7 +43,7 @@ def _request(strategy: str) -> AgentRunInput:
         context=RunContext(
             chat=ChatContext(str(uuid4()), str(uuid4()), str(uuid4())), surface="web"
         ),
-    )
+     execution_id=str(root_execution_id(run_id)))
 
 
 async def _wait_for(path: Path, timeout: float = 20) -> None:

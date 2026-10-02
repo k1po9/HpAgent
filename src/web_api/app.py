@@ -1388,9 +1388,7 @@ def create_app(
         result: CommandResult = request.app.state.commands.cancel_run(context.account_id, run_id, key)
         response = JSONResponse(
             status_code=result.response_status,
-            content=(command_body(result, "run", "assistant_message")
-                     if "run" in result.body else
-                     {"run_id": result.body["run_id"], "status": result.body["status"]}),
+            content=command_body(result, "run", "assistant_message"),
         )
         if result.replayed:
             response.headers["Idempotency-Replayed"] = "true"

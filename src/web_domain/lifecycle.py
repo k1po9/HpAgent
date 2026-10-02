@@ -9,6 +9,7 @@ from uuid import UUID
 
 from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork, retryable_transaction
+from run_domain.lifecycle import RunLifecycleService
 
 from .errors import ResourceNotFound
 
@@ -50,9 +51,10 @@ class WebRunLifecycleService:
         temporal_run_id: str | None = None,
     ) -> LifecycleAuthority:
         with UnitOfWork(self.database_url) as uow:
-            run = uow.execute("SELECT * FROM runs WHERE run_id=%s FOR UPDATE", (run_id,)).fetchone()
-            if run is None:
+            owner = uow.execute("SELECT account_id FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+            if owner is None:
                 raise ResourceNotFound()
+            run = RunLifecycleService.lock(uow, owner['account_id'], run_id)
             if workflow_id is not None or temporal_run_id is not None:
                 if not workflow_id or not temporal_run_id:
                     raise ValueError("both Temporal execution identifiers are required")
@@ -72,6 +74,12 @@ class WebRunLifecycleService:
                     "WHERE run_id=%s AND is_current AND status IN ('scheduled','running')",
                     (UUID(temporal_run_id), run_id),
                 )
+            if run["status"] in {'queued','running'}:
+                if run['source_kind'] == 'work':
+                    RunLifecycleService.check_work(uow, run)
+                from persistence.repositories import AccountRepository
+                if not AccountRepository().require_active(uow, run['account_id']):
+                    raise ResourceNotFound()
             if run["status"] == "queued":
                 uow.execute(
                     "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),"
@@ -83,7 +91,8 @@ class WebRunLifecycleService:
 
     def finalize_failed(self, run_id: UUID, error_code: str, error_message: str) -> LifecycleAuthority:
         account_id = self._account_for(run_id)
-        self.commands.fail_run(account_id, run_id, error_code, error_message)
+        RunLifecycleService(self.database_url).finish(account_id, run_id, "failed",
+                                                     failure_code=error_code, failure_message=error_message)
         authority = cast(LifecycleAuthority, self._authority(run_id))
         self._observe_terminal(run_id, authority.status, {"error_code": error_code})
         return authority
@@ -91,7 +100,9 @@ class WebRunLifecycleService:
     def complete(self, run_id: UUID, content: str) -> LifecycleAuthority:
         """The sole Web success terminal entrypoint, called by WebReplySink."""
         account_id = self._account_for(run_id)
-        self.commands.complete_run(account_id, run_id, content)
+        current = self._authority(run_id)
+        if current.status not in {"cancelling", "cancelled"}:
+            self.commands.complete_run(account_id, run_id, content)
         authority = cast(LifecycleAuthority, self._authority(run_id))
         self._observe_terminal(run_id, authority.status)
         return authority
@@ -100,7 +111,7 @@ class WebRunLifecycleService:
         authority = cast(LifecycleAuthority, self._authority(run_id))
         if authority.status == "cancelling":
             account_id = self._account_for(run_id)
-            self.commands.cancelled_run(account_id, run_id)
+            RunLifecycleService(self.database_url).finish(account_id, run_id, "cancelled")
             authority = cast(LifecycleAuthority, self._authority(run_id))
             self._observe_terminal(run_id, authority.status)
             return authority

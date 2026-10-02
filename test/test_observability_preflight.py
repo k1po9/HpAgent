@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import pytest
 
+from agent_workflows.ids import root_execution_id
 from application.context_assembly import ContextAssemblyService, WebContextBase
 
 
@@ -22,7 +23,7 @@ async def test_web_memory_recall_reports_skipped_when_disabled(
         trigger_message_id=uuid4(),
         trigger_content="question",
         short_term_events=(),
-    )
+     execution_id=root_execution_id(uuid4()))
     service = ContextAssemblyService(None, SimpleNamespace(), hindsight=None)
 
     with caplog.at_level(logging.INFO, logger="HpAgent.ContextAssembly"):
@@ -60,7 +61,7 @@ async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog,
         AGENT_SCHEMA_VERSION, run_id, account_id, RunSource("chat", conversation_id),
         RunContext(chat=ChatContext(conversation_id, session_id, None), surface="napcat"),
         "react", "transcript", 1, 1, f"{run_id}:model:1", 1, final_only=final_only,
-    )
+     execution_id=str(root_execution_id(run_id)))
     store = SimpleNamespace(
         begin_operation=Mock(return_value=None),
         validate_and_renew_lease=Mock(),

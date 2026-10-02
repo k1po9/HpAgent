@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from threading import RLock
 from typing import Any, Iterator
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from persistence.uow import UnitOfWork
 from storage.tenant_file_store import FileStoreError, TenantFileReader, TenantFileStore
@@ -89,6 +89,8 @@ class RunFileWorkspace:
     def load_rows(self, account_id: UUID, run_id: UUID, *,
                   include_selected: bool = False) -> list[dict[str, Any]]:
         with UnitOfWork(self.database) as uow:
+            from agent_activities.store import AgentDataStore
+            AgentDataStore._assert_fence(uow)
             owned = uow.execute(
                 "SELECT source_kind,status FROM runs WHERE account_id=%s AND run_id=%s",
                 (account_id, run_id),
@@ -134,7 +136,16 @@ class RunFileWorkspace:
     def prepare(self, account_id: UUID, run_id: UUID, *,
                 include_selected: bool = False) -> Iterator[RunFileScope]:
         rows = self.load_rows(account_id, run_id, include_selected=include_selected)
-        with self.prepare_rows(run_id, rows) as scope:
+        from agent_activities.fencing import execution_fence
+        fence = execution_fence.get()
+        with UnitOfWork(self.database) as uow:
+            execution = uow.execute("SELECT execution_id FROM run_executions WHERE account_id=%s AND run_id=%s "
+                                    "AND role='root'", (account_id, run_id)).fetchone()
+        if execution is None:
+            raise RunFileScopeUnavailable("Execution is unavailable")
+        with self.prepare_rows(run_id, rows, account_id=account_id,
+                               execution_id=execution['execution_id'],
+                               attempt_token=fence[3] if fence else 0) as scope:
             from workspace.resources import ResourcePolicy
             authority = ResourcePolicy(self.database)
             scope.authorize = lambda file_id: authority.check_file(account_id, run_id, file_id)
@@ -150,9 +161,13 @@ class RunFileWorkspace:
 
     @contextmanager
     def prepare_rows(
-        self, run_id: UUID, rows: list[dict[str, Any]],
+        self, run_id: UUID, rows: list[dict[str, Any]], *, account_id: UUID | None = None,
+        execution_id: UUID | None = None, attempt_token: int = 0,
     ) -> Iterator[RunFileScope]:
-        run_root = self.execution_root / str(run_id)
+        # A unique physical scope prevents a fenced, still-returning Activity from
+        # deleting or modifying a replacement attempt's scratch directory.
+        run_root = (self.execution_root / str(account_id or 'test') / str(run_id)
+                    / str(execution_id or run_id) / str(attempt_token) / str(uuid4()))
         if not run_root.is_relative_to(self.execution_root):
             raise RunFileScopeUnavailable("Run root escapes execution root")
         if run_root.exists():

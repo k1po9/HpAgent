@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Collection
 from datetime import datetime
 from uuid import UUID
-
-from uuid6 import uuid7
 
 from persistence.repositories import (
     ConversationRepository,
@@ -94,40 +91,14 @@ class OutboxService:
             context = self.repository.discover_context(uow, event_id)
             if context is None:
                 raise ResourceNotFound()
-            if context["conversation_id"] is not None:
-                self.conversations.get_for_account(
-                    uow, context["account_id"], context["conversation_id"], lock=True
-                )
-            run = self.runs.get_for_account(
-                uow, context["account_id"], context["run_id"], lock=True
-            )
+            from run_domain.lifecycle import RunLifecycleService
+            run = RunLifecycleService.lock(uow, context['account_id'], context['run_id'])
             event = self.repository.lock_owned_event(uow, event_id, worker_id)
-            if event is None or event["run_id"] != context["run_id"]:
+            if event is None or event['run_id'] != context['run_id']:
                 raise OutboxLeaseLost()
-            if event["event_type"] == "start_run":
-                if run and run["status"] == "queued":
-                    self.messages.set_terminal(uow, run["run_id"], "failed")
-                    self.runs.set_terminal(
-                        uow, run["run_id"], "failed", "workflow_start_exhausted",
-                        safe_message
-                    )
-                    terminal_event_id = uuid7()
-                    self.repository.enqueue(
-                        uow, terminal_event_id, run["account_id"], "publish_terminal_event",
-                        f"terminal:{run['run_id']}:failed", run["conversation_id"],
-                        run["run_id"], json.dumps({"run_id": str(run["run_id"]),
-                                                   "terminal_status": "failed",
-                                                   "terminal_event_id": str(terminal_event_id),
-                                                   "version": 1}),
-                    )
-            elif event["event_type"] == "start_research_run":
-                if run and run["status"] == "queued":
-                    uow.execute(
-                        "UPDATE runs SET status='failed',failure_code='workflow_start_exhausted',"
-                        "failure_message=%s,finished_at=now(),updated_at=now(),version=version+1 "
-                        "WHERE run_id=%s AND status='queued'",
-                        (safe_message, run["run_id"]),
-                    )
+            if event['event_type'] in {'start_run','start_research_run'} and run['status'] == 'queued':
+                RunLifecycleService(self.database_url).finish_in_uow(
+                    uow, run, 'failed', failure_code='workflow_start_exhausted', failure_message=safe_message)
             changed = self.repository.mark_dead_letter(
                 uow, event_id, worker_id, error_code, safe_message
             )

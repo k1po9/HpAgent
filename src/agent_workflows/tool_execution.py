@@ -91,6 +91,7 @@ class ToolExecutionWorkflow:
             "tool_approval",
             result.approval_id,
             expires_at.isoformat(),
+            execution_id=request.execution_id,
         )
         try:
             authoritative = await self._wait.run(wait, probe)
@@ -116,6 +117,7 @@ class ToolExecutionWorkflow:
                     request.transcript_version,
                     request.tool_call.tool_call_id,
                     request.tool_call.name,
+                    execution_id=request.execution_id,
                 ),
                 task_queue=AGENT_TASK_QUEUE,
                 result_type=ApprovedToolExecutionResult,
@@ -134,6 +136,7 @@ class ToolExecutionWorkflow:
                 result.approval_id,
                 "approved",
                 result.approval_expires_at,
+            execution_id=request.execution_id,
             )
         return ToolExecutionResult(
             result.schema_version,
@@ -144,4 +147,5 @@ class ToolExecutionWorkflow:
             result.approval_id,
             authoritative.status,
             result.approval_expires_at,
+            execution_id=request.execution_id,
         )

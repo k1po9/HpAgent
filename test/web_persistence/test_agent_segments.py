@@ -12,6 +12,7 @@ from agent_activities.store import (
     SegmentClosed,
     StaleFencingToken,
 )
+from agent_workflows.ids import root_execution_id
 from agent_workflows.lifecycle_contracts import FinishWaitInput, SegmentInput, WaitInput
 
 from .test_phase_a_invariants import _conversation_and_run
@@ -20,12 +21,12 @@ pytestmark = pytest.mark.postgres
 
 
 def segment(account_id, run_id):
-    return SegmentInput(1, str(run_id), str(account_id), str(uuid4()))
+    return SegmentInput(2, str(run_id), str(account_id), str(uuid4()), execution_id=str(root_execution_id(str(run_id))))
 
 
 def wait_input(account_id, run_id):
     return WaitInput(
-        1,
+        2,
         str(run_id),
         str(account_id),
         str(uuid4()),
@@ -33,7 +34,7 @@ def wait_input(account_id, run_id):
         "external_callback",
         "callback:1",
         (datetime.now(UTC) + timedelta(hours=1)).isoformat(),
-    )
+     execution_id=str(root_execution_id(str(run_id))))
 
 
 def test_segment_expiry_reacquire_rejects_late_writes_and_cleanup(
@@ -46,15 +47,15 @@ def test_segment_expiry_reacquire_rejects_late_writes_and_cleanup(
     assert store.acquire_segment(first) == token  # lost acquire response
     with pytest.raises(LeaseConflict):
         store.acquire_segment(segment(account_id, run_id))
-    with fence_scope(str(account_id), str(run_id), token):
+    with fence_scope(str(account_id), str(run_id), token, execution_id=str(root_execution_id(str(run_id)))):
         store.begin_operation("stable-operation", str(run_id), "model")
     db.execute(
-        "UPDATE account_execution_leases SET lease_expires_at=now()-interval '1 second' WHERE account_id=%s",
+        "UPDATE execution_attempt_leases SET lease_expires_at=now()-interval '1 second' WHERE account_id=%s",
         (account_id,),
     )
     current = store.acquire_segment(first)
     assert current > token
-    with fence_scope(str(account_id), str(run_id), token), pytest.raises(StaleFencingToken):
+    with fence_scope(str(account_id), str(run_id), token, execution_id=str(root_execution_id(str(run_id)))), pytest.raises(StaleFencingToken):
         store.complete_operation("stable-operation", "late-result", {"late": True})
     assert not store.release_lease(str(account_id), str(run_id), token)
     store.release_segment(first)
@@ -65,7 +66,8 @@ def test_segment_expiry_reacquire_rejects_late_writes_and_cleanup(
     assert new_token > current
     store.release_segment(first)  # delayed cleanup cannot release newer segment
     store.validate_and_renew_lease(str(account_id), str(run_id), new_token)
-    with fence_scope(str(account_id), str(run_id), new_token):
+    with fence_scope(str(account_id), str(run_id), new_token, execution_id=str(root_execution_id(str(run_id)))):
+        store.begin_operation("stable-operation", str(run_id), "model")
         store.complete_operation("stable-operation", "valid-result", {"valid": True})
     store.release_segment(second)
     assert store.operation_result("stable-operation") == {"valid": True}
@@ -93,7 +95,7 @@ def test_wait_requires_release_and_run_remains_admitted_without_lease(
     )
     assert (
         db.execute(
-            "SELECT owner_run_id FROM account_execution_leases WHERE account_id=%s", (account_id,)
+            "SELECT lease_expires_at FROM execution_attempt_leases WHERE account_id=%s", (account_id,)
         ).fetchone()[0]
         is None
     )

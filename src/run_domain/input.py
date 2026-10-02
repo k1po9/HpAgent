@@ -1,4 +1,4 @@
-"""Chat source adapter for canonical lifecycle input; no lease is acquired here."""
+"""Load durable Agent identity from the Run and its root Execution."""
 
 from temporalio.exceptions import ApplicationError
 
@@ -11,7 +11,7 @@ from agent_workflows.contracts import (
 )
 
 
-class ChatRunInputLoader:
+class RunInputLoader:
     def __init__(self, store, *, max_turns: int = 20, surface: str = "web"):
         if max_turns < 1:
             raise ValueError("max_turns must be positive")
@@ -25,28 +25,28 @@ class ChatRunInputLoader:
             raise ApplicationError(
                 "Run cannot execute", type="run_not_executable", non_retryable=True
             )
-        if identity["source_kind"] != "chat" or not all(
-            identity.get(key)
-            for key in (
-                "conversation_id",
-                "session_id",
-                "trigger_message_id",
+        if identity["strategy_kind"] != "generic_agent":
+            raise ApplicationError("Run does not use the Agent executor", non_retryable=True)
+        chat = None
+        if identity["source_kind"] == "chat":
+            if not identity["conversation_id"] or not identity["trigger_message_id"]:
+                raise ApplicationError("Chat source context unavailable", non_retryable=True)
+            chat = ChatContext(
+                identity["conversation_id"], trigger_message_id=identity["trigger_message_id"]
             )
-        ):
-            raise ApplicationError("Chat source context unavailable", non_retryable=True)
         return AgentRunInput(
             schema_version=AGENT_SCHEMA_VERSION,
             run_id=run_id,
-            account_id=str(identity["account_id"]),
-            strategy=str(identity["agent_strategy"]),
+            execution_id=identity["execution_id"],
+            account_id=identity["account_id"],
+            strategy=identity["agent_strategy"] or "react",
             max_turns=self.max_turns,
-            source=RunSource("chat", str(identity["conversation_id"])),
+            source=RunSource(
+                identity["source_kind"], identity["conversation_id"] or identity["work_id"]
+            ),
             context=RunContext(
-                chat=ChatContext(
-                    str(identity["conversation_id"]),
-                    str(identity["session_id"]),
-                    str(identity["trigger_message_id"]),
-                ),
+                chat=chat,
+                context_ref=f"execution:{identity['execution_id']}",
                 surface=str((identity.get("origin") or {}).get("channel_type") or self.surface),
             ),
         )

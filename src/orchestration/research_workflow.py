@@ -83,6 +83,7 @@ class ResearchReportWorkflow:
                     start_to_close_timeout=timedelta(seconds=timeout),
                     schedule_to_close_timeout=timedelta(seconds=timeout * 2),
                     retry_policy=_RESEARCH_RETRY,
+                    heartbeat_timeout=timedelta(seconds=15),
                     cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
                 if workflow.cancellation_reason() is not None:
@@ -107,11 +108,7 @@ class ResearchReportWorkflow:
                         task_queue=WEB_LIFECYCLE_TASK_QUEUE,
                         start_to_close_timeout=timedelta(seconds=timeout),
                         schedule_to_close_timeout=timedelta(seconds=timeout * 2),
-                        heartbeat_timeout=(
-                            timedelta(seconds=15)
-                            if activity_name == "fetch_research_sources_activity"
-                            else None
-                        ),
+                        heartbeat_timeout=timedelta(seconds=15),
                         retry_policy=_RESEARCH_RETRY,
                         cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                     )
@@ -124,6 +121,7 @@ class ResearchReportWorkflow:
                     start_to_close_timeout=timedelta(seconds=30),
                     schedule_to_close_timeout=timedelta(seconds=60),
                     retry_policy=_RESEARCH_RETRY,
+                    heartbeat_timeout=timedelta(seconds=15),
                     cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
                 if workflow.cancellation_reason() is not None:
@@ -145,6 +143,7 @@ class ResearchReportWorkflow:
                     start_to_close_timeout=timedelta(seconds=timeout),
                     schedule_to_close_timeout=timedelta(seconds=timeout * 2),
                     retry_policy=_RESEARCH_RETRY,
+                    heartbeat_timeout=timedelta(seconds=15),
                     cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
                 if workflow.cancellation_reason() is not None:

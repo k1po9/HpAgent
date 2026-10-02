@@ -26,12 +26,10 @@ from uuid import UUID
 from uuid6 import uuid7
 
 from common.logging import log_event
-from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound
-from web_domain.run_usage_projection import load_run_budget_projection
 
 from .config import WebApiSettings
-from .queries import message_dto, run_dto
+from .queries import QueryService
 
 _TOPIC_PREFIX = "hpagent:web:run:"
 logger = logging.getLogger("HpAgent.SSE")
@@ -58,34 +56,8 @@ def _iso_now() -> str:
 
 
 def load_run_snapshot(database: object, account_id: UUID, run_id: UUID) -> dict[str, Any]:
-    """Committed Run + assistant Message snapshot, the SSE/terminal truth source."""
-    with UnitOfWork(database) as uow:
-        row = uow.execute(
-            "SELECT r.*,m.message_id AS m_message_id,m.conversation_id AS m_conversation_id,"
-            "m.role AS m_role,m.status AS m_status,m.content AS m_content,"
-            "m.sequence AS m_sequence,m.client_request_id AS m_client_request_id,"
-            "m.produced_by_run_id AS m_produced_by_run_id,m.created_at AS m_created_at,"
-            "m.completed_at AS m_completed_at FROM runs r JOIN messages m "
-            "ON m.produced_by_run_id=r.run_id WHERE r.account_id=%s AND r.run_id=%s",
-            (account_id, run_id),
-        ).fetchone()
-        if not row:
-            raise ResourceNotFound()
-        message = {
-            "message_id": row["m_message_id"],
-            "conversation_id": row["m_conversation_id"],
-            "role": row["m_role"],
-            "status": row["m_status"],
-            "content": row["m_content"],
-            "sequence": row["m_sequence"],
-            "client_request_id": row["m_client_request_id"],
-            "produced_by_run_id": row["m_produced_by_run_id"],
-            "created_at": row["m_created_at"],
-            "completed_at": row["m_completed_at"],
-        }
-        run = run_dto(row)
-        run["budget"] = load_run_budget_projection(uow, row["run_id"])
-        return {"run": run, "assistant_message": message_dto(message)}
+    """Shared committed chat/work snapshot for REST and SSE terminal truth."""
+    return QueryService(database).get_run(account_id, run_id)
 
 
 def envelope(
@@ -292,9 +264,7 @@ class SSEGateway:
                             continue
                         if snapshot["run"]["status"] in _TERMINAL_STATUSES:
                             event["payload"] = {"snapshot": snapshot}
-                            event["message_id"] = snapshot["assistant_message"][
-                                "message_id"
-                            ]
+                            event["message_id"] = snapshot.get("assistant_message", {}).get("message_id")
                             event["stream_id"] = None
                             event["event_seq"] = None
                             yield sse_frame(event)

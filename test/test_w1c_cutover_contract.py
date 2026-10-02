@@ -6,12 +6,13 @@ import pytest
 from temporalio.exceptions import WorkflowAlreadyStartedError
 
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, AgentRunInput, RunContext, RunSource
-from conversation_domain.run_input import ChatRunInputLoader
+from agent_workflows.ids import root_execution_id
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from orchestration.web_dispatcher import TemporalClientAdapter
+from run_domain.input import RunInputLoader
 
 
 @pytest.mark.asyncio
@@ -35,7 +36,7 @@ async def test_lifecycle_loader_accepts_source_owned_non_chat_input():
         source=RunSource("scheduled_task", "task"),
         context=RunContext(context_ref="ctx"),
         strategy="react",
-    )
+     execution_id=str(root_execution_id("run")))
     activities = RunLifecycleActivities(
         SimpleNamespace(), SimpleNamespace(load=lambda run_id: expected)
     )
@@ -43,11 +44,12 @@ async def test_lifecycle_loader_accepts_source_owned_non_chat_input():
 
 
 def test_chat_loader_rejects_missing_conversation_instead_of_stringifying_none():
-    loader = ChatRunInputLoader(
+    loader = RunInputLoader(
         SimpleNamespace(
             run_identity=lambda run_id: {
                 "status": "running",
                 "source_kind": "chat",
+                "strategy_kind": "generic_agent",
                 "conversation_id": None,
             }
         )

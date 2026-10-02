@@ -1,3 +1,5 @@
+from agent_workflows.ids import root_execution_id
+
 """Pure Workflow scenarios for the W1-B PG/Temporal gate."""
 
 from dataclasses import dataclass, replace
@@ -66,7 +68,7 @@ class SegmentScenarioWorkflow:
                 scenario.reason,
                 f"authority:{request.run_id}",
                 (workflow.now() + timedelta(seconds=scenario.wait_seconds)).isoformat(),
-            ),
+             execution_id=str(root_execution_id(request.run_id))),
             None if scenario.reason == "timer" else probe,
         )
         self.phase = "resuming"

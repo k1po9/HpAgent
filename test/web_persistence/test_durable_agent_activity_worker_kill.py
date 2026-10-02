@@ -21,6 +21,7 @@ from agent_workflows.contracts import (
     RunSource,
     ToolExecutionInput,
 )
+from agent_workflows.ids import root_execution_id
 from conversation_domain.commands import CommandService
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal, pytest.mark.postgres]
@@ -107,6 +108,7 @@ async def test_activity_worker_sigkill_redelivers_intent_without_repeating_side_
         account_id=str(account_id),
         conversation_id=conversation["conversation_id"],
         session_id=session_id,
+        execution_id=str(root_execution_id(run_id)),
         messages=[{"role": "user", "content": "execute non-idempotent write"}],
         operation_id=context_operation,
     )
@@ -126,7 +128,7 @@ async def test_activity_worker_sigkill_redelivers_intent_without_repeating_side_
         },
     )
     operation_id = f"{run_id}:react:turn:1:tool:call-1"
-    request = ToolExecutionInput(schema_version=AGENT_SCHEMA_VERSION, run_id=run_id, account_id=str(account_id), strategy="react", transcript_id=transcript_id, transcript_version=1, turn=1, operation_id=operation_id, lease_token=lease.fencing_token, tool_call=CompactToolCall("call-1", "counting_write", f"{decision_ref}#call-1"), source=RunSource("chat", conversation["conversation_id"]), context=RunContext(chat=ChatContext(conversation["conversation_id"], session_id, None), surface="web"))
+    request = ToolExecutionInput(schema_version=AGENT_SCHEMA_VERSION, run_id=run_id, account_id=str(account_id), strategy="react", transcript_id=transcript_id, transcript_version=1, turn=1, operation_id=operation_id, lease_token=lease.fencing_token, tool_call=CompactToolCall("call-1", "counting_write", f"{decision_ref}#call-1"), source=RunSource("chat", conversation["conversation_id"]), context=RunContext(chat=ChatContext(conversation["conversation_id"], session_id, None), surface="web"), execution_id=str(root_execution_id(run_id)))
 
     workflow_worker = first_activity_worker = replacement_activity_worker = None
     try:
@@ -149,7 +151,7 @@ async def test_activity_worker_sigkill_redelivers_intent_without_repeating_side_
         )
         await _wait_for(tmp_path / "activity-side-effect.boundary")
         before = db.execute(
-            "SELECT status,attempt_count FROM agent_operations WHERE operation_id=%s",
+            "SELECT status,attempt_count FROM execution_operations WHERE operation_id=%s",
             (operation_id,),
         ).fetchone()
         assert before == ("intent_recorded", 1)
@@ -171,7 +173,7 @@ async def test_activity_worker_sigkill_redelivers_intent_without_repeating_side_
 
         after = db.execute(
             "SELECT status,error_code,attempt_count,result_payload->>'side_effect_class' "
-            "FROM agent_operations WHERE operation_id=%s",
+            "FROM execution_operations WHERE operation_id=%s",
             (operation_id,),
         ).fetchone()
         assert after == (

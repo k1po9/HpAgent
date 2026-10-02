@@ -177,6 +177,7 @@ async def test_segment_capability_retry_is_bounded_and_releases_between_attempts
     class Request:
         run_id: str = "run"
         account_id: str = "account"
+        execution_id: str = "execution"
         lease_token: int = 0
         execution_attempt: int = 1
 

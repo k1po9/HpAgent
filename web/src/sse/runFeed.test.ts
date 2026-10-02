@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { openRunFeed, type RunFeedHandlers, type RunProgress } from "./runFeed";
-import type { HpRunSnapshot } from "../api/types";
+import type { HpChatRunSnapshot } from "../api/types";
 
 const ENCODER = new TextEncoder();
 
@@ -37,7 +37,7 @@ function envelope(
   });
 }
 
-function snapshotFrame(snapshot: HpRunSnapshot): string {
+function snapshotFrame(snapshot: HpChatRunSnapshot): string {
   return frame("run.snapshot", "snap-1", {
     schema_version: 1,
     event_id: "snap-1",
@@ -52,7 +52,7 @@ function snapshotFrame(snapshot: HpRunSnapshot): string {
   });
 }
 
-function terminalFrame(eventType: string, snapshot: HpRunSnapshot): string {
+function terminalFrame(eventType: string, snapshot: HpChatRunSnapshot): string {
   return frame(eventType, `term-1`, {
     schema_version: 1,
     event_id: "term-1",
@@ -69,7 +69,8 @@ function terminalFrame(eventType: string, snapshot: HpRunSnapshot): string {
 
 const STREAM_ID = "str-1";
 
-const RUNNING_SNAPSHOT: HpRunSnapshot = {
+const RUNNING_SNAPSHOT: HpChatRunSnapshot = {
+  source_kind: "chat",
   run: {
     run_id: "r1",
     conversation_id: "c1",
@@ -100,7 +101,8 @@ const RUNNING_SNAPSHOT: HpRunSnapshot = {
   },
 };
 
-const COMPLETED_SNAPSHOT: HpRunSnapshot = {
+const COMPLETED_SNAPSHOT: HpChatRunSnapshot = {
+  source_kind: "chat",
   run: { ...RUNNING_SNAPSHOT.run, status: "succeeded", finished_at: "2026-08-08T00:01:00Z" },
   assistant_message: {
     ...RUNNING_SNAPSHOT.assistant_message,
@@ -197,7 +199,7 @@ describe("openRunFeed", () => {
       name: "AgentExecution",
       nodeType: "agent",
     });
-    const terminal = p.calls.find((c) => c.type === "terminal")?.value as HpRunSnapshot;
+    const terminal = p.calls.find((c) => c.type === "terminal")?.value as HpChatRunSnapshot;
     expect(terminal.run.status).toBe("succeeded");
     expect(terminal.assistant_message.content).toBe("完整的最终回复");
   });

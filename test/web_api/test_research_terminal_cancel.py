@@ -58,7 +58,12 @@ def test_independent_queued_cancel_api_and_replay(
     assert other.post(url, json={}, headers=_headers(other_csrf, str(uuid4()))).status_code == 404
     first = client.post(url, json={}, headers=_headers(csrf, key))
     assert first.status_code == 200, first.text
-    assert first.json() == {"run_id": str(run_id), "status": "cancelled"}
+    assert first.json()["source_kind"] == "work"
+    assert first.json()["run"]["run_id"] == str(run_id)
+    assert first.json()["run"]["status"] == "cancelled"
+    assert "assistant_message" not in first.json()
+    mandate = client.get(f"/api/v1/works/{work_id}").json()["work"]
+    assert mandate["status"] == "active" and mandate["active_coordinator_run_id"] is None
     replay = client.post(url, json={}, headers=_headers(csrf, key))
     assert replay.status_code == 200
     assert replay.json() == first.json()
@@ -78,7 +83,10 @@ def test_independent_running_cancel_callback_and_normal_failure(
     url = f"/api/v1/runs/{run_id}/cancel"
     first = client.post(url, json={}, headers=_headers(csrf, str(uuid4())))
     assert first.status_code == 202, first.text
-    assert first.json() == {"run_id": str(run_id), "status": "cancelling"}
+    assert first.json()["source_kind"] == "work"
+    assert first.json()["run"]["run_id"] == str(run_id)
+    assert first.json()["run"]["status"] == "cancelling"
+    assert "assistant_message" not in first.json()
     assert db.execute("SELECT count(*) FROM outbox_events WHERE run_id=%s "
                       "AND event_type='cancel_run'", (run_id,)).fetchone()[0] == 1
     commands = CommandService(worker_database_url)

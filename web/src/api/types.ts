@@ -113,9 +113,10 @@ export interface HpRunBudget {
 }
 
 export interface HpRun {
+  execution_id?: string;
   run_id: string;
   conversation_id: string;
-  session_id: string;
+  session_id: string | null;
   trigger_message_id: string;
   retry_of_run_id: string | null;
   agent_strategy: AgentStrategy;
@@ -129,10 +130,33 @@ export interface HpRun {
   budget: HpRunBudget | null;
 }
 
-export interface HpRunSnapshot {
+export interface HpChatRunSnapshot {
+  source_kind: "chat";
   run: HpRun;
   assistant_message: HpMessage;
 }
+
+export interface HpWorkRunSnapshot {
+  source_kind: "work";
+  run: {
+    source_kind: "work";
+    run_id: string;
+    execution_id: string;
+    work_id: string;
+    requirement_revision: number;
+    work_control_epoch: number;
+    conversation_id: null;
+    session_id: null;
+    status: HpRunStatus;
+    strategy_kind: "deterministic" | "fixed_workflow" | "generic_agent";
+    executor_key: string;
+    result_json: Record<string, unknown> | null;
+    budget: HpRunBudget | null;
+    published_file?: HpFile | null;
+  };
+}
+
+export type HpRunSnapshot = HpChatRunSnapshot | HpWorkRunSnapshot;
 
 export type HpTraceStatus = "running" | "completed" | "failed" | "cancelled";
 

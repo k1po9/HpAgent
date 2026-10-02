@@ -15,6 +15,9 @@ from temporalio import activity
 from temporalio.exceptions import ApplicationError
 from uuid6 import uuid7
 
+from agent_activities.fencing import execution_fence, fence_scope
+from agent_activities.store import AgentDataStore, LeaseConflict, StaleFencingToken
+from agent_workflows.lifecycle_contracts import LIFECYCLE_SCHEMA_VERSION, SegmentInput
 from orchestration.research_workflow import (
     ResearchIterationInput,
     ResearchStageRef,
@@ -40,6 +43,7 @@ from resources.model_budget_context import model_budget_scope
 from resources.model_governance_errors import classify_model_governance_failure
 from resources.run_budget import RunBudgetService
 from run_domain.lifecycle import RunLifecycleService
+from run_domain.results import ResultReceiptService
 from tracing.repository import PostgresTraceRepository
 from web_domain.errors import ResourceNotFound
 from workspace.catalog import WorkspaceCatalog
@@ -102,14 +106,28 @@ class ResearchActivities:
     @retryable_transaction
     def _load_stage_result(self, operation_id: str) -> dict[str, Any] | None:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             return cast(dict[str, Any] | None, self.repository.stage_result(uow, operation_id))
 
     @retryable_transaction
     def _save_stage_result(
         self, operation_id: str, run_id: UUID, stage: str, result: dict[str, Any]
     ) -> None:
-        with UnitOfWork(self.database) as uow:
-            self.repository.save_stage_result(uow, operation_id, run_id, stage, result)
+        try:
+            with UnitOfWork(self.database) as uow:
+                AgentDataStore._assert_fence(uow)
+                self.repository.save_stage_result(uow, operation_id, run_id, stage, result)
+                AgentDataStore._complete_operation(
+                    uow, operation_id, f"operation:{operation_id}", result
+                )
+        except StaleFencingToken:
+            fence = execution_fence.get()
+            if fence is not None:
+                account, run, execution, token = fence
+                ResultReceiptService(self.database).receive(
+                    account, run, execution, operation_id, token, result
+                )
+            raise
 
     @retryable_transaction
     def _budget_ledger_entry(
@@ -117,6 +135,7 @@ class ResearchActivities:
     ) -> tuple[str, int, int | None] | None:
         """Return a prior reservation so an Activity retry reuses its dimensions."""
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             row = uow.execute(
                 "SELECT state,reserved_amount,actual_amount FROM run_usage_ledger "
                 "WHERE run_id=%s AND operation_id=%s AND dimension=%s",
@@ -124,12 +143,15 @@ class ResearchActivities:
             ).fetchone()
         if row is None:
             return None
-        return str(row["state"]), int(row["reserved_amount"]), (
-            int(row["actual_amount"]) if row["actual_amount"] is not None else None
+        return (
+            str(row["state"]),
+            int(row["reserved_amount"]),
+            (int(row["actual_amount"]) if row["actual_amount"] is not None else None),
         )
 
     def _assert_current(self, run_id: UUID) -> None:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             row = uow.execute("SELECT account_id FROM runs WHERE run_id=%s", (run_id,)).fetchone()
             if row is None:
                 raise ResourceNotFound()
@@ -141,8 +163,59 @@ class ResearchActivities:
     async def _run_stage(
         self, run_id: UUID, stage: str, action: Callable[[], Any]
     ) -> ResearchStageRef:
+        store = AgentDataStore(self.database)
+        identity = await asyncio.to_thread(store.run_identity, str(run_id))
+        try:
+            info = activity.info()
+            attempt_key = f"{info.workflow_run_id}:{info.activity_id}:{info.attempt}"
+        except RuntimeError:
+            from uuid import uuid4
+
+            attempt_key = str(uuid4())
+        segment = SegmentInput(
+            LIFECYCLE_SCHEMA_VERSION,
+            str(run_id),
+            identity["account_id"],
+            f"research:{run_id}:{stage}:{attempt_key}",
+            execution_id=identity["execution_id"],
+        )
+
+        async def heartbeat():
+            while True:
+                try:
+                    activity.heartbeat({"stage": stage})
+                except RuntimeError:
+                    return
+                await asyncio.sleep(5)
+
+        pulse = asyncio.create_task(heartbeat())
+        try:
+            while True:
+                try:
+                    token = await asyncio.to_thread(store.acquire_segment, segment)
+                    break
+                except LeaseConflict:
+                    try:
+                        activity.heartbeat({"stage": stage, "state": "waiting_for_execution"})
+                    except RuntimeError:
+                        pass
+                    await asyncio.sleep(1)
+            with fence_scope(identity["account_id"], str(run_id), token, identity["execution_id"]):
+                return await self._run_stage_in_execution(run_id, stage, action)
+        except StaleFencingToken as exc:
+            raise ApplicationError(str(exc), type="run_not_executable", non_retryable=True) from exc
+        finally:
+            pulse.cancel()
+            await asyncio.gather(pulse, return_exceptions=True)
+            await asyncio.shield(asyncio.to_thread(store.release_segment, segment))
+
+    async def _run_stage_in_execution(
+        self, run_id: UUID, stage: str, action: Callable[[], Any]
+    ) -> ResearchStageRef:
         await asyncio.to_thread(self._assert_current, run_id)
         operation_id = f"research:{run_id}:{stage}:v1"
+        store = AgentDataStore(self.database)
+        await asyncio.to_thread(store.begin_operation, operation_id, str(run_id), "research_stage")
         existing = await asyncio.to_thread(self._load_stage_result, operation_id)
         if existing is not None:
             return self._ref(run_id, stage, existing)
@@ -165,7 +238,7 @@ class ResearchActivities:
             await asyncio.to_thread(
                 self.budget.reserve, run_id, wall_operation_id, {"wall_time_ms": 1}
             )
-            value = action()
+            value = await asyncio.to_thread(action)
             if asyncio.iscoroutine(value):
                 value = await value
             result = value if isinstance(value, dict) else {"item_count": int(value or 0)}
@@ -197,18 +270,37 @@ class ResearchActivities:
     async def prepare_research_activity(self, request: ResearchWorkflowInput) -> ResearchStageRef:
         request.validate()
         run_id = UUID(request.run_id)
+        from web_domain.lifecycle import WebRunLifecycleService
+
+        try:
+            info = activity.info()
+        except RuntimeError:
+            info = None
+        authority = await asyncio.to_thread(
+            WebRunLifecycleService(self.database).prepare,
+            run_id,
+            info.workflow_id if info else None,
+            info.workflow_run_id if info else None,
+        )
+        if authority.status in {"cancelling", "cancelled"}:
+            raise asyncio.CancelledError
+        if authority.status == "succeeded":
+            return self._ref(run_id, "Planning", {"item_count": 1})
         await asyncio.to_thread(self._prepare, run_id)
         return self._ref(run_id, "Planning", {"item_count": 1})
 
     @retryable_transaction
     def _prepare(self, run_id: UUID) -> None:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             run = uow.execute(
                 "SELECT status,executor_key,account_id FROM runs WHERE run_id=%s", (run_id,)
             ).fetchone()
             if run is None or run["executor_key"] != "research_report":
                 raise LookupError(f"research Run not found: {run_id}")
-            if not RunLifecycleService(self.database).start(run["account_id"], run_id):
+            run = RunLifecycleService.lock(uow, run["account_id"], run_id)
+            RunLifecycleService.check_work(uow, run)
+            if run["status"] != "running":
                 raise RuntimeError("Research Run cannot start")
             freeze_history(uow, run["account_id"], run_id)
         self.trace.create_trace_run(run_id, {"run_kind": "research"})
@@ -236,6 +328,7 @@ class ResearchActivities:
     @retryable_transaction
     def _create_plan(self, run_id: UUID) -> int:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             task = uow.execute(
                 "SELECT q.objective,q.spec->'source_strategy' AS source_strategy FROM work_requirements q JOIN runs r "
                 "ON r.account_id=q.account_id AND r.work_id=q.work_id AND r.requirement_revision=q.revision WHERE r.run_id=%s",
@@ -247,12 +340,17 @@ class ResearchActivities:
             if isinstance(strategy_value, str):
                 strategy_value = json.loads(strategy_value)
             history = authorized_history(uow, run_id)
-            prior_claims = [claim.get("statement", "")
-                            for item in history for claim in item["snapshot"].get("claims", [])]
+            prior_claims = [
+                claim.get("statement", "")
+                for item in history
+                for claim in item["snapshot"].get("claims", [])
+            ]
             question = str(task["objective"])
             if prior_claims:
-                question += "\nCheck what changed since these prior claims: " + json.dumps(
-                    prior_claims, ensure_ascii=False)[:1000]
+                question += (
+                    "\nCheck what changed since these prior claims: "
+                    + json.dumps(prior_claims, ensure_ascii=False)[:1000]
+                )
             plan = ResearchPlan(
                 objective=str(task["objective"]),
                 questions=(ResearchQuestion("q1", question, 1),),
@@ -263,19 +361,19 @@ class ResearchActivities:
 
     def _iteration_context(self, run_id: UUID, iteration: int) -> tuple[str, SourceStrategy]:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             row = self.repository.load_plan(uow, run_id)
         plan = row["plan"]
         if isinstance(plan, str):
             plan = json.loads(plan)
         suffix = {1: "", 2: " official primary sources", 3: " independent corroboration"}[iteration]
         query = str(plan["questions"][0]["question"])
-        return f"{query}{suffix}", SourceStrategy.from_dict(
-            dict(plan["source_strategy"])
-        )
+        return f"{query}{suffix}", SourceStrategy.from_dict(dict(plan["source_strategy"]))
 
     @retryable_transaction
     def _start_iteration(self, run_id: UUID, iteration: int, query: str) -> None:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             self.repository.start_iteration(uow, run_id, iteration, query)
 
     @activity.defn
@@ -298,6 +396,7 @@ class ResearchActivities:
             self._budget_ledger_entry, run_id, operation_id, "sources_discovered"
         )
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             existing = int(
                 uow.execute(
                     "SELECT count(*) AS count FROM source_records WHERE run_id=%s AND iteration=%s",
@@ -329,6 +428,7 @@ class ResearchActivities:
         )
         candidates = await self.discovery.discover(query, strategy=strategy, limit=remaining)
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             source_ids = self.repository.add_candidates(
                 uow, run_id, candidates, self.canonicalizer.canonicalize, iteration=iteration
             )
@@ -356,6 +456,7 @@ class ResearchActivities:
     @retryable_transaction
     def _rank(self, run_id: UUID, iteration: int) -> int:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             uow.execute(
                 "UPDATE source_records SET source_tier=CASE "
                 "WHEN metadata->>'preferred_domain'='true' THEN 0 "
@@ -382,6 +483,7 @@ class ResearchActivities:
 
     async def _fetch(self, run_id: UUID, iteration: int) -> int:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             fetched_total = int(
                 uow.execute(
                     "SELECT count(*) AS count FROM source_records "
@@ -431,9 +533,11 @@ class ResearchActivities:
                         with suppress(asyncio.CancelledError):
                             await fetch_task
                 with UnitOfWork(self.database) as uow:
+                    AgentDataStore._assert_fence(uow)
                     self.repository.store_content(uow, UUID(str(row["source_id"])), content)
             except Exception as exc:
                 with UnitOfWork(self.database) as uow:
+                    AgentDataStore._assert_fence(uow)
                     self.repository.mark_fetch_failed(
                         uow, UUID(str(row["source_id"])), type(exc).__name__
                     )
@@ -462,6 +566,7 @@ class ResearchActivities:
     @retryable_transaction
     def _normalized_count(self, run_id: UUID, iteration: int) -> int:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             return int(
                 uow.execute(
                     "SELECT count(*) AS count FROM source_records WHERE run_id=%s "
@@ -485,6 +590,7 @@ class ResearchActivities:
     @retryable_transaction
     def _extract_evidence(self, run_id: UUID, iteration: int) -> int:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             sources = uow.execute(
                 "SELECT s.*,c.content_text FROM source_records s "
                 "JOIN source_contents c ON c.source_id=s.source_id LEFT JOIN evidence_items e "
@@ -494,7 +600,11 @@ class ResearchActivities:
             ).fetchall()
             for source in sources:
                 content_text = str(source["content_text"])
-                paragraph_matches = list(__import__("re").finditer(r"\S(?:.*?\S)?(?=\n\s*\n|\Z)", content_text, __import__("re").S))
+                paragraph_matches = list(
+                    __import__("re").finditer(
+                        r"\S(?:.*?\S)?(?=\n\s*\n|\Z)", content_text, __import__("re").S
+                    )
+                )
                 match = paragraph_matches[0] if paragraph_matches else None
                 excerpt = match.group(0)[:1000] if match else ""
                 if match is not None and excerpt:
@@ -541,6 +651,7 @@ class ResearchActivities:
     @retryable_transaction
     def _assess_corroboration(self, run_id: UUID, iteration: int) -> int:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             row = uow.execute(
                 "SELECT count(*) AS evidence_count,count(DISTINCT source_id) AS "
                 "source_count,count(*) FILTER (WHERE source_quality<=1) AS high_quality_count "
@@ -566,6 +677,7 @@ class ResearchActivities:
     @retryable_transaction
     def _analyze_gaps(self, run_id: UUID, iteration: int) -> dict[str, Any]:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             row = uow.execute(
                 "SELECT count(*) AS evidence_count,count(DISTINCT source_id) AS "
                 "source_count FROM evidence_items WHERE run_id=%s",
@@ -600,9 +712,8 @@ class ResearchActivities:
 
     async def _synthesize(self, run_id: UUID) -> int:
         with UnitOfWork(self.database) as uow:
-            owner = uow.execute(
-                "SELECT account_id FROM runs WHERE run_id=%s", (run_id,)
-            ).fetchone()
+            AgentDataStore._assert_fence(uow)
+            owner = uow.execute("SELECT account_id FROM runs WHERE run_id=%s", (run_id,)).fetchone()
             if owner is None:
                 raise ValueError("research Run does not exist")
             existing = self.repository.load_report(uow, run_id)
@@ -618,16 +729,25 @@ class ResearchActivities:
         if not evidence:
             raise ValueError("research report requires persisted EvidenceItems")
         with model_budget_scope(
-            owner["account_id"], run_id, f"research:{run_id}:Synthesis:model:v1",
+            owner["account_id"],
+            run_id,
+            f"research:{run_id}:Synthesis:model:v1",
             phase="research_synthesis",
-            execution_attempt=self._attempt(), final_response=True,
+            execution_attempt=self._attempt(),
+            final_response=True,
         ):
             report = await self.synthesis.synthesize(
-                str(plan["objective"]) + ("\nAuthorized prior report claims: " +
-                    json.dumps([item["snapshot"] for item in history], ensure_ascii=False)
-                    if history else ""), [dict(row) for row in evidence]
+                str(plan["objective"])
+                + (
+                    "\nAuthorized prior report claims: "
+                    + json.dumps([item["snapshot"] for item in history], ensure_ascii=False)
+                    if history
+                    else ""
+                ),
+                [dict(row) for row in evidence],
             )
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             return cast(int, self.repository.save_report(uow, run_id, report))
 
     @activity.defn
@@ -641,6 +761,7 @@ class ResearchActivities:
     @retryable_transaction
     def _verify(self, run_id: UUID) -> int:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             count, _needs_review = self.repository.verify_citations(uow, run_id)
             return cast(int, count)
 
@@ -650,13 +771,12 @@ class ResearchActivities:
     ) -> ResearchStageRef:
         request.validate()
         run_id = UUID(request.run_id)
-        return await self._run_stage(
-            run_id, "DailyDiff", lambda: self._compare_previous(run_id)
-        )
+        return await self._run_stage(run_id, "DailyDiff", lambda: self._compare_previous(run_id))
 
     @retryable_transaction
     def _compare_previous(self, run_id: UUID) -> int:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             diff = self.repository.compare_previous_report(uow, run_id)
             return sum(len(items) for items in diff.values())
 
@@ -666,17 +786,20 @@ class ResearchActivities:
     ) -> ResearchStageRef:
         request.validate()
         run_id = UUID(request.run_id)
-        result = await self._run_stage(
-            run_id, "PublishArtifact", lambda: self._publish(run_id)
-        )
-        if self.markdown_publisher is not None:
-            markdown = await asyncio.to_thread(self._report_markdown, run_id)
-            await asyncio.to_thread(self.markdown_publisher.publish, run_id, markdown)
-        return result
+
+        async def publish():
+            result = await asyncio.to_thread(self._publish, run_id)
+            if self.markdown_publisher is not None:
+                markdown = await asyncio.to_thread(self._report_markdown, run_id)
+                await asyncio.to_thread(self.markdown_publisher.publish, run_id, markdown)
+            return result
+
+        return await self._run_stage(run_id, "PublishArtifact", publish)
 
     @retryable_transaction
     def _report_markdown(self, run_id: UUID) -> str:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             report = self.repository.load_report(uow, run_id)
             if report is None:
                 raise LookupError(f"research report not found: {run_id}")
@@ -685,6 +808,7 @@ class ResearchActivities:
     @retryable_transaction
     def _publish(self, run_id: UUID) -> int:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             report = self.repository.load_report(uow, run_id)
             if report is None:
                 raise LookupError(f"research report not found: {run_id}")
@@ -697,7 +821,8 @@ class ResearchActivities:
             markdown = html.escape(str(report["report_markdown"]))
             run = uow.execute(
                 "SELECT r.run_id,r.created_at,q.objective FROM runs r JOIN work_requirements q "
-                "ON q.account_id=r.account_id AND q.work_id=r.work_id AND q.revision=r.requirement_revision WHERE r.run_id=%s", (run_id,)
+                "ON q.account_id=r.account_id AND q.work_id=r.work_id AND q.revision=r.requirement_revision WHERE r.run_id=%s",
+                (run_id,),
             ).fetchone()
             claims = uow.execute(
                 "SELECT cl.statement,cl.importance,cl.evidence_status,"
@@ -706,7 +831,8 @@ class ResearchActivities:
                 "FROM research_claims cl LEFT JOIN research_citations c ON c.claim_id=cl.claim_id "
                 "LEFT JOIN evidence_items e ON e.evidence_id=c.evidence_id "
                 "LEFT JOIN source_records s ON s.source_id=e.source_id "
-                "WHERE cl.run_id=%s GROUP BY cl.claim_id ORDER BY cl.ordinal", (run_id,)
+                "WHERE cl.run_id=%s GROUP BY cl.claim_id ORDER BY cl.ordinal",
+                (run_id,),
             ).fetchall()
             findings = "".join(
                 f"<li><strong>{html.escape(str(row['importance']))}</strong> "
@@ -744,11 +870,11 @@ class ResearchActivities:
     ) -> ResearchStageRef:
         request.validate()
         run_id = UUID(request.run_id)
-        await asyncio.to_thread(self._save_workspace, run_id)
-        return self._ref(run_id, "WorkspaceSave", {"item_count": 1})
+        return await self._run_stage(run_id, "WorkspaceSave", lambda: self._save_workspace(run_id))
 
     def _save_workspace(self, run_id: UUID) -> None:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             intent = uow.execute(
                 "SELECT * FROM research_run_save_intents WHERE run_id=%s", (run_id,)
             ).fetchone()
@@ -758,44 +884,61 @@ class ResearchActivities:
                 "SELECT rf.file_id FROM run_files rf JOIN stored_files sf "
                 "ON sf.account_id=rf.account_id AND sf.file_id=rf.file_id "
                 "WHERE rf.run_id=%s AND rf.direction='output' AND sf.status='ready' "
-                "ORDER BY rf.created_at LIMIT 1", (run_id,),
+                "ORDER BY rf.created_at LIMIT 1",
+                (run_id,),
             ).fetchone()
             run = uow.execute(
                 "SELECT r.created_at,q.timing->>'timezone' AS schedule_timezone FROM runs r JOIN work_requirements q "
-                "ON q.account_id=r.account_id AND q.work_id=r.work_id AND q.revision=r.requirement_revision WHERE r.run_id=%s", (run_id,),
+                "ON q.account_id=r.account_id AND q.work_id=r.work_id AND q.revision=r.requirement_revision WHERE r.run_id=%s",
+                (run_id,),
             ).fetchone()
         if output is None:
             with UnitOfWork(self.database) as uow:
+                AgentDataStore._assert_fence(uow)
                 uow.execute(
                     "UPDATE research_run_save_intents SET failure_code=%s WHERE run_id=%s "
-                    "AND state='pending'", ("research_markdown_output_missing", run_id),
+                    "AND state='pending'",
+                    ("research_markdown_output_missing", run_id),
                 )
             raise RuntimeError("research_markdown_output_missing")
         from zoneinfo import ZoneInfo
+
         local_day = run["created_at"].astimezone(ZoneInfo(run["schedule_timezone"])).date()
         name = f"research-{local_day.isoformat()}-{run_id.hex}.md"
         try:
             catalog = WorkspaceCatalog(self.database)
             if intent["operation"] == "create_child":
                 entry_id = catalog.save_file(
-                    intent["account_id"], intent["target_directory_id"], output["file_id"],
-                    name, intent["operation_id"], agent_run_id=run_id,
+                    intent["account_id"],
+                    intent["target_directory_id"],
+                    output["file_id"],
+                    name,
+                    intent["operation_id"],
+                    agent_run_id=run_id,
                 )
             else:
                 result = catalog.update_file(
-                    intent["account_id"], intent["target_entry_id"], run_id,
-                    output["file_id"], intent["expected_revision"],
-                    intent["expected_sha256"], intent["operation_id"], work_auto=True,
+                    intent["account_id"],
+                    intent["target_entry_id"],
+                    run_id,
+                    output["file_id"],
+                    intent["expected_revision"],
+                    intent["expected_sha256"],
+                    intent["operation_id"],
+                    work_auto=True,
                 )
                 entry_id = UUID(result["node_id"])
         except Exception as exc:
             with UnitOfWork(self.database) as uow:
+                AgentDataStore._assert_fence(uow)
                 uow.execute(
                     "UPDATE research_run_save_intents SET failure_code=%s WHERE run_id=%s "
-                    "AND state='pending'", (type(exc).__name__, run_id),
+                    "AND state='pending'",
+                    (type(exc).__name__, run_id),
                 )
             raise
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             uow.execute(
                 "UPDATE research_run_save_intents SET state='succeeded',entry_id=%s,"
                 "saved_at=now(),failure_code=NULL WHERE run_id=%s AND state='pending'",
@@ -812,6 +955,7 @@ class ResearchActivities:
     @retryable_transaction
     def _complete(self, run_id: UUID) -> None:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             run = uow.execute(
                 "SELECT account_id,conversation_id,status FROM runs WHERE run_id=%s", (run_id,)
             ).fetchone()
@@ -828,28 +972,41 @@ class ResearchActivities:
                 "FROM research_run_save_intents i WHERE i.run_id=%s AND i.required",
                 (run_id,),
             ).fetchone()
-            if required is not None and (required["state"] != "succeeded" or
-                                         not required["committed"]):
+            if required is not None and (
+                required["state"] != "succeeded" or not required["committed"]
+            ):
                 raise RuntimeError("required_workspace_save_incomplete")
         if run is None:
             raise LookupError(f"research Run not found: {run_id}")
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             owner = uow.execute("SELECT * FROM runs WHERE run_id=%s", (run_id,)).fetchone()
             report = self.repository.load_report(uow, run_id)
             requirement = uow.execute(
                 "SELECT acceptance_criteria FROM work_requirements WHERE account_id=%s "
                 "AND work_id=%s AND revision=%s",
-                (owner["account_id"], owner["work_id"], owner["requirement_revision"])).fetchone()
+                (owner["account_id"], owner["work_id"], owner["requirement_revision"]),
+            ).fetchone()
         if report is None or report["artifact_version_id"] is None:
             raise RuntimeError("research_report_not_published")
-        evidence = [{"criterion_id": c["id"], "type": "research_report",
-                     "ref": str(report["artifact_version_id"])}
-                    for c in requirement["acceptance_criteria"] if "research_report" in c["evidence_types"]]
+        evidence = [
+            {
+                "criterion_id": c["id"],
+                "type": "research_report",
+                "ref": str(report["artifact_version_id"]),
+            }
+            for c in requirement["acceptance_criteria"]
+            if "research_report" in c["evidence_types"]
+        ]
         RunLifecycleService(self.database).finish(
-            run["account_id"], run_id, "succeeded",
+            run["account_id"],
+            run_id,
+            "succeeded",
             result={"schema_version": 1, "kind": "deliverable_ready", "evidence": evidence},
-            accept_result=True)
+            accept_result=True,
+        )
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             uow.execute(
                 "UPDATE workflow_executions SET status='completed',"
                 "closed_at=COALESCE(closed_at,now()),updated_at=now(),version=version+1 "
@@ -873,6 +1030,7 @@ class ResearchActivities:
     @retryable_transaction
     def _fail(self, run_id: UUID) -> bool:
         with UnitOfWork(self.database) as uow:
+            AgentDataStore._assert_fence(uow)
             run = uow.execute(
                 "SELECT account_id,conversation_id,status FROM runs WHERE run_id=%s", (run_id,)
             ).fetchone()
@@ -880,7 +1038,8 @@ class ResearchActivities:
                 return True
             intent = uow.execute(
                 "SELECT failure_code FROM research_run_save_intents WHERE run_id=%s "
-                "AND state='pending'", (run_id,),
+                "AND state='pending'",
+                (run_id,),
             ).fetchone()
             if intent is not None and intent["failure_code"]:
                 uow.execute(
@@ -890,12 +1049,19 @@ class ResearchActivities:
         if run is None:
             raise LookupError(f"research Run not found: {run_id}")
         RunLifecycleService(self.database).finish(
-            run["account_id"], run_id, "failed",
-            failure_code="workspace_save_failed" if intent is not None and intent["failure_code"] else "research_stage_failed",
-            failure_message="Research stage failed.")
+            run["account_id"],
+            run_id,
+            "failed",
+            failure_code="workspace_save_failed"
+            if intent is not None and intent["failure_code"]
+            else "research_stage_failed",
+            failure_message="Research stage failed.",
+        )
         with UnitOfWork(self.database) as uow:
-            status = uow.execute("SELECT status FROM runs WHERE run_id=%s",
-                                 (run_id,)).fetchone()["status"]
+            AgentDataStore._assert_fence(uow)
+            status = uow.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[
+                "status"
+            ]
             if status in {"cancelling", "cancelled"}:
                 return True
             uow.execute(

@@ -48,7 +48,7 @@ def _validate(request: AgentRunInput) -> None:
     if request.schema_version != AGENT_SCHEMA_VERSION:
         raise ApplicationError("unsupported Agent workflow schema", non_retryable=True)
     if not all(
-        (request.run_id, request.account_id, request.source.source_kind, request.source.source_ref)
+        (request.run_id, request.account_id, request.execution_id, request.source.source_kind, request.source.source_ref)
     ):
         raise ApplicationError("incomplete Agent identity", non_retryable=True)
     if request.max_turns < 1:
@@ -61,9 +61,10 @@ async def bootstrap(request: AgentRunInput):
         ContextBootstrapInput(
             schema_version=AGENT_SCHEMA_VERSION,
             run_id=request.run_id,
+                    execution_id=request.execution_id,
             account_id=request.account_id,
             strategy=request.strategy,
-            operation_id=f"{request.run_id}:{request.strategy}:context",
+            operation_id=f"{request.execution_id}:{request.strategy}:context",
             source=request.source,
             context=request.context,
         ),
@@ -96,12 +97,13 @@ class ReactAgentWorkflow:
                 ModelDecisionInput(
                     schema_version=AGENT_SCHEMA_VERSION,
                     run_id=request.run_id,
+                    execution_id=request.execution_id,
                     account_id=request.account_id,
                     strategy=request.strategy,
                     transcript_id=context.transcript_id,
                     transcript_version=transcript_version,
                     turn=turn,
-                    operation_id=f"{request.run_id}:react:turn:{turn}:model",
+                    operation_id=f"{request.execution_id}:react:turn:{turn}:model",
                     lease_token=0,
                     source=request.source,
                     context=request.context,
@@ -133,12 +135,13 @@ class ReactAgentWorkflow:
                 tool_input = ToolExecutionInput(
                     schema_version=AGENT_SCHEMA_VERSION,
                     run_id=request.run_id,
+                    execution_id=request.execution_id,
                     account_id=request.account_id,
                     strategy=request.strategy,
                     transcript_id=context.transcript_id,
                     transcript_version=transcript_version,
                     turn=turn,
-                    operation_id=f"{request.run_id}:react:turn:{turn}:tool:{call.tool_call_id}",
+                    operation_id=f"{request.execution_id}:react:turn:{turn}:tool:{call.tool_call_id}",
                     lease_token=0,
                     tool_call=call,
                     source=request.source,
@@ -170,12 +173,13 @@ class ReactAgentWorkflow:
             ModelDecisionInput(
                 schema_version=AGENT_SCHEMA_VERSION,
                 run_id=request.run_id,
+                    execution_id=request.execution_id,
                 account_id=request.account_id,
                 strategy=request.strategy,
                 transcript_id=context.transcript_id,
                 transcript_version=transcript_version,
                 turn=final_turn,
-                operation_id=f"{request.run_id}:react:turn:{final_turn}:forced-final",
+                operation_id=f"{request.execution_id}:react:turn:{final_turn}:forced-final",
                 lease_token=0,
                 final_only=True,
                 source=request.source,

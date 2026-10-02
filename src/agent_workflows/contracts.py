@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-AGENT_SCHEMA_VERSION = 3
+AGENT_SCHEMA_VERSION = 4
 AGENT_TASK_QUEUE = "hpagent-web-agent"
 AGENT_STRATEGY_REACT = "react"
 AGENT_STRATEGY_PLAN = "plan_and_execute"
@@ -31,12 +31,12 @@ class ChatContext:
     """Conversation-owned context, required only by Chat adapters."""
 
     conversation_id: str
-    session_id: str
+    session_id: str | None = None
     trigger_message_id: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.conversation_id or not self.session_id:
-            raise ValueError("Chat context requires Conversation and Session")
+        if not self.conversation_id:
+            raise ValueError("Chat context requires Conversation")
 
 
 @dataclass(frozen=True)
@@ -61,6 +61,7 @@ class AgentRunInput:
     context: RunContext
     strategy: str
     max_turns: int = 20
+    execution_id: str = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -73,6 +74,7 @@ class ContextBootstrapInput:
     strategy: str
     operation_id: str
 
+    execution_id: str = field(kw_only=True)
     execution_attempt: int = field(default=1, kw_only=True)
     lease_token: int = field(default=0, kw_only=True)
 
@@ -111,6 +113,7 @@ class ModelDecisionInput:
     plan_version: int | None = None
     step_id: str | None = None
 
+    execution_id: str = field(kw_only=True)
     execution_attempt: int = field(default=1, kw_only=True)
 
 
@@ -144,6 +147,7 @@ class ToolExecutionInput:
     plan_version: int | None = None
     step_id: str | None = None
 
+    execution_id: str = field(kw_only=True)
     execution_attempt: int = field(default=1, kw_only=True)
 
 
@@ -197,6 +201,7 @@ class ApprovedToolExecutionInput:
     tool_call_id: str
     tool_name: str
 
+    execution_id: str = field(kw_only=True)
     execution_attempt: int = field(default=1, kw_only=True)
 
 
@@ -246,6 +251,7 @@ class PlanningInput:
     trigger_step_id: str | None = None
     evaluation_reason: str | None = None
 
+    execution_id: str = field(kw_only=True)
     execution_attempt: int = field(default=1, kw_only=True)
 
 
@@ -276,6 +282,7 @@ class PlanEvaluationInput:
     step_index: int
     step_count: int
 
+    execution_id: str = field(kw_only=True)
     execution_attempt: int = field(default=1, kw_only=True)
 
 

@@ -82,7 +82,7 @@ class PostgresWebRequestLoader:
             "context",
             **correlation,
             conversation_id=str(base.conversation_id),
-            session_id=str(base.session_id),
+            session_id=None,
             account_id=str(base.account_id),
             status="success",
             message_count=len(base.short_term_events),
@@ -92,10 +92,10 @@ class PostgresWebRequestLoader:
             elapsed_ms=round((time.monotonic() - started_at) * 1000),
         )
         return ExecutionRequest(
-            execution_id=run_id,
+            execution_id=str(base.execution_id),
             account_id=str(base.account_id),
             conversation_id=str(base.conversation_id),
-            session_id=str(base.session_id),
+            session_id=None,
             user_content=base.trigger_content,
             context=context,
             trigger_message_id=str(base.trigger_message_id),

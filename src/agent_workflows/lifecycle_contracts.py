@@ -1,9 +1,9 @@
 """Channel-neutral execution segment and durable wait control contracts."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
-LIFECYCLE_SCHEMA_VERSION = 1
+LIFECYCLE_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -12,6 +12,7 @@ class SegmentInput:
     run_id: str
     account_id: str
     segment_id: str
+    execution_id: str = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class WaitInput:
     reason: str
     resume_ref: str
     deadline: str
+    execution_id: str = field(kw_only=True)
 
 
 @dataclass(frozen=True)

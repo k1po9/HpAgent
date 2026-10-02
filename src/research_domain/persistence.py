@@ -22,7 +22,18 @@ from research_domain.models import (
 )
 
 
+def execution_repository_method(function):
+    from functools import wraps
+    @wraps(function)
+    def wrapped(self, uow, *args, **kwargs):
+        from agent_activities.store import AgentDataStore
+        AgentDataStore._assert_fence(uow)
+        return function(self, uow, *args, **kwargs)
+    return wrapped
+
+
 class ResearchRepository:
+    @execution_repository_method
     def create_plan(self, uow: UnitOfWork, run_id: UUID, plan: ResearchPlan) -> None:
         owner = uow.execute("SELECT work_id,account_id,requirement_revision FROM runs WHERE run_id=%s", (run_id,)).fetchone()
         work_id = owner["work_id"]
@@ -32,6 +43,7 @@ class ResearchRepository:
             (run_id, work_id, owner["account_id"], owner["requirement_revision"], plan.version, json.dumps(plan.to_dict())),
         )
 
+    @execution_repository_method
     def load_plan(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
         row = uow.execute(
             "SELECT p.plan,q.work_id,q.objective FROM research_plans p JOIN work_requirements q "
@@ -43,6 +55,7 @@ class ResearchRepository:
             raise LookupError(f"research plan not found: {run_id}")
         return dict(row)
 
+    @execution_repository_method
     def add_candidates(
         self,
         uow: UnitOfWork,
@@ -87,6 +100,7 @@ class ResearchRepository:
             source_ids.append(UUID(str(row["source_id"])))
         return source_ids
 
+    @execution_repository_method
     def fetch_candidates(
         self, uow: UnitOfWork, run_id: UUID, limit: int, *, iteration: int | None = None
     ) -> list[dict[str, Any]]:
@@ -105,6 +119,7 @@ class ResearchRepository:
             ).fetchall()
         )
 
+    @execution_repository_method
     def store_content(
         self,
         uow: UnitOfWork,
@@ -156,6 +171,7 @@ class ResearchRepository:
         )
         return content_ref, False
 
+    @execution_repository_method
     def mark_fetch_failed(self, uow: UnitOfWork, source_id: UUID, error_code: str) -> None:
         uow.execute(
             "UPDATE source_records SET fetch_status='failed',metadata=metadata || %s::jsonb,"
@@ -163,6 +179,7 @@ class ResearchRepository:
             (json.dumps({"fetch_error": error_code[:200]}), source_id),
         )
 
+    @execution_repository_method
     def evidence_sources(self, uow: UnitOfWork, run_id: UUID) -> list[dict[str, Any]]:
         return list(
             uow.execute(
@@ -173,6 +190,7 @@ class ResearchRepository:
             ).fetchall()
         )
 
+    @execution_repository_method
     def add_evidence(self, uow: UnitOfWork, item: EvidenceItem) -> bool:
         row = uow.execute(
             "INSERT INTO evidence_items(evidence_id,run_id,source_id,excerpt,content_ref,"
@@ -191,12 +209,14 @@ class ResearchRepository:
         ).fetchone()
         return row is not None
 
+    @execution_repository_method
     def stage_result(self, uow: UnitOfWork, operation_id: str) -> dict[str, Any] | None:
         row = uow.execute(
             "SELECT result FROM research_stage_results WHERE operation_id=%s", (operation_id,)
         ).fetchone()
         return dict(row["result"]) if row else None
 
+    @execution_repository_method
     def save_stage_result(
         self,
         uow: UnitOfWork,
@@ -211,6 +231,7 @@ class ResearchRepository:
             (operation_id, run_id, stage, json.dumps(result)),
         )
 
+    @execution_repository_method
     def start_iteration(self, uow: UnitOfWork, run_id: UUID, iteration: int, query: str) -> None:
         uow.execute(
             "INSERT INTO research_iterations(run_id,iteration,query) VALUES (%s,%s,%s) "
@@ -218,6 +239,7 @@ class ResearchRepository:
             (run_id, iteration, query),
         )
 
+    @execution_repository_method
     def save_corroboration(
         self, uow: UnitOfWork, run_id: UUID, iteration: int, value: dict[str, Any]
     ) -> None:
@@ -227,6 +249,7 @@ class ResearchRepository:
             (json.dumps(value), run_id, iteration),
         )
 
+    @execution_repository_method
     def save_gap_analysis(
         self,
         uow: UnitOfWork,
@@ -242,6 +265,7 @@ class ResearchRepository:
             (json.dumps(value), "sufficient" if sufficient else "insufficient", run_id, iteration),
         )
 
+    @execution_repository_method
     def evidence_for_synthesis(self, uow: UnitOfWork, run_id: UUID) -> list[dict[str, Any]]:
         return list(
             uow.execute(
@@ -253,10 +277,12 @@ class ResearchRepository:
             ).fetchall()
         )
 
+    @execution_repository_method
     def load_report(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any] | None:
         row = uow.execute("SELECT * FROM research_reports WHERE run_id=%s", (run_id,)).fetchone()
         return dict(row) if row else None
 
+    @execution_repository_method
     def save_report(self, uow: UnitOfWork, run_id: UUID, report: ResearchReport) -> int:
         uow.execute(
             "INSERT INTO research_reports(run_id,report_markdown,report_structured_json) "
@@ -296,6 +322,7 @@ class ResearchRepository:
                 )
         return len(report.claims)
 
+    @execution_repository_method
     def verify_citations(self, uow: UnitOfWork, run_id: UUID) -> tuple[int, bool]:
         rows = uow.execute(
             "SELECT c.citation_id,c.claim_id,c.locator,e.source_locator,e.source_quality,"
@@ -367,6 +394,7 @@ class ResearchRepository:
     def _claim_key(statement: str) -> str:
         return re.sub(r"[^\w]+", " ", statement.casefold()).strip()
 
+    @execution_repository_method
     def compare_previous_report(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
         current_run = uow.execute(
             "SELECT work_id,created_at FROM runs WHERE run_id=%s", (run_id,)
@@ -460,6 +488,7 @@ class ResearchRepository:
         )
         return diff
 
+    @execution_repository_method
     def publish_report_artifact(self, uow: UnitOfWork, run_id: UUID, html: str) -> UUID:
         report = self.load_report(uow, run_id)
         if report is None:

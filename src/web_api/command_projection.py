@@ -6,7 +6,9 @@ from persistence.command_result import CommandResult
 
 
 def command_body(result: CommandResult, *fields: str, events: bool = False) -> dict[str, Any]:
-    body = deepcopy({name: result.body[name] for name in fields})
+    body = deepcopy({name: result.body[name] for name in fields if name in result.body})
+    if "run" in body:
+        body["source_kind"] = body["run"]["source_kind"]
     for name in ("user_message", "assistant_message"):
         if name in body:
             for file in body[name].get("files", []):

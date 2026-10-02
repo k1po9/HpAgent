@@ -205,7 +205,7 @@ class DurableAgentActivities:
         chat = context.chat if context is not None else None
         return {
             "run_id": request.run_id,
-            "execution_id": request.run_id,
+            "execution_id": request.execution_id,
             "account_id": getattr(request, "account_id", None),
             "conversation_id": chat.conversation_id if chat else None,
             "session_id": chat.session_id if chat else None,
@@ -250,6 +250,7 @@ class DurableAgentActivities:
         self._check_schema(request.schema_version)
         await asyncio.to_thread(
             self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
+            request.execution_id,
         )
         started = time.monotonic()
         fields = self._correlation(request)
@@ -369,7 +370,7 @@ class DurableAgentActivities:
                 await trace_end(
                     events, memory_node_id, "completed", {"memory_count": 0}
                 )
-            transcript_id = f"agent-transcript:{request.run_id}"
+            transcript_id = f"agent-transcript:{request.execution_id}"
             version = await asyncio.to_thread(
                 self.store.create_transcript,
                 transcript_id=transcript_id,
@@ -501,8 +502,9 @@ class DurableAgentActivities:
             async with self._workspace(request):
                 await asyncio.to_thread(
                     self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
+                    request.execution_id,
                 )
-                self.actions.reset_execution(self.context_bindings.session_key(request), request.run_id)
+                self.actions.reset_execution(self.context_bindings.resource_key(request), request.execution_id)
                 with model_budget_scope(
                     request.account_id, request.run_id, request.operation_id,
                     phase=model_phase,
@@ -514,8 +516,8 @@ class DurableAgentActivities:
                     else:
                         tools = await self.actions.select_tools(
                             user_content=request.objective or self._last_user_content(model_messages),
-                            resource_key=self.context_bindings.session_key(request),
-                            execution_id=request.run_id,
+                            resource_key=self.context_bindings.resource_key(request),
+                            execution_id=request.execution_id,
                         )
                         decision = await self.brain.generate_chat_decision(
                             messages=model_messages,
@@ -606,7 +608,7 @@ class DurableAgentActivities:
                 raise
             raise ApplicationError("模型暂时不可用。", type="model_unavailable") from exc
         finally:
-            self.actions.clear_execution(self.context_bindings.session_key(request), request.run_id)
+            self.actions.clear_execution(self.context_bindings.resource_key(request), request.execution_id)
             await trace_end(events, model_node_id, trace_status, trace_metadata)
             await events.close()
         log_event(model_logger, logging.INFO, "model_decision_completed", "model", **fields, status="success", elapsed_ms=round((time.monotonic() - started) * 1000), stop_reason=result.stop_reason, tool_count=len(result.tool_calls), result_ref=result.decision_ref)
@@ -733,7 +735,7 @@ class DurableAgentActivities:
                     self._tool_heartbeat_loop(request)
                 )
                 side_effect_class = normalize_side_effect_class(str(
-                    self.actions.side_effect_class(self.context_bindings.session_key(request), request.tool_call.name)
+                    self.actions.side_effect_class(self.context_bindings.resource_key(request), request.tool_call.name)
                 ))
                 if side_effect_class == "unknown":
                     raise ApplicationError(
@@ -826,7 +828,7 @@ class DurableAgentActivities:
                     reservation = {"tool_calls": 1}
                     if self.run_budget is not None:
                         reservation = self.actions.budget_reservation(
-                            self.context_bindings.session_key(request), request.tool_call.name
+                            self.context_bindings.resource_key(request), request.tool_call.name
                         )
                         try:
                             await asyncio.to_thread(
@@ -850,8 +852,8 @@ class DurableAgentActivities:
                         ):
                             result_value = await self.actions.execute_request(
                                 action,
-                                resource_key=self.context_bindings.session_key(request),
-                                execution_id=request.run_id,
+                                resource_key=self.context_bindings.resource_key(request),
+                                execution_id=request.execution_id,
                                 user_query="",
                                 idempotency_key=request.operation_id,
                             )
@@ -1042,7 +1044,7 @@ class DurableAgentActivities:
             if heartbeat_task is not None:
                 heartbeat_task.cancel()
                 await asyncio.gather(heartbeat_task, return_exceptions=True)
-            self.actions.clear_execution(self.context_bindings.session_key(request), request.run_id)
+            self.actions.clear_execution(self.context_bindings.resource_key(request), request.execution_id)
             if file_node_id is not None:
                 await trace_end(
                     events, file_node_id, trace_status, file_trace_metadata
@@ -1398,7 +1400,7 @@ class DurableAgentActivities:
             {"result_ref": request.result_ref},
         )
         try:
-            content = await asyncio.to_thread(self.store.result_content, request.result_ref)
+            content = await asyncio.to_thread(self.store.result_content, request.result_ref, request.run_id)
             authority = await asyncio.to_thread(
                 self.lifecycle.complete, __import__("uuid").UUID(request.run_id), content
             )

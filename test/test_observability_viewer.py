@@ -356,7 +356,7 @@ class _DebugConnection:
             return SimpleNamespace(fetchone=lambda: self.transcript)
         if "FROM hpagent.agent_transcript_events" in query:
             return SimpleNamespace(fetchall=lambda: [{"sequence": 1, "event_type": "context"}])
-        if "FROM hpagent.agent_operations" in query:
+        if "FROM hpagent.execution_operations" in query:
             return SimpleNamespace(fetchall=lambda: [{"operation_id": "op-1", "status": "uncertain"}])
         raise AssertionError(query)
 

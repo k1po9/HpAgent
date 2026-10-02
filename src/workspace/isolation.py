@@ -4,14 +4,10 @@ from __future__ import annotations
 import asyncio
 import os
 import subprocess
-from contextlib import asynccontextmanager, nullcontext
+from contextlib import asynccontextmanager
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, AsyncIterator, Callable, Protocol
-from uuid import UUID
-
-from persistence.repositories import RunRepository
-from persistence.uow import UnitOfWork
 
 
 class WorkspaceIsolationMode(StrEnum):
@@ -225,91 +221,3 @@ class WorkspaceRecoveryGuard:
                 raise WorkspaceRecoveryRequired(result.stderr.strip() or "Git check failed")
             return result.stdout.strip()
         return await asyncio.to_thread(run)
-
-
-class SessionResourceRecoveryService:
-    """Restore exactly the Session already bound to a Web Run.
-
-    It does not create a database Session.  The caller supplies only ``run_id``;
-    the Session, Account and logical workspace reference are loaded through the
-    authoritative database relationship before any local resource is touched.
-    """
-
-    def __init__(
-        self, database_url: object, sandbox_manager: Any,
-        account_locks: AccountLockRegistry, git_repo_manager: WorkspaceProvisioner,
-        run_file_workspace: Any | None = None,
-    ) -> None:
-        self._database_url = database_url
-        self._sandbox_manager = sandbox_manager
-        self._account_locks = account_locks
-        self._git_repo_manager = git_repo_manager
-        self._run_file_workspace = run_file_workspace
-        self._runs = RunRepository()
-
-    @asynccontextmanager
-    async def lease_for_run(
-        self, account_id: UUID, run_id: UUID, control: ExecutionControl | None = None
-    ) -> AsyncIterator[UUID]:
-        with UnitOfWork(self._database_url) as uow:
-            subject = self._runs.context_subject(uow, account_id, run_id)
-        if subject is None:
-            raise WorkspaceRecoveryRequired("run ownership chain is unavailable")
-        if subject["workspace_ref"] != "account_repo":
-            raise WorkspaceRecoveryRequired("unknown logical workspace reference")
-
-        session_id = subject["session_id"]
-        account_text = str(subject["account_id"])
-        # The provisioner owns "where the repo lives", so the recovery guard
-        # verifies exactly the repo that was (possibly) just created.
-        repo_path = self._git_repo_manager.repo_path(account_text)
-        expected_branch = f"hpagent/{session_id}"
-        async with self._account_locks.hold(account_text, control):
-            # Provision missing resources INSIDE the Account lock: QQ and Web
-            # share one registry, so no other execution can race checkout or
-            # branch creation on the same account repo.  Provisioning only
-            # creates provably-absent state; the conservative guard below still
-            # owns verification and fail-closed recovery of existing state.
-            await self._git_repo_manager.ensure_session_workspace(
-                account_text, str(session_id)
-            )
-            await WorkspaceRecoveryGuard(repo_path).recover(expected_branch)
-            file_scope_context = (
-                self._run_file_workspace.prepare(subject["account_id"], run_id)
-                if self._run_file_workspace is not None else nullcontext(None)
-            )
-            file_scope_bound = False
-            try:
-                with file_scope_context as file_scope:
-                    if file_scope is not None:
-                        self._sandbox_manager.bind_run_file_scope(
-                            str(run_id), str(session_id), file_scope
-                        )
-                        file_scope_bound = True
-                    self._sandbox_manager.create_session_sandbox(
-                        session_id=str(session_id),
-                        workspace_path=str(repo_path),
-                        user_uuid=account_text,
-                        session_context={
-                            "account_id": account_text,
-                            "channel_type": (subject.get("origin") or {}).get("channel_type", "web"),
-                            "sender_id": (subject.get("origin") or {}).get("sender_id", ""),
-                            "metadata": {
-                                **(subject.get("origin") or {}).get("metadata", {}),
-                                "run_id": str(run_id),
-                                "files": (
-                                    file_scope.model_manifest() if file_scope is not None else []
-                                ),
-                            },
-                        },
-                    )
-                    yield session_id
-            except Exception as exc:
-                from workspace.file_scope import RunFileScopeUnavailable
-
-                if isinstance(exc, RunFileScopeUnavailable):
-                    raise WorkspaceRecoveryRequired("Run file scope is unavailable") from exc
-                raise
-            finally:
-                if file_scope_bound:
-                    self._sandbox_manager.unbind_run_file_scope(str(run_id))

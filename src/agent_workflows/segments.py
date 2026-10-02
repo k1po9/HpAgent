@@ -57,6 +57,7 @@ async def execute_segment(name: str, request: Any, **options: Any):
             request.run_id,
             request.account_id,
             str(workflow.uuid4()),
+            execution_id=request.execution_id,
         )
         error: ActivityError | None = None
         # Cleanup by segment ID also covers acquire committed but result lost.

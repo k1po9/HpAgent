@@ -18,6 +18,7 @@ from agent_workflows.contracts import (
     RunSource,
     ToolExecutionInput,
 )
+from agent_workflows.ids import root_execution_id
 from application.execution_contracts import ExecutionRequest
 from conversation_domain.execution_bindings import ChatExecutionBindings
 from tracing import (
@@ -386,7 +387,7 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
         operation_id=f"{run_id}:react:context",
         source=RunSource("chat", conversation_id),
         context=RunContext(chat=ChatContext(conversation_id, session_id, None), surface="web"),
-    )
+     execution_id=str(root_execution_id(run_id)))
 
     class Loader:
         async def load(self, _run_id):
@@ -478,7 +479,7 @@ async def test_deduplicated_tool_activity_still_projects_tool_node(monkeypatch):
         tool_call=CompactToolCall("call-1", "read_tool", "decision#call-1"),
         source=RunSource("chat", conversation_id),
         context=RunContext(chat=ChatContext(conversation_id, session_id, None), surface="web"),
-    )
+     execution_id=str(root_execution_id(run_id)))
     activities = DurableAgentActivities(
         context_bindings=ChatExecutionBindings(),
         store=Store(),

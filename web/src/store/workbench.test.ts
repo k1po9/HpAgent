@@ -6,7 +6,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
 import { HpApi } from "../api/resources";
-import type { HpConversation, HpMessage, HpRun, HpRunSnapshot } from "../api/types";
+import type { HpConversation, HpMessage, HpRun, HpChatRunSnapshot } from "../api/types";
 import { createWorkbenchStore, isRetryableRun } from "./workbench";
 
 const ENCODER = new TextEncoder();
@@ -96,7 +96,7 @@ interface FakeBackend {
   calls: Array<{ method: string; url: string }>;
   state: {
     postCount: Record<string, number>;
-    runSnapshots: Record<string, HpRunSnapshot>;
+    runSnapshots: Record<string, HpChatRunSnapshot>;
   };
   fetchMock: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 }
@@ -178,6 +178,7 @@ function makeBackend(overrides: Partial<FakeBackend["state"]> = {}): FakeBackend
       const snapshot = state.runSnapshots[runMatch[1] ?? ""];
       if (snapshot) return OK(snapshot);
       return OK({
+        source_kind: "chat",
         run: run({ run_id: runMatch[1], status: "succeeded" }),
         assistant_message: message({
           message_id: "am-1",
@@ -674,7 +675,8 @@ describe("workbench store", () => {
       "你好",
     );
 
-    const completed: HpRunSnapshot = {
+    const completed: HpChatRunSnapshot = {
+      source_kind: "chat",
       run: run({ run_id: "r1", status: "succeeded" }),
       assistant_message: message({
         message_id: assistantId,
@@ -747,6 +749,7 @@ describe("workbench store", () => {
       bytes_scanned_limit: 0,
     };
     backend.state.runSnapshots.r1 = {
+      source_kind: "chat",
       run: refreshedRun,
       assistant_message: message({
         message_id: "am-1",
@@ -823,6 +826,7 @@ describe("workbench store", () => {
   it("stops polling when the conversation is switched away", async () => {
     const backend = makeBackend();
     backend.state.runSnapshots["r1"] = {
+      source_kind: "chat",
       run: run({ run_id: "r1", status: "running" }),
       assistant_message: message({
         message_id: "am-1",

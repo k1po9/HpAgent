@@ -18,10 +18,9 @@ from application.ingress import (
 )
 from application.memory_retention import MemoryRetentionService
 from conversation_domain.commands import CommandService
-from conversation_domain.run_input import ChatRunInputLoader
-from conversation_domain.sessions import ConversationSessionService
 from conversation_domain.surface_commands import SurfaceConversationCommands
 from memory.hindsight_client import RetainReceipt
+from run_domain.input import RunInputLoader
 from web_domain.errors import ConversationBusy, IdempotencyConflict
 
 pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
@@ -47,7 +46,7 @@ async def test_redelivery_uses_stable_provider_id_and_one_atomic_run(db, account
     assert one["run_id"] == two["run_id"]
     assert one.replayed != two.replayed
     assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 1
-    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 1
+    assert db.execute("SELECT count(*) FROM runs WHERE session_id IS NOT NULL").fetchone()[0] == 0
     assert db.execute("SELECT count(*) FROM messages").fetchone()[0] == 2
     assert db.execute("SELECT event_type FROM outbox_events").fetchall() == [("start_run",)]
     with pytest.raises(IdempotencyConflict):
@@ -78,7 +77,7 @@ async def test_restart_rebuilds_qq_state_from_postgres_authority(
     )
     assert after["session_id"] == first["session_id"]
     assert after["run_id"] != first["run_id"]
-    assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 1
+    assert db.execute("SELECT count(*) FROM runs WHERE session_id IS NOT NULL").fetchone()[0] == 0
     assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 2
 
 
@@ -89,17 +88,14 @@ async def test_account_room_bot_thread_mapping_and_shared_session_rule(db, accou
                 qq_message(scope="group", room="43"), qq_message(bot="other-bot")]
     results = [await adapter.accept(message, "napcat") for message in messages]
     assert len({r["conversation_id"] for r in results}) == 5
-    assert len({r["session_id"] for r in results}) == 5
+    assert all(r["session_id"] is None for r in results)
     cid = UUID(results[0]["conversation_id"])
     commands = CommandService(worker_database_url)
     with pytest.raises(ConversationBusy):
         commands.send_message(account_id, cid, str(uuid4()), "Web shares this explicit Conversation")
-    with pytest.raises(ConversationBusy):
-        ConversationSessionService(worker_database_url).rotate_active(account_id, cid)
     await adapter.accept(qq_message("cancel", "/cancel"), "napcat")
-    successor = ConversationSessionService(worker_database_url).rotate_active(account_id, cid)
     next_result = await adapter.accept(qq_message("2"), "napcat")
-    assert next_result["session_id"] == str(successor)
+    assert next_result["session_id"] is None
 
 
 async def test_busy_receipt_and_cancel_replays_never_target_a_later_run(db, account_id, worker_database_url):
@@ -146,7 +142,7 @@ async def test_pg_failure_rolls_back_binding_origin_message_run_outbox(db, accou
         patch.setattr(commands.outbox, "enqueue", fail)
         with pytest.raises(RuntimeError, match="write failed"):
             await adapter.accept(qq_message(), "napcat")
-    for table in ("conversations", "conversation_bindings", "conversation_ingress_receipts", "messages", "sessions", "runs", "outbox_events"):
+    for table in ("conversations", "conversation_bindings", "conversation_ingress_receipts", "messages", "runs", "outbox_events"):
         assert db.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 0
     assert (await adapter.accept(qq_message(), "napcat"))["run_id"]
 
@@ -190,7 +186,7 @@ async def test_group_snapshot_context_and_memory_come_from_committed_pg(db, acco
     assert base.interaction_profile == "qq_group"
     assert "group fact" in base.origin["group_context"] and "qq:" in base.origin["group_context"]
     assert "group fact" in str(context.compose(base, ()))
-    assert ChatRunInputLoader(AgentDataStore(worker_database_url)).load(str(run_id)).context.surface == "napcat"
+    assert RunInputLoader(AgentDataStore(worker_database_url)).load(str(run_id)).context.surface == "napcat"
     class Memory:
         async def recall(self, *args, **kwargs): self.recall_args = kwargs; return []
         async def retain_document(self, events, **kwargs): self.events, self.args = events, kwargs; return RetainReceipt(accepted=True)

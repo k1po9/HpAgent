@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from agent_workflows.ids import root_execution_id
 from application.context_assembly import (
     ContextAssemblyService,
     ContextIsolationError,
@@ -34,7 +35,7 @@ async def test_recall_failure_degrades_to_empty_memory():
         conversation_id=__import__("uuid").uuid4(), session_id=__import__("uuid").uuid4(),
         context_message_seq=1, trigger_message_id=__import__("uuid").uuid4(), trigger_content="hi",
         short_term_events=(),
-    )
+     execution_id=root_execution_id(__import__("uuid").uuid4()))
     assert await service.recall_long_term(base, "rewritten query") == ()
 
 
@@ -46,7 +47,7 @@ async def test_cross_account_recall_is_a_safe_failure():
         conversation_id=__import__("uuid").uuid4(), session_id=__import__("uuid").uuid4(),
         context_message_seq=1, trigger_message_id=__import__("uuid").uuid4(), trigger_content="hi",
         short_term_events=(),
-    )
+     execution_id=root_execution_id(__import__("uuid").uuid4()))
     with pytest.raises(ContextIsolationError):
         await service.recall_long_term(base, "rewritten query")
 
@@ -66,7 +67,7 @@ def test_run_file_manifest_is_injected_without_changing_user_message():
             ),
         ),
         run_files=(RunFileContext("基本资料.txt", "input", 1234, "utf-8", "text/plain"),),
-    )
+     execution_id=root_execution_id(__import__("uuid").uuid4()))
 
     messages = service.compose(base, ())
 

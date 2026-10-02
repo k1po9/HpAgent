@@ -7,7 +7,6 @@ from support.qq_messages import qq_message
 from application.context_assembly import ContextAssemblyService
 from application.context_builder import HarnessContextBuilder
 from conversation_domain.commands import CommandService
-from conversation_domain.sessions import ConversationSessionService
 from web_domain.errors import ConversationBusy
 from web_persistence.test_qq_canonical_ingress import bind, service
 
@@ -27,7 +26,7 @@ async def test_same_account_web_private_group_context_rotation_cancel_retry(
     p = await qq.accept(private_message, 'napcat')
     g = await qq.accept(qq_message('group', 'group-only-text', scope='group'), 'napcat')
     assert len({str(cid), p['conversation_id'], g['conversation_id']}) == 3
-    assert len({w['session_id'], p['session_id'], g['session_id']}) == 3
+    assert w['session_id'] is p['session_id'] is g['session_id'] is None
     assert (await qq.accept(private_message, 'napcat'))['run_id'] == p['run_id']
     context = ContextAssemblyService(worker_database_url, HarnessContextBuilder())
     for result, own, excluded in (
@@ -43,12 +42,11 @@ async def test_same_account_web_private_group_context_rotation_cancel_retry(
         web.send_message(account_id, pcid, str(uuid4()), 'explicit Web view of QQ conversation')
     cancelled = await qq.accept(qq_message('cancel', '/cancel'), 'napcat')
     assert cancelled['run_id'] == p['run_id']
-    session = ConversationSessionService(database_url).rotate_active(account_id, pcid)
     failed = await qq.accept(qq_message('failure', 'retryable QQ request'), 'napcat')
-    assert failed['session_id'] == str(session)
+    assert failed['session_id'] is None
     worker.fail_run(account_id, UUID(failed['run_id']), 'test_failure')
     retried = web.retry_run(account_id, UUID(failed['run_id']), str(uuid4()))
-    assert retried['run']['session_id'] == str(session)
+    assert retried['run']['session_id'] is None
     retry_id = UUID(retried['run']['run_id'])
     worker.start_run(account_id, retry_id)
     worker.complete_run(account_id, retry_id, 'retried committed answer')
