@@ -160,3 +160,7 @@ class SnapshotRepository:
                 "SELECT * FROM model_input_snapshots WHERE account_id=%s AND snapshot_id=%s",
                 (account_id, snapshot_id),
             ).fetchone()
+
+    def mark_dispatched(self, account_id, snapshot_id):
+        with UnitOfWork(self.database) as uow:
+            uow.execute('INSERT INTO model_dispatches(account_id,snapshot_id) VALUES (%s,%s) ON CONFLICT DO NOTHING', (account_id,snapshot_id))

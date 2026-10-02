@@ -68,7 +68,7 @@ def db(migration_database_url: str):
     with psycopg.connect(migration_database_url, autocommit=True) as connection:
         connection.execute("SET search_path TO hpagent, public")
         for table in (
-            "artifact_outbox_events", "artifact_versions", "artifacts",
+            "artifact_versions", "artifacts",
             "account_entitlements", "registration_invites",
             "identity_binding_challenges", "web_credentials",
             "outbox_events", "idempotency_commands", "workflow_executions",

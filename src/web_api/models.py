@@ -96,3 +96,33 @@ class CreateArtifactRequest(StrictModel):
 
 class CreateArtifactVersionRequest(StrictModel):
     instruction: str = Field(min_length=1, max_length=4000)
+
+
+class WorkBudgetRequest(StrictModel):
+    budget_version: int = Field(ge=1)
+    limits: dict[str, int]
+
+
+class WorkInputRequest(StrictModel):
+    file_id: UUID
+    source_message_id: UUID | None = None
+    purpose: str = Field(min_length=1, max_length=200)
+
+
+class WorkTargetRequest(StrictModel):
+    source_message_id: UUID | None = None
+    content_scope: Literal['summary','content'] = 'summary'
+
+
+class ReferenceWorkArtifactRequest(StrictModel):
+    artifact_version_id: UUID
+    role: Literal['input','evidence']
+
+
+class AcceptWorkResultRequest(StrictModel):
+    requirement_revision: int = Field(ge=1)
+    artifact_version_id: UUID
+
+
+class ResolveDeliveryRequest(StrictModel):
+    outcome: Literal['accepted','not_sent','retry_accepting_duplicate_risk']

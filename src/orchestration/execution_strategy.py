@@ -15,6 +15,7 @@ class StrategySnapshot:
 
 class StrategyRegistry:
     _strategies = {
+        'artifact_build': StrategySnapshot('fixed_workflow', 'artifact_html'),
         'reminder': StrategySnapshot('deterministic', 'reminder'),
         'research_report': StrategySnapshot('fixed_workflow', 'research_report'),
         'generic_work': StrategySnapshot('generic_agent', 'work_agent'),

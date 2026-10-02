@@ -25,9 +25,10 @@ def test_actual_production_registries_match_current_runtime(monkeypatch):
     assert registries["hpagent-task-queue"]["workflows"] == [
         "ReflectWorkflow", "MetricsReportWorkflow",
     ]
-    assert report["composition"]["reminder_handlers"] == ["user_reminder"]
+    assert report["composition"]["reminder_execution"] == "registered_run_strategy"
+    assert report["composition"]["research_execution"] == "fixed_run_graph"
     assert report["composition"]["run_dispatcher"] == "WebOutboxDispatcher"
-    assert report["composition"]["artifact_dispatcher"] == "ArtifactOutboxDispatcher"
+    assert report["composition"]["artifact_execution"] == "registered_run_strategy"
 
 
 def test_dead_host_slots_and_whole_turn_activity_timeouts_are_removed():

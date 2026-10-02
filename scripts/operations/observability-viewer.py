@@ -367,14 +367,14 @@ class PostgresReader:
                     rows = connection.execute(
                         "SELECT v.artifact_version_id,v.artifact_id,v.version,v.status,"
                         "v.failure_code,v.created_at,v.started_at,v.completed_at,v.updated_at,"
-                        "COALESCE(m.produced_by_run_id,a.research_run_id) AS source_run_id,"
+                        "v.producing_run_id AS source_run_id,"
                         "o.status AS outbox_status "
                         "FROM hpagent.artifact_versions v JOIN hpagent.artifacts a "
                         "ON a.account_id=v.account_id AND a.artifact_id=v.artifact_id "
                         "LEFT JOIN hpagent.messages m ON m.account_id=a.account_id "
                         "AND m.message_id=a.source_message_id "
-                        "LEFT JOIN LATERAL (SELECT status FROM hpagent.artifact_outbox_events "
-                        "WHERE artifact_version_id=v.artifact_version_id "
+                        "LEFT JOIN LATERAL (SELECT status FROM hpagent.outbox_events "
+                        "WHERE account_id=v.account_id AND run_id=v.producing_run_id "
                         "ORDER BY created_at DESC LIMIT 1) o ON true "
                         "ORDER BY v.updated_at DESC,v.artifact_version_id DESC LIMIT %s",
                         (limit,),
@@ -406,7 +406,7 @@ class PostgresReader:
                     version = connection.execute(
                         "SELECT v.artifact_version_id,v.artifact_id,v.version,v.parent_version_id,"
                         "v.status,v.failure_code,v.created_at,v.started_at,v.completed_at,"
-                        "a.source_message_id,COALESCE(m.produced_by_run_id,a.research_run_id) AS source_run_id "
+                        "a.source_message_id,v.producing_run_id AS source_run_id "
                         "FROM hpagent.artifact_versions v JOIN hpagent.artifacts a "
                         "ON a.account_id=v.account_id AND a.artifact_id=v.artifact_id "
                         "LEFT JOIN hpagent.messages m ON m.account_id=a.account_id "
@@ -417,10 +417,10 @@ class PostgresReader:
                     snapshots = []
                     if version:
                         outbox = connection.execute(
-                            "SELECT artifact_outbox_event_id,status,attempt_count,last_error_code,"
+                            "SELECT outbox_event_id,status,attempt_count,last_error_code,"
                             "created_at,available_at,processed_at,updated_at "
-                            "FROM hpagent.artifact_outbox_events WHERE artifact_version_id=%s "
-                            "ORDER BY created_at,artifact_outbox_event_id LIMIT 20",
+                            "FROM hpagent.outbox_events WHERE run_id=(SELECT producing_run_id FROM hpagent.artifact_versions WHERE artifact_version_id=%s) "
+                            "ORDER BY created_at,outbox_event_id LIMIT 20",
                             (version_id,),
                         ).fetchall()
                     if version and call_ids:
@@ -467,9 +467,9 @@ class PostgresReader:
                             "ORDER BY sequence LIMIT %s", (transcript["transcript_id"], max_events + 1),
                         ).fetchall()
                     operations = connection.execute(
-                        "SELECT operation_id,run_id,operation_type,status,result_ref,result_payload,"
+                        "SELECT operation_id,run_id,execution_id,work_id,requirement_revision,operation_type,status,result_ref,result_payload,"
                         "error_code,attempt_count,started_at,completed_at,updated_at "
-                        "FROM hpagent.agent_operations WHERE run_id=%s "
+                        "FROM hpagent.execution_operations WHERE run_id=%s "
                         "ORDER BY started_at,operation_id LIMIT %s", (run_id, max_operations + 1),
                     ).fetchall()
                 result = {

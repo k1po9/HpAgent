@@ -201,6 +201,12 @@ class ResourcePolicy:
             (run_id, account_id, kind, subject_id, version,
              workspace["topology_version"], len(rows), CANDIDATE_LIMIT),
         )
+        if kind == 'work':
+            attachments = uow.execute("SELECT f.file_id,f.original_name AS file_name FROM work_input_refs i JOIN stored_files f USING(account_id,file_id) WHERE i.account_id=%s AND i.work_id=%s AND i.available AND f.status='ready' ORDER BY i.ref_id", (account_id, subject_id)).fetchall()
+            for attachment in attachments:
+                name = f"{attachment['file_id'].hex}_{attachment['file_name']}"[:255]
+                uow.execute("INSERT INTO run_files(account_id,run_id,file_id,direction,logical_name) VALUES (%s,%s,%s,'input',%s)", (account_id, run_id, attachment['file_id'], name))
+                uow.execute("INSERT INTO run_resource_access(access_id,account_id,run_id,file_id,basis) VALUES (%s,%s,%s,%s,'explicit_attachment')", (uuid7(),account_id,run_id,attachment['file_id']))
         names = {str(row["logical_name"]).casefold() for row in uow.execute(
             "SELECT logical_name FROM run_files WHERE run_id=%s", (run_id,)
         ).fetchall()}
@@ -366,6 +372,10 @@ class ResourcePolicy:
         for access in accesses:
             if access["basis"] == "run_output":
                 return True
+            if access['basis'] == 'explicit_attachment' and uow.execute(
+                "SELECT 1 FROM work_input_refs i JOIN runs r USING(account_id,work_id) WHERE r.account_id=%s AND r.run_id=%s AND i.file_id=%s AND i.available",
+                (account_id,run_id,file_id)).fetchone():
+                return True
             if access["basis"] == "explicit_attachment" and uow.execute(
                 "SELECT 1 FROM conversation_resource_files crf JOIN runs r "
                 "ON r.account_id=crf.account_id AND r.conversation_id=crf.conversation_id "
@@ -388,6 +398,24 @@ class ResourcePolicy:
         except ResourceDenied as exc:
             self._record_denial(account_id, run_id, "read_content", str(exc), file_id=file_id)
             raise
+
+    def check_dispatch(self, account_id: UUID, run_id: UUID) -> None:
+        """Recheck selected inputs after capacity waiting, immediately before sending."""
+        with UnitOfWork(self.database) as uow:
+            from agent_activities.store import AgentDataStore
+            from run_domain.lifecycle import RunLifecycleService
+            AgentDataStore._assert_fence(uow)
+            run = uow.execute("SELECT r.* FROM runs r JOIN accounts a USING(account_id) WHERE r.account_id=%s "
+                              "AND r.run_id=%s AND a.status='active' AND r.status IN ('queued','running')",
+                              (account_id,run_id)).fetchone()
+            if not run:
+                raise ResourceDenied('Run is not active')
+            if run['work_id']:
+                RunLifecycleService.check_work(uow,run)
+            for row in uow.execute("SELECT file_id FROM run_files WHERE account_id=%s AND run_id=%s AND direction='input'",
+                                   (account_id,run_id)).fetchall():
+                if not self._file_authorized_in_uow(uow,account_id,run_id,row['file_id']):
+                    raise ResourceDenied('Selected input authority was revoked before model dispatch')
 
     def _record_denial(self, account_id: UUID, run_id: UUID, operation: str,
                        reason: str, *, node_id: UUID | None = None,

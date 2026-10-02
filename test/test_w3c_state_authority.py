@@ -47,6 +47,5 @@ def test_retained_state_systems_still_have_independent_owners() -> None:
         "src/storage/tenant_file_store.py",
         "src/application/qq_delivery.py",
         "src/orchestration/document_workflow.py",
-        "src/orchestration/artifact_workflow.py",
     )
     assert [path for path in retained if not (ROOT / path).is_file()] == []

@@ -10,11 +10,14 @@ SUMMARY_FIELDS = frozenset({
     "snapshot_id", "content_hash", "model_call_id", "phase", "fallback_attempt",
     "endpoint_id", "provider", "model", "api_format", "created_at", "message_count",
     "tool_count", "resolved_url", "dispatch_status",
+    "work_id", "requirement_revision", "execution_id", "dispatched_at",
 })
 
 
 def _dispatch_status(row: Mapping[str, Any]) -> str:
     state = row.get("usage_state")
+    if row.get("dispatched_at") is not None and state in (None, "reserved", "released"):
+        return "dispatched_or_uncertain"
     if state is None or state == "released":
         return "not_dispatched"
     if state == "reserved":
@@ -51,6 +54,10 @@ def summary_projection(row: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError("canonical provider request body must be an object")
     return {
         **minimal_projection(row),
+        "work_id": str(row["work_id"]) if row.get("work_id") else None,
+        "requirement_revision": row.get("requirement_revision"),
+        "execution_id": str(row["execution_id"]) if row.get("execution_id") else None,
+        "dispatched_at": _timestamp(row["dispatched_at"]) if row.get("dispatched_at") else None,
         "phase": str(row["phase"]),
         "fallback_attempt": int(row["fallback_attempt"]),
         "endpoint_id": str(row["endpoint_id"]),

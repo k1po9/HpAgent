@@ -26,7 +26,7 @@ from resources.model_budget_context import current_model_call
 from resources.model_governance_errors import ModelAccessTierDenied
 
 from .credentials import CredentialManager
-from .model_client import ModelClient, ModelDispatchError
+from .model_client import ModelClient
 
 logger = logging.getLogger("HpAgent.ResourcePool")
 
@@ -192,6 +192,7 @@ class ResourcePool(IResources):
             quota_date = None
             prepared = None
             snapshot = None
+            provider_dispatched = False
             if governed and call_context is not None:
                 lookup = await asyncio.to_thread(
                     self._entitlements.get, call_context.account_id
@@ -273,17 +274,32 @@ class ResourcePool(IResources):
             if call_context is not None and call_context.artifact_version_id:
                 log_event(logger, logging.INFO, "artifact_model_call_started", "artifact", **event_fields)
             try:
-                if prepared is None and hasattr(client, "prepare_request"):
-                    prepared = client.prepare_request(messages, tools, stream, max_tokens)
-                if prepared is not None and hasattr(client, "send_prepared"):
-                    result = await client.send_prepared(prepared)
-                else:
-                    result = await client.generate(
-                        messages=messages, tools=tools, stream=stream,
-                        max_tokens=max_tokens,
-                    )
-                elapsed_ms = (time.monotonic() - t0) * 1000
-                elapsed_s = (time.monotonic() - t0)
+                from contextlib import AsyncExitStack
+                async with AsyncExitStack() as capacity_stack:
+                    if governed:
+                        from resources.capacity import CapacityService
+                        await capacity_stack.enter_async_context(CapacityService(self._budget.database).slot(call_context.run_id, 'model'))
+                    if prepared is None and hasattr(client, "prepare_request"):
+                        prepared = client.prepare_request(messages, tools, stream, max_tokens)
+                    if governed:
+                        from workspace.resources import ResourcePolicy
+                        await asyncio.to_thread(ResourcePolicy(self._budget.database).check_dispatch,call_context.account_id,call_context.run_id)
+                        current_lookup = await asyncio.to_thread(self._entitlements.get,call_context.account_id)
+                        current_entitlement = getattr(current_lookup,'entitlement',None)
+                        if (getattr(getattr(current_lookup,'state',None),'value',None) != 'valid' or
+                            current_entitlement is None or current_entitlement.version != entitlement.version):
+                            raise AccountModelEntitlementUnavailable('model entitlement changed before dispatch')
+                        await asyncio.to_thread(self._snapshots.mark_dispatched, call_context.account_id, snapshot.snapshot_id)
+                    provider_dispatched = True
+                    if prepared is not None and hasattr(client, "send_prepared"):
+                        result = await client.send_prepared(prepared)
+                    else:
+                        result = await client.generate(
+                            messages=messages, tools=tools, stream=stream,
+                            max_tokens=max_tokens,
+                        )
+                    elapsed_ms = (time.monotonic() - t0) * 1000
+                    elapsed_s = (time.monotonic() - t0)
                 if should_settle and reservation is not None:
                     usage = canonical_model_usage(
                         getattr(result, "usage", None),
@@ -349,7 +365,7 @@ class ResourcePool(IResources):
                 return result
             except (ModelAPIError, ConnectionError, TimeoutError) as e:
                 if should_settle and reservation is not None:
-                    if governed and isinstance(e, ModelDispatchError):
+                    if governed and provider_dispatched:
                         await asyncio.to_thread(
                             self._budget.settle, call_context.account_id,
                             call_context.run_id, budget_operation_id,
@@ -380,12 +396,14 @@ class ResourcePool(IResources):
                     call_context.failure_logged = True
                 last_error = e
                 continue
-            except Exception:
+            except BaseException:
                 if should_settle and reservation is not None:
-                    if governed:
+                    if governed and not provider_dispatched:
+                        await asyncio.to_thread(self._budget.release, call_context.account_id, call_context.run_id, budget_operation_id, quota_date=quota_date)
+                    elif governed:
                         await asyncio.to_thread(
-                            self._budget.release, call_context.account_id,
-                            call_context.run_id, budget_operation_id, quota_date=quota_date,
+                            self._budget.settle, call_context.account_id,
+                            call_context.run_id, budget_operation_id, reservation["model_total_tokens"], reservation, "estimated", quota_date=quota_date,
                         )
                 # 不可恢复错误 → 直接抛出
                 raise

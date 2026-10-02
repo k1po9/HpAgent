@@ -9,7 +9,8 @@ TRACE_METADATA_SCHEMA_VERSION = 1
 TRACE_METADATA_MAX_BYTES = 4096
 _STRING_MAX_CHARS = 256
 
-_COMMON = frozenset({"schema_version", "error_code", "operation_id", "deduplicated"})
+_CORRELATION = frozenset({"work_id", "requirement_revision", "execution_id", "parent_execution_id", "artifact_version_id", "notification_id"})
+_COMMON = _CORRELATION | frozenset({"schema_version", "error_code", "operation_id", "deduplicated"})
 _POLICIES: dict[str, frozenset[str]] = {
     "AgentExecution": frozenset({"strategy", "surface", "terminal_fallback", "tool_turns"}),
     "ContextAssembly": frozenset({"message_count", "memory_count"}),
@@ -43,7 +44,7 @@ _POLICIES: dict[str, frozenset[str]] = {
 _TOKEN_USAGE_KEYS = frozenset({
     "input_tokens", "output_tokens", "total_tokens", "usage_source"
 })
-_RUN_KEYS = frozenset({"schema_version", "source", "strategy", "error_code"})
+_RUN_KEYS = _CORRELATION | frozenset({"schema_version", "source", "strategy", "error_code"})
 
 
 def sanitize_trace_metadata(

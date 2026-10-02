@@ -64,6 +64,9 @@ class MessageIngressService:
                     return command
             result = await self._conversation.accept(message, channel, envelope=source, group_context=window)
             if result is not None:
+                if result.body.get('work_control'):
+                    work = result.body['work_control']
+                    await self._send(f"Work {work['work_id']}: {work['status']} (r{work['requirement_revision']}, {work['reason']})",message,channel)
                 code = result.body.get("code")
                 if code == "conversation_busy":
                     await self._send(BUSY_REPLY, message, channel)

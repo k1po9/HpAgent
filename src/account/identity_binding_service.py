@@ -306,7 +306,9 @@ class IdentityBindingService:
             "idempotency_commands",
             "outbox_events",
             "artifacts",
-            "artifact_outbox_events",
+            "works",
+            "delivery_targets",
+            "notifications",
         ):
             if uow.execute(
                 f"SELECT 1 FROM {table} WHERE account_id=%s LIMIT 1", (source_account,)

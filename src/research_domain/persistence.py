@@ -497,8 +497,8 @@ class ResearchRepository:
             return UUID(str(report["artifact_id"]))
         artifact_id = uuid5(NAMESPACE_URL, f"hpagent:research:{run_id}:artifact")
         version_id = uuid5(NAMESPACE_URL, f"hpagent:research:{run_id}:artifact:v1")
-        uow.execute(
-            "SELECT publish_research_artifact(%s,%s,%s,%s)",
-            (run_id, artifact_id, version_id, html),
-        ).fetchone()
+        from web_artifacts.publisher import publish
+        publish(uow, run_id, artifact_id, version_id, html, operation_id=f'research:{run_id}:PublishArtifact:v1',
+                title='Research Report', markdown=report['report_markdown'])
+        uow.execute('UPDATE research_reports SET artifact_id=%s,artifact_version_id=%s,updated_at=now() WHERE run_id=%s', (artifact_id,version_id,run_id))
         return artifact_id

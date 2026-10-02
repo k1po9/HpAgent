@@ -87,11 +87,11 @@ async def test_work_revoke_uses_production_cancel_chain(
     granted = client_api.post(f"/api/v1/works/{work_id}/resources", json={
         "node_id": parent, "operations": ["list_metadata", "read_content"],
         "recursive": True,
-    }, headers=_headers(csrf))
+    }, headers={**_headers(csrf,str(uuid4())),"If-Match":work.headers["ETag"]})
     assert granted.status_code == 201
     read_grant = granted.json()["grant_ids"][1]
     triggered = client_api.post(f"/api/v1/works/{work_id}/advance", json={},
-        headers={**_headers(csrf, str(uuid4())), "If-Match": work.headers["ETag"]})
+        headers={**_headers(csrf, str(uuid4())), "If-Match": granted.headers["ETag"]})
     assert triggered.status_code == 202, triggered.text
     run_id = UUID(triggered.json()["run"]["run_id"])
     store = TenantFileStore(store_root, max_bytes=1024 * 1024)
@@ -194,9 +194,9 @@ async def test_work_revoke_uses_production_cancel_chain(
                 assert root.exists()
                 revoke_path = f"/api/v1/works/{work_id}/resources/{read_grant}"
                 revoked = await asyncio.to_thread(client_api.delete, revoke_path,
-                                                  headers=_headers(csrf))
+                                                  headers={**_headers(csrf,str(uuid4())),"If-Match":client_api.get(f"/api/v1/works/{work_id}").headers["ETag"]})
                 assert revoked.status_code == 200, revoked.text
-                assert revoked.json() == {"affected_run_ids": [str(run_id)]}
+                assert revoked.json()["affected_run_ids"] == [str(run_id)]
                 with UnitOfWork(database_url) as uow:
                     assert uow.execute("SELECT status FROM runs WHERE run_id=%s",
                                        (run_id,)).fetchone()["status"] == "cancelling"

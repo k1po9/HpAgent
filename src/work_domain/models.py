@@ -55,12 +55,13 @@ class Requirement:
     def to_dict(self) -> dict[str, Any]:
         if not isinstance(self.objective, str) or not self.objective.strip() or len(self.objective) > 20000:
             raise ValueError('objective is required and bounded')
-        if self.capability_key not in {'reminder', 'research_report', 'generic_work'}:
+        if self.capability_key not in {'reminder', 'research_report', 'generic_work', 'artifact_build'}:
             raise ValueError('unsupported capability')
         if self.completion_mode not in {'deliverable', 'ongoing'}:
             raise ValueError('unsupported completion mode')
         allowed = ({'schema_version', 'content', 'target_ref'} if self.capability_key == 'reminder'
                    else {'schema_version', 'source_strategy', 'report_format'} if self.capability_key == 'research_report'
+                   else {'schema_version', 'artifact_version_id'} if self.capability_key == 'artifact_build'
                    else {'schema_version', 'reasoning_mode'})
         bounded(self.spec, allowed)
         if self.capability_key == 'reminder' and (
@@ -71,8 +72,10 @@ class Requirement:
             raise ValueError('reminder content exceeds limit')
         if self.capability_key == 'generic_work' and self.spec.get('reasoning_mode', 'react') not in {'react', 'plan_and_execute'}:
             raise ValueError('unsupported reasoning mode')
-        if self.capability_key == 'reminder' and self.spec.get('target_ref', 'account_inbox') != 'account_inbox':
-            raise ValueError('unsupported or unauthorized reminder target')
+        if self.capability_key == 'reminder' and self.spec.get('target_ref', 'account_inbox') not in {'account_inbox','current_channel'}:
+            UUID(self.spec['target_ref'])
+        if self.capability_key == 'artifact_build':
+            UUID(self.spec['artifact_version_id'])
         if self.capability_key == 'research_report':
             from research_domain.models import SourceStrategy
 
@@ -131,12 +134,12 @@ class Requirement:
                 criterion['id'] in ids or not isinstance(criterion['required'], bool) or
                 not isinstance(criterion['evidence_types'], list) or
                 not criterion['evidence_types'] or
-                set(criterion['evidence_types']) - {'research_report', 'operation_receipt', 'user_acceptance'}
+                set(criterion['evidence_types']) - {'research_report', 'artifact_version', 'operation_receipt', 'delivery_receipt', 'user_acceptance'}
             ):
                 raise ValueError('invalid acceptance criterion')
             ids.add(criterion['id'])
         policy = self.deliverable_policy or {'schema_version': 1, 'required': False}
-        bounded(policy, {'schema_version', 'required', 'directory_id', 'entry_id', 'operation'})
+        bounded(policy, {'schema_version', 'required', 'directory_id', 'entry_id', 'operation', 'notification_target_ref'})
         if not isinstance(policy.get('required'), bool):
             raise ValueError('invalid deliverable policy')
         if policy.get('required') and not policy.get('directory_id'):
@@ -150,7 +153,7 @@ class Requirement:
             raise ValueError('deliverable target must be a UUID') from exc
         value = {'objective': self.objective.strip(), 'capability_key': self.capability_key,
                  'spec': self.spec, 'constraints': list(self.constraints),
-                 'acceptance_criteria': list(self.acceptance_criteria),
+                 'acceptance_criteria': list(self.acceptance_criteria) or ([{'id':'channel_accepted','required':True,'evidence_types':['delivery_receipt']}] if self.capability_key == 'reminder' else []),
                  'completion_mode': self.completion_mode, 'timing': timing,
                  'resource_requests': list(self.resource_requests), 'deliverable_policy': policy}
         if len(json.dumps(value, ensure_ascii=False, allow_nan=False).encode()) > 32768:

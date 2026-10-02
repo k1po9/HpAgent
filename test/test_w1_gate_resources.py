@@ -155,7 +155,6 @@ async def test_worker_stops_background_producers_before_temporal_workers(monkeyp
         dispatcher=object(),
         reconciler=object(),
         memory_retention=None,
-        artifact_dispatcher=None,
     )
 
     monkeypatch.setattr(worker, "init_dependencies", AsyncMock(return_value=deps))

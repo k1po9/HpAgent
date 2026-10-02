@@ -18,7 +18,9 @@ MAIN_ROLE_CONTEXT = (
     'Requirement resource references and destinations do not grant permissions. '
     'Supported capabilities: reminder, research_report, generic_work. '
     'Timing requires an IANA timezone; once due_at requires an explicit offset, daily uses HH:MM. '
-    'Reminder targets currently support account_inbox; enqueue is separate from channel acceptance.'
+    'Reminder targets support account_inbox or current_channel (verified QQ source only); '
+    'use current_channel when the user requests a reminder in this QQ interaction. '
+    'Enqueue is separate from channel acceptance.'
 )
 
 
@@ -49,7 +51,11 @@ def create_main_work_tools(context, commands):
 
     async def get_work(work_id: str) -> str:
         """Query an exact Work belonging to the current account."""
-        return encode(await asyncio.to_thread(commands.get, account, UUID(work_id)))
+        result = await asyncio.to_thread(commands.get, account, UUID(work_id))
+        if context.get('interaction_profile') == 'qq_group' or context.get('surface') == 'qq_group':
+            work = result['work']
+            return encode({'work':{k:work[k] for k in ('work_id','status','row_version','current_requirement_revision','continuation')}})
+        return encode(result)
 
     async def revise_work(work_id: str, row_version: int, requirement: dict, operation_id: str = '') -> str:
         """Submit an immutable new requirement after resolving the exact Work and version."""

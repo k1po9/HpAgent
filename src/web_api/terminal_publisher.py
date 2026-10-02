@@ -70,8 +70,9 @@ class TerminalEventPublisher:
         while True:
             if self.redis is None:
                 return
+            await asyncio.to_thread(self.outbox.recover_expired,120,{'publish_terminal_event','publish_work_event'})
             events = await asyncio.to_thread(
-                self.outbox.claim, self.worker_id, {"publish_terminal_event"}, 10
+                self.outbox.claim, self.worker_id, {"publish_terminal_event", "publish_work_event"}, 10
             )
             if not events:
                 await asyncio.sleep(self.settings.terminal_publisher_poll_seconds)
@@ -82,6 +83,9 @@ class TerminalEventPublisher:
     async def _publish_one(self, event: dict) -> None:
         event_id = UUID(str(event["outbox_event_id"]))
         account_id = UUID(str(event["account_id"]))
+        if event['event_type'] == 'publish_work_event':
+            await self._publish_work(event)
+            return
         run_id = str(event["run_id"])
         # psycopg3 already parses jsonb columns into Python dicts; older
         # producers may hand us a JSON string, so accept both shapes.
@@ -109,9 +113,6 @@ class TerminalEventPublisher:
                 "publish_terminal_event payload has an unknown terminal_status",
             )
             return
-        if event.get("conversation_id") is None:
-            await asyncio.to_thread(self.outbox.mark_processed, event_id, self.worker_id)
-            return
         try:
             snapshot = await asyncio.to_thread(
                 load_run_snapshot, self.database, account_id, UUID(run_id)
@@ -136,7 +137,7 @@ class TerminalEventPublisher:
             event_id=terminal_event_id,
             conversation_id=snapshot["run"]["conversation_id"],
             run_id=run_id,
-            message_id=snapshot["assistant_message"]["message_id"],
+            message_id=snapshot.get("assistant_message", {}).get("message_id"),
             stream_id=None,
             event_seq=None,
             payload={"snapshot": snapshot},
@@ -168,3 +169,20 @@ class TerminalEventPublisher:
             self.published += 1
             log_event(logger, logging.INFO, "sse_terminal_published", "sse", run_id=run_id,
                       conversation_id=snapshot["run"]["conversation_id"], status=terminal_status)
+
+    async def _publish_work(self, event):
+        from persistence.uow import UnitOfWork
+        from work_domain.persistence import dto
+        def load():
+            with UnitOfWork(self.database) as uow:
+                row = uow.execute('SELECT * FROM work_events WHERE account_id=%s AND work_id=%s AND event_id=%s', (event['account_id'],event['work_id'],event['payload']['event_id'])).fetchone()
+                if row is None:
+                    raise ValueError('Work event unavailable')
+                return dto(row)
+        try:
+            row = await asyncio.to_thread(load)
+            await self.redis.publish(f"hpagent:web:work:{event['work_id']}",json.dumps(row,ensure_ascii=False))
+            await asyncio.to_thread(self.outbox.mark_processed,event['outbox_event_id'],self.worker_id)
+        except Exception:
+            await asyncio.to_thread(self.outbox.mark_retryable_failure,event['outbox_event_id'],self.worker_id,
+                                   'work_projection_unavailable','Work event publish failed',datetime.now(UTC)+timedelta(seconds=2))

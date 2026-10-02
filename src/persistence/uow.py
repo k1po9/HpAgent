@@ -34,7 +34,13 @@ class UnitOfWork(AbstractContextManager["UnitOfWork"]):
     """Owns one short DB transaction; callers must not invoke external services in it."""
 
     def __init__(self, database: Any):
+        self._nested_transaction = None
         self._pooled_context: Any | None = None
+        if isinstance(database, UnitOfWork):
+            self.connection = database.connection
+            self._nested_transaction = self.connection.transaction()
+            self._nested_transaction.__enter__()
+            return
         if isinstance(database, str):
             self.connection = psycopg.connect(
                 database, row_factory=psycopg.rows.dict_row
@@ -59,6 +65,9 @@ class UnitOfWork(AbstractContextManager["UnitOfWork"]):
         return self.connection.execute(query, params)
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        if self._nested_transaction is not None:
+            self._nested_transaction.__exit__(exc_type, exc, traceback)
+            return
         if exc_type is not None:
             try:
                 self.connection.rollback()

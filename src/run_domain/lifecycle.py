@@ -45,6 +45,10 @@ class RunLifecycleService:
 
     @staticmethod
     def unresolved_effect(uow, work):
+        from delivery.service import unresolved_delivery
+        delivery = unresolved_delivery(uow, work)
+        if delivery:
+            return delivery
         return uow.execute("SELECT operation_id FROM execution_operations WHERE account_id=%s AND work_id=%s "
                            "AND status IN ('intent_recorded','uncertain') AND "
                            "COALESCE(result_payload->>'side_effect_class','unknown') IN ('non_idempotent_write','unknown') "
@@ -109,6 +113,27 @@ class RunLifecycleService:
                         checkpoint['checkpoint_version'] != work['checkpoint']['checkpoint_version']+1
                     ):
                         raise ValueError('checkpoint provenance/version mismatch')
+        if work is not None and status == 'succeeded' and result['kind'] == 'deliverable_ready':
+            requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'], run['requirement_revision'])
+            if any(c['required'] and 'delivery_receipt' in c['evidence_types'] for c in requirement['acceptance_criteria']):
+                from uuid import UUID
+
+                from agent_activities.fencing import execution_fence
+                from agent_activities.store import AgentDataStore
+                from delivery.service import enqueue, ensure_inbox
+                from run_domain.results import ResultReceiptService
+                operation = f'deliverable:{run["run_id"]}:enqueue:v1'
+                uow.execute("INSERT INTO execution_operations(operation_id,run_id,operation_type) VALUES (%s,%s,'notification') ON CONFLICT DO NOTHING", (operation,run['run_id']))
+                ResultReceiptService.register_attempt(uow,operation,execution_fence.get())
+                execution = uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (run['run_id'],)).fetchone()
+                target = requirement['deliverable_policy'].get('notification_target_ref','account_inbox')
+                target = ensure_inbox(uow,run['account_id'],run['work_id']) if target == 'account_inbox' else UUID(target)
+                notification = enqueue(uow,run['account_id'],f'deliverable:{run["run_id"]}',
+                                       {'content':f"{work['title']}: 成果已就绪，请登录原账户查看。",'summary':f"Work {work['work_id']}: 成果已就绪，请登录原账户查看。"},
+                                       work=work,run={**run,'execution_id':execution['execution_id']},operation_id=operation,purpose='fulfillment',target_id=target)
+                AgentDataStore._complete_operation(uow,operation,f'notification:{notification}',{'notification_id':str(notification),'side_effect_class':'idempotent_write'})
+                result = {**result,'continuation':continuation('awaiting_delivery','deliverable_enqueued',receipt_ref=str(notification))}
+                accept_result = False
         uow.execute('UPDATE runs SET status=%s,failure_code=%s,failure_message=%s,'
                     'result_json=%s::jsonb,finished_at=GREATEST(now(),created_at,COALESCE(started_at,created_at)),'
                     'version=version+1,updated_at=now() WHERE run_id=%s',
@@ -119,7 +144,7 @@ class RunLifecycleService:
 
             project_terminal(uow, run, status, content)
             return True
-        next_step = continuation('blocked', 'attempt_cancelled' if status=='cancelled' else 'attempt_failed')
+        next_step = continuation('blocked', 'attempt_cancelled' if status=='cancelled' else 'budget_exhausted' if failure_code in {'work_budget_exhausted','run_budget_exhausted'} else 'attempt_failed')
         if status=='succeeded':
             raw = result.get('continuation', continuation('ready','execution_succeeded'))
             next_step = continuation(raw['kind'], raw['reason'], **{k:v for k,v in raw.items()

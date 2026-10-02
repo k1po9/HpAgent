@@ -22,7 +22,7 @@ interface ArtifactState {
   error: string | null;
   loadForMessage: (messageId: string) => Promise<HpArtifactSummary[] | null>;
   createArtifact: (messageId: string, instruction?: string | null) => Promise<void>;
-  openArtifact: (artifactId: string) => Promise<void>;
+  openArtifact: (artifactId: string, versionId?: string) => Promise<void>;
   createVersion: (artifactId: string, instruction: string) => Promise<void>;
   selectVersion: (versionId: string) => void;
   clearError: () => void;
@@ -174,7 +174,7 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
           set({ error: error instanceof Error ? error.message : "Artifact 创建失败。" });
         }
       },
-      openArtifact: async (artifactId) => {
+      openArtifact: async (artifactId, versionId) => {
         const requestGeneration = generation;
         set({ error: null });
         try {
@@ -191,7 +191,10 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
               [artifactId]: result.items,
             },
             openArtifactId: artifactId,
-            openVersionId: (completed ?? latest)?.artifact_version_id ?? null,
+            openVersionId:
+              result.items.find((v) => v.artifact_version_id === versionId)?.artifact_version_id ??
+              (completed ?? latest)?.artifact_version_id ??
+              null,
             buildingVersionIds:
               latest && (latest.status === "queued" || latest.status === "running")
                 ? unique([...state.buildingVersionIds, latest.artifact_version_id])

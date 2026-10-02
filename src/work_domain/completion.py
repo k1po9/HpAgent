@@ -9,7 +9,7 @@ from work_domain.persistence import WorkRepository
 
 class WorkCompletionPolicy:
     @staticmethod
-    def accept(uow, work: dict, run: dict) -> bool:
+    def accept(uow, work: dict, run: dict, *, delivery_evidence=None, user_evidence=None) -> bool:
         if work['status'] != 'active' or work['active_coordinator_run_id'] is not None or work['continuation'].get('operation_ref') or (
             run['status'] != 'succeeded' or run['account_id'] != work['account_id'] or
             run['work_id'] != work['work_id'] or
@@ -20,7 +20,9 @@ class WorkCompletionPolicy:
         requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'],
                                                  work['current_requirement_revision'])
         result = run['result_json'] or {}
-        evidence = result.get('evidence', [])
+        evidence = (user_evidence if user_evidence is not None else delivery_evidence if delivery_evidence is not None else result.get('evidence', []))
+        from work_domain.integration import validate_evidence
+        validate_evidence(uow, work, run, evidence)
         criteria = requirement['acceptance_criteria']
         if not criteria or not evidence:
             raise ValueError('explicit acceptance criteria and evidence are required')
@@ -44,11 +46,13 @@ class WorkCompletionPolicy:
             if not row or row['state'] != 'succeeded' or not row['committed']:
                 raise ValueError('required Workspace save has not committed')
         if requirement['completion_mode'] == 'ongoing':
-            WorkRepository.event(uow, work, 'result_accepted', run_id=run['run_id'], evidence=evidence)
+            event = WorkRepository.event(uow, work, 'result_accepted', run_id=run['run_id'], evidence=evidence)
+            from work_domain.integration import adopt_artifacts
+            adopt_artifacts(uow, work, evidence, event)
             return False
         receipt = {'schema_version': 1, 'run_id': str(run['run_id']),
                    'requirement_revision': run['requirement_revision'], 'evidence': evidence,
-                   'evaluator': 'work_completion_policy_v1'}
+                   'evaluator': 'authorized_user_acceptance_v1' if user_evidence is not None else 'delivery_receipt_policy_v1' if delivery_evidence is not None else 'work_completion_policy_v1'}
         updated = uow.execute(
             'UPDATE works SET status=\'completed\',completed_requirement_revision=%s,'
             'completion_receipt=%s::jsonb,completed_at=now(),row_version=row_version+1,'
@@ -57,5 +61,7 @@ class WorkCompletionPolicy:
             (run['requirement_revision'], json.dumps(receipt), work['account_id'], work['work_id'])).fetchone()
         uow.execute('UPDATE work_wakeups SET state=\'superseded\' WHERE work_id=%s AND state=\'pending\'',
                     (work['work_id'],))
-        WorkRepository.event(uow, dict(updated), 'completed', run_id=run['run_id'], evidence=evidence)
+        event = WorkRepository.event(uow, dict(updated), 'completed', run_id=run['run_id'], evidence=evidence)
+        from work_domain.integration import adopt_artifacts
+        adopt_artifacts(uow, work, evidence, event)
         return True

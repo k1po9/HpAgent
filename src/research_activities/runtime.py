@@ -41,7 +41,7 @@ from research_domain.providers import (
 )
 from resources.model_budget_context import model_budget_scope
 from resources.model_governance_errors import classify_model_governance_failure
-from resources.run_budget import RunBudgetService
+from resources.run_budget import RunBudgetExhausted, RunBudgetService
 from run_domain.lifecycle import RunLifecycleService
 from run_domain.results import ResultReceiptService
 from tracing.repository import PostgresTraceRepository
@@ -238,9 +238,16 @@ class ResearchActivities:
             await asyncio.to_thread(
                 self.budget.reserve, run_id, wall_operation_id, {"wall_time_ms": 1}
             )
-            value = await asyncio.to_thread(action)
-            if asyncio.iscoroutine(value):
-                value = await value
+            from contextlib import AsyncExitStack
+
+            from resources.capacity import CapacityService
+            async with AsyncExitStack() as capacity_stack:
+                if stage.startswith(('Fetch:','Discover:')):
+                    await capacity_stack.enter_async_context(CapacityService(self.database).slot(run_id,'fetch' if stage.startswith('Fetch:') else 'tool'))
+                await asyncio.to_thread(self._assert_current,run_id)
+                value = await asyncio.to_thread(action)
+                if asyncio.iscoroutine(value):
+                    value = await value
             result = value if isinstance(value, dict) else {"item_count": int(value or 0)}
             compact = {key: result[key] for key in ("item_count", "sufficient") if key in result}
             elapsed_ms = max(1, int((time.monotonic() - started) * 1000))
@@ -259,6 +266,8 @@ class ResearchActivities:
             await asyncio.to_thread(
                 self.trace.finish_event, run_id, event_id, "failed", {"error": "stage_failed"}
             )
+            if isinstance(exc, RunBudgetExhausted):
+                raise ApplicationError("执行预算已耗尽。",type=exc.code,non_retryable=True) from exc
             governance = classify_model_governance_failure(exc)
             if governance is not None:
                 raise ApplicationError(
@@ -1002,8 +1011,8 @@ class ResearchActivities:
             run["account_id"],
             run_id,
             "succeeded",
-            result={"schema_version": 1, "kind": "deliverable_ready", "evidence": evidence},
-            accept_result=True,
+            result={"schema_version": 1, "kind": "deliverable_ready", "evidence": evidence, **({"continuation": {"schema_version":1,"kind":"awaiting_input","reason":"user_acceptance_required","receipt_ref":str(report["artifact_version_id"])}} if any(c["required"] and "user_acceptance" in c["evidence_types"] for c in requirement["acceptance_criteria"]) else {})},
+            accept_result=not any(c["required"] and "user_acceptance" in c["evidence_types"] for c in requirement["acceptance_criteria"]),
         )
         with UnitOfWork(self.database) as uow:
             AgentDataStore._assert_fence(uow)

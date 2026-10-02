@@ -323,7 +323,7 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
     assert run_view["artifact_id"] == str(report["artifact_id"])
     artifact_view = ArtifactService(database_url).get_artifact(account_id, report["artifact_id"])
     assert artifact_view["artifact"]["conversation_id"] is None
-    assert artifact_view["artifact"]["research_run_id"] == run_id
+    assert artifact_view["latest_version"]["producing_run_id"] == run_id
     # Terminal publication replay cannot change the persisted Artifact identity.
     activities._publish(UUID(run_id))
     with UnitOfWork(database_url) as uow:
@@ -331,7 +331,7 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
             "SELECT count(DISTINCT a.artifact_id) AS artifacts,"
             "count(DISTINCT av.artifact_version_id) AS versions FROM artifacts a "
             "JOIN artifact_versions av ON av.artifact_id=a.artifact_id "
-            "WHERE a.research_run_id=%s", (run_id,),
+            "WHERE av.producing_run_id=%s", (run_id,),
         ).fetchone()
     assert published == {"artifacts": 1, "versions": 1}
 
@@ -386,7 +386,7 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
             (second.body["run"]["run_id"],),
         ).fetchone()
         artifact_count = uow.execute(
-            "SELECT count(*) AS count FROM artifacts WHERE research_run_id IN (%s,%s)",
+            "SELECT count(*) AS count FROM artifact_versions WHERE producing_run_id IN (%s,%s)",
             (run_id, second.body["run"]["run_id"]),
         ).fetchone()["count"]
     assert second_report["previous_run_id"] is None

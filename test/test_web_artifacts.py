@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 from dataclasses import dataclass
 from uuid import uuid4
@@ -9,13 +8,11 @@ import httpx
 import pytest
 
 from common.errors import ModelAPIError
-from orchestration.artifact_dispatcher import ArtifactOutboxDispatcher, artifact_workflow_id
 from resources.account_daily_budget import AccountDailyBudgetExhausted
 from resources.model_budget_context import model_budget_scope
 from resources.model_client import ModelClient, ModelDispatchError
 from resources.model_governance_errors import ModelAccessTierDenied
 from resources.resource_pool import ResourcePool
-from web_artifacts.build import ArtifactBuildService
 from web_artifacts.generator import (
     ArtifactGenerationError,
     WebArtifactGenerator,
@@ -200,91 +197,3 @@ async def test_resource_pool_chain_and_structured_artifact_call_events(caplog):
     assert records[1].error_code == "artifact_model_http_error"
     assert records[1].attempt == 1
     assert "secret prompt" not in caplog.text
-
-
-def test_artifact_failure_update_uses_stable_code_and_safe_message(monkeypatch):
-    statements = []
-
-    class FakeUow:
-        def __init__(self, _database):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_args):
-            return False
-
-        def execute(self, sql, values):
-            statements.append((sql, values))
-
-    monkeypatch.setattr("web_artifacts.build.UnitOfWork", FakeUow)
-    version_id = uuid4()
-    ArtifactBuildService(object(), object())._fail(
-        version_id, "artifact_model_timeout", "模型调用超时。",
-    )
-    sql, values = statements[0]
-    assert "status='failed'" in sql
-    assert "failure_code=%s" in sql and "failure_message=%s" in sql
-    assert values == ("artifact_model_timeout", "模型调用超时。", version_id)
-
-
-class _Outbox:
-    def __init__(self, version_id):
-        self.version_id = version_id
-        self.processed = False
-        self.failed = False
-
-    def claim(self, _worker_id, _limit):
-        return [{"artifact_outbox_event_id": uuid4(), "artifact_version_id": self.version_id,
-                 "attempt_count": 1}]
-
-    def mark_processed(self, *_args):
-        self.processed = True
-
-    def dead_letter(self, *_args):
-        return True
-
-    def fail_version(self, *_args):
-        self.failed = True
-
-
-class _Temporal:
-    def __init__(self):
-        self.started = []
-
-    async def start(self, version_id):
-        self.started.append(version_id)
-
-
-class _FailingTemporal:
-    async def start(self, _version_id):
-        raise RuntimeError("temporal unavailable")
-
-
-@pytest.mark.asyncio
-async def test_artifact_dispatcher_uses_version_as_deterministic_identity(monkeypatch):
-    async def immediate(function, *args):
-        return function(*args)
-
-    monkeypatch.setattr(asyncio, "to_thread", immediate)
-    version_id = uuid4()
-    outbox, temporal = _Outbox(version_id), _Temporal()
-    dispatcher = ArtifactOutboxDispatcher(outbox, temporal, "worker")
-    assert await dispatcher.run_once() == 1
-    assert temporal.started == [version_id]
-    assert outbox.processed is True
-    assert artifact_workflow_id(version_id) == f"hpagent-web-artifact-{version_id}"
-
-
-@pytest.mark.asyncio
-async def test_dispatch_exhaustion_dead_letters_and_fails_version(monkeypatch):
-    async def immediate(function, *args):
-        return function(*args)
-
-    monkeypatch.setattr(asyncio, "to_thread", immediate)
-    version_id = uuid4()
-    outbox = _Outbox(version_id)
-    dispatcher = ArtifactOutboxDispatcher(outbox, _FailingTemporal(), "worker", max_attempts=1)
-    assert await dispatcher.run_once() == 1
-    assert outbox.failed is True

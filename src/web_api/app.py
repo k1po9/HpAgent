@@ -46,6 +46,7 @@ from persistence.uow import UnitOfWork
 from research_domain.services import ResearchQueryService
 from storage.tenant_file_store import TenantFileStore
 from tracing.repository import PostgresTraceRepository
+from web_api.models import ReferenceWorkArtifactRequest, ResolveDeliveryRequest
 from web_artifacts.services import ArtifactService
 from web_domain.errors import (
     ConversationBusy,
@@ -86,6 +87,7 @@ from .config import WebApiSettings
 from .fake_executor import FakeArtifactExecutor, FakeRunExecutor
 from .model_observability_queries import ModelInputUnavailable, ModelObservabilityQueries
 from .models import (
+    AcceptWorkResultRequest,
     CreateArtifactRequest,
     CreateArtifactVersionRequest,
     CreateConversationRequest,
@@ -102,6 +104,9 @@ from .models import (
     SaveWorkspaceFileRequest,
     SendMessageRequest,
     UpdateWorkspaceFileRequest,
+    WorkBudgetRequest,
+    WorkInputRequest,
+    WorkTargetRequest,
 )
 from .queries import QueryService, trace_tree_dto
 from .security import CursorCodec, CursorError
@@ -771,28 +776,113 @@ def create_app(
     def work_runs(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
         return request.app.state.works.records(context.account_id, work_id, "runs")
 
+    @app.get('/api/v1/works/{work_id}/artifacts')
+    def work_artifacts(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+        return {'items': request.app.state.works.get(context.account_id,work_id)['work']['artifacts']}
+
+    @app.post('/api/v1/works/{work_id}/artifacts')
+    def reference_work_artifact(work_id: UUID, payload: ReferenceWorkArtifactRequest,request: Request,
+                               context: AuthContext = Depends(csrf_guard),key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),
+                             'artifact_reference',payload.model_dump()))
+
+    @app.get('/api/v1/works/{work_id}/notification-targets')
+    def work_targets(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+        from work_domain.persistence import WorkRepository, dto
+        with UnitOfWork(request.app.state.api_pool) as uow:
+            WorkRepository.get(uow,context.account_id,work_id)
+            return {'items': dto(uow.execute('SELECT target_id,channel,audience,content_scope,target_version,enabled FROM delivery_targets WHERE account_id=%s AND work_id=%s ORDER BY created_at', (context.account_id,work_id)).fetchall())}
+
+    @app.put('/api/v1/works/{work_id}/notification-targets')
+    def set_work_target(work_id: UUID, payload: WorkTargetRequest, request: Request,
+                        context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),'target',payload.model_dump()))
+
+    @app.delete('/api/v1/works/{work_id}/notification-targets/{target_id}')
+    def disable_work_target(work_id: UUID, target_id: UUID, request: Request,
+                            context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),'disable_target',{'target_id':target_id}))
+
+    @app.post('/api/v1/works/{work_id}/budget')
+    def increase_work_budget(work_id: UUID, payload: WorkBudgetRequest, request: Request,
+                             context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),'budget',payload.model_dump()))
+
+    @app.get('/api/v1/works/{work_id}/inputs')
+    def work_inputs(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+        from work_domain.persistence import WorkRepository, dto
+        with UnitOfWork(request.app.state.api_pool) as uow:
+            WorkRepository.get(uow,context.account_id,work_id)
+            return {'items': dto(uow.execute('SELECT * FROM work_input_refs WHERE account_id=%s AND work_id=%s ORDER BY ref_id', (context.account_id,work_id)).fetchall())}
+
+    @app.post('/api/v1/works/{work_id}/inputs')
+    def add_work_input(work_id: UUID, payload: WorkInputRequest, request: Request,
+                        context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),'input',payload.model_dump()))
+
+    @app.delete('/api/v1/works/{work_id}/inputs/{ref_id}')
+    def revoke_work_input(work_id: UUID, ref_id: UUID, request: Request,
+                           context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),'revoke_input',{'ref_id':ref_id}))
+
+    @app.post('/api/v1/works/{work_id}/accept-result')
+    def accept_work_result(work_id: UUID, payload: AcceptWorkResultRequest, request: Request,
+                             context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),'accept_result',payload.model_dump()))
+
+    @app.get('/api/v1/notifications')
+    def notification_inbox(request: Request, before: UUID | None = None, context: AuthContext = Depends(auth_context)):
+        from work_domain.persistence import dto
+        with UnitOfWork(request.app.state.api_pool) as uow:
+            rows = uow.execute("SELECT n.*,d.provider_receipt FROM notifications n JOIN deliveries d USING(account_id,notification_id) JOIN delivery_targets t USING(account_id,target_id) WHERE n.account_id=%s AND t.channel='web' AND d.state='accepted' AND (%s::uuid IS NULL OR n.notification_id<%s) ORDER BY n.notification_id DESC LIMIT 100", (context.account_id,before,before)).fetchall()
+            return {'items':dto(rows)}
+
+    @app.post('/api/v1/works/{work_id}/deliveries/{delivery_id}/resolve')
+    def resolve_work_delivery(work_id: UUID, delivery_id: UUID, payload: ResolveDeliveryRequest, request: Request,
+                              context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),
+                             'resolve_delivery',{'delivery_id':delivery_id,**payload.model_dump()}))
+
+    @app.get('/api/v1/works/{work_id}/events/stream')
+    async def stream_work_events(work_id: UUID, request: Request, after: int = Query(0,ge=0), context: AuthContext = Depends(auth_context)):
+        service = request.app.state.works
+        await asyncio.to_thread(service.get,context.account_id,work_id)
+        cursor = request.headers.get('Last-Event-ID', str(after))
+        if not cursor.isdigit():
+            raise HTTPException(422,'invalid Work event cursor')
+        async def frames():
+            position = int(cursor)
+            while not await request.is_disconnected():
+                try:
+                    current = await asyncio.to_thread(auth_context,request)
+                except Unauthenticated:
+                    return
+                if current.account_id != context.account_id:
+                    return
+                batch = await asyncio.to_thread(service.records,context.account_id,work_id,'events',position)
+                for event in batch['items']:
+                    position = event['event_seq']
+                    yield f"id: {position}\nevent: work.event\ndata: {json.dumps(event,ensure_ascii=False)}\n\n"
+                if not batch['items']:
+                    yield ': keepalive\n\n'
+                    await asyncio.sleep(2)
+        return StreamingResponse(frames(),media_type='text/event-stream',headers={'Cache-Control':'no-cache','X-Accel-Buffering':'no'})
+
     @app.get("/api/v1/works/{work_id}/resources")
     def work_resources(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
         return {"grants": request.app.state.resource_policy.grants(context.account_id, "work", work_id)}
 
     @app.post("/api/v1/works/{work_id}/resources", status_code=201)
     def grant_work_resource(work_id: UUID, payload: GrantConversationResourceRequest,
-                            request: Request, context: AuthContext = Depends(csrf_guard)):
-        ids = request.app.state.resource_policy.grant(
-            context.account_id, "work", work_id, payload.node_id, payload.operations, payload.recursive)
-        return {"grant_ids": ids}
+                            request: Request, context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),
+                             'grant_resource',payload.model_dump()))
 
     @app.delete("/api/v1/works/{work_id}/resources/{grant_id}")
     def revoke_work_resource(work_id: UUID, grant_id: UUID, request: Request,
-                             context: AuthContext = Depends(csrf_guard)):
-        with UnitOfWork(request.app.state.api_pool) as uow:
-            if not uow.execute("SELECT 1 FROM resource_grants WHERE account_id=%s AND grant_id=%s "
-                               "AND subject_kind='work' AND subject_id=%s",
-                               (context.account_id, grant_id, work_id)).fetchone():
-                raise ResourceNotFound()
-        affected = request.app.state.resource_policy.revoke(
-            context.account_id, grant_id, request.app.state.commands)
-        return {"affected_run_ids": [str(run_id) for run_id in affected]}
+                             context: AuthContext = Depends(csrf_guard), key: str = Depends(idempotency_key)):
+        return work_response(request.app.state.works.integration(context.account_id,work_id,key,work_version(work_id,request),
+                             'revoke_resource',{'grant_id':grant_id}))
 
     @app.get("/api/v1/runs/{run_id}/research/evidence")
     def research_evidence(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):

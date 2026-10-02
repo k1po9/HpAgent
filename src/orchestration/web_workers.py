@@ -26,7 +26,6 @@ from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 
 from .agent_lifecycle_workflow import AgentLifecycleWorkflow
-from .artifact_workflow import ArtifactBuildWorkflow
 from .document_workflow import NormalizeDocumentWorkflow
 from .run_lifecycle_contracts import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
@@ -123,7 +122,6 @@ def build_web_temporal_workers(
             # One finite Run entrypoint dispatches all registered execution strategies.
             workflows=[
                 AgentLifecycleWorkflow,
-                ArtifactBuildWorkflow,
                 NormalizeDocumentWorkflow,
             ],
             activities=list(lifecycle_activities),

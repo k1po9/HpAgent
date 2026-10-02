@@ -90,7 +90,6 @@ class DurableRuntimeComposition:
     dispatcher: object  # WebOutboxDispatcher
     reconciler: object  # WebRunReconciler
     memory_retention: object = None  # MemoryRetentionService | None (Phase F)
-    artifact_dispatcher: object = None
 
 
 def compose_durable_runtime(
@@ -116,10 +115,6 @@ def compose_durable_runtime(
     from file_domain.approvals import FileActionApprovalService
     from file_runtime import ResearchMarkdownPublisher
     from orchestration.artifact_activities import ArtifactActivities
-    from orchestration.artifact_dispatcher import (
-        ArtifactOutboxDispatcher,
-        TemporalArtifactClient,
-    )
     from orchestration.run_dispatcher import ReminderActivities, RunStrategyActivities
     from orchestration.run_lifecycle_activities import RunLifecycleActivities
     from orchestration.web_dispatcher import (
@@ -155,7 +150,6 @@ def compose_durable_runtime(
     )
     from web_artifacts.build import ArtifactBuildService
     from web_artifacts.generator import WebArtifactGenerator
-    from web_artifacts.outbox import ArtifactOutboxService
     from web_domain.lifecycle import WebRunLifecycleService
     from web_domain.outbox import OutboxService
     from web_domain.run_events import RedisWebRunEventSinkFactory
@@ -327,13 +321,9 @@ def compose_durable_runtime(
             worker_database_url, shared.hindsight_client
         )
         logger.info("MemoryRetentionService composed (retain_memory consumer)")
-    artifact_dispatcher = ArtifactOutboxDispatcher(
-        ArtifactOutboxService(worker_database_url), TemporalArtifactClient(client),
-        worker_id=f"hpagent-artifact-dispatcher-{os.getpid()}",
-    )
     logger.info("Web real-Agent composition passed C-07 gate")
     return DurableRuntimeComposition(
-        workers, dispatcher, reconciler, memory_retention, artifact_dispatcher
+        workers, dispatcher, reconciler, memory_retention
     )
 
 
@@ -365,7 +355,6 @@ def _build_web_background_tasks(
     web_memory_retention,
     lease_timeout_seconds: int,
     recovery_interval_seconds: float,
-    artifact_dispatcher=None,
 ) -> None:
     """把 Web 组合产物变成可取消的后台任务，供 ``start_worker`` 前台运行。
 
@@ -375,10 +364,6 @@ def _build_web_background_tasks(
     ``composition.workers`` 上 —— 那里只有 lifecycle/agent（C-07）。
     """
     # Canonical Web/QQ workers are composed here without module-level Temporal side effects.
-    from orchestration.artifact_dispatcher import (
-        run_artifact_dispatcher_loop,
-        run_artifact_outbox_recovery_loop,
-    )
     from orchestration.web_dispatcher import run_web_outbox_recovery_loop
     from orchestration.work_schedule import WorkScheduleService, run_work_schedule_loop
     tasks.create(run_work_schedule_loop(WorkScheduleService(
@@ -419,15 +404,6 @@ def _build_web_background_tasks(
                 lease_timeout_seconds,
                 recovery_interval_seconds,
                 event_types={"retain_memory"},
-            )
-        )
-    if artifact_dispatcher is not None:
-        tasks.create(run_artifact_dispatcher_loop(artifact_dispatcher))
-        tasks.create(
-            run_artifact_outbox_recovery_loop(
-                artifact_dispatcher.outbox,
-                lease_timeout_seconds,
-                recovery_interval_seconds,
             )
         )
 
@@ -855,13 +831,11 @@ async def start_worker(config: AppConfig) -> None:
         web_dispatcher = None
         web_reconciler = None
         web_memory_retention = None
-        web_artifact_dispatcher = None
         composition = compose_durable_runtime(client, config, deps)
         web_workers = composition.workers
         web_dispatcher = composition.dispatcher
         web_reconciler = composition.reconciler
         web_memory_retention = composition.memory_retention
-        web_artifact_dispatcher = composition.artifact_dispatcher
         # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
         _channel_factories = {
             ChannelType.NAPCAT: NapCatChannel,
@@ -951,7 +925,6 @@ async def start_worker(config: AppConfig) -> None:
                     web_dispatcher=web_dispatcher,
                     web_reconciler=web_reconciler,
                     web_memory_retention=web_memory_retention,
-                    artifact_dispatcher=web_artifact_dispatcher,
                     lease_timeout_seconds=config.temporal.web_outbox_lease_timeout_seconds,
                     recovery_interval_seconds=config.temporal.web_outbox_recovery_interval_seconds,
                 )

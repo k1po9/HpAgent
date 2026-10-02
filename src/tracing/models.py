@@ -11,12 +11,15 @@ class TraceRun:
     trace_run_id: UUID
     run_id: UUID
     account_id: UUID
-    conversation_id: UUID
+    conversation_id: UUID | None
     strategy: str
     status: str
     started_at: datetime
     ended_at: datetime | None
     metadata: Mapping[str, Any]
+    work_id: UUID | None = None
+    requirement_revision: int | None = None
+    execution_id: UUID | None = None
 
 
 @dataclass(frozen=True)

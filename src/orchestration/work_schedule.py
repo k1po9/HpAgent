@@ -7,6 +7,7 @@ import logging
 from datetime import UTC, datetime
 
 from persistence.uow import UnitOfWork, retryable_transaction
+from resources.run_budget import RunBudgetExhausted
 from run_domain.admission import admit_work_run
 from run_domain.lifecycle import RunLifecycleService
 from web_domain.errors import DomainError
@@ -108,10 +109,13 @@ class WorkScheduleService:
         now = now or datetime.now(UTC)
         count = 0
         with UnitOfWork(self.database) as uow:
-            rows = uow.execute("SELECT w.* FROM works w WHERE w.status='active' "
-                               "AND w.active_coordinator_run_id IS NULL AND EXISTS (SELECT 1 FROM work_wakeups x "
-                               "WHERE x.work_id=w.work_id AND x.state='pending' AND x.due_at<=%s) "
-                               "ORDER BY w.work_id LIMIT %s FOR UPDATE SKIP LOCKED", (now, limit)).fetchall()
+            rows = uow.execute("WITH eligible AS (SELECT w.work_id,w.account_id,row_number() OVER (PARTITION BY w.account_id ORDER BY w.work_id) AS tenant_position "
+                               "FROM works w WHERE w.status='active' AND w.active_coordinator_run_id IS NULL AND EXISTS "
+                               "(SELECT 1 FROM work_wakeups x WHERE x.work_id=w.work_id AND x.state='pending' AND x.due_at<=%s)) "
+                               "SELECT w.* FROM eligible e JOIN works w USING(work_id,account_id) LEFT JOIN capacity_turns t "
+                               "ON t.account_id=w.account_id AND t.resource='coordination' AND t.lane='background' "
+                               "ORDER BY e.tenant_position,COALESCE(t.last_admitted_at,'-infinity'::timestamptz),w.work_id "
+                               "LIMIT %s FOR UPDATE OF w SKIP LOCKED", (now,limit)).fetchall()
             for work in rows:
                 kind = work['continuation']['kind']
                 due = work['continuation'].get('due_at')
@@ -131,13 +135,16 @@ class WorkScheduleService:
                 try:
                     with uow.connection.transaction():
                         run = admit_work_run(uow, work, requirement, wake['wakeup_id'], self.database, self.budget_mode)
+                        if run is None:
+                            continue
+                        uow.execute("INSERT INTO capacity_turns(resource,lane,account_id,last_admitted_at) VALUES ('coordination','background',%s,now()) ON CONFLICT(resource,lane,account_id) DO UPDATE SET last_admitted_at=now()", (work['account_id'],))
                         current = WorkRepository.get(uow, work['account_id'], work['work_id'])
                         WorkRepository.event(uow, current, 'advanced', run_id=run['run_id'])
                     count += 1
-                except (ValueError, DomainError) as exc:
+                except (ValueError, DomainError, RunBudgetExhausted) as exc:
                     logger.warning('Work admission blocked: %s', type(exc).__name__)
                     uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1 WHERE work_id=%s',
-                                (json.dumps(continuation('blocked', 'admission_rejected')), work['work_id']))
+                                (json.dumps(continuation('blocked', 'budget_exhausted' if isinstance(exc, RunBudgetExhausted) else 'admission_rejected')), work['work_id']))
         return count
 
 

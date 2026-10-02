@@ -120,6 +120,9 @@ class RunBudgetService:
         requested = _amounts(amounts)
         if not operation_id or len(operation_id) > 200:
             raise ValueError("operation_id must contain 1 to 200 characters")
+        from resources.work_budget import WorkBudgetService
+
+        WorkBudgetService.mutate(uow, run_id, operation_id, requested)
         budget = uow.execute(
             "SELECT mode,status,limits,used,reserved,final_response_reserve_tokens "
             "FROM run_budgets WHERE run_id=%s FOR UPDATE",
@@ -224,6 +227,9 @@ class RunBudgetService:
         if usage_source not in USAGE_SOURCES:
             raise ValueError(f"unsupported usage source: {usage_source}")
         actual = _amounts(actual)
+        from resources.work_budget import WorkBudgetService
+
+        WorkBudgetService.mutate(uow, run_id, operation_id, actual, action='settle', source=usage_source)
         budget = uow.execute(
             "SELECT limits,used,reserved,status FROM run_budgets WHERE run_id=%s FOR UPDATE",
             (run_id,),
@@ -286,6 +292,9 @@ class RunBudgetService:
         run_id: UUID,
         operation_id: str,
     ) -> BudgetMutation:
+        from resources.work_budget import WorkBudgetService
+
+        WorkBudgetService.mutate(uow, run_id, operation_id, action='release')
         budget = uow.execute(
             "SELECT reserved FROM run_budgets WHERE run_id=%s FOR UPDATE",
             (run_id,),

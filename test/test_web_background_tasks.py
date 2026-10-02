@@ -22,6 +22,11 @@ from orchestration.worker import (
 )
 
 
+@pytest.fixture(autouse=True)
+def inert_work_schedule(monkeypatch):
+    monkeypatch.setattr("orchestration.work_schedule.WorkScheduleService.run_once",lambda self: 0)
+
+
 class _FakeDispatcher:
     def __init__(self, outbox):
         self.outbox = outbox
@@ -37,27 +42,10 @@ class _FakeReconciler:
         return None
 
 
-class _FakeArtifactOutbox:
-    def __init__(self):
-        self.recovered = 0
-
-    def recover_expired(self, _lease_timeout_seconds):
-        self.recovered += 1
-        return 0
-
-
-class _FakeArtifactDispatcher:
-    def __init__(self):
-        self.outbox = _FakeArtifactOutbox()
-        self.run_once_calls = 0
-
-    async def run_once(self):
-        self.run_once_calls += 1
-        return 0
-
-
 class _FakeOutbox:
     """模拟 OutboxService：一次 claim 返回一个 retain_memory 事件后即空。"""
+
+    database_url = "registry-only"
 
     def __init__(self):
         self.processed: list[str] = []
@@ -116,7 +104,7 @@ async def test_background_tasks_wire_memory_retention_and_consume_outbox():
     )
 
     # Phase F 任务必须存在（P0 回归：曾经在 workers 层上找不到导致 AttributeError）。
-    assert len(tasks._tasks) == 5
+    assert len(tasks._tasks) == 6
 
     # 让 memory-retention 任务真正走到 retain_memory 消费：claim → 服务 → mark processed。
     for _ in range(40):
@@ -148,7 +136,7 @@ async def test_background_tasks_without_memory_retention_omit_only_memory_tasks(
         lease_timeout_seconds=60,
         recovery_interval_seconds=0.05,
     )
-    assert len(tasks._tasks) == 3
+    assert len(tasks._tasks) == 4
     await tasks.close()
 
 
@@ -165,26 +153,6 @@ def test_memory_retention_lives_on_composition_not_workers():
     assert not hasattr(composition.workers, "memory_retention")
 
 
-@pytest.mark.asyncio
-async def test_background_tasks_start_and_stop_artifact_dispatch_and_recovery():
-    dispatcher = _FakeArtifactDispatcher()
-    tasks = BackgroundTasks()
-    _build_web_background_tasks(
-        tasks=tasks,
-        web_dispatcher=_FakeDispatcher(_FakeOutbox()),
-        web_reconciler=_FakeReconciler(),
-        web_memory_retention=None,
-        artifact_dispatcher=dispatcher,
-        lease_timeout_seconds=60,
-        recovery_interval_seconds=0.01,
-    )
-    assert len(tasks._tasks) == 5
-
-    for _ in range(40):
-        if dispatcher.run_once_calls and dispatcher.outbox.recovered:
-            break
-        await asyncio.sleep(0.01)
-    assert dispatcher.run_once_calls > 0
-    assert dispatcher.outbox.recovered > 0
-
-    await tasks.close()
+def test_artifact_build_uses_the_generic_run_dispatcher():
+    composition = DurableRuntimeComposition(workers=object(),dispatcher=object(),reconciler=object())
+    assert not hasattr(composition,'artifact_dispatcher')

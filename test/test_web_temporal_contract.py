@@ -19,7 +19,6 @@ from agent_workflows.tool_execution import ToolExecutionWorkflow
 from application.conversation import normalize_qq_message
 from common.types import ChannelType, UnifiedMessage
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
-from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.document_workflow import NormalizeDocumentWorkflow
 from orchestration.run_lifecycle_contracts import (
@@ -85,7 +84,6 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
     assert made[0]["task_queue"] == WEB_LIFECYCLE_TASK_QUEUE
     assert made[0]["workflows"] == [
         AgentLifecycleWorkflow,
-        ArtifactBuildWorkflow,
         NormalizeDocumentWorkflow,
     ]
     assert made[1]["task_queue"] == WEB_AGENT_TASK_QUEUE
@@ -99,7 +97,9 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
 
 
 def test_artifact_uses_the_registered_web_lifecycle_task_queue():
-    assert ARTIFACT_TASK_QUEUE == WEB_LIFECYCLE_TASK_QUEUE
+    source = __import__('inspect').getsource(AgentLifecycleWorkflow.run)
+    assert 'execute_artifact_build_activity' in source
+    assert 'task_queue=WEB_LIFECYCLE_TASK_QUEUE' in source
 
 
 @pytest.mark.asyncio

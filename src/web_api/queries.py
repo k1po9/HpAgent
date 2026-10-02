@@ -119,7 +119,10 @@ def trace_tree_dto(tree: TraceTree) -> dict[str, Any]:
         "run": {
             "trace_run_id": str(run.trace_run_id),
             "run_id": str(run.run_id),
-            "conversation_id": str(run.conversation_id),
+            "conversation_id": str(run.conversation_id) if run.conversation_id else None,
+            "work_id": str(run.work_id) if run.work_id else None,
+            "requirement_revision": run.requirement_revision,
+            "execution_id": str(run.execution_id) if run.execution_id else None,
             "strategy": run.strategy,
             "status": run.status,
             "started_at": timestamp(run.started_at),

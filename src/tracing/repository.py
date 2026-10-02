@@ -174,6 +174,9 @@ class PostgresTraceRepository:
             started_at=row["started_at"],
             ended_at=row["ended_at"],
             metadata=cast(Mapping[str, Any], row["metadata"]),
+            work_id=row.get('work_id'),
+            requirement_revision=row.get('requirement_revision'),
+            execution_id=row.get('execution_id'),
         )
 
     @staticmethod

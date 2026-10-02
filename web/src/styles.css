@@ -804,3 +804,22 @@ body,
   background: var(--gray-a3);
   font-weight: 600;
 }
+
+.hp-work-panel {
+  padding: 12px 16px;
+  max-height: 40vh;
+  overflow: auto;
+  border-bottom: 1px solid var(--gray-5);
+}
+.hp-work-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.hp-work-panel article {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--gray-4);
+}
+.hp-work-panel p {
+  font-size: 13px;
+  margin: 8px 0;
+}

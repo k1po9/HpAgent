@@ -59,6 +59,8 @@ class WorkCommandService:
         schedule = uow.execute('SELECT * FROM work_schedules WHERE account_id=%s AND work_id=%s',
                                (account_id, work_id)).fetchone()
         work['schedule'] = dict(schedule) if schedule else None
+        from work_domain.integration import projections
+        work.update(projections(uow, account_id, work_id))
         work['conversation_ids'] = [row['conversation_id'] for row in uow.execute(
             'SELECT conversation_id FROM work_conversations WHERE account_id=%s AND work_id=%s '
             'ORDER BY conversation_id', (account_id, work_id)).fetchall()]
@@ -111,16 +113,33 @@ class WorkCommandService:
                 (account_id, source_message_id, conversation_id, conversation_id),
             ).fetchone():
                 raise ResourceNotFound()
+            uow.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', (str(account_id),))
+            import os
+            count = uow.execute("SELECT count(*) AS n FROM works WHERE account_id=%s AND status NOT IN ('stopped','completed')", (account_id,)).fetchone()['n']
+            if count >= int(os.getenv('WORK_ACCOUNT_ACCEPT_LIMIT', '100')):
+                raise WorkConflict({}, 'work_accept_limit')
             work_id = uuid7()
             from work_domain.timing import initial_continuation
             next_step = initial_continuation(value['timing'])
             uow.execute('INSERT INTO works(work_id,account_id,title,continuation) VALUES (%s,%s,%s,%s::jsonb)',
                         (work_id, account_id, title, json.dumps(next_step)))
+            from resources.work_budget import WorkBudgetService
+            WorkBudgetService.create(uow, account_id, work_id)
+            if value['capability_key']=='reminder' and value['spec'].get('target_ref')=='current_channel':
+                origin = uow.execute('SELECT origin FROM messages WHERE account_id=%s AND message_id=%s',
+                                     (account_id,source_message_id)).fetchone()
+                if not origin or not origin['origin']:
+                    raise ValueError('current channel requires a verified source message')
+                from delivery.service import target_from_origin
+                selected = target_from_origin(uow,account_id,work_id,origin['origin'],content_scope='summary',command_id=command)
+                value['spec'] = {**value['spec'],'target_ref':str(selected)}
             self.repo.insert_requirement(uow, account_id, work_id, 1, value, command, 'accepted', source_message_id)
             work = self.repo.get(uow, account_id, work_id)
             if conversation_id:
                 self._link(uow, work, conversation_id, command, source_message_id)
             self.repo.event(uow, work, 'accepted', command_id=command, status='active')
+            from delivery.service import ensure_inbox
+            ensure_inbox(uow, account_id, work_id)
             from work_domain.persistence import sync_schedule
             sync_schedule(uow, work, value)
             if value['timing']['kind'] in {'immediate', 'once'}:
@@ -145,8 +164,8 @@ class WorkCommandService:
 
     @staticmethod
     def _cancel_coordinator(uow, work, command_id=None, action=None):
-        uow.execute("UPDATE reminder_intents SET state='cancelled' WHERE account_id=%s AND work_id=%s AND state='pending'",
-                    (work['account_id'], work['work_id']))
+        from delivery.service import cancel_pending
+        cancel_pending(uow, work)
         run_id = work['active_coordinator_run_id']
         if run_id:
             if command_id is not None:
@@ -276,9 +295,21 @@ class WorkCommandService:
             if work['continuation'].get('due_at') and datetime.fromisoformat(work['continuation']['due_at']) > datetime.now(UTC):
                 return self._complete(uow, account_id, 'advance_work', key, work_id, 202, reason='not_due')
             wakeup = self.repo.wakeup(uow, work, f'advance:{command}', 'advance', 'explicit_advance')
+            from resources.work_budget import WorkBudgetExhausted
             from run_domain.admission import admit_work_run
-
-            run = admit_work_run(uow, work, requirement, wakeup, self.database, self.budget_mode)
+            try:
+                run = admit_work_run(uow, work, requirement, wakeup, self.database, self.budget_mode)
+            except WorkBudgetExhausted:
+                uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=now() WHERE work_id=%s',
+                            (json.dumps(continuation('blocked','budget_exhausted')),work_id))
+                self.repo.event(uow,self.repo.get(uow,account_id,work_id),'advanced',command_id=command,reason='budget_exhausted')
+                return self._complete(uow,account_id,'advance_work',key,work_id,202,reason='budget_exhausted')
+            if run is None:
+                return self._complete(uow, account_id, 'advance_work', key, work_id, 202, reason='waiting_capacity')
             work = self.repo.get(uow, account_id, work_id)
             self.repo.event(uow, work, 'advanced', command_id=command, run_id=run['run_id'])
             return self._complete(uow, account_id, 'advance_work', key, work_id, 202, run=run)
+
+    def integration(self, account_id, work_id, key, row_version, action, payload):
+        from work_domain.integration import integration_command
+        return integration_command(self, account_id, work_id, key, row_version, action, payload)

@@ -42,15 +42,21 @@ def test_work_grant_revoke_checks_owner_and_replay(
     grant = owner.post(f"/api/v1/works/{work_id}/resources", json={
         "node_id": info, "operations": ["list_metadata", "read_content"],
         "recursive": True,
-    }, headers=_headers(csrf))
+    }, headers={**_headers(csrf,str(uuid4())),"If-Match":work.headers["ETag"]})
     assert grant.status_code == 201, grant.text
     grant_id = grant.json()["grant_ids"][1]
     path = f"/api/v1/works/{work_id}/resources/{grant_id}"
-    assert other.delete(path, headers=_headers(other_csrf)).status_code == 404
+    versioned = {**_headers(csrf,str(uuid4())),"If-Match":grant.headers["ETag"]}
+    assert other.delete(path,headers={**versioned,**_headers(other_csrf)}).status_code==404
     assert owner.delete(f"/api/v1/works/{other_work_id}/resources/{grant_id}",
-                        headers=_headers(csrf)).status_code == 404
-    assert owner.delete(path, headers=_headers(csrf)).json() == {"affected_run_ids": []}
-    assert owner.delete(path, headers=_headers(csrf)).json() == {"affected_run_ids": []}
+                        headers={**_headers(csrf,str(uuid4())),"If-Match":second.headers["ETag"]}).status_code==404
+    revoked=owner.delete(path,headers=versioned)
+    assert revoked.status_code==200
+    assert revoked.json()["affected_run_ids"]==[]
+    replay=owner.delete(path,headers=versioned)
+    assert replay.status_code==200 and replay.json()==revoked.json()
+    assert replay.headers["Idempotency-Replayed"]=="true"
+
 
 
 def test_conversation_grant_snapshot_revoke_and_owner_download(

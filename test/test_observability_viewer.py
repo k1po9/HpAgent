@@ -522,7 +522,7 @@ def test_artifact_postgres_queries_are_bounded_read_only_and_exclude_content(mon
                        "version": 1, "status": "failed", "source_run_id": str(uuid4()),
                        "failure_code": "artifact_model_timeout"}
                 return SimpleNamespace(fetchall=lambda: [row], fetchone=lambda: row)
-            if "FROM hpagent.artifact_outbox_events" in query:
+            if "FROM hpagent.outbox_events" in query:
                 return SimpleNamespace(fetchall=lambda: [{"status": "processed"}])
             if "FROM hpagent.model_input_snapshots" in query:
                 return SimpleNamespace(fetchall=lambda: [{"model_call_id": call_id,

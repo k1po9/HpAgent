@@ -163,7 +163,10 @@ export type HpTraceStatus = "running" | "completed" | "failed" | "cancelled";
 export interface HpTraceRun {
   trace_run_id: string;
   run_id: string;
-  conversation_id: string;
+  conversation_id: string | null;
+  work_id?: string | null;
+  requirement_revision?: number | null;
+  execution_id?: string | null;
   strategy: string;
   status: HpTraceStatus;
   started_at: string;
@@ -255,8 +258,8 @@ export type HpArtifactVersionStatus = "queued" | "running" | "completed" | "fail
 
 export interface HpArtifact {
   artifact_id: string;
-  conversation_id: string;
-  source_message_id: string;
+  conversation_id: string | null;
+  source_message_id: string | null;
   kind: HpArtifactKind;
   title: string;
   created_at: string;
@@ -328,4 +331,54 @@ export class HpCommandError extends Error {
   get code(): HpErrorCode {
     return this.error.code;
   }
+}
+
+export interface HpWorkEvent {
+  event_id: string;
+  work_id: string;
+  event_seq: number;
+  event_type: string;
+  requirement_revision: number;
+  bounded_payload: Record<string, unknown>;
+}
+
+export interface HpWork {
+  work_id: string;
+  title: string;
+  status: "active" | "pausing" | "paused" | "stopping" | "stopped" | "completed";
+  row_version: number;
+  current_requirement_revision: number;
+  active_coordinator_run_id: string | null;
+  conversation_ids: string[];
+  continuation: { kind: string; reason: string; due_at?: string; receipt_ref?: string };
+  requirement: { objective: string; capability_key: string };
+  budget: {
+    limits: Record<string, number>;
+    used: Record<string, number>;
+    reserved: Record<string, number>;
+    version: number;
+  } | null;
+  workspace_saves: Array<{
+    run_id: string;
+    state: string;
+    requirement_revision: number;
+    failure_code: string | null;
+  }>;
+  artifacts: Array<{
+    artifact_id: string;
+    artifact_version_id: string;
+    role: "input" | "evidence" | "deliverable";
+    status: string;
+    accepted_for_revision: number | null;
+    source_requirement_revision: number;
+  }>;
+  deliveries: Array<{
+    delivery_id: string;
+    state: string;
+    channel: string;
+    purpose: string;
+    requirement_revision: number;
+    last_error: string | null;
+    provider_receipt: { level: string } | null;
+  }>;
 }

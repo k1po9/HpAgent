@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from datetime import UTC, datetime
 from uuid import UUID
 
 from common.types import ModelResponse
@@ -9,7 +10,6 @@ from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork
 from web_artifacts.build import ArtifactBuildService
 from web_artifacts.generator import WebArtifactGenerator
-from web_artifacts.outbox import ArtifactOutboxService
 from web_domain.outbox import OutboxService
 from web_domain.run_events import RedisWebRunEventSinkFactory
 
@@ -65,6 +65,11 @@ class FakeRunExecutor:
         event_id = UUID(str(event["outbox_event_id"]))
         account_id = UUID(str(event["account_id"]))
         run_id = UUID(str(event["run_id"]))
+        with UnitOfWork(self.lifecycle.database_url) as uow:
+            source = uow.execute('SELECT source_kind FROM runs WHERE run_id=%s',(run_id,)).fetchone()
+        if source and source['source_kind'] != 'chat':
+            await asyncio.to_thread(self.outbox.mark_retryable_failure,event_id,self.worker_id,'other_executor','Handled by another executor',datetime.now(UTC))
+            return
         if event["event_type"] == "cancel_run":
             await asyncio.to_thread(self.lifecycle.cancelled_run, account_id, run_id)
             await asyncio.to_thread(
@@ -155,7 +160,8 @@ class FakeArtifactExecutor:
     def __init__(self, database: object, settings: WebApiSettings):
         if settings.environment == "production":
             raise ValueError("fake artifact executor cannot run in production")
-        self.outbox = ArtifactOutboxService(database)
+        self.database = database
+        self.outbox = OutboxService(database)
         self.build = ArtifactBuildService(database, WebArtifactGenerator(_FakeArtifactModel()))
         self.worker_id = "web-e2e-fake-artifact"
         self._task: asyncio.Task[None] | None = None
@@ -169,16 +175,20 @@ class FakeArtifactExecutor:
             with contextlib.suppress(asyncio.CancelledError):
                 await self._task
 
-    async def _run(self) -> None:
+    async def _run(self):
+        from orchestration.work_schedule import WorkScheduleService
+        from run_domain.lifecycle import RunLifecycleService
         while True:
-            events = await asyncio.to_thread(self.outbox.claim, self.worker_id, 10)
-            if not events:
-                await asyncio.sleep(0.01)
-                continue
+            await asyncio.to_thread(WorkScheduleService(self.database).run_once)
+            events = await asyncio.to_thread(self.outbox.claim,self.worker_id,{'start_run'},10)
             for event in events:
-                await self.build.execute(UUID(str(event["artifact_version_id"])))
-                await asyncio.to_thread(
-                    self.outbox.mark_processed,
-                    UUID(str(event["artifact_outbox_event_id"])),
-                    self.worker_id,
-                )
+                with UnitOfWork(self.database) as uow:
+                    run = uow.execute('SELECT * FROM runs WHERE run_id=%s', (event['run_id'],)).fetchone()
+                if run['executor_key'] != 'artifact_html':
+                    await asyncio.to_thread(self.outbox.mark_retryable_failure,event['outbox_event_id'],self.worker_id,'other_executor','Handled by another executor',datetime.now(UTC))
+                    continue
+                await asyncio.to_thread(RunLifecycleService(self.database).start,run['account_id'],run['run_id'])
+                version = UUID(run['input_snapshot']['requirement']['spec']['artifact_version_id'])
+                await self.build.execute(version,run_id=run['run_id'])
+                await asyncio.to_thread(self.outbox.mark_processed,event['outbox_event_id'],self.worker_id)
+            await asyncio.sleep(0.1)

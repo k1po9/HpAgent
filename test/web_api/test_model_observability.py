@@ -89,6 +89,7 @@ def test_owned_list_and_visibility_projections_are_current_and_immutable(
         "snapshot_id", "content_hash", "model_call_id", "phase", "fallback_attempt",
         "endpoint_id", "provider", "model", "api_format", "created_at", "message_count",
         "tool_count", "resolved_url", "dispatch_status",
+        "work_id", "requirement_revision", "execution_id", "dispatched_at",
     }
     assert item["resolved_url"] == "https://example.test/v1/chat/completions"
     assert item["dispatch_status"] == "not_dispatched"

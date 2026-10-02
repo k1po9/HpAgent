@@ -823,8 +823,6 @@ class DurableAgentActivities:
                         request.run_id,
                         request.lease_token,
                     )
-                    if side_effect_class == "non_idempotent_write":
-                        non_idempotent_may_have_executed = True
                     reservation = {"tool_calls": 1}
                     if self.run_budget is not None:
                         reservation = self.actions.budget_reservation(
@@ -843,6 +841,7 @@ class DurableAgentActivities:
                                 type=exc.code,
                                 non_retryable=True,
                             ) from exc
+                    tool_dispatched = False
                     try:
                         with model_budget_scope(
                             request.account_id, request.run_id,
@@ -850,22 +849,25 @@ class DurableAgentActivities:
                             phase="tool_result_summary",
                             execution_attempt=request.execution_attempt,
                         ):
-                            result_value = await self.actions.execute_request(
-                                action,
-                                resource_key=self.context_bindings.resource_key(request),
-                                execution_id=request.execution_id,
-                                user_query="",
-                                idempotency_key=request.operation_id,
-                            )
+                            from resources.capacity import CapacityService
+                            async with CapacityService(self.store.database_url).slot(request.run_id, 'tool'):
+                                await asyncio.to_thread(self.store.validate_and_renew_lease,request.account_id,request.run_id,request.lease_token)
+                                tool_dispatched = True
+                                if side_effect_class == 'non_idempotent_write':
+                                    non_idempotent_may_have_executed = True
+                                result_value = await self.actions.execute_request(
+                                    action,
+                                    resource_key=self.context_bindings.resource_key(request),
+                                    execution_id=request.execution_id,
+                                    user_query="",
+                                    idempotency_key=request.operation_id,
+                                )
                     except BaseException:
                         if self.run_budget is not None:
-                            await asyncio.to_thread(
-                                self.run_budget.settle,
-                                request.run_id,
-                                request.operation_id,
-                                reservation,
-                                "estimated",
-                            )
+                            if tool_dispatched:
+                                await asyncio.to_thread(self.run_budget.settle,request.run_id,request.operation_id,reservation,'estimated')
+                            else:
+                                await asyncio.to_thread(self.run_budget.release,request.run_id,request.operation_id)
                         raise
                     if self.run_budget is not None:
                         measured = {dimension: 0 for dimension in reservation}

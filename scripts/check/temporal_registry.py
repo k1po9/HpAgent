@@ -27,6 +27,7 @@ PROHIBITED_MODULES = (
     "agent",
 )
 PROHIBITED_TYPES = {
+    "ArtifactBuildWorkflow",
     "OrchestrationWorkflow",
     "WebRunWorkflow",
     "execute_agent_activity",
@@ -44,10 +45,7 @@ REQUIRED_WORKFLOWS = {
     "PlanAndExecuteWorkflow",
     "AgentStepWorkflow",
     "ToolExecutionWorkflow",
-    "ResearchReportWorkflow",
-    "ResearchTaskScheduleWorkflow",
     "NormalizeDocumentWorkflow",
-    "ArtifactBuildWorkflow",
     "ReflectWorkflow",
     "MetricsReportWorkflow",
 }
@@ -118,6 +116,7 @@ async def capture_registries() -> tuple[list[dict[str, object]], dict[str, objec
     config = AppConfig()
     deps = SimpleNamespace(
         infrastructure=SimpleNamespace(
+            workspace_root=Path("/tmp/hpagent-registry-only"),
             workspace_isolation=SimpleNamespace(account_locks=Mock()),
             sandbox_manager=Mock(),
             redis_client=None,
@@ -156,7 +155,6 @@ async def capture_registries() -> tuple[list[dict[str, object]], dict[str, objec
         record(*args, **kwargs)
         raise RegistryCaptured
 
-    config.scheduler.enabled = False
     with patch.object(worker, "init_dependencies", AsyncMock(return_value=deps)), patch.object(
         worker.Client, "connect", AsyncMock()
     ), patch.object(worker, "Worker", side_effect=stop_after_memory_registry):
@@ -166,8 +164,9 @@ async def capture_registries() -> tuple[list[dict[str, object]], dict[str, objec
             pass
     return snapshots, {
         "run_dispatcher": type(composition.dispatcher).__name__,
-        "artifact_dispatcher": type(composition.artifact_dispatcher).__name__,
-        "reminder_handlers": [call.args[0] for call in deps.scheduler.register_handler.call_args_list],
+        "artifact_execution": "registered_run_strategy",
+        "reminder_execution": "registered_run_strategy",
+        "research_execution": "fixed_run_graph",
     }
 
 

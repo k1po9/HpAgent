@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Flex, Spinner, Text } from "@radix-ui/themes";
+import { WorkPanel } from "./components/WorkPanel";
+import { useWorks } from "./store/works";
 import { ChatPane } from "./components/ChatPane";
 import { ConversationSidebar } from "./components/ConversationSidebar";
 import { LoginForm } from "./components/LoginForm";
@@ -37,6 +39,7 @@ export function App() {
   useEffect(() => {
     resetArtifacts();
     resetTrace();
+    useWorks.getState().reset();
   }, [status, accountId, resetArtifacts, resetTrace]);
 
   if (status === "checking") {
@@ -167,6 +170,7 @@ function Workbench() {
           startQqBinding={startQqBinding}
         />
         <Flex direction="column" className="hp-chatpane">
+          <WorkPanel conversationId={activeConversationId} />
           <WorkspacePanel
             accountId={account?.account_id ?? null}
             currentRunId={activeRunId}

@@ -50,5 +50,5 @@ async def test_same_account_web_private_group_context_rotation_cancel_retry(
     retry_id = UUID(retried['run']['run_id'])
     worker.start_run(account_id, retry_id)
     worker.complete_run(account_id, retry_id, 'retried committed answer')
-    assert db.execute('SELECT count(*) FROM qq_deliveries WHERE run_id=%s', (retry_id,)).fetchone()[0] == 1
+    assert db.execute('SELECT count(*) FROM deliveries d JOIN notifications n USING(account_id,notification_id) WHERE n.run_id=%s', (retry_id,)).fetchone()[0] == 1
     assert db.execute('SELECT status FROM runs WHERE run_id=%s', (UUID(g['run_id']),)).fetchone()[0] == 'queued'

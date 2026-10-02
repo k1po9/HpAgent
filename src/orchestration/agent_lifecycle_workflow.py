@@ -121,6 +121,10 @@ class AgentLifecycleWorkflow:
                 start_to_close_timeout=timedelta(seconds=20), retry_policy=_LIFECYCLE_RETRY,
             )
             if strategy["strategy_kind"] == "fixed_workflow":
+                if strategy['executor_key'] == 'artifact_html':
+                    await workflow.execute_activity('execute_artifact_build_activity', request,
+                        task_queue=WEB_LIFECYCLE_TASK_QUEUE, start_to_close_timeout=timedelta(minutes=10), heartbeat_timeout=timedelta(seconds=30), retry_policy=_LIFECYCLE_RETRY)
+                    return _completed(request.run_id)
                 # The registered graph runs within this same finite Workflow identity.
                 return await ResearchReportWorkflow().run(ResearchWorkflowInput(1, request.run_id))
             if strategy["strategy_kind"] == "deterministic":

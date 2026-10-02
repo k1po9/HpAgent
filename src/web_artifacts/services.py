@@ -56,11 +56,11 @@ class ArtifactService:
             )
             uow.execute(
                 "INSERT INTO artifact_versions(artifact_version_id,artifact_id,account_id,"
-                "version,instruction) VALUES (%s,%s,%s,1,%s)",
-                (version_id, artifact_id, account_id, instruction),
+                "version,instruction,source_markdown) VALUES (%s,%s,%s,1,%s,%s)",
+                (version_id, artifact_id, account_id, instruction, source["content"]),
             )
             self._enqueue(
-                uow, event_id, account_id, source["conversation_id"], artifact_id, version_id
+                uow, event_id, account_id, source["conversation_id"], artifact_id, version_id, 'create_artifact', key
             )
             body = self._detail(uow, account_id, artifact_id)
             self._complete(uow, account_id, "create_artifact", key, 202, body)
@@ -82,10 +82,8 @@ class ArtifactService:
             ).fetchone()
             if not artifact:
                 raise ResourceNotFound()
-            if artifact.get("research_run_id") is not None:
-                raise ValueError("artifact_research_version_unsupported")
             latest = uow.execute(
-                "SELECT artifact_version_id,version FROM artifact_versions "
+                "SELECT artifact_version_id,version,source_markdown FROM artifact_versions "
                 "WHERE account_id=%s AND artifact_id=%s ORDER BY version DESC LIMIT 1",
                 (account_id, artifact_id),
             ).fetchone()
@@ -98,12 +96,12 @@ class ArtifactService:
             number = int(latest["version"]) + 1 if latest else 1
             uow.execute(
                 "INSERT INTO artifact_versions(artifact_version_id,artifact_id,account_id,"
-                "version,parent_version_id,instruction) VALUES (%s,%s,%s,%s,%s,%s)",
+                "version,parent_version_id,instruction,source_markdown) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                 (version_id, artifact_id, account_id, number,
-                 parent["artifact_version_id"] if parent else None, instruction),
+                 parent["artifact_version_id"] if parent else None, instruction, latest["source_markdown"] if latest else None),
             )
             self._enqueue(
-                uow, event_id, account_id, artifact["conversation_id"], artifact_id, version_id
+                uow, event_id, account_id, artifact["conversation_id"], artifact_id, version_id, 'create_artifact_version', key
             )
             version = self._version_row(uow, account_id, version_id)
             body = {"artifact": self._artifact_dto(artifact), "version": self._version_dto(version)}
@@ -204,15 +202,29 @@ class ArtifactService:
         )
 
     @staticmethod
-    def _enqueue(uow: UnitOfWork, event_id: UUID, account_id: UUID,
-                 conversation_id: UUID, artifact_id: UUID, version_id: UUID) -> None:
-        uow.execute(
-            "INSERT INTO artifact_outbox_events(artifact_outbox_event_id,account_id,"
-            "conversation_id,artifact_id,artifact_version_id,event_type,business_key) "
-            "VALUES (%s,%s,%s,%s,%s,'start_artifact_build',%s)",
-            (event_id, account_id, conversation_id, artifact_id, version_id,
-             f"artifact:start:{version_id}"),
-        )
+    def _enqueue(uow, event_id, account_id, conversation_id, artifact_id, version_id, operation, key):
+        from resources.work_budget import WorkBudgetService
+        from work_domain.models import Requirement, continuation
+        from work_domain.persistence import WorkRepository, sync_schedule
+        work_id = uuid7()
+        # A new background mandate owns this build and its cost; source is merely input.
+        command = uow.execute("SELECT idempotency_command_id FROM idempotency_commands WHERE account_id=%s AND operation=%s AND idempotency_key=%s AND status='in_progress'", (account_id,operation,key)).fetchone()
+        if command is None:
+            raise ValueError('artifact build command missing')
+        value = Requirement('Build the requested HTML artifact', 'artifact_build',
+                            {'schema_version':1,'artifact_version_id':str(version_id)},
+                            acceptance_criteria=({'id':'artifact_ready','required':True,'evidence_types':['artifact_version']},)).to_dict()
+        uow.execute("INSERT INTO works(work_id,account_id,title,continuation) VALUES (%s,%s,'HTML artifact build',%s::jsonb)",
+                    (work_id,account_id,json.dumps(continuation())))
+        WorkBudgetService.create(uow,account_id,work_id)
+        WorkRepository.insert_requirement(uow,account_id,work_id,1,value,command['idempotency_command_id'],'artifact_build_requested')
+        work = WorkRepository.get(uow,account_id,work_id)
+        if conversation_id:
+            from work_domain.commands import WorkCommandService
+            WorkCommandService._link(uow,work,conversation_id,command['idempotency_command_id'])
+        WorkRepository.event(uow,work,'accepted',command_id=command['idempotency_command_id'])
+        sync_schedule(uow,work,value)
+        WorkRepository.wakeup(uow,work,f'artifact:{version_id}','accepted','artifact_build_requested')
 
     @staticmethod
     def _instruction(value: str | None, required: bool = False) -> str | None:
@@ -243,8 +255,6 @@ class ArtifactService:
                                     if row["conversation_id"] is not None else None),
                 "source_message_id": (str(row["source_message_id"])
                                       if row["source_message_id"] is not None else None),
-                "research_run_id": (str(row.get("research_run_id"))
-                                    if row.get("research_run_id") is not None else None),
                 "kind": row["kind"], "title": row["title"],
                 "created_at": cls._timestamp(row["created_at"]),
                 "updated_at": cls._timestamp(row["updated_at"])}
@@ -260,6 +270,9 @@ class ArtifactService:
                 "parent_version_id": str(row["parent_version_id"]) if row["parent_version_id"] else None,
                 "status": row["status"], "instruction": row["instruction"],
                 "html": row["html"], "failure": failure,
+                "producing_run_id": str(row['producing_run_id']) if row.get('producing_run_id') else None,
+                "producing_execution_id": str(row['producing_execution_id']) if row.get('producing_execution_id') else None,
+                "producing_operation_id": row.get('producing_operation_id'),
                 "created_at": cls._timestamp(row["created_at"]),
                 "started_at": cls._timestamp(row["started_at"]),
                 "completed_at": cls._timestamp(row["completed_at"])}

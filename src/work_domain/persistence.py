@@ -62,7 +62,7 @@ class WorkRepository:
 
     @staticmethod
     def event(uow: UnitOfWork, work: dict, event_type: str, *, command_id: UUID | None = None,
-              run_id: UUID | None = None, **payload: Any) -> None:
+              run_id: UUID | None = None, **payload: Any) -> UUID:
         event_id = uuid7()
         uow.execute(
             'INSERT INTO work_events(event_id,account_id,work_id,event_seq,event_type,'
@@ -72,12 +72,16 @@ class WorkRepository:
             (event_id, work['account_id'], work['work_id'], event_type,
              work['current_requirement_revision'], command_id, run_id,
              json.dumps({'schema_version': 1, **dto(payload)}), work['account_id'], work['work_id']))
+        from delivery.service import enqueue_event
+        enqueue_event(uow, work, event_id, event_type, run_id)
         uow.execute(
             'INSERT INTO outbox_events(outbox_event_id,account_id,event_type,business_key,'
             'work_id,aggregate_type,aggregate_id,payload) VALUES (%s,%s,\'publish_work_event\','
             '%s,%s,\'work\',%s,%s::jsonb)',
             (uuid7(), work['account_id'], f'work-event:{event_id}', work['work_id'], work['work_id'],
              json.dumps({'work_id': str(work['work_id']), 'event_id': str(event_id), 'version': 1})))
+
+        return event_id
 
     @staticmethod
     def wakeup(uow: UnitOfWork, work: dict, key: str, kind: str, reason: str,

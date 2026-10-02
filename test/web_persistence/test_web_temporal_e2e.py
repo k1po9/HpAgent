@@ -242,12 +242,12 @@ async def test_web_canonical_lifecycle(
             delivery = QQDeliveryService(worker_database_url, QQDeliveryAdapter(router))
             calls_before_delivery = brain.calls
             await delivery.deliver_once()
-            db.execute("UPDATE qq_deliveries SET available_at=now()")
+            db.execute("UPDATE deliveries SET available_at=now()")
             await delivery.deliver_once()
             assert router.sent[0] == router.sent[1]
             assert "canonical reply" in router.sent[1]
             assert brain.calls == calls_before_delivery
-            assert db.execute("SELECT state FROM qq_deliveries WHERE run_id=%s", (run_id,)).fetchone()[0] == "delivered"
+            assert db.execute("SELECT d.state FROM deliveries d JOIN notifications n USING(account_id,notification_id) WHERE n.run_id=%s", (run_id,)).fetchone()[0] == "accepted"
         before = brain.calls
         db.execute(
             "UPDATE outbox_events SET available_at=now() WHERE run_id=%s AND event_type='start_run'",

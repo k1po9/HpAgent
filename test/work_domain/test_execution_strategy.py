@@ -52,14 +52,14 @@ async def test_reminder_due_replay_enqueues_once_and_never_completes_delivery(co
     schedule = owner.execute('SELECT * FROM work_schedules WHERE work_id=%s', (work_id,)).fetchone()
     schedules.occurrence(account_id, work_id, schedule['schedule_version'], due)
     assert owner.execute('SELECT count(*) AS n FROM runs WHERE work_id=%s', (work_id,)).fetchone()['n'] == 1
-    assert owner.execute('SELECT count(*) AS n FROM reminder_intents WHERE work_id=%s', (work_id,)).fetchone()['n'] == 1
+    assert owner.execute('SELECT count(*) AS n FROM notifications WHERE purpose=\'fulfillment\' AND work_id=%s', (work_id,)).fetchone()['n'] == 1
     assert owner.execute('SELECT count(*) AS n FROM execution_result_receipts WHERE run_id=%s', (run_id,)).fetchone()['n'] == 1
     current = commands.get(account_id, work_id)['work']
     assert current['status'] == 'active' and current['continuation']['kind'] == 'awaiting_delivery'
     assert current['active_coordinator_run_id'] is None
     assert owner.execute('SELECT model_calls FROM (SELECT used->>\'model_calls\' AS model_calls FROM run_budgets WHERE run_id=%s) b', (run_id,)).fetchone()['model_calls'] is None
     commands.control(account_id, work_id, str(uuid4()), current['row_version'], 'stop')
-    assert owner.execute('SELECT state FROM reminder_intents WHERE work_id=%s', (work_id,)).fetchone()['state'] == 'cancelled'
+    assert owner.execute("SELECT d.state FROM deliveries d JOIN notifications n USING(account_id,notification_id) WHERE n.work_id=%s AND n.purpose='fulfillment'", (work_id,)).fetchone()['state'] == 'cancelled'
 
 
 def test_daily_recovery_coalesces_history_and_preserves_schedule_version(commands, account_id, urls, owner):

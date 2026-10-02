@@ -99,6 +99,15 @@ class ConversationService:
                     target = UUID(content.split(maxsplit=1)[1])
                 except ValueError as exc:
                     raise InvalidQQMessage("invalid cancellation Run ID") from exc
+        if content.startswith('/work '):
+            parts = content.split()
+            if len(parts) != 3 or parts[2] not in {'status','pause','resume','stop'}:
+                raise InvalidQQMessage('use /work <id> status|pause|resume|stop')
+            try:
+                target = UUID(parts[1])
+            except ValueError as exc:
+                raise InvalidQQMessage('invalid Work ID') from exc
+            operation = f'work_{parts[2]}'
         origin = {**source.origin, "context_key": source.context_key, "group_context": group_context}
         try:
             return await asyncio.to_thread(

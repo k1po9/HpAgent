@@ -22,8 +22,9 @@ class SnapshotQueryRepository:
             if owned_run is None:
                 return None
             return uow.execute(
-                "SELECT s.*,l.state AS usage_state,l.usage_source FROM model_input_snapshots s JOIN runs r "
+                "SELECT s.*,d.dispatched_at,l.state AS usage_state,l.usage_source FROM model_input_snapshots s JOIN runs r "
                 "ON r.account_id=s.account_id AND r.run_id=s.run_id "
+                "LEFT JOIN model_dispatches d ON d.account_id=s.account_id AND d.snapshot_id=s.snapshot_id "
                 "LEFT JOIN account_model_usage_ledger l ON l.snapshot_id=s.snapshot_id "
                 "WHERE s.account_id=%s AND s.run_id=%s "
                 "ORDER BY s.created_at,s.fallback_attempt,s.snapshot_id",
@@ -33,8 +34,9 @@ class SnapshotQueryRepository:
     def get(self, account_id: UUID, snapshot_id: UUID) -> Mapping[str, Any] | None:
         with UnitOfWork(self._database) as uow:
             return uow.execute(
-                "SELECT s.*,l.state AS usage_state,l.usage_source FROM model_input_snapshots s JOIN runs r "
+                "SELECT s.*,d.dispatched_at,l.state AS usage_state,l.usage_source FROM model_input_snapshots s JOIN runs r "
                 "ON r.account_id=s.account_id AND r.run_id=s.run_id "
+                "LEFT JOIN model_dispatches d ON d.account_id=s.account_id AND d.snapshot_id=s.snapshot_id "
                 "LEFT JOIN account_model_usage_ledger l ON l.snapshot_id=s.snapshot_id "
                 "WHERE s.account_id=%s AND s.snapshot_id=%s",
                 (account_id, snapshot_id),

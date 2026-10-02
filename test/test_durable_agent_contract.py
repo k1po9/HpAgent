@@ -17,9 +17,7 @@ from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
-from orchestration.artifact_workflow import ArtifactBuildWorkflow
 from orchestration.document_workflow import NormalizeDocumentWorkflow
-from orchestration.research_workflow import ResearchReportWorkflow
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from orchestration.web_workers import build_web_temporal_workers
 from web_api.models import SendMessageRequest
@@ -87,8 +85,6 @@ def test_canonical_registry_excludes_legacy_execution(monkeypatch):
     )
     assert made[0]["workflows"] == [
         AgentLifecycleWorkflow,
-        ResearchReportWorkflow,
-        ArtifactBuildWorkflow,
         NormalizeDocumentWorkflow,
     ]
     assert made[1]["workflows"] == [
@@ -153,7 +149,7 @@ async def test_durable_run_timeout_is_independent_of_legacy_execution_limit():
 
     class Client:
         async def start_workflow(self, *args, **kwargs):
-            assert kwargs["execution_timeout"] is None
+            assert kwargs["execution_timeout"].total_seconds() == 3000
             return SimpleNamespace(result_run_id="temporal-run")
 
     assert await TemporalClientAdapter(Client()).start_web_run(

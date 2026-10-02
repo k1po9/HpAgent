@@ -63,6 +63,8 @@ _STABLE_FAILURE_MESSAGES = {
     "model_unavailable": "模型暂时不可用。",
     "model_timeout": "模型调用超时。",
     "account_model_entitlement_unavailable": "账户模型权限不可用。",
+    "work_budget_exhausted": "工作累计预算已耗尽。",
+    "run_budget_exhausted": "本次执行预算已耗尽。",
     "account_daily_model_budget_exhausted": "账户今日模型额度已耗尽。",
     "model_access_tier_denied": "当前账户无权访问所选模型。",
     "tool_failed": "工具执行失败。",

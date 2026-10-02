@@ -34,7 +34,7 @@ class SurfaceConversationCommands:
         self, *, provider: str, subject: str, route: dict, message_key: str,
         content: str, origin: dict, operation: str = "message", target_run: UUID | None = None,
     ) -> CommandResult:
-        if operation not in {"message", "cancel"}:
+        if operation not in {"message", "cancel", "work_status", "work_pause", "work_resume", "work_stop"}:
             raise ValueError("unsupported surface command")
         digest = bytes.fromhex(stable_key({
             "route": route, "subject": subject, "content": content,
@@ -91,6 +91,25 @@ class SurfaceConversationCommands:
                     "SELECT conversation_id FROM conversation_bindings WHERE account_id=%s AND binding_key=%s",
                     (account_id, binding_key),
                 ).fetchone()["conversation_id"]
+            if operation.startswith('work_'):
+                from work_domain.commands import WorkCommandService, WorkConflict
+                service = WorkCommandService(uow)
+                try:
+                    snapshot = service.get(account_id,target_run)['work']
+                    linked = service.link(account_id,target_run,cid,message_key+':link',snapshot['row_version'])
+                    snapshot = linked.body['work']
+                    if operation != 'work_status':
+                        snapshot = service.control(account_id,target_run,message_key,snapshot['row_version'],operation.removeprefix('work_')).body['work']
+                    # Group control replies disclose only the explicitly addressed Work's control state.
+                    result = CommandResult(200, {'work_control': {'work_id':snapshot['work_id'],'status':snapshot['status'],
+                                            'requirement_revision':snapshot['current_requirement_revision'],
+                                            'reason':snapshot['continuation']['reason']}})
+                except WorkConflict as exc:
+                    result = CommandResult(409,{'code':exc.reason})
+                body = {**result.body,'conversation_id':str(cid),'account_id':str(account_id)}
+                uow.execute('INSERT INTO conversation_ingress_receipts(account_id,message_key,conversation_id,request_hash,response_status,response_body) VALUES (%s,%s,%s,%s,%s,%s::jsonb)',
+                            (account_id,message_key,cid,digest,result.response_status,json.dumps(body)))
+                return CommandResult(result.response_status,body)
             if not self.commands.conversations.lock_active(uow, account_id, cid):
                 raise ResourceNotFound()
             try:
