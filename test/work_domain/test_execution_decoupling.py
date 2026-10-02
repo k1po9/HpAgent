@@ -255,7 +255,7 @@ def test_dispatch_dead_letter_uses_work_lifecycle(owner, urls, commands, account
     assert decision.should_start
     assert store.prepare_start(run_id) == decision
     outbox = OutboxService(urls[2])
-    for event in outbox.claim("phase2", {"start_research_run"}, 100):
+    for event in outbox.claim("phase2", {"start_run"}, 100):
         outbox.dead_letter(event["outbox_event_id"], "phase2", "test_exhausted", "dispatch failed")
     assert commands.get(account_id, work_id)["work"]["active_coordinator_run_id"] is None
     assert (

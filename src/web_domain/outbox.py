@@ -15,7 +15,7 @@ from persistence.uow import UnitOfWork, retryable_transaction
 from .errors import OutboxLeaseLost, ResourceNotFound
 
 OUTBOX_EVENT_TYPES = frozenset(
-    {"start_run", "start_research_run", "cancel_run", "retain_memory", "publish_terminal_event",
+    {"start_run", "cancel_run", "retain_memory", "publish_terminal_event",
      "file_action_approval_decided"}
 )
 
@@ -23,7 +23,7 @@ OUTBOX_EVENT_TYPES = frozenset(
 # Dispatcher itself owns.  Other consumers (terminal publishing, retain) hold
 # their own ``processing`` rows and must never be stolen by this recovery loop.
 WEB_OUTBOX_RECOVERY_EVENT_TYPES = frozenset(
-    {"start_run", "start_research_run", "cancel_run", "file_action_approval_decided"}
+    {"start_run", "cancel_run", "file_action_approval_decided"}
 )
 
 
@@ -96,7 +96,7 @@ class OutboxService:
             event = self.repository.lock_owned_event(uow, event_id, worker_id)
             if event is None or event['run_id'] != context['run_id']:
                 raise OutboxLeaseLost()
-            if event['event_type'] in {'start_run','start_research_run'} and run['status'] == 'queued':
+            if event['event_type'] in {'start_run'} and run['status'] == 'queued':
                 RunLifecycleService(self.database_url).finish_in_uow(
                     uow, run, 'failed', failure_code='workflow_start_exhausted', failure_message=safe_message)
             changed = self.repository.mark_dead_letter(

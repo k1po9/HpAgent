@@ -32,12 +32,9 @@ _LOCAL_SIDE_EFFECT_CLASS = {
     "fs_read": "read_only",
     "Glob": "read_only",
     "Grep": "read_only",
-    "list_reminders": "read_only",
     "fs_write": "idempotent_write",
     "fs_edit": "non_idempotent_write",
     "Bash": "non_idempotent_write",
-    "create_reminder": "non_idempotent_write",
-    "cancel_reminder": "non_idempotent_write",
 }
 
 
@@ -73,7 +70,7 @@ class SandboxManager:
         file_output_publisher: Any = None,
         file_conversion_provider: Any = None,
         file_document_router: Any = None,
-        scheduler: Any = None,
+        work_commands: Any = None,
     ):
         self._nsjail_config = nsjail_config or NsjailConfig()
         self._redis_cache = redis_cache
@@ -91,7 +88,7 @@ class SandboxManager:
         self._file_output_publisher = file_output_publisher
         self._file_conversion_provider = file_conversion_provider
         self._file_document_router = file_document_router
-        self._scheduler = scheduler
+        self._work_commands = work_commands
 
         self._sandboxes: Dict[str, Sandbox] = {}
         self._execution_to_sandbox: Dict[str, str] = {}
@@ -149,26 +146,17 @@ class SandboxManager:
 
         registry = ToolRegistry()
 
-        # ── 提醒工具（无条件注册，不依赖 native_tools_enabled） ──
-        reminder_keys = ("create_reminder", "list_reminders", "cancel_reminder")
-        ctx = session_context or {
-            "account_id": user_uuid,
-            "sender_id": "",
-            "channel_type": "",
-            "metadata": {},
-        }
-        for name in reminder_keys:
-            factory = LOCAL_TOOL_FACTORIES.get(name)
-            if factory is None or self._scheduler is None:
-                continue
-            tool = factory(ctx, self._scheduler)
-            _declare_local_side_effect(tool, name)
-            registry.register(tool, category="native", routing=routing_for(tool, "native"))
+        ctx = session_context or {"account_id": user_uuid, "channel_type": "work"}
+        work_tool_names = ()
+        if self._work_commands is not None and ctx.get("source_kind") == "chat":
+            from application.main_agent import create_main_work_tools
+            tools = create_main_work_tools(ctx, self._work_commands)
+            work_tool_names = tuple(tool.name for tool in tools)
+            for tool in tools:
+                registry.register(tool, category="native", routing=routing_for(tool, "native"))
 
         if self._native_tools_enabled and not self._file_tools_enabled:
             for name, factory in LOCAL_TOOL_FACTORIES.items():
-                if name in reminder_keys:
-                    continue  # 提醒工具已在上方无条件注册
                 if name == "Bash" and not self._host_bash_enabled:
                     continue
                 tool = factory(workspace_path)
@@ -263,10 +251,10 @@ class SandboxManager:
             self._execution_to_sandbox[execution_id] = sandbox_id
 
         tool_counts = registry.count_by_category()
-        reminder_count = sum(
-            registry.get_category(name) == "native" for name in reminder_keys
+        work_tool_count = sum(
+            registry.get_category(name) == "native" for name in work_tool_names
         )
-        native_general_count = max(tool_counts["native"] - reminder_count, 0)
+        native_general_count = max(tool_counts["native"] - work_tool_count, 0)
         bash_registered = registry.get_category("Bash") == "native"
         nsjail_binary_ready = bool(
             nsjail_executor
@@ -281,14 +269,14 @@ class SandboxManager:
 
         logger.info(
             "Execution sandbox created: id=%s execution=%s user=%s "
-            "tools(total=%d native_general=%d reminders=%d mcp=%d skills=%d) "
+            "tools(total=%d native_general=%d work_tools=%d mcp=%d skills=%d) "
             "bash_registered=%s bash_isolation=%s",
             sandbox_id,
             execution_id,
             user_uuid,
             sum(tool_counts.values()),
             native_general_count,
-            reminder_count,
+            work_tool_count,
             tool_counts["mcp"],
             tool_counts["skill"],
             bash_registered,

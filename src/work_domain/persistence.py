@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +12,7 @@ from uuid6 import uuid7
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound
 from work_domain.models import digest
+from work_domain.timing import next_daily
 
 
 def dto(value: Any) -> Any:
@@ -95,3 +96,28 @@ class WorkRepository:
 
             raise IdempotencyConflict()
         return row['wakeup_id']
+
+
+def sync_schedule(uow, work, requirement):
+    timing = requirement['timing']
+    row = uow.execute('SELECT * FROM work_schedules WHERE account_id=%s AND work_id=%s FOR UPDATE',
+                      (work['account_id'], work['work_id'])).fetchone()
+    enabled = work['status'] == 'active' and timing['kind'] != 'immediate'
+    changed = row is None or row['timing'] != timing or row['desired_enabled'] != enabled
+    version = (row['schedule_version'] + int(changed)) if row else 1
+    due = row['next_due_at'] if row and not changed else None
+    if enabled and changed:
+        due = (datetime.fromisoformat(timing['due_at']) if timing['kind'] == 'once'
+               else next_daily(timing, datetime.now(UTC)))
+        # Existing one-shot enqueue is never repeated on resume after receipt.
+        if timing['kind'] == 'once' and work['continuation']['kind'] == 'awaiting_delivery':
+            due = None
+    uow.execute('INSERT INTO work_schedules(schedule_id,account_id,work_id,requirement_revision,'
+                'schedule_version,desired_enabled,timing,timezone,next_due_at,source_row_version) '
+                'VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s) '
+                'ON CONFLICT(account_id,work_id) DO UPDATE SET requirement_revision=EXCLUDED.requirement_revision,'
+                'schedule_version=EXCLUDED.schedule_version,desired_enabled=EXCLUDED.desired_enabled,'
+                'timing=EXCLUDED.timing,timezone=EXCLUDED.timezone,next_due_at=EXCLUDED.next_due_at,'
+                'source_row_version=EXCLUDED.source_row_version',
+                (uuid7(), work['account_id'], work['work_id'], work['current_requirement_revision'],
+                 version, enabled, json.dumps(timing), timing['timezone'], due, work['row_version']))

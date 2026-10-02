@@ -43,10 +43,13 @@ NATIVE_ROUTING_SPECS: dict[str, ToolRoutingSpec] = {
     "Grep": _workspace("workspace.grep"),
     "Bash": _workspace("workspace.shell"),
 
-    # Session services that require no file resource.
-    "create_reminder": ToolRoutingSpec("reminder.create"),
-    "list_reminders": ToolRoutingSpec("reminder.list"),
-    "cancel_reminder": ToolRoutingSpec("reminder.cancel"),
+    "accept_work": ToolRoutingSpec("work.accept_work", exposure=ToolExposure.ALWAYS),
+    "list_works": ToolRoutingSpec("work.list_works", exposure=ToolExposure.ALWAYS),
+    "get_work": ToolRoutingSpec("work.get_work", exposure=ToolExposure.ALWAYS),
+    "revise_work": ToolRoutingSpec("work.revise_work", exposure=ToolExposure.ALWAYS),
+    "control_work": ToolRoutingSpec("work.control_work", exposure=ToolExposure.ALWAYS),
+    "advance_work": ToolRoutingSpec("work.advance_work", exposure=ToolExposure.ALWAYS),
+    "link_work": ToolRoutingSpec("work.link_work", exposure=ToolExposure.ALWAYS),
 
     "list_run_candidates": _run_context("file.candidates.list", exposure=ToolExposure.ALWAYS),
     "select_run_candidate": _run_context("file.candidates.select", exposure=ToolExposure.FRONT_DOOR,

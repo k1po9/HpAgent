@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any, Protocol, cast
 from uuid import UUID
 
-from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.lifecycle import RunLifecycleService
 
@@ -40,7 +39,6 @@ class WebRunLifecycleService:
         terminal_observer: RunLifecycleObserver | None = None,
     ):
         self.database_url = database_url
-        self.commands = CommandService(database_url)
         self._terminal_observer = terminal_observer
 
     @retryable_transaction
@@ -97,12 +95,32 @@ class WebRunLifecycleService:
         self._observe_terminal(run_id, authority.status, {"error_code": error_code})
         return authority
 
-    def complete(self, run_id: UUID, content: str) -> LifecycleAuthority:
+    def complete(self, run_id: UUID, content: str, result_ref: str | None = None) -> LifecycleAuthority:
         """The sole Web success terminal entrypoint, called by WebReplySink."""
         account_id = self._account_for(run_id)
         current = self._authority(run_id)
-        if current.status not in {"cancelling", "cancelled"}:
-            self.commands.complete_run(account_id, run_id, content)
+        if current.status not in {"cancelling", "cancelled", "succeeded", "failed"}:
+            with UnitOfWork(self.database_url) as uow:
+                run = RunLifecycleService.lock(uow, account_id, run_id)
+                if run['source_kind'] == 'chat':
+                    RunLifecycleService(self.database_url).finish_in_uow(uow, run, 'succeeded', content=content)
+                else:
+                    work = RunLifecycleService.check_work(uow, run)
+                    receipt = uow.execute(
+                        "SELECT o.result_ref FROM execution_operations o JOIN execution_result_receipts r "
+                        "ON r.operation_id=o.operation_id WHERE o.account_id=%s AND o.run_id=%s "
+                        "AND o.result_ref=%s AND o.status='completed' AND r.disposition='current'",
+                        (account_id, run_id, result_ref),
+                    ).fetchone()
+                    if not receipt:
+                        raise ValueError('Generic Work result needs a registered current operation receipt')
+                    uow.execute('UPDATE run_executions SET result_ref=%s WHERE run_id=%s',
+                                (receipt['result_ref'], run_id))
+                    from application.work_context import generic_result
+                    result, suggest_completion = generic_result(uow, run, work, content, receipt['result_ref'])
+                    RunLifecycleService(self.database_url).finish_in_uow(
+                        uow, run, 'succeeded', result=result, accept_result=suggest_completion,
+                    )
         authority = cast(LifecycleAuthority, self._authority(run_id))
         self._observe_terminal(run_id, authority.status)
         return authority

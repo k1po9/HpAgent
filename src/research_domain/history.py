@@ -17,7 +17,7 @@ def freeze_history(uow: UnitOfWork, account_id: UUID, run_id: UUID) -> None:
     run = uow.execute("SELECT work_id,created_at FROM runs WHERE run_id=%s", (run_id,)).fetchone()
     policy = ResourcePolicy(None)
     candidates = uow.execute(
-        "SELECT c.node_id,sf.file_id,rr.run_id AS source_run_id,rr.snapshot,r.created_at "
+        "SELECT c.node_id,sf.file_id,rr.run_id AS source_run_id,rr.snapshot,r.created_at,r.requirement_revision AS source_requirement_revision "
         "FROM run_resource_candidates c JOIN workspace_nodes n ON n.node_id=c.node_id "
         "LEFT JOIN persistent_file_destinations d ON d.account_id=n.account_id "
         "AND d.destination_id=n.destination_id "
@@ -40,6 +40,7 @@ def freeze_history(uow: UnitOfWork, account_id: UUID, run_id: UUID) -> None:
         if not snapshot or used + len(encoded) > HISTORY_BUDGET_BYTES:
             continue
         selected.append({"run_id": str(row["source_run_id"]),
+                         "source_requirement_revision": row["source_requirement_revision"],
                          "node_id": str(row["node_id"]), "file_id": str(row["file_id"]),
                          "snapshot": snapshot, "sha256": hashlib.sha256(encoded).hexdigest(),
                          "reason": "same_work_recent_authorized", "bytes": len(encoded)})

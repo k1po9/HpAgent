@@ -22,7 +22,6 @@ from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.artifact_workflow import ARTIFACT_TASK_QUEUE, ArtifactBuildWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.document_workflow import NormalizeDocumentWorkflow
-from orchestration.research_workflow import ResearchReportWorkflow
 from orchestration.run_lifecycle_contracts import (
     WEB_AGENT_TASK_QUEUE,
     WEB_LIFECYCLE_TASK_QUEUE,
@@ -86,7 +85,6 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
     assert made[0]["task_queue"] == WEB_LIFECYCLE_TASK_QUEUE
     assert made[0]["workflows"] == [
         AgentLifecycleWorkflow,
-        ResearchReportWorkflow,
         ArtifactBuildWorkflow,
         NormalizeDocumentWorkflow,
     ]

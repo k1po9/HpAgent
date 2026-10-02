@@ -70,6 +70,9 @@ class ExecutionResourceService:
             user_uuid=str(account_id),
             session_context={
                 "account_id": str(account_id),
+                "source_kind": run["source_kind"],
+                "conversation_id": str(run["conversation_id"]) if run["conversation_id"] else None,
+                "trigger_message_id": str(run["trigger_message_id"]) if run["trigger_message_id"] else None,
                 "channel_type": (origin["origin"] if origin else {}).get("channel_type", "web"),
                 "metadata": {"run_id": str(run_id), "execution_id": execution_id},
             },

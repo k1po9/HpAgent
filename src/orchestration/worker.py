@@ -33,7 +33,6 @@ from application.conversation import ConversationService
 from application.identity_commands import IdentityCommandService
 from application.ingress import MessageIngressService
 from application.prompts import PromptLoader
-from application.scheduler import TaskScheduler
 from bootstrap.qq import QQSurfaceServices, build_qq_surface_services
 from bootstrap.shared_runtime import SharedAgentServices, build_shared_agent_services
 from channels.napcat import NapCatChannel
@@ -113,7 +112,7 @@ def compose_durable_runtime(
         PostgresWebRequestLoader,
     )
     from application.context_assembly import ContextAssemblyService
-    from conversation_domain.execution_bindings import ChatExecutionBindings
+    from application.work_context import RunExecutionBindings, RunRequestLoader
     from file_domain.approvals import FileActionApprovalService
     from file_runtime import ResearchMarkdownPublisher
     from orchestration.artifact_activities import ArtifactActivities
@@ -121,6 +120,7 @@ def compose_durable_runtime(
         ArtifactOutboxDispatcher,
         TemporalArtifactClient,
     )
+    from orchestration.run_dispatcher import ReminderActivities, RunStrategyActivities
     from orchestration.run_lifecycle_activities import RunLifecycleActivities
     from orchestration.web_dispatcher import (
         TemporalClientAdapter,
@@ -197,7 +197,7 @@ def compose_durable_runtime(
         infrastructure.run_file_workspace,
         execution_root=infrastructure.workspace_root / "executions",
     )
-    loader = PostgresWebRequestLoader(worker_database_url, context)
+    loader = RunRequestLoader(worker_database_url, PostgresWebRequestLoader(worker_database_url, context))
     agent_store = AgentDataStore(
         worker_database_url,
         lease_ttl_seconds=config.temporal.agent_execution_lease_ttl_seconds,
@@ -241,7 +241,7 @@ def compose_durable_runtime(
         ),
     )
     durable_activities = DurableAgentActivities(
-        context_bindings=ChatExecutionBindings(),
+        context_bindings=RunExecutionBindings(),
         store=agent_store,
         loader=loader,
         brain=shared.brain_engine,
@@ -264,6 +264,8 @@ def compose_durable_runtime(
     workers = build_web_temporal_workers(
         client,
         lifecycle_activities=[
+            RunStrategyActivities(worker_database_url).load_strategy,
+            ReminderActivities(worker_database_url).execute,
             lifecycle_activities.prepare_run,
             lifecycle_activities.load_agent_run_input,
             lifecycle_activities.finalize_failed,
@@ -378,7 +380,10 @@ def _build_web_background_tasks(
         run_artifact_outbox_recovery_loop,
     )
     from orchestration.web_dispatcher import run_web_outbox_recovery_loop
-
+    from orchestration.work_schedule import WorkScheduleService, run_work_schedule_loop
+    tasks.create(run_work_schedule_loop(WorkScheduleService(
+        web_dispatcher.outbox.database_url, budget_mode=os.getenv("RUN_BUDGET_MODE", "enforce")
+    )))
     tasks.create(_run_web_dispatcher_loop(web_dispatcher))
     tasks.create(
         _run_web_reconciler_loop(web_reconciler)
@@ -454,7 +459,6 @@ class WorkerDependencies:
     infrastructure: SharedInfrastructure
     shared: SharedAgentServices
     qq: QQSurfaceServices
-    scheduler: TaskScheduler
     resource_stack: AsyncExitStack
 
     async def close(self) -> None:
@@ -732,12 +736,9 @@ async def _init_dependencies(
                 gotenberg_url, max_output_bytes=file_capability.max_bytes
             )
 
-    # ── 5b. 定时调度器 ──
-    scheduler: TaskScheduler = TaskScheduler(data_dir=Path(config.scheduler.data_dir))
-    logger.info("TaskScheduler initialized: data_dir=%s poll_interval=%.1fs",
-                config.scheduler.data_dir, config.scheduler.poll_interval)
+    # Account-bound Main Work tools share the API command service.
+    from work_domain.commands import WorkCommandService
 
-    # ── 6. 沙箱管理器（依赖 3+4+5）────
     sandbox_manager = SandboxManager(
         nsjail_config=nsjail_config,
         redis_cache=redis_cache,
@@ -753,7 +754,9 @@ async def _init_dependencies(
         ),
         file_output_publisher=file_output_publisher,
         file_conversion_provider=file_conversion_provider,
-        scheduler=scheduler,
+        work_commands=WorkCommandService(
+            worker_database_url, budget_mode=os.getenv("RUN_BUDGET_MODE", "enforce")
+        ),
     )
     resource_stack.callback(sandbox_manager.close)
 
@@ -816,7 +819,6 @@ async def _init_dependencies(
         ),
         shared=shared,
         qq=qq,
-        scheduler=scheduler,
         resource_stack=resource_stack.pop_all(),
     )
 
@@ -834,50 +836,9 @@ async def start_worker(config: AppConfig) -> None:
             metrics=deps.shared.metrics,
         )
 
-        # ── 注册提醒 handler ──
-        async def _handle_user_reminder(task):
-            """发送用户提醒消息。"""
-            ch_str = task.params.get("channel_type", "napcat")
-            try:
-                ch_type = ChannelType(ch_str)
-            except ValueError:
-                ch_type = ChannelType.NAPCAT
-
-            metadata = task.params.get("metadata", {})
-            content = f"[提醒] {task.params.get('content', '')}"
-
-            # 群聊中 @ 回原用户
-            sender_id = task.params.get("sender_id", "")
-            if metadata.get("detail_type") == "group" and sender_id:
-                content = f"[CQ:at,qq={sender_id}] {content}"
-
-            msg = UnifiedMessage(
-                session_id=f"reminder-{task.id}",
-                account_id=task.params.get("account_id", ""),
-                sender_id=sender_id,
-                channel_type=ch_type,
-                content=content,
-                metadata=metadata,
-            )
-            await deps.qq.channel_router.send(msg)
-
-        deps.scheduler.register_handler("user_reminder", _handle_user_reminder)
-
-        # ── 加载持久化任务 + 注入 scheduler 到 reminder 模块 + 启动轮询 ──
-        if config.scheduler.enabled:
-            await deps.scheduler.load()
-            background_tasks.create(
-                deps.scheduler.poll_loop(interval=config.scheduler.poll_interval)
-            )
-            logger.info("TaskScheduler poll_loop started")
-        else:
-            logger.info("TaskScheduler disabled by config")
-
-        # ── 连接 Temporal ──
         client = await Client.connect(config.temporal.host)
         logger.info("Temporal connected")
 
-        # ── 创建 Worker ──
         worker = Worker(
             client,
             task_queue=config.temporal.task_queue,

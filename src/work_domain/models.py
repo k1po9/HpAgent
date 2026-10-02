@@ -55,17 +55,24 @@ class Requirement:
     def to_dict(self) -> dict[str, Any]:
         if not isinstance(self.objective, str) or not self.objective.strip() or len(self.objective) > 20000:
             raise ValueError('objective is required and bounded')
-        if self.capability_key not in {'reminder', 'research_report'}:
+        if self.capability_key not in {'reminder', 'research_report', 'generic_work'}:
             raise ValueError('unsupported capability')
         if self.completion_mode not in {'deliverable', 'ongoing'}:
             raise ValueError('unsupported completion mode')
         allowed = ({'schema_version', 'content', 'target_ref'} if self.capability_key == 'reminder'
-                   else {'schema_version', 'source_strategy', 'report_format'})
+                   else {'schema_version', 'source_strategy', 'report_format'} if self.capability_key == 'research_report'
+                   else {'schema_version', 'reasoning_mode'})
         bounded(self.spec, allowed)
         if self.capability_key == 'reminder' and (
             not isinstance(self.spec.get('content'), str) or not self.spec['content'].strip()
         ):
             raise ValueError('reminder content is required')
+        if self.capability_key == 'reminder' and len(self.spec['content']) > 12000:
+            raise ValueError('reminder content exceeds limit')
+        if self.capability_key == 'generic_work' and self.spec.get('reasoning_mode', 'react') not in {'react', 'plan_and_execute'}:
+            raise ValueError('unsupported reasoning mode')
+        if self.capability_key == 'reminder' and self.spec.get('target_ref', 'account_inbox') != 'account_inbox':
+            raise ValueError('unsupported or unauthorized reminder target')
         if self.capability_key == 'research_report':
             from research_domain.models import SourceStrategy
 
@@ -93,6 +100,9 @@ class Requirement:
                 raise ValueError('daily local_time must be HH:MM')
             if self.completion_mode != 'ongoing':
                 raise ValueError('daily mandates must be ongoing')
+        expected_missed = 'latest' if timing['kind'] == 'daily' else 'catch_up'
+        if timing.get('missed_fire_policy', expected_missed) != expected_missed:
+            raise ValueError('unsupported missed-fire policy')
         if (not isinstance(self.constraints, (list, tuple)) or
             any(not isinstance(item, str) or not item.strip() or len(item) > 1000
                 for item in self.constraints)):

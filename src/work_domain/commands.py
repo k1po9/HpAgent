@@ -31,6 +31,8 @@ class WorkCommandService:
         self.idempotency = IdempotencyRepository()
 
     def _claim(self, uow, account_id, operation, key, payload):
+        from agent_activities.store import AgentDataStore
+        AgentDataStore._assert_fence(uow)
         request_hash = digest(payload)
         row = self.idempotency.claim(uow, uuid7(), account_id, operation, key, request_hash,
                                      datetime.now(UTC) + timedelta(days=7))
@@ -54,6 +56,9 @@ class WorkCommandService:
         work = self.repo.get(uow, account_id, work_id)
         work['requirement'] = self.repo.requirement(uow, account_id, work_id,
                                                    work['current_requirement_revision'])
+        schedule = uow.execute('SELECT * FROM work_schedules WHERE account_id=%s AND work_id=%s',
+                               (account_id, work_id)).fetchone()
+        work['schedule'] = dict(schedule) if schedule else None
         work['conversation_ids'] = [row['conversation_id'] for row in uow.execute(
             'SELECT conversation_id FROM work_conversations WHERE account_id=%s AND work_id=%s '
             'ORDER BY conversation_id', (account_id, work_id)).fetchall()]
@@ -107,8 +112,8 @@ class WorkCommandService:
             ).fetchone():
                 raise ResourceNotFound()
             work_id = uuid7()
-            next_step = (continuation('at_time', due_at=value['timing']['due_at'])
-                         if value['timing']['kind']=='once' else continuation())
+            from work_domain.timing import initial_continuation
+            next_step = initial_continuation(value['timing'])
             uow.execute('INSERT INTO works(work_id,account_id,title,continuation) VALUES (%s,%s,%s,%s::jsonb)',
                         (work_id, account_id, title, json.dumps(next_step)))
             self.repo.insert_requirement(uow, account_id, work_id, 1, value, command, 'accepted', source_message_id)
@@ -116,7 +121,10 @@ class WorkCommandService:
             if conversation_id:
                 self._link(uow, work, conversation_id, command, source_message_id)
             self.repo.event(uow, work, 'accepted', command_id=command, status='active')
-            self.repo.wakeup(uow, work, f'accepted:{command}', 'accepted', 'accepted', next_step.get('due_at'))
+            from work_domain.persistence import sync_schedule
+            sync_schedule(uow, work, value)
+            if value['timing']['kind'] in {'immediate', 'once'}:
+                self.repo.wakeup(uow, work, f'accepted:{command}', 'accepted', 'accepted', next_step.get('due_at'))
             return self._complete(uow, account_id, 'accept_work', key, work_id, 201)
 
     @staticmethod
@@ -137,6 +145,8 @@ class WorkCommandService:
 
     @staticmethod
     def _cancel_coordinator(uow, work, command_id=None, action=None):
+        uow.execute("UPDATE reminder_intents SET state='cancelled' WHERE account_id=%s AND work_id=%s AND state='pending'",
+                    (work['account_id'], work['work_id']))
         run_id = work['active_coordinator_run_id']
         if run_id:
             if command_id is not None:
@@ -173,8 +183,8 @@ class WorkCommandService:
             self._cancel_coordinator(uow, work, command, "revise")
             checkpoint = {**work['checkpoint'], 'requirement_revision': revision, 'needs_review': True,
                           'checkpoint_version': work['checkpoint']['checkpoint_version']+1}
-            next_step = (continuation('at_time', due_at=value['timing']['due_at'])
-                         if value['timing']['kind']=='once' else continuation('ready', 'requirement_revised'))
+            from work_domain.timing import initial_continuation
+            next_step = initial_continuation(value['timing'])
             if work['continuation'].get('operation_ref'):
                 next_step = work['continuation']
             work = dict(uow.execute('UPDATE works SET current_requirement_revision=%s,control_epoch=control_epoch+1,'
@@ -182,8 +192,10 @@ class WorkCommandService:
                                     'WHERE work_id=%s RETURNING *',
                                     (revision, json.dumps(checkpoint), json.dumps(next_step), work_id)).fetchone())
             self.repo.event(uow, work, 'revised', command_id=command, reason=reason)
-            if work['status']=='active':
-                self.repo.wakeup(uow, work, f'revision:{command}', 'revision', 'reevaluate_after_convergence')
+            from work_domain.persistence import sync_schedule
+            sync_schedule(uow, work, value)
+            if work['status']=='active' and value['timing']['kind'] in {'immediate', 'once'}:
+                self.repo.wakeup(uow, work, f'revision:{command}', 'revision', 'reevaluate_after_convergence', next_step.get('due_at'))
             return self._complete(uow, account_id, 'revise_work', key, work_id)
 
     @retryable_transaction
@@ -215,8 +227,16 @@ class WorkCommandService:
             event = {'pausing':'pause_requested','paused':'paused','stopping':'stop_requested',
                      'stopped':'stopped','active':'resumed'}[status]
             self.repo.event(uow, work, event, command_id=command, status=status)
-            if action=='resume':
-                self.repo.wakeup(uow, work, f'resume:{command}', 'resume', 'explicit_resume')
+            requirement = self.repo.requirement(uow, account_id, work_id, work['current_requirement_revision'])
+            from work_domain.persistence import sync_schedule
+            if action == 'resume' and not work['continuation'].get('operation_ref'):
+                from work_domain.timing import initial_continuation
+                next_step = initial_continuation(requirement['timing'])
+                work = dict(uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=now() '
+                                        'WHERE work_id=%s RETURNING *', (json.dumps(next_step), work_id)).fetchone())
+            sync_schedule(uow, work, requirement)
+            if action=='resume' and requirement['timing']['kind'] in {'immediate', 'once'}:
+                self.repo.wakeup(uow, work, f'resume:{command}', 'resume', 'explicit_resume', work['continuation'].get('due_at'))
             return self._complete(uow, account_id, operation, key, work_id)
 
     @retryable_transaction

@@ -124,6 +124,17 @@ class RunLifecycleService:
             raw = result.get('continuation', continuation('ready','execution_succeeded'))
             next_step = continuation(raw['kind'], raw['reason'], **{k:v for k,v in raw.items()
                                                                  if k not in {'kind','reason','schema_version'}})
+        if status == 'succeeded' and 'continuation' not in result:
+            requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'], run['requirement_revision'])
+            if requirement['timing']['kind'] == 'daily':
+                from datetime import UTC, datetime
+
+                from work_domain.timing import next_daily
+                pending = uow.execute("SELECT 1 FROM work_wakeups WHERE work_id=%s AND kind='due' "
+                                      "AND state='pending' AND due_at<=now() LIMIT 1", (work['work_id'],)).fetchone()
+                next_step = (continuation('ready', 'latest_occurrence_pending') if pending else
+                             continuation('at_time', 'next_daily_occurrence',
+                                          due_at=next_daily(requirement['timing'], datetime.now(UTC)).isoformat()))
         unresolved = self.unresolved_effect(uow, work)
         if unresolved:
             next_step = continuation('blocked', 'side_effect_uncertain', operation_ref=unresolved['operation_id'])
@@ -149,6 +160,14 @@ class RunLifecycleService:
             from work_domain.completion import WorkCompletionPolicy
 
             WorkCompletionPolicy.accept(uow, work, run)
+        from work_domain.persistence import sync_schedule
+        current = WorkRepository.get(uow, work['account_id'], work['work_id'])
+        requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'], current['current_requirement_revision'])
+        sync_schedule(uow, current, requirement)
+        if status == 'succeeded' and current['status'] == 'active' and next_step['kind'] in {'at_time', 'retry_after'}:
+            WorkRepository.wakeup(uow, current, f"continuation:{run['run_id']}",
+                                  'retry' if next_step['kind'] == 'retry_after' else 'due',
+                                  'execution_continuation', next_step['due_at'])
         return True
 
     @retryable_transaction

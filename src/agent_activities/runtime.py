@@ -927,6 +927,8 @@ class DurableAgentActivities:
                 )
                 display_text = observation_content
             result_ref = f"agent-tool-result:{request.operation_id}"
+            if request.source.source_kind == 'work' and not result_value.failed:
+                observation_content += f"\nVerified execution receipt reference: {result_ref}"
             payload = {
                 "schema_version": AGENT_SCHEMA_VERSION,
                 "operation_id": request.operation_id,
@@ -1402,7 +1404,7 @@ class DurableAgentActivities:
         try:
             content = await asyncio.to_thread(self.store.result_content, request.result_ref, request.run_id)
             authority = await asyncio.to_thread(
-                self.lifecycle.complete, __import__("uuid").UUID(request.run_id), content
+                self.lifecycle.complete, __import__("uuid").UUID(request.run_id), content, request.result_ref
             )
             await trace_end(
                 events,

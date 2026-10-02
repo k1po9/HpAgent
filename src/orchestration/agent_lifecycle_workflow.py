@@ -25,6 +25,7 @@ from agent_workflows.contracts import (
     FinalizeResultInput,
 )
 
+from .research_workflow import ResearchReportWorkflow, ResearchWorkflowInput
 from .run_lifecycle_contracts import (
     _FINALIZE_RETRY,
     _LIFECYCLE_RETRY,
@@ -44,6 +45,7 @@ _DURABLE_FAILURE_MESSAGES = {
     "execution_lease_conflict": "该账号已有任务正在执行。",
     "stale_fencing_token": "执行租约已失效。",
     "transcript_version_conflict": "Agent 状态版本冲突。",
+    "unsupported_execution_strategy": "不支持的执行策略。",
     "unsupported_agent_strategy": "不支持的 Agent 策略。",
     "planning_failed": "计划生成失败。",
     "plan_evaluation_failed": "计划评估失败。",
@@ -112,6 +114,22 @@ class AgentLifecycleWorkflow:
                 raise asyncio.CancelledError
             if status == "failed":
                 raise ApplicationError("run already failed", non_retryable=True)
+
+            strategy = await workflow.execute_activity(
+                "load_run_strategy_activity", request,
+                task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                start_to_close_timeout=timedelta(seconds=20), retry_policy=_LIFECYCLE_RETRY,
+            )
+            if strategy["strategy_kind"] == "fixed_workflow":
+                # The registered graph runs within this same finite Workflow identity.
+                return await ResearchReportWorkflow().run(ResearchWorkflowInput(1, request.run_id))
+            if strategy["strategy_kind"] == "deterministic":
+                await workflow.execute_activity(
+                    "execute_reminder_activity", request,
+                    task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                    start_to_close_timeout=timedelta(seconds=20), retry_policy=_LIFECYCLE_RETRY,
+                )
+                return _completed(request.run_id)
 
             identity = await workflow.execute_activity(
                 "load_agent_run_input_activity",

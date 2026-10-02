@@ -332,14 +332,6 @@ class RedisConfig:
 
 
 @dataclass
-class SchedulerConfig:
-    """通用定时任务调度器配置。"""
-    data_dir: str = ".data/scheduler"
-    poll_interval: float = 15.0        # 扫描间隔（秒）
-    enabled: bool = True
-
-
-@dataclass
 class SandboxConfig:
     """沙箱（nsjail）隔离执行配置。
 
@@ -527,7 +519,6 @@ class AppConfig:
     models: ModelsConfig = field(default_factory=ModelsConfig)
     temporal: TemporalConfig = field(default_factory=TemporalConfig)
     redis: RedisConfig = field(default_factory=RedisConfig)
-    scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
     hindsight: HindsightConfig = field(default_factory=HindsightConfig)
@@ -613,10 +604,6 @@ class AppConfig:
         不是相对于 cwd。容器模式下 WORKSPACE_ROOT 等环境变量会随后覆盖。
         """
         _root = project_root.resolve()
-
-        sched = Path(self.scheduler.data_dir)
-        if not sched.is_absolute():
-            self.scheduler.data_dir = str(_root / sched)
 
         ws = Path(self.workspace.root)
         if not ws.is_absolute():
@@ -710,7 +697,6 @@ class AppConfig:
             return dataclass_type(**{k: v for k, v in kwargs.items() if k in defaults})
 
         return cls(
-            scheduler=_populate(SchedulerConfig, raw.get("scheduler"), "scheduler"),
             temporal=_populate(TemporalConfig, raw.get("temporal"), "temporal"),
             redis=_populate(RedisConfig, raw.get("redis"), "redis"),
             sandbox=_populate(SandboxConfig, raw.get("sandbox"), "sandbox"),

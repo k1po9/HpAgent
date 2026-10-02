@@ -28,7 +28,6 @@ from agent_workflows.tool_execution import ToolExecutionWorkflow
 from .agent_lifecycle_workflow import AgentLifecycleWorkflow
 from .artifact_workflow import ArtifactBuildWorkflow
 from .document_workflow import NormalizeDocumentWorkflow
-from .research_workflow import ResearchReportWorkflow
 from .run_lifecycle_contracts import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
     WEB_AGENT_TASK_QUEUE,
@@ -121,10 +120,9 @@ def build_web_temporal_workers(
         lifecycle=Worker(
             client,
             task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-            # One canonical Agent lifecycle; other business workflows stay independent.
+            # One finite Run entrypoint dispatches all registered execution strategies.
             workflows=[
                 AgentLifecycleWorkflow,
-                ResearchReportWorkflow,
                 ArtifactBuildWorkflow,
                 NormalizeDocumentWorkflow,
             ],

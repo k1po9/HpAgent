@@ -54,6 +54,7 @@ class WebContextBase:
     run_files: tuple[RunFileContext, ...] = ()
     interaction_profile: str = "web_chat"
     origin: dict = field(default_factory=dict)
+    work_command_receipts: tuple[dict, ...] = ()
 
 
 class ContextAssemblyService:
@@ -100,6 +101,13 @@ class ContextAssemblyService:
                 uow, account_id, subject["conversation_id"], subject["context_message_seq"]
             )
             file_rows = self._files.list_ready_for_run(uow, account_id, run_id)
+            # Retry of the same user message sees committed mandate slots before reasoning.
+            receipt_rows = uow.execute(
+                "SELECT idempotency_key,response_body FROM idempotency_commands "
+                "WHERE account_id=%s AND operation='accept_work' AND status='completed' "
+                "AND idempotency_key LIKE %s ORDER BY idempotency_key LIMIT 20",
+                (account_id, f"main-accept:{subject['trigger_message_id']}:%"),
+            ).fetchall()
 
         events = tuple(self._message_to_event(row) for row in rows)
         run_files = tuple(
@@ -124,6 +132,12 @@ class ContextAssemblyService:
             short_term_events=events,
             run_files=run_files,
             origin=dict(subject.get("origin") or {}),
+            work_command_receipts=tuple({
+                'mandate_slot': row['idempotency_key'].rsplit(':', 1)[-1],
+                'work_id': row['response_body']['work']['work_id'],
+                'title': row['response_body']['work']['title'],
+                'objective': row['response_body']['work']['requirement']['objective'][:500],
+            } for row in receipt_rows),
             interaction_profile=select_interaction_profile(
                 subject.get("origin"), str(subject.get("agent_strategy") or "react")
             ),
@@ -190,7 +204,8 @@ class ContextAssemblyService:
         self, base: WebContextBase, memories: Sequence[MemoryItem]
     ) -> list[dict[str, Any]]:
         """Compose model input with existing Harness token-budget behavior."""
-        return self._builder.build(
+        from application.main_agent import MAIN_ROLE_CONTEXT
+        messages = self._builder.build(
             list(base.short_term_events),
             recalled_memories=self._format_memories(memories),
             interaction_profile=base.interaction_profile,
@@ -199,6 +214,14 @@ class ContextAssemblyService:
             extra_context=self._format_run_file_context(base.run_files),
             group_context_text=base.origin.get("group_context", ""),
         )
+        if messages and messages[0].get('role') == 'system':
+            messages[0]['content'] += '\n\n' + MAIN_ROLE_CONTEXT
+        else:
+            messages.insert(0, {'role': 'system', 'content': MAIN_ROLE_CONTEXT})
+        if base.work_command_receipts:
+            import json
+            messages[0]['content'] += '\nCommitted mandates for this original user message (reuse these slots/IDs):\n' + json.dumps(base.work_command_receipts, ensure_ascii=False)
+        return messages
 
     @staticmethod
     def _format_run_file_context(files: Sequence[RunFileContext]) -> str:

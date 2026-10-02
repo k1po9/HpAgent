@@ -14,10 +14,8 @@ from orchestration.worker import start_worker
 async def test_startup_failure_releases_shared_resources(monkeypatch, failure):
     from orchestration import worker
 
-    scheduler = SimpleNamespace(register_handler=Mock())
     deps = SimpleNamespace(
         shared=SimpleNamespace(memory_reflection=object(), metrics=object()),
-        scheduler=scheduler,
         close=AsyncMock(),
     )
     monkeypatch.setattr(worker, "init_dependencies", AsyncMock(return_value=deps))
@@ -26,7 +24,6 @@ async def test_startup_failure_releases_shared_resources(monkeypatch, failure):
     monkeypatch.setattr(worker.Client, "connect", connection)
     monkeypatch.setattr(worker, "compose_durable_runtime", Mock(side_effect=RuntimeError("compose")))
     config = AppConfig()
-    config.scheduler.enabled = False
     with pytest.raises(RuntimeError, match=failure):
         await start_worker(config)
     deps.close.assert_awaited_once()
@@ -55,18 +52,18 @@ def test_sandbox_manager_close_destroys_every_owned_sandbox():
     second = SimpleNamespace(destroy=Mock())
     manager = SandboxManager(native_tools_enabled=False)
     manager._sandboxes = {"one": first, "two": second}
-    manager._session_to_sandbox = {"session-one": "one", "session-two": "two"}
+    manager._execution_to_sandbox = {"session-one": "one", "session-two": "two"}
     manager._run_file_scopes = {"run": object()}
-    manager._session_active_file_run = {"session-one": "run"}
+    manager._execution_active_file_run = {"session-one": "run"}
 
     manager.close()
 
     first.destroy.assert_called_once_with()
     second.destroy.assert_called_once_with()
     assert manager._sandboxes == {}
-    assert manager._session_to_sandbox == {}
+    assert manager._execution_to_sandbox == {}
     assert manager._run_file_scopes == {}
-    assert manager._session_active_file_run == {}
+    assert manager._execution_active_file_run == {}
 
 
 @pytest.mark.asyncio
@@ -149,7 +146,6 @@ async def test_worker_stops_background_producers_before_temporal_workers(monkeyp
             group_context=None,
         ),
         qq=SimpleNamespace(channel_router=Router(), reply_service=object()),
-        scheduler=SimpleNamespace(register_handler=Mock()),
         close=close_dependencies,
     )
     composition = SimpleNamespace(
@@ -180,7 +176,6 @@ async def test_worker_stops_background_producers_before_temporal_workers(monkeyp
     monkeypatch.setattr(worker, "_setup_metrics_schedule", metrics_ready)
     monkeypatch.setenv("WORKER_DATABASE_URL", "postgresql://unused")
     config = AppConfig()
-    config.scheduler.enabled = False
     config.channels.enabled = []
 
     task = asyncio.create_task(start_worker(config))
