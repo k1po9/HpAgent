@@ -130,17 +130,19 @@ class SnapshotRepository:
             ).fetchone()
             if owns is None:
                 raise LookupError("Run does not belong to model-call Account")
+            from agent_activities.fencing import execution_fence
+            fence = execution_fence.get()
             row = uow.execute(
                 "INSERT INTO model_input_snapshots(snapshot_id,account_id,run_id,"
                 "model_call_id,operation_id,execution_attempt,call_ordinal,fallback_attempt,"
                 "phase,endpoint_id,provider,model,api_format,resolved_url,provider_request_body,"
-                "content_hash,serializer_version,entitlement_version) VALUES "
-                "(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "content_hash,serializer_version,entitlement_version,execution_id) VALUES "
+                "(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
                 "ON CONFLICT(account_id,run_id,operation_id) DO NOTHING RETURNING *",
                 (uuid7(), account_id, run_id, model_call_id, operation_id,
                  execution_attempt, call_ordinal, fallback_attempt, phase,
                  endpoint_id, provider, model, api_format, resolved_url, Jsonb(dict(payload)), digest,
-                 serializer_version, entitlement_version),
+                 serializer_version, entitlement_version, UUID(fence[2]) if fence else None),
             ).fetchone()
             if row is None:
                 row = uow.execute(

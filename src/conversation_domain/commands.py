@@ -518,7 +518,7 @@ class CommandService:
 
             value = dto(run)
             value["budget"] = load_run_budget_projection(uow, run_id)
-            value["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s", (run_id,)).fetchone()["execution_id"])
+            value["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (run_id,)).fetchone()["execution_id"])
             return {"source_kind": "work", "run": value}
         message = uow.execute(
             "SELECT * FROM messages WHERE produced_by_run_id=%s", (run_id,)
@@ -527,7 +527,7 @@ class CommandService:
         run_dto["budget"] = load_run_budget_projection(uow, run_id)
         message_dto = self._message_dto(message)
         message_dto["files"] = self._message_file_dtos(uow, message["message_id"])
-        run_dto["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s", (run_id,)).fetchone()["execution_id"])
+        run_dto["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (run_id,)).fetchone()["execution_id"])
         return {"source_kind": "chat", "run": run_dto, "assistant_message": message_dto}
 
     @staticmethod

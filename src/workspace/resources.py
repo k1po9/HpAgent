@@ -84,6 +84,8 @@ class ResourcePolicy:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             self._subject(uow, account_id, kind, subject_id)
             node = uow.execute(
                 "SELECT kind FROM workspace_nodes WHERE account_id=%s AND node_id=%s "
@@ -114,6 +116,8 @@ class ResourcePolicy:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             grant = uow.execute(
                 "SELECT * FROM resource_grants WHERE account_id=%s AND grant_id=%s FOR UPDATE",
                 (account_id, grant_id),
@@ -257,6 +261,10 @@ class ResourcePolicy:
                 uow, account_id, snapshot["subject_kind"], snapshot["subject_id"],
                 row["node_id"], "list_metadata"
             )]
+            from agent_activities.delegation import child_scope
+            scope = child_scope(uow)
+            if scope is not None:
+                allowed = [row for row in allowed if str(row["node_id"]) in scope["node_ids"]]
             page_size = min(max(limit, 1), 100)
             remaining = [row for row in allowed if row["logical_name"] > (after or "")]
             page = remaining[:page_size]
@@ -286,6 +294,10 @@ class ResourcePolicy:
             ).fetchone()
             if run is None or run["status"] not in {"queued", "running"}:
                 raise ResourceDenied("Run is not active")
+            from agent_activities.delegation import child_scope
+            scope = child_scope(uow)
+            if scope is not None and str(node_id) not in scope["node_ids"]:
+                raise ResourceDenied("node is outside branch scope")
             candidate = uow.execute(
                 "SELECT c.* FROM run_resource_candidates c JOIN run_resource_snapshots s "
                 "ON s.run_id=c.run_id WHERE c.account_id=%s AND c.run_id=%s "
@@ -355,6 +367,13 @@ class ResourcePolicy:
 
     def _file_authorized_in_uow(self, uow: UnitOfWork, account_id: UUID,
                                 run_id: UUID, file_id: UUID) -> bool:
+        from agent_activities.delegation import child_scope
+        scope = child_scope(uow)
+        if scope is not None and str(file_id) not in scope["file_ids"]:
+            nodes = uow.execute("SELECT node_id FROM run_resource_candidates WHERE account_id=%s "
+                "AND run_id=%s AND fixed_file_id=%s", (account_id, run_id, file_id)).fetchall()
+            if not any(str(node["node_id"]) in scope["node_ids"] for node in nodes):
+                return False
         if uow.execute(
             "SELECT 1 FROM run_files rf JOIN stored_files sf "
             "ON sf.account_id=rf.account_id AND sf.file_id=rf.file_id "
@@ -412,8 +431,14 @@ class ResourcePolicy:
                 raise ResourceDenied('Run is not active')
             if run['work_id']:
                 RunLifecycleService.check_work(uow,run)
+            from agent_activities.delegation import child_scope
+            scope = child_scope(uow)
             for row in uow.execute("SELECT file_id FROM run_files WHERE account_id=%s AND run_id=%s AND direction='input'",
                                    (account_id,run_id)).fetchall():
+                if scope is not None and str(row['file_id']) not in scope['file_ids']:
+                    nodes = uow.execute('SELECT node_id FROM run_resource_candidates WHERE run_id=%s AND fixed_file_id=%s', (run_id,row['file_id'])).fetchall()
+                    if not any(str(n['node_id']) in scope['node_ids'] for n in nodes):
+                        continue
                 if not self._file_authorized_in_uow(uow,account_id,run_id,row['file_id']):
                     raise ResourceDenied('Selected input authority was revoked before model dispatch')
 
@@ -496,6 +521,8 @@ class ResourcePolicy:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             self._subject(uow, account_id, "conversation", conversation_id)
             changed = uow.execute(
                 "UPDATE conversation_resource_files SET available=false,revoked_at=now() "

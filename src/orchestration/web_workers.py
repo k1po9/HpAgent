@@ -16,6 +16,7 @@ from temporalio.worker import Worker
 
 from account.validation import validate_unified_account_backend
 from agent_workflows.agent_run import AgentRunWorkflow
+from agent_workflows.delegation import WorkDelegationWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import (
     DURABLE_LEASE_SAFETY_MARGIN_SECONDS,
@@ -135,6 +136,7 @@ def build_web_temporal_workers(
                 PlanAndExecuteWorkflow,
                 AgentStepWorkflow,
                 ToolExecutionWorkflow,
+                WorkDelegationWorkflow,
             ],
             activities=list(agent_activities),
             # Temporal otherwise throttles heartbeat RPCs to most of the

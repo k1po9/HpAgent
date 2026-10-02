@@ -109,12 +109,13 @@ class WebRunLifecycleService:
                     receipt = uow.execute(
                         "SELECT o.result_ref FROM execution_operations o JOIN execution_result_receipts r "
                         "ON r.operation_id=o.operation_id WHERE o.account_id=%s AND o.run_id=%s "
-                        "AND o.result_ref=%s AND o.status='completed' AND r.disposition='current'",
+                        "AND o.result_ref=%s AND o.status='completed' AND r.disposition='current' "
+                        "AND o.execution_id=(SELECT execution_id FROM run_executions WHERE run_id=o.run_id AND role='root')",
                         (account_id, run_id, result_ref),
                     ).fetchone()
                     if not receipt:
                         raise ValueError('Generic Work result needs a registered current operation receipt')
-                    uow.execute('UPDATE run_executions SET result_ref=%s WHERE run_id=%s',
+                    uow.execute("UPDATE run_executions SET result_ref=%s WHERE run_id=%s AND role='root'",
                                 (receipt['result_ref'], run_id))
                     from application.work_context import generic_result
                     result, suggest_completion = generic_result(uow, run, work, content, receipt['result_ref'])

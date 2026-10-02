@@ -116,9 +116,12 @@ class ResultReceiptService:
             )
             # Retain a late result in its original operation only when a replacement
             # attempt has not already taken it over. Otherwise retain digest/provenance.
+            execution = uow.execute("SELECT status FROM run_executions WHERE account_id=%s AND run_id=%s AND execution_id=%s",
+                (UUID(account_id), UUID(run_id), UUID(execution_id))).fetchone()
             if (
                 disposition != "current"
-                and run["status"] in {"cancelling", "cancelled", "failed", "succeeded"}
+                and (run["status"] in {"cancelling", "cancelled", "failed", "succeeded"}
+                     or execution and execution["status"] in {"cancelling", "cancelled", "failed"})
                 and (attempt["attempt_no"] == attempt["attempt_count"])
                 and (attempt["operation_status"] != "completed")
             ):

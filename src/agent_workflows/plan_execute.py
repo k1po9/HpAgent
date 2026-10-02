@@ -80,7 +80,7 @@ class PlanAndExecuteWorkflow:
                         plan_version,
                         step,
                     ),
-                    id=f"hpagent-agent-step-{request.run_id}-{plan_version}-{step.step_id}",
+                    id=f"hpagent-agent-step-{request.execution_id}-{plan_version}-{step.step_id}",
                     task_queue=AGENT_TASK_QUEUE,
                 )
                 transcript_version = result.transcript_version

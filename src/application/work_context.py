@@ -21,9 +21,24 @@ class WorkContextProvider:
 
         with UnitOfWork(self.database) as uow:
             AgentDataStore._assert_fence(uow)
+            from agent_activities.fencing import execution_fence
+            fence = execution_fence.get()
+            execution = AgentDataStore._execution(uow, fence[0], str(run_id), fence[2]) if fence else None
+            if execution and execution["role"] == "subagent":
+                brief = execution["context_manifest"]["brief"]
+                return ExecutionRequest(
+                    str(execution["execution_id"]), str(execution["account_id"]), None, None,
+                    brief["objective"], (
+                        {"role": "system", "content": "Investigate only this branch brief. Use only its authorized read tools and resources. "
+                         "Return a concise summary, exact evidence references, and explicit gaps matching the output contract. "
+                         "No Work management, delegation, long-term writes, or user delivery is authorized."},
+                        {"role": "user", "content": json.dumps(brief, ensure_ascii=False)},
+                    ), metadata={"run_id": str(run_id), "surface": "work",
+                        "parent_execution_id": str(execution["parent_execution_id"])},
+                )
             run = uow.execute(
                 "SELECT r.*,e.execution_id FROM runs r JOIN run_executions e "
-                "USING(account_id,run_id) WHERE r.run_id=%s",
+                "USING(account_id,run_id) WHERE r.run_id=%s AND e.role='root'",
                 (run_id,),
             ).fetchone()
             if run is None or run["executor_key"] != "work_agent":
@@ -66,6 +81,8 @@ class WorkContextProvider:
                     "content": "Execute this fixed Work brief within authorized resources. "
                     "Save progress or state missing input. A narrative answer cannot complete the mandate. "
                     "Do not create or manage other Work. No implicit channel or resource permission is granted. "
+                    "For independent investigation directions, delegate_work is available once with up to three bounded briefs. "
+                    "Declare required branches honestly and verify each result; missing required branches forbid completion. "
                     "Finish with a JSON result: schema_version=1; kind=deliverable_ready/progress_saved/waiting_input/waiting_due; "
                     "evidence=[{criterion_id,type:operation_receipt,ref:exact_tool_result_ref}]; "
                     "continuation={schema_version:1,kind:ready/at_time/awaiting_input/blocked,reason,due_at?}. "
@@ -158,6 +175,11 @@ def generic_result(uow, run, work, content, result_ref):
         ).fetchone()
         if not receipt:
             raise ValueError("Generic acceptance needs a verified tool receipt from this Run")
+    from agent_activities.delegation import required_branch_gaps
+    gaps = required_branch_gaps(uow, run["account_id"], run["run_id"])
+    if gaps and result["kind"] == "deliverable_ready":
+        result["kind"] = "progress_saved"
+        result["continuation"] = continuation("blocked", "required_branch_missing:" + ",".join(gaps))
     if "checkpoint" not in result:
         result["checkpoint"] = {
             "schema_version": 1,

@@ -19,6 +19,7 @@ from .contracts import (
     ToolExecutionInput,
     ToolExecutionResult,
 )
+from .delegation_contracts import DELEGATE_TOOL
 from .lifecycle_contracts import LIFECYCLE_SCHEMA_VERSION, WaitInput
 from .segments import DurableWait, execute_segment
 
@@ -45,6 +46,13 @@ class ToolExecutionWorkflow:
 
     @workflow.run
     async def run(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        if request.tool_call.name == DELEGATE_TOOL:
+            return await workflow.execute_child_workflow(
+                "WorkDelegationWorkflow", request,
+                id=f"hpagent-delegation-{request.execution_id}", task_queue=AGENT_TASK_QUEUE,
+                result_type=ToolExecutionResult,
+                cancellation_type=workflow.ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
+            )
         result = await execute_segment(
             "tool_execution_activity",
             request,

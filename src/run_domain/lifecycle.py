@@ -91,6 +91,11 @@ class RunLifecycleService:
         if status=='cancelled' and run['status']=='running':
             raise ConversationBusy()
         work = None
+        if status == 'succeeded' and uow.execute(
+            "SELECT 1 FROM run_executions WHERE run_id=%s AND role='subagent' "
+            "AND status IN ('queued','running','cancelling') LIMIT 1", (run['run_id'],)
+        ).fetchone():
+            raise ValueError('root cannot finalize while a branch is active')
         if run['source_kind']=='work':
             work = WorkRepository.get(uow, run['account_id'], run['work_id'])
             if status=='succeeded':

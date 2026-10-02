@@ -169,7 +169,7 @@ class ReminderActivities:
                         ).fetchone()
                         DeliveryReceiptHandler.apply(uow, notification, revalidated)
                     uow.execute(
-                        "UPDATE run_executions SET result_ref=%s WHERE run_id=%s",
+                        "UPDATE run_executions SET result_ref=%s WHERE run_id=%s AND role='root'",
                         (f"operation:{operation_id}", UUID(run_id)),
                     )
                     return {"run_id": run_id, "status": "succeeded"}

@@ -300,7 +300,9 @@ class QueryService:
                 run = dto(work_run)
                 run["budget"] = load_run_budget_projection(uow, run_id)
                 run["published_file"] = file_dto(published) if published else None
-                run["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s", (run_id,)).fetchone()["execution_id"])
+                run["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (run_id,)).fetchone()["execution_id"])
+                from agent_activities.delegation import branch_projection
+                run["branches"] = branch_projection(uow, account_id, run_id)
                 return {"source_kind": "work", "run": run}
             row = uow.execute(
                 "SELECT r.*,m.message_id AS m_message_id,m.conversation_id AS m_conversation_id,"
@@ -354,7 +356,7 @@ class QueryService:
         ).get(row["m_message_id"], [])
         run = run_dto(row)
         run["budget"] = load_run_budget_projection(uow, row["run_id"])
-        run["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s", (row["run_id"],)).fetchone()["execution_id"])
+        run["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (row["run_id"],)).fetchone()["execution_id"])
         return {"source_kind": "chat", "run": run, "assistant_message": message_dto(message, files)}
 
     @staticmethod

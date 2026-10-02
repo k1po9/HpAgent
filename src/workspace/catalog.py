@@ -49,6 +49,8 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             uow.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended(%s::text,421))",
                 (account_id,),
@@ -132,6 +134,8 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             workspace_id = self._workspace(uow, account_id)
             node_id = uuid7()
             uow.execute(
@@ -155,6 +159,8 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             workspace_id = self._workspace(uow, account_id)
             previous = uow.execute(
                 "SELECT node_id,intent_sha256 FROM workspace_save_operations "
@@ -232,6 +238,8 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             self._workspace(uow, account_id)
             node = uow.execute(
                 "SELECT file_id,destination_id FROM workspace_nodes WHERE account_id=%s "
@@ -297,6 +305,8 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             current = self._current_in_uow(uow, account_id, node_id)
             if current["destination_id"] is None:
                 return {"current": current, "revisions": []}
@@ -333,6 +343,8 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             self._workspace(uow, account_id)
             prior = uow.execute(
                 "SELECT intent_sha256,node_id,destination_id,revision,file_id "
@@ -431,6 +443,8 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             workspace = uow.execute(
                 "SELECT workspace_id,topology_version FROM account_workspaces "
                 "WHERE account_id=%s", (account_id,),
@@ -462,6 +476,8 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             workspace_id = self._workspace(uow, account_id)
             if preview_token is not None:
                 version = uow.execute(
@@ -489,6 +505,8 @@ class WorkspaceCatalog:
         with UnitOfWork(self.database) as uow:
             from agent_activities.store import AgentDataStore
             AgentDataStore._assert_fence(uow)
+            from agent_activities.delegation import require_root_write
+            require_root_write(uow)
             workspace_id = self._workspace(uow, account_id)
             if uow.execute(
                 "SELECT 1 FROM works w JOIN work_requirements q ON q.account_id=w.account_id "

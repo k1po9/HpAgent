@@ -136,6 +136,18 @@ export interface HpChatRunSnapshot {
   assistant_message: HpMessage;
 }
 
+export interface HpRunBranch {
+  execution_id: string;
+  parent_execution_id: string;
+  branch_key: string;
+  branch_attempt: number;
+  status: HpRunStatus;
+  result_ref: string | null;
+  error_code: string | null;
+  required: boolean;
+  usage: Record<string, { used: number; reserved: number }>;
+}
+
 export interface HpWorkRunSnapshot {
   source_kind: "work";
   run: {
@@ -153,6 +165,7 @@ export interface HpWorkRunSnapshot {
     result_json: Record<string, unknown> | null;
     budget: HpRunBudget | null;
     published_file?: HpFile | null;
+    branches?: HpRunBranch[];
   };
 }
 

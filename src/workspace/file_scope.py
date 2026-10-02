@@ -116,7 +116,8 @@ class RunFileWorkspace:
             visible = []
             for row in rows:
                 if row["direction"] == "output":
-                    visible.append(row)
+                    if authority._file_authorized_in_uow(uow, account_id, run_id, row["file_id"]):
+                        visible.append(row)
                     continue
                 if not include_selected and uow.execute(
                     "SELECT 1 FROM run_resource_access WHERE run_id=%s AND file_id=%s "
@@ -126,8 +127,10 @@ class RunFileWorkspace:
                     (run_id, row["file_id"], run_id, row["file_id"]),
                 ).fetchone():
                     continue
-                if not authority._file_authorized_in_uow(uow, account_id, run_id,
-                                                         row["file_id"]):
+                if not authority._file_authorized_in_uow(uow, account_id, run_id, row["file_id"]):
+                    from agent_activities.delegation import child_scope
+                    if child_scope(uow) is not None:
+                        continue
                     raise RunFileScopeUnavailable("Run input permission was revoked")
                 visible.append(row)
             return visible
@@ -139,8 +142,8 @@ class RunFileWorkspace:
         from agent_activities.fencing import execution_fence
         fence = execution_fence.get()
         with UnitOfWork(self.database) as uow:
-            execution = uow.execute("SELECT execution_id FROM run_executions WHERE account_id=%s AND run_id=%s "
-                                    "AND role='root'", (account_id, run_id)).fetchone()
+            from agent_activities.store import AgentDataStore
+            execution = AgentDataStore._execution(uow, str(account_id), str(run_id), fence[2] if fence else None)
         if execution is None:
             raise RunFileScopeUnavailable("Execution is unavailable")
         with self.prepare_rows(run_id, rows, account_id=account_id,

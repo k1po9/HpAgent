@@ -255,6 +255,8 @@ def compose_durable_runtime(
     )
     artifact_activities = ArtifactActivities(artifact_build)
     segment_activities = SegmentActivities(durable_activities.store)
+    from agent_activities.delegation import DelegationActivities
+    delegation_activities = DelegationActivities(durable_activities.store, durable_activities.run_budget)
     workers = build_web_temporal_workers(
         client,
         lifecycle_activities=[
@@ -284,6 +286,9 @@ def compose_durable_runtime(
             research_activities.fail_research_activity,
         ],
         agent_activities=[
+            delegation_activities.prepare,
+            delegation_activities.finish,
+            delegation_activities.finish_branch,
             segment_activities.acquire,
             segment_activities.release,
             segment_activities.begin_wait,

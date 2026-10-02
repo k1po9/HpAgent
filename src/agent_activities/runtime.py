@@ -499,6 +499,14 @@ class DurableAgentActivities:
                 await events.progress("synthesizing", "正在汇总计划结果。")
             else:
                 await events.progress("calling_model", "正在生成回复。")
+            from agent_activities.delegation import current_execution
+            from persistence.uow import UnitOfWork
+            from agent_workflows.delegation_contracts import DELEGATE_MANIFEST, DELEGATE_TOOL
+            with UnitOfWork(self.store.database_url) as uow:
+                self.store._assert_fence(uow)
+                execution = current_execution(uow)
+                is_child = execution["role"] == "subagent"
+            delegatable_tools = []
             async with self._workspace(request):
                 await asyncio.to_thread(
                     self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
@@ -509,7 +517,7 @@ class DurableAgentActivities:
                     request.account_id, request.run_id, request.operation_id,
                     phase=model_phase,
                     execution_attempt=request.execution_attempt,
-                    final_response=request.final_only,
+                    final_response=request.final_only and not is_child,
                 ):
                     if request.final_only:
                         decision = await self.brain.generate_final_decision(messages=model_messages)
@@ -519,6 +527,16 @@ class DurableAgentActivities:
                             resource_key=self.context_bindings.resource_key(request),
                             execution_id=request.execution_id,
                         )
+                        def tool_name(tool):
+                            return tool.get("function", tool).get("name", "")
+                        delegatable_tools = [tool_name(tool) for tool in tools
+                            if self.actions.side_effect_class(self.context_bindings.resource_key(request), tool_name(tool)) == "read_only"]
+                        if is_child:
+                            allowed = execution["resource_scope"]["tool_names"]
+                            tools = [tool for tool in tools if tool_name(tool) in allowed
+                                and tool_name(tool) in delegatable_tools and tool_name(tool) != DELEGATE_TOOL]
+                        elif request.source.source_kind == "work":
+                            tools = [*tools, DELEGATE_MANIFEST]
                         decision = await self.brain.generate_chat_decision(
                             messages=model_messages,
                             tools=tools or None,
@@ -545,6 +563,7 @@ class DurableAgentActivities:
                 "decision_type": "tool_calls" if calls else "final",
                 "decision_ref": result_ref,
                 "tool_calls": [asdict(item) for item in calls],
+                "delegatable_tools": delegatable_tools,
                 "tool_call_arguments": {
                     item.id: dict(item.arguments)
                     for item in decision.action_requests
@@ -618,6 +637,13 @@ class DurableAgentActivities:
     @fenced_activity
     async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
         self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+        with UnitOfWork(self.store.database_url) as uow:
+            self.store._assert_fence(uow)
+            execution = current_execution(uow)
+            if execution["role"] == "subagent" and request.tool_call.name not in execution["resource_scope"]["tool_names"]:
+                raise ApplicationError("Tool is outside branch manifest", type="delegation_scope_denied", non_retryable=True)
         started = time.monotonic()
         fields = {
             **self._correlation(request),
@@ -737,6 +763,8 @@ class DurableAgentActivities:
                 side_effect_class = normalize_side_effect_class(str(
                     self.actions.side_effect_class(self.context_bindings.resource_key(request), request.tool_call.name)
                 ))
+                if execution["role"] == "subagent" and side_effect_class != "read_only":
+                    raise ApplicationError("Subagent tools must be read-only", type="delegation_scope_denied", non_retryable=True)
                 if side_effect_class == "unknown":
                     raise ApplicationError(
                         "工具副作用分类未知。",

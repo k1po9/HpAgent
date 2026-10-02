@@ -177,11 +177,13 @@ class RunBudgetService:
             if _defer_exhaustion:
                 return error
             raise error
+        from agent_activities.fencing import execution_fence
+        fence = execution_fence.get()
         for dimension, amount in requested.items():
             uow.execute(
                 "INSERT INTO run_usage_ledger(run_id,operation_id,dimension,state,"
-                "reserved_amount) VALUES (%s,%s,%s,'reserved',%s)",
-                (run_id, operation_id, dimension, amount),
+                "reserved_amount,execution_id) VALUES (%s,%s,%s,'reserved',%s,%s)",
+                (run_id, operation_id, dimension, amount, UUID(fence[2]) if fence else None),
             )
             reserved[dimension] = reserved.get(dimension, 0) + amount
         status = "exhausted" if exceeded else str(budget["status"])

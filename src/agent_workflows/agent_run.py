@@ -40,7 +40,7 @@ class AgentRunWorkflow:
         result = await workflow.execute_child_workflow(
             target,
             request,
-            id=f"hpagent-agent-{request.strategy}-{request.run_id}",
+            id=f"hpagent-agent-{request.strategy}-{request.execution_id}",
             task_queue=AGENT_TASK_QUEUE,
             result_type=AgentResult,
         )

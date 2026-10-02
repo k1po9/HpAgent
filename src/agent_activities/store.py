@@ -86,9 +86,11 @@ class AgentDataStore:
 
     @staticmethod
     def _execution(uow, account_id, run_id, execution_id=None):
+        if execution_id is None and execution_fence.get() is not None:
+            execution_id = execution_fence.get()[2]
         row = uow.execute(
             "SELECT * FROM run_executions WHERE account_id=%s AND run_id=%s "
-            "AND (%s::uuid IS NULL OR execution_id=%s) AND role='root' FOR UPDATE",
+            "AND ((%s::uuid IS NULL AND role='root') OR execution_id=%s) FOR UPDATE",
             (
                 UUID(account_id),
                 UUID(run_id),
@@ -108,6 +110,9 @@ class AgentDataStore:
             return self._acquire(uow, account_id, run_id, str(execution["execution_id"]), None)
 
     def _acquire(self, uow, account_id, run_id, execution_id, segment_id):
+        execution = self._execution(uow, account_id, run_id, execution_id)
+        if execution["status"] not in {"queued", "running"}:
+            raise RunNotExecutable("Execution is terminal or fenced")
         uow.execute(
             "INSERT INTO execution_attempt_leases(account_id,run_id,execution_id) VALUES (%s,%s,%s) "
             "ON CONFLICT (execution_id) DO NOTHING",
@@ -129,7 +134,7 @@ class AgentDataStore:
             (segment_id, token, self.lease_ttl_seconds, UUID(execution_id)),
         ).fetchone()["lease_expires_at"]
         uow.execute(
-            "UPDATE run_executions SET attempt_no=%s,updated_at=now() WHERE execution_id=%s",
+            "UPDATE run_executions SET attempt_no=%s,status='running',updated_at=now() WHERE execution_id=%s",
             (token, UUID(execution_id)),
         )
         return ExecutionLease(account_id, run_id, token, expires.isoformat(), execution_id)
@@ -145,6 +150,8 @@ class AgentDataStore:
                 raise StaleFencingToken("execution progression has been revoked") from exc
             execution = self._execution(uow, account_id, run_id, execution_id)
             execution_id = str(execution["execution_id"])
+            if execution["status"] not in {"queued", "running"}:
+                raise StaleFencingToken("Execution is terminal or fenced")
             row = uow.execute(
                 "UPDATE execution_attempt_leases SET "
                 "lease_expires_at=clock_timestamp()+(%s * interval '1 second'),updated_at=now() "
@@ -165,13 +172,14 @@ class AgentDataStore:
         )
 
     @retryable_transaction
-    def release_lease(self, account_id: str, run_id: str, fencing_token: int) -> bool:
+    def release_lease(self, account_id: str, run_id: str, fencing_token: int, execution_id=None) -> bool:
         with UnitOfWork(self.database_url) as uow:
+            execution = self._execution(uow, account_id, run_id, execution_id)
             row = uow.execute(
                 "UPDATE execution_attempt_leases SET owner_segment_id=NULL,lease_expires_at=NULL,"
                 "updated_at=now() WHERE account_id=%s AND run_id=%s "
-                "AND fencing_token=%s RETURNING execution_id",
-                (UUID(account_id), UUID(run_id), fencing_token),
+                "AND execution_id=%s AND fencing_token=%s RETURNING execution_id",
+                (UUID(account_id), UUID(run_id), execution["execution_id"], fencing_token),
             ).fetchone()
             return row is not None
 
@@ -244,14 +252,15 @@ class AgentDataStore:
             if fence is not None and fence[1] != run_id:
                 raise StaleFencingToken("operation is outside the Execution context")
             inserted = uow.execute(
-                "INSERT INTO execution_operations(operation_id,run_id,operation_type) "
-                "VALUES (%s,%s,%s) ON CONFLICT (operation_id) DO NOTHING "
+                "INSERT INTO execution_operations(operation_id,run_id,operation_type,execution_id) "
+                "VALUES (%s,%s,%s,%s) ON CONFLICT (operation_id) DO NOTHING "
                 "RETURNING operation_id",
-                (operation_id, UUID(run_id), operation_type),
+                (operation_id, UUID(run_id), operation_type, UUID(fence[2]) if fence else None),
             ).fetchone()
             if inserted is not None:
                 ResultReceiptService.register_attempt(uow, operation_id, execution_fence.get())
                 return None
+            self._owned_record(uow, "execution_operations", "operation_id", operation_id)
             row = uow.execute(
                 "SELECT run_id,operation_type,status,result_payload FROM execution_operations "
                 "WHERE operation_id=%s FOR UPDATE",
@@ -278,14 +287,15 @@ class AgentDataStore:
             if fence is not None and fence[1] != run_id:
                 raise StaleFencingToken("operation is outside the Execution context")
             inserted = uow.execute(
-                "INSERT INTO execution_operations(operation_id,run_id,operation_type) "
-                "VALUES (%s,%s,'tool') ON CONFLICT (operation_id) DO NOTHING "
+                "INSERT INTO execution_operations(operation_id,run_id,operation_type,execution_id) "
+                "VALUES (%s,%s,'tool',%s) ON CONFLICT (operation_id) DO NOTHING "
                 "RETURNING operation_id",
-                (operation_id, UUID(run_id)),
+                (operation_id, UUID(run_id), UUID(fence[2]) if fence else None),
             ).fetchone()
             if inserted is not None:
                 ResultReceiptService.register_attempt(uow, operation_id, execution_fence.get())
                 return ToolOperationState("started", None)
+            self._owned_record(uow, "execution_operations", "operation_id", operation_id)
             row = uow.execute(
                 "SELECT run_id,operation_type,status,result_payload FROM execution_operations "
                 "WHERE operation_id=%s FOR UPDATE",
@@ -557,6 +567,7 @@ class AgentDataStore:
     def result_content(self, result_ref: str, run_id: str) -> str:
         with UnitOfWork(self.database_url) as uow:
             self._assert_fence(uow)
+            self._owned_record(uow, "execution_operations", "result_ref", result_ref)
             row = uow.execute(
                 "SELECT result_payload FROM execution_operations "
                 "WHERE result_ref=%s AND run_id=%s AND status='completed'",
@@ -595,7 +606,9 @@ class AgentDataStore:
         account_id, run_id, execution_id, token = fence
         try:
             AgentDataStore._active_run(uow, account_id, run_id)
-            AgentDataStore._execution(uow, account_id, run_id, execution_id)
+            execution = AgentDataStore._execution(uow, account_id, run_id, execution_id)
+            if execution["status"] not in {"queued", "running"}:
+                raise RunNotExecutable("Execution is terminal or fenced")
         except RunNotExecutable as exc:
             raise StaleFencingToken("late execution cannot read or commit durable state") from exc
         row = uow.execute(
