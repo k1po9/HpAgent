@@ -13,17 +13,18 @@ def test_qq_parts_quote_mention_and_protected_attachment_references():
         "payload": {
             "content": "[CQ:at,qq=everyone]" + "x" * 1600,
             "files": ["file-id"],
-            "origin": {
+        },
+        "content_scope": "content",
+        "route": {
                 "channel_type": "napcat",
                 "scope": "group",
                 "sender_id": "123",
                 "external_message_id": "42",
-            },
         }
     }
     parts = QQDeliveryAdapter(None).parts(row)
     assert len(parts) == 2
-    assert parts[0].startswith("[CQ:reply,id=42][CQ:at,qq=123] ")
+    assert parts[0].startswith("[CQ:at,qq=123] [CQ:reply,id=42]")
     assert "&#91;CQ:at" in parts[0]
     assert "/api/v1/files/file-id/content" in parts[1]
 

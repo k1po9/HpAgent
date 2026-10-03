@@ -117,6 +117,28 @@ class RunBudgetService:
         final_response: bool = False,
         _defer_exhaustion: bool = False,
     ) -> BudgetMutation | RunBudgetExhausted:
+        # Roll back any Work hold if Run validation rejects the reservation.
+        # Keep the original Work -> Run lock order shared with settle/release.
+        try:
+            with uow.connection.transaction():
+                return self._reserve_in_uow(
+                    uow, run_id, operation_id, amounts, final_response=final_response
+                )
+        except RunBudgetExhausted as error:
+            # Work exhaustion has its own contract; only defer a Run rejection.
+            if type(error) is not RunBudgetExhausted:
+                raise
+            uow.execute(
+                "UPDATE run_budgets SET status='exhausted',updated_at=now() WHERE run_id=%s",
+                (run_id,),
+            )
+            if _defer_exhaustion:
+                return error
+            raise
+
+    def _reserve_in_uow(
+        self, uow, run_id, operation_id, amounts, *, final_response=False
+    ) -> BudgetMutation:
         requested = _amounts(amounts)
         if not operation_id or len(operation_id) > 200:
             raise ValueError("operation_id must contain 1 to 200 characters")
@@ -169,14 +191,7 @@ class RunBudgetService:
                 exceeded.append(dimension)
         enforced_exhaustion = bool(exceeded and budget["mode"] == "enforce")
         if enforced_exhaustion:
-            uow.execute(
-                "UPDATE run_budgets SET status='exhausted',updated_at=now() WHERE run_id=%s",
-                (run_id,),
-            )
-            error = RunBudgetExhausted("Run budget exhausted for: " + ", ".join(sorted(exceeded)))
-            if _defer_exhaustion:
-                return error
-            raise error
+            raise RunBudgetExhausted("Run budget exhausted for: " + ", ".join(sorted(exceeded)))
         from agent_activities.fencing import execution_fence
         fence = execution_fence.get()
         for dimension, amount in requested.items():

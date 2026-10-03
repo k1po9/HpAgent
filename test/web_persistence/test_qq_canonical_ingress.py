@@ -108,7 +108,12 @@ async def test_busy_receipt_and_cancel_replays_never_target_a_later_run(db, acco
     assert cancel["run_id"] == first["run_id"] and cancel["status"] == "cancelled"
     second = await adapter.accept(qq_message("3"), "napcat")
     assert second["session_id"] == first["session_id"]
-    db.execute("DELETE FROM idempotency_commands")
+    # Expired cache entries referenced by the command audit must be retained.
+    db.execute("UPDATE idempotency_commands SET created_at=now()-interval '8 days',"
+               "expires_at=now()-interval '1 day'")
+    db.execute("DELETE FROM idempotency_commands c WHERE NOT EXISTS "
+               "(SELECT 1 FROM execution_control_events e WHERE e.command_id=c.idempotency_command_id)")
+    assert db.execute("SELECT count(*) FROM execution_control_events").fetchone()[0] > 0
     repeated = await adapter.accept(qq_message("c", "/cancel"), "napcat")
     assert repeated.replayed and repeated["run_id"] == first["run_id"]
     assert (await adapter.accept(qq_message("2"), "napcat"))["code"] == "conversation_busy"

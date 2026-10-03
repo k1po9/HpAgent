@@ -42,6 +42,7 @@ async def workspace_blocking_read() -> str:
     pulse = asyncio.create_task(heartbeat())
     try:
         with STATE.workspace.prepare(STATE.account_id, STATE.run_id) as scope:
+            STATE.scratch_root = scope.scratch_root
             scope.select(STATE.node_id)
             tool = {item.name: item for item in create_file_read_tools(
                 lambda: scope, STATE.registry,
@@ -124,7 +125,8 @@ async def test_temporal_blocked_file_tool_stops_after_adapter_exit(
                 task_queue=f"workspace-revoke-{run_id}",
             )
             assert await asyncio.to_thread(entered.wait, 10)
-            assert (execution_root / str(run_id)).exists()
+            assert STATE.scratch_root.is_relative_to(execution_root / str(account_id) / str(run_id))
+            assert STATE.scratch_root.exists()
             assert policy.revoke(account_id, UUID(grants[1]), commands) == [run_id]
             with pytest.raises(ResourceDenied):
                 policy.check_file(account_id, run_id, file_id)
@@ -134,10 +136,10 @@ async def test_temporal_blocked_file_tool_stops_after_adapter_exit(
             await handle.cancel()
             await asyncio.sleep(1)
             assert not exited.is_set()
-            assert (execution_root / str(run_id)).exists()
+            assert STATE.scratch_root.exists()
             release.set()
             await asyncio.wait_for(handle.result(), 20)
-            await _wait(lambda: exited.is_set() and not (execution_root / str(run_id)).exists())
+            await _wait(lambda: exited.is_set() and not STATE.scratch_root.exists())
             assert commands.cancelled_run(account_id, run_id)
             with UnitOfWork(database_url) as uow:
                 assert uow.execute("SELECT status FROM runs WHERE run_id=%s",

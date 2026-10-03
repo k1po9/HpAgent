@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 
 from agent_activities.fencing import execution_fence
 from agent_activities.store import AgentDataStore
+from application.interaction_profiles import select_interaction_profile
 from persistence.uow import UnitOfWork
 
 
@@ -64,6 +65,7 @@ class ExecutionResourceService:
             origin = uow.execute(
                 "SELECT origin FROM messages WHERE message_id=%s", (run["trigger_message_id"],)
             ).fetchone()
+        message_origin = (origin["origin"] if origin else {}) or {}
         return self.sandbox_manager.create_execution_sandbox(
             execution_id=execution_id,
             workspace_path=str(scratch),
@@ -73,7 +75,9 @@ class ExecutionResourceService:
                 "source_kind": run["source_kind"],
                 "conversation_id": str(run["conversation_id"]) if run["conversation_id"] else None,
                 "trigger_message_id": str(run["trigger_message_id"]) if run["trigger_message_id"] else None,
-                "channel_type": (origin["origin"] if origin else {}).get("channel_type", "web"),
+                "channel_type": message_origin.get("channel_type", "web"),
+                "scope": message_origin.get("scope", "private"),
+                "interaction_profile": select_interaction_profile(message_origin),
                 "metadata": {"run_id": str(run_id), "execution_id": execution_id},
             },
         )

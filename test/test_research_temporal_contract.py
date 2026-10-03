@@ -12,6 +12,7 @@ from orchestration.research_workflow import (
     ResearchReportWorkflow,
     ResearchWorkflowInput,
 )
+from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from orchestration.web_dispatcher import StartDecision, TemporalOutboxDispatcher
 
 
@@ -68,7 +69,7 @@ async def test_research_outbox_dispatch_uses_persisted_deterministic_workflow_id
         cancel_recorded = None
 
         def prepare_start(self, value):
-            return StartDecision(value, f"hpagent-research-{value}", True)
+            return StartDecision(value, f"hpagent-web-run-{value}", True)
 
         def still_queued(self, value):
             return True
@@ -79,15 +80,18 @@ async def test_research_outbox_dispatch_uses_persisted_deterministic_workflow_id
         def needs_cancel(self, value):
             return cancel_during_start
 
+        def current_workflow_id(self, value):
+            return f"hpagent-web-run-{value}"
+
         def record_cancel_requested(self, value):
             self.cancel_recorded = value
 
     class Temporal:
         cancelled = None
 
-        async def start_research_run(self, workflow_id, request):
-            assert workflow_id == f"hpagent-research-{run_id}"
-            assert request == ResearchWorkflowInput(1, str(run_id))
+        async def start_web_run(self, workflow_id, request):
+            assert workflow_id == f"hpagent-web-run-{run_id}"
+            assert request == RunLifecycleInput(1, str(run_id))
             return "temporal-run-id"
 
         async def cancel_web_run(self, workflow_id):
@@ -97,7 +101,7 @@ async def test_research_outbox_dispatch_uses_persisted_deterministic_workflow_id
     store = Store()
     temporal = Temporal()
     dispatcher = TemporalOutboxDispatcher(store, temporal)
-    assert await dispatcher.dispatch_research_start(run_id)
+    assert await dispatcher.dispatch_start(run_id)
     assert store.recorded == (run_id, "temporal-run-id")
-    assert temporal.cancelled == (f"hpagent-research-{run_id}" if cancel_during_start else None)
+    assert temporal.cancelled == (f"hpagent-web-run-{run_id}" if cancel_during_start else None)
     assert store.cancel_recorded == (run_id if cancel_during_start else None)

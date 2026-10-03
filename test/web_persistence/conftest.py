@@ -39,8 +39,10 @@ def worker_database_url() -> str:
 def db(database_url: str, migration_database_url: str):
     with psycopg.connect(migration_database_url, autocommit=True) as connection:
         connection.execute("SET search_path TO hpagent, public")
-        for table in ("artifact_versions", "artifacts", "account_entitlements", "registration_invites", "identity_binding_challenges", "web_credentials", "outbox_events", "idempotency_commands", "workflow_executions", "messages", "runs", "web_auth_sessions", "identity_bindings", "conversations", "accounts"):
-            connection.execute(f"TRUNCATE {table} CASCADE")
+        tables = ("artifact_versions", "artifacts", "account_entitlements", "registration_invites", "identity_binding_challenges", "web_credentials", "outbox_events", "idempotency_commands", "workflow_executions", "messages", "runs", "web_auth_sessions", "identity_bindings", "conversations", "accounts")
+        # One reset preserves the same isolation without repeatedly cascading
+        # across the enlarged Work/Execution foreign-key graph.
+        connection.execute(f"TRUNCATE {', '.join(tables)} CASCADE")
         yield connection
 
 

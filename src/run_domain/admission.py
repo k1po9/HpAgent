@@ -70,12 +70,19 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
             (account_id, work_id, requirement["revision"]),
         ).fetchall()
     )
-    retry = uow.execute(
-        "SELECT run_id FROM runs WHERE account_id=%s AND work_id=%s "
-        "AND requirement_revision=%s AND status IN ('failed','cancelled') "
+    wakeup = uow.execute(
+        "SELECT kind FROM work_wakeups WHERE wakeup_id=%s", (wakeup_id,)
+    ).fetchone()
+    previous = uow.execute(
+        "SELECT run_id,status FROM runs WHERE account_id=%s AND work_id=%s "
+        "AND requirement_revision=%s "
         "ORDER BY created_at DESC,run_id DESC LIMIT 1",
         (account_id, work_id, requirement["revision"]),
     ).fetchone()
+    # Only an explicit retry/advance of the latest failed attempt has ancestry.
+    # A later occurrence or a step following success is a new execution.
+    retry = (previous if wakeup["kind"] in {"advance", "retry"} and previous
+             and previous["status"] in {"failed", "cancelled"} else None)
     uow.execute(
         "INSERT INTO runs(run_id,account_id,source_kind,work_id,requirement_revision,"
         "work_control_epoch,wakeup_id,strategy_kind,executor_key,workflow_id,agent_strategy,retry_of_run_id,"
@@ -136,6 +143,13 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
             else {"tool_calls": 40}
         )
     )
+    if strategy in {"generic_agent", "fixed_workflow"}:
+        limits.update({
+            "bytes_scanned": 1024 * 1024 * 1024,
+            "bytes_returned_to_model": 2 * 1024 * 1024,
+            "bytes_written": 256 * 1024 * 1024,
+            "output_file_bytes": 256 * 1024 * 1024,
+        })
     RunBudgetRepository().create_snapshot(
         uow, run_id, account_id, None, "work-foundation-v1", budget_mode, json.dumps(limits), 0
     )

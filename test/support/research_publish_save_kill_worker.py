@@ -10,8 +10,11 @@ from pathlib import Path
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from agent_activities.store import AgentDataStore
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
-from orchestration.research_workflow import ResearchReportWorkflow
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.run_dispatcher import RunStrategyActivities
+from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from research_activities import ResearchActivities
 from research_domain.models import (
@@ -21,8 +24,17 @@ from research_domain.models import (
     SourceContent,
     content_sha256,
 )
+from run_domain.input import RunInputLoader
 from storage.tenant_file_store import TenantFileStore
+from web_domain.lifecycle import WebRunLifecycleService
 from workspace.catalog import WorkspaceCatalog
+
+
+class RecoveryTestStore(AgentDataStore):
+    """Accelerate natural lease expiry without clearing holds or forcing takeover."""
+
+    def __init__(self, database):
+        super().__init__(database, lease_ttl_seconds=5)
 
 
 class Discovery:
@@ -51,6 +63,12 @@ class Synthesis:
 
 
 async def main() -> None:
+    import research_activities.runtime as research_runtime
+
+    # Production defaults to one hour, beyond this test's Activity timeout.
+    # Exercise normal expiry/fencing in bounded time; this does not verify the
+    # production default's recovery latency.
+    research_runtime.AgentDataStore = RecoveryTestStore
     role, phase, state_root = sys.argv[1:4]
     state = Path(state_root)
     database = os.environ["WORKER_DATABASE_URL"]
@@ -81,8 +99,15 @@ async def main() -> None:
     )
     client = await Client.connect(os.environ["TEMPORAL_HOST"],
                                   namespace=os.environ["TEMPORAL_TEST_NAMESPACE"])
+    lifecycle = RunLifecycleActivities(WebRunLifecycleService(database),
+                                       RunInputLoader(AgentDataStore(database)))
+    strategy = RunStrategyActivities(database)
     worker = Worker(client, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-        workflows=[ResearchReportWorkflow], activities=[
+        workflows=[AgentLifecycleWorkflow], activities=[
+            lifecycle.prepare_run,
+            lifecycle.finalize_cancelled,
+            lifecycle.finalize_failed,
+            strategy.load_strategy,
             activities.prepare_research_activity,
             activities.create_research_plan_activity,
             activities.discover_research_sources_activity,

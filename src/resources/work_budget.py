@@ -18,8 +18,9 @@ DEFAULT_LIMITS = {
     "research_iterations": 30,
     "bytes_scanned": 1000000000,
     "bytes_returned_to_model": 10000000,
-    "bytes_written": 100000000,
-    "output_file_bytes": 100000000,
+    # Four bounded 128 MiB file-write reservations, settled to actual bytes.
+    "bytes_written": 512 * 1024 * 1024,
+    "output_file_bytes": 512 * 1024 * 1024,
     "wall_time_ms": 18000000,
 }
 

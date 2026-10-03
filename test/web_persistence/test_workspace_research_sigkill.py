@@ -12,11 +12,12 @@ from support.work_fixtures import accept_research, advance_work
 from temporalio.client import Client
 
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
-from orchestration.research_workflow import ResearchReportWorkflow, ResearchWorkflowInput
-from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
 from persistence.uow import UnitOfWork
 from research_activities import ResearchActivities
 from storage.tenant_file_store import TenantFileStore
+from web_domain.workflow_execution import PostgresWorkflowExecutionStore
 from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
 
@@ -84,9 +85,11 @@ async def test_research_worker_sigkill_preserves_history_intent_and_results(
     first = replacement = None
     try:
         first = await _worker("first", phase, state, env)
+        decision = PostgresWorkflowExecutionStore(worker_database_url).prepare_start(run_id)
+        assert decision.should_start
         handle = await client.start_workflow(
-            ResearchReportWorkflow.run, ResearchWorkflowInput(1, str(run_id)),
-            id=f"workspace-sigkill-{phase}-{run_id}", task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+            AgentLifecycleWorkflow.run, RunLifecycleInput(1, str(run_id)),
+            id=decision.workflow_id, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
         )
         await _wait_file(state / f"{phase}.committed")
         assert await asyncio.wait_for(first.wait(), 10) == -9

@@ -194,10 +194,12 @@ class RunLifecycleService:
         current = WorkRepository.get(uow, work['account_id'], work['work_id'])
         requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'], current['current_requirement_revision'])
         sync_schedule(uow, current, requirement)
-        if status == 'succeeded' and current['status'] == 'active' and next_step['kind'] in {'at_time', 'retry_after'}:
+        if (status == 'succeeded' and current['status'] == 'active'
+                and current['current_requirement_revision'] == run['requirement_revision']
+                and next_step['kind'] in {'ready', 'at_time', 'retry_after'}):
             WorkRepository.wakeup(uow, current, f"continuation:{run['run_id']}",
-                                  'retry' if next_step['kind'] == 'retry_after' else 'due',
-                                  'execution_continuation', next_step['due_at'])
+                                  {'ready': 'advance', 'retry_after': 'retry', 'at_time': 'due'}[next_step['kind']],
+                                  'execution_continuation', next_step.get('due_at'))
         return True
 
     @retryable_transaction

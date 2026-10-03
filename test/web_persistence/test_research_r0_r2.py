@@ -57,10 +57,10 @@ def test_trigger_task_is_atomic_idempotent_and_links_research_run(database_url, 
     assert str(run["work_id"]) == created.body["work"]["work_id"]
     assert run["source_kind"] == "work"
     assert run["conversation_id"] is None
-    assert run["workflow_id"] == f"hpagent-research-{first.body['run']['run_id']}"
+    assert run["workflow_id"] == f"hpagent-web-run-{first.body['run']['run_id']}"
     assert run["agent_strategy"] is None
-    assert event["event_type"] == "start_research_run"
-    assert event["business_key"] == f"start-research-run:{first.body['run']['run_id']}"
+    assert event["event_type"] == "start_run"
+    assert event["business_key"] == f"start-run:{first.body['run']['run_id']}"
     assert budget["limits"]["source_fetches"] == 20
 
 

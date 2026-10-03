@@ -45,9 +45,23 @@ def advance(commands, account_id, work):
     return result.body['work'], result.body['run']
 
 
-def controlled_result():
+def controlled_result(ref='controlled-test-receipt:1'):
     return {'schema_version':1, 'kind':'progress_saved',
-            'evidence':[{'criterion_id':'deliver','type':'operation_receipt','ref':'controlled-test-receipt:1'}]}
+            'evidence':[{'criterion_id':'deliver','type':'operation_receipt','ref':ref}]}
+
+
+def persisted_result(database, account_id, run):
+    from agent_activities.fencing import fence_scope
+    from agent_activities.store import AgentDataStore
+
+    store = AgentDataStore(database)
+    lease = store.acquire_lease(str(account_id), run['run_id'])
+    operation = f'{lease.execution_id}:verified-action'
+    with fence_scope(str(account_id), run['run_id'], lease.fencing_token, lease.execution_id):
+        store.begin_tool_operation(operation, run['run_id'])
+        store.complete_operation(operation, f'operation:{operation}',
+                                 {'tool_success': True, 'side_effect_class': 'read_only'})
+    return controlled_result(f'operation:{operation}')
 
 
 @pytest.mark.parametrize('capability', ['reminder','research_report'])
@@ -157,7 +171,8 @@ def test_run_success_does_not_complete_work(commands, account_id, urls, owner):
     work, run = advance(commands, account_id, accept(commands, account_id))
     lifecycle = RunLifecycleService(urls[2])
     lifecycle.start(account_id, UUID(run['run_id']))
-    assert lifecycle.finish(account_id, UUID(run['run_id']), 'succeeded', result=controlled_result())
+    result = persisted_result(urls[2], account_id, run)
+    assert lifecycle.finish(account_id, UUID(run['run_id']), 'succeeded', result=result)
     latest = commands.get(account_id, UUID(work['work_id']))['work']
     assert latest['status']=='active' and latest['active_coordinator_run_id'] is None
     assert latest['completed_requirement_revision'] is None
@@ -167,7 +182,7 @@ def test_run_success_does_not_complete_work(commands, account_id, urls, owner):
         assert WorkCompletionPolicy.accept(uow,current,dict(result_run))
     completed = commands.get(account_id, UUID(work['work_id']))['work']
     assert completed['status']=='completed' and completed['completed_requirement_revision']==1
-    assert completed['completion_receipt']['evidence']==controlled_result()['evidence']
+    assert completed['completion_receipt']['evidence']==result['evidence']
     with pytest.raises(WorkConflict):
         commands.revise(account_id, UUID(work['work_id']), str(uuid4()), completed['row_version'], requirement())
     with pytest.raises(psycopg.errors.RaiseException):
@@ -178,7 +193,8 @@ def test_ongoing_result_never_completes_work(commands, account_id, urls):
     work, run = advance(commands, account_id, accept(commands, account_id, completion_mode='ongoing'))
     lifecycle = RunLifecycleService(urls[2])
     lifecycle.start(account_id, UUID(run['run_id']))
-    lifecycle.finish(account_id, UUID(run['run_id']), 'succeeded', result=controlled_result(), accept_result=True)
+    lifecycle.finish(account_id, UUID(run['run_id']), 'succeeded',
+                     result=persisted_result(urls[2], account_id, run), accept_result=True)
     assert commands.get(account_id, UUID(work['work_id']))['work']['status']=='active'
 
 

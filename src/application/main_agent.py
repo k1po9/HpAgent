@@ -28,9 +28,25 @@ def create_main_work_tools(context, commands):
     account = UUID(context['account_id'])
     conversation = UUID(context['conversation_id'])
     source_message = UUID(context['trigger_message_id'])
+    public_audience = (context.get('scope') in {'group', 'guild'} or
+                       context.get('interaction_profile') == 'qq_group' or
+                       context.get('surface') == 'qq_group')
+
+    def public_work(work):
+        # Account ownership authorizes commands, not disclosure to a shared audience.
+        return {**{key: work[key] for key in ('work_id', 'status', 'row_version',
+                                             'current_requirement_revision')},
+                'continuation': {'kind': work['continuation']['kind']}}
 
     def encode(value):
-        return json.dumps(value.body if hasattr(value, 'body') else value, ensure_ascii=False, sort_keys=True)
+        value = value.body if hasattr(value, 'body') else value
+        if public_audience:
+            if 'work' in value:
+                value = {'work': public_work(value['work'])}
+            elif 'items' in value:
+                value = {'items': [public_work(item) for item in value['items']],
+                         'next_before': value['next_before']}
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
     async def accept_work(title: str, requirement: dict, mandate_slot: str) -> str:
         """Accept one explicit mandate and return its committed identity; requires structured spec/timing."""
@@ -52,9 +68,6 @@ def create_main_work_tools(context, commands):
     async def get_work(work_id: str) -> str:
         """Query an exact Work belonging to the current account."""
         result = await asyncio.to_thread(commands.get, account, UUID(work_id))
-        if context.get('interaction_profile') == 'qq_group' or context.get('surface') == 'qq_group':
-            work = result['work']
-            return encode({'work':{k:work[k] for k in ('work_id','status','row_version','current_requirement_revision','continuation')}})
         return encode(result)
 
     async def revise_work(work_id: str, row_version: int, requirement: dict, operation_id: str = '') -> str:

@@ -145,10 +145,17 @@ class WorkScheduleService:
                     logger.warning('Work admission blocked: %s', type(exc).__name__)
                     uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1 WHERE work_id=%s',
                                 (json.dumps(continuation('blocked', 'budget_exhausted' if isinstance(exc, RunBudgetExhausted) else 'admission_rejected')), work['work_id']))
+                except Exception:
+                    # The savepoint rolls back this admission only. Keep its wakeup
+                    # pending for recovery and let other accounts make progress.
+                    logger.exception('Work admission failed: work_id=%s', work['work_id'])
         return count
 
 
 async def run_work_schedule_loop(service, interval_seconds=2):
     while True:
-        await asyncio.to_thread(service.run_once)
+        try:
+            await asyncio.to_thread(service.run_once)
+        except Exception:
+            logger.exception('Work scheduler iteration failed; retrying next iteration')
         await asyncio.sleep(interval_seconds)

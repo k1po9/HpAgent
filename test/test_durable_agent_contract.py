@@ -13,6 +13,7 @@ from agent_workflows.contracts import (
     AGENT_STRATEGY_REACT,
     CompactToolCall,
 )
+from agent_workflows.delegation import WorkDelegationWorkflow
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
@@ -93,6 +94,7 @@ def test_canonical_registry_excludes_legacy_execution(monkeypatch):
         PlanAndExecuteWorkflow,
         AgentStepWorkflow,
         ToolExecutionWorkflow,
+        WorkDelegationWorkflow,
     ]
 
 
