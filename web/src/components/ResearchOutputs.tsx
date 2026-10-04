@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api as transport } from "../api/client";
 import { HpApi } from "../api/resources";
 
@@ -8,7 +8,9 @@ type Run = Awaited<ReturnType<HpApi["listResearchRuns"]>>["items"][number];
 
 export function ResearchOutputs({
   onSaveFile,
+  pageMode = false,
 }: {
+  pageMode?: boolean;
   onSaveFile?: (file: { file_id: string; file_name: string }) => void;
 }) {
   const [works, setWorks] = useState<Work[]>([]);
@@ -18,16 +20,34 @@ export function ResearchOutputs({
     {},
   );
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   async function loadWorks() {
+    setLoading(true);
+    setError(null);
     try {
       const page = await api.listResearchWorks();
       setWorks(page.items.filter((work) => work.requirement.capability_key === "research_report"));
       setError(null);
+      setLoaded(true);
     } catch {
       setError("无法加载调查委托");
+    } finally {
+      setLoading(false);
     }
   }
+
+  useEffect(() => {
+    let current = true;
+    if (pageMode)
+      void Promise.resolve().then(() => {
+        if (current) return loadWorks();
+      });
+    return () => {
+      current = false;
+    };
+  }, [pageMode]);
 
   async function loadRuns(workId: string) {
     try {
@@ -54,12 +74,18 @@ export function ResearchOutputs({
 
   return (
     <details
+      className="hp-research-panel"
+      open={pageMode || undefined}
       onToggle={(event) => {
-        if (event.currentTarget.open) void loadWorks();
+        if (event.currentTarget.open && !pageMode) void loadWorks();
       }}
     >
       <summary>Research 输出</summary>
       {error ? <p role="alert">{error}</p> : null}
+      {loading ? <p role="status">正在加载调查委托…</p> : null}
+      {loaded && !loading && !error && works.length === 0 ? (
+        <p>暂无调查委托或成果。可在对话中提出调查要求，完成后在这里查看报告。</p>
+      ) : null}
       {works.map((work) => (
         <div key={work.work_id}>
           <button type="button" onClick={() => void loadRuns(work.work_id)}>
@@ -71,7 +97,7 @@ export function ResearchOutputs({
       {runs.map((run) => (
         <div key={run.run_id}>
           <button type="button" onClick={() => void loadReport(run.run_id)}>
-            {run.run_id}
+            查看报告 · 执行编号 {run.run_id}
           </button>
           <small> {run.status}</small>
           {run.failure_code ? <p role="alert">{run.failure_code}</p> : null}

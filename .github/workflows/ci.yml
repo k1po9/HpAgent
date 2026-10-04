@@ -5,6 +5,9 @@ on:
   push:
     branches: [main, master, feat/hpagent-web]
 
+env:
+  HPAGENT_MIGRATIONS_DIR: ${{ github.workspace }}/persistence/migrations
+
 jobs:
   lint-and-typecheck:
     runs-on: ubuntu-latest

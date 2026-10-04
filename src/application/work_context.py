@@ -45,14 +45,17 @@ class WorkContextProvider:
                 raise ValueError("Generic Work Run unavailable")
             RunLifecycleService.check_work(uow, run)
             snapshot = run["input_snapshot"]
-            candidates = uow.execute(
-                "SELECT node_id,logical_name,fixed_revision FROM run_resource_candidates "
-                "WHERE account_id=%s AND run_id=%s ORDER BY node_id LIMIT 40",
-                (run["account_id"], run_id),
-            ).fetchall()
+            from workspace.resources import ResourcePolicy
+            # Filter metadata through current grants as well as the frozen candidate set.
+            candidates = ResourcePolicy(self.database).candidates_in_uow(uow, run["account_id"], run_id, limit=20)
             budget = uow.execute(
                 "SELECT limits FROM run_budgets WHERE run_id=%s", (run_id,)
             ).fetchone()
+            from persistence.repositories import FileRepository
+            files = FileRepository().list_ready_for_run(uow, run["account_id"], run_id)
+            run_files = [{"logical_name": f["logical_name"], "direction": f["direction"],
+                          "content_type": f.get("content_type"), "size_bytes": f["size_bytes"]}
+                         for f in files[:20]]
             # Candidate metadata is advisory; selecting/using bytes rechecks current grants.
             from work_domain.persistence import dto
 
@@ -64,6 +67,8 @@ class WorkContextProvider:
                 "checkpoint": snapshot["checkpoint"],
                 "trigger": snapshot["wakeup_id"],
                 "resources": dto(candidates),
+                "run_files": dto(run_files),
+                "run_file_count": len(files),
                 "artifact_refs": snapshot.get("artifact_refs", []),
                 "budget": dto(budget),
                 "input_ref": f"run:{run_id}",
@@ -79,6 +84,8 @@ class WorkContextProvider:
                 {
                     "role": "system",
                     "content": "Execute this fixed Work brief within authorized resources. "
+                    "For bound inputs read the run_files logical names or use list_files to discover more. "
+                    "For file resources use list_run_candidates, select_run_candidate, then read_file by returned logical name. "
                     "Save progress or state missing input. A narrative answer cannot complete the mandate. "
                     "Do not create or manage other Work. No implicit channel or resource permission is granted. "
                     "For independent investigation directions, delegate_work is available once with up to three bounded briefs. "

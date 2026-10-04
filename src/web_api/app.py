@@ -198,7 +198,10 @@ class ProtocolMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Any]]):
         if request.url.path.startswith("/api/v1"):
             accept = request.headers.get("accept", "*/*")
-            is_sse = request.url.path.endswith("/events")
+            is_sse = bool(re.fullmatch(
+                r"/api/v1/(?:runs/[^/]+/events|works/[^/]+/events/stream)",
+                request.url.path,
+            ))
             if not is_sse and "application/json" not in accept and "*/*" not in accept:
                 return _error(request, 406, "not_acceptable", "不支持请求的响应类型。")
             if is_sse and "text/event-stream" not in accept and "*/*" not in accept:
@@ -427,18 +430,32 @@ def create_app(
         }
         status, code, message, retryable = mapping.get(type(exc), (500, "service_unavailable", "服务暂不可用。", True))
         details = {"current_version": exc.current_version} if isinstance(exc, VersionConflict) else {}
+        if isinstance(exc, WorkspaceConflict):
+            details = {"reason": exc.reason}
+            message = {
+                "name_exists": "目标目录已有同名文件或目录。",
+                "invalid_name": "名称无效，请避免斜杠、首尾空格或过长名称。",
+                "invalid_parent": "目标目录不存在或不可用。",
+                "directory_not_empty": "目录非空，请先移除或移动子项。",
+                "workspace_cycle": "不能把目录移动到自身或其子目录。",
+                "immutable_node": "此入口不能执行这项修改。",
+                "file_unavailable": "文件当前不可用。",
+            }.get(exc.reason, message)
         if isinstance(exc, WorkConflict):
             details = {"current": exc.current, "reason": exc.reason}
         if isinstance(exc, RunRetryNotSafe):
             details = {
                 "failure_code": exc.failure_code,
-                "reason": "unsafe_side_effect_state",
+                "reason": exc.reason,
             }
+            if exc.reason != "unsafe_side_effect_state":
+                message = "该失败无法直接重试，请处理原因后重新发起。"
         if code in {"resource_denied", "candidate_limit_exceeded", "workspace_conflict"}:
             log_event(logger, logging.WARNING, "workspace_request_rejected", "web_api",
                       code=code, request_id=getattr(request.state, "request_id", None),
                       run_id=request.path_params.get("run_id"),
-                      node_id=request.path_params.get("node_id"))
+                      node_id=request.path_params.get("node_id"),
+                      reason=details.get("reason"))
         return _error(request, status, code, message, retryable=retryable, details=details)
 
     @app.exception_handler(Exception)
@@ -963,7 +980,25 @@ def create_app(
         try:
             return function()
         except (CheckViolation, ForeignKeyViolation, RaiseException, UniqueViolation) as exc:
-            raise WorkspaceConflict(str(exc)) from exc
+            reasons = {
+                "uq_workspace_nodes__siblings": "name_exists",
+                "fk_workspace_nodes__parent": "invalid_parent",
+                "ck_workspace_nodes__name": "invalid_name",
+                "ck_workspace_nodes__root": "immutable_node",
+                "Parent must be an active directory in this Workspace": "invalid_parent",
+                "Directory is not empty": "directory_not_empty",
+                "Workspace cycle": "workspace_cycle",
+                "Workspace root is immutable": "immutable_node",
+                "Workspace node identity is immutable": "immutable_node",
+                "Workspace content identity is immutable": "immutable_node",
+                "Workspace tombstone cannot be revived": "immutable_node",
+                "Workspace file is unavailable": "file_unavailable",
+                "Workspace unavailable": "invalid_parent",
+            }
+            reason = reasons.get(exc.diag.constraint_name) or reasons.get(exc.diag.message_primary)
+            if reason is None:
+                raise
+            raise WorkspaceConflict(reason, reason=reason) from exc
 
     @app.get("/api/v1/workspace")
     def get_workspace(request: Request, context: AuthContext = Depends(auth_context)):

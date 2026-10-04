@@ -17,7 +17,16 @@ test("builds, interacts with, isolates and restores an Artifact", async ({ page 
   const artifact = frame.contentFrame();
   await artifact.getByRole("button", { name: "切换状态" }).click();
   await expect(artifact.getByText("开启")).toBeVisible();
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载 HTML", exact: true }).click();
+  expect((await download).suggestedFilename()).toBe("成果-v1.html");
+  await page.getByRole("button", { name: "保存此版本到长期目录", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "保存到长期文件" });
+  await dialog.getByLabel("保存名称").fill(`artifact-${Date.now()}.html`);
+  await dialog.getByRole("button", { name: "确认保存" }).click();
+  await expect(dialog).not.toBeVisible();
   await expect(page.locator(".hp-workbench")).toBeVisible();
+  await page.getByRole("button", { name: "对话", exact: true }).click();
   await expect(page.getByPlaceholder("输入消息，Enter 发送")).toBeEnabled();
 
   await page.reload();

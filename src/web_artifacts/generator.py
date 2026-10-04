@@ -6,6 +6,7 @@ from typing import Any, Protocol
 import httpx
 
 from common.errors import ModelAPIError
+from resources.model_failures import ModelRequestInvalid
 from resources.model_governance_errors import classify_model_governance_failure
 from resources.run_budget import RunBudgetExhausted
 
@@ -36,6 +37,9 @@ def classify_model_failure(exc: BaseException) -> ArtifactGenerationError:
         chain.append(current)
         current = current.__cause__ or current.__context__
     for cause in chain:
+        if isinstance(cause, ModelRequestInvalid):
+            return ArtifactGenerationError("model_request_invalid", "模型请求格式校验失败。",
+                                           exception_type=type(cause).__name__, retryable=False)
         governance = classify_model_governance_failure(cause)
         if governance is not None:
             return ArtifactGenerationError(governance.code, governance.safe_message,
@@ -84,10 +88,13 @@ _ERROR_BRIDGE = """<script>(function(){function report(message){parent.postMessa
 
 class WebArtifactGenerator:
     def __init__(self, resources: ModelResource, *, model_selector: str = "chat",
-                 max_bytes: int = 1024 * 1024):
+                 max_bytes: int = 1024 * 1024, read_timeout_seconds: float = 90.0):
         self.resources = resources
         self.model_selector = model_selector
         self.max_bytes = max_bytes
+        if not 5 <= read_timeout_seconds <= 300:
+            raise ValueError("artifact read timeout must be 5..300 seconds")
+        self.read_timeout_seconds = read_timeout_seconds
 
     async def generate(self, *, source_markdown: str, instruction: str | None,
                        previous_html: str | None = None) -> str:

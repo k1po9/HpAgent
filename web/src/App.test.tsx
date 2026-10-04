@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useAuth } from "./store/auth";
 import { useArtifacts } from "./store/artifacts";
+import { useWorkbench } from "./store/workbench";
 
 const ME = {
   account: { account_id: "alice", status: "active", created_at: "2026-08-08T00:00:00Z" },
@@ -39,6 +40,7 @@ const json = (body: unknown) =>
   });
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/");
   capabilities = {};
   useAuth.setState({
     status: "checking",
@@ -94,6 +96,52 @@ beforeEach(() => {
 });
 
 describe("App workbench", () => {
+  it("shows a failed creation before any conversation is selected and clears it on success", async () => {
+    const baseFetch = globalThis.fetch;
+    let fail = true;
+    useWorkbench.setState({
+      activeConversationId: null,
+      activeRun: null,
+      conversations: [],
+      conversationsLoaded: false,
+      error: null,
+    });
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (
+        String(input).startsWith("/api/v1/conversations?") ||
+        String(input) === "/api/v1/conversations"
+      ) {
+        if (init?.method === "POST") {
+          if (fail)
+            return new Response(
+              JSON.stringify({
+                error: {
+                  code: "csrf_failed",
+                  message: "请求来源不匹配",
+                  request_id: "req",
+                  retryable: false,
+                  details: {},
+                },
+              }),
+              { status: 403, headers: { "Content-Type": "application/json" } },
+            );
+          return json({ conversation: CONVERSATION });
+        }
+        return json({ items: [], has_more: false, next_cursor: null });
+      }
+      return baseFetch(input, init);
+    });
+    render(<App />);
+    await screen.findByText("选择或新建一个对话开始。");
+    fireEvent.click(screen.getByRole("button", { name: "新建对话" }));
+    expect(await screen.findByText("请求来源不匹配")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "关闭提示" }));
+    expect(screen.queryByText("请求来源不匹配")).not.toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "新建对话" }));
+    await screen.findByPlaceholderText(/输入消息/);
+    expect(screen.queryByText("请求来源不匹配")).not.toBeInTheDocument();
+  });
   it("shows a retry when the API session probe fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
     render(<App />);
@@ -103,7 +151,7 @@ describe("App workbench", () => {
 
   it("renders the conversation list and the composer after signing in", async () => {
     render(<App />);
-    expect(await screen.findByText("测试对话")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "测试对话" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/输入消息/)).toBeInTheDocument();
     expect(screen.getByText("新建", { selector: "button" })).toBeInTheDocument();
     expect(screen.getByText("绑定 QQ", { selector: "button" })).toBeInTheDocument();

@@ -38,7 +38,13 @@ const reasonLabels: Record<string, string> = {
   user_acceptance_required: "请确认这份成果",
 };
 
-export function WorkPanel({ conversationId }: { conversationId: string | null }) {
+export function WorkPanel({
+  conversationId,
+  pageMode = false,
+}: {
+  conversationId: string | null;
+  pageMode?: boolean;
+}) {
   const items = useWorks((s) => s.items);
   const busy = useWorks((s) => s.busy);
   const error = useWorks((s) => s.error);
@@ -73,7 +79,7 @@ export function WorkPanel({ conversationId }: { conversationId: string | null })
     return () => stops.forEach((stop) => stop());
   }, [ids]);
   return (
-    <details className="hp-work-panel">
+    <details className="hp-work-panel" open={pageMode || undefined}>
       <summary>持续工作（{items.length}）</summary>
       {error && <p role="alert">{error}</p>}
       {items.length === 0 && <Text size="2">暂无持续委托。</Text>}
@@ -87,14 +93,23 @@ export function WorkPanel({ conversationId }: { conversationId: string | null })
           </Flex>
           <p>{work.requirement.objective}</p>
           <Text size="2">
-            {work.active_coordinator_run_id ? "后台执行中 · " : ""}
-            {continuationLabels[work.continuation.kind] ?? "等待继续"}
-            {reasonLabels[work.continuation.reason]
-              ? ` · ${reasonLabels[work.continuation.reason]}`
-              : ""}
-            {work.continuation.due_at
-              ? ` · ${new Date(work.continuation.due_at).toLocaleString()}`
-              : ""}
+            {work.status === "stopped" ? (
+              "工作已停止，不再按原计划继续。"
+            ) : work.status === "completed" ? (
+              "工作已完成。"
+            ) : (
+              <>
+                {work.status === "paused" ? "已暂停 · 原计划：" : ""}
+                {work.active_coordinator_run_id ? "后台执行中 · " : ""}
+                {continuationLabels[work.continuation.kind] ?? "等待继续"}
+                {reasonLabels[work.continuation.reason]
+                  ? ` · ${reasonLabels[work.continuation.reason]}`
+                  : ""}
+                {work.continuation.due_at
+                  ? ` · ${new Date(work.continuation.due_at).toLocaleString()}`
+                  : ""}
+              </>
+            )}
           </Text>
           {work.budget && (
             <p>

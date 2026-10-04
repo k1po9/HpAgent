@@ -164,4 +164,36 @@ describe("RunStatus retry safety", () => {
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("shows the safe model failure message and preserves retry rules", () => {
+    const run = failedRun(true);
+    run.failure!.message = "模型暂时不可用";
+    const { rerender } = render(
+      <RunStatus
+        activeRun={run}
+        busyMessage={null}
+        progress={null}
+        degraded={false}
+        stopping={false}
+        onStop={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("run-failure-message")).toHaveTextContent(
+      "模型暂时不可用（model_unavailable）",
+    );
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+    rerender(
+      <RunStatus
+        activeRun={{ ...run, status: "cancelled", failure: null }}
+        busyMessage={null}
+        progress={null}
+        degraded={false}
+        stopping={false}
+        onStop={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("run-failure-message")).not.toBeInTheDocument();
+  });
 });

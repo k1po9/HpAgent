@@ -43,6 +43,16 @@ const OK = (body: unknown, status = 200) =>
     headers: { "Content-Type": "application/json" },
   });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 function message(overrides: Partial<HpMessage>): HpMessage {
   return {
     message_id: overrides.message_id ?? "m",
@@ -242,6 +252,87 @@ describe("workbench store", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("ignores a delayed old selection after creating a new conversation", async () => {
+    const backend = makeBackend();
+    const api = new HpApi(new ApiClient(backend.fetchMock));
+    const detail = deferred<Awaited<ReturnType<HpApi["getConversationDetail"]>>>();
+    vi.spyOn(api, "getConversationDetail").mockReturnValueOnce(detail.promise);
+    vi.spyOn(api, "listMessages").mockResolvedValueOnce({
+      items: [message({ message_id: "old-message" })],
+      next_cursor: "old-cursor",
+      has_more: true,
+      conversation_last_message_seq: 1,
+    });
+    const store = createWorkbenchStore({ api, fetchImpl: backend.fetchMock });
+
+    const selecting = store.getState().selectConversation("c1");
+    await store.getState().createConversation();
+    detail.resolve({
+      conversation: conversation({}),
+      active_run: {
+        run: run({ status: "running" }),
+        assistant_message: message({ status: "pending", produced_by_run_id: "r1" }),
+      },
+    });
+    await selecting;
+
+    expect(store.getState()).toMatchObject({
+      activeConversationId: "c2",
+      messages: [],
+      messageCursor: null,
+      hasMoreMessages: false,
+      loadingMessages: false,
+      activeRun: null,
+      error: null,
+    });
+    expect(backend.calls.some((call) => call.url.endsWith("/events"))).toBe(false);
+  });
+
+  it("ignores a delayed old selection error after creating a new conversation", async () => {
+    const backend = makeBackend();
+    const api = new HpApi(new ApiClient(backend.fetchMock));
+    const detail = deferred<Awaited<ReturnType<HpApi["getConversationDetail"]>>>();
+    vi.spyOn(api, "getConversationDetail").mockReturnValueOnce(detail.promise);
+    const store = createWorkbenchStore({ api, fetchImpl: backend.fetchMock });
+
+    const selecting = store.getState().selectConversation("c1");
+    await store.getState().createConversation();
+    const loadingAfterCreate = store.getState().loadingMessages;
+    detail.reject(new Error("old conversation unavailable"));
+    await selecting;
+
+    expect(loadingAfterCreate).toBe(false);
+    expect(store.getState()).toMatchObject({
+      activeConversationId: "c2",
+      messages: [],
+      loadingMessages: false,
+      error: null,
+    });
+  });
+
+  it("ignores an earlier selection when switching away and back to the same conversation", async () => {
+    const backend = makeBackend();
+    const api = new HpApi(new ApiClient(backend.fetchMock));
+    const detail = deferred<Awaited<ReturnType<HpApi["getConversationDetail"]>>>();
+    vi.spyOn(api, "getConversationDetail").mockReturnValueOnce(detail.promise);
+    vi.spyOn(api, "listMessages").mockResolvedValueOnce({
+      items: [message({ message_id: "old-message" })],
+      next_cursor: null,
+      has_more: false,
+      conversation_last_message_seq: 1,
+    });
+    const store = createWorkbenchStore({ api, fetchImpl: backend.fetchMock });
+
+    const selecting = store.getState().selectConversation("c1");
+    await store.getState().selectConversation("c2");
+    await store.getState().selectConversation("c1");
+    detail.resolve({ conversation: conversation({}), active_run: null });
+    await selecting;
+
+    expect(store.getState().activeConversationId).toBe("c1");
+    expect(store.getState().messages).toEqual([]);
   });
 
   it("guards against double-send: only one POST, second call returns false", async () => {

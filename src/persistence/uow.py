@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import AbstractContextManager
 from functools import wraps
 from time import sleep
+from types import TracebackType
 from typing import Any, Callable, ParamSpec, TypeVar
 
 import psycopg
@@ -32,6 +33,8 @@ def retryable_transaction(
 
 class UnitOfWork(AbstractContextManager["UnitOfWork"]):
     """Owns one short DB transaction; callers must not invoke external services in it."""
+
+    connection: psycopg.Connection[dict[str, Any]]
 
     def __init__(self, database: Any):
         self._nested_transaction = None
@@ -64,7 +67,12 @@ class UnitOfWork(AbstractContextManager["UnitOfWork"]):
     def execute(self, query: str, params: tuple[Any, ...] = ()) -> Any:
         return self.connection.execute(query, params)
 
-    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         if self._nested_transaction is not None:
             self._nested_transaction.__exit__(exc_type, exc, traceback)
             return

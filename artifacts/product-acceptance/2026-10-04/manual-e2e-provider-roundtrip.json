@@ -1,0 +1,21 @@
+{
+  "kind": "provider_boundary_roundtrip",
+  "serializer_version": "hpagent-provider-request-v2",
+  "provider": "minimax",
+  "model": "MiniMax-M3",
+  "requests": 1,
+  "passed": false,
+  "failure_code": "model_connection_failed",
+  "exception_type": "ModelDispatchError",
+  "http_status": null,
+  "elapsed_seconds": 5.14,
+  "verification_status": "blocked_before_provider_response",
+  "connection_probe": {
+    "location": "current_worker_container",
+    "host": "api.minimaxi.com",
+    "dns_addresses": 3,
+    "tcp_timeout_seconds": 5,
+    "result": "TimeoutError"
+  },
+  "scope": "Provider protocol boundary using synthetic file metadata; no user file contents or old Run snapshots changed."
+}

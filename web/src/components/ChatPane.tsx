@@ -1,12 +1,14 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
 import { Activity } from "lucide-react";
 import { HpThread } from "../adapters/assistant-ui/HpThread";
-import { useWorkbench } from "../store/workbench";
+import { isTerminalRunStatus, useWorkbench } from "../store/workbench";
 import { useAuth } from "../store/auth";
 import { useArtifacts } from "../store/artifacts";
 import { RunStatus } from "./RunStatus";
 import { useTraceStore } from "./trace/traceStore";
+import { HpApi } from "../api/resources";
+import { api } from "../api/client";
 import type { HpFile } from "../api/types";
 
 /**
@@ -15,7 +17,45 @@ import type { HpFile } from "../api/types";
  * Composes the assistant-ui chat surface with the run-status strip. The store
  * owns all authoritative state; this component only maps store → UI.
  */
-export function ChatPane({ onSaveFile }: { onSaveFile?: (file: HpFile) => void }) {
+export function ChatPane({
+  onSaveFile,
+  resourceRefresh = 0,
+}: {
+  onSaveFile?: (file: HpFile) => void;
+  resourceRefresh?: number;
+}) {
+  const conversationId = useWorkbench((s) => s.activeConversationId);
+  const [resourceSummary, setResourceSummary] = useState<{
+    conversationId: string;
+    text: string;
+  } | null>(null);
+  const availableResources =
+    resourceSummary?.conversationId === conversationId ? resourceSummary.text : null;
+  useEffect(() => {
+    let current = true;
+    if (conversationId)
+      void new HpApi(api)
+        .listConversationResources(conversationId)
+        .then((page) => {
+          if (current)
+            setResourceSummary({
+              conversationId,
+              text: page.grants.length
+                ? `已授权资料：${[...new Set(page.grants.map((g) => g.name))].join("、")}。新增资料下一轮可用。`
+                : "暂无已授权的长期资料，可在资料授权页选择文件或目录。",
+            });
+        })
+        .catch(() => {
+          if (current)
+            setResourceSummary({
+              conversationId,
+              text: "资料权限暂时无法加载，可在资料授权页重试。",
+            });
+        });
+    return () => {
+      current = false;
+    };
+  }, [conversationId, resourceRefresh]);
   const messages = useWorkbench((s) => s.messages);
   const activeRun = useWorkbench((s) => s.activeRun);
   const activeRunError = useWorkbench((s) => s.activeRunError);
@@ -45,10 +85,10 @@ export function ChatPane({ onSaveFile }: { onSaveFile?: (file: HpFile) => void }
   const artifactError = useArtifacts((s) => s.error);
   const clearArtifactError = useArtifacts((s) => s.clearError);
   const setAgentStrategy = useWorkbench((s) => s.setAgentStrategy);
-  const strategyLocked =
-    sending ||
-    Boolean(activeRun && !["completed", "failed", "cancelled"].includes(activeRun.status));
-  const displayedStrategy = activeRun?.agent_strategy ?? agentStrategy;
+  const strategyLocked = sending || Boolean(activeRun && !isTerminalRunStatus(activeRun.status));
+  const displayedStrategy = strategyLocked
+    ? (activeRun?.agent_strategy ?? agentStrategy)
+    : agentStrategy;
   const traceOpen = useTraceStore((s) => s.open);
   const setTraceOpen = useTraceStore((s) => s.setOpen);
   const followTraceRun = useTraceStore((s) => s.followRun);
@@ -104,6 +144,11 @@ export function ChatPane({ onSaveFile }: { onSaveFile?: (file: HpFile) => void }
 
   return (
     <Flex direction="column" style={{ height: "100%" }}>
+      {availableResources && (
+        <Text size="1" color="gray" className="hp-resource-summary">
+          {availableResources}
+        </Text>
+      )}
       <RunStatus
         activeRun={activeRun}
         busyMessage={activeRunError}

@@ -23,6 +23,7 @@ from common.model_usage import canonical_model_usage
 from common.token_counter import estimate_messages_tokens, estimate_tokens
 from resources.account_daily_budget import AccountModelEntitlementUnavailable
 from resources.model_budget_context import current_model_call
+from resources.model_failures import ModelRequestInvalid
 from resources.model_governance_errors import ModelAccessTierDenied
 
 from .credentials import CredentialManager
@@ -214,6 +215,8 @@ class ResourcePool(IResources):
                     prepared = client.prepare_request(
                         messages, tools, stream, max_tokens=max_tokens,
                     )
+                except ModelRequestInvalid:
+                    raise
                 except Exception as exc:
                     last_error = exc
                     continue
@@ -222,6 +225,8 @@ class ResourcePool(IResources):
                     model_call_id, attempt, model_id
                 )
                 input_tokens = estimate_messages_tokens(list(body.get("messages") or []))
+                if body.get("system"):
+                    input_tokens += estimate_tokens(str(body["system"])) + 4
                 if body.get("tools"):
                     input_tokens += estimate_tokens(json.dumps(
                         body["tools"], ensure_ascii=False, sort_keys=True,
@@ -290,6 +295,8 @@ class ResourcePool(IResources):
                             current_entitlement is None or current_entitlement.version != entitlement.version):
                             raise AccountModelEntitlementUnavailable('model entitlement changed before dispatch')
                         await asyncio.to_thread(self._snapshots.mark_dispatched, call_context.account_id, snapshot.snapshot_id)
+                    if call_context is not None:
+                        call_context.snapshot_id = str(snapshot.snapshot_id) if snapshot else None
                     provider_dispatched = True
                     if prepared is not None and hasattr(client, "send_prepared"):
                         result = await client.send_prepared(prepared)

@@ -18,9 +18,9 @@ def _headers(csrf: str, key: str | None = None) -> dict[str, str]:
 
 
 def test_direct_upload_save_download_and_cross_conversation(
-    tmp_path, seed_identity, client_factory, db,
+    tmp_path, seed_identity, client_factory, db, worker_database_url,
 ):
-    seed_identity("workspace-direct-upload")
+    account_id = seed_identity("workspace-direct-upload")
     client = client_factory(file_upload_enabled=True, file_store_root=str(tmp_path / "store"))
     assert client.post("/auth/login", json={
         "username": "workspace-direct-upload", "password": "correct-password",
@@ -85,6 +85,12 @@ def test_direct_upload_save_download_and_cross_conversation(
         "recursive": True,
     }, headers=_headers(csrf))
     assert granted.status_code == 201
+    # Retrying authorization returns the same rule identities, not duplicate grants.
+    again = client.post(f"/api/v1/conversations/{conversation}/resources", json={
+        "node_id": parent, "operations": ["list_metadata", "read_content"], "recursive": True,
+    }, headers=_headers(csrf))
+    assert again.json()["grant_ids"] == granted.json()["grant_ids"]
+    assert len(client.get(f"/api/v1/conversations/{conversation}/resources").json()["grants"]) == 2
     sent = client.post(f"/api/v1/conversations/{conversation}/messages", json={
         "content": "read direct upload",
     }, headers=_headers(csrf, str(uuid4())))
@@ -92,6 +98,21 @@ def test_direct_upload_save_download_and_cross_conversation(
     candidates = client.get(f"/api/v1/runs/{sent.json()['run']['run_id']}/resources")
     assert candidates.status_code == 200
     assert saved.json()["node_id"] in {item["node_id"] for item in candidates.json()["candidates"]}
+
+    from uuid import UUID
+
+    from application.context_assembly import ContextAssemblyService
+    from application.context_builder import HarnessContextBuilder
+    context = ContextAssemblyService(worker_database_url, HarnessContextBuilder())
+    base = context.load_base(account_id, UUID(sent.json()["run"]["run_id"]))
+    assert base.workspace_candidate_count == 1
+    prompt = context.compose(base, ())[0]["content"]
+    assert "moved.txt" in prompt and "select_run_candidate" in prompt
+    other = client.post("/api/v1/conversations", json={"title": "Isolated"}, headers=_headers(csrf, str(uuid4()))).json()["conversation"]["conversation_id"]
+    other_sent = client.post(f"/api/v1/conversations/{other}/messages", json={"content": "can you see my files"}, headers=_headers(csrf, str(uuid4())))
+    isolated = context.load_base(account_id, UUID(other_sent.json()["run"]["run_id"]))
+    assert isolated.workspace_candidate_count == 0
+    assert "moved.txt" not in context.compose(isolated, ())[0]["content"]
 
 
 def test_direct_upload_removed_entry_is_collected(
@@ -128,3 +149,25 @@ def test_direct_upload_removed_entry_is_collected(
     assert FileCleanupService(worker_database_url, store).cleanup_once().deleted == 1
     assert db.execute("SELECT storage_key FROM stored_files WHERE file_id=%s",
                       (file_id,)).fetchone()[0] is None
+
+
+def test_directory_conflicts_have_actionable_reasons(seed_identity, client_factory):
+    seed_identity("directory-reasons")
+    client = client_factory(file_upload_enabled=True)
+    client.post("/auth/login", json={"username": "directory-reasons", "password": "correct-password"}, follow_redirects=False)
+    csrf = client.get("/api/v1/me").json()["csrf_token"]
+    tree = client.get("/api/v1/workspace").json()
+    parent = next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料")
+    payload = {"parent_id": parent, "name": "项目"}
+    result = client.post("/api/v1/workspace/directories", json=payload, headers=_headers(csrf))
+    assert result.status_code == 201
+    child = next(n for n in client.get("/api/v1/workspace").json()["nodes"] if n["node_id"] == result.json()["node_id"])
+    assert child["parent_id"] == parent
+    duplicate = client.post("/api/v1/workspace/directories", json=payload, headers=_headers(csrf))
+    assert duplicate.status_code == 409
+    assert duplicate.json()["error"]["details"]["reason"] == "name_exists"
+    assert duplicate.json()["error"]["request_id"]
+    assert client.post("/api/v1/workspace/directories", json={**payload, "parent_id": tree["root_id"]}, headers=_headers(csrf)).status_code == 201
+    invalid = client.post("/api/v1/workspace/directories", json={**payload, "name": "../invalid"}, headers=_headers(csrf))
+    assert invalid.status_code == 409
+    assert invalid.json()["error"]["details"]["reason"] == "invalid_name"

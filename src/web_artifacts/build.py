@@ -52,6 +52,7 @@ class ArtifactBuildService:
                     artifact_id=str(inputs["artifact_id"]),
                     artifact_version_id=str(version_id),
                     workflow_id=workflow_id,
+                    read_timeout_seconds=getattr(self.generator, "read_timeout_seconds", 90.0),
                 ):
                     html = await self.generator.generate(
                         source_markdown=inputs["source_markdown"],

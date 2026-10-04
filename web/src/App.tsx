@@ -8,17 +8,31 @@ import { LoginForm } from "./components/LoginForm";
 import { useAuth } from "./store/auth";
 import { useWorkbench } from "./store/workbench";
 import { useArtifacts } from "./store/artifacts";
-import { ArtifactPanel } from "./components/ArtifactPanel";
+import { ArtifactsPage, DiagnosticsPage, SaveWorkspaceDialog } from "./components/TestPages";
+import { WorkCreateForm, WorkResourcePanel } from "./components/WorkManagement";
+import { api } from "./api/client";
+import { commandError } from "./utils/commands";
+import { QQBindingPanel } from "./components/QQBindingPanel";
 import { RegistrationQqGate } from "./components/RegistrationQqGate";
-import { TracePanel } from "./components/trace/TracePanel";
 import { ResearchOutputs } from "./components/ResearchOutputs";
 import { WorkspacePanel } from "./components/WorkspacePanel";
 import { useTraceStore } from "./components/trace/traceStore";
-import { api as transport } from "./api/client";
-import { HpApi } from "./api/resources";
-import { newIdempotencyKey } from "./utils/idempotency";
-
-const workspaceApi = new HpApi(transport);
+const ignoreDirectory = () => {};
+const pages = {
+  chat: "对话",
+  files: "长期文件",
+  authority: "资料授权",
+  works: "持续工作",
+  research: "研究",
+  artifacts: "成果",
+  diagnostics: "执行诊断",
+  account: "账户",
+} as const;
+type Page = keyof typeof pages;
+function initialPage(): Page {
+  const value = window.location.hash.slice(1);
+  return value in pages ? (value as Page) : "chat";
+}
 
 /**
  * Auth gate: probe `/api/v1/me` on mount; signed-in sessions open the chat
@@ -66,7 +80,7 @@ export function App() {
     );
   }
 
-  return <Workbench />;
+  return <Workbench key={accountId} />;
 }
 
 /**
@@ -83,6 +97,10 @@ function Workbench() {
   const creatingConversation = useWorkbench((s) => s.creatingConversation);
   const activeConversationId = useWorkbench((s) => s.activeConversationId);
   const activeRunId = useWorkbench((s) => s.activeRun?.run_id ?? null);
+  const currentRunStatus = useWorkbench((s) => s.activeRun?.status ?? null);
+  const candidateRunId = useWorkbench((s) =>
+    s.activeRun && ["queued", "running"].includes(s.activeRun.status) ? s.activeRun.run_id : null,
+  );
   const account = useAuth((s) => s.account);
   const identities = useAuth((s) => s.identities);
   const justRegistered = useAuth((s) => s.justRegistered);
@@ -92,35 +110,41 @@ function Workbench() {
   const loadConversations = useWorkbench((s) => s.loadConversations);
   const createConversation = useWorkbench((s) => s.createConversation);
   const selectConversation = useWorkbench((s) => s.selectConversation);
-  const openArtifactId = useArtifacts((s) => s.openArtifactId);
   const resetArtifacts = useArtifacts((s) => s.reset);
   const [startQqBinding, setStartQqBinding] = useState(false);
-  const [selectedDirectoryId, setSelectedDirectoryId] = useState<string | null>(null);
+  const [page, setPage] = useState<Page>(initialPage);
   const [workspaceRefresh, setWorkspaceRefresh] = useState(0);
-  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
-
-  const saveToWorkspace = useCallback(
-    async (file: { file_id: string; file_name: string }) => {
-      if (!selectedDirectoryId) {
-        setWorkspaceError("请先选择 Workspace 目标目录");
-        return;
-      }
-      try {
-        await workspaceApi.saveWorkspaceFile(
-          selectedDirectoryId,
-          file.file_id,
-          file.file_name,
-          newIdempotencyKey(),
-        );
-        setWorkspaceRefresh((value) => value + 1);
-        setWorkspaceError(null);
-      } catch {
-        setWorkspaceError("保存失败：同名入口已存在或文件不可用");
-      }
-    },
-    [selectedDirectoryId],
+  const [saveFile, setSaveFile] = useState<{ file_id: string; file_name: string } | null>(null);
+  const [workspaceNotice, setWorkspaceNotice] = useState("");
+  const [authoritySubject, setAuthoritySubject] = useState("conversation");
+  const saveToWorkspace = useCallback((file: { file_id: string; file_name: string }) => {
+    setSaveFile(file);
+    setWorkspaceNotice("");
+  }, []);
+  const navigate = useCallback((next: Page) => {
+    window.history.replaceState(null, "", `#${next}`);
+    setPage(next);
+  }, []);
+  useEffect(() => {
+    const update = () => setPage(initialPage());
+    window.addEventListener("hashchange", update);
+    return () => window.removeEventListener("hashchange", update);
+  }, []);
+  useEffect(
+    () =>
+      useArtifacts.subscribe((state, previous) => {
+        if (state.openArtifactId && state.openArtifactId !== previous.openArtifactId)
+          navigate("artifacts");
+      }),
+    [navigate],
   );
-
+  useEffect(
+    () =>
+      useTraceStore.subscribe((state, previous) => {
+        if (state.open && !previous.open) navigate("diagnostics");
+      }),
+    [navigate],
+  );
   const initialSelectionDone = useRef(false);
 
   useEffect(() => {
@@ -146,59 +170,231 @@ function Workbench() {
         }}
         onSkip={dismissRegistrationHint}
       />
-      <Flex className="hp-workbench">
-        <ConversationSidebar
-          conversations={conversations}
-          activeConversationId={activeConversationId}
-          loading={loadingConversations}
-          creating={creatingConversation}
-          accountName={account?.account_id ?? "账号"}
-          onSelect={(id) => {
-            resetArtifacts();
-            void selectConversation(id);
-          }}
-          onCreate={() => {
-            resetArtifacts();
-            void createConversation();
-          }}
-          onSignOut={() => {
-            resetArtifacts();
-            void signOut();
-          }}
-          qqIdentity={identities?.qq}
-          onIdentityRefresh={refreshIdentity}
-          startQqBinding={startQqBinding}
-        />
-        <Flex direction="column" className="hp-chatpane">
-          <WorkPanel conversationId={activeConversationId} />
-          <WorkspacePanel
-            accountId={account?.account_id ?? null}
-            currentRunId={activeRunId}
-            conversationId={activeConversationId}
-            refreshSignal={workspaceRefresh}
-            onSelectDirectory={setSelectedDirectoryId}
-          />
-          {workspaceError ? <p role="alert">{workspaceError}</p> : null}
-          <ResearchOutputs onSaveFile={(file) => void saveToWorkspace(file)} />
-          {activeConversationId ? (
-            <ChatPane onSaveFile={(file) => void saveToWorkspace(file)} />
-          ) : (
-            <EmptySelection />
-          )}
+      <div className="hp-test-workbench">
+        <nav className="hp-page-nav" aria-label="功能页面">
+          {Object.entries(pages).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              aria-current={page === id ? "page" : undefined}
+              onClick={() => navigate(id as Page)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="hp-page-context">
+          <label>
+            当前对话{" "}
+            <select
+              aria-label="当前对话"
+              value={activeConversationId ?? ""}
+              onChange={(e) => {
+                if (e.target.value) {
+                  resetArtifacts();
+                  void selectConversation(e.target.value);
+                }
+              }}
+            >
+              <option value="">尚未选择</option>
+              {conversations.map((c) => (
+                <option key={c.conversation_id} value={c.conversation_id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span>文件和授权操作针对所选对话；工作权限单独管理。</span>
+        </div>
+        {workspaceNotice && <p role="status">{workspaceNotice}</p>}
+        <Flex className="hp-workbench hp-page-body">
+          <div hidden={page !== "chat"} className="hp-sidebar-host">
+            <ConversationSidebar
+              conversations={conversations}
+              activeConversationId={activeConversationId}
+              loading={loadingConversations}
+              creating={creatingConversation}
+              accountName={account?.account_id ?? "账号"}
+              onSelect={(id) => {
+                resetArtifacts();
+                void selectConversation(id);
+              }}
+              onCreate={() => {
+                resetArtifacts();
+                void createConversation();
+              }}
+              onSignOut={() => {
+                resetArtifacts();
+                void signOut();
+              }}
+              qqIdentity={identities?.qq}
+              onIdentityRefresh={refreshIdentity}
+              startQqBinding={startQqBinding}
+            />
+          </div>
+          <main className={`hp-page-content hp-page-content--${page}`}>
+            <section
+              hidden={page !== "chat"}
+              className="hp-chatpane hp-chat-page"
+              aria-label="对话页面"
+            >
+              {activeConversationId ? (
+                <ChatPane
+                  onSaveFile={saveToWorkspace}
+                  resourceRefresh={workspaceRefresh + (page === "chat" ? 1 : 0)}
+                />
+              ) : (
+                <EmptySelection />
+              )}
+            </section>
+            <section
+              hidden={
+                page !== "files" && !(page === "authority" && authoritySubject === "conversation")
+              }
+            >
+              <h1>{page === "authority" ? "当前对话资料授权" : "长期文件"}</h1>
+              {page === "authority" && (
+                <label>
+                  授权对象{" "}
+                  <select
+                    value={authoritySubject}
+                    onChange={(e) => setAuthoritySubject(e.target.value)}
+                  >
+                    <option value="conversation">当前对话</option>
+                    <option value="work">工作</option>
+                  </select>
+                </label>
+              )}
+              <WorkspacePanel
+                accountId={account?.account_id ?? null}
+                currentRunId={activeRunId}
+                candidateRunId={candidateRunId}
+                currentRunStatus={currentRunStatus}
+                conversationId={activeConversationId}
+                refreshSignal={workspaceRefresh}
+                onSelectDirectory={ignoreDirectory}
+                view={page === "authority" ? "authority" : "files"}
+              />
+            </section>
+            {page === "authority" && authoritySubject === "work" && (
+              <section>
+                <h1>工作资料授权</h1>
+                <label>
+                  授权对象{" "}
+                  <select
+                    value={authoritySubject}
+                    onChange={(e) => setAuthoritySubject(e.target.value)}
+                  >
+                    <option value="conversation">当前对话</option>
+                    <option value="work">工作</option>
+                  </select>
+                </label>
+                <WorkResourcePanel />
+              </section>
+            )}
+            <section hidden={page !== "works"}>
+              {page === "works" && <WorkCreateForm conversationId={activeConversationId} />}
+              <WorkPanel conversationId={activeConversationId} pageMode />
+              {page === "works" && <NotificationInbox />}
+            </section>
+            {page === "research" && (
+              <section>
+                <WorkCreateForm conversationId={activeConversationId} research />
+                <ResearchOutputs pageMode onSaveFile={saveToWorkspace} />
+              </section>
+            )}
+            {page === "artifacts" && (
+              <ArtifactsPage
+                onWorkspaceSaved={() => {
+                  setWorkspaceRefresh((v) => v + 1);
+                  setWorkspaceNotice("成果已保存到长期目录。");
+                }}
+              />
+            )}
+            {page === "diagnostics" && <DiagnosticsPage />}
+            {page === "account" && (
+              <section className="hp-operation-form">
+                <h1>账户</h1>
+                <p>登录身份：{identities?.web?.username ?? account?.account_id}</p>
+                <QQBindingPanel qq={identities?.qq} onCompleted={refreshIdentity} />
+                <Button onClick={() => void signOut()}>退出登录</Button>
+              </section>
+            )}
+          </main>
         </Flex>
-        <TracePanel />
-        {openArtifactId ? <ArtifactPanel /> : null}
-      </Flex>
+      </div>
+      {saveFile && (
+        <SaveWorkspaceDialog
+          key={saveFile.file_id}
+          file={saveFile}
+          onClose={() => setSaveFile(null)}
+          onSaved={() => {
+            setWorkspaceRefresh((v) => v + 1);
+            setWorkspaceNotice("文件已保存到长期目录，可在资料授权页供对话或工作使用。");
+          }}
+        />
+      )}
     </>
   );
 }
 
 function EmptySelection() {
+  const error = useWorkbench((s) => s.error);
+  const clearError = useWorkbench((s) => s.clearError);
   return (
-    <Flex align="center" justify="center" style={{ height: "100%" }}>
+    <Flex direction="column" gap="3" align="center" justify="center" style={{ height: "100%" }}>
+      {error ? (
+        <Flex gap="2" align="center">
+          <Text color="red" role="alert">
+            {error}
+          </Text>
+          <Button size="1" variant="soft" onClick={clearError}>
+            关闭提示
+          </Button>
+        </Flex>
+      ) : null}
       <Text size="3" color="gray">
         选择或新建一个对话开始。
       </Text>
     </Flex>
+  );
+}
+
+function NotificationInbox() {
+  const [items, setItems] = useState<Array<{ notification_id: string; content: unknown }>>([]);
+  const [error, setError] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    try {
+      const page = await api.request<{ items: typeof items }>({
+        method: "GET",
+        path: "/api/v1/notifications",
+      });
+      setItems(page.items);
+      setError(null);
+    } catch (e) {
+      setError(commandError(e));
+    }
+  }, []);
+  useEffect(() => {
+    let current = true;
+    void Promise.resolve().then(() => {
+      if (current) return refresh();
+    });
+    return () => {
+      current = false;
+    };
+  }, [refresh]);
+  return (
+    <section className="hp-operation-form">
+      <h2>账户收件箱</h2>
+      <button onClick={() => void refresh()}>刷新收件箱</button>
+      {!items.length && <p>暂无已送达提醒。</p>}
+      {items.map((item) => (
+        <pre key={item.notification_id}>
+          {typeof item.content === "string" ? item.content : JSON.stringify(item.content, null, 2)}
+        </pre>
+      ))}
+      {error && <p role="alert">{error}</p>}
+    </section>
   );
 }

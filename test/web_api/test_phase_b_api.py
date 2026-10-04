@@ -321,10 +321,10 @@ def test_b05_fake_executor_completed_refresh_recovery(seed_identity, client_fact
     snapshot = None
     for _ in range(100):
         snapshot = client.get(f"/api/v1/runs/{run_id}").json()
-        if snapshot["run"]["status"] == "completed":
+        if snapshot["run"]["status"] == "succeeded":
             break
         time.sleep(0.01)
-    assert snapshot["run"]["status"] == "completed"
+    assert snapshot["run"]["status"] == "succeeded"
     assert snapshot["assistant_message"]["content"] == "fake completed response"
     detail = client.get(f"/api/v1/conversations/{conversation_id}").json()
     assert detail["active_run"] is None
@@ -476,3 +476,21 @@ def test_sse_route_requires_auth_and_ownership(client_factory, seed_identity, lo
     missing = authenticated.get(f"/api/v1/runs/{uuid4()}/events")
     assert missing.status_code == 404
     assert missing.json()["error"]["code"] == "resource_not_found"
+
+
+@pytest.mark.parametrize(("code", "retryable"), [("model_request_invalid", False), ("model_access_denied", False), ("model_read_timeout", True), ("model_http_error", True)])
+def test_classified_model_failure_keeps_retry_policy_in_snapshot_and_command(logged_client, worker_database_url, code, retryable):
+    client, csrf, account_id = logged_client
+    conversation_id = create_conversation(client, csrf).json()["conversation"]["conversation_id"]
+    sent = client.post(f"/api/v1/conversations/{conversation_id}/messages", json={"content": "model protocol test"}, headers=command_headers(csrf, str(uuid4()))).json()
+    run_id = sent["run"]["run_id"]
+    assert CommandService(worker_database_url).fail_run(account_id, UUID(run_id), code, "safe classified model failure")
+    assert client.get(f"/api/v1/runs/{run_id}").json()["run"]["failure"]["retryable"] is retryable
+    retried = client.post(f"/api/v1/runs/{run_id}/retry", json={}, headers=command_headers(csrf, str(uuid4())))
+    if retryable:
+        assert retried.status_code == 202
+        assert retried.json()["run"]["retry_of_run_id"] == run_id
+    else:
+        assert retried.status_code == 409
+        assert retried.json()["error"]["details"]["reason"] == "non_retryable_failure"
+        assert "外部操作" not in retried.json()["error"]["message"]

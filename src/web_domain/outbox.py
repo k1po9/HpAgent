@@ -16,7 +16,7 @@ from .errors import OutboxLeaseLost, ResourceNotFound
 
 OUTBOX_EVENT_TYPES = frozenset(
     {"start_run", "cancel_run", "retain_memory", "publish_terminal_event",
-     "file_action_approval_decided"}
+     "publish_work_event", "file_action_approval_decided"}
 )
 
 # The Web Agent's lease recovery sweep must only reclaim leases the Web Outbox

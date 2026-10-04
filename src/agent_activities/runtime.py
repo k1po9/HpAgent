@@ -500,8 +500,8 @@ class DurableAgentActivities:
             else:
                 await events.progress("calling_model", "正在生成回复。")
             from agent_activities.delegation import current_execution
-            from persistence.uow import UnitOfWork
             from agent_workflows.delegation_contracts import DELEGATE_MANIFEST, DELEGATE_TOOL
+            from persistence.uow import UnitOfWork
             with UnitOfWork(self.store.database_url) as uow:
                 self.store._assert_fence(uow)
                 execution = current_execution(uow)
@@ -618,14 +618,19 @@ class DurableAgentActivities:
                 raise ApplicationError(
                     "Run 执行预算已耗尽。", type=exc.code, non_retryable=True
                 ) from exc
-            trace_metadata = {
-                "error_code": getattr(exc, "type", None) or "model_unavailable"
-            }
-            await asyncio.to_thread(self.store.fail_operation, request.operation_id, "model_unavailable")
-            log_event(model_logger, logging.ERROR, "model_decision_failed", "model", **fields, status="failed", error_code="model_unavailable", elapsed_ms=round((time.monotonic() - started) * 1000))
             if isinstance(exc, ApplicationError):
                 raise
-            raise ApplicationError("模型暂时不可用。", type="model_unavailable") from exc
+            from resources.model_failures import classify_model_failure
+            failure = classify_model_failure(exc)
+            trace_metadata = {"error_code": failure.code, "http_status": failure.http_status,
+                              "error_category": failure.category}
+            await asyncio.to_thread(self.store.fail_operation, request.operation_id, failure.code)
+            log_event(model_logger, logging.ERROR, "model_decision_failed", "model", **fields,
+                      status="failed", error_code=failure.code, error_category=failure.category,
+                      http_status=failure.http_status, retryable=failure.retryable,
+                      elapsed_ms=round((time.monotonic() - started) * 1000))
+            raise ApplicationError(failure.safe_message, type=failure.code,
+                                   non_retryable=not failure.retryable) from exc
         finally:
             self.actions.clear_execution(self.context_bindings.resource_key(request), request.execution_id)
             await trace_end(events, model_node_id, trace_status, trace_metadata)

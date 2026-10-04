@@ -9,10 +9,11 @@ from pathlib import Path
 import pytest
 from temporalio import activity, workflow
 
-from application.scheduler import TaskScheduler
 from memory.activities import ScheduledMemoryActivities
 from memory.maintenance import HindsightMaintenance
 from memory.workflows import MetricsReportWorkflow, ReflectWorkflow
+from orchestration.execution_strategy import WorkExecutionPlanner
+from orchestration.run_dispatcher import ReminderActivities
 
 
 def test_canonical_imports_do_not_load_retired_runtime_owners():
@@ -27,13 +28,14 @@ class Guard(importlib.abc.MetaPathFinder):
         if fullname.split('.')[0] in {'agent', 'agent_execution', 'harness'} or fullname in {
             'orchestration.workflow', 'orchestration.web_workflow',
             'orchestration.web_activities', 'orchestration.scheduler',
+            'application.scheduler', 'sandbox.tools.local.reminder',
         }:
             raise AssertionError('canonical import reached retired owner: ' + fullname)
 sys.meta_path.insert(0, Guard())
 for name in (
     'main', 'web_api.app', 'orchestration.document_worker',
     'agent_activities.runtime', 'document_activities.runtime', 'research_activities.runtime',
-    'memory.activities', 'memory.workflows', 'sandbox.tools.local.reminder',
+    'memory.activities', 'memory.workflows', 'orchestration.run_dispatcher',
 ):
     importlib.import_module(name)
 from application.prompts import PromptLoader
@@ -112,22 +114,11 @@ async def test_scheduled_activity_collections_keep_instance_owned_dependencies()
     assert await first.metrics_report() == {"marker": "first"}
 
 
-@pytest.mark.asyncio
-async def test_reminder_tools_use_extracted_scheduler_and_persist_account_scope(tmp_path):
-    from sandbox.tools.local import reminder
-
-    scheduler = TaskScheduler(tmp_path)
-    tool = reminder.create_reminder_tool(
-        {"account_id": "account-a", "channel_type": "napcat"}, scheduler
+def test_reminders_use_registered_deterministic_run_owner():
+    strategy = WorkExecutionPlanner().plan({"capability_key": "reminder"})
+    assert strategy.strategy_kind == "deterministic"
+    assert strategy.executor_key == "reminder"
+    assert ReminderActivities.__module__ == "orchestration.run_dispatcher"
+    assert activity._Definition.from_callable(ReminderActivities.execute).name == (
+        "execute_reminder_activity"
     )
-    # Tool schema is the public invocation boundary, so exercise it rather than
-    # constructing ScheduledTask directly.
-    result = await tool.ainvoke({"content": "check report", "delay_minutes": 5})
-    assert result
-    restored = TaskScheduler(tmp_path)
-    await restored.load()
-    tasks = restored.list_by_filter(account_id="account-a")
-    assert len(tasks) == 1
-    assert tasks[0].params["content"] == "check report"
-    assert restored.list_by_filter(account_id="account-b") == []
-    assert tasks[0].__class__.__module__ == "application.scheduler"

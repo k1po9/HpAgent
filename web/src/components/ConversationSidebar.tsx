@@ -75,6 +75,7 @@ export function ConversationSidebar({
           {conversations.map((conversation) => (
             <button
               key={conversation.conversation_id}
+              data-conversation-id={conversation.conversation_id}
               type="button"
               className={`hp-conv ${conversation.conversation_id === activeConversationId ? "hp-conv--active" : ""}`}
               onClick={() => onSelect(conversation.conversation_id)}

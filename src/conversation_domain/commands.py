@@ -371,7 +371,7 @@ class CommandService:
                     run_id=str(source_run_id),
                     account_id=str(account_id),
                     failure_code=failure_code,
-                    reason="unsafe_side_effect_state",
+                    reason=RunRetryNotSafe(failure_code).reason,
                     status="rejected",
                 )
                 raise RunRetryNotSafe(failure_code)

@@ -21,7 +21,7 @@ _POLICIES: dict[str, frozenset[str]] = {
         "stop_reason", "tool_count", "estimated_input_tokens", "model", "provider",
         "endpoint_id", "token_usage", "step_count",
         "model_call_id", "snapshot_id", "content_hash", "fallback_attempt",
-        "provider_outcome",
+        "provider_outcome", "http_status", "error_category",
     }),
     "ToolExecution": frozenset({
         "tool_name", "tool_call_id", "turn", "side_effect_class", "result_ref",

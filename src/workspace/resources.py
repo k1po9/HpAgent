@@ -95,7 +95,18 @@ class ResourcePolicy:
                 raise ResourceNotFound()
             self._version(uow, account_id, kind, subject_id)
             ids = []
+            changed = False
             for operation in dict.fromkeys(operations):
+                existing = uow.execute(
+                    "SELECT grant_id FROM resource_grants WHERE account_id=%s AND subject_kind=%s "
+                    "AND subject_id=%s AND node_id=%s AND operation=%s AND recursive=%s "
+                    "AND revoked_at IS NULL",
+                    (account_id, kind, subject_id, node_id, operation, recursive),
+                ).fetchone()
+                if existing:
+                    ids.append(str(existing["grant_id"]))
+                    continue
+                changed = True
                 grant_id = uuid7()
                 uow.execute(
                     "INSERT INTO resource_grants(grant_id,account_id,subject_kind,subject_id,"
@@ -103,11 +114,12 @@ class ResourcePolicy:
                     (grant_id, account_id, kind, subject_id, node_id, operation, recursive),
                 )
                 ids.append(str(grant_id))
-            uow.execute(
-                "UPDATE resource_policy_versions SET version=version+1 WHERE account_id=%s "
-                "AND subject_kind=%s AND subject_id=%s",
-                (account_id, kind, subject_id),
-            )
+            if changed:
+                uow.execute(
+                    "UPDATE resource_policy_versions SET version=version+1 WHERE account_id=%s "
+                    "AND subject_kind=%s AND subject_id=%s",
+                    (account_id, kind, subject_id),
+                )
             return ids
 
     @retryable_transaction
@@ -230,51 +242,55 @@ class ResourcePolicy:
     def candidates(self, account_id: UUID, run_id: UUID, after: str | None = None,
                    limit: int = 50) -> dict[str, Any]:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            snapshot = uow.execute(
-                "SELECT s.* FROM run_resource_snapshots s JOIN runs r ON r.run_id=s.run_id "
-                "WHERE s.account_id=%s AND s.run_id=%s AND r.account_id=%s "
-                "AND r.status IN ('queued','running') AND s.status='ready'",
-                (account_id, run_id, account_id),
-            ).fetchone()
-            if snapshot is None:
-                raise ResourceNotFound()
-            uow.execute(
-                "SELECT version FROM resource_policy_versions WHERE account_id=%s "
-                "AND subject_kind=%s AND subject_id=%s FOR SHARE",
-                (account_id, snapshot["subject_kind"], snapshot["subject_id"]),
-            ).fetchone()
-            run = uow.execute(
-                "SELECT status FROM runs WHERE account_id=%s AND run_id=%s FOR SHARE",
-                (account_id, run_id),
-            ).fetchone()
-            if run is None or run["status"] not in {"queued", "running"}:
-                raise ResourceNotFound()
-            rows = uow.execute(
-                "SELECT node_id,logical_name,display_name,content_type,size_bytes,"
-                "fixed_file_id,first_read_at FROM run_resource_candidates "
-                "WHERE run_id=%s ORDER BY logical_name",
-                (run_id,),
-            ).fetchall()
-            allowed = [row for row in rows if self._grants(
-                uow, account_id, snapshot["subject_kind"], snapshot["subject_id"],
-                row["node_id"], "list_metadata"
-            )]
-            from agent_activities.delegation import child_scope
-            scope = child_scope(uow)
-            if scope is not None:
-                allowed = [row for row in allowed if str(row["node_id"]) in scope["node_ids"]]
-            page_size = min(max(limit, 1), 100)
-            remaining = [row for row in allowed if row["logical_name"] > (after or "")]
-            page = remaining[:page_size]
-            return {"count": len(allowed),
-                    "next": page[-1]["logical_name"] if len(remaining) > page_size else None,
-                    "candidates": [{"node_id": str(r["node_id"]),
-                     "logical_name": r["logical_name"], "name": r["display_name"],
-                     "content_type": r["content_type"], "size_bytes": r["size_bytes"],
-                     "fixed": r["fixed_file_id"] is not None,
-                     "read": r["first_read_at"] is not None} for r in page]}
+            return self.candidates_in_uow(uow, account_id, run_id, after, limit)
+
+    def candidates_in_uow(self, uow: UnitOfWork, account_id: UUID, run_id: UUID,
+                          after: str | None = None, limit: int = 50) -> dict[str, Any]:
+        from agent_activities.store import AgentDataStore
+        AgentDataStore._assert_fence(uow)
+        snapshot = uow.execute(
+            "SELECT s.* FROM run_resource_snapshots s JOIN runs r ON r.run_id=s.run_id "
+            "WHERE s.account_id=%s AND s.run_id=%s AND r.account_id=%s "
+            "AND r.status IN ('queued','running') AND s.status='ready'",
+            (account_id, run_id, account_id),
+        ).fetchone()
+        if snapshot is None:
+            raise ResourceNotFound()
+        uow.execute(
+            "SELECT version FROM resource_policy_versions WHERE account_id=%s "
+            "AND subject_kind=%s AND subject_id=%s FOR SHARE",
+            (account_id, snapshot["subject_kind"], snapshot["subject_id"]),
+        ).fetchone()
+        run = uow.execute(
+            "SELECT status FROM runs WHERE account_id=%s AND run_id=%s FOR SHARE",
+            (account_id, run_id),
+        ).fetchone()
+        if run is None or run["status"] not in {"queued", "running"}:
+            raise ResourceNotFound()
+        rows = uow.execute(
+            "SELECT node_id,logical_name,display_name,content_type,size_bytes,"
+            "fixed_file_id,first_read_at FROM run_resource_candidates "
+            "WHERE run_id=%s ORDER BY logical_name",
+            (run_id,),
+        ).fetchall()
+        allowed = [row for row in rows if self._grants(
+            uow, account_id, snapshot["subject_kind"], snapshot["subject_id"],
+            row["node_id"], "list_metadata"
+        )]
+        from agent_activities.delegation import child_scope
+        scope = child_scope(uow)
+        if scope is not None:
+            allowed = [row for row in allowed if str(row["node_id"]) in scope["node_ids"]]
+        page_size = min(max(limit, 1), 100)
+        remaining = [row for row in allowed if row["logical_name"] > (after or "")]
+        page = remaining[:page_size]
+        return {"count": len(allowed),
+                "next": page[-1]["logical_name"] if len(remaining) > page_size else None,
+                "candidates": [{"node_id": str(r["node_id"]),
+                 "logical_name": r["logical_name"], "name": r["display_name"],
+                 "content_type": r["content_type"], "size_bytes": r["size_bytes"],
+                 "fixed": r["fixed_file_id"] is not None,
+                 "read": r["first_read_at"] is not None} for r in page]}
 
     def select(self, account_id: UUID, run_id: UUID, node_id: UUID) -> dict[str, Any]:
         try:

@@ -3,7 +3,9 @@ import { Button, Flex, Text } from "@radix-ui/themes";
 import { useArtifacts } from "../store/artifacts";
 import { ArtifactPreview } from "./ArtifactPreview";
 
-export function ArtifactPanel() {
+export function ArtifactPanel({
+  onSaveHtml,
+}: { onSaveHtml?: (html: string, name: string) => void } = {}) {
   const artifactId = useArtifacts((s) => s.openArtifactId);
   const versionId = useArtifacts((s) => s.openVersionId);
   const artifact = useArtifacts((s) => (artifactId ? s.artifactsById[artifactId] : undefined));
@@ -39,6 +41,31 @@ export function ArtifactPanel() {
             关闭
           </Button>
         </Flex>
+        {version?.status === "completed" && version.html && (
+          <Flex gap="2">
+            <Button
+              size="1"
+              onClick={() => {
+                const url = URL.createObjectURL(new Blob([version.html!], { type: "text/html" }));
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `成果-v${version.version}.html`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+              }}
+            >
+              下载 HTML
+            </Button>
+            {onSaveHtml && (
+              <Button
+                size="1"
+                onClick={() => onSaveHtml(version.html!, `成果-v${version.version}.html`)}
+              >
+                保存此版本到长期目录
+              </Button>
+            )}
+          </Flex>
+        )}
         <Flex gap="2">
           <Button
             size="1"

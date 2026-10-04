@@ -25,8 +25,21 @@ export async function login(page: Page, username = "alice"): Promise<void> {
 
 /** Create a fresh conversation; the composer becomes the active target. */
 export async function createConversation(page: Page): Promise<void> {
+  const created = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/v1/conversations" &&
+      response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "新建对话" }).click();
+  const response = await created;
+  expect(response.status()).toBe(201);
+  const { conversation } = await response.json();
+  await expect(
+    page.locator(`.hp-conv[data-conversation-id="${conversation.conversation_id}"]`),
+  ).toHaveAttribute("aria-current", "true");
   await expect(page.getByPlaceholder(COMPOSER_PLACEHOLDER)).toBeVisible();
+  await expect(page.locator(".hp-msg")).toHaveCount(0);
+  await expect(page.locator('.hp-composer__attach input[type="file"]')).toBeEnabled();
 }
 
 /** Send one message and wait for its user-message bubble to appear. */

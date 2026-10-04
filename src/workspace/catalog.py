@@ -14,7 +14,9 @@ from web_domain.errors import DomainError, ResourceNotFound
 
 
 class WorkspaceConflict(DomainError):
-    pass
+    def __init__(self, message: str = "Workspace conflict", *, reason: str = "operation_conflict"):
+        super().__init__(message)
+        self.reason = reason
 
 
 class WorkspaceNotFound(ResourceNotFound):
@@ -32,10 +34,10 @@ def normalize_name(value: str) -> tuple[str, str]:
     if (not name or name != name.strip() or name in {".", ".."}
             or "/" in name or "\\" in name or any(ord(c) < 32 for c in name)
             or len(name) > 255):
-        raise WorkspaceConflict("invalid Workspace name")
+        raise WorkspaceConflict("invalid Workspace name", reason="invalid_name")
     key = name.casefold()
     if len(key) > 255:
-        raise WorkspaceConflict("normalized Workspace name is too long")
+        raise WorkspaceConflict("normalized Workspace name is too long", reason="invalid_name")
     return name, key
 
 

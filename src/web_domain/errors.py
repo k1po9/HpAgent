@@ -57,6 +57,7 @@ class RunNotRetryable(DomainError):
 class RunRetryNotSafe(DomainError):
     def __init__(self, failure_code: str):
         self.failure_code = failure_code
+        self.reason = ("unsafe_side_effect_state" if failure_code in {"tool_side_effect_uncertain", "side_effect_reconciliation_failed"} else "non_retryable_failure")
 
 
 class VersionConflict(DomainError):

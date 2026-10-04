@@ -225,6 +225,7 @@ export function createWorkbenchStore(
     /** The live SSE feed for the current Run, if any; closed on switch/stop. */
     let activeFeed: RunFeed | null = null;
     let budgetRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let conversationSelectionGeneration = 0;
 
     const closeFeed = (): void => {
       if (activeFeed) {
@@ -489,6 +490,8 @@ export function createWorkbenchStore(
         try {
           const result = await api.createConversation(newIdempotencyKey());
           const conversation = result.conversation;
+          conversationSelectionGeneration += 1;
+          closeFeed();
           set((s) => ({
             creatingConversation: false,
             conversations: [
@@ -496,6 +499,7 @@ export function createWorkbenchStore(
               ...s.conversations.filter((c) => c.conversation_id !== conversation.conversation_id),
             ],
             activeConversationId: conversation.conversation_id,
+            loadingMessages: false,
             messages: [],
             attachments: [],
             fileCandidates: [],
@@ -516,6 +520,7 @@ export function createWorkbenchStore(
 
       selectConversation: async (id) => {
         if (id === get().activeConversationId) return;
+        const generation = ++conversationSelectionGeneration;
         closeFeed();
         useTraceStore.getState().reset();
         set((s) => ({
@@ -539,6 +544,7 @@ export function createWorkbenchStore(
             api.getConversationDetail(id),
             api.listMessages(id),
           ]);
+          if (generation !== conversationSelectionGeneration) return;
           const active = detail.active_run;
           set((s) => ({
             loadingMessages: false,
@@ -557,6 +563,7 @@ export function createWorkbenchStore(
             startRunMonitor(active.run.run_id);
           }
         } catch (err) {
+          if (generation !== conversationSelectionGeneration) return;
           set({ loadingMessages: false, error: messageErrorText(err) });
         }
       },

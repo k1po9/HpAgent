@@ -251,6 +251,7 @@ def compose_durable_runtime(
         WebArtifactGenerator(
             infrastructure.resource_pool,
             max_bytes=int(os.getenv("ARTIFACT_HTML_MAX_BYTES", str(1024 * 1024))),
+            read_timeout_seconds=float(os.getenv("ARTIFACT_MODEL_READ_TIMEOUT_SECONDS", "90")),
         ),
     )
     artifact_activities = ArtifactActivities(artifact_build)

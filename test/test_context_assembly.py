@@ -73,12 +73,14 @@ def test_run_file_manifest_is_injected_without_changing_user_message():
 
     assert "## Current Run Files" in messages[0]["content"]
     assert "`基本资料.txt`" in messages[0]["content"]
-    assert "separate from the persistent Git workspace" in messages[0]["content"]
+    assert "selected Workspace files" in messages[0]["content"]
     assert messages[-1] == {"role": "user", "content": "文件里面写了什么"}
 
 
-def test_empty_run_file_manifest_adds_no_resource_section():
-    assert ContextAssemblyService._format_run_file_context(()) == ""
+def test_empty_run_file_manifest_explains_workspace_discovery():
+    manifest = ContextAssemblyService._format_run_file_context(())
+    assert "## Current Run Files" in manifest
+    assert "Workspace candidates" in manifest
 
 
 def test_context_builder_uses_explicit_profile_not_transport_content():

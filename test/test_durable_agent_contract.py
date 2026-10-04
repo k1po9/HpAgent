@@ -98,6 +98,20 @@ def test_canonical_registry_excludes_legacy_execution(monkeypatch):
     ]
 
 
+@pytest.mark.asyncio
+async def test_registered_workflows_validate_in_temporal_sandbox():
+    from temporalio import workflow
+    from temporalio.worker.workflow_sandbox import SandboxedWorkflowRunner
+
+    runner = SandboxedWorkflowRunner()
+    for workflow_type in (
+        AgentLifecycleWorkflow, NormalizeDocumentWorkflow, AgentRunWorkflow,
+        ReactAgentWorkflow, PlanAndExecuteWorkflow, AgentStepWorkflow,
+        ToolExecutionWorkflow, WorkDelegationWorkflow,
+    ):
+        runner.prepare_workflow(workflow._Definition.must_from_class(workflow_type))
+
+
 def test_legacy_workflow_input_contract_did_not_change():
     assert list(RunLifecycleInput.__dataclass_fields__) == [
         "schema_version",

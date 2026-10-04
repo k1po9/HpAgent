@@ -57,7 +57,11 @@ export function RunStatus({
   const cancellable = activeRun !== null && isCancellableRunStatus(activeRun.status);
   const retryable = activeRun !== null && isRetryableRun(activeRun);
   const running = activeRun !== null && !isTerminalRunStatus(activeRun.status);
-  const unsafeSideEffect = activeRun?.status === "failed" && activeRun.failure?.retryable === false;
+  const unsafeSideEffect =
+    activeRun?.status === "failed" &&
+    ["tool_side_effect_uncertain", "side_effect_reconciliation_failed"].includes(
+      activeRun.failure?.code ?? "",
+    );
   const budget = activeRun?.budget;
 
   return (
@@ -68,7 +72,7 @@ export function RunStatus({
         </Text>
       ) : null}
       {activeRun ? (
-        <Flex gap="3" align="center">
+        <Flex gap="3" align="center" wrap="wrap">
           {running ? (
             <Spinner size="1" data-testid="run-spinner" />
           ) : (
@@ -110,6 +114,11 @@ export function RunStatus({
           {unsafeSideEffect ? (
             <Text size="2" color="red" role="alert" data-testid="unsafe-retry-message">
               任务中存在无法确认是否已完成的外部操作，请检查结果后重新发起任务。
+            </Text>
+          ) : null}
+          {activeRun.status === "failed" && activeRun.failure?.message ? (
+            <Text size="2" color="red" role="status" data-testid="run-failure-message">
+              {activeRun.failure.message}（{activeRun.failure.code}）
             </Text>
           ) : null}
           {cancellable ? (

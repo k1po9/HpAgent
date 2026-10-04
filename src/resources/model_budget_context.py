@@ -32,6 +32,8 @@ class ModelCallContext:
     model: str | None = None
     attempt: int | None = None
     failure_logged: bool = False
+    snapshot_id: str | None = None
+    read_timeout_seconds: float | None = None
 
     def begin_logical_call(self) -> tuple[int, UUID]:
         self.call_ordinal += 1
@@ -71,6 +73,7 @@ def model_budget_scope(
     artifact_id: str | None = None,
     artifact_version_id: str | None = None,
     workflow_id: str | None = None,
+    read_timeout_seconds: float | None = None,
 ) -> Iterator[ModelCallContext]:
     """Bind one durable operation without leaking it to concurrent Runs."""
     def identity_uuid(value: object, namespace: str) -> UUID:
@@ -82,7 +85,7 @@ def model_budget_scope(
         identity_uuid(account_id, "account"), identity_uuid(run_id, "run"),
         operation_id, phase, execution_attempt, final_response,
         artifact_id=artifact_id, artifact_version_id=artifact_version_id,
-        workflow_id=workflow_id,
+        workflow_id=workflow_id, read_timeout_seconds=read_timeout_seconds,
     )
     token = _CURRENT.set(context)
     try:

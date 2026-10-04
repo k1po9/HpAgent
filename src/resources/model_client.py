@@ -25,10 +25,12 @@ from common.errors import ModelAPIError
 from common.logging import log_event
 from common.model_usage import canonical_model_usage
 from common.types import ModelResponse, StopReason, ToolCall
+from resources.model_budget_context import current_model_call
+from resources.model_protocol import anthropic_messages, openai_messages
 
 logger = logging.getLogger("HpAgent.ModelClient")
 
-MODEL_REQUEST_SERIALIZER_VERSION = "hpagent-provider-request-v1"
+MODEL_REQUEST_SERIALIZER_VERSION = "hpagent-provider-request-v2"
 
 
 def _freeze(value: Any) -> Any:
@@ -197,23 +199,47 @@ class ModelClient:
         )
 
         t0 = time.monotonic()
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
+        context = current_model_call()
+        correlation = ({"run_id": str(context.run_id), "operation_id": context.operation_id,
+                        "model_call_id": str(context.model_call_id), "phase": context.phase,
+                        "snapshot_id": context.snapshot_id, "attempt": context.attempt}
+                       if context is not None else {})
+        read_timeout = context.read_timeout_seconds if context is not None else None
+        timeout = httpx.Timeout(self._timeout, connect=min(self._timeout, 5.0),
+                                read=read_timeout or self._timeout)
+        async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 response = await client.post(url, json=payload, headers=headers)
                 if response.status_code >= 400:
+                    details = self._safe_provider_error(response)
                     log_event(logger, logging.WARNING, "model_http_error", "model",
                               endpoint_id=self.endpoint_id, provider=self.provider,
-                              model=self.model, http_status=response.status_code)
+                              model=self.model, http_status=response.status_code,
+                              **details, **correlation)
                 response.raise_for_status()
                 if stream:
                     result = await self._parse_stream(response, on_text_delta)
                 else:
-                    result = self._parse_non_stream(response.json())
+                    from resources.model_failures import ModelResponseInvalid
+                    data = response.json()
+                    try:
+                        if not isinstance(data, dict):
+                            raise ModelResponseInvalid("invalid response object")
+                        if self.api_format == "openai":
+                            choices = data.get("choices")
+                            if not isinstance(choices, list) or not choices or not isinstance(choices[0].get("message"), dict):
+                                raise ModelResponseInvalid("missing response message")
+                        elif not isinstance(data.get("content"), list):
+                            raise ModelResponseInvalid("missing response content")
+                        result = self._parse_non_stream(data)
+                    except (KeyError, TypeError, AttributeError, IndexError, ValueError) as exc:
+                        raise ModelResponseInvalid("invalid provider response") from exc
 
                 elapsed_ms = (time.monotonic() - t0) * 1000
                 tokens = canonical_model_usage(
                     self._raw_usage(response),
-                    messages=payload.get("messages") or [],
+                    messages=([{"role": "system", "content": payload["system"]}]
+                              if payload.get("system") else []) + (payload.get("messages") or []),
                     output_text=result.content,
                 )
                 result.usage = tokens
@@ -251,7 +277,29 @@ class ModelClient:
             except ModelDispatchError:
                 raise
             except Exception as e:
+                category = type(e).__name__ if isinstance(e, (
+                    httpx.TimeoutException, httpx.NetworkError, httpx.ProtocolError,
+                    json.JSONDecodeError,
+                )) else "unexpected_error"
+                log_event(logger, logging.WARNING, "model_dispatch_failed", "model",
+                          endpoint_id=self.endpoint_id, provider=self.provider,
+                          model=self.model, error_category=category, **correlation,
+                          elapsed_ms=round((time.monotonic() - t0) * 1000))
                 raise ModelDispatchError(reason=type(e).__name__) from e
+
+    @staticmethod
+    def _safe_provider_error(response) -> dict[str, str]:
+        # Never log free-form provider messages: they can echo prompts or credentials.
+        try:
+            value = response.json()
+            error = value.get("error", {}) if isinstance(value, dict) else {}
+        except (ValueError, TypeError):
+            error = {}
+        code = error.get("code") or error.get("type") if isinstance(error, dict) else None
+        request_id = response.headers.get("x-request-id") or response.headers.get("request-id")
+        values = {"provider_error_code": code, "provider_request_id": request_id}
+        return {key: value for key, value in values.items()
+                if isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_.:/-]{1,128}", value)}
 
     # ═══════════════════════════════════════════════════════════════════════════
     # URL / Headers / Payload
@@ -281,11 +329,14 @@ class ModelClient:
         stream: bool,
         max_tokens: Optional[int] = None,
     ) -> Dict[str, Any]:
+        normalized, system = (openai_messages(messages), "") if self.api_format == "openai" else anthropic_messages(messages)
         payload: Dict[str, Any] = {
             "model": self.model,
-            "messages": self._convert_messages(messages) if self.api_format == "openai" else messages,
+            "messages": normalized,
             "max_tokens": max_tokens if max_tokens is not None else self._max_tokens,
         }
+        if system:
+            payload["system"] = system
         if tools:
             if self.api_format == "openai":
                 payload["tools"] = self._tools_to_openai(tools)
@@ -303,72 +354,7 @@ class ModelClient:
 
     @staticmethod
     def _convert_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """将 Anthropic 格式的消息历史转为 OpenAI 格式。
-
-        Anthropic tool_use 格式:
-          {"role":"assistant", "content": [{"type":"text",...}, {"type":"tool_use",...}]}
-          {"role":"user", "content": "tool result text"}  # 工具结果
-
-        OpenAI 格式:
-          {"role":"assistant", "content":"...", "tool_calls": [...]}
-          {"role":"tool", "tool_call_id":"...", "content":"..."}
-        """
-        converted: List[Dict[str, Any]] = []
-        pending_ids: List[str] = []
-
-        for msg in messages:
-            role = msg.get("role", "")
-            content = msg.get("content", "")
-
-            if role == "assistant" and isinstance(content, list):
-                text_parts: List[str] = []
-                tool_calls: List[Dict[str, Any]] = []
-                for block in content:
-                    if not isinstance(block, dict):
-                        continue
-                    if block.get("type") == "text":
-                        text_parts.append(block.get("text", ""))
-                    elif block.get("type") == "tool_use":
-                        tc_id = block.get("id", "")
-                        pending_ids.append(tc_id)
-                        tool_calls.append({
-                            "id": tc_id,
-                            "type": "function",
-                            "function": {
-                                "name": block.get("name", ""),
-                                "arguments": json.dumps(block.get("input", {}), ensure_ascii=False),
-                            },
-                        })
-                new_msg: Dict[str, Any] = {"role": "assistant"}
-                if text_parts:
-                    new_msg["content"] = "\n".join(text_parts)
-                if tool_calls:
-                    new_msg["tool_calls"] = tool_calls
-                if not text_parts and not tool_calls:
-                    new_msg["content"] = ""
-                converted.append(new_msg)
-
-            elif role == "user" and pending_ids:
-                # 判断是工具结果还是新的用户消息
-                if isinstance(content, str) and content.strip():
-                    # 可能是工具结果，配对最近的 tool_call
-                    tc_id = pending_ids.pop(0)
-                    converted.append({
-                        "role": "tool",
-                        "tool_call_id": tc_id,
-                        "content": content,
-                    })
-                else:
-                    # 空内容或非字符串 → 残留的 pending_ids 不再匹配，刷新
-                    pending_ids.clear()
-                    converted.append({"role": "user", "content": str(content) if content else ""})
-
-            else:
-                if role == "user":
-                    pending_ids.clear()  # 新的 user 消息意味着上一轮 tool 序列结束
-                converted.append(dict(msg))
-
-        return converted
+        return openai_messages(messages)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # 工具格式转换
