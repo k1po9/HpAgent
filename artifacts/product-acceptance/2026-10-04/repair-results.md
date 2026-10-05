@@ -40,7 +40,7 @@ Worker 内只读网络探测得到：
 
 ## 回归与浏览器证据
 
-原始证据在 [本地修复证据目录](/home/hp/workspace/HpAgent_web/.data/product-repair)。密码文件 `credentials-c.private.json` 与环境备份 `env.before` 为 0600，仅供本机使用，不得发布。此前账号文件实际名为 `credentials.private.json` 和 `credentials-b.private.json`，位于 product-acceptance 目录。
+原始证据在 [本地修复证据目录](../../../.data/product-repair)。密码文件 `credentials-c.private.json` 与环境备份 `env.before` 为 0600，仅供本机使用，不得发布。此前账号文件实际名为 `credentials.private.json` 和 `credentials-b.private.json`，位于 product-acceptance 目录。
 
 | ID | 证据与结论 |
 |---|---|
@@ -68,4 +68,4 @@ Worker 内只读网络探测得到：
 - 文档转换仍需当前开关与依赖条件下的真实样本验收；此次仅关闭镜像漂移。
 - 缺少 Web 入口及缺获准测试 QQ 的项目保持原分类，不新增功能。
 
-因此，**当前可以继续进行真实后端的浏览器验收，但尚不具备完整真实产品 E2E 通过条件**。人工复验沿用 [操作教程](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/manual.md)，当前标准地址为 `http://127.0.0.1:5173`。
+因此，**当前可以继续进行真实后端的浏览器验收，但尚不具备完整真实产品 E2E 通过条件**。人工复验沿用 [操作教程](manual.md)，当前标准地址为 `http://127.0.0.1:5173`。

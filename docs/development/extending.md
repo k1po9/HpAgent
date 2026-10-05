@@ -20,3 +20,13 @@
 - 外部写入前持久化幂等与副作用事实。
 - 注册到能力所属 Queue，并测试 Registry。
 - 按适用范围覆盖 Cancellation、Replay Compatibility、Restart Recovery、Lease Reacquisition 与 Stale Fencing。
+
+## 新增 Work 能力或执行策略
+
+扩展 Requirement 的明确 capability / spec 校验、StrategyRegistry 的版本化 executor 和 admission 冻结合同，在统一 AgentLifecycleWorkflow 内执行。固定流程不建立新的委托实体；后台 Run 不生成聊天 Message、不复用来源聊天预算。完成策略使用持久证据，产生文字不能代替验收。
+
+Main 工具复用 WorkCommandService 并绑定可信 Account / source Message；Work / Subagent 不继承 Main 管理权限。分支只读工具与资源 manifest 由父级核准，不允许递归委派或自行扩权。费用和容量仍通过 Account / Work / Run 账本与 PostgreSQL 票据协调。
+
+增加 Workflow 后同步 Registry 和真实 sandbox prepare 测试，避免 Activity 网络依赖出现在间接 import 链。新增错误 code 要贯通 Activity、Lifecycle stable failure mapping、API failure 和 retry contract，不能仅在一个捕获层改错误文字。Model Provider 适配经 Prepared Request v2 和快照边界，不能改写历史请求体。
+
+文档同步顺序：当前[Work 架构](../architecture/durable-work-v1.md) → API / 配置 / Temporal → 操作 / 测试 → [实施索引](../implementation/README.md)。历史阶段报告保留原验证条件，不将未执行的真实验收补写为已通过。

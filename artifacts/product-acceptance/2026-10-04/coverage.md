@@ -4,9 +4,9 @@
 
 状态：**通过**仅限场景列的实际断言；**失败**有实际复现；**未验证（阻断）**没有完成成果/缺环境/权限；**无 Web 入口**是当前没有对应交互；**不属于 Web 范围**是 QQ 专属或内部/运维能力。覆盖状态和执行结果分别说明，避免一个总标签掩盖部分覆盖。
 
-证据编号及文件见 [evidence.md](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/evidence.md)。API 路径均省略 `/api/v1` 前缀，`/auth` 除外。UI 证据是本轮真实 Chromium；“代码”证据仅支持入口存在/缺失结论。
+证据编号及文件见 [evidence.md](evidence.md)。API 路径均省略 `/api/v1` 前缀，`/auth` 除外。UI 证据是本轮真实 Chromium；“代码”证据仅支持入口存在/缺失结论。
 
-修复后补验的 R01–R09 见 [repair-results.md](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/repair-results.md)。以下仅更新有新证据的场景，模型最终成果仍保留原阻断结论。
+修复后补验的 R01–R09 见 [repair-results.md](repair-results.md)。以下仅更新有新证据的场景，模型最终成果仍保留原阻断结论。
 
 | 产品能力 | 前端入口/覆盖边界 | API | 后台 owner | 验收场景 | 证据 | 结果 |
 |---|---|---|---|---|---|---|

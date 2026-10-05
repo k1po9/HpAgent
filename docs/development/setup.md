@@ -4,7 +4,7 @@
 
 - Docker Engine 与 Docker Compose v2：运行受支持的服务拓扑。
 - Python 3.11+：宿主机后端开发（CI 使用 Python 3.12）。
-- Node.js 20+ 与 npm：宿主机前端开发。
+- Node.js 22+ 与 npm：宿主机前端开发。
 
 ## 环境与模型
 
@@ -22,9 +22,10 @@ python3 -m venv .venv
 docker compose --profile web up -d --build
 docker compose --profile web ps
 curl --fail http://127.0.0.1:8080/health/ready
+docker compose exec -T hpagent python -m orchestration.worker_health
 ```
 
-Web Profile 包含应用 PostgreSQL、Temporal PostgreSQL、Redis、Hindsight、SearXNG、Gotenberg、Migration Job、API、主 Worker、Document Worker 和 Vite 前端。Migration 是 API 与 Worker 的启动依赖。显式执行：
+Web Profile 包含应用 PostgreSQL、Temporal PostgreSQL、Redis、Hindsight、SearXNG、Gotenberg、Migration Job、API、主 Worker、Document Worker 和 Vite 前端。Migration 是 API 与 Worker 的启动依赖。旧架构有业务行的数据库受 054 / 055 / 057 空存储门禁限制，不能直接视为普通升级；切换方式见[部署](../operations/deployment.md)。显式执行：
 
 ```bash
 docker compose --profile web up hpagent-migrate
@@ -48,3 +49,5 @@ docker compose --profile qq up -d napcat
 ```
 
 开发时使用 `./scripts/operations/logs.sh` 查看日志；使用 `docker compose --profile web down` 停止服务。
+
+首次人工操作见[功能指南](../operations/web-workbench.md)。测试前另建隔离数据库并覆盖 Makefile / E2E 默认 DSN，详见[测试](testing.md)；不要让测试 fixture 清理已登录账户的业务环境。

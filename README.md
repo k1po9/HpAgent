@@ -1,47 +1,48 @@
 # HpAgent
 
-HpAgent 是一个支持 Web 与 QQ 双入口、以统一对话模型和持久化执行为核心的 AI 助手平台。
+HpAgent 是一个支持 Web 与 QQ 双入口的 AI 助手平台：Main Agent 处理交互，Work 保存持续委托，Run 记录有限执行，Execution 隔离执行上下文。
 
 ## 核心能力
 
-- Web 与 QQ 共享统一的 `Conversation`、`Message`、`Session` 和 `Run` 状态。
+- Web 与 QQ 共享统一的 `Account`、`Conversation`、`Message`、`Work` 和 `Run` 状态。
+- Work 保存不可变需求 revision、checkpoint、继续条件与累计预算；后台 Work Run 不占聊天槽位，也不创建合成聊天消息。
 - 使用 PostgreSQL 事务与 Outbox 可靠接收任务，再交由 Temporal 持久化执行。
 - ReAct 与 Plan-and-Execute 策略共享 Context、Brain、Actions、Memory 和 Workspace。
 - Hindsight 提供长期记忆，Redis 提供临时协调与缓存。
 - 支持本地工具、MCP、Sandbox、账号级长期文件 Workspace 与可选的 Git 代码工作区。
 - 长期文件可跨 Conversation 授权使用；Run 冻结候选范围、按需固定版本和物化文件。
 - Research 是独立于 Agent 策略的固定证据研究流程。
-- Artifact 用于从消息或研究结果生成带版本的交付物。
+- 提醒、研究、通用工作和成果构建共用有限 Run 生命周期，策略由服务端注册并冻结。
+- Artifact 保存成果版本和生产来源；通知、渠道回执与用户验收分别记账。
+- Generic Work 的 root 可进行一次最多三个只读 Subagent 分支委派，共用原 Run / Work 预算。
 - 高开销文档规范化由独立的 Temporal Activity Worker 执行。
 
 ## 架构
 
 ```text
-Web / QQ
-   ↓
-Application / Conversation
-   ↓
-PostgreSQL + Outbox
-   ↓
-Temporal Durable Runtime
-   ↓
-AgentRunWorkflow
-   ↓
-ReAct / Plan-and-Execute
-   ↓
-Context / Brain / Actions / Memory / Workspace
-   ↓
-Committed Result
-   ↓
-Web SSE / QQ Delivery
+Web / QQ → Main / Conversation commands ─► chat Run
+                   └► Work commands → requirement / wakeup ─► work Run
+                                          │
+                               PostgreSQL + Outbox
+                                          ↓
+                               AgentLifecycleWorkflow
+                                          ↓
+                  deterministic / fixed_workflow / generic_agent
+                                          ↓
+                  Execution / receipts / Artifact / Workspace save
+                                          ↓
+                  Run terminal fact + Work completion policy
+                                          ↓
+                  Web snapshots / SSE + notifications / deliveries
 ```
 
 运行时、状态归属、能力边界、可靠性和关键时序请参阅[架构文档](docs/architecture/overview.md)。
+当前 Work、Run、Execution、调度、交付及治理契约见 [Durable Work V1](docs/architecture/durable-work-v1.md)；设计和各阶段报告是历史依据，当前实现以架构文档与源码为准。
 长期文件、目录、授权、版本、保存与 GC 的当前契约见 [Workspace v4.1](docs/architecture/workspace-v4.1.md)。
 
 ## 快速开始
 
-前置依赖：Git、Docker Engine 和 Docker Compose v2。只有在宿主机开发时才需要 Python 3.11+ 与 Node.js 20+。
+前置依赖：Git、Docker Engine 和 Docker Compose v2。只有在宿主机开发时才需要 Python 3.11+ 与 Node.js 22+。
 
 1. 准备环境配置：
 
@@ -71,6 +72,10 @@ Web SSE / QQ Delivery
    ```
 
    打开 <http://127.0.0.1:5173>。生产网关拓扑使用 `docker compose --profile web-prod up -d --build`，访问 `WEB_GATEWAY_PORT` 指定的端口（默认 `80`）。
+
+前端按对话、长期文件、资料授权、持续工作、研究、成果、执行诊断、账户分页面。首次操作和后端人工校验路径见[功能操作指南](docs/operations/web-workbench.md)。长期上传可选择供当前对话使用；仅保存的文件和旧资料需显式授权，新增资源在下一 Run 生效。
+
+现有旧架构数据库不能按“自动迁移”理解直接升级：054 / 055 / 057 的开发阶段迁移包含空业务存储检查，没有历史 Task / Work 双写或回填层。切换步骤与当前验证限制见[部署说明](docs/operations/deployment.md)及[实施索引](docs/implementation/README.md)。
 
 也可以单独启动 Worker、API 或前端：
 
@@ -122,14 +127,14 @@ docker compose --profile web down
 
 ```bash
 make install             # 安装 Python 开发依赖
-make test-existing       # 单元测试及非 PostgreSQL 测试
+make test-existing       # 非 postgres 标记集合；部分 fixture 仍需独立基础设施
 make lint typecheck      # Python 静态检查
 make ci-web              # 前端 lint、类型、构建与单元测试
 make web-dev             # 宿主机启动 Vite
 make agent-benchmark-check
 ```
 
-数据库测试使用 `make db-up`、`make migrate`、`make test-db` 和 `make test-api`。详见[开发环境](docs/development/setup.md)与[测试指南](docs/development/testing.md)。
+数据库测试使用 `make db-up`、`make migrate`、`make test-db` 和 `make test-api`，执行前必须覆盖默认 DSN，指向专用隔离测试库；fixture 会清理业务表。详见[开发环境](docs/development/setup.md)与[测试指南](docs/development/testing.md)。
 
 ## 仓库结构
 
@@ -146,4 +151,4 @@ artifacts/    审计与 Benchmark 证据
 
 ## 文档
 
-从 [docs/README.md](docs/README.md) 开始。Workspace P0～P5 的[阶段记录与总体验收](docs/implementation/workspace-v4.1/README.md)单独保存，记录已验证路径及尚未完成的运行验收。
+从 [docs/README.md](docs/README.md) 开始。[实施与验收索引](docs/implementation/README.md)连接 Durable Work 五阶段记录、复查修复、Workspace P0～P5 和人工 E2E 修复证据，分别说明受控测试与真实模型/渠道验收边界。

@@ -1,5 +1,8 @@
 # Workspace v4.1 — P0～P5 整改验收
 
+> 本文是 Workspace 阶段验收证据。后续 Work 主体与人工 E2E 修复状态见[实施索引](../README.md)，当前权限契约见[架构](../../architecture/workspace-v4.1.md)；下列原验收条件和计数保持历史含义。
+
+
 ## 当前状态（main@770569dcec02b339196da45d60877fc8f86cf95f）
 
 `770569d` 已推送；[GitHub Actions Run 36328286836](https://github.com/k1po9/HpAgent/actions/runs/36328286836) 为 Success，10 个 Job 全部成功。下表的“远端”仅表示相应自动化在该提交的 CI 中执行成功，不把 CI 未运行的本地专项场景算作远端验收。源码契约见[架构说明](../../architecture/workspace-v4.1.md)，具体命令、数据条件及阶段证据见下方历史记录。

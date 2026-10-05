@@ -7,10 +7,10 @@
 **判断：前端把新建与改名/移动共用一套字段，导致新建请求默认指向错误的位置并重复使用已有名称。**
 
 - 日志准确命中 `req_01a10575-ab84-7310-9175-7460282fd454`，时间为 13:49:20.173，错误为 `workspace_conflict`。
-- [WorkspacePanel.tsx:216](/home/hp/workspace/HpAgent_web/web/src/components/WorkspacePanel.tsx:216) 的 `selectNode` 将 `name` 填成所选节点的名称，将 `parentId` 填成所选节点的父目录。
-- [WorkspacePanel.tsx:608](/home/hp/workspace/HpAgent_web/web/src/components/WorkspacePanel.tsx:608) 的“新建目录”直接调用 `createWorkspaceDirectory(parentId, name)`。
+- [WorkspacePanel.tsx:216](../../../web/src/components/WorkspacePanel.tsx#L216) 的 `selectNode` 将 `name` 填成所选节点的名称，将 `parentId` 填成所选节点的父目录。
+- [WorkspacePanel.tsx:608](../../../web/src/components/WorkspacePanel.tsx#L608) 的“新建目录”直接调用 `createWorkspaceDirectory(parentId, name)`。
 - 因此选中“资料”后直接点击新建，实际意图成为“在根目录再建一个资料”，不是“在资料下面新建子目录”。如果只改名称，也会把目录建在根目录，除非再手动修改目标目录。
-- 同级名称唯一约束正确拒绝重复入口；后端没有发生目录存储失效。但 [app.py:965](/home/hp/workspace/HpAgent_web/src/web_api/app.py:965) 把多种数据库约束异常都转成相同的 409，返回的 `details` 和日志都没有保留可用的冲突原因。
+- 同级名称唯一约束正确拒绝重复入口；后端没有发生目录存储失效。但 [app.py:965](../../../src/web_api/app.py#L965) 把多种数据库约束异常都转成相同的 409，返回的 `details` 和日志都没有保留可用的冲突原因。
 
 历史请求正文没有保存，无法还原当时是否手动改过字段；以上是当前代码对用户描述操作的确定性解释。
 
@@ -36,10 +36,10 @@
 
 代码对应：
 
-- [WorkspacePanel.tsx:290](/home/hp/workspace/HpAgent_web/web/src/components/WorkspacePanel.tsx:290) 上传仅执行创建上传、写入内容、保存长期入口，不执行授权。“授权当前对话读取”是面板下方的独立操作。
-- [resources.py:164](/home/hp/workspace/HpAgent_web/src/workspace/resources.py:164) 在 Run 创建时从当前主体的 `list_metadata` 授权冻结候选，没有授权就没有候选。这符合[现有权限契约](/home/hp/workspace/HpAgent_web/docs/architecture/workspace-v4.1.md:11)：账户所有者能浏览目录，不等于每个对话中的 Agent 都能读取。
-- [context_assembly.py:99](/home/hp/workspace/HpAgent_web/src/application/context_assembly.py:99) 只加载已绑定 Run 的文件；[同文件:214](/home/hp/workspace/HpAgent_web/src/application/context_assembly.py:214) 只把这些文件格式化进上下文，没有长期候选清单。没有 Run 文件时连明确的空清单也不输出。
-- [environment.yaml:8](/home/hp/workspace/HpAgent_web/config/prompts/environment.yaml:8) 将 Persistent Workspace 解释为 Account 级 Git 工作区，实际长期文件已经是虚拟文件目录。13:54:53 的真实模型快照仍有 Git branch 提示，没有 `## Current Run Files` 资源清单，也没有 `list_run_candidates` 使用指引；候选工具本身已经在请求中，因此无需把它再改成常驻工具。
+- [WorkspacePanel.tsx:290](../../../web/src/components/WorkspacePanel.tsx#L290) 上传仅执行创建上传、写入内容、保存长期入口，不执行授权。“授权当前对话读取”是面板下方的独立操作。
+- [resources.py:164](../../../src/workspace/resources.py#L164) 在 Run 创建时从当前主体的 `list_metadata` 授权冻结候选，没有授权就没有候选。这符合[现有权限契约](../../../docs/architecture/workspace-v4.1.md#L11)：账户所有者能浏览目录，不等于每个对话中的 Agent 都能读取。
+- [context_assembly.py:99](../../../src/application/context_assembly.py#L99) 只加载已绑定 Run 的文件；[同文件:214](../../../src/application/context_assembly.py#L214) 只把这些文件格式化进上下文，没有长期候选清单。没有 Run 文件时连明确的空清单也不输出。
+- [environment.yaml:8](../../../config/prompts/environment.yaml#L8) 将 Persistent Workspace 解释为 Account 级 Git 工作区，实际长期文件已经是虚拟文件目录。13:54:53 的真实模型快照仍有 Git branch 提示，没有 `## Current Run Files` 资源清单，也没有 `list_run_candidates` 使用指引；候选工具本身已经在请求中，因此无需把它再改成常驻工具。
 
 **修改方案：**
 
@@ -66,13 +66,13 @@
 
 根因路径：
 
-1. [runtime.py:550](/home/hp/workspace/HpAgent_web/src/agent_activities/runtime.py:550) 持久化内部工具调用格式：
+1. [runtime.py:550](../../../src/agent_activities/runtime.py#L550) 持久化内部工具调用格式：
 
    ```json
    {"id":"call_x","name":"list_run_candidates","arguments":{"limit":50}}
    ```
 
-2. [model_client.py:331](/home/hp/workspace/HpAgent_web/src/resources/model_client.py:331) 只转换 Anthropic 的 `content[]/tool_use` 消息，遇到这种字符串内容加顶层 `tool_calls` 的内部消息，直接原样拷贝。
+2. [model_client.py:331](../../../src/resources/model_client.py#L331) 只转换 Anthropic 的 `content[]/tool_use` 消息，遇到这种字符串内容加顶层 `tool_calls` 的内部消息，直接原样拷贝。
 3. 实际 `provider_request_body` 已证明三个失败 Run 的第二轮请求均携带上述内部格式，重试也相同；共发现 **12 个**不合格的工具调用记录。OpenAI 格式应为：
 
    ```json
@@ -80,7 +80,7 @@
    ```
 
 4. 在当前运行 Worker 内离线执行 `ModelClient.prepare_request`，确认仍输出内部格式，同时缺少 `type=function`、嵌套 `function` 与 JSON 字符串参数。这不是仅从源码猜测。
-5. 提供方对第二轮请求约 1 秒返回 HTTP 500；Activity 整体约 2 秒失败。客户端只记录 HTTP 状态，[runtime.py:624](/home/hp/workspace/HpAgent_web/src/agent_activities/runtime.py:624) 再统一转成“模型暂时不可用”。所以 UI 丢失了具体原因，三次重试也无法修正确定性的错误格式。
+5. 提供方对第二轮请求约 1 秒返回 HTTP 500；Activity 整体约 2 秒失败。客户端只记录 HTTP 状态，[runtime.py:624](../../../src/agent_activities/runtime.py#L624) 再统一转成“模型暂时不可用”。所以 UI 丢失了具体原因，三次重试也无法修正确定性的错误格式。
 
 原始提供方错误响应正文未保存，因此尚不能断言其服务器内部报错的全部细节。确定的是请求不合格、失败发生于工具往返、三次同样重试均失败；应优先修复此项，再做一次真实复验。已查记录不支持把这三次失败归因于本地断网、工具执行失败或账户权限不足。
 
@@ -98,7 +98,7 @@
 
 13:52:58 创建的 Artifact Run `01a10579-0124-7749-a5da-d654b9bde5c8` 最终 succeeded、成果 completed，总耗时 128.4 秒；前三次生成各在约 30.1 秒触发 `ReadTimeout`，第四次于 13:55:06 成功。它不属于上表五次聊天失败，但会造成“接近完成时又重试”的体验。
 
-[config/models.yaml:72](/home/hp/workspace/HpAgent_web/config/models.yaml:72) 的 chat endpoint 读取超时是 30 秒；[generator.py:101](/home/hp/workspace/HpAgent_web/src/web_artifacts/generator.py:101) 的成果生成共用 chat 且非流式。建议独立设置成果生成阶段的读取预算，先用可配置的 90 秒验证，并匹配外层 Activity/Run 预算；连接超时仍保持短值。当前只能确认读取等待触发超时，不能凭这些日志确定是提供方排队、生成慢还是传输停顿。不应仅调大超时来掩盖前面的工具格式缺陷。
+[config/models.yaml:72](../../../config/models.yaml#L72) 的 chat endpoint 读取超时是 30 秒；[generator.py:101](../../../src/web_artifacts/generator.py#L101) 的成果生成共用 chat 且非流式。建议独立设置成果生成阶段的读取预算，先用可配置的 90 秒验证，并匹配外层 Activity/Run 预算；连接超时仍保持短值。当前只能确认读取等待触发超时，不能凭这些日志确定是提供方排队、生成慢还是传输停顿。不应仅调大超时来掩盖前面的工具格式缺陷。
 
 14:45:35 的数据库连接拒绝发生在上述聊天结束之后，随后服务重启并健康；不能用它解释 13:57、14:32、14:40 的失败。
 
@@ -106,9 +106,9 @@
 
 **判断：多个业务功能同时占用聊天布局，且部分功能只提供结果/控制入口，创建入口依赖模型。仅调整间距无法满足本次验证需求。**
 
-[App.tsx:175](/home/hp/workspace/HpAgent_web/web/src/App.tsx:175) 将 Work、Workspace、Research 和 Chat 依次放在同一列，Trace/Artifact 再作为侧栏加入。[WorkspacePanel.tsx:274](/home/hp/workspace/HpAgent_web/web/src/components/WorkspacePanel.tsx:274) 把上传、搜索、目录树、编辑、版本、保留说明、授权等功能放在一个最大 350px 的滚动面板里；工作和研究还有各自高度上限。授权与高级操作容易藏在多层滚动中。
+[App.tsx:175](../../../web/src/App.tsx#L175) 将 Work、Workspace、Research 和 Chat 依次放在同一列，Trace/Artifact 再作为侧栏加入。[WorkspacePanel.tsx:274](../../../web/src/components/WorkspacePanel.tsx#L274) 把上传、搜索、目录树、编辑、版本、保留说明、授权等功能放在一个最大 350px 的滚动面板里；工作和研究还有各自高度上限。授权与高级操作容易藏在多层滚动中。
 
-此外还有一个确定的交互缺陷：[ChatPane.tsx:48](/home/hp/workspace/HpAgent_web/web/src/components/ChatPane.tsx:48) 判断策略选择器是否锁定时仍使用旧终态 `completed`，而当前 Run 的成功状态是 `succeeded`。因此成功完成后策略选择器继续被锁住，失败后反而可以切换。这只能解释策略切换受阻，不能据此推断所有按钮都不可操作。
+此外还有一个确定的交互缺陷：[ChatPane.tsx:48](../../../web/src/components/ChatPane.tsx#L48) 判断策略选择器是否锁定时仍使用旧终态 `completed`，而当前 Run 的成功状态是 `succeeded`。因此成功完成后策略选择器继续被锁住，失败后反而可以切换。这只能解释策略切换受阻，不能据此推断所有按钮都不可操作。
 
 **最小方案：采用普通导航与独立内容页面，复用现有 API 和组件，不做视觉重设计。**
 

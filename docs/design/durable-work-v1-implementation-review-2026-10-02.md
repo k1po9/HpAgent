@@ -1,5 +1,9 @@
 # HpAgent Durable Work V1 五阶段实施复查
 
+> 历史设计/复查基线：本文保留当时状态与证据。当前已实现架构见 [Durable Work V1](../architecture/durable-work-v1.md)，阶段演进和后续人工修复见[实施索引](../implementation/README.md)。
+> 源码链接已改为仓库相对路径，行号沿用原研究基线；退休文件以路径文字保留，不链接到不存在的当前文件。
+
+
 日期：2026-10-02。审查对象：`main@0ec0763`，相对于 `3e6379f` 的五个实施提交。
 
 后续修复与验证：[2026-10-03 修复记录](../implementation/durable-work-v1-review-fixes-2026-10-03.md)。本报告保留复查当时的发现；修复状态以该记录为准。
@@ -12,13 +16,13 @@
 
 ### R1 · P1：QQ 群聊的 Work 工具丢失受众边界，能够取得私有委托详情
 
-位置：[ExecutionResourceService._sandbox](/home/hp/workspace/HpAgent_web/src/workspace/execution.py:71)、[Main Work tools](/home/hp/workspace/HpAgent_web/src/application/main_agent.py:44)。
+位置：[ExecutionResourceService._sandbox](../../src/workspace/execution.py#L71)、[Main Work tools](../../src/application/main_agent.py#L44)。
 
 实际链路是 Message.origin → ExecutionResourceService → SandboxManager → create_main_work_tools。QQ 入口已经在 origin 保存 `scope=group` 和 `interaction_profile=qq_group`，但 `_sandbox` 只传递 `channel_type=napcat/official_qq`，没有传递 profile/scope。`get_work` 恰好依赖被丢弃的 profile/surface 决定是否裁剪，因此真实群聊执行走完整详情分支。`list_works` 还会无条件提供账户全部候选 Work 的标题。
 
 复现：在隔离库创建含 `PRIVATE_WORK_OBJECTIVE` 的私有 Work，以及 origin 明确为 QQ 群聊的 Message；通过真实 `_sandbox` 构造工具上下文，再调用真实 `get_work`。返回包含该私有 objective；`list_works` 也包含私有标题。使用捕获型 sandbox 替代外部执行环境，未调用模型或真实群聊。
 
-风险是同一用户跨公开/私有入口的信息披露，不是已证明的跨账户越权。模型一旦将这些详情写入群聊回答，后续投递不会重新裁剪： [DeliveryService](/home/hp/workspace/HpAgent_web/src/delivery/service.py:344) 将完整 assistant content 同时作为 summary，QQ adapter 会发送该 summary。
+风险是同一用户跨公开/私有入口的信息披露，不是已证明的跨账户越权。模型一旦将这些详情写入群聊回答，后续投递不会重新裁剪： [DeliveryService](../../src/delivery/service.py#L344) 将完整 assistant content 同时作为 summary，QQ adapter 会发送该 summary。
 
 修复方向：受众信息应由可信 Message origin 贯穿工具边界；群聊候选发现、详情和变更命令的返回值统一使用公开投影，而不能仅修补 `get_work` 的一个判断。不能以“同一 Account 有权读取”代替“当前群聊有权披露”。
 
@@ -26,13 +30,13 @@
 
 ### R2 · P1：成功重试之后的下一次执行被错误挂到同一个失败 Run，触发唯一约束并中断调度
 
-位置：[admit_work_run](/home/hp/workspace/HpAgent_web/src/run_domain/admission.py:73)、[Work scheduler](/home/hp/workspace/HpAgent_web/src/orchestration/work_schedule.py:134)。
+位置：[admit_work_run](../../src/run_domain/admission.py#L73)、[Work scheduler](../../src/orchestration/work_schedule.py#L134)。
 
-每次 admission 都查询该 revision 最近一个 failed/cancelled Run，并将其作为 `retry_of_run_id`，没有判断它是否已经被重试成功，也没有区分新的履约步骤/定时 occurrence 与重试。最终 schema 仍保留 [uq_runs__one_direct_retry](/home/hp/workspace/HpAgent_web/persistence/migrations/001_phase_a_schema.sql:114)。
+每次 admission 都查询该 revision 最近一个 failed/cancelled Run，并将其作为 `retry_of_run_id`，没有判断它是否已经被重试成功，也没有区分新的履约步骤/定时 occurrence 与重试。最终 schema 仍保留 [uq_runs__one_direct_retry](../../persistence/migrations/001_phase_a_schema.sql#L114)。
 
 复现序列：R1 failed → R2 retry_of=R1 且 succeeded，Work 仍 active → 再次 advance。R3 再次指向 R1，抛出 `UniqueViolation: uq_runs__one_direct_retry`。相同情况放到 pending wakeup 后，`dispatch_due()` 也直接抛出该异常。
 
-影响包括 ongoing Work 和周期工作失败恢复后的后续执行。异常不在 `dispatch_due` 的捕获范围；`run_work_schedule_loop` 没有异常恢复，而 [BackgroundTasks](/home/hp/workspace/HpAgent_web/src/orchestration/worker.py:333) 只保存任务，没有重启监督。因此异常会结束该进程的 Work 调度任务，其他租户的后续唤醒也受影响。
+影响包括 ongoing Work 和周期工作失败恢复后的后续执行。异常不在 `dispatch_due` 的捕获范围；`run_work_schedule_loop` 没有异常恢复，而 [BackgroundTasks](../../src/orchestration/worker.py#L333) 只保存任务，没有重启监督。因此异常会结束该进程的 Work 调度任务，其他租户的后续唤醒也受影响。
 
 修复方向：只有明确的 retry 才设置 retry ancestry；新步骤和新 occurrence 不沿用历史失败祖先。保留必要的并发幂等约束，补充单 Work admission 异常隔离与调度任务健康/恢复机制。仅删除唯一索引不能修复错误的执行因果关系。
 
@@ -40,7 +44,7 @@
 
 ### R3 · P1：成功 Run 返回 ready 后没有唤醒，持续工作静默停滞
 
-位置：[RunLifecycleService.finish_in_uow](/home/hp/workspace/HpAgent_web/src/run_domain/lifecycle.py:197)、[scheduler admission conditions](/home/hp/workspace/HpAgent_web/src/orchestration/work_schedule.py:112)。
+位置：[RunLifecycleService.finish_in_uow](../../src/run_domain/lifecycle.py#L197)、[scheduler admission conditions](../../src/orchestration/work_schedule.py#L112)。
 
 Generic brief 明确允许 `continuation.kind=ready`。但成功结束只为 `at_time/retry_after` 创建新 wakeup；admission 已经消耗/作废旧 wakeup，scheduler 又只查询存在 pending wakeup 的 Work。
 
@@ -52,12 +56,12 @@ Generic brief 明确允许 `continuation.kind=ready`。但成功结束只为 `at
 
 ### R4 · P1：Generic Work 默认预算与实际文件工具不兼容，读写文件在执行前失败
 
-位置：[Work Run budget snapshot](/home/hp/workspace/HpAgent_web/src/run_domain/admission.py:128)、[Work default limits](/home/hp/workspace/HpAgent_web/src/resources/work_budget.py:19)。
+位置：[Work Run budget snapshot](../../src/run_domain/admission.py#L128)、[Work default limits](../../src/resources/work_budget.py#L19)。
 
 存在两个必须分别修复的阻断：
 
 1. Generic Run 只定义 model/tool_calls 限额，没有文件工具要求的 bytes_scanned、bytes_returned_to_model、bytes_written、output_file_bytes。用实际注册的 `read_file` budget metadata 预留，得到 `RunBudgetError: budget snapshot misses dimension: bytes_scanned`。
-2. 新 Work 的 bytes_written/output_file_bytes 各为 100,000,000，而实际 [file write tools](/home/hp/workspace/HpAgent_web/src/sandbox/tools/local/file_write.py:313) 每次固定预留 128 MiB（134,217,728）。完全未消耗过预算的新 Work 调用 `create_docx` 的真实预留合同，也会直接 `WorkBudgetExhausted`。实际只写很小文件也一样，因为拒绝发生在工具执行之前。
+2. 新 Work 的 bytes_written/output_file_bytes 各为 100,000,000，而实际 [file write tools](../../src/sandbox/tools/local/file_write.py#L313) 每次固定预留 128 MiB（134,217,728）。完全未消耗过预算的新 Work 调用 `create_docx` 的真实预留合同，也会直接 `WorkBudgetExhausted`。实际只写很小文件也一样，因为拒绝发生在工具执行之前。
 
 验证使用工具工厂生成的真实 metadata，调用实际 Work admission 和预算服务；不是手写一个不属于工具合同的超额请求。补齐 Run 维度后，第二个 Work 限额问题仍会存在。
 
@@ -67,7 +71,7 @@ Generic brief 明确允许 `continuation.kind=ready`。但成功结束只为 `at
 
 ### R5 · P2：Run 拒绝预算预留后，Work 层预留仍被提交并长期占用
 
-位置：[RunBudgetService.reserve_in_uow](/home/hp/workspace/HpAgent_web/src/resources/run_budget.py:125)、[deferred exhaustion commit](/home/hp/workspace/HpAgent_web/src/resources/run_budget.py:94)。
+位置：[RunBudgetService.reserve_in_uow](../../src/resources/run_budget.py#L125)、[deferred exhaustion commit](../../src/resources/run_budget.py#L94)。
 
 当前先执行 `WorkBudgetService.mutate(... reserve)`，再检查 Run 限额。外层 `reserve()` 使用 `_defer_exhaustion=True`：Run 超额时返回错误对象，事务正常提交，最后才向调用者抛异常。于是 Work 的预留已经入账，而 Run 没有对应 ledger。
 
@@ -146,7 +150,7 @@ Application startup failed. Exiting.
 
 这是“运行环境尚未切换到五阶段目标 schema”，不是要求补历史兼容或 legacy 双轨。按照冻结原则，可以准备新的干净开发库并进行明确的环境切换；但本轮复查没有重置、迁移或删除现有业务库。隔离库可以跑到目标 schema，并不能证明现有部署已经验收可用。
 
-阶段四 [实施记录](/home/hp/workspace/HpAgent_web/docs/implementation/durable-work-v1-phase4.md) 本身也明确：完成的是 focused verification，不是完整 real Temporal/live QQ/browser/SIGKILL acceptance campaign。
+阶段四 [实施记录](../implementation/durable-work-v1-phase4.md) 本身也明确：完成的是 focused verification，不是完整 real Temporal/live QQ/browser/SIGKILL acceptance campaign。
 
 ## 5. 建议关闭问题的顺序
 

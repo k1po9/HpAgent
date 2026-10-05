@@ -1,6 +1,6 @@
 # 失败复现、证据、分类和最小建议
 
-以下保留初次审计的复现记录。当前修复状态及证据见 [repair-results.md](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/repair-results.md)，不要将下文历史“未修改”当作修复后状态。
+以下保留初次审计的复现记录。当前修复状态及证据见 [repair-results.md](repair-results.md)，不要将下文历史“未修改”当作修复后状态。
 
 这里只登记已观察到的失败/部署偏差。模型结果、Research 等未执行成果另列为阻断，不编造失败运行。脚本曾因等待不存在的文案超时，及因浏览器重载前仍用旧组件代码导致复测失败；这些是验收工具操作问题，不列成产品缺陷。最终上传通过是在新 Chromium 页面加载当前源码后取得的。
 

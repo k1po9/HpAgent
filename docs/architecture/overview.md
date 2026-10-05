@@ -1,41 +1,36 @@
 # 架构总览
 
-HpAgent 通过统一的应用与对话模型同时提供 Web 和 QQ 交互入口。Surface Adapter 负责标准化身份与输入，但不拥有独立的 Agent Runtime。
+HpAgent 通过统一 Account 和命令边界提供 Web / QQ 入口。Main Agent 面向交互，Work 保存持续委托，Run 是有限执行，Execution 是独立执行上下文；Surface Adapter 不拥有另一套 Agent Runtime。
 
 ```text
-Web Browser ─► FastAPI ─┐
-                        ├─► CommandService ─► PostgreSQL Transaction + Outbox
-QQ Provider ─► Adapter ─┘                         │
-                                                  ▼
-                                          Outbox Dispatcher
-                                                  │
-                                                  ▼
-                         Temporal AgentLifecycleWorkflow
-                                                  │
-                                                  ▼
-                              AgentRunWorkflow + Strategy
-                                                  │
-                             ┌────────────────────┼────────────────────┐
-                             ▼                    ▼                    ▼
-                       Context/Brain        Actions/Tools       Memory/Workspace
-                             └────────────────────┼────────────────────┘
-                                                  ▼
-                                         PostgreSQL Committed Result
-                                                  │
-                                     ┌────────────┴────────────┐
-                                     ▼                         ▼
-                                 Web SSE                  QQ Delivery
+Web Browser / QQ Provider
+          ↓
+Application / Conversation commands / Work commands
+          ↓
+PostgreSQL：Message、Work、requirement、wakeup、Run + Outbox
+          ↓
+Outbox Dispatcher → AgentLifecycleWorkflow
+          ↓
+StrategyRegistry：deterministic / fixed_workflow / generic_agent
+          ↓
+Execution：Context / Model / Actions / Memory / Workspace
+          ↓
+Run 终态 / 成果版本 / 保存事实 / WorkCompletionPolicy
+          ↓
+Web 查询与 SSE / notifications → deliveries → Web inbox / QQ
 ```
 
 ## 逻辑分层
 
-- **Surface Adapter**：负责 HTTP、浏览器认证、SSE、QQ Provider 协议、路由和投递格式。
-- **Application Service**：负责命令接收、上下文组装、任务调度、记忆保留和消息投递协调。
-- **Domain Package**：定义 Conversation、File、Research 和 Execution 规则，不依赖传输协议。
-- **Persistence**：负责 PostgreSQL 事务、Repository、Migration、Projection 和 Outbox。
-- **Durable Orchestration**：负责 Temporal Workflow、Activity、重试、等待和生命周期状态转换。
-- **Capability**：提供 Brain/Model、Actions、MCP、Memory、Sandbox、Workspace、File、Research、Artifact 和 Document 能力。
+- **Surface Adapter**：HTTP、认证、SSE、QQ 协议、路由和投递格式；前端八页面是同一 API 的操作入口。
+- **Application Service**：上下文组装、Main 委托工具、入口协调、记忆保留和渠道 Adapter。
+- **Domain Package**：Conversation、Work、Run、File、Research 等领域规则；交互、委托、执行、验收与投递分别记账。
+- **Persistence**：PostgreSQL 事务、Repository、Migration、Projection、Outbox、预算与容量事实。
+- **Durable Orchestration**：一个有限 Run Lifecycle，注册策略、Child Workflow、Activity、等待和终态。Work 到期调度是 PostgreSQL evaluator。
+- **Capability**：Model、Actions、MCP、Memory、Sandbox、Workspace、Research、Artifact 和 Document。
 
-Worker Composition Root 只构造一份共享基础设施，并注入 Workflow Activity。Web API 只负责接收命令和查询投影；QQ Ingress 复用同一命令边界，QQ Delivery 只消费已提交结果。
+主 Worker Composition Root 构造共享基础设施并注入 Activity；可变执行上下文按 Execution 隔离。API 接收命令和查询投影，QQ Ingress 复用命令，Delivery 只消费已提交通知。Heavy Document Worker 是独立资源进程边界，不形成另一套委托或文件系统。
 
-延伸阅读：[运行时](runtime.md)、[状态归属](data-and-state.md)、[Workspace v4.1](workspace-v4.1.md)、[可靠性](reliability.md)和[关键时序](sequences.md)。
+Conversation 保留同对话单 active chat Run；Work Run 不占聊天槽、不伪造 Message、不强制依赖 Session / Git。单 Work 协调权、Execution attempt lease、资源锁和跨进程容量票据是四项独立约束。
+
+延伸阅读：[Durable Work V1](durable-work-v1.md)、[运行时](runtime.md)、[状态归属](data-and-state.md)、[Workspace](workspace-v4.1.md)、[可靠性](reliability.md)、[时序](sequences.md)。操作入口见[功能指南](../operations/web-workbench.md)，历史与验收见[实施索引](../implementation/README.md)。

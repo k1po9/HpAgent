@@ -23,9 +23,13 @@ python scripts/operations/create-registration-invite.py --profile standard --inv
 
 第三个示例未传 `--daily-token-limit`，因此没有 Account 每日上限；第一个示例单次兑换，第二个可兑换五次。脚本输出 `invite_id` 和 `invite_code`。数据库只保存邀请码的 SHA-256 摘要，明文 `invite_code` 仅在创建时输出，须当场妥善保存并安全传递给注册用户。
 
-## 两层 Token Budget
+## Account、Work 与 Run Budget
 
-`account_entitlements.daily_token_limit` 是账号级、按 UTC calendar day 计算的模型 token 配额。正整数表示每日额度，`NULL` 表示不设置 Account Daily Token Limit。它不是单轮对话限制，也不是单个 Run 的 token budget。模型调用先检查 entitlement 和端点 tier，准备请求、冻结 Model Input Snapshot，然后在同一 PostgreSQL 事务中原子预留 Account/day budget 与 Run budget，之后发送给 Provider，并按实际用量结算或释放预留。Snapshot 冻结不在预算预留事务内。排查额度耗尽时，先确认账号 entitlement 的状态与 `daily_token_limit`，再看 `account_daily_model_budgets`、`account_model_usage_ledger` 的 UTC `quota_date` 和对应 Run 的 `run_budgets`；不要把两层额度混为一谈。
+`account_entitlements.daily_token_limit` 是账号级、按 UTC calendar day 计算的模型 token 配额。正整数表示每日额度，`NULL` 表示不设置 Account Daily Token Limit；它不是单轮对话或单个 Run 的额度。Work Run 还受跨 revision / retry 的累计 Work budget 控制。
+
+模型调用先检查 entitlement / endpoint tier、规范化并校验 Provider 请求、冻结 Model Input Snapshot，再在一个 PostgreSQL 事务中按 Account/day → Work（若有）→ Run 顺序预留，随后分发并结算或释放。Snapshot 冻结是另一个事务；快照存在不证明请求发出。未知外部调用按估算承担费用，不能通过重试或清除预留抹去。
+
+排查先确认 entitlement 与 UTC quota_date，再检查 `account_daily_model_budgets / account_model_usage_ledger`、`work_budgets / work_usage_ledger` 和 `run_budgets / run_usage_ledger`。修订、重试、fallback、Subagent 不重置 Work 用量。提升 Work 预算需要带版本和幂等键的显式命令，不修改 Account entitlement 或日额度；已有 Work 也不会因默认值变动自动增额。详见[Work 架构](../architecture/durable-work-v1.md)与[API](../reference/api.md)。
 
 ## Prompt / Model Input 可见性
 
@@ -33,4 +37,4 @@ python scripts/operations/create-registration-invite.py --profile standard --inv
 
 ## 当前管理边界
 
-仓库已有正式的邀请码创建脚本和底层 Account Entitlement、Daily Budget 模型。当前没有正式的 Account admin API、已有账号 entitlement 的 list/update CLI、邀请码 update/revoke CLI 或 quota management UI。排查可使用只读数据库查询、Run/Model Input API 和日志；对已有账号权限的变更尚未形成完整 Admin API / CLI，不能将创建新邀请码当成修改既有账号权限的方式。
+仓库已有正式的邀请码创建脚本和底层 Account Entitlement、Daily Budget 模型。当前没有正式的 Account admin API、已有账号 entitlement 的 list/update CLI、邀请码 update/revoke CLI 或 Account 日额度管理 UI。Work 累计预算已有独立的增额 API 和持续工作页入口。排查可使用只读数据库查询、Run/Model Input API 和日志；对已有账号权限的变更尚未形成完整 Admin API / CLI，不能将创建新邀请码当成修改既有账号权限的方式。

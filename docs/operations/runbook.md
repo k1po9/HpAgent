@@ -15,6 +15,7 @@ docker compose --profile web restart hpagent hpagent-document-worker hpagent-api
 docker compose --profile web ps
 curl --fail http://127.0.0.1:8080/health/live
 curl --fail http://127.0.0.1:8080/health/ready
+docker compose exec -T hpagent python -m orchestration.worker_health
 docker compose exec redis redis-cli ping
 docker compose exec app-postgres pg_isready -U hpagent_migrate -d hpagent
 docker compose exec temporal tctl --address localhost:7233 cluster health
@@ -61,3 +62,11 @@ BACKUP_DIR=/secure/location ./scripts/operations/backup.sh
 ```
 
 执行恢复或破坏性重置前，请先阅读[备份与恢复](backup-restore.md)。
+
+## Work 操作与执行排查
+
+Work 需求/控制命令与 Run cancel 分开。暂停或停止存在未知外部效果时保持 pausing / stopping，先核对 operation / delivery receipt；不要手工改 completed、清 active pointer 或清未知预算预留来解锁。
+
+查 Work requirement revision、continuation、active coordinator Run、control epoch、schedule version、pending wakeup 和 budget。ready 续跑由事务性 wakeup 与 PG due loop 驱动，Work 不需要 Temporal Schedule。一次提醒 Run 成功只表示通知已入队；Work 可等待渠道接受。操作入口见[功能指南](web-workbench.md)，端点见[API](../reference/api.md)。
+
+模型快照、Trace、Work event 与通知是查询/诊断来源；领域状态仍由 PostgreSQL 权威。重载后检查 Worker healthy 与日志中的 workflow validation，避免仅验证 API ready。分类排障见[故障排查](troubleshooting.md)。

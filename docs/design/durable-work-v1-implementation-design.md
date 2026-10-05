@@ -1,5 +1,9 @@
 # HpAgent Durable Work V1 Implementation Design
 
+> 历史设计/复查基线：本文保留当时状态与证据。当前已实现架构见 [Durable Work V1](../architecture/durable-work-v1.md)，阶段演进和后续人工修复见[实施索引](../implementation/README.md)。
+> 源码链接已改为仓库相对路径，行号沿用原研究基线；退休文件以路径文字保留，不链接到不存在的当前文件。
+
+
 > 研究基线：`main@3e6379f`（`Fix migration runtime path and queued warning timer`）；研究日期：2026-10-01。本文是下一阶段的目标设计，不是对现有实现能力的承诺。本轮只静态检视源码、数据库定义与测试布局，没有运行集成环境、修改生产代码或提交 commit。
 
 ## 1. 设计结论与范围
@@ -44,31 +48,31 @@ HpAgent 应以 **Main Agent 接收委托，Work 持续承担责任，Run 记录�
 
 | 编号 | 代码位置 | 已确认的实际行为 |
 |---|---|---|
-| E01 | [commands.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/commands.py:146)、[admission.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/admission.py:23) | 发消息在同一事务内做幂等、Conversation 行锁、active Run admission、Session 绑定、两条消息分配、Run/预算/资源快照和 start outbox。 |
-| E02 | [sessions.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/sessions.py:14)、[run_input.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/run_input.py:1) | 聊天 Run 需要 Conversation/Session/trigger；Session 轮换与 active Run 耦合。 |
-| E03 | [app.py](/home/hp/workspace/HpAgent_web/src/web_api/app.py:1238)、[auth.py](/home/hp/workspace/HpAgent_web/src/web_api/auth.py:91) | Web 会话身份解析到 Account，写操作使用 CSRF 和幂等键，再调用 Conversation 命令。 |
-| E04 | [ingress.py](/home/hp/workspace/HpAgent_web/src/application/ingress.py:1)、[surface_commands.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/surface_commands.py:33) | QQ 验证 active identity binding，按 Account+route 映射 Conversation，用入口 receipt 去重，再调用相同聊天命令；`/cancel` 默认查询该 Conversation 的 active Run。 |
-| E05 | [agent_lifecycle_workflow.py](/home/hp/workspace/HpAgent_web/src/orchestration/agent_lifecycle_workflow.py:1)、[run_lifecycle_activities.py](/home/hp/workspace/HpAgent_web/src/orchestration/run_lifecycle_activities.py:1)、[lifecycle.py](/home/hp/workspace/HpAgent_web/src/web_domain/lifecycle.py:1) | 生命周期 Workflow 只接收 run_id，prepare/load → Agent 子 Workflow → finalize；最终状态仍回到 Conversation CommandService。 |
-| E06 | [contracts.py](/home/hp/workspace/HpAgent_web/src/agent_workflows/contracts.py:23)、[execution_bindings.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/execution_bindings.py:33) | 已有 RunSource/RunContext，但当前 ChatExecutionBindings 仍要求 chat.session_id。接口抽象先于完整非聊天执行能力。 |
-| E07 | [segments.py](/home/hp/workspace/HpAgent_web/src/agent_workflows/segments.py:1)、[store.py](/home/hp/workspace/HpAgent_web/src/agent_activities/store.py:471) | 分段执行、等待时释放资源已经存在；执行租约却按 Account 独占，同账户另一个 segment 会 LeaseConflict。 |
-| E08 | [store.py](/home/hp/workspace/HpAgent_web/src/agent_activities/store.py:272)、[plan_execute.py](/home/hp/workspace/HpAgent_web/src/agent_workflows/plan_execute.py:66) | transcript 按 Run 建立；plan steps 串行 await，共用同一 Run/transcript，不是独立上下文的并行 Worker。 |
-| E09 | [runtime.py](/home/hp/workspace/HpAgent_web/src/agent_activities/runtime.py:236)、[isolation.py](/home/hp/workspace/HpAgent_web/src/workspace/isolation.py:230) | model/tool 路径进入资源准备；SessionResourceRecoveryService 要求 account_repo，持 Account 锁恢复 session branch，准备文件和 sandbox。 |
-| E10 | [services.py](/home/hp/workspace/HpAgent_web/src/research_domain/services.py:132)、[trigger_task](/home/hp/workspace/HpAgent_web/src/research_domain/services.py:197) | Task 保存 objective/source strategy/output/schedule。trigger 对 Task 单 active Run；带 Conversation 时额外检查聊天槽并生成合成消息；无 Conversation 时为 detached Run。 |
-| E11 | [research_workflow.py](/home/hp/workspace/HpAgent_web/src/orchestration/research_workflow.py:109)、[research runtime](/home/hp/workspace/HpAgent_web/src/research_activities/runtime.py:244) | 固定调查流程：规划→发现/排序/抓取/提取/交叉验证/缺口，最多三轮→综合→引用核验→历史比较→Artifact→Workspace save→完成。规划读 live Task。 |
-| E12 | [research runtime](/home/hp/workspace/HpAgent_web/src/research_activities/runtime.py:701)、[complete](/home/hp/workspace/HpAgent_web/src/research_activities/runtime.py:826) | 发布读取当前 Task.objective，保存读取当前 Task timezone；完成校验 required save。挂 Conversation 时走 CommandService，detached 时直接更新 runs，形成两套终态路径。 |
-| E13 | [research_schedule.py](/home/hp/workspace/HpAgent_web/src/orchestration/research_schedule.py:1)、[schedule workflow](/home/hp/workspace/HpAgent_web/src/orchestration/research_workflow.py:85) | Task 的 desired/applied schedule version 驱动 Temporal Schedule；daily、overlap SKIP；触发 fire_id 使用 Temporal workflow run_id。 |
-| E14 | [scheduler.py](/home/hp/workspace/HpAgent_web/src/application/scheduler.py:218)、[worker reminder handler](/home/hp/workspace/HpAgent_web/src/orchestration/worker.py:842)、[reminder.py](/home/hp/workspace/HpAgent_web/src/sandbox/tools/local/reminder.py:97) | 另一条提醒链使用本地持久化调度文件：先标 triggered/计算下次时间，再调用直接发送 handler；没有 Work/Run/可靠 delivery 闭环。 |
-| E15 | [resources.py](/home/hp/workspace/HpAgent_web/src/workspace/resources.py:154)、[select](/home/hp/workspace/HpAgent_web/src/workspace/resources.py:265)、[revoke](/home/hp/workspace/HpAgent_web/src/workspace/resources.py:110) | 资源主体是 conversation/task；Run 冻结候选 node 集，选用时固定文件版本并检查当前 grant；撤销后阻断后续使用并请求取消相关 Run。 |
-| E16 | [catalog.py](/home/hp/workspace/HpAgent_web/src/workspace/catalog.py:141)、[output.py](/home/hp/workspace/HpAgent_web/src/file_runtime/output.py:37)、[file_scope.py](/home/hp/workspace/HpAgent_web/src/workspace/file_scope.py:134) | Workspace save/version、不可变 Run 文件发布和临时 RunFileWorkspace 是不同机制；OutputPublisher 当前拒绝已取消/终态 Run 发布。 |
-| E17 | [artifact services](/home/hp/workspace/HpAgent_web/src/web_artifacts/services.py:29)、[build.py](/home/hp/workspace/HpAgent_web/src/web_artifacts/build.py:79)、[Research artifact](/home/hp/workspace/HpAgent_web/src/research_domain/persistence.py:523) | 普通 Artifact 以完成的 assistant Message 为来源；Research 有专门来源和发布路径。独立 HTML 构建从来源 Message 取得旧 Run 用于模型预算。 |
-| E18 | [model_budget_coordinator.py](/home/hp/workspace/HpAgent_web/src/resources/model_budget_coordinator.py:24)、[run_budget.py](/home/hp/workspace/HpAgent_web/src/resources/run_budget.py:110)、[account_daily_budget.py](/home/hp/workspace/HpAgent_web/src/resources/account_daily_budget.py:61) | Account UTC 日额度与 Run 预算原子 reserve/settle/release；无 Work 聚合上限。聊天 retry 创建新的 Run 预算。 |
-| E19 | [resource_pool.py](/home/hp/workspace/HpAgent_web/src/resources/resource_pool.py:235)、[model_observability_queries.py](/home/hp/workspace/HpAgent_web/src/web_api/model_observability_queries.py:20) | 请求快照冻结发生在预算保留及真实发送前；模型输入可见性受 entitlement 控制。快照存在不能证明请求已经发出。 |
-| E20 | [outbox.py](/home/hp/workspace/HpAgent_web/src/web_domain/outbox.py:1)、[web_dispatcher.py](/home/hp/workspace/HpAgent_web/src/orchestration/web_dispatcher.py:129)、[workflow_execution.py](/home/hp/workspace/HpAgent_web/src/web_domain/workflow_execution.py:18) | 已有提交后派发、稳定 workflow_id、重复启动恢复及 start/cancel 竞态补偿。chat/research 分路，outbox 依赖 Run。 |
-| E21 | [web_reconciler.py](/home/hp/workspace/HpAgent_web/src/orchestration/web_reconciler.py:42) | PostgreSQL 为领域状态权威；Temporal completed 而领域未提交终态，被当作 terminal_commit_missing，不直接宣布成功。 |
-| E22 | [delivery.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/delivery.py:4)、[qq_delivery.py](/home/hp/workspace/HpAgent_web/src/application/qq_delivery.py:72) | 成功聊天事务生成 QQ delivery；发送中崩溃进入 uncertain，不静默重发。当前 delivery 主身份是 run_id，只覆盖聊天最终回复。 |
-| E23 | [terminal_publisher.py](/home/hp/workspace/HpAgent_web/src/web_api/terminal_publisher.py:95)、[queries.py](/home/hp/workspace/HpAgent_web/src/web_api/queries.py:280)、[types.ts](/home/hp/workspace/HpAgent_web/web/src/api/types.ts:134) | terminal publisher 跳过无 Conversation 的事件；通用 get_run 实际 inner join assistant Message；前端 RunSnapshot 要求 assistant_message。 |
-| E24 | [metadata.py](/home/hp/workspace/HpAgent_web/src/tracing/metadata.py:49)、[snapshot_repository.py](/home/hp/workspace/HpAgent_web/src/model_observability/snapshot_repository.py:15) | Trace 元数据有白名单和大小上限；模型输入查询受 Account/Run 所有权约束。 |
-| E25 | [context_assembly.py](/home/hp/workspace/HpAgent_web/src/application/context_assembly.py:90)、[history.py](/home/hp/workspace/HpAgent_web/src/research_domain/history.py:14)、[memory_retention.py](/home/hp/workspace/HpAgent_web/src/application/memory_retention.py:87) | 聊天按 Conversation watermark 读历史并召回 Hindsight；Research 从已授权 Workspace 候选取有限历史；记忆保留以已完成聊天对为依据。 |
+| E01 | [commands.py](../../src/conversation_domain/commands.py#L146)、[admission.py](../../src/conversation_domain/admission.py#L23) | 发消息在同一事务内做幂等、Conversation 行锁、active Run admission、Session 绑定、两条消息分配、Run/预算/资源快照和 start outbox。 |
+| E02 | `src/conversation_domain/sessions.py:14`（基线文件，现已移除）、`src/conversation_domain/run_input.py:1`（基线文件，现已移除） | 聊天 Run 需要 Conversation/Session/trigger；Session 轮换与 active Run 耦合。 |
+| E03 | [app.py](../../src/web_api/app.py#L1238)、[auth.py](../../src/web_api/auth.py#L91) | Web 会话身份解析到 Account，写操作使用 CSRF 和幂等键，再调用 Conversation 命令。 |
+| E04 | [ingress.py](../../src/application/ingress.py#L1)、[surface_commands.py](../../src/conversation_domain/surface_commands.py#L33) | QQ 验证 active identity binding，按 Account+route 映射 Conversation，用入口 receipt 去重，再调用相同聊天命令；`/cancel` 默认查询该 Conversation 的 active Run。 |
+| E05 | [agent_lifecycle_workflow.py](../../src/orchestration/agent_lifecycle_workflow.py#L1)、[run_lifecycle_activities.py](../../src/orchestration/run_lifecycle_activities.py#L1)、[lifecycle.py](../../src/web_domain/lifecycle.py#L1) | 生命周期 Workflow 只接收 run_id，prepare/load → Agent 子 Workflow → finalize；最终状态仍回到 Conversation CommandService。 |
+| E06 | [contracts.py](../../src/agent_workflows/contracts.py#L23)、[execution_bindings.py](../../src/conversation_domain/execution_bindings.py#L33) | 已有 RunSource/RunContext，但当前 ChatExecutionBindings 仍要求 chat.session_id。接口抽象先于完整非聊天执行能力。 |
+| E07 | [segments.py](../../src/agent_workflows/segments.py#L1)、[store.py](../../src/agent_activities/store.py#L471) | 分段执行、等待时释放资源已经存在；执行租约却按 Account 独占，同账户另一个 segment 会 LeaseConflict。 |
+| E08 | [store.py](../../src/agent_activities/store.py#L272)、[plan_execute.py](../../src/agent_workflows/plan_execute.py#L66) | transcript 按 Run 建立；plan steps 串行 await，共用同一 Run/transcript，不是独立上下文的并行 Worker。 |
+| E09 | [runtime.py](../../src/agent_activities/runtime.py#L236)、[isolation.py](../../src/workspace/isolation.py#L230) | model/tool 路径进入资源准备；SessionResourceRecoveryService 要求 account_repo，持 Account 锁恢复 session branch，准备文件和 sandbox。 |
+| E10 | [services.py](../../src/research_domain/services.py#L132)、[trigger_task](../../src/research_domain/services.py#L197) | Task 保存 objective/source strategy/output/schedule。trigger 对 Task 单 active Run；带 Conversation 时额外检查聊天槽并生成合成消息；无 Conversation 时为 detached Run。 |
+| E11 | [research_workflow.py](../../src/orchestration/research_workflow.py#L109)、[research runtime](../../src/research_activities/runtime.py#L244) | 固定调查流程：规划→发现/排序/抓取/提取/交叉验证/缺口，最多三轮→综合→引用核验→历史比较→Artifact→Workspace save→完成。规划读 live Task。 |
+| E12 | [research runtime](../../src/research_activities/runtime.py#L701)、[complete](../../src/research_activities/runtime.py#L826) | 发布读取当前 Task.objective，保存读取当前 Task timezone；完成校验 required save。挂 Conversation 时走 CommandService，detached 时直接更新 runs，形成两套终态路径。 |
+| E13 | `src/orchestration/research_schedule.py:1`（基线文件，现已移除）、[schedule workflow](../../src/orchestration/research_workflow.py#L85) | Task 的 desired/applied schedule version 驱动 Temporal Schedule；daily、overlap SKIP；触发 fire_id 使用 Temporal workflow run_id。 |
+| E14 | `src/application/scheduler.py:218`（基线文件，现已移除）、[worker reminder handler](../../src/orchestration/worker.py#L842)、`src/sandbox/tools/local/reminder.py:97`（基线文件，现已移除） | 另一条提醒链使用本地持久化调度文件：先标 triggered/计算下次时间，再调用直接发送 handler；没有 Work/Run/可靠 delivery 闭环。 |
+| E15 | [resources.py](../../src/workspace/resources.py#L154)、[select](../../src/workspace/resources.py#L265)、[revoke](../../src/workspace/resources.py#L110) | 资源主体是 conversation/task；Run 冻结候选 node 集，选用时固定文件版本并检查当前 grant；撤销后阻断后续使用并请求取消相关 Run。 |
+| E16 | [catalog.py](../../src/workspace/catalog.py#L141)、[output.py](../../src/file_runtime/output.py#L37)、[file_scope.py](../../src/workspace/file_scope.py#L134) | Workspace save/version、不可变 Run 文件发布和临时 RunFileWorkspace 是不同机制；OutputPublisher 当前拒绝已取消/终态 Run 发布。 |
+| E17 | [artifact services](../../src/web_artifacts/services.py#L29)、[build.py](../../src/web_artifacts/build.py#L79)、[Research artifact](../../src/research_domain/persistence.py#L523) | 普通 Artifact 以完成的 assistant Message 为来源；Research 有专门来源和发布路径。独立 HTML 构建从来源 Message 取得旧 Run 用于模型预算。 |
+| E18 | [model_budget_coordinator.py](../../src/resources/model_budget_coordinator.py#L24)、[run_budget.py](../../src/resources/run_budget.py#L110)、[account_daily_budget.py](../../src/resources/account_daily_budget.py#L61) | Account UTC 日额度与 Run 预算原子 reserve/settle/release；无 Work 聚合上限。聊天 retry 创建新的 Run 预算。 |
+| E19 | [resource_pool.py](../../src/resources/resource_pool.py#L235)、[model_observability_queries.py](../../src/web_api/model_observability_queries.py#L20) | 请求快照冻结发生在预算保留及真实发送前；模型输入可见性受 entitlement 控制。快照存在不能证明请求已经发出。 |
+| E20 | [outbox.py](../../src/web_domain/outbox.py#L1)、[web_dispatcher.py](../../src/orchestration/web_dispatcher.py#L129)、[workflow_execution.py](../../src/web_domain/workflow_execution.py#L18) | 已有提交后派发、稳定 workflow_id、重复启动恢复及 start/cancel 竞态补偿。chat/research 分路，outbox 依赖 Run。 |
+| E21 | [web_reconciler.py](../../src/orchestration/web_reconciler.py#L42) | PostgreSQL 为领域状态权威；Temporal completed 而领域未提交终态，被当作 terminal_commit_missing，不直接宣布成功。 |
+| E22 | [delivery.py](../../src/conversation_domain/delivery.py#L4)、[qq_delivery.py](../../src/application/qq_delivery.py#L72) | 成功聊天事务生成 QQ delivery；发送中崩溃进入 uncertain，不静默重发。当前 delivery 主身份是 run_id，只覆盖聊天最终回复。 |
+| E23 | [terminal_publisher.py](../../src/web_api/terminal_publisher.py#L95)、[queries.py](../../src/web_api/queries.py#L280)、[types.ts](../../web/src/api/types.ts#L134) | terminal publisher 跳过无 Conversation 的事件；通用 get_run 实际 inner join assistant Message；前端 RunSnapshot 要求 assistant_message。 |
+| E24 | [metadata.py](../../src/tracing/metadata.py#L49)、[snapshot_repository.py](../../src/model_observability/snapshot_repository.py#L15) | Trace 元数据有白名单和大小上限；模型输入查询受 Account/Run 所有权约束。 |
+| E25 | [context_assembly.py](../../src/application/context_assembly.py#L90)、[history.py](../../src/research_domain/history.py#L14)、[memory_retention.py](../../src/application/memory_retention.py#L87) | 聊天按 Conversation watermark 读历史并召回 Hindsight；Research 从已授权 Workspace 候选取有限历史；记忆保留以已完成聊天对为依据。 |
 
 ### 2.2 当前三条真实执行链
 
@@ -764,8 +768,8 @@ V1 限定执行基础设施：三类 root Run 都先复用 **有限生命周期�
 **关键文件**
 
 - 新增建议：`src/work_domain/{models,commands,persistence,completion}.py`、`src/run_domain/{models,lifecycle,admission,persistence}.py`。
-- 修改：[commands.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/commands.py)、[repositories.py](/home/hp/workspace/HpAgent_web/src/persistence/repositories.py)、[Research services](/home/hp/workspace/HpAgent_web/src/research_domain/services.py)、[Research persistence](/home/hp/workspace/HpAgent_web/src/research_domain/persistence.py)、[Research runtime](/home/hp/workspace/HpAgent_web/src/research_activities/runtime.py)。
-- schema 入口：[migrate.py](/home/hp/workspace/HpAgent_web/src/persistence/migrate.py)、[schema runtime smoke](/home/hp/workspace/HpAgent_web/scripts/schema-runtime-smoke.sh)。
+- 修改：[commands.py](../../src/conversation_domain/commands.py)、[repositories.py](../../src/persistence/repositories.py)、[Research services](../../src/research_domain/services.py)、[Research persistence](../../src/research_domain/persistence.py)、[Research runtime](../../src/research_activities/runtime.py)。
+- schema 入口：[migrate.py](../../src/persistence/migrate.py)、[schema runtime smoke](../../scripts/schema-runtime-smoke.sh)。
 
 **数据库变化**
 
@@ -786,7 +790,7 @@ V1 限定执行基础设施：三类 root Run 都先复用 **有限生命周期�
 - 真实 PG：同幂等键重复接受、不同 payload 冲突、跨 Account FK/查询越权、revision 不可变、状态非法转换、并发 revise 的 row_version 冲突。
 - 并发 trigger：同 Work 只能一个活跃 Run；不同 Work 可分别 admission；queued 也占 Work 协调槽。
 - Run succeeded 不自动 completed Work；Work complete 必须明确当前 revision 与证据。新目标不能读旧 live Task 混合输入。
-- 参考/改造现有 [Phase A invariants](/home/hp/workspace/HpAgent_web/test/web_persistence/test_phase_a_invariants.py)、[Research persistence tests](/home/hp/workspace/HpAgent_web/test/web_persistence/test_research_r0_r2.py)、[schema contract](/home/hp/workspace/HpAgent_web/test/web_persistence/test_schema_contract.py)。新增测试建议集中 `test/work_domain/`，不是照抄字段赋值断言。
+- 参考/改造现有 [Phase A invariants](../../test/web_persistence/test_phase_a_invariants.py)、[Research persistence tests](../../test/web_persistence/test_research_r0_r2.py)、[schema contract](../../test/web_persistence/test_schema_contract.py)。新增测试建议集中 `test/work_domain/`，不是照抄字段赋值断言。
 
 **完成标准**
 
@@ -806,10 +810,10 @@ V1 限定执行基础设施：三类 root Run 都先复用 **有限生命周期�
 
 **关键文件**
 
-- [admission.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/admission.py)、[run_input.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/run_input.py)、[execution_bindings.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/execution_bindings.py)。
-- [contracts.py](/home/hp/workspace/HpAgent_web/src/agent_workflows/contracts.py)、[store.py](/home/hp/workspace/HpAgent_web/src/agent_activities/store.py)、[fencing.py](/home/hp/workspace/HpAgent_web/src/agent_activities/fencing.py)、[segments.py](/home/hp/workspace/HpAgent_web/src/agent_workflows/segments.py)、[runtime.py](/home/hp/workspace/HpAgent_web/src/agent_activities/runtime.py)。
-- [isolation.py](/home/hp/workspace/HpAgent_web/src/workspace/isolation.py)、[context_assembly.py](/home/hp/workspace/HpAgent_web/src/application/context_assembly.py)、[worker.py](/home/hp/workspace/HpAgent_web/src/orchestration/worker.py)。
-- [agent_lifecycle_workflow.py](/home/hp/workspace/HpAgent_web/src/orchestration/agent_lifecycle_workflow.py)、[web_dispatcher.py](/home/hp/workspace/HpAgent_web/src/orchestration/web_dispatcher.py)、[web_reconciler.py](/home/hp/workspace/HpAgent_web/src/orchestration/web_reconciler.py)、[workflow_execution.py](/home/hp/workspace/HpAgent_web/src/web_domain/workflow_execution.py)。
+- [admission.py](../../src/conversation_domain/admission.py)、`src/conversation_domain/run_input.py`（基线文件，现已移除）、[execution_bindings.py](../../src/conversation_domain/execution_bindings.py)。
+- [contracts.py](../../src/agent_workflows/contracts.py)、[store.py](../../src/agent_activities/store.py)、[fencing.py](../../src/agent_activities/fencing.py)、[segments.py](../../src/agent_workflows/segments.py)、[runtime.py](../../src/agent_activities/runtime.py)。
+- [isolation.py](../../src/workspace/isolation.py)、[context_assembly.py](../../src/application/context_assembly.py)、[worker.py](../../src/orchestration/worker.py)。
+- [agent_lifecycle_workflow.py](../../src/orchestration/agent_lifecycle_workflow.py)、[web_dispatcher.py](../../src/orchestration/web_dispatcher.py)、[web_reconciler.py](../../src/orchestration/web_reconciler.py)、[workflow_execution.py](../../src/web_domain/workflow_execution.py)。
 
 **数据库变化**
 
@@ -829,7 +833,7 @@ V1 限定执行基础设施：三类 root Run 都先复用 **有限生命周期�
 - 真实 Temporal+PG：后台执行卡住时，同账户原 Conversation 完成第二轮聊天；新 Conversation 同样可用；同一 Conversation 同时两条 chat 仍按约定 busy。
 - start 前/后取消、outbox 在启动 RPC 成功后崩溃、finalize 后丢响应、Worker SIGKILL、Work coordinator 指针与 Run 状态恢复。
 - revise 与结果提交两种顺序、迟到 receipt 不可写 Workspace/完成新 revision；未知外部副作用不自动释放后重做。
-- 改造 [durable integration](/home/hp/workspace/HpAgent_web/test/test_durable_agent_temporal_integration.py)、[segments persistence](/home/hp/workspace/HpAgent_web/test/web_persistence/test_agent_segments.py)、[worker kill](/home/hp/workspace/HpAgent_web/test/web_persistence/test_durable_agent_activity_worker_kill.py)、[outbox recovery](/home/hp/workspace/HpAgent_web/test/test_web_outbox_recovery.py)、[agent source contract](/home/hp/workspace/HpAgent_web/test/test_agent_source_contract.py)。
+- 改造 [durable integration](../../test/test_durable_agent_temporal_integration.py)、[segments persistence](../../test/web_persistence/test_agent_segments.py)、[worker kill](../../test/web_persistence/test_durable_agent_activity_worker_kill.py)、[outbox recovery](../../test/test_web_outbox_recovery.py)、[agent source contract](../../test/test_agent_source_contract.py)。
 
 **完成标准**
 
@@ -850,8 +854,8 @@ Research attached/detached 分叉、Research synthetic Message 创建、Account 
 **关键文件**
 
 - 新增建议：`src/orchestration/{run_dispatcher,execution_strategy,work_schedule}.py`、`src/application/{main_agent,work_context}.py`、确定性提醒 executor。
-- 改造 [research_workflow.py](/home/hp/workspace/HpAgent_web/src/orchestration/research_workflow.py)、[research_schedule.py](/home/hp/workspace/HpAgent_web/src/orchestration/research_schedule.py)、[Research runtime](/home/hp/workspace/HpAgent_web/src/research_activities/runtime.py)、[Research history](/home/hp/workspace/HpAgent_web/src/research_domain/history.py)。
-- 替换 [scheduler.py](/home/hp/workspace/HpAgent_web/src/application/scheduler.py)、[reminder.py](/home/hp/workspace/HpAgent_web/src/sandbox/tools/local/reminder.py) 和 [Worker handler](/home/hp/workspace/HpAgent_web/src/orchestration/worker.py:842) 的用户提醒链。
+- 改造 [research_workflow.py](../../src/orchestration/research_workflow.py)、`src/orchestration/research_schedule.py`（基线文件，现已移除）、[Research runtime](../../src/research_activities/runtime.py)、[Research history](../../src/research_domain/history.py)。
+- 替换 `src/application/scheduler.py`（基线文件，现已移除）、`src/sandbox/tools/local/reminder.py`（基线文件，现已移除） 和 [Worker handler](../../src/orchestration/worker.py#L842) 的用户提醒链。
 
 **数据库变化**
 
@@ -869,7 +873,7 @@ Research attached/detached 分叉、Research synthetic Message 创建、Account 
 - 三种 strategy 使用同一生命周期与取消规则；不支持的 capability 明确拒绝，不能回退成权限无限的 Agent。
 - one-shot/daily、时区、到期重放、停用版本回调、启动时 schedule 同步丢失、重复 occurrence、不补跑无限历史；覆盖本次日期示例与夏令时边界的明确解析政策。
 - 提醒不调用模型、Research 保留引用/历史/required save 行为、Generic 在无 Conversation/Session 下可执行。
-- 参考 [Research schedule](/home/hp/workspace/HpAgent_web/test/test_research_schedule.py)、[Research Temporal integration](/home/hp/workspace/HpAgent_web/test/test_research_temporal_integration.py)、[Research save kill test](/home/hp/workspace/HpAgent_web/test/web_persistence/test_workspace_research_sigkill.py)。
+- 参考 `test/test_research_schedule.py`（基线文件，现已移除）、[Research Temporal integration](../../test/test_research_temporal_integration.py)、[Research save kill test](../../test/web_persistence/test_workspace_research_sigkill.py)。
 
 **完成标准**
 
@@ -885,10 +889,10 @@ Research attached/detached 分叉、Research synthetic Message 创建、Account 
 
 | 批次 | 修改范围与关键文件 | 数据库/API 变化 |
 |---|---|---|
-| A. 资源与成果 | [resources.py](/home/hp/workspace/HpAgent_web/src/workspace/resources.py)、[catalog.py](/home/hp/workspace/HpAgent_web/src/workspace/catalog.py)、[file_scope.py](/home/hp/workspace/HpAgent_web/src/workspace/file_scope.py)、[OutputPublisher](/home/hp/workspace/HpAgent_web/src/file_runtime/output.py)、[Artifact services](/home/hp/workspace/HpAgent_web/src/web_artifacts/services.py)、[Artifact build](/home/hp/workspace/HpAgent_web/src/web_artifacts/build.py) | resource subject=work；work_input_refs/work_artifacts；Artifact producing execution；save intent 固定 revision/目标版本；Work resources/artifacts API、文件 retention 查询跟进 |
-| B. 预算与容量 | [model_budget_coordinator.py](/home/hp/workspace/HpAgent_web/src/resources/model_budget_coordinator.py)、[run_budget.py](/home/hp/workspace/HpAgent_web/src/resources/run_budget.py)、[account_daily_budget.py](/home/hp/workspace/HpAgent_web/src/resources/account_daily_budget.py)、[resource_pool.py](/home/hp/workspace/HpAgent_web/src/resources/resource_pool.py)；新增 Work budget/capacity 服务 | Work budget/ledger、Account/全局容量票据与公平调度状态；Work 预算投影和显式增额管理；Run retry 不能清零 Work |
-| C. 通知与入口 | [delivery.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/delivery.py)、[qq_delivery.py](/home/hp/workspace/HpAgent_web/src/application/qq_delivery.py)、[surface_commands.py](/home/hp/workspace/HpAgent_web/src/conversation_domain/surface_commands.py)、[terminal_publisher.py](/home/hp/workspace/HpAgent_web/src/web_api/terminal_publisher.py)、[queries.py](/home/hp/workspace/HpAgent_web/src/web_api/queries.py) | notifications/targets/deliveries；WorkEvent outbox 与游标；QQ/Web 跨入口续接、Work 控制、channel receipt，脱离 assistant Message 的 Work 通知 |
-| D. 诊断与 UI | [tracing](/home/hp/workspace/HpAgent_web/src/tracing/metadata.py)、[model snapshots](/home/hp/workspace/HpAgent_web/src/model_observability/snapshot_repository.py)、[types.ts](/home/hp/workspace/HpAgent_web/web/src/api/types.ts)、[workbench.ts](/home/hp/workspace/HpAgent_web/web/src/store/workbench.ts)、[runFeed.ts](/home/hp/workspace/HpAgent_web/web/src/sse/runFeed.ts) | Trace/snapshot 的 Work/Execution 关联，Account 可见性不变；独立 Work 列表/卡片、状态/成本/投递展示；chat/work DTO 消费和 PG 恢复 |
+| A. 资源与成果 | [resources.py](../../src/workspace/resources.py)、[catalog.py](../../src/workspace/catalog.py)、[file_scope.py](../../src/workspace/file_scope.py)、[OutputPublisher](../../src/file_runtime/output.py)、[Artifact services](../../src/web_artifacts/services.py)、[Artifact build](../../src/web_artifacts/build.py) | resource subject=work；work_input_refs/work_artifacts；Artifact producing execution；save intent 固定 revision/目标版本；Work resources/artifacts API、文件 retention 查询跟进 |
+| B. 预算与容量 | [model_budget_coordinator.py](../../src/resources/model_budget_coordinator.py)、[run_budget.py](../../src/resources/run_budget.py)、[account_daily_budget.py](../../src/resources/account_daily_budget.py)、[resource_pool.py](../../src/resources/resource_pool.py)；新增 Work budget/capacity 服务 | Work budget/ledger、Account/全局容量票据与公平调度状态；Work 预算投影和显式增额管理；Run retry 不能清零 Work |
+| C. 通知与入口 | [delivery.py](../../src/conversation_domain/delivery.py)、[qq_delivery.py](../../src/application/qq_delivery.py)、[surface_commands.py](../../src/conversation_domain/surface_commands.py)、[terminal_publisher.py](../../src/web_api/terminal_publisher.py)、[queries.py](../../src/web_api/queries.py) | notifications/targets/deliveries；WorkEvent outbox 与游标；QQ/Web 跨入口续接、Work 控制、channel receipt，脱离 assistant Message 的 Work 通知 |
+| D. 诊断与 UI | [tracing](../../src/tracing/metadata.py)、[model snapshots](../../src/model_observability/snapshot_repository.py)、[types.ts](../../web/src/api/types.ts)、[workbench.ts](../../web/src/store/workbench.ts)、[runFeed.ts](../../web/src/sse/runFeed.ts) | Trace/snapshot 的 Work/Execution 关联，Account 可见性不变；独立 Work 列表/卡片、状态/成本/投递展示；chat/work DTO 消费和 PG 恢复 |
 
 **测试**
 
@@ -897,7 +901,7 @@ Research attached/detached 分叉、Research synthetic Message 创建、Account 
 - 投递：业务已提交但发送失败、send 后进程死亡、分片重复、目标解绑、revise/stop 与通知竞态；不重新执行业务来修复通知。报告完成与提醒完成的不同验收政策必须各有测试。
 - UI/入口：QQ 创建、Web 新 Conversation 续接；群中不泄露 Web 私密材料；SSE 断线恢复/重复去重；Work card 不占 chat message admission；预算耗尽还能查询/停止。
 - 多租户：两个账户饱和、多个 dispatcher/worker 并发、公平轮转、保留交互容量、租约恢复和 branch 预算（此时可用合成 Execution）验证。
-- 参考 [resource integrity](/home/hp/workspace/HpAgent_web/test/web_persistence/test_resource_account_integrity.py)、[workspace revoke Temporal](/home/hp/workspace/HpAgent_web/test/web_persistence/test_workspace_temporal_revoke_tool.py)、[run budget](/home/hp/workspace/HpAgent_web/test/web_persistence/test_run_budget.py)、[account daily contract](/home/hp/workspace/HpAgent_web/test/test_account_daily_budget_contract.py)、[QQ delivery](/home/hp/workspace/HpAgent_web/test/web_persistence/test_qq_delivery.py)、[model observability API](/home/hp/workspace/HpAgent_web/test/web_api/test_model_observability.py)、[disconnect E2E](/home/hp/workspace/HpAgent_web/web/e2e/disconnect.spec.ts)。
+- 参考 [resource integrity](../../test/web_persistence/test_resource_account_integrity.py)、[workspace revoke Temporal](../../test/web_persistence/test_workspace_temporal_revoke_tool.py)、[run budget](../../test/web_persistence/test_run_budget.py)、[account daily contract](../../test/test_account_daily_budget_contract.py)、[QQ delivery](../../test/web_persistence/test_qq_delivery.py)、[model observability API](../../test/web_api/test_model_observability.py)、[disconnect E2E](../../web/e2e/disconnect.spec.ts)。
 
 **完成标准**
 
@@ -916,7 +920,7 @@ Artifact 必须有 source_message 的公共构建前提、Research-only artifact
 
 **关键文件**
 
-- [agent_run.py](/home/hp/workspace/HpAgent_web/src/agent_workflows/agent_run.py)、[plan_execute.py](/home/hp/workspace/HpAgent_web/src/agent_workflows/plan_execute.py)、[contracts.py](/home/hp/workspace/HpAgent_web/src/agent_workflows/contracts.py)、[runtime.py](/home/hp/workspace/HpAgent_web/src/agent_activities/runtime.py)、[store.py](/home/hp/workspace/HpAgent_web/src/agent_activities/store.py)。
+- [agent_run.py](../../src/agent_workflows/agent_run.py)、[plan_execute.py](../../src/agent_workflows/plan_execute.py)、[contracts.py](../../src/agent_workflows/contracts.py)、[runtime.py](../../src/agent_activities/runtime.py)、[store.py](../../src/agent_activities/store.py)。
 - 新增建议：`src/agent_workflows/delegation.py`、Work brief/scope/branch result 的类型契约；不是替换现有串行 plan 引擎。
 
 **数据库变化**

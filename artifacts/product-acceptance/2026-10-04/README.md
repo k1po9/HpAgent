@@ -1,6 +1,13 @@
 # 现有 Web 产品覆盖审计与浏览器验收
 
-修复后最新状态见 [实施与复验结果](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/repair-results.md)：F01/F02/F05/F06/F07/F08/F10 已修复并复验，F03 保留已通过状态，F09 镜像漂移已对齐；模型网络及生成成果仍阻断。以下内容保留初次审计记录，覆盖矩阵已补充修复后的证据与边界。
+当前四项人工问题的修复与复验见[人工 E2E 实施验收](manual-e2e-repair-results.md)，对应 `0fcf505`：目录、长期文件发现、工具协议和八页面已实施，受控浏览器 21 项、前端 100 项与核心后端 91 项通过；真实 Provider 完整往返仍受连接超时阻碍。原因见[调查](manual-e2e-investigation.md)，连接证据见[脱敏记录](manual-e2e-provider-roundtrip.json)。
+
+当前使用方式见[功能指南](../../../docs/operations/web-workbench.md)，架构与全部阶段证据见[实施索引](../../../docs/implementation/README.md)。下文及原覆盖/失败报告保留各次审计的历史基线；“没有独立表单”或旧用例计数不表示当前界面状态。
+
+## 初次审计与前一修复批次
+
+
+修复后最新状态见 [实施与复验结果](repair-results.md)：F01/F02/F05/F06/F07/F08/F10 已修复并复验，F03 保留已通过状态，F09 镜像漂移已对齐；模型网络及生成成果仍阻断。以下内容保留初次审计记录，覆盖矩阵已补充修复后的证据与边界。
 
 验收时间：2026-10-03 23:17 至 2026-10-04（Asia/Shanghai）。代码基线：`69b079af46f8ac069b55e08ec11595d28f0986c3`，包含原有未提交修复。本轮保留这些修复，只新增 Workspace 的三处 UUID 兼容调用替换及本验收报告；没有提交或推送。
 
@@ -14,11 +21,11 @@
 
 交付文件：
 
-- [小白人工验收教程](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/manual.md)
-- [产品覆盖矩阵](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/coverage.md)
-- [失败复现、分类和最小建议](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/failures.md)
-- [环境、证据和验证边界](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/evidence.md)
-- [修复检视与实施顺序](/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/2026-10-04/repair-review.md)
+- [小白人工验收教程](manual.md)
+- [产品覆盖矩阵](coverage.md)
+- [失败复现、分类和最小建议](failures.md)
+- [环境、证据和验证边界](evidence.md)
+- [修复检视与实施顺序](repair-review.md)
 
 本轮操作了真实 headless Chromium，查看了实际截图、页面文本和网络请求，没有启用 Fake Executor 或拦截伪造业务响应。Windows computer-use 因 `sandboxCwd is not a local file URI` 初始化失败；本轮不是人类亲自执行的桌面验收，人工签收仍需按教程操作。
 

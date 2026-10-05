@@ -9,7 +9,7 @@ Compose 服务运行时执行：
 BACKUP_DIR=/secure/location ./scripts/operations/backup.sh
 ```
 
-脚本生成带时间戳的 Application PostgreSQL 与 Hindsight PostgreSQL Custom-format Dump，并压缩 `.data/workspace`（Git 代码工作区）。Redis 是临时状态，不进行备份。**账号长期文件 Workspace 的目录、权限和修订在 Application PostgreSQL 中，字节在 File Store Volume 中**；脚本不包含 File Store Volume 和 Temporal PostgreSQL。需要完整恢复文件或进行中的 Workflow History 时，必须在部署层取得同一恢复点的 Volume Snapshot。
+脚本生成带时间戳的 Application PostgreSQL 与 Hindsight PostgreSQL Custom-format Dump，并压缩 `.data/workspace`（Git 代码工作区）。Redis 是临时状态，不进行备份。**账号长期文件 Workspace 的目录、权限和修订在 Application PostgreSQL 中，字节在 File Store Volume 中**；脚本不包含 File Store Volume 和 Temporal PostgreSQL。Work、requirement、wakeup / schedule、Execution / receipt、累计预算、notifications / deliveries 都包含在 Application PostgreSQL dump 内。需要完整恢复文件或进行中的 Workflow History 时，必须在部署层取得同一恢复点的 Volume Snapshot。
 
 备份集应与 Repository Revision、`.env`/Secret 引用、镜像版本和 Compose Volume Inventory 一起保存。Dump 应按生产数据保护。
 
@@ -26,3 +26,5 @@ BACKUP_DIR=/secure/location ./scripts/operations/backup.sh
 7. 验证 `/health/ready`、Worker Poller/Log，并进行一次只读 Account/Conversation 查询后再接收流量。
 
 不要在没有 Reconciliation 方案时，混用不同时间点的 Application PostgreSQL、File Store 或 Temporal Snapshot。
+
+旧架构数据库恢复后不应直接执行 054–058 并假设完成历史业务转换；开发期迁移的空数据门禁、版本匹配与切换方式见[部署](deployment.md)。通知或外部效果处于 uncertain 时保留原回执与预算事实，恢复完成先 reconciliation，不盲目重发。
