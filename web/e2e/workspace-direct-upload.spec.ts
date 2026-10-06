@@ -6,7 +6,7 @@ test("uploads directly to Workspace without creating a conversation", async ({ p
   const name = `直接上传-${Date.now()}.txt`;
   const body = "Workspace direct upload\n";
   await login(page);
-  await page.getByRole("button", { name: "长期文件", exact: true }).click();
+  await page.getByRole("button", { name: "空间", exact: true }).click();
   const workspace = page.getByRole("region", { name: "长期 Workspace" });
   const uploaded = page.waitForResponse(
     (response) =>

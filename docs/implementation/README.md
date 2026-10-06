@@ -23,6 +23,14 @@
 - [阶段总体验收](workspace-v4.1/ACCEPTANCE.md)
 - [当前资源契约](../architecture/workspace-v4.1.md)：主体已统一为 Conversation / Work；Task 字样的旧报告保留历史含义。
 
+## 前端 UI 重构
+
+- [UI-2 AI 主要交互实施计划](ui-2-ai-interaction-plan.md)：基于重构方案 v1.0 与 `cc40862` 的 UI-1 代码，定义 AI 对话、Composer、分页、附件与资料交互的实施及验收范围；保留规划基线，执行结果见下方报告。
+
+- [UI-2 AI 主要交互实施报告](ui-2-ai-interaction-report.md)：实现范围、自动化覆盖、截图、命令日志与人工验收边界。
+
+- [UI-2 自检问题修复指导](ui-2-self-review-fix-guide.md)：3 个已复现缺陷的根因、修复边界、回归用例和报告更新要求；状态为待修复。
+
 ## 当前证据与限制
 
 2026-10-04 修复批次：前端 100 项、Chromium 21 项、核心后端 91 项通过；另有 Workspace API 21 项、持久化/上下文组合 67 项、Work/Run API 37 项。后端批次有重叠，不相加为不同用例总数。数据库均隔离；浏览器采用测试执行器，不能视为真实模型验收。

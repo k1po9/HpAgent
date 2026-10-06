@@ -162,6 +162,7 @@ describe("UI1-R01 conversation re-selection", () => {
       expect(await screen.findByText("c1 恢复的消息")).toBeInTheDocument();
       expect(screen.queryByText("临时离线")).not.toBeInTheDocument();
     },
+    10_000,
   );
 
   it("keeps the draft, runtime and active Run subscription when re-selecting a loaded conversation", async () => {

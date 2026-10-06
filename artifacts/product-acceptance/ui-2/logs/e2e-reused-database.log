@@ -1,0 +1,160 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test
+
+[WebServer] INFO:     Started server process [542245]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8182 (Press CTRL+C to quit)
+[WebServer] (node:542573) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 29 tests using 1 worker
+
+(node:542645) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/a11y.spec.ts:10:1 › login form exposes a heading and labelled fields (3.9s)
+  ✓   2 [chromium] › e2e/a11y.spec.ts:18:1 › workbench exposes headings, labelled controls, and semantic buttons (6.3s)
+[WebServer] 2026-10-07 01:03:40 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 01:03:40 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 01:03:40 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 01:03:45 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 01:03:45 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 01:03:45 [INFO ] HpAgent.SSE: sse_disconnected
+  ✘   3 [chromium] › e2e/artifact.spec.ts:5:1 › builds, interacts with, isolates and restores an Artifact (27.5s)
+(node:544357) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   4 [chromium] › e2e/auth.spec.ts:8:1 › rejects wrong credentials with the server's safe message (3.7s)
+  ✓   5 [chromium] › e2e/auth.spec.ts:20:1 › signs in with valid credentials (4.3s)
+  ✓   6 [chromium] › e2e/auth.spec.ts:26:1 › signs out back to the login gate (7.4s)
+[WebServer] 2026-10-07 01:04:23 [INFO ] HpAgent.Account: web_registration_succeeded account_id=01a1122c-69f2-7087-a254-6c05c3caa991
+  ✓   7 [chromium] › e2e/auth.spec.ts:37:1 › registers, auto-signs in, and can log in again (5.3s)
+[WebServer] 2026-10-07 01:04:30 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 01:04:30 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 01:04:30 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 01:04:35 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 01:04:35 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 01:04:35 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-07 01:04:36 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 01:04:36 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 01:04:36 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 01:04:41 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 01:04:41 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 01:04:41 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-07 01:04:41 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 01:04:41 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 01:04:42 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 01:04:46 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 01:04:46 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 01:04:46 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   8 [chromium] › e2e/conversation.spec.ts:8:1 › holds a long conversation and survives a refresh (26.0s)
+[WebServer] 2026-10-07 01:04:58 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 01:04:58 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 01:04:58 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 01:04:58 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   9 [chromium] › e2e/conversation.spec.ts:33:1 › selects and uploads a UTF-8 Markdown file, then attaches it to a message (7.6s)
+[WebServer] 2026-10-07 01:05:03 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 01:05:04 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 01:05:04 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 01:05:09 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+  ✓  10 [chromium] › e2e/disconnect.spec.ts:11:1 › recovers from a dropped SSE connection by polling (12.5s)
+[WebServer] 2026-10-07 01:05:17 [WARNING] HpAgent.WebApi: workspace_request_rejected
+  ✓  11 [chromium] › e2e/manual-repair.spec.ts:4:1 › creates a child in the selected directory and explains duplicate names (6.2s)
+  ✓  12 [chromium] › e2e/manual-repair.spec.ts:27:1 › uploads and authorizes the current conversation, and keeps chat drafts across pages (8.3s)
+  ✓  13 [chromium] › e2e/manual-repair.spec.ts:64:1 › creates reminder and research directly from independent pages on narrow screens (6.1s)
+  ✓  14 [chromium] › e2e/manual-repair.spec.ts:93:1 › revises a scheduled work and grants its own directory permissions (7.7s)
+[WebServer] 2026-10-07 01:05:45 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 01:05:45 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 01:05:45 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 01:05:50 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 01:05:50 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 01:05:50 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  15 [chromium] › e2e/markdown.spec.ts:17:1 › renders Markdown and fenced code in assistant replies (11.4s)
+[WebServer] 2026-10-07 01:05:57 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 01:05:57 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 01:05:57 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 01:06:02 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 01:06:02 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 01:06:02 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-07 01:06:08 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 01:06:08 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 01:06:08 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 01:06:09 [INFO ] HpAgent.SSE: sse_disconnected
+  ✘  16 [chromium] › e2e/multi-tab.spec.ts:12:1 › accounts are isolated across browser contexts (16.9s)
+
+
+  1) [chromium] › e2e/artifact.spec.ts:5:1 › builds, interacts with, isolates and restores an Artifact 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTitle('Artifact 预览')
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByTitle('Artifact 预览')
+
+
+      13 |   await expect(panel).toBeVisible();
+      14 |   const frame = page.getByTitle("Artifact 预览");
+    > 15 |   await expect(frame).toBeVisible({ timeout: 15_000 });
+         |                       ^
+      16 |   expect(await frame.getAttribute("sandbox")).toBe("allow-scripts");
+      17 |   await mkdir("../artifacts/product-acceptance/ui-2/screenshots", { recursive: true });
+      18 |   await page.screenshot({
+        at /home/hp/workspace/HpAgent_web/web/e2e/artifact.spec.ts:15:23
+
+    Error Context: test-results/artifact-builds-interacts--599d4-es-and-restores-an-Artifact-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/artifact-builds-interacts--599d4-es-and-restores-an-Artifact-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/artifact-builds-interacts--599d4-es-and-restores-an-Artifact-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/multi-tab.spec.ts:12:1 › accounts are isolated across browser contexts ───────
+
+    Test was interrupted.
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('这是由测试执行器生成的回复。').last()
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "to.be.visible" with timeout 15000ms
+      - waiting for getByText('这是由测试执行器生成的回复。').last()
+      - Test ended.
+
+
+       at helpers.ts:62
+
+      60 | export async function expectReply(page: Page, timeout = 15_000): Promise<Locator> {
+      61 |   const reply = page.getByText(FAKE_REPLY, { exact: false }).last();
+    > 62 |   await expect(reply).toBeVisible({ timeout });
+         |                       ^
+      63 |   await expect(page.locator("[data-testid='run-label']")).toHaveText(/已完成|已停止|运行失败/, {
+      64 |     timeout,
+      65 |   });
+        at expectReply (/home/hp/workspace/HpAgent_web/web/e2e/helpers.ts:62:23)
+        at /home/hp/workspace/HpAgent_web/web/e2e/multi-tab.spec.ts:28:9
+
+    attachment #1: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/multi-tab-accounts-are-isolated-across-browser-contexts-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/multi-tab-accounts-are-isolated-across-browser-contexts-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/artifact.spec.ts:5:1 › builds, interacts with, isolates and restores an Artifact 
+  1 interrupted
+    [chromium] › e2e/multi-tab.spec.ts:12:1 › accounts are isolated across browser contexts ────────
+  13 did not run
+  14 passed (2.9m)

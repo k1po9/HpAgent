@@ -19,7 +19,7 @@ test("upgrades an entry in place and keeps its version when renamed", async ({ p
   const dialog = page.getByRole("dialog", { name: "保存到长期文件" });
   await dialog.getByRole("button", { name: "确认保存" }).click();
   await expect(dialog).not.toBeVisible();
-  await page.getByRole("button", { name: "长期文件", exact: true }).click();
+  await page.getByRole("button", { name: "空间", exact: true }).click();
   const workspace = page.getByRole("region", { name: "长期 Workspace" });
   await workspace.getByRole("button", { name: `📄 ${name}` }).click();
   await expect(workspace.getByText("当前版本：不可变入口")).toBeVisible();

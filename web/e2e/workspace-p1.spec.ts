@@ -6,7 +6,7 @@ test("uploads, saves, moves, and downloads a Workspace entry", async ({ page }) 
   const projectName = `项目-${Date.now()}`;
   const movedName = `归档-${Date.now()}.md`;
   await login(page);
-  await page.getByRole("button", { name: "长期文件", exact: true }).click();
+  await page.getByRole("button", { name: "空间", exact: true }).click();
   const workspace = page.getByRole("region", { name: "长期 Workspace" });
   await expect(workspace.getByRole("button", { name: "根目录" })).toBeVisible();
   await workspace.getByLabel("新目录名称").fill(projectName);
@@ -20,7 +20,7 @@ test("uploads, saves, moves, and downloads a Workspace entry", async ({ page }) 
   await expect(workspace.getByRole("button", { name: `📁 ${projectName}` })).toBeVisible();
   await workspace.getByRole("button", { name: `📁 ${projectName}` }).click();
 
-  await page.getByRole("button", { name: "对话", exact: true }).click();
+  await page.getByRole("button", { name: "AI", exact: true }).click();
   await createConversation(page);
   const uploaded = page.waitForResponse(
     (response) => response.url().includes("/uploads/") && response.request().method() === "PUT",
@@ -38,7 +38,7 @@ test("uploads, saves, moves, and downloads a Workspace entry", async ({ page }) 
   await dialog.getByLabel("保存目录").selectOption({ label: `/${projectName}` });
   await dialog.getByRole("button", { name: "确认保存" }).click();
   await expect(dialog).not.toBeVisible();
-  await page.getByRole("button", { name: "长期文件", exact: true }).click();
+  await page.getByRole("button", { name: "空间", exact: true }).click();
   await expect(workspace.getByRole("button", { name: "📄 报告.md" })).toBeVisible();
 
   await workspace.getByRole("button", { name: "📄 报告.md" }).click();

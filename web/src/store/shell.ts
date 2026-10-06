@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useWorkbench } from "./workbench";
 
 export type Screen = "ai" | "workspace" | "tasks";
 export type Inspector = {
@@ -99,6 +100,7 @@ export function serializeRoute(route: Route): string {
   return `${path}${params.size ? `?${params}` : ""}`;
 }
 interface ShellState {
+  pendingRoute: Route | null;
   route: Route;
   backStack: Inspector[];
   pages: Partial<Record<Screen, Route>>;
@@ -114,6 +116,7 @@ interface ShellState {
   reset: () => void;
 }
 export const useShell = create<ShellState>((set, get) => ({
+  pendingRoute: null,
   route: { screen: "ai" },
   backStack: [],
   pages: {},
@@ -122,11 +125,24 @@ export const useShell = create<ShellState>((set, get) => ({
   expanded: false,
   requestToken: 0,
   navigate(route, replace = false) {
+    const workbench = useWorkbench.getState();
+    if (
+      route.screen === "ai" &&
+      (route.conversationId ?? null) !== workbench.activeConversationId &&
+      workbench.attachments.length
+    ) {
+      window.history.replaceState(null, "", serializeRoute(get().route));
+      set({ pendingRoute: route, modal: null, sidebarOpen: false });
+      return;
+    }
+    if (workbench.creatingConversation && !workbench.activeConversationId)
+      workbench.leaveConversation();
     const hash = serializeRoute(route);
     if (window.location.hash !== hash)
       window.history[replace ? "replaceState" : "pushState"](null, "", hash);
     set({
       route,
+      pendingRoute: null,
       pages: {
         ...get().pages,
         [get().route.screen]: { ...get().route, inspector: undefined, workId: undefined },
@@ -167,6 +183,7 @@ export const useShell = create<ShellState>((set, get) => ({
   },
   reset() {
     set({
+      pendingRoute: null,
       route: { screen: "ai" },
       pages: {},
       backStack: [],

@@ -99,6 +99,7 @@ beforeEach(() => {
 
 describe("App workbench", () => {
   it("shows a failed creation before any conversation is selected and clears it on success", async () => {
+    const user = userEvent.setup();
     window.history.replaceState(null, "", "/#/ai");
     const baseFetch = globalThis.fetch;
     let fail = true;
@@ -132,19 +133,34 @@ describe("App workbench", () => {
         }
         return json({ items: [], has_more: false, next_cursor: null });
       }
+      if (String(input) === "/api/v1/conversations/c1/messages" && init?.method === "POST")
+        return new Response(
+          JSON.stringify({
+            error: {
+              code: "invalid_content",
+              message: "测试校验拒绝",
+              retryable: false,
+              request_id: "req",
+              details: {},
+            },
+          }),
+          { status: 422, headers: { "Content-Type": "application/json" } },
+        );
       return baseFetch(input, init);
     });
     render(<App />);
-    await screen.findByText("选择或新建一个对话开始。");
-    fireEvent.click(screen.getByRole("button", { name: "新建对话" }));
-    expect(await screen.findByText("请求来源不匹配")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "关闭提示" }));
-    expect(screen.queryByText("请求来源不匹配")).not.toBeInTheDocument();
+    const composer = await screen.findByPlaceholderText(/输入消息/);
+    fireEvent.change(composer, { target: { value: "第一次提交" } });
+    await user.click(screen.getByRole("button", { name: "发送" }));
+    expect(await screen.findByText(/请求来源不匹配/)).toBeInTheDocument();
+    expect(composer).toHaveValue("第一次提交");
+    fireEvent.click(screen.getByText(/请求来源不匹配/));
+    expect(screen.queryByText(/请求来源不匹配/)).not.toBeInTheDocument();
     fail = false;
-    fireEvent.click(screen.getByRole("button", { name: "新建对话" }));
-    await screen.findByPlaceholderText(/输入消息/);
-    expect(screen.queryByText("请求来源不匹配")).not.toBeInTheDocument();
-  });
+    await user.click(screen.getByRole("button", { name: "发送" }));
+    await waitFor(() => expect(useWorkbench.getState().activeConversationId).toBe("c1"));
+    expect(screen.queryByText(/请求来源不匹配/)).not.toBeInTheDocument();
+  }, 10_000);
   it("shows a retry when the API session probe fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
     render(<App />);

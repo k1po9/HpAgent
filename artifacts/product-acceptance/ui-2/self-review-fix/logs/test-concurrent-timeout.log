@@ -1,0 +1,46 @@
+
+> hpagent-web@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/App.test.tsx (11 tests | 1 failed) 33823ms
+     × renders the conversation list and the composer after signing in 6402ms
+ ❯ src/App.recovery.test.tsx (14 tests | 1 failed) 48330ms
+     × keeps the draft, runtime and active Run subscription when re-selecting a loaded conversation 5995ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R01 conversation re-selection > keeps the draft, runtime and active Run subscription when re-selecting a loaded conversation
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.recovery.test.tsx:168:3
+    166|   );
+    167|
+    168|   it("keeps the draft, runtime and active Run subscription when re-sel…
+       |   ^
+    169|     const api = backend();
+    170|     api.detail = (id) =>
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/App.test.tsx > App workbench > renders the conversation list and the composer after signing in
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:171:3
+    169|   });
+    170|
+    171|   it("renders the conversation list and the composer after signing in"…
+       |   ^
+    172|     render(<App />);
+    173|     expect(await screen.findByRole("button", { name: "测试对话" })).toBeIn…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 22 passed (24)
+      Tests  2 failed | 170 passed (172)
+   Start at  02:28:45
+   Duration  94.41s (transform 9.21s, setup 21.34s, import 46.68s, tests 127.63s, environment 148.98s)
+

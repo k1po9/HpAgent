@@ -5,7 +5,7 @@
  * browser's accessibility tree rather than raw CSS.
  */
 import { expect, test } from "@playwright/test";
-import { COMPOSER_PLACEHOLDER, login } from "./helpers";
+import { createConversation, login } from "./helpers";
 
 test("login form exposes a heading and labelled fields", async ({ page }) => {
   await page.goto("/");
@@ -19,12 +19,12 @@ test("workbench exposes headings, labelled controls, and semantic buttons", asyn
   await login(page);
   await expect(page.getByRole("heading", { name: "对话", level: 2 })).toBeVisible();
   await expect(page.getByRole("button", { name: "新建对话" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "退出登录" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "账户设置" })).toBeVisible();
 
   // A composer needs an active conversation; on a clean database alice has
   // none, so create one deterministically before asserting the textbox.
-  await page.getByRole("button", { name: "新建对话" }).click();
-  await expect(page.getByRole("textbox", { name: COMPOSER_PLACEHOLDER })).toBeVisible();
+  await createConversation(page);
+  await expect(page.getByRole("textbox", { name: "消息输入" })).toBeVisible();
 
   // New conversation appears as a semantic list of buttons. The sidebar holds
   // every conversation alice has (the DB persists across tests), so only the

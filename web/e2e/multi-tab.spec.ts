@@ -41,19 +41,24 @@ test("a second tab cannot send while a Run is active (409 wins)", async ({ brows
 
   // Second tab loads the same account; it auto-selects the same conversation.
   const tabB = await ctx.newPage();
-  await tabB.goto("/");
-  await expect(tabB.locator(".hp-workbench")).toBeVisible();
+  await tabB.goto(tabA.url());
+  await expect(tabB.locator(".hp-shell")).toBeVisible();
   await expect(tabB.getByText("第一轮")).toBeVisible();
 
+  // Prepare B before starting A so the race does not depend on typing speed.
+  const composerB = tabB.getByPlaceholder("输入消息，Enter 发送");
+  await composerB.fill("越权发送");
   // tab A starts a new Run; tab B's locally-known state is stale.
   await sendMessage(tabA, "第二轮");
-  await expect(tabA.locator("[data-testid='run-label']")).toHaveText(/运行中|正在停止/);
+  await expect(tabA.locator("[data-testid='run-label']")).toHaveText(/排队中|运行中|正在停止/);
 
   // tab B attempts a send into the busy conversation — the API 409s and the
   // run-status strip surfaces the busy message.
-  const composerB = tabB.getByPlaceholder("输入消息，Enter 发送");
-  await composerB.fill("越权发送");
+  const rejected = tabB.waitForResponse(
+    (response) => response.url().endsWith("/messages") && response.request().method() === "POST",
+  );
   await composerB.press("Enter");
+  expect((await rejected).status()).toBe(409);
   await expect(tabB.getByText("当前对话仍有请求正在执行。")).toBeVisible();
 
   await ctx.close();

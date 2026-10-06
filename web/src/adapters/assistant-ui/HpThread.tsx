@@ -10,11 +10,12 @@
  */
 import {
   AssistantRuntimeProvider,
-  ComposerPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
   useAuiState,
 } from "@assistant-ui/react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { emptyConversationUi, useConversationUi } from "../../store/conversationUi";
 import { Flex, Spinner, Text } from "@radix-ui/themes";
 import { FileText, Paperclip, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -25,6 +26,15 @@ import { useArtifacts } from "../../store/artifacts";
 import type { UploadAttachment } from "../../store/workbench";
 
 export interface HpThreadProps {
+  conversationKey?: string;
+  composerContext?: ReactNode;
+  toolbar?: ReactNode;
+  error?: string | null;
+  loadingHistory?: boolean;
+  stopping?: boolean;
+  hasMoreMessages?: boolean;
+  loadingMoreMessages?: boolean;
+  onLoadMoreMessages?: () => void;
   messages: HpMessage[];
   activeRun: HpRun | null;
   attachments: UploadAttachment[];
@@ -75,7 +85,7 @@ function HpMessageView({
     else await createArtifact(message.id);
   };
   return (
-    <MessagePrimitive.Root className="hp-msg">
+    <MessagePrimitive.Root className="hp-msg" data-message-id={message.id}>
       <MessagePrimitive.If user>
         <span className="hp-msg__marker hp-msg__marker--user" aria-hidden="true" />
       </MessagePrimitive.If>
@@ -121,6 +131,15 @@ function HpMessageView({
 }
 
 export function HpThread({
+  conversationKey = "standalone",
+  composerContext,
+  toolbar,
+  loadingHistory = false,
+  error,
+  stopping = false,
+  hasMoreMessages,
+  loadingMoreMessages,
+  onLoadMoreMessages,
   messages,
   activeRun,
   attachments,
@@ -132,6 +151,102 @@ export function HpThread({
   onSend,
   onCancel,
 }: HpThreadProps) {
+  const draft = useConversationUi((s) => s.entries[conversationKey] ?? emptyConversationUi);
+  const composing = useRef(false);
+  const submissions = useRef(new Map<string, symbol>());
+  const [submittingKeys, setSubmittingKeys] = useState<Set<string>>(() => new Set());
+  const viewport = useRef<HTMLDivElement>(null);
+  const previous = useRef<{ key: string; first?: string; count: number }>({ key: "", count: 0 });
+  const restorePages = useRef(0);
+  const running = Boolean(
+    activeRun && !["succeeded", "failed", "cancelled"].includes(activeRun.status),
+  );
+  const submitting = submittingKeys.has(conversationKey);
+  const submit = async () => {
+    if (
+      composing.current ||
+      submissions.current.has(conversationKey) ||
+      submitting ||
+      running ||
+      sendDisabled ||
+      !draft.text.trim()
+    )
+      return;
+    const key = conversationKey,
+      text = draft.text,
+      revision = draft.revision;
+    const token = Symbol("submit");
+    submissions.current.set(key, token);
+    setSubmittingKeys((current) => new Set(current).add(key));
+    try {
+      const ok = await Promise.resolve(onSend(text)).catch(() => false);
+      const current = useConversationUi.getState().entries[key];
+      if (ok && current?.revision === revision && current.text === text)
+        useConversationUi.getState().update(key, { text: "", revision: revision + 1 });
+    } finally {
+      if (submissions.current.get(key) === token) {
+        submissions.current.delete(key);
+        setSubmittingKeys((current) => {
+          const next = new Set(current);
+          next.delete(key);
+          return next;
+        });
+      }
+    }
+  };
+  useLayoutEffect(() => {
+    const el = viewport.current;
+    if (!el || loadingHistory) return;
+    // The external runtime publishes its new message DOM after this parent's
+    // layout effect. Restore only once that DOM reflects the requested page.
+    const align = () => {
+      const rendered = Array.from(el.querySelectorAll<HTMLElement>("[data-message-id]"));
+      if (
+        rendered.length !== messages.length ||
+        rendered[0]?.dataset.messageId !== messages[0]?.message_id
+      )
+        return;
+      const saved = useConversationUi.getState().entries[conversationKey] ?? emptyConversationUi;
+      const switched = previous.current.key !== conversationKey;
+      if (switched) restorePages.current = 0;
+      const prepended = !switched && previous.current.first !== messages[0]?.message_id;
+      if (switched || prepended) {
+        const anchor = rendered.find((m) => m.dataset.messageId === saved.anchorMessageId);
+        if (!saved.atBottom && anchor)
+          el.scrollTop +=
+            anchor.getBoundingClientRect().top - el.getBoundingClientRect().top - saved.offset;
+        else if (
+          !saved.atBottom &&
+          saved.anchorMessageId &&
+          hasMoreMessages &&
+          !loadingMoreMessages &&
+          restorePages.current < 5
+        ) {
+          restorePages.current++;
+          onLoadMoreMessages?.();
+        } else if (saved.atBottom) el.scrollTop = el.scrollHeight;
+      } else if (saved.atBottom) el.scrollTop = el.scrollHeight;
+      previous.current = {
+        key: conversationKey,
+        first: messages[0]?.message_id,
+        count: messages.length,
+      };
+    };
+    const observer = new MutationObserver(align);
+    observer.observe(el, { childList: true, subtree: true, characterData: true });
+    const frame = requestAnimationFrame(align);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [
+    conversationKey,
+    loadingHistory,
+    messages,
+    hasMoreMessages,
+    loadingMoreMessages,
+    onLoadMoreMessages,
+  ]);
   const runtime = useHpThreadRuntime({ messages, activeRun, sendDisabled, onSend, onCancel });
   const filesByMessageId = Object.fromEntries(
     messages.map((message) => [message.message_id, message.files ?? []]),
@@ -139,7 +254,27 @@ export function HpThread({
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadPrimitive.Root className="hp-thread">
-        <ThreadPrimitive.Viewport className="hp-thread__viewport" autoScroll>
+        <ThreadPrimitive.Viewport
+          ref={viewport}
+          className="hp-thread__viewport"
+          autoScroll={false}
+          scrollToBottomOnRunStart={false}
+          scrollToBottomOnInitialize={false}
+          scrollToBottomOnThreadSwitch={false}
+          onScroll={(event) => {
+            if (loadingHistory) return;
+            const el = event.currentTarget;
+            const rect = el.getBoundingClientRect();
+            const anchor = Array.from(el.querySelectorAll<HTMLElement>("[data-message-id]")).find(
+              (m) => m.getBoundingClientRect().bottom > rect.top,
+            );
+            useConversationUi.getState().update(conversationKey, {
+              atBottom: el.scrollHeight - el.scrollTop - el.clientHeight < 48,
+              anchorMessageId: anchor?.dataset.messageId,
+              offset: anchor ? anchor.getBoundingClientRect().top - rect.top : 0,
+            });
+          }}
+        >
           <ThreadPrimitive.Empty>
             <Flex align="center" justify="center" style={{ height: "100%", padding: 24 }}>
               <Text size="3" color="gray">
@@ -151,7 +286,34 @@ export function HpThread({
             {() => <HpMessageView filesByMessageId={filesByMessageId} onSaveFile={onSaveFile} />}
           </ThreadPrimitive.Messages>
         </ThreadPrimitive.Viewport>
-        <ComposerPrimitive.Root className="hp-composer">
+        {!draft.atBottom &&
+          draft.anchorMessageId &&
+          !messages.some((m) => m.message_id === draft.anchorMessageId) &&
+          hasMoreMessages && (
+            <button type="button" disabled={loadingMoreMessages} onClick={onLoadMoreMessages}>
+              原阅读位置尚未加载，继续加载历史
+            </button>
+          )}
+        {!draft.atBottom && (
+          <button
+            className="hp-thread-bottom"
+            type="button"
+            onClick={() => {
+              if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;
+              useConversationUi.getState().update(conversationKey, { atBottom: true });
+            }}
+          >
+            有新消息 / 回到底部
+          </button>
+        )}
+        <form
+          className="hp-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          {composerContext}
           {attachments.length ? (
             <div className="hp-composer__attachments" aria-label="待发送附件">
               {attachments.map((attachment) => (
@@ -169,10 +331,16 @@ export function HpThread({
                   {attachment.status === "failed" ? (
                     <span className="hp-attachment__status">上传失败</span>
                   ) : null}
+                  {attachment.error && (
+                    <span role="alert" className="hp-attachment__error">
+                      {attachment.error}
+                    </span>
+                  )}
                   <button
                     type="button"
                     className="hp-attachment__remove"
                     aria-label={`移除 ${attachment.name}`}
+                    title={`移除 ${attachment.name}`}
                     onClick={() => onRemoveAttachment(attachment.localId)}
                   >
                     <X size={13} aria-hidden="true" />
@@ -181,11 +349,47 @@ export function HpThread({
               ))}
             </div>
           ) : null}
-          <ComposerPrimitive.Input
+          <textarea
             className="hp-composer__input"
+            aria-label="消息输入"
+            aria-describedby={
+              error
+                ? "hp-conversation-error"
+                : attachments.some((a) => a.status !== "ready")
+                  ? "hp-composer-feedback"
+                  : undefined
+            }
             placeholder="输入消息，Enter 发送"
-            autoFocus
+            value={draft.text}
+            onChange={(event) =>
+              useConversationUi
+                .getState()
+                .update(conversationKey, { text: event.target.value, revision: draft.revision + 1 })
+            }
+            onCompositionStart={() => {
+              composing.current = true;
+            }}
+            onCompositionEnd={() => {
+              composing.current = false;
+            }}
+            onKeyDown={(event) => {
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                !event.nativeEvent.isComposing &&
+                event.nativeEvent.keyCode !== 229 &&
+                !composing.current
+              ) {
+                event.preventDefault();
+                void submit();
+              }
+            }}
           />
+          {attachments.some((a) => a.status !== "ready") && (
+            <p id="hp-composer-feedback" className="hp-composer-feedback">
+              请等待附件就绪，或移除上传失败的附件。
+            </p>
+          )}
           <Flex gap="2" align="center" className="hp-composer__actions">
             {fileUploadEnabled ? (
               <label className="hp-composer__attach" aria-label="添加附件">
@@ -194,8 +398,8 @@ export function HpThread({
                 <input
                   type="file"
                   multiple
-                  accept="text/*,.log,.md,.csv,.json,.yaml,.yml"
-                  disabled={sendDisabled}
+                  accept=".txt,.log,.md,.pdf,.docx,.xlsx,.pptx"
+                  disabled={sendDisabled || running}
                   onChange={(event) => {
                     onFilesSelected(Array.from(event.currentTarget.files ?? []));
                     event.currentTarget.value = "";
@@ -203,16 +407,27 @@ export function HpThread({
                 />
               </label>
             ) : null}
-            <ThreadPrimitive.If running={false}>
-              <ComposerPrimitive.Send className="hp-composer__send">发送</ComposerPrimitive.Send>
-            </ThreadPrimitive.If>
-            <ThreadPrimitive.If running>
-              <ComposerPrimitive.Cancel className="hp-composer__cancel">
-                停止
-              </ComposerPrimitive.Cancel>
-            </ThreadPrimitive.If>
+            {toolbar}
+            {running ? (
+              <button
+                type="button"
+                className="hp-composer__cancel"
+                disabled={stopping || activeRun?.status === "cancelling"}
+                onClick={onCancel}
+              >
+                {stopping || activeRun?.status === "cancelling" ? "正在停止…" : "停止"}
+              </button>
+            ) : (
+              <button
+                type="submit"
+                className="hp-composer__send"
+                disabled={sendDisabled || submitting || !draft.text.trim()}
+              >
+                发送
+              </button>
+            )}
           </Flex>
-        </ComposerPrimitive.Root>
+        </form>
       </ThreadPrimitive.Root>
     </AssistantRuntimeProvider>
   );

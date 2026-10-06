@@ -1,0 +1,32 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test e2e/ui-2-ai.spec.ts --grep lost DELETE|revoke finishing|B sends
+
+[WebServer] INFO:     Started server process [743073]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8187 (Press CTRL+C to quit)
+[WebServer] (node:743964) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 3 tests using 1 worker
+
+(node:744072) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › e2e/ui-2-ai.spec.ts:37:1 › lost DELETE responses close the dialog after authoritative empty readback (20.3s)
+  ✓  2 [chromium] › e2e/ui-2-ai.spec.ts:56:1 › revoke finishing during history navigation releases only its conversation lock (17.3s)
+[WebServer] 2026-10-07 02:28:28 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 02:28:28 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 02:28:28 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 02:28:33 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 02:28:33 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 02:28:33 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-07 02:28:34 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 02:28:34 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 02:28:34 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 02:28:39 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 02:28:39 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 02:28:39 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  3 [chromium] › e2e/ui-2-ai.spec.ts:91:1 › B sends through the real API while A's POST is pending (24.0s)
+
+  3 passed (1.6m)

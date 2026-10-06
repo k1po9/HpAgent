@@ -1,3 +1,4 @@
+import { useConversationUi } from "./conversationUi";
 import { useAuth } from "./auth";
 import { useWorkbench } from "./workbench";
 import { useWorks } from "./works";
@@ -17,6 +18,7 @@ export const disposeSessionLifecycle = useAuth.subscribe((state, previous) => {
   if (previous.account) api.reset(state.status === "signedIn");
   disposeWorkFeeds();
   useWorkbench.getState().reset();
+  useConversationUi.getState().reset();
   useWorks.getState().reset();
   useArtifacts.getState().reset();
   useTraceStore.getState().reset();

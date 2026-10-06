@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { createConversation, expectReply, login, sendMessage } from "./helpers";
 
@@ -13,6 +14,11 @@ test("builds, interacts with, isolates and restores an Artifact", async ({ page 
   const frame = page.getByTitle("Artifact 预览");
   await expect(frame).toBeVisible({ timeout: 15_000 });
   expect(await frame.getAttribute("sandbox")).toBe("allow-scripts");
+  await mkdir("../artifacts/product-acceptance/ui-2/screenshots", { recursive: true });
+  await page.screenshot({
+    path: "../artifacts/product-acceptance/ui-2/screenshots/artifact-inspector.png",
+    fullPage: true,
+  });
 
   const artifact = frame.contentFrame();
   await artifact.getByRole("button", { name: "切换状态" }).click();
@@ -25,8 +31,8 @@ test("builds, interacts with, isolates and restores an Artifact", async ({ page 
   await dialog.getByLabel("保存名称").fill(`artifact-${Date.now()}.html`);
   await dialog.getByRole("button", { name: "确认保存" }).click();
   await expect(dialog).not.toBeVisible();
-  await expect(page.locator(".hp-workbench")).toBeVisible();
-  await page.getByRole("button", { name: "对话", exact: true }).click();
+  await expect(page.locator(".hp-shell")).toBeVisible();
+  await page.getByRole("button", { name: "关闭HTML 成果" }).click();
   await expect(page.getByPlaceholder("输入消息，Enter 发送")).toBeEnabled();
 
   await page.reload();

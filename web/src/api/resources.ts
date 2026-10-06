@@ -429,11 +429,7 @@ export class HpApi {
       body: {
         file_name: file.name,
         size_bytes: file.size,
-        content_type: file.name.toLowerCase().endsWith(".md")
-          ? file.type === "text/x-markdown" || !file.type
-            ? "text/markdown"
-            : file.type
-          : file.type || "text/plain",
+        content_type: uploadMime(file),
       },
       idempotencyKey,
       signal,
@@ -574,4 +570,21 @@ export function eventsUrl(runId: string): string {
 
 export function messageKey(message: HpMessage): string {
   return `${message.conversation_id}:${message.message_id}`;
+}
+
+/** Known suffixes only: unknown binary content must not masquerade as text. */
+export function uploadMime(file: File): string {
+  const extension = file.name.toLowerCase().split(".").pop() ?? "";
+  const types: Record<string, string> = {
+    pdf: "application/pdf",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    md: "text/markdown",
+    txt: "text/plain",
+    log: "text/x-log",
+  };
+  if (!file.type || (extension === "md" && file.type === "text/x-markdown"))
+    return types[extension] ?? "application/octet-stream";
+  return file.type;
 }

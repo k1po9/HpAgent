@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
 import { Activity } from "lucide-react";
 import { HpThread } from "../adapters/assistant-ui/HpThread";
@@ -7,8 +7,10 @@ import { useAuth } from "../store/auth";
 import { useArtifacts } from "../store/artifacts";
 import { RunStatus } from "./RunStatus";
 import { useTraceStore } from "./trace/traceStore";
-import { HpApi } from "../api/resources";
-import { api } from "../api/client";
+import { useShell } from "../store/shell";
+import { emptyConversationUi, useConversationUi } from "../store/conversationUi";
+import { ConversationHeader } from "./conversation/ConversationHeader";
+import { ConversationResources } from "./conversation/ConversationResources";
 import type { HpFile } from "../api/types";
 
 /**
@@ -25,37 +27,25 @@ export function ChatPane({
   resourceRefresh?: number;
 }) {
   const conversationId = useWorkbench((s) => s.activeConversationId);
-  const [resourceSummary, setResourceSummary] = useState<{
-    conversationId: string;
-    text: string;
-  } | null>(null);
-  const availableResources =
-    resourceSummary?.conversationId === conversationId ? resourceSummary.text : null;
-  useEffect(() => {
-    let current = true;
-    if (conversationId)
-      void new HpApi(api)
-        .listConversationResources(conversationId)
-        .then((page) => {
-          if (current)
-            setResourceSummary({
-              conversationId,
-              text: page.grants.length
-                ? `已授权资料：${[...new Set(page.grants.map((g) => g.name))].join("、")}。新增资料下一轮可用。`
-                : "暂无已授权的长期资料，可在资料授权页选择文件或目录。",
-            });
-        })
-        .catch(() => {
-          if (current)
-            setResourceSummary({
-              conversationId,
-              text: "资料权限暂时无法加载，可在资料授权页重试。",
-            });
-        });
-    return () => {
-      current = false;
-    };
-  }, [conversationId, resourceRefresh]);
+  const accountId = useAuth((s) => s.account?.account_id ?? "anonymous");
+  const conversationKey = `${accountId}:${conversationId ?? "new"}`;
+  const ui = useConversationUi((s) => s.entries[conversationKey] ?? emptyConversationUi);
+  const ensure = useCallback(async () => {
+    const shell = useShell.getState();
+    const token = shell.requestToken;
+    const oldId = useWorkbench.getState().activeConversationId;
+    const id = await useWorkbench.getState().ensureConversation();
+    if (
+      !id ||
+      token !== useShell.getState().requestToken ||
+      accountId !== (useAuth.getState().account?.account_id ?? "anonymous")
+    )
+      return null;
+    if (!oldId) {
+      useShell.getState().navigate({ screen: "ai", conversationId: id }, true);
+    }
+    return id;
+  }, [accountId]);
   const messages = useWorkbench((s) => s.messages);
   const activeRun = useWorkbench((s) => s.activeRun);
   const activeRunError = useWorkbench((s) => s.activeRunError);
@@ -85,10 +75,22 @@ export function ChatPane({
   const artifactError = useArtifacts((s) => s.error);
   const clearArtifactError = useArtifacts((s) => s.clearError);
   const setAgentStrategy = useWorkbench((s) => s.setAgentStrategy);
-  const strategyLocked = sending || Boolean(activeRun && !isTerminalRunStatus(activeRun.status));
+  const pendingSend = useWorkbench((s) =>
+    Boolean(s.activeConversationId && s.pendingSendIds.includes(s.activeConversationId)),
+  );
+  const creating = useWorkbench((s) => s.creatingConversation);
+  const strategyLocked =
+    sending || creating || Boolean(activeRun && !isTerminalRunStatus(activeRun.status));
   const displayedStrategy = strategyLocked
     ? (activeRun?.agent_strategy ?? agentStrategy)
-    : agentStrategy;
+    : durableAgentEnabled
+      ? agentStrategy
+      : "react";
+  useEffect(() => {
+    setAgentStrategy(durableAgentEnabled ? ui.strategy : "react");
+  }, [conversationKey, ui.strategy, durableAgentEnabled, setAgentStrategy]);
+  const loadingCandidates = useWorkbench((s) => s.loadingFileCandidates);
+  const candidatesError = useWorkbench((s) => s.fileCandidatesError);
   const traceOpen = useTraceStore((s) => s.open);
   const setTraceOpen = useTraceStore((s) => s.setOpen);
   const followTraceRun = useTraceStore((s) => s.followRun);
@@ -105,12 +107,33 @@ export function ChatPane({
     followTraceRun(latestRunId);
   }, [latestRunId, followTraceRun]);
 
-  const handleSend = useCallback((content: string) => sendMessage(content), [sendMessage]);
+  const handleSend = useCallback(
+    async (content: string) => {
+      const id = await ensure();
+      if (!id) return false;
+      const key = `${accountId}:${id}`;
+      const submitted = useConversationUi.getState().entries[key];
+      const ok = await sendMessage(content);
+      const current = useConversationUi.getState().entries[key];
+      if (
+        ok &&
+        current &&
+        submitted &&
+        current.revision === submitted.revision &&
+        current.text === content
+      )
+        useConversationUi.getState().update(key, { text: "", revision: current.revision + 1 });
+      return ok;
+    },
+    [sendMessage, ensure, accountId],
+  );
   const handleFilesSelected = useCallback(
     (files: File[]) => {
-      void addAttachments(files);
+      void ensure().then((id) => {
+        if (id) void addAttachments(files);
+      });
     },
-    [addAttachments],
+    [addAttachments, ensure],
   );
   const handleRemoveAttachment = useCallback(
     (localId: string) => {
@@ -131,23 +154,40 @@ export function ChatPane({
     clearError();
   }, [clearError]);
 
-  if (loadingMessages) {
-    return (
-      <Flex align="center" justify="center" gap="2" style={{ height: "100%" }}>
-        <Spinner />
-        <Text size="2" color="gray">
-          正在加载对话…
-        </Text>
-      </Flex>
-    );
-  }
-
   return (
     <Flex direction="column" style={{ height: "100%" }}>
-      {availableResources && (
-        <Text size="1" color="gray" className="hp-resource-summary">
-          {availableResources}
-        </Text>
+      {loadingMessages && (
+        <Flex align="center" justify="center" gap="2">
+          <Spinner />
+          <Text>正在加载对话…</Text>
+        </Flex>
+      )}
+      <ConversationHeader />
+      {pendingSend && !sending && (
+        <button
+          type="button"
+          onClick={() => {
+            const content = useWorkbench.getState().pendingSendContent[conversationId!];
+            const submitted = useConversationUi.getState().entries[conversationKey];
+            void useWorkbench
+              .getState()
+              .confirmPendingSend()
+              .then((ok) => {
+                const current = useConversationUi.getState().entries[conversationKey];
+                if (
+                  ok &&
+                  current &&
+                  current.text === content &&
+                  current.revision === submitted?.revision
+                )
+                  useConversationUi
+                    .getState()
+                    .update(conversationKey, { text: "", revision: current.revision + 1 });
+              });
+          }}
+        >
+          用原提交确认上次发送
+        </button>
       )}
       <RunStatus
         activeRun={activeRun}
@@ -159,7 +199,12 @@ export function ChatPane({
         onRetry={handleRetry}
       />
       {error ? (
-        <button type="button" className="hp-error" onClick={handleDismissError}>
+        <button
+          id="hp-conversation-error"
+          type="button"
+          className="hp-error"
+          onClick={handleDismissError}
+        >
           <Text size="2" color="red">
             {error}（点击关闭）
           </Text>
@@ -179,23 +224,8 @@ export function ChatPane({
           </Button>
         </Flex>
       ) : null}
-      <Flex align="center" justify="between" gap="2" px="3" py="2">
-        <Flex align="center" gap="2">
-          <Text size="1" color="gray">
-            执行模式
-          </Text>
-          <select
-            aria-label="执行模式"
-            value={displayedStrategy}
-            disabled={strategyLocked}
-            onChange={(event) =>
-              setAgentStrategy(event.target.value as "react" | "plan_and_execute")
-            }
-          >
-            <option value="react">对话（ReAct）</option>
-            {durableAgentEnabled ? <option value="plan_and_execute">计划执行</option> : null}
-          </select>
-        </Flex>
+      <Flex justify="end" px="3" py="1">
+        {" "}
         <Button
           size="1"
           variant={traceOpen ? "solid" : "soft"}
@@ -211,34 +241,93 @@ export function ChatPane({
           <Activity size={14} aria-hidden="true" /> Trace
         </Button>
       </Flex>
-      <Box style={{ flex: 1, minHeight: 0 }}>
-        {fileUploadEnabled ? (
-          <details
-            onToggle={(event) => {
-              if (event.currentTarget.open) void loadFileCandidates();
-            }}
-          >
-            <summary>选择已有文件</summary>
-            <div style={{ maxHeight: 160, overflowY: "auto" }}>
-              {fileCandidates.map((file) => (
-                <button key={file.file_id} type="button" onClick={() => selectExistingFile(file)}>
-                  {file.file_name} · {file.purpose === "output" ? "已发布输出" : "历史附件"}
-                </button>
-              ))}
-              {fileCandidatesNext ? (
-                <button type="button" onClick={() => void loadFileCandidates(true)}>
-                  更多文件
-                </button>
-              ) : null}
-            </div>
-          </details>
-        ) : null}
+      <Box style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <HpThread
+          conversationKey={conversationKey}
+          composerContext={<ConversationResources refresh={resourceRefresh} ensure={ensure} />}
+          toolbar={
+            <>
+              {fileUploadEnabled ? (
+                <details
+                  className="hp-file-candidates"
+                  onToggle={(event) => {
+                    if (event.currentTarget.open)
+                      void ensure().then((id) => {
+                        if (id) void loadFileCandidates();
+                      });
+                  }}
+                >
+                  <summary>选择已有文件</summary>
+                  {loadingCandidates && <p role="status">正在加载文件…</p>}
+                  {candidatesError && (
+                    <p role="alert">
+                      {candidatesError}
+                      <button onClick={() => void loadFileCandidates()}>重试</button>
+                    </p>
+                  )}
+                  <div style={{ maxHeight: 160, overflowY: "auto" }}>
+                    {fileCandidates.map((file) => (
+                      <button
+                        key={file.file_id}
+                        type="button"
+                        disabled={
+                          strategyLocked ||
+                          attachments.length >= 10 ||
+                          attachments.some((a) => a.fileId === file.file_id)
+                        }
+                        onClick={() => selectExistingFile(file)}
+                      >
+                        {file.file_name} · {file.purpose === "output" ? "已发布输出" : "历史附件"}
+                      </button>
+                    ))}
+                    {fileCandidatesNext ? (
+                      <button
+                        type="button"
+                        disabled={loadingCandidates}
+                        onClick={() => void loadFileCandidates(true)}
+                      >
+                        更多文件
+                      </button>
+                    ) : null}
+                  </div>
+                </details>
+              ) : null}{" "}
+              <select
+                aria-label="执行模式"
+                value={displayedStrategy}
+                disabled={strategyLocked}
+                onChange={(event) =>
+                  (() => {
+                    const strategy = event.target.value as "react" | "plan_and_execute";
+                    setAgentStrategy(strategy);
+                    useConversationUi.getState().update(conversationKey, { strategy });
+                  })()
+                }
+              >
+                <option value="react">快速</option>
+                {durableAgentEnabled ||
+                (strategyLocked && displayedStrategy === "plan_and_execute") ? (
+                  <option value="plan_and_execute">深度</option>
+                ) : null}
+              </select>
+            </>
+          }
+          error={error}
+          loadingHistory={loadingMessages}
+          stopping={stopping}
+          hasMoreMessages={hasMoreMessages}
+          loadingMoreMessages={loadingMoreMessages}
+          onLoadMoreMessages={handleLoadMore}
           messages={messages}
           activeRun={activeRun}
           attachments={attachments}
           fileUploadEnabled={fileUploadEnabled}
-          sendDisabled={sending || attachments.some((attachment) => attachment.status !== "ready")}
+          sendDisabled={
+            loadingMessages ||
+            sending ||
+            creating ||
+            attachments.some((attachment) => attachment.status !== "ready")
+          }
           onFilesSelected={handleFilesSelected}
           onRemoveAttachment={handleRemoveAttachment}
           onSaveFile={onSaveFile}

@@ -24,6 +24,7 @@ import { create } from "zustand";
 import { api as defaultApi } from "../api/client";
 import { HpApi } from "../api/resources";
 import { openRunFeed, type RunFeed, type RunProgress } from "../sse/runFeed";
+import { useConversationUi } from "./conversationUi";
 import { useAuth } from "./auth";
 import { newIdempotencyKey } from "../utils/idempotency";
 import { useTraceStore } from "../components/trace/traceStore";
@@ -97,6 +98,12 @@ export interface WorkbenchState {
   conversations: HpConversation[];
   conversationsLoaded: boolean;
   loadingConversations: boolean;
+  conversationCursor: string | null;
+  hasMoreConversations: boolean;
+  loadingMoreConversations: boolean;
+  activeConversation: HpConversation | null;
+  loadingFileCandidates: boolean;
+  fileCandidatesError: string | null;
   creatingConversation: boolean;
   conversationsError: string | null;
 
@@ -130,6 +137,10 @@ export interface WorkbenchState {
   pollGeneration: number;
 
   loadConversations: () => Promise<void>;
+  loadMoreConversations: () => Promise<void>;
+  ensureConversation: () => Promise<string | null>;
+  leaveConversation: () => void;
+  renameActiveConversation: (title: string) => Promise<boolean>;
   createConversation: () => Promise<void>;
   selectConversation: (id: string) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
@@ -137,7 +148,10 @@ export interface WorkbenchState {
   selectExistingFile: (file: HpFile) => void;
   loadFileCandidates: (more?: boolean) => Promise<void>;
   removeAttachment: (localId: string) => Promise<void>;
-  sendMessage: (content: string) => Promise<boolean>;
+  pendingSendIds: string[];
+  pendingSendContent: Record<string, string>;
+  confirmPendingSend: () => Promise<boolean>;
+  sendMessage: (content: string, confirm?: boolean) => Promise<boolean>;
   setAgentStrategy: (strategy: AgentStrategy) => void;
   stopRun: () => Promise<void>;
   retryRun: () => Promise<void>;
@@ -154,7 +168,14 @@ function replaceTempMessage(
   assistantMessage: HpMessage,
 ): HpMessage[] {
   const next = messages.filter((m) => m.message_id !== tempId);
-  return [...next, userMessage, assistantMessage];
+  return [
+    ...next.filter(
+      (m) =>
+        m.message_id !== userMessage.message_id && m.message_id !== assistantMessage.message_id,
+    ),
+    userMessage,
+    assistantMessage,
+  ];
 }
 
 /** Update the assistant message for a Run in place (by id, then by run). */
@@ -224,6 +245,37 @@ export function createWorkbenchStore(
     let budgetRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     let conversationSelectionGeneration = 0;
     let accountGeneration = 0;
+    let listGeneration = 0;
+    let candidateGeneration = 0;
+    let createKey: string | null = null;
+    let createPromise: Promise<string | null> | null = null;
+    const localConversations = new Map<string, HpConversation>();
+    const intents = new Map<
+      string,
+      { key: string; content: string; fileIds: string[]; strategy: AgentStrategy }
+    >();
+    const upsert = (conversation: HpConversation) => {
+      const known = localConversations.get(conversation.conversation_id);
+      if (known && known.metadata_version > conversation.metadata_version) return;
+      localConversations.set(conversation.conversation_id, conversation);
+      listGeneration += 1;
+      set({
+        loadingConversations: false,
+        loadingMoreConversations: false,
+        conversationCursor: null,
+        hasMoreConversations: false,
+      });
+      set((state) => ({
+        conversations: [
+          conversation,
+          ...state.conversations.filter((c) => c.conversation_id !== conversation.conversation_id),
+        ],
+        activeConversation:
+          state.activeConversationId === conversation.conversation_id
+            ? conversation
+            : state.activeConversation,
+      }));
+    };
     const pendingSleeps = new Map<ReturnType<typeof setTimeout>, () => void>();
     const pause = (ms: number) =>
       new Promise<void>((resolve) => {
@@ -431,20 +483,25 @@ export function createWorkbenchStore(
         set({ activeRun: null, activeRunError: null });
         return;
       }
+      const generation = get().pollGeneration;
       try {
         const detail = await api.getConversationDetail(conversationId);
         if (!valid()) return;
         const active = detail.active_run;
+        const current = get().activeRun;
+        const sameRun = active && current?.run_id === active.run.run_id;
+        if (generation !== get().pollGeneration && !sameRun) return;
         set((s) => ({
-          activeRun: active?.run ?? null,
+          activeRun:
+            sameRun && current.version >= active.run.version ? current : (active?.run ?? null),
           // A `conversation_busy` message is deliberately preserved: learning
           // that a foreign Run is active is not a reason to hide the notice —
           // it clears when that Run reaches terminal (see the run monitor).
-          activeRunProgress: null,
-          degraded: false,
-          pollGeneration: active ? s.pollGeneration + 1 : s.pollGeneration,
+          activeRunProgress: sameRun ? s.activeRunProgress : null,
+          degraded: sameRun ? s.degraded : false,
+          pollGeneration: active && !sameRun ? s.pollGeneration + 1 : s.pollGeneration,
         }));
-        if (active) {
+        if (active && !sameRun) {
           startRunMonitor(active.run.run_id);
         }
       } catch {
@@ -453,6 +510,14 @@ export function createWorkbenchStore(
     }
 
     return {
+      conversationCursor: null,
+      hasMoreConversations: false,
+      loadingMoreConversations: false,
+      activeConversation: null,
+      loadingFileCandidates: false,
+      fileCandidatesError: null,
+      pendingSendIds: [],
+      pendingSendContent: {},
       conversations: [],
       conversationsLoaded: false,
       loadingConversations: false,
@@ -481,21 +546,182 @@ export function createWorkbenchStore(
       loadConversations: async () => {
         const account = accountGeneration;
         if (get().loadingConversations) return;
-        set({ loadingConversations: true, conversationsError: null });
+        const generation = ++listGeneration;
+        set({
+          loadingConversations: true,
+          loadingMoreConversations: false,
+          conversationsError: null,
+        });
         try {
           const page = await api.listConversations();
-          if (account !== accountGeneration) return;
+          if (account !== accountGeneration || generation !== listGeneration) return;
+          for (const conversation of page.items) {
+            const cached = localConversations.get(conversation.conversation_id);
+            if (
+              cached &&
+              conversation.metadata_version >= cached.metadata_version &&
+              conversation.updated_at >= cached.updated_at
+            )
+              localConversations.delete(conversation.conversation_id);
+          }
           set({
             loadingConversations: false,
             conversationsLoaded: true,
-            conversations: page.items,
+            conversations: [
+              ...new Map(
+                [...page.items, ...localConversations.values()].map((c) => [c.conversation_id, c]),
+              ).values(),
+            ],
+            conversationCursor: page.next_cursor,
+            hasMoreConversations: page.has_more,
           });
         } catch (err) {
-          if (account !== accountGeneration) return;
-          set({
-            loadingConversations: false,
-            conversationsError: messageErrorText(err),
-          });
+          if (account !== accountGeneration || generation !== listGeneration) return;
+          set({ loadingConversations: false, conversationsError: messageErrorText(err) });
+        }
+      },
+      loadMoreConversations: async () => {
+        const { conversationCursor, loadingMoreConversations, loadingConversations } = get();
+        if (!conversationCursor || loadingMoreConversations || loadingConversations) return;
+        const generation = listGeneration,
+          account = accountGeneration;
+        set({ loadingMoreConversations: true, conversationsError: null });
+        try {
+          const page = await api.listConversations(conversationCursor);
+          if (account !== accountGeneration || generation !== listGeneration) return;
+          set((state) => ({
+            loadingMoreConversations: false,
+            conversations: [
+              ...new Map(
+                [...state.conversations, ...page.items].map((c) => [c.conversation_id, c]),
+              ).values(),
+            ],
+            conversationCursor: page.next_cursor,
+            hasMoreConversations: page.has_more,
+          }));
+        } catch (err) {
+          if (account !== accountGeneration || generation !== listGeneration) return;
+          set({ loadingMoreConversations: false, conversationsError: messageErrorText(err) });
+        }
+      },
+      ensureConversation: async () => {
+        if (get().activeConversationId) return get().activeConversationId;
+        if (createPromise) return createPromise;
+        const account = accountGeneration,
+          selection = conversationSelectionGeneration;
+        const draftAccountId = useAuth.getState().account?.account_id ?? "anonymous";
+        const draftSnapshot = useConversationUi.getState().entries[`${draftAccountId}:new`];
+        createKey ??= newIdempotencyKey();
+        set({ creatingConversation: true, error: null });
+        const task = (async () => {
+          try {
+            const result = await api.createConversation(createKey!);
+            if (account !== accountGeneration) return null;
+            createKey = null;
+            upsert(result.conversation);
+            if (
+              selection === conversationSelectionGeneration ||
+              useConversationUi.getState().entries[`${draftAccountId}:new`]?.revision ===
+                draftSnapshot?.revision
+            )
+              useConversationUi
+                .getState()
+                .migrate(
+                  `${draftAccountId}:new`,
+                  `${draftAccountId}:${result.conversation.conversation_id}`,
+                );
+            else if (draftSnapshot)
+              useConversationUi
+                .getState()
+                .update(`${draftAccountId}:${result.conversation.conversation_id}`, draftSnapshot);
+            void get().loadConversations();
+            if (selection !== conversationSelectionGeneration) return null;
+            set({
+              activeConversationId: result.conversation.conversation_id,
+              activeConversation: result.conversation,
+            });
+            return result.conversation.conversation_id;
+          } catch (err) {
+            if (account === accountGeneration && selection === conversationSelectionGeneration)
+              set({ error: messageErrorText(err) });
+            return null;
+          } finally {
+            if (account === accountGeneration) {
+              createPromise = null;
+              set({ creatingConversation: false });
+            }
+          }
+        })();
+        createPromise = task;
+        return task;
+      },
+      leaveConversation: () => {
+        conversationSelectionGeneration += 1;
+        candidateGeneration += 1;
+        closeFeed();
+        useTraceStore.getState().reset();
+        set((state) => ({
+          activeConversationId: null,
+          activeConversation: null,
+          messages: [],
+          attachments: [],
+          fileCandidates: [],
+          fileCandidatesNext: null,
+          loadingFileCandidates: false,
+          fileCandidatesError: null,
+          activeRun: null,
+          activeRunError: null,
+          activeRunProgress: null,
+          messageCursor: null,
+          hasMoreMessages: false,
+          loadingMessages: false,
+          loadingMoreMessages: false,
+          sending: false,
+          stopping: false,
+          degraded: false,
+          polling: false,
+          error: null,
+          pollGeneration: state.pollGeneration + 1,
+        }));
+      },
+      renameActiveConversation: async (title) => {
+        const conversation = get().activeConversation;
+        const account = accountGeneration;
+        if (!conversation) return false;
+        const target = title.trim();
+        if (!target || [...target].length > 200) {
+          set({ error: "标题须为 1–200 个字符。" });
+          return false;
+        }
+        try {
+          const result = await api.renameConversation(
+            conversation.conversation_id,
+            target,
+            `"conversation-${conversation.conversation_id}-m${conversation.metadata_version}"`,
+            newIdempotencyKey(),
+          );
+          if (account !== accountGeneration) return false;
+          upsert(result.conversation);
+          void get().loadConversations();
+          return true;
+        } catch (err) {
+          if (account !== accountGeneration) return false;
+          try {
+            const detail = await api.getConversationDetail(conversation.conversation_id);
+            if (account !== accountGeneration) return false;
+            upsert(detail.conversation);
+            if (detail.conversation.title === target) return true;
+          } catch {
+            /* Preserve the edit and surface the original error. */
+          }
+          if (get().activeConversationId === conversation.conversation_id)
+            set({
+              error:
+                err instanceof HpCommandError && err.status === 412
+                  ? "标题已被更新，请检查后再次保存。"
+                  : messageErrorText(err),
+            });
+          return false;
         }
       },
 
@@ -516,6 +742,7 @@ export function createWorkbenchStore(
               ...s.conversations.filter((c) => c.conversation_id !== conversation.conversation_id),
             ],
             activeConversationId: conversation.conversation_id,
+            activeConversation: conversation,
             loadingMessages: false,
             messages: [],
             attachments: [],
@@ -538,10 +765,14 @@ export function createWorkbenchStore(
       selectConversation: async (id) => {
         if (id === get().activeConversationId) return;
         const generation = ++conversationSelectionGeneration;
+        candidateGeneration += 1;
         closeFeed();
         useTraceStore.getState().reset();
         set((s) => ({
           activeConversationId: id,
+          activeConversation: null,
+          loadingFileCandidates: false,
+          fileCandidatesError: null,
           creatingConversation: false,
           sending: false,
           stopping: false,
@@ -569,6 +800,7 @@ export function createWorkbenchStore(
           const active = detail.active_run;
           set((s) => ({
             loadingMessages: false,
+            activeConversation: detail.conversation,
             // The API normalizes each page to chat order (oldest first), so
             // send-time appends land at the end naturally.
             messages: page.items,
@@ -621,6 +853,7 @@ export function createWorkbenchStore(
       },
 
       addAttachments: async (selectedFiles) => {
+        const account = accountGeneration;
         const valid = fence();
         const conversationId = get().activeConversationId;
         if (!conversationId || selectedFiles.length === 0) return;
@@ -658,7 +891,10 @@ export function createWorkbenchStore(
                 browserFile,
                 newIdempotencyKey(),
               );
-              if (!valid()) return;
+              if (!valid()) {
+                if (account === accountGeneration) await api.deleteFile(created.file.file_id);
+                return;
+              }
               set((state) => ({
                 attachments: state.attachments.map((item) =>
                   item.localId === attachment.localId
@@ -671,7 +907,10 @@ export function createWorkbenchStore(
                 return;
               }
               const uploaded = await api.uploadContent(created.content_url, browserFile);
-              if (!valid()) return;
+              if (!valid()) {
+                if (account === accountGeneration) await api.deleteFile(uploaded.file_id);
+                return;
+              }
               set((state) => ({
                 attachments: state.attachments.map((item) =>
                   item.localId === attachment.localId
@@ -697,6 +936,8 @@ export function createWorkbenchStore(
       },
 
       selectExistingFile: (file) => {
+        if (get().sending || (get().activeRun && !isTerminalRunStatus(get().activeRun!.status)))
+          return;
         if (
           file.status !== "ready" ||
           get().attachments.length >= 10 ||
@@ -723,20 +964,31 @@ export function createWorkbenchStore(
       loadFileCandidates: async (more = false) => {
         const valid = fence();
         const conversationId = get().activeConversationId;
-        if (!conversationId) return;
+        if (!conversationId || get().loadingFileCandidates || (more && !get().fileCandidatesNext))
+          return;
+        const generation = ++candidateGeneration;
+        set({ loadingFileCandidates: true, fileCandidatesError: null });
         try {
           const page = await api.listFileCandidates(
             conversationId,
             more ? get().fileCandidatesNext : null,
           );
-          if (!valid()) return;
+          if (!valid() || generation !== candidateGeneration) return;
           set((state) => ({
-            fileCandidates: more ? [...state.fileCandidates, ...page.items] : page.items,
+            loadingFileCandidates: false,
+            fileCandidates: [
+              ...new Map(
+                (more ? [...state.fileCandidates, ...page.items] : page.items).map((f) => [
+                  f.file_id,
+                  f,
+                ]),
+              ).values(),
+            ],
             fileCandidatesNext: page.next_before,
           }));
         } catch (err) {
-          if (!valid()) return;
-          set({ error: messageErrorText(err) });
+          if (!valid() || generation !== candidateGeneration) return;
+          set({ loadingFileCandidates: false, fileCandidatesError: messageErrorText(err) });
         }
       },
 
@@ -757,24 +1009,61 @@ export function createWorkbenchStore(
         }
       },
 
-      sendMessage: async (content) => {
+      confirmPendingSend: async () => {
+        const id = get().activeConversationId;
+        const intent = id ? intents.get(id) : null;
+        return intent ? get().sendMessage(intent.content, true) : false;
+      },
+      sendMessage: async (content, confirm = false) => {
+        const account = accountGeneration;
         const valid = fence();
         const conversationId = get().activeConversationId;
         const trimmed = content.trim();
+        const draftKey = `${useAuth.getState().account?.account_id ?? "anonymous"}:${conversationId}`;
+        const submittedDraft = useConversationUi.getState().entries[draftKey];
         if (!conversationId || !trimmed) return false;
         // Only a live Run blocks sending: after a terminal Run the composer is
         // re-enabled so a long conversation continues in place (E-07).
         const active = get().activeRun;
-        if (get().sending || get().stopping || (active && !isTerminalRunStatus(active.status))) {
+        if (
+          get().sending ||
+          get().stopping ||
+          (!confirm && active && !isTerminalRunStatus(active.status))
+        ) {
           return false;
         }
         const attachments = get().attachments;
-        if (attachments.some((item) => item.status !== "ready" || !item.fileId)) {
+        if (!confirm && attachments.some((item) => item.status !== "ready" || !item.fileId)) {
           set({ error: "请等待附件上传完成，或移除上传失败的附件。" });
           return false;
         }
 
-        const idempotencyKey = newIdempotencyKey();
+        const previousIntent = intents.get(conversationId);
+        if (
+          !confirm &&
+          previousIntent &&
+          (previousIntent.content !== trimmed ||
+            previousIntent.strategy !== get().agentStrategy ||
+            JSON.stringify(previousIntent.fileIds) !==
+              JSON.stringify(attachments.map((item) => item.fileId)))
+        ) {
+          set({ error: "上次发送结果尚未确认，请先用原内容和附件重新确认。" });
+          return false;
+        }
+        const intent = previousIntent ?? {
+          key: newIdempotencyKey(),
+          content: trimmed,
+          fileIds: attachments.map((item) => item.fileId as string),
+          strategy: get().agentStrategy,
+        };
+        intents.set(conversationId, intent);
+        set({
+          pendingSendIds: [...intents.keys()],
+          pendingSendContent: Object.fromEntries(
+            [...intents].map(([id, intent]) => [id, intent.content]),
+          ),
+        });
+        const idempotencyKey = intent.key;
         const tempId = `temp:${idempotencyKey}`;
         const tempMessage: HpMessage = {
           message_id: tempId,
@@ -793,35 +1082,79 @@ export function createWorkbenchStore(
         try {
           const result = await api.sendMessage(conversationId, trimmed, {
             idempotencyKey,
-            agentStrategy: get().agentStrategy,
-            fileIds: attachments.map((item) => item.fileId as string),
+            agentStrategy: intent.strategy,
+            fileIds: intent.fileIds,
           });
+          if (account === accountGeneration) {
+            const currentDraft = useConversationUi.getState().entries[draftKey];
+            if (
+              currentDraft &&
+              submittedDraft &&
+              currentDraft.revision === submittedDraft.revision &&
+              currentDraft.text.trim() === trimmed
+            )
+              useConversationUi
+                .getState()
+                .update(draftKey, { text: "", revision: currentDraft.revision + 1 });
+            intents.delete(conversationId);
+            set({
+              pendingSendIds: [...intents.keys()],
+              pendingSendContent: Object.fromEntries(
+                [...intents].map(([id, intent]) => [id, intent.content]),
+              ),
+            });
+          }
           if (!valid()) return false;
+          const currentRun = get().activeRun;
+          const sameRun = currentRun?.run_id === result.run.run_id;
+          const resolvedRun =
+            sameRun && currentRun.version >= result.run.version ? currentRun : result.run;
+          const existingAssistant = sameRun
+            ? get().messages.find((m) => m.message_id === result.assistant_message.message_id)
+            : null;
           set((s) => ({
             sending: false,
             messages: replaceTempMessage(
               s.messages,
               tempId,
               result.user_message,
-              result.assistant_message,
+              existingAssistant ?? result.assistant_message,
             ),
-            activeRun: result.run,
+            activeRun: resolvedRun,
             activeRunError: null,
-            activeRunProgress: null,
-            degraded: false,
-            attachments: [],
-            pollGeneration: s.pollGeneration + 1,
+            activeRunProgress: sameRun ? s.activeRunProgress : null,
+            degraded: sameRun ? s.degraded : false,
+            attachments: s.attachments.filter(
+              (a) => !a.fileId || !intent.fileIds.includes(a.fileId),
+            ),
+            pollGeneration: sameRun ? s.pollGeneration : s.pollGeneration + 1,
           }));
-          startRunMonitor(result.run.run_id);
+          if (!sameRun) startRunMonitor(result.run.run_id);
           return true;
         } catch (err) {
+          if (account === accountGeneration && err instanceof HpCommandError && err.status < 500) {
+            intents.delete(conversationId);
+            set({
+              pendingSendIds: [...intents.keys()],
+              pendingSendContent: Object.fromEntries(
+                [...intents].map(([id, intent]) => [id, intent.content]),
+              ),
+            });
+          }
           if (!valid()) return false;
           const messages = get().messages.filter((m) => m.message_id !== tempId);
           if (err instanceof HpCommandError && err.code === "conversation_busy") {
             set({ sending: false, messages, activeRunError: err.error.message });
             void refreshActiveRun();
           } else {
-            set({ sending: false, messages, error: messageErrorText(err) });
+            set({
+              sending: false,
+              messages,
+              error: intents.has(conversationId)
+                ? "发送结果尚未确认，请保留原内容重试确认。"
+                : messageErrorText(err),
+            });
+            if (intents.has(conversationId)) void refreshActiveRun();
           }
           return false;
         }
@@ -898,6 +1231,12 @@ export function createWorkbenchStore(
       clearError: () => set({ error: null, activeRunError: null }),
       reset: () => {
         accountGeneration += 1;
+        listGeneration += 1;
+        candidateGeneration += 1;
+        createKey = null;
+        createPromise = null;
+        intents.clear();
+        localConversations.clear();
         conversationSelectionGeneration += 1;
         closeFeed();
         pendingSleeps.forEach((resolve, timer) => {
@@ -906,6 +1245,14 @@ export function createWorkbenchStore(
         });
         pendingSleeps.clear();
         set({
+          pendingSendIds: [],
+          pendingSendContent: {},
+          conversationCursor: null,
+          hasMoreConversations: false,
+          loadingMoreConversations: false,
+          activeConversation: null,
+          loadingFileCandidates: false,
+          fileCandidatesError: null,
           conversations: [],
           conversationsLoaded: false,
           loadingConversations: false,

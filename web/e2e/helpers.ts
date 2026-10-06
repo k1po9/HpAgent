@@ -20,20 +20,21 @@ export async function login(page: Page, username = "alice"): Promise<void> {
   await page.getByLabel("用户名").fill(username);
   await page.getByLabel("密码").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "登录" }).click();
-  await expect(page.locator(".hp-workbench")).toBeVisible();
+  await expect(page.locator(".hp-shell")).toBeVisible();
 }
 
 /** Create a fresh conversation; the composer becomes the active target. */
 export async function createConversation(page: Page): Promise<void> {
-  const created = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === "/api/v1/conversations" &&
-      response.request().method() === "POST",
-  );
   await page.getByRole("button", { name: "新建对话" }).click();
+  const created = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === "/api/v1/conversations" && r.request().method() === "POST",
+  );
+  // Preparing an attachment is an actual operation that needs a real ID.
+  await page.getByText("选择已有文件", { exact: true }).click();
   const response = await created;
   expect(response.status()).toBe(201);
   const { conversation } = await response.json();
+  await page.getByText("选择已有文件", { exact: true }).click();
   await expect(
     page.locator(`.hp-conv[data-conversation-id="${conversation.conversation_id}"]`),
   ).toHaveAttribute("aria-current", "true");

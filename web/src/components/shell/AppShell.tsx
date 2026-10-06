@@ -16,7 +16,7 @@ import { RegistrationQqGate } from "../RegistrationQqGate";
 import { ArtifactsPage, SaveWorkspaceDialog } from "../TestPages";
 import { InspectorHost } from "./InspectorHost";
 import { Surface } from "./Surface";
-import { EmptySelection, NotificationInbox } from "./LegacyUtilities";
+import { NotificationInbox } from "./LegacyUtilities";
 import { api } from "../../api/client";
 
 const screens = [
@@ -36,6 +36,10 @@ export function AppShell() {
   const check = useAuth((s) => s.check);
   const dismissHint = useAuth((s) => s.dismissRegistrationHint);
   const conversations = useWorkbench((s) => s.conversations);
+  const hasMoreConversations = useWorkbench((s) => s.hasMoreConversations);
+  const loadingMoreConversations = useWorkbench((s) => s.loadingMoreConversations);
+  const conversationsError = useWorkbench((s) => s.conversationsError);
+  const pendingRoute = useShell((s) => s.pendingRoute);
   const loading = useWorkbench((s) => s.loadingConversations);
   const creating = useWorkbench((s) => s.creatingConversation);
   const conversationId = useWorkbench((s) => s.activeConversationId);
@@ -70,16 +74,17 @@ export function AppShell() {
     };
   }, []);
   useEffect(() => {
-    if (route.screen !== "ai") return;
-    if (route.conversationId) void useWorkbench.getState().selectConversation(route.conversationId);
-    else if (useWorkbench.getState().activeConversationId) {
-      const previous = useWorkbench.getState();
-      previous.reset();
-      useWorkbench.setState({
-        conversations: previous.conversations,
-        conversationsLoaded: previous.conversationsLoaded,
-      });
+    if (route.screen !== "ai") {
+      if (
+        useWorkbench.getState().creatingConversation &&
+        !useWorkbench.getState().activeConversationId
+      )
+        useWorkbench.getState().leaveConversation();
+      return;
     }
+    if (route.conversationId) void useWorkbench.getState().selectConversation(route.conversationId);
+    else if (useWorkbench.getState().activeConversationId)
+      useWorkbench.getState().leaveConversation();
   }, [route.screen, route.conversationId]);
   const saveFile = useCallback(
     (file: { file_id: string; file_name: string }) => setSaveSource(file),
@@ -117,17 +122,12 @@ export function AppShell() {
           // The store still deduplicates re-selection while loading or ready.
           if (sameConversationRoute) void useWorkbench.getState().selectConversation(id);
         }}
-        onCreate={() => {
-          const token = useShell.getState().requestToken;
-          void useWorkbench
-            .getState()
-            .createConversation()
-            .then(() => {
-              if (!alive.current || token !== useShell.getState().requestToken) return;
-              const id = useWorkbench.getState().activeConversationId;
-              if (id) navigate({ screen: "ai", conversationId: id });
-            });
-        }}
+        hasMore={hasMoreConversations}
+        loadingMore={loadingMoreConversations}
+        error={conversationsError}
+        onLoadMore={() => void useWorkbench.getState().loadMoreConversations()}
+        onRefresh={() => void useWorkbench.getState().loadConversations()}
+        onCreate={() => navigate({ screen: "ai" })}
       />
     ) : (
       <div className="hp-context-placeholder">
@@ -196,10 +196,20 @@ export function AppShell() {
         </header>
         {notice && <p role="status">{notice}</p>}
         <section hidden={route.screen !== "ai"} className="hp-shell-chat" aria-label="对话页面">
-          {conversationId ? (
-            <ChatPane onSaveFile={saveFile} resourceRefresh={refresh} />
+          {route.screen === "ai" && route.conversationId && !conversationId && !loading ? (
+            <div role="alert">
+              <p>{useWorkbench.getState().error ?? "对象不可用。"}</p>
+              <button
+                onClick={() =>
+                  void useWorkbench.getState().selectConversation(route.conversationId!)
+                }
+              >
+                重试对话
+              </button>
+              <button onClick={() => navigate({ screen: "ai" })}>返回新对话</button>
+            </div>
           ) : (
-            <EmptySelection />
+            <ChatPane onSaveFile={saveFile} resourceRefresh={refresh} />
           )}
         </section>
         <section
@@ -235,6 +245,26 @@ export function AppShell() {
           onClose={() => useShell.setState({ sidebarOpen: false })}
         >
           {sidebar}
+        </Surface>
+      )}
+      {pendingRoute && (
+        <Surface title="放弃本轮附件？" onClose={() => useShell.setState({ pendingRoute: null })}>
+          <p>切换对话将放弃本轮待发送附件。已有文件只取消选择。</p>
+          <button onClick={() => useShell.setState({ pendingRoute: null })}>继续当前对话</button>
+          <button
+            onClick={() => {
+              const state = useWorkbench.getState();
+              const target = pendingRoute;
+              useShell.setState({ pendingRoute: null });
+              void Promise.all(
+                state.attachments.map((a) => state.removeAttachment(a.localId)),
+              ).then(() => {
+                if (alive.current) useShell.getState().navigate(target);
+              });
+            }}
+          >
+            放弃本轮附件并切换
+          </button>
         </Surface>
       )}
       {modal === "account" && (

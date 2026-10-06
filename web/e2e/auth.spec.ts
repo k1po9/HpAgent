@@ -14,17 +14,19 @@ test("rejects wrong credentials with the server's safe message", async ({ page }
   await page.getByRole("button", { name: "登录" }).click();
 
   await expect(page.getByText("登录凭证无效。")).toBeVisible();
-  await expect(page.locator(".hp-workbench")).not.toBeVisible();
+  await expect(page.locator(".hp-shell")).not.toBeVisible();
 });
 
 test("signs in with valid credentials", async ({ page }) => {
   await login(page, "alice");
   await expect(page.getByRole("button", { name: "新建对话" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "退出登录" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "账户设置", exact: true })).toBeVisible();
 });
 
 test("signs out back to the login gate", async ({ page }) => {
   await login(page, "alice");
+  if (!(await page.getByRole("button", { name: "退出登录" }).isVisible()))
+    await page.getByRole("button", { name: "账户设置", exact: true }).click();
   await page.getByRole("button", { name: "退出登录" }).click();
   await expect(page.getByRole("heading", { name: "HpAgent 登录" })).toBeVisible();
   // The session cookie is gone: a reload stays signed out.
@@ -41,15 +43,18 @@ test("registers, auto-signs in, and can log in again", async ({ page }) => {
   await page.getByLabel("密码", { exact: true }).fill("register-password");
   await page.getByLabel("确认密码").fill("register-password");
   await page.getByRole("button", { name: "注册", exact: true }).click();
-  await expect(page.locator(".hp-workbench")).toBeVisible();
+  await expect(page.locator(".hp-shell")).toBeVisible();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await page.getByRole("button", { name: "以后再说" }).click();
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
+  await page.getByRole("button", { name: "账户设置", exact: true }).click();
   await expect(page.getByRole("button", { name: "绑定 QQ" })).toBeVisible();
 
+  if (!(await page.getByRole("button", { name: "退出登录" }).isVisible()))
+    await page.getByRole("button", { name: "账户设置", exact: true }).click();
   await page.getByRole("button", { name: "退出登录" }).click();
   await page.getByLabel("用户名").fill(username);
   await page.getByLabel("密码").fill("register-password");
   await page.getByRole("button", { name: "登录", exact: true }).click();
-  await expect(page.locator(".hp-workbench")).toBeVisible();
+  await expect(page.locator(".hp-shell")).toBeVisible();
 });
