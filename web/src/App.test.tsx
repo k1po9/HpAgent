@@ -5,12 +5,14 @@
  * one conversation, and an empty message page. Verifies the assistant-ui chat
  * surface renders (sidebar + composer) without runtime errors.
  */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useAuth } from "./store/auth";
 import { useArtifacts } from "./store/artifacts";
+import { useShell } from "./store/shell";
+import { StrictMode } from "react";
 import { useWorkbench } from "./store/workbench";
 
 const ME = {
@@ -40,7 +42,6 @@ const json = (body: unknown) =>
   });
 
 beforeEach(() => {
-  window.history.replaceState(null, "", "/");
   capabilities = {};
   useAuth.setState({
     status: "checking",
@@ -48,6 +49,7 @@ beforeEach(() => {
     identities: null,
     justRegistered: false,
   });
+  window.history.replaceState(null, "", "/#/ai/c1");
   vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === "/api/v1/me") return json({ ...ME, capabilities });
@@ -97,6 +99,7 @@ beforeEach(() => {
 
 describe("App workbench", () => {
   it("shows a failed creation before any conversation is selected and clears it on success", async () => {
+    window.history.replaceState(null, "", "/#/ai");
     const baseFetch = globalThis.fetch;
     let fail = true;
     useWorkbench.setState({
@@ -154,6 +157,7 @@ describe("App workbench", () => {
     expect(await screen.findByRole("button", { name: "测试对话" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/输入消息/)).toBeInTheDocument();
     expect(screen.getByText("新建", { selector: "button" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "账户设置" }));
     expect(screen.getByText("绑定 QQ", { selector: "button" })).toBeInTheDocument();
   });
 
@@ -236,5 +240,151 @@ describe("App workbench", () => {
 
     expect(await screen.findByText("notes.txt")).toBeInTheDocument();
     expect(await screen.findByText("已就绪")).toBeInTheDocument();
+  });
+});
+
+describe("UI-1 Shell lifecycle", () => {
+  it("isolates a late account A list after switching A-B-A", async () => {
+    const base = globalThis.fetch;
+    let finish!: (response: Response) => void;
+    let first = true;
+    let title = "当前 A 的对话";
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/v1/conversations" || url.startsWith("/api/v1/conversations?")) {
+        if (first) {
+          first = false;
+          return new Promise<Response>((resolve) => {
+            finish = resolve;
+          });
+        }
+        return json({ items: [{ ...CONVERSATION, title }], has_more: false, next_cursor: null });
+      }
+      return base(input, init);
+    });
+    render(<App />);
+    await screen.findByPlaceholderText(/输入消息/);
+    title = "B 的对话";
+    act(() => useAuth.setState({ account: { ...ME.account, account_id: "bob" } }));
+    await screen.findByRole("button", { name: "B 的对话" });
+    title = "当前 A 的对话";
+    act(() => useAuth.setState({ account: ME.account }));
+    await screen.findByRole("button", { name: "当前 A 的对话" });
+    await act(async () => {
+      finish(
+        json({
+          items: [{ ...CONVERSATION, title: "旧 A 的私有数据" }],
+          has_more: false,
+          next_cursor: null,
+        }),
+      );
+    });
+    expect(screen.queryByText("旧 A 的私有数据")).not.toBeInTheDocument();
+    expect(screen.queryByText("B 的对话")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "当前 A 的对话" })).toBeInTheDocument();
+    expect(useShell.getState().route.inspector).toBeUndefined();
+  });
+
+  it("retains the active Run subscription across pages and aborts it on expiry", async () => {
+    const base = globalThis.fetch;
+    const signals: AbortSignal[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/v1/conversations/c1") {
+        return json({
+          conversation: CONVERSATION,
+          active_run: {
+            run: { run_id: "live", status: "running", agent_strategy: "react" },
+            assistant_message: {
+              message_id: "pending",
+              role: "assistant",
+              content: "",
+              status: "pending",
+            },
+          },
+        });
+      }
+      if (url.includes("/runs/live/events")) {
+        signals.push(init!.signal as AbortSignal);
+        return new Response(new ReadableStream(), {
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return base(input, init);
+    });
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+    await screen.findByPlaceholderText(/输入消息/);
+    await waitFor(() => expect(signals).toHaveLength(1));
+    const nav = screen.getByRole("navigation", { name: "主导航" });
+    for (const name of ["空间", "任务", "AI"]) {
+      fireEvent.click(within(nav).getByRole("button", { name }));
+    }
+    act(() => useShell.getState().openInspector({ kind: "file", objectId: "root" }));
+    await screen.findByText("目录", { selector: "p" });
+    fireEvent.click(screen.getByRole("button", { name: "关闭文件详情" }));
+    expect(signals).toHaveLength(1);
+    expect(signals[0]!.aborted).toBe(false);
+    act(() => useAuth.getState().expire());
+    expect(signals[0]!.aborted).toBe(true);
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  });
+
+  it("never renders business content before /me succeeds", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => {})),
+    );
+    render(<App />);
+    expect(screen.getByRole("status")).toHaveTextContent("正在恢复会话");
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+  it("keeps one chat runtime and its draft across navigation and an unavailable Inspector", async () => {
+    const base = globalThis.fetch;
+    const requests: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      requests.push(url);
+      if (url === "/api/v1/runs/missing")
+        return new Response(JSON.stringify({ error: { code: "not_found" } }), { status: 404 });
+      return base(input, init);
+    });
+    render(
+      <StrictMode>
+        <App />
+      </StrictMode>,
+    );
+    const composer = await screen.findByPlaceholderText(/输入消息/);
+    fireEvent.change(composer, { target: { value: "尚未发送的草稿" } });
+    const details = requests.filter((url) => url === "/api/v1/conversations/c1").length;
+    const nav = screen.getByRole("navigation", { name: "主导航" });
+    expect(within(nav).getAllByRole("button")).toHaveLength(3);
+    fireEvent.click(within(nav).getByRole("button", { name: "空间" }));
+    fireEvent.click(within(nav).getByRole("button", { name: "任务" }));
+    fireEvent.click(within(nav).getByRole("button", { name: "AI" }));
+    act(() => useShell.getState().openInspector({ kind: "run", objectId: "missing" }));
+    expect(await screen.findByText("对象不可用。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "回到所属页面" }));
+    expect(screen.getByPlaceholderText(/输入消息/)).toBe(composer);
+    expect(composer).toHaveValue("尚未发送的草稿");
+    expect(requests.filter((url) => url === "/api/v1/conversations/c1")).toHaveLength(details);
+    expect(useShell.getState().route.screen).toBe("ai");
+  });
+  it("clears session projections synchronously on account expiry", async () => {
+    render(<App />);
+    await screen.findByPlaceholderText(/输入消息/);
+    act(() => {
+      useShell.getState().openInspector({ kind: "file", objectId: "old" });
+      useAuth.getState().expire();
+    });
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(useWorkbench.getState().messages).toEqual([]);
+    expect(useWorkbench.getState().activeConversationId).toBeNull();
+    expect(useShell.getState().route.inspector).toBeUndefined();
+    expect(useArtifacts.getState().versionsByArtifactId).toEqual({});
   });
 });

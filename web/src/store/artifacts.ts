@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useShell } from "./shell";
 import { api as defaultApi } from "../api/client";
 import { HpApi } from "../api/resources";
 import {
@@ -20,9 +21,10 @@ interface ArtifactState {
   loadingMessageIds: string[];
   buildingVersionIds: string[];
   error: string | null;
+  loadErrorStatus: number | null;
   loadForMessage: (messageId: string) => Promise<HpArtifactSummary[] | null>;
   createArtifact: (messageId: string, instruction?: string | null) => Promise<void>;
-  openArtifact: (artifactId: string, versionId?: string) => Promise<void>;
+  openArtifact: (artifactId: string, versionId?: string, navigate?: boolean) => Promise<void>;
   createVersion: (artifactId: string, instruction: string) => Promise<void>;
   selectVersion: (versionId: string) => void;
   clearError: () => void;
@@ -34,6 +36,10 @@ export interface ArtifactStoreDeps {
   api: HpApi;
   sleep?: (milliseconds: number) => Promise<void>;
   newIdempotencyKey?: () => string;
+  onOpen?: (artifactId: string, versionId?: string) => void;
+  navigationToken?: () => number;
+  onClose?: () => void;
+  onVersion?: (versionId: string) => void;
 }
 
 const initialState = {
@@ -45,6 +51,7 @@ const initialState = {
   loadingMessageIds: [],
   buildingVersionIds: [],
   error: null,
+  loadErrorStatus: null,
 };
 
 function upsert(items: HpArtifactVersion[], value: HpArtifactVersion): HpArtifactVersion[] {
@@ -60,8 +67,17 @@ function unique(values: string[]): string[] {
 
 export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(defaultApi) }) {
   const api = deps.api;
+  const timers = new Map<ReturnType<typeof setTimeout>, () => void>();
   const sleep =
-    deps.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+    deps.sleep ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          timers.delete(timer);
+          resolve();
+        }, milliseconds);
+        timers.set(timer, resolve);
+      }));
   const newKey = deps.newIdempotencyKey ?? newIdempotencyKey;
 
   return create<ArtifactState>()((set) => {
@@ -69,14 +85,24 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
     // requests and pollers. Fetch cannot always be aborted after dispatch, so
     // generation is the final guard before any response mutates the store.
     let generation = 0;
+    let selectionGeneration = 0;
     const current = (value: number): boolean => value === generation;
 
     const reset = (): void => {
       generation += 1;
+      selectionGeneration += 1;
+      timers.forEach((resolve, timer) => {
+        clearTimeout(timer);
+        resolve();
+      });
+      timers.clear();
       set({ ...initialState });
     };
 
-    const poll = async (initial: HpArtifactVersion, pollGeneration: number): Promise<void> => {
+    const pollVersion = async (
+      initial: HpArtifactVersion,
+      pollGeneration: number,
+    ): Promise<void> => {
       let version = initial;
       let attempt = 0;
       while (version.status === "queued" || version.status === "running") {
@@ -111,6 +137,16 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
       }
     };
 
+    const pollers = new Map<string, Promise<void>>();
+    const poll = (initial: HpArtifactVersion, token: number) => {
+      const key = `${token}:${initial.artifact_version_id}`;
+      const existing = pollers.get(key);
+      if (existing) return existing;
+      const pending = pollVersion(initial, token).finally(() => pollers.delete(key));
+      pollers.set(key, pending);
+      return pending;
+    };
+
     return {
       ...initialState,
       loadForMessage: async (messageId) => {
@@ -140,6 +176,7 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
         }
       },
       createArtifact: async (messageId, instruction = null) => {
+        const navigationToken = deps.navigationToken?.();
         const requestGeneration = generation;
         set({ error: null });
         try {
@@ -161,25 +198,39 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
               ...state.versionsByArtifactId,
               [result.artifact.artifact_id]: [result.version],
             },
-            openArtifactId: result.artifact.artifact_id,
-            openVersionId: result.version.artifact_version_id,
+            ...(navigationToken === deps.navigationToken?.()
+              ? {
+                  openArtifactId: result.artifact.artifact_id,
+                  openVersionId: result.version.artifact_version_id,
+                }
+              : {}),
             buildingVersionIds: unique([
               ...state.buildingVersionIds,
               result.version.artifact_version_id,
             ]),
           }));
           void poll(result.version, requestGeneration);
+          if (navigationToken === deps.navigationToken?.())
+            deps.onOpen?.(result.artifact.artifact_id, result.version.artifact_version_id);
         } catch (error) {
           if (!current(requestGeneration)) return;
           set({ error: error instanceof Error ? error.message : "Artifact 创建失败。" });
         }
       },
-      openArtifact: async (artifactId, versionId) => {
+      openArtifact: async (artifactId, versionId, navigate = true) => {
+        if (navigate && deps.onOpen) {
+          deps.onOpen(artifactId, versionId);
+          return;
+        }
         const requestGeneration = generation;
-        set({ error: null });
+        const selection = ++selectionGeneration;
+        const navigationToken = deps.navigationToken?.();
+        const selected = () =>
+          selection === selectionGeneration && navigationToken === deps.navigationToken?.();
+        set({ error: null, loadErrorStatus: null });
         try {
           const result = await api.listArtifactVersions(artifactId);
-          if (!current(requestGeneration)) return;
+          if (!current(requestGeneration) || !selected()) return;
           const completed = [...result.items]
             .reverse()
             .find((version) => version.status === "completed");
@@ -204,14 +255,21 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
             void poll(latest, requestGeneration);
           }
         } catch (error) {
-          if (!current(requestGeneration)) return;
-          set({ error: error instanceof Error ? error.message : "Artifact 加载失败。" });
+          if (!current(requestGeneration) || !selected()) return;
+          set({
+            error: error instanceof Error ? error.message : "Artifact 加载失败。",
+            loadErrorStatus: error instanceof HpCommandError ? error.status : 0,
+          });
         }
       },
       createVersion: async (artifactId, instruction) => {
         const value = instruction.trim();
         if (!value) return;
         const requestGeneration = generation;
+        const selection = selectionGeneration;
+        const navigationToken = deps.navigationToken?.();
+        const selected = () =>
+          selection === selectionGeneration && navigationToken === deps.navigationToken?.();
         set({ error: null });
         try {
           const result = await api.createArtifactVersion(artifactId, value, newKey());
@@ -221,24 +279,43 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
               ...state.versionsByArtifactId,
               [artifactId]: upsert(state.versionsByArtifactId[artifactId] ?? [], result.version),
             },
-            openVersionId: result.version.artifact_version_id,
+            ...(selected() ? { openVersionId: result.version.artifact_version_id } : {}),
             buildingVersionIds: unique([
               ...state.buildingVersionIds,
               result.version.artifact_version_id,
             ]),
           }));
+          if (selected()) deps.onVersion?.(result.version.artifact_version_id);
           void poll(result.version, requestGeneration);
         } catch (error) {
-          if (!current(requestGeneration)) return;
+          if (!current(requestGeneration) || !selected()) return;
           set({ error: error instanceof Error ? error.message : "Artifact 修改失败。" });
         }
       },
-      selectVersion: (openVersionId) => set({ openVersionId }),
+      selectVersion: (openVersionId) => {
+        set({ openVersionId });
+        deps.onVersion?.(openVersionId);
+      },
       clearError: () => set({ error: null }),
-      closeArtifact: () => set({ openArtifactId: null, openVersionId: null }),
+      closeArtifact: () => {
+        selectionGeneration += 1;
+        set({ openArtifactId: null, openVersionId: null });
+        deps.onClose?.();
+      },
       reset,
     };
   });
 }
 
-export const useArtifacts = createArtifactStore();
+export const useArtifacts = createArtifactStore({
+  api: new HpApi(defaultApi),
+  navigationToken: () => useShell.getState().requestToken,
+  onOpen: (objectId, versionId) =>
+    useShell.getState().openInspector({ kind: "artifact", objectId, versionId }),
+  onClose: () => useShell.getState().closeInspector(),
+  onVersion: (versionId) => {
+    const { route, navigate } = useShell.getState();
+    if (route.inspector?.kind === "artifact")
+      navigate({ ...route, inspector: { ...route.inspector, versionId } }, true);
+  },
+});

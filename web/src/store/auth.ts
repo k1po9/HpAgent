@@ -24,6 +24,7 @@ interface AuthState {
   expire: () => void;
 }
 
+let generation = 0;
 export const useAuth = create<AuthState>((set) => ({
   status: "checking",
   account: null,
@@ -32,9 +33,11 @@ export const useAuth = create<AuthState>((set) => ({
   justRegistered: false,
 
   check: async () => {
+    const token = ++generation;
     set((state) => (state.status === "signedIn" ? {} : { status: "checking" }));
     try {
       const me = await api.me();
+      if (token !== generation) return;
       if (me === null) {
         set({
           status: "signedOut",
@@ -52,6 +55,7 @@ export const useAuth = create<AuthState>((set) => ({
         capabilities: me.capabilities,
       });
     } catch {
+      if (token !== generation) return;
       set({ status: "error", account: null, identities: null, capabilities: {} });
     }
   },
@@ -61,18 +65,13 @@ export const useAuth = create<AuthState>((set) => ({
   dismissRegistrationHint: () => set({ justRegistered: false }),
 
   signOut: async () => {
-    await api.logout();
-    api.reset();
-    set({
-      status: "signedOut",
-      account: null,
-      identities: null,
-      capabilities: {},
-      justRegistered: false,
-    });
+    const request = api.logout();
+    useAuth.getState().expire();
+    await request;
   },
 
   expire: () => {
+    generation += 1;
     api.reset();
     set({
       status: "signedOut",
@@ -83,3 +82,5 @@ export const useAuth = create<AuthState>((set) => ({
     });
   },
 }));
+
+api.onUnauthorized = () => useAuth.getState().expire();

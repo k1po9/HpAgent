@@ -52,6 +52,82 @@ function fakeApi(overrides: Partial<HpApi> = {}): HpApi {
 }
 
 describe("artifact store lifecycle", () => {
+  it("ignores stale object loads across A-B-A, including a late failure", async () => {
+    const old = deferred<Awaited<ReturnType<HpApi["listArtifactVersions"]>>>();
+    const load = vi
+      .fn()
+      .mockReturnValueOnce(old.promise)
+      .mockResolvedValue({
+        artifact,
+        items: [{ ...version("completed"), artifact_version_id: "current" }],
+      });
+    const store = createArtifactStore({ api: fakeApi({ listArtifactVersions: load }) });
+    const pending = store.getState().openArtifact("a1");
+    await store.getState().openArtifact("b");
+    await store.getState().openArtifact("a1");
+    old.resolve({ artifact, items: [version("completed")] });
+    await pending;
+    expect(store.getState().openVersionId).toBe("current");
+
+    const failure = deferred<Awaited<ReturnType<HpApi["listArtifactVersions"]>>>();
+    load.mockReturnValueOnce(
+      failure.promise.then(() => {
+        throw new Error("old failure");
+      }),
+    );
+    const failed = store.getState().openArtifact("b");
+    await store.getState().openArtifact("a1");
+    failure.resolve({ artifact, items: [] });
+    await failed;
+    expect(store.getState().error).toBeNull();
+  });
+
+  it("keeps a late created version on its object without changing the new selection", async () => {
+    const result = deferred<Awaited<ReturnType<HpApi["createArtifactVersion"]>>>();
+    let navigation = 0;
+    const onVersion = vi.fn();
+    const store = createArtifactStore({
+      api: fakeApi({ createArtifactVersion: () => result.promise }),
+      navigationToken: () => navigation,
+      onVersion,
+    });
+    await store.getState().openArtifact("a1");
+    const creating = store.getState().createVersion("a1", "change");
+    navigation += 1;
+    result.resolve({ artifact, version: { ...version("completed"), artifact_version_id: "new" } });
+    await creating;
+    expect(
+      store.getState().versionsByArtifactId.a1?.some((v) => v.artifact_version_id === "new"),
+    ).toBe(true);
+    expect(store.getState().openVersionId).toBe("v1");
+    expect(onVersion).not.toHaveBeenCalled();
+  });
+
+  it("reopening a building version shares one poller and reset clears its timer", async () => {
+    vi.useFakeTimers();
+    try {
+      const getVersion = vi.fn(async () => ({ version: version("completed") }));
+      const store = createArtifactStore({
+        api: fakeApi({
+          listArtifactVersions: vi.fn(async () => ({ artifact, items: [version("running")] })),
+          getArtifactVersion: getVersion,
+        }),
+      });
+      await store.getState().openArtifact("a1");
+      await store.getState().openArtifact("a1");
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(getVersion).toHaveBeenCalledOnce();
+      await store.getState().openArtifact("a1");
+      store.getState().reset();
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(getVersion).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("fully clears account-scoped HTML and transient state on reset", () => {
     const store = createArtifactStore({ api: fakeApi() });
     store.setState({

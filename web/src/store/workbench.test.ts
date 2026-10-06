@@ -696,6 +696,20 @@ describe("workbench store", () => {
     return base;
   }
 
+  it("disposes the live feed on reset without sending a backend cancellation", async () => {
+    const channel = sseChannel();
+    const backend = makeSseBackend(channel);
+    const store = makeStore(backend);
+    await store.getState().selectConversation("c1");
+    await store.getState().sendMessage("private");
+    store.getState().reset();
+    expect(store.getState().activeRun).toBeNull();
+    expect(store.getState().messages).toEqual([]);
+    expect(store.getState().polling).toBe(false);
+    expect(backend.calls.some((call) => call.url.endsWith("/cancel"))).toBe(false);
+    expect(() => channel.sendRaw("late frame")).toThrow();
+  });
+
   it("streams SSE deltas and progress, then resolves on the terminal snapshot", async () => {
     const channel = sseChannel();
     const backend = makeSseBackend(channel);

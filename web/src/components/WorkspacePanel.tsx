@@ -17,6 +17,7 @@ export function WorkspacePanel({
   refreshSignal,
   onSelectDirectory,
   view = "all",
+  directoryId,
 }: {
   accountId: string | null;
   currentRunId: string | null;
@@ -26,6 +27,7 @@ export function WorkspacePanel({
   refreshSignal: number;
   onSelectDirectory: (id: string | null) => void;
   view?: "all" | "files" | "authority";
+  directoryId?: string;
 }) {
   const [tree, setTree] = useState<Tree | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -192,7 +194,9 @@ export function WorkspacePanel({
 
   const applyTree = useCallback(
     (value: Tree) => {
-      const active = value.nodes.find((node) => node.node_id === selectedNodeRef.current);
+      const active = value.nodes.find(
+        (node) => node.node_id === (directoryId ?? selectedNodeRef.current),
+      );
       const identity = active?.node_id ?? value.root_id;
       selectedNodeRef.current = identity;
       setTree(value);
@@ -203,7 +207,7 @@ export function WorkspacePanel({
         active?.kind === "directory" ? active.node_id : (active?.parent_id ?? value.root_id),
       );
     },
-    [onSelectDirectory],
+    [onSelectDirectory, directoryId],
   );
 
   const refresh = useCallback(async () => {

@@ -1,21 +1,14 @@
 import { Box, Button, Flex, Heading, Spinner, Text } from "@radix-ui/themes";
-import { Plus, LogOut } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { HpConversation } from "../api/types";
-import type { MeResponse } from "../api/client";
-import { QQBindingPanel } from "./QQBindingPanel";
 
 interface ConversationSidebarProps {
   conversations: HpConversation[];
   activeConversationId: string | null;
   loading: boolean;
   creating: boolean;
-  accountName: string;
   onSelect: (id: string) => void;
   onCreate: () => void;
-  onSignOut: () => void;
-  qqIdentity?: MeResponse["identities"]["qq"];
-  onIdentityRefresh: () => Promise<void>;
-  startQqBinding?: boolean;
 }
 
 /**
@@ -29,13 +22,8 @@ export function ConversationSidebar({
   activeConversationId,
   loading,
   creating,
-  accountName,
   onSelect,
   onCreate,
-  onSignOut,
-  qqIdentity,
-  onIdentityRefresh,
-  startQqBinding,
 }: ConversationSidebarProps) {
   return (
     <Box className="hp-sidebar">
@@ -89,22 +77,6 @@ export function ConversationSidebar({
             </button>
           ))}
         </Flex>
-
-        <Box className="hp-sidebar__footer">
-          <QQBindingPanel
-            qq={qqIdentity}
-            onCompleted={onIdentityRefresh}
-            startRequested={startQqBinding}
-          />
-          <Flex justify="between" align="center" mt="2">
-            <Text size="1" color="gray" truncate title={accountName}>
-              {accountName}
-            </Text>
-            <Button size="1" variant="ghost" color="gray" onClick={onSignOut} aria-label="退出登录">
-              <LogOut size={14} />
-            </Button>
-          </Flex>
-        </Box>
       </Flex>
     </Box>
   );

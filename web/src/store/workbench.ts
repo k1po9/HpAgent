@@ -71,10 +71,6 @@ export function runStatusLabel(status: HpRunStatus): string {
 
 const POLL_DELAYS = [1000, 2000, 3000, 5000] as const;
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export interface WorkbenchDeps {
   api: HpApi;
   /** fetch override for the SSE subscription (tests swap this for a mock). */
@@ -147,6 +143,7 @@ export interface WorkbenchState {
   retryRun: () => Promise<void>;
   refreshActiveRun: () => Promise<void>;
   clearError: () => void;
+  reset: () => void;
 }
 
 /** Replace the temp user message with authoritative ids; append the assistant msg. */
@@ -226,6 +223,21 @@ export function createWorkbenchStore(
     let activeFeed: RunFeed | null = null;
     let budgetRefreshTimer: ReturnType<typeof setTimeout> | null = null;
     let conversationSelectionGeneration = 0;
+    let accountGeneration = 0;
+    const pendingSleeps = new Map<ReturnType<typeof setTimeout>, () => void>();
+    const pause = (ms: number) =>
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          pendingSleeps.delete(timer);
+          resolve();
+        }, ms);
+        pendingSleeps.set(timer, resolve);
+      });
+    const fence = () => {
+      const account = accountGeneration;
+      const selection = conversationSelectionGeneration;
+      return () => account === accountGeneration && selection === conversationSelectionGeneration;
+    };
 
     const closeFeed = (): void => {
       if (activeFeed) {
@@ -264,7 +276,7 @@ export function createWorkbenchStore(
         let attempt = 0;
         for (;;) {
           const delay = POLL_DELAYS[Math.min(attempt, POLL_DELAYS.length - 1)] ?? 5000;
-          await sleep(delay);
+          await pause(delay);
           attempt += 1;
           const current = get();
           if (current.pollGeneration !== generation) return;
@@ -395,7 +407,7 @@ export function createWorkbenchStore(
               startPolling(runId);
             },
             onAuthExpired: () => {
-              deps.onAuthExpired?.();
+              if (!stale()) deps.onAuthExpired?.();
             },
           },
           { fetchImpl: deps.fetchImpl },
@@ -413,6 +425,7 @@ export function createWorkbenchStore(
 
     /** Re-fetch the active Run from the conversation detail (busy recovery). */
     async function refreshActiveRun(): Promise<void> {
+      const valid = fence();
       const conversationId = get().activeConversationId;
       if (!conversationId) {
         set({ activeRun: null, activeRunError: null });
@@ -420,6 +433,7 @@ export function createWorkbenchStore(
       }
       try {
         const detail = await api.getConversationDetail(conversationId);
+        if (!valid()) return;
         const active = detail.active_run;
         set((s) => ({
           activeRun: active?.run ?? null,
@@ -465,16 +479,19 @@ export function createWorkbenchStore(
       pollGeneration: 0,
 
       loadConversations: async () => {
+        const account = accountGeneration;
         if (get().loadingConversations) return;
         set({ loadingConversations: true, conversationsError: null });
         try {
           const page = await api.listConversations();
+          if (account !== accountGeneration) return;
           set({
             loadingConversations: false,
             conversationsLoaded: true,
             conversations: page.items,
           });
         } catch (err) {
+          if (account !== accountGeneration) return;
           set({
             loadingConversations: false,
             conversationsError: messageErrorText(err),
@@ -483,12 +500,12 @@ export function createWorkbenchStore(
       },
 
       createConversation: async () => {
+        const valid = fence();
         if (get().creatingConversation) return;
-        closeFeed();
-        useTraceStore.getState().reset();
         set({ creatingConversation: true, error: null });
         try {
           const result = await api.createConversation(newIdempotencyKey());
+          if (!valid()) return;
           const conversation = result.conversation;
           conversationSelectionGeneration += 1;
           closeFeed();
@@ -514,7 +531,7 @@ export function createWorkbenchStore(
             pollGeneration: s.pollGeneration + 1,
           }));
         } catch (err) {
-          set({ creatingConversation: false, error: messageErrorText(err) });
+          if (valid()) set({ creatingConversation: false, error: messageErrorText(err) });
         }
       },
 
@@ -525,6 +542,10 @@ export function createWorkbenchStore(
         useTraceStore.getState().reset();
         set((s) => ({
           activeConversationId: id,
+          creatingConversation: false,
+          sending: false,
+          stopping: false,
+          loadingMoreMessages: false,
           messages: [],
           attachments: [],
           fileCandidates: [],
@@ -564,17 +585,26 @@ export function createWorkbenchStore(
           }
         } catch (err) {
           if (generation !== conversationSelectionGeneration) return;
-          set({ loadingMessages: false, error: messageErrorText(err) });
+          set({
+            loadingMessages: false,
+            activeConversationId: null,
+            error:
+              err instanceof HpCommandError && [403, 404].includes(err.status)
+                ? "对象不可用。"
+                : messageErrorText(err),
+          });
         }
       },
 
       loadMoreMessages: async () => {
+        const valid = fence();
         const conversationId = get().activeConversationId;
         const cursor = get().messageCursor;
         if (!conversationId || !cursor || get().loadingMoreMessages) return;
         set({ loadingMoreMessages: true });
         try {
           const page = await api.listMessages(conversationId, cursor);
+          if (!valid()) return;
           const seen = new Set(get().messages.map((m) => m.message_id));
           const fresh = page.items.filter((m) => !seen.has(m.message_id));
           set((s) => ({
@@ -585,11 +615,13 @@ export function createWorkbenchStore(
             hasMoreMessages: page.has_more,
           }));
         } catch (err) {
+          if (!valid()) return;
           set({ loadingMoreMessages: false, error: messageErrorText(err) });
         }
       },
 
       addAttachments: async (selectedFiles) => {
+        const valid = fence();
         const conversationId = get().activeConversationId;
         if (!conversationId || selectedFiles.length === 0) return;
         const active = get().activeRun;
@@ -626,6 +658,7 @@ export function createWorkbenchStore(
                 browserFile,
                 newIdempotencyKey(),
               );
+              if (!valid()) return;
               set((state) => ({
                 attachments: state.attachments.map((item) =>
                   item.localId === attachment.localId
@@ -638,6 +671,7 @@ export function createWorkbenchStore(
                 return;
               }
               const uploaded = await api.uploadContent(created.content_url, browserFile);
+              if (!valid()) return;
               set((state) => ({
                 attachments: state.attachments.map((item) =>
                   item.localId === attachment.localId
@@ -649,6 +683,7 @@ export function createWorkbenchStore(
                 await api.deleteFile(uploaded.file_id);
               }
             } catch (err) {
+              if (!valid()) return;
               set((state) => ({
                 attachments: state.attachments.map((item) =>
                   item.localId === attachment.localId
@@ -686,6 +721,7 @@ export function createWorkbenchStore(
       },
 
       loadFileCandidates: async (more = false) => {
+        const valid = fence();
         const conversationId = get().activeConversationId;
         if (!conversationId) return;
         try {
@@ -693,17 +729,19 @@ export function createWorkbenchStore(
             conversationId,
             more ? get().fileCandidatesNext : null,
           );
-          if (get().activeConversationId !== conversationId) return;
+          if (!valid()) return;
           set((state) => ({
             fileCandidates: more ? [...state.fileCandidates, ...page.items] : page.items,
             fileCandidatesNext: page.next_before,
           }));
         } catch (err) {
+          if (!valid()) return;
           set({ error: messageErrorText(err) });
         }
       },
 
       removeAttachment: async (localId) => {
+        const valid = fence();
         const attachment = get().attachments.find((item) => item.localId === localId);
         if (!attachment) return;
         set((state) => ({
@@ -713,12 +751,14 @@ export function createWorkbenchStore(
           try {
             await api.deleteFile(attachment.fileId);
           } catch (err) {
+            if (!valid()) return;
             set({ error: messageErrorText(err) });
           }
         }
       },
 
       sendMessage: async (content) => {
+        const valid = fence();
         const conversationId = get().activeConversationId;
         const trimmed = content.trim();
         if (!conversationId || !trimmed) return false;
@@ -756,6 +796,7 @@ export function createWorkbenchStore(
             agentStrategy: get().agentStrategy,
             fileIds: attachments.map((item) => item.fileId as string),
           });
+          if (!valid()) return false;
           set((s) => ({
             sending: false,
             messages: replaceTempMessage(
@@ -774,6 +815,7 @@ export function createWorkbenchStore(
           startRunMonitor(result.run.run_id);
           return true;
         } catch (err) {
+          if (!valid()) return false;
           const messages = get().messages.filter((m) => m.message_id !== tempId);
           if (err instanceof HpCommandError && err.code === "conversation_busy") {
             set({ sending: false, messages, activeRunError: err.error.message });
@@ -792,6 +834,7 @@ export function createWorkbenchStore(
       },
 
       stopRun: async () => {
+        const valid = fence();
         const run = get().activeRun;
         if (!run || !isCancellableRunStatus(run.status) || get().stopping) return;
         set({ stopping: true, error: null });
@@ -800,23 +843,26 @@ export function createWorkbenchStore(
           // The SSE monitor (or its polling fallback) observes the terminal
           // cancelled snapshot.
         } catch (err) {
+          if (!valid()) return;
           if (err instanceof HpCommandError && err.code === "run_not_cancellable") {
             void refreshActiveRun();
           } else {
             set({ error: messageErrorText(err) });
           }
         } finally {
-          set({ stopping: false });
+          if (valid()) set({ stopping: false });
         }
       },
 
       retryRun: async () => {
+        const valid = fence();
         const run = get().activeRun;
         if (!run || !isRetryableRun(run)) return;
         if (get().sending || get().stopping) return;
         set({ sending: true, error: null });
         try {
           const result = await api.retryRun(run.run_id, newIdempotencyKey());
+          if (!valid()) return;
           set((s) => ({
             sending: false,
             messages: reconcileAssistantMessage(s.messages, result.assistant_message),
@@ -828,6 +874,7 @@ export function createWorkbenchStore(
           }));
           startRunMonitor(result.run.run_id);
         } catch (err) {
+          if (!valid()) return;
           if (err instanceof HpCommandError && err.code === "conversation_busy") {
             set({ sending: false, activeRunError: err.error.message });
             void refreshActiveRun();
@@ -849,6 +896,42 @@ export function createWorkbenchStore(
       refreshActiveRun,
 
       clearError: () => set({ error: null, activeRunError: null }),
+      reset: () => {
+        accountGeneration += 1;
+        conversationSelectionGeneration += 1;
+        closeFeed();
+        pendingSleeps.forEach((resolve, timer) => {
+          clearTimeout(timer);
+          resolve();
+        });
+        pendingSleeps.clear();
+        set({
+          conversations: [],
+          conversationsLoaded: false,
+          loadingConversations: false,
+          creatingConversation: false,
+          conversationsError: null,
+          activeConversationId: null,
+          messages: [],
+          messageCursor: null,
+          hasMoreMessages: false,
+          loadingMessages: false,
+          loadingMoreMessages: false,
+          attachments: [],
+          fileCandidates: [],
+          fileCandidatesNext: null,
+          activeRun: null,
+          activeRunError: null,
+          activeRunProgress: null,
+          degraded: false,
+          polling: false,
+          sending: false,
+          stopping: false,
+          agentStrategy: "react",
+          error: null,
+          pollGeneration: get().pollGeneration + 1,
+        });
+      },
     };
   });
 }

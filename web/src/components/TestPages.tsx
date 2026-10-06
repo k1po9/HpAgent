@@ -5,6 +5,7 @@ import type { HpRunSnapshot } from "../api/types";
 import { useWorkbench } from "../store/workbench";
 import { useWorks } from "../store/works";
 import { useArtifacts } from "../store/artifacts";
+import { Surface } from "./shell/Surface";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { TracePanel } from "./trace/TracePanel";
 import { useTraceStore } from "./trace/traceStore";
@@ -77,18 +78,19 @@ export function SaveWorkspaceDialog({
     }
   }
   return (
-    <div className="hp-dialog-backdrop">
+    <Surface
+      title="保存到长期文件"
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+    >
       <form
-        role="dialog"
-        aria-modal="true"
-        aria-label="保存到长期文件"
         className="hp-operation-form"
         onSubmit={(e) => {
           e.preventDefault();
           void save();
         }}
       >
-        <h2>保存到长期文件</h2>
         <p>源文件：{file.file_name}</p>
         {"html" in file && <p>以文本保存 HTML 源码；交互预览仍在成果页面。</p>}
         <label>
@@ -113,11 +115,17 @@ export function SaveWorkspaceDialog({
         </button>
         {error && <p role="alert">{error}</p>}
       </form>
-    </div>
+    </Surface>
   );
 }
 
-export function ArtifactsPage({ onWorkspaceSaved }: { onWorkspaceSaved?: () => void }) {
+export function ArtifactsPage({
+  onWorkspaceSaved,
+  showPanel = true,
+}: {
+  onWorkspaceSaved?: () => void;
+  showPanel?: boolean;
+}) {
   const [saveSource, setSaveSource] = useState<SaveSource | null>(null);
   const messages = useWorkbench((s) => s.messages);
   const byMessage = useArtifacts((s) => s.artifactsByMessageId);
@@ -178,9 +186,11 @@ export function ArtifactsPage({ onWorkspaceSaved }: { onWorkspaceSaved?: () => v
         {error && <p role="alert">{error}</p>}
         {!candidates.length && <p>先在对话页完成一次回复，或从工作列表打开已有成果。</p>}
       </form>
-      <ArtifactPanel
-        onSaveHtml={(html, name) => setSaveSource({ html, file_name: `${name}.txt` })}
-      />
+      {showPanel && (
+        <ArtifactPanel
+          onSaveHtml={(html, name) => setSaveSource({ html, file_name: `${name}.txt` })}
+        />
+      )}
       {saveSource && (
         <SaveWorkspaceDialog
           file={saveSource}

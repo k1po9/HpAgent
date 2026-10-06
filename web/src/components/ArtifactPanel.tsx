@@ -5,9 +5,17 @@ import { ArtifactPreview } from "./ArtifactPreview";
 
 export function ArtifactPanel({
   onSaveHtml,
-}: { onSaveHtml?: (html: string, name: string) => void } = {}) {
-  const artifactId = useArtifacts((s) => s.openArtifactId);
-  const versionId = useArtifacts((s) => s.openVersionId);
+  selectedArtifactId,
+  selectedVersionId,
+  embedded = false,
+}: {
+  onSaveHtml?: (html: string, name: string) => void;
+  selectedArtifactId?: string;
+  selectedVersionId?: string;
+  embedded?: boolean;
+} = {}) {
+  const artifactId = useArtifacts((s) => selectedArtifactId ?? s.openArtifactId);
+  const versionId = useArtifacts((s) => selectedVersionId ?? s.openVersionId);
   const artifact = useArtifacts((s) => (artifactId ? s.artifactsById[artifactId] : undefined));
   const versions = useArtifacts((s) =>
     artifactId ? (s.versionsByArtifactId[artifactId] ?? []) : [],
@@ -37,9 +45,11 @@ export function ArtifactPanel({
               </Text>
             ) : null}
           </div>
-          <Button size="1" variant="soft" onClick={close}>
-            关闭
-          </Button>
+          {!embedded && (
+            <Button size="1" variant="soft" onClick={close}>
+              关闭
+            </Button>
+          )}
         </Flex>
         {version?.status === "completed" && version.html && (
           <Flex gap="2">

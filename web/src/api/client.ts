@@ -65,6 +65,13 @@ const CSRF_ERROR_CODES = new Set(["csrf_invalid"]);
 
 export class ApiClient {
   private csrfToken: string | null = null;
+  private generation = 0;
+  private requests = new Set<AbortController>();
+  onUnauthorized?: () => void;
+
+  private assertCurrent(generation: number): void {
+    if (generation !== this.generation) throw new DOMException("Session changed", "AbortError");
+  }
   private readonly fetchImpl: HpApiTransport["fetch"];
 
   constructor(fetchImpl?: HpApiTransport["fetch"]) {
@@ -76,17 +83,22 @@ export class ApiClient {
   }
 
   /** Reset the cached CSRF token (logout, session expiry). */
-  reset(): void {
-    this.csrfToken = null;
+  reset(preserveCsrf = false): void {
+    this.generation += 1;
+    this.requests.forEach((controller) => controller.abort());
+    this.requests.clear();
+    if (!preserveCsrf) this.csrfToken = null;
   }
 
   async me(signal?: AbortSignal): Promise<MeResponse | null> {
+    const generation = this.generation;
     const response = await this.fetchImpl("/api/v1/me", {
       method: "GET",
       credentials: "same-origin",
       headers: { Accept: "application/json" },
       signal,
     });
+    this.assertCurrent(generation);
     if (response.status === 401) {
       this.csrfToken = null;
       return null;
@@ -95,6 +107,7 @@ export class ApiClient {
       throw await this.toError(response);
     }
     const body = (await response.json()) as MeResponse;
+    this.assertCurrent(generation);
     this.csrfToken = body.csrf_token;
     return body;
   }
@@ -141,12 +154,13 @@ export class ApiClient {
   }
 
   async logout(): Promise<void> {
+    const generation = this.generation;
     const response = await this.fetchImpl("/api/v1/auth/logout", {
       method: "POST",
       credentials: "same-origin",
       headers: this.mutationHeaders(),
     });
-    this.csrfToken = null;
+    if (generation === this.generation) this.csrfToken = null;
     if (response.status !== 204) {
       throw await this.toError(response);
     }
@@ -168,14 +182,29 @@ export class ApiClient {
   }
 
   async request<T>(init: ApiRequestInit): Promise<T> {
-    const response = await this.fetchImpl(init.path, {
-      method: init.method,
-      credentials: "same-origin",
-      headers: this.buildRequestHeaders(init),
-      body: this.requestBody(init),
-      signal: init.signal,
-    });
-    return this.resolve<T>(response, init, 0);
+    const generation = this.generation;
+    const controller = new AbortController();
+    this.requests.add(controller);
+    const abort = () => controller.abort();
+    init.signal?.addEventListener("abort", abort, { once: true });
+    if (init.signal?.aborted) controller.abort();
+    const request = { ...init, signal: controller.signal };
+    try {
+      const response = await this.fetchImpl(init.path, {
+        method: init.method,
+        credentials: "same-origin",
+        headers: this.buildRequestHeaders(init),
+        body: this.requestBody(init),
+        signal: controller.signal,
+      });
+      this.assertCurrent(generation);
+      const result = await this.resolve<T>(response, request, 0, generation);
+      this.assertCurrent(generation);
+      return result;
+    } finally {
+      this.requests.delete(controller);
+      init.signal?.removeEventListener("abort", abort);
+    }
   }
 
   private mutationHeaders(): Record<string, string> {
@@ -217,7 +246,10 @@ export class ApiClient {
     response: Response,
     init: ApiRequestInit,
     csrfRetryCount: number,
+    generation: number,
   ): Promise<T> {
+    this.assertCurrent(generation);
+    if (response.status === 401) this.onUnauthorized?.();
     if (response.ok) {
       const idempotencyReplayed = response.headers.get("idempotency-replayed") === "true";
       if (response.status === 204) {
@@ -230,7 +262,10 @@ export class ApiClient {
     // CSRF token rotation: refresh from /me exactly once, then replay the same
     // request with the same Idempotency-Key (the intent is unchanged).
     if (csrfRetryCount === 0 && !init.sensitive && (await this.isCsrfInvalid(response))) {
+      this.assertCurrent(generation);
       const me = await this.me();
+      this.assertCurrent(generation);
+      if (me === null) this.onUnauthorized?.();
       if (me !== null) {
         const retried = await this.fetchImpl(init.path, {
           method: init.method,
@@ -239,7 +274,7 @@ export class ApiClient {
           body: this.requestBody(init),
           signal: init.signal,
         });
-        return this.resolve<T>(retried, init, 1);
+        return this.resolve<T>(retried, init, 1, generation);
       }
     }
 

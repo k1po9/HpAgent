@@ -4,7 +4,7 @@ import { useTraceStore } from "./traceStore";
 import { TraceTree } from "./TraceTree";
 import { TraceDetail } from "./TraceDetail";
 
-export function TracePanel() {
+export function TracePanel({ embedded = false }: { embedded?: boolean }) {
   const open = useTraceStore((state) => state.open);
   const runId = useTraceStore((state) => state.runId);
   const run = useTraceStore((state) => state.run);
@@ -44,9 +44,11 @@ export function TracePanel() {
           >
             <RefreshCw aria-hidden="true" />
           </button>
-          <button type="button" aria-label="关闭 Trace" onClick={() => setOpen(false)}>
-            <X aria-hidden="true" />
-          </button>
+          {!embedded && (
+            <button type="button" aria-label="关闭 Trace" onClick={() => setOpen(false)}>
+              <X aria-hidden="true" />
+            </button>
+          )}
         </div>
       </header>
       <div className="hp-trace-summary">

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useShell } from "../../store/shell";
 import { api as defaultApi } from "../../api/client";
 import { HpApi } from "../../api/resources";
 import type { HpTraceEventNode, HpTraceRun, HpTraceStatus, HpTraceTree } from "../../api/types";
@@ -30,6 +31,7 @@ export interface TraceState {
 
   setOpen: (open: boolean) => void;
   followRun: (runId: string | null) => void;
+  selectRun: (runId: string) => void;
   loadTrace: () => Promise<void>;
   applyEvent: (runId: string, event: TraceEventUpdate) => void;
   selectNode: (nodeId: string) => void;
@@ -71,7 +73,11 @@ function terminalStatus(value: string | null): HpTraceStatus {
   return "completed";
 }
 
-export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
+export function createTraceStore(
+  api: HpApi = new HpApi(defaultApi),
+  onOpen?: (runId: string | null) => void,
+) {
+  let generation = 0;
   return create<TraceState>()((set, get) => ({
     open: false,
     runId: null,
@@ -83,10 +89,19 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
     error: null,
     modelInputs: {},
 
-    setOpen: (open) => set({ open }),
+    setOpen: (open) => {
+      set({ open });
+      onOpen?.(open ? get().runId : null);
+    },
 
+    selectRun: (runId) => {
+      set({ open: false });
+      get().followRun(runId);
+      set({ open: true });
+    },
     followRun: (runId) => {
-      if (get().runId === runId) return;
+      if (get().open || get().runId === runId) return;
+      generation += 1;
       set({
         runId,
         run: null,
@@ -100,12 +115,13 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
     },
 
     loadTrace: async () => {
+      const token = generation;
       const runId = get().runId;
       if (!runId || get().loading) return;
       set({ loading: true, error: null });
       try {
         const tree = await api.getRunTrace(runId);
-        if (get().runId !== runId) return;
+        if (token !== generation || get().runId !== runId) return;
         const normalized = flattenTree(tree);
         set((state) => ({
           run: tree.run,
@@ -117,7 +133,7 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
           loading: false,
         }));
       } catch {
-        if (get().runId === runId) {
+        if (token === generation && get().runId === runId) {
           set({ loading: false, error: "Trace 暂不可用，实时事件仍会继续显示。" });
         }
       }
@@ -127,6 +143,7 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
       if (get().runId !== runId) {
         get().followRun(runId);
       }
+      if (get().runId !== runId) return;
       set((state) => {
         const existing = state.nodes[event.nodeId];
         const node: TraceNode =
@@ -169,6 +186,7 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
     selectNode: (selectedNodeId) => set({ selectedNodeId }),
 
     loadModelInput: async (snapshotId) => {
+      const token = generation;
       const current = get().modelInputs[snapshotId];
       if (current?.status === "loading" || current?.status === "loaded") return;
       set((state) => ({
@@ -176,6 +194,7 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
       }));
       try {
         const detail = await api.getModelInput(snapshotId);
+        if (token !== generation) return;
         set((state) => ({
           modelInputs: {
             ...state.modelInputs,
@@ -183,6 +202,7 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
           },
         }));
       } catch (error) {
+        if (token !== generation) return;
         const unavailable =
           typeof error === "object" &&
           error !== null &&
@@ -197,8 +217,10 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
       }
     },
 
-    reset: () =>
+    reset: () => {
+      generation += 1;
       set({
+        open: false,
         runId: null,
         run: null,
         nodes: {},
@@ -207,8 +229,13 @@ export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
         loading: false,
         error: null,
         modelInputs: {},
-      }),
+      });
+    },
   }));
 }
 
-export const useTraceStore = createTraceStore();
+export const useTraceStore = createTraceStore(new HpApi(defaultApi), (runId) => {
+  if (runId) useShell.getState().openInspector({ kind: "run", objectId: runId });
+  else if (useShell.getState().route.inspector?.kind === "run")
+    useShell.getState().closeInspector();
+});

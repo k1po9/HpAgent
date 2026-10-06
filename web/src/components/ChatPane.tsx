@@ -200,7 +200,13 @@ export function ChatPane({
           size="1"
           variant={traceOpen ? "solid" : "soft"}
           disabled={!latestRunId}
-          onClick={() => setTraceOpen(!traceOpen)}
+          onClick={() => {
+            if (traceOpen) setTraceOpen(false);
+            else if (latestRunId) {
+              useTraceStore.getState().selectRun(latestRunId);
+              setTraceOpen(true);
+            }
+          }}
         >
           <Activity size={14} aria-hidden="true" /> Trace
         </Button>
