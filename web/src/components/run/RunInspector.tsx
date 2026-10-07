@@ -88,14 +88,16 @@ export function RunInspector({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, tab, Boolean(snapshot)]);
   useEffect(() => {
-    if (tab !== "advanced" || live || !snapshot) return;
+    if (tab !== "advanced" || live || !snapshot || terminal) return;
     let valid = true,
+      inFlight = false,
       timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
-      if (!valid) return;
-      if (!document.hidden && !useTraceStore.getState().loading)
-        await useTraceStore.getState().loadTrace();
-      if (valid && !terminal) timer = setTimeout(() => void poll(), 5000);
+      if (!valid || inFlight || document.hidden) return;
+      inFlight = true;
+      if (!useTraceStore.getState().loading) await useTraceStore.getState().loadTrace();
+      inFlight = false;
+      if (valid && !document.hidden) timer = setTimeout(() => void poll(), 5000);
     };
     timer = setTimeout(() => void poll(), 5000);
     const visible = () => {

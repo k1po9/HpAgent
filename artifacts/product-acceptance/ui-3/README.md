@@ -2,6 +2,8 @@
 
 2026-10-07（Asia/Shanghai）；基准 `325a5d7`。实现说明与 U3-01～U3-20 映射见 [实施报告](../../../docs/implementation/ui-3-execution-diagnostics-report.md)。
 
+修复批次的 R1/R2、轮询补验和最终验证见 [自检与修复记录](../../../docs/implementation/ui-3-self-review.md) 与 [修复证据](self-review/README.md)。本文件原统计保留为 `d577c36` 历史证据。
+
 ## 环境
 
 后端契约库：`hpagent_ui3_test_20261007`；浏览器库：`hpagent_ui3_e2e_20261007`。API / worker / migration 三个 DSN 指向对应独立库；Redis DB 13、API 8183、Vite 5276、独立文件目录 `/tmp/hpagent-ui3-files-20261007`。浏览器 workers=1；前端 Vitest 最终批次 maxWorkers=1，控制本机内存与 CPU 竞争。凭据不收录；复验按 [测试指南](../../../docs/development/testing.md)配置对应隔离环境。
@@ -26,12 +28,12 @@ PYTHONPATH=src .venv/bin/python -m pytest test/web_api/test_phase_b_api.py test/
 
 | 检查 | 结果 | 日志 |
 | --- | --- | --- |
-| 全量 Vitest，最终源码 | 197/197，30 个文件，exit 0 | [unit.log](logs/unit.log) |
+| 原实施全量 Vitest | 197/197，30 个文件，exit 0 | [unit.log](logs/unit.log) |
 | TypeScript | exit 0 | [typecheck.log](logs/typecheck.log) |
 | ESLint / Prettier | exit 0 | [lint.log](logs/lint.log) |
 | 生产构建 | exit 0；主 bundle >500 kB 提示 | [build.log](logs/build.log) |
 | 受影响 Chromium 回归 | 28/28，exit 0；最后 Run ID 保护前的稳定批次 | [e2e-regression.log](logs/e2e-regression.log) |
-| UI-3 最终复验 | 2/2，exit 0；含最后审批查询竞态修复 | [e2e-ui3.log](logs/e2e-ui3.log) |
+| 原实施 UI-3 复验 | 2/2，exit 0；含最后审批查询竞态修复 | [e2e-ui3.log](logs/e2e-ui3.log) |
 | 审批 API / 持久化 | 8/8，exit 0 | [approval-contract.log](logs/approval-contract.log) |
 | Model Input / Work API | 6/6，exit 0 | [model-work-contract.log](logs/model-work-contract.log) |
 | Run / Workspace API / 持久化 | 31/31，exit 0 | [run-resource-contract.log](logs/run-resource-contract.log) |

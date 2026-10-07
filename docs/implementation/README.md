@@ -27,6 +27,8 @@
 
 - [UI-3 执行与诊断实施计划](ui-3-execution-diagnostics-plan.md)：基于 `325a5d7` 的 UI-1/UI-2 代码，规划消息执行块、Run Inspector、审批及 Trace/Model Input 上下文化，含接口边界、实施步骤与验收矩阵；执行结果见下方报告。
 
+- [UI-3 自检与修复记录](ui-3-self-review.md)：终态输出刷新、Model Input 权限拒绝缓存失效及轮询生命周期补验。
+
 - [UI-3 执行与诊断实施报告](ui-3-execution-diagnostics-report.md)：消息执行块、Run 三页签、审批意图恢复及诊断隔离；自动化结果和人工/Temporal 覆盖边界见报告及证据目录。
 
 - [UI-2 AI 主要交互实施计划](ui-2-ai-interaction-plan.md)：基于重构方案 v1.0 与 `cc40862` 的 UI-1 代码，定义 AI 对话、Composer、分页、附件与资料交互的实施及验收范围；保留规划基线，执行结果见下方报告。

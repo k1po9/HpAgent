@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createConversation, expectReply, login, sendMessage } from "./helpers";
 import { mkdir } from "node:fs/promises";
+import type { HpModelInputDetail, HpRunSnapshot } from "../src/api/types";
 const evidence = "../artifacts/product-acceptance/ui-3";
 const id = "33333333-3333-4333-8333-333333333333";
 const workId = "44444444-4444-4444-8444-444444444444";
@@ -192,4 +193,160 @@ test("network fixtures: Work snapshot, missing Trace, approvals and responsive i
   await page.screenshot({ path: `${evidence}/run-unavailable-desktop.png`, fullPage: true });
   await page.getByRole("button", { name: "回到所属页面", exact: true }).click();
   await expect(page.locator(".hp-inspector")).toHaveCount(0);
+});
+
+test("network fixtures: terminal outputs refresh and permission denial discards old model bodies", async ({
+  page,
+}) => {
+  await login(page);
+  let status: "running" | "succeeded" = "running";
+  let outputReads = 0,
+    firstReads = 0,
+    restored = false;
+  const run: HpRunSnapshot = {
+    source_kind: "work",
+    run: {
+      source_kind: "work",
+      run_id: id,
+      execution_id: id,
+      work_id: workId,
+      requirement_revision: 1,
+      work_control_epoch: 1,
+      conversation_id: null,
+      session_id: null,
+      status,
+      version: 1,
+      created_at: "2026-10-07T00:00:00Z",
+      started_at: "2026-10-07T00:00:01Z",
+      finished_at: null,
+      updated_at: "2026-10-07T00:00:01Z",
+      failure_code: null,
+      failure_message: null,
+      strategy_kind: "generic_agent",
+      executor_key: "general",
+      result_json: null,
+      budget: null,
+      branches: [],
+    },
+  };
+  const detail = (snapshotId: string, visibility: "summary" | "full_safe"): HpModelInputDetail => ({
+    visibility,
+    model_input: {
+      snapshot_id: snapshotId,
+      content_hash: "synthetic-hash",
+      model_call_id: "synthetic-call",
+      phase: "decision",
+      fallback_attempt: 0,
+      endpoint_id: "synthetic-endpoint",
+      provider: "synthetic",
+      model: "test-only",
+      api_format: "openai",
+      created_at: "2026-10-07T00:00:00Z",
+      message_count: 1,
+      tool_count: 0,
+      ...(visibility === "full_safe"
+        ? { provider_request_body: { messages: ["synthetic review fixture"] } }
+        : {}),
+    },
+  });
+  await page.route(`**/api/v1/runs/${id}`, (route) =>
+    route.fulfill({ json: { ...run, run: { ...run.run, status } } }),
+  );
+  await page.route(`**/api/v1/runs/${id}/resources`, (route) =>
+    route.fulfill({ json: { count: 0, next: null, candidates: [] } }),
+  );
+  await page.route(`**/api/v1/runs/${id}/file-action-approvals`, (route) =>
+    route.fulfill({ json: { approvals: [] } }),
+  );
+  await page.route(`**/api/v1/runs/${id}/published-files`, (route) => {
+    outputReads++;
+    return route.fulfill({
+      json: {
+        files:
+          status === "running"
+            ? []
+            : [{ file_id: "synthetic-result", name: "result.txt", sha256: "safe" }],
+      },
+    });
+  });
+  await page.route(`**/api/v1/runs/${id}/trace`, (route) =>
+    route.fulfill({
+      status: 404,
+      json: { error: { code: "resource_not_found", message: "synthetic missing trace" } },
+    }),
+  );
+  await page.route(`**/api/v1/runs/${id}/model-inputs`, (route) =>
+    route.fulfill({
+      json: {
+        visibility: "full_safe",
+        items: ["first-input", "late-input", "denied-input"].map(
+          (value) => detail(value, "summary").model_input,
+        ),
+      },
+    }),
+  );
+  await page.route("**/api/v1/model-inputs/first-input", (route) => {
+    firstReads++;
+    return route.fulfill({ json: detail("first-input", restored ? "summary" : "full_safe") });
+  });
+  let releaseLate!: () => void;
+  const lateGate = new Promise<void>((resolve) => {
+    releaseLate = resolve;
+  });
+  await page.route("**/api/v1/model-inputs/late-input", async (route) => {
+    await lateGate;
+    await route.fulfill({ json: detail("late-input", "full_safe") });
+  });
+  await page.route("**/api/v1/model-inputs/denied-input", (route) =>
+    route.fulfill({
+      status: 403,
+      json: {
+        error: {
+          code: "model_input_unavailable",
+          message: "synthetic account visibility denied",
+          retryable: false,
+          details: {},
+        },
+      },
+    }),
+  );
+  await page.goto(`/#/tasks?inspect=run:${id}`);
+  await page.getByRole("tab", { name: "使用资料与输出", exact: true }).click();
+  await expect(page.getByText("暂无已发布输出。", { exact: true })).toBeVisible();
+  expect(outputReads).toBe(1);
+  status = "succeeded";
+  await expect(page.getByRole("link", { name: "result.txt", exact: true })).toBeVisible();
+  expect(outputReads).toBe(2);
+  await page.getByRole("button", { name: "刷新输出", exact: true }).click();
+  await expect.poll(() => outputReads).toBe(3);
+  await mkdir(`${evidence}/self-review`, { recursive: true });
+  await page.screenshot({
+    path: `${evidence}/self-review/terminal-output-refresh.png`,
+    fullPage: true,
+  });
+  await page.getByRole("tab", { name: "高级诊断", exact: true }).click();
+  await page.getByRole("button", { name: "查看模型记录 first-in", exact: true }).click();
+  await expect(page.getByTestId("model-input-provider-body")).toHaveCount(1);
+  const lateStarted = page.waitForRequest((request) =>
+    new URL(request.url()).pathname.endsWith("/model-inputs/late-input"),
+  );
+  await page.getByRole("button", { name: "查看模型记录 late-inp", exact: true }).click();
+  await lateStarted;
+  await page.getByRole("button", { name: "查看模型记录 denied-i", exact: true }).click();
+  await expect(page.getByText("当前账号不可查看 Model Input。", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("model-input-provider-body")).toHaveCount(0);
+  const lateResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname.endsWith("/model-inputs/late-input"),
+  );
+  releaseLate();
+  await lateResponse;
+  restored = true;
+  await page.getByRole("button", { name: "查看模型记录 first-in", exact: true }).click();
+  await expect(page.getByTestId("model-input-summary")).toContainText("synthetic");
+  expect(firstReads).toBe(2);
+  await expect(page.getByTestId("model-input-provider-body")).toHaveCount(0);
+  await page.screenshot({
+    path: `${evidence}/self-review/model-permission-denied.png`,
+    fullPage: true,
+  });
 });

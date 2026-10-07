@@ -1,0 +1,30 @@
+
+> hpagent-web@0.1.0 test
+> vitest run src/components/run/RunInspector.test.tsx --maxWorkers=1
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/components/run/RunInspector.test.tsx (7 tests | 1 failed) 1337ms
+     × keeps Trace polling singular across visibility changes and stops on terminal or close 208ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/run/RunInspector.test.tsx > Run polling lifecycle > keeps Trace polling singular across visibility changes and stops on terminal or close
+AssertionError: expected "request" to be called 2 times, but got 3 times
+ ❯ src/components/run/RunInspector.test.tsx:209:19
+    207|     await act(async () => pending.resolve(tree));
+    208|     await tick(4999);
+    209|     expect(trace).toHaveBeenCalledTimes(2);
+       |                   ^
+    210|     await tick(1);
+    211|     expect(trace).toHaveBeenCalledTimes(3);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+   Start at  13:03:38
+   Duration  10.81s (transform 1.99s, setup 486ms, import 3.50s, tests 1.34s, environment 4.65s)
+

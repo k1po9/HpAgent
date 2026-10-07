@@ -263,6 +263,16 @@ export function createTraceStore(
         }));
       } catch (error) {
         if (token !== generation || modelToken !== modelGeneration) return;
+        const permissionRevoked =
+          error instanceof HpCommandError &&
+          error.status === 403 &&
+          error.code === "model_input_unavailable";
+        if (permissionRevoked) {
+          // This response describes account visibility, not a missing snapshot.
+          modelGeneration++;
+          set({ modelInputs: { [snapshotId]: { status: "unavailable" } } });
+          return;
+        }
         const unavailable =
           typeof error === "object" &&
           error !== null &&

@@ -1,0 +1,96 @@
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/components/run/ui3-review-repro.test.tsx (2 tests | 2 failed) 1221ms
+   × R1: refreshes published output when a visible Run reaches terminal state 1192ms
+   × R2: permission denial invalidates cached and in-flight Model Input bodies 21ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/run/ui3-review-repro.test.tsx > R1: refreshes published output when a visible Run reaches terminal state
+AssertionError: expected "listRunPublishedFiles" to be called 2 times, but got 1 times
+
+Ignored nodes: comments, script, style
+<html>
+  <head />
+  <body>
+    <div>
+      <section
+        aria-label="使用资料与输出"
+      >
+        <h3>
+          候选资料
+        </h3>
+        <p>
+          当前接口不提供完整历史候选回放。
+        </p>
+        <p>
+          先前候选快照，当前未验证。
+        </p>
+        <button>
+          刷新资料
+        </button>
+        <p>
+          当前没有可展示的候选资料；不代表没有历史读取。
+        </p>
+        <h3>
+          已发布输出
+        </h3>
+        <p>
+          暂无已发布输出。
+        </p>
+        <section
+          aria-label="文件操作审批"
+        >
+          <h3>
+            文件操作审批
+          </h3>
+          <button>
+            同步审批
+          </button>
+          <p>
+            暂无操作审批。
+          </p>
+        </section>
+      </section>
+    </div>
+  </body>
+</html>
+ ❯ src/components/run/ui3-review-repro.test.tsx:16:39
+     14|   await screen.findByText('暂无已发布输出。');
+     15|   view.rerender(<RunResources runId="A" terminal />);
+     16|   await waitFor(() => expect(outputs).toHaveBeenCalledTimes(2));
+       |                                       ^
+     17|   expect(screen.getByRole('link',{name:'result.txt'})).toBeInTheDocume…
+     18| });
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/run/ui3-review-repro.test.tsx > R2: permission denial invalidates cached and in-flight Model Input bodies
+AssertionError: expected [ { status: 'loaded', …(1) }, …(1) ] to have a length of +0 but got 2
+
+- Expected
++ Received
+
+- 0
++ 2
+
+ ❯ src/components/run/ui3-review-repro.test.tsx:30:118
+     28|   resolveLate(full('late'));
+     29|   await late;
+     30|   expect(Object.values(store.getState().modelInputs).filter(value=>val…
+       |                                                                                                                      ^
+     31| });
+     32|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  12:49:23
+   Duration  5.27s (transform 593ms, setup 417ms, import 716ms, tests 1.22s, environment 2.46s)
+

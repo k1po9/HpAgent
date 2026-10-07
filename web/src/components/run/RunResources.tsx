@@ -81,7 +81,6 @@ export function RunResources({
     mounted.current = true;
     const start = setTimeout(() => {
       void load();
-      void outputs();
     }, 0);
     return () => {
       clearTimeout(start);
@@ -93,6 +92,18 @@ export function RunResources({
     // This view mounts once per selected Run and tab.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
+  useEffect(() => {
+    // Run completion can publish files after the first empty list was read.
+    const start = setTimeout(() => void outputs(), 0);
+    return () => {
+      clearTimeout(start);
+      // Supersede earlier lists before a new request starts or the view closes.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      outputToken.current++;
+    };
+    // Re-query the same visible Run when its terminal state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId, terminal]);
   return (
     <section aria-label="使用资料与输出">
       <h3>候选资料</h3>
@@ -127,6 +138,7 @@ export function RunResources({
         </button>
       )}
       <h3>已发布输出</h3>
+      <button onClick={() => void outputs()}>刷新输出</button>
       {outputError && (
         <p role="alert">
           {outputError}

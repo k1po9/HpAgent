@@ -8,10 +8,10 @@
 
 - `HpThread → ExecutionBlock → RunStatus`：原始 assistant `message_id / produced_by_run_id` 绑定；消息尚未存在时使用唯一临时占位，不创建消息。历史引用只提供详情入口，不推断完成状态。完成、失败、停止的符号分开；停止和重试继续使用 Workbench 的资格及命令锁；点击时再次核对 Run ID，旧按钮不能操作新选中的 Run。断线文案改为同步状态；非法排队时间不创建计时。Token/模型请求明细移入高级诊断的 RunBudget，保留原使用、预留、估算和无法计量的断言。
 - `InspectorHost → RunInspector`：唯一 Surface 内提供概览、使用资料与输出、高级诊断。当前 Chat 复用 Workbench；历史 Chat/Work 独立查询，取消旧视图查询并使用选择世代和请求 token 排除迟到结果。独立非终态递归轮询、错误退避、隐藏暂停；终态停止周期 snapshot 请求。Work 不读取 assistant_message、不写入 Chat activeRun；主动作回任务页并定位真实 WorkPanel 行。
-- 资料、输出：候选串行分页、node_id 去重、视图失效后禁止追加；展示 fixed/read 的差别及 API Gap。输出下载使用 file_id/content；保存按需获取元数据并复用现有 SaveWorkspaceDialog。切走时迟到元数据不打开保存对话框；真实候选 node_id 可打开 File Inspector 并经返回栈回到 Run；没有真实 node_id 时不冒充 File Inspector 引用。
+- 资料、输出：候选串行分页、node_id 去重、视图失效后禁止追加；展示 fixed/read 的差别及 API Gap。输出在同 Run 进入终态时刷新，并提供“刷新输出”；旧列表不能覆盖新结果。输出下载使用 file_id/content；保存按需获取元数据并复用现有 SaveWorkspaceDialog。切走时迟到元数据不打开保存对话框；真实候选 node_id 可打开 File Inspector 并经返回栈回到 Run；没有真实 node_id 时不冒充 File Inspector 引用。
 - 审批：已有 GET/approve/reject API wrapper、真实时间字段、六状态显示。允许/拒绝共享 approvalId 意图锁；首次 key 冻结，关闭/切 Run 不丢命令。响应丢失先读回，仍 pending 且有效时只允许重放原 decision/key；409 禁止重放；到期以服务端结果为准。approved/consumed 的文案不宣称业务操作成功。提交成功使此前审批 GET 失效；点击时再核对选中 Run 与已知审批状态，旧按钮不能反向决策。会话重置清除所有意图。
-- Trace：预算刷新改为当前 feed 的有界 nodeId→type 记录，不再依赖查看中的树。只将匹配且已激活的事件送入 Trace；终态只同步匹配对象。GET token、有界在途事件重放、连续手动刷新缓冲延续及终态不倒退共同保护快照竞态；溢出重取，403/404 清树和模型正文。未知诊断状态不显示成功标记。
-- Model Input：补 Run 列表 wrapper，区分 none 的最小投影与 summary/full_safe。无 Trace 仍可按需查看模型记录；列表同步/重新进入/权限拒绝清正文并递增模型查询世代，迟到正文不回灌。沿用安全文本/pre 渲染，不把输入放入 URL、本地存储或普通日志。
+- Trace：预算刷新改为当前 feed 的有界 nodeId→type 记录，不再依赖查看中的树。只将匹配且已激活的事件送入 Trace；终态只同步匹配对象。GET token、有界在途事件重放、连续手动刷新缓冲延续及终态不倒退共同保护快照竞态；溢出重取，403/404 清树和模型正文。未知诊断状态不显示成功标记；Trace 周期查询有本地 inFlight 保护，隐藏不续订，终态退出周期 effect。
+- Model Input：补 Run 列表 wrapper，区分 none 的最小投影与 summary/full_safe。无 Trace 仍可按需查看模型记录；列表同步/重新进入/权限拒绝清正文并递增模型查询世代，详情 GET 的账户级 `403 model_input_unavailable` 同样清全缓存并使在途正文失效；单 snapshot 404 保持局部不可用。迟到正文不回灌。沿用安全文本/pre 渲染，不把输入放入 URL、本地存储或普通日志。
 - 导航：Shell 存最小 tab/origin，页签不改变 URL。键盘左右/Home/End、命名 tabpanel、Surface 焦点和 Esc 保留；开关 Inspector 不重新创建聊天 runtime。WorkPanel 增真实 coordinator Run 入口及任务行定位。
 
 D01/D03/D07/D08/D10：沿用三入口和唯一 Shell/Surface、真实状态与权限、响应式和焦点规则。FE-B3：历史选择、快照竞态及预算依赖修复；FE-B1：账户清理和迟到响应保护。
@@ -31,9 +31,11 @@ D01/D03/D07/D08/D10：沿用三入口和唯一 Shell/Surface、真实状态与�
 
 ## 验证环境与结果
 
+自检发现的 R1/R2 与轮询覆盖缺口已在后续修复批次处理，具体修复和最终源码结果见 [自检修复记录](ui-3-self-review.md)。本次修复最终源码：**208 项单测、3 项 UI-3 Chromium 场景及 typecheck/lint/build 均通过**，定向 42 项与全量单测重叠。以下统计保留 `d577c36` 的原实施证据。
+
 结果见 [证据目录](../../artifacts/product-acceptance/ui-3/README.md)。使用独立可丢弃数据库 `hpagent_ui3_test_20261007`（后端契约）与 `hpagent_ui3_e2e_20261007`（浏览器）；真实 migration/API/worker 三角色，Redis DB 13，文件目录 `/tmp/hpagent-ui3-files-20261007`，API 8183 / Vite 5276。凭据只保存在临时权限 0600 环境文件，不进入证据。
 
-最终源码全量单测 **197/197 通过（30 个文件）**；`typecheck`、`lint`、`build` 均正常退出 0。受影响浏览器回归稳定批次 **28/28 通过**（含 2 条 UI-3 场景）；审批 API/持久化 **8/8**、Model Input/Work API **6/6** 正常退出通过。最终源码 UI-3 浏览器 **2/2 通过，exit 0**（与 28 项批次重叠，不累计）；Run/Workspace API/持久化 **31/31 通过，exit 0**；三个后端批次合计 **45 个不同用例通过**，不与此前 SIGTERM 的综合批次重复累计。后端保留 Starlette/httpx 弃用提示，未升级依赖。构建仍提示既有主 bundle 超过 500 kB；不影响构建成功，本阶段未做全局拆包。
+原实施批次全量单测 **197/197 通过（30 个文件）**；`typecheck`、`lint`、`build` 均正常退出 0。受影响浏览器回归稳定批次 **28/28 通过**（含 2 条 UI-3 场景）；审批 API/持久化 **8/8**、Model Input/Work API **6/6** 正常退出通过。原实施批次 UI-3 浏览器 **2/2 通过，exit 0**（与 28 项批次重叠，不累计）；Run/Workspace API/持久化 **31/31 通过，exit 0**；三个后端批次合计 **45 个不同用例通过**，不与此前 SIGTERM 的综合批次重复累计。后端保留 Starlette/httpx 弃用提示，未升级依赖。构建仍提示既有主 bundle 超过 500 kB；不影响构建成功，本阶段未做全局拆包。
 
 已知首轮问题：对象不可用状态缺少原返回按钮（已恢复）；格式检查遇到新增文件未格式化（已格式化）。初次浏览器启动在后端契约仍运行时被主动中断，随后为浏览器建立另一独立数据库重新执行；中断启动不计作通过。
 
@@ -51,13 +53,13 @@ D01/D03/D07/D08/D10：沿用三入口和唯一 Shell/Surface、真实状态与�
 | U3-08 | Workbench 选中 historical-B 时 A 的 LLM 预算刷新断言；B 树不变 |
 | U3-09 | Trace GET 重放、终态不倒退、同 Run 竞争刷新、续存缓冲测试 |
 | U3-10 | 无 Trace 404 + Model Input 列表浏览器夹具；局部失败可刷新 |
-| U3-11 | 原 TraceDetail none/summary/full_safe 测试、模型正文刷新世代单测、后端 observability 契约 |
+| U3-11 | TraceDetail none/summary/full_safe；账户 403 已加载+在途正文清除与恢复、单 snapshot 404 局部保留的单测；修复浏览器夹具；历史后端 observability 契约 |
 | U3-12 | RunResources 串行分页/去重及旧视图失效保护；既有 Workspace 权限契约 |
 | U3-13 | terminal resources 404 单测、真实 API 终态限制 E2E |
-| U3-14 | 迟到文件元数据不触发保存单测；既有 workspace-p1/p3/artifact 资源链回归 |
+| U3-14 | 终态输出刷新、迟到旧列表排除、网络失败保留/恢复、迟到保存元数据保护单测；修复浏览器夹具；历史 workspace-p1/p3/artifact 回归 |
 | U3-15 | 409/到期/互斥、旧审批查询与旧按钮保护单测；pending/approved 浏览器夹具；真实审批 API/持久化契约 |
 | U3-16 | 同 key 重放、切走重开、reset 单测；POST 处理后响应丢失再读回夹具；原 ApiClient CSRF 测试 |
-| U3-17 | 可见非终态递归轮询、页面隐藏/关闭清定时器；不打开诊断时不查询的单测；未声称覆盖所有浏览器节流策略 |
+| U3-17 | RunInspector 假时钟的 snapshot/Trace/审批生命周期：可见递归、在途不重叠、visibilitychange、终态停止、关闭清理与迟到 snapshot；失败退避与懒加载断言；不声称覆盖所有浏览器节流策略 |
 | U3-18 | 原 Shell/App 路由和不可用测试；Run→真实候选 File→Run 返回栈单测；手机 modal/关闭焦点、Work 返回页 E2E |
 | U3-19 | 七视口布局与截图、键盘 Tabs、reduced-motion；200% 文本缩放、Tree 人工键盘及实机软键盘仍需人工验收 |
 | U3-20 | 既有 UI-2 全量单测、ui-2-ai/conversation/auth/multi-tab E2E |

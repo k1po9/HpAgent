@@ -135,3 +135,52 @@ it("opens only real candidate node IDs and preserves the Run return stack", asyn
     tab: "resources",
   });
 });
+
+it("refreshes an initially empty output list when the same Run completes", async () => {
+  vi.spyOn(runApi, "listRunResources").mockResolvedValue({ count: 0, next: null, candidates: [] });
+  vi.mocked(runApi.listRunPublishedFiles)
+    .mockResolvedValueOnce({ files: [] })
+    .mockResolvedValue({ files: [{ file_id: "result", name: "result.txt", sha256: "safe" }] });
+  const view = render(<RunResources runId="A" terminal={false} />);
+  await screen.findByText("暂无已发布输出。");
+  view.rerender(<RunResources runId="A" terminal />);
+  expect(await screen.findByRole("link", { name: "result.txt" })).toHaveAttribute(
+    "href",
+    "/api/v1/files/result/content",
+  );
+  expect(runApi.listRunPublishedFiles).toHaveBeenCalledTimes(2);
+});
+it("ignores an old output list arriving after the terminal refresh", async () => {
+  vi.spyOn(runApi, "listRunResources").mockResolvedValue({ count: 0, next: null, candidates: [] });
+  let resolve!: (v: Awaited<ReturnType<typeof runApi.listRunPublishedFiles>>) => void;
+  vi.mocked(runApi.listRunPublishedFiles)
+    .mockImplementationOnce(
+      () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    )
+    .mockResolvedValue({ files: [{ file_id: "new", name: "new.txt", sha256: "safe" }] });
+  const view = render(<RunResources runId="A" terminal={false} />);
+  await waitFor(() => expect(runApi.listRunPublishedFiles).toHaveBeenCalledTimes(1));
+  view.rerender(<RunResources runId="A" terminal />);
+  await screen.findByRole("link", { name: "new.txt" });
+  await act(async () => resolve({ files: [] }));
+  expect(screen.getByRole("link", { name: "new.txt" })).toBeInTheDocument();
+  expect(screen.queryByText("暂无已发布输出。")).not.toBeInTheDocument();
+});
+it("retains outputs on a network error and recovers through explicit refresh", async () => {
+  vi.spyOn(runApi, "listRunResources").mockResolvedValue({ count: 0, next: null, candidates: [] });
+  vi.mocked(runApi.listRunPublishedFiles)
+    .mockResolvedValueOnce({ files: [{ file_id: "old", name: "old.txt", sha256: "safe" }] })
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue({ files: [{ file_id: "new", name: "new.txt", sha256: "safe" }] });
+  render(<RunResources runId="A" terminal />);
+  await screen.findByRole("link", { name: "old.txt" });
+  fireEvent.click(screen.getByRole("button", { name: "刷新输出" }));
+  await screen.findByText("输出暂时无法同步。");
+  expect(screen.getByRole("link", { name: "old.txt" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "重试输出" }));
+  await screen.findByRole("link", { name: "new.txt" });
+  expect(screen.queryByText("输出暂时无法同步。")).not.toBeInTheDocument();
+});

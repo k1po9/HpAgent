@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { HpCommandError, type HpModelInputDetail } from "../../api/types";
 import type { HpTraceTree } from "../../api/types";
 import { createTraceStore } from "./traceStore";
 
@@ -212,5 +213,112 @@ describe("UI-3 trace races", () => {
       status: "completed",
       metadata: { token_usage: { total_tokens: 17 } },
     });
+  });
+});
+
+describe("model input permission boundaries", () => {
+  function detail(id: string, visibility: "summary" | "full_safe"): HpModelInputDetail {
+    return {
+      visibility,
+      model_input: {
+        snapshot_id: id,
+        content_hash: "synthetic-hash",
+        model_call_id: "synthetic-call",
+        phase: "decision",
+        fallback_attempt: 0,
+        endpoint_id: "synthetic-endpoint",
+        provider: "synthetic-provider",
+        model: "synthetic-model",
+        api_format: "openai",
+        created_at: "2026-10-07T00:00:00Z",
+        message_count: 1,
+        tool_count: 0,
+        ...(visibility === "full_safe"
+          ? { provider_request_body: { messages: ["synthetic body"] } }
+          : {}),
+      },
+    };
+  }
+  it.each(["summary", "full_safe"] as const)(
+    "clears loaded bodies and ignores in-flight responses after denial, then reloads %s through new requests",
+    async (visibility) => {
+      let resolve!: (value: HpModelInputDetail) => void;
+      const getModelInput = vi
+        .fn()
+        .mockResolvedValueOnce(detail("first", "full_safe"))
+        .mockImplementationOnce(
+          () =>
+            new Promise<HpModelInputDetail>((r) => {
+              resolve = r;
+            }),
+        )
+        .mockRejectedValueOnce(
+          new HpCommandError(403, {
+            code: "model_input_unavailable",
+            message: "denied",
+            request_id: null,
+            retryable: false,
+            details: {},
+          }),
+        )
+        .mockResolvedValueOnce(detail("first", visibility))
+        .mockResolvedValueOnce(detail("late", visibility));
+      const store = createTraceStore({ getModelInput } as never);
+      store.getState().selectRun("A");
+      await store.getState().loadModelInput("first");
+      const late = store.getState().loadModelInput("late");
+      await store.getState().loadModelInput("denied");
+      expect(store.getState().modelInputs).toEqual({ denied: { status: "unavailable" } });
+      await store.getState().loadModelInput("first");
+      await store.getState().loadModelInput("late");
+      expect(getModelInput).toHaveBeenCalledTimes(5);
+      resolve(detail("late", "full_safe"));
+      await late;
+      expect(store.getState().modelInputs.first?.detail?.visibility).toBe(visibility);
+      expect(store.getState().modelInputs.late?.detail?.visibility).toBe(visibility);
+      expect(store.getState().modelInputs.denied).toEqual({ status: "unavailable" });
+      if (visibility === "summary") {
+        expect(
+          Object.values(store.getState().modelInputs).some(
+            (value) => value.detail?.model_input.provider_request_body,
+          ),
+        ).toBe(false);
+      }
+    },
+  );
+  it("treats a missing snapshot 404 locally without discarding other bodies or requests", async () => {
+    let resolve!: (value: HpModelInputDetail) => void;
+    const getModelInput = vi
+      .fn()
+      .mockResolvedValueOnce(detail("first", "full_safe"))
+      .mockImplementationOnce(
+        () =>
+          new Promise<HpModelInputDetail>((r) => {
+            resolve = r;
+          }),
+      )
+      .mockRejectedValueOnce(
+        new HpCommandError(404, {
+          code: "resource_not_found",
+          message: "missing",
+          request_id: null,
+          retryable: false,
+          details: {},
+        }),
+      );
+    const store = createTraceStore({ getModelInput } as never);
+    store.getState().selectRun("A");
+    await store.getState().loadModelInput("first");
+    const late = store.getState().loadModelInput("late");
+    await store.getState().loadModelInput("missing");
+    resolve(detail("late", "full_safe"));
+    await late;
+    expect(store.getState().modelInputs.missing).toEqual({ status: "unavailable" });
+    expect(
+      store.getState().modelInputs.first?.detail?.model_input.provider_request_body,
+    ).toBeDefined();
+    expect(
+      store.getState().modelInputs.late?.detail?.model_input.provider_request_body,
+    ).toBeDefined();
   });
 });
