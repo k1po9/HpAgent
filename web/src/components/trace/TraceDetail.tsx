@@ -26,7 +26,7 @@ function formatTime(value: string | null): string {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleTimeString();
 }
 
-function ModelInputView({ state }: { state: ModelInputState }) {
+export function ModelInputView({ state }: { state: ModelInputState }) {
   if (state.status === "loading") return <p>正在加载 Model Input…</p>;
   if (state.status === "unavailable") return <p>当前账号不可查看 Model Input。</p>;
   if (state.status === "error") return <p>Model Input 暂时无法加载。</p>;
@@ -166,7 +166,12 @@ export function TraceDetail({
               查看 Model Input
             </button>
           ) : (
-            <ModelInputView state={modelInputs[snapshotId]} />
+            <>
+              <ModelInputView state={modelInputs[snapshotId]} />
+              {modelInputs[snapshotId]?.status === "error" && (
+                <button onClick={() => void onOpenModelInput(snapshotId)}>重试 Model Input</button>
+              )}
+            </>
           )}
         </div>
       ) : null}

@@ -1,12 +1,9 @@
 import { useCallback, useEffect } from "react";
 import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
-import { Activity } from "lucide-react";
 import { HpThread } from "../adapters/assistant-ui/HpThread";
 import { isTerminalRunStatus, useWorkbench } from "../store/workbench";
 import { useAuth } from "../store/auth";
 import { useArtifacts } from "../store/artifacts";
-import { RunStatus } from "./RunStatus";
-import { useTraceStore } from "./trace/traceStore";
 import { useShell } from "../store/shell";
 import { emptyConversationUi, useConversationUi } from "../store/conversationUi";
 import { ConversationHeader } from "./conversation/ConversationHeader";
@@ -48,9 +45,6 @@ export function ChatPane({
   }, [accountId]);
   const messages = useWorkbench((s) => s.messages);
   const activeRun = useWorkbench((s) => s.activeRun);
-  const activeRunError = useWorkbench((s) => s.activeRunError);
-  const activeRunProgress = useWorkbench((s) => s.activeRunProgress);
-  const degraded = useWorkbench((s) => s.degraded);
   const stopping = useWorkbench((s) => s.stopping);
   const sending = useWorkbench((s) => s.sending);
   const attachments = useWorkbench((s) => s.attachments);
@@ -69,7 +63,6 @@ export function ChatPane({
   const error = useWorkbench((s) => s.error);
   const sendMessage = useWorkbench((s) => s.sendMessage);
   const stopRun = useWorkbench((s) => s.stopRun);
-  const retryRun = useWorkbench((s) => s.retryRun);
   const loadMoreMessages = useWorkbench((s) => s.loadMoreMessages);
   const clearError = useWorkbench((s) => s.clearError);
   const artifactError = useArtifacts((s) => s.error);
@@ -91,22 +84,6 @@ export function ChatPane({
   }, [conversationKey, ui.strategy, durableAgentEnabled, setAgentStrategy]);
   const loadingCandidates = useWorkbench((s) => s.loadingFileCandidates);
   const candidatesError = useWorkbench((s) => s.fileCandidatesError);
-  const traceOpen = useTraceStore((s) => s.open);
-  const setTraceOpen = useTraceStore((s) => s.setOpen);
-  const followTraceRun = useTraceStore((s) => s.followRun);
-  const latestRunId =
-    activeRun?.run_id ??
-    messages
-      .slice()
-      .reverse()
-      .find((message) => message.role === "assistant" && message.produced_by_run_id)
-      ?.produced_by_run_id ??
-    null;
-
-  useEffect(() => {
-    followTraceRun(latestRunId);
-  }, [latestRunId, followTraceRun]);
-
   const handleSend = useCallback(
     async (content: string) => {
       const id = await ensure();
@@ -144,9 +121,6 @@ export function ChatPane({
   const handleCancel = useCallback(() => {
     void stopRun();
   }, [stopRun]);
-  const handleRetry = useCallback(() => {
-    void retryRun();
-  }, [retryRun]);
   const handleLoadMore = useCallback(() => {
     void loadMoreMessages();
   }, [loadMoreMessages]);
@@ -189,15 +163,6 @@ export function ChatPane({
           用原提交确认上次发送
         </button>
       )}
-      <RunStatus
-        activeRun={activeRun}
-        busyMessage={activeRunError}
-        progress={activeRunProgress}
-        degraded={degraded}
-        stopping={stopping}
-        onStop={handleCancel}
-        onRetry={handleRetry}
-      />
       {error ? (
         <button
           id="hp-conversation-error"
@@ -224,23 +189,6 @@ export function ChatPane({
           </Button>
         </Flex>
       ) : null}
-      <Flex justify="end" px="3" py="1">
-        {" "}
-        <Button
-          size="1"
-          variant={traceOpen ? "solid" : "soft"}
-          disabled={!latestRunId}
-          onClick={() => {
-            if (traceOpen) setTraceOpen(false);
-            else if (latestRunId) {
-              useTraceStore.getState().selectRun(latestRunId);
-              setTraceOpen(true);
-            }
-          }}
-        >
-          <Activity size={14} aria-hidden="true" /> Trace
-        </Button>
-      </Flex>
       <Box style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <HpThread
           conversationKey={conversationKey}

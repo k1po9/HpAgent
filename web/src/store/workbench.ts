@@ -393,6 +393,7 @@ export function createWorkbenchStore(
       }
       set({ polling: true, degraded: false, activeRunProgress: null });
 
+      const feedNodeTypes = new Map<string, string>();
       const stale = (): boolean => {
         const latest = get();
         return latest.pollGeneration !== generation || latest.activeRun?.run_id !== runId;
@@ -430,9 +431,14 @@ export function createWorkbenchStore(
             },
             onTrace: (event) => {
               if (stale()) return;
-              useTraceStore.getState().applyEvent(runId, event);
-              const node = useTraceStore.getState().nodes[event.nodeId];
-              if (node?.type === "llm") {
+              const trace = useTraceStore.getState();
+              if (trace.open && trace.runId === runId) trace.applyEvent(runId, event);
+              if (event.nodeType) {
+                if (feedNodeTypes.size >= 512)
+                  feedNodeTypes.delete(feedNodeTypes.keys().next().value!);
+                feedNodeTypes.set(event.nodeId, event.nodeType);
+              }
+              if ((event.nodeType ?? feedNodeTypes.get(event.nodeId)) === "llm") {
                 scheduleBudgetRefresh(runId, generation, event.action === "start" ? 150 : 0);
               }
             },
@@ -449,7 +455,9 @@ export function createWorkbenchStore(
                 degraded: false,
               });
               void confirmRun(runId, generation);
-              void useTraceStore.getState().loadTrace();
+              const trace = useTraceStore.getState();
+              if (trace.open && trace.runId === runId) void trace.loadTrace();
+              feedNodeTypes.clear();
             },
             onDegraded: () => {
               if (stale()) return;

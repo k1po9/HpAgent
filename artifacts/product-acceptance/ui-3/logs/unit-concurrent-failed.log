@@ -1,0 +1,209 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=2
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/App.test.tsx (11 tests | 3 failed) 33582ms
+     × isolates a late account A list after switching A-B-A 5158ms
+     × retains the active Run subscription across pages and aborts it on expiry 5143ms
+     × keeps one chat runtime and its draft across navigation and an unavailable Inspector 10000ms
+ ❯ src/App.recovery.test.tsx (14 tests | 6 failed) 59546ms
+     × ignores a late retry failure after another conversation is selected 6070ms
+     × refreshes the same work ID and displays the new record 5827ms
+     × recovers a failed lookup by submitting the same work ID 5677ms
+     × ignores a late A success after a successful B lookup 8349ms
+     × ignores a late A failure after a successful B lookup 6793ms
+     × keeps the newer same-ID lookup when the earlier response arrives last 5311ms
+ ❯ src/components/WorkspacePanel.test.tsx (8 tests | 1 failed) 11519ms
+     × drops late candidates and failures after cancellation without losing the version Run 5687ms
+ ❯ src/components/run/RunResources.test.tsx (5 tests | 1 failed) 11651ms
+   × keeps terminal resource denial local and never claims no files were used 8743ms
+ ❯ src/adapters/assistant-ui/HpThread.ui2.test.tsx (7 tests | 1 failed) 13060ms
+     × retains the real input on rejection and clears only accepted text 5201ms
+ ❯ src/components/conversation/ConversationHeader.test.tsx (2 tests | 1 failed) 9756ms
+     × keeps the edit on 412, reads the current version, and only saves on a new confirmation 7066ms
+ ❯ src/components/run/RunInspector.test.tsx (2 tests | 1 failed) 10303ms
+   × loads a Work Run independently without assistant_message and returns to its Work controls 9082ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 14 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R01 conversation re-selection > ignores a late retry failure after another conversation is selected
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.recovery.test.tsx:208:34
+    206|   });
+    207|
+    208|   it.each(["success", "failure"])(
+       |                                  ^
+    209|     "ignores a late retry %s after another conversation is selected",
+    210|     async (result) => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/14]⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R02 work Run lookup submissions > refreshes the same work ID and displays the new record
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.recovery.test.tsx:233:3
+    231|
+    232| describe("UI1-R02 work Run lookup submissions", () => {
+    233|   it("refreshes the same work ID and displays the new record", async (…
+       |   ^
+    234|     const api = backend();
+    235|     const input = await openLookup();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/14]⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R02 work Run lookup submissions > recovers a failed lookup by submitting the same work ID
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.recovery.test.tsx:245:3
+    243|   });
+    244|
+    245|   it("recovers a failed lookup by submitting the same work ID", async …
+       |   ^
+    246|     const api = backend();
+    247|     api.lookup = () => unavailable();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/14]⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R02 work Run lookup submissions > ignores a late A success after a successful B lookup
+ FAIL  src/App.recovery.test.tsx > UI1-R02 work Run lookup submissions > ignores a late A failure after a successful B lookup
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.recovery.test.tsx:260:34
+    258|   });
+    259|
+    260|   it.each(["success", "failure"])(
+       |                                  ^
+    261|     "ignores a late A %s after a successful B lookup",
+    262|     async (result) => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/14]⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R02 work Run lookup submissions > keeps the newer same-ID lookup when the earlier response arrives last
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.recovery.test.tsx:280:3
+    278|   );
+    279|
+    280|   it("keeps the newer same-ID lookup when the earlier response arrives…
+       |   ^
+    281|     const api = backend();
+    282|     const pending = deferred<Response>();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/14]⎯
+
+ FAIL  src/App.test.tsx > UI-1 Shell lifecycle > isolates a late account A list after switching A-B-A
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:263:3
+    261|
+    262| describe("UI-1 Shell lifecycle", () => {
+    263|   it("isolates a late account A list after switching A-B-A", async () …
+       |   ^
+    264|     const base = globalThis.fetch;
+    265|     let finish!: (response: Response) => void;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/14]⎯
+
+ FAIL  src/App.test.tsx > UI-1 Shell lifecycle > retains the active Run subscription across pages and aborts it on expiry
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:304:3
+    302|   });
+    303|
+    304|   it("retains the active Run subscription across pages and aborts it o…
+       |   ^
+    305|     const base = globalThis.fetch;
+    306|     const signals: AbortSignal[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/14]⎯
+
+ FAIL  src/App.test.tsx > UI-1 Shell lifecycle > keeps one chat runtime and its draft across navigation and an unavailable Inspector
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:362:3
+    360|     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    361|   });
+    362|   it("keeps one chat runtime and its draft across navigation and an un…
+       |   ^
+    363|     const base = globalThis.fetch;
+    364|     const requests: string[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/14]⎯
+
+ FAIL  src/components/WorkspacePanel.test.tsx > Workspace authority lifecycle > drops late candidates and failures after cancellation without losing the version Run
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/WorkspacePanel.test.tsx:83:3
+     81|
+     82| describe("Workspace authority lifecycle", () => {
+     83|   it("drops late candidates and failures after cancellation without lo…
+       |   ^
+     84|     const pending = deferred<Resources>();
+     85|     const list = vi.mocked(HpApi.prototype.listRunResources).mockRetur…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/14]⎯
+
+ FAIL  src/adapters/assistant-ui/HpThread.ui2.test.tsx > UI-2 controlled composer > retains the real input on rejection and clears only accepted text
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/adapters/assistant-ui/HpThread.ui2.test.tsx:28:3
+     26| };
+     27| describe("UI-2 controlled composer", () => {
+     28|   it("retains the real input on rejection and clears only accepted tex…
+       |   ^
+     29|     const onSend = vi.fn().mockResolvedValueOnce(false).mockResolvedVa…
+     30|     render(<HpThread {...props} conversationKey="a:c1" onSend={onSend}…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/14]⎯
+
+ FAIL  src/components/conversation/ConversationHeader.test.tsx > UI-2 title optimistic concurrency > keeps the edit on 412, reads the current version, and only saves on a new confirmation
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/conversation/ConversationHeader.test.tsx:31:3
+     29| });
+     30| describe("UI-2 title optimistic concurrency", () => {
+     31|   it("keeps the edit on 412, reads the current version, and only saves…
+       |   ^
+     32|     const rename = vi
+     33|       .spyOn(HpApi.prototype, "renameConversation")
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/14]⎯
+
+ FAIL  src/components/run/RunInspector.test.tsx > loads a Work Run independently without assistant_message and returns to its Work controls
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/run/RunInspector.test.tsx:46:1
+     44| });
+     45| afterEach(() => vi.restoreAllMocks());
+     46| it("loads a Work Run independently without assistant_message and retur…
+       | ^
+     47|   const get = vi.spyOn(runApi, "getRun").mockResolvedValue(snapshot);
+     48|   act(() => useShell.getState().openInspector({ kind: "run", objectId:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/14]⎯
+
+ FAIL  src/components/run/RunResources.test.tsx > keeps terminal resource denial local and never claims no files were used
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/run/RunResources.test.tsx:15:1
+     13| });
+     14| afterEach(() => vi.restoreAllMocks());
+     15| it("keeps terminal resource denial local and never claims no files wer…
+       | ^
+     16|   vi.spyOn(runApi, "listRunResources").mockRejectedValue(
+     17|     new HpCommandError(404, {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/14]⎯
+
+
+ Test Files  7 failed | 23 passed (30)
+      Tests  14 failed | 181 passed (195)
+   Start at  12:07:28
+   Duration  403.24s (transform 28.64s, setup 58.70s, import 141.61s, tests 184.25s, environment 360.56s)
+
+
+EXIT_CODE=1

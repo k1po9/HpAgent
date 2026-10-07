@@ -21,6 +21,7 @@ import { FileText, Paperclip, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { HpFile, HpMessage, HpRun } from "../../api/types";
+import { ExecutionBlock } from "../../components/run/ExecutionBlock";
 import { useHpThreadRuntime } from "./runtime";
 import { useArtifacts } from "../../store/artifacts";
 import type { UploadAttachment } from "../../store/workbench";
@@ -62,9 +63,11 @@ function HpTextPart({ text }: { text: string }) {
 
 function HpMessageView({
   filesByMessageId,
+  runsByMessageId,
   onSaveFile,
 }: {
   filesByMessageId: Record<string, HpFile[]>;
+  runsByMessageId: Record<string, string>;
   onSaveFile?: (file: HpFile) => void;
 }) {
   const message = useAuiState((s) => s.message);
@@ -93,6 +96,9 @@ function HpMessageView({
         <span className="hp-msg__marker hp-msg__marker--assistant" aria-hidden="true" />
       </MessagePrimitive.If>
       <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
+      {message.role === "assistant" && runsByMessageId[message.id] && (
+        <ExecutionBlock runId={runsByMessageId[message.id]!} messageId={message.id} />
+      )}
       {files.length ? (
         <div className="hp-msg__files" aria-label="消息附件">
           {files.map((file) => (
@@ -283,8 +289,22 @@ export function HpThread({
             </Flex>
           </ThreadPrimitive.Empty>
           <ThreadPrimitive.Messages>
-            {() => <HpMessageView filesByMessageId={filesByMessageId} onSaveFile={onSaveFile} />}
+            {() => (
+              <HpMessageView
+                filesByMessageId={filesByMessageId}
+                runsByMessageId={Object.fromEntries(
+                  messages
+                    .filter((m) => m.role === "assistant" && m.produced_by_run_id)
+                    .map((m) => [m.message_id, m.produced_by_run_id!]),
+                )}
+                onSaveFile={onSaveFile}
+              />
+            )}
           </ThreadPrimitive.Messages>
+          {activeRun &&
+            !messages.some(
+              (m) => m.role === "assistant" && m.produced_by_run_id === activeRun.run_id,
+            ) && <ExecutionBlock runId={activeRun.run_id} />}
         </ThreadPrimitive.Viewport>
         {!draft.atBottom &&
           draft.anchorMessageId &&

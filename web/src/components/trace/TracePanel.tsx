@@ -62,7 +62,7 @@ export function TracePanel({ embedded = false }: { embedded?: boolean }) {
           <div className="hp-trace-empty">正在加载 Trace…</div>
         ) : null}
         {!loading && rootIds.length === 0 ? (
-          <div className="hp-trace-empty">{error ?? "等待 Trace 事件…"}</div>
+          <div className="hp-trace-empty">{error ?? "暂无可用诊断记录。"}</div>
         ) : (
           <TraceTree
             nodes={nodes}

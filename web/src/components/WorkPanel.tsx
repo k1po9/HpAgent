@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useShell } from "../store/shell";
+import { useEffect, useRef } from "react";
 import { Button, Flex, Text } from "@radix-ui/themes";
 import { useWorks } from "../store/works";
 import { useArtifacts } from "../store/artifacts";
@@ -45,6 +46,8 @@ export function WorkPanel({
   conversationId: string | null;
   pageMode?: boolean;
 }) {
+  const locatedWork = useRef<string | null>(null);
+  const selectedWork = useShell((s) => s.route.workId);
   const items = useWorks((s) => s.items);
   const busy = useWorks((s) => s.busy);
   const error = useWorks((s) => s.error);
@@ -78,13 +81,30 @@ export function WorkPanel({
       : [];
     return () => stops.forEach((stop) => stop());
   }, [ids]);
+  useEffect(() => {
+    if (!selectedWork) {
+      locatedWork.current = null;
+      return;
+    }
+    if (locatedWork.current === selectedWork) return;
+    const node = document.getElementById(`work-${selectedWork}`);
+    if (node) {
+      node.scrollIntoView?.({ block: "center" });
+      locatedWork.current = selectedWork;
+    }
+  }, [selectedWork, items]);
   return (
     <details className="hp-work-panel" open={pageMode || undefined}>
       <summary>持续工作（{items.length}）</summary>
       {error && <p role="alert">{error}</p>}
       {items.length === 0 && <Text size="2">暂无持续委托。</Text>}
       {items.map((work) => (
-        <article key={work.work_id} aria-label={work.title}>
+        <article
+          id={`work-${work.work_id}`}
+          key={work.work_id}
+          aria-label={work.title}
+          className={selectedWork === work.work_id ? "hp-work-selected" : undefined}
+        >
           <Flex justify="between">
             <strong>{work.title}</strong>
             <Text size="2">
@@ -119,6 +139,20 @@ export function WorkPanel({
             </p>
           )}
           <Flex gap="2" wrap="wrap">
+            {work.active_coordinator_run_id && (
+              <Button
+                size="1"
+                onClick={() =>
+                  useShell.getState().openInspector({
+                    kind: "run",
+                    objectId: work.active_coordinator_run_id!,
+                    origin: { workId: work.work_id },
+                  })
+                }
+              >
+                查看执行详情
+              </Button>
+            )}
             {work.continuation.reason === "budget_exhausted" &&
               work.budget &&
               work.status === "active" && (

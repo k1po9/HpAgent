@@ -65,6 +65,10 @@ export interface HpFileApproval {
   approval_id: string;
   run_id: string;
   operation_id: string;
+  requested_at?: string;
+  expires_at?: string;
+  decided_at?: string | null;
+  consumed_at?: string | null;
   action_summary: string;
   tool_name: string;
   status: "pending" | "approved" | "rejected" | "expired" | "cancelled" | "consumed";
@@ -157,6 +161,13 @@ export interface HpWorkRunSnapshot {
     work_id: string;
     requirement_revision: number;
     work_control_epoch: number;
+    version: number;
+    created_at: string;
+    updated_at: string;
+    started_at: string | null;
+    finished_at: string | null;
+    failure_code: string | null;
+    failure_message: string | null;
     conversation_id: null;
     session_id: null;
     status: HpRunStatus;
@@ -171,7 +182,7 @@ export interface HpWorkRunSnapshot {
 
 export type HpRunSnapshot = HpChatRunSnapshot | HpWorkRunSnapshot;
 
-export type HpTraceStatus = "running" | "completed" | "failed" | "cancelled";
+export type HpTraceStatus = "running" | "completed" | "failed" | "cancelled" | "unknown";
 
 export interface HpTraceRun {
   trace_run_id: string;
@@ -226,6 +237,13 @@ export interface HpModelInputSummary {
   message_count: number;
   tool_count: number;
 }
+
+export type HpModelInputList =
+  | {
+      visibility: "none";
+      items: Array<Pick<HpModelInputSummary, "snapshot_id" | "content_hash" | "model_call_id">>;
+    }
+  | { visibility: "summary" | "full_safe"; items: HpModelInputSummary[] };
 
 export interface HpModelInputDetail {
   visibility: Exclude<HpPromptVisibility, "none">;

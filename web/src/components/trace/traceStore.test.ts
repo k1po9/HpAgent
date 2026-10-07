@@ -114,3 +114,103 @@ describe("traceStore", () => {
     );
   });
 });
+
+describe("UI-3 trace races", () => {
+  const start = {
+    action: "start" as const,
+    nodeId: "root",
+    parentId: null,
+    name: "Agent",
+    nodeType: "agent",
+    status: null,
+    metadata: { snapshot_id: "safe-snapshot" },
+    durationMs: null,
+    occurredAt: "2026-08-22T00:00:00Z",
+  };
+  it("replays in-flight metadata without regressing terminal nodes", async () => {
+    let resolve!: (tree: HpTraceTree) => void;
+    const store = createTraceStore({
+      getRunTrace: () =>
+        new Promise<HpTraceTree>((r) => {
+          resolve = r;
+        }),
+    } as never);
+    store.getState().selectRun("run-1");
+    const pending = store.getState().loadTrace();
+    store.getState().applyEvent("run-1", start);
+    store.getState().applyEvent("run-1", {
+      ...start,
+      action: "end",
+      status: "completed",
+      metadata: { token_usage: { total_tokens: 42 } },
+      durationMs: 42,
+    });
+    store.getState().applyEvent("run-1", start);
+    resolve(TREE);
+    await pending;
+    expect(store.getState().nodes.root).toMatchObject({
+      status: "completed",
+      durationMs: 42,
+      metadata: { snapshot_id: "safe-snapshot", token_usage: { total_tokens: 42 } },
+    });
+  });
+  it("keeps historical selection and invalidates model bodies during refresh", async () => {
+    let resolve!: (v: unknown) => void;
+    const store = createTraceStore({
+      getModelInput: () =>
+        new Promise((r) => {
+          resolve = r;
+        }),
+    } as never);
+    store.getState().selectRun("B");
+    store.getState().applyEvent("A", start);
+    expect(store.getState().runId).toBe("B");
+    expect(store.getState().nodes).toEqual({});
+    const pending = store.getState().loadModelInput("snapshot");
+    store.getState().clearModelInputs();
+    resolve({
+      visibility: "full_safe",
+      model_input: { provider_request_body: { secret: "synthetic" } },
+    });
+    await pending;
+    expect(store.getState().modelInputs).toEqual({});
+  });
+  it("only commits the latest same-run snapshot request", async () => {
+    const resolvers: Array<(v: HpTraceTree) => void> = [];
+    const store = createTraceStore({
+      getRunTrace: () => new Promise<HpTraceTree>((r) => resolvers.push(r)),
+    } as never);
+    store.getState().selectRun("run-1");
+    const old = store.getState().loadTrace();
+    const latest = store.getState().loadTrace();
+    resolvers[1]!(TREE);
+    await latest;
+    resolvers[0]!({ ...TREE, roots: [] });
+    await old;
+    expect(store.getState().rootIds).toEqual(["root"]);
+  });
+  it("keeps buffered events across a superseding manual refresh", async () => {
+    const resolvers: Array<(v: HpTraceTree) => void> = [];
+    const store = createTraceStore({
+      getRunTrace: () => new Promise<HpTraceTree>((r) => resolvers.push(r)),
+    } as never);
+    store.getState().selectRun("run-1");
+    const old = store.getState().loadTrace();
+    store.getState().applyEvent("run-1", {
+      ...start,
+      nodeId: "live-before-refresh",
+      action: "end",
+      status: "completed",
+      metadata: { token_usage: { total_tokens: 17 } },
+    });
+    const next = store.getState().loadTrace();
+    resolvers[1]!(TREE);
+    await next;
+    resolvers[0]!(TREE);
+    await old;
+    expect(store.getState().nodes["live-before-refresh"]).toMatchObject({
+      status: "completed",
+      metadata: { token_usage: { total_tokens: 17 } },
+    });
+  });
+});

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { useShell } from "../../store/shell";
+import { HpCommandError } from "../../api/types";
 import { api as defaultApi } from "../../api/client";
 import { HpApi } from "../../api/resources";
 import type { HpTraceEventNode, HpTraceRun, HpTraceStatus, HpTraceTree } from "../../api/types";
@@ -36,6 +37,7 @@ export interface TraceState {
   applyEvent: (runId: string, event: TraceEventUpdate) => void;
   selectNode: (nodeId: string) => void;
   loadModelInput: (snapshotId: string) => Promise<void>;
+  clearModelInputs: () => void;
   reset: () => void;
 }
 
@@ -70,7 +72,7 @@ function flattenTree(tree: HpTraceTree): {
 
 function terminalStatus(value: string | null): HpTraceStatus {
   if (value === "failed" || value === "cancelled" || value === "completed") return value;
-  return "completed";
+  return "unknown";
 }
 
 export function createTraceStore(
@@ -78,6 +80,10 @@ export function createTraceStore(
   onOpen?: (runId: string | null) => void,
 ) {
   let generation = 0;
+  let request = 0;
+  let modelGeneration = 0;
+  let buffered: TraceEventUpdate[] = [];
+  let overflow = false;
   return create<TraceState>()((set, get) => ({
     open: false,
     runId: null,
@@ -90,12 +96,21 @@ export function createTraceStore(
     modelInputs: {},
 
     setOpen: (open) => {
+      if (!open) {
+        generation += 1;
+        request += 1;
+        buffered = [];
+        set({ loading: false, modelInputs: {} });
+      }
       set({ open });
       onOpen?.(open ? get().runId : null);
     },
 
     selectRun: (runId) => {
-      set({ open: false });
+      generation += 1;
+      request += 1;
+      buffered = [];
+      set({ open: false, runId: null });
       get().followRun(runId);
       set({ open: true });
     },
@@ -116,34 +131,71 @@ export function createTraceStore(
 
     loadTrace: async () => {
       const token = generation;
+      const requestToken = ++request;
       const runId = get().runId;
-      if (!runId || get().loading) return;
+      if (!runId) return;
+      if (!get().loading) {
+        buffered = [];
+        overflow = false;
+      }
       set({ loading: true, error: null });
       try {
         const tree = await api.getRunTrace(runId);
-        if (token !== generation || get().runId !== runId) return;
+        if (token !== generation || requestToken !== request || get().runId !== runId) return;
         const normalized = flattenTree(tree);
+        for (const [id, previous] of Object.entries(get().nodes)) {
+          const incoming = normalized.nodes[id];
+          if (
+            incoming?.status === "running" &&
+            ["completed", "failed", "cancelled"].includes(previous.status)
+          )
+            normalized.nodes[id] = {
+              ...incoming,
+              ...previous,
+              metadata: { ...incoming.metadata, ...previous.metadata },
+            };
+        }
+        const events = buffered;
+        buffered = [];
         set((state) => ({
           run: tree.run,
           ...normalized,
           selectedNodeId:
-            state.selectedNodeId && normalized.nodes[state.selectedNodeId]
+            state.selectedNodeId &&
+            (normalized.nodes[state.selectedNodeId] ||
+              events.some((event) => event.nodeId === state.selectedNodeId))
               ? state.selectedNodeId
               : (normalized.rootIds[0] ?? null),
           loading: false,
+          error: overflow ? "诊断事件过多，请重新同步。" : null,
         }));
-      } catch {
-        if (token === generation && get().runId === runId) {
-          set({ loading: false, error: "Trace 暂不可用，实时事件仍会继续显示。" });
+        events.forEach((event) => get().applyEvent(runId, event));
+        if (overflow) {
+          set({ error: "诊断事件过多，正在重新同步。" });
+          queueMicrotask(() => {
+            if (token === generation && requestToken === request) void get().loadTrace();
+          });
+        }
+      } catch (error) {
+        if (token === generation && requestToken === request && get().runId === runId) {
+          buffered = [];
+          const denied = error instanceof HpCommandError && [403, 404].includes(error.status);
+          if (denied) modelGeneration++;
+          set({
+            loading: false,
+            error: denied ? "暂无可用诊断记录。" : "诊断待同步，请重试。",
+            ...(denied ? { nodes: {}, rootIds: [], selectedNodeId: null, modelInputs: {} } : {}),
+          });
         }
       }
     },
 
     applyEvent: (runId, event) => {
-      if (get().runId !== runId) {
-        get().followRun(runId);
-      }
       if (get().runId !== runId) return;
+      if (get().loading) {
+        if (buffered.length < 512) buffered.push(event);
+        else overflow = true;
+      }
       set((state) => {
         const existing = state.nodes[event.nodeId];
         const node: TraceNode =
@@ -153,10 +205,13 @@ export function createTraceStore(
                 parentId: event.parentId,
                 name: event.name ?? existing?.name ?? "TraceEvent",
                 type: event.nodeType ?? existing?.type ?? "event",
-                status: "running",
+                status:
+                  existing && ["completed", "failed", "cancelled"].includes(existing.status)
+                    ? existing.status
+                    : "running",
                 startedAt: event.occurredAt ?? existing?.startedAt ?? null,
-                endedAt: null,
-                durationMs: null,
+                endedAt: existing?.endedAt ?? null,
+                durationMs: existing?.durationMs ?? null,
                 metadata: { ...(existing?.metadata ?? {}), ...event.metadata },
               }
             : {
@@ -185,8 +240,13 @@ export function createTraceStore(
 
     selectNode: (selectedNodeId) => set({ selectedNodeId }),
 
+    clearModelInputs: () => {
+      modelGeneration++;
+      set({ modelInputs: {} });
+    },
     loadModelInput: async (snapshotId) => {
       const token = generation;
+      const modelToken = modelGeneration;
       const current = get().modelInputs[snapshotId];
       if (current?.status === "loading" || current?.status === "loaded") return;
       set((state) => ({
@@ -194,7 +254,7 @@ export function createTraceStore(
       }));
       try {
         const detail = await api.getModelInput(snapshotId);
-        if (token !== generation) return;
+        if (token !== generation || modelToken !== modelGeneration) return;
         set((state) => ({
           modelInputs: {
             ...state.modelInputs,
@@ -202,12 +262,13 @@ export function createTraceStore(
           },
         }));
       } catch (error) {
-        if (token !== generation) return;
+        if (token !== generation || modelToken !== modelGeneration) return;
         const unavailable =
           typeof error === "object" &&
           error !== null &&
           "code" in error &&
-          error.code === "model_input_unavailable";
+          (error.code === "model_input_unavailable" ||
+            (error instanceof HpCommandError && [403, 404].includes(error.status)));
         set((state) => ({
           modelInputs: {
             ...state.modelInputs,
@@ -219,6 +280,8 @@ export function createTraceStore(
 
     reset: () => {
       generation += 1;
+      request += 1;
+      buffered = [];
       set({
         open: false,
         runId: null,
@@ -236,6 +299,4 @@ export function createTraceStore(
 
 export const useTraceStore = createTraceStore(new HpApi(defaultApi), (runId) => {
   if (runId) useShell.getState().openInspector({ kind: "run", objectId: runId });
-  else if (useShell.getState().route.inspector?.kind === "run")
-    useShell.getState().closeInspector();
 });

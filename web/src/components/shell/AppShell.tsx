@@ -236,6 +236,7 @@ export function AppShell() {
         </section>
       </main>
       <InspectorHost
+        onSaveFile={saveFile}
         onSaveHtml={(html, name) => setSaveSource({ html, file_name: `${name}.txt` })}
       />
       {sidebarOpen && (

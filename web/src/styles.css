@@ -1575,3 +1575,76 @@ aside.hp-surface {
 .hp-thread__viewport {
   overflow-anchor: none;
 }
+
+/* UI-3: execution belongs to a message; diagnostics remain inside the Surface. */
+.hp-execution-block {
+  margin-block: 12px;
+  padding: 12px;
+  border: 1px solid var(--gray-6);
+  border-radius: 12px;
+}
+.hp-run-inspector {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hp-run-inspector [role="tablist"] {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-block: 12px;
+}
+.hp-run-inspector [role="tab"][aria-selected="true"] {
+  background: var(--accent-3);
+  border-color: var(--accent-8);
+}
+.hp-run-inspector pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: auto;
+}
+.hp-run-result {
+  white-space: pre-wrap;
+}
+.hp-run-inspector article {
+  padding-block: 12px;
+  border-bottom: 1px solid var(--gray-6);
+}
+.hp-work-selected {
+  outline: 2px solid var(--accent-8);
+  outline-offset: 4px;
+}
+.hp-run-inspector .hp-trace-panel {
+  min-width: 0;
+  width: 100%;
+}
+.hp-run-inspector button,
+.hp-execution-block > button,
+.hp-inspector > .hp-surface-body > button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--gray-6);
+  border-radius: 8px;
+  background: var(--color-panel-solid);
+  color: var(--gray-12);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.hp-run-inspector button:hover:not(:disabled),
+.hp-execution-block > button:hover {
+  background: var(--gray-3);
+}
+.hp-run-inspector button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.hp-run-inspector [role="tab"][aria-selected="true"] {
+  background: var(--accent-3);
+  border-color: var(--accent-8);
+}
+.hp-run-inspector .hp-trace-tree-wrap,
+.hp-run-inspector .hp-trace-detail {
+  min-height: 0;
+  flex: none;
+}

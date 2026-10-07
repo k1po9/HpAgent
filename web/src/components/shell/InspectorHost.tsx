@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import { HpApi } from "../../api/resources";
-import { HpCommandError, type HpRunSnapshot, type HpWork } from "../../api/types";
+import { HpCommandError, type HpWork } from "../../api/types";
 import { useShell, type Inspector } from "../../store/shell";
 import { useArtifacts } from "../../store/artifacts";
-import { useTraceStore } from "../trace/traceStore";
-import { TracePanel } from "../trace/TracePanel";
+import { RunInspector } from "../run/RunInspector";
 import { ArtifactPanel } from "../ArtifactPanel";
 import { Surface } from "./Surface";
 
@@ -22,8 +21,10 @@ function useCompactInspector() {
 }
 export function InspectorHost({
   onSaveHtml,
+  onSaveFile,
 }: {
   onSaveHtml: (html: string, name: string) => void;
+  onSaveFile?: (file: import("../../api/types").HpFile) => void;
 }) {
   const inspector = useShell((s) => s.route.inspector);
   const backStack = useShell((s) => s.backStack);
@@ -45,11 +46,15 @@ export function InspectorHost({
       <button onClick={() => useShell.setState({ expanded: !expanded })}>
         {expanded ? "恢复宽度" : "扩大阅读"}
       </button>
-      <InspectorBody
-        key={`${inspector.kind}:${inspector.objectId}:${inspector.versionId ?? ""}`}
-        inspector={inspector}
-        onSaveHtml={onSaveHtml}
-      />
+      {inspector.kind === "run" ? (
+        <RunInspector key={inspector.objectId} inspector={inspector} onSaveFile={onSaveFile} />
+      ) : (
+        <InspectorBody
+          key={`${inspector.kind}:${inspector.objectId}:${inspector.versionId ?? ""}`}
+          inspector={inspector}
+          onSaveHtml={onSaveHtml}
+        />
+      )}
     </Surface>
   );
 }
@@ -92,13 +97,7 @@ function InspectorBody({
           setState(versions.length ? "ready" : "empty");
           return;
         }
-        if (inspector.kind === "run") {
-          const snapshot: HpRunSnapshot = await resources.getRun(inspector.objectId);
-          if (!valid) return;
-          setTitle(`执行 ${snapshot.run.run_id}`);
-          setSummary(snapshot.run.status);
-          useTraceStore.getState().selectRun(inspector.objectId);
-        } else if (inspector.kind === "task") {
+        if (inspector.kind === "task") {
           const { work } = await api.request<{ work: HpWork }>({
             method: "GET",
             path: `/api/v1/works/${encodeURIComponent(inspector.objectId)}`,
@@ -130,7 +129,6 @@ function InspectorBody({
     void load();
     return () => {
       valid = false;
-      if (inspector.kind === "run") useTraceStore.getState().reset();
     };
   }, [inspector, attempt]);
   if (state === "loading") return <p role="status">正在加载对象…</p>;
@@ -168,7 +166,6 @@ function InspectorBody({
           onSaveHtml={onSaveHtml}
         />
       )}
-      {inspector.kind === "run" && <TracePanel embedded />}
       {(inspector.kind === "file" || inspector.kind === "task") && (
         <button
           onClick={() =>

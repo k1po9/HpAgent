@@ -6,6 +6,8 @@ export type Inspector = {
   kind: "run" | "artifact" | "file" | "task";
   objectId: string;
   versionId?: string;
+  tab?: "overview" | "resources" | "advanced";
+  origin?: { conversationId?: string; messageId?: string; workId?: string };
 };
 export type Route = {
   screen: Screen;

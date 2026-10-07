@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
 import { HpApi } from "../api/resources";
 import type { HpConversation, HpMessage, HpRun, HpChatRunSnapshot } from "../api/types";
+import { useTraceStore } from "../components/trace/traceStore";
 import { createWorkbenchStore, isRetryableRun } from "./workbench";
 
 const ENCODER = new TextEncoder();
@@ -864,6 +865,7 @@ describe("workbench store", () => {
       }),
     };
 
+    useTraceStore.getState().selectRun("historical-B");
     channel.send(
       "trace.event",
       "tr1",
@@ -880,6 +882,8 @@ describe("workbench store", () => {
     );
     await vi.advanceTimersByTimeAsync(150);
 
+    expect(useTraceStore.getState().runId).toBe("historical-B");
+    expect(useTraceStore.getState().nodes).toEqual({});
     expect(store.getState().activeRun?.budget?.tokens.total.used).toBe(15);
     expect(store.getState().messages.find((item) => item.message_id === "am-1")?.content).toBe(
       "Hello",

@@ -16,6 +16,8 @@ import type {
   HpRunSnapshot,
   HpTraceTree,
   HpModelInputDetail,
+  HpModelInputList,
+  HpFileApproval,
   HpSendResult,
   HpArtifact,
   HpArtifactSummary,
@@ -474,11 +476,44 @@ export class HpApi {
     });
   }
 
-  async getRun(runId: string): Promise<HpRunSnapshot> {
+  async getRun(runId: string, signal?: AbortSignal): Promise<HpRunSnapshot> {
     return this.client.request<HpRunSnapshot>({
       method: "GET",
       path: `/api/v1/runs/${runId}`,
+      ...(signal ? { signal } : {}),
     });
+  }
+
+  async listRunFileApprovals(
+    runId: string,
+    signal?: AbortSignal,
+  ): Promise<{ approvals: HpFileApproval[] }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/runs/${runId}/file-action-approvals`,
+      ...(signal ? { signal } : {}),
+    });
+  }
+
+  async decideFileApproval(
+    approvalId: string,
+    decision: "approve" | "reject",
+    key: string,
+  ): Promise<{ approval: HpFileApproval }> {
+    return this.client.request({
+      method: "POST",
+      path: `/api/v1/file-action-approvals/${approvalId}/${decision}`,
+      body: {},
+      idempotencyKey: key,
+    });
+  }
+
+  async listRunModelInputs(runId: string): Promise<HpModelInputList> {
+    return this.client.request({ method: "GET", path: `/api/v1/runs/${runId}/model-inputs` });
+  }
+
+  async getFile(fileId: string): Promise<{ file: HpFile }> {
+    return this.client.request({ method: "GET", path: `/api/v1/files/${fileId}` });
   }
 
   async getRunTrace(runId: string): Promise<HpTraceTree> {

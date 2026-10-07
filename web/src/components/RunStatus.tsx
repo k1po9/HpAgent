@@ -9,7 +9,6 @@ import {
   runStatusLabel,
 } from "../store/workbench";
 import { phaseLabel } from "./progressLabels";
-import { formatTokenCount, tokenUsagePrefix } from "../utils/tokenUsage";
 
 interface RunStatusProps {
   activeRun: HpRun | null;
@@ -46,6 +45,7 @@ export function RunStatus({
   useEffect(() => {
     if (!queuedRunId || !queuedCreatedAt) return;
     const elapsed = Date.now() - Date.parse(queuedCreatedAt);
+    if (!Number.isFinite(elapsed)) return;
     const delay = Math.max(0, 60_000 - elapsed);
     const timer = window.setTimeout(() => setWarnedRun(queuedRunId), delay);
     return () => window.clearTimeout(timer);
@@ -62,7 +62,6 @@ export function RunStatus({
     ["tool_side_effect_uncertain", "side_effect_reconciliation_failed"].includes(
       activeRun.failure?.code ?? "",
     );
-  const budget = activeRun?.budget;
 
   return (
     <Box className="hp-runstrip">
@@ -77,10 +76,10 @@ export function RunStatus({
             <Spinner size="1" data-testid="run-spinner" />
           ) : (
             <Text size="2" color="gray" aria-hidden="true">
-              ✓
+              {activeRun.status === "succeeded" ? "✓" : activeRun.status === "failed" ? "!" : "■"}
             </Text>
           )}
-          <Text size="2" weight="medium" data-testid="run-label">
+          <Text size="2" weight="medium" role="status" data-testid="run-label">
             {runStatusLabel(activeRun.status)}
           </Text>
           {activeRun.status === "queued" && warnedRun === activeRun.run_id ? (
@@ -90,25 +89,12 @@ export function RunStatus({
           ) : null}
           {degraded && running ? (
             <Text size="2" color="orange" role="status" data-testid="run-degraded">
-              连接中断，任务仍在执行…
+              连接中断，正在同步执行状态
             </Text>
           ) : null}
           {progress ? (
             <Text size="2" color="gray" data-testid="run-progress">
               {progress.summary || phaseLabel(progress.phase)}
-            </Text>
-          ) : null}
-          {budget && budget.usage_state !== "none" ? (
-            <Text size="2" color="gray" data-testid="run-token-usage">
-              {tokenUsagePrefix(budget)}
-              {formatTokenCount(budget.tokens.total.used)} tokens
-              {budget.tokens.total.reserved > 0
-                ? ` · ≤${formatTokenCount(budget.tokens.total.reserved)} 预留`
-                : ""}
-              {budget.model_calls.total_attempts > 0
-                ? ` · ${budget.model_calls.total_attempts} 次模型请求`
-                : ""}
-              {budget.model_calls.unmetered > 0 ? " · 部分用量无法确认" : ""}
             </Text>
           ) : null}
           {unsafeSideEffect ? (
@@ -118,7 +104,7 @@ export function RunStatus({
           ) : null}
           {activeRun.status === "failed" && activeRun.failure?.message ? (
             <Text size="2" color="red" role="status" data-testid="run-failure-message">
-              {activeRun.failure.message}（{activeRun.failure.code}）
+              {activeRun.failure.message}
             </Text>
           ) : null}
           {cancellable ? (
@@ -127,7 +113,7 @@ export function RunStatus({
               variant="soft"
               color="red"
               onClick={onStop}
-              disabled={stopping}
+              disabled={stopping || activeRun.status === "cancelling"}
               data-testid="stop-run"
             >
               {stopping ? "正在停止…" : "停止"}
