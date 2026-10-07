@@ -1,0 +1,9 @@
+
+> hpagent-web@0.1.0 lint
+> eslint . && prettier --check .
+
+Checking formatting...
+[warn] src/components/tasks/TaskActions.tsx
+[warn] src/components/tasks/TaskBudgetDialog.tsx
+[warn] src/components/tasks/TaskLookup.tsx
+[warn] Code style issues found in 3 files. Run Prettier with --write to fix.

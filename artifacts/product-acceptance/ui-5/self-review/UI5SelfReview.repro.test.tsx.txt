@@ -1,0 +1,61 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { api } from "../../api/client";
+import { useWorks } from "../../store/works";
+import { useShell } from "../../store/shell";
+import { workFixture, runFixture } from "./taskFixtures";
+import { TaskOutputs } from "./TaskOutputs";
+import { TaskInspector } from "./TaskInspector";
+import { TaskEditor } from "./TaskEditor";
+import { resetTaskQueries } from "./useTaskQuery";
+
+afterEach(() => {
+  cleanup();
+  useWorks.getState().reset();
+  resetTaskQueries();
+  useShell.getState().reset();
+  vi.restoreAllMocks();
+});
+it("R1 refreshes an initially empty published-files result after the Run completes", async () => {
+  let completed = false;
+  const work = workFixture();
+  const spy = vi.spyOn(api, "request").mockImplementation(async ({ path }) => {
+    if (path.endsWith("/runs")) return { items: [{ ...runFixture, status: completed ? "succeeded" : "running" }] } as never;
+    if (path.endsWith("/published-files")) return { files: completed ? [{ file_id: "f1", name: "completed-result.txt" }] : [] } as never;
+    throw new Error(path);
+  });
+  const view = render(<TaskOutputs work={work} onSaveFile={() => {}} />);
+  fireEvent.click(await screen.findByText("读取报告与输出文件"));
+  await screen.findByText("暂无已发布文件。");
+  completed = true;
+  view.rerender(<TaskOutputs work={{ ...work, row_version: work.row_version + 1 }} onSaveFile={() => {}} />);
+  await screen.findByText(/执行成功/);
+  fireEvent.click(screen.getByText("读取报告与输出文件"));
+  await act(async () => {});
+  expect(spy.mock.calls.filter(([r]) => r.path.endsWith("/published-files"))).toHaveLength(2);
+  expect(screen.getByRole("link", { name: "completed-result.txt" })).toBeVisible();
+});
+it("R2 safely opens outputs for an M21 missing-continuation snapshot", async () => {
+  const work = workFixture({ continuation: undefined as never });
+  useWorks.getState().upsert(work);
+  vi.spyOn(api, "request").mockImplementation(async ({ path }) =>
+    (path.endsWith("/runs") ? { items: [] } : { work }) as never,
+  );
+  expect(() => render(<TaskInspector inspector={{ kind: "task", objectId: work.work_id, tab: "outputs" }} onSaveFile={() => {}} />)).not.toThrow();
+  await screen.findByText(/状态待核实/);
+});
+it("R3 preserves editor draft when retrying a failed baseline refresh", async () => {
+  const work = workFixture();
+  const spy = vi.spyOn(api, "request").mockResolvedValue({ work });
+  const first = render(<TaskEditor workId={work.work_id} onClose={() => {}} />);
+  await screen.findByLabelText("目标 / 提醒内容");
+  first.unmount();
+  spy.mockRejectedValueOnce(new TypeError("temporary offline"));
+  render(<TaskEditor workId={work.work_id} onClose={() => {}} />);
+  await screen.findByText(/temporary offline/);
+  fireEvent.change(screen.getByLabelText("目标 / 提醒内容"), { target: { value: "must preserve my draft" } });
+  fireEvent.change(screen.getByLabelText("修订原因"), { target: { value: "draft reason" } });
+  fireEvent.click(screen.getByText("重试要求"));
+  await waitFor(() => expect(screen.getByLabelText("目标 / 提醒内容")).toHaveValue("must preserve my draft"));
+  expect(screen.getByLabelText("修订原因")).toHaveValue("draft reason");
+});

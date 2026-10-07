@@ -1,0 +1,1045 @@
+EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE                                    [100%]
+==================================== ERRORS ====================================
+___ ERROR at setup of test_work_http_lifecycle_and_cross_account_visibility ____
+
+    @pytest.fixture(scope="session")
+    def migration_database_url() -> str:
+        value = os.getenv("MIGRATION_DATABASE_URL")
+        if not value:
+            pytest.skip("MIGRATION_DATABASE_URL is required")
+>       migrate(value)
+
+test/web_api/conftest.py:46: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_accept_without_conversation_and_idempotency[reminder] _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_accept_without_conversation_and_idempotency[research_report] _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+___ ERROR at setup of test_cross_conversation_links_do_not_copy_permissions ____
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_____________ ERROR at setup of test_account_scope_queries_and_fk ______________
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+________ ERROR at setup of test_requirement_is_immutable_and_revise_cas ________
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_____ ERROR at setup of test_concurrent_commands_allow_one_winner[revise] ______
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_____ ERROR at setup of test_concurrent_commands_allow_one_winner[advance] _____
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+____ ERROR at setup of test_queued_coordinator_and_different_work_admission ____
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+____ ERROR at setup of test_pointer_consistency_and_run_owner_immutability _____
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+__________ ERROR at setup of test_run_success_does_not_complete_work ___________
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+__________ ERROR at setup of test_ongoing_result_never_completes_work __________
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+__ ERROR at setup of test_revision_fences_old_results_and_keeps_fixed_inputs ___
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_control_waits_for_cancel_convergence[pause-pausing-paused] _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_control_waits_for_cancel_convergence[stop-stopping-stopped] _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_failed_run_retains_responsibility_and_cancel_is_attempt_only _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_illegal_work_transitions_rejected_in_database[running] _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_illegal_work_transitions_rejected_in_database[failed] _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_illegal_work_transitions_rejected_in_database[paused] _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_illegal_work_transitions_rejected_in_database[stopped] _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_illegal_work_transitions_rejected_in_database[completed] _
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_____ ERROR at setup of test_real_role_permissions_and_append_only_events ______
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+______ ERROR at setup of test_no_task_schema_or_stale_database_functions _______
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_____ ERROR at setup of test_future_once_wakeup_persists_without_executor ______
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_____ ERROR at setup of test_research_query_checks_capability_and_account ______
+
+    @pytest.fixture(scope='session')
+    def urls():
+        names = ('MIGRATION_DATABASE_URL', 'APP_DATABASE_URL', 'WORKER_DATABASE_URL')
+        if not all(os.getenv(name) for name in names):
+            pytest.skip('three real PostgreSQL role URLs are required')
+        values = tuple(os.environ[name] for name in names)
+>       migrate(values[0])
+
+test/work_domain/conftest.py:20: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_budget_parallel_reservation_retry_and_late_settlement _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_reminder_only_completes_after_exact_delivery_receipt __
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+__ ERROR at setup of test_stop_and_uncertain_delivery_preserve_responsibility __
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+___ ERROR at setup of test_revision_receipt_cannot_complete_new_requirements ___
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+___ ERROR at setup of test_artifact_build_has_new_work_run_provenance[ready] ___
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+___ ERROR at setup of test_artifact_build_has_new_work_run_provenance[retry] ___
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_artifact_build_has_new_work_run_provenance[user_and_delivery] _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_resume_revalidates_accepted_reminder_without_resending _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_capacity_reserves_interactive_room_and_recovers_lease _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_qq_reminder_target_is_explicit_and_work_control_is_model_free[private] _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_qq_reminder_target_is_explicit_and_work_control_is_model_free[group] _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+_ ERROR at setup of test_explicit_input_revoke_blocks_dispatch_and_budget_adjustment_is_versioned _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/persistence/migrate.py:82: in migrate
+    _, files = _migration_files()
+               ^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    def _migration_files() -> tuple[Path, list[Path]]:
+        root = get_migrations_dir()
+        if not root.is_dir():
+>           raise SchemaVerificationError(
+                f"service={_service()} migration_root={root} migration_file_count=0 "
+                "reason=migration_directory_missing"
+            )
+E           persistence.migrate.SchemaVerificationError: service=unknown migration_root=/opt/hpagent/migrations migration_file_count=0 reason=migration_directory_missing
+
+src/persistence/migrate.py:29: SchemaVerificationError
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /home/hp/workspace/HpAgent_web/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR test/web_api/test_work_foundation.py::test_work_http_lifecycle_and_cross_account_visibility
+ERROR test/work_domain/test_foundation.py::test_accept_without_conversation_and_idempotency[reminder]
+ERROR test/work_domain/test_foundation.py::test_accept_without_conversation_and_idempotency[research_report]
+ERROR test/work_domain/test_foundation.py::test_cross_conversation_links_do_not_copy_permissions
+ERROR test/work_domain/test_foundation.py::test_account_scope_queries_and_fk
+ERROR test/work_domain/test_foundation.py::test_requirement_is_immutable_and_revise_cas
+ERROR test/work_domain/test_foundation.py::test_concurrent_commands_allow_one_winner[revise]
+ERROR test/work_domain/test_foundation.py::test_concurrent_commands_allow_one_winner[advance]
+ERROR test/work_domain/test_foundation.py::test_queued_coordinator_and_different_work_admission
+ERROR test/work_domain/test_foundation.py::test_pointer_consistency_and_run_owner_immutability
+ERROR test/work_domain/test_foundation.py::test_run_success_does_not_complete_work
+ERROR test/work_domain/test_foundation.py::test_ongoing_result_never_completes_work
+ERROR test/work_domain/test_foundation.py::test_revision_fences_old_results_and_keeps_fixed_inputs
+ERROR test/work_domain/test_foundation.py::test_control_waits_for_cancel_convergence[pause-pausing-paused]
+ERROR test/work_domain/test_foundation.py::test_control_waits_for_cancel_convergence[stop-stopping-stopped]
+ERROR test/work_domain/test_foundation.py::test_failed_run_retains_responsibility_and_cancel_is_attempt_only
+ERROR test/work_domain/test_foundation.py::test_illegal_work_transitions_rejected_in_database[running]
+ERROR test/work_domain/test_foundation.py::test_illegal_work_transitions_rejected_in_database[failed]
+ERROR test/work_domain/test_foundation.py::test_illegal_work_transitions_rejected_in_database[paused]
+ERROR test/work_domain/test_foundation.py::test_illegal_work_transitions_rejected_in_database[stopped]
+ERROR test/work_domain/test_foundation.py::test_illegal_work_transitions_rejected_in_database[completed]
+ERROR test/work_domain/test_foundation.py::test_real_role_permissions_and_append_only_events
+ERROR test/work_domain/test_foundation.py::test_no_task_schema_or_stale_database_functions
+ERROR test/work_domain/test_foundation.py::test_future_once_wakeup_persists_without_executor
+ERROR test/work_domain/test_foundation.py::test_research_query_checks_capability_and_account
+ERROR test/web_persistence/test_work_integration.py::test_budget_parallel_reservation_retry_and_late_settlement
+ERROR test/web_persistence/test_work_integration.py::test_reminder_only_completes_after_exact_delivery_receipt
+ERROR test/web_persistence/test_work_integration.py::test_stop_and_uncertain_delivery_preserve_responsibility
+ERROR test/web_persistence/test_work_integration.py::test_revision_receipt_cannot_complete_new_requirements
+ERROR test/web_persistence/test_work_integration.py::test_artifact_build_has_new_work_run_provenance[ready]
+ERROR test/web_persistence/test_work_integration.py::test_artifact_build_has_new_work_run_provenance[retry]
+ERROR test/web_persistence/test_work_integration.py::test_artifact_build_has_new_work_run_provenance[user_and_delivery]
+ERROR test/web_persistence/test_work_integration.py::test_resume_revalidates_accepted_reminder_without_resending
+ERROR test/web_persistence/test_work_integration.py::test_capacity_reserves_interactive_room_and_recovers_lease
+ERROR test/web_persistence/test_work_integration.py::test_qq_reminder_target_is_explicit_and_work_control_is_model_free[private]
+ERROR test/web_persistence/test_work_integration.py::test_qq_reminder_target_is_explicit_and_work_control_is_model_free[group]
+ERROR test/web_persistence/test_work_integration.py::test_explicit_input_revoke_blocks_dispatch_and_budget_adjustment_is_versioned
+1 warning, 37 errors in 0.89s

@@ -1,0 +1,5 @@
+Final frontend gate chain (typecheck, lint, build, all Vitest): exit 0.
+Final Chromium matrix: Playwright reported 28 passed (5.6m); the temporary outer wrapper ended with exit 143 after that report.
+Teardown isolation check: starting the npm child in a separate process session and running a11y.spec.ts reported 2 passed (14.9s), wrapper exit 0.
+Integration conflict/risk review: 10 passed, exit 0.
+Task read isolation review: 3 passed, exit 0.

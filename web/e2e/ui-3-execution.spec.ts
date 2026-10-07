@@ -187,7 +187,7 @@ test("network fixtures: Work snapshot, missing Trace, approvals and responsive i
   await page.getByRole("tab", { name: "概览", exact: true }).click();
   await page.getByRole("button", { name: "查看所属任务", exact: true }).click();
   await expect(page.locator(".hp-inspector")).toHaveCount(0);
-  await expect(page.locator(".hp-work-panel")).toBeVisible();
+  await expect(page.locator(".hp-task-screen")).toBeVisible();
   await page.goto("/#/tasks?inspect=run:66666666-6666-4666-8666-666666666666");
   await expect(page.getByRole("alert")).toContainText("对象不可用");
   await page.screenshot({ path: `${evidence}/run-unavailable-desktop.png`, fullPage: true });

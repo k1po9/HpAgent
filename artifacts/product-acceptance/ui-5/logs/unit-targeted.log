@@ -1,0 +1,26 @@
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/components/tasks/useTaskController.test.tsx (2 tests | 1 failed) 69ms
+   × does not overlap slow scans; visibility pause and recovery synchronize snapshots 16ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/tasks/useTaskController.test.tsx > does not overlap slow scans; visibility pause and recovery synchronize snapshots
+AssertionError: expected "load" to be called 1 times, but got 3 times
+ ❯ src/components/tasks/useTaskController.test.tsx:60:16
+     58|   renderHook(() => useTaskController());
+     59|   await act(async () => vi.advanceTimersByTimeAsync(30000));
+     60|   expect(load).toHaveBeenCalledTimes(1);
+       |                ^
+     61|   await act(async () => {
+     62|     done();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 6 passed (7)
+      Tests  1 failed | 60 passed (61)
+   Start at  19:16:58
+   Duration  15.60s (transform 1.04s, setup 1.25s, import 1.75s, tests 1.92s, environment 8.86s)
+

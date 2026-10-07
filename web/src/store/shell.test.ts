@@ -51,3 +51,13 @@ describe("UI-1 navigation", () => {
     expect(useShell.getState().route.inspector).toBeUndefined();
   });
 });
+
+it("normalizes artifact_build into general and validates tabs for each Inspector kind", () => {
+  const parsed = parseRoute("#/tasks?type=artifact_build&work=w1&tab=outputs");
+  expect(parsed.route.type).toBe("general");
+  expect(parsed.route.inspector).toMatchObject({ kind: "task", objectId: "w1", tab: "outputs" });
+  expect(parseRoute("#/tasks?work=w1&tab=preview").route.inspector?.tab).toBeUndefined();
+  expect(parseRoute("#/ai?inspect=file:f1&tab=outputs").route.inspector?.tab).toBeUndefined();
+  expect(serializeRoute(parsed.route)).toContain("type=general");
+  expect(serializeRoute(parsed.route)).toContain("tab=outputs");
+});

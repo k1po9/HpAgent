@@ -1,3 +1,5 @@
+import { useWorks } from "../../store/works";
+import { validSnapshot } from "../tasks/taskActions";
 import { useEffect, useId, useState } from "react";
 import type { HpWorkspaceNode } from "../../api/types";
 import { useShell } from "../../store/shell";
@@ -28,6 +30,11 @@ export function GrantEditor({ node, subject }: { node: HpWorkspaceNode; subject:
   );
 }
 function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) {
+  const work = useWorks((s) =>
+    subject.kind === "work" ? s.items.find((w) => w.work_id === subject.id) : undefined,
+  );
+  const canGrant =
+    !work || (validSnapshot(work) && !["stopped", "completed"].includes(work.status));
   const tree = useWorkspace((s) => s.tree);
   const query = useWorkspaceQuery(`grants:${subject.kind}:${subject.id}`, () =>
     listGrants(subject),
@@ -89,7 +96,7 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
           </button>
         </p>
       ))}
-      <fieldset disabled={busy}>
+      <fieldset disabled={busy || !canGrant}>
         <legend>新增权限</legend>
         {(["list_metadata", "read_content"] as const).map((op) => (
           <label key={op}>
@@ -131,7 +138,7 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
         )}
       </fieldset>
       <button
-        disabled={busy || !query.data || !operations.length}
+        disabled={busy || !canGrant || !query.data || !operations.length}
         onClick={() => {
           setBusy(true);
           setError("");

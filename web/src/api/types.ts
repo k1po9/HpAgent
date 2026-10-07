@@ -373,6 +373,51 @@ export interface HpWorkEvent {
   bounded_payload: Record<string, unknown>;
 }
 
+export interface HpRequirement {
+  // GET includes persisted row metadata; mutation builders submit only domain fields.
+  revision?: number;
+  work_id?: string;
+  account_id?: string;
+  change_reason?: string;
+  created_at?: string;
+  source_message_id?: string | null;
+  created_by?: string;
+  command_id?: string;
+  content_hash?: string;
+  objective: string;
+  capability_key: string;
+  spec: Record<string, unknown>;
+  constraints: string[];
+  acceptance_criteria: Array<{ id: string; required: boolean; evidence_types: string[] }>;
+  completion_mode: "deliverable" | "ongoing";
+  timing: {
+    schema_version: number;
+    kind: string;
+    timezone: string;
+    due_at?: string;
+    local_time?: string;
+  };
+  resource_requests: Array<Record<string, unknown>>;
+  deliverable_policy: Record<string, unknown>;
+}
+export interface HpTaskRun {
+  run_id: string;
+  work_id: string;
+  status: string;
+  requirement_revision: number;
+  work_control_epoch: number;
+  result_json: { evidence?: Array<{ type: string; ref: string }> } | null;
+  failure_code: string | null;
+  created_at?: string;
+}
+export interface HpNotification {
+  notification_id: string;
+  work_id: string | null;
+  run_id: string | null;
+  created_at: string;
+  payload: unknown;
+  provider_receipt: { level: string } | null;
+}
 export interface HpWork {
   work_id: string;
   title: string;
@@ -381,8 +426,20 @@ export interface HpWork {
   current_requirement_revision: number;
   active_coordinator_run_id: string | null;
   conversation_ids: string[];
-  continuation: { kind: string; reason: string; due_at?: string; receipt_ref?: string };
-  requirement: { objective: string; capability_key: string };
+  control_epoch: number;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  stopped_at: string | null;
+  schedule: { desired_enabled: boolean; next_due_at: string | null } | null;
+  continuation: {
+    kind: string;
+    reason: string;
+    due_at?: string;
+    receipt_ref?: string;
+    operation_ref?: string;
+  };
+  requirement: HpRequirement;
   budget: {
     limits: Record<string, number>;
     used: Record<string, number>;
@@ -394,6 +451,8 @@ export interface HpWork {
     state: string;
     requirement_revision: number;
     failure_code: string | null;
+    entry_id?: string | null;
+    operation_id?: string | null;
   }>;
   artifacts: Array<{
     artifact_id: string;
@@ -402,9 +461,14 @@ export interface HpWork {
     status: string;
     accepted_for_revision: number | null;
     source_requirement_revision: number;
+    producing_run_id?: string | null;
+    file_id?: string | null;
+    reference_id?: string;
   }>;
   deliveries: Array<{
     delivery_id: string;
+    notification_id?: string;
+    attempts?: number;
     state: string;
     channel: string;
     purpose: string;

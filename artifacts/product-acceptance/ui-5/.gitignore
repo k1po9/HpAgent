@@ -1,0 +1,6 @@
+# Keep this stage's command evidence; application and Playwright runtime logs stay ignored.
+!logs/*.log
+
+# Preserve the review and repair evidence separately from the original stage.
+!self-review/*.log
+!self-review/fix-logs/*.log

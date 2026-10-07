@@ -10,16 +10,16 @@ import { ChatPane } from "../ChatPane";
 import { WorkspaceScreen } from "../workspace/WorkspaceScreen";
 import { WorkspaceSidebar } from "../workspace/WorkspaceSidebar";
 import { ResourceManager } from "../workspace/ResourceManager";
-import { WorkPanel } from "../WorkPanel";
-import { WorkCreateForm, WorkResourcePanel } from "../WorkManagement";
-import { ResearchOutputs } from "../ResearchOutputs";
+import { TaskScreen } from "../tasks/TaskScreen";
+import { TaskSidebar } from "../tasks/TaskSidebar";
+import { TaskEditor } from "../tasks/TaskEditor";
+import { TaskInbox } from "../tasks/TaskInbox";
+import { useTaskController } from "../tasks/useTaskController";
 import { QQBindingPanel } from "../QQBindingPanel";
 import { RegistrationQqGate } from "../RegistrationQqGate";
 import { ArtifactsPage, SaveWorkspaceDialog } from "../TestPages";
 import { InspectorHost } from "./InspectorHost";
 import { Surface } from "./Surface";
-import { NotificationInbox } from "./LegacyUtilities";
-import { api } from "../../api/client";
 
 const screens = [
   { id: "ai", label: "AI", icon: Bot },
@@ -27,6 +27,7 @@ const screens = [
   { id: "tasks", label: "任务", icon: ListTodo },
 ] as const;
 export function AppShell() {
+  useTaskController();
   const route = useShell((s) => s.route);
   const modal = useShell((s) => s.modal);
   const sidebarOpen = useShell((s) => s.sidebarOpen);
@@ -128,11 +129,7 @@ export function AppShell() {
     ) : route.screen === "workspace" ? (
       <WorkspaceSidebar />
     ) : (
-      <div className="hp-context-placeholder">
-        <h2>任务</h2>
-        <p>持续工作</p>
-        <p className="hp-muted">在主区域管理任务、研究报告与收件箱。</p>
-      </div>
+      <TaskSidebar />
     );
   return (
     <div className={`hp-shell ${route.inspector ? "hp-shell--inspecting" : ""}`}>
@@ -218,21 +215,34 @@ export function AppShell() {
           className="hp-screen-scroll"
           aria-label="任务页面"
         >
-          <WorkCreateForm conversationId={conversationId} research={route.type === "research"} />
-          <WorkPanel conversationId={conversationId} pageMode />
-          <details>
-            <summary>工作资料授权</summary>
-            {route.screen === "tasks" && <WorkResourcePanel />}
-          </details>
-          <ResearchOutputs onSaveFile={saveFile} />
-          <RunLookup />
-          <NotificationInbox />
+          {route.screen === "tasks" && <TaskScreen />}
         </section>
       </main>
-      <InspectorHost
-        onSaveFile={saveFile}
-        onSaveHtml={(html, name) => setSaveSource({ html, file_name: `${name}.txt` })}
-      />
+      {modal !== "task-inbox" && (
+        <InspectorHost
+          onSaveFile={saveFile}
+          onSaveHtml={(html, name) => setSaveSource({ html, file_name: `${name}.txt` })}
+        />
+      )}
+      {modal === "task-create" && <TaskEditor onClose={() => useShell.setState({ modal: null })} />}
+      {modal === "task-inbox" && <TaskInbox onClose={() => useShell.setState({ modal: null })} />}
+      {pendingRoute && pendingReason === "tasks" && (
+        <Surface
+          title="放弃未提交的任务草稿？"
+          onClose={() => useShell.setState({ pendingRoute: null })}
+        >
+          <p>草稿尚未提交，切换将丢弃修改。</p>
+          <button onClick={() => useShell.setState({ pendingRoute: null })}>继续编辑</button>
+          <button
+            onClick={() => {
+              useShell.setState({ dirtyTaskEditor: null });
+              useShell.getState().navigate(pendingRoute);
+            }}
+          >
+            放弃草稿并继续
+          </button>
+        </Surface>
+      )}
       {sidebarOpen && (
         <Surface
           title="上下文导航"
@@ -360,76 +370,5 @@ export function AppShell() {
         />
       )}
     </div>
-  );
-}
-function RunLookup() {
-  const [runs, setRuns] = useState<Array<{ run_id: string; status: string }>>([]);
-  const [error, setError] = useState("");
-  const [query, setQuery] = useState<{ workId: string; revision: number } | null>(null);
-  useEffect(() => {
-    if (!query) return;
-    let valid = true;
-    void api
-      .request<{ items: typeof runs }>({
-        method: "GET",
-        path: `/api/v1/works/${encodeURIComponent(query.workId)}/runs`,
-      })
-      .then((page) => {
-        if (valid) setRuns(page.items);
-      })
-      .catch(() => {
-        if (valid) setError("执行记录暂不可用。");
-      });
-    return () => {
-      valid = false;
-    };
-  }, [query]);
-  return (
-    <details>
-      <summary>执行记录与诊断</summary>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          const value = new FormData(event.currentTarget).get("work");
-          const workId = typeof value === "string" ? value.trim() : "";
-          if (!workId) {
-            setError("请输入工作编号。");
-            return;
-          }
-          setError("");
-          setRuns([]);
-          setQuery((previous) => ({ workId, revision: (previous?.revision ?? 0) + 1 }));
-        }}
-      >
-        <label>
-          工作编号
-          <input name="work" required />
-        </label>
-        <button>读取执行记录</button>
-      </form>
-      {runs.map((run) => (
-        <button
-          key={run.run_id}
-          onClick={() => useShell.getState().openInspector({ kind: "run", objectId: run.run_id })}
-        >
-          {run.status} · {run.run_id}
-        </button>
-      ))}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          const value = new FormData(event.currentTarget).get("run");
-          if (typeof value === "string")
-            useShell.getState().openInspector({ kind: "run", objectId: value.trim() });
-        }}
-      >
-        <label>
-          执行编号
-          <input name="run" required />
-        </label>
-        <button>查询执行</button>
-      </form>
-      {error && <p role="alert">{error}</p>}
-    </details>
   );
 }

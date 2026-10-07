@@ -6,7 +6,15 @@ export type Inspector = {
   kind: "run" | "artifact" | "file" | "task";
   objectId: string;
   versionId?: string;
-  tab?: "overview" | "resources" | "advanced" | "preview" | "details" | "versions" | "usage";
+  tab?:
+    | "overview"
+    | "outputs"
+    | "resources"
+    | "advanced"
+    | "preview"
+    | "details"
+    | "versions"
+    | "usage";
   origin?: { conversationId?: string; messageId?: string; workId?: string; directoryId?: string };
 };
 export type Route = {
@@ -71,7 +79,12 @@ export function parseRoute(
     route.bucket = (
       buckets.includes(params.get("bucket") ?? "") ? params.get("bucket") : "attention"
     ) as Route["bucket"];
-    route.type = types.includes(params.get("type") ?? "") ? params.get("type")! : "all";
+    route.type =
+      params.get("type") === "artifact_build"
+        ? "general"
+        : types.includes(params.get("type") ?? "")
+          ? params.get("type")!
+          : "all";
     route.workId = id(params.get("work"));
   }
   const inspect = params.get("inspect") ?? "";
@@ -83,6 +96,15 @@ export function parseRoute(
     if (kind === "artifact") route.inspector.versionId = id(params.get("version"));
   }
   if (route.workId && !route.inspector) route.inspector = { kind: "task", objectId: route.workId };
+  const allowedTabs: Record<string, string[]> = {
+    task: ["overview", "outputs", "resources", "advanced"],
+    run: ["overview", "resources", "advanced"],
+    file: ["preview", "details", "versions", "usage"],
+    artifact: ["preview", "versions"],
+  };
+  const tab = params.get("tab");
+  if (route.inspector && tab && allowedTabs[route.inspector.kind]?.includes(tab))
+    route.inspector.tab = tab as Inspector["tab"];
   return { route };
 }
 
@@ -97,6 +119,7 @@ export function serializeRoute(route: Route): string {
   if (route.inspector) {
     params.set("inspect", `${route.inspector.kind}:${route.inspector.objectId}`);
     if (route.inspector.versionId) params.set("version", route.inspector.versionId);
+    if (route.inspector.tab) params.set("tab", route.inspector.tab);
   }
   const path = `#/${route.screen}${route.screen === "ai" && route.conversationId ? `/${encodeURIComponent(route.conversationId)}` : ""}`;
   return `${path}${params.size ? `?${params}` : ""}`;
@@ -104,13 +127,14 @@ export function serializeRoute(route: Route): string {
 interface ShellState {
   pendingRoute: Route | null;
   dirtyResourceEditor: string | null;
+  dirtyTaskEditor: string | null;
   pendingResourceChange: (() => void) | null;
   requestResourceChange: (action: () => void) => void;
-  pendingRouteReason: "attachments" | "resources";
+  pendingRouteReason: "attachments" | "resources" | "tasks";
   route: Route;
   backStack: Inspector[];
   pages: Partial<Record<Screen, Route>>;
-  modal: "account" | "resources" | "artifact-create" | null;
+  modal: "account" | "resources" | "artifact-create" | "task-create" | "task-inbox" | null;
   sidebarOpen: boolean;
   expanded: boolean;
   requestToken: number;
@@ -124,6 +148,7 @@ interface ShellState {
 export const useShell = create<ShellState>((set, get) => ({
   pendingRoute: null,
   dirtyResourceEditor: null,
+  dirtyTaskEditor: null,
   pendingResourceChange: null,
   requestResourceChange(action) {
     if (get().dirtyResourceEditor) set({ pendingResourceChange: action });
@@ -138,6 +163,11 @@ export const useShell = create<ShellState>((set, get) => ({
   expanded: false,
   requestToken: 0,
   navigate(route, replace = false) {
+    if (get().dirtyTaskEditor) {
+      window.history.replaceState(null, "", serializeRoute(get().route));
+      set({ pendingRoute: route, pendingRouteReason: "tasks", sidebarOpen: false });
+      return;
+    }
     if (get().dirtyResourceEditor) {
       window.history.replaceState(null, "", serializeRoute(get().route));
       set({ pendingRoute: route, pendingRouteReason: "resources", sidebarOpen: false });
@@ -197,19 +227,27 @@ export const useShell = create<ShellState>((set, get) => ({
       return;
     }
     const stack = child && route.inspector ? [...backStack, route.inspector].slice(-5) : [];
-    get().navigate({ ...route, inspector });
+    get().navigate({
+      ...route,
+      ...(inspector.kind === "task" && route.screen === "tasks"
+        ? { workId: inspector.objectId }
+        : {}),
+      inspector,
+    });
     set({ backStack: stack });
   },
   closeInspector() {
     const inspector = get().route.inspector;
     get().navigate({ ...get().route, inspector: undefined, workId: undefined });
-    if (get().pendingRoute || inspector?.kind !== "file") return;
+    if (get().pendingRoute || !["file", "task"].includes(inspector?.kind ?? "")) return;
     setTimeout(() => {
       if (get().route.inspector) return;
       const trigger =
         inspector?.kind === "file"
           ? document.getElementById(`workspace-node-${inspector.objectId}`)
-          : null;
+          : inspector?.kind === "task"
+            ? document.getElementById(`task-${inspector.objectId}`)
+            : null;
       if (trigger?.isConnected && !trigger.closest("[hidden]")) trigger.focus();
       else document.getElementById("canvas-title")?.focus();
     }, 0);
@@ -229,6 +267,7 @@ export const useShell = create<ShellState>((set, get) => ({
     set({
       pendingRoute: null,
       dirtyResourceEditor: null,
+      dirtyTaskEditor: null,
       pendingResourceChange: null,
       pendingRouteReason: "attachments",
       route: { screen: "ai" },

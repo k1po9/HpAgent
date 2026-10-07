@@ -1,0 +1,211 @@
+
+> hpagent-web@0.1.0 test
+> vitest run src/components/tasks/UI5SelfReview.repro.test.tsx --maxWorkers=1
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/components/tasks/UI5SelfReview.repro.test.tsx (3 tests | 3 failed) 1966ms
+   × R1 refreshes an initially empty published-files result after the Run completes 356ms
+   × R2 safely opens outputs for an M21 missing-continuation snapshot 73ms
+   × R3 preserves editor draft when retrying a failed baseline refresh 1528ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/tasks/UI5SelfReview.repro.test.tsx > R1 refreshes an initially empty published-files result after the Run completes
+AssertionError: expected [ [ { method: 'GET', …(2) } ] ] to have a length of 2 but got 1
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ src/components/tasks/UI5SelfReview.repro.test.tsx:35:79
+     33|   fireEvent.click(screen.getByText("读取报告与输出文件"));
+     34|   await act(async () => {});
+     35|   expect(spy.mock.calls.filter(([r]) => r.path.endsWith("/published-fi…
+       |                                                                               ^
+     36|   expect(screen.getByRole("link", { name: "completed-result.txt" })).t…
+     37| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/components/tasks/UI5SelfReview.repro.test.tsx > R2 safely opens outputs for an M21 missing-continuation snapshot
+AssertionError: expected [Function] to not throw an error but 'TypeError: Cannot read properties of …' was thrown
+
+- Expected:
+undefined
+
++ Received:
+"TypeError: Cannot read properties of undefined (reading 'operation_ref')"
+
+ ❯ src/components/tasks/UI5SelfReview.repro.test.tsx:44:138
+     42|     (path.endsWith("/runs") ? { items: [] } : { work }) as never,
+     43|   );
+     44|   expect(() => render(<TaskInspector inspector={{ kind: "task", object…
+       |                                                                                                                                          ^
+     45|   await screen.findByText(/状态待核实/);
+     46| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/components/tasks/UI5SelfReview.repro.test.tsx > R3 preserves editor draft when retrying a failed baseline refresh
+Error: expect(element).toHaveValue(must preserve my draft)
+
+Expected the element to have value:
+  must preserve my draft
+Received:
+  目标
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div />[39m
+    [36m<div>[39m
+      [36m<dialog[39m
+        [33maria-label[39m=[32m"修改任务要求"[39m
+        [33mclass[39m=[32m"hp-surface "[39m
+        [33mopen[39m=[32m""[39m
+      [36m>[39m
+        [36m<header[39m
+          [33mclass[39m=[32m"hp-surface-header"[39m
+        [36m>[39m
+          [36m<h2[39m
+            [33mtabindex[39m=[32m"-1"[39m
+          [36m>[39m
+            [0m修改任务要求[0m
+          [36m</h2>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"关闭修改任务要求"[39m
+            [33mtitle[39m=[32m"关闭"[39m
+          [36m>[39m
+            [0m×[0m
+          [36m</button>[39m
+        [36m</header>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"hp-surface-body"[39m
+        [36m>[39m
+          [36m<form[39m
+            [33mclass[39m=[32m"hp-operation-form"[39m
+          [36m>[39m
+            [36m<p>[39m
+              [0m当前基线 r[0m
+              [0m2[0m
+              [0m。修订将取消或收敛当前执行；暂停任务不会自动恢复。[0m
+            [36m</p>[39m
+            [36m<label>[39m
+              [0m工作类型[0m
+              [36m<select[39m
+                [33mdisabled[39m=[32m""[39m
+              [36m>[39m
+                [36m<option[39m
+                  [33mvalue[39m=[32m"reminder"[39m
+                [36m>[39m
+                  [0m提醒[0m
+                [36m</option>[39m
+                [36m<option[39m
+                  [33mvalue[39m=[32m"research_report"[39m
+                [36m>[39m
+                  [0m研究报告[0m
+                [36m</option>[39m
+                [36m<option[39m
+                  [33mvalue[39m=[32m"generic_work"[39m
+                [36m>[39m
+                  [0m通用任务[0m
+                [36m</option>[39m
+              [36m</select>[39m
+            [36m</label>[39m
+            [36m<label>[39m
+              [0m目标 / 提醒内容[0m
+              [36m<textarea[39m
+                [33mmaxlength[39m=[32m"20000"[39m
+                [33mrequired[39m=[32m""[39m
+              [36m>[39m
+                [0m目标[0m
+              [36m</textarea>[39m
+            [36m</label>[39m
+            [36m<label>[39m
+              [0m约束（每行一条）[0m
+              [36m<textarea />[39m
+            [36m</label>[39m
+            [36m<label>[39m
+              [0m推理模式[0m
+              [36m<select>[39m
+                [36m<option[39m
+                  [33mvalue[39m=[32m"react"[39m
+                [36m>[39m
+                  [0mReAct[0m
+                [36m</option>[39m
+              [36m</select>[39m
+            [36m</label>[39m
+            [36m<label>[39m
+              [0m执行时间[0m
+              [36m<select>[39m
+                [36m<option[39m
+                  [33mvalue[39m=[32m"immediate"[39m
+                [36m>[39m
+                  [0m立即[0m
+                [36m</option>[39m
+                [36m<option[39m
+                  [33mvalue[39m=[32m"once"[39m
+                [36m>[39m
+                  [0m指定时间[0m
+                [36m</option>[39m
+                [36m<option[39m
+                  [33mvalue[39m=[32m"daily"[39m
+                [36m>[39m
+                  [0m每天[0m
+                [36m</option>[39m
+              [36m</select>[39m
+            [36m</label>[39m
+            [36m<label>[39m
+              [0m计划时区[0m
+              [36m<select>[39m
+                [36m<option[39m
+                  [33mvalue[39m=[32m"Asia/Shanghai"[39m
+                [36m>[39m
+                  [0mAsia/Shanghai（UTC+8）[0m
+                [36m</option>[39m
+                [36m<option[39m
+                  [33mvalue[39m=[32m"UTC"[39m
+                [36m>[39m
+                  [0mUTC[0m
+                [36m</option>[39m
+              [36m</select>[39m
+            [36m</label>[39m
+            [36m<label>[39m
+              [0m修订原因[0m
+              [36m<textarea[39m
+                [33mrequired[39m=[32m""[39m
+              [36m/>[39m
+            [36m</label>[39m
+            [36m<button>[39m
+              [0m提交修订[0m
+            [36m</button>[39m
+          [36m</form>[39m
+        [36m</div>[39m
+      [36m</dialog>[39m
+    [36m</div>[39m
+  [36m</body>[39m
+[36m</html>[39m
+ ❯ src/components/tasks/UI5SelfReview.repro.test.tsx:59:66
+     57|   fireEvent.change(screen.getByLabelText("修订原因"), { target: { value: "…
+     58|   fireEvent.click(screen.getByText("重试要求"));
+     59|   await waitFor(() => expect(screen.getByLabelText("目标 / 提醒内容")).toHav…
+       |                                                                  ^
+     60|   expect(screen.getByLabelText("修订原因")).toHaveValue("draft reason");
+     61| });
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  00:11:16
+   Duration  12.65s (transform 1.71s, setup 897ms, import 3.19s, tests 1.97s, environment 5.59s)
+

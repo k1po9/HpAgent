@@ -1,0 +1,53 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=1 --testTimeout=15000
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/components/tasks/taskRequirement.test.ts (3 tests | 1 failed) 51ms
+   × omits persisted Requirement row metadata from a revision command 16ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/tasks/taskRequirement.test.ts > omits persisted Requirement row metadata from a revision command
+AssertionError: expected [ 'acceptance_criteria', …(15) ] to deeply equal [ 'acceptance_criteria', …(8) ]
+
+- Expected
++ Received
+
+  [
+    "acceptance_criteria",
++   "account_id",
+    "capability_key",
++   "change_reason",
++   "command_id",
+    "completion_mode",
+    "constraints",
++   "content_hash",
++   "created_at",
+    "deliverable_policy",
+    "objective",
+    "resource_requests",
++   "revision",
+    "spec",
+    "timing",
++   "work_id",
+  ]
+
+ ❯ src/components/tasks/taskRequirement.test.ts:85:37
+     83|     timingChanged: false,
+     84|   });
+     85|   expect(Object.keys(value).sort()).toEqual(
+       |                                     ^
+     86|     [
+     87|       "acceptance_criteria",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 40 passed (41)
+      Tests  1 failed | 306 passed (307)
+   Start at  19:27:17
+   Duration  169.90s (transform 3.00s, setup 12.84s, import 16.69s, tests 38.36s, environment 86.34s)
+

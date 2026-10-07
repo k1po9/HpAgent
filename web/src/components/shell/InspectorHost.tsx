@@ -1,6 +1,6 @@
+import { TaskInspector } from "../tasks/TaskInspector";
 import { useEffect, useState } from "react";
-import { api } from "../../api/client";
-import { HpCommandError, type HpWork } from "../../api/types";
+import { HpCommandError } from "../../api/types";
 import { useShell, type Inspector } from "../../store/shell";
 import { useArtifacts } from "../../store/artifacts";
 import { RunInspector } from "../run/RunInspector";
@@ -24,7 +24,7 @@ export function InspectorHost({
   onSaveFile,
 }: {
   onSaveHtml: (html: string, name: string) => void;
-  onSaveFile?: (file: import("../../api/types").HpFile) => void;
+  onSaveFile?: (file: { file_id: string; file_name: string }) => void;
 }) {
   const inspector = useShell((s) => s.route.inspector);
   const backStack = useShell((s) => s.backStack);
@@ -59,6 +59,12 @@ export function InspectorHost({
       </button>
       {inspector.kind === "run" ? (
         <RunInspector key={inspector.objectId} inspector={inspector} onSaveFile={onSaveFile} />
+      ) : inspector.kind === "task" ? (
+        <TaskInspector
+          key={inspector.objectId}
+          inspector={inspector}
+          onSaveFile={(file) => onSaveFile?.(file)}
+        />
       ) : inspector.kind === "file" ? (
         <FileInspector key={inspector.objectId} inspector={inspector} />
       ) : (
@@ -82,7 +88,6 @@ function InspectorBody({
     "loading",
   );
   const [title, setTitle] = useState("");
-  const [summary, setSummary] = useState("");
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let valid = true;
@@ -109,15 +114,6 @@ function InspectorBody({
           setTitle(store.artifactsById[inspector.objectId]?.title ?? "HTML 成果");
           setState(versions.length ? "ready" : "empty");
           return;
-        }
-        if (inspector.kind === "task") {
-          const { work } = await api.request<{ work: HpWork }>({
-            method: "GET",
-            path: `/api/v1/works/${encodeURIComponent(inspector.objectId)}`,
-          });
-          if (!valid) return;
-          setTitle(work.title);
-          setSummary(`${work.requirement.objective} · ${work.status}`);
         }
         setState("ready");
       } catch (error) {
@@ -160,7 +156,6 @@ function InspectorBody({
   return (
     <>
       <h3>{title}</h3>
-      {summary && <p>{summary}</p>}
       {inspector.kind === "artifact" && (
         <ArtifactPanel
           embedded

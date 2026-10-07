@@ -1,3 +1,4 @@
+import { acquireTaskLock, reserveTaskIntent } from "../tasks/taskOperations";
 import { create } from "zustand";
 import { api } from "../../api/client";
 import { HpCommandError, type HpWork } from "../../api/types";
@@ -41,7 +42,8 @@ export async function workCommand(
     .then(() => {
       if (generation !== useWorkspace.getState().generation)
         throw new DOMException("Session changed", "AbortError");
-      return runWorkCommand(id, suffix, body, method);
+      const release = acquireTaskLock(id, JSON.stringify({ id, suffix, body, method }));
+      return runWorkCommand(id, suffix, body, method).finally(release);
     });
   workQueues.set(id, command);
   try {
@@ -81,12 +83,21 @@ async function runWorkCommand(
     if (generation !== useWorkspace.getState().generation)
       throw new DOMException("Session changed", "AbortError");
     workIntents.delete(fingerprint);
-    void useWorks.getState().load();
+    reserveTaskIntent(id, fingerprint, false);
+    if (result.work) useWorks.getState().upsert(result.work);
+    else
+      void useWorks
+        .getState()
+        .refresh(id)
+        .catch(() => {});
     observeRevocation(result.affected_run_ids ?? []);
     return result;
   } catch (error) {
     // A definitive conflict is a rejected command. Retry explicitly re-reads its version.
-    if (error instanceof HpCommandError && error.status === 409) workIntents.delete(fingerprint);
+    const uncertain = !(error instanceof HpCommandError) || error.status >= 500;
+    if (generation === useWorkspace.getState().generation)
+      reserveTaskIntent(id, fingerprint, uncertain);
+    if (!uncertain) workIntents.delete(fingerprint);
     throw error;
   }
 }

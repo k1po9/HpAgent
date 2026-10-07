@@ -62,6 +62,7 @@ test("creates reminder and research directly from independent pages on narrow sc
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await page.getByRole("button", { name: "任务", exact: true }).click();
+  await page.getByRole("button", { name: "新建任务", exact: true }).click();
   const title = `reminder-${Date.now()}`;
   await page.getByLabel("工作名称").fill(title);
   await page.getByLabel("目标 / 提醒内容").fill("提醒测试到账户收件箱");
@@ -71,6 +72,8 @@ test("creates reminder and research directly from independent pages on narrow sc
   await page.getByRole("button", { name: "创建工作", exact: true }).click();
   expect((await created).status()).toBe(201);
   await expect(page.getByRole("article", { name: title })).toBeVisible();
+  await page.getByRole("button", { name: "关闭任务详情" }).click();
+  await page.getByRole("button", { name: "新建任务", exact: true }).click();
   await page.getByLabel("工作类型").selectOption("research_report");
   await page.getByLabel("工作名称").fill(`research-${Date.now()}`);
   await page.getByLabel("目标 / 提醒内容").fill("测试研究来源和输出");
@@ -79,7 +82,7 @@ test("creates reminder and research directly from independent pages on narrow sc
   );
   await page.getByRole("button", { name: "创建工作", exact: true }).click();
   expect((await research).status()).toBe(201);
-  await expect(page.getByRole("status")).toContainText("已创建");
+  await expect(page.getByLabel("任务信息")).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -88,6 +91,7 @@ test("creates reminder and research directly from independent pages on narrow sc
 test("revises a scheduled work and grants its own directory permissions", async ({ page }) => {
   await login(page);
   await page.getByRole("button", { name: "任务", exact: true }).click();
+  await page.getByRole("button", { name: "新建任务", exact: true }).click();
   const title = `scheduled-${Date.now()}`;
   await page.getByLabel("工作名称").fill(title);
   await page.getByLabel("目标 / 提醒内容").fill("原始提醒要求");
@@ -98,14 +102,16 @@ test("revises a scheduled work and grants its own directory permissions", async 
   );
   await page.getByRole("button", { name: "创建工作", exact: true }).click();
   const work = (await (await created).json()).work;
-  await page.getByLabel("操作对象").selectOption({ label: title });
+  await page.locator(".hp-inspector").getByRole("button", { name: "修改要求" }).click();
   await expect(page.getByLabel("目标 / 提醒内容")).toHaveValue("原始提醒要求");
   await page.getByLabel("目标 / 提醒内容").fill("已修订的提醒要求");
   await page.getByLabel("修订原因").fill("人工验证修订入口");
   await page.getByRole("button", { name: "提交修订", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("已修订");
-  await page.getByText("工作资料授权", { exact: true }).click();
-  await page.getByLabel("选择工作").selectOption({ label: title });
+  await expect(page.getByRole("dialog", { name: "修改任务要求" })).toHaveCount(0);
+  await expect(
+    page.locator(".hp-inspector").getByText("已修订的提醒要求", { exact: true }),
+  ).toBeVisible();
+  await page.locator(".hp-inspector").getByRole("tab", { name: "使用资料" }).click();
   await page.getByLabel("选择长期目录或文件").selectOption({ label: "/资料" });
   await page.getByLabel("包含此目录的所有子目录与文件").check();
   await page.getByRole("button", { name: "确认授予所选权限", exact: true }).click();

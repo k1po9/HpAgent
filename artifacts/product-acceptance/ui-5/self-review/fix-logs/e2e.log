@@ -1,0 +1,40 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test e2e/ui-5-recovery.spec.ts e2e/ui-5-tasks.spec.ts e2e/manual-repair.spec.ts e2e/artifact.spec.ts e2e/a11y.spec.ts
+
+[WebServer] INFO:     Started server process [439463]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8185 (Press CTRL+C to quit)
+[WebServer] (node:441662) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 15 tests using 1 worker
+
+(node:441768) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/a11y.spec.ts:10:1 › login form exposes a heading and labelled fields (12.1s)
+  ✓   2 [chromium] › e2e/a11y.spec.ts:18:1 › workbench exposes headings, labelled controls, and semantic buttons (9.2s)
+[WebServer] 2026-10-08 00:31:21 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 00:31:21 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 00:31:21 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 00:31:26 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 00:31:26 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 00:31:26 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   3 [chromium] › e2e/artifact.spec.ts:5:1 › builds, interacts with, isolates and restores an Artifact (34.4s)
+[WebServer] 2026-10-08 00:31:54 [WARNING] HpAgent.WebApi: workspace_request_rejected
+  ✓   4 [chromium] › e2e/manual-repair.spec.ts:5:1 › creates a child in the selected directory and explains duplicate names (10.1s)
+  ✓   5 [chromium] › e2e/manual-repair.spec.ts:27:1 › uploads and authorizes the current conversation, and keeps chat drafts across pages (13.0s)
+  ✓   6 [chromium] › e2e/manual-repair.spec.ts:59:1 › creates reminder and research directly from independent pages on narrow screens (10.9s)
+  ✓   7 [chromium] › e2e/manual-repair.spec.ts:91:1 › revises a scheduled work and grants its own directory permissions (14.8s)
+  ✓   8 [chromium] › e2e/ui-5-recovery.spec.ts:12:1 › network fixtures: terminal output invalidation preserves expansion and empty results can refresh (9.1s)
+  ✓   9 [chromium] › e2e/ui-5-recovery.spec.ts:73:1 › network fixtures: missing/null continuation deep links stay read-only and recover by refresh (19.3s)
+  ✓  10 [chromium] › e2e/ui-5-recovery.spec.ts:124:1 › real API: a failed requirement read and retry preserve the whole draft before revision (11.4s)
+  ✓  11 [chromium] › e2e/ui-5-tasks.spec.ts:29:1 › creates, revises, controls, increases one limit and returns from inspector children (14.3s)
+  ✓  12 [chromium] › e2e/ui-5-tasks.spec.ts:74:1 › lost create response retries identical intention and does not duplicate a task (9.9s)
+  ✓  13 [chromium] › e2e/ui-5-tasks.spec.ts:110:1 › task deep link, unavailable object, focus, responsive screens and inbox modal (18.8s)
+[WebServer] 2026-10-08 00:34:04 [INFO ] HpAgent.Account: web_registration_succeeded account_id=01a11737-0569-7325-a65d-6f4c617dd984
+  ✓  14 [chromium] › e2e/ui-5-tasks.spec.ts:170:1 › 51st task remains available after serial pagination and a first-page refresh (50.3s)
+  ✓  15 [chromium] › e2e/ui-5-tasks.spec.ts:224:1 › network fixtures: four buckets, pausing decision, failure scope and empty filters (13.0s)
+
+  15 passed (4.9m)

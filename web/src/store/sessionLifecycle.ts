@@ -1,3 +1,4 @@
+import { resetTaskQueries } from "../components/tasks/useTaskQuery";
 import { useWorkspace } from "./workspace";
 import { resetWorkspaceOperations } from "../components/workspace/workspaceOperations";
 import { useRunInspector } from "./runInspector";
@@ -23,6 +24,7 @@ export const disposeSessionLifecycle = useAuth.subscribe((state, previous) => {
   useWorkbench.getState().reset();
   useConversationUi.getState().reset();
   useWorks.getState().reset();
+  resetTaskQueries();
   useArtifacts.getState().reset();
   useTraceStore.getState().reset();
   useRunInspector.getState().reset();

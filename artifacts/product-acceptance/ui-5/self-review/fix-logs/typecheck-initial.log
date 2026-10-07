@@ -1,0 +1,7 @@
+
+> hpagent-web@0.1.0 typecheck
+> tsc --noEmit
+
+src/components/tasks/TaskSelfReview.test.tsx(166,9): error TS2322: Type '(value: PromiseLike<never>) => void' is not assignable to type '(value: unknown) => void'.
+  Types of parameters 'value' and 'value' are incompatible.
+    Type 'unknown' is not assignable to type 'PromiseLike<never>'.
