@@ -413,3 +413,75 @@ export interface HpWork {
     provider_receipt: { level: string } | null;
   }>;
 }
+
+export interface HpWorkspaceNode {
+  node_id: string;
+  parent_id: string | null;
+  kind: "directory" | "file";
+  name: string;
+  file_id: string | null;
+  destination_id: string | null;
+  revision: number | null;
+  source: {
+    purpose: "input" | "output";
+    conversation_id: string | null;
+    run_id: string | null;
+    sha256: string;
+    size_bytes: number | null;
+  } | null;
+}
+export interface HpWorkspace {
+  workspace_id: string;
+  root_id: string;
+  nodes: HpWorkspaceNode[];
+}
+export interface HpWorkspaceFilters {
+  name?: string;
+  summary?: string;
+  content_type?: string;
+  purpose?: string;
+  work_id?: string;
+  source_run_id?: string;
+  from_date?: string;
+  to_date?: string;
+}
+export interface HpWorkspaceSearchItem {
+  node_id: string;
+  name: string;
+  file_id: string;
+  destination_id?: string | null;
+  content_type: string | null;
+  size_bytes: number | null;
+  purpose: string;
+  source_run_id: string | null;
+  source_work_id: string | null;
+  revision: number | null;
+  created_at?: string;
+  summary?: string | null;
+  summary_sha256?: string | null;
+}
+export interface HpWorkspaceSearchPage {
+  items: HpWorkspaceSearchItem[];
+  next_after: string | null;
+}
+export interface HpWorkspaceTrace {
+  node_id: string;
+  file_id: string;
+  destination_id: string | null;
+  current_revision: number | null;
+  source_run_id: string | null;
+  source_work_id: string | null;
+  publication: { operation_id: string; status: string; run_id: string } | null;
+  versions: Array<{ revision: number; file_id: string; operation_id: string }>;
+  saves: Array<{ operation_id: string; source_kind: string; source_run_id: string | null }>;
+  denials: Array<{ run_id: string; operation: string; reason: string; created_at: string }>;
+  run_usage_truncated: boolean;
+  run_usage: Array<{
+    run_id: string;
+    fixed_file_id: string | null;
+    fixed_revision: number | null;
+    fixed_at: string | null;
+    materialized_at: string | null;
+    first_read_at: string | null;
+  }>;
+}

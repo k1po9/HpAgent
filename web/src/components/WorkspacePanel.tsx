@@ -34,7 +34,7 @@ export function WorkspacePanel({
   const [name, setName] = useState("");
   const [newDirectoryName, setNewDirectoryName] = useState("");
   const selectedNodeRef = useRef<string | null>(null);
-  const [useForConversation, setUseForConversation] = useState(true);
+  const [useForConversation, setUseForConversation] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingAuthorization, setPendingAuthorization] = useState<{
     nodeId: string;

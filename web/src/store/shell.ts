@@ -6,8 +6,8 @@ export type Inspector = {
   kind: "run" | "artifact" | "file" | "task";
   objectId: string;
   versionId?: string;
-  tab?: "overview" | "resources" | "advanced";
-  origin?: { conversationId?: string; messageId?: string; workId?: string };
+  tab?: "overview" | "resources" | "advanced" | "preview" | "details" | "versions" | "usage";
+  origin?: { conversationId?: string; messageId?: string; workId?: string; directoryId?: string };
 };
 export type Route = {
   screen: Screen;
@@ -103,6 +103,10 @@ export function serializeRoute(route: Route): string {
 }
 interface ShellState {
   pendingRoute: Route | null;
+  dirtyResourceEditor: string | null;
+  pendingResourceChange: (() => void) | null;
+  requestResourceChange: (action: () => void) => void;
+  pendingRouteReason: "attachments" | "resources";
   route: Route;
   backStack: Inspector[];
   pages: Partial<Record<Screen, Route>>;
@@ -119,6 +123,13 @@ interface ShellState {
 }
 export const useShell = create<ShellState>((set, get) => ({
   pendingRoute: null,
+  dirtyResourceEditor: null,
+  pendingResourceChange: null,
+  requestResourceChange(action) {
+    if (get().dirtyResourceEditor) set({ pendingResourceChange: action });
+    else action();
+  },
+  pendingRouteReason: "attachments",
   route: { screen: "ai" },
   backStack: [],
   pages: {},
@@ -127,6 +138,11 @@ export const useShell = create<ShellState>((set, get) => ({
   expanded: false,
   requestToken: 0,
   navigate(route, replace = false) {
+    if (get().dirtyResourceEditor) {
+      window.history.replaceState(null, "", serializeRoute(get().route));
+      set({ pendingRoute: route, pendingRouteReason: "resources", sidebarOpen: false });
+      return;
+    }
     const workbench = useWorkbench.getState();
     if (
       route.screen === "ai" &&
@@ -134,7 +150,12 @@ export const useShell = create<ShellState>((set, get) => ({
       workbench.attachments.length
     ) {
       window.history.replaceState(null, "", serializeRoute(get().route));
-      set({ pendingRoute: route, modal: null, sidebarOpen: false });
+      set({
+        pendingRoute: route,
+        pendingRouteReason: "attachments",
+        modal: null,
+        sidebarOpen: false,
+      });
       return;
     }
     if (workbench.creatingConversation && !workbench.activeConversationId)
@@ -149,7 +170,11 @@ export const useShell = create<ShellState>((set, get) => ({
         ...get().pages,
         [get().route.screen]: { ...get().route, inspector: undefined, workId: undefined },
       },
-      backStack: [],
+      backStack:
+        route.inspector?.kind === get().route.inspector?.kind &&
+        route.inspector?.objectId === get().route.inspector?.objectId
+          ? get().backStack
+          : [],
       sidebarOpen: false,
       modal: null,
       requestToken: get().requestToken + 1,
@@ -158,9 +183,14 @@ export const useShell = create<ShellState>((set, get) => ({
   restore(hash, context) {
     const parsed = parseRoute(hash, context);
     get().navigate(parsed.route, true);
+    if (get().pendingRoute) return;
     set({ modal: parsed.modal ?? null });
   },
   openInspector(inspector, child = false) {
+    if (get().dirtyResourceEditor) {
+      get().requestResourceChange(() => get().openInspector(inspector, child));
+      return;
+    }
     const { route, backStack } = get();
     if (JSON.stringify(route.inspector) === JSON.stringify(inspector)) {
       document.getElementById("inspector-title")?.focus();
@@ -171,7 +201,18 @@ export const useShell = create<ShellState>((set, get) => ({
     set({ backStack: stack });
   },
   closeInspector() {
+    const inspector = get().route.inspector;
     get().navigate({ ...get().route, inspector: undefined, workId: undefined });
+    if (get().pendingRoute || inspector?.kind !== "file") return;
+    setTimeout(() => {
+      if (get().route.inspector) return;
+      const trigger =
+        inspector?.kind === "file"
+          ? document.getElementById(`workspace-node-${inspector.objectId}`)
+          : null;
+      if (trigger?.isConnected && !trigger.closest("[hidden]")) trigger.focus();
+      else document.getElementById("canvas-title")?.focus();
+    }, 0);
   },
   back() {
     const stack = [...get().backStack];
@@ -181,11 +222,15 @@ export const useShell = create<ShellState>((set, get) => ({
       return;
     }
     get().navigate({ ...get().route, inspector });
+    if (get().pendingRoute) return;
     set({ backStack: stack });
   },
   reset() {
     set({
       pendingRoute: null,
+      dirtyResourceEditor: null,
+      pendingResourceChange: null,
+      pendingRouteReason: "attachments",
       route: { screen: "ai" },
       pages: {},
       backStack: [],

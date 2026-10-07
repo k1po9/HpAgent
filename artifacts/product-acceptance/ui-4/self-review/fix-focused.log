@@ -1,0 +1,153 @@
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ✓ src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > shows only refreshed grants after a successful read-only authorization 2094ms
+ ✓ src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > tracks partial revoke and retries only surviving rules 380ms
+ ✓ src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > closes revoke confirmation when DELETE is applied but its response is lost 160ms
+ ✓ src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > keeps revoke context when DELETE and readback both fail, then narrows it after query recovery 257ms
+ ✓ src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > releases A's revoke busy state after switching away and back 276ms
+ ✓ src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > keeps A locked on return until its revoke finishes and refreshes grants 264ms
+ × src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > does not refresh the active run after an unmounted revoke completes 129ms
+   → expected "refreshActiveRun" to not be called at all, but actually been called 2 times
+
+Received:
+
+  1st refreshActiveRun call:
+
+    Array []
+
+  2nd refreshActiveRun call:
+
+    Array []
+
+
+Number of calls: 2
+
+ ✓ src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > keeps B busy when A's older revoke finishes first 311ms
+ ✓ src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > does not write an old revoke result into a new account session 179ms
+ ✓ src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > discards an A→B→A late query instead of showing stale grants 35ms
+ ✓ src/components/WorkspacePanel.test.tsx > Workspace authority lifecycle > drops late candidates and failures after cancellation without losing the version Run 1717ms
+ ✓ src/components/WorkspacePanel.test.tsx > Workspace authority lifecycle > does not restore old candidates after leaving a running Run 83ms
+ ✓ src/components/WorkspacePanel.test.tsx > Workspace authority lifecycle > fences delayed authority responses across A → B → A 176ms
+ ✓ src/components/WorkspacePanel.test.tsx > Workspace authority lifecycle > keeps an unknown active-run 404 visible 64ms
+ ✓ src/components/WorkspacePanel.test.tsx > Workspace authority lifecycle > refreshes candidates when the same queued Run starts running 141ms
+ ✓ src/components/WorkspacePanel.test.tsx > Workspace authority lifecycle > drops a late candidate page after a conversation switch 211ms
+ ✓ src/components/WorkspacePanel.test.tsx > creates inside the selected directory with a separate empty name and preserves selection 508ms
+ ✓ src/components/WorkspacePanel.test.tsx > keeps a saved upload after authorization failure and retries only the authorization 368ms
+stderr | src/components/workspace/WorkspaceCommands.test.tsx > does not authorize a late impact preview after any parameter changes
+An update to WorkspaceMutationDialog inside a test was not wrapped in act(...).
+
+When testing, code that causes React state updates should be wrapped into act(...):
+
+act(() => {
+  /* fire events that update state */
+});
+/* assert on the output */
+
+This ensures that you're testing the behavior the user would see in the browser. Learn more at https://react.dev/link/wrap-tests-with-act
+
+ ✓ src/components/workspace/WorkspaceCommands.test.tsx > does not authorize a late impact preview after any parameter changes 839ms
+ ✓ src/components/workspace/WorkspaceCommands.test.tsx > clears impact on name/action changes and never automatically retries an expired token 627ms
+ ✓ src/components/workspace/WorkspaceCommands.test.tsx > rejects late published outputs for a different Run and exposes real save on CAS conflict 349ms
+ ✓ src/components/workspace/WorkspaceCommands.test.tsx > cannot close or notify the new save view with an old source's completion 88ms
+ ✓ src/components/workspace/WorkspaceCommands.test.tsx > creates a new conversation once even when authorization fails 128ms
+ ✓ src/components/workspace/FileInspector.test.tsx > renders HTML as text and never creates executable elements 208ms
+ ✓ src/components/workspace/FileInspector.test.tsx > only fetches metadata/preview initially and never file APIs for a directory 31ms
+ ✓ src/components/workspace/FileInspector.test.tsx > falls back to metadata and download for unsupported metadata {"content_type":"application/pdf"} 386ms
+ ✓ src/components/workspace/FileInspector.test.tsx > falls back to metadata and download for unsupported metadata {"content_type":"application/vnd.openxmlformats-officedocument.wordprocessingml.document"} 69ms
+ ✓ src/components/workspace/FileInspector.test.tsx > falls back to metadata and download for unsupported metadata {"size_bytes":null} 93ms
+ ✓ src/components/workspace/FileInspector.test.tsx > falls back to metadata and download for unsupported metadata {"size_bytes":1048577} 77ms
+ ✓ src/components/workspace/FileInspector.test.tsx > falls back to metadata and download for unsupported metadata {"encoding":"gbk"} 67ms
+ ✓ src/components/workspace/FileInspector.test.tsx > accepts precisely 1 MiB and ignores stale A → B → A preview responses 26ms
+ ✓ src/components/workspace/FileInspector.test.tsx > shows inherited grants only from recursive ancestors and defaults write permissions off 166ms
+ ✓ src/components/workspace/FileInspector.test.tsx > indexes large trees once and preserves folder-first stable order 53ms
+stdout | src/components/workspace/WorkspaceScale.test.tsx > indexes and browses 1000 nodes without per-row metadata or duplicated trees
+{"nodes":1101,"files":1000,"indexMs":22.93,"initialNavigationAndDirectoryRenderMs":181.36,"visibleFileRows":10,"treeRequests":1,"metadataRequests":0}
+
+ ✓ src/components/workspace/WorkspaceScale.test.tsx > indexes and browses 1000 nodes without per-row metadata or duplicated trees 233ms
+stdout | src/components/workspace/WorkspaceScale.test.tsx > indexes and browses 10000 nodes without per-row metadata or duplicated trees
+{"nodes":10101,"files":10000,"indexMs":25.29,"initialNavigationAndDirectoryRenderMs":417.23,"visibleFileRows":100,"treeRequests":1,"metadataRequests":0}
+
+ ✓ src/components/workspace/WorkspaceScale.test.tsx > indexes and browses 10000 nodes without per-row metadata or duplicated trees 477ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > me() caches the CSRF token 48ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > registers, verifies the cookie session through /me, and creates a QQ challenge 49ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > omits an empty optional invite from registration 5ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > reports a registered account whose automatic session was not established 14ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > rotates the CSRF token exactly once on csrf_invalid, then retries 29ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > puts the Idempotency-Key header on every mutation request 3ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > sends binary upload bodies unchanged and preserves them across CSRF recovery 29ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > replays the SAME Idempotency-Key after a CSRF rotation 4ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > does NOT rotate for a second csrf_invalid (single refresh budget) 44ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > does not rotate on non-CSRF errors (conversation_busy, run_not_cancellable) 5ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > surfaces unauthenticated as a typed error and clears the cached token 4ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > propagates idempotency-replayed as a flag on success 2ms
+ ✓ src/api/client.test.ts > ApiClient auth recovery > version_conflict (412) and service_unavailable (503) produce typed errors 4ms
+ ✓ src/api/client.test.ts > Markdown upload MIME metadata > maps browser MIME text/markdown for .md to text/markdown 5ms
+ ✓ src/api/client.test.ts > Markdown upload MIME metadata > maps browser MIME text/x-markdown for .md to text/markdown 2ms
+ ✓ src/api/client.test.ts > Markdown upload MIME metadata > maps browser MIME  for .md to text/markdown 2ms
+ ✓ src/api/client.test.ts > Markdown upload MIME metadata > maps browser MIME text/plain for .md to text/plain 2ms
+ ✓ src/api/client.test.ts > bounded authenticated text > decodes UTF-8 across chunks and allows exactly the cap 12ms
+ ✓ src/api/client.test.ts > bounded authenticated text > cancels a stream as soon as it exceeds the byte cap 5ms
+ ✓ src/api/client.test.ts > bounded authenticated text > rejects a late body after reset and handles content 401 uniformly 8ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > saves by default without granting an active conversation 15ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > keeps the initialized file and upload key after an unknown content response 5ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > replays an unknown save with the same key and payload, without transferring content again 5ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > recovers authorization alone after save success and only grants missing rules 9ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > deduplicates double clicks and rejects late results after reset 3ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > serializes Work grants and preserves If-Match and command key on uncertain retry 8ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > does not use the Conversation contract for Work grants 7ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > uses read-back after DELETE response loss to determine remaining rules 2ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > deduplicates in-flight revocation checks and waits for a terminal snapshot 15ms
+ ✓ src/components/workspace/workspaceOperations.test.ts > pauses hidden checks, bounds concurrency and discards old-account snapshots 15ms
+ ✓ src/components/workspace/UI4SelfReview.test.tsx > R1: concurrent consumers of the same query both receive the result with one request 203ms
+ ✓ src/components/workspace/UI4SelfReview.test.tsx > R2: an uncertain version submission retains its operation key across tab unmount/remount 923ms
+ ✓ src/components/workspace/UI4SelfReview.test.tsx > R3: confirmed Composer revoke invalidates diagnostics and follows affected Runs despite read-back failure 287ms
+ ✓ src/components/workspace/UI4SelfReview.test.tsx > R4: navigating a valid breadcrumb must not claim that its directory is unavailable 479ms
+ ✓ src/store/sessionIsolation.test.ts > UI-1 account and selection fences > aborts requests and rejects late responses without expiring the new account 26ms
+ ✓ src/store/sessionIsolation.test.ts > UI-1 account and selection fences > expires current 401s but leaves ordinary 403s in context 20ms
+ ✓ src/store/sessionIsolation.test.ts > UI-1 account and selection fences > does not restore authentication after an expire overtakes /me 4ms
+ ✓ src/store/sessionIsolation.test.ts > UI-1 account and selection fences > drops a late send after reset even when the same conversation ID is selected again 16ms
+ ✓ src/store/sessionIsolation.test.ts > UI-1 account and selection fences > does not continue an old upload under the next account 12ms
+ ✓ src/store/sessionIsolation.test.ts > UI-1 account and selection fences > drops late Model Input and trace responses across reset / A-B-A 4ms
+ ✓ src/store/sessionIsolation.test.ts > UI-1 account and selection fences > live chat cannot steal a selected historical Trace 2ms
+ ✓ src/store/workspace.test.ts > Workspace query ownership > shares one tree request and fences replaced requests even for the same object 39ms
+ ✓ src/store/workspace.test.ts > Workspace query ownership > does not restore any cache after an account reset 14ms
+ ✓ src/store/workspace.test.ts > Workspace query ownership > retries a failed query and reuses a successful cache 10ms
+ ✓ src/store/workspace.test.ts > Workspace search > does not mix a late old page with a newly applied filter 11ms
+ ✓ src/store/workspace.test.ts > Workspace search > retains existing results after a failed page and deduplicates on retry 18ms
+ ✓ src/store/workspace.test.ts > Workspace search > locks duplicate load-more requests and marks mutation results stale 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > does not refresh the active run after an unmounted revoke completes
+AssertionError: expected "refreshActiveRun" to not be called at all, but actually been called 2 times
+
+Received:
+
+  1st refreshActiveRun call:
+
+    Array []
+
+  2nd refreshActiveRun call:
+
+    Array []
+
+
+Number of calls: 2
+
+ ❯ src/components/conversation/ConversationResources.test.tsx:232:25
+    230|     view.unmount();
+    231|     await act(async () => pending.resolve({ affected_runs: [] }));
+    232|     expect(refresh).not.toHaveBeenCalled();
+       |                         ^
+    233|   });
+    234|   it("keeps B busy when A's older revoke finishes first", async () => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 9 passed (10)
+      Tests  1 failed | 81 passed (82)
+   Start at  16:42:12
+   Duration  64.25s (transform 3.41s, setup 5.00s, import 5.91s, tests 13.86s, environment 34.10s)
+

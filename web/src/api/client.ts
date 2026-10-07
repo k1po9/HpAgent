@@ -207,6 +207,49 @@ export class ApiClient {
     }
   }
 
+  /** Authenticated bounded stream; never buffer an unrestricted attachment. */
+  async readText(path: string, maxBytes: number, signal?: AbortSignal): Promise<string> {
+    const generation = this.generation;
+    const controller = new AbortController();
+    this.requests.add(controller);
+    const abort = () => controller.abort();
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) controller.abort();
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    try {
+      const response = await this.fetchImpl(path, {
+        method: "GET",
+        credentials: "same-origin",
+        signal: controller.signal,
+      });
+      this.assertCurrent(generation);
+      if (response.status === 401) this.onUnauthorized?.();
+      if (!response.ok) throw await this.toError(response);
+      if (Number(response.headers.get("content-length")) > maxBytes)
+        throw new Error("文件超过预览上限，请下载查看。");
+      if (!response.body) throw new Error("文件正文不可用。");
+      reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8", { fatal: true });
+      let bytes = 0;
+      let text = "";
+      for (;;) {
+        const chunk = await reader.read();
+        this.assertCurrent(generation);
+        if (controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+        if (chunk.done) break;
+        bytes += chunk.value.byteLength;
+        if (bytes > maxBytes) throw new Error("文件超过预览上限，请下载查看。");
+        text += decoder.decode(chunk.value, { stream: true });
+      }
+      return text + decoder.decode();
+    } finally {
+      await reader?.cancel().catch(() => {});
+      controller.abort();
+      this.requests.delete(controller);
+      signal?.removeEventListener("abort", abort);
+    }
+  }
+
   private mutationHeaders(): Record<string, string> {
     const headers: Record<string, string> = { Accept: "application/json" };
     if (this.csrfToken) {

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
-import { HpApi } from "../../api/resources";
 import { HpCommandError, type HpWork } from "../../api/types";
 import { useShell, type Inspector } from "../../store/shell";
 import { useArtifacts } from "../../store/artifacts";
@@ -8,7 +7,8 @@ import { RunInspector } from "../run/RunInspector";
 import { ArtifactPanel } from "../ArtifactPanel";
 import { Surface } from "./Surface";
 
-const resources = new HpApi(api);
+import { useWorkspace } from "../../store/workspace";
+import { FileInspector } from "../workspace/FileInspector";
 function useCompactInspector() {
   const [compact, setCompact] = useState(() => window.matchMedia("(max-width: 1279px)").matches);
   useEffect(() => {
@@ -31,10 +31,21 @@ export function InspectorHost({
   const back = useShell((s) => s.back);
   const expanded = useShell((s) => s.expanded);
   const compact = useCompactInspector();
+  const tree = useWorkspace((s) => s.tree);
+  const objectKey = inspector ? `${inspector.kind}:${inspector.objectId}` : null;
+  useEffect(() => {
+    if (objectKey) document.getElementById("inspector-title")?.focus();
+  }, [objectKey]);
   if (!inspector) return null;
-  const title = { run: "执行详情", artifact: "HTML 成果", file: "文件详情", task: "任务详情" }[
-    inspector.kind
-  ];
+  const title = {
+    run: "执行详情",
+    artifact: "HTML 成果",
+    file:
+      tree?.nodes.find((n) => n.node_id === inspector.objectId)?.kind === "directory"
+        ? "目录详情"
+        : "文件详情",
+    task: "任务详情",
+  }[inspector.kind];
   return (
     <Surface
       title={title}
@@ -48,6 +59,8 @@ export function InspectorHost({
       </button>
       {inspector.kind === "run" ? (
         <RunInspector key={inspector.objectId} inspector={inspector} onSaveFile={onSaveFile} />
+      ) : inspector.kind === "file" ? (
+        <FileInspector key={inspector.objectId} inspector={inspector} />
       ) : (
         <InspectorBody
           key={`${inspector.kind}:${inspector.objectId}:${inspector.versionId ?? ""}`}
@@ -105,16 +118,6 @@ function InspectorBody({
           if (!valid) return;
           setTitle(work.title);
           setSummary(`${work.requirement.objective} · ${work.status}`);
-        } else {
-          const tree = await resources.getWorkspace();
-          if (!valid) return;
-          const node = tree.nodes.find((n) => n.node_id === inspector.objectId);
-          if (!node) {
-            setState("unavailable");
-            return;
-          }
-          setTitle(node.name);
-          setSummary(node.kind === "directory" ? "目录" : "文件");
         }
         setState("ready");
       } catch (error) {

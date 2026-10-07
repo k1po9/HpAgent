@@ -10,6 +10,8 @@ import { expect, test } from "@playwright/test";
 import { createConversation, expectReply, login, sendMessage } from "./helpers";
 
 test("accounts are isolated across browser contexts", async ({ browser }) => {
+  // Two cold app loads, two real Runs and both context teardowns share this budget.
+  test.slow();
   const aliceCtx = await browser.newContext();
   const alice = await aliceCtx.newPage();
   await login(alice, "alice");

@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "../api/client";
-import { HpApi } from "../api/resources";
 import { type HpWork } from "../api/types";
 import { useWorks } from "../store/works";
 import { commandError, useCommandKey } from "../utils/commands";
@@ -16,7 +15,13 @@ type EditableWork = HpWork & {
   };
 };
 
-const resources = new HpApi(api);
+import { useShell } from "../store/shell";
+import { useWorkspace } from "../store/workspace";
+import { GrantEditor } from "./workspace/GrantEditor";
+import { WorkspaceDirectoryLoader } from "./workspace/SaveToWorkspaceDialog";
+import { nodePath } from "./workspace/workspacePresentation";
+import { useWorkspaceQuery } from "./workspace/useWorkspaceQuery";
+import { workCommand, permissionsChanged, type Subject } from "./workspace/workspaceOperations";
 
 export function WorkCreateForm({
   conversationId,
@@ -291,131 +296,34 @@ export function WorkCreateForm({
   );
 }
 
-type Tree = Awaited<ReturnType<HpApi["getWorkspace"]>>;
-type Grant = Awaited<ReturnType<HpApi["listConversationResources"]>>["grants"][number];
 export function WorkResourcePanel() {
   const works = useWorks((s) => s.items);
-  const load = useWorks((s) => s.load);
-  const [workId, setWorkId] = useState("");
-  const [tree, setTree] = useState<Tree | null>(null);
+  const [subject, setSubject] = useState<Subject>();
   const [nodeId, setNodeId] = useState("");
-  const [grants, setGrants] = useState<Grant[]>([]);
-  const [inputs, setInputs] = useState<Array<{ ref_id: string; file_id: string; purpose: string }>>(
-    [],
-  );
-  const [operations, setOperations] = useState<string[]>(["list_metadata", "read_content"]);
-  const [recursive, setRecursive] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState("");
-  const scope = useRef({ workId });
-  useLayoutEffect(() => {
-    scope.current = { workId };
-    return () => {
-      scope.current = { workId: "" };
-    };
-  }, [workId]);
-  const keyFor = useCommandKey();
-  useEffect(() => {
-    let valid = true;
-    void resources
-      .getWorkspace()
-      .then((t) => {
-        if (valid) setTree(t);
-      })
-      .catch((e) => {
-        if (valid) setError(commandError(e));
-      });
-    return () => {
-      valid = false;
-    };
-  }, []);
-  const refresh = useCallback(async (id: string) => {
-    const current = scope.current;
-    try {
-      const [rules, refs] = await Promise.all([
-        api.request<{ grants: Grant[] }>({ method: "GET", path: `/api/v1/works/${id}/resources` }),
-        api.request<{ items: Array<{ ref_id: string; file_id: string; purpose: string }> }>({
-          method: "GET",
-          path: `/api/v1/works/${id}/inputs`,
-        }),
-      ]);
-      if (scope.current === current && current.workId === id) {
-        setGrants(rules.grants);
-        setInputs(refs.items);
-      }
-    } catch (cause) {
-      if (scope.current === current && current.workId === id) setError(commandError(cause));
-    }
-  }, []);
-  useEffect(() => {
-    let current = true;
-    if (workId)
-      void Promise.resolve().then(() => {
-        if (current) return refresh(workId);
-      });
-    return () => {
-      current = false;
-    };
-  }, [workId, refresh]);
-  async function mutate(suffix: string, body: unknown, method: "POST" | "DELETE" = "POST") {
-    const id = workId;
-    const current = scope.current;
-    setBusy(true);
-    setError(null);
-    setNotice("");
-    try {
-      const { work } = await api.request<{ work: HpWork }>({
-        method: "GET",
-        path: `/api/v1/works/${id}`,
-      });
-      if (scope.current !== current || current.workId !== id) return;
-      await api.request({
-        method,
-        path: `/api/v1/works/${id}/${suffix}`,
-        body,
-        idempotencyKey: keyFor({ id, suffix, body, version: work.row_version }),
-        headers: { "If-Match": `"work-${id}-v${work.row_version}"` },
-      });
-      if (scope.current === current && current.workId === id) {
-        setNotice(
-          method === "DELETE"
-            ? "已撤销。活动执行将停止；可在执行诊断查看状态。"
-            : "已提交。新增资料在下一次执行中可用。",
-        );
-        await refresh(id);
-      }
-      await load();
-    } catch (cause) {
-      if (scope.current === current && current.workId === id) setError(commandError(cause));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const tree = useWorkspace((s) => s.tree);
   const node = tree?.nodes.find((n) => n.node_id === nodeId);
-  function path(id: string): string {
-    const n = tree?.nodes.find((item) => item.node_id === id);
-    return n ? (n.parent_id ? `${path(n.parent_id).replace(/\/$/, "")}/${n.name}` : "/") : "";
-  }
   return (
     <section className="hp-operation-form">
       <h2>工作资料与输入</h2>
+      <WorkspaceDirectoryLoader />
       <label>
         选择工作
         <select
-          value={workId}
-          disabled={busy}
+          value={subject?.id ?? ""}
           onChange={(e) => {
-            setWorkId(e.target.value);
-            setGrants([]);
-            setInputs([]);
-            setError(null);
-            setNotice("");
+            const work = works.find((w) => w.work_id === e.target.value);
+            useShell
+              .getState()
+              .requestResourceChange(() =>
+                setSubject(
+                  work ? { kind: "work", id: work.work_id, title: work.title } : undefined,
+                ),
+              );
           }}
         >
           <option value="">请选择</option>
           {works.map((w) => (
-            <option value={w.work_id} key={w.work_id}>
+            <option key={w.work_id} value={w.work_id}>
               {w.title}
             </option>
           ))}
@@ -423,88 +331,80 @@ export function WorkResourcePanel() {
       </label>
       <label>
         选择长期目录或文件
-        <select value={nodeId} onChange={(e) => setNodeId(e.target.value)}>
+        <select
+          value={nodeId}
+          onChange={(e) => {
+            const next = e.target.value;
+            useShell.getState().requestResourceChange(() => setNodeId(next));
+          }}
+        >
           <option value="">请选择</option>
           {tree?.nodes.map((n) => (
             <option key={n.node_id} value={n.node_id}>
-              {path(n.node_id)}（{n.kind === "file" ? "文件" : "目录"}）
+              {nodePath(tree, n.node_id)}
             </option>
           ))}
         </select>
       </label>
-      <div>
-        {[
-          ["list_metadata", "发现资料"],
-          ["read_content", "读取内容"],
-          ["create_child", "保存新文件"],
-          ["update_content", "更新文件"],
-          ["delete_entry", "删除入口"],
-        ].map(([op, label]) => (
-          <label key={op}>
-            <input
-              type="checkbox"
-              checked={operations.includes(op!)}
-              onChange={(e) =>
-                setOperations(
-                  e.target.checked ? [...operations, op!] : operations.filter((v) => v !== op),
-                )
-              }
-            />
-            {label}
-          </label>
-        ))}
-      </div>
-      <label>
-        <input
-          type="checkbox"
-          checked={recursive}
-          disabled={node?.kind !== "directory"}
-          onChange={(e) => setRecursive(e.target.checked)}
-        />
-        递归应用到目录中的文件
-      </label>
+      {subject && node && <GrantEditor node={node} subject={subject} />}
+      {subject && <WorkInputs key={subject.id} subject={subject} fileId={node?.file_id ?? null} />}
+    </section>
+  );
+}
+function WorkInputs({ subject, fileId }: { subject: Subject; fileId: string | null }) {
+  const result = useWorkspaceQuery(`inputs:${subject.id}`, () =>
+    api.request<{ items: Array<{ ref_id: string; file_id: string; purpose: string }> }>({
+      method: "GET",
+      path: `/api/v1/works/${encodeURIComponent(subject.id)}/inputs`,
+    }),
+  );
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const generation = useWorkspace((s) => s.generation);
+  function submit(suffix: string, body: unknown, method: "POST" | "DELETE" = "POST") {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    void workCommand(subject.id, suffix, body, method)
+      .then(() => {
+        if (generation !== useWorkspace.getState().generation) return;
+        permissionsChanged();
+        setNotice("工作输入引用已更新，下一轮生效。");
+      })
+      .catch((e) => {
+        if (generation === useWorkspace.getState().generation) setError(commandError(e));
+      })
+      .finally(() => {
+        if (generation === useWorkspace.getState().generation) setBusy(false);
+      });
+  }
+  return (
+    <section>
+      <h3>输入文件引用</h3>
+      <p>输入引用与目录授权分别管理。</p>
       <button
-        disabled={busy || !workId || !node || !operations.length}
-        onClick={() =>
-          void mutate("resources", {
-            node_id: nodeId,
-            operations,
-            recursive: node?.kind === "directory" && recursive,
-          })
-        }
-      >
-        授权工作使用
-      </button>
-      <button
-        disabled={busy || !workId || !node?.file_id}
-        onClick={() => void mutate("inputs", { file_id: node?.file_id, purpose: "input" })}
+        disabled={busy || !fileId}
+        onClick={() => submit("inputs", { file_id: fileId, purpose: "input" })}
       >
         作为工作输入文件
       </button>
-      <p>工作权限与对话权限分别管理。已有运行的候选范围保持冻结。</p>
-      {grants.map((g) => (
-        <p key={g.grant_id}>
-          {g.name} · {g.operation}
-          {g.recursive ? " · 递归" : ""}{" "}
-          <button
-            disabled={busy}
-            onClick={() => void mutate(`resources/${g.grant_id}`, undefined, "DELETE")}
-          >
-            撤销规则
-          </button>
-        </p>
-      ))}
-      {inputs.map((ref) => (
+      {result.data?.items.map((ref) => (
         <p key={ref.ref_id}>
-          输入：{tree?.nodes.find((n) => n.file_id === ref.file_id)?.name ?? ref.file_id}{" "}
+          {ref.file_id}
           <button
             disabled={busy}
-            onClick={() => void mutate(`inputs/${ref.ref_id}`, undefined, "DELETE")}
+            onClick={() => submit(`inputs/${encodeURIComponent(ref.ref_id)}`, undefined, "DELETE")}
           >
             撤销输入
           </button>
         </p>
       ))}
+      {result.error && (
+        <p role="alert">
+          输入查询失败。<button onClick={result.retry}>重试输入</button>
+        </p>
+      )}
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
     </section>

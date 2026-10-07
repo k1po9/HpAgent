@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { createConversation, login } from "./helpers";
+import { uploadWorkspace } from "./workspace-helpers";
 
 test("creates a child in the selected directory and explains duplicate names", async ({ page }) => {
   await login(page);
   await page.getByRole("button", { name: "空间", exact: true }).click();
-  const panel = page.getByRole("region", { name: "长期 Workspace" });
+  const panel = page.getByRole("region", { name: "空间页面" });
   await panel.getByRole("button", { name: "📁 资料", exact: true }).click();
   await expect(panel.getByLabel("新目录名称")).toHaveValue("");
   const name = `child-${Date.now()}`;
@@ -17,8 +18,7 @@ test("creates a child in the selected directory and explains duplicate names", a
   const tree = await (await page.request.get("/api/v1/workspace")).json();
   const child = tree.nodes.find((n: { name: string }) => n.name === name);
   expect(child.parent_id).toBe(tree.nodes.find((n: { name: string }) => n.name === "资料").node_id);
-  await expect(panel.getByText(`所选位置：/资料/${name}`)).toBeVisible();
-  await panel.getByRole("button", { name: "📁 资料", exact: true }).click();
+  await expect(panel.getByRole("button", { name: `📁 ${name}`, exact: true })).toBeVisible();
   await panel.getByLabel("新目录名称").fill(name);
   await panel.getByRole("button", { name: "新建目录", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("同名");
@@ -32,15 +32,10 @@ test("uploads and authorizes the current conversation, and keeps chat drafts acr
   const conversationId = new URL(page.url()).hash.split("/")[2];
   await page.getByPlaceholder(/输入消息/).fill("切页后保留的草稿");
   await page.getByRole("button", { name: "空间", exact: true }).click();
-  const panel = page.getByRole("region", { name: "长期 Workspace" });
+  const panel = page.getByRole("region", { name: "空间页面" });
   const name = `visible-next-run-${Date.now()}.txt`;
   await panel.getByRole("button", { name: "📁 资料", exact: true }).click();
-  await panel.getByLabel("上传到 Workspace").setInputFiles({
-    name,
-    mimeType: "text/plain",
-    buffer: Buffer.from("next run discovers this file"),
-  });
-  await expect(panel.getByRole("status")).toContainText("已保存并授权");
+  await uploadWorkspace(page, name, "next run discovers this file", conversationId);
   const rules = await (
     await page.request.get(`/api/v1/conversations/${conversationId}/resources`)
   ).json();
@@ -53,7 +48,7 @@ test("uploads and authorizes the current conversation, and keeps chat drafts acr
   await page.getByRole("button", { name: "AI", exact: true }).click();
   await page.getByRole("button", { name: "对话资料", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "当前对话资料", exact: true }).getByText(/下一次执行生效/),
+    page.getByRole("dialog", { name: "当前对话资料", exact: true }).getByLabel("目标对话"),
   ).toBeVisible();
   await page.getByRole("button", { name: "关闭当前对话资料" }).click();
   await page.getByRole("button", { name: "AI", exact: true }).click();
@@ -111,10 +106,12 @@ test("revises a scheduled work and grants its own directory permissions", async 
   await expect(page.getByRole("status")).toContainText("已修订");
   await page.getByText("工作资料授权", { exact: true }).click();
   await page.getByLabel("选择工作").selectOption({ label: title });
-  await page.getByLabel("选择长期目录或文件").selectOption({ label: "/资料（目录）" });
-  await page.getByLabel("递归应用到目录中的文件").check();
-  await page.getByRole("button", { name: "授权工作使用", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "已提交" })).toContainText("已提交");
+  await page.getByLabel("选择长期目录或文件").selectOption({ label: "/资料" });
+  await page.getByLabel("包含此目录的所有子目录与文件").check();
+  await page.getByRole("button", { name: "确认授予所选权限", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "授权已生效" })).toContainText(
+    "授权已生效",
+  );
   const rules = await (await page.request.get(`/api/v1/works/${work.work_id}/resources`)).json();
   expect(rules.grants).toHaveLength(2);
   expect(rules.grants.every((g: { recursive: boolean }) => g.recursive)).toBe(true);

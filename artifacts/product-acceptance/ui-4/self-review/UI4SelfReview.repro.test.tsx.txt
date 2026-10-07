@@ -1,0 +1,93 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { useWorkspace, workspaceApi } from "../../store/workspace";
+import { useShell } from "../../store/shell";
+import { useWorkbench } from "../../store/workbench";
+import { useWorkspaceQuery } from "./useWorkspaceQuery";
+import { FileVersions } from "./FileVersions";
+import { WorkspaceScreen } from "./WorkspaceScreen";
+import { resetWorkspaceOperations, useAffectedRuns } from "./workspaceOperations";
+import { useTraceStore } from "../trace/traceStore";
+import { HpApi } from "../../api/resources";
+import { useAuth } from "../../store/auth";
+import { ConversationResources } from "../conversation/ConversationResources";
+import type { HpWorkspaceNode } from "../../api/types";
+
+const root: HpWorkspaceNode = { node_id: "root", parent_id: null, kind: "directory", name: "", file_id: null, destination_id: null, revision: null, source: null };
+const node: HpWorkspaceNode = { ...root, node_id: "n", parent_id: "root", kind: "file", name: "notes.txt", file_id: "f", destination_id: "dest", revision: 1 };
+const tree = { workspace_id: "w", root_id: "root", nodes: [root, node] };
+function deferred<T>() { let resolve!: (v: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
+beforeEach(() => {
+  vi.restoreAllMocks();
+  useWorkspace.getState().reset();
+  resetWorkspaceOperations();
+  useShell.getState().reset();
+  useTraceStore.getState().reset();
+  vi.spyOn(workspaceApi, "getWorkspace").mockResolvedValue(tree);
+  vi.spyOn(useWorkbench.getState(), "refreshActiveRun").mockResolvedValue();
+});
+afterEach(() => { cleanup(); resetWorkspaceOperations(); });
+
+it("R1: concurrent consumers of the same query both receive the result with one request", async () => {
+  const pending = deferred<string>();
+  const load = vi.fn(() => pending.promise);
+  function Consumer({ id }: { id: string }) {
+    const q = useWorkspaceQuery("grants:conversation:c", load);
+    return <p data-testid={id}>{q.error ?? q.data ?? "loading"}</p>;
+  }
+  render(<><Consumer id="first" /><Consumer id="second" /></>);
+  await waitFor(() => expect(load).toHaveBeenCalled());
+  await act(async () => pending.resolve("rules"));
+  expect.soft(load).toHaveBeenCalledTimes(1);
+  expect.soft(screen.getByTestId("first")).toHaveTextContent("rules");
+  expect.soft(screen.getByTestId("second")).toHaveTextContent("rules");
+});
+
+it("R2: an uncertain version submission retains its operation key across tab unmount/remount", async () => {
+  vi.spyOn(workspaceApi, "getWorkspaceVersions").mockResolvedValue({ current: { node_id: "n", destination_id: "dest", revision: 1, file_id: "f", sha256: "sha" }, revisions: [] });
+  vi.spyOn(workspaceApi, "listRunPublishedFiles").mockResolvedValue({ files: [{ file_id: "out", name: "out.txt", sha256: "out-sha" }] });
+  const update = vi.spyOn(workspaceApi, "updateWorkspaceFile").mockRejectedValue(new Error("response lost"));
+  async function submit() {
+    fireEvent.change(await screen.findByLabelText("编辑 Run ID"), { target: { value: "run" } });
+    fireEvent.click(screen.getByRole("button", { name: "选择 Run 已发布输出" }));
+    await screen.findByRole("option", { name: "out.txt" });
+    fireEvent.change(screen.getByLabelText("Run 已发布输出"), { target: { value: "out" } });
+    fireEvent.click(screen.getByRole("button", { name: "提交新版本" }));
+    await screen.findByText("response lost");
+  }
+  const first = render(<FileVersions node={node} />);
+  await submit();
+  first.unmount(); // FileBody conditionally unmounts FileVersions on a tab switch.
+  render(<FileVersions node={node} />);
+  await submit();
+  expect(update).toHaveBeenCalledTimes(2);
+  expect(update.mock.calls[1]).toEqual(update.mock.calls[0]);
+});
+
+it("R3: confirmed Composer revoke invalidates diagnostics and follows affected Runs despite read-back failure", async () => {
+  const grant = { grant_id: "g", node_id: "n", name: "notes", kind: "file" as const, operation: "read_content" as const, recursive: false };
+  useAuth.setState({ status: "signedIn", account: { account_id: "alice", status: "active", created_at: "" } });
+  useWorkbench.setState({ activeConversationId: "c" });
+  useTraceStore.setState({ modelInputs: { snapshot: { status: "loaded", detail: { marker: "synthetic cached body" } as never } } });
+  vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+  vi.spyOn(HpApi.prototype, "listConversationResources")
+    .mockResolvedValueOnce({ grants: [grant], attachments: [] })
+    .mockRejectedValue(new Error("readback offline"));
+  const revoke = vi.spyOn(HpApi.prototype, "revokeConversationResource")
+    .mockResolvedValue({ affected_runs: [{ run_id: "affected", stop_state: "stopping" }] });
+  render(<ConversationResources refresh={0} ensure={async () => "c"} />);
+  fireEvent.click(await screen.findByRole("button", { name: "撤销 notes 的授权" }));
+  fireEvent.click(screen.getByRole("button", { name: "确认撤销" }));
+  await screen.findByText("状态待确认，请重新查询授权。");
+  expect(revoke).toHaveBeenCalledTimes(1);
+  expect.soft(useTraceStore.getState().modelInputs).toEqual({});
+  expect.soft(useAffectedRuns.getState().states).toHaveProperty("affected");
+});
+
+it("R4: navigating a valid breadcrumb must not claim that its directory is unavailable", async () => {
+  vi.spyOn(workspaceApi, "getWorkspaceSpace").mockResolvedValue({ physical_files: 1, physical_bytes: 1, files_with_active_entry: 1, bytes_with_active_entry: 1 });
+  useShell.setState({ route: { screen: "workspace", directoryId: "root" } });
+  render(<WorkspaceScreen />);
+  fireEvent.click(await screen.findByRole("button", { name: "根目录" }));
+  expect(screen.queryByText("目录不存在或不可访问，已返回根目录。")).not.toBeInTheDocument();
+});

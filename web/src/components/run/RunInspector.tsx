@@ -24,7 +24,8 @@ export function RunInspector({
   const degraded = useWorkbench((s) => s.degraded);
   const stopping = useWorkbench((s) => s.stopping);
   const id = inspector.objectId;
-  const tab = inspector.tab ?? "overview";
+  const tab =
+    inspector.tab === "resources" || inspector.tab === "advanced" ? inspector.tab : "overview";
   const live =
     active?.run_id === id &&
     messages.some((m) => m.role === "assistant" && m.produced_by_run_id === id);

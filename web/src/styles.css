@@ -1648,3 +1648,314 @@ aside.hp-surface {
   min-height: 0;
   flex: none;
 }
+
+/* UI-4: directory navigation, semantic file table and object context. */
+.hp-workspace-sidebar {
+  padding: 16px;
+}
+.hp-workspace-sidebar ul {
+  padding-left: 14px;
+  list-style: none;
+}
+.hp-workspace-sidebar > ul {
+  padding-left: 0;
+}
+.hp-tree-row {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0;
+  align-items: start;
+}
+.hp-tree-row button {
+  text-align: left;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.hp-tree-row [aria-current] {
+  background: var(--accent-a3);
+  font-weight: 600;
+}
+.hp-workspace-screen {
+  max-width: 1200px;
+  margin: auto;
+  padding: 20px;
+  min-width: 0;
+}
+.hp-breadcrumbs,
+.hp-workspace-toolbar,
+.hp-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.hp-workspace-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 20px;
+}
+.hp-workspace-search label,
+.hp-subject-picker label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hp-workspace-search details {
+  flex-basis: 100%;
+}
+.hp-workspace-search details label {
+  margin: 8px 0;
+}
+.hp-file-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.hp-file-table th,
+.hp-file-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--gray-a5);
+  overflow-wrap: anywhere;
+}
+.hp-file-table th:first-child {
+  width: 36%;
+}
+.hp-file-table th:last-child {
+  width: 96px;
+}
+.hp-file-table td:last-child button {
+  white-space: nowrap;
+}
+.hp-file-table small {
+  display: block;
+  color: var(--gray-11);
+}
+.hp-file-name {
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.hp-file-inspector h3,
+.hp-object-path,
+.hp-file-inspector dd {
+  overflow-wrap: anywhere;
+}
+.hp-file-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 16px 0;
+}
+.hp-file-tabs [aria-selected="true"] {
+  font-weight: 600;
+  background: var(--accent-a3);
+  border-bottom: 2px solid var(--accent-9);
+}
+.hp-file-preview {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+  padding: 12px;
+  background: var(--gray-a2);
+}
+.hp-file-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hp-file-inspector fieldset label {
+  display: block;
+  margin: 8px 0;
+}
+.hp-subject-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (max-width: 959px) {
+  .hp-workspace-screen {
+    padding: 12px;
+  }
+  .hp-file-table th:nth-child(2),
+  .hp-file-table td:nth-child(2),
+  .hp-file-table th:nth-child(4),
+  .hp-file-table td:nth-child(4) {
+    display: none;
+  }
+  .hp-file-table th:first-child {
+    width: auto;
+  }
+}
+
+.hp-workspace-screen button,
+.hp-file-inspector button,
+.hp-workspace-sidebar button,
+.hp-subject-picker button,
+.hp-surface .hp-operation-form button {
+  border: 1px solid #d1d8e5;
+  border-radius: 8px;
+  padding: 7px 11px;
+  min-height: 34px;
+  background: #fff;
+  color: #28334a;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.hp-workspace-screen button:hover:not(:disabled),
+.hp-file-inspector button:hover:not(:disabled),
+.hp-workspace-sidebar button:hover:not(:disabled) {
+  background: #eef2ff;
+  border-color: #a6b3e6;
+}
+.hp-workspace-screen button:disabled,
+.hp-file-inspector button:disabled,
+.hp-surface .hp-operation-form button:disabled {
+  color: #626d80;
+  background: #f3f5f8;
+  cursor: default;
+}
+.hp-workspace-screen input,
+.hp-workspace-screen select,
+.hp-file-inspector input:not([type="checkbox"]),
+.hp-file-inspector select,
+.hp-subject-picker input,
+.hp-subject-picker select {
+  border: 1px solid #c6cedc;
+  border-radius: 8px;
+  padding: 8px 10px;
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+  background: #fff;
+  color: #202b40;
+}
+.hp-workspace-screen .hp-workspace-search > label {
+  flex: 1;
+  min-width: min(220px, 100%);
+}
+.hp-workspace-screen .hp-file-name {
+  border-color: transparent;
+  background: transparent;
+  padding: 6px 0;
+  font-weight: 500;
+}
+.hp-file-table tbody tr:hover {
+  background: #f3f6fc;
+}
+.hp-file-table th {
+  color: #55627a;
+  font-size: 13px;
+  font-weight: 500;
+}
+.hp-workspace-screen .hp-breadcrumbs button {
+  border: 0;
+  background: transparent;
+  color: #4557b8;
+}
+.hp-workspace-sidebar .hp-tree-row {
+  gap: 2px;
+}
+.hp-workspace-sidebar .hp-tree-row button {
+  border: 0;
+  background: transparent;
+  padding: 6px 8px;
+}
+.hp-workspace-sidebar .hp-tree-row button[aria-expanded] {
+  padding: 6px;
+  min-width: 28px;
+  flex-shrink: 0;
+}
+.hp-workspace-sidebar .hp-tree-row button[aria-current],
+.hp-workspace-sidebar > button[aria-pressed="true"] {
+  background: #e6ebfc;
+  color: #304299;
+}
+.hp-workspace-sidebar h2 {
+  font-size: 18px;
+  margin: 4px 0 20px;
+}
+.hp-workspace-sidebar > button {
+  width: 100%;
+  text-align: left;
+  margin-bottom: 12px;
+}
+.hp-file-inspector h3 {
+  font-size: 18px;
+  line-height: 1.5;
+  margin: 12px 0 6px;
+}
+.hp-file-inspector .hp-object-path {
+  color: #5c6880;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+.hp-file-inspector .hp-file-tabs button {
+  border-color: transparent;
+  padding: 7px 8px;
+}
+.hp-file-inspector .hp-file-tabs [aria-selected="true"] {
+  background: #e9edfc;
+  color: #35479c;
+  border-color: #bec9ef;
+}
+.hp-file-inspector dl {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 12px;
+  font-size: 14px;
+}
+.hp-file-inspector dt {
+  color: #5c6880;
+}
+.hp-file-inspector dd {
+  margin: 0;
+}
+.hp-file-preview {
+  background: #f5f7fb;
+  border: 1px solid #e3e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.7;
+}
+div.hp-file-preview {
+  white-space: normal;
+}
+.hp-file-preview h1 {
+  font-size: 24px;
+}
+.hp-file-preview h2 {
+  font-size: 20px;
+}
+.hp-file-preview table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.hp-file-preview th,
+.hp-file-preview td {
+  border: 1px solid #d8deea;
+  padding: 6px 8px;
+}
+.hp-file-preview pre,
+pre.hp-file-preview {
+  font-family: ui-monospace, monospace;
+}
+@media (max-width: 599px) {
+  .hp-workspace-toolbar {
+    gap: 6px;
+  }
+  .hp-file-table th,
+  .hp-file-table td {
+    padding: 8px 4px;
+  }
+  .hp-file-table th:last-child {
+    width: 96px;
+  }
+  .hp-workspace-screen .hp-operation-form {
+    padding: 12px;
+  }
+}

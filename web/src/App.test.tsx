@@ -340,8 +340,8 @@ describe("UI-1 Shell lifecycle", () => {
       fireEvent.click(within(nav).getByRole("button", { name }));
     }
     act(() => useShell.getState().openInspector({ kind: "file", objectId: "root" }));
-    await screen.findByText("目录", { selector: "p" });
-    fireEvent.click(screen.getByRole("button", { name: "关闭文件详情" }));
+    await screen.findByRole("heading", { name: "目录：根目录" });
+    fireEvent.click(screen.getByRole("button", { name: "关闭目录详情" }));
     expect(signals).toHaveLength(1);
     expect(signals[0]!.aborted).toBe(false);
     act(() => useAuth.getState().expire());

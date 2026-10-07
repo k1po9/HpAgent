@@ -1,123 +1,19 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import { HpApi } from "../api/resources";
 import type { HpRunSnapshot } from "../api/types";
 import { useWorkbench } from "../store/workbench";
 import { useWorks } from "../store/works";
 import { useArtifacts } from "../store/artifacts";
-import { Surface } from "./shell/Surface";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { TracePanel } from "./trace/TracePanel";
 import { useTraceStore } from "./trace/traceStore";
-import { newIdempotencyKey } from "../utils/idempotency";
-import { commandError, useCommandKey } from "../utils/commands";
+import { commandError } from "../utils/commands";
 
-type SaveSource = { file_id: string; file_name: string } | { html: string; file_name: string };
+import { SaveToWorkspaceDialog as SaveWorkspaceDialog } from "./workspace/SaveToWorkspaceDialog";
+import type { SaveSource } from "./workspace/workspaceOperations";
+export { SaveWorkspaceDialog };
 const resources = new HpApi(api);
-export function SaveWorkspaceDialog({
-  file,
-  onClose,
-  onSaved,
-}: {
-  file: SaveSource;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [tree, setTree] = useState<Awaited<ReturnType<HpApi["getWorkspace"]>> | null>(null);
-  const [directory, setDirectory] = useState("");
-  const [name, setName] = useState(file.file_name);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const keyFor = useCommandKey();
-  const [uploadKey] = useState(newIdempotencyKey);
-  const uploaded = useRef<string | null>(null);
-  useEffect(() => {
-    let valid = true;
-    void resources
-      .getWorkspace()
-      .then((t) => {
-        if (valid) {
-          setTree(t);
-          setDirectory(t.root_id);
-        }
-      })
-      .catch((e) => {
-        if (valid) setError(commandError(e));
-      });
-    return () => {
-      valid = false;
-    };
-  }, []);
-  function path(id: string): string {
-    const n = tree?.nodes.find((item) => item.node_id === id);
-    return n ? (n.parent_id ? `${path(n.parent_id).replace(/\/$/, "")}/${n.name}` : "/") : "";
-  }
-  async function save() {
-    setBusy(true);
-    setError(null);
-    try {
-      if ("html" in file && !uploaded.current) {
-        const output = new File([file.html], file.file_name, { type: "text/plain" });
-        const upload = await resources.createWorkspaceUpload(output, uploadKey);
-        const ready = await resources.uploadContent(upload.content_url, output);
-        uploaded.current = ready.file_id;
-      }
-      const fileId = "file_id" in file ? file.file_id : uploaded.current!;
-      await resources.saveWorkspaceFile(
-        directory,
-        fileId,
-        name,
-        keyFor({ directory, name, file: fileId }),
-      );
-      onSaved();
-      onClose();
-    } catch (e) {
-      setError(commandError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <Surface
-      title="保存到长期文件"
-      onClose={() => {
-        if (!busy) onClose();
-      }}
-    >
-      <form
-        className="hp-operation-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          void save();
-        }}
-      >
-        <p>源文件：{file.file_name}</p>
-        {"html" in file && <p>以文本保存 HTML 源码；交互预览仍在成果页面。</p>}
-        <label>
-          保存目录
-          <select value={directory} onChange={(e) => setDirectory(e.target.value)}>
-            {tree?.nodes
-              .filter((n) => n.kind === "directory")
-              .map((n) => (
-                <option key={n.node_id} value={n.node_id}>
-                  {path(n.node_id) || "/"}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          保存名称
-          <input required value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <button disabled={busy || !directory}>{busy ? "保存中…" : "确认保存"}</button>{" "}
-        <button type="button" disabled={busy} onClick={onClose}>
-          取消
-        </button>
-        {error && <p role="alert">{error}</p>}
-      </form>
-    </Surface>
-  );
-}
 
 export function ArtifactsPage({
   onWorkspaceSaved,

@@ -80,6 +80,9 @@ def test_workspace_version_api_and_conflict_output(
     assert committed.json()["revision"] == 2
     assert client.post(f"/api/v1/workspace/nodes/{entry}/versions", json=body,
                        headers=_headers(csrf, operation)).json() == committed.json()
+    replayed_history = client.get(f"/api/v1/workspace/nodes/{entry}/versions").json()
+    assert replayed_history["current"]["revision"] == 2
+    assert len(replayed_history["revisions"]) == 2
     conflict = client.post(f"/api/v1/workspace/nodes/{entry}/versions", json=body,
                            headers=_headers(csrf, str(uuid4())))
     assert conflict.status_code == 409

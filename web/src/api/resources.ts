@@ -23,6 +23,10 @@ import type {
   HpArtifactSummary,
   HpArtifactVersion,
   HpFile,
+  HpWorkspace,
+  HpWorkspaceSearchPage,
+  HpWorkspaceFilters,
+  HpWorkspaceTrace,
 } from "./types";
 
 export interface SendMessageOptions {
@@ -100,55 +104,14 @@ export class HpApi {
     return this.client.request({ method: "GET", path: `/api/v1/runs/${runId}/research/report` });
   }
 
-  async getWorkspace(): Promise<{
-    workspace_id: string;
-    root_id: string;
-    nodes: Array<{
-      node_id: string;
-      parent_id: string | null;
-      kind: "directory" | "file";
-      name: string;
-      file_id: string | null;
-      destination_id: string | null;
-      revision: number | null;
-      source: {
-        purpose: "input" | "output";
-        conversation_id: string | null;
-        run_id: string | null;
-        sha256: string;
-        size_bytes: number;
-      } | null;
-    }>;
-  }> {
+  async getWorkspace(): Promise<HpWorkspace> {
     return this.client.request({ method: "GET", path: "/api/v1/workspace" });
   }
 
   async searchWorkspace(
-    filters: {
-      name?: string;
-      content_type?: string;
-      purpose?: string;
-      work_id?: string;
-      source_run_id?: string;
-      from_date?: string;
-      to_date?: string;
-      summary?: string;
-    },
+    filters: HpWorkspaceFilters,
     after?: string | null,
-  ): Promise<{
-    items: Array<{
-      node_id: string;
-      name: string;
-      file_id: string;
-      content_type: string | null;
-      size_bytes: number | null;
-      purpose: string;
-      source_run_id: string | null;
-      source_work_id: string | null;
-      revision: number | null;
-    }>;
-    next_after: string | null;
-  }> {
+  ): Promise<HpWorkspaceSearchPage> {
     const query = new URLSearchParams({ limit: "50" });
     for (const [key, value] of Object.entries(filters)) if (value) query.set(key, value);
     if (after) query.set("after", after);
@@ -451,9 +414,7 @@ export class HpApi {
       body: {
         file_name: file.name,
         size_bytes: file.size,
-        content_type: file.name.toLowerCase().endsWith(".md")
-          ? "text/markdown"
-          : file.type || "text/plain",
+        content_type: uploadMime(file),
       },
       idempotencyKey,
     });
@@ -514,6 +475,28 @@ export class HpApi {
 
   async getFile(fileId: string): Promise<{ file: HpFile }> {
     return this.client.request({ method: "GET", path: `/api/v1/files/${fileId}` });
+  }
+
+  async getWorkspaceTrace(nodeId: string): Promise<HpWorkspaceTrace> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/workspace/nodes/${encodeURIComponent(nodeId)}/trace`,
+    });
+  }
+
+  async getFileLineage(fileId: string): Promise<{ files: HpFile[] }> {
+    return this.client.request({
+      method: "GET",
+      path: `/api/v1/files/${encodeURIComponent(fileId)}/lineage`,
+    });
+  }
+
+  async readFileText(fileId: string, signal?: AbortSignal): Promise<string> {
+    return this.client.readText(
+      `/api/v1/files/${encodeURIComponent(fileId)}/content`,
+      1024 * 1024,
+      signal,
+    );
   }
 
   async getRunTrace(runId: string): Promise<HpTraceTree> {

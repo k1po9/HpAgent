@@ -25,6 +25,14 @@
 
 ## 前端 UI 重构
 
+- [UI-4 自检记录](ui-4-self-review.md)：4 个已复现的 P2 问题、修复建议和复验门槛；本轮 78 项已有测试通过，4 项定向反例失败，状态为待修复。
+
+- [UI-4 空间与权限实施计划](ui-4-workspace-permissions-plan.md)：基于 `40a318a`，规划空间目录与文件列表、File Inspector、共享权限编辑、上传/保存恢复、影响确认及版本 CAS；含代码差距、分步实施与验收矩阵，保留规划基线，执行结果见下方报告。
+
+- [UI-4 自检与修复记录](ui-4-self-review.md)：R1～R4 四项缺陷证据、正式恢复/并发回归、修复后的独立验证结果；原实施日志保留为历史记录。
+
+- [UI-4 空间与权限实施报告](ui-4-workspace-permissions-report.md)：新空间目录/文件表格、File Inspector、显式授权与失败恢复、impact/CAS；命令日志、逐项验收和未覆盖环境见报告及证据目录。
+
 - [UI-3 执行与诊断实施计划](ui-3-execution-diagnostics-plan.md)：基于 `325a5d7` 的 UI-1/UI-2 代码，规划消息执行块、Run Inspector、审批及 Trace/Model Input 上下文化，含接口边界、实施步骤与验收矩阵；执行结果见下方报告。
 
 - [UI-3 自检与修复记录](ui-3-self-review.md)：终态输出刷新、Model Input 权限拒绝缓存失效及轮询生命周期补验。

@@ -371,3 +371,72 @@ describe("Markdown upload MIME metadata", () => {
     expect(body?.content_type).toBe(declaredType);
   });
 });
+
+// Bounded attachments share the session boundary with JSON requests.
+describe("bounded authenticated text", () => {
+  it("decodes UTF-8 across chunks and allows exactly the cap", async () => {
+    const bytes = new TextEncoder().encode("中文");
+    const transport = vi.fn().mockResolvedValue(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(bytes.slice(0, 2));
+            controller.enqueue(bytes.slice(2));
+            controller.close();
+          },
+        }),
+      ),
+    );
+    const client = new ApiClient(transport);
+    expect(await client.readText("/content", bytes.length)).toBe("中文");
+    expect(transport).toHaveBeenCalledWith(
+      "/content",
+      expect.objectContaining({ credentials: "same-origin", signal: expect.any(AbortSignal) }),
+    );
+  });
+  it("cancels a stream as soon as it exceeds the byte cap", async () => {
+    const cancel = vi.fn();
+    const transport = vi.fn().mockResolvedValue(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new Uint8Array(11));
+          },
+          cancel,
+        }),
+      ),
+    );
+    await expect(new ApiClient(transport).readText("/content", 10)).rejects.toThrow("上限");
+    expect(cancel).toHaveBeenCalled();
+  });
+  it("rejects a late body after reset and handles content 401 uniformly", async () => {
+    const client = new ApiClient(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { code: "auth.expired", message: "expired" } }), {
+          status: 401,
+        }),
+      ),
+    );
+    client.onUnauthorized = vi.fn();
+    await expect(client.readText("/content", 10)).rejects.toBeInstanceOf(HpCommandError);
+    expect(client.onUnauthorized).toHaveBeenCalledTimes(1);
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const delayed = new ApiClient(
+      vi.fn().mockResolvedValue(
+        new Response(
+          new ReadableStream({
+            start(c) {
+              controller = c;
+            },
+          }),
+        ),
+      ),
+    );
+    const body = delayed.readText("/content", 10);
+    await Promise.resolve();
+    delayed.reset();
+    controller.enqueue(new Uint8Array([65]));
+    controller.close();
+    await expect(body).rejects.toMatchObject({ name: "AbortError" });
+  });
+});

@@ -1,0 +1,150 @@
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ × src/components/workspace/UI4SelfReview.repro.test.tsx > R1: concurrent consumers of the same query both receive the result with one request 125ms
+   → expected "vi.fn()" to be called 1 times, but got 2 times
+   → expect(element).toHaveTextContent()
+
+Expected element to have text content:
+  rules
+Received:
+  查询失败
+ × src/components/workspace/UI4SelfReview.repro.test.tsx > R2: an uncertain version submission retains its operation key across tab unmount/remount 577ms
+   → expected [ 'n', 'run', 'out', 1, 'sha', …(1) ] to deeply equal [ 'n', 'run', 'out', 1, 'sha', …(1) ]
+ × src/components/workspace/UI4SelfReview.repro.test.tsx > R3: confirmed Composer revoke invalidates diagnostics and follows affected Runs despite read-back failure 131ms
+   → expected { Object (snapshot) } to deeply equal {}
+   → expected {} to have property "affected"
+ × src/components/workspace/UI4SelfReview.repro.test.tsx > R4: navigating a valid breadcrumb must not claim that its directory is unavailable 191ms
+   → expect(element).not.toBeInTheDocument()
+
+expected document not to contain element, found <p
+  role="status"
+>
+  目录不存在或不可访问，已返回根目录。
+  <button>
+    知道了
+  </button>
+</p> instead
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workspace/UI4SelfReview.repro.test.tsx > R1: concurrent consumers of the same query both receive the result with one request
+AssertionError: expected "vi.fn()" to be called 1 times, but got 2 times
+ ❯ src/components/workspace/UI4SelfReview.repro.test.tsx:41:21
+     39|   await waitFor(() => expect(load).toHaveBeenCalled());
+     40|   await act(async () => pending.resolve("rules"));
+     41|   expect.soft(load).toHaveBeenCalledTimes(1);
+       |                     ^
+     42|   expect.soft(screen.getByTestId("first")).toHaveTextContent("rules");
+     43|   expect.soft(screen.getByTestId("second")).toHaveTextContent("rules");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ FAIL  src/components/workspace/UI4SelfReview.repro.test.tsx > R1: concurrent consumers of the same query both receive the result with one request
+Error: expect(element).toHaveTextContent()
+
+Expected element to have text content:
+  rules
+Received:
+  查询失败
+ ❯ src/components/workspace/UI4SelfReview.repro.test.tsx:42:44
+     40|   await act(async () => pending.resolve("rules"));
+     41|   expect.soft(load).toHaveBeenCalledTimes(1);
+     42|   expect.soft(screen.getByTestId("first")).toHaveTextContent("rules");
+       |                                            ^
+     43|   expect.soft(screen.getByTestId("second")).toHaveTextContent("rules");
+     44| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/6]⎯
+
+ FAIL  src/components/workspace/UI4SelfReview.repro.test.tsx > R2: an uncertain version submission retains its operation key across tab unmount/remount
+AssertionError: expected [ 'n', 'run', 'out', 1, 'sha', …(1) ] to deeply equal [ 'n', 'run', 'out', 1, 'sha', …(1) ]
+
+- Expected
++ Received
+
+@@ -2,7 +2,7 @@
+    "n",
+    "run",
+    "out",
+    1,
+    "sha",
+-   "ecc6c455-8c12-4bed-8b7f-a5fab8ce4cf8",
++   "6ef968a7-b828-4ab6-bf44-64f796f792a6",
+  ]
+
+ ❯ src/components/workspace/UI4SelfReview.repro.test.tsx:64:32
+     62|   await submit();
+     63|   expect(update).toHaveBeenCalledTimes(2);
+     64|   expect(update.mock.calls[1]).toEqual(update.mock.calls[0]);
+       |                                ^
+     65| });
+     66|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/6]⎯
+
+ FAIL  src/components/workspace/UI4SelfReview.repro.test.tsx > R3: confirmed Composer revoke invalidates diagnostics and follows affected Runs despite read-back failure
+AssertionError: expected { Object (snapshot) } to deeply equal {}
+
+- Expected
++ Received
+
+- {}
++ {
++   "snapshot": {
++     "detail": {
++       "marker": "synthetic cached body",
++     },
++     "status": "loaded",
++   },
++ }
+
+ ❯ src/components/workspace/UI4SelfReview.repro.test.tsx:83:53
+     81|   await screen.findByText("状态待确认，请重新查询授权。");
+     82|   expect(revoke).toHaveBeenCalledTimes(1);
+     83|   expect.soft(useTraceStore.getState().modelInputs).toEqual({});
+       |                                                     ^
+     84|   expect.soft(useAffectedRuns.getState().states).toHaveProperty("affec…
+     85| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/6]⎯
+
+ FAIL  src/components/workspace/UI4SelfReview.repro.test.tsx > R3: confirmed Composer revoke invalidates diagnostics and follows affected Runs despite read-back failure
+AssertionError: expected {} to have property "affected"
+ ❯ src/components/workspace/UI4SelfReview.repro.test.tsx:84:50
+     82|   expect(revoke).toHaveBeenCalledTimes(1);
+     83|   expect.soft(useTraceStore.getState().modelInputs).toEqual({});
+     84|   expect.soft(useAffectedRuns.getState().states).toHaveProperty("affec…
+       |                                                  ^
+     85| });
+     86|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/6]⎯
+
+ FAIL  src/components/workspace/UI4SelfReview.repro.test.tsx > R4: navigating a valid breadcrumb must not claim that its directory is unavailable
+Error: expect(element).not.toBeInTheDocument()
+
+expected document not to contain element, found <p
+  role="status"
+>
+  目录不存在或不可访问，已返回根目录。
+  <button>
+    知道了
+  </button>
+</p> instead
+ ❯ src/components/workspace/UI4SelfReview.repro.test.tsx:92:56
+     90|   render(<WorkspaceScreen />);
+     91|   fireEvent.click(await screen.findByRole("button", { name: "根目录" }));
+     92|   expect(screen.queryByText("目录不存在或不可访问，已返回根目录。")).not.toBeInTheDocume…
+       |                                                        ^
+     93| });
+     94|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/6]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed (4)
+   Start at  16:17:05
+   Duration  3.59s (transform 637ms, setup 189ms, import 741ms, tests 1.03s, environment 1.38s)
+

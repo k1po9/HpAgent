@@ -7,7 +7,9 @@ import { useArtifacts } from "../../store/artifacts";
 import { useTraceStore } from "../trace/traceStore";
 import { ConversationSidebar } from "../ConversationSidebar";
 import { ChatPane } from "../ChatPane";
-import { WorkspacePanel } from "../WorkspacePanel";
+import { WorkspaceScreen } from "../workspace/WorkspaceScreen";
+import { WorkspaceSidebar } from "../workspace/WorkspaceSidebar";
+import { ResourceManager } from "../workspace/ResourceManager";
 import { WorkPanel } from "../WorkPanel";
 import { WorkCreateForm, WorkResourcePanel } from "../WorkManagement";
 import { ResearchOutputs } from "../ResearchOutputs";
@@ -24,7 +26,6 @@ const screens = [
   { id: "workspace", label: "空间", icon: Folder },
   { id: "tasks", label: "任务", icon: ListTodo },
 ] as const;
-const ignoreDirectory = () => {};
 export function AppShell() {
   const route = useShell((s) => s.route);
   const modal = useShell((s) => s.modal);
@@ -40,10 +41,11 @@ export function AppShell() {
   const loadingMoreConversations = useWorkbench((s) => s.loadingMoreConversations);
   const conversationsError = useWorkbench((s) => s.conversationsError);
   const pendingRoute = useShell((s) => s.pendingRoute);
+  const pendingResourceChange = useShell((s) => s.pendingResourceChange);
+  const pendingReason = useShell((s) => s.pendingRouteReason);
   const loading = useWorkbench((s) => s.loadingConversations);
   const creating = useWorkbench((s) => s.creatingConversation);
   const conversationId = useWorkbench((s) => s.activeConversationId);
-  const activeRun = useWorkbench((s) => s.activeRun);
   const [refresh, setRefresh] = useState(0);
   const [notice, setNotice] = useState("");
   const [startBinding, setStartBinding] = useState(false);
@@ -90,17 +92,11 @@ export function AppShell() {
     (file: { file_id: string; file_name: string }) => setSaveSource(file),
     [],
   );
-  const workspaceProps = {
-    accountId: account?.account_id ?? null,
-    conversationId,
-    currentRunId: activeRun?.run_id ?? null,
-    candidateRunId:
-      activeRun && ["queued", "running"].includes(activeRun.status) ? activeRun.run_id : null,
-    currentRunStatus: activeRun?.status ?? null,
-    refreshSignal: refresh,
-    onSelectDirectory: ignoreDirectory,
-  };
   function go(screen: Screen) {
+    if (screen === useShell.getState().route.screen) {
+      useShell.setState({ sidebarOpen: false });
+      return;
+    }
     navigate({
       ...useShell.getState().pages[screen],
       screen,
@@ -129,15 +125,13 @@ export function AppShell() {
         onRefresh={() => void useWorkbench.getState().loadConversations()}
         onCreate={() => navigate({ screen: "ai" })}
       />
+    ) : route.screen === "workspace" ? (
+      <WorkspaceSidebar />
     ) : (
       <div className="hp-context-placeholder">
-        <h2>{route.screen === "workspace" ? "空间" : "任务"}</h2>
-        <p>{route.screen === "workspace" ? "文件与目录" : "持续工作"}</p>
-        <p className="hp-muted">
-          {route.screen === "workspace"
-            ? "在主区域浏览和管理已有文件。"
-            : "在主区域管理任务、研究报告与收件箱。"}
-        </p>
+        <h2>任务</h2>
+        <p>持续工作</p>
+        <p className="hp-muted">在主区域管理任务、研究报告与收件箱。</p>
       </div>
     );
   return (
@@ -217,7 +211,7 @@ export function AppShell() {
           className="hp-screen-scroll"
           aria-label="空间页面"
         >
-          <WorkspacePanel {...workspaceProps} view="files" directoryId={route.directoryId} />
+          {route.screen === "workspace" && <WorkspaceScreen />}
         </section>
         <section
           hidden={route.screen !== "tasks"}
@@ -228,7 +222,7 @@ export function AppShell() {
           <WorkPanel conversationId={conversationId} pageMode />
           <details>
             <summary>工作资料授权</summary>
-            <WorkResourcePanel />
+            {route.screen === "tasks" && <WorkResourcePanel />}
           </details>
           <ResearchOutputs onSaveFile={saveFile} />
           <RunLookup />
@@ -248,7 +242,33 @@ export function AppShell() {
           {sidebar}
         </Surface>
       )}
-      {pendingRoute && (
+      {((pendingRoute && pendingReason === "resources") || pendingResourceChange) && (
+        <Surface
+          title="放弃未提交的权限编辑？"
+          onClose={() => useShell.setState({ pendingRoute: null, pendingResourceChange: null })}
+        >
+          <p>尚未提交的权限选择会丢弃，已生效授权不受影响。</p>
+          <button
+            onClick={() => useShell.setState({ pendingRoute: null, pendingResourceChange: null })}
+          >
+            继续编辑
+          </button>
+          <button
+            onClick={() => {
+              useShell.setState({
+                dirtyResourceEditor: null,
+                pendingRoute: null,
+                pendingResourceChange: null,
+              });
+              if (pendingResourceChange) pendingResourceChange();
+              else if (pendingRoute) useShell.getState().navigate(pendingRoute);
+            }}
+          >
+            放弃编辑并继续
+          </button>
+        </Surface>
+      )}
+      {pendingRoute && pendingReason === "attachments" && (
         <Surface title="放弃本轮附件？" onClose={() => useShell.setState({ pendingRoute: null })}>
           <p>切换对话将放弃本轮待发送附件。已有文件只取消选择。</p>
           <button onClick={() => useShell.setState({ pendingRoute: null })}>继续当前对话</button>
@@ -295,11 +315,27 @@ export function AppShell() {
         <Surface
           title="当前对话资料"
           onClose={() => {
+            if (useShell.getState().dirtyResourceEditor) {
+              useShell.getState().navigate(useShell.getState().route);
+              return;
+            }
             useShell.setState({ modal: null });
             setRefresh((v) => v + 1);
           }}
         >
-          <WorkspacePanel {...workspaceProps} view="authority" />
+          <ResourceManager
+            initialSubject={
+              conversationId
+                ? {
+                    kind: "conversation",
+                    id: conversationId,
+                    title:
+                      conversations.find((c) => c.conversation_id === conversationId)?.title ??
+                      "当前对话",
+                  }
+                : undefined
+            }
+          />
         </Surface>
       )}
       <RegistrationQqGate

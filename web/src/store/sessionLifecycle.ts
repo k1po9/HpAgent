@@ -1,3 +1,5 @@
+import { useWorkspace } from "./workspace";
+import { resetWorkspaceOperations } from "../components/workspace/workspaceOperations";
 import { useRunInspector } from "./runInspector";
 import { useConversationUi } from "./conversationUi";
 import { useAuth } from "./auth";
@@ -24,6 +26,8 @@ export const disposeSessionLifecycle = useAuth.subscribe((state, previous) => {
   useArtifacts.getState().reset();
   useTraceStore.getState().reset();
   useRunInspector.getState().reset();
+  useWorkspace.getState().reset();
+  resetWorkspaceOperations();
   useShell.getState().reset();
   // Preserve deep links on first authentication, discard the previous account's IDs.
   if (previous.account && typeof window !== "undefined")

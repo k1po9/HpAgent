@@ -241,6 +241,7 @@ it("keeps a saved upload after authorization failure and retries only the author
     .mockResolvedValue({ grant_ids: ["g"] });
   render(<WorkspacePanel {...props} />);
   await screen.findByRole("button", { name: "根目录" });
+  fireEvent.change(screen.getByLabelText("上传用途"), { target: { value: "conversation" } });
   fireEvent.change(screen.getByLabelText("上传到 Workspace"), {
     target: { files: [new File(["hello"], "uploaded.txt", { type: "text/plain" })] },
   });

@@ -1,0 +1,55 @@
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/App.test.tsx (11 tests | 3 failed) 46574ms
+     × renders the conversation list and the composer after signing in 5757ms
+     × isolates a late account A list after switching A-B-A 6777ms
+     × retains the active Run subscription across pages and aborts it on expiry 11846ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/App.test.tsx > App workbench > renders the conversation list and the composer after signing in
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:171:3
+    169|   });
+    170|
+    171|   it("renders the conversation list and the composer after signing in"…
+       |   ^
+    172|     render(<App />);
+    173|     expect(await screen.findByRole("button", { name: "测试对话" })).toBeIn…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/App.test.tsx > UI-1 Shell lifecycle > isolates a late account A list after switching A-B-A
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:263:3
+    261|
+    262| describe("UI-1 Shell lifecycle", () => {
+    263|   it("isolates a late account A list after switching A-B-A", async () …
+       |   ^
+    264|     const base = globalThis.fetch;
+    265|     let finish!: (response: Response) => void;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/App.test.tsx > UI-1 Shell lifecycle > retains the active Run subscription across pages and aborts it on expiry
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:304:3
+    302|   });
+    303|
+    304|   it("retains the active Run subscription across pages and aborts it o…
+       |   ^
+    305|     const base = globalThis.fetch;
+    306|     const signals: AbortSignal[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed | 32 passed (33)
+      Tests  3 failed | 232 passed (235)
+   Start at  14:13:26
+   Duration  636.68s (transform 36.50s, setup 45.71s, import 93.41s, tests 123.01s, environment 317.28s)
+

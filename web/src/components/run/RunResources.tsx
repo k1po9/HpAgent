@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { HpCommandError, type HpFile } from "../../api/types";
+import { useWorkspace } from "../../store/workspace";
 import { useShell } from "../../store/shell";
 import { runApi, useRunInspector } from "../../store/runInspector";
 
@@ -13,6 +14,7 @@ export function RunResources({
   terminal: boolean;
   onSaveFile?: (file: HpFile) => void;
 }) {
+  const permissionRevision = useWorkspace((s) => s.revision);
   const [candidates, setCandidates] = useState<Candidates | null>(null);
   const [files, setFiles] = useState<
     Awaited<ReturnType<typeof runApi.listRunPublishedFiles>>["files"]
@@ -91,7 +93,7 @@ export function RunResources({
     };
     // This view mounts once per selected Run and tab.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId]);
+  }, [runId, permissionRevision]);
   useEffect(() => {
     // Run completion can publish files after the first empty list was read.
     const start = setTimeout(() => void outputs(), 0);

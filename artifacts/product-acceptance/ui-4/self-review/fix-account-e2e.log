@@ -1,0 +1,48 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test e2e/auth.spec.ts e2e/multi-tab.spec.ts
+
+[WebServer] INFO:     Started server process [69463]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8185 (Press CTRL+C to quit)
+[WebServer] (node:69794) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 6 tests using 1 worker
+
+(node:69858) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › e2e/auth.spec.ts:8:1 › rejects wrong credentials with the server's safe message (3.2s)
+  ✓  2 [chromium] › e2e/auth.spec.ts:20:1 › signs in with valid credentials (3.5s)
+  ✓  3 [chromium] › e2e/auth.spec.ts:26:1 › signs out back to the login gate (6.4s)
+[WebServer] 2026-10-07 18:03:42 [INFO ] HpAgent.Account: web_registration_succeeded account_id=01a115d1-a2ba-7399-a4e9-554733017a4a
+  ✓  4 [chromium] › e2e/auth.spec.ts:37:1 › registers, auto-signs in, and can log in again (4.7s)
+[WebServer] 2026-10-07 18:03:48 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 18:03:48 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 18:03:49 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 18:03:53 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 18:03:53 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 18:03:53 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-07 18:04:00 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 18:04:00 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 18:04:00 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 18:04:05 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 18:04:05 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 18:04:05 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  5 [chromium] › e2e/multi-tab.spec.ts:12:1 › accounts are isolated across browser contexts (22.0s)
+[WebServer] 2026-10-07 18:04:11 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 18:04:11 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 18:04:11 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 18:04:16 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-07 18:04:16 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-07 18:04:16 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-07 18:04:20 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-07 18:04:20 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-07 18:04:20 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 18:04:20 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-07 18:04:21 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-07 18:04:21 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  6 [chromium] › e2e/multi-tab.spec.ts:36:1 › a second tab cannot send while a Run is active (409 wins) (14.8s)
+
+  6 passed (1.0m)
