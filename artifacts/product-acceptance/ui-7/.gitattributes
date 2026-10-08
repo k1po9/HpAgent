@@ -1,3 +1,0 @@
-# Preserve raw validation output, including tool-generated whitespace.
-*.log -text -whitespace
-logs/capacity-counts.txt -text -whitespace

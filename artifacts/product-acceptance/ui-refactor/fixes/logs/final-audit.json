@@ -1,0 +1,40 @@
+{
+  "head": "41ff9a92851c08bee16c7915b9ad246bfca7d8da",
+  "backend": {
+    "tests": 206,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "original_backend_count": 197,
+  "new_cases": 9,
+  "original_scope_preserved": true,
+  "browser": {
+    "startTime": "2026-10-08T14:07:46.415Z",
+    "duration": 1079726.679,
+    "expected": 76,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "production": {
+    "startTime": "2026-10-08T14:33:44.396Z",
+    "duration": 52823.761,
+    "expected": 2,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "frontend": {
+    "files": 54,
+    "tests": 408,
+    "gates_exit_zero": true
+  },
+  "same_final_runtime_sources": true,
+  "backend_excluded_later_frontend_test_change": "web/e2e/ui-7-unification.spec.ts",
+  "original_evidence_preserved": true,
+  "original_migrations_preserved": true,
+  "r8_01_preserved": true,
+  "manual_and_external_gaps": true,
+  "release_approved": false
+}

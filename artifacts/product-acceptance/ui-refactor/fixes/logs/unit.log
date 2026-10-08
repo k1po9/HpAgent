@@ -1,0 +1,13 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=1
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+
+ Test Files  54 passed (54)
+      Tests  408 passed (408)
+   Start at  22:11:17
+   Duration  398.01s (transform 8.64s, setup 31.18s, import 45.92s, tests 88.92s, environment 193.24s)
+

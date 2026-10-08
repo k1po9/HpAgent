@@ -1,0 +1,93 @@
+[WebServer] INFO:     Started server process [196198]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8196 (Press CTRL+C to quit)
+[WebServer] (node:196527) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 13 tests using 1 worker
+
+(node:196548) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/a11y.spec.ts:10:1 › login form exposes a heading and labelled fields (4.7s)
+  ✓   2 [chromium] › e2e/a11y.spec.ts:18:1 › workbench exposes headings, labelled controls, and semantic buttons (4.6s)
+[WebServer] 2026-10-09 00:36:13 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:36:13 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:36:13 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-09 00:36:17 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:36:17 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-09 00:36:17 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-09 00:36:18 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:36:18 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:36:18 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-09 00:36:22 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:36:22 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-09 00:36:22 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-09 00:36:23 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:36:23 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:36:23 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-09 00:36:28 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:36:28 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-09 00:36:28 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   3 [chromium] › e2e/conversation.spec.ts:8:1 › holds a long conversation and survives a refresh (23.3s)
+[WebServer] 2026-10-09 00:36:35 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:36:35 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:36:35 [INFO ] HpAgent.SSE: sse_subscribed
+  ✓   4 [chromium] › e2e/conversation.spec.ts:33:1 › selects and uploads a UTF-8 Markdown file, then attaches it to a message (4.3s)
+[WebServer] 2026-10-09 00:36:39 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:36:39 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:36:40 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:36:44 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+  ✓   5 [chromium] › e2e/disconnect.spec.ts:11:1 › recovers from a dropped SSE connection by polling (11.0s)
+[WebServer] 2026-10-09 00:36:49 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:36:49 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:36:50 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-09 00:36:54 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:36:54 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-09 00:36:54 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   6 [chromium] › e2e/markdown.spec.ts:17:1 › renders Markdown and fenced code in assistant replies (9.6s)
+[WebServer] 2026-10-09 00:37:02 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:37:02 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:37:02 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-09 00:37:06 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:37:06 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-09 00:37:06 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-09 00:37:11 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:37:11 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:37:11 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-09 00:37:16 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:37:16 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-09 00:37:16 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   7 [chromium] › e2e/multi-tab.spec.ts:12:1 › accounts are isolated across browser contexts (22.3s)
+[WebServer] 2026-10-09 00:37:22 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:37:22 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:37:22 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-09 00:37:26 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:37:26 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-09 00:37:26 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-09 00:37:30 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:37:30 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:37:30 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-09 00:37:30 [INFO ] HpAgent.SSE: sse_subscribed
+  ✓   8 [chromium] › e2e/multi-tab.spec.ts:36:1 › a second tab cannot send while a Run is active (409 wins) (14.7s)
+[WebServer] 2026-10-09 00:37:35 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:37:35 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:37:35 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:37:35 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-09 00:37:39 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:37:39 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-09 00:37:39 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   9 [chromium] › e2e/stop-retry.spec.ts:11:1 › stops a running Run without offering Retry (8.8s)
+  ✓  10 [chromium] › e2e/ui-8-acceptance.spec.ts:211:1 › real API: task subscriptions stay within two and logout clears timers and feeds (7.1s)
+  ✓  11 [chromium] › e2e/workspace-direct-upload.spec.ts:5:1 › uploads directly to Workspace without creating or authorizing a conversation (6.0s)
+[WebServer] 2026-10-09 00:37:59 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:37:59 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:38:00 [INFO ] HpAgent.SSE: sse_subscribed
+  ✓  12 [chromium] › e2e/workspace-p1.spec.ts:5:1 › uploads, saves, moves, and downloads a Workspace entry (10.7s)
+[WebServer] 2026-10-09 00:38:04 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-09 00:38:10 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-09 00:38:10 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-09 00:38:10 [INFO ] HpAgent.SSE: sse_subscribed
+  ✓  13 [chromium] › e2e/workspace-p3.spec.ts:4:1 › upgrades an entry in place and keeps its version when renamed (9.7s)
+
+  13 passed (2.4m)

@@ -1,8 +1,8 @@
 # HpAgent 文档
 
-架构、开发、运维和参考文档描述当前实现（同步日期：2026-10-05，代码基线 `0fcf505`）。`design/` 保存设计和复查基线；`implementation/` 保存阶段证据，不应把阶段末的“尚未实现”当作当前能力状态。
+架构、开发、运维和参考文档描述当前实现。Web 相关文档已同步 UI-1～UI-8 重构与 2026-10-09 复验；其余文档按各自日期与基线阅读。`design/` 保存历史设计；`implementation/` 保存交接与验证边界，不应把阶段末的“尚未实现”当作当前能力状态。
 
-推荐阅读：架构总览 → Durable Work V1 → 功能操作指南 → API / 测试 / 运维；历史设计与产品验收从实施索引进入。
+推荐阅读：架构总览 → Durable Work V1 → Web 前端架构 → 功能操作指南 → API / 测试 / 运维。本次前端重构从[UI-1～UI-8 交接](implementation/ui-refactor.md)进入；历史设计与其他验收从实施索引进入。
 
 ## 架构
 
@@ -14,6 +14,7 @@
 - [可靠性](architecture/reliability.md)：持久化、重试、Lease、Fencing、幂等与取消。
 - [关键时序](architecture/sequences.md)：核心端到端流程。
 - [Workspace v4.1](architecture/workspace-v4.1.md)：长期文件目录、授权、Run 快照、版本、保存与 GC。
+- [Web 前端架构](architecture/web-ui.md)：三入口、唯一 Inspector、账户与请求生命周期、Task 四桶、权限和 HTML 版本契约。
 
 ## 开发
 
@@ -23,7 +24,7 @@
 
 ## 运维
 
-- [功能操作指南](operations/web-workbench.md)：八个页面、文件授权、持续工作、成果保存与人工复测。
+- [功能操作指南](operations/web-workbench.md)：AI / 空间 / 任务、上下文 Inspector、资料授权、成果保存与人工复测。
 - [Account 与模型治理](operations/account-governance.md)
 - [部署](operations/deployment.md)
 - [运行手册](operations/runbook.md)
@@ -40,5 +41,7 @@
 
 ## 实施与验收
 
-- [实施与验收索引](implementation/README.md)：五阶段、复查修复、人工 E2E 与剩余运行验收。
+- [UI-1～UI-8 重构交接](implementation/ui-refactor.md)：全部阶段、关闭的缺陷、能力矩阵、批次结果、059 迁移、剩余验收与增强。
+- [UI 保留验收证据](../artifacts/product-acceptance/ui-refactor/README.md)：关键反例、最终日志、最后完整截图及迁移来源/哈希。
+- [实施与验收索引](implementation/README.md)：Durable Work、Workspace、人工 E2E 与剩余运行验收。
 - [Workspace P0～P5 记录与总体验收](implementation/workspace-v4.1/README.md)

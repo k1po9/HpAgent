@@ -1,0 +1,328 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/conversations/01a11abc-d83c-7bd6-ada7-36182379101c/messages?limit=50",
+    "status": 200,
+    "time": "2026-10-08T08:59:07.866Z",
+    "duration": 332.886,
+    "run": null,
+    "messages": [],
+    "assistant": null
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/conversations/01a11abc-dc45-7473-acb1-7cd9cf4288ef/messages?limit=50",
+    "status": 200,
+    "time": "2026-10-08T08:59:09.056Z",
+    "duration": 208.76000000000002,
+    "run": null,
+    "messages": [],
+    "assistant": null
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/conversations/01a11abc-dc45-7473-acb1-7cd9cf4288ef/messages",
+    "status": 202,
+    "time": "2026-10-08T08:59:09.635Z",
+    "duration": 246.14499999999998,
+    "run": {
+      "source_kind": "chat",
+      "run_id": "01a11abc-e634-7771-97e9-7c2eb6e7bfdb",
+      "conversation_id": "01a11abc-dc45-7473-acb1-7cd9cf4288ef",
+      "session_id": null,
+      "trigger_message_id": "01a11abc-e633-7a64-a384-c58e29f6e420",
+      "retry_of_run_id": null,
+      "agent_strategy": "react",
+      "status": "queued",
+      "failure": null,
+      "version": 1,
+      "created_at": "2026-10-08T08:59:09.729Z",
+      "started_at": null,
+      "finished_at": null,
+      "updated_at": "2026-10-08T08:59:09.729Z",
+      "budget": {
+        "status": "ok",
+        "mode": "observe",
+        "policy_version": "file-p0-v1",
+        "tokens": {
+          "input": {
+            "used": 0,
+            "reserved": 0,
+            "limit": 80000
+          },
+          "output": {
+            "used": 0,
+            "reserved": 0,
+            "limit": 20000
+          },
+          "total": {
+            "used": 0,
+            "reserved": 0,
+            "limit": 100000
+          }
+        },
+        "model_calls": {
+          "settled": 0,
+          "in_flight": 0,
+          "unmetered": 0,
+          "total_attempts": 0,
+          "limit": 20
+        },
+        "by_source": {
+          "provider": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0
+          },
+          "measured": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0
+          },
+          "estimated": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0
+          }
+        },
+        "usage_state": "none",
+        "usage_quality": "none",
+        "has_estimates": false,
+        "model_total_tokens_used": 0,
+        "model_total_tokens_limit": 100000,
+        "tool_calls_used": 0,
+        "tool_calls_limit": 20,
+        "bytes_scanned_used": 0,
+        "bytes_scanned_limit": 536870912
+      },
+      "execution_id": "1861281b-aea3-3d94-32d6-8849a8570eb5"
+    },
+    "messages": [],
+    "assistant": {
+      "message_id": "01a11abc-e635-7e92-9eeb-616ac4b251a9",
+      "conversation_id": "01a11abc-dc45-7473-acb1-7cd9cf4288ef",
+      "role": "assistant",
+      "status": "pending",
+      "content": null,
+      "sequence": 2,
+      "client_request_id": null,
+      "produced_by_run_id": "01a11abc-e634-7771-97e9-7c2eb6e7bfdb",
+      "created_at": "2026-10-08T08:59:09.729Z",
+      "completed_at": null,
+      "files": []
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/runs/01a11abc-e634-7771-97e9-7c2eb6e7bfdb/events",
+    "status": 200,
+    "time": "2026-10-08T08:59:09.917Z",
+    "duration": 153.58100000000002
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/runs/01a11abc-e634-7771-97e9-7c2eb6e7bfdb",
+    "status": 200,
+    "time": "2026-10-08T08:59:14.857Z",
+    "duration": 249.503,
+    "run": {
+      "source_kind": "chat",
+      "run_id": "01a11abc-e634-7771-97e9-7c2eb6e7bfdb",
+      "conversation_id": "01a11abc-dc45-7473-acb1-7cd9cf4288ef",
+      "session_id": null,
+      "trigger_message_id": "01a11abc-e633-7a64-a384-c58e29f6e420",
+      "retry_of_run_id": null,
+      "agent_strategy": "react",
+      "status": "succeeded",
+      "failure": null,
+      "version": 3,
+      "created_at": "2026-10-08T08:59:09.729Z",
+      "started_at": "2026-10-08T08:59:09.933Z",
+      "finished_at": "2026-10-08T08:59:14.636Z",
+      "updated_at": "2026-10-08T08:59:14.636Z",
+      "budget": {
+        "status": "ok",
+        "mode": "observe",
+        "policy_version": "file-p0-v1",
+        "tokens": {
+          "input": {
+            "used": 0,
+            "reserved": 0,
+            "limit": 80000
+          },
+          "output": {
+            "used": 0,
+            "reserved": 0,
+            "limit": 20000
+          },
+          "total": {
+            "used": 0,
+            "reserved": 0,
+            "limit": 100000
+          }
+        },
+        "model_calls": {
+          "settled": 0,
+          "in_flight": 0,
+          "unmetered": 0,
+          "total_attempts": 0,
+          "limit": 20
+        },
+        "by_source": {
+          "provider": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0
+          },
+          "measured": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0
+          },
+          "estimated": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0
+          }
+        },
+        "usage_state": "none",
+        "usage_quality": "none",
+        "has_estimates": false,
+        "model_total_tokens_used": 0,
+        "model_total_tokens_limit": 100000,
+        "tool_calls_used": 0,
+        "tool_calls_limit": 20,
+        "bytes_scanned_used": 0,
+        "bytes_scanned_limit": 536870912
+      },
+      "execution_id": "1861281b-aea3-3d94-32d6-8849a8570eb5"
+    },
+    "messages": [],
+    "assistant": {
+      "message_id": "01a11abc-e635-7e92-9eeb-616ac4b251a9",
+      "conversation_id": "01a11abc-dc45-7473-acb1-7cd9cf4288ef",
+      "role": "assistant",
+      "status": "completed",
+      "content": "这是由测试执行器生成的回复。\n\n## Markdown 标题\n\n普通段落。\n\n- 列表一\n- 列表二\n\n**粗体文本**\n\n`inline code`\n\n```python\nprint('hello from hpagent')\n```\n\n| A | B |\n|---|---|\n| 1 | 2 |",
+      "sequence": 2,
+      "client_request_id": null,
+      "produced_by_run_id": "01a11abc-e634-7771-97e9-7c2eb6e7bfdb",
+      "created_at": "2026-10-08T08:59:09.729Z",
+      "completed_at": "2026-10-08T08:59:14.636Z",
+      "files": []
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/messages/01a11abc-e635-7e92-9eeb-616ac4b251a9/artifacts",
+    "status": 200,
+    "time": "2026-10-08T08:59:15.026Z",
+    "duration": 246.86599999999999,
+    "run": null,
+    "messages": [],
+    "assistant": null
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/conversations/01a11abc-d83c-7bd6-ada7-36182379101c/messages",
+    "status": 202,
+    "time": "2026-10-08T08:59:08.748Z",
+    "duration": 6855.905,
+    "run": {
+      "source_kind": "chat",
+      "run_id": "01a11abc-fbcb-756f-9697-132a5cb05b64",
+      "conversation_id": "01a11abc-d83c-7bd6-ada7-36182379101c",
+      "session_id": null,
+      "trigger_message_id": "01a11abc-fbca-7ca4-994d-d29b9fb96de9",
+      "retry_of_run_id": null,
+      "agent_strategy": "react",
+      "status": "queued",
+      "failure": null,
+      "version": 1,
+      "created_at": "2026-10-08T08:59:15.232Z",
+      "started_at": null,
+      "finished_at": null,
+      "updated_at": "2026-10-08T08:59:15.232Z",
+      "budget": {
+        "status": "ok",
+        "mode": "observe",
+        "policy_version": "file-p0-v1",
+        "tokens": {
+          "input": {
+            "used": 0,
+            "reserved": 0,
+            "limit": 80000
+          },
+          "output": {
+            "used": 0,
+            "reserved": 0,
+            "limit": 20000
+          },
+          "total": {
+            "used": 0,
+            "reserved": 0,
+            "limit": 100000
+          }
+        },
+        "model_calls": {
+          "settled": 0,
+          "in_flight": 0,
+          "unmetered": 0,
+          "total_attempts": 0,
+          "limit": 20
+        },
+        "by_source": {
+          "provider": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0
+          },
+          "measured": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0
+          },
+          "estimated": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0
+          }
+        },
+        "usage_state": "none",
+        "usage_quality": "none",
+        "has_estimates": false,
+        "model_total_tokens_used": 0,
+        "model_total_tokens_limit": 100000,
+        "tool_calls_used": 0,
+        "tool_calls_limit": 20,
+        "bytes_scanned_used": 0,
+        "bytes_scanned_limit": 536870912
+      },
+      "execution_id": "99d32997-463c-a688-46ff-06c65047d577"
+    },
+    "messages": [],
+    "assistant": {
+      "message_id": "01a11abc-fbcc-78c9-9be1-211c1487dd14",
+      "conversation_id": "01a11abc-d83c-7bd6-ada7-36182379101c",
+      "role": "assistant",
+      "status": "pending",
+      "content": null,
+      "sequence": 2,
+      "client_request_id": null,
+      "produced_by_run_id": "01a11abc-fbcb-756f-9697-132a5cb05b64",
+      "created_at": "2026-10-08T08:59:15.232Z",
+      "completed_at": null,
+      "files": []
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/conversations/01a11abc-d83c-7bd6-ada7-36182379101c/messages?limit=50",
+    "status": 200,
+    "time": "2026-10-08T08:59:15.269Z",
+    "duration": 384.926,
+    "run": null,
+    "messages": [],
+    "assistant": null
+  }
+]

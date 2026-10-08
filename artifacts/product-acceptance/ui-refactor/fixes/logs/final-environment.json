@@ -1,0 +1,42 @@
+{
+  "head": "41ff9a92851c08bee16c7915b9ad246bfca7d8da",
+  "roles": [
+    "hpagent_migrate",
+    "hpagent_api",
+    "hpagent_worker"
+  ],
+  "backend": {
+    "database": "hpagent_ui8_backend_20261008_03_02",
+    "namespace": "hpagent-ui8-fixes-20261008_03-final2",
+    "redis_db": 7,
+    "executor": "real Temporal with controlled Brain/tools"
+  },
+  "browser": {
+    "database": "hpagent_ui8_browser_final_20261008_03_03",
+    "api_port": 8192,
+    "web_port": 5285,
+    "redis_db": 7,
+    "executor": "real API/PostgreSQL/Redis; Fake Run/Artifact executor"
+  },
+  "production": {
+    "database": "hpagent_ui8_production_20261008_03_03",
+    "api_port": 8194,
+    "web_port": 5287,
+    "redis_db": 6,
+    "executor": "Vite preview dist; real API/PostgreSQL/Redis; Fake executor"
+  },
+  "file_roots": {
+    "backend": "/tmp/hpagent-ui8-backend-final-files-20261008_03_02",
+    "browser": "/tmp/hpagent-ui8-browser-final-files-20261008_03_03",
+    "production": "/tmp/hpagent-ui8-production-final-files-20261008_03_03"
+  },
+  "migrations": {
+    "new": "059_artifact_api_permissions.sql",
+    "previous": "001-058 unchanged",
+    "applied_to": "isolated test databases only"
+  },
+  "frontend_test_changed_after_backend": "web/e2e/ui-7-unification.spec.ts",
+  "production_deployed": false,
+  "python": "Python 3.12.3",
+  "node": "v22.23.2"
+}

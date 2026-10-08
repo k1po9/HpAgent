@@ -1,0 +1,88 @@
+{
+  "timestamp": "2026-10-08T17:53:17.163845+08:00",
+  "source_fingerprint_files": 195,
+  "source_drift": [],
+  "prior_evidence_diff": [],
+  "backend_production_diff": [],
+  "temporary_ports_still_listening": {
+    "8188": false,
+    "5281": false,
+    "8190": false,
+    "5283": false
+  },
+  "services": [
+    {
+      "Service": "app-postgres",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "gotenberg",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "hindsight",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "hindsight-postgres",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "hpagent",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "hpagent-api",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "hpagent-document-worker",
+      "State": "running",
+      "Health": ""
+    },
+    {
+      "Service": "redis",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "searxng",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "temporal",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "temporal-postgres",
+      "State": "running",
+      "Health": "healthy"
+    },
+    {
+      "Service": "web-dev",
+      "State": "running",
+      "Health": ""
+    }
+  ],
+  "known_local_credential_matches": [],
+  "git_diff_check_exit": 0,
+  "runner_syntax_valid": true,
+  "credential_redactions": [
+    {
+      "path": "artifacts/product-acceptance/ui-8/logs/backend-results.xml",
+      "redacted_occurrences": 22
+    },
+    {
+      "path": "artifacts/product-acceptance/ui-8/logs/backend.log",
+      "redacted_occurrences": 22
+    }
+  ]
+}

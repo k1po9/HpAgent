@@ -1,0 +1,26 @@
+[
+  {
+    "name": "backend",
+    "command": [
+      "/home/hp/workspace/HpAgent_web/.venv/bin/python",
+      "-m",
+      "pytest",
+      "test/web_api",
+      "test/work_domain",
+      "test/web_persistence/test_work_integration.py",
+      "test/web_persistence/test_web_artifacts.py",
+      "test/web_persistence/test_model_input_snapshot.py",
+      "test/web_persistence/test_permissions.py",
+      "test/web_persistence/test_workspace_v41_p1.py",
+      "test/web_persistence/test_workspace_v41_p2.py",
+      "test/web_persistence/test_workspace_v41_p3.py",
+      "test/web_persistence/test_workspace_temporal_revoke_tool.py",
+      "test/web_persistence/test_web_temporal_e2e.py",
+      "test/web_persistence/test_web_temporal_lifecycle.py",
+      "-q",
+      "--junitxml=/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/ui-8/logs/backend-results.xml"
+    ],
+    "exit_code": 1,
+    "duration_seconds": 1377.07
+  }
+]

@@ -16,6 +16,7 @@ HpAgent 是一个支持 Web 与 QQ 双入口的 AI 助手平台：Main Agent 处
 - Artifact 保存成果版本和生产来源；通知、渠道回执与用户验收分别记账。
 - Generic Work 的 root 可进行一次最多三个只读 Subagent 分支委派，共用原 Run / Work 预算。
 - 高开销文档规范化由独立的 Temporal Activity Worker 执行。
+- Web 使用 AI、空间、任务三个一级入口；执行、文件、任务和 HTML 成果通过统一上下文 Inspector 查看。
 
 ## 架构
 
@@ -39,6 +40,7 @@ Web / QQ → Main / Conversation commands ─► chat Run
 运行时、状态归属、能力边界、可靠性和关键时序请参阅[架构文档](docs/architecture/overview.md)。
 当前 Work、Run、Execution、调度、交付及治理契约见 [Durable Work V1](docs/architecture/durable-work-v1.md)；设计和各阶段报告是历史依据，当前实现以架构文档与源码为准。
 长期文件、目录、授权、版本、保存与 GC 的当前契约见 [Workspace v4.1](docs/architecture/workspace-v4.1.md)。
+UI-1～UI-8 重构后的入口、状态隔离、任务四桶与成果交互契约见 [Web 前端架构](docs/architecture/web-ui.md)。
 
 ## 快速开始
 
@@ -73,7 +75,7 @@ Web / QQ → Main / Conversation commands ─► chat Run
 
    打开 <http://127.0.0.1:5173>。生产网关拓扑使用 `docker compose --profile web-prod up -d --build`，访问 `WEB_GATEWAY_PORT` 指定的端口（默认 `80`）。
 
-前端按对话、长期文件、资料授权、持续工作、研究、成果、执行诊断、账户分页面。首次操作和后端人工校验路径见[功能操作指南](docs/operations/web-workbench.md)。长期上传可选择供当前对话使用；仅保存的文件和旧资料需显式授权，新增资源在下一 Run 生效。
+前端只有 AI、空间、任务三个一级入口。资料授权、研究输出、HTML 成果和执行诊断从当前对象打开，账户设置从头像打开。首次操作和人工校验路径见[功能操作指南](docs/operations/web-workbench.md)。长期上传可选择供当前对话使用；仅保存的文件和旧资料需显式授权，新增资源在下一 Run 生效。
 
 现有旧架构数据库不能按“自动迁移”理解直接升级：054 / 055 / 057 的开发阶段迁移包含空业务存储检查，没有历史 Task / Work 双写或回填层。切换步骤与当前验证限制见[部署说明](docs/operations/deployment.md)及[实施索引](docs/implementation/README.md)。
 
@@ -146,9 +148,16 @@ persistence/  PostgreSQL Migration 与数据库初始化
 test/         单元、契约、集成测试及 Fixture
 scripts/      当前开发、运维、检查和 Benchmark 工具
 docs/         当前架构、开发、运维和参考文档
-artifacts/    审计与 Benchmark 证据
+artifacts/    产品验收、审计与 Benchmark 证据
 ```
 
 ## 文档
 
-从 [docs/README.md](docs/README.md) 开始。[实施与验收索引](docs/implementation/README.md)连接 Durable Work 五阶段记录、复查修复、Workspace P0～P5 和人工 E2E 修复证据，分别说明受控测试与真实模型/渠道验收边界。
+从 [docs/README.md](docs/README.md) 开始，按以下路径阅读：
+
+1. 理解系统：[架构总览](docs/architecture/overview.md) → [Durable Work V1](docs/architecture/durable-work-v1.md) → [Web 前端架构](docs/architecture/web-ui.md)。
+2. 使用与部署：[功能操作指南](docs/operations/web-workbench.md) → [部署](docs/operations/deployment.md)。
+3. 开发与复验：[开发环境](docs/development/setup.md) → [测试指南](docs/development/testing.md) → [HTTP API](docs/reference/api.md)。
+4. 本次重构：[UI-1～UI-8 交接](docs/implementation/ui-refactor.md) → [保留验收证据](artifacts/product-acceptance/ui-refactor/README.md)。
+
+[实施与验收索引](docs/implementation/README.md)连接 Durable Work、Workspace 及其他历史验收。UI 重构的已执行自动化门禁在记录范围内通过；真机、读屏、真实 QQ 和生产恢复等缺口使最终产品放行条件仍未满足，具体范围以交接为准。

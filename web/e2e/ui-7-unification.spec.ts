@@ -81,6 +81,17 @@ async function fixtures(page: Page) {
   return () => artifactReads;
 }
 async function geometry(page: Page) {
+  const inspector = page.locator(".hp-inspector");
+  if (await inspector.isVisible()) {
+    // ResizeObserver and the native dialog effect settle after viewport changes.
+    // Measure the requested layout only once both have reached that breakpoint.
+    const compact = page.viewportSize()!.width < 1280;
+    await expect(inspector).toHaveAttribute(
+      compact ? "aria-modal" : "role",
+      compact ? "true" : "complementary",
+    );
+    await expect.poll(() => inspector.evaluate((node) => node.matches(":modal"))).toBe(compact);
+  }
   const value = await page.evaluate(() => ({
     viewport: innerWidth,
     document: document.documentElement.scrollWidth,

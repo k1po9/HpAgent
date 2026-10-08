@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-09T01:30:30.044412+08:00",
+  "scope": "documentation consolidation; no new database/browser/provider acceptance run",
+  "frontend": {
+    "typecheck": 0,
+    "lint": 0,
+    "build": 0,
+    "unit": {
+      "exit_code": 0,
+      "files": 54,
+      "tests": 408
+    }
+  },
+  "ruff": {
+    "exit_code": 0,
+    "scope": "modified Python files and new lifecycle Worker fixture"
+  },
+  "mypy": {
+    "exit_code": 1,
+    "files_checked": 11,
+    "errors": 4,
+    "file": "src/delivery/service.py",
+    "lines": [
+      310,
+      311,
+      312,
+      313
+    ],
+    "baseline_head_copy": {
+      "exit_code": 1,
+      "errors": 4,
+      "same_error_lines": true
+    },
+    "classification": "existing baseline nullable-index errors"
+  },
+  "documents": {
+    "files": 43,
+    "local_links": 373,
+    "explicit_new_anchors": 3,
+    "broken_links": []
+  },
+  "evidence": {
+    "retained_files": 269,
+    "hashes_verified": true,
+    "junit_files_parsed": 9,
+    "original_results_rewritten": false
+  },
+  "cleanup": {
+    "original_paths_removed_or_consolidated": 1841,
+    "ui_stage_documents_consolidated": 22
+  },
+  "existing_migrations_changed": false,
+  "git_diff_check": 0,
+  "deployed": false,
+  "git_diff_check_scope": "staged changes; archived raw test logs, XML and Playwright error-context use -whitespace attributes to preserve original bytes"
+}

@@ -139,6 +139,19 @@ class RunLifecycleService:
                 AgentDataStore._complete_operation(uow,operation,f'notification:{notification}',{'notification_id':str(notification),'side_effect_class':'idempotent_write'})
                 result = {**result,'continuation':continuation('awaiting_delivery','deliverable_enqueued',receipt_ref=str(notification))}
                 accept_result = False
+        if (run['executor_key'] == 'artifact_html' and status in {'failed', 'cancelled'}
+                and run['status'] in {'running', 'cancelling'}):
+            # Worker finalization closes only this Run's claimed, unfinished
+            # versions. Queued API cancellation has no producer and needs no
+            # version UPDATE privilege; completed results stay immutable.
+            uow.execute(
+                "UPDATE artifact_versions SET status='failed',html=NULL,failure_code=%s,"
+                "failure_message=%s,completed_at=GREATEST(now(),created_at,started_at),updated_at=now() "
+                "WHERE account_id=%s AND producing_run_id=%s AND status='running'",
+                ('artifact_cancelled' if status == 'cancelled' else failure_code or 'artifact_execution_failed',
+                 '构建已取消。' if status == 'cancelled' else (failure_message or '构建未能完成。')[:1000],
+                 run['account_id'], run['run_id']),
+            )
         uow.execute('UPDATE runs SET status=%s,failure_code=%s,failure_message=%s,'
                     'result_json=%s::jsonb,finished_at=GREATEST(now(),created_at,COALESCE(started_at,created_at)),'
                     'version=version+1,updated_at=now() WHERE run_id=%s',
@@ -181,7 +194,8 @@ class RunLifecycleService:
         work = dict(uow.execute('UPDATE works SET active_coordinator_run_id=NULL,status=%s,'
                                 'continuation=%s::jsonb,checkpoint=%s::jsonb,row_version=row_version+1,'
                                 'control_epoch=control_epoch+CASE WHEN %s IN (\'paused\',\'stopped\') THEN 1 ELSE 0 END,'
-                                'stopped_at=CASE WHEN %s=\'stopped\' THEN now() ELSE NULL END,updated_at=now() '
+                                'stopped_at=CASE WHEN %s=\'stopped\' THEN GREATEST(now(),created_at,updated_at) ELSE NULL END,'
+                                'updated_at=GREATEST(now(),created_at,updated_at) '
                                 'WHERE work_id=%s AND active_coordinator_run_id=%s RETURNING *',
                                 (target_status, json.dumps(next_step), json.dumps(checkpoint), target_status,
                                  target_status, work['work_id'], run['run_id'])).fetchone())
@@ -219,8 +233,8 @@ class RunLifecycleService:
                     continue
                 status = 'paused' if work['status'] == 'pausing' else 'stopped'
                 work = dict(uow.execute("UPDATE works SET status=%s,control_epoch=control_epoch+1,"
-                                        "row_version=row_version+1,updated_at=now(),continuation=%s::jsonb,"
-                                        "stopped_at=CASE WHEN %s='stopped' THEN now() ELSE NULL END "
+                                        "row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),continuation=%s::jsonb,"
+                                        "stopped_at=CASE WHEN %s='stopped' THEN GREATEST(now(),created_at,updated_at) ELSE NULL END "
                                         "WHERE work_id=%s RETURNING *",
                                         (status, json.dumps(continuation('none', 'control_converged')),
                                          status, work['work_id'])).fetchone())

@@ -8,6 +8,7 @@ from contextlib import AsyncExitStack
 from uuid import UUID, uuid4
 
 import pytest
+from support.lifecycle_workers import lifecycle_control_activities
 from temporalio.client import Client, WorkflowFailureError
 from temporalio.exceptions import ApplicationError
 from temporalio.worker import Replayer
@@ -15,6 +16,7 @@ from temporalio.worker import Replayer
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
+from agent_workflows.contracts import AgentRunInput
 from application.chat_execution import PostgresWebRequestLoader
 from application.context_assembly import ContextAssemblyService
 from application.context_builder import HarnessContextBuilder
@@ -165,10 +167,7 @@ async def test_web_canonical_lifecycle(
     workers = build_web_temporal_workers(
         client,
         lifecycle_activities=[
-            lifecycle_activities.prepare_run,
-            lifecycle_activities.load_agent_run_input,
-            lifecycle_activities.finalize_failed,
-            lifecycle_activities.finalize_cancelled,
+            *lifecycle_control_activities(worker_database_url, lifecycle_activities),
             runtime.finalize_agent_result,
         ],
         agent_activities=[
@@ -241,13 +240,27 @@ async def test_web_canonical_lifecycle(
             router = DeliveryRouter()
             delivery = QQDeliveryService(worker_database_url, QQDeliveryAdapter(router))
             calls_before_delivery = brain.calls
-            await delivery.deliver_once()
-            db.execute("UPDATE deliveries SET available_at=now()")
-            await delivery.deliver_once()
+            # The account inbox and QQ are independent targets. Drain the inbox
+            # before asserting the controlled QQ adapter's failure/retry receipt.
+            for _ in range(10):
+                await delivery.deliver_once()
+                if router.sent:
+                    break
+            assert len(router.sent) == 1
+            failed_delivery = db.execute("SELECT d.delivery_id,d.state FROM deliveries d JOIN notifications n USING(account_id,notification_id) JOIN delivery_targets t USING(account_id,target_id) WHERE n.run_id=%s AND t.channel='napcat'", (run_id,)).fetchone()
+            assert failed_delivery[1] == "failed"
+            assert delivery.retry_uncertain(account_id, failed_delivery[0])
+            for _ in range(10):
+                await delivery.deliver_once()
+                if len(router.sent) == 2:
+                    break
+            assert len(router.sent) == 2
             assert router.sent[0] == router.sent[1]
             assert "canonical reply" in router.sent[1]
             assert brain.calls == calls_before_delivery
-            assert db.execute("SELECT d.state FROM deliveries d JOIN notifications n USING(account_id,notification_id) WHERE n.run_id=%s", (run_id,)).fetchone()[0] == "accepted"
+            receipt = db.execute("SELECT d.state,d.provider_receipt FROM deliveries d JOIN notifications n USING(account_id,notification_id) JOIN delivery_targets t USING(account_id,target_id) WHERE n.run_id=%s AND t.channel='napcat'", (run_id,)).fetchone()
+            assert receipt[0] == "accepted" and receipt[1]["level"] == "adapter_accepted"
+            assert db.execute("SELECT outcome FROM delivery_decisions WHERE delivery_id=%s", (failed_delivery[0],)).fetchall() == [("retry_accepting_duplicate_risk",)]
         before = brain.calls
         db.execute(
             "UPDATE outbox_events SET available_at=now() WHERE run_id=%s AND event_type='start_run'",
@@ -256,6 +269,21 @@ async def test_web_canonical_lifecycle(
         await outbox.run_once()
         assert brain.calls == before
         history = await handle.fetch_history()
+        scheduled = {
+            event.event_id: event.activity_task_scheduled_event_attributes.activity_type.name
+            for event in history.events if event.HasField("activity_task_scheduled_event_attributes")
+        }
+        loaded_event = next(
+            event.activity_task_completed_event_attributes
+            for event in history.events
+            if event.HasField("activity_task_completed_event_attributes")
+            and scheduled[event.activity_task_completed_event_attributes.scheduled_event_id] == "load_agent_run_input_activity"
+        )
+        loaded, = await client.data_converter.decode(loaded_event.result.payloads, [AgentRunInput])
+        assert loaded.strategy == strategy and loaded.context.surface == surface
+        assert loaded.source.source_kind == "chat"
+        assert loaded.context.chat.conversation_id == str(conversation)
+        assert brain.calls >= 1
         await Replayer(workflows=[AgentLifecycleWorkflow]).replay_workflow(history)
         if outcome == "completed":
             fixture_dir = os.getenv("W1C_HISTORY_DIR")
@@ -290,6 +318,12 @@ async def test_web_canonical_lifecycle(
             "SELECT content FROM messages WHERE produced_by_run_id=%s", (run_id,)
         ).fetchall() == [("canonical reply",)]
         assert sandbox.calls
+    elif outcome == "failed":
+        assert db.execute("SELECT failure_code FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] == "model_unavailable"
+    else:
+        assert db.execute("SELECT status FROM outbox_events WHERE run_id=%s AND event_type='cancel_run'", (run_id,)).fetchall() == [("processed",)]
+        assert db.execute("SELECT status,content FROM messages WHERE produced_by_run_id=%s", (run_id,)).fetchall() == [("aborted", None)]
+    assert db.execute("SELECT count(*) FROM outbox_events WHERE run_id=%s AND event_type='publish_terminal_event'", (run_id,)).fetchone()[0] == 1
 
 
 async def test_blocked_work_does_not_block_same_account_chat(
@@ -338,8 +372,8 @@ async def test_blocked_work_does_not_block_same_account_chat(
     segments = SegmentActivities(store)
     workers = build_web_temporal_workers(
         client,
-        lifecycle_activities=[controls.prepare_run, controls.load_agent_run_input,
-                              controls.finalize_failed, controls.finalize_cancelled, runtime.finalize_agent_result,
+        lifecycle_activities=[*lifecycle_control_activities(worker_database_url, controls),
+                              runtime.finalize_agent_result,
                               research.prepare_research_activity, research.create_research_plan_activity,
                               research.fail_research_activity],
         agent_activities=[segments.acquire, segments.release, segments.begin_wait, segments.finish_wait,

@@ -1,0 +1,36 @@
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/store/ui2.test.ts (7 tests | 1 failed | 6 skipped) 63ms
+     × resynchronizes a returned conversation when its earlier pending send commits after the empty selection query 58ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/store/ui2.test.ts > UI-2 query and intent recovery > resynchronizes a returned conversation when its earlier pending send commits after the empty selection query
+AssertionError: expected [] to deeply equal [ 'u', 'a' ]
+
+- Expected
++ Received
+
+- [
+-   "u",
+-   "a",
+- ]
++ []
+
+ ❯ src/store/ui2.test.ts:140:76
+    138|     oldMessages.resolve({ items: [], next_cursor: null, has_more: fals…
+    139|     await selecting;
+    140|     expect(store.getState().messages.map((message) => message.message_…
+       |                                                                            ^
+    141|     expect(store.getState().activeRun?.status).toBe("succeeded");
+    142|     expect(store.getState().loadingMessages).toBe(false);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 skipped (7)
+   Start at  17:04:21
+   Duration  25.32s (transform 6.22s, setup 1.59s, import 6.32s, tests 63ms, environment 16.16s)
+

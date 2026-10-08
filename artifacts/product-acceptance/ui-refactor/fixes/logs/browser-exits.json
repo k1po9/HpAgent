@@ -1,0 +1,14 @@
+[
+  {
+    "name": "browser",
+    "command": [
+      "npx",
+      "playwright",
+      "test",
+      "--project=chromium",
+      "--reporter=list,json"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 1087.35
+  }
+]

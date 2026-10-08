@@ -235,6 +235,23 @@ def test_control_waits_for_cancel_convergence(commands, account_id, urls, action
         assert resumed['status']=='active' and resumed['current_requirement_revision']==2
 
 
+def test_work_updates_preserve_timestamps_when_transaction_clock_is_earlier(commands, account_id, owner):
+    work = accept(commands, account_id)
+    work_id = UUID(work['work_id'])
+    owner.execute("UPDATE works SET created_at=now()+interval '1 minute',"
+                  "updated_at=now()+interval '1 minute',row_version=row_version+1 WHERE work_id=%s",
+                  (work_id,))
+
+    revised = commands.revise(account_id, work_id, str(uuid4()), work['row_version'] + 1,
+                              requirement()).body['work']
+    stopped = commands.control(account_id, work_id, str(uuid4()), revised['row_version'], 'stop').body['work']
+    assert stopped['status'] == 'stopped'
+    timestamps = owner.execute('SELECT created_at,updated_at,stopped_at FROM works WHERE work_id=%s',
+                               (work_id,)).fetchone()
+    assert timestamps['updated_at'] >= timestamps['created_at']
+    assert timestamps['stopped_at'] >= timestamps['created_at']
+
+
 def test_failed_run_retains_responsibility_and_cancel_is_attempt_only(commands, account_id, urls):
     work, run = advance(commands, account_id, accept(commands, account_id))
     lifecycle = RunLifecycleService(urls[2])

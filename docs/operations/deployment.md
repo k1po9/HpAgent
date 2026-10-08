@@ -47,6 +47,8 @@ Compose 把 `scripts/operations/start-hindsight.sh` 挂载为 Hindsight 启动�
 
 ## 发布与健康验证
 
+UI-8 新增 059 权限迁移，撤销 API 对 `artifact_versions` 的 UPDATE，保留 Worker 发布权限。已有 058 环境需要先成功运行 `hpagent-migrate`；仅重载要求 059 的 API / Worker 会在 schema 校验阶段失败。001～058 的文件与 checksum 保持不变，验证与未部署边界见[UI 重构交接](../implementation/ui-refactor.md)。
+
 宿主机源码挂载变化需要对应 API / Worker 重载；镜像或 environment 变化使用 Compose recreate / build，`restart` 不读取新的容器环境。
 
 ```bash

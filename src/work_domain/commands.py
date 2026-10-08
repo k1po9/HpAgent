@@ -207,7 +207,7 @@ class WorkCommandService:
             if work['continuation'].get('operation_ref'):
                 next_step = work['continuation']
             work = dict(uow.execute('UPDATE works SET current_requirement_revision=%s,control_epoch=control_epoch+1,'
-                                    'row_version=row_version+1,updated_at=now(),checkpoint=%s::jsonb,continuation=%s::jsonb '
+                                    'row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),checkpoint=%s::jsonb,continuation=%s::jsonb '
                                     'WHERE work_id=%s RETURNING *',
                                     (revision, json.dumps(checkpoint), json.dumps(next_step), work_id)).fetchone())
             self.repo.event(uow, work, 'revised', command_id=command, reason=reason)
@@ -240,8 +240,8 @@ class WorkCommandService:
                       'stop': 'stopping' if unresolved else 'stopped', 'resume': 'active'}[action]
             self._cancel_coordinator(uow, work, command, action if action != "resume" else None)
             work = dict(uow.execute('UPDATE works SET status=%s,control_epoch=control_epoch+1,'
-                                    'row_version=row_version+1,updated_at=now(),continuation=%s::jsonb,'
-                                    'stopped_at=CASE WHEN %s=\'stopped\' THEN now() ELSE NULL END '
+                                    'row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),continuation=%s::jsonb,'
+                                    'stopped_at=CASE WHEN %s=\'stopped\' THEN GREATEST(now(),created_at,updated_at) ELSE NULL END '
                                     'WHERE work_id=%s RETURNING *', (status, json.dumps(work['continuation']), status, work_id)).fetchone())
             event = {'pausing':'pause_requested','paused':'paused','stopping':'stop_requested',
                      'stopped':'stopped','active':'resumed'}[status]
@@ -251,7 +251,7 @@ class WorkCommandService:
             if action == 'resume' and not work['continuation'].get('operation_ref'):
                 from work_domain.timing import initial_continuation
                 next_step = initial_continuation(requirement['timing'])
-                work = dict(uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=now() '
+                work = dict(uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) '
                                         'WHERE work_id=%s RETURNING *', (json.dumps(next_step), work_id)).fetchone())
             sync_schedule(uow, work, requirement)
             if action=='resume' and requirement['timing']['kind'] in {'immediate', 'once'}:
@@ -269,7 +269,7 @@ class WorkCommandService:
             work = self._locked(uow, account_id, work_id, row_version)
             self._link(uow, work, conversation_id, command)
             if work['status'] not in {'stopped', 'completed'}:
-                work = dict(uow.execute('UPDATE works SET row_version=row_version+1,updated_at=now() '
+                work = dict(uow.execute('UPDATE works SET row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) '
                                         'WHERE work_id=%s RETURNING *', (work_id,)).fetchone())
             self.repo.event(uow, work, 'linked', command_id=command, conversation_id=conversation_id)
             return self._complete(uow, account_id, 'link_work', key, work_id)
@@ -300,7 +300,7 @@ class WorkCommandService:
             try:
                 run = admit_work_run(uow, work, requirement, wakeup, self.database, self.budget_mode)
             except WorkBudgetExhausted:
-                uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=now() WHERE work_id=%s',
+                uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s',
                             (json.dumps(continuation('blocked','budget_exhausted')),work_id))
                 self.repo.event(uow,self.repo.get(uow,account_id,work_id),'advanced',command_id=command,reason='budget_exhausted')
                 return self._complete(uow,account_id,'advance_work',key,work_id,202,reason='budget_exhausted')

@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="3" time="15.340" timestamp="2026-10-08T19:31:34.070542+08:00" hostname="LAPTOP-DM9FB4PT"><testcase classname="test.web_api.test_sse_gateway" name="test_terminal_committed_during_handshake_is_not_lost" time="8.443"><failure message="TimeoutError">fut = &lt;coroutine object Queue.get at 0x7d64202fea40&gt;, timeout = 5.0
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+/usr/lib/python3.12/asyncio/tasks.py:520: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;Queue at 0x7d6423cfaa80 maxsize=0 _queue=[&lt;object object at 0x7d642d51bed0&gt;] tasks=2&gt;
+
+    async def get(self):
+        """Remove and return an item from the queue.
+    
+        If queue is empty, wait until an item is available.
+        """
+        while self.empty():
+            getter = self._get_loop().create_future()
+            self._getters.append(getter)
+            try:
+&gt;               await getter
+E               asyncio.exceptions.CancelledError
+
+/usr/lib/python3.12/asyncio/queues.py:158: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+client_factory = &lt;function client_factory.&lt;locals&gt;.factory at 0x7d6423e74860&gt;
+seed_identity = &lt;function seed_identity.&lt;locals&gt;.seed at 0x7d6423e76de0&gt;
+redis_url = 'redis://localhost:6379/7'
+sync_redis = &lt;redis.client.Redis(&lt;redis.connection.ConnectionPool(&lt;redis.connection.Connection(decode_responses=False,host=localhos...d_timeout=10, endpoint_type=None),orig_host_address=localhost,orig_socket_timeout=5,orig_socket_connect_timeout=5)&gt;)&gt;)&gt;
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x7d6423e8df40&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7d6423e94c80&gt;
+
+    async def test_terminal_committed_during_handshake_is_not_lost(
+        client_factory, seed_identity, redis_url, sync_redis, db, monkeypatch
+    ):
+        """Commit/publish after the snapshot read, before the first yielded frame."""
+        from web_api import sse
+    
+        account_id = seed_identity("alice")
+        client = client_factory(redis_url=redis_url, fake_enabled=True, fake_mode="hold")
+        run = create_running_run(client, login(client))
+        original_load = sse.load_run_snapshot
+        first = True
+    
+        def complete_during_read(*args):
+            nonlocal first
+            snapshot = original_load(*args)
+            if first:
+                first = False
+                mark_terminal(db, account_id, run["conversation_id"], run["run_id"],
+                              "succeeded", "handshake result")
+                sync_redis.publish(f"{_TOPIC_PREFIX}{run['run_id']}", make_terminal_event(
+                    run_id=run["run_id"], conversation_id=run["conversation_id"], event_id=str(uuid7())))
+            return snapshot
+    
+        monkeypatch.setattr(sse, "load_run_snapshot", complete_during_read)
+        gateway, redis_client = await make_gateway(client, redis_url)
+        reader = StreamReader(gateway.stream(account_id, UUID(run["run_id"]), ""))
+        try:
+&gt;           frames = await reader.drain()
+                     ^^^^^^^^^^^^^^^^^^^^
+
+test/web_api/test_sse_gateway.py:526: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+test/web_api/test_sse_gateway.py:284: in drain
+    item = await self.next(timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+test/web_api/test_sse_gateway.py:271: in next
+    return await asyncio.wait_for(self.queue.get(), timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/asyncio/tasks.py:519: in wait_for
+    async with timeouts.timeout(timeout):
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x7d642432abc0&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -&gt; Optional[bool]:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is exceptions.CancelledError:
+                # Since there are no new cancel requests, we're
+                # handling this.
+&gt;               raise TimeoutError from exc_val
+E               TimeoutError
+
+/usr/lib/python3.12/asyncio/timeouts.py:115: TimeoutError</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_lifecycle" name="test_running_completion_and_cancel_lock_order[complete]" time="3.096" /><testcase classname="test.web_persistence.test_web_temporal_lifecycle" name="test_running_completion_and_cancel_lock_order[cancel]" time="2.935"><failure message="web_domain.errors.ConversationBusy">db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x7d6423cb0770&gt;
+account_id = UUID('d719c973-54dd-4a7f-add8-a8a2dd527c26')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7d6423cb0c20&gt;
+winner = 'cancel'
+
+    @pytest.mark.parametrize("winner", ["complete", "cancel"])
+    async def test_running_completion_and_cancel_lock_order(
+        db, account_id, database_url, worker_database_url, monkeypatch, winner
+    ):
+        """Both calls start running; fix commit order at the completion lock."""
+        commands, _, run_id = _conversation_and_run(database_url, account_id)
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        lifecycle.prepare(run_id)
+        entered, release = threading.Event(), threading.Event()
+        context = threading.local()
+        original_lock = RunLifecycleService.lock
+    
+        def gated_lock(uow, owner, target):
+            if winner == "cancel" and getattr(context, "completing", False):
+                entered.set()
+                assert release.wait(5), "cancel did not commit"
+            return original_lock(uow, owner, target)
+    
+        monkeypatch.setattr(RunLifecycleService, "lock", staticmethod(gated_lock))
+        def complete():
+            context.completing = True
+            try:
+                return lifecycle.complete(run_id, "winner reply")
+            finally:
+                context.completing = False
+    
+        completion = asyncio.create_task(asyncio.to_thread(complete))
+        try:
+            if winner == "cancel":
+                assert await asyncio.to_thread(entered.wait, 5)
+                cancelled = commands.cancel_run(account_id, run_id, str(uuid4()))
+                assert cancelled.body["run"]["status"] == "cancelling"
+                release.set()
+                assert (await completion).status == "cancelling"
+                assert lifecycle.finalize_cancelled(run_id).status == "cancelled"
+                expected = "cancelled"
+                message = ("aborted", None)
+            else:
+                assert (await completion).status == "succeeded"
+                with pytest.raises(RunNotCancellable):
+                    commands.cancel_run(account_id, run_id, str(uuid4()))
+                expected = "succeeded"
+                message = ("completed", "winner reply")
+            assert lifecycle.finalize_cancelled(run_id).status == expected
+            assert lifecycle.complete(run_id, "late reply").status == expected
+            assert db.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] == expected
+            assert db.execute("SELECT status,content FROM messages WHERE produced_by_run_id=%s", (run_id,)).fetchone() == message
+            events = db.execute("SELECT payload-&gt;&gt;'terminal_status' FROM outbox_events WHERE run_id=%s AND event_type='publish_terminal_event'", (run_id,)).fetchall()
+            assert events == [(expected,)]
+        finally:
+            release.set()
+&gt;           await completion
+E           web_domain.errors.ConversationBusy
+
+test/web_persistence/test_web_temporal_lifecycle.py:114: ConversationBusy</failure></testcase></testsuite></testsuites>

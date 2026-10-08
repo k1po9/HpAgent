@@ -42,6 +42,8 @@ Conversation 支持创建、列表、读取、改名、消息列表及发送；�
 - `GET /api/v1/runs/{run_id}/research/evidence`、`report`：Research Work 的证据 / 报告。
 - `GET /api/v1/runs/{run_id}/model-inputs`、`GET /api/v1/model-inputs/{snapshot_id}`：账号内模型输入快照。none 只允许列表最小元数据，单快照为 403；summary 为摘要，full_safe 额外返回已保存 provider_request_body。
 
+Run SSE 在订阅/缓冲后读取权威快照，snapshot 为第一帧；握手期间的终态不会因先读取快照而丢失，终态快照不再发送缓冲 delta。恢复仍遵循 stream/seq 与权威查询，不重放历史 started。Work feed 与 Chat feed 独立，Work 终态不发布 Chat 消息。
+
 full_safe 不在查询时再作 Secret 脱敏，不应把凭据放入输入。快照存在不证明分发；诊断须结合 dispatch、失败分类与 HTTP 状态。模型 code / retryability 见[可靠性](../architecture/reliability.md)。
 
 ## 长期文件 Workspace
@@ -59,5 +61,7 @@ full_safe 不在查询时再作 Secret 脱敏，不应把凭据放入输入。�
 ## Artifact 与身份
 
 `POST/GET /api/v1/messages/{message_id}/artifacts`、`GET /api/v1/artifacts/{artifact_id}`、`GET/POST .../versions`、`GET /api/v1/artifact-versions/{artifact_version_id}` 管理消息来源成果及版本。异步构建创建 Work / Run；生产版本与采用版本分别追溯。
+
+HTML 手工修改以最近成功版本为 parent，不自动替换 Work 的原交付/验收证据。下载 `.html`，保存到空间为 `.html.txt` 文本源码副本，保存不自动授权。已领取版本的生产 Run failed/cancelled 时由 Worker 终态事务收敛 running 版本；取消使用 `failed` 与 `artifact_cancelled`，不新增状态。059 迁移使 API 对 artifact_versions 仅 SELECT/INSERT，Worker 保留生成发布所需权限。
 
 Account 入口为 `GET /api/v1/me`；QQ challenge 位于 `/api/v1/identity-bindings/qq/challenges`。账户、渠道和所有权检查不会因页面切换被绕过。操作流程见[功能指南](../operations/web-workbench.md)。

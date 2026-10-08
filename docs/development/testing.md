@@ -21,7 +21,7 @@ export HPAGENT_MIGRATIONS_DIR="$PWD/persistence/migrations"
 export REDIS_URL='redis://localhost:6379/15'
 ```
 
-迁移使用完整 001–058 链与真实角色，保留 checksum；旧架构非空业务库的门禁见[部署](../operations/deployment.md)。
+迁移使用完整 001–059 链与真实角色，保留 checksum；059 收窄 Artifact Version 的 API UPDATE 权限，升级证据见 [UI 重构交接](../implementation/ui-refactor.md)。旧架构非空业务库的门禁见[部署](../operations/deployment.md)。
 
 ## Python 与数据库
 
@@ -66,6 +66,41 @@ Playwright 启动自己的 API 与 Vite（reuseExistingServer=false）。API 使
 
 `web/e2e/manual-repair.spec.ts` 覆盖子目录创建、冲突、上传授权、切页草稿、窄屏 Work 创建/修订/授权；workspace-p1 / p3 与 artifact 覆盖保存、版本、下载及页面跳转。`web/src/components/workspace/WorkspaceMigration.test.tsx` 与 `workspaceOperations.test.ts` 覆盖保存成功而授权失败的补救与不重复上传；旧 WorkspacePanel 候选生命周期语义已迁入 `components/run/RunResources.test.tsx`。
 
+UI-1～UI-8 的组件和状态契约见[前端架构](../architecture/web-ui.md)，阶段与缺陷矩阵见[交接](../implementation/ui-refactor.md)。前端四项门禁可分别执行：
+
+```bash
+cd web
+npm run typecheck
+npm run lint
+npm run build
+npm test -- --maxWorkers=1
+npx playwright test --project=chromium --workers=1 --reporter=list,json
+# 先 build；复用隔离测试配置，另用独立端口/库，顺序执行
+npx playwright test --config=playwright.ui8-production.config.ts --project=chromium --workers=1 --reporter=list,json
+```
+
+运行前用 `PLAYWRIGHT_JSON_OUTPUT_NAME` 和 `HPAGENT_UI8_EVIDENCE_DIR` 指向新的批次路径。UI-2～UI-7 specs 仍将截图写入各阶段临时目录；这些目录已忽略，不是保留证据。需要归档时把本轮产物复制到新批次，不能覆盖 `artifacts/product-acceptance/ui-refactor/` 的旧结果。原一次性本机 Docker 编排脚本已删除；基础设施配置以本指南和 Playwright 配置为准，历史准确命令保留在证据 JSON。
+
+复跑 UI-8 后端综合集合，在上述隔离环境下执行：
+
+```bash
+PYTHONPATH=src .venv/bin/python -m pytest \
+  test/web_api test/work_domain \
+  test/web_persistence/test_work_integration.py \
+  test/web_persistence/test_web_artifacts.py \
+  test/web_persistence/test_model_input_snapshot.py \
+  test/web_persistence/test_permissions.py \
+  test/web_persistence/test_workspace_v41_p1.py \
+  test/web_persistence/test_workspace_v41_p2.py \
+  test/web_persistence/test_workspace_v41_p3.py \
+  test/web_persistence/test_workspace_temporal_revoke_tool.py \
+  test/web_persistence/test_web_temporal_e2e.py \
+  test/web_persistence/test_web_temporal_lifecycle.py \
+  -q --junitxml=/tmp/hpagent-ui-backend-results.xml
+```
+
+后端命令在仓库根目录执行。按 10-09 范围复验时追加 `-k 'not qq and not napcat and not mobile'`，并记录排除项；此集合不替代完整验收。浏览器精确筛选见[原命令](../../artifacts/product-acceptance/ui-refactor/recheck/logs/browser-exits.json)。API import、SSE 握手窗口、取消/完成两锁顺序、Artifact 取消、Work 未来时间戳和三角色权限反例均在正式测试中，临时复现文本无需恢复。
+
 ## 能力与真实验收
 
 ```bash
@@ -78,4 +113,4 @@ make agent-benchmark-check
 
 Model / release smoke 和显式 `make agent-benchmark-run` 可能调用真实外部服务，需要有效凭据。模型验收至少覆盖工具首次返回后的第二次请求与多轮结果配对；应从实际 Worker 网络环境复验，并保存脱敏关联证据。快照冻结、MockTransport 或浏览器 Fake executor 的成功不代表真实供应商成功。
 
-最新已通过批次、重叠计数规则、真实 Provider 连接阻碍与 Research SIGKILL 的短租约条件见[实施索引](../implementation/README.md)。Workspace 1k / 10k 规模和原始阶段退出条件见[验收](../implementation/workspace-v4.1/ACCEPTANCE.md)。
+最新已通过批次、重叠计数规则、真实 Provider/业务链边界与 Research SIGKILL 的短租约条件见[实施索引](../implementation/README.md)。Workspace 1k / 10k 规模和原始阶段退出条件见[验收](../implementation/workspace-v4.1/ACCEPTANCE.md)。

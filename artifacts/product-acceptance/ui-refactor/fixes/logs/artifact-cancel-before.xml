@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="3" time="14.706" timestamp="2026-10-08T20:45:42.885875+08:00" hostname="LAPTOP-DM9FB4PT"><testcase classname="test.web_persistence.test_web_artifacts" name="test_artifact_admission_replays_without_duplicate_mandates" time="4.774" /><testcase classname="test.web_persistence.test_web_artifacts" name="test_artifact_run_cancel_preserves_provenance_and_rejects_late_publish[queued]" time="3.750" /><testcase classname="test.web_persistence.test_web_artifacts" name="test_artifact_run_cancel_preserves_provenance_and_rejects_late_publish[running]" time="4.388"><failure message="AssertionError: assert 'running' == 'failed'&#10;  &#10;  - failed&#10;  + running">db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x730ef7b6adb0&gt;
+account_id = UUID('8003056f-164a-4486-920d-7e8b5f064900')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+phase = 'running'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("phase", ["queued", "running"])
+    async def test_artifact_run_cancel_preserves_provenance_and_rejects_late_publish(
+        db, account_id, database_url, worker_database_url, phase
+    ):
+        commands = CommandService(database_url)
+        cid = UUID(commands.create_conversation(account_id, str(uuid4())).body["conversation"]["conversation_id"])
+        source = UUID(commands.send_message(account_id, cid, str(uuid4()), "source").body["run_id"])
+        commands.start_run(account_id, source)
+        commands.complete_run(account_id, source, "# Source")
+        message = db.execute("SELECT message_id FROM messages WHERE produced_by_run_id=%s", (source,)).fetchone()[0]
+        artifacts = ArtifactService(database_url)
+        created = artifacts.create_artifact(account_id, message, str(uuid4()))
+        version_id = UUID(created.body["version"]["artifact_version_id"])
+        works = WorkCommandService(database_url)
+        work = works.list(account_id)["items"][0]
+        run_id = UUID(works.advance(account_id, UUID(work["work_id"]), str(uuid4()), work["row_version"]).body["run"]["run_id"])
+        entered, release = asyncio.Event(), asyncio.Event()
+    
+        class Generator:
+            async def generate(self, **kwargs):
+                entered.set()
+                await release.wait()
+                return "&lt;html&gt;late result&lt;/html&gt;"
+    
+        build = None
+        if phase == "running":
+            RunLifecycleService(worker_database_url).start(account_id, run_id)
+            build = asyncio.create_task(ArtifactBuildService(worker_database_url, Generator()).execute(version_id, run_id=run_id))
+            await asyncio.wait_for(entered.wait(), 5)
+        try:
+            cancelled = commands.cancel_run(account_id, run_id, str(uuid4()))
+            assert cancelled.body["run"]["status"] == ("cancelling" if phase == "running" else "cancelled")
+            lifecycle = WebRunLifecycleService(worker_database_url)
+            assert lifecycle.finalize_cancelled(run_id).status == "cancelled"
+            version = artifacts.get_version(account_id, version_id)["version"]
+            if phase == "running":
+&gt;               assert version["status"] == "failed"
+E               AssertionError: assert 'running' == 'failed'
+E                 
+E                 - failed
+E                 + running
+
+test/web_persistence/test_web_artifacts.py:76: AssertionError</failure></testcase></testsuite></testsuites>

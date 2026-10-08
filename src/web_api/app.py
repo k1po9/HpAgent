@@ -995,7 +995,7 @@ def create_app(
                 "Workspace file is unavailable": "file_unavailable",
                 "Workspace unavailable": "invalid_parent",
             }
-            reason = reasons.get(exc.diag.constraint_name) or reasons.get(exc.diag.message_primary)
+            reason = reasons.get(exc.diag.constraint_name or "") or reasons.get(exc.diag.message_primary or "")
             if reason is None:
                 raise
             raise WorkspaceConflict(reason, reason=reason) from exc

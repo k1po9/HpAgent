@@ -8,8 +8,6 @@ from uuid import UUID
 from common.types import ModelResponse
 from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork
-from web_artifacts.build import ArtifactBuildService
-from web_artifacts.generator import WebArtifactGenerator
 from web_domain.outbox import OutboxService
 from web_domain.run_events import RedisWebRunEventSinkFactory
 
@@ -91,8 +89,8 @@ class FakeRunExecutor:
             return
         # The run survived the delay window; stream the contract online events
         # (progress + a delta) so a browser can observe the live SSE projection.
-        # Emitting AFTER the delay means the client's Gateway subscription is
-        # already established — nothing is lost to Redis pub/sub's no-backlog.
+        # The delay emulates execution time. Redis does not replay online events;
+        # clients that subscribe late recover through the committed snapshot.
         await self._stream_online(run_id)
         if self.settings.fake_executor_mode == "failure":
             await asyncio.to_thread(
@@ -160,6 +158,10 @@ class FakeArtifactExecutor:
     def __init__(self, database: object, settings: WebApiSettings):
         if settings.environment == "production":
             raise ValueError("fake artifact executor cannot run in production")
+        # The API import/production startup must not assemble Activity runtime.
+        from web_artifacts.build import ArtifactBuildService
+        from web_artifacts.generator import WebArtifactGenerator
+
         self.database = database
         self.outbox = OutboxService(database)
         self.build = ArtifactBuildService(database, WebArtifactGenerator(_FakeArtifactModel()))

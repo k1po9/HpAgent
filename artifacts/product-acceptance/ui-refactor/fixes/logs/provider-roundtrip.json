@@ -1,0 +1,18 @@
+{
+  "scope": "real provider boundary from Worker network; synthetic echo tool only",
+  "run_correlation": "51922fd8-f2fa-4915-aeec-355ea2800585",
+  "provider": "minimax",
+  "serializer_version": "hpagent-provider-request-v2",
+  "requests": [
+    {
+      "round": 1,
+      "request_sha256": "0db96490677e7d163dfde16763f5d542b624cf46702d494fc9089976e524c24b",
+      "prior_tool_results": 0
+    }
+  ],
+  "passed": false,
+  "exception_type": "ModelDispatchError",
+  "failure_code": "MODEL_API_ERROR",
+  "http_status": null,
+  "elapsed_seconds": 6.67
+}

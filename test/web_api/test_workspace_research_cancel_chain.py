@@ -8,14 +8,17 @@ from contextlib import suppress
 from uuid import UUID, uuid4
 
 import pytest
+from support.lifecycle_workers import lifecycle_control_activities
 from support.work_fixtures import research_requirement
 from temporalio import activity
 from temporalio.client import Client, WorkflowExecutionStatus
 from temporalio.worker import Worker
 
+from agent_activities.store import AgentDataStore
 from file_domain.models import SourceLocator, TextView
 from file_runtime import FileAdapterRegistry
-from orchestration.research_workflow import ResearchReportWorkflow
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from orchestration.web_dispatcher import (
     TemporalClientAdapter,
@@ -26,10 +29,12 @@ from orchestration.web_reconcile_adapters import LifecycleReconcileStore
 from orchestration.web_reconciler import TemporalInspectorAdapter, WebRunReconciler
 from persistence.uow import UnitOfWork
 from research_activities import ResearchActivities
+from run_domain.input import RunInputLoader
 from sandbox.tools.local.file_read import create_file_read_tools
 from storage.tenant_file_store import TenantFileStore
 from web_domain.lifecycle import WebRunLifecycleService
 from web_domain.outbox import OutboxService
+from web_domain.run_events import RedisWebRunEventSinkFactory
 from web_domain.workflow_execution import PostgresWorkflowExecutionStore
 from workspace.file_scope import RunFileWorkspace
 from workspace.resources import ResourceDenied, ResourcePolicy
@@ -98,6 +103,7 @@ async def test_work_revoke_uses_production_cancel_chain(
     execution_root = tmp_path / "execution"
     workspace = RunFileWorkspace(worker_database_url, store, execution_root)
     entered, release, exited = threading.Event(), threading.Event(), threading.Event()
+    scopes = []
 
     class BlockingAdapter:
         def convert(self, resource, *, max_chars):
@@ -121,6 +127,7 @@ async def test_work_revoke_uses_production_cancel_chain(
         pulse = asyncio.create_task(heartbeat())
         try:
             with workspace.prepare(account_id, run_id) as scope:
+                scopes.append(scope.inputs_root.parent)
                 scope.select(node_id)
                 tool = {tool.name: tool for tool in create_file_read_tools(
                     lambda: scope, registry,
@@ -158,8 +165,8 @@ async def test_work_revoke_uses_production_cancel_chain(
         def __init__(self):
             self.failed = False
 
-        async def start_research_run(self, workflow_id, request):
-            return await temporal_adapter.start_research_run(workflow_id, request)
+        async def start_web_run(self, workflow_id, request):
+            return await temporal_adapter.start_web_run(workflow_id, request)
 
         async def cancel_web_run(self, workflow_id):
             if not self.failed:
@@ -174,10 +181,17 @@ async def test_work_revoke_uses_production_cancel_chain(
     reconciler = WebRunReconciler(
         LifecycleReconcileStore(executions, lifecycle), TemporalInspectorAdapter(temporal),
     )
-    worker = Worker(temporal, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-        workflows=[ResearchReportWorkflow],
-        activities=[research.prepare_research_activity, blocked_fetch,
-                    *(stub(name) for name in names)])
+    controls = RunLifecycleActivities(lifecycle, RunInputLoader(AgentDataStore(worker_database_url)),
+                                      RedisWebRunEventSinkFactory(None))
+
+    def make_worker():
+        return Worker(temporal, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+            workflows=[AgentLifecycleWorkflow],
+            activities=[*lifecycle_control_activities(worker_database_url, controls),
+                        research.prepare_research_activity, blocked_fetch,
+                        *(stub(name) for name in names)])
+
+    worker = make_worker()
     stop = asyncio.Event()
 
     async def consume():
@@ -190,7 +204,9 @@ async def test_work_revoke_uses_production_cancel_chain(
             consumer = asyncio.create_task(consume())
             try:
                 assert await asyncio.to_thread(entered.wait, 20)
-                root = execution_root / str(run_id)
+                assert len(scopes) == 1
+                root = scopes[0]
+                assert root.is_relative_to(execution_root / str(account_id) / str(run_id))
                 assert root.exists()
                 revoke_path = f"/api/v1/works/{work_id}/resources/{read_grant}"
                 revoked = await asyncio.to_thread(client_api.delete, revoke_path,
@@ -224,9 +240,11 @@ async def test_work_revoke_uses_production_cancel_chain(
                 assert db.execute("SELECT status FROM runs WHERE run_id=%s",
                                   (run_id,)).fetchone()[0] == "cancelling"
                 repeated = await asyncio.to_thread(client_api.delete, revoke_path,
-                                                   headers=_headers(csrf))
+                    headers={**_headers(csrf, str(uuid4())),
+                             "If-Match": client_api.get(f"/api/v1/works/{work_id}").headers["ETag"]})
                 assert repeated.status_code == 200
-                assert repeated.json() == {"affected_run_ids": []}
+                assert repeated.json()["affected_run_ids"] == []
+                assert repeated.json()["work"]["work_id"] == work_id
                 await _until(lambda: db.execute(
                     "SELECT status FROM outbox_events WHERE run_id=%s "
                     "AND event_type='cancel_run'", (run_id,)
@@ -247,13 +265,13 @@ async def test_work_revoke_uses_production_cancel_chain(
                 assert not exited.is_set()
                 release.set()
                 await _until(lambda: exited.is_set() and not root.exists())
-                handle = temporal.get_workflow_handle(f"hpagent-research-{run_id}")
+                handle = temporal.get_workflow_handle(executions.current_workflow_id(run_id))
                 async with asyncio.timeout(30):
                     while (await handle.describe()).status == WorkflowExecutionStatus.RUNNING:
                         await asyncio.sleep(0.1)
                 assert (await handle.describe()).status == WorkflowExecutionStatus.CANCELED
                 assert db.execute("SELECT status FROM runs WHERE run_id=%s",
-                                  (run_id,)).fetchone()[0] == "cancelling"
+                                  (run_id,)).fetchone()[0] == "cancelled"
             finally:
                 release.set()
                 stop.set()
@@ -262,10 +280,7 @@ async def test_work_revoke_uses_production_cancel_chain(
                     await consumer
     finally:
         release.set()
-    replacement_worker = Worker(temporal, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-        workflows=[ResearchReportWorkflow],
-        activities=[research.prepare_research_activity, blocked_fetch,
-                    *(stub(name) for name in names)])
+    replacement_worker = make_worker()
     async with replacement_worker:
         await reconciler.run_once()
         assert db.execute("SELECT status FROM runs WHERE run_id=%s",
@@ -276,3 +291,7 @@ async def test_work_revoke_uses_production_cancel_chain(
     assert db.execute("SELECT attempt_count FROM outbox_events "
                       "WHERE run_id=%s AND event_type='cancel_run'",
                       (run_id,)).fetchone()[0] == expected_attempts
+    current = client_api.get(f"/api/v1/works/{work_id}").json()["work"]
+    assert current["status"] == "active" and current["active_coordinator_run_id"] is None
+    assert db.execute("SELECT count(*) FROM work_events WHERE work_id=%s AND event_type='run_cancelled'", (UUID(work_id),)).fetchone()[0] == 1
+    assert db.execute("SELECT count(*) FROM messages WHERE produced_by_run_id=%s", (run_id,)).fetchone()[0] == 0

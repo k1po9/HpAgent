@@ -1,0 +1,21 @@
+[WebServer] INFO:     Started server process [3526377]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8194 (Press CTRL+C to quit)
+[WebServer] (node:3527147) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:3527260) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 2026-10-08 22:34:18 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 22:34:18 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 22:34:18 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 22:34:23 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 22:34:23 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 22:34:23 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  1 [chromium] › e2e/ui-8-acceptance.spec.ts:152:1 › real API: AI to HTML to explicit workspace save retains one chat feed and releases resources (21.2s)
+  ✓  2 [chromium] › e2e/ui-8-acceptance.spec.ts:211:1 › real API: task subscriptions stay within two and logout clears timers and feeds (6.7s)
+
+  2 passed (52.8s)

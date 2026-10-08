@@ -18,7 +18,7 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
 
     if not CapacityService.admission(uow, work):
         uow.execute(
-            "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=now() WHERE work_id=%s",
+            "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
             (json.dumps(continuation("ready", "waiting_capacity")), work_id),
         )
         return None
@@ -107,7 +107,7 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
     )
     uow.execute(
         "UPDATE works SET active_coordinator_run_id=%s,control_epoch=%s,"
-        "row_version=row_version+1,updated_at=now(),continuation=%s::jsonb WHERE work_id=%s",
+        "row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),continuation=%s::jsonb WHERE work_id=%s",
         (run_id, epoch, json.dumps(continuation("ready", "coordinator_admitted")), work_id),
     )
     uow.execute(

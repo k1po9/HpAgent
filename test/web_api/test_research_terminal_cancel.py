@@ -107,7 +107,8 @@ def test_independent_running_cancel_callback_and_normal_failure(
     _assert_no_chat_terminal(db, failed_id)
 
 
-def test_work_terminal_outbox_row_is_consumed_without_chat_sse(monkeypatch):
+@pytest.mark.parametrize("linked_chat", [False, True])
+def test_work_terminal_outbox_row_is_consumed_without_chat_sse(monkeypatch, linked_chat):
     class Outbox:
         def __init__(self):
             self.processed = []
@@ -129,10 +130,13 @@ def test_work_terminal_outbox_row_is_consumed_without_chat_sse(monkeypatch):
     publisher.outbox = Outbox()
     publisher.redis = Redis()
     publisher.worker_id = "terminal-publisher"
-    event_id = uuid4()
+    event_id, run_id = uuid4(), uuid4()
     asyncio.run(publisher._publish_one({
         "outbox_event_id": event_id, "account_id": uuid4(),
-        "run_id": uuid4(), "conversation_id": None,
-        "payload": {"terminal_status": "cancelled", "terminal_event_id": str(uuid4())},
+        "event_type": "publish_terminal_event", "payload_version": 1,
+        "business_key": f"terminal:{run_id}:cancelled", "status": "processing",
+        "run_id": run_id, "work_id": uuid4(), "conversation_id": uuid4() if linked_chat else None,
+        "payload": {"run_id": str(run_id), "version": 1,
+                    "terminal_status": "cancelled", "terminal_event_id": str(uuid4())},
     }))
     assert publisher.outbox.processed == [(event_id, "terminal-publisher")]

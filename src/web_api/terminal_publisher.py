@@ -86,6 +86,11 @@ class TerminalEventPublisher:
         if event['event_type'] == 'publish_work_event':
             await self._publish_work(event)
             return
+        if event['work_id'] is not None or event['conversation_id'] is None:
+            # Consume legacy Work terminal rows without creating Chat projections.
+            # Current Work producers publish their own publish_work_event facts.
+            await asyncio.to_thread(self.outbox.mark_processed, event_id, self.worker_id)
+            return
         run_id = str(event["run_id"])
         # psycopg3 already parses jsonb columns into Python dicts; older
         # producers may hand us a JSON string, so accept both shapes.

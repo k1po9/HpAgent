@@ -398,8 +398,8 @@ def integration_command(service, account, work_id, key, version, action, payload
                 and not RunLifecycleService.unresolved_effect(uow, work)
             ):
                 uow.execute(
-                    "UPDATE works SET status=%s,control_epoch=control_epoch+1,continuation=%s::jsonb,row_version=row_version+1,updated_at=now(),"
-                    "stopped_at=CASE WHEN %s='stopped' THEN now() ELSE NULL END WHERE work_id=%s",
+                    "UPDATE works SET status=%s,control_epoch=control_epoch+1,continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),"
+                    "stopped_at=CASE WHEN %s='stopped' THEN GREATEST(now(),created_at,updated_at) ELSE NULL END WHERE work_id=%s",
                     (
                         "paused" if work["status"] == "pausing" else "stopped",
                         json.dumps(continuation("blocked", "delivery_resolved")),
@@ -462,7 +462,7 @@ def integration_command(service, account, work_id, key, version, action, payload
                 WorkCompletionPolicy.accept(uow, work, dict(run), user_evidence=evidence)
             else:
                 uow.execute(
-                    "UPDATE works SET row_version=row_version+1,updated_at=now() WHERE work_id=%s",
+                    "UPDATE works SET row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
                     (work_id,),
                 )
         else:
@@ -471,7 +471,7 @@ def integration_command(service, account, work_id, key, version, action, payload
             "status"
         ] not in {"stopped", "completed"}:
             uow.execute(
-                "UPDATE works SET row_version=row_version+1,updated_at=now() WHERE work_id=%s",
+                "UPDATE works SET row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
                 (work_id,),
             )
         current = WorkRepository.get(uow, account, work_id)

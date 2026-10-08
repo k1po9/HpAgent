@@ -1,0 +1,20 @@
+[
+  {
+    "path": "assets/index-BtVotQIi.css",
+    "bytes": 717413,
+    "gzip_bytes": 87415,
+    "sha256": "a13da30446131251d5a40ece555a6f65abeaf00fe4fba3484b3f25e8dddf8674"
+  },
+  {
+    "path": "assets/index-CMN9KiM_.js",
+    "bytes": 838462,
+    "gzip_bytes": 244162,
+    "sha256": "efddcbe00592d9d125ad1c81ffc24fd55fffafc6c97f737db46cf88d12aba434"
+  },
+  {
+    "path": "index.html",
+    "bytes": 395,
+    "gzip_bytes": 269,
+    "sha256": "da31ed07d60763fa50e2fba9a501976053204bd3b2052ded237e416731d2cb6a"
+  }
+]

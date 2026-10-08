@@ -1,0 +1,2096 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="14" skipped="0" tests="50" time="350.436" timestamp="2026-10-08T19:25:00.866092+08:00" hostname="LAPTOP-DM9FB4PT"><testcase classname="test.web_api.test_command_projection" name="test_http_projection_adds_links_without_mutating_persisted_result" time="0.002"><failure message="KeyError: 'source_kind'">def test_http_projection_adds_links_without_mutating_persisted_result():
+        body = {
+            "run": {"run_id": "run-1"},
+            "assistant_message": {"files": [
+                {"file_id": "file-1", "status": "ready"},
+                {"file_id": "file-2", "status": "pending"},
+            ]},
+        }
+        original = deepcopy(body)
+        result = CommandResult(202, body)
+&gt;       projected = command_body(result, "run", "assistant_message", events=True)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/web_api/test_command_projection.py:17: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+result = CommandResult(response_status=202, body={'run': {'run_id': 'run-1'}, 'assistant_message': {'files': [{'file_id': 'file-1', 'status': 'ready'}, {'file_id': 'file-2', 'status': 'pending'}]}}, replayed=False, resource_reused=False)
+events = True, fields = ('run', 'assistant_message')
+body = {'assistant_message': {'files': [{'file_id': 'file-1', 'status': 'ready'}, {'file_id': 'file-2', 'status': 'pending'}]}, 'run': {'run_id': 'run-1'}}
+
+    def command_body(result: CommandResult, *fields: str, events: bool = False) -&gt; dict[str, Any]:
+        body = deepcopy({name: result.body[name] for name in fields if name in result.body})
+        if "run" in body:
+&gt;           body["source_kind"] = body["run"]["source_kind"]
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'source_kind'
+
+src/web_api/command_projection.py:11: KeyError</failure></testcase><testcase classname="test.web_api.test_config" name="test_fake_executor_is_rejected_in_production" time="0.001" /><testcase classname="test.web_api.test_config" name="test_file_capabilities_default_closed" time="0.003" /><testcase classname="test.web_api.test_config" name="test_canonical_runtime_has_no_configuration_switch" time="0.001" /><testcase classname="test.web_api.test_config" name="test_file_transform_and_shell_require_upload_capability" time="0.002" /><testcase classname="test.web_api.test_config" name="test_production_upload_requires_enforced_run_budget" time="0.001" /><testcase classname="test.web_api.test_config" name="test_production_rejects_web_file_shell" time="0.001" /><testcase classname="test.web_api.test_config" name="test_production_rejects_missing_public_origin" time="0.002" /><testcase classname="test.web_api.test_config" name="test_production_rejects_dev_default_public_origin" time="0.002" /><testcase classname="test.web_api.test_config" name="test_production_rejects_http_public_origin" time="0.003" /><testcase classname="test.web_api.test_config" name="test_production_accepts_real_https_origin" time="0.002" /><testcase classname="test.web_api.test_config" name="test_development_allows_localhost_origin" time="0.002" /><testcase classname="test.web_api.test_config" name="test_production_requires_explicit_qq_binding_pepper" time="0.002" /><testcase classname="test.web_api.test_config" name="test_production_rejects_short_secrets" time="0.002" /><testcase classname="test.web_api.test_config" name="test_web_api_import_does_not_load_agent_runtime" time="3.176"><failure message="subprocess.CalledProcessError: Command '['/home/hp/workspace/HpAgent_web/.venv/bin/python', '-c', &quot;import sys; import web_api.app; forbidden=('agent','sandbox','temporalio','channels.router'); assert not any(name == item or name.startswith(item + '.') for name in sys.modules for item in forbidden)&quot;]' returned non-zero exit status 1.">def test_web_api_import_does_not_load_agent_runtime():
+        code = (
+            "import sys; import web_api.app; "
+            "forbidden=('agent','sandbox','temporalio','channels.router'); "
+            "assert not any(name == item or name.startswith(item + '.') "
+            "for name in sys.modules for item in forbidden)"
+        )
+        env = os.environ.copy()
+        source_root = Path(__file__).resolve().parents[2] / "src"
+        inherited_pythonpath = env.get("PYTHONPATH")
+        env["PYTHONPATH"] = (
+            f"{source_root}{os.pathsep}{inherited_pythonpath}"
+            if inherited_pythonpath
+            else str(source_root)
+        )
+&gt;       subprocess.run([sys.executable, "-c", code], check=True, env=env)
+
+test/web_api/test_config.py:174: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+input = None, capture_output = False, timeout = None, check = True
+popenargs = (['/home/hp/workspace/HpAgent_web/.venv/bin/python', '-c', "import sys; import web_api.app; forbidden=('agent','sandbo...router'); assert not any(name == item or name.startswith(item + '.') for name in sys.modules for item in forbidden)"],)
+kwargs = {'env': {'APPDATA': '/mnt/c/Users/黄培/AppData/Roaming', 'APP_DATABASE_URL': 'postgresql://hpagent_api:postgresql_api_12...34/hpagent_ui8_backend_20261008_03', 'CODEX_APP_SERVER_LOGIN_CLIENT_ID': '', 'CODEX_APP_SERVER_LOGIN_ISSUER': '', ...}}
+process = &lt;Popen: returncode: 1 args: ['/home/hp/workspace/HpAgent_web/.venv/bin/pytho...&gt;
+stdout = None, stderr = None, retcode = 1
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+    
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+    
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output &amp; stderr attributes if those streams
+        were captured.
+    
+        If timeout is given, and the process takes too long, a TimeoutExpired
+        exception will be raised.
+    
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+    
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+    
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+    
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+    
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+&gt;               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['/home/hp/workspace/HpAgent_web/.venv/bin/python', '-c', "import sys; import web_api.app; forbidden=('agent','sandbox','temporalio','channels.router'); assert not any(name == item or name.startswith(item + '.') for name in sys.modules for item in forbidden)"]' returned non-zero exit status 1.
+
+/usr/lib/python3.12/subprocess.py:571: CalledProcessError</failure></testcase><testcase classname="test.web_api.test_research_terminal_cancel" name="test_independent_queued_cancel_api_and_replay" time="9.756" /><testcase classname="test.web_api.test_research_terminal_cancel" name="test_independent_running_cancel_callback_and_normal_failure" time="4.279" /><testcase classname="test.web_api.test_research_terminal_cancel" name="test_work_terminal_outbox_row_is_consumed_without_chat_sse" time="0.002"><failure message="KeyError: 'event_type'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x75549f4bd430&gt;
+
+    def test_work_terminal_outbox_row_is_consumed_without_chat_sse(monkeypatch):
+        class Outbox:
+            def __init__(self):
+                self.processed = []
+    
+            def mark_processed(self, event_id, worker_id):
+                self.processed.append((event_id, worker_id))
+                return True
+    
+        class Redis:
+            async def publish(self, *_):
+                raise AssertionError("Work must not publish chat SSE")
+    
+        def no_snapshot(*_):
+            raise AssertionError("Work has no chat snapshot")
+    
+        monkeypatch.setattr(terminal_publisher, "load_run_snapshot", no_snapshot)
+        publisher = terminal_publisher.TerminalEventPublisher.__new__(
+            terminal_publisher.TerminalEventPublisher)
+        publisher.outbox = Outbox()
+        publisher.redis = Redis()
+        publisher.worker_id = "terminal-publisher"
+        event_id = uuid4()
+&gt;       asyncio.run(publisher._publish_one({
+            "outbox_event_id": event_id, "account_id": uuid4(),
+            "run_id": uuid4(), "conversation_id": None,
+            "payload": {"terminal_status": "cancelled", "terminal_event_id": str(uuid4())},
+        }))
+
+test/web_api/test_research_terminal_cancel.py:133: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/asyncio/runners.py:194: in run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/asyncio/runners.py:118: in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/asyncio/base_events.py:687: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;web_api.terminal_publisher.TerminalEventPublisher object at 0x75549feb35c0&gt;
+event = {'account_id': UUID('bc8b68e8-f22d-4ca0-a322-0977e3850dd1'), 'conversation_id': None, 'outbox_event_id': UUID('b8a2032...ea3c4'), 'payload': {'terminal_event_id': 'bbc4ea00-a6a7-4130-bde3-a3d717894456', 'terminal_status': 'cancelled'}, ...}
+
+    async def _publish_one(self, event: dict) -&gt; None:
+        event_id = UUID(str(event["outbox_event_id"]))
+        account_id = UUID(str(event["account_id"]))
+&gt;       if event['event_type'] == 'publish_work_event':
+           ^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'event_type'
+
+src/web_api/terminal_publisher.py:86: KeyError</failure></testcase><testcase classname="test.web_api.test_sse_gateway" name="test_sse_http_terminal_snapshot_refresh_recovery" time="3.504" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_http_redis_unavailable_degrades_to_poll" time="3.621" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_http_fake_executor_streams_online_events_then_terminal" time="4.283" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_connection_limit_returns_503" time="4.374" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_snapshot_and_handshake_ordering" time="3.223" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_stream_id_change_degrades_sequence_gap" time="3.424" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_handshake_buffer_overflow_degrades" time="3.255" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_terminal_via_publisher[succeeded-run.succeeded-completed]" time="3.557" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_terminal_via_publisher[failed-run.failed-failed]" time="3.545" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_terminal_via_publisher[cancelled-run.cancelled-aborted]" time="3.703" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_terminal_snapshot_overrides_deltas" time="3.230" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_terminal_duplicate_delivery_is_idempotent" time="3.302" /><testcase classname="test.web_api.test_sse_gateway" name="test_sse_auth_expired_on_keepalive" time="3.276" /><testcase classname="test.web_api.test_workspace_research_cancel_chain" name="test_work_revoke_uses_production_cancel_chain[False]" time="24.137"><failure message="assert False">seed_identity = &lt;function seed_identity.&lt;locals&gt;.seed at 0x75549f0ca0c0&gt;
+client_factory = &lt;function client_factory.&lt;locals&gt;.factory at 0x75549f0ca200&gt;
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549f2d6fc0&gt;
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-5/test_work_revoke_uses_producti0')
+retry_after_dispatcher_restart = False
+
+    @pytest.mark.parametrize("retry_after_dispatcher_restart", [False, True])
+    async def test_work_revoke_uses_production_cancel_chain(
+        seed_identity, client_factory, db, database_url, worker_database_url, tmp_path,
+        retry_after_dispatcher_restart,
+    ):
+        host = os.getenv("TEMPORAL_HOST")
+        if not host:
+            pytest.skip("TEMPORAL_HOST is required")
+        account_id = seed_identity("research-cancel-chain")
+        store_root = tmp_path / "store"
+        client_api = client_factory(file_upload_enabled=True, file_store_root=str(store_root))
+        assert client_api.post("/auth/login", json={"username": "research-cancel-chain",
+            "password": "correct-password"}, follow_redirects=False).status_code == 303
+        csrf = client_api.get("/api/v1/me").json()["csrf_token"]
+        tree = client_api.get("/api/v1/workspace").json()
+        parent = next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料")
+        body = b"protected research input"
+        upload = client_api.post("/api/v1/workspace/uploads", json={
+            "file_name": "research.txt", "size_bytes": len(body), "content_type": "text/plain",
+        }, headers=_headers(csrf, str(uuid4())))
+        assert upload.status_code == 201
+        file_id = UUID(upload.json()["file"]["file_id"])
+        assert client_api.put(upload.json()["content_url"], content=body,
+            headers={**_headers(csrf), "Content-Type": "application/octet-stream"}).status_code == 200
+        saved = client_api.post("/api/v1/workspace/files", json={
+            "parent_id": parent, "file_id": str(file_id), "name": "research.txt",
+        }, headers=_headers(csrf, str(uuid4())))
+        assert saved.status_code == 201
+        node_id = UUID(saved.json()["node_id"])
+        work = client_api.post("/api/v1/works", json={
+            "title": "Revocable Research", "requirement": research_requirement("Read the selected input"),
+        }, headers=_headers(csrf, str(uuid4())))
+        assert work.status_code == 201, work.text
+        work_id = work.json()["work"]["work_id"]
+        granted = client_api.post(f"/api/v1/works/{work_id}/resources", json={
+            "node_id": parent, "operations": ["list_metadata", "read_content"],
+            "recursive": True,
+        }, headers={**_headers(csrf,str(uuid4())),"If-Match":work.headers["ETag"]})
+        assert granted.status_code == 201
+        read_grant = granted.json()["grant_ids"][1]
+        triggered = client_api.post(f"/api/v1/works/{work_id}/advance", json={},
+            headers={**_headers(csrf, str(uuid4())), "If-Match": granted.headers["ETag"]})
+        assert triggered.status_code == 202, triggered.text
+        run_id = UUID(triggered.json()["run"]["run_id"])
+        store = TenantFileStore(store_root, max_bytes=1024 * 1024)
+        execution_root = tmp_path / "execution"
+        workspace = RunFileWorkspace(worker_database_url, store, execution_root)
+        entered, release, exited = threading.Event(), threading.Event(), threading.Event()
+    
+        class BlockingAdapter:
+            def convert(self, resource, *, max_chars):
+                entered.set()
+                try:
+                    assert release.wait(60)
+                    return TextView(body.decode(), SourceLocator(resource.file_id,
+                                    resource.logical_name), False, {})
+                finally:
+                    exited.set()
+    
+        registry = FileAdapterRegistry()
+        registry.register("fast_text", BlockingAdapter(), extensions=("txt",))
+    
+        @activity.defn(name="fetch_research_sources_activity")
+        async def blocked_fetch(request):
+            async def heartbeat():
+                while True:
+                    activity.heartbeat()
+                    await asyncio.sleep(0.1)
+            pulse = asyncio.create_task(heartbeat())
+            try:
+                with workspace.prepare(account_id, run_id) as scope:
+                    scope.select(node_id)
+                    tool = {tool.name: tool for tool in create_file_read_tools(
+                        lambda: scope, registry,
+                    )}["read_file"]
+                    await tool.ainvoke({"file": "research.txt"})
+                return {"item_count": 1}
+            finally:
+                pulse.cancel()
+                with suppress(asyncio.CancelledError):
+                    await pulse
+    
+        names = (
+            "create_research_plan_activity", "discover_research_sources_activity",
+            "rank_research_sources_activity", "normalize_research_sources_activity",
+            "extract_research_evidence_activity", "assess_research_corroboration_activity",
+            "analyze_research_gaps_activity", "synthesize_research_report_activity",
+            "verify_research_citations_activity", "compare_previous_research_activity",
+            "publish_research_artifact_activity", "save_research_workspace_activity",
+            "complete_research_activity", "fail_research_activity",
+        )
+    
+        def stub(name):
+            async def stage(request):
+                return {"item_count": 1, "sufficient": True}
+            return activity.defn(name=name)(stage)
+    
+        research = ResearchActivities(worker_database_url, None, None, None, None)
+        temporal = await Client.connect(host, namespace=os.getenv(
+            "TEMPORAL_TEST_NAMESPACE", "hpagent-v41-final"))
+        executions = PostgresWorkflowExecutionStore(worker_database_url)
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        temporal_adapter = TemporalClientAdapter(temporal)
+    
+        class FailFirstCancel:
+            def __init__(self):
+                self.failed = False
+    
+            async def start_research_run(self, workflow_id, request):
+                return await temporal_adapter.start_research_run(workflow_id, request)
+    
+            async def cancel_web_run(self, workflow_id):
+                if not self.failed:
+                    self.failed = True
+                    raise RuntimeError("injected cancel dispatch failure")
+                return await temporal_adapter.cancel_web_run(workflow_id)
+    
+        first_adapter = FailFirstCancel() if retry_after_dispatcher_restart else temporal_adapter
+        dispatcher = WebOutboxDispatcher(OutboxService(worker_database_url),
+            TemporalOutboxDispatcher(executions, first_adapter, lifecycle),
+            f"research-cancel-first-{run_id}")
+        reconciler = WebRunReconciler(
+            LifecycleReconcileStore(executions, lifecycle), TemporalInspectorAdapter(temporal),
+        )
+        worker = Worker(temporal, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+            workflows=[ResearchReportWorkflow],
+            activities=[research.prepare_research_activity, blocked_fetch,
+                        *(stub(name) for name in names)])
+        stop = asyncio.Event()
+    
+        async def consume():
+            while not stop.is_set():
+                await dispatcher.run_once()
+                await asyncio.sleep(0.05)
+    
+        try:
+            async with worker:
+                consumer = asyncio.create_task(consume())
+                try:
+&gt;                   assert await asyncio.to_thread(entered.wait, 20)
+E                   assert False
+
+test/web_api/test_workspace_research_cancel_chain.py:192: AssertionError</failure></testcase><testcase classname="test.web_api.test_workspace_research_cancel_chain" name="test_work_revoke_uses_production_cancel_chain[True]" time="24.078"><failure message="assert False">seed_identity = &lt;function seed_identity.&lt;locals&gt;.seed at 0x75549ef49440&gt;
+client_factory = &lt;function client_factory.&lt;locals&gt;.factory at 0x75549ef4a020&gt;
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549f46a5a0&gt;
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-5/test_work_revoke_uses_producti1')
+retry_after_dispatcher_restart = True
+
+    @pytest.mark.parametrize("retry_after_dispatcher_restart", [False, True])
+    async def test_work_revoke_uses_production_cancel_chain(
+        seed_identity, client_factory, db, database_url, worker_database_url, tmp_path,
+        retry_after_dispatcher_restart,
+    ):
+        host = os.getenv("TEMPORAL_HOST")
+        if not host:
+            pytest.skip("TEMPORAL_HOST is required")
+        account_id = seed_identity("research-cancel-chain")
+        store_root = tmp_path / "store"
+        client_api = client_factory(file_upload_enabled=True, file_store_root=str(store_root))
+        assert client_api.post("/auth/login", json={"username": "research-cancel-chain",
+            "password": "correct-password"}, follow_redirects=False).status_code == 303
+        csrf = client_api.get("/api/v1/me").json()["csrf_token"]
+        tree = client_api.get("/api/v1/workspace").json()
+        parent = next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料")
+        body = b"protected research input"
+        upload = client_api.post("/api/v1/workspace/uploads", json={
+            "file_name": "research.txt", "size_bytes": len(body), "content_type": "text/plain",
+        }, headers=_headers(csrf, str(uuid4())))
+        assert upload.status_code == 201
+        file_id = UUID(upload.json()["file"]["file_id"])
+        assert client_api.put(upload.json()["content_url"], content=body,
+            headers={**_headers(csrf), "Content-Type": "application/octet-stream"}).status_code == 200
+        saved = client_api.post("/api/v1/workspace/files", json={
+            "parent_id": parent, "file_id": str(file_id), "name": "research.txt",
+        }, headers=_headers(csrf, str(uuid4())))
+        assert saved.status_code == 201
+        node_id = UUID(saved.json()["node_id"])
+        work = client_api.post("/api/v1/works", json={
+            "title": "Revocable Research", "requirement": research_requirement("Read the selected input"),
+        }, headers=_headers(csrf, str(uuid4())))
+        assert work.status_code == 201, work.text
+        work_id = work.json()["work"]["work_id"]
+        granted = client_api.post(f"/api/v1/works/{work_id}/resources", json={
+            "node_id": parent, "operations": ["list_metadata", "read_content"],
+            "recursive": True,
+        }, headers={**_headers(csrf,str(uuid4())),"If-Match":work.headers["ETag"]})
+        assert granted.status_code == 201
+        read_grant = granted.json()["grant_ids"][1]
+        triggered = client_api.post(f"/api/v1/works/{work_id}/advance", json={},
+            headers={**_headers(csrf, str(uuid4())), "If-Match": granted.headers["ETag"]})
+        assert triggered.status_code == 202, triggered.text
+        run_id = UUID(triggered.json()["run"]["run_id"])
+        store = TenantFileStore(store_root, max_bytes=1024 * 1024)
+        execution_root = tmp_path / "execution"
+        workspace = RunFileWorkspace(worker_database_url, store, execution_root)
+        entered, release, exited = threading.Event(), threading.Event(), threading.Event()
+    
+        class BlockingAdapter:
+            def convert(self, resource, *, max_chars):
+                entered.set()
+                try:
+                    assert release.wait(60)
+                    return TextView(body.decode(), SourceLocator(resource.file_id,
+                                    resource.logical_name), False, {})
+                finally:
+                    exited.set()
+    
+        registry = FileAdapterRegistry()
+        registry.register("fast_text", BlockingAdapter(), extensions=("txt",))
+    
+        @activity.defn(name="fetch_research_sources_activity")
+        async def blocked_fetch(request):
+            async def heartbeat():
+                while True:
+                    activity.heartbeat()
+                    await asyncio.sleep(0.1)
+            pulse = asyncio.create_task(heartbeat())
+            try:
+                with workspace.prepare(account_id, run_id) as scope:
+                    scope.select(node_id)
+                    tool = {tool.name: tool for tool in create_file_read_tools(
+                        lambda: scope, registry,
+                    )}["read_file"]
+                    await tool.ainvoke({"file": "research.txt"})
+                return {"item_count": 1}
+            finally:
+                pulse.cancel()
+                with suppress(asyncio.CancelledError):
+                    await pulse
+    
+        names = (
+            "create_research_plan_activity", "discover_research_sources_activity",
+            "rank_research_sources_activity", "normalize_research_sources_activity",
+            "extract_research_evidence_activity", "assess_research_corroboration_activity",
+            "analyze_research_gaps_activity", "synthesize_research_report_activity",
+            "verify_research_citations_activity", "compare_previous_research_activity",
+            "publish_research_artifact_activity", "save_research_workspace_activity",
+            "complete_research_activity", "fail_research_activity",
+        )
+    
+        def stub(name):
+            async def stage(request):
+                return {"item_count": 1, "sufficient": True}
+            return activity.defn(name=name)(stage)
+    
+        research = ResearchActivities(worker_database_url, None, None, None, None)
+        temporal = await Client.connect(host, namespace=os.getenv(
+            "TEMPORAL_TEST_NAMESPACE", "hpagent-v41-final"))
+        executions = PostgresWorkflowExecutionStore(worker_database_url)
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        temporal_adapter = TemporalClientAdapter(temporal)
+    
+        class FailFirstCancel:
+            def __init__(self):
+                self.failed = False
+    
+            async def start_research_run(self, workflow_id, request):
+                return await temporal_adapter.start_research_run(workflow_id, request)
+    
+            async def cancel_web_run(self, workflow_id):
+                if not self.failed:
+                    self.failed = True
+                    raise RuntimeError("injected cancel dispatch failure")
+                return await temporal_adapter.cancel_web_run(workflow_id)
+    
+        first_adapter = FailFirstCancel() if retry_after_dispatcher_restart else temporal_adapter
+        dispatcher = WebOutboxDispatcher(OutboxService(worker_database_url),
+            TemporalOutboxDispatcher(executions, first_adapter, lifecycle),
+            f"research-cancel-first-{run_id}")
+        reconciler = WebRunReconciler(
+            LifecycleReconcileStore(executions, lifecycle), TemporalInspectorAdapter(temporal),
+        )
+        worker = Worker(temporal, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+            workflows=[ResearchReportWorkflow],
+            activities=[research.prepare_research_activity, blocked_fetch,
+                        *(stub(name) for name in names)])
+        stop = asyncio.Event()
+    
+        async def consume():
+            while not stop.is_set():
+                await dispatcher.run_once()
+                await asyncio.sleep(0.05)
+    
+        try:
+            async with worker:
+                consumer = asyncio.create_task(consume())
+                try:
+&gt;                   assert await asyncio.to_thread(entered.wait, 20)
+E                   assert False
+
+test/web_api/test_workspace_research_cancel_chain.py:192: AssertionError</failure></testcase><testcase classname="test.web_persistence.test_permissions" name="test_runtime_roles_cannot_modify_migration_history" time="0.121" /><testcase classname="test.web_persistence.test_permissions" name="test_api_cannot_forge_workflow_execution" time="0.022" /><testcase classname="test.web_persistence.test_permissions" name="test_worker_cannot_modify_web_auth_sessions" time="0.021" /><testcase classname="test.web_persistence.test_permissions" name="test_worker_can_read_identity_bindings_after_009" time="0.024" /><testcase classname="test.web_persistence.test_permissions" name="test_worker_has_narrow_identity_control_plane_write" time="0.026" /><testcase classname="test.web_persistence.test_permissions" name="test_artifact_runtime_permissions_are_split_by_responsibility" time="0.025"><failure message="Failed: DID NOT RAISE &lt;class 'psycopg.errors.InsufficientPrivilege'&gt;">database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+
+    def test_artifact_runtime_permissions_are_split_by_responsibility(
+        database_url: str, worker_database_url: str
+    ) -&gt; None:
+        with psycopg.connect(database_url) as connection:
+&gt;           with pytest.raises(psycopg.errors.InsufficientPrivilege):
+E           Failed: DID NOT RAISE &lt;class 'psycopg.errors.InsufficientPrivilege'&gt;
+
+test/web_persistence/test_permissions.py:61: Failed</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_e2e" name="test_web_canonical_lifecycle[react-completed-web]" time="20.039"><failure message="temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed">temporalio.exceptions.ApplicationError: NotFoundError: Activity function load_run_strategy_activity for workflow hpagent-web-run-01a11b44-3890-75cd-bf53-fbf689eedfb1 is not registered on this worker, available activities: finalize_agent_result_activity, finalize_cancelled_activity, finalize_failed_activity, load_agent_run_input_activity, prepare_run_activity
+
+The above exception was the direct cause of the following exception:
+temporalio.exceptions.ApplicationError: NotFoundError: Activity function load_run_strategy_activity for workflow hpagent-web-run-01a11b44-3890-75cd-bf53-fbf689eedfb1 is not registered on this worker, available activities: finalize_agent_result_activity, finalize_cancelled_activity, finalize_failed_activity, load_agent_run_input_activity, prepare_run_activity
+
+The above exception was the direct cause of the following exception:
+
+temporalio.exceptions.ActivityError: Activity task failed
+
+The above exception was the direct cause of the following exception:
+
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549f3cecc0&gt;
+account_id = UUID('3e96c73d-fba2-4bd6-a9da-0ac09afbb27a')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-5/test_web_canonical_lifecycle_r0')
+strategy = 'react', outcome = 'completed', surface = 'web'
+
+    
+    @pytest.mark.parametrize(
+        "strategy,outcome,surface",
+        [
+            ("react", "completed", "web"),
+            ("plan_and_execute", "completed", "web"),
+            ("react", "failed", "web"),
+            ("react", "cancelled", "web"),
+            ("plan_and_execute", "failed", "web"),
+            ("plan_and_execute", "cancelled", "web"),
+            ("react", "completed", "napcat"),
+            ("react", "cancelled", "napcat"),
+        ],
+    )
+    async def test_web_canonical_lifecycle(
+        db, account_id, database_url, worker_database_url, tmp_path, strategy, outcome, surface
+    ):
+        if not os.getenv("TEMPORAL_HOST"):
+            pytest.skip("TEMPORAL_HOST required")
+        command = CommandService(database_url)
+        if surface == "napcat":
+            from support.qq_messages import qq_message
+    
+            from application.conversation import ConversationService
+            from application.ingress import MessageIngressService
+            from conversation_domain.surface_commands import SurfaceConversationCommands
+            db.execute(
+                "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
+                "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','napcat:123',now())",
+                (uuid4(), account_id),
+            )
+            ingress = MessageIngressService(conversation_service=ConversationService(
+                SurfaceConversationCommands(CommandService(worker_database_url))
+            ))
+            accepted = await ingress.handle(qq_message())
+            conversation, run_id = UUID(accepted["conversation_id"]), UUID(accepted["run_id"])
+        else:
+            conversation = UUID(command.create_conversation(account_id, str(uuid4()))["conversation_id"])
+            run_id = UUID(
+                command.send_message(
+                    account_id, conversation, str(uuid4()), "hello", agent_strategy=strategy
+                )["run_id"]
+            )
+        client = await Client.connect(
+            os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default")
+        )
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        store = AgentDataStore(worker_database_url)
+        events = RedisWebRunEventSinkFactory(None)
+        brain, sandbox = Brain(outcome), Sandbox()
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=store,
+            loader=PostgresWebRequestLoader(
+                worker_database_url,
+                ContextAssemblyService(worker_database_url, HarnessContextBuilder()),
+            ),
+            brain=brain,
+            actions=Actions(),
+            event_factory=events,
+            lifecycle=lifecycle,
+            resource_prep=ExecutionResourceService(
+                worker_database_url, sandbox, execution_root=tmp_path / "executions"
+            ),
+        )
+        lifecycle_activities = RunLifecycleActivities(
+            lifecycle, RunInputLoader(store), events
+        )
+        segments = SegmentActivities(store)
+        workers = build_web_temporal_workers(
+            client,
+            lifecycle_activities=[
+                *lifecycle_control_activities(worker_database_url, lifecycle_activities),
+                runtime.finalize_agent_result,
+            ],
+            agent_activities=[
+                segments.acquire,
+                segments.release,
+                segments.begin_wait,
+                segments.finish_wait,
+                runtime.context_bootstrap,
+                runtime.model_decision,
+                runtime.tool_execution,
+                runtime.planning,
+                runtime.evaluate_plan,
+            ],
+        )
+        executions = PostgresWorkflowExecutionStore(worker_database_url)
+        adapter = TemporalClientAdapter(client)
+    
+        class LostAck:
+            """Temporal accepts Start, but the first dispatcher loses its RPC response."""
+    
+            lost = False
+    
+            async def start_web_run(self, workflow_id, request):
+                result = await adapter.start_web_run(workflow_id, request)
+                if not self.lost:
+                    self.lost = True
+                    raise RuntimeError("lost start response")
+                return result
+    
+            async def cancel_web_run(self, workflow_id):
+                return await adapter.cancel_web_run(workflow_id)
+    
+        dispatch = TemporalOutboxDispatcher(executions, LostAck(), lifecycle)
+        outbox = WebOutboxDispatcher(OutboxService(worker_database_url), dispatch, "w1c-test")
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(workers.lifecycle)
+            await stack.enter_async_context(workers.agent)
+            await outbox.run_once()
+            handle = client.get_workflow_handle(f"hpagent-web-run-{run_id}")
+            if outcome == "cancelled":
+                await asyncio.wait_for(brain.entered.wait(), 30)
+                if surface == "napcat":
+                    cancelled = await ingress.handle(qq_message("cancel-1", "/cancel"))
+                    assert cancelled["run_id"] == str(run_id)
+                else:
+                    command.cancel_run(account_id, run_id, str(uuid4()))
+                await outbox.run_once()
+            if outcome == "completed":
+                result = await asyncio.wait_for(handle.result(), 60)
+                assert result["outcome"] == "completed"
+&gt;           else:
+                  
+
+test/web_persistence/test_web_temporal_e2e.py:220: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/asyncio/tasks.py:520: in wait_for
+    return await fut
+           ^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;temporalio.client._workflow.WorkflowHandle object at 0x75549ef2cbc0&gt;
+
+    async def result(
+        self,
+        *,
+        follow_runs: bool = True,
+        rpc_metadata: Mapping[str, str | bytes] = {},
+        rpc_timeout: timedelta | None = None,
+    ) -&gt; ReturnType:
+        """Wait for result of the workflow.
+    
+        This will use :py:attr:`result_run_id` if present to base the result on.
+        To use another run ID, a new handle must be created via
+        :py:meth:`Client.get_workflow_handle`.
+    
+        Args:
+            follow_runs: If true (default), workflow runs will be continually
+                fetched, until the most recent one is found. If false, return
+                the result from the first run targeted by the request if that run
+                ends in a result, otherwise raise an exception.
+            rpc_metadata: Headers used on the RPC call. Keys here override
+                client-level RPC metadata keys.
+            rpc_timeout: Optional RPC deadline to set for each RPC call. Note,
+                this is the timeout for each history RPC call not this overall
+                function.
+    
+        Returns:
+            Result of the workflow after being converted by the data converter.
+    
+        Raises:
+            WorkflowFailureError: Workflow failed, was cancelled, was
+                terminated, or timed out. Use the
+                :py:attr:`WorkflowFailureError.cause` to see the underlying
+                reason.
+            Exception: Other possible failures during result fetching.
+        """
+        # We have to maintain our own run ID because it can change if we follow
+        # executions
+        hist_run_id = self._result_run_id
+        while True:
+            async for event in self._fetch_history_events_for_run(
+                hist_run_id,
+                wait_new_event=True,
+                event_filter_type=WorkflowHistoryEventFilterType.CLOSE_EVENT,
+                skip_archival=True,
+                rpc_metadata=rpc_metadata,
+                rpc_timeout=rpc_timeout,
+            ):
+                if event.HasField("workflow_execution_completed_event_attributes"):
+                    complete_attr = event.workflow_execution_completed_event_attributes
+                    # Follow execution
+                    if follow_runs and complete_attr.new_execution_run_id:
+                        hist_run_id = complete_attr.new_execution_run_id
+                        break
+                    # Ignoring anything after the first response like TypeScript
+                    type_hints = [self._result_type] if self._result_type else None
+                    results = await self._data_converter.decode_wrapper(
+                        complete_attr.result,
+                        type_hints,
+                    )
+                    if not results:
+                        return cast(ReturnType, None)
+                    elif len(results) &gt; 1:
+                        warnings.warn(f"Expected single result, got {len(results)}")
+                    return cast(ReturnType, results[0])
+                elif event.HasField("workflow_execution_failed_event_attributes"):
+                    fail_attr = event.workflow_execution_failed_event_attributes
+                    # Follow execution
+                    if follow_runs and fail_attr.new_execution_run_id:
+                        hist_run_id = fail_attr.new_execution_run_id
+                        break
+&gt;                   raise WorkflowFailureError(
+                        cause=await self._data_converter.decode_failure(
+                            fail_attr.failure
+                        ),
+E                       temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed
+
+.venv/lib/python3.12/site-packages/temporalio/client/_workflow.py:256: WorkflowFailureError</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_e2e" name="test_web_canonical_lifecycle[plan_and_execute-completed-web]" time="20.569"><failure message="temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed">temporalio.exceptions.ApplicationError: NotFoundError: Activity function load_run_strategy_activity for workflow hpagent-web-run-01a11b44-8b52-7e42-b1c7-af312cd09636 is not registered on this worker, available activities: finalize_agent_result_activity, finalize_cancelled_activity, finalize_failed_activity, load_agent_run_input_activity, prepare_run_activity
+
+The above exception was the direct cause of the following exception:
+temporalio.exceptions.ApplicationError: NotFoundError: Activity function load_run_strategy_activity for workflow hpagent-web-run-01a11b44-8b52-7e42-b1c7-af312cd09636 is not registered on this worker, available activities: finalize_agent_result_activity, finalize_cancelled_activity, finalize_failed_activity, load_agent_run_input_activity, prepare_run_activity
+
+The above exception was the direct cause of the following exception:
+
+temporalio.exceptions.ActivityError: Activity task failed
+
+The above exception was the direct cause of the following exception:
+
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549f3ce240&gt;
+account_id = UUID('33260186-6bd7-4c7f-8eda-2d524b90d7ce')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-5/test_web_canonical_lifecycle_p0')
+strategy = 'plan_and_execute', outcome = 'completed', surface = 'web'
+
+    
+    @pytest.mark.parametrize(
+        "strategy,outcome,surface",
+        [
+            ("react", "completed", "web"),
+            ("plan_and_execute", "completed", "web"),
+            ("react", "failed", "web"),
+            ("react", "cancelled", "web"),
+            ("plan_and_execute", "failed", "web"),
+            ("plan_and_execute", "cancelled", "web"),
+            ("react", "completed", "napcat"),
+            ("react", "cancelled", "napcat"),
+        ],
+    )
+    async def test_web_canonical_lifecycle(
+        db, account_id, database_url, worker_database_url, tmp_path, strategy, outcome, surface
+    ):
+        if not os.getenv("TEMPORAL_HOST"):
+            pytest.skip("TEMPORAL_HOST required")
+        command = CommandService(database_url)
+        if surface == "napcat":
+            from support.qq_messages import qq_message
+    
+            from application.conversation import ConversationService
+            from application.ingress import MessageIngressService
+            from conversation_domain.surface_commands import SurfaceConversationCommands
+            db.execute(
+                "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
+                "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','napcat:123',now())",
+                (uuid4(), account_id),
+            )
+            ingress = MessageIngressService(conversation_service=ConversationService(
+                SurfaceConversationCommands(CommandService(worker_database_url))
+            ))
+            accepted = await ingress.handle(qq_message())
+            conversation, run_id = UUID(accepted["conversation_id"]), UUID(accepted["run_id"])
+        else:
+            conversation = UUID(command.create_conversation(account_id, str(uuid4()))["conversation_id"])
+            run_id = UUID(
+                command.send_message(
+                    account_id, conversation, str(uuid4()), "hello", agent_strategy=strategy
+                )["run_id"]
+            )
+        client = await Client.connect(
+            os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default")
+        )
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        store = AgentDataStore(worker_database_url)
+        events = RedisWebRunEventSinkFactory(None)
+        brain, sandbox = Brain(outcome), Sandbox()
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=store,
+            loader=PostgresWebRequestLoader(
+                worker_database_url,
+                ContextAssemblyService(worker_database_url, HarnessContextBuilder()),
+            ),
+            brain=brain,
+            actions=Actions(),
+            event_factory=events,
+            lifecycle=lifecycle,
+            resource_prep=ExecutionResourceService(
+                worker_database_url, sandbox, execution_root=tmp_path / "executions"
+            ),
+        )
+        lifecycle_activities = RunLifecycleActivities(
+            lifecycle, RunInputLoader(store), events
+        )
+        segments = SegmentActivities(store)
+        workers = build_web_temporal_workers(
+            client,
+            lifecycle_activities=[
+                *lifecycle_control_activities(worker_database_url, lifecycle_activities),
+                runtime.finalize_agent_result,
+            ],
+            agent_activities=[
+                segments.acquire,
+                segments.release,
+                segments.begin_wait,
+                segments.finish_wait,
+                runtime.context_bootstrap,
+                runtime.model_decision,
+                runtime.tool_execution,
+                runtime.planning,
+                runtime.evaluate_plan,
+            ],
+        )
+        executions = PostgresWorkflowExecutionStore(worker_database_url)
+        adapter = TemporalClientAdapter(client)
+    
+        class LostAck:
+            """Temporal accepts Start, but the first dispatcher loses its RPC response."""
+    
+            lost = False
+    
+            async def start_web_run(self, workflow_id, request):
+                result = await adapter.start_web_run(workflow_id, request)
+                if not self.lost:
+                    self.lost = True
+                    raise RuntimeError("lost start response")
+                return result
+    
+            async def cancel_web_run(self, workflow_id):
+                return await adapter.cancel_web_run(workflow_id)
+    
+        dispatch = TemporalOutboxDispatcher(executions, LostAck(), lifecycle)
+        outbox = WebOutboxDispatcher(OutboxService(worker_database_url), dispatch, "w1c-test")
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(workers.lifecycle)
+            await stack.enter_async_context(workers.agent)
+            await outbox.run_once()
+            handle = client.get_workflow_handle(f"hpagent-web-run-{run_id}")
+            if outcome == "cancelled":
+                await asyncio.wait_for(brain.entered.wait(), 30)
+                if surface == "napcat":
+                    cancelled = await ingress.handle(qq_message("cancel-1", "/cancel"))
+                    assert cancelled["run_id"] == str(run_id)
+                else:
+                    command.cancel_run(account_id, run_id, str(uuid4()))
+                await outbox.run_once()
+            if outcome == "completed":
+                result = await asyncio.wait_for(handle.result(), 60)
+                assert result["outcome"] == "completed"
+&gt;           else:
+                  
+
+test/web_persistence/test_web_temporal_e2e.py:220: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/asyncio/tasks.py:520: in wait_for
+    return await fut
+           ^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;temporalio.client._workflow.WorkflowHandle object at 0x75549fde6210&gt;
+
+    async def result(
+        self,
+        *,
+        follow_runs: bool = True,
+        rpc_metadata: Mapping[str, str | bytes] = {},
+        rpc_timeout: timedelta | None = None,
+    ) -&gt; ReturnType:
+        """Wait for result of the workflow.
+    
+        This will use :py:attr:`result_run_id` if present to base the result on.
+        To use another run ID, a new handle must be created via
+        :py:meth:`Client.get_workflow_handle`.
+    
+        Args:
+            follow_runs: If true (default), workflow runs will be continually
+                fetched, until the most recent one is found. If false, return
+                the result from the first run targeted by the request if that run
+                ends in a result, otherwise raise an exception.
+            rpc_metadata: Headers used on the RPC call. Keys here override
+                client-level RPC metadata keys.
+            rpc_timeout: Optional RPC deadline to set for each RPC call. Note,
+                this is the timeout for each history RPC call not this overall
+                function.
+    
+        Returns:
+            Result of the workflow after being converted by the data converter.
+    
+        Raises:
+            WorkflowFailureError: Workflow failed, was cancelled, was
+                terminated, or timed out. Use the
+                :py:attr:`WorkflowFailureError.cause` to see the underlying
+                reason.
+            Exception: Other possible failures during result fetching.
+        """
+        # We have to maintain our own run ID because it can change if we follow
+        # executions
+        hist_run_id = self._result_run_id
+        while True:
+            async for event in self._fetch_history_events_for_run(
+                hist_run_id,
+                wait_new_event=True,
+                event_filter_type=WorkflowHistoryEventFilterType.CLOSE_EVENT,
+                skip_archival=True,
+                rpc_metadata=rpc_metadata,
+                rpc_timeout=rpc_timeout,
+            ):
+                if event.HasField("workflow_execution_completed_event_attributes"):
+                    complete_attr = event.workflow_execution_completed_event_attributes
+                    # Follow execution
+                    if follow_runs and complete_attr.new_execution_run_id:
+                        hist_run_id = complete_attr.new_execution_run_id
+                        break
+                    # Ignoring anything after the first response like TypeScript
+                    type_hints = [self._result_type] if self._result_type else None
+                    results = await self._data_converter.decode_wrapper(
+                        complete_attr.result,
+                        type_hints,
+                    )
+                    if not results:
+                        return cast(ReturnType, None)
+                    elif len(results) &gt; 1:
+                        warnings.warn(f"Expected single result, got {len(results)}")
+                    return cast(ReturnType, results[0])
+                elif event.HasField("workflow_execution_failed_event_attributes"):
+                    fail_attr = event.workflow_execution_failed_event_attributes
+                    # Follow execution
+                    if follow_runs and fail_attr.new_execution_run_id:
+                        hist_run_id = fail_attr.new_execution_run_id
+                        break
+&gt;                   raise WorkflowFailureError(
+                        cause=await self._data_converter.decode_failure(
+                            fail_attr.failure
+                        ),
+E                       temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed
+
+.venv/lib/python3.12/site-packages/temporalio/client/_workflow.py:256: WorkflowFailureError</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_e2e" name="test_web_canonical_lifecycle[react-failed-web]" time="20.536" /><testcase classname="test.web_persistence.test_web_temporal_e2e" name="test_web_canonical_lifecycle[react-cancelled-web]" time="34.068"><failure message="TimeoutError">fut = &lt;coroutine object Event.wait at 0x75549ed6cf20&gt;, timeout = 30
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+/usr/lib/python3.12/asyncio/tasks.py:520: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;asyncio.locks.Event object at 0x75549f153d10 [unset]&gt;
+
+    async def wait(self):
+        """Block until the internal flag is true.
+    
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another coroutine calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+    
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+&gt;           await fut
+E           asyncio.exceptions.CancelledError
+
+/usr/lib/python3.12/asyncio/locks.py:212: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549fde6ba0&gt;
+account_id = UUID('33e2125c-2603-47cf-bb45-79ea1f01b5f6')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-5/test_web_canonical_lifecycle_r2')
+strategy = 'react', outcome = 'cancelled', surface = 'web'
+
+    
+    @pytest.mark.parametrize(
+        "strategy,outcome,surface",
+        [
+            ("react", "completed", "web"),
+            ("plan_and_execute", "completed", "web"),
+            ("react", "failed", "web"),
+            ("react", "cancelled", "web"),
+            ("plan_and_execute", "failed", "web"),
+            ("plan_and_execute", "cancelled", "web"),
+            ("react", "completed", "napcat"),
+            ("react", "cancelled", "napcat"),
+        ],
+    )
+    async def test_web_canonical_lifecycle(
+        db, account_id, database_url, worker_database_url, tmp_path, strategy, outcome, surface
+    ):
+        if not os.getenv("TEMPORAL_HOST"):
+            pytest.skip("TEMPORAL_HOST required")
+        command = CommandService(database_url)
+        if surface == "napcat":
+            from support.qq_messages import qq_message
+    
+            from application.conversation import ConversationService
+            from application.ingress import MessageIngressService
+            from conversation_domain.surface_commands import SurfaceConversationCommands
+            db.execute(
+                "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
+                "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','napcat:123',now())",
+                (uuid4(), account_id),
+            )
+            ingress = MessageIngressService(conversation_service=ConversationService(
+                SurfaceConversationCommands(CommandService(worker_database_url))
+            ))
+            accepted = await ingress.handle(qq_message())
+            conversation, run_id = UUID(accepted["conversation_id"]), UUID(accepted["run_id"])
+        else:
+            conversation = UUID(command.create_conversation(account_id, str(uuid4()))["conversation_id"])
+            run_id = UUID(
+                command.send_message(
+                    account_id, conversation, str(uuid4()), "hello", agent_strategy=strategy
+                )["run_id"]
+            )
+        client = await Client.connect(
+            os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default")
+        )
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        store = AgentDataStore(worker_database_url)
+        events = RedisWebRunEventSinkFactory(None)
+        brain, sandbox = Brain(outcome), Sandbox()
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=store,
+            loader=PostgresWebRequestLoader(
+                worker_database_url,
+                ContextAssemblyService(worker_database_url, HarnessContextBuilder()),
+            ),
+            brain=brain,
+            actions=Actions(),
+            event_factory=events,
+            lifecycle=lifecycle,
+            resource_prep=ExecutionResourceService(
+                worker_database_url, sandbox, execution_root=tmp_path / "executions"
+            ),
+        )
+        lifecycle_activities = RunLifecycleActivities(
+            lifecycle, RunInputLoader(store), events
+        )
+        segments = SegmentActivities(store)
+        workers = build_web_temporal_workers(
+            client,
+            lifecycle_activities=[
+                *lifecycle_control_activities(worker_database_url, lifecycle_activities),
+                runtime.finalize_agent_result,
+            ],
+            agent_activities=[
+                segments.acquire,
+                segments.release,
+                segments.begin_wait,
+                segments.finish_wait,
+                runtime.context_bootstrap,
+                runtime.model_decision,
+                runtime.tool_execution,
+                runtime.planning,
+                runtime.evaluate_plan,
+            ],
+        )
+        executions = PostgresWorkflowExecutionStore(worker_database_url)
+        adapter = TemporalClientAdapter(client)
+    
+        class LostAck:
+            """Temporal accepts Start, but the first dispatcher loses its RPC response."""
+    
+            lost = False
+    
+            async def start_web_run(self, workflow_id, request):
+                result = await adapter.start_web_run(workflow_id, request)
+                if not self.lost:
+                    self.lost = True
+                    raise RuntimeError("lost start response")
+                return result
+    
+            async def cancel_web_run(self, workflow_id):
+                return await adapter.cancel_web_run(workflow_id)
+    
+        dispatch = TemporalOutboxDispatcher(executions, LostAck(), lifecycle)
+        outbox = WebOutboxDispatcher(OutboxService(worker_database_url), dispatch, "w1c-test")
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(workers.lifecycle)
+            await stack.enter_async_context(workers.agent)
+            await outbox.run_once()
+            handle = client.get_workflow_handle(f"hpagent-web-run-{run_id}")
+            if outcome == "cancelled":
+                await asyncio.wait_for(brain.entered.wait(), 30)
+                if surface == "napcat":
+&gt;                   cancelled = await ingress.handle(qq_message("cancel-1", "/cancel"))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/web_persistence/test_web_temporal_e2e.py:212: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/asyncio/tasks.py:519: in wait_for
+    async with timeouts.timeout(timeout):
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x75549eb08fc0&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -&gt; Optional[bool]:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is exceptions.CancelledError:
+                # Since there are no new cancel requests, we're
+                # handling this.
+&gt;               raise TimeoutError from exc_val
+E               TimeoutError
+
+/usr/lib/python3.12/asyncio/timeouts.py:115: TimeoutError</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_e2e" name="test_web_canonical_lifecycle[plan_and_execute-failed-web]" time="20.594" /><testcase classname="test.web_persistence.test_web_temporal_e2e" name="test_web_canonical_lifecycle[plan_and_execute-cancelled-web]" time="34.862"><failure message="TimeoutError">fut = &lt;coroutine object Event.wait at 0x75549ec92420&gt;, timeout = 30
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+/usr/lib/python3.12/asyncio/tasks.py:520: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;asyncio.locks.Event object at 0x75549f483ce0 [unset]&gt;
+
+    async def wait(self):
+        """Block until the internal flag is true.
+    
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another coroutine calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+    
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+&gt;           await fut
+E           asyncio.exceptions.CancelledError
+
+/usr/lib/python3.12/asyncio/locks.py:212: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549d99b710&gt;
+account_id = UUID('bc449d85-e666-4ccd-9326-290681f8f88f')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-5/test_web_canonical_lifecycle_p2')
+strategy = 'plan_and_execute', outcome = 'cancelled', surface = 'web'
+
+    
+    @pytest.mark.parametrize(
+        "strategy,outcome,surface",
+        [
+            ("react", "completed", "web"),
+            ("plan_and_execute", "completed", "web"),
+            ("react", "failed", "web"),
+            ("react", "cancelled", "web"),
+            ("plan_and_execute", "failed", "web"),
+            ("plan_and_execute", "cancelled", "web"),
+            ("react", "completed", "napcat"),
+            ("react", "cancelled", "napcat"),
+        ],
+    )
+    async def test_web_canonical_lifecycle(
+        db, account_id, database_url, worker_database_url, tmp_path, strategy, outcome, surface
+    ):
+        if not os.getenv("TEMPORAL_HOST"):
+            pytest.skip("TEMPORAL_HOST required")
+        command = CommandService(database_url)
+        if surface == "napcat":
+            from support.qq_messages import qq_message
+    
+            from application.conversation import ConversationService
+            from application.ingress import MessageIngressService
+            from conversation_domain.surface_commands import SurfaceConversationCommands
+            db.execute(
+                "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
+                "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','napcat:123',now())",
+                (uuid4(), account_id),
+            )
+            ingress = MessageIngressService(conversation_service=ConversationService(
+                SurfaceConversationCommands(CommandService(worker_database_url))
+            ))
+            accepted = await ingress.handle(qq_message())
+            conversation, run_id = UUID(accepted["conversation_id"]), UUID(accepted["run_id"])
+        else:
+            conversation = UUID(command.create_conversation(account_id, str(uuid4()))["conversation_id"])
+            run_id = UUID(
+                command.send_message(
+                    account_id, conversation, str(uuid4()), "hello", agent_strategy=strategy
+                )["run_id"]
+            )
+        client = await Client.connect(
+            os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default")
+        )
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        store = AgentDataStore(worker_database_url)
+        events = RedisWebRunEventSinkFactory(None)
+        brain, sandbox = Brain(outcome), Sandbox()
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=store,
+            loader=PostgresWebRequestLoader(
+                worker_database_url,
+                ContextAssemblyService(worker_database_url, HarnessContextBuilder()),
+            ),
+            brain=brain,
+            actions=Actions(),
+            event_factory=events,
+            lifecycle=lifecycle,
+            resource_prep=ExecutionResourceService(
+                worker_database_url, sandbox, execution_root=tmp_path / "executions"
+            ),
+        )
+        lifecycle_activities = RunLifecycleActivities(
+            lifecycle, RunInputLoader(store), events
+        )
+        segments = SegmentActivities(store)
+        workers = build_web_temporal_workers(
+            client,
+            lifecycle_activities=[
+                *lifecycle_control_activities(worker_database_url, lifecycle_activities),
+                runtime.finalize_agent_result,
+            ],
+            agent_activities=[
+                segments.acquire,
+                segments.release,
+                segments.begin_wait,
+                segments.finish_wait,
+                runtime.context_bootstrap,
+                runtime.model_decision,
+                runtime.tool_execution,
+                runtime.planning,
+                runtime.evaluate_plan,
+            ],
+        )
+        executions = PostgresWorkflowExecutionStore(worker_database_url)
+        adapter = TemporalClientAdapter(client)
+    
+        class LostAck:
+            """Temporal accepts Start, but the first dispatcher loses its RPC response."""
+    
+            lost = False
+    
+            async def start_web_run(self, workflow_id, request):
+                result = await adapter.start_web_run(workflow_id, request)
+                if not self.lost:
+                    self.lost = True
+                    raise RuntimeError("lost start response")
+                return result
+    
+            async def cancel_web_run(self, workflow_id):
+                return await adapter.cancel_web_run(workflow_id)
+    
+        dispatch = TemporalOutboxDispatcher(executions, LostAck(), lifecycle)
+        outbox = WebOutboxDispatcher(OutboxService(worker_database_url), dispatch, "w1c-test")
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(workers.lifecycle)
+            await stack.enter_async_context(workers.agent)
+            await outbox.run_once()
+            handle = client.get_workflow_handle(f"hpagent-web-run-{run_id}")
+            if outcome == "cancelled":
+                await asyncio.wait_for(brain.entered.wait(), 30)
+                if surface == "napcat":
+&gt;                   cancelled = await ingress.handle(qq_message("cancel-1", "/cancel"))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/web_persistence/test_web_temporal_e2e.py:212: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/asyncio/tasks.py:519: in wait_for
+    async with timeouts.timeout(timeout):
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x75549f4848c0&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -&gt; Optional[bool]:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is exceptions.CancelledError:
+                # Since there are no new cancel requests, we're
+                # handling this.
+&gt;               raise TimeoutError from exc_val
+E               TimeoutError
+
+/usr/lib/python3.12/asyncio/timeouts.py:115: TimeoutError</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_e2e" name="test_web_canonical_lifecycle[react-completed-napcat]" time="19.346"><failure message="temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed">temporalio.exceptions.ApplicationError: NotFoundError: Activity function load_run_strategy_activity for workflow hpagent-web-run-01a11b46-8708-7dee-8c77-eb22d107ec2a is not registered on this worker, available activities: finalize_agent_result_activity, finalize_cancelled_activity, finalize_failed_activity, load_agent_run_input_activity, prepare_run_activity
+
+The above exception was the direct cause of the following exception:
+temporalio.exceptions.ApplicationError: NotFoundError: Activity function load_run_strategy_activity for workflow hpagent-web-run-01a11b46-8708-7dee-8c77-eb22d107ec2a is not registered on this worker, available activities: finalize_agent_result_activity, finalize_cancelled_activity, finalize_failed_activity, load_agent_run_input_activity, prepare_run_activity
+
+The above exception was the direct cause of the following exception:
+
+temporalio.exceptions.ActivityError: Activity task failed
+
+The above exception was the direct cause of the following exception:
+
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549da27710&gt;
+account_id = UUID('d7e16f63-43c8-42ae-8de9-623143d893fa')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-5/test_web_canonical_lifecycle_r3')
+strategy = 'react', outcome = 'completed', surface = 'napcat'
+
+    
+    @pytest.mark.parametrize(
+        "strategy,outcome,surface",
+        [
+            ("react", "completed", "web"),
+            ("plan_and_execute", "completed", "web"),
+            ("react", "failed", "web"),
+            ("react", "cancelled", "web"),
+            ("plan_and_execute", "failed", "web"),
+            ("plan_and_execute", "cancelled", "web"),
+            ("react", "completed", "napcat"),
+            ("react", "cancelled", "napcat"),
+        ],
+    )
+    async def test_web_canonical_lifecycle(
+        db, account_id, database_url, worker_database_url, tmp_path, strategy, outcome, surface
+    ):
+        if not os.getenv("TEMPORAL_HOST"):
+            pytest.skip("TEMPORAL_HOST required")
+        command = CommandService(database_url)
+        if surface == "napcat":
+            from support.qq_messages import qq_message
+    
+            from application.conversation import ConversationService
+            from application.ingress import MessageIngressService
+            from conversation_domain.surface_commands import SurfaceConversationCommands
+            db.execute(
+                "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
+                "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','napcat:123',now())",
+                (uuid4(), account_id),
+            )
+            ingress = MessageIngressService(conversation_service=ConversationService(
+                SurfaceConversationCommands(CommandService(worker_database_url))
+            ))
+            accepted = await ingress.handle(qq_message())
+            conversation, run_id = UUID(accepted["conversation_id"]), UUID(accepted["run_id"])
+        else:
+            conversation = UUID(command.create_conversation(account_id, str(uuid4()))["conversation_id"])
+            run_id = UUID(
+                command.send_message(
+                    account_id, conversation, str(uuid4()), "hello", agent_strategy=strategy
+                )["run_id"]
+            )
+        client = await Client.connect(
+            os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default")
+        )
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        store = AgentDataStore(worker_database_url)
+        events = RedisWebRunEventSinkFactory(None)
+        brain, sandbox = Brain(outcome), Sandbox()
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=store,
+            loader=PostgresWebRequestLoader(
+                worker_database_url,
+                ContextAssemblyService(worker_database_url, HarnessContextBuilder()),
+            ),
+            brain=brain,
+            actions=Actions(),
+            event_factory=events,
+            lifecycle=lifecycle,
+            resource_prep=ExecutionResourceService(
+                worker_database_url, sandbox, execution_root=tmp_path / "executions"
+            ),
+        )
+        lifecycle_activities = RunLifecycleActivities(
+            lifecycle, RunInputLoader(store), events
+        )
+        segments = SegmentActivities(store)
+        workers = build_web_temporal_workers(
+            client,
+            lifecycle_activities=[
+                *lifecycle_control_activities(worker_database_url, lifecycle_activities),
+                runtime.finalize_agent_result,
+            ],
+            agent_activities=[
+                segments.acquire,
+                segments.release,
+                segments.begin_wait,
+                segments.finish_wait,
+                runtime.context_bootstrap,
+                runtime.model_decision,
+                runtime.tool_execution,
+                runtime.planning,
+                runtime.evaluate_plan,
+            ],
+        )
+        executions = PostgresWorkflowExecutionStore(worker_database_url)
+        adapter = TemporalClientAdapter(client)
+    
+        class LostAck:
+            """Temporal accepts Start, but the first dispatcher loses its RPC response."""
+    
+            lost = False
+    
+            async def start_web_run(self, workflow_id, request):
+                result = await adapter.start_web_run(workflow_id, request)
+                if not self.lost:
+                    self.lost = True
+                    raise RuntimeError("lost start response")
+                return result
+    
+            async def cancel_web_run(self, workflow_id):
+                return await adapter.cancel_web_run(workflow_id)
+    
+        dispatch = TemporalOutboxDispatcher(executions, LostAck(), lifecycle)
+        outbox = WebOutboxDispatcher(OutboxService(worker_database_url), dispatch, "w1c-test")
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(workers.lifecycle)
+            await stack.enter_async_context(workers.agent)
+            await outbox.run_once()
+            handle = client.get_workflow_handle(f"hpagent-web-run-{run_id}")
+            if outcome == "cancelled":
+                await asyncio.wait_for(brain.entered.wait(), 30)
+                if surface == "napcat":
+                    cancelled = await ingress.handle(qq_message("cancel-1", "/cancel"))
+                    assert cancelled["run_id"] == str(run_id)
+                else:
+                    command.cancel_run(account_id, run_id, str(uuid4()))
+                await outbox.run_once()
+            if outcome == "completed":
+                result = await asyncio.wait_for(handle.result(), 60)
+                assert result["outcome"] == "completed"
+&gt;           else:
+                  
+
+test/web_persistence/test_web_temporal_e2e.py:220: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/asyncio/tasks.py:520: in wait_for
+    return await fut
+           ^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;temporalio.client._workflow.WorkflowHandle object at 0x75549eae2270&gt;
+
+    async def result(
+        self,
+        *,
+        follow_runs: bool = True,
+        rpc_metadata: Mapping[str, str | bytes] = {},
+        rpc_timeout: timedelta | None = None,
+    ) -&gt; ReturnType:
+        """Wait for result of the workflow.
+    
+        This will use :py:attr:`result_run_id` if present to base the result on.
+        To use another run ID, a new handle must be created via
+        :py:meth:`Client.get_workflow_handle`.
+    
+        Args:
+            follow_runs: If true (default), workflow runs will be continually
+                fetched, until the most recent one is found. If false, return
+                the result from the first run targeted by the request if that run
+                ends in a result, otherwise raise an exception.
+            rpc_metadata: Headers used on the RPC call. Keys here override
+                client-level RPC metadata keys.
+            rpc_timeout: Optional RPC deadline to set for each RPC call. Note,
+                this is the timeout for each history RPC call not this overall
+                function.
+    
+        Returns:
+            Result of the workflow after being converted by the data converter.
+    
+        Raises:
+            WorkflowFailureError: Workflow failed, was cancelled, was
+                terminated, or timed out. Use the
+                :py:attr:`WorkflowFailureError.cause` to see the underlying
+                reason.
+            Exception: Other possible failures during result fetching.
+        """
+        # We have to maintain our own run ID because it can change if we follow
+        # executions
+        hist_run_id = self._result_run_id
+        while True:
+            async for event in self._fetch_history_events_for_run(
+                hist_run_id,
+                wait_new_event=True,
+                event_filter_type=WorkflowHistoryEventFilterType.CLOSE_EVENT,
+                skip_archival=True,
+                rpc_metadata=rpc_metadata,
+                rpc_timeout=rpc_timeout,
+            ):
+                if event.HasField("workflow_execution_completed_event_attributes"):
+                    complete_attr = event.workflow_execution_completed_event_attributes
+                    # Follow execution
+                    if follow_runs and complete_attr.new_execution_run_id:
+                        hist_run_id = complete_attr.new_execution_run_id
+                        break
+                    # Ignoring anything after the first response like TypeScript
+                    type_hints = [self._result_type] if self._result_type else None
+                    results = await self._data_converter.decode_wrapper(
+                        complete_attr.result,
+                        type_hints,
+                    )
+                    if not results:
+                        return cast(ReturnType, None)
+                    elif len(results) &gt; 1:
+                        warnings.warn(f"Expected single result, got {len(results)}")
+                    return cast(ReturnType, results[0])
+                elif event.HasField("workflow_execution_failed_event_attributes"):
+                    fail_attr = event.workflow_execution_failed_event_attributes
+                    # Follow execution
+                    if follow_runs and fail_attr.new_execution_run_id:
+                        hist_run_id = fail_attr.new_execution_run_id
+                        break
+&gt;                   raise WorkflowFailureError(
+                        cause=await self._data_converter.decode_failure(
+                            fail_attr.failure
+                        ),
+E                       temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed
+
+.venv/lib/python3.12/site-packages/temporalio/client/_workflow.py:256: WorkflowFailureError</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_e2e" name="test_web_canonical_lifecycle[react-cancelled-napcat]" time="34.438"><failure message="TimeoutError">fut = &lt;coroutine object Event.wait at 0x75549c708120&gt;, timeout = 30
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+/usr/lib/python3.12/asyncio/tasks.py:520: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;asyncio.locks.Event object at 0x75549e90e6c0 [unset]&gt;
+
+    async def wait(self):
+        """Block until the internal flag is true.
+    
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another coroutine calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+    
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+&gt;           await fut
+E           asyncio.exceptions.CancelledError
+
+/usr/lib/python3.12/asyncio/locks.py:212: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549da269f0&gt;
+account_id = UUID('b79192bf-5832-4353-88d2-88f0ca433f07')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-5/test_web_canonical_lifecycle_r4')
+strategy = 'react', outcome = 'cancelled', surface = 'napcat'
+
+    
+    @pytest.mark.parametrize(
+        "strategy,outcome,surface",
+        [
+            ("react", "completed", "web"),
+            ("plan_and_execute", "completed", "web"),
+            ("react", "failed", "web"),
+            ("react", "cancelled", "web"),
+            ("plan_and_execute", "failed", "web"),
+            ("plan_and_execute", "cancelled", "web"),
+            ("react", "completed", "napcat"),
+            ("react", "cancelled", "napcat"),
+        ],
+    )
+    async def test_web_canonical_lifecycle(
+        db, account_id, database_url, worker_database_url, tmp_path, strategy, outcome, surface
+    ):
+        if not os.getenv("TEMPORAL_HOST"):
+            pytest.skip("TEMPORAL_HOST required")
+        command = CommandService(database_url)
+        if surface == "napcat":
+            from support.qq_messages import qq_message
+    
+            from application.conversation import ConversationService
+            from application.ingress import MessageIngressService
+            from conversation_domain.surface_commands import SurfaceConversationCommands
+            db.execute(
+                "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
+                "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','napcat:123',now())",
+                (uuid4(), account_id),
+            )
+            ingress = MessageIngressService(conversation_service=ConversationService(
+                SurfaceConversationCommands(CommandService(worker_database_url))
+            ))
+            accepted = await ingress.handle(qq_message())
+            conversation, run_id = UUID(accepted["conversation_id"]), UUID(accepted["run_id"])
+        else:
+            conversation = UUID(command.create_conversation(account_id, str(uuid4()))["conversation_id"])
+            run_id = UUID(
+                command.send_message(
+                    account_id, conversation, str(uuid4()), "hello", agent_strategy=strategy
+                )["run_id"]
+            )
+        client = await Client.connect(
+            os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default")
+        )
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        store = AgentDataStore(worker_database_url)
+        events = RedisWebRunEventSinkFactory(None)
+        brain, sandbox = Brain(outcome), Sandbox()
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=store,
+            loader=PostgresWebRequestLoader(
+                worker_database_url,
+                ContextAssemblyService(worker_database_url, HarnessContextBuilder()),
+            ),
+            brain=brain,
+            actions=Actions(),
+            event_factory=events,
+            lifecycle=lifecycle,
+            resource_prep=ExecutionResourceService(
+                worker_database_url, sandbox, execution_root=tmp_path / "executions"
+            ),
+        )
+        lifecycle_activities = RunLifecycleActivities(
+            lifecycle, RunInputLoader(store), events
+        )
+        segments = SegmentActivities(store)
+        workers = build_web_temporal_workers(
+            client,
+            lifecycle_activities=[
+                *lifecycle_control_activities(worker_database_url, lifecycle_activities),
+                runtime.finalize_agent_result,
+            ],
+            agent_activities=[
+                segments.acquire,
+                segments.release,
+                segments.begin_wait,
+                segments.finish_wait,
+                runtime.context_bootstrap,
+                runtime.model_decision,
+                runtime.tool_execution,
+                runtime.planning,
+                runtime.evaluate_plan,
+            ],
+        )
+        executions = PostgresWorkflowExecutionStore(worker_database_url)
+        adapter = TemporalClientAdapter(client)
+    
+        class LostAck:
+            """Temporal accepts Start, but the first dispatcher loses its RPC response."""
+    
+            lost = False
+    
+            async def start_web_run(self, workflow_id, request):
+                result = await adapter.start_web_run(workflow_id, request)
+                if not self.lost:
+                    self.lost = True
+                    raise RuntimeError("lost start response")
+                return result
+    
+            async def cancel_web_run(self, workflow_id):
+                return await adapter.cancel_web_run(workflow_id)
+    
+        dispatch = TemporalOutboxDispatcher(executions, LostAck(), lifecycle)
+        outbox = WebOutboxDispatcher(OutboxService(worker_database_url), dispatch, "w1c-test")
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(workers.lifecycle)
+            await stack.enter_async_context(workers.agent)
+            await outbox.run_once()
+            handle = client.get_workflow_handle(f"hpagent-web-run-{run_id}")
+            if outcome == "cancelled":
+                await asyncio.wait_for(brain.entered.wait(), 30)
+                if surface == "napcat":
+&gt;                   cancelled = await ingress.handle(qq_message("cancel-1", "/cancel"))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/web_persistence/test_web_temporal_e2e.py:212: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/asyncio/tasks.py:519: in wait_for
+    async with timeouts.timeout(timeout):
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x75549c9ff040&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -&gt; Optional[bool]:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is exceptions.CancelledError:
+                # Since there are no new cancel requests, we're
+                # handling this.
+&gt;               raise TimeoutError from exc_val
+E               TimeoutError
+
+/usr/lib/python3.12/asyncio/timeouts.py:115: TimeoutError</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_e2e" name="test_blocked_work_does_not_block_same_account_chat" time="24.491"><failure message="TimeoutError">fut = &lt;coroutine object Event.wait at 0x75549fd984a0&gt;, timeout = 20
+
+    async def wait_for(fut, timeout):
+        """Wait for the single Future or coroutine to complete, with timeout.
+    
+        Coroutine will be wrapped in Task.
+    
+        Returns result of the Future or coroutine.  When a timeout occurs,
+        it cancels the task and raises TimeoutError.  To avoid the task
+        cancellation, wrap it in shield().
+    
+        If the wait is cancelled, the task is also cancelled.
+    
+        If the task suppresses the cancellation and returns a value instead,
+        that value is returned.
+    
+        This function is a coroutine.
+        """
+        # The special case for timeout &lt;= 0 is for the following case:
+        #
+        # async def test_waitfor():
+        #     func_started = False
+        #
+        #     async def func():
+        #         nonlocal func_started
+        #         func_started = True
+        #
+        #     try:
+        #         await asyncio.wait_for(func(), 0)
+        #     except asyncio.TimeoutError:
+        #         assert not func_started
+        #     else:
+        #         assert False
+        #
+        # asyncio.run(test_waitfor())
+    
+    
+        if timeout is not None and timeout &lt;= 0:
+            fut = ensure_future(fut)
+    
+            if fut.done():
+                return fut.result()
+    
+            await _cancel_and_wait(fut)
+            try:
+                return fut.result()
+            except exceptions.CancelledError as exc:
+                raise TimeoutError from exc
+    
+        async with timeouts.timeout(timeout):
+&gt;           return await fut
+                   ^^^^^^^^^
+
+/usr/lib/python3.12/asyncio/tasks.py:520: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;asyncio.locks.Event object at 0x75549e985130 [unset]&gt;
+
+    async def wait(self):
+        """Block until the internal flag is true.
+    
+        If the internal flag is true on entry, return True
+        immediately.  Otherwise, block until another coroutine calls
+        set() to set the flag to true, then return True.
+        """
+        if self._value:
+            return True
+    
+        fut = self._get_loop().create_future()
+        self._waiters.append(fut)
+        try:
+&gt;           await fut
+E           asyncio.exceptions.CancelledError
+
+/usr/lib/python3.12/asyncio/locks.py:212: CancelledError
+
+The above exception was the direct cause of the following exception:
+
+db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549cac8b90&gt;
+account_id = UUID('e2531bfb-b4b9-4728-b7fc-3cea2bef0380')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-5/test_blocked_work_does_not_blo0')
+
+    ):
+        """Real Research Activity holds its fence while original/new chats call Brain."""
+        if not os.getenv("TEMPORAL_HOST"):
+            pytest.skip("TEMPORAL_HOST required")
+        from orchestration.web_reconcile_adapters import LifecycleReconcileStore
+        from orchestration.web_reconciler import TemporalInspectorAdapter, WebRunReconciler
+        from research_activities.runtime import ResearchActivities
+        from web_domain.errors import ConversationBusy
+        from work_domain.commands import WorkCommandService
+        from work_domain.models import Requirement
+    
+        chat = CommandService(database_url)
+        cid = UUID(chat.create_conversation(account_id, str(uuid4()))["conversation_id"])
+        works = WorkCommandService(database_url)
+        accepted = works.accept(
+            account_id, str(uuid4()), "Background investigation",
+            Requirement("Investigate", "research_report", {"schema_version": 1, "source_strategy": {}}),
+            conversation_id=cid,
+        )
+        wid = UUID(accepted.body["work"]["work_id"])
+        work_run = UUID(works.advance(account_id, wid, str(uuid4()), 1).body["run"]["run_id"])
+        client = await Client.connect(os.environ["TEMPORAL_HOST"], namespace=os.getenv("TEMPORAL_NAMESPACE", "default"))
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        store = AgentDataStore(worker_database_url)
+        events = RedisWebRunEventSinkFactory(None)
+        brain, sandbox = Brain("completed"), Sandbox()
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(), store=store,
+            loader=PostgresWebRequestLoader(worker_database_url, ContextAssemblyService(worker_database_url, HarnessContextBuilder())),
+            brain=brain, actions=Actions(), event_factory=events, lifecycle=lifecycle,
+            resource_prep=ExecutionResourceService(worker_database_url, sandbox, execution_root=tmp_path / "executions"),
+        )
+        entered = asyncio.Event()
+    
+        class BlockedResearch(ResearchActivities):
+            async def _create_plan(self, run_id):
+                entered.set()
+                await asyncio.Event().wait()
+    
+        research = BlockedResearch(worker_database_url, None, None, None, None)
+        controls = RunLifecycleActivities(lifecycle, RunInputLoader(store), events)
+        segments = SegmentActivities(store)
+        workers = build_web_temporal_workers(
+            client,
+            lifecycle_activities=[*lifecycle_control_activities(worker_database_url, controls),
+                                  runtime.finalize_agent_result,
+                                  research.prepare_research_activity, research.create_research_plan_activity,
+                                  research.fail_research_activity],
+            agent_activities=[segments.acquire, segments.release, segments.begin_wait, segments.finish_wait,
+                              runtime.context_bootstrap, runtime.model_decision, runtime.tool_execution,
+                              runtime.planning, runtime.evaluate_plan],
+        )
+        executions = PostgresWorkflowExecutionStore(worker_database_url)
+        dispatch = WebOutboxDispatcher(
+            OutboxService(worker_database_url),
+            TemporalOutboxDispatcher(executions, TemporalClientAdapter(client), lifecycle), "phase2-concurrency",
+        )
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(workers.lifecycle)
+            await stack.enter_async_context(workers.agent)
+            # The Main acceptance turn is short and completes independently.
+            first = chat.send_message(account_id, cid, str(uuid4()), "Please start the investigation")
+            await dispatch.run_once()
+            await asyncio.wait_for(entered.wait(), 20)
+            work_handle = client.get_workflow_handle(executions.current_workflow_id(work_run))
+&gt;           result = await asyncio.wait_for(client.get_workflow_handle(executions.current_workflow_id(UUID(first["run_id"]))).result(), 30)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/web_persistence/test_web_temporal_e2e.py:360: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/usr/lib/python3.12/asyncio/tasks.py:519: in wait_for
+    async with timeouts.timeout(timeout):
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;Timeout [expired]&gt;
+exc_type = &lt;class 'asyncio.exceptions.CancelledError'&gt;
+exc_val = CancelledError(), exc_tb = &lt;traceback object at 0x75549ee7e3c0&gt;
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -&gt; Optional[bool]:
+        assert self._state in (_State.ENTERED, _State.EXPIRING)
+    
+        if self._timeout_handler is not None:
+            self._timeout_handler.cancel()
+            self._timeout_handler = None
+    
+        if self._state is _State.EXPIRING:
+            self._state = _State.EXPIRED
+    
+            if self._task.uncancel() &lt;= self._cancelling and exc_type is exceptions.CancelledError:
+                # Since there are no new cancel requests, we're
+                # handling this.
+&gt;               raise TimeoutError from exc_val
+E               TimeoutError
+
+/usr/lib/python3.12/asyncio/timeouts.py:115: TimeoutError</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_lifecycle" name="test_td_007_cancel_and_complete_race_has_one_database_terminal" time="2.946"><failure message="AssertionError: assert 'cancelling' == 'cancelled'&#10;  &#10;  - cancelled&#10;  + cancelling">db = &lt;psycopg.Connection [IDLE] (host=localhost port=5434 user=hpagent_migrate database=hpagent_ui8_backend_20261008_03) at 0x75549da82420&gt;
+account_id = UUID('9c02d0b8-5bd2-4e18-a03c-507295fad337')
+database_url = 'postgresql://hpagent_api:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+worker_database_url = 'postgresql://hpagent_worker:[redacted]@localhost:5434/hpagent_ui8_backend_20261008_03'
+
+    
+    pytestmark = [pytest.mark.asyncio, pytest.mark.postgres]
+    
+    
+    @pytest.mark.parametrize("first", ["complete", "finalize_cancelled"])
+    async def test_td_007_cancel_and_complete_race_has_one_database_terminal(
+        db, account_id, database_url, worker_database_url, first
+    ):
+        commands, _, run_id = _conversation_and_run(database_url, account_id)
+        lifecycle = WebRunLifecycleService(worker_database_url)
+        await asyncio.to_thread(lifecycle.prepare, run_id)
+        assert commands.cancel_run(account_id, run_id, str(uuid4())).body["run"]["status"] == "cancelling"
+        committed = asyncio.Event()
+    
+        async def ordered(name, function, *args):
+            if name != first:
+                await asyncio.wait_for(committed.wait(), 5)
+            try:
+                return await asyncio.to_thread(function, *args)
+            finally:
+                if name == first:
+                    committed.set()
+    
+        completed, cancelled = await asyncio.gather(
+            ordered("complete", lifecycle.complete, run_id, "race reply"),
+            ordered("finalize_cancelled", lifecycle.finalize_cancelled, run_id),
+        )
+        run_status = db.execute(
+&gt;           "SELECT status FROM runs WHERE run_id=%s", (run_id,)
+        ).fetchone()[0]
+E       AssertionError: assert 'cancelling' == 'cancelled'
+E         
+E         - cancelled
+E         + cancelling
+
+test/web_persistence/test_web_temporal_lifecycle.py:42: AssertionError</failure></testcase><testcase classname="test.web_persistence.test_web_temporal_lifecycle" name="test_td_010_retried_lifecycle_finalizer_is_logically_idempotent" time="2.962" /></testsuite></testsuites>

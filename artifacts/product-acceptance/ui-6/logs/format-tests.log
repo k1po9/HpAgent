@@ -1,8 +1,0 @@
-src/components/artifact/ArtifactComposer.tsx 187ms (unchanged)
-src/components/artifact/artifactDownloads.test.ts 28ms
-src/components/artifact/artifactDownloads.ts 23ms (unchanged)
-src/components/artifact/ArtifactInspector.test.tsx 94ms (unchanged)
-src/components/artifact/ArtifactInspector.tsx 165ms (unchanged)
-src/components/artifact/ArtifactMessageItems.test.tsx 37ms
-src/components/artifact/ArtifactMessageItems.tsx 26ms (unchanged)
-src/components/ArtifactPreview.test.tsx 11ms

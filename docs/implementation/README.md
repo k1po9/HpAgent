@@ -25,55 +25,20 @@
 
 ## 前端 UI 重构
 
-- [UI-7 自检修复记录](ui-7-self-review-fixes.md)：修复迟到 Run 查询抢前景、summary/iframe 键盘边界和普通聊天终态额外 Trace 查询；正式反例、前端检查、Chromium 与源码指纹独立记录。
+- [UI-1～UI-8 重构交接](ui-refactor.md)：阶段提交、已修复的自审缺陷、完整能力矩阵、最新批次、性能/资源、059 迁移及剩余放行门槛。
+- [当前前端架构](../architecture/web-ui.md)：入口与路由、状态权威、请求隔离、四桶、权限/保存、HTML 版本与旧能力迁移。
+- [功能操作指南](../operations/web-workbench.md)：按 AI / 空间 / 任务使用当前产品。
+- [保留验收证据](../../artifacts/product-acceptance/ui-refactor/README.md)：初始失败、完整修复、10-09 范围复验及最后完整截图；批次不累加。
 
-- [UI-7 独立自检](ui-7-self-review.md)：原 87 项既有定向回归通过，3 个 P2 反例与 Chromium 复现保留；当前修复状态及独立证据见修复记录。
-
-- [UI-7 自检记录](ui-7-self-review.md)：3 个已复现的 P2，涉及迟到 Run 查询关闭新弹窗、模态焦点遗漏原生 summary、普通 Chat 终态触发非必要 Trace 查询；含 87 项既有定向回归、失败反例、Chromium 证据及修复门槛，状态为待修复。
-
-- [UI-7 统一与清理实施报告](ui-7-unification-cleanup-report.md)：正式入口与旧壳清理、导航权威、稳定 Surface/焦点、样式 tokens、响应式与动效；含本轮验证、A7-01～A7-26 覆盖和人工验收边界。
-
-- [UI-7 统一与清理实施计划](ui-7-unification-cleanup-plan.md)：基于 `e6791e3`，规划旧能力入口补位、页壳与导航 bridge 清理、Trace 状态分离、Surface/焦点统一及 Motion/Responsive/A11y；保留规划基线，执行结果见实施报告。
-
-- [UI-6 自检与修复记录](ui-6-self-review.md)：R1/R2/R3 已修复；逐版本响应合并、消息行恢复轮询与当前加载默认选择，保留原 4 个失败反例及独立修复回归证据。
-
-- [UI-6 HTML Artifact 实施报告](ui-6-html-artifact-report.md)：上下文三页签、版本与修改、幂等恢复、安全预览、下载及源码副本保存，保留 Task 原交付；自动化日志、截图和人工验收边界见报告与证据目录。
-
-- [UI-6 HTML Artifact 闭环实施计划](ui-6-html-artifact-plan.md)：基于 `9560c99`，规划上下文 Inspector、版本与修改、幂等恢复、安全预览、源码副本保存及 Task 验收隔离；含当前代码差距、工作包和 A6-01～A6-20 验收矩阵；保留规划基线，执行结果见下方报告。
-
-- [UI-5 自检记录](ui-5-self-review.md)：复用前一窗口反例，确认 3 个待修复 P2；本轮 80 项已有回归通过、3 项反例失败，含根因、修复建议和复验门槛。
-
-- [UI-5 任务中心实施计划](ui-5-task-center-plan.md)：基于 `be57e0b`，规划四桶投影、完整分页、Task Inspector、创建修订、预算与投递、Research 输出和收件箱；包含 M01–M21、代码差距、分步实施与验收边界；保留规划基线，执行结果见下方报告。
-
-- [UI-5 自检与修复记录](ui-5-self-review.md)：R1 输出缓存终态失效、R2 异常快照成果页、R3 要求重试草稿保留；3 个 P2 已修复，正式回归和本批独立证据见记录。
-
-- [UI-5 任务中心实施报告](ui-5-task-center-report.md)：四桶与分页、Task Inspector、创建/修订、预算/投递、资料与成果、局部收件箱；命令日志、截图和真实/合成验收边界见报告及证据目录。
-
-- [UI-4 自检记录](ui-4-self-review.md)：4 个已复现的 P2 问题、修复建议和复验门槛；本轮 78 项已有测试通过，4 项定向反例失败，状态为待修复。
-
-- [UI-4 空间与权限实施计划](ui-4-workspace-permissions-plan.md)：基于 `40a318a`，规划空间目录与文件列表、File Inspector、共享权限编辑、上传/保存恢复、影响确认及版本 CAS；含代码差距、分步实施与验收矩阵，保留规划基线，执行结果见下方报告。
-
-- [UI-4 自检与修复记录](ui-4-self-review.md)：R1～R4 四项缺陷证据、正式恢复/并发回归、修复后的独立验证结果；原实施日志保留为历史记录。
-
-- [UI-4 空间与权限实施报告](ui-4-workspace-permissions-report.md)：新空间目录/文件表格、File Inspector、显式授权与失败恢复、impact/CAS；命令日志、逐项验收和未覆盖环境见报告及证据目录。
-
-- [UI-3 执行与诊断实施计划](ui-3-execution-diagnostics-plan.md)：基于 `325a5d7` 的 UI-1/UI-2 代码，规划消息执行块、Run Inspector、审批及 Trace/Model Input 上下文化，含接口边界、实施步骤与验收矩阵；执行结果见下方报告。
-
-- [UI-3 自检与修复记录](ui-3-self-review.md)：终态输出刷新、Model Input 权限拒绝缓存失效及轮询生命周期补验。
-
-- [UI-3 执行与诊断实施报告](ui-3-execution-diagnostics-report.md)：消息执行块、Run 三页签、审批意图恢复及诊断隔离；自动化结果和人工/Temporal 覆盖边界见报告及证据目录。
-
-- [UI-2 AI 主要交互实施计划](ui-2-ai-interaction-plan.md)：基于重构方案 v1.0 与 `cc40862` 的 UI-1 代码，定义 AI 对话、Composer、分页、附件与资料交互的实施及验收范围；保留规划基线，执行结果见下方报告。
-
-- [UI-2 AI 主要交互实施报告](ui-2-ai-interaction-report.md)：实现范围、自动化覆盖、截图、命令日志与人工验收边界。
-
-- [UI-2 自检问题修复指导](ui-2-self-review-fix-guide.md)：3 个已复现缺陷的根因、修复边界、回归用例和报告更新要求；状态为待修复。
+原 UI 阶段计划、重复报告和自审指南已合并；历史可从阶段提交恢复。自动化通过范围与真机、读屏、真实 QQ、业务模型链及生产恢复缺口分别记录，当前仍未达到最终产品放行条件。
 
 ## 当前证据与限制
 
+当前三入口前端及后端修复以 [UI-1～UI-8 重构交接](ui-refactor.md)与独立证据为准；交接中的 UI-8 历史批次和下列 2026-10-04 批次保留历史结论，不作为本轮通过次数。
+
 2026-10-04 修复批次：前端 100 项、Chromium 21 项、核心后端 91 项通过；另有 Workspace API 21 项、持久化/上下文组合 67 项、Work/Run API 37 项。后端批次有重叠，不相加为不同用例总数。数据库均隔离；浏览器采用测试执行器，不能视为真实模型验收。
 
-当前代码的 API / Worker 重载就绪、8 个注册 Workflow 的沙箱准备、构建与静态检查已通过。真实 MiniMax-M3 工具往返在首个请求连接阶段超时，未获得模型 HTTP 响应，见[脱敏记录](../../artifacts/product-acceptance/2026-10-04/manual-e2e-provider-roundtrip.json)。该状态不改写此前 HTTP 500 的调查，也不证明供应商往返问题已经实证消失。
+2026-10-04 批次曾验证 API / Worker 重载就绪、8 个 Workflow 沙箱准备、构建与静态检查；当时 MiniMax-M3 首请求连接超时，未获得 HTTP 响应，见[历史脱敏记录](../../artifacts/product-acceptance/2026-10-04/manual-e2e-provider-roundtrip.json)。2026-10-09 的当前 ModelClient 多轮合成工具 provider boundary 已通过，见[最新请求摘要](../../artifacts/product-acceptance/ui-refactor/recheck/logs/provider-roundtrip.json)；真实业务 Run Activity 链仍未完成验收。这些记录不能代替当前部署健康检查。
 
 2026-10-03 复查记录还保留 Research 崩溃恢复限制：stage lease 默认 3600 秒，publish/save 的 Activity schedule-to-close 120 秒；SIGKILL 验收用 5 秒自然到期租约验证接管与去重，没有证明生产默认配置下快速恢复。本次协议/UI 修复未改变该策略。真实 QQ 发信、跨入口完整产品流程和持续多租户压力仍需补验收。
 

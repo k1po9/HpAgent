@@ -142,7 +142,7 @@ export interface WorkbenchState {
   leaveConversation: () => void;
   renameActiveConversation: (title: string) => Promise<boolean>;
   createConversation: () => Promise<void>;
-  selectConversation: (id: string) => Promise<void>;
+  selectConversation: (id: string, refresh?: boolean) => Promise<void>;
   loadMoreMessages: () => Promise<void>;
   addAttachments: (files: File[]) => Promise<void>;
   selectExistingFile: (file: HpFile) => void;
@@ -770,41 +770,49 @@ export function createWorkbenchStore(
         }
       },
 
-      selectConversation: async (id) => {
-        if (id === get().activeConversationId) return;
+      selectConversation: async (id, refresh = false) => {
+        const refreshing = id === get().activeConversationId;
+        if (refreshing && !refresh) return;
         const generation = ++conversationSelectionGeneration;
-        candidateGeneration += 1;
-        closeFeed();
-        useTraceStore.getState().reset();
-        set((s) => ({
-          activeConversationId: id,
-          activeConversation: null,
-          loadingFileCandidates: false,
-          fileCandidatesError: null,
-          creatingConversation: false,
-          sending: false,
-          stopping: false,
-          loadingMoreMessages: false,
-          messages: [],
-          attachments: [],
-          fileCandidates: [],
-          fileCandidatesNext: null,
-          messageCursor: null,
-          hasMoreMessages: true,
-          activeRun: null,
-          activeRunError: null,
-          activeRunProgress: null,
-          degraded: false,
-          error: null,
-          pollGeneration: s.pollGeneration + 1,
-        }));
+        if (!refreshing) {
+          candidateGeneration += 1;
+          closeFeed();
+          useTraceStore.getState().reset();
+          set((s) => ({
+            activeConversationId: id,
+            activeConversation: null,
+            loadingFileCandidates: false,
+            fileCandidatesError: null,
+            creatingConversation: false,
+            sending: false,
+            stopping: false,
+            loadingMoreMessages: false,
+            messages: [],
+            attachments: [],
+            fileCandidates: [],
+            fileCandidatesNext: null,
+            messageCursor: null,
+            hasMoreMessages: true,
+            activeRun: null,
+            activeRunError: null,
+            activeRunProgress: null,
+            degraded: false,
+            error: null,
+            pollGeneration: s.pollGeneration + 1,
+          }));
+        }
         set({ loadingMessages: true });
+        const runGeneration = get().pollGeneration;
         try {
           const [detail, page] = await Promise.all([
             api.getConversationDetail(id),
             api.listMessages(id),
           ]);
           if (generation !== conversationSelectionGeneration) return;
+          if (refreshing && runGeneration !== get().pollGeneration) {
+            set({ loadingMessages: false });
+            return;
+          }
           const active = detail.active_run;
           set((s) => ({
             loadingMessages: false,
@@ -1112,7 +1120,14 @@ export function createWorkbenchStore(
               ),
             });
           }
-          if (!valid()) return false;
+          if (!valid()) {
+            // A new selection may have read the conversation before this POST
+            // committed. Re-read the selected object rather than applying the
+            // old response across its selection generation.
+            if (account === accountGeneration && get().activeConversationId === conversationId)
+              await get().selectConversation(conversationId, true);
+            return false;
+          }
           const currentRun = get().activeRun;
           const sameRun = currentRun?.run_id === result.run.run_id;
           const resolvedRun =

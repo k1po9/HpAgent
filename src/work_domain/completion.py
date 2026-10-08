@@ -58,8 +58,8 @@ class WorkCompletionPolicy:
                    'evaluator': 'authorized_user_acceptance_v1' if user_evidence is not None else 'delivery_receipt_policy_v1' if delivery_evidence is not None else 'work_completion_policy_v1'}
         updated = uow.execute(
             'UPDATE works SET status=\'completed\',completed_requirement_revision=%s,'
-            'completion_receipt=%s::jsonb,completed_at=now(),row_version=row_version+1,'
-            'updated_at=now(),continuation=\'{"schema_version":1,"kind":"none","reason":"criteria_satisfied"}\' '
+            'completion_receipt=%s::jsonb,completed_at=GREATEST(now(),created_at,updated_at),row_version=row_version+1,'
+            'updated_at=GREATEST(now(),created_at,updated_at),continuation=\'{"schema_version":1,"kind":"none","reason":"criteria_satisfied"}\' '
             'WHERE account_id=%s AND work_id=%s RETURNING *',
             (run['requirement_revision'], json.dumps(receipt), work['account_id'], work['work_id'])).fetchone()
         uow.execute('UPDATE work_wakeups SET state=\'superseded\' WHERE work_id=%s AND state=\'pending\'',

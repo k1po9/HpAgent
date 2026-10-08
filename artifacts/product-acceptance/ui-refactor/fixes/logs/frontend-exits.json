@@ -1,0 +1,43 @@
+[
+  {
+    "name": "typecheck",
+    "command": [
+      "npm",
+      "run",
+      "typecheck"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 31.22
+  },
+  {
+    "name": "lint",
+    "command": [
+      "npm",
+      "run",
+      "lint"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 115.4
+  },
+  {
+    "name": "build",
+    "command": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 70.2
+  },
+  {
+    "name": "unit",
+    "command": [
+      "npm",
+      "test",
+      "--",
+      "--maxWorkers=1"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 402.24
+  }
+]

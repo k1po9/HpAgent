@@ -1,9 +1,0 @@
-web/src/components/shell/Surface.tsx 482ms
-web/src/components/shell/Surface.test.tsx 192ms
-web/src/components/run/RunLookup.tsx 152ms (unchanged)
-web/src/components/tasks/TaskEditor.tsx 464ms (unchanged)
-web/src/components/ChatPane.tsx 252ms (unchanged)
-web/src/components/RunStatus.tsx 118ms (unchanged)
-web/src/components/workspace/FileInspector.tsx 219ms
-web/src/styles/unification.css 243ms (unchanged)
-web/e2e/ui-7-unification.spec.ts 266ms (unchanged)

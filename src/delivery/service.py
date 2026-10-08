@@ -228,7 +228,7 @@ class DeliveryReceiptHandler:
                 receipt_ref=str(notification["notification_id"]),
             )
             uow.execute(
-                "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=now() WHERE work_id=%s",
+                "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
                 (json.dumps(next_step), work["work_id"]),
             )
             WorkRepository.event(
@@ -257,7 +257,7 @@ class DeliveryReceiptHandler:
                 else continuation("ready", "delivery_accepted")
             )
             uow.execute(
-                "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=now() WHERE work_id=%s",
+                "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
                 (json.dumps(next_step), work["work_id"]),
             )
 
@@ -323,7 +323,7 @@ class DeliveryService:
                     and work["continuation"].get("receipt_ref") == str(row["notification_id"])
                 ):
                     uow.execute(
-                        "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=now() WHERE work_id=%s",
+                        "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
                         (
                             json.dumps(
                                 continuation(

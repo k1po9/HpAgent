@@ -155,7 +155,23 @@ class SSEGateway:
             if not acquired:
                 yield sse_frame(self._degraded(None, run_id, "upstream_disconnected"))
                 return
+        pubsub = None
+        reader = None
+        queue: asyncio.Queue[str] = asyncio.Queue(
+            maxsize=self.settings.sse_handshake_buffer_events
+        )
+        state = _BufferState()
         try:
+            if self.redis is not None:
+                try:
+                    pubsub = self.redis.pubsub()
+                    await pubsub.subscribe(channel)
+                    reader = asyncio.create_task(self._read_pubsub(pubsub, queue, state))
+                except Exception:
+                    # Keep the authoritative snapshot available on Redis failure.
+                    state.degraded_reason = "redis_unavailable"
+            # Subscribe/buffer first so a terminal committed during the read
+            # cannot fall into the snapshot-to-subscription window.
             try:
                 snapshot = await asyncio.to_thread(
                     load_run_snapshot, self.database, account_id, run_id
@@ -181,107 +197,90 @@ class SSEGateway:
             if snapshot["run"]["status"] in _TERMINAL_STATUSES:
                 # Snapshot is authoritative: buffered deltas (if any) are dropped.
                 return
-            if self.redis is None:
-                yield sse_frame(
-                    self._degraded(conversation_id, run_id, "redis_unavailable")
-                )
+            if reader is None:
+                yield sse_frame(self._degraded(conversation_id, run_id, "redis_unavailable"))
                 return
-
-            try:
-                pubsub = self.redis.pubsub()
-                await pubsub.subscribe(channel)
-            except Exception:
-                yield sse_frame(
-                    self._degraded(conversation_id, run_id, "redis_unavailable")
-                )
-                return
-
-            queue: asyncio.Queue[str] = asyncio.Queue(
-                maxsize=self.settings.sse_handshake_buffer_events
-            )
-            state = _BufferState()
-            reader = asyncio.create_task(self._read_pubsub(pubsub, queue, state))
             seen_stream_ids: set[str] = set()
-            try:
-                while True:
-                    if state.degraded_reason is not None:
+            while True:
+                if state.degraded_reason is not None:
+                    yield sse_frame(
+                        self._degraded(
+                            conversation_id, run_id, state.degraded_reason
+                        )
+                    )
+                    return
+                try:
+                    raw = await asyncio.wait_for(
+                        queue.get(),
+                        timeout=self.settings.sse_keepalive_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    if raw_token and auth_check is not None:
+                        try:
+                            valid = await asyncio.to_thread(
+                                auth_check, raw_token
+                            )
+                        except Exception:
+                            valid = True
+                        if not valid:
+                            yield sse_frame(
+                                envelope(
+                                    "auth.expired",
+                                    event_id=str(uuid7()),
+                                    conversation_id=conversation_id,
+                                    run_id=str(run_id),
+                                    message_id=None,
+                                    stream_id=None,
+                                    event_seq=None,
+                                    payload={},
+                                )
+                            )
+                            return
+                    yield KEEPALIVE_FRAME
+                    continue
+                except asyncio.CancelledError:
+                    raise
+                event = self._normalize_event(raw, conversation_id)
+                if event is None:
+                    continue
+                stream_id = event.get("stream_id")
+                if stream_id is not None:
+                    seen_stream_ids.add(stream_id)
+                    if len(seen_stream_ids) > 1:
                         yield sse_frame(
                             self._degraded(
-                                conversation_id, run_id, state.degraded_reason
+                                conversation_id, run_id, "sequence_gap"
                             )
                         )
                         return
+                if event["event_type"] in _TERMINAL_EVENT_TYPES:
                     try:
-                        raw = await asyncio.wait_for(
-                            queue.get(),
-                            timeout=self.settings.sse_keepalive_seconds,
+                        snapshot = await asyncio.to_thread(
+                            load_run_snapshot, self.database, account_id, run_id
                         )
-                    except asyncio.TimeoutError:
-                        if raw_token and auth_check is not None:
-                            try:
-                                valid = await asyncio.to_thread(
-                                    auth_check, raw_token
-                                )
-                            except Exception:
-                                valid = True
-                            if not valid:
-                                yield sse_frame(
-                                    envelope(
-                                        "auth.expired",
-                                        event_id=str(uuid7()),
-                                        conversation_id=conversation_id,
-                                        run_id=str(run_id),
-                                        message_id=None,
-                                        stream_id=None,
-                                        event_seq=None,
-                                        payload={},
-                                    )
-                                )
-                                return
-                        yield KEEPALIVE_FRAME
+                    except ResourceNotFound:
                         continue
-                    except asyncio.CancelledError:
-                        raise
-                    event = self._normalize_event(raw, conversation_id)
-                    if event is None:
-                        continue
-                    stream_id = event.get("stream_id")
-                    if stream_id is not None:
-                        seen_stream_ids.add(stream_id)
-                        if len(seen_stream_ids) > 1:
-                            yield sse_frame(
-                                self._degraded(
-                                    conversation_id, run_id, "sequence_gap"
-                                )
-                            )
-                            return
-                    if event["event_type"] in _TERMINAL_EVENT_TYPES:
-                        try:
-                            snapshot = await asyncio.to_thread(
-                                load_run_snapshot, self.database, account_id, run_id
-                            )
-                        except ResourceNotFound:
-                            continue
-                        if snapshot["run"]["status"] in _TERMINAL_STATUSES:
-                            event["payload"] = {"snapshot": snapshot}
-                            event["message_id"] = snapshot.get("assistant_message", {}).get("message_id")
-                            event["stream_id"] = None
-                            event["event_seq"] = None
-                            yield sse_frame(event)
-                            log_event(logger, logging.INFO, "sse_terminal_snapshot_sent", "sse", run_id=str(run_id),
-                                      conversation_id=conversation_id, status=snapshot["run"]["status"])
-                            return
-                        # Terminal claimed but not yet committed: keep streaming.
-                        continue
-                    yield sse_frame(event)
-            finally:
+                    if snapshot["run"]["status"] in _TERMINAL_STATUSES:
+                        event["payload"] = {"snapshot": snapshot}
+                        event["message_id"] = snapshot.get("assistant_message", {}).get("message_id")
+                        event["stream_id"] = None
+                        event["event_seq"] = None
+                        yield sse_frame(event)
+                        log_event(logger, logging.INFO, "sse_terminal_snapshot_sent", "sse", run_id=str(run_id),
+                                  conversation_id=conversation_id, status=snapshot["run"]["status"])
+                        return
+                    # Terminal claimed but not yet committed: keep streaming.
+                    continue
+                yield sse_frame(event)
+        finally:
+            if reader is not None:
                 reader.cancel()
-                with contextlib.suppress(Exception):
-                    await asyncio.gather(reader, return_exceptions=True)
+                await asyncio.gather(reader, return_exceptions=True)
+            if pubsub is not None:
                 with contextlib.suppress(Exception):
                     await pubsub.unsubscribe(channel)
+                with contextlib.suppress(Exception):
                     await pubsub.aclose()
-        finally:
             await self.release()
             log_event(logger, logging.INFO, "sse_disconnected", "sse", run_id=str(run_id), status="completed")
 

@@ -1,4 +1,0 @@
-Before-fix reproduction: 3 failed, exit 1.
-Targeted repair regression: 26 passed, exit 0.
-Final typecheck/lint/build/full Vitest chain: 329 passed, exit 0.
-Chromium repair matrix: 15 passed, outer wrapper exit 0.

@@ -1,0 +1,203 @@
+[
+  {
+    "class": "test.web_api.test_command_projection",
+    "name": "test_http_projection_adds_links_without_mutating_persisted_result",
+    "seconds": "0.001",
+    "message": "KeyError: 'source_kind'",
+    "evidence": [
+      ">       projected = command_body(result, \"run\", \"assistant_message\", events=True)",
+      ">           body[\"source_kind\"] = body[\"run\"][\"source_kind\"]",
+      "E           KeyError: 'source_kind'"
+    ]
+  },
+  {
+    "class": "test.web_api.test_config",
+    "name": "test_web_api_import_does_not_load_agent_runtime",
+    "seconds": "3.867",
+    "message": "subprocess.CalledProcessError: Command '['/home/hp/workspace/HpAgent_web/.venv/bin/python', '-c', \"import sys; import web_api.app; forbidden=('agent','sandbox','temporalio','channels.router'); assert not any(name == item or name.startswith(item + '.') for name in sys.modules for item in forbidden)\"]' returned non-zero exit status 1.",
+    "evidence": [
+      ">       subprocess.run([sys.executable, \"-c\", code], check=True, env=env)",
+      ">               raise CalledProcessError(retcode, process.args,",
+      "E               subprocess.CalledProcessError: Command '['/home/hp/workspace/HpAgent_web/.venv/bin/python', '-c', \"import sys; import web_api.app; forbidden=('agent','sandbox','temporalio','channels.router'); assert not any(name == item or name.startswith(item + '.') for name in sys.modules for item in forbidden)\"]' returned non-zero exit status 1."
+    ]
+  },
+  {
+    "class": "test.web_api.test_research_terminal_cancel",
+    "name": "test_work_terminal_outbox_row_is_consumed_without_chat_sse",
+    "seconds": "0.009",
+    "message": "KeyError: 'event_type'",
+    "evidence": [
+      ">       asyncio.run(publisher._publish_one({",
+      ">       if event['event_type'] == 'publish_work_event':",
+      "E       KeyError: 'event_type'"
+    ]
+  },
+  {
+    "class": "test.web_api.test_sse_gateway",
+    "name": "test_sse_http_fake_executor_streams_online_events_then_terminal",
+    "seconds": "16.674",
+    "message": "AssertionError: assert 'run.started' in ['run.snapshot', 'run.progress', 'message.delta', 'run.progress', 'run.succeeded']",
+    "evidence": [
+      "            assert response.status_code == 200",
+      "        assert types[0] == \"run.snapshot\"",
+      ">       assert \"run.started\" in types",
+      "E       AssertionError: assert 'run.started' in ['run.snapshot', 'run.progress', 'message.delta', 'run.progress', 'run.succeeded']"
+    ]
+  },
+  {
+    "class": "test.web_api.test_workspace_research_cancel_chain",
+    "name": "test_work_revoke_uses_production_cancel_chain[False]",
+    "seconds": "41.168",
+    "message": "assert False",
+    "evidence": [
+      "        assert client_api.post(\"/auth/login\", json={\"username\": \"research-cancel-chain\",",
+      "        assert upload.status_code == 201",
+      "        assert client_api.put(upload.json()[\"content_url\"], content=body,",
+      "        assert saved.status_code == 201",
+      "        assert work.status_code == 201, work.text",
+      "        assert granted.status_code == 201",
+      "        assert triggered.status_code == 202, triggered.text",
+      "                    assert release.wait(60)",
+      ">                   assert await asyncio.to_thread(entered.wait, 20)",
+      "E                   assert False"
+    ]
+  },
+  {
+    "class": "test.web_api.test_workspace_research_cancel_chain",
+    "name": "test_work_revoke_uses_production_cancel_chain[True]",
+    "seconds": "26.549",
+    "message": "assert False",
+    "evidence": [
+      "        assert client_api.post(\"/auth/login\", json={\"username\": \"research-cancel-chain\",",
+      "        assert upload.status_code == 201",
+      "        assert client_api.put(upload.json()[\"content_url\"], content=body,",
+      "        assert saved.status_code == 201",
+      "        assert work.status_code == 201, work.text",
+      "        assert granted.status_code == 201",
+      "        assert triggered.status_code == 202, triggered.text",
+      "                    assert release.wait(60)",
+      ">                   assert await asyncio.to_thread(entered.wait, 20)",
+      "E                   assert False"
+    ]
+  },
+  {
+    "class": "test.web_persistence.test_permissions",
+    "name": "test_artifact_runtime_permissions_are_split_by_responsibility",
+    "seconds": "0.029",
+    "message": "Failed: DID NOT RAISE <class 'psycopg.errors.InsufficientPrivilege'>",
+    "evidence": [
+      ">           with pytest.raises(psycopg.errors.InsufficientPrivilege):",
+      "E           Failed: DID NOT RAISE <class 'psycopg.errors.InsufficientPrivilege'>"
+    ]
+  },
+  {
+    "class": "test.web_persistence.test_web_temporal_e2e",
+    "name": "test_web_canonical_lifecycle[react-completed-web]",
+    "seconds": "25.921",
+    "message": "temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed",
+    "evidence": [
+      "                    assert cancelled[\"run_id\"] == str(run_id)",
+      ">               result = await asyncio.wait_for(handle.result(), 60)",
+      ">                   raise WorkflowFailureError(",
+      "E                       temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed"
+    ]
+  },
+  {
+    "class": "test.web_persistence.test_web_temporal_e2e",
+    "name": "test_web_canonical_lifecycle[plan_and_execute-completed-web]",
+    "seconds": "21.727",
+    "message": "temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed",
+    "evidence": [
+      "                    assert cancelled[\"run_id\"] == str(run_id)",
+      ">               result = await asyncio.wait_for(handle.result(), 60)",
+      ">                   raise WorkflowFailureError(",
+      "E                       temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed"
+    ]
+  },
+  {
+    "class": "test.web_persistence.test_web_temporal_e2e",
+    "name": "test_web_canonical_lifecycle[react-cancelled-web]",
+    "seconds": "35.152",
+    "message": "TimeoutError",
+    "evidence": [
+      ">           return await fut",
+      ">           await fut",
+      "E           asyncio.exceptions.CancelledError",
+      ">               await asyncio.wait_for(brain.entered.wait(), 30)",
+      "        assert self._state in (_State.ENTERED, _State.EXPIRING)",
+      ">               raise TimeoutError from exc_val",
+      "E               TimeoutError"
+    ]
+  },
+  {
+    "class": "test.web_persistence.test_web_temporal_e2e",
+    "name": "test_web_canonical_lifecycle[plan_and_execute-cancelled-web]",
+    "seconds": "36.609",
+    "message": "TimeoutError",
+    "evidence": [
+      ">           return await fut",
+      ">           await fut",
+      "E           asyncio.exceptions.CancelledError",
+      ">               await asyncio.wait_for(brain.entered.wait(), 30)",
+      "        assert self._state in (_State.ENTERED, _State.EXPIRING)",
+      ">               raise TimeoutError from exc_val",
+      "E               TimeoutError"
+    ]
+  },
+  {
+    "class": "test.web_persistence.test_web_temporal_e2e",
+    "name": "test_web_canonical_lifecycle[react-completed-napcat]",
+    "seconds": "26.777",
+    "message": "temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed",
+    "evidence": [
+      "                    assert cancelled[\"run_id\"] == str(run_id)",
+      ">               result = await asyncio.wait_for(handle.result(), 60)",
+      ">                   raise WorkflowFailureError(",
+      "E                       temporalio.client._exceptions.WorkflowFailureError: Workflow execution failed"
+    ]
+  },
+  {
+    "class": "test.web_persistence.test_web_temporal_e2e",
+    "name": "test_web_canonical_lifecycle[react-cancelled-napcat]",
+    "seconds": "38.596",
+    "message": "TimeoutError",
+    "evidence": [
+      ">           return await fut",
+      ">           await fut",
+      "E           asyncio.exceptions.CancelledError",
+      ">               await asyncio.wait_for(brain.entered.wait(), 30)",
+      "        assert self._state in (_State.ENTERED, _State.EXPIRING)",
+      ">               raise TimeoutError from exc_val",
+      "E               TimeoutError"
+    ]
+  },
+  {
+    "class": "test.web_persistence.test_web_temporal_e2e",
+    "name": "test_blocked_work_does_not_block_same_account_chat",
+    "seconds": "32.622",
+    "message": "TimeoutError",
+    "evidence": [
+      ">           return await fut",
+      ">           await fut",
+      "E           asyncio.exceptions.CancelledError",
+      ">           await asyncio.wait_for(entered.wait(), 20)",
+      "        assert self._state in (_State.ENTERED, _State.EXPIRING)",
+      ">               raise TimeoutError from exc_val",
+      "E               TimeoutError"
+    ]
+  },
+  {
+    "class": "test.web_persistence.test_web_temporal_lifecycle",
+    "name": "test_td_007_cancel_and_complete_race_has_one_database_terminal",
+    "seconds": "6.245",
+    "message": "AssertionError: assert 'cancelling' == 'cancelled'\n  \n  - cancelled\n  + cancelling",
+    "evidence": [
+      "        assert run_status in {\"completed\", \"cancelled\"}",
+      ">       assert completed.status == cancelled.status == run_status",
+      "E       AssertionError: assert 'cancelling' == 'cancelled'",
+      "E         ",
+      "E         - cancelled",
+      "E         + cancelling"
+    ]
+  }
+]

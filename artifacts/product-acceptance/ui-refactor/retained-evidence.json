@@ -1,0 +1,1347 @@
+[
+  {
+    "original": "artifacts/product-acceptance/ui-3/self-review/repro.log",
+    "path": "history/ui-3/repro.log",
+    "sha256": "081b9221b751c4c3f94e8c91d45b2d0446e378fd306f3ea8a75d6d9477bbc45f"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-3/self-review/polling-before-fix.log",
+    "path": "history/ui-3/polling-before-fix.log",
+    "sha256": "18650faa9ebfbef7d361600aed9db7aef38415cf15571dd8f12729d12bf3f813"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-4/self-review/repro.log",
+    "path": "history/ui-4/repro.log",
+    "sha256": "75eec0aebf8806bb8a6ca3b27507a2b9c1c3ef552c0bdad141951abeb16c5401"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-5/self-review/fix-logs/before-fixes.log",
+    "path": "history/ui-5/before-fixes.log",
+    "sha256": "a14a00d1d1fec2bcf3b2f02b4c739f21d0593cce5508363c9bc6c8403e084070"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-6/self-review/fix/before.log",
+    "path": "history/ui-6/before.log",
+    "sha256": "fe7f74a0ac0fffdce4f0261fd901fa576bc015bec3d7a36b23485c52382ab33a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-7/self-review-fixes/repro-before.log",
+    "path": "history/ui-7/repro-before.log",
+    "sha256": "da198b964dee99d3120f0c1121b149989ce87ea9a0bdef88428a42356a1ddccf"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-7/self-review/browser-repro.json",
+    "path": "history/ui-7/browser-repro.json",
+    "sha256": "1d97dd1b0828915041c75d57a595bbedd669d1a0f9bc4f021c12e0ce4f3137ed"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-7/self-review/trace-browser-repro.json",
+    "path": "history/ui-7/trace-browser-repro.json",
+    "sha256": "995fb048b090f3e40ecd4f663dbe7cffe6db0dd9057614bd059f4d23c22e62ad"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/environment.json",
+    "path": "initial/logs/environment.json",
+    "sha256": "3fbab076b7839bacba67a81a0787087097fb9ea3129e7e9cb1494462f64cd547"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/backend-results.xml",
+    "path": "initial/logs/backend-results.xml",
+    "sha256": "51b1c4f61726407841a92de7eef792a7ed1818443e244a0428bea307b8a7618d"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/backend-exits.json",
+    "path": "initial/logs/backend-exits.json",
+    "sha256": "1ce5b980691b61e110bbd9660e99fc25de7eaccd1918d288f03048d37d747256"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/backend-failures.json",
+    "path": "initial/logs/backend-failures.json",
+    "sha256": "2df0bfc4c90b9184ab02a60db3966be5159e9d47e89e6cc70629a8745b88c970"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/frontend-exits.json",
+    "path": "initial/logs/frontend-exits.json",
+    "sha256": "8cbc1dd0571514b2bf6435668963ad4167ea29f5414ae1ea08d0c29ad882a0da"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/browser-results.json",
+    "path": "initial/logs/browser-results.json",
+    "sha256": "1ec5d7dfffda11eeb7ed754510b22050d4a9fb54345d486c001bc9ab064e31f8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/production-results.json",
+    "path": "initial/logs/production-results.json",
+    "sha256": "555238190ffe7bd34e2d57204a4fa13161878a3c2641e126cbd89ccac944c88b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/build-assets.json",
+    "path": "initial/logs/build-assets.json",
+    "sha256": "9f272aebd7a6569a4b6a4ade22c1729171fd439551b607f4b2d507fdfc347cdc"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/production-performance.json",
+    "path": "initial/logs/production-performance.json",
+    "sha256": "e7ac8f9cfdf86d1879bd005f5f42732f12aca9dc28313ce98f776018c9fb78cf"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/final-audit.json",
+    "path": "initial/logs/final-audit.json",
+    "sha256": "a166be74caac00e88c71bc94262bfb51e78ad78415daba2fc70dfd4602061b3b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/credential-redactions.json",
+    "path": "initial/logs/credential-redactions.json",
+    "sha256": "33b891efd69327257c1a72210c253957fdaec203146b8f98e387f97be1d884b9"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/send-race-before.log",
+    "path": "initial/logs/send-race-before.log",
+    "sha256": "3ce94ec1e09f0ee61937c02909c3e13a39f4bc16afa34db0bf065e71ea1e68dd"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/send-race-after-final.log",
+    "path": "initial/logs/send-race-after-final.log",
+    "sha256": "bd49e26a8cc1d790fa6220c74c478c29aa205ddacde80d5d0cde154441560002"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8/logs/ui2-concurrency-network.json",
+    "path": "initial/logs/ui2-concurrency-network.json",
+    "sha256": "8f547037d18d7bcb8c71f513f6f9056350f587795d12fa958c429a17d9cdfa1c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/baseline.json",
+    "path": "fixes/logs/baseline.json",
+    "sha256": "c3fe07526735ae7a8e7092fe791e38086776a910c8e570391117630107cfdf7d"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/baseline-targeted.xml",
+    "path": "fixes/logs/baseline-targeted.xml",
+    "sha256": "647dd2e96104a669e1f7fbe3fd025402b44b96c8fe04ba9c91b739b0e337153a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/new-regressions-before.xml",
+    "path": "fixes/logs/new-regressions-before.xml",
+    "sha256": "a1fd5bcdaea287d2f8452d6e1536868806cdfaedbcddab4c50a506bafdfbea51"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/artifact-cancel-before.xml",
+    "path": "fixes/logs/artifact-cancel-before.xml",
+    "sha256": "e8d3736f6555c3ebb7c5d6d5f1bd114461b76ac802aa18ffaf84f114f5a8f66c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/artifact-cancel-final.xml",
+    "path": "fixes/logs/artifact-cancel-final.xml",
+    "sha256": "1e2587920daeec1b71abd327c01c62a750aa853d409e3e22d7cb620c39f8987d"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/artifact-cancel-final-command.json",
+    "path": "fixes/logs/artifact-cancel-final-command.json",
+    "sha256": "a9fa71e99044f2906d9b0a429ab23fec2a9ddfff5816554f01b0f7f87e930238"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/migration-upgrade.json",
+    "path": "fixes/logs/migration-upgrade.json",
+    "sha256": "0c2c654606abb06354bd511d9508c3e6491c945707779a13ff2188c7860a819c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/final-audit.json",
+    "path": "fixes/logs/final-audit.json",
+    "sha256": "3d48eaa2019a72f4a7f15199e0f568cc3c7e63b5b0f9dcba28ea2df2facabfaf"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/final-environment.json",
+    "path": "fixes/logs/final-environment.json",
+    "sha256": "89c5f16bd2a5e98d275161f2dd51e8ad29aa01a9c0e2da3aa271a5654cb3fc4a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/final-workspace.json",
+    "path": "fixes/logs/final-workspace.json",
+    "sha256": "44d50340a7913b380d4db1f7f026c8ff46902313c43f18f636a0dae13f656e6a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/frontend-exits.json",
+    "path": "fixes/logs/frontend-exits.json",
+    "sha256": "1f76bfd0bbcb2b6b3f33229bbdf7f579fd727f91f787caa3dd3a4f51178ee340"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/backend-exits.json",
+    "path": "fixes/logs/backend-exits.json",
+    "sha256": "5b66dbeca394cbbff75a51108dd14caf41b14cd6d35589fa96ec93793c013015"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/browser-exits.json",
+    "path": "fixes/logs/browser-exits.json",
+    "sha256": "85e93aeb91bbdc2b2c53f45b9d0dbd8bf86e19bf3fbdf4b805eed294fdbd7956"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/production-exits.json",
+    "path": "fixes/logs/production-exits.json",
+    "sha256": "3162615f43ed3cda44ddb0431b49f34820e0125393ad55bd5ff7fbeffbffff02"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/backend-results.xml",
+    "path": "fixes/logs/backend-results.xml",
+    "sha256": "0810965f183a2cae416e71f27d4f2759e035dd757ebcb5b780911d55ec7eace7"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/browser-results.json",
+    "path": "fixes/logs/browser-results.json",
+    "sha256": "5be696192e90d52e22b22ffd619e32045d147cc1a408b75d89222d1b43ba60fa"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/production-results.json",
+    "path": "fixes/logs/production-results.json",
+    "sha256": "2db9fc4667979996a89262d8b937dd80d9764e267eb131af75de4a04ecd2e5a9"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/backend-command.json",
+    "path": "fixes/logs/backend-command.json",
+    "sha256": "f8269deb4cd6062886a2966f3a7c032a6e13e73d70d4637c0606e3393ac08439"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/frontend-command.json",
+    "path": "fixes/logs/frontend-command.json",
+    "sha256": "a564975dc37720e61bca72c35e16bfc9f6a22fe9c5605eddc8db06cef2712fac"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/browser-command.json",
+    "path": "fixes/logs/browser-command.json",
+    "sha256": "4ef4acd66a1182e4c5483e3cc7ac396519d661579713b261886e251a902ab698"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/production-command.json",
+    "path": "fixes/logs/production-command.json",
+    "sha256": "8f61f7c1bce58ff2909b1e3e96a29e04742e5c1635f6bff1daf6d2f707683dcc"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/f8-01-02-final.xml",
+    "path": "fixes/logs/f8-01-02-final.xml",
+    "sha256": "5d0a83711efd8764b92f20cd21503204d2d9abec17a5f43ecbece21150e3f171"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/canonical-strict.xml",
+    "path": "fixes/logs/canonical-strict.xml",
+    "sha256": "8babe40b1852a21dcd9cab98111876ba3c850b24948e44873f8c9a37a3b10df8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/import-sandbox.log",
+    "path": "fixes/logs/import-sandbox.log",
+    "sha256": "e125c2917fb72dfb44183b12c6a48296a313185c695af09f2c7cb353b16e2c71"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/ruff-final.log",
+    "path": "fixes/logs/ruff-final.log",
+    "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/mypy-final.log",
+    "path": "fixes/logs/mypy-final.log",
+    "sha256": "e317872697c2cbfdefa321527a6efe73290dff3a390b0fa8723b87092eccba6a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/typecheck.log",
+    "path": "fixes/logs/typecheck.log",
+    "sha256": "0a5a29d201478d909793a8d20d5ad806f7847189cc24e8a7498c3bf21fca4055"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/lint.log",
+    "path": "fixes/logs/lint.log",
+    "sha256": "4caa96eee662f80119dbb8e5519278ee66919271fb7f514ed50d967c9790a879"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/build.log",
+    "path": "fixes/logs/build.log",
+    "sha256": "0662e02a87878031ceeceede902ab353951f74d21f1c89620c1f46397fa4751a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/unit.log",
+    "path": "fixes/logs/unit.log",
+    "sha256": "7eb7128d692f88ea1fc3d9bec24c1cd73500c609abac101d6951dd922c857df1"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/backend.log",
+    "path": "fixes/logs/backend.log",
+    "sha256": "c561f8211ae429e93d144fea1cda34b948c5f3b54dd7b17b16131043a07d0f0d"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/browser.log",
+    "path": "fixes/logs/browser.log",
+    "sha256": "ccba35316955b488df843550008c65cc7c83a5056bcfd347f2b04668910a1b21"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/production.log",
+    "path": "fixes/logs/production.log",
+    "sha256": "c883df78e12192fcfc7da3927adfa2a962c89ecc5fc9f23fbaf5296eebaced5e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/provider-roundtrip.json",
+    "path": "fixes/logs/provider-roundtrip.json",
+    "sha256": "b202c3207abd9ba969e3d1efe909d922bbd7f42cae21adeec8a0437b5e32b155"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/credential-redactions.json",
+    "path": "fixes/logs/credential-redactions.json",
+    "sha256": "21e5b7684ec73498bc14df47eaf2653cd0c03ee3a60d33273ca41d4fdb39ed57"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/responsive-sync-results.json",
+    "path": "fixes/logs/responsive-sync-results.json",
+    "sha256": "d1c2addd83be693a06daabe2d9ca9594554340fb33aa693467fdbb86afb01bb0"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/regression-evidence-map.json",
+    "path": "fixes/logs/regression-evidence-map.json",
+    "sha256": "b2c33fb80d7876d79df4ef0ca2a205a26323b66cb9515fcd1c1fd49a427e8d58"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/browser-initial-errors/page@d1c08df4873aa3c9b0fc7c17fa422a69-1791465922965.jpeg",
+    "path": "fixes/responsive-failure/page@d1c08df4873aa3c9b0fc7c17fa422a69-1791465922965.jpeg",
+    "sha256": "124f88434cb6254f13d5a819cc8b01ba511ceb666b3013703b75e085927560db"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/browser-initial-errors/page@d1c08df4873aa3c9b0fc7c17fa422a69-1791465923014.jpeg",
+    "path": "fixes/responsive-failure/page@d1c08df4873aa3c9b0fc7c17fa422a69-1791465923014.jpeg",
+    "sha256": "124f88434cb6254f13d5a819cc8b01ba511ceb666b3013703b75e085927560db"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/browser-initial-errors/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots-chromium/error-context.md",
+    "path": "fixes/responsive-failure/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots-chromium/error-context.md",
+    "sha256": "2d4a9e3c84b367af8626901d0a9bdb262d34b0c4afb87abfe90eb68b8488c352"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/logs/browser-initial-errors/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots-chromium/trace.zip",
+    "path": "fixes/responsive-failure/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots-chromium/trace.zip",
+    "sha256": "273fa75c19be7c846809852f030f4a9e822a1f79bebc7eb497c9f7d656422fde"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/ai-1024x768.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/ai-1024x768.png",
+    "sha256": "43a9c9008f7e813f97bbbe06be1c1b23e54139a3836ddc639ddc8e742429a4c6"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/ai-1280x800.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/ai-1280x800.png",
+    "sha256": "69a9e7eb009f3138dddf9bbd5cd4d85756f23de0b1361097ad37d338154e3698"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/ai-1440x900.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/ai-1440x900.png",
+    "sha256": "8dcc6576d3908680fecd57aca941b49d9dd0706e18cb0d296d03cf76df43178b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/ai-1920x1080.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/ai-1920x1080.png",
+    "sha256": "ad37ad916382b1dbcbe1c0ed2e2cd4d6b5ce49efd8f9f853da6db8fed39024c8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/ai-360x800.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/ai-360x800.png",
+    "sha256": "46b86ed4e5188bb0113f9e49a66191cc7c46335e1a34ff7b2ac700ac693b9cb2"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/ai-390x844.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/ai-390x844.png",
+    "sha256": "83d39341b42073b958837287cf099605bf28eaaffa3f646dad2faba31f137907"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/ai-768x1024.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/ai-768x1024.png",
+    "sha256": "b00743c928b71027bbc5d3bf52b0be54d54254a96830cb34108ad5bee041945c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/attachment-failure.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/attachment-failure.png",
+    "sha256": "f0032ac6cd397b2cff6d5b2823f653bfe01e477ede0a9ecef604731de00d02bc"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/empty-desktop.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/empty-desktop.png",
+    "sha256": "c038319953845c8be184556811ae6336b8b92ea29b8ebe5ed001591879be401f"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/empty-mobile.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/empty-mobile.png",
+    "sha256": "f51fdb782bd705b345dd4366bdba709a46b6f7e6ffff5ec1a8ad415f269b8585"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/long-history.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/long-history.png",
+    "sha256": "056b64f4f79754b9632d995fa944582638937a4af30325aefa82c10dbc56fcb1"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/resources-mobile-reduced-motion.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/resources-mobile-reduced-motion.png",
+    "sha256": "feb2b1130d12cc6e02dc0d1148d64cd96ea6f2d00837b651194ff700b365dc51"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/streaming-desktop.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/streaming-desktop.png",
+    "sha256": "b6da2d8559b21d5e8663f1c4da875bd0be3e47e609674fc0119520b660b7cb99"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-2/screenshots/text-zoom-200-mobile.png",
+    "path": "fixes/regression-evidence/ui-2/screenshots/text-zoom-200-mobile.png",
+    "sha256": "180e40313ce3ac355173467af1eb08b03ad668db1f9944a8e5ad01dd4b751740"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/advanced-1024x768.png",
+    "path": "fixes/regression-evidence/ui-3/advanced-1024x768.png",
+    "sha256": "316f73e97ad145736bf76d3ece9c5f4d327856463223629ac41c523c0efb6809"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/advanced-1280x800.png",
+    "path": "fixes/regression-evidence/ui-3/advanced-1280x800.png",
+    "sha256": "5cc47f6388561c44484275a1836fc9fbe4a39bfb0c80b27bb5ee9432f14809d1"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/advanced-1440x900.png",
+    "path": "fixes/regression-evidence/ui-3/advanced-1440x900.png",
+    "sha256": "c0dd73a0d613ddea89c9c935ce29a38dbd15c83cefcc31fb708e0045b55bea8b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/advanced-1920x1080.png",
+    "path": "fixes/regression-evidence/ui-3/advanced-1920x1080.png",
+    "sha256": "788084619be6ef3996f8397e84426e8be7b7dc314ecbdaaeda80d22f6db98879"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/advanced-360x800.png",
+    "path": "fixes/regression-evidence/ui-3/advanced-360x800.png",
+    "sha256": "f643910cb7d57b717192e7a9397bab0304c3b4f6a376a7bdc5977477bc0c4d58"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/advanced-390x844.png",
+    "path": "fixes/regression-evidence/ui-3/advanced-390x844.png",
+    "sha256": "745f217b4d192fbdd5381abf9919af97cc94da9a63dcfdb8578b19a4c9372ec5"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/advanced-768x1024.png",
+    "path": "fixes/regression-evidence/ui-3/advanced-768x1024.png",
+    "sha256": "a4c7d4417c3a7b11fc6ee9f807cba6437402acf01824814c37c3093714417f20"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/approval-pending-desktop.png",
+    "path": "fixes/regression-evidence/ui-3/approval-pending-desktop.png",
+    "sha256": "31f6891c3d1799d8f003e5b5d6f58cf8042dcd735aad2076ba0a41bc87945d0c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/chat-running-desktop.png",
+    "path": "fixes/regression-evidence/ui-3/chat-running-desktop.png",
+    "sha256": "3596c0943866394f3a6dd097832d291b3e0021a49d14ba877ff52a9f02fe3482"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/overview-chat-desktop.png",
+    "path": "fixes/regression-evidence/ui-3/overview-chat-desktop.png",
+    "sha256": "fb0fc404e2fd56b041ecdf200baf9d53821207581f200c3743826a4ea65d99bd"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/overview-chat-mobile.png",
+    "path": "fixes/regression-evidence/ui-3/overview-chat-mobile.png",
+    "sha256": "6ac3808d31f8e15fe9510c57e6eb8ef516ab6d9e79fe452987afb5c445adae7e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/resources-terminal-desktop.png",
+    "path": "fixes/regression-evidence/ui-3/resources-terminal-desktop.png",
+    "sha256": "7655403ec4e68fba9ea7262c0c1d13cfe3a50bf84acf3a22f9163f8b542ad3e1"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/run-unavailable-desktop.png",
+    "path": "fixes/regression-evidence/ui-3/run-unavailable-desktop.png",
+    "sha256": "e95693576ab0c1d2541dfb7104941ac7ecfe70868264565a5d436c147e52e939"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/self-review/model-permission-denied.png",
+    "path": "fixes/regression-evidence/ui-3/self-review/model-permission-denied.png",
+    "sha256": "e1bf67d27259da500e78005fdca08cceb4a1bc30993affce6526ca460906c71f"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-3/self-review/terminal-output-refresh.png",
+    "path": "fixes/regression-evidence/ui-3/self-review/terminal-output-refresh.png",
+    "sha256": "7e0e2ddb8096b48104d3d6b61082e7b65ec881b3cf1b71a5c46c062915c043e8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/file-unavailable-desktop.png",
+    "path": "fixes/regression-evidence/ui-4/file-unavailable-desktop.png",
+    "sha256": "0b8c3bedb3ea36a456ba2fb22df5d74c6d9bfffc8f4694a2c91e1524a3c17b04"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/file-unavailable-mobile.png",
+    "path": "fixes/regression-evidence/ui-4/file-unavailable-mobile.png",
+    "sha256": "20a6b567297aa4314bff96c9876090d33a00f7c2f9a455f803a3f958c6080b01"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/inspector-1024x768.png",
+    "path": "fixes/regression-evidence/ui-4/inspector-1024x768.png",
+    "sha256": "23a36e5b4f1983ef0f08af7b52e1d7c46f9e3ddb83d1145e5e1b0ff09e248783"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/inspector-1280x800.png",
+    "path": "fixes/regression-evidence/ui-4/inspector-1280x800.png",
+    "sha256": "3b09d2be74bb7faa07e7af569f852eea5f0528dc32a130d79c50fbf03814e3f1"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/inspector-1440x900.png",
+    "path": "fixes/regression-evidence/ui-4/inspector-1440x900.png",
+    "sha256": "239dee7e1d01000e440d3445824961763546529d27abb73a18cc2368991f3281"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/inspector-1920x1080.png",
+    "path": "fixes/regression-evidence/ui-4/inspector-1920x1080.png",
+    "sha256": "5217f2580b33db2ed8a20c4a92621fc95dfe966627e5a5f116cd8240f5c1eadb"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/inspector-360x800.png",
+    "path": "fixes/regression-evidence/ui-4/inspector-360x800.png",
+    "sha256": "ff6126b5d30609365d1378695ca08c2268550227bd7cba09b86998868e2c18fa"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/inspector-390x844.png",
+    "path": "fixes/regression-evidence/ui-4/inspector-390x844.png",
+    "sha256": "7ecf12ff41ad25036ed67acb4bdd9657895d2b5ba27905a9db5baee5eb0e1a65"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/inspector-768x1024.png",
+    "path": "fixes/regression-evidence/ui-4/inspector-768x1024.png",
+    "sha256": "c972e78155afd928a5c59f09673bb9ffb2e8e91e1a0a69bb013055d142ce1e79"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/inspector-reduced-motion.png",
+    "path": "fixes/regression-evidence/ui-4/inspector-reduced-motion.png",
+    "sha256": "7ecf12ff41ad25036ed67acb4bdd9657895d2b5ba27905a9db5baee5eb0e1a65"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/inspector-text-200-percent.png",
+    "path": "fixes/regression-evidence/ui-4/inspector-text-200-percent.png",
+    "sha256": "701f23447c840198d5f223e34eb2e6f0d130dfd0d9d20e331d820c63d2d5cc6f"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/workspace-1024x768.png",
+    "path": "fixes/regression-evidence/ui-4/workspace-1024x768.png",
+    "sha256": "391d2f8b7d7d80aa82088efa5ff4f1401af79e9711984d1a22d2afa446747445"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/workspace-1280x800.png",
+    "path": "fixes/regression-evidence/ui-4/workspace-1280x800.png",
+    "sha256": "849f59fc19d9dede887bbf7b884db9795252f1ea7a5064db9108069b47f28237"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/workspace-1440x900.png",
+    "path": "fixes/regression-evidence/ui-4/workspace-1440x900.png",
+    "sha256": "8b4b49dfddb9fae1fa5a7140cef23ccaffb33b0799bb37381fe51aa77e8ed1bf"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/workspace-1920x1080.png",
+    "path": "fixes/regression-evidence/ui-4/workspace-1920x1080.png",
+    "sha256": "d20bc120be0e386d189a001780ea9e14eb7a923e24033d21b997f2fcb0225512"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/workspace-360x800.png",
+    "path": "fixes/regression-evidence/ui-4/workspace-360x800.png",
+    "sha256": "a831bb5c127a4fb882a424272ecfa64b830740fb2c32dc303db978e8748c86d5"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/workspace-390x844.png",
+    "path": "fixes/regression-evidence/ui-4/workspace-390x844.png",
+    "sha256": "5283bfc98b1f86a73a43dbb7d5e3d6f20838e8e9d42f682d5e233844e0750a70"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/workspace-768x1024.png",
+    "path": "fixes/regression-evidence/ui-4/workspace-768x1024.png",
+    "sha256": "9c46c760b250cf08987e11f9b58d7e9f1c5ecdd09d67fc45810ee1d00a1ed46f"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/workspace-empty-desktop.png",
+    "path": "fixes/regression-evidence/ui-4/workspace-empty-desktop.png",
+    "sha256": "bf71ad365a59eae039e73ca9a2395ffbd666a093647cd066da81f87ad12a800f"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-4/workspace-empty-mobile.png",
+    "path": "fixes/regression-evidence/ui-4/workspace-empty-mobile.png",
+    "sha256": "6f8787446ff37c83cf370004a8cf344dc7e56ec3e14b3453cda8770857df27a6"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-bucket-active-1440.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-bucket-active-1440.png",
+    "sha256": "36e2e24804b62a882cd489a90cedd5d71abb921abe81e8a11d5353decdf76a4b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-bucket-active-390.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-bucket-active-390.png",
+    "sha256": "b3aeb8a9a9dce53976363dab3bce61db3bc809a18e1f3dd320122ad4666ce3a8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-bucket-attention-1440.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-bucket-attention-1440.png",
+    "sha256": "2a8ebe20af1edc163dd5c161967050b4df4b9960bb876d6e32e9a7e6f9ef4f63"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-bucket-attention-390.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-bucket-attention-390.png",
+    "sha256": "1f38f808bc525936cbb4a486809e072453328dec447326443ca48534e0f758af"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-bucket-ended-1440.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-bucket-ended-1440.png",
+    "sha256": "48bade6e0ada36b147173951f594c5f04aa0fe52e9b39983b0d05c8b36f1f0f3"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-bucket-ended-390.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-bucket-ended-390.png",
+    "sha256": "c2644e5a8495da2142b30d7d24525d55cd7ccdc99ea2931c8a76c5f13207fc35"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-bucket-waiting-1440.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-bucket-waiting-1440.png",
+    "sha256": "933a655f0f844a71862882788bcdeb0cb498b0a3810dd167b081675545a80514"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-bucket-waiting-390.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-bucket-waiting-390.png",
+    "sha256": "70e167fa8b480047824bf7477b68cba1db7f937c0ad645e4fa193fad6b48f97b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-filter-empty-1440.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-filter-empty-1440.png",
+    "sha256": "5a319535b935993561219b95841d4a315cb0f91e7c0f2bb933bfde9bbfcc6638"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-filter-empty-390.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-filter-empty-390.png",
+    "sha256": "5712325b3796028bedabb1029179be44e7d6d0cf58ec0d1dae7842119c2f9ac5"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-pausing-decision-1440.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-pausing-decision-1440.png",
+    "sha256": "173533209736eeeddf198479e8ac4f09c57ff156972359f1a891ec9090061281"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/fixture-pausing-decision-390.png",
+    "path": "fixes/regression-evidence/ui-5/fixture-pausing-decision-390.png",
+    "sha256": "5178d7c041ecafcbeae31611b317d6f5ab38c4bcdf8aacf95f6c1d471ad0190e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/self-review/screenshots/invalid-output-readonly.png",
+    "path": "fixes/regression-evidence/ui-5/self-review/screenshots/invalid-output-readonly.png",
+    "sha256": "3c2eb79bad1ff5d5afdba35ebf2483c63f92c9fbc10e32d42f44d859acb2ab7d"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/self-review/screenshots/requirement-draft-retry.png",
+    "path": "fixes/regression-evidence/ui-5/self-review/screenshots/requirement-draft-retry.png",
+    "sha256": "3e5928efca937cbe16605bf2139d92475dba2a5c6460537d663ab8ffe04afcc8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/self-review/screenshots/terminal-output-refresh.png",
+    "path": "fixes/regression-evidence/ui-5/self-review/screenshots/terminal-output-refresh.png",
+    "sha256": "5e4501c59cbd11ae8912d078fc9424a471f09ce5bf0010723b07db7f4f1667c9"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-inspector-1024x768.png",
+    "path": "fixes/regression-evidence/ui-5/task-inspector-1024x768.png",
+    "sha256": "d320c9b8a47c31193444949e9a9474801d3ca42984b38b6ffb8e364fc7fc2040"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-inspector-1280x800.png",
+    "path": "fixes/regression-evidence/ui-5/task-inspector-1280x800.png",
+    "sha256": "b45b9fe6e522e3c7bb9c71768c4bc1ae4415d9851aa31bb401248afdbd193757"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-inspector-1440x900.png",
+    "path": "fixes/regression-evidence/ui-5/task-inspector-1440x900.png",
+    "sha256": "5664181594225ff164f5eb4a94f29da0aa4ecbe98dbbf7c6c456f67267e64955"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-inspector-1920x1080.png",
+    "path": "fixes/regression-evidence/ui-5/task-inspector-1920x1080.png",
+    "sha256": "094b44c649e0aeebb577090da25a055f7fb91440dd606f3fb4c80bbb045afe4f"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-inspector-360x800.png",
+    "path": "fixes/regression-evidence/ui-5/task-inspector-360x800.png",
+    "sha256": "e66f98675fd9a73b46499fc54f9cc434976e2f20f9e0736afbebc2a69bb136e8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-inspector-390x844.png",
+    "path": "fixes/regression-evidence/ui-5/task-inspector-390x844.png",
+    "sha256": "5d47f2bc9fb89a1a6456d58b73b23fd651940b32e0ec996d90d130372017f7e2"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-inspector-768x1024.png",
+    "path": "fixes/regression-evidence/ui-5/task-inspector-768x1024.png",
+    "sha256": "cfac918994c8854237dd71d7c23891667dfb076419a76cbed28e5938b9354385"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-reduced-motion.png",
+    "path": "fixes/regression-evidence/ui-5/task-reduced-motion.png",
+    "sha256": "5d47f2bc9fb89a1a6456d58b73b23fd651940b32e0ec996d90d130372017f7e2"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-text-200-percent.png",
+    "path": "fixes/regression-evidence/ui-5/task-text-200-percent.png",
+    "sha256": "a4bb1e8f202545b685aa7d635aa7210332ebfffbbdc3189f6cf0ef29924c3d89"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/task-unavailable-mobile.png",
+    "path": "fixes/regression-evidence/ui-5/task-unavailable-mobile.png",
+    "sha256": "e7618a2198c21d7ce0c6cdf9430eda43aa6ff7463344669a860e188f73392786"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/tasks-1024x768.png",
+    "path": "fixes/regression-evidence/ui-5/tasks-1024x768.png",
+    "sha256": "fa80dc2a8d99f217c772bed8710475c04caf5be3cd6411af6bee764eca95abc6"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/tasks-1280x800.png",
+    "path": "fixes/regression-evidence/ui-5/tasks-1280x800.png",
+    "sha256": "b74dbf3954e55b973d1534136e5cbaa4c019bd2d5691ac9394f4a784d1dbb91b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/tasks-1440x900.png",
+    "path": "fixes/regression-evidence/ui-5/tasks-1440x900.png",
+    "sha256": "9dff83a6cd8d8417036426214f7749d0b6dbede5bdac816488cf486bee3d9a84"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/tasks-1920x1080.png",
+    "path": "fixes/regression-evidence/ui-5/tasks-1920x1080.png",
+    "sha256": "6a2911cd88bb3ed6552d24482837791f4012e65dee943bead8d9847fbc2a644c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/tasks-360x800.png",
+    "path": "fixes/regression-evidence/ui-5/tasks-360x800.png",
+    "sha256": "b278c6bd5c2e3587f5401adc2008020fad93bc751bb72dea20202c2d4806a6fb"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/tasks-390x844.png",
+    "path": "fixes/regression-evidence/ui-5/tasks-390x844.png",
+    "sha256": "da5b739a87175f9a4b635796950105bf5fa7c720ed918f5c59db25393c4dfd39"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/tasks-768x1024.png",
+    "path": "fixes/regression-evidence/ui-5/tasks-768x1024.png",
+    "sha256": "0bde5c0a51339eaf4aeda2aca01ab7bdcd414ea4e1f5261af5e0fb15f4aa53e4"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-5/tasks-paginated-desktop.png",
+    "path": "fixes/regression-evidence/ui-5/tasks-paginated-desktop.png",
+    "sha256": "dfbd4baf68b4fefb575d2fbdc1ea4c600f9e63123df5cddcf3f99c935251adfe"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-1024x768.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-1024x768.png",
+    "sha256": "18555ab94a32d567cec9573215c06a7d7ca8604d3bc6879aaf93681ca49e09ca"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-1280x800.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-1280x800.png",
+    "sha256": "ebfc6e83f9c835f185de3f1e956946e34234010c53d7ad3ae832b02af7681c66"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-1440x900.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-1440x900.png",
+    "sha256": "c24eb91d73e3979d547d833e2482aa5c04b32d997e237b0501a067155f1a8b2b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-1920x1080.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-1920x1080.png",
+    "sha256": "a6aaa7835c21a86bde13ffeb43c329577fe75bac9ac42b304bb753b6976e5d85"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-360x800.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-360x800.png",
+    "sha256": "2cc52a214b05dd51743a05ab8c462442f8c37da48359e3f4c607d79424eedf76"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-390x844.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-390x844.png",
+    "sha256": "a33256ac3211a2b183ee3aa9f02be72e424f3171467c48803fcacd0eb20e564c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-768x1024.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-768x1024.png",
+    "sha256": "631c488b64e43845d9e4cb2853333d56e207f1ce18ba8abe6dfe7e9b38031e5c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-build-failed.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-build-failed.png",
+    "sha256": "bca3ada09c73196db780386258a6f977b7d4d5133c4d234c1119f5dbeaeceb57"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-closed.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-closed.png",
+    "sha256": "96dbfe4d5a201213f9c86530b784c78748f8eed493f7fc814d01e268ff14e29f"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-denied.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-denied.png",
+    "sha256": "0b6c98193da1bc652669e8c05931889aa191dd4d78558f4308ab384950043a7e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-empty.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-empty.png",
+    "sha256": "51645f27e2d51906af0d300e6d044dbc5b766463ac0df57174497b1581af49c9"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-inspector.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-inspector.png",
+    "sha256": "e8ab7dc4585e0ea08e94c6918fe81c82d3a66b50dad340cae017163f99e2afb2"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-loading.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-loading.png",
+    "sha256": "1ff6284aa4995ed676e6a7d11bad0d9e96e26fc55c984d819139a9554aa79e41"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-mobile-composer.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-mobile-composer.png",
+    "sha256": "6bd87a34b834ef2b8c71afd358390d70759cb5ef57b01724baa60edd5d309e37"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-query-error.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-query-error.png",
+    "sha256": "67d8f95eb549bf43509efb08326f0f3865e89cf25dba554b4c5ee55fd870efcc"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-reduced-motion.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-reduced-motion.png",
+    "sha256": "a33256ac3211a2b183ee3aa9f02be72e424f3171467c48803fcacd0eb20e564c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/artifact-unavailable.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/artifact-unavailable.png",
+    "sha256": "7e9dcfd4947e4dacd3dbc25d5144b32295c25994fde51ad40b8a7cc8745d2a2c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/real-api-version-history.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/real-api-version-history.png",
+    "sha256": "08d890d4c87f5bc79ba19c70d3b7768d5ad88e18b352168c1ec97efaf8e80cd6"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/source-save-lost-put.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/source-save-lost-put.png",
+    "sha256": "59cde6827c998d32dfb28ae59d1c8e205fef8cfe11d33efc356bc610993183c1"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/screenshots/source-save-space-link.png",
+    "path": "fixes/regression-evidence/ui-6/screenshots/source-save-space-link.png",
+    "sha256": "32a6eb17ba14e4fafc0e7e0efac0f9cd046489eb2a556f6904ae96ae0f17effb"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/self-review/fix/screenshots/reopen-cached-query-failure.png",
+    "path": "fixes/regression-evidence/ui-6/self-review/fix/screenshots/reopen-cached-query-failure.png",
+    "sha256": "67339afe775729ee81f66d93b9be0a27b5ad8dd6b62833a020008319b80fd4ea"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/self-review/fix/screenshots/reopen-fresh-v8.png",
+    "path": "fixes/regression-evidence/ui-6/self-review/fix/screenshots/reopen-fresh-v8.png",
+    "sha256": "663f38c08bc42ff4d359b25b7b2f8af772329481eeece0233d4bb386614b914e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/self-review/fix/screenshots/reopen-recovery-v9.png",
+    "path": "fixes/regression-evidence/ui-6/self-review/fix/screenshots/reopen-recovery-v9.png",
+    "sha256": "0ee5469e69b2ebd49a616a950d0ada930c9266fc94aa11c0e78a4532ca4fe3d9"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-6/self-review/fix/screenshots/restored-message-row-completed.png",
+    "path": "fixes/regression-evidence/ui-6/self-review/fix/screenshots/restored-message-row-completed.png",
+    "sha256": "fb80e972eafe29eb340199bcfb27c832580621e5373c5c424fecb20e7344035b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/a11y-measurements.json",
+    "path": "fixes/regression-evidence/ui-7/screenshots/a11y-measurements.json",
+    "sha256": "f9e1abf96d82dd5e2795dfa6c818155a11610b873b27cb5130082a0e13477d7e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-1024x768-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-1024x768-tabs.png",
+    "sha256": "c3c5749a4ea9aa4e92182c946330ed015ab605570bf06b8417a265fbbc7ffc8b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-1024x768.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-1024x768.png",
+    "sha256": "a454999e3c73d288988416875acf9cc1367caee5e76d1fcd7a4d02a679128950"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-1280x800-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-1280x800-tabs.png",
+    "sha256": "8a91403eaea06f31f8658fb484e51185df74b799f2b0ec414e6de38801766b62"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-1280x800.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-1280x800.png",
+    "sha256": "9a4faa600afb220d90286a3156abbcfc6c5a7290674f3bee0c3d15f7732e28ad"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-1440x900-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-1440x900-tabs.png",
+    "sha256": "85662e50fb0326e4b3cc5097cc6369650ac8cdbd77a67ab01ec0075fd418f6e2"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-1440x900.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-1440x900.png",
+    "sha256": "3f79446f630e19924e9cc8ed46a9b9d8de1d13c6dedc37dc51c0382f1d31b87a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-1920x1080-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-1920x1080-tabs.png",
+    "sha256": "80702e8312ecbb7571bbee91c5bc6a92a5babd3789912f8d4edcc9036e64eb27"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-1920x1080.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-1920x1080.png",
+    "sha256": "728320b67ad6ab5237575564596e9718f4661054f8fc18d5bf95df8d9c142224"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-360x800-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-360x800-tabs.png",
+    "sha256": "4172e5979d2f86c086e300823bb4c42993b5826621589c246d40abd395a2072a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-360x800.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-360x800.png",
+    "sha256": "650201f66998cd05252470c705d84493913fe2a936613435c90338a1d8488089"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-390x844-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-390x844-tabs.png",
+    "sha256": "a981abae5ca5667646d11ff207d02f809bd2101d20f8d90f81943df8138592dc"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-390x844.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-390x844.png",
+    "sha256": "a00c8856e3a2a37bafeb7fea51b4e42d57fc0135c598ee26a5dfe76232da7434"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-768x1024-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-768x1024-tabs.png",
+    "sha256": "6cea2776b9d0e3d2621630decef0e49f610accc1adbfc1d9468a96dbceae12b4"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-768x1024.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-768x1024.png",
+    "sha256": "00bb4dd44f3ea334f51f03304f05d3b8e815cfddfdfb2df1c141d96f4a7c159c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-expanded.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-expanded.png",
+    "sha256": "07f4664ae7d5f1d53bbcad03707b78de444be23188e8e87a7b2d111041ee5db5"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-reduced-motion.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-reduced-motion.png",
+    "sha256": "07f4664ae7d5f1d53bbcad03707b78de444be23188e8e87a7b2d111041ee5db5"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/artifact-text-200-percent.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/artifact-text-200-percent.png",
+    "sha256": "191823807f8dd363b2a01c5d6cf0e163c3b94af8c20a548c4531c0ae1aaffd35"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/file-1024x768-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/file-1024x768-tabs.png",
+    "sha256": "817a95c5bc0690005aad9714d19fb85f33ea4f90094d8acf8411ec913b7c5679"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/file-1280x800-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/file-1280x800-tabs.png",
+    "sha256": "a76675c0751ce551cf92d7d2f5a7dc219663eea1b28faa903e13c25f4aabac59"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/file-1440x900-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/file-1440x900-tabs.png",
+    "sha256": "b812c6714043ca690a05ee0f12927f979ae144f7f56ffbe2e29d1f8f97d26b09"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/file-1920x1080-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/file-1920x1080-tabs.png",
+    "sha256": "1b7509cf6aac570c1977af8ac62a1657595b39f7e8d0647aac6e2c83870d2178"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/file-360x800-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/file-360x800-tabs.png",
+    "sha256": "79ce2f6a28ef1c13152aeae2289a666bc693b32d6947a48f433cad455d203ab9"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/file-390x844-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/file-390x844-tabs.png",
+    "sha256": "158531a1c628635826791801e013bdebb20393e127ca187b4318fbef2d07f829"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/file-768x1024-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/file-768x1024-tabs.png",
+    "sha256": "4deadeb660609335d0865b46adf3c2ee69cc1e69b0b0947f04cb757556d5467b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/geometry.json",
+    "path": "fixes/regression-evidence/ui-7/screenshots/geometry.json",
+    "sha256": "3240c9c334936887c6c9f355a8e09f478dc768896b47e63988f85ef519d5540a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/lookup-unavailable.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/lookup-unavailable.png",
+    "sha256": "29d27000c13fc0e58563df2a67918fc339d9ab1ffa03ad078abe7fbe0a98abc0"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/mobile-inbox-layer.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/mobile-inbox-layer.png",
+    "sha256": "cbe07492c93fb9664155fa303c43125e4f84c26329a245883b19ad3dae7345c8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/mobile-save-layer.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/mobile-save-layer.png",
+    "sha256": "42e54b6fcfd43a102829452ca5182b60657114d2b7f27c565efcb3d8cb9781ae"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/motion-controls.json",
+    "path": "fixes/regression-evidence/ui-7/screenshots/motion-controls.json",
+    "sha256": "fbdab455301a287d70db47c2be709a50fb51393e06e61f5e53df10bbaa4521c6"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/run-1024x768-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/run-1024x768-tabs.png",
+    "sha256": "325106485a7ee528cc3defe9f5370adc9fee170b88a5ef6046ec01d550f4058e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/run-1280x800-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/run-1280x800-tabs.png",
+    "sha256": "7d900c34d6878e862a05fa25743e7b5bdc746e608cd546a78c23af11e2e4a703"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/run-1440x900-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/run-1440x900-tabs.png",
+    "sha256": "2b70a8f022d588e6f48d229577958819f973b4b9a361b7b8052a271ccd995715"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/run-1920x1080-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/run-1920x1080-tabs.png",
+    "sha256": "3bbaf4186dafd60902a76f9347736c90ff456e3237c8ec28f040bf908ca33cb6"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/run-360x800-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/run-360x800-tabs.png",
+    "sha256": "9acff3701584d1a1a1d0235cf22392d61d3c4afe0d29bb71673591a68ebf7367"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/run-390x844-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/run-390x844-tabs.png",
+    "sha256": "a52ca202273cb2a359d81b5a1eac2e04ce513dd595005e22e5cdee60721f9a56"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/run-768x1024-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/run-768x1024-tabs.png",
+    "sha256": "de5b82d2cde64c8e237e1306565be38f23f471d54d15ccc4cbb0264927c07732"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/task-1024x768-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/task-1024x768-tabs.png",
+    "sha256": "d3c49e475c81da5dac34672927c0853d15d30258313769062a2cd7794ba86c6e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/task-1280x800-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/task-1280x800-tabs.png",
+    "sha256": "d56fdfe2bb7c2fa0c45234c0810bcce29d62d85e7f11a06791f0544ff5320dbd"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/task-1440x900-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/task-1440x900-tabs.png",
+    "sha256": "a5b59c1007ad0c78282ec588fc3d657e07d82ca45b841712dd1be13d798b63de"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/task-1920x1080-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/task-1920x1080-tabs.png",
+    "sha256": "ffc10424c94de230abeb2b8e6b3359a014beed4f75038cd74a31d81da8d28e6c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/task-360x800-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/task-360x800-tabs.png",
+    "sha256": "6bad2bc02f1450c2427f25339473c0cb59203ba3b1eebfa52230e4e62d52a4ba"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/task-390x844-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/task-390x844-tabs.png",
+    "sha256": "8ec5a7bd3709742649b1163cbb8ccda28eaa94c96e6c6314106104bf4c486c33"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/task-768x1024-tabs.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/task-768x1024-tabs.png",
+    "sha256": "19d60a526dfa1437e17fbecef0ab4e150e0f024c12957892a8bb963638f11739"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/screenshots/task-keyboard-mobile.png",
+    "path": "fixes/regression-evidence/ui-7/screenshots/task-keyboard-mobile.png",
+    "sha256": "563fd72c4260f6cfadfe2d313cc1925f5207b1c4c80980878c8eec16c6d44b53"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R1-account.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R1-account.json",
+    "sha256": "50f6eba633ab0a8db6581ff2adec54944ca517689ac88a575c26cb1acb7f1d77"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R1-account.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R1-account.png",
+    "sha256": "6a77363726134b0a3b10831af843be6c226ea9a70a77c5cf22327c873963e41c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R1-child.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R1-child.json",
+    "sha256": "5eab0d0bc8154e6fb0a85c0ae2b45824b5d0b663cee749f2edc80c5d535acfc0"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R1-child.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R1-child.png",
+    "sha256": "7ad3d77d5528e0235da73dd19bd5b21f58773a4ed8d291a5b731549ad266c49b"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R1-resources.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R1-resources.json",
+    "sha256": "e9c83c556f0055c0a852e8c37736e4319f179740363196d9b3ef669b9aa8a5d8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R1-resources.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R1-resources.png",
+    "sha256": "166dad3fdcaf681afca912853f20d8e64f149c475e19df3a3ef697e89650be30"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R1-sidebar.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R1-sidebar.json",
+    "sha256": "363a919924837157487af1e5812c3abd3396148d0bd942bbb9f47a0333841679"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R1-sidebar.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R1-sidebar.png",
+    "sha256": "555b296900be840496946457c6ad3ca405a6fab9cea2b6e8550221e1163d14fe"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R2-native-modal.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R2-native-modal.json",
+    "sha256": "5373856f52b2adbf0503acc559d4ae7842b72514838fb0e5a3a8441caacce6b9"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R2-native-modal.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R2-native-modal.png",
+    "sha256": "692b924c03b3da8841d988a0cf8932b022087ccc3e96d9947bef7d7f9a6caf76"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R2-notification.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R2-notification.json",
+    "sha256": "75c5b135d2995ea98d7eec7b2c8db38d64fdd9d89ba518015e65b114b024b3ff"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R2-notification.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R2-notification.png",
+    "sha256": "f1810af4a38bb3802127b612062dc1d3de0665242c7def4c4da8116b029954f8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-advanced.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-advanced.json",
+    "sha256": "eb4a5f99170b7dc428e49b9a8cc538bb6f02ae3a334c65b8807e7a60d8f34250"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-advanced.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-advanced.png",
+    "sha256": "3770510125053f103d2b7e9e1433ccd00d89fbcad05d9ccbc36c438426816c35"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-closed.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-closed.json",
+    "sha256": "5ea1f1f18c4baa450b45cb3308896547a6a72ac790a0dbbe741bd55390642a0c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-closed.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-closed.png",
+    "sha256": "4e0659e07769c072f1cd91b14947fdfd99eaf9c6f69d5c337b8fc0de0191ddbc"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-history.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-history.json",
+    "sha256": "fd760e1d3cd0c8e6e17d1db5eb2681b59f35115fc1c7d689b178c4a6493bca25"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-history.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-history.png",
+    "sha256": "07712f77da74760c50c15db65643c9e54efa63857f1aa265b0364b9723307e58"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-ordinary.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-ordinary.json",
+    "sha256": "5254e724813f17c785092c780777169413ac8bb7c2c6ff362fd77ed3deab1c5a"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-ordinary.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-ordinary.png",
+    "sha256": "8eaef043db84384fb410b81e95b725b888baf903771ed993c9a012e51a05997c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-overview.json",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-overview.json",
+    "sha256": "d85bdf32f8ee378b382ea7cac53dc10166b1f5ec2483b5bbed807954017c26c0"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/regression-evidence/ui-7/self-review-fixes/browser/R3-overview.png",
+    "path": "fixes/regression-evidence/ui-7/self-review-fixes/browser/R3-overview.png",
+    "sha256": "fb57ef88789ff268730a0a9b14fae04038ee7a640f65aef210a8d455472e0de2"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/browser/real-chain-desktop.json",
+    "path": "fixes/browser/real-chain-desktop.json",
+    "sha256": "fca5ea9854b7b34d46a230eeacace9e0878bd83c3666b832c7a3538d707414ff"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/browser/real-chain-desktop.png",
+    "path": "fixes/browser/real-chain-desktop.png",
+    "sha256": "cb195d353a235cca1399de832cb5da3a5330e5f3516c6780ee2b3d53476607e1"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/browser/real-chain-disposed.json",
+    "path": "fixes/browser/real-chain-disposed.json",
+    "sha256": "4b0ae630532fc32805337b0cc3201e64170e040e3690378aa03692f74c29a1e6"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/browser/real-chain-disposed.png",
+    "path": "fixes/browser/real-chain-disposed.png",
+    "sha256": "f3e80d677e9c12c1cc9cbbb4e22206c34128d0839f2503ce72c2df0c7f20769e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/browser/real-chain-mobile.json",
+    "path": "fixes/browser/real-chain-mobile.json",
+    "sha256": "8be411d7e157f48676ce28d00bed117a5d92ccc566db9e8456fb902a398e2ad0"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/browser/real-chain-mobile.png",
+    "path": "fixes/browser/real-chain-mobile.png",
+    "sha256": "46604250e5f38bd03dad05c2ce7158e06489717ef326b106465be100631f94cb"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/browser/task-feeds-disposed.json",
+    "path": "fixes/browser/task-feeds-disposed.json",
+    "sha256": "ca1f45da2c7ab79e886e1be0c0262c0ace9817dc7078a7600ad2bc623c59d40c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/browser/task-feeds-disposed.png",
+    "path": "fixes/browser/task-feeds-disposed.png",
+    "sha256": "966d961278a6cce1c46e152129b582ad9bc50de55d7e507bd9721b096894c1ed"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/production/real-chain-desktop.json",
+    "path": "fixes/production/real-chain-desktop.json",
+    "sha256": "696b920651ee4beac1ff57d3a3f24de1b782427824c3c83206192b9d158e6126"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/production/real-chain-desktop.png",
+    "path": "fixes/production/real-chain-desktop.png",
+    "sha256": "050f461d7ff0567210c2df7aa87a4962f974ecedf595afb492f744b2cc0119ea"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/production/real-chain-disposed.json",
+    "path": "fixes/production/real-chain-disposed.json",
+    "sha256": "b7a3499fcb3225d35769b9a99ed843665bca405c53aeae74fe060722cf9098e0"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/production/real-chain-disposed.png",
+    "path": "fixes/production/real-chain-disposed.png",
+    "sha256": "f3e80d677e9c12c1cc9cbbb4e22206c34128d0839f2503ce72c2df0c7f20769e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/production/real-chain-mobile.json",
+    "path": "fixes/production/real-chain-mobile.json",
+    "sha256": "45d123faa09f99767bcfa90a742da4e398d3bfbdb6c5ad131e61e56df718fe17"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/production/real-chain-mobile.png",
+    "path": "fixes/production/real-chain-mobile.png",
+    "sha256": "8dbba388f5810bb5a48e3cdd1254ab6ca7092bc67869e4f4c97d1197d3d7f3df"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/production/task-feeds-disposed.json",
+    "path": "fixes/production/task-feeds-disposed.json",
+    "sha256": "1adb5ed2fa6772d6e045eaab6a08ee172aa50ead1f5cf0ee148358efe31e13bf"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-fixes/20261008_03/production/task-feeds-disposed.png",
+    "path": "fixes/production/task-feeds-disposed.png",
+    "sha256": "966d961278a6cce1c46e152129b582ad9bc50de55d7e507bd9721b096894c1ed"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/provider-roundtrip.json",
+    "path": "recheck/logs/provider-roundtrip.json",
+    "sha256": "10c6771b9941be816dd3ef041a02d7ad89e68512de71c637d10d54ffea641f78"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/frontend-exits.json",
+    "path": "recheck/logs/frontend-exits.json",
+    "sha256": "6457e7cf9a427bf79d4ed3c1e6adaf4126f6ee34a63b101b42ac7b1e9430eece"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/backend-exits.json",
+    "path": "recheck/logs/backend-exits.json",
+    "sha256": "d1907f85843608d9f0f09faacad8e75c830c72ba0db696838077099c0aa21e99"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/browser-exits.json",
+    "path": "recheck/logs/browser-exits.json",
+    "sha256": "4422a495c58be5b76b44cade9452becbffcddaa5250e174e697963b856d8cfa2"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/production-exits.json",
+    "path": "recheck/logs/production-exits.json",
+    "sha256": "3f0e5a8cf33f9fb89e255c095757f0dcee0ecf0807386740dfbde22b3872b1ea"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/backend-results.xml",
+    "path": "recheck/logs/backend-results.xml",
+    "sha256": "d0984b69864c85c9d0a3eece7ec5f1d6a9b4cb2dbaf824c5e0a591834f16902c"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/browser-results.json",
+    "path": "recheck/logs/browser-results.json",
+    "sha256": "da1d76fcc703dc8190f8a869ee0de88520678b015f680d2897f49ac5ea6519ed"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/production-results.json",
+    "path": "recheck/logs/production-results.json",
+    "sha256": "a82f8d2b0536be40c96c612bc6228edf11e1d8139c3c853e47cdcff2bb24a248"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/typecheck.log",
+    "path": "recheck/logs/typecheck.log",
+    "sha256": "0a5a29d201478d909793a8d20d5ad806f7847189cc24e8a7498c3bf21fca4055"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/lint.log",
+    "path": "recheck/logs/lint.log",
+    "sha256": "4caa96eee662f80119dbb8e5519278ee66919271fb7f514ed50d967c9790a879"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/build.log",
+    "path": "recheck/logs/build.log",
+    "sha256": "db1ea9a16972119585dbb087bbb9a9ba731dc45e518e19607e0de8ad12f507e8"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/unit.log",
+    "path": "recheck/logs/unit.log",
+    "sha256": "018a49274da7e3bbdb80aef67f9f9698601ab768172c3d0cedca4043f48aa3cd"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/backend.log",
+    "path": "recheck/logs/backend.log",
+    "sha256": "181fe643e11aa166a2df9cf6f076c1fbe3c557ae847e11708d58067ea480149e"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/browser.log",
+    "path": "recheck/logs/browser.log",
+    "sha256": "40b2fa33bb5639ad6594433fb6ab64448401d6c9a9b1494bbc5d191a2d761220"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/production.log",
+    "path": "recheck/logs/production.log",
+    "sha256": "c1e973e69fbb22f765816fefa4917312eae3918d296d2c727b9a0f3697b5d112"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/browser-evidence/task-feeds-disposed.json",
+    "path": "recheck/browser-evidence/task-feeds-disposed.json",
+    "sha256": "95e86dc99b6bdce52aca4a7ab0664c326692ddb4bb2dcaa2ecdc92a7d036ca18"
+  },
+  {
+    "original": "artifacts/product-acceptance/ui-8-recheck/20261008_04/browser-evidence/task-feeds-disposed.png",
+    "path": "recheck/browser-evidence/task-feeds-disposed.png",
+    "sha256": "966d961278a6cce1c46e152129b582ad9bc50de55d7e507bd9721b096894c1ed"
+  }
+]

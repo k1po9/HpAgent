@@ -1,0 +1,18 @@
+[
+  {
+    "name": "production",
+    "command": [
+      "npx",
+      "playwright",
+      "test",
+      "--project=chromium",
+      "--reporter=list,json",
+      "--output=/home/hp/workspace/HpAgent_web/artifacts/product-acceptance/ui-8-recheck/20261008_04/logs/production-test-results",
+      "--config=playwright.ui8-production.config.ts",
+      "--grep",
+      "task subscriptions"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 14.28
+  }
+]

@@ -1,8 +1,10 @@
 """Phase 4 vertical contracts using real API/Worker PostgreSQL roles."""
 
 from concurrent.futures import ThreadPoolExecutor
+from time import monotonic, sleep
 from uuid import UUID, uuid4
 
+import psycopg
 import pytest
 
 from delivery.service import DeliveryService
@@ -110,13 +112,17 @@ def test_stop_and_uncertain_delivery_preserve_responsibility(
     run = advance(service, work, worker_database_url)
     ReminderActivities(worker_database_url)._execute(run["run_id"])
     delivery = DeliveryService(worker_database_url)
-    for _ in range(10):
+    deadline = monotonic() + 3
+    row = None
+    while monotonic() < deadline:
         row = delivery.claim()
         if row and row["purpose"] == "fulfillment":
             break
         if row:
             delivery.finish(row, "accepted", 1, {"level": "account_inbox_committed"})
-    assert row["purpose"] == "fulfillment"
+        else:
+            sleep(0.05)
+    assert row is not None and row["purpose"] == "fulfillment"
     work = service.get(account_id, UUID(work["work_id"]))["work"]
     stopped = service.control(
         account_id, UUID(work["work_id"]), str(uuid4()), work["row_version"], "stop"
@@ -169,7 +175,7 @@ def test_revision_receipt_cannot_complete_new_requirements(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["ready", "retry", "user_and_delivery"])
 async def test_artifact_build_has_new_work_run_provenance(
-    database_url, worker_database_url, account_id, mode
+    db, database_url, worker_database_url, account_id, mode
 ):
     from conversation_domain.commands import CommandService
     from web_artifacts.build import ArtifactBuildService
@@ -246,6 +252,17 @@ async def test_artifact_build_has_new_work_run_provenance(
     version = built["artifact_version_id"]
     v = ArtifactService(database_url).get_version(account_id, UUID(version))["version"]
     assert v["producing_run_id"] == run["run_id"] and v["producing_run_id"] != str(source_run)
+    # SQL privileges do not bypass the provenance/immutable-result triggers.
+    for column, replacement in (("html", "forged"), ("source_markdown", "foreign source")):
+        with psycopg.connect(worker_database_url) as connection:
+            with pytest.raises(psycopg.errors.RaiseException, match="immutable artifact provenance/result") as immutable:
+                connection.execute(f"UPDATE hpagent.artifact_versions SET {column}=%s WHERE artifact_version_id=%s",
+                                   (replacement, UUID(version)))
+            assert immutable.value.sqlstate == "P0001"
+    other = uuid4()
+    db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (other,))
+    with pytest.raises(ResourceNotFound):
+        ArtifactService(database_url).create_version(other, UUID(v["artifact_id"]), str(uuid4()), "foreign successor")
     work = service.get(account_id, UUID(work["work_id"]))["work"]
     if mode == "user_and_delivery":
         assert work["status"] == "active" and work["continuation"]["kind"] == "awaiting_delivery"

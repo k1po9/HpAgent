@@ -157,12 +157,27 @@ def test_production_rejects_short_secrets():
 
 
 def test_web_api_import_does_not_load_agent_runtime():
-    code = (
-        "import sys; import web_api.app; "
-        "forbidden=('agent','sandbox','temporalio','channels.router'); "
-        "assert not any(name == item or name.startswith(item + '.') "
-        "for name in sys.modules for item in forbidden)"
-    )
+    code = """
+import asyncio
+import socket
+import sys
+import threading
+
+def forbidden_io(*args, **kwargs):
+    raise AssertionError('API import started network I/O or a background task')
+
+socket.socket.connect = forbidden_io
+socket.socket.connect_ex = forbidden_io
+socket.create_connection = forbidden_io
+threading.Thread.start = forbidden_io
+asyncio.create_task = forbidden_io
+asyncio.BaseEventLoop.create_task = forbidden_io
+import web_api.app
+forbidden = ('agent', 'sandbox', 'temporalio', 'channels.router',
+             'orchestration.worker', 'agent_activities.runtime', 'research_activities.runtime')
+assert not any(name == item or name.startswith(item + '.')
+               for name in sys.modules for item in forbidden)
+"""
     env = os.environ.copy()
     source_root = Path(__file__).resolve().parents[2] / "src"
     inherited_pythonpath = env.get("PYTHONPATH")

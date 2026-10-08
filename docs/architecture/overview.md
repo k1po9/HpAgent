@@ -22,7 +22,7 @@ Web 查询与 SSE / notifications → deliveries → Web inbox / QQ
 
 ## 逻辑分层
 
-- **Surface Adapter**：HTTP、认证、SSE、QQ 协议、路由和投递格式；前端八页面是同一 API 的操作入口。
+- **Surface Adapter**：HTTP、认证、SSE、QQ 协议、路由和投递格式；前端 AI / 空间 / 任务及上下文 Inspector 是同一 API 的操作入口。
 - **Application Service**：上下文组装、Main 委托工具、入口协调、记忆保留和渠道 Adapter。
 - **Domain Package**：Conversation、Work、Run、File、Research 等领域规则；交互、委托、执行、验收与投递分别记账。
 - **Persistence**：PostgreSQL 事务、Repository、Migration、Projection、Outbox、预算与容量事实。
@@ -33,4 +33,4 @@ Web 查询与 SSE / notifications → deliveries → Web inbox / QQ
 
 Conversation 保留同对话单 active chat Run；Work Run 不占聊天槽、不伪造 Message、不强制依赖 Session / Git。单 Work 协调权、Execution attempt lease、资源锁和跨进程容量票据是四项独立约束。
 
-延伸阅读：[Durable Work V1](durable-work-v1.md)、[运行时](runtime.md)、[状态归属](data-and-state.md)、[Workspace](workspace-v4.1.md)、[可靠性](reliability.md)、[时序](sequences.md)。操作入口见[功能指南](../operations/web-workbench.md)，历史与验收见[实施索引](../implementation/README.md)。
+延伸阅读：[Durable Work V1](durable-work-v1.md)、[运行时](runtime.md)、[状态归属](data-and-state.md)、[Workspace](workspace-v4.1.md)、[可靠性](reliability.md)、[时序](sequences.md)。Web 布局、账户生命周期、任务投影与 HTML 交互见[前端架构](web-ui.md)。操作入口见[功能指南](../operations/web-workbench.md)，历史与验收见[实施索引](../implementation/README.md)。

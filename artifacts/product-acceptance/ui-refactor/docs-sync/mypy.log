@@ -1,0 +1,5 @@
+src/delivery/service.py:310: error: Value of type "Any | None" is not indexable  [index]
+src/delivery/service.py:311: error: Value of type "Any | None" is not indexable  [index]
+src/delivery/service.py:312: error: Value of type "Any | None" is not indexable  [index]
+src/delivery/service.py:313: error: Value of type "Any | None" is not indexable  [index]
+Found 4 errors in 1 file (checked 11 source files)

@@ -96,12 +96,16 @@ class WebRunLifecycleService:
         return authority
 
     def complete(self, run_id: UUID, content: str, result_ref: str | None = None) -> LifecycleAuthority:
-        """The sole Web success terminal entrypoint, called by WebReplySink."""
+        """Commit success if still executable; return the latest observed DB status.
+
+        An already committed cancel intent can return ``cancelling`` while its
+        finalizer is pending. Callers must follow cancellation, not assume that
+        every successful call returned a terminal status.
+        """
         account_id = self._account_for(run_id)
-        current = self._authority(run_id)
-        if current.status not in {"cancelling", "cancelled", "succeeded", "failed"}:
-            with UnitOfWork(self.database_url) as uow:
-                run = RunLifecycleService.lock(uow, account_id, run_id)
+        with UnitOfWork(self.database_url) as uow:
+            run = RunLifecycleService.lock(uow, account_id, run_id)
+            if run["status"] not in {"cancelling", "cancelled", "succeeded", "failed"}:
                 if run['source_kind'] == 'chat':
                     RunLifecycleService(self.database_url).finish_in_uow(uow, run, 'succeeded', content=content)
                 else:

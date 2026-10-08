@@ -1,0 +1,37 @@
+{
+  "head": "41ff9a92851c08bee16c7915b9ad246bfca7d8da",
+  "source_document": "/mnt/d/HuaweiMoveData/Users/黄培/Desktop/ui/HpAgent_前端_UI_重构方案_v1.0.md",
+  "source_sha256": "debffa18de54203fa2e7037108b9f0b3f736e6b350516a9c96fd87590217f892",
+  "date": "2026-10-08",
+  "timezone": "Asia/Shanghai",
+  "databases": [
+    "hpagent_ui8_browser_20261008",
+    "hpagent_ui8_backend_20261008",
+    "hpagent_ui8_production_20261008",
+    "hpagent_ui8_browser_final_20261008"
+  ],
+  "ports": {
+    "browser": [
+      8188,
+      5281
+    ],
+    "production": [
+      8190,
+      5283
+    ]
+  },
+  "redis_databases": {
+    "browser": 10,
+    "backend": 9,
+    "production": 8
+  },
+  "temporal_namespace": "hpagent-ui8-20261008",
+  "executors": {
+    "browser": "Fake Run / Artifact executor, real HTTP / PG / Redis / file service",
+    "backend_temporal": "Real Temporal, controlled Brain / tool adapters"
+  },
+  "business_services_stopped": false,
+  "final_frontend_workers": 1,
+  "initial_browser_note": "70 passed / 6 failed under shared host workload; source HMR happened during diagnosis. Final run uses a new DB and frozen source.",
+  "backend_files_note": "API tests use their tmp_path fixtures or the established /tmp/hpagent-test-file-store test default; browser servers use dedicated FILE_STORE_ROOT. Production file stores are not used."
+}

@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import threading
 import time
 from typing import Any
 from uuid import UUID, uuid4
@@ -304,11 +305,8 @@ async def make_gateway(client, redis_url: str) -> tuple[SSEGateway, aioredis.Red
 def wait_until_subscribed(sync_redis, channel: str, timeout: float = 5.0) -> None:
     """Wait until the gateway's pubsub subscription to ``channel`` is live.
 
-    The Gateway yields ``run.snapshot`` *before* its Redis ``SUBSCRIBE``
-    completes, and Redis pubsub drops messages published before a SUBSCRIBE is
-    acknowledged. Tests that publish online deltas must not race that window;
-    once ``PUBSUB NUMSUB`` counts a subscriber the SUBSCRIBE has completed, so
-    subsequent publishes are guaranteed to arrive.
+    Redis drops messages published before SUBSCRIBE is acknowledged. Confirm
+    the actual server subscription rather than depending on execution delays.
     """
     deadline = time.monotonic() + timeout
     channel_bytes = channel.encode()
@@ -378,11 +376,21 @@ def test_sse_http_redis_unavailable_degrades_to_poll(
 
 
 def test_sse_http_fake_executor_streams_online_events_then_terminal(
-    seed_identity, client_factory, redis_url
+    seed_identity, client_factory, redis_url, sync_redis, monkeypatch
 ):
     """Phase-e exit gate: with Redis the Fake Run Executor projects the contract
     online events (run.started / run.progress / message.delta) under one
     stream_id before the committed run.succeeded snapshot closes the stream."""
+    from web_api.fake_executor import FakeRunExecutor
+
+    release = threading.Event()
+    original_stream = FakeRunExecutor._stream_online
+
+    async def gated_stream(executor, run_id):
+        assert await asyncio.to_thread(release.wait, 5), "subscriber did not release executor"
+        await original_stream(executor, run_id)
+
+    monkeypatch.setattr(FakeRunExecutor, "_stream_online", gated_stream)
     seed_identity("alice")
     client = client_factory(
         redis_url=redis_url, fake_enabled=True, fake_mode="success", fake_delay=0.05
@@ -399,9 +407,23 @@ def test_sse_http_fake_executor_streams_online_events_then_terminal(
         headers=command_headers(csrf, str(uuid4())),
     ).json()
     run_id = sent["run"]["run_id"]
-    with client.stream("GET", f"/api/v1/runs/{run_id}/events") as response:
-        assert response.status_code == 200
-        frames = collect_sse(response)
+    def release_when_subscribed():
+        try:
+            wait_until_subscribed(sync_redis, f"{_TOPIC_PREFIX}{run_id}")
+        finally:
+            release.set()
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        ready = pool.submit(release_when_subscribed)
+        try:
+            with client.stream("GET", f"/api/v1/runs/{run_id}/events") as response:
+                assert response.status_code == 200
+                frames = collect_sse(response)
+            ready.result(timeout=5)
+        finally:
+            release.set()
 
     types = [frame["event_type"] for frame in frames]
     assert types[0] == "run.snapshot"
@@ -420,7 +442,7 @@ def test_sse_http_fake_executor_streams_online_events_then_terminal(
     assert len({frame["stream_id"] for frame in online}) == 1
     seqs = [frame["event_seq"] for frame in online]
     assert all(seq is not None for seq in seqs)
-    assert seqs == sorted(seqs)
+    assert seqs == list(range(1, len(seqs) + 1))
 
     # The delta carries the pending assistant Message id; the terminal snapshot
     # is authoritative with null stream_id/event_seq.
@@ -470,6 +492,49 @@ def test_sse_connection_limit_returns_503(client_factory, seed_identity, redis_u
 # --------------------------------------------------------------------------- #
 # Streaming contract (drives SSEGateway.stream directly).
 # --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("snapshot_status", ["running", "succeeded"])
+async def test_terminal_committed_during_handshake_is_not_lost(
+    client_factory, seed_identity, redis_url, sync_redis, db, monkeypatch, snapshot_status
+):
+    """Commit/publish after the snapshot read, before the first yielded frame."""
+    from web_api import sse
+
+    account_id = seed_identity("alice")
+    client = client_factory(redis_url=redis_url, fake_enabled=True, fake_mode="hold")
+    run = create_running_run(client, login(client))
+    original_load = sse.load_run_snapshot
+    first = True
+
+    def complete_during_read(*args):
+        nonlocal first
+        snapshot = original_load(*args)
+        if first:
+            first = False
+            sync_redis.publish(f"{_TOPIC_PREFIX}{run['run_id']}", make_online_event(
+                run["run_id"], event_type="message.delta", stream_id=str(uuid7()),
+                seq=1, message_id=run["message_id"], payload={"delta": "transient"}))
+            mark_terminal(db, account_id, run["conversation_id"], run["run_id"],
+                          "succeeded", "handshake result")
+            sync_redis.publish(f"{_TOPIC_PREFIX}{run['run_id']}", make_terminal_event(
+                run_id=run["run_id"], conversation_id=run["conversation_id"], event_id=str(uuid7())))
+            if snapshot_status == "succeeded":
+                return original_load(*args)
+        return snapshot
+
+    monkeypatch.setattr(sse, "load_run_snapshot", complete_during_read)
+    gateway, redis_client = await make_gateway(client, redis_url)
+    reader = StreamReader(gateway.stream(account_id, UUID(run["run_id"]), ""))
+    try:
+        frames = await reader.drain()
+        assert [f["event_type"] for f in frames] == (
+            ["run.snapshot", "message.delta", "run.succeeded"] if snapshot_status == "running" else ["run.snapshot"])
+        assert frames[0]["payload"]["snapshot"]["run"]["status"] == snapshot_status
+        assert frames[-1]["payload"]["snapshot"]["assistant_message"]["content"] == "handshake result"
+        assert gateway.active_connections == 0
+    finally:
+        await reader.close()
+        await redis_client.aclose()
 
 async def test_sse_snapshot_and_handshake_ordering(
     client_factory, seed_identity, redis_url, sync_redis

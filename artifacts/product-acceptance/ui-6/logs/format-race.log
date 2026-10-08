@@ -1,4 +1,0 @@
-web/src/store/artifacts.ts 8409ms
-web/src/store/artifacts.test.ts 3881ms
-web/src/components/artifact/ArtifactComposer.tsx 1207ms (unchanged)
-web/e2e/artifact.spec.ts 498ms (unchanged)

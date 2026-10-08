@@ -1,0 +1,4 @@
+# Preserve raw test output and traceback indentation byte for byte.
+*.log -text -whitespace
+*.xml -text -whitespace
+error-context.md -text -whitespace

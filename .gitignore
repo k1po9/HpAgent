@@ -47,6 +47,11 @@ data/
 # 旧版运行时目录（逐步迁移）
 users_workspace/
 
+# UI E2E scratch screenshots; curated evidence is kept in ui-refactor/.
+/artifacts/product-acceptance/ui-[2-8]/
+/artifacts/product-acceptance/ui-8-fixes/
+/artifacts/product-acceptance/ui-8-recheck/
+
 # MCP 服务器（从外部克隆的仓库）
 tools/mcp/
 

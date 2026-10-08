@@ -1,0 +1,31 @@
+{
+  "scope": "real provider boundary from Worker network; synthetic echo tool only",
+  "run_correlation": "fd9f6c3d-a8f8-4563-b29a-403e638de52a",
+  "provider": "minimax",
+  "serializer_version": "hpagent-provider-request-v2",
+  "requests": [
+    {
+      "round": 1,
+      "request_sha256": "0db96490677e7d163dfde16763f5d542b624cf46702d494fc9089976e524c24b",
+      "prior_tool_results": 0,
+      "tool_calls": 1,
+      "response_content": null
+    },
+    {
+      "round": 2,
+      "request_sha256": "a7a206ba257d4957773ef12ee22ccfb0609f59bc173c938ebd258165930843a0",
+      "prior_tool_results": 1,
+      "tool_calls": 1,
+      "response_content": null
+    },
+    {
+      "round": 3,
+      "request_sha256": "25da2c51db0a3c43a91b949956e641b55fa71fb0534f639d5efca87f210c2091",
+      "prior_tool_results": 2,
+      "tool_calls": 0,
+      "response_content": "OK"
+    }
+  ],
+  "passed": true,
+  "elapsed_seconds": 4.16
+}
