@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import { HpApi } from "../api/resources";
 import type { HpRunSnapshot } from "../api/types";
 import { useWorkbench } from "../store/workbench";
 import { useWorks } from "../store/works";
+import { useShell } from "../store/shell";
 import { useArtifacts } from "../store/artifacts";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { TracePanel } from "./trace/TracePanel";
@@ -28,12 +29,20 @@ export function ArtifactsPage({
   const create = useArtifacts((s) => s.createArtifact);
   const load = useArtifacts((s) => s.loadForMessage);
   const open = useArtifacts((s) => s.openArtifact);
-  const error = useArtifacts((s) => s.error);
   const [messageId, setMessageId] = useState("");
+  const intent = useArtifacts((s) => s.intents[`message:${messageId}`]);
   const [instruction, setInstruction] = useState("");
   const [busy, setBusy] = useState(false);
+  const alive = useRef(false);
+  const sourceToken = useRef(0);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const candidates = messages.filter(
-    (m) => m.role === "assistant" && m.status === "completed" && m.content,
+    (m) => m.role === "assistant" && m.status === "completed" && Boolean(m.content?.trim()),
   );
   const selected = candidates.some((m) => m.message_id === messageId) ? messageId : "";
   return (
@@ -43,7 +52,22 @@ export function ArtifactsPage({
         onSubmit={(e) => {
           e.preventDefault();
           setBusy(true);
-          void create(selected, instruction || null).finally(() => setBusy(false));
+          const token = useShell.getState().requestToken;
+          const selectedToken = sourceToken.current;
+          void create(selected, instruction || null)
+            .then((result) => {
+              if (
+                alive.current &&
+                selectedToken === sourceToken.current &&
+                result.status === "success" &&
+                result.artifact &&
+                token === useShell.getState().requestToken
+              )
+                open(result.artifact.artifact_id, result.version?.artifact_version_id);
+            })
+            .finally(() => {
+              if (alive.current) setBusy(false);
+            });
         }}
       >
         <h2>成果与版本</h2>
@@ -53,6 +77,7 @@ export function ArtifactsPage({
             required
             value={selected}
             onChange={(e) => {
+              sourceToken.current++;
               setMessageId(e.target.value);
               if (e.target.value) void load(e.target.value);
             }}
@@ -69,7 +94,9 @@ export function ArtifactsPage({
           生成要求
           <textarea value={instruction} onChange={(e) => setInstruction(e.target.value)} />
         </label>
-        <button disabled={busy || !selected}>{busy ? "创建中…" : "创建成果"}</button>
+        <button disabled={busy || !selected}>
+          {busy ? "创建中…" : intent?.uncertain ? "恢复原 HTML 生成" : "创建成果"}
+        </button>
         {(byMessage[selected] ?? []).map((a) => (
           <button
             type="button"
@@ -79,14 +106,10 @@ export function ArtifactsPage({
             {a.artifact.title}
           </button>
         ))}
-        {error && <p role="alert">{error}</p>}
+        {intent?.result?.error && <p role="alert">{intent.result.error}</p>}
         {!candidates.length && <p>先在对话页完成一次回复，或从工作列表打开已有成果。</p>}
       </form>
-      {showPanel && (
-        <ArtifactPanel
-          onSaveHtml={(html, name) => setSaveSource({ html, file_name: `${name}.txt` })}
-        />
-      )}
+      {showPanel && <ArtifactPanel onSaveHtml={setSaveSource} />}
       {saveSource && (
         <SaveWorkspaceDialog
           file={saveSource}

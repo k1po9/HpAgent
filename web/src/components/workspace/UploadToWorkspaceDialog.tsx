@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useShell } from "../../store/shell";
 import { useAuth } from "../../store/auth";
 import { useWorkspace } from "../../store/workspace";
 import { Surface } from "../shell/Surface";
@@ -147,6 +148,26 @@ export function UploadToWorkspaceDialog({
               {op.name} → {nodePath(tree, op.parentId)}：{op.phase}
               {op.error ? ` · ${op.error}` : ""}
             </p>
+            {!(op.source instanceof File) && "html" in op.source && (
+              <p>
+                HTML 源码副本 · {op.source.title ?? op.source.file_name}
+                {op.source.version ? ` · v${op.source.version}` : ""}
+              </p>
+            )}
+            {op.nodeId && (
+              <button
+                onClick={() => {
+                  onClose();
+                  useShell.getState().navigate({
+                    screen: "workspace",
+                    directoryId: op.parentId,
+                    inspector: { kind: "file", objectId: op.nodeId! },
+                  });
+                }}
+              >
+                打开空间
+              </button>
+            )}
             {!op.busy && !op.completed && (
               <button
                 onClick={() => {

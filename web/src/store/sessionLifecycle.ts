@@ -6,6 +6,8 @@ import { useConversationUi } from "./conversationUi";
 import { useAuth } from "./auth";
 import { useWorkbench } from "./workbench";
 import { useWorks } from "./works";
+import { useArtifactUi } from "./artifactUi";
+import { clearArtifactDownloads } from "../components/artifact/artifactDownloads";
 import { useArtifacts } from "./artifacts";
 import { useTraceStore } from "../components/trace/traceStore";
 import { useShell } from "./shell";
@@ -26,6 +28,8 @@ export const disposeSessionLifecycle = useAuth.subscribe((state, previous) => {
   useWorks.getState().reset();
   resetTaskQueries();
   useArtifacts.getState().reset();
+  useArtifactUi.getState().reset();
+  clearArtifactDownloads();
   useTraceStore.getState().reset();
   useRunInspector.getState().reset();
   useWorkspace.getState().reset();

@@ -1,0 +1,71 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { ArtifactInspector } from "./ArtifactInspector";
+import { useArtifacts } from "../../store/artifacts";
+import { useArtifactUi } from "../../store/artifactUi";
+import { useShell } from "../../store/shell";
+import { useWorks } from "../../store/works";
+import { workFixture, artifactFixture } from "../tasks/taskFixtures";
+import type { HpArtifactVersion } from "../../api/types";
+const artifact = {
+  artifact_id: "a",
+  title: "测试/HTML",
+  kind: "html" as const,
+  conversation_id: null,
+  source_message_id: null,
+  created_at: "2026-10-08",
+  updated_at: "2026-10-08",
+};
+const v1: HpArtifactVersion = {
+  artifact_version_id: "v1",
+  artifact_id: "a",
+  version: 1,
+  parent_version_id: null,
+  status: "completed",
+  instruction: null,
+  html: "<p>v1</p>",
+  failure: null,
+  created_at: "2026-10-08",
+  started_at: null,
+  completed_at: "2026-10-08",
+};
+const v2 = {
+  ...v1,
+  artifact_version_id: "v2",
+  version: 8,
+  parent_version_id: "v1",
+  instruction: "最新指令",
+  html: "<p>v8</p>",
+};
+
+it("R3: reopening without a version waits for the fresh latest successful version", async () => {
+  useArtifacts.getState().reset();
+  useArtifactUi.getState().reset();
+  useShell.getState().reset();
+  useWorks.getState().reset();
+  useArtifacts.setState({ artifactsById: { a: artifact }, versionsByArtifactId: { a: [v1] },
+    queries: { a: { loading: false } } });
+  let finish!: () => void;
+  const load = vi.spyOn(useArtifacts.getState(), "loadArtifact").mockImplementation(() => {
+    useArtifacts.setState({ queries: { a: { loading: true } } });
+    return new Promise((resolve) => {
+      finish = () => {
+        useArtifacts.setState({ versionsByArtifactId: { a: [v1, v2] }, queries: { a: { loading: false } } });
+        resolve([v1, v2]);
+      };
+    });
+  });
+  useShell.setState({ route: { screen: "ai", inspector: { kind: "artifact", objectId: "a" } } });
+  function Connected() {
+    const inspector = useShell((state) => state.route.inspector);
+    return <ArtifactInspector inspector={inspector!} />;
+  }
+  const view = render(<Connected />);
+  try {
+    await act(async () => finish());
+    expect(useShell.getState().route.inspector?.versionId).toBe("v2");
+    expect(screen.getByTitle("Artifact 预览")).toHaveAttribute("srcdoc", "<p>v8</p>");
+  } finally {
+    view.unmount(); load.mockRestore(); useArtifacts.getState().reset(); useShell.getState().reset();
+  }
+});

@@ -8,6 +8,7 @@ import {
   startSave,
   useWorkspaceOperations,
   type SaveSource,
+  type SaveOperation,
 } from "./workspaceOperations";
 export function SaveToWorkspaceDialog({
   file,
@@ -16,7 +17,7 @@ export function SaveToWorkspaceDialog({
 }: {
   file: SaveSource;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (operation: SaveOperation) => void;
 }) {
   // A new source gets a new operation and view owner, including identical names.
   return <SaveView key={JSON.stringify(file)} file={file} onClose={onClose} onSaved={onSaved} />;
@@ -28,7 +29,7 @@ function SaveView({
 }: {
   file: SaveSource;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (operation: SaveOperation) => void;
 }) {
   const tree = useWorkspace((s) => s.tree);
   const [directory, setDirectory] = useState("");
@@ -79,14 +80,21 @@ function SaveView({
               useWorkspace.getState().generation === generation &&
               useWorkspaceOperations.getState().operations[operationId]?.completed
             ) {
-              onSaved();
+              onSaved(useWorkspaceOperations.getState().operations[operationId]!);
               onClose();
             }
           });
         }}
       >
         <p>源文件：{file.file_name}</p>
-        {"html" in file && <p>以文本保存 HTML 源码；交互预览仍在成果上下文。</p>}
+        {"html" in file && (
+          <p>以 text/plain 保存 HTML 源码文本副本（.html.txt）；交互预览仍在成果上下文。</p>
+        )}
+        {"html" in file && file.version && (
+          <p>
+            来源：{file.title} · v{file.version}
+          </p>
+        )}
         <p>保存不会自动授权 AI 使用。</p>
         <label>
           保存目录

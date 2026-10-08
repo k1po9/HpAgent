@@ -1,0 +1,33 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=2 src/components/artifact/UI6InspectorSelfReview.repro.test.tsx
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/components/artifact/UI6InspectorSelfReview.repro.test.tsx (1 test | 1 failed) 154ms
+   × R3: reopening without a version waits for the fresh latest successful version 150ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/artifact/UI6InspectorSelfReview.repro.test.tsx > R3: reopening without a version waits for the fresh latest successful version
+AssertionError: expected 'v1' to be 'v2' // Object.is equality
+
+Expected: "v2"
+Received: "v1"
+
+ ❯ src/components/artifact/UI6InspectorSelfReview.repro.test.tsx:66:60
+     64|   try {
+     65|     await act(async () => finish());
+     66|     expect(useShell.getState().route.inspector?.versionId).toBe("v2");
+       |                                                            ^
+     67|     expect(screen.getByTitle("Artifact 预览")).toHaveAttribute("srcdoc",…
+     68|   } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  02:05:29
+   Duration  3.26s (transform 521ms, setup 244ms, import 617ms, tests 154ms, environment 1.84s)

@@ -61,3 +61,16 @@ it("normalizes artifact_build into general and validates tabs for each Inspector
   expect(serializeRoute(parsed.route)).toContain("type=general");
   expect(serializeRoute(parsed.route)).toContain("tab=outputs");
 });
+
+it("preserves Artifact details and explicit versions through route normalization", () => {
+  const parsed = parseRoute(
+    "#/tasks?work=task1&inspect=artifact:a1&version=missing&tab=details",
+  ).route;
+  expect(parsed.inspector).toEqual({
+    kind: "artifact",
+    objectId: "a1",
+    versionId: "missing",
+    tab: "details",
+  });
+  expect(parseRoute(serializeRoute(parsed)).route).toEqual(parsed);
+});

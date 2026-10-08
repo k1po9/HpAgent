@@ -266,8 +266,15 @@ export const useConversationUseIntents = create<{
   >;
 }>(() => ({ intents: {} }));
 
-export type SaveSource =
-  { file_id: string; file_name: string } | { html: string; file_name: string };
+export type ArtifactSaveSource = {
+  html: string;
+  file_name: string;
+  artifactId?: string;
+  versionId?: string;
+  version?: number;
+  title?: string;
+};
+export type SaveSource = { file_id: string; file_name: string } | ArtifactSaveSource;
 export type SaveOperation = {
   id: string;
   source: SaveSource | File;
@@ -298,7 +305,7 @@ export function startSave(
   const id = newIdempotencyKey();
   const operation: SaveOperation = {
     id,
-    source,
+    source: source instanceof File ? source : { ...source },
     parentId,
     name,
     subject,
@@ -327,6 +334,12 @@ export function changeSaveTarget(id: string, parentId: string, name: string) {
   useWorkspaceOperations.setState((s) => ({
     operations: {
       ...s.operations,
+      [next]: {
+        ...s.operations[next]!,
+        source: original.source,
+        fileId: original.fileId,
+        ready: true,
+      },
       [id]: { ...original, completed: true, phase: "已改用新保存意图" },
     },
   }));
@@ -396,7 +409,11 @@ export async function resumeSave(id: string) {
     }
     update({
       completed: true,
-      phase: original.subject ? "已保存并授权，下一轮可用" : "已保存到空间，未自动授权",
+      phase: original.subject
+        ? "已保存并授权，下一轮可用"
+        : !(original.source instanceof File) && "html" in original.source
+          ? "源码副本已保存到空间，未自动授权"
+          : "已保存到空间，未自动授权",
     });
   } catch (error) {
     if (current())

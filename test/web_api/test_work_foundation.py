@@ -67,6 +67,14 @@ def test_work_http_lifecycle_and_cross_account_visibility(seed_identity, client_
     assert revised.json()["work"]["current_requirement_revision"] == 2
     stale = client.post(f"{url}/pause", json={}, headers=headers(csrf, str(uuid4()), current_etag))
     assert stale.status_code == 409 and stale.json()["error"]["details"]["current"]["row_version"] > 1
+    # UI-6: acceptance uses the same version gate and cannot slip through a
+    # stale UI snapshot, even before resolving a candidate Artifact version.
+    stale_accept = client.post(f"{url}/accept-result",
+        json={"requirement_revision": 1, "artifact_version_id": str(uuid4())},
+        headers=headers(csrf, str(uuid4()), current_etag))
+    assert stale_accept.status_code == 409, stale_accept.text
+    assert stale_accept.json()["error"]["details"]["current"]["work_id"] == work_id
+    assert db.execute("SELECT count(*) FROM work_result_acceptances WHERE work_id=%s", (work_id,)).fetchone()[0] == 0
     paused = client.post(f"{url}/pause", json={},
         headers=headers(csrf, str(uuid4()), revised.headers["ETag"]))
     assert paused.status_code == 200 and paused.json()["work"]["status"] == "paused"

@@ -23,7 +23,7 @@ import remarkGfm from "remark-gfm";
 import type { HpFile, HpMessage, HpRun } from "../../api/types";
 import { ExecutionBlock } from "../../components/run/ExecutionBlock";
 import { useHpThreadRuntime } from "./runtime";
-import { useArtifacts } from "../../store/artifacts";
+import { ArtifactMessageItems } from "../../components/artifact/ArtifactMessageItems";
 import type { UploadAttachment } from "../../store/workbench";
 
 export interface HpThreadProps {
@@ -64,29 +64,17 @@ function HpTextPart({ text }: { text: string }) {
 function HpMessageView({
   filesByMessageId,
   runsByMessageId,
+  htmlMessageIds,
   onSaveFile,
 }: {
   filesByMessageId: Record<string, HpFile[]>;
   runsByMessageId: Record<string, string>;
+  htmlMessageIds: Set<string>;
   onSaveFile?: (file: HpFile) => void;
 }) {
   const message = useAuiState((s) => s.message);
   const files = filesByMessageId[message.id] ?? [];
-  const artifacts = useArtifacts((s) => s.artifactsByMessageId[message.id]);
-  const loading = useArtifacts((s) => s.loadingMessageIds.includes(message.id));
-  const loadForMessage = useArtifacts((s) => s.loadForMessage);
-  const createArtifact = useArtifacts((s) => s.createArtifact);
-  const openArtifact = useArtifacts((s) => s.openArtifact);
-  const canBuild = message.role === "assistant" && message.status?.type === "complete";
-
-  const primaryAction = async () => {
-    const known = artifacts ?? (await loadForMessage(message.id));
-    // A reset invalidates an in-flight lookup. Do not reinterpret that stale
-    // response (or a lookup error) as "no Artifact" and create one implicitly.
-    if (known === null) return;
-    if (known[0]) await openArtifact(known[known.length - 1]!.artifact.artifact_id);
-    else await createArtifact(message.id);
-  };
+  const canBuild = htmlMessageIds.has(message.id);
   return (
     <MessagePrimitive.Root className="hp-msg" data-message-id={message.id}>
       <MessagePrimitive.If user>
@@ -120,18 +108,7 @@ function HpMessageView({
           ))}
         </div>
       ) : null}
-      {canBuild ? (
-        <div className="hp-artifact-actions">
-          <button type="button" disabled={loading} onClick={() => void primaryAction()}>
-            {loading ? "加载中…" : artifacts?.length ? "打开 Artifact" : "生成 Artifact"}
-          </button>
-          {artifacts?.length ? (
-            <button type="button" onClick={() => void createArtifact(message.id)}>
-              再生成一个
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      {canBuild && <ArtifactMessageItems messageId={message.id} />}
     </MessagePrimitive.Root>
   );
 }
@@ -292,6 +269,18 @@ export function HpThread({
             {() => (
               <HpMessageView
                 filesByMessageId={filesByMessageId}
+                htmlMessageIds={
+                  new Set(
+                    messages
+                      .filter(
+                        (m) =>
+                          m.role === "assistant" &&
+                          m.status === "completed" &&
+                          Boolean(m.content?.trim()),
+                      )
+                      .map((m) => m.message_id),
+                  )
+                }
                 runsByMessageId={Object.fromEntries(
                   messages
                     .filter((m) => m.role === "assistant" && m.produced_by_run_id)

@@ -1,0 +1,17 @@
+
+> hpagent-web@0.1.0 typecheck
+> tsc --noEmit
+
+src/App.test.tsx(184,29): error TS2353: Object literal may only specify known properties, and 'error' does not exist in type 'ArtifactState | Partial<ArtifactState> | ((state: ArtifactState) => ArtifactState | Partial<ArtifactState>)'.
+src/components/ChatPane.tsx(68,47): error TS2339: Property 'error' does not exist on type 'ArtifactState'.
+src/components/ChatPane.tsx(69,52): error TS2339: Property 'clearError' does not exist on type 'ArtifactState'.
+src/components/TestPages.tsx(111,10): error TS6133: 'error' is declared but its value is never read.
+src/components/TestPages.tsx(231,10): error TS2304: Cannot find name 'intent'.
+src/components/TestPages.tsx(231,52): error TS2304: Cannot find name 'intent'.
+src/store/artifacts.test.ts(70,29): error TS2339: Property 'openVersionId' does not exist on type 'ArtifactState'.
+src/store/artifacts.test.ts(82,29): error TS2339: Property 'error' does not exist on type 'ArtifactState'.
+src/store/artifacts.test.ts(91,7): error TS2353: Object literal may only specify known properties, and 'navigationToken' does not exist in type 'ArtifactStoreDeps'.
+src/store/artifacts.test.ts(102,29): error TS2339: Property 'openVersionId' does not exist on type 'ArtifactState'.
+src/store/artifacts.test.ts(137,7): error TS2353: Object literal may only specify known properties, and 'openArtifactId' does not exist in type 'ArtifactState | Partial<ArtifactState> | ((state: ArtifactState) => ArtifactState | Partial<ArtifactState>)'.
+src/store/artifacts.test.ts(221,29): error TS2551: Property 'openArtifactId' does not exist on type 'ArtifactState'. Did you mean 'openArtifact'?
+src/store/artifacts.test.ts(231,29): error TS2339: Property 'error' does not exist on type 'ArtifactState'.

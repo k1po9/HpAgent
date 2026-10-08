@@ -1,5 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { HpMessage } from "../../api/types";
+import { useArtifacts } from "../../store/artifacts";
 import { HpThread } from "./HpThread";
 import { useConversationUi } from "../../store/conversationUi";
 
@@ -33,6 +35,7 @@ describe("UI-2 controlled composer", () => {
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
     await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     expect(input).toHaveValue("中文草稿");
+    await waitFor(() => expect(screen.getByRole("button", { name: "发送" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "发送" }));
     await waitFor(() => expect(input).toHaveValue(""));
   });
@@ -139,4 +142,43 @@ describe("UI-2 controlled composer", () => {
     b.resolve(false);
     await waitFor(() => expect(screen.getByRole("button", { name: "发送" })).toBeEnabled());
   });
+});
+
+it("offers HTML creation only for completed assistant messages with nonempty body", async () => {
+  const load = vi.spyOn(useArtifacts.getState(), "loadForMessage").mockResolvedValue([]);
+  const create = vi.spyOn(useArtifacts.getState(), "createArtifact");
+  const base: HpMessage = {
+    message_id: "empty",
+    conversation_id: "c1",
+    role: "assistant",
+    status: "completed",
+    content: " \n ",
+    sequence: 1,
+    client_request_id: null,
+    produced_by_run_id: null,
+    created_at: "2026-10-08T00:00:00Z",
+    completed_at: null,
+  };
+  render(
+    <HpThread
+      {...props}
+      onSend={vi.fn()}
+      messages={[
+        base,
+        { ...base, message_id: "streaming", status: "pending", content: "部分正文", sequence: 2 },
+        { ...base, message_id: "user", role: "user", content: "用户正文", sequence: 3 },
+        {
+          ...base,
+          message_id: "accepted-assistant",
+          status: "accepted",
+          content: "尚未完成",
+          sequence: 4,
+        },
+      ]}
+    />,
+  );
+  expect(screen.queryByRole("button", { name: "生成 HTML" })).toBeNull();
+  expect(load).not.toHaveBeenCalled();
+  expect(create).not.toHaveBeenCalled();
+  vi.restoreAllMocks();
 });

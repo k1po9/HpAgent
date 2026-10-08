@@ -1,0 +1,6 @@
+web/src/styles.css 1577ms
+web/src/components/workspace/UploadToWorkspaceDialog.tsx 698ms
+web/src/components/workspace/WorkspaceCommands.test.tsx 470ms
+web/src/adapters/assistant-ui/HpThread.ui2.test.tsx 325ms
+web/src/store/shell.test.ts 73ms
+web/src/components/artifact/ArtifactInspector.test.tsx 174ms (unchanged)

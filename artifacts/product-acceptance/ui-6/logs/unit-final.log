@@ -1,0 +1,86 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=2
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/adapters/assistant-ui/HpThread.ui2.test.tsx (8 tests | 1 failed) 4001ms
+     × retains the real input on rejection and clears only accepted text 2189ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/adapters/assistant-ui/HpThread.ui2.test.tsx > UI-2 controlled composer > retains the real input on rejection and clears only accepted text
+Error: expect(element).toHaveValue()
+
+Expected the element to have value:
+
+Received:
+  中文草稿
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"hp-thread"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"hp-thread__viewport"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"rt-Flex rt-r-ai-center rt-r-jc-center"[39m
+            [33mstyle[39m=[32m"height: 100%; padding: 24px;"[39m
+          [36m>[39m
+            [36m<span[39m
+              [33mclass[39m=[32m"rt-Text rt-r-size-3"[39m
+              [33mdata-accent-color[39m=[32m"gray"[39m
+            [36m>[39m
+              [0m开始新的对话吧[0m
+            [36m</span>[39m
+          [36m</div>[39m
+        [36m</div>[39m
+        [36m<form[39m
+          [33mclass[39m=[32m"hp-composer"[39m
+        [36m>[39m
+          [36m<textarea[39m
+            [33maria-label[39m=[32m"消息输入"[39m
+            [33mclass[39m=[32m"hp-composer__input"[39m
+            [33mplaceholder[39m=[32m"输入消息，Enter 发送"[39m
+          [36m>[39m
+            [0m中文草稿[0m
+          [36m</textarea>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"rt-Flex rt-r-ai-center rt-r-gap-2 hp-composer__actions"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33mclass[39m=[32m"hp-composer__send"[39m
+              [33mtype[39m=[32m"submit"[39m
+            [36m>[39m
+              [0m发送[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</form>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</body>[39m
+[36m</html>[39m
+ ❯ src/adapters/assistant-ui/HpThread.ui2.test.tsx:39:39
+     37|     expect(input).toHaveValue("中文草稿");
+     38|     await waitFor(() => expect(screen.getByRole("button", { name: "发送"…
+     39|     fireEvent.click(screen.getByRole("button", { name: "发送" }));
+       |                                       ^
+     40|     await waitFor(() => expect(input).toHaveValue(""));
+     41|   });
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 45 passed (46)
+      Tests  1 failed | 351 passed (352)
+   Start at  01:29:56
+   Duration  195.36s (transform 11.49s, setup 25.75s, import 41.34s, tests 98.36s, environment 187.51s)

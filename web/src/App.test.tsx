@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import { useAuth } from "./store/auth";
+import { useArtifactUi } from "./store/artifactUi";
 import { useArtifacts } from "./store/artifacts";
 import { useShell } from "./store/shell";
 import { StrictMode } from "react";
@@ -177,15 +178,13 @@ describe("App workbench", () => {
     expect(screen.getByText("绑定 QQ", { selector: "button" })).toBeInTheDocument();
   });
 
-  it("shows Artifact store errors in the active chat", async () => {
+  it("keeps unrelated Artifact errors out of the active chat", async () => {
     render(<App />);
     await screen.findByPlaceholderText(/输入消息/);
 
-    useArtifacts.setState({ error: "Artifact 服务不可用" });
+    useArtifacts.setState({ queries: { other: { loading: false, error: "Artifact 服务不可用" } } });
 
-    await waitFor(() =>
-      expect(screen.getByText("Artifact：Artifact 服务不可用（点击关闭）")).toBeInTheDocument(),
-    );
+    expect(screen.queryByText(/Artifact 服务不可用/)).not.toBeInTheDocument();
   });
 
   it("prompts a newly registered existing QQ user to bind first", async () => {
@@ -395,6 +394,17 @@ describe("UI-1 Shell lifecycle", () => {
     await screen.findByPlaceholderText(/输入消息/);
     act(() => {
       useShell.getState().openInspector({ kind: "file", objectId: "old" });
+      useArtifactUi.getState().edit("old-artifact", "账户内草稿");
+      useArtifacts.setState({
+        intents: {
+          "version:old-artifact": {
+            key: "old-key",
+            instruction: "修改",
+            busy: false,
+            uncertain: true,
+          },
+        },
+      });
       useAuth.getState().expire();
     });
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
@@ -402,5 +412,7 @@ describe("UI-1 Shell lifecycle", () => {
     expect(useWorkbench.getState().activeConversationId).toBeNull();
     expect(useShell.getState().route.inspector).toBeUndefined();
     expect(useArtifacts.getState().versionsByArtifactId).toEqual({});
+    expect(useArtifacts.getState().intents).toEqual({});
+    expect(useArtifactUi.getState().drafts).toEqual({});
   });
 });

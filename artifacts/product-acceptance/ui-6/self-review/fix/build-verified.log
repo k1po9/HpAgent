@@ -1,0 +1,19 @@
+
+> hpagent-web@0.1.0 build
+> tsc -b && vite build
+
+vite v8.2.1 building client environment for production...
+[2K
+transforming...✓ 2914 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.39 kB │ gzip:   0.27 kB
+dist/assets/index-BQcRA58_.css  716.87 kB │ gzip:  88.94 kB
+dist/assets/index-CDyGCcXq.js   868.51 kB │ gzip: 256.53 kB
+
+✓ built in 9.70s
+[plugin builtin:vite-reporter]
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.

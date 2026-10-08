@@ -1,0 +1,31 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test e2e/ui-6-self-review.spec.ts
+
+[WebServer] INFO:     Started server process [1650448]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8186 (Press CTRL+C to quit)
+[WebServer] (node:1651046) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:1651146) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 2026-10-08 09:30:59 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 09:30:59 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 09:31:00 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 09:31:05 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 09:31:05 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 09:31:05 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  1 [chromium] › e2e/ui-6-self-review.spec.ts:36:1 › network fixtures over real HTML: no-version reopen waits for fresh data and cached preview recovers after query failure (37.9s)
+[WebServer] 2026-10-08 09:31:27 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 09:31:27 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 09:31:27 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 09:31:32 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 09:31:32 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 09:31:32 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  2 [chromium] › e2e/ui-6-self-review.spec.ts:99:1 › network fixtures over a restored real message: its HTML row converges through interrupted polling without opening details (42.5s)
+
+  2 passed (1.6m)

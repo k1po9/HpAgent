@@ -1,0 +1,85 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=2 src/store/UI6SelfReview.test.ts src/components/artifact/UI6InspectorSelfReview.test.tsx
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/store/UI6SelfReview.test.ts (3 tests | 3 failed) 132ms
+   × R1: a late running poll cannot overwrite a completed version list 60ms
+   × R2: refreshing message summaries accepts the same version's terminal state 11ms
+   × R1b: a poll of v2 does not replace the newly completed v1 from a list response 39ms
+ ❯ src/components/artifact/UI6InspectorSelfReview.test.tsx (1 test | 1 failed) 314ms
+   × R3: reopening without a version waits for the fresh latest successful version 304ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/store/UI6SelfReview.test.ts > R1: a late running poll cannot overwrite a completed version list
+AssertionError: expected 'running' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "running"
+
+ ❯ src/store/UI6SelfReview.test.ts:69:67
+     67|     pending.resolve({ version: version("running") });
+     68|     await vi.advanceTimersByTimeAsync(0);
+     69|     expect(store.getState().versionsByArtifactId.a1?.[0]?.status).toBe…
+       |                                                                   ^
+     70|   } finally { store.getState().reset(); vi.useRealTimers(); }
+     71| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/store/UI6SelfReview.test.ts > R2: refreshing message summaries accepts the same version's terminal state
+AssertionError: expected 'running' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "running"
+
+ ❯ src/store/UI6SelfReview.test.ts:81:83
+     79|     await store.getState().loadForMessage("m1", true);
+     80|     expect(list).toHaveBeenCalledTimes(2);
+     81|     expect(store.getState().artifactsByMessageId.m1?.[0]?.latest_versi…
+       |                                                                                   ^
+     82|   } finally { store.getState().reset(); }
+     83| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/store/UI6SelfReview.test.ts > R1b: a poll of v2 does not replace the newly completed v1 from a list response
+AssertionError: expected 'running' to be 'completed' // Object.is equality
+
+Expected: "completed"
+Received: "running"
+
+ ❯ src/store/UI6SelfReview.test.ts:100:67
+     98|     refresh.resolve({ artifact, items: [version("completed"), v2] });
+     99|     await loading;
+    100|     expect(store.getState().versionsByArtifactId.a1?.[0]?.status).toBe…
+       |                                                                   ^
+    101|   } finally { store.getState().reset(); vi.useRealTimers(); }
+    102| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  src/components/artifact/UI6InspectorSelfReview.test.tsx > R3: reopening without a version waits for the fresh latest successful version
+AssertionError: expected 'v1' to be 'v2' // Object.is equality
+
+Expected: "v2"
+Received: "v1"
+
+ ❯ src/components/artifact/UI6InspectorSelfReview.test.tsx:66:60
+     64|   try {
+     65|     await act(async () => finish());
+     66|     expect(useShell.getState().route.inspector?.versionId).toBe("v2");
+       |                                                            ^
+     67|     expect(screen.getByTitle("Artifact 预览")).toHaveAttribute("srcdoc",…
+     68|   } finally {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  4 failed (4)
+   Start at  09:24:23
+   Duration  8.64s (transform 3.20s, setup 1.75s, import 3.61s, tests 446ms, environment 9.80s)

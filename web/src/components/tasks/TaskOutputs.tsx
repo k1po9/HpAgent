@@ -122,13 +122,19 @@ function ArtifactResult({
             : "未接受"}
       </p>
       <button
+        id={`task-artifact-${a.artifact_version_id}`}
         onClick={() =>
           useShell.getState().openInspector(
             {
               kind: "artifact",
               objectId: a.artifact_id,
               versionId: a.artifact_version_id,
-              origin: { workId: work.work_id },
+              origin: {
+                workId: work.work_id,
+                originalVersionId: a.artifact_version_id,
+                sourceRequirementRevision: a.source_requirement_revision,
+                triggerId: `task-artifact-${a.artifact_version_id}`,
+              },
             },
             true,
           )

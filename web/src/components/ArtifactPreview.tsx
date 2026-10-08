@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
 export function ArtifactPreview({ html }: { html: string }) {
+  return <PreviewFrame key={html} html={html} />;
+}
+function PreviewFrame({ html }: { html: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [loadKey, setLoadKey] = useState(0);

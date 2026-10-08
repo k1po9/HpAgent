@@ -15,7 +15,15 @@ export type Inspector = {
     | "details"
     | "versions"
     | "usage";
-  origin?: { conversationId?: string; messageId?: string; workId?: string; directoryId?: string };
+  origin?: {
+    conversationId?: string;
+    messageId?: string;
+    workId?: string;
+    originalVersionId?: string;
+    sourceRequirementRevision?: number;
+    triggerId?: string;
+    directoryId?: string;
+  };
 };
 export type Route = {
   screen: Screen;
@@ -100,7 +108,7 @@ export function parseRoute(
     task: ["overview", "outputs", "resources", "advanced"],
     run: ["overview", "resources", "advanced"],
     file: ["preview", "details", "versions", "usage"],
-    artifact: ["preview", "versions"],
+    artifact: ["preview", "versions", "details"],
   };
   const tab = params.get("tab");
   if (route.inspector && tab && allowedTabs[route.inspector.kind]?.includes(tab))
@@ -239,15 +247,19 @@ export const useShell = create<ShellState>((set, get) => ({
   closeInspector() {
     const inspector = get().route.inspector;
     get().navigate({ ...get().route, inspector: undefined, workId: undefined });
-    if (get().pendingRoute || !["file", "task"].includes(inspector?.kind ?? "")) return;
+    if (get().pendingRoute || !["file", "task", "artifact"].includes(inspector?.kind ?? "")) return;
     setTimeout(() => {
       if (get().route.inspector) return;
       const trigger =
-        inspector?.kind === "file"
-          ? document.getElementById(`workspace-node-${inspector.objectId}`)
-          : inspector?.kind === "task"
-            ? document.getElementById(`task-${inspector.objectId}`)
-            : null;
+        inspector?.kind === "artifact"
+          ? document.getElementById(
+              inspector.origin?.triggerId ?? `artifact-open-${inspector.objectId}`,
+            )
+          : inspector?.kind === "file"
+            ? document.getElementById(`workspace-node-${inspector.objectId}`)
+            : inspector?.kind === "task"
+              ? document.getElementById(`task-${inspector.objectId}`)
+              : null;
       if (trigger?.isConnected && !trigger.closest("[hidden]")) trigger.focus();
       else document.getElementById("canvas-title")?.focus();
     }, 0);

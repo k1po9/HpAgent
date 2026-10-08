@@ -298,6 +298,9 @@ export interface HpArtifact {
 }
 
 export interface HpArtifactVersion {
+  producing_run_id?: string | null;
+  producing_execution_id?: string | null;
+  producing_operation_id?: string | null;
   artifact_version_id: string;
   artifact_id: string;
   version: number;

@@ -1,0 +1,556 @@
+..................EEEEEEEEEEEEE.                                         [100%]
+==================================== ERRORS ====================================
+_ ERROR at setup of test_artifact_admission_replays_without_duplicate_mandates _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+_ ERROR at setup of test_budget_parallel_reservation_retry_and_late_settlement _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+_ ERROR at setup of test_reminder_only_completes_after_exact_delivery_receipt __
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+__ ERROR at setup of test_stop_and_uncertain_delivery_preserve_responsibility __
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+___ ERROR at setup of test_revision_receipt_cannot_complete_new_requirements ___
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+___ ERROR at setup of test_artifact_build_has_new_work_run_provenance[ready] ___
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+___ ERROR at setup of test_artifact_build_has_new_work_run_provenance[retry] ___
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+_ ERROR at setup of test_artifact_build_has_new_work_run_provenance[user_and_delivery] _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+_ ERROR at setup of test_resume_revalidates_accepted_reminder_without_resending _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+_ ERROR at setup of test_capacity_reserves_interactive_room_and_recovers_lease _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+_ ERROR at setup of test_qq_reminder_target_is_explicit_and_work_control_is_model_free[private] _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+_ ERROR at setup of test_qq_reminder_target_is_explicit_and_work_control_is_model_free[group] _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+_ ERROR at setup of test_explicit_input_revoke_blocks_dispatch_and_budget_adjustment_is_versioned _
+
+    @pytest.fixture(scope="session")
+    def database_url() -> str:
+        migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")
+        app_url = os.getenv("APP_DATABASE_URL")
+        if not migration_url or not app_url:
+            pytest.skip("migration and app database URLs are required")
+>       migrate(migration_url)
+
+test/web_persistence/conftest.py:18:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/persistence/migrate.py:106: in migrate
+    cursor.execute(sql)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [BAD] at 0x7fa705ea1910>
+query = '-- Phase A initial schema.  This migration is deliberately greenfield: it never\n-- touches the legacy session/Redis/... ROLE hpagent_api SET search_path TO hpagent, public;\nALTER ROLE hpagent_worker SET search_path TO hpagent, public;\n'
+params = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.InternalError_: tuple concurrently updated
+
+.venv/lib/python3.12/site-packages/psycopg/cursor.py:117: InternalError_
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /home/hp/workspace/HpAgent_web/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR test/web_persistence/test_web_artifacts.py::test_artifact_admission_replays_without_duplicate_mandates
+ERROR test/web_persistence/test_work_integration.py::test_budget_parallel_reservation_retry_and_late_settlement
+ERROR test/web_persistence/test_work_integration.py::test_reminder_only_completes_after_exact_delivery_receipt
+ERROR test/web_persistence/test_work_integration.py::test_stop_and_uncertain_delivery_preserve_responsibility
+ERROR test/web_persistence/test_work_integration.py::test_revision_receipt_cannot_complete_new_requirements
+ERROR test/web_persistence/test_work_integration.py::test_artifact_build_has_new_work_run_provenance[ready]
+ERROR test/web_persistence/test_work_integration.py::test_artifact_build_has_new_work_run_provenance[retry]
+ERROR test/web_persistence/test_work_integration.py::test_artifact_build_has_new_work_run_provenance[user_and_delivery]
+ERROR test/web_persistence/test_work_integration.py::test_resume_revalidates_accepted_reminder_without_resending
+ERROR test/web_persistence/test_work_integration.py::test_capacity_reserves_interactive_room_and_recovers_lease
+ERROR test/web_persistence/test_work_integration.py::test_qq_reminder_target_is_explicit_and_work_control_is_model_free[private]
+ERROR test/web_persistence/test_work_integration.py::test_qq_reminder_target_is_explicit_and_work_control_is_model_free[group]
+ERROR test/web_persistence/test_work_integration.py::test_explicit_input_revoke_blocks_dispatch_and_budget_adjustment_is_versioned
+19 passed, 1 warning, 13 errors in 36.47s

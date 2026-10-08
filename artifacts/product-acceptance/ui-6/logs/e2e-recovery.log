@@ -1,0 +1,80 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test e2e/artifact.spec.ts e2e/ui-6-artifact.spec.ts
+
+[WebServer] INFO:     Started server process [601655]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8186 (Press CTRL+C to quit)
+[WebServer] (node:602245) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 5 tests using 1 worker
+
+(node:602358) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 2026-10-08 01:38:16 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 01:38:16 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 01:38:17 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:38:22 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 01:38:22 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 01:38:22 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  1 [chromium] › e2e/artifact.spec.ts:5:1 › builds, interacts with, isolates and restores an Artifact (37.1s)
+[WebServer] 2026-10-08 01:38:55 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 01:38:55 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 01:38:55 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:39:00 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 01:39:00 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 01:39:00 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  2 [chromium] › e2e/ui-6-artifact.spec.ts:8:1 › real API: lost create/version responses replay keys and history keeps v1 selected (36.1s)
+  ✓  3 [chromium] › e2e/ui-6-artifact.spec.ts:77:1 › network fixtures: task original delivery, unavailable versions, layouts and layered focus (24.6s)
+[WebServer] 2026-10-08 01:39:46 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 01:39:46 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 01:39:47 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:39:51 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 01:39:51 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 01:39:51 [INFO ] HpAgent.SSE: sse_disconnected
+  ✘  4 [chromium] › e2e/ui-6-artifact.spec.ts:210:1 › real API upload with injected lost PUT and name conflict: source copy recovers without reupload (31.7s)
+(node:607754) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  5 [chromium] › e2e/ui-6-artifact.spec.ts:281:1 › network fixtures: loading and query failure recover to the default successful version (8.1s)
+
+
+  1) [chromium] › e2e/ui-6-artifact.spec.ts:210:1 › real API upload with injected lost PUT and name conflict: source copy recovers without reupload
+
+    Error: expect(locator).toHaveText(expected) failed
+
+    Locator:  getByRole('dialog', { name: '保存到长期文件' }).getByRole('alert')
+    Expected: "合成同名冲突"
+    Received: "合成同名冲突（请求 null）"
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toHaveText" with timeout 15000ms
+      - waiting for getByRole('dialog', { name: '保存到长期文件' }).getByRole('alert')
+        32 × locator resolved to <p role="alert">合成同名冲突（请求 null）</p>
+           - unexpected value "合成同名冲突（请求 null）"
+
+
+      264 |   await page.screenshot({ path: resolve(evidence, "source-save-lost-put.png"), fullPage: true });
+      265 |   await dialog.getByRole("button", { name: "继续原保存" }).click();
+    > 266 |   await expect(dialog.getByRole("alert")).toHaveText("合成同名冲突");
+          |                                           ^
+      267 |   await dialog.getByLabel("保存名称").fill(`源码副本-${Date.now()}-v1.html.txt`);
+      268 |   await dialog.getByRole("button", { name: "继续原保存" }).click();
+      269 |   await expect(dialog).not.toBeVisible();
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-6-artifact.spec.ts:266:43
+
+    Error Context: test-results/ui-6-artifact-real-API-upl-057b7-y-recovers-without-reupload-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-6-artifact-real-API-upl-057b7-y-recovers-without-reupload-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-6-artifact-real-API-upl-057b7-y-recovers-without-reupload-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/ui-6-artifact.spec.ts:210:1 › real API upload with injected lost PUT and name conflict: source copy recovers without reupload
+  4 passed (2.7m)

@@ -256,6 +256,59 @@ async def test_artifact_build_has_new_work_run_provenance(
             if work["continuation"]["kind"] == "awaiting_input":
                 break
         assert work["continuation"]["reason"] == "user_acceptance_required"
+        # UI-6: a manually generated successor belongs to a new mandate and
+        # never supplies acceptance evidence for the original delivery.
+        artifacts = ArtifactService(database_url)
+        manual_key = str(uuid4())
+        manual = artifacts.create_version(
+            account_id, UUID(v["artifact_id"]), manual_key, "Manual successor"
+        )
+        assert artifacts.create_version(
+            account_id, UUID(v["artifact_id"]), manual_key, "Manual successor"
+        ).replayed
+        manual_version = manual.body["version"]["artifact_version_id"]
+        assert manual.body["version"]["parent_version_id"] == version
+        manual_work = next(
+            candidate for candidate in service.list(account_id)["items"]
+            if candidate["requirement"]["spec"].get("artifact_version_id") == manual_version
+        )
+        manual_work = service.revise(
+            account_id, UUID(manual_work["work_id"]), str(uuid4()), manual_work["row_version"],
+            Requirement("Manual successor requiring review", "artifact_build", manual_work["requirement"]["spec"],
+                        acceptance_criteria=(
+                            {"id": "artifact", "required": True, "evidence_types": ["artifact_version"]},
+                            {"id": "user", "required": True, "evidence_types": ["user_acceptance"]},
+                        )),
+        ).body["work"]
+        manual_run = advance(service, manual_work, worker_database_url)
+        await ArtifactBuildService(worker_database_url, Generator()).execute(
+            UUID(manual_version), run_id=UUID(manual_run["run_id"])
+        )
+        original = service.get(account_id, UUID(work["work_id"]))["work"]
+        assert [a["artifact_version_id"] for a in original["artifacts"]] == [version]
+        for rejected_revision, rejected_version in (
+            (work["current_requirement_revision"], manual_version),
+            (work["current_requirement_revision"] - 1, version),
+        ):
+            with pytest.raises(ValueError):
+                service.integration(
+                    account_id, UUID(work["work_id"]), str(uuid4()), work["row_version"],
+                    "accept_result", {"requirement_revision": rejected_revision,
+                                      "artifact_version_id": UUID(rejected_version)},
+                )
+        # Advancing the new mandate's control epoch through public commands
+        # invalidates its old successful execution without editing Run facts.
+        manual_work = service.get(account_id, UUID(manual_work["work_id"]))["work"]
+        for action in ("pause", "resume"):
+            manual_work = service.control(
+                account_id, UUID(manual_work["work_id"]), str(uuid4()), manual_work["row_version"], action
+            ).body["work"]
+        with pytest.raises(ValueError, match="not awaiting explicit user acceptance"):
+            service.integration(
+                account_id, UUID(manual_work["work_id"]), str(uuid4()), manual_work["row_version"],
+                "accept_result", {"requirement_revision": manual_work["current_requirement_revision"],
+                                  "artifact_version_id": UUID(manual_version)},
+            )
         work = service.integration(
             account_id,
             UUID(work["work_id"]),

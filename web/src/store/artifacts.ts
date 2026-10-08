@@ -10,312 +10,506 @@ import {
 } from "../api/types";
 import { newIdempotencyKey } from "../utils/idempotency";
 
-const delays = [1000, 2000, 3000, 5000] as const;
-
+const delays = [1000, 2000, 3000, 5000];
+export const building = (v: HpArtifactVersion) => v.status === "queued" || v.status === "running";
+export const latestSuccess = (items: HpArtifactVersion[]) =>
+  [...items].sort((a, b) => b.version - a.version).find((v) => v.status === "completed");
+export const defaultVersion = (items: HpArtifactVersion[]) =>
+  latestSuccess(items) ?? [...items].sort((a, b) => b.version - a.version)[0];
+export type QueryState = { loading: boolean; error?: string; status?: number };
+export type CommandResult = {
+  status: "success" | "failed" | "uncertain" | "stale" | "busy";
+  version?: HpArtifactVersion;
+  artifact?: HpArtifact;
+  error?: string;
+  code?: string;
+  requestId?: string | null;
+  draftRevision?: number;
+};
+export type ArtifactIntent = {
+  key: string;
+  instruction: string | null;
+  busy: boolean;
+  uncertain: boolean;
+  result?: CommandResult;
+  draftRevision?: number;
+};
 interface ArtifactState {
   artifactsByMessageId: Record<string, HpArtifactSummary[]>;
   artifactsById: Record<string, HpArtifact>;
   versionsByArtifactId: Record<string, HpArtifactVersion[]>;
-  openArtifactId: string | null;
-  openVersionId: string | null;
+  queries: Record<string, QueryState>;
+  messageQueries: Record<string, QueryState>;
+  intents: Record<string, ArtifactIntent>;
   loadingMessageIds: string[];
   buildingVersionIds: string[];
-  error: string | null;
-  loadErrorStatus: number | null;
-  loadForMessage: (messageId: string) => Promise<HpArtifactSummary[] | null>;
-  createArtifact: (messageId: string, instruction?: string | null) => Promise<void>;
-  openArtifact: (artifactId: string, versionId?: string, navigate?: boolean) => Promise<void>;
-  createVersion: (artifactId: string, instruction: string) => Promise<void>;
-  selectVersion: (versionId: string) => void;
-  clearError: () => void;
-  closeArtifact: () => void;
+  loadForMessage: (messageId: string, force?: boolean) => Promise<HpArtifactSummary[] | null>;
+  loadArtifact: (artifactId: string, force?: boolean) => Promise<HpArtifactVersion[] | null>;
+  createArtifact: (messageId: string, instruction?: string | null) => Promise<CommandResult>;
+  createVersion: (
+    artifactId: string,
+    instruction: string,
+    expectedParent?: string | null,
+    draftRevision?: number,
+  ) => Promise<CommandResult>;
+  // UI-7 compatibility: navigation intent only, no domain selection state.
+  openArtifact: (artifactId: string, versionId?: string) => void;
   reset: () => void;
 }
-
 export interface ArtifactStoreDeps {
   api: HpApi;
   sleep?: (milliseconds: number) => Promise<void>;
   newIdempotencyKey?: () => string;
   onOpen?: (artifactId: string, versionId?: string) => void;
-  navigationToken?: () => number;
-  onClose?: () => void;
-  onVersion?: (versionId: string) => void;
 }
-
 const initialState = {
   artifactsByMessageId: {},
   artifactsById: {},
   versionsByArtifactId: {},
-  openArtifactId: null,
-  openVersionId: null,
+  queries: {},
+  messageQueries: {},
+  intents: {},
   loadingMessageIds: [],
   buildingVersionIds: [],
-  error: null,
-  loadErrorStatus: null,
 };
-
-function upsert(items: HpArtifactVersion[], value: HpArtifactVersion): HpArtifactVersion[] {
-  return [
-    ...items.filter((item) => item.artifact_version_id !== value.artifact_version_id),
-    value,
-  ].sort((a, b) => a.version - b.version);
+function upsert(items: HpArtifactVersion[], v: HpArtifactVersion) {
+  return [...items.filter((i) => i.artifact_version_id !== v.artifact_version_id), v].sort(
+    (a, b) => a.version - b.version,
+  );
 }
-
-function unique(values: string[]): string[] {
-  return [...new Set(values)];
-}
-
+const denied = (e: unknown) => e instanceof HpCommandError && [403, 404].includes(e.status);
+const message = (e: unknown) => (e instanceof Error ? e.message : "暂时无法同步 HTML 成果。");
 export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(defaultApi) }) {
-  const api = deps.api;
   const timers = new Map<ReturnType<typeof setTimeout>, () => void>();
   const sleep =
     deps.sleep ??
-    ((milliseconds: number) =>
+    ((ms: number) =>
       new Promise<void>((resolve) => {
         const timer = setTimeout(() => {
           timers.delete(timer);
           resolve();
-        }, milliseconds);
+        }, ms);
         timers.set(timer, resolve);
       }));
   const newKey = deps.newIdempotencyKey ?? newIdempotencyKey;
-
-  return create<ArtifactState>()((set) => {
-    // Every conversation/account context change invalidates all outstanding
-    // requests and pollers. Fetch cannot always be aborted after dispatch, so
-    // generation is the final guard before any response mutates the store.
+  return create<ArtifactState>()((set, get) => {
     let generation = 0;
-    let selectionGeneration = 0;
-    const current = (value: number): boolean => value === generation;
-
-    const reset = (): void => {
-      generation += 1;
-      selectionGeneration += 1;
-      timers.forEach((resolve, timer) => {
-        clearTimeout(timer);
+    const tokens = new Map<string, number>();
+    const epochs = new Map<string, number>();
+    // All GET channels share a dispatch sequence, with freshness tracked per version.
+    let sequence = 0;
+    const versionReads = new Map<string, number>();
+    const requests = new Map<string, Promise<HpArtifactVersion[] | null>>();
+    const messageRequests = new Map<string, Promise<HpArtifactSummary[] | null>>();
+    const pollers = new Map<string, Promise<void>>();
+    let messageLimiter = { active: 0, queue: [] as (() => void)[] };
+    let pollLimiter = { active: 0, queue: [] as (() => void)[] };
+    const reset = () => {
+      generation++;
+      tokens.clear();
+      epochs.clear();
+      versionReads.clear();
+      requests.clear();
+      messageRequests.clear();
+      messageLimiter.queue.splice(0).forEach((resolve) => resolve());
+      messageLimiter = { active: 0, queue: [] };
+      pollLimiter.queue.splice(0).forEach((resolve) => resolve());
+      pollLimiter = { active: 0, queue: [] };
+      timers.forEach((resolve, t) => {
+        clearTimeout(t);
         resolve();
       });
       timers.clear();
       set({ ...initialState });
     };
-
-    const pollVersion = async (
-      initial: HpArtifactVersion,
-      pollGeneration: number,
-    ): Promise<void> => {
-      let version = initial;
-      let attempt = 0;
-      while (version.status === "queued" || version.status === "running") {
-        await sleep(delays[Math.min(attempt++, delays.length - 1)] ?? 5000);
-        if (!current(pollGeneration)) return;
-        try {
-          version = (await api.getArtifactVersion(version.artifact_version_id)).version;
-        } catch (error) {
-          if (!current(pollGeneration)) return;
-          if (error instanceof HpCommandError && error.status === 401) {
-            reset();
-            return;
-          }
-          // A network/API restart is not a build failure. Keep the build marker
-          // and retry at the capped delay until an authoritative state returns.
-          continue;
-        }
-        if (!current(pollGeneration)) return;
-        set((state) => ({
-          versionsByArtifactId: {
-            ...state.versionsByArtifactId,
-            [version.artifact_id]: upsert(
-              state.versionsByArtifactId[version.artifact_id] ?? [],
-              version,
-            ),
+    const purge = (id: string, error: unknown) => {
+      epochs.set(id, (epochs.get(id) ?? 0) + 1);
+      set((s) => ({
+        artifactsById: Object.fromEntries(
+          Object.entries(s.artifactsById).filter(([key]) => key !== id),
+        ),
+        versionsByArtifactId: Object.fromEntries(
+          Object.entries(s.versionsByArtifactId).filter(([key]) => key !== id),
+        ),
+        artifactsByMessageId: Object.fromEntries(
+          Object.entries(s.artifactsByMessageId).map(([key, list]) => [
+            key,
+            list.filter((x) => x.artifact.artifact_id !== id),
+          ]),
+        ),
+        intents: Object.fromEntries(
+          Object.entries(s.intents).filter(([key]) => key !== `version:${id}`),
+        ),
+        buildingVersionIds: s.buildingVersionIds.filter(
+          (v) => !s.versionsByArtifactId[id]?.some((x) => x.artifact_version_id === v),
+        ),
+        queries: {
+          ...s.queries,
+          [id]: {
+            loading: false,
+            error: message(error),
+            status: error instanceof HpCommandError ? error.status : 0,
           },
-          buildingVersionIds:
-            version.status === "queued" || version.status === "running"
-              ? state.buildingVersionIds
-              : state.buildingVersionIds.filter((id) => id !== version.artifact_version_id),
-        }));
-      }
+        },
+      }));
     };
-
-    const pollers = new Map<string, Promise<void>>();
-    const poll = (initial: HpArtifactVersion, token: number) => {
-      const key = `${token}:${initial.artifact_version_id}`;
-      const existing = pollers.get(key);
-      if (existing) return existing;
-      const pending = pollVersion(initial, token).finally(() => pollers.delete(key));
+    const cachedVersion = (v: HpArtifactVersion) =>
+      get().versionsByArtifactId[v.artifact_id]?.find(
+        (item) => item.artifact_version_id === v.artifact_version_id,
+      );
+    const cacheVersion = (
+      incoming: HpArtifactVersion,
+      artifact?: HpArtifact,
+      read = ++sequence,
+    ) => {
+      const cached = cachedVersion(incoming);
+      const previousRead = versionReads.get(incoming.artifact_version_id) ?? 0;
+      // Completed HTML is immutable. Failed builds may legitimately run again in
+      // _prepare on the same Run, so a newer GET may accept failed -> running.
+      const accept =
+        !cached ||
+        (incoming.status === "completed" && cached.status !== "completed") ||
+        (read >= previousRead &&
+          (cached.status !== "completed" || incoming.status === "completed"));
+      const v = accept ? incoming : cached!;
+      if (accept) versionReads.set(v.artifact_version_id, Math.max(previousRead, read));
+      set((s) => ({
+        artifactsById: artifact
+          ? { ...s.artifactsById, [v.artifact_id]: artifact }
+          : s.artifactsById,
+        versionsByArtifactId: {
+          ...s.versionsByArtifactId,
+          [v.artifact_id]: upsert(s.versionsByArtifactId[v.artifact_id] ?? [], v),
+        },
+        artifactsByMessageId: Object.fromEntries(
+          Object.entries(s.artifactsByMessageId).map(([id, list]) => [
+            id,
+            list.map((x) =>
+              x.artifact.artifact_id === v.artifact_id &&
+              (!x.latest_version || x.latest_version.version <= v.version)
+                ? { ...x, latest_version: v }
+                : x,
+            ),
+          ]),
+        ),
+        buildingVersionIds: building(v)
+          ? [...new Set([...s.buildingVersionIds, v.artifact_version_id])]
+          : s.buildingVersionIds.filter((id) => id !== v.artifact_version_id),
+      }));
+      return v;
+    };
+    const poll = (initial: HpArtifactVersion, g: number) => {
+      if (!building(initial)) return;
+      const epoch = epochs.get(initial.artifact_id) ?? 0;
+      const valid = () => generation === g && (epochs.get(initial.artifact_id) ?? 0) === epoch;
+      const key = `${g}:${epoch}:${initial.artifact_version_id}`;
+      if (pollers.has(key)) return;
+      const pending = (async () => {
+        let v = initial,
+          attempt = 0;
+        while (building(v)) {
+          await sleep(delays[Math.min(attempt++, 3)]!);
+          if (!valid()) return;
+          v = cachedVersion(v) ?? v;
+          if (!building(v)) return;
+          const limiter = pollLimiter;
+          if (limiter.active >= 4)
+            await new Promise<void>((resolve) => limiter.queue.push(resolve));
+          limiter.active++;
+          try {
+            if (!valid() || !building(cachedVersion(v) ?? v)) return;
+            const read = ++sequence;
+            const result = await deps.api.getArtifactVersion(v.artifact_version_id);
+            if (!valid()) return;
+            v = cacheVersion(result.version, undefined, read);
+            set((s) => ({
+              queries: {
+                ...s.queries,
+                [v.artifact_id]: { loading: s.queries[v.artifact_id]?.loading ?? false },
+              },
+            }));
+          } catch (e) {
+            if (!valid()) return;
+            if (e instanceof HpCommandError && e.status === 401) {
+              reset();
+              return;
+            }
+            if (denied(e)) {
+              purge(v.artifact_id, e);
+              return;
+            }
+            v = cachedVersion(v) ?? v;
+            if (!building(v)) return;
+            set((s) => ({
+              queries: {
+                ...s.queries,
+                [v.artifact_id]: {
+                  loading: s.queries[v.artifact_id]?.loading ?? false,
+                  error: `同步中断：${message(e)}`,
+                  status: e instanceof HpCommandError ? e.status : 0,
+                },
+              },
+            }));
+          } finally {
+            limiter.active--;
+            limiter.queue.shift()?.();
+          }
+        }
+      })().finally(() => pollers.delete(key));
       pollers.set(key, pending);
-      return pending;
     };
-
-    return {
-      ...initialState,
-      loadForMessage: async (messageId) => {
-        const requestGeneration = generation;
-        set((state) => ({
-          loadingMessageIds: unique([...state.loadingMessageIds, messageId]),
-          error: null,
-        }));
+    const loadArtifact: ArtifactState["loadArtifact"] = (id, force = false) => {
+      if (!force && requests.has(id)) return requests.get(id)!;
+      const g = generation,
+        token = (tokens.get(id) ?? 0) + 1,
+        read = ++sequence;
+      tokens.set(id, token);
+      const epoch = epochs.get(id) ?? 0;
+      const valid = () =>
+        g === generation && tokens.get(id) === token && (epochs.get(id) ?? 0) === epoch;
+      set((s) => ({ queries: { ...s.queries, [id]: { loading: true } } }));
+      const pending = (async () => {
         try {
-          const result = await api.listMessageArtifacts(messageId);
-          if (!current(requestGeneration)) return null;
-          set((state) => ({
-            artifactsByMessageId: {
-              ...state.artifactsByMessageId,
-              [messageId]: result.items,
-            },
-            loadingMessageIds: state.loadingMessageIds.filter((id) => id !== messageId),
+          const result = await deps.api.listArtifactVersions(id);
+          if (!valid()) return null;
+          let items = result.items.map((v) => cacheVersion(v, undefined, read));
+          // Only versions written since dispatch can be absent from this snapshot
+          // (for example, a newly accepted POST). An unrelated poll is no override.
+          for (const v of get().versionsByArtifactId[id] ?? [])
+            if ((versionReads.get(v.artifact_version_id) ?? 0) > read) items = upsert(items, v);
+          items.sort((a, b) => a.version - b.version);
+          set((s) => ({
+            artifactsById: { ...s.artifactsById, [id]: result.artifact },
+            versionsByArtifactId: { ...s.versionsByArtifactId, [id]: items },
+            queries: { ...s.queries, [id]: { loading: false } },
+            buildingVersionIds: [
+              ...new Set([
+                ...s.buildingVersionIds.filter(
+                  (v) => !s.versionsByArtifactId[id]?.some((x) => x.artifact_version_id === v),
+                ),
+                ...items.filter(building).map((v) => v.artifact_version_id),
+              ]),
+            ],
           }));
-          return result.items;
-        } catch (error) {
-          if (!current(requestGeneration)) return null;
-          set((state) => ({
-            loadingMessageIds: state.loadingMessageIds.filter((id) => id !== messageId),
-            error: error instanceof Error ? error.message : "Artifact 加载失败。",
-          }));
+          items.forEach((v) => poll(v, g));
+          return items;
+        } catch (e) {
+          if (!valid()) return null;
+          if (e instanceof HpCommandError && e.status === 401) {
+            reset();
+            return null;
+          }
+          if (denied(e)) purge(id, e);
+          else
+            set((s) => ({
+              queries: {
+                ...s.queries,
+                [id]: {
+                  loading: false,
+                  error: message(e),
+                  status: e instanceof HpCommandError ? e.status : 0,
+                },
+              },
+            }));
           return null;
         }
-      },
-      createArtifact: async (messageId, instruction = null) => {
-        const navigationToken = deps.navigationToken?.();
-        const requestGeneration = generation;
-        set({ error: null });
+      })().finally(() => {
+        if (requests.get(id) === pending) requests.delete(id);
+      });
+      requests.set(id, pending);
+      return pending;
+    };
+    const loadForMessage: ArtifactState["loadForMessage"] = (id, force = false) => {
+      if (messageRequests.has(id)) return messageRequests.get(id)!;
+      if (!force && get().artifactsByMessageId[id])
+        return Promise.resolve(get().artifactsByMessageId[id]!);
+      const g = generation;
+      set((s) => ({
+        messageQueries: { ...s.messageQueries, [id]: { loading: true } },
+        loadingMessageIds: [...new Set([...s.loadingMessageIds, id])],
+      }));
+      const limiter = messageLimiter;
+      const pending = (async () => {
+        if (limiter.active >= 4) await new Promise<void>((resolve) => limiter.queue.push(resolve));
+        limiter.active++;
         try {
-          const result = await api.createArtifact(messageId, instruction, newKey());
-          if (!current(requestGeneration)) return;
-          set((state) => ({
+          if (g !== generation) return null;
+          const read = ++sequence;
+          const requestEpochs = new Map(epochs);
+          const result = await deps.api.listMessageArtifacts(id);
+          if (g !== generation) return null;
+          const known = get().artifactsByMessageId[id] ?? [];
+          const items = [
+            ...result.items
+              .filter(
+                (item) =>
+                  (epochs.get(item.artifact.artifact_id) ?? 0) ===
+                  (requestEpochs.get(item.artifact.artifact_id) ?? 0),
+              )
+              .map((item) => {
+                if (item.latest_version) cacheVersion(item.latest_version, item.artifact, read);
+                const cached = get().versionsByArtifactId[item.artifact.artifact_id]?.at(-1);
+                const summary = known.find(
+                  (x) => x.artifact.artifact_id === item.artifact.artifact_id,
+                )?.latest_version;
+                const latest =
+                  summary && (!cached || summary.version > cached.version) ? summary : cached;
+                return latest &&
+                  (!item.latest_version || latest.version >= item.latest_version.version)
+                  ? { ...item, latest_version: latest }
+                  : item;
+              }),
+            ...known.filter(
+              (x) => !result.items.some((y) => y.artifact.artifact_id === x.artifact.artifact_id),
+            ),
+          ];
+          set((s) => ({
+            artifactsByMessageId: { ...s.artifactsByMessageId, [id]: items },
+            messageQueries: { ...s.messageQueries, [id]: { loading: false } },
+          }));
+          items.forEach((item) => {
+            if (item.latest_version) poll(item.latest_version, g);
+          });
+          return items;
+        } catch (e) {
+          if (g !== generation) return null;
+          if (e instanceof HpCommandError && e.status === 401) reset();
+          else
+            set((s) => ({
+              messageQueries: {
+                ...s.messageQueries,
+                [id]: {
+                  loading: false,
+                  error: message(e),
+                  status: e instanceof HpCommandError ? e.status : 0,
+                },
+              },
+              ...(denied(e)
+                ? { artifactsByMessageId: { ...s.artifactsByMessageId, [id]: [] } }
+                : {}),
+            }));
+          return null;
+        } finally {
+          limiter.active--;
+          limiter.queue.shift()?.();
+          if (g === generation)
+            set((s) => ({ loadingMessageIds: s.loadingMessageIds.filter((x) => x !== id) }));
+        }
+      })().finally(() => {
+        if (messageRequests.get(id) === pending) messageRequests.delete(id);
+      });
+      messageRequests.set(id, pending);
+      return pending;
+    };
+    const command = async (
+      kind: "message" | "version",
+      id: string,
+      instruction: string | null,
+      expectedParent?: string | null,
+      draftRevision?: number,
+    ): Promise<CommandResult> => {
+      const slot = `${kind}:${id}`,
+        old = get().intents[slot];
+      if (old?.busy) return { status: "busy" };
+      const intent: ArtifactIntent = old?.uncertain
+        ? { ...old, busy: true }
+        : { key: newKey(), instruction, busy: true, uncertain: false, draftRevision };
+      if (!old?.uncertain && kind === "version" && (!instruction || [...instruction].length > 4000))
+        return { status: "failed", error: "修改指令须为 1–4000 个字符。" };
+      const g = generation,
+        epoch = epochs.get(id) ?? 0;
+      const valid = () =>
+        generation === g && (kind !== "version" || (epochs.get(id) ?? 0) === epoch);
+      const update = (result: CommandResult) => {
+        if (valid())
+          set((s) => ({
+            intents: {
+              ...s.intents,
+              [slot]: { ...intent, busy: false, uncertain: result.status === "uncertain", result },
+            },
+          }));
+        return result;
+      };
+      set((s) => ({ intents: { ...s.intents, [slot]: intent } }));
+      if (kind === "version" && !old?.uncertain) {
+        const items = await loadArtifact(id, true);
+        if (!valid()) return { status: "stale" };
+        if (!items) return update({ status: "failed", error: "无法核实版本，请同步后重试。" });
+        const running = items.find(building);
+        if (running)
+          return update({
+            status: "failed",
+            error: `v${running.version} 正在构建，请等待完成。`,
+            version: running,
+          });
+        if (
+          expectedParent !== undefined &&
+          (latestSuccess(items)?.artifact_version_id ?? null) !== expectedParent
+        )
+          return update({
+            status: "failed",
+            error: "最近成功版本已改变，请审阅新的修改基准后再次提交。",
+          });
+      }
+      try {
+        const result =
+          kind === "message"
+            ? await deps.api.createArtifact(id, intent.instruction, intent.key)
+            : await deps.api.createArtifactVersion(id, intent.instruction!, intent.key);
+        if (!valid()) return { status: "stale" };
+        const version = cacheVersion(result.version, result.artifact);
+        if (kind === "message")
+          set((s) => ({
             artifactsByMessageId: {
-              ...state.artifactsByMessageId,
-              [messageId]: [
-                ...(state.artifactsByMessageId[messageId] ?? []),
-                { artifact: result.artifact, latest_version: result.version },
+              ...s.artifactsByMessageId,
+              [id]: [
+                ...(s.artifactsByMessageId[id] ?? []).filter(
+                  (x) => x.artifact.artifact_id !== result.artifact.artifact_id,
+                ),
+                { artifact: result.artifact, latest_version: version },
               ],
             },
-            artifactsById: {
-              ...state.artifactsById,
-              [result.artifact.artifact_id]: result.artifact,
-            },
-            versionsByArtifactId: {
-              ...state.versionsByArtifactId,
-              [result.artifact.artifact_id]: [result.version],
-            },
-            ...(navigationToken === deps.navigationToken?.()
-              ? {
-                  openArtifactId: result.artifact.artifact_id,
-                  openVersionId: result.version.artifact_version_id,
-                }
-              : {}),
-            buildingVersionIds: unique([
-              ...state.buildingVersionIds,
-              result.version.artifact_version_id,
-            ]),
           }));
-          void poll(result.version, requestGeneration);
-          if (navigationToken === deps.navigationToken?.())
-            deps.onOpen?.(result.artifact.artifact_id, result.version.artifact_version_id);
-        } catch (error) {
-          if (!current(requestGeneration)) return;
-          set({ error: error instanceof Error ? error.message : "Artifact 创建失败。" });
+        poll(version, g);
+        return update({
+          status: "success",
+          ...result,
+          version,
+          draftRevision: intent.draftRevision,
+        });
+      } catch (e) {
+        if (!valid()) return { status: "stale" };
+        if (e instanceof HpCommandError && e.status === 401) {
+          reset();
+          return { status: "stale" };
         }
-      },
-      openArtifact: async (artifactId, versionId, navigate = true) => {
-        if (navigate && deps.onOpen) {
-          deps.onOpen(artifactId, versionId);
-          return;
+        if (kind === "version" && denied(e)) {
+          purge(id, e);
+          return { status: "failed", error: message(e) };
         }
-        const requestGeneration = generation;
-        const selection = ++selectionGeneration;
-        const navigationToken = deps.navigationToken?.();
-        const selected = () =>
-          selection === selectionGeneration && navigationToken === deps.navigationToken?.();
-        set({ error: null, loadErrorStatus: null });
-        try {
-          const result = await api.listArtifactVersions(artifactId);
-          if (!current(requestGeneration) || !selected()) return;
-          const completed = [...result.items]
-            .reverse()
-            .find((version) => version.status === "completed");
-          const latest = result.items[result.items.length - 1] ?? null;
-          set((state) => ({
-            artifactsById: { ...state.artifactsById, [artifactId]: result.artifact },
-            versionsByArtifactId: {
-              ...state.versionsByArtifactId,
-              [artifactId]: result.items,
-            },
-            openArtifactId: artifactId,
-            openVersionId:
-              result.items.find((v) => v.artifact_version_id === versionId)?.artifact_version_id ??
-              (completed ?? latest)?.artifact_version_id ??
-              null,
-            buildingVersionIds:
-              latest && (latest.status === "queued" || latest.status === "running")
-                ? unique([...state.buildingVersionIds, latest.artifact_version_id])
-                : state.buildingVersionIds,
-          }));
-          if (latest && (latest.status === "queued" || latest.status === "running")) {
-            void poll(latest, requestGeneration);
-          }
-        } catch (error) {
-          if (!current(requestGeneration) || !selected()) return;
-          set({
-            error: error instanceof Error ? error.message : "Artifact 加载失败。",
-            loadErrorStatus: error instanceof HpCommandError ? error.status : 0,
-          });
-        }
-      },
-      createVersion: async (artifactId, instruction) => {
-        const value = instruction.trim();
-        if (!value) return;
-        const requestGeneration = generation;
-        const selection = selectionGeneration;
-        const navigationToken = deps.navigationToken?.();
-        const selected = () =>
-          selection === selectionGeneration && navigationToken === deps.navigationToken?.();
-        set({ error: null });
-        try {
-          const result = await api.createArtifactVersion(artifactId, value, newKey());
-          if (!current(requestGeneration)) return;
-          set((state) => ({
-            versionsByArtifactId: {
-              ...state.versionsByArtifactId,
-              [artifactId]: upsert(state.versionsByArtifactId[artifactId] ?? [], result.version),
-            },
-            ...(selected() ? { openVersionId: result.version.artifact_version_id } : {}),
-            buildingVersionIds: unique([
-              ...state.buildingVersionIds,
-              result.version.artifact_version_id,
-            ]),
-          }));
-          if (selected()) deps.onVersion?.(result.version.artifact_version_id);
-          void poll(result.version, requestGeneration);
-        } catch (error) {
-          if (!current(requestGeneration) || !selected()) return;
-          set({ error: error instanceof Error ? error.message : "Artifact 修改失败。" });
-        }
-      },
-      selectVersion: (openVersionId) => {
-        set({ openVersionId });
-        deps.onVersion?.(openVersionId);
-      },
-      clearError: () => set({ error: null }),
-      closeArtifact: () => {
-        selectionGeneration += 1;
-        set({ openArtifactId: null, openVersionId: null });
-        deps.onClose?.();
-      },
+        return update({
+          status: !(e instanceof HpCommandError) || e.status >= 500 ? "uncertain" : "failed",
+          error: message(e),
+          code: e instanceof HpCommandError ? e.code : undefined,
+          requestId: e instanceof HpCommandError ? e.error.request_id : undefined,
+        });
+      }
+    };
+    return {
+      ...initialState,
+      loadArtifact,
+      loadForMessage,
+      createArtifact: (id, instruction = null) =>
+        command("message", id, instruction?.trim() || null),
+      createVersion: (id, instruction, parent, draftRevision) =>
+        command("version", id, instruction.trim(), parent, draftRevision),
+      openArtifact: (id, version) => deps.onOpen?.(id, version),
       reset,
     };
   });
 }
-
 export const useArtifacts = createArtifactStore({
   api: new HpApi(defaultApi),
-  navigationToken: () => useShell.getState().requestToken,
   onOpen: (objectId, versionId) =>
     useShell.getState().openInspector({ kind: "artifact", objectId, versionId }),
-  onClose: () => useShell.getState().closeInspector(),
-  onVersion: (versionId) => {
-    const { route, navigate } = useShell.getState();
-    if (route.inspector?.kind === "artifact")
-      navigate({ ...route, inspector: { ...route.inspector, versionId } }, true);
-  },
 });

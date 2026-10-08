@@ -1,10 +1,9 @@
 import { TaskInspector } from "../tasks/TaskInspector";
 import { useEffect, useState } from "react";
-import { HpCommandError } from "../../api/types";
-import { useShell, type Inspector } from "../../store/shell";
-import { useArtifacts } from "../../store/artifacts";
+import { useShell } from "../../store/shell";
 import { RunInspector } from "../run/RunInspector";
-import { ArtifactPanel } from "../ArtifactPanel";
+import { ArtifactInspector } from "../artifact/ArtifactInspector";
+import type { ArtifactSaveSource } from "../workspace/workspaceOperations";
 import { Surface } from "./Surface";
 
 import { useWorkspace } from "../../store/workspace";
@@ -23,7 +22,7 @@ export function InspectorHost({
   onSaveHtml,
   onSaveFile,
 }: {
-  onSaveHtml: (html: string, name: string) => void;
+  onSaveHtml: (source: ArtifactSaveSource) => void;
   onSaveFile?: (file: { file_id: string; file_name: string }) => void;
 }) {
   const inspector = useShell((s) => s.route.inspector);
@@ -68,113 +67,8 @@ export function InspectorHost({
       ) : inspector.kind === "file" ? (
         <FileInspector key={inspector.objectId} inspector={inspector} />
       ) : (
-        <InspectorBody
-          key={`${inspector.kind}:${inspector.objectId}:${inspector.versionId ?? ""}`}
-          inspector={inspector}
-          onSaveHtml={onSaveHtml}
-        />
+        <ArtifactInspector key={inspector.objectId} inspector={inspector} onSaveHtml={onSaveHtml} />
       )}
     </Surface>
-  );
-}
-function InspectorBody({
-  inspector,
-  onSaveHtml,
-}: {
-  inspector: Inspector;
-  onSaveHtml: (html: string, name: string) => void;
-}) {
-  const [state, setState] = useState<"loading" | "ready" | "empty" | "unavailable" | "error">(
-    "loading",
-  );
-  const [title, setTitle] = useState("");
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    let valid = true;
-    async function load() {
-      try {
-        if (inspector.kind === "artifact") {
-          await useArtifacts
-            .getState()
-            .openArtifact(inspector.objectId, inspector.versionId, false);
-          if (!valid) return;
-          const store = useArtifacts.getState();
-          if (store.error) {
-            setState([403, 404].includes(store.loadErrorStatus ?? 0) ? "unavailable" : "error");
-            return;
-          }
-          const versions = store.versionsByArtifactId[inspector.objectId] ?? [];
-          if (
-            inspector.versionId &&
-            !versions.some((v) => v.artifact_version_id === inspector.versionId)
-          ) {
-            setState("unavailable");
-            return;
-          }
-          setTitle(store.artifactsById[inspector.objectId]?.title ?? "HTML 成果");
-          setState(versions.length ? "ready" : "empty");
-          return;
-        }
-        setState("ready");
-      } catch (error) {
-        if (valid)
-          setState(
-            error instanceof HpCommandError && [403, 404].includes(error.status)
-              ? "unavailable"
-              : "error",
-          );
-      }
-    }
-    void load();
-    return () => {
-      valid = false;
-    };
-  }, [inspector, attempt]);
-  if (state === "loading") return <p role="status">正在加载对象…</p>;
-  if (state === "unavailable")
-    return (
-      <div>
-        <p role="alert">对象不可用。</p>
-        <button onClick={() => useShell.getState().closeInspector()}>回到所属页面</button>
-      </div>
-    );
-  if (state === "error")
-    return (
-      <div>
-        <p role="alert">暂时无法同步对象。</p>
-        <button
-          onClick={() => {
-            setState("loading");
-            setAttempt(attempt + 1);
-          }}
-        >
-          重试
-        </button>
-      </div>
-    );
-  if (state === "empty") return <p>暂无对象内容。</p>;
-  return (
-    <>
-      <h3>{title}</h3>
-      {inspector.kind === "artifact" && (
-        <ArtifactPanel
-          embedded
-          selectedArtifactId={inspector.objectId}
-          selectedVersionId={inspector.versionId}
-          onSaveHtml={onSaveHtml}
-        />
-      )}
-      {(inspector.kind === "file" || inspector.kind === "task") && (
-        <button
-          onClick={() =>
-            useShell
-              .getState()
-              .navigate({ screen: inspector.kind === "file" ? "workspace" : "tasks" })
-          }
-        >
-          在所属页面管理
-        </button>
-      )}
-    </>
   );
 }

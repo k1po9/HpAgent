@@ -1,0 +1,82 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test e2e/artifact.spec.ts e2e/ui-6-artifact.spec.ts e2e/ui-5-tasks.spec.ts e2e/ui-5-recovery.spec.ts e2e/ui-4-workspace.spec.ts e2e/auth.spec.ts e2e/multi-tab.spec.ts e2e/a11y.spec.ts
+
+[WebServer] INFO:     Started server process [574994]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8186 (Press CTRL+C to quit)
+[WebServer] (node:575931) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 26 tests using 1 worker
+
+(node:576131) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/a11y.spec.ts:10:1 › login form exposes a heading and labelled fields (7.7s)
+  ✓   2 [chromium] › e2e/a11y.spec.ts:18:1 › workbench exposes headings, labelled controls, and semantic buttons (12.6s)
+[WebServer] 2026-10-08 01:28:05 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 01:28:05 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 01:28:06 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:28:11 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 01:28:11 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 01:28:11 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+  ✓   3 [chromium] › e2e/artifact.spec.ts:5:1 › builds, interacts with, isolates and restores an Artifact (38.3s)
+  ✓   4 [chromium] › e2e/auth.spec.ts:8:1 › rejects wrong credentials with the server's safe message (6.9s)
+  ✓   5 [chromium] › e2e/auth.spec.ts:20:1 › signs in with valid credentials (8.0s)
+  ✓   6 [chromium] › e2e/auth.spec.ts:26:1 › signs out back to the login gate (10.9s)
+[WebServer] 2026-10-08 01:29:01 [INFO ] HpAgent.Account: web_registration_succeeded account_id=01a11769-549b-74a1-940a-d50332b6ea93
+  ✓   7 [chromium] › e2e/auth.spec.ts:37:1 › registers, auto-signs in, and can log in again (9.9s)
+[WebServer] 2026-10-08 01:29:12 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 01:29:12 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 01:29:12 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:29:17 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 01:29:17 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 01:29:17 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 01:29:26 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 01:29:26 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 01:29:26 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:29:31 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 01:29:31 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 01:29:31 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   8 [chromium] › e2e/multi-tab.spec.ts:12:1 › accounts are isolated across browser contexts (28.7s)
+[WebServer] 2026-10-08 01:29:40 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 01:29:40 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 01:29:40 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:29:45 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 01:29:45 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 01:29:45 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 01:29:52 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 01:29:52 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 01:29:52 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:29:53 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:29:55 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 01:29:55 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   9 [chromium] › e2e/multi-tab.spec.ts:36:1 › a second tab cannot send while a Run is active (409 wins) (21.9s)
+[WebServer] 2026-10-08 01:29:57 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+  ✓  10 [chromium] › e2e/ui-4-workspace.spec.ts:8:1 › directory deep links, direct children, all files, file preview and browser return (17.7s)
+  ✓  11 [chromium] › e2e/ui-4-workspace.spec.ts:49:1 › an existing conversation never receives an implicit upload grant (15.1s)
+  ✓  12 [chromium] › e2e/ui-4-workspace.spec.ts:61:1 › lost PUT response resumes from ready metadata and does not reupload or resave (11.7s)
+  ✓  13 [chromium] › e2e/ui-4-workspace.spec.ts:94:1 › saved upload survives a failed grant, closes, reopens and retries authorization only (13.7s)
+  ✓  14 [chromium] › e2e/ui-4-workspace.spec.ts:139:1 › new conversation usage creates once, restores failed authorization and sends no message (13.9s)
+  ✓  15 [chromium] › e2e/ui-4-workspace.spec.ts:175:1 › permission drafts, keyboard tabs, impact invalidation and responsive object surfaces (26.6s)
+  ✓  16 [chromium] › e2e/ui-4-workspace.spec.ts:250:1 › empty and unavailable objects keep navigation and focus usable (10.5s)
+  ✓  17 [chromium] › e2e/ui-5-recovery.spec.ts:12:1 › network fixtures: terminal output invalidation preserves expansion and empty results can refresh (10.7s)
+  ✓  18 [chromium] › e2e/ui-5-recovery.spec.ts:73:1 › network fixtures: missing/null continuation deep links stay read-only and recover by refresh (21.8s)
+  ✓  19 [chromium] › e2e/ui-5-recovery.spec.ts:124:1 › real API: a failed requirement read and retry preserve the whole draft before revision (13.8s)
+  ✓  20 [chromium] › e2e/ui-5-tasks.spec.ts:29:1 › creates, revises, controls, increases one limit and returns from inspector children (14.8s)
+  ✓  21 [chromium] › e2e/ui-5-tasks.spec.ts:74:1 › lost create response retries identical intention and does not duplicate a task (10.5s)
+  ✓  22 [chromium] › e2e/ui-5-tasks.spec.ts:110:1 › task deep link, unavailable object, focus, responsive screens and inbox modal (18.8s)
+[WebServer] 2026-10-08 01:33:20 [INFO ] HpAgent.Account: web_registration_succeeded account_id=01a1176d-486f-7986-91b7-74b649dadbec
+  ✓  23 [chromium] › e2e/ui-5-tasks.spec.ts:170:1 › 51st task remains available after serial pagination and a first-page refresh (53.6s)
+  ✓  24 [chromium] › e2e/ui-5-tasks.spec.ts:224:1 › network fixtures: four buckets, pausing decision, failure scope and empty filters (23.3s)
+[WebServer] 2026-10-08 01:34:45 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 01:34:45 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 01:34:45 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 01:34:50 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 01:34:50 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 01:34:50 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  25 [chromium] › e2e/ui-6-artifact.spec.ts:8:1 › real API: lost create/version responses replay keys and history keeps v1 selected (30.8s)
+  ✓  26 [chromium] › e2e/ui-6-artifact.spec.ts:77:1 › network fixtures: task original delivery, unavailable versions, layouts and layered focus (33.1s)
+
+  26 passed (8.6m)

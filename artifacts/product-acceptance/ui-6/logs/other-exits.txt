@@ -1,0 +1,10 @@
+baseline: exit 0
+backend-initial: exit 1
+backend: exit 1
+backend-final: exit 0
+backend-acceptance-http: exit 0
+e2e-initial: exit 1
+e2e-final: exit 0
+e2e-recovery: exit 1
+e2e-source-recovery-final: exit 0
+frontend-final-wrapper: exit 0

@@ -3,7 +3,6 @@ import { Bot, Folder, ListTodo, UserRound, Menu } from "lucide-react";
 import { useShell, type Screen } from "../../store/shell";
 import { useAuth } from "../../store/auth";
 import { useWorkbench } from "../../store/workbench";
-import { useArtifacts } from "../../store/artifacts";
 import { useTraceStore } from "../trace/traceStore";
 import { ConversationSidebar } from "../ConversationSidebar";
 import { ChatPane } from "../ChatPane";
@@ -17,7 +16,9 @@ import { TaskInbox } from "../tasks/TaskInbox";
 import { useTaskController } from "../tasks/useTaskController";
 import { QQBindingPanel } from "../QQBindingPanel";
 import { RegistrationQqGate } from "../RegistrationQqGate";
-import { ArtifactsPage, SaveWorkspaceDialog } from "../TestPages";
+import { ArtifactsPage } from "../TestPages";
+import { SaveToWorkspaceDialog as SaveWorkspaceDialog } from "../workspace/SaveToWorkspaceDialog";
+import type { SaveSource } from "../workspace/workspaceOperations";
 import { InspectorHost } from "./InspectorHost";
 import { Surface } from "./Surface";
 
@@ -50,9 +51,8 @@ export function AppShell() {
   const [refresh, setRefresh] = useState(0);
   const [notice, setNotice] = useState("");
   const [startBinding, setStartBinding] = useState(false);
-  const [saveSource, setSaveSource] = useState<
-    { file_id: string; file_name: string } | { html: string; file_name: string } | null
-  >(null);
+  const [saveSource, setSaveSource] = useState<SaveSource | null>(null);
+  const [savedNode, setSavedNode] = useState<{ nodeId: string; parentId: string } | null>(null);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -64,7 +64,10 @@ export function AppShell() {
     const restore = () =>
       useShell.getState().restore(window.location.hash, {
         conversationId: useWorkbench.getState().activeConversationId ?? undefined,
-        artifactId: useArtifacts.getState().openArtifactId ?? undefined,
+        artifactId:
+          useShell.getState().route.inspector?.kind === "artifact"
+            ? useShell.getState().route.inspector?.objectId
+            : undefined,
         runId: useTraceStore.getState().runId ?? undefined,
       });
     restore();
@@ -185,7 +188,24 @@ export function AppShell() {
             <button onClick={() => useShell.setState({ modal: "resources" })}>对话资料</button>
           )}
         </header>
-        {notice && <p role="status">{notice}</p>}
+        {notice && (
+          <p role="status">
+            {notice}{" "}
+            {savedNode && (
+              <button
+                onClick={() =>
+                  navigate({
+                    screen: "workspace",
+                    directoryId: savedNode.parentId,
+                    inspector: { kind: "file", objectId: savedNode.nodeId },
+                  })
+                }
+              >
+                打开空间
+              </button>
+            )}
+          </p>
+        )}
         <section hidden={route.screen !== "ai"} className="hp-shell-chat" aria-label="对话页面">
           {route.screen === "ai" && route.conversationId && !conversationId && !loading ? (
             <div role="alert">
@@ -218,12 +238,7 @@ export function AppShell() {
           {route.screen === "tasks" && <TaskScreen />}
         </section>
       </main>
-      {modal !== "task-inbox" && (
-        <InspectorHost
-          onSaveFile={saveFile}
-          onSaveHtml={(html, name) => setSaveSource({ html, file_name: `${name}.txt` })}
-        />
-      )}
+      {modal !== "task-inbox" && <InspectorHost onSaveFile={saveFile} onSaveHtml={setSaveSource} />}
       {modal === "task-create" && <TaskEditor onClose={() => useShell.setState({ modal: null })} />}
       {modal === "task-inbox" && <TaskInbox onClose={() => useShell.setState({ modal: null })} />}
       {pendingRoute && pendingReason === "tasks" && (
@@ -361,10 +376,16 @@ export function AppShell() {
         <SaveWorkspaceDialog
           file={saveSource}
           onClose={() => setSaveSource(null)}
-          onSaved={() => {
+          onSaved={(operation) => {
             if (alive.current) {
               setRefresh((v) => v + 1);
-              setNotice("已保存到空间。");
+              setNotice(
+                !(operation.source instanceof File) && "html" in operation.source
+                  ? `源码副本已保存到空间：${operation.name}${operation.source.version ? `（v${operation.source.version}）` : ""}`
+                  : "已保存到空间。",
+              );
+              if (operation.nodeId)
+                setSavedNode({ nodeId: operation.nodeId, parentId: operation.parentId });
             }
           }}
         />

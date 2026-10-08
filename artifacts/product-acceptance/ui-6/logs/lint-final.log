@@ -1,0 +1,7 @@
+
+> hpagent-web@0.1.0 lint
+> eslint . && prettier --check .
+
+Checking formatting...
+[warn] src/components/workspace/UploadToWorkspaceDialog.tsx
+[warn] Code style issues found in the above file. Run Prettier with --write to fix.

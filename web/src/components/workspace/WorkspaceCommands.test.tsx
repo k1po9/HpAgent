@@ -6,7 +6,13 @@ import { WorkspaceMutationDialog } from "./WorkspaceMutationDialog";
 import { FileVersions } from "./FileVersions";
 import { SaveToWorkspaceDialog } from "./SaveToWorkspaceDialog";
 import { UseInConversationDialog } from "./UseInConversationDialog";
-import { resetWorkspaceOperations } from "./workspaceOperations";
+import {
+  resetWorkspaceOperations,
+  startSave,
+  resumeSave,
+  changeSaveTarget,
+  useWorkspaceOperations,
+} from "./workspaceOperations";
 import { useWorkbench } from "../../store/workbench";
 const node: HpWorkspaceNode = {
   node_id: "n",
@@ -173,4 +179,54 @@ it("creates a new conversation once even when authorization fails", async () => 
   fireEvent.click(screen.getByRole("button", { name: "确认读取授权并进入对话" }));
   await waitFor(() => expect(grant).toHaveBeenCalledTimes(2));
   expect(create).toHaveBeenCalledTimes(1);
+});
+
+it("freezes Artifact source text and provenance, keeps ready content on 409 and returns the real node", async () => {
+  await useWorkspace.getState().loadTree();
+  const init = vi.spyOn(workspaceApi, "createWorkspaceUpload").mockResolvedValue({
+    file: { file_id: "source-file", status: "uploading" },
+    content_url: "/content",
+  } as Awaited<ReturnType<typeof workspaceApi.createWorkspaceUpload>>);
+  vi.spyOn(workspaceApi, "getFile").mockResolvedValue({
+    file: { file_id: "source-file", status: "uploading" },
+  } as Awaited<ReturnType<typeof workspaceApi.getFile>>);
+  const put = vi
+    .spyOn(workspaceApi, "uploadContent")
+    .mockResolvedValue({} as Awaited<ReturnType<typeof workspaceApi.uploadContent>>);
+  const save = vi
+    .spyOn(workspaceApi, "saveWorkspaceFile")
+    .mockRejectedValueOnce(
+      new HpCommandError(409, {
+        code: "workspace_name_conflict",
+        message: "重名",
+        request_id: null,
+        retryable: false,
+        details: {},
+      }),
+    )
+    .mockResolvedValue({ node_id: "real-source-node" });
+  const grant = vi.spyOn(workspaceApi, "grantConversationResource");
+  const source = {
+    html: "<p>v1</p>",
+    file_name: "成果-v1.html.txt",
+    artifactId: "a",
+    versionId: "v1",
+    version: 1,
+    title: "成果",
+  };
+  const id = startSave(source, "root", source.file_name);
+  source.html = "<p>v2</p>";
+  await resumeSave(id);
+  expect(init.mock.calls[0]?.[0].type).toBe("text/plain");
+  expect(put).toHaveBeenCalledOnce();
+  const next = changeSaveTarget(id, "root", "成果-v1-copy.html.txt");
+  await resumeSave(next);
+  const completed = useWorkspaceOperations.getState().operations[next]!;
+  expect(completed.source).toMatchObject({ html: "<p>v1</p>", versionId: "v1", version: 1 });
+  expect(completed.nodeId).toBe("real-source-node");
+  expect(completed.phase).toContain("源码副本已保存");
+  expect(init).toHaveBeenCalledOnce();
+  expect(put).toHaveBeenCalledOnce();
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(grant).not.toHaveBeenCalled();
 });

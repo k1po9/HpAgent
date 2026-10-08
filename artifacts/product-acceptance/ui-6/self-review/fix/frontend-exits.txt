@@ -1,0 +1,4 @@
+typecheck-verified: exit 0
+lint-verified: exit 0
+build-verified: exit 0
+unit-verified: exit 0
