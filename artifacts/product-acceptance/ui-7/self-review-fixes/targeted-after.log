@@ -1,0 +1,34 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=2 src/components/run/RunLookup.test.tsx src/components/shell/Surface.test.tsx src/store/workbench.trace.test.ts src/components/trace/traceStore.test.ts src/store/workbench.test.ts src/store/shell.test.ts src/store/sessionIsolation.test.ts src/components/run/RunInspector.test.tsx src/components/tasks/TaskIntegration.test.tsx src/components/tasks/TaskSelfReview.test.tsx src/App.test.tsx src/App.recovery.test.tsx
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/store/workbench.trace.test.ts (6 tests | 3 failed) 44ms
+   × R3: Chat terminal refreshes only the selected current diagnostic lifecycle (historical advanced) 6ms
+   × R3: Chat terminal refreshes only the selected current diagnostic lifecycle (closed) 2ms
+   × R3: Chat terminal refreshes only the selected current diagnostic lifecycle (account reset) 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/store/workbench.trace.test.ts > R3: Chat terminal refreshes only the selected current diagnostic lifecycle (historical advanced)
+ FAIL  src/store/workbench.trace.test.ts > R3: Chat terminal refreshes only the selected current diagnostic lifecycle (closed)
+ FAIL  src/store/workbench.trace.test.ts > R3: Chat terminal refreshes only the selected current diagnostic lifecycle (account reset)
+AssertionError: expected "loadTrace" to be called +0 times, but got 1 times
+ ❯ src/store/workbench.trace.test.ts:82:21
+     80|       feed.handlers!.onTerminal!(terminal);
+     81|       await Promise.resolve();
+     82|       expect(trace).toHaveBeenCalledTimes(mode === "current advanced" …
+       |                     ^
+     83|       if (mode !== "account reset") {
+     84|         expect(api.getRun).toHaveBeenCalledWith("chat-run");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+
+ Test Files  1 failed | 11 passed (12)
+      Tests  3 failed | 127 passed (130)
+   Start at  15:19:23
+   Duration  66.06s (transform 9.19s, setup 7.98s, import 30.02s, tests 27.24s, environment 55.87s)
+

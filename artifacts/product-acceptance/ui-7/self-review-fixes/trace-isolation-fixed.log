@@ -1,0 +1,13 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=1 src/store/workbench.trace.test.ts
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  15:24:44
+   Duration  4.27s (transform 670ms, setup 419ms, import 757ms, tests 182ms, environment 2.40s)
+

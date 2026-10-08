@@ -231,6 +231,8 @@ export function ChatPane({
                 </details>
               ) : null}{" "}
               <select
+                className="hp-mode-select"
+                data-mode={displayedStrategy}
                 aria-label="执行模式"
                 value={displayedStrategy}
                 disabled={strategyLocked}

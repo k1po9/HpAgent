@@ -128,6 +128,23 @@ describe("UI-3 trace races", () => {
     durationMs: null,
     occurredAt: "2026-08-22T00:00:00Z",
   };
+  it("invalidates a selected Trace request after closing or changing account", async () => {
+    let resolve!: (tree: HpTraceTree) => void;
+    const store = createTraceStore({
+      getRunTrace: () =>
+        new Promise<HpTraceTree>((r) => {
+          resolve = r;
+        }),
+    } as never);
+    store.getState().selectRun("run-1");
+    const pending = store.getState().refreshSelectedRun("run-1");
+    store.getState().reset();
+    store.getState().selectRun("history");
+    resolve(TREE);
+    await pending;
+    expect(store.getState().runId).toBe("history");
+    expect(store.getState().nodes).toEqual({});
+  });
   it("replays in-flight metadata without regressing terminal nodes", async () => {
     let resolve!: (tree: HpTraceTree) => void;
     const store = createTraceStore({

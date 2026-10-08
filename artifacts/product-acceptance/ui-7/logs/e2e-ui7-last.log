@@ -1,0 +1,75 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test e2e/ui-7-unification.spec.ts
+
+[WebServer] INFO:     Started server process [2219548]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8187 (Press CTRL+C to quit)
+[WebServer] (node:2219962) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 6 tests using 1 worker
+
+(node:2220089) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › e2e/ui-7-unification.spec.ts:105:1 › seven viewports and boundary resizes keep Artifact iframe, draft and query count (16.1s)
+  ✓  2 [chromium] › e2e/ui-7-unification.spec.ts:165:1 › mobile saving suspends the parent; Escape restores draft, iframe and focus (6.1s)
+  ✓  3 [chromium] › e2e/ui-7-unification.spec.ts:189:1 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots (19.8s)
+[WebServer] 2026-10-08 13:37:17 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:37:17 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:37:17 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:37:22 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:37:22 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:37:22 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  4 [chromium] › e2e/ui-7-unification.spec.ts:225:1 › formal Header creation keeps instruction and verified Run lookup handles denial (14.7s)
+  ✘  5 [chromium] › e2e/ui-7-unification.spec.ts:252:1 › nested Task abandonment and inbox keep the parent; keyboard and color pairs remain usable (22.3s)
+(node:2223470) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 2026-10-08 13:37:59 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:37:59 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:37:59 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:38:03 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:38:03 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:38:03 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  6 [chromium] › e2e/ui-7-unification.spec.ts:351:1 › explicit login assembles once; restore skips it and send/stop keep one fixed control (14.3s)
+
+
+  1) [chromium] › e2e/ui-7-unification.spec.ts:252:1 › nested Task abandonment and inbox keep the parent; keyboard and color pairs remain usable 
+
+    Error: expect(locator).toHaveAttribute(expected) failed
+
+    Locator:  locator('.hp-inspector')
+    Expected: ""
+    Received: serializes to the same string
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toHaveAttribute" with timeout 15000ms
+      - waiting for locator('.hp-inspector')
+        33 × locator resolved to <dialog open="" aria-label="任务详情" aria-modal="true" class="hp-surface  hp-inspector ">…</dialog>
+           - unexpected value "null"
+
+
+      263 |   await page.setViewportSize({ width: 390, height: 844 });
+      264 |   await expect(page.getByRole("dialog")).toHaveCount(1);
+    > 265 |   await expect(page.locator(".hp-inspector")).toHaveAttribute("hidden", "");
+          |                                               ^
+      266 |   await screenshot(page, "mobile-inbox-layer");
+      267 |   await page.keyboard.press("Escape");
+      268 |   await expect(page.locator(".hp-task-inspector")).toHaveAttribute(
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-7-unification.spec.ts:265:47
+
+    Error Context: test-results/ui-7-unification-nested-Ta-a3e11-d-color-pairs-remain-usable-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-7-unification-nested-Ta-a3e11-d-color-pairs-remain-usable-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-7-unification-nested-Ta-a3e11-d-color-pairs-remain-usable-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/ui-7-unification.spec.ts:252:1 › nested Task abandonment and inbox keep the parent; keyboard and color pairs remain usable 
+  5 passed (1.8m)

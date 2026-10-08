@@ -1,9 +1,10 @@
+import { InspectorTabs } from "../shell/InspectorTabs";
 import { useEffect, useState } from "react";
 import { useShell, type Inspector } from "../../store/shell";
 import { useWorkbench, isTerminalRunStatus, runStatusLabel } from "../../store/workbench";
 import { runApi, useRunInspector } from "../../store/runInspector";
 import { useTraceStore } from "../trace/traceStore";
-import { TracePanel } from "../trace/TracePanel";
+import { RunTraceContent } from "../trace/RunTraceContent";
 import { ModelInputView } from "../trace/TraceDetail";
 import { RunResources } from "./RunResources";
 import { RunBudget } from "./RunBudget";
@@ -113,8 +114,7 @@ export function RunInspector({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, tab, live, terminal, Boolean(snapshot)]);
-  const changeTab = (next: Inspector["tab"]) =>
-    useShell.setState((s) => ({ route: { ...s.route, inspector: { ...inspector, tab: next } } }));
+  const changeTab = (next: Inspector["tab"]) => useShell.getState().setInspectorTab(next);
   if (state.runId === id && state.unavailable && !live)
     return (
       <div>
@@ -132,53 +132,16 @@ export function RunInspector({
   const run = snapshot.run;
   return (
     <div className="hp-run-inspector">
-      <div
-        role="tablist"
-        aria-label="执行详情页签"
-        onKeyDown={(e) => {
-          const tabs = ["overview", "resources", "advanced"] as const;
-          const focused =
-            tabs.find(
-              (value) => e.target instanceof HTMLElement && e.target.id === `run-tab-${value}`,
-            ) ?? tab;
-          const index = tabs.indexOf(focused);
-          const next =
-            e.key === "ArrowRight"
-              ? tabs[(index + 1) % 3]
-              : e.key === "ArrowLeft"
-                ? tabs[(index + 2) % 3]
-                : e.key === "Home"
-                  ? tabs[0]
-                  : e.key === "End"
-                    ? tabs[2]
-                    : null;
-          if (next) {
-            e.preventDefault();
-            changeTab(next);
-            document.getElementById(`run-tab-${next}`)?.focus();
-          }
-        }}
-      >
-        {(
-          [
-            ["overview", "概览"],
-            ["resources", "使用资料与输出"],
-            ["advanced", "高级诊断"],
-          ] as const
-        ).map(([value, label]) => (
-          <button
-            role="tab"
-            id={`run-tab-${value}`}
-            aria-controls={`run-panel-${value}`}
-            tabIndex={tab === value ? 0 : -1}
-            aria-selected={tab === value}
-            key={value}
-            onClick={() => changeTab(value)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <InspectorTabs
+        prefix="run"
+        label="执行详情页签"
+        tabs={[
+          { id: "overview", label: "概览" },
+          { id: "resources", label: "使用资料与输出" },
+          { id: "advanced", label: "高级诊断" },
+        ]}
+        selected={tab}
+      />
       {state.error && <p role="status">{state.error}</p>}
       <button
         onClick={() => {
@@ -280,13 +243,19 @@ export function RunInspector({
           </>
         )}
         {tab === "resources" && (
-          <RunResources key={id} runId={id} terminal={terminal} onSaveFile={onSaveFile} />
+          <RunResources
+            key={id}
+            runId={id}
+            terminal={terminal}
+            runStatus={run.status}
+            onSaveFile={onSaveFile}
+          />
         )}
         {tab === "advanced" && (
           <>
             <p>执行标识：{id}</p>
             <RunBudget budget={run.budget} />
-            <TracePanel embedded />
+            <RunTraceContent />
             <ModelInputs key={id} runId={id} />
           </>
         )}

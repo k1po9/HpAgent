@@ -8,10 +8,12 @@ type Candidates = Awaited<ReturnType<typeof runApi.listRunResources>>;
 export function RunResources({
   runId,
   terminal,
+  runStatus,
   onSaveFile,
 }: {
   runId: string;
   terminal: boolean;
+  runStatus?: string;
   onSaveFile?: (file: HpFile) => void;
 }) {
   const permissionRevision = useWorkspace((s) => s.revision);
@@ -82,7 +84,10 @@ export function RunResources({
   useEffect(() => {
     mounted.current = true;
     const start = setTimeout(() => {
-      void load();
+      setCandidates(null);
+      setError(null);
+      setBusy(false);
+      if (!["cancelling", "cancelled"].includes(runStatus ?? "")) void load();
     }, 0);
     return () => {
       clearTimeout(start);
@@ -93,7 +98,7 @@ export function RunResources({
     };
     // This view mounts once per selected Run and tab.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runId, permissionRevision]);
+  }, [runId, runStatus, permissionRevision]);
   useEffect(() => {
     // Run completion can publish files after the first empty list was read.
     const start = setTimeout(() => void outputs(), 0);
@@ -112,7 +117,10 @@ export function RunResources({
       {terminal && <p>当前接口不提供完整历史候选回放。</p>}
       {terminal && candidates && <p>先前候选快照，当前未验证。</p>}
       {error && <p role="status">{error}</p>}
-      <button disabled={busy} onClick={() => void load()}>
+      <button
+        disabled={busy || ["cancelling", "cancelled"].includes(runStatus ?? "")}
+        onClick={() => void load()}
+      >
         刷新资料
       </button>
       {busy && <p role="status">正在同步候选资料…</p>}

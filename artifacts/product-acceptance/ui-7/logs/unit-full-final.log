@@ -1,0 +1,372 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=2
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/components/tasks/TaskSelfReview.test.tsx (13 tests | 1 failed) 3361ms
+   × R3 preserves every edited field through failed and successful retries and reviews the new revision 572ms
+ ❯ src/components/shell/Surface.test.tsx (4 tests | 1 failed) 923ms
+   × nested confirmation remains visible while its parent is suspended 187ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/shell/Surface.test.tsx > nested confirmation remains visible while its parent is suspended
+TestingLibraryElementError: Unable to find an accessible element with the role "dialog" and name "确认"
+
+Here are the accessible roles:
+
+  dialog:
+
+  Name "父层":
+  [36m<dialog[39m
+    [33maria-label[39m=[32m"父层"[39m
+    [33maria-modal[39m=[32m"true"[39m
+    [33mclass[39m=[32m"hp-surface  "[39m
+    [33mopen[39m=[32m""[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  banner:
+
+  Name "":
+  [36m<header[39m
+    [33mclass[39m=[32m"hp-surface-header"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  heading:
+
+  Name "父层":
+  [36m<h2[39m
+    [33mtabindex[39m=[32m"-1"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+  button:
+
+  Name "关闭父层":
+  [36m<button[39m
+    [33maria-label[39m=[32m"关闭父层"[39m
+    [33mtitle[39m=[32m"关闭"[39m
+  [36m/>[39m
+
+  --------------------------------------------------
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<dialog[39m
+      [33maria-label[39m=[32m"父层"[39m
+      [33maria-modal[39m=[32m"true"[39m
+      [33mclass[39m=[32m"hp-surface  "[39m
+      [33mopen[39m=[32m""[39m
+    [36m>[39m
+      [36m<header[39m
+        [33mclass[39m=[32m"hp-surface-header"[39m
+      [36m>[39m
+        [36m<h2[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m父层[0m
+        [36m</h2>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭父层"[39m
+          [33mtitle[39m=[32m"关闭"[39m
+        [36m>[39m
+          [0m×[0m
+        [36m</button>[39m
+      [36m</header>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"hp-surface-body"[39m
+      [36m>[39m
+        [36m<dialog[39m
+          [33maria-label[39m=[32m"确认"[39m
+          [33maria-modal[39m=[32m"true"[39m
+          [33mclass[39m=[32m"hp-surface  "[39m
+          [33mhidden[39m=[32m""[39m
+          [33mopen[39m=[32m""[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"hp-surface-header"[39m
+          [36m>[39m
+            [36m<h2[39m
+              [33mtabindex[39m=[32m"-1"[39m
+            [36m>[39m
+              [0m确认[0m
+            [36m</h2>[39m
+            [36m<button[39m
+              [33maria-label[39m=[32m"关闭确认"[39m
+              [33mtitle[39m=[32m"关闭"[39m
+            [36m>[39m
+              [0m×[0m
+            [36m</button>[39m
+          [36m</header>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"hp-surface-body"[39m
+          [36m>[39m
+            [0m确认正文[0m
+          [36m</div>[39m
+        [36m</dialog>[39m
+      [36m</div>[39m
+    [36m</dialog>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/shell/Surface.test.tsx:92:17
+     90|     </Surface>,
+     91|   );
+     92|   expect(screen.getByRole("dialog", { name: "确认" })).toBeVisible();
+       |                 ^
+     93|   expect(screen.queryByRole("dialog", { name: "父层" })).not.toBeInTheDo…
+     94|   expect(screen.getByRole("dialog", { name: "确认" }).closest('[aria-lab…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/components/tasks/TaskSelfReview.test.tsx > R3 preserves every edited field through failed and successful retries and reviews the new revision
+TestingLibraryElementError: Unable to find an accessible element with the role "dialog" and name "放弃未提交的任务草稿？"
+
+There are no accessible roles. But there might be some inaccessible roles. If you wish to access them, then set the `hidden` option to `true`. Learn more about this here: https://testing-library.com/docs/dom-testing-library/api-queries#byrole
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div />[39m
+  [36m<div>[39m
+    [36m<dialog[39m
+      [33maria-label[39m=[32m"修改任务要求"[39m
+      [33maria-modal[39m=[32m"true"[39m
+      [33mclass[39m=[32m"hp-surface  "[39m
+      [33mhidden[39m=[32m""[39m
+      [33mopen[39m=[32m""[39m
+    [36m>[39m
+      [36m<header[39m
+        [33mclass[39m=[32m"hp-surface-header"[39m
+      [36m>[39m
+        [36m<h2[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m修改任务要求[0m
+        [36m</h2>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭修改任务要求"[39m
+          [33mtitle[39m=[32m"关闭"[39m
+        [36m>[39m
+          [0m×[0m
+        [36m</button>[39m
+      [36m</header>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"hp-surface-body"[39m
+      [36m>[39m
+        [36m<form[39m
+          [33mclass[39m=[32m"hp-operation-form"[39m
+        [36m>[39m
+          [36m<p>[39m
+            [0m当前基线 r[0m
+            [0m2[0m
+            [0m。修订将取消或收敛当前执行；暂停任务不会自动恢复。[0m
+          [36m</p>[39m
+          [36m<div[39m
+            [33mrole[39m=[32m"alert"[39m
+          [36m>[39m
+            [0m服务器已更新到 r[0m
+            [0m4[0m
+            [0m，草稿仍保留。[0m
+            [36m<button[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0m已审阅最新要求，采用新基线提交[0m
+            [36m</button>[39m
+            [36m<details>[39m
+              [36m<summary>[39m
+                [0m查看最新要求[0m
+              [36m</summary>[39m
+              [36m<pre>[39m
+                [0m{
+  "objective": "目标",
+  "capability_key": "generic_work",
+  "spec": {
+    "schema_version": 1,
+    "reasoning_mode": "react"
+  },
+  "constraints": [],
+  "acceptance_criteria": [],
+  "completion_mode": "deliverable",
+  "timing": {
+    "schema_version": 1,
+    "kind": "immediate",
+    "timezone": "UTC"
+  },
+  "resource_requests": [],
+  "deliverable_policy": {
+    "schema_version": 1,
+    "required": false
+  }
+}[0m
+              [36m</pre>[39m
+            [36m</details>[39m
+          [36m</div>[39m
+          [36m<label>[39m
+            [0m工作类型[0m
+            [36m<select[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"reminder"[39m
+              [36m>[39m
+                [0m提醒[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"research_report"[39m
+              [36m>[39m
+                [0m研究报告[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"generic_work"[39m
+              [36m>[39m
+                [0m通用任务[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m目标 / 提醒内容[0m
+            [36m<textarea[39m
+              [33mmaxlength[39m=[32m"20000"[39m
+              [33mrequired[39m=[32m""[39m
+            [36m>[39m
+              [0mdraft objective[0m
+            [36m</textarea>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m约束（每行一条）[0m
+            [36m<textarea>[39m
+              [0mkeep constraint[0m
+            [36m</textarea>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m推理模式[0m
+            [36m<select>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"react"[39m
+              [36m>[39m
+                [0mReAct[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m执行时间[0m
+            [36m<select>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"immediate"[39m
+              [36m>[39m
+                [0m立即[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"once"[39m
+              [36m>[39m
+                [0m指定时间[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"daily"[39m
+              [36m>[39m
+                [0m每天[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m计划时区[0m
+            [36m<select>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"Asia/Shanghai"[39m
+              [36m>[39m
+                [0mAsia/Shanghai（UTC+8）[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"UTC"[39m
+              [36m>[39m
+                [0mUTC[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m日期时间[0m
+            [36m<input[39m
+              [33mrequired[39m=[32m""[39m
+              [33mtype[39m=[32m"datetime-local"[39m
+              [33mvalue[39m=[32m"2027-02-01T13:00"[39m
+            [36m/>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m修订原因[0m
+            [36m<textarea[39m
+              [33mrequired[39m=[32m""[39m
+            [36m>[39m
+              [0mdraft reason[0m
+            [36m</textarea>[39m
+          [36m</label>[39m
+          [36m<button>[39m
+            [0m提交修订[0m
+          [36m</button>[39m
+        [36m</form>[39m
+        [36m<dialog[39m
+          [33maria-label[39m=[32m"放弃未提交的任务草稿？"[39m
+          [33maria-modal[39m=[32m"true"[39m
+          [33mclass[39m=[32m"hp-surface  "[39m
+          [33mopen[39m=[32m""[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"hp-surface-header"[39m
+          [36m>[39m
+            [36m<h2[39m
+              [33mtabindex[39m=[32m"-1"[39m
+            [36m>[39m
+              [0m放弃未提交的任务草稿？[0m
+            [36m</h2>[39m
+            [36m<button[39m
+              [33maria-label[39m=[32m"关闭放弃未提交的任务草稿？"[39m
+              [33mtitle[39m=[32m"关闭"[39m
+            [36m>[39m
+              [0m×[0m
+            [36m</button>[39m
+          [36m</header>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"hp-surface-body"[39m
+          [36m>[39m
+            [36m<p>[39m
+              [0m尚未提交的要求会丢弃。[0m
+            [36m</p>[39m
+            [36m<button>[39m
+              [0m继续编辑[0m
+            [36m</button>[39m
+            [36m<button>[39m
+              [0m放弃草稿并关闭[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</dialog>[39m
+      [36m</div>[39m
+    [36m</dialog>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/tasks/TaskSelfReview.test.tsx:296:17
+    294|   checkDraft();
+    295|   fireEvent.click(screen.getByRole("button", { name: "关闭修改任务要求" }));
+    296|   expect(screen.getByRole("dialog", { name: "放弃未提交的任务草稿？" })).toBeVisi…
+       |                 ^
+    297|   fireEvent.click(screen.getByText("继续编辑"));
+    298|   fireEvent.click(screen.getByText("已审阅最新要求，采用新基线提交"));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 50 passed (52)
+      Tests  2 failed | 385 passed (387)
+   Start at  12:56:38
+   Duration  114.03s (transform 5.52s, setup 16.99s, import 23.65s, tests 55.49s, environment 110.51s)
+

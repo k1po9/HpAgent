@@ -1,0 +1,139 @@
+{
+  "date": "2026-10-08",
+  "baseline_head": "e6791e35990ce6da811f6204806def202e770076",
+  "issues": {
+    "R1": "fixed",
+    "R2": "fixed",
+    "R3": "fixed"
+  },
+  "counterexamples_before": {
+    "failed": 3,
+    "exit_code": 1,
+    "log": "repro-before.log"
+  },
+  "same_counterexamples_after": {
+    "passed": 3,
+    "exit_code": 0,
+    "log": "repro-after.log"
+  },
+  "frontend": [
+    {
+      "name": "format-final",
+      "command": [
+        "npx",
+        "prettier",
+        "--write",
+        "<changed frontend files>"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 14.64
+    },
+    {
+      "name": "typecheck-final",
+      "command": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 47.99
+    },
+    {
+      "name": "lint-final",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 37.26
+    },
+    {
+      "name": "build-final",
+      "command": [
+        "npm",
+        "run",
+        "build"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 23.34
+    },
+    {
+      "name": "unit-final",
+      "command": [
+        "npm",
+        "test",
+        "--",
+        "--maxWorkers=2"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 149.45
+    }
+  ],
+  "vitest": {
+    "files": 54,
+    "passed": 405,
+    "exit_code": 0,
+    "log": "unit-final.log"
+  },
+  "chromium": {
+    "passed": 74,
+    "failed": 0,
+    "exit_code": 0,
+    "log": "e2e-final.log",
+    "includes_12_fixture_scenarios": true,
+    "command": [
+      "npx",
+      "playwright",
+      "test",
+      "e2e/ui-7-self-review.spec.ts",
+      "e2e/ui-7-unification.spec.ts",
+      "e2e/auth.spec.ts",
+      "e2e/a11y.spec.ts",
+      "e2e/multi-tab.spec.ts",
+      "e2e/disconnect.spec.ts",
+      "e2e/stop-retry.spec.ts",
+      "e2e/ui-2-ai.spec.ts",
+      "e2e/ui-3-execution.spec.ts",
+      "e2e/ui-4-workspace.spec.ts",
+      "e2e/ui-5-tasks.spec.ts",
+      "e2e/ui-5-recovery.spec.ts",
+      "e2e/artifact.spec.ts",
+      "e2e/ui-6-artifact.spec.ts",
+      "e2e/ui-6-self-review.spec.ts",
+      "e2e/conversation.spec.ts",
+      "e2e/markdown.spec.ts",
+      "e2e/manual-repair.spec.ts",
+      "e2e/workspace-direct-upload.spec.ts",
+      "e2e/workspace-p1.spec.ts",
+      "e2e/workspace-p3.spec.ts",
+      "--project=chromium"
+    ],
+    "database": "hpagent_ui7_review_20261008"
+  },
+  "source_fingerprints": {
+    "records": 64,
+    "repair_files": 14,
+    "unchanged_after_final_tests": true
+  },
+  "old_evidence": [
+    {
+      "manifest": "artifacts/product-acceptance/ui-7/logs/evidence-sha256.json",
+      "checked": 148,
+      "changed_or_missing": []
+    },
+    {
+      "manifest": "artifacts/product-acceptance/ui-7/self-review/self-review-sha256.json",
+      "checked": 16,
+      "changed_or_missing": []
+    }
+  ],
+  "scope_limits": [
+    "real mobile keyboard and safe areas",
+    "screen reader",
+    "whole-product 200% text workflows",
+    "complete contrast audit",
+    "complete resource peak instrumentation",
+    "real model/Temporal/channels"
+  ]
+}

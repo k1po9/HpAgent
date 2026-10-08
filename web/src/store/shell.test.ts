@@ -74,3 +74,15 @@ it("preserves Artifact details and explicit versions through route normalization
   });
   expect(parseRoute(serializeRoute(parsed)).route).toEqual(parsed);
 });
+
+it("validates Inspector tabs centrally and replaces the URL without growing history", () => {
+  useShell.getState().reset();
+  useShell.getState().openInspector({ kind: "run", objectId: "r" });
+  const length = window.history.length;
+  useShell.getState().setInspectorTab("advanced");
+  expect(useShell.getState().route.inspector?.tab).toBe("advanced");
+  expect(window.location.hash).toContain("tab=advanced");
+  expect(window.history.length).toBe(length);
+  useShell.getState().setInspectorTab("versions");
+  expect(useShell.getState().route.inspector?.tab).toBe("advanced");
+});

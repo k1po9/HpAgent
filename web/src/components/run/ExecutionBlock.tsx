@@ -34,6 +34,7 @@ export function ExecutionBlock({ runId, messageId }: { runId: string; messageId?
       )}
       {pending && <p role="status">有待处理的操作审批</p>}
       <button
+        id={`run-open-${runId}`}
         type="button"
         onClick={() =>
           useShell.getState().openInspector({
@@ -42,6 +43,7 @@ export function ExecutionBlock({ runId, messageId }: { runId: string; messageId?
             origin: {
               conversationId: useWorkbench.getState().activeConversationId ?? undefined,
               messageId,
+              triggerId: `run-open-${runId}`,
             },
           })
         }

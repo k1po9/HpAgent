@@ -1,3 +1,4 @@
+import { InspectorTabs } from "../shell/InspectorTabs";
 import { useEffect, useState } from "react";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useShell, type Inspector } from "../../store/shell";
@@ -73,11 +74,16 @@ function FileBody({ node, inspector }: { node: HpWorkspaceNode; inspector: Inspe
   const [mutation, setMutation] = useState(false);
   const [using, setUsing] = useState(false);
   const [subject, setSubject] = useState<Subject>();
-  const tab = tabs.some((t) => t.id === inspector.tab)
+  const tab = tabs.some(
+    (t) => t.id === inspector.tab && (node.kind === "file" || ["details", "usage"].includes(t.id)),
+  )
     ? inspector.tab
     : node.kind === "directory"
       ? "details"
       : "preview";
+  useEffect(() => {
+    if (inspector.tab && inspector.tab !== tab) useShell.getState().setInspectorTab(tab);
+  }, [inspector.tab, tab]);
   const metadata = useWorkspaceQuery(
     node.kind === "file" && node.file_id ? `file:${node.file_id}` : null,
     () => workspaceApi.getFile(node.file_id!),
@@ -111,52 +117,13 @@ function FileBody({ node, inspector }: { node: HpWorkspaceNode; inspector: Inspe
           文件信息不可用。<button onClick={metadata.retry}>重试文件信息</button>
         </p>
       )}
-      <div role="tablist" aria-label="文件信息" className="hp-file-tabs">
-        {tabs
-          .filter((t) => node.kind === "file" || ["details", "usage"].includes(t.id))
-          .map((t, i, available) => (
-            <button
-              key={t.id}
-              role="tab"
-              id={`file-tab-${t.id}`}
-              aria-controls="file-tab-body"
-              aria-selected={tab === t.id}
-              tabIndex={tab === t.id ? 0 : -1}
-              onKeyDown={(e) => {
-                const position =
-                  e.key === "ArrowRight"
-                    ? (i + 1) % available.length
-                    : e.key === "ArrowLeft"
-                      ? (i - 1 + available.length) % available.length
-                      : e.key === "Home"
-                        ? 0
-                        : e.key === "End"
-                          ? available.length - 1
-                          : -1;
-                if (position < 0) return;
-                e.preventDefault();
-                const target = available[position]!;
-                useShell
-                  .getState()
-                  .navigate(
-                    { ...useShell.getState().route, inspector: { ...inspector, tab: target.id } },
-                    true,
-                  );
-                document.getElementById(`file-tab-${target.id}`)?.focus();
-              }}
-              onClick={() =>
-                useShell
-                  .getState()
-                  .navigate(
-                    { ...useShell.getState().route, inspector: { ...inspector, tab: t.id } },
-                    true,
-                  )
-              }
-            >
-              {t.label}
-            </button>
-          ))}
-      </div>
+      <InspectorTabs
+        prefix="file"
+        label="文件信息"
+        tabs={tabs.filter((t) => node.kind === "file" || ["details", "usage"].includes(t.id))}
+        selected={tab}
+        panelId="file-tab-body"
+      />
       <section role="tabpanel" id="file-tab-body" aria-labelledby={`file-tab-${tab}`}>
         {tab === "preview" &&
           node.kind === "file" &&

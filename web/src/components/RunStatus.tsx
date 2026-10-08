@@ -64,7 +64,7 @@ export function RunStatus({
     );
 
   return (
-    <Box className="hp-runstrip">
+    <Box className="hp-runstrip" data-terminal={Boolean(activeRun && !running)}>
       {busyMessage ? (
         <Text size="2" color="red" role="status">
           {busyMessage}

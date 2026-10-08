@@ -1,0 +1,166 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test e2e/ui-7-unification.spec.ts
+
+[WebServer] INFO:     Started server process [2105965]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8187 (Press CTRL+C to quit)
+[WebServer] (node:2106742) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 4 tests using 1 worker
+
+(node:2106801) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › e2e/ui-7-unification.spec.ts:104:1 › seven viewports and boundary resizes keep Artifact iframe, draft and query count (1.1m)
+(node:2109723) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › e2e/ui-7-unification.spec.ts:164:1 › mobile saving suspends the parent; Escape restores draft, iframe and focus (59.9s)
+(node:2112491) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 [chromium] › e2e/ui-7-unification.spec.ts:188:1 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots (1.1m)
+(node:2115529) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 2026-10-08 12:54:25 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 12:54:25 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 12:54:26 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 12:54:32 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 12:54:32 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 12:54:32 [INFO ] HpAgent.SSE: sse_disconnected
+  ✘  4 [chromium] › e2e/ui-7-unification.spec.ts:224:1 › formal Header creation keeps instruction and verified Run lookup handles denial (52.8s)
+
+
+  1) [chromium] › e2e/ui-7-unification.spec.ts:104:1 › seven viewports and boundary resizes keep Artifact iframe, draft and query count 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTitle('Artifact 预览')
+    Expected: visible
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByTitle('Artifact 预览')
+      - Test timeout of 60000ms exceeded.
+
+
+      108 |   const reads = await fixtures(page);
+      109 |   await page.goto("/#/ai?inspect=artifact:ui7-artifact&version=ui7-v1");
+    > 110 |   await expect(page.getByTitle("Artifact 预览")).toBeVisible();
+          |                                                ^
+      111 |   await page
+      112 |     .frameLocator('iframe[title="Artifact 预览"]')
+      113 |     .getByRole("button", { name: "改变预览状态" })
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-7-unification.spec.ts:110:48
+
+    Error Context: test-results/ui-7-unification-seven-vie-187bd-frame-draft-and-query-count-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-7-unification-seven-vie-187bd-frame-draft-and-query-count-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-7-unification-seven-vie-187bd-frame-draft-and-query-count-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/ui-7-unification.spec.ts:164:1 › mobile saving suspends the parent; Escape restores draft, iframe and focus 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  getByRole('button', { name: '保存源码副本到空间' })
+    Expected: focused
+    Received: inactive
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toBeFocused" with timeout 15000ms
+      - waiting for getByRole('button', { name: '保存源码副本到空间' })
+        30 × locator resolved to <button>保存源码副本到空间</button>
+           - unexpected value "inactive"
+
+
+      179 |   await expect(page.getByTitle("Artifact 预览")).toBeVisible();
+      180 |   await expect(page.getByLabel("修改指令")).toHaveValue("保存覆盖期间保留");
+    > 181 |   await expect(page.getByRole("button", { name: "保存源码副本到空间" })).toBeFocused();
+          |                                                                 ^
+      182 |   expect(reads()).toBe(initial);
+      183 |   await page.keyboard.press("Escape");
+      184 |   await expect(page.locator(".hp-inspector")).toHaveCount(0);
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-7-unification.spec.ts:181:65
+
+    Error Context: test-results/ui-7-unification-mobile-sa-f1451-ores-draft-iframe-and-focus-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-7-unification-mobile-sa-f1451-ores-draft-iframe-and-focus-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-7-unification-mobile-sa-f1451-ores-draft-iframe-and-focus-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e/ui-7-unification.spec.ts:188:1 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Target page, context or browser has been closed
+
+      217 |     await page
+      218 |       .getByRole("button", { name: /^关闭(执行详情|任务详情|目录详情|HTML 成果)$/ })
+    > 219 |       .click();
+          |        ^
+      220 |     await expect(page.locator(".hp-inspector")).toHaveCount(0);
+      221 |   }
+      222 | });
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-7-unification.spec.ts:219:8
+
+    Error Context: test-results/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › e2e/ui-7-unification.spec.ts:224:1 › formal Header creation keeps instruction and verified Run lookup handles denial 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByText('对象不可用。', { exact: true })
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 15000ms
+      - waiting for getByText('对象不可用。', { exact: true })
+
+
+      244 |   await page.getByLabel("执行编号").fill("missing-ui7");
+      245 |   await page.getByRole("button", { name: "查询", exact: true }).click();
+    > 246 |   await expect(page.getByText("对象不可用。", { exact: true })).toBeVisible();
+          |                                                           ^
+      247 |   await expect(page.getByLabel("执行编号")).toHaveValue("missing-ui7");
+      248 |   await screenshot(page, "lookup-unavailable");
+      249 | });
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-7-unification.spec.ts:246:59
+
+    Error Context: test-results/ui-7-unification-formal-He-e7f8b-d-Run-lookup-handles-denial-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-7-unification-formal-He-e7f8b-d-Run-lookup-handles-denial-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-7-unification-formal-He-e7f8b-d-Run-lookup-handles-denial-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4 failed
+    [chromium] › e2e/ui-7-unification.spec.ts:104:1 › seven viewports and boundary resizes keep Artifact iframe, draft and query count 
+    [chromium] › e2e/ui-7-unification.spec.ts:164:1 › mobile saving suspends the parent; Escape restores draft, iframe and focus 
+    [chromium] › e2e/ui-7-unification.spec.ts:188:1 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots 
+    [chromium] › e2e/ui-7-unification.spec.ts:224:1 › formal Header creation keeps instruction and verified Run lookup handles denial 

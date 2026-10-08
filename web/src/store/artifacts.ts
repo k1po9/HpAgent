@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { useShell } from "./shell";
 import { api as defaultApi } from "../api/client";
 import { HpApi } from "../api/resources";
 import {
@@ -52,15 +51,12 @@ interface ArtifactState {
     expectedParent?: string | null,
     draftRevision?: number,
   ) => Promise<CommandResult>;
-  // UI-7 compatibility: navigation intent only, no domain selection state.
-  openArtifact: (artifactId: string, versionId?: string) => void;
   reset: () => void;
 }
 export interface ArtifactStoreDeps {
   api: HpApi;
   sleep?: (milliseconds: number) => Promise<void>;
   newIdempotencyKey?: () => string;
-  onOpen?: (artifactId: string, versionId?: string) => void;
 }
 const initialState = {
   artifactsByMessageId: {},
@@ -503,13 +499,8 @@ export function createArtifactStore(deps: ArtifactStoreDeps = { api: new HpApi(d
         command("message", id, instruction?.trim() || null),
       createVersion: (id, instruction, parent, draftRevision) =>
         command("version", id, instruction.trim(), parent, draftRevision),
-      openArtifact: (id, version) => deps.onOpen?.(id, version),
       reset,
     };
   });
 }
-export const useArtifacts = createArtifactStore({
-  api: new HpApi(defaultApi),
-  onOpen: (objectId, versionId) =>
-    useShell.getState().openInspector({ kind: "artifact", objectId, versionId }),
-});
+export const useArtifacts = createArtifactStore({ api: new HpApi(defaultApi) });

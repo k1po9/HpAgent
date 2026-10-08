@@ -1,0 +1,76 @@
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { Surface } from "./components/shell/Surface";
+import { RunLookup } from "./components/run/RunLookup";
+import { runApi } from "./store/runInspector";
+import { useShell } from "./store/shell";
+import { useTraceStore } from "./components/trace/traceStore";
+import { createWorkbenchStore } from "./store/workbench";
+import type { HpApi } from "./api/resources";
+import type { HpChatRunSnapshot, HpRunSnapshot } from "./api/types";
+import type { RunFeedHandlers } from "./sse/runFeed";
+
+const feed = vi.hoisted(() => ({ handlers: null as RunFeedHandlers | null }));
+vi.mock("./sse/runFeed", () => ({
+  openRunFeed: vi.fn((_id: string, handlers: RunFeedHandlers) => {
+    feed.handlers = handlers;
+    return { close: vi.fn() };
+  }),
+}));
+
+beforeEach(() => {
+  useShell.getState().reset();
+  useTraceStore.getState().reset();
+  feed.handlers = null;
+});
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  useTraceStore.getState().reset();
+});
+
+it("R1: late Run lookup must not dismiss an account dialog opened afterwards", async () => {
+  let finish!: (result: HpRunSnapshot) => void;
+  vi.spyOn(runApi, "getRun").mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  render(<RunLookup />);
+  const input = screen.getByLabelText("执行编号");
+  fireEvent.change(input, { target: { value: "run-A" } });
+  fireEvent.submit(input.closest("form")!);
+  act(() => useShell.setState({ modal: "account" }));
+  await act(async () => finish({ source_kind: "work", run: { run_id: "run-A", work_id: "work-A" } } as HpRunSnapshot));
+  expect(useShell.getState().modal).toBe("account");
+});
+
+it("R2: Tab from the final button must still reach a trailing native summary", () => {
+  vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([new DOMRect(0, 0, 44, 44)] as unknown as DOMRectList);
+  render(<Surface title="账户收件箱" onClose={vi.fn()}>
+    <button>刷新收件箱</button>
+    <details><summary>通知详情</summary><pre>通知内容</pre></details>
+  </Surface>);
+  const button = screen.getByRole("button", { name: "刷新收件箱" });
+  button.focus();
+  expect(fireEvent.keyDown(button, { key: "Tab" })).toBe(true);
+});
+
+it("R3: ordinary Chat completion must not fetch Trace before opening diagnostics", async () => {
+  const run = { run_id: "chat-run", conversation_id: "c", status: "running", agent_strategy: "react", budget: null };
+  const assistant = { message_id: "assistant", conversation_id: "c", role: "assistant", status: "pending", content: null, sequence: 2, produced_by_run_id: "chat-run" };
+  const terminal = { source_kind: "chat", run: { ...run, status: "succeeded" }, assistant_message: { ...assistant, status: "completed", content: "完成" } } as HpChatRunSnapshot;
+  const api = {
+    getConversationDetail: vi.fn().mockResolvedValue({ conversation: { conversation_id: "c" }, active_run: { run, assistant_message: assistant } }),
+    listMessages: vi.fn().mockResolvedValue({ items: [assistant], next_cursor: null, has_more: false }),
+    getRun: vi.fn().mockResolvedValue(terminal),
+  } as unknown as HpApi;
+  const trace = vi.spyOn(useTraceStore.getState(), "loadTrace").mockResolvedValue();
+  const store = createWorkbenchStore({ api });
+  try {
+    await store.getState().selectConversation("c");
+    expect(useShell.getState().route.inspector).toBeUndefined();
+    expect(feed.handlers).not.toBeNull();
+    feed.handlers!.onTerminal!(terminal);
+    await Promise.resolve();
+    expect(trace).not.toHaveBeenCalled();
+  } finally {
+    store.getState().reset();
+  }
+});

@@ -1,0 +1,84 @@
+{
+  "initialArtifactReads": 1,
+  "finalArtifactReads": 1,
+  "measurements": [
+    {
+      "viewport": 360,
+      "document": 360,
+      "canvas": 360,
+      "sidebar": 0
+    },
+    {
+      "viewport": 390,
+      "document": 390,
+      "canvas": 390,
+      "sidebar": 0
+    },
+    {
+      "viewport": 768,
+      "document": 768,
+      "canvas": 712,
+      "sidebar": 0
+    },
+    {
+      "viewport": 1024,
+      "document": 1024,
+      "canvas": 704,
+      "sidebar": 256
+    },
+    {
+      "viewport": 1280,
+      "document": 1280,
+      "canvas": 796,
+      "sidebar": 0
+    },
+    {
+      "viewport": 1440,
+      "document": 1440,
+      "canvas": 700,
+      "sidebar": 256
+    },
+    {
+      "viewport": 1920,
+      "document": 1920,
+      "canvas": 1180,
+      "sidebar": 256
+    },
+    {
+      "viewport": 1279,
+      "document": 1279,
+      "canvas": 959,
+      "sidebar": 256
+    },
+    {
+      "viewport": 1280,
+      "document": 1280,
+      "canvas": 796,
+      "sidebar": 0
+    },
+    {
+      "viewport": 959,
+      "document": 959,
+      "canvas": 903,
+      "sidebar": 0
+    },
+    {
+      "viewport": 960,
+      "document": 960,
+      "canvas": 640,
+      "sidebar": 256
+    },
+    {
+      "viewport": 599,
+      "document": 599,
+      "canvas": 599,
+      "sidebar": 0
+    },
+    {
+      "viewport": 600,
+      "document": 600,
+      "canvas": 544,
+      "sidebar": 0
+    }
+  ]
+}

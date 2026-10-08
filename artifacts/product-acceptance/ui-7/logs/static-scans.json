@@ -1,0 +1,49 @@
+[
+  {
+    "name": "legacy-components",
+    "command": [
+      "rg",
+      "-n",
+      "--glob",
+      "!*.test.*",
+      "\\b(TestPages|ArtifactPanel|WorkPanel|WorkManagement|ResearchOutputs|WorkspacePanel|LegacyUtilities|TracePanel)\\b",
+      "web/src"
+    ],
+    "no_matches": true,
+    "exit_code": 1
+  },
+  {
+    "name": "artifact-navigation",
+    "command": [
+      "rg",
+      "-n",
+      "\\b(openArtifact|onOpen)\\b|from .*shell",
+      "web/src/store/artifacts.ts"
+    ],
+    "no_matches": true,
+    "exit_code": 1
+  },
+  {
+    "name": "trace-navigation",
+    "command": [
+      "rg",
+      "-n",
+      "\\b(setOpen|onOpen)\\b|from .*shell",
+      "web/src/components/trace/traceStore.ts"
+    ],
+    "no_matches": true,
+    "exit_code": 1
+  },
+  {
+    "name": "legacy-css",
+    "command": [
+      "rg",
+      "-n",
+      "hp-(test-|page-|artifact-panel|work-panel|workspace-panel|research-page|trace-panel)",
+      "web/src/styles.css",
+      "web/src/styles"
+    ],
+    "no_matches": true,
+    "exit_code": 1
+  }
+]

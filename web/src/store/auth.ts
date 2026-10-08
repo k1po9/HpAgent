@@ -17,7 +17,8 @@ interface AuthState {
   identities: MeResponse["identities"] | null;
   capabilities: MeResponse["capabilities"];
   justRegistered: boolean;
-  check: () => Promise<void>;
+  assemblyPending: boolean;
+  check: (explicit?: boolean) => Promise<void>;
   markRegistered: () => void;
   dismissRegistrationHint: () => void;
   signOut: () => Promise<void>;
@@ -31,8 +32,9 @@ export const useAuth = create<AuthState>((set) => ({
   identities: null,
   capabilities: {},
   justRegistered: false,
+  assemblyPending: false,
 
-  check: async () => {
+  check: async (explicit = false) => {
     const token = ++generation;
     set((state) => (state.status === "signedIn" ? {} : { status: "checking" }));
     try {
@@ -45,6 +47,7 @@ export const useAuth = create<AuthState>((set) => ({
           identities: null,
           capabilities: {},
           justRegistered: false,
+          assemblyPending: false,
         });
         return;
       }
@@ -53,10 +56,17 @@ export const useAuth = create<AuthState>((set) => ({
         account: me.account,
         identities: me.identities,
         capabilities: me.capabilities,
+        ...(explicit ? { assemblyPending: true } : {}),
       });
     } catch {
       if (token !== generation) return;
-      set({ status: "error", account: null, identities: null, capabilities: {} });
+      set({
+        status: "error",
+        account: null,
+        identities: null,
+        capabilities: {},
+        assemblyPending: false,
+      });
     }
   },
 
@@ -79,6 +89,7 @@ export const useAuth = create<AuthState>((set) => ({
       identities: null,
       capabilities: {},
       justRegistered: false,
+      assemblyPending: false,
     });
   },
 }));

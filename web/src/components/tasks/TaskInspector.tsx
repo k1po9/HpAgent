@@ -1,3 +1,5 @@
+import { InspectorTabs } from "../shell/InspectorTabs";
+import { RunLookup } from "../run/RunLookup";
 import { useEffect } from "react";
 import type { HpWork } from "../../api/types";
 import { useWorks } from "../../store/works";
@@ -52,11 +54,6 @@ export function TaskInspector({
   const p = presentTask(work, now),
     tab = tabs.some((t) => t.id === inspector.tab) ? inspector.tab : "overview";
   const valid = validSnapshot(work);
-  function select(id: (typeof tabs)[number]["id"]) {
-    useShell
-      .getState()
-      .navigate({ ...useShell.getState().route, inspector: { ...inspector, tab: id } }, true);
-  }
   return (
     <div className="hp-task-inspector">
       <h3>{work.title}</h3>
@@ -93,37 +90,13 @@ export function TaskInspector({
           </button>
         </p>
       )}
-      <div role="tablist" aria-label="任务信息" className="hp-file-tabs">
-        {tabs.map((t, i) => (
-          <button
-            key={t.id}
-            role="tab"
-            id={`task-tab-${t.id}`}
-            aria-selected={tab === t.id}
-            aria-controls="task-tab-body"
-            tabIndex={tab === t.id ? 0 : -1}
-            onClick={() => select(t.id)}
-            onKeyDown={(e) => {
-              const index =
-                e.key === "ArrowRight"
-                  ? (i + 1) % tabs.length
-                  : e.key === "ArrowLeft"
-                    ? (i + tabs.length - 1) % tabs.length
-                    : e.key === "Home"
-                      ? 0
-                      : e.key === "End"
-                        ? tabs.length - 1
-                        : -1;
-              if (index < 0) return;
-              e.preventDefault();
-              select(tabs[index]!.id);
-              document.getElementById(`task-tab-${tabs[index]!.id}`)?.focus();
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <InspectorTabs
+        prefix="task"
+        label="任务信息"
+        tabs={tabs}
+        selected={tab}
+        panelId="task-tab-body"
+      />
       <section role="tabpanel" id="task-tab-body" aria-labelledby={`task-tab-${tab}`}>
         {tab === "overview" && (
           <>
@@ -203,7 +176,12 @@ export function TaskInspector({
         {tab === "outputs" && <TaskOutputs work={work} onSaveFile={onSaveFile} />}
         {tab === "resources" &&
           (valid ? <TaskResources work={work} /> : <p>任务状态待核实，资料管理暂不可用。</p>)}
-        {tab === "advanced" && <Advanced work={work} />}
+        {tab === "advanced" && (
+          <>
+            <RunLookup />
+            <Advanced work={work} />
+          </>
+        )}
       </section>
     </div>
   );

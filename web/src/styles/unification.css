@@ -1,0 +1,295 @@
+/* Stable Surface hosts use their display mode without changing DOM ancestry. */
+.hp-surface--region {
+  position: relative;
+  margin: 0;
+  inset: auto;
+  max-height: none;
+  height: 100%;
+  max-width: none;
+}
+
+.hp-surface[hidden] {
+  display: none !important;
+}
+
+.hp-context-sidebar.hp-surface--region {
+  width: var(--hp-sidebar);
+  flex: 0 0 var(--hp-sidebar);
+  border-radius: 0;
+  border-width: 0 1px 0 0;
+  background: var(--hp-subtle);
+}
+
+.hp-context-sidebar.hp-surface--region > .hp-surface-header {
+  display: none;
+}
+
+.hp-context-sidebar > .hp-surface-body {
+  padding: 0;
+  height: 100%;
+}
+
+.hp-shell--sidebar-collapsed .hp-sidebar-toggle {
+  display: inline-flex;
+}
+
+.hp-sidebar-drawer {
+  flex: none;
+}
+
+.hp-inspector.hp-surface--region {
+  flex-shrink: 0;
+}
+
+.hp-shell {
+  font-size: var(--hp-body);
+  letter-spacing: 0;
+}
+
+.hp-canvas-header {
+  flex-wrap: wrap;
+  gap: var(--hp-space-2);
+  flex-shrink: 0;
+}
+
+.hp-canvas-header h1 {
+  font-size: var(--hp-title);
+  min-width: 2em;
+}
+
+.hp-surface-header h2 {
+  font-size: var(--hp-inspector-title);
+  min-width: 0;
+}
+
+.hp-surface-header button {
+  flex-shrink: 0;
+  min-width: var(--hp-touch);
+  min-height: var(--hp-touch);
+}
+
+.hp-shell button,
+.hp-surface button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.hp-surface-body > *,
+.hp-run-inspector,
+.hp-task-inspector,
+.hp-artifact-inspector,
+.hp-run-trace {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hp-run-trace {
+  display: flex;
+  flex-direction: column;
+}
+
+.hp-surface pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.hp-surface-body input,
+.hp-surface-body select {
+  min-width: 0;
+}
+
+.hp-inspector-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hp-space-1);
+  border-bottom: 1px solid var(--hp-border);
+  margin-block: var(--hp-space-3);
+}
+
+.hp-inspector-tabs button {
+  min-height: var(--hp-control);
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--hp-muted);
+  font: inherit;
+}
+
+.hp-inspector-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--hp-accent);
+  color: var(--hp-accent);
+  font-weight: 600;
+}
+
+.hp-run-lookup {
+  position: relative;
+  font-size: var(--hp-body);
+}
+
+.hp-run-lookup summary {
+  cursor: pointer;
+  padding: 8px;
+}
+
+.hp-run-lookup form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--hp-space-2);
+  padding: var(--hp-space-2);
+}
+
+.hp-canvas-header .hp-run-lookup[open] {
+  flex-basis: 100%;
+}
+
+.hp-run-lookup input {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1;
+}
+
+.hp-shell :focus-visible,
+.hp-surface :focus-visible {
+  outline-color: var(--hp-focus);
+  scroll-margin: 16px;
+}
+
+.hp-assembly {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+}
+
+.hp-assembly i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hp-accent);
+  animation: hp-assemble 800ms both;
+}
+
+.hp-assembly i:nth-child(2) {
+  --offset: -36px;
+}
+
+.hp-assembly i:nth-child(3) {
+  --offset: 36px;
+}
+
+.hp-assembly i:nth-child(4) {
+  --offset: 72px;
+}
+@keyframes hp-assemble {
+  from {
+    opacity: 0;
+    transform: translateY(var(--offset, -72px));
+  }
+  35% {
+    opacity: 0.6;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+
+.hp-mode-select,
+.hp-composer__action,
+.hp-inspector > .hp-surface-body > button {
+  transition:
+    color var(--hp-morph),
+    background-color var(--hp-morph);
+}
+
+.hp-runstrip[data-terminal="true"],
+.hp-task-row--selected {
+  animation: hp-settle var(--hp-settle) ease-out;
+}
+@keyframes hp-settle {
+  from {
+    opacity: 0.8;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (max-width: 959px) {
+  .hp-context-sidebar[open] {
+    display: flex;
+  }
+
+  .hp-shell button,
+  .hp-surface button,
+  .hp-run-lookup summary {
+    min-height: var(--hp-touch);
+    min-width: var(--hp-touch);
+  }
+
+  .hp-tree-row > button:first-child {
+    min-width: var(--hp-touch);
+  }
+}
+@media (max-width: 599px) {
+  .hp-context-sidebar,
+  .hp-inspector {
+    width: 100vw;
+    max-width: 100vw;
+  }
+
+  .hp-canvas-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .hp-rail {
+    gap: 0;
+  }
+
+  .hp-rail nav button {
+    min-width: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-assembly {
+    display: none;
+  }
+
+  .hp-shell *,
+  .hp-surface * {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.hp-operation-form label:has(input[type="checkbox"]) {
+  min-height: var(--hp-touch);
+  display: flex;
+  align-items: center;
+  gap: var(--hp-space-2);
+}
+
+.hp-composer__action {
+  display: inline-grid;
+  align-items: center;
+}
+.hp-composer__action > span {
+  grid-area: 1 / 1;
+}
+.hp-composer__action-size {
+  visibility: hidden;
+}
+.hp-composer__action[data-state="stop"] {
+  color: var(--hp-danger);
+  background: var(--hp-subtle);
+}
+.hp-mode-select[data-mode="plan_and_execute"],
+.hp-inspector > .hp-surface-body > button[aria-pressed="true"] {
+  color: var(--hp-accent);
+  background: var(--hp-selection);
+}

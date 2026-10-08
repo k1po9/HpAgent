@@ -25,6 +25,16 @@
 
 ## 前端 UI 重构
 
+- [UI-7 自检修复记录](ui-7-self-review-fixes.md)：修复迟到 Run 查询抢前景、summary/iframe 键盘边界和普通聊天终态额外 Trace 查询；正式反例、前端检查、Chromium 与源码指纹独立记录。
+
+- [UI-7 独立自检](ui-7-self-review.md)：原 87 项既有定向回归通过，3 个 P2 反例与 Chromium 复现保留；当前修复状态及独立证据见修复记录。
+
+- [UI-7 自检记录](ui-7-self-review.md)：3 个已复现的 P2，涉及迟到 Run 查询关闭新弹窗、模态焦点遗漏原生 summary、普通 Chat 终态触发非必要 Trace 查询；含 87 项既有定向回归、失败反例、Chromium 证据及修复门槛，状态为待修复。
+
+- [UI-7 统一与清理实施报告](ui-7-unification-cleanup-report.md)：正式入口与旧壳清理、导航权威、稳定 Surface/焦点、样式 tokens、响应式与动效；含本轮验证、A7-01～A7-26 覆盖和人工验收边界。
+
+- [UI-7 统一与清理实施计划](ui-7-unification-cleanup-plan.md)：基于 `e6791e3`，规划旧能力入口补位、页壳与导航 bridge 清理、Trace 状态分离、Surface/焦点统一及 Motion/Responsive/A11y；保留规划基线，执行结果见实施报告。
+
 - [UI-6 自检与修复记录](ui-6-self-review.md)：R1/R2/R3 已修复；逐版本响应合并、消息行恢复轮询与当前加载默认选择，保留原 4 个失败反例及独立修复回归证据。
 
 - [UI-6 HTML Artifact 实施报告](ui-6-html-artifact-report.md)：上下文三页签、版本与修改、幂等恢复、安全预览、下载及源码副本保存，保留 Task 原交付；自动化日志、截图和人工验收边界见报告与证据目录。

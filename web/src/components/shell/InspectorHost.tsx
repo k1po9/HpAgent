@@ -4,6 +4,7 @@ import { useShell } from "../../store/shell";
 import { RunInspector } from "../run/RunInspector";
 import { ArtifactInspector } from "../artifact/ArtifactInspector";
 import type { ArtifactSaveSource } from "../workspace/workspaceOperations";
+import { useInspectorFlow } from "./useInspectorFlow";
 import { Surface } from "./Surface";
 
 import { useWorkspace } from "../../store/workspace";
@@ -21,7 +22,9 @@ function useCompactInspector() {
 export function InspectorHost({
   onSaveHtml,
   onSaveFile,
+  compact: compactOverride,
 }: {
+  compact?: boolean;
   onSaveHtml: (source: ArtifactSaveSource) => void;
   onSaveFile?: (file: { file_id: string; file_name: string }) => void;
 }) {
@@ -29,9 +32,11 @@ export function InspectorHost({
   const backStack = useShell((s) => s.backStack);
   const back = useShell((s) => s.back);
   const expanded = useShell((s) => s.expanded);
-  const compact = useCompactInspector();
+  const mediaCompact = useCompactInspector();
+  const compact = compactOverride ?? mediaCompact;
   const tree = useWorkspace((s) => s.tree);
   const objectKey = inspector ? `${inspector.kind}:${inspector.objectId}` : null;
+  useInspectorFlow(objectKey);
   useEffect(() => {
     if (objectKey) document.getElementById("inspector-title")?.focus();
   }, [objectKey]);
@@ -53,7 +58,7 @@ export function InspectorHost({
       onClose={back}
       onBack={backStack.length ? back : undefined}
     >
-      <button onClick={() => useShell.setState({ expanded: !expanded })}>
+      <button aria-pressed={expanded} onClick={() => useShell.setState({ expanded: !expanded })}>
         {expanded ? "恢复宽度" : "扩大阅读"}
       </button>
       {inspector.kind === "run" ? (

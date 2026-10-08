@@ -85,10 +85,8 @@ describe("artifact store lifecycle", () => {
 
   it("keeps a late created version on its object without changing the new selection", async () => {
     const result = deferred<Awaited<ReturnType<HpApi["createArtifactVersion"]>>>();
-    const onOpen = vi.fn();
     const store = createArtifactStore({
       api: fakeApi({ createArtifactVersion: () => result.promise }),
-      onOpen,
     });
     await store.getState().loadArtifact("a1");
     const creating = store.getState().createVersion("a1", "change");
@@ -98,7 +96,7 @@ describe("artifact store lifecycle", () => {
     expect(
       store.getState().versionsByArtifactId.a1?.some((v) => v.artifact_version_id === "new"),
     ).toBe(true);
-    expect(onOpen).not.toHaveBeenCalled();
+    expect(store.getState()).not.toHaveProperty("openArtifact");
   });
 
   it("reopening a building version shares one poller and reset clears its timer", async () => {

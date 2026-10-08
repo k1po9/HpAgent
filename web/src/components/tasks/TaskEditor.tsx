@@ -183,7 +183,7 @@ function EditorForm({
         </p>
       )}
       {latest && baseline && latest.row_version !== baseline.row_version && (
-        <p role="alert">
+        <div role="alert">
           服务器已更新到 r{latest.current_requirement_revision}，草稿仍保留。
           <button type="button" onClick={() => setBaseline(latest)}>
             已审阅最新要求，采用新基线提交
@@ -192,7 +192,7 @@ function EditorForm({
             <summary>查看最新要求</summary>
             <pre>{JSON.stringify(latest.requirement, null, 2)}</pre>
           </details>
-        </p>
+        </div>
       )}
       {!baseline && (
         <label>

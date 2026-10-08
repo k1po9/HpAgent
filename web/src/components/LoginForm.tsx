@@ -52,7 +52,7 @@ export function LoginForm() {
           dismissRegistrationHint();
         }
       }
-      await check();
+      await check(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败，请重试。");
     } finally {
@@ -62,7 +62,7 @@ export function LoginForm() {
 
   return (
     <Box style={{ maxWidth: 360, margin: "20vh auto 0" }}>
-      <form onSubmit={onSubmit}>
+      <form onSubmit={onSubmit} aria-describedby={error ? "auth-error" : undefined}>
         <Flex direction="column" gap="3">
           <Heading as="h1" size="5" weight="bold">
             HpAgent {mode === "login" ? "登录" : "注册"}
@@ -120,7 +120,7 @@ export function LoginForm() {
             </>
           ) : null}
           {error ? (
-            <Text size="2" color="red">
+            <Text id="auth-error" role="alert" size="2" color="red">
               {error}
             </Text>
           ) : null}

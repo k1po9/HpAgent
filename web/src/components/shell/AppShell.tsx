@@ -3,7 +3,6 @@ import { Bot, Folder, ListTodo, UserRound, Menu } from "lucide-react";
 import { useShell, type Screen } from "../../store/shell";
 import { useAuth } from "../../store/auth";
 import { useWorkbench } from "../../store/workbench";
-import { useTraceStore } from "../trace/traceStore";
 import { ConversationSidebar } from "../ConversationSidebar";
 import { ChatPane } from "../ChatPane";
 import { WorkspaceScreen } from "../workspace/WorkspaceScreen";
@@ -16,11 +15,14 @@ import { TaskInbox } from "../tasks/TaskInbox";
 import { useTaskController } from "../tasks/useTaskController";
 import { QQBindingPanel } from "../QQBindingPanel";
 import { RegistrationQqGate } from "../RegistrationQqGate";
-import { ArtifactsPage } from "../TestPages";
+import { ArtifactCreateForm } from "../artifact/ArtifactCreateForm";
+import { RunLookup } from "../run/RunLookup";
 import { SaveToWorkspaceDialog as SaveWorkspaceDialog } from "../workspace/SaveToWorkspaceDialog";
 import type { SaveSource } from "../workspace/workspaceOperations";
 import { InspectorHost } from "./InspectorHost";
 import { Surface } from "./Surface";
+import { useShellWidth } from "./useShellWidth";
+import { Assembly } from "./Assembly";
 
 const screens = [
   { id: "ai", label: "AI", icon: Bot },
@@ -29,6 +31,9 @@ const screens = [
 ] as const;
 export function AppShell() {
   useTaskController();
+  const shellRef = useRef<HTMLDivElement>(null);
+  const width = useShellWidth(shellRef);
+  const expanded = useShell((s) => s.expanded);
   const route = useShell((s) => s.route);
   const modal = useShell((s) => s.modal);
   const sidebarOpen = useShell((s) => s.sidebarOpen);
@@ -68,7 +73,10 @@ export function AppShell() {
           useShell.getState().route.inspector?.kind === "artifact"
             ? useShell.getState().route.inspector?.objectId
             : undefined,
-        runId: useTraceStore.getState().runId ?? undefined,
+        runId:
+          useShell.getState().route.inspector?.kind === "run"
+            ? useShell.getState().route.inspector?.objectId
+            : undefined,
       });
     restore();
     window.addEventListener("hashchange", restore);
@@ -134,8 +142,15 @@ export function AppShell() {
     ) : (
       <TaskSidebar />
     );
+  const collapsed =
+    width < 960 ||
+    width < 64 + 256 + 560 + (route.inspector && width >= 1280 ? (expanded ? 520 : 420) : 0) + 4;
   return (
-    <div className={`hp-shell ${route.inspector ? "hp-shell--inspecting" : ""}`}>
+    <div
+      ref={shellRef}
+      className={`hp-shell ${route.inspector ? "hp-shell--inspecting" : ""} ${collapsed ? "hp-shell--sidebar-collapsed" : ""}`}
+    >
+      <Assembly />
       <div className="hp-rail">
         <span className="hp-brand" aria-label="HpAgent">
           H
@@ -163,9 +178,16 @@ export function AppShell() {
           <UserRound aria-hidden="true" />
         </button>
       </div>
-      <aside className="hp-context-sidebar" aria-label="上下文导航">
+      <Surface
+        title="上下文导航"
+        className={`hp-context-sidebar ${collapsed ? "hp-sidebar-drawer" : ""}`}
+        modal={collapsed}
+        active={!collapsed || sidebarOpen}
+        dismissible={collapsed}
+        onClose={() => useShell.setState({ sidebarOpen: false })}
+      >
         {sidebar}
-      </aside>
+      </Surface>
       <main className="hp-main-canvas">
         <header className="hp-canvas-header">
           <button
@@ -180,13 +202,17 @@ export function AppShell() {
             {screens.find((s) => s.id === route.screen)?.label}
           </h1>
           {route.screen === "ai" && conversationId && (
-            <button onClick={() => useShell.setState({ modal: "artifact-create" })}>
+            <button
+              id="artifact-create-trigger"
+              onClick={() => useShell.setState({ modal: "artifact-create" })}
+            >
               从回复生成 HTML
             </button>
           )}
           {route.screen === "ai" && conversationId && (
             <button onClick={() => useShell.setState({ modal: "resources" })}>对话资料</button>
           )}
+          {route.screen === "ai" && <RunLookup />}
         </header>
         {notice && (
           <p role="status">
@@ -238,7 +264,7 @@ export function AppShell() {
           {route.screen === "tasks" && <TaskScreen />}
         </section>
       </main>
-      {modal !== "task-inbox" && <InspectorHost onSaveFile={saveFile} onSaveHtml={setSaveSource} />}
+      <InspectorHost compact={width < 1280} onSaveFile={saveFile} onSaveHtml={setSaveSource} />
       {modal === "task-create" && <TaskEditor onClose={() => useShell.setState({ modal: null })} />}
       {modal === "task-inbox" && <TaskInbox onClose={() => useShell.setState({ modal: null })} />}
       {pendingRoute && pendingReason === "tasks" && (
@@ -256,15 +282,6 @@ export function AppShell() {
           >
             放弃草稿并继续
           </button>
-        </Surface>
-      )}
-      {sidebarOpen && (
-        <Surface
-          title="上下文导航"
-          className="hp-sidebar-drawer"
-          onClose={() => useShell.setState({ sidebarOpen: false })}
-        >
-          {sidebar}
         </Surface>
       )}
       {((pendingRoute && pendingReason === "resources") || pendingResourceChange) && (
@@ -316,7 +333,11 @@ export function AppShell() {
       {modal === "account" && (
         <Surface title="账户设置" onClose={() => useShell.setState({ modal: null })}>
           <p>登录身份：{identities?.web?.username ?? account?.account_id}</p>
-          <QQBindingPanel qq={identities?.qq} onCompleted={check} startRequested={startBinding} />
+          <QQBindingPanel
+            qq={identities?.qq}
+            onCompleted={() => check()}
+            startRequested={startBinding}
+          />
           <button
             onClick={() => {
               void useAuth
@@ -333,7 +354,7 @@ export function AppShell() {
       )}
       {modal === "artifact-create" && (
         <Surface title="从回复生成 HTML" onClose={() => useShell.setState({ modal: null })}>
-          <ArtifactsPage showPanel={false} />
+          <ArtifactCreateForm />
         </Surface>
       )}
       {modal === "resources" && (

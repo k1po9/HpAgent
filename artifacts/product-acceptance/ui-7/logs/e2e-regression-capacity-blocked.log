@@ -1,0 +1,419 @@
+[WebServer] INFO:     Started server process [2266378]
+[WebServer] INFO:     Waiting for application startup.
+[WebServer] INFO:     Application startup complete.
+[WebServer] INFO:     Uvicorn running on http://0.0.0.0:8187 (Press CTRL+C to quit)
+[WebServer] (node:2266771) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 62 tests using 1 worker
+
+(node:2266864) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › e2e/a11y.spec.ts:10:1 › login form exposes a heading and labelled fields (3.6s)
+  ✓   2 [chromium] › e2e/a11y.spec.ts:18:1 › workbench exposes headings, labelled controls, and semantic buttons (5.3s)
+[WebServer] 2026-10-08 13:56:02 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:56:02 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:56:02 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:56:07 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:56:07 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:56:07 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   3 [chromium] › e2e/artifact.spec.ts:5:1 › builds, interacts with, isolates and restores an Artifact (17.9s)
+  ✓   4 [chromium] › e2e/auth.spec.ts:8:1 › rejects wrong credentials with the server's safe message (4.0s)
+  ✓   5 [chromium] › e2e/auth.spec.ts:20:1 › signs in with valid credentials (4.1s)
+  ✓   6 [chromium] › e2e/auth.spec.ts:26:1 › signs out back to the login gate (7.4s)
+[WebServer] 2026-10-08 13:56:34 [INFO ] HpAgent.Account: web_registration_succeeded account_id=01a11a15-bdc8-730d-ab39-fbc13fe3d794
+  ✓   7 [chromium] › e2e/auth.spec.ts:37:1 › registers, auto-signs in, and can log in again (6.0s)
+[WebServer] 2026-10-08 13:56:42 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:56:42 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:56:42 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:56:47 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:56:47 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:56:47 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 13:56:48 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:56:48 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:56:48 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:56:53 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:56:53 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:56:53 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 13:56:54 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:56:54 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:56:54 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:56:58 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:56:58 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:56:58 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   8 [chromium] › e2e/conversation.spec.ts:8:1 › holds a long conversation and survives a refresh (26.9s)
+[WebServer] 2026-10-08 13:57:09 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:57:09 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:57:09 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:57:09 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓   9 [chromium] › e2e/conversation.spec.ts:33:1 › selects and uploads a UTF-8 Markdown file, then attaches it to a message (6.5s)
+[WebServer] 2026-10-08 13:57:14 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:57:15 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:57:15 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:57:20 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+  ✓  10 [chromium] › e2e/disconnect.spec.ts:11:1 › recovers from a dropped SSE connection by polling (12.6s)
+[WebServer] 2026-10-08 13:57:28 [WARNING] HpAgent.WebApi: workspace_request_rejected
+  ✓  11 [chromium] › e2e/manual-repair.spec.ts:5:1 › creates a child in the selected directory and explains duplicate names (6.2s)
+  ✓  12 [chromium] › e2e/manual-repair.spec.ts:27:1 › uploads and authorizes the current conversation, and keeps chat drafts across pages (9.0s)
+  ✓  13 [chromium] › e2e/manual-repair.spec.ts:59:1 › creates reminder and research directly from independent pages on narrow screens (7.0s)
+  ✓  14 [chromium] › e2e/manual-repair.spec.ts:91:1 › revises a scheduled work and grants its own directory permissions (8.8s)
+[WebServer] 2026-10-08 13:57:59 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:58:00 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:58:00 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:58:04 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:58:05 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:58:05 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  15 [chromium] › e2e/markdown.spec.ts:17:1 › renders Markdown and fenced code in assistant replies (11.9s)
+[WebServer] 2026-10-08 13:58:12 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:58:12 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:58:12 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:58:17 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:58:17 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:58:17 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 13:58:24 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:58:24 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:58:24 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:58:28 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:58:29 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:58:29 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  16 [chromium] › e2e/multi-tab.spec.ts:12:1 › accounts are isolated across browser contexts (24.6s)
+[WebServer] 2026-10-08 13:58:37 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:58:37 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:58:37 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:58:42 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:58:42 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:58:42 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 13:58:47 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:58:47 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:58:47 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:58:48 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:58:48 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 13:58:48 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  17 [chromium] › e2e/multi-tab.spec.ts:36:1 › a second tab cannot send while a Run is active (409 wins) (19.2s)
+[WebServer] 2026-10-08 13:58:51 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:58:55 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:58:55 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:58:55 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:58:59 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:58:59 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:58:59 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  18 [chromium] › e2e/stop-retry.spec.ts:11:1 › stops a running Run without offering Retry (11.1s)
+  ✓  19 [chromium] › e2e/ui-2-ai.spec.ts:37:1 › lost DELETE responses close the dialog after authoritative empty readback (8.9s)
+  ✓  20 [chromium] › e2e/ui-2-ai.spec.ts:56:1 › revoke finishing during history navigation releases only its conversation lock (9.8s)
+[WebServer] 2026-10-08 13:59:26 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:59:26 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:59:26 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:59:31 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:59:31 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:59:31 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 13:59:32 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:59:32 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:59:32 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:59:37 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:59:37 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:59:37 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  21 [chromium] › e2e/ui-2-ai.spec.ts:91:1 › B sends through the real API while A's POST is pending (18.9s)
+[WebServer] 2026-10-08 13:59:43 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:59:43 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:59:43 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:59:48 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:59:48 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:59:48 [INFO ] HpAgent.SSE: sse_disconnected
+[WebServer] 2026-10-08 13:59:50 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 13:59:50 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 13:59:50 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 13:59:55 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 13:59:55 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 13:59:55 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  22 [chromium] › e2e/ui-2-ai.spec.ts:124:1 › empty composer creates only on submission, handles IME, and restores per-conversation drafts (19.3s)
+[WebServer] 2026-10-08 14:00:04 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:00:04 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:00:04 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:00:04 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:00:09 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:00:09 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 14:00:09 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  23 [chromium] › e2e/ui-2-ai.spec.ts:174:1 › a lost POST response is confirmed with the original key and does not duplicate messages (12.7s)
+  ✓  24 [chromium] › e2e/ui-2-ai.spec.ts:206:1 › creation completed after leaving AI does not send or navigate and keeps the draft (6.9s)
+  ✓  25 [chromium] › e2e/ui-2-ai.spec.ts:238:1 › attachment abandonment is confirmed and existing files are not deleted (7.1s)
+  ✓  26 [chromium] › e2e/ui-2-ai.spec.ts:255:1 › rename, read-only resources, focus return, and seven viewport layouts (12.4s)
+[WebServer] 2026-10-08 14:00:51 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:00:51 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:00:51 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:00:56 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:00:56 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 14:00:56 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  27 [chromium] › e2e/ui-2-ai.spec.ts:323:1 › history prepend retains the visible anchor and streaming does not pull a reader to the bottom (21.5s)
+  ✓  28 [chromium] › e2e/ui-2-ai.spec.ts:393:1 › failed attachment keeps the draft and exposes a removable error; text zoom remains usable (7.4s)
+  ✓  29 [chromium] › e2e/ui-2-ai.spec.ts:435:1 › more than thirty conversations paginate and loaded-title filtering remains local (19.4s)
+[WebServer] 2026-10-08 14:01:31 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:01:31 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:01:31 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:01:36 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:01:36 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 14:01:36 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  30 [chromium] › e2e/ui-3-execution.spec.ts:9:1 › real API: message-bound execution, tab navigation and terminal resource boundary (15.0s)
+  ✓  31 [chromium] › e2e/ui-3-execution.spec.ts:52:1 › network fixtures: Work snapshot, missing Trace, approvals and responsive inspector (9.5s)
+  ✓  32 [chromium] › e2e/ui-3-execution.spec.ts:198:1 › network fixtures: terminal outputs refresh and permission denial discards old model bodies (9.3s)
+  ✓  33 [chromium] › e2e/ui-4-workspace.spec.ts:8:1 › directory deep links, direct children, all files, file preview and browser return (12.5s)
+  ✓  34 [chromium] › e2e/ui-4-workspace.spec.ts:49:1 › an existing conversation never receives an implicit upload grant (7.8s)
+  ✓  35 [chromium] › e2e/ui-4-workspace.spec.ts:61:1 › lost PUT response resumes from ready metadata and does not reupload or resave (7.0s)
+  ✓  36 [chromium] › e2e/ui-4-workspace.spec.ts:94:1 › saved upload survives a failed grant, closes, reopens and retries authorization only (9.4s)
+  ✓  37 [chromium] › e2e/ui-4-workspace.spec.ts:139:1 › new conversation usage creates once, restores failed authorization and sends no message (9.8s)
+  ✓  38 [chromium] › e2e/ui-4-workspace.spec.ts:175:1 › permission drafts, keyboard tabs, impact invalidation and responsive object surfaces (21.7s)
+  ✓  39 [chromium] › e2e/ui-4-workspace.spec.ts:250:1 › empty and unavailable objects keep navigation and focus usable (7.6s)
+  ✓  40 [chromium] › e2e/ui-5-recovery.spec.ts:12:1 › network fixtures: terminal output invalidation preserves expansion and empty results can refresh (7.1s)
+  ✓  41 [chromium] › e2e/ui-5-recovery.spec.ts:73:1 › network fixtures: missing/null continuation deep links stay read-only and recover by refresh (15.1s)
+  ✓  42 [chromium] › e2e/ui-5-recovery.spec.ts:124:1 › real API: a failed requirement read and retry preserve the whole draft before revision (8.7s)
+  ✓  43 [chromium] › e2e/ui-5-tasks.spec.ts:29:1 › creates, revises, controls, increases one limit and returns from inspector children (10.5s)
+  ✓  44 [chromium] › e2e/ui-5-tasks.spec.ts:74:1 › lost create response retries identical intention and does not duplicate a task (8.9s)
+  ✓  45 [chromium] › e2e/ui-5-tasks.spec.ts:110:1 › task deep link, unavailable object, focus, responsive screens and inbox modal (18.1s)
+[WebServer] 2026-10-08 14:04:28 [INFO ] HpAgent.Account: web_registration_succeeded account_id=01a11a1c-f86d-71d1-a539-91f4a349661b
+  ✓  46 [chromium] › e2e/ui-5-tasks.spec.ts:170:1 › 51st task remains available after serial pagination and a first-page refresh (41.8s)
+  ✓  47 [chromium] › e2e/ui-5-tasks.spec.ts:224:1 › network fixtures: four buckets, pausing decision, failure scope and empty filters (14.6s)
+[WebServer] 2026-10-08 14:05:27 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:05:27 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:05:27 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:05:32 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:05:32 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 14:05:32 [INFO ] HpAgent.SSE: sse_disconnected
+  ✘  48 [chromium] › e2e/ui-6-artifact.spec.ts:8:1 › real API: lost create/version responses replay keys and history keeps v1 selected (44.4s)
+(node:2292989) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  49 [chromium] › e2e/ui-6-artifact.spec.ts:77:1 › network fixtures: task original delivery, unavailable versions, layouts and layered focus (29.1s)
+[WebServer] 2026-10-08 14:06:46 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:06:46 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:06:46 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:06:51 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:06:51 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 14:06:51 [INFO ] HpAgent.SSE: sse_disconnected
+  ✘  50 [chromium] › e2e/ui-6-artifact.spec.ts:210:1 › real API upload with injected lost PUT and name conflict: source copy recovers without reupload (49.2s)
+(node:2298119) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  51 [chromium] › e2e/ui-6-artifact.spec.ts:281:1 › network fixtures: loading and query failure recover to the default successful version (8.1s)
+[WebServer] 2026-10-08 14:07:57 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:07:57 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:07:58 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:08:03 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:08:03 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 14:08:03 [INFO ] HpAgent.SSE: sse_disconnected
+  ✘  52 [chromium] › e2e/ui-6-self-review.spec.ts:36:1 › network fixtures over real HTML: no-version reopen waits for fresh data and cached preview recovers after query failure (43.8s)
+(node:2300447) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 2026-10-08 14:08:44 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:08:44 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:08:44 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:08:49 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:08:49 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 14:08:49 [INFO ] HpAgent.SSE: sse_disconnected
+  ✘  53 [chromium] › e2e/ui-6-self-review.spec.ts:99:1 › network fixtures over a restored real message: its HTML row converges through interrupted polling without opening details (43.7s)
+(node:2302321) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  54 [chromium] › e2e/ui-7-unification.spec.ts:105:1 › seven viewports and boundary resizes keep Artifact iframe, draft and query count (13.6s)
+  ✓  55 [chromium] › e2e/ui-7-unification.spec.ts:165:1 › mobile saving suspends the parent; Escape restores draft, iframe and focus (6.4s)
+  ✓  56 [chromium] › e2e/ui-7-unification.spec.ts:189:1 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots (20.2s)
+[WebServer] 2026-10-08 14:10:10 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:10:10 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:10:10 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:10:15 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:10:15 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 14:10:15 [INFO ] HpAgent.SSE: sse_disconnected
+  ✘  57 [chromium] › e2e/ui-7-unification.spec.ts:225:1 › formal Header creation keeps instruction and verified Run lookup handles denial (44.1s)
+(node:2305782) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  58 [chromium] › e2e/ui-7-unification.spec.ts:252:1 › nested Task abandonment and inbox keep the parent; keyboard and color pairs remain usable (8.5s)
+[WebServer] 2026-10-08 14:11:09 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:11:09 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:11:09 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:11:14 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:11:14 [INFO ] HpAgent.SSE: sse_terminal_snapshot_sent
+[WebServer] 2026-10-08 14:11:14 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  59 [chromium] › e2e/ui-7-unification.spec.ts:351:1 › explicit login assembles once; restore skips it and send/stop keep one fixed control (15.4s)
+  ✓  60 [chromium] › e2e/workspace-direct-upload.spec.ts:5:1 › uploads directly to Workspace without creating or authorizing a conversation (8.4s)
+[WebServer] 2026-10-08 14:11:32 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:11:32 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:11:32 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:11:36 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  61 [chromium] › e2e/workspace-p1.spec.ts:5:1 › uploads, saves, moves, and downloads a Workspace entry (13.4s)
+[WebServer] 2026-10-08 14:11:37 [INFO ] HpAgent.TerminalPublisher: sse_terminal_published
+[WebServer] 2026-10-08 14:11:43 [INFO ] HpAgent.ConversationCommands: run_created
+[WebServer] 2026-10-08 14:11:43 [INFO ] HpAgent.WebApi: web_message_accepted
+[WebServer] 2026-10-08 14:11:44 [INFO ] HpAgent.SSE: sse_subscribed
+[WebServer] 2026-10-08 14:11:47 [INFO ] HpAgent.SSE: sse_disconnected
+  ✓  62 [chromium] › e2e/workspace-p3.spec.ts:4:1 › upgrades an entry in place and keeps its version when renamed (11.4s)
+
+
+  1) [chromium] › e2e/ui-6-artifact.spec.ts:8:1 › real API: lost create/version responses replay keys and history keeps v1 selected 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTitle('Artifact 预览')
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByTitle('Artifact 预览')
+
+
+      29 |   await page.getByRole("button", { name: "生成 HTML", exact: true }).click();
+      30 |   await page.getByRole("button", { name: "恢复原 HTML 生成" }).click();
+    > 31 |   await expect(page.getByTitle("Artifact 预览")).toBeVisible({ timeout: 30000 });
+         |                                                ^
+      32 |   expect(createKeys).toHaveLength(2);
+      33 |   expect(createKeys[1]).toBe(createKeys[0]);
+      34 |   const v1Url = page.url();
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-6-artifact.spec.ts:31:48
+
+    Error Context: test-results/ui-6-artifact-real-API-los-44703-d-history-keeps-v1-selected-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-6-artifact-real-API-los-44703-d-history-keeps-v1-selected-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-6-artifact-real-API-los-44703-d-history-keeps-v1-selected-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e/ui-6-artifact.spec.ts:210:1 › real API upload with injected lost PUT and name conflict: source copy recovers without reupload 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTitle('Artifact 预览')
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByTitle('Artifact 预览')
+
+
+      216 |   await expectReply(page);
+      217 |   await page.getByRole("button", { name: "生成 HTML", exact: true }).click();
+    > 218 |   await expect(page.getByTitle("Artifact 预览")).toBeVisible({ timeout: 30000 });
+          |                                                ^
+      219 |   let uploads = 0,
+      220 |     puts = 0,
+      221 |     saves = 0,
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-6-artifact.spec.ts:218:48
+
+    Error Context: test-results/ui-6-artifact-real-API-upl-057b7-y-recovers-without-reupload-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-6-artifact-real-API-upl-057b7-y-recovers-without-reupload-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-6-artifact-real-API-upl-057b7-y-recovers-without-reupload-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e/ui-6-self-review.spec.ts:36:1 › network fixtures over real HTML: no-version reopen waits for fresh data and cached preview recovers after query failure 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTitle('Artifact 预览')
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByTitle('Artifact 预览')
+
+
+      24 |     version: HpArtifactVersion;
+      25 |   };
+    > 26 |   await expect(page.getByTitle("Artifact 预览")).toBeVisible({ timeout: 30000 });
+         |                                                ^
+      27 |   const ready = await page.request.get(
+      28 |     `/api/v1/artifact-versions/${result.version.artifact_version_id}`,
+      29 |   );
+        at createHtml (/home/hp/workspace/HpAgent_web/web/e2e/ui-6-self-review.spec.ts:26:48)
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-6-self-review.spec.ts:39:33
+
+    Error Context: test-results/ui-6-self-review-network-f-f5aa0-ecovers-after-query-failure-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-6-self-review-network-f-f5aa0-ecovers-after-query-failure-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-6-self-review-network-f-f5aa0-ecovers-after-query-failure-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › e2e/ui-6-self-review.spec.ts:99:1 › network fixtures over a restored real message: its HTML row converges through interrupted polling without opening details 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTitle('Artifact 预览')
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByTitle('Artifact 预览')
+
+
+      24 |     version: HpArtifactVersion;
+      25 |   };
+    > 26 |   await expect(page.getByTitle("Artifact 预览")).toBeVisible({ timeout: 30000 });
+         |                                                ^
+      27 |   const ready = await page.request.get(
+      28 |     `/api/v1/artifact-versions/${result.version.artifact_version_id}`,
+      29 |   );
+        at createHtml (/home/hp/workspace/HpAgent_web/web/e2e/ui-6-self-review.spec.ts:26:48)
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-6-self-review.spec.ts:102:33
+
+    Error Context: test-results/ui-6-self-review-network-f-48474-ing-without-opening-details-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-6-self-review-network-f-48474-ing-without-opening-details-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-6-self-review-network-f-48474-ing-without-opening-details-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › e2e/ui-7-unification.spec.ts:225:1 › formal Header creation keeps instruction and verified Run lookup handles denial 
+
+    Error: expect(locator).toBeVisible() failed
+
+    Locator: getByTitle('Artifact 预览')
+    Expected: visible
+    Timeout: 30000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeVisible" with timeout 30000ms
+      - waiting for getByTitle('Artifact 预览')
+
+
+      240 |   await page.getByRole("button", { name: "创建成果", exact: true }).click();
+      241 |   expect((await created).request().postDataJSON()).toEqual({ instruction: "用中文生成报告" });
+    > 242 |   await expect(page.getByTitle("Artifact 预览")).toBeVisible({ timeout: 30000 });
+          |                                                ^
+      243 |   await page.getByRole("button", { name: "关闭HTML 成果" }).click();
+      244 |   await page.getByText("按执行编号查询", { exact: true }).click();
+      245 |   await page.getByLabel("执行编号").fill("00000000-0000-0000-0000-000000000007");
+        at /home/hp/workspace/HpAgent_web/web/e2e/ui-7-unification.spec.ts:242:48
+
+    Error Context: test-results/ui-7-unification-formal-He-e7f8b-d-Run-lookup-handles-denial-chromium/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-7-unification-formal-He-e7f8b-d-Run-lookup-handles-denial-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-7-unification-formal-He-e7f8b-d-Run-lookup-handles-denial-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5 failed
+    [chromium] › e2e/ui-6-artifact.spec.ts:8:1 › real API: lost create/version responses replay keys and history keeps v1 selected 
+    [chromium] › e2e/ui-6-artifact.spec.ts:210:1 › real API upload with injected lost PUT and name conflict: source copy recovers without reupload 
+    [chromium] › e2e/ui-6-self-review.spec.ts:36:1 › network fixtures over real HTML: no-version reopen waits for fresh data and cached preview recovers after query failure 
+    [chromium] › e2e/ui-6-self-review.spec.ts:99:1 › network fixtures over a restored real message: its HTML row converges through interrupted polling without opening details 
+    [chromium] › e2e/ui-7-unification.spec.ts:225:1 › formal Header creation keeps instruction and verified Run lookup handles denial 
+  57 passed (16.2m)

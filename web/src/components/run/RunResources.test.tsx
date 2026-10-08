@@ -184,3 +184,95 @@ it("retains outputs on a network error and recovers through explicit refresh", a
   await screen.findByRole("link", { name: "new.txt" });
   expect(screen.queryByText("输出暂时无法同步。")).not.toBeInTheDocument();
 });
+
+it("migrated Workspace candidates: cancellation rejects delayed success without losing published outputs", async () => {
+  let resolve!: (v: Awaited<ReturnType<typeof runApi.listRunResources>>) => void;
+  const list = vi.spyOn(runApi, "listRunResources").mockImplementation(
+    () =>
+      new Promise((done) => {
+        resolve = done;
+      }),
+  );
+  const view = render(<RunResources runId="A" terminal={false} runStatus="running" />);
+  await waitFor(() => expect(list).toHaveBeenCalledTimes(1));
+  view.rerender(<RunResources runId="A" terminal={false} runStatus="cancelling" />);
+  await act(async () =>
+    resolve({
+      count: 1,
+      next: null,
+      candidates: [
+        {
+          node_id: "stale",
+          logical_name: "stale",
+          name: "stale",
+          fixed: false,
+          read: false,
+          content_type: "text/plain",
+          size_bytes: 1,
+        },
+      ],
+    }),
+  );
+  expect(screen.queryByRole("button", { name: "stale" })).not.toBeInTheDocument();
+  expect(list).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("heading", { name: "已发布输出" })).toBeVisible();
+});
+it("migrated Workspace candidates: queued → running retries the same Run snapshot", async () => {
+  const list = vi
+    .spyOn(runApi, "listRunResources")
+    .mockRejectedValueOnce(new Error("snapshot not ready"))
+    .mockResolvedValue({ count: 0, next: null, candidates: [] });
+  const view = render(<RunResources runId="A" terminal={false} runStatus="queued" />);
+  await screen.findByText(/候选资料待同步/);
+  view.rerender(<RunResources runId="A" terminal={false} runStatus="running" />);
+  await screen.findByText(/当前没有可展示的候选资料/);
+  expect(list).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText(/候选资料待同步/)).not.toBeInTheDocument();
+});
+it("migrated Workspace candidates: late pagination and failures after leaving A never populate B or reopened A", async () => {
+  let reject!: (e: Error) => void;
+  const candidate = {
+    node_id: "first",
+    logical_name: "first",
+    name: "first",
+    fixed: false,
+    read: false,
+    content_type: "text/plain",
+    size_bytes: 1,
+  };
+  const list = vi
+    .spyOn(runApi, "listRunResources")
+    .mockResolvedValueOnce({ count: 1, next: "cursor", candidates: [candidate] })
+    .mockImplementationOnce(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
+    )
+    .mockResolvedValue({ count: 0, next: null, candidates: [] });
+  const view = render(<RunResources runId="A" terminal={false} />);
+  fireEvent.click(await screen.findByRole("button", { name: "加载更多资料" }));
+  expect(list).toHaveBeenCalledWith("A", "cursor");
+  view.rerender(<RunResources runId="B" terminal={false} />);
+  await waitFor(() => expect(list).toHaveBeenCalledWith("B", null));
+  view.rerender(<RunResources runId="A" terminal={false} />);
+  await waitFor(() => expect(list).toHaveBeenCalledTimes(4));
+  await act(async () => reject(new Error("late old page")));
+  expect(screen.queryByText(/候选资料待同步/)).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "first" })).not.toBeInTheDocument();
+});
+
+it("migrated unknown active Run 404 remains visible rather than being treated as empty", async () => {
+  vi.spyOn(runApi, "listRunResources").mockRejectedValue(
+    new HpCommandError(404, {
+      code: "not_found",
+      message: "snapshot unavailable",
+      request_id: null,
+      retryable: false,
+      details: {},
+    }),
+  );
+  render(<RunResources runId="unknown" terminal={false} runStatus="running" />);
+  await screen.findByText(/当前无法获取候选资料/);
+  expect(screen.queryByText(/当前没有可展示的候选资料/)).not.toBeInTheDocument();
+});

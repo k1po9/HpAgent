@@ -1,0 +1,37 @@
+/* UI-7: shared semantic tokens, with Radix supplying the base palette. */
+:root,
+.radix-themes {
+  --hp-surface: var(--color-background, #fff);
+  --hp-subtle: var(--gray-2, #f8f9fa);
+  --hp-border: var(--gray-7, #d0d4da);
+  --hp-text: var(--gray-12, #202735);
+  --hp-muted: var(--gray-11, #5f6878);
+  --hp-accent: var(--accent-11, #3948ad);
+  --hp-selection: var(--accent-3, #dee5fa);
+  --hp-danger: var(--red-11, #b42318);
+  --hp-success: var(--green-11, #18794e);
+  --hp-warning: var(--amber-11, #925700);
+  --hp-focus: var(--accent-9, #465acb);
+  --hp-overlay: var(--black-a8, #17203366);
+  --hp-shadow: var(--black-a3, #0002);
+  --hp-radius: 8px;
+  --hp-space-1: 4px;
+  --hp-space-2: 8px;
+  --hp-space-3: 12px;
+  --hp-space-4: 16px;
+  --hp-space-6: 24px;
+  --hp-space-8: 32px;
+  --hp-control: 36px;
+  --hp-touch: 44px;
+  --hp-title: 1.5rem;
+  --hp-inspector-title: 1.125rem;
+  --hp-body: 0.875rem;
+  --hp-rail: 64px;
+  --hp-sidebar: 256px;
+  --hp-canvas-min: 560px;
+  --hp-inspector: 420px;
+  --hp-inspector-expanded: 520px;
+  --hp-morph: 150ms;
+  --hp-flow: 220ms;
+  --hp-settle: 160ms;
+}

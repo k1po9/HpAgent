@@ -1,0 +1,11 @@
+  executor_key   | status | count 
+-----------------+--------+-------
+ reminder        | queued |     2
+ research_report | queued |     2
+(2 rows)
+
+      reason      | count 
+------------------+-------
+ waiting_capacity |     5
+(1 row)
+

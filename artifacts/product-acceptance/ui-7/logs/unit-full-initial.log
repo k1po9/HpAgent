@@ -1,0 +1,1204 @@
+
+> hpagent-web@0.1.0 test
+> vitest run
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/components/workspace/WorkspaceMigration.test.tsx (3 tests | 1 failed) 8643ms
+   × migrates directory creation to the selected formal directory and keeps its selection on refresh 6409ms
+stderr | src/components/tasks/TaskSelfReview.test.tsx > R3 preserves every edited field through failed and successful retries and reviews the new revision
+In HTML, <summary> cannot be a descendant of <p>.
+This will cause a hydration error.
+
+  <TaskEditor workId="w1" onClose={function Mock}>
+    <BoundTaskEditor workId="w1" onClose={function Mock}>
+      <Surface title="修改任务要求" onClose={function close}>
+        <dialog ref={{...}} className={"hp-surfa..."} role={undefined} aria-label="修改任务要求" aria-modal={true} ...>
+          <header>
+          <div className="hp-surface...">
+            <EditorForm work={{work_id:"w1", ...}} verifying={false} onClose={function Mock} ...>
+              <form className="hp-operati..." onChange={function onChange} onSubmit={function onSubmit}>
+                <p>
+>               <p role="alert">
+                  <button>
+                  <details>
+>                   <summary>
+                    ...
+                ...
+
+<p> cannot contain a nested <summary>.
+See this log for the ancestor stack trace.
+In HTML, <pre> cannot be a descendant of <p>.
+This will cause a hydration error.
+
+  <TaskEditor workId="w1" onClose={function Mock}>
+    <BoundTaskEditor workId="w1" onClose={function Mock}>
+      <Surface title="修改任务要求" onClose={function close}>
+        <dialog ref={{...}} className={"hp-surfa..."} role={undefined} aria-label="修改任务要求" aria-modal={true} ...>
+          <header>
+          <div className="hp-surface...">
+            <EditorForm work={{work_id:"w1", ...}} verifying={false} onClose={function Mock} ...>
+              <form className="hp-operati..." onChange={function onChange} onSubmit={function onSubmit}>
+                <p>
+>               <p role="alert">
+                  <button>
+                  <details>
+                    <summary>
+>                   <pre>
+                ...
+
+<p> cannot contain a nested <pre>.
+See this log for the ancestor stack trace.
+In HTML, <details> cannot be a descendant of <p>.
+This will cause a hydration error.
+
+  <TaskEditor workId="w1" onClose={function Mock}>
+    <BoundTaskEditor workId="w1" onClose={function Mock}>
+      <Surface title="修改任务要求" onClose={function close}>
+        <dialog ref={{...}} className={"hp-surfa..."} role={undefined} aria-label="修改任务要求" aria-modal={true} ...>
+          <header>
+          <div className="hp-surface...">
+            <EditorForm work={{work_id:"w1", ...}} verifying={false} onClose={function Mock} ...>
+              <form className="hp-operati..." onChange={function onChange} onSubmit={function onSubmit}>
+                <p>
+>               <p role="alert">
+                  <button>
+>                 <details>
+                ...
+
+
+ ❯ src/components/tasks/TaskSelfReview.test.tsx (13 tests | 1 failed) 18432ms
+   × R3 preserves every edited field through failed and successful retries and reviews the new revision 3417ms
+ ❯ src/components/conversation/ConversationResources.test.tsx (10 tests | 1 failed) 20916ms
+     × shows only refreshed grants after a successful read-only authorization 6912ms
+ ❯ src/App.test.tsx (11 tests | 3 failed) 45744ms
+     × isolates a late account A list after switching A-B-A 5951ms
+     × retains the active Run subscription across pages and aborts it on expiry 10085ms
+     × keeps one chat runtime and its draft across navigation and an unavailable Inspector 6320ms
+ ❯ src/components/tasks/TaskIntegration.test.tsx (10 tests | 1 failed) 16887ms
+   × keeps report readable when files fail, retries files independently and renders markdown 5276ms
+ ❯ src/App.recovery.test.tsx (14 tests | 4 failed) 58820ms
+     × keeps the draft, runtime and active Run subscription when re-selecting a loaded conversation 8069ms
+     × ignores a late retry success after another conversation is selected 6222ms
+     × ignores a late retry failure after another conversation is selected 4572ms
+     × refreshes the same work ID and displays the new record 6000ms
+ ❯ src/components/LoginForm.test.tsx (3 tests | 2 failed) 14147ms
+     × switches to login recovery after registration succeeds without a session 5114ms
+     × renders the server's safe invite error 5102ms
+ ❯ src/components/run/RunResources.test.tsx (11 tests | 2 failed) 7946ms
+   × keeps terminal resource denial local and never claims no files were used 2406ms
+   × serializes pagination and deduplicates node IDs 2155ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 15 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R01 conversation re-selection > keeps the draft, runtime and active Run subscription when re-selecting a loaded conversation
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.recovery.test.tsx:168:3
+    166|   );
+    167|
+    168|   it("keeps the draft, runtime and active Run subscription when re-sel…
+       |   ^
+    169|     const api = backend();
+    170|     api.detail = (id) =>
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/15]⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R01 conversation re-selection > ignores a late retry success after another conversation is selected
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.recovery.test.tsx:208:34
+    206|   });
+    207|
+    208|   it.each(["success", "failure"])(
+       |                                  ^
+    209|     "ignores a late retry %s after another conversation is selected",
+    210|     async (result) => {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/15]⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R01 conversation re-selection > ignores a late retry failure after another conversation is selected
+AssertionError: expected [ 'c1', 'c2', 'c1' ] to deeply equal [ 'c1', 'c1' ]
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"hp-shell  "[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"hp-rail"[39m
+        [36m>[39m
+          [36m<span[39m
+            [33maria-label[39m=[32m"HpAgent"[39m
+            [33mclass[39m=[32m"hp-brand"[39m
+          [36m>[39m
+            [0mH[0m
+          [36m</span>[39m
+          [36m<nav[39m
+            [33maria-label[39m=[32m"主导航"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-current[39m=[32m"page"[39m
+              [33maria-label[39m=[32m"AI"[39m
+              [33mtitle[39m=[32m"AI"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-bot"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M12 8V4H8"[39m
+                [36m/>[39m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"12"[39m
+                  [33mrx[39m=[32m"2"[39m
+                  [33mwidth[39m=[32m"16"[39m
+                  [33mx[39m=[32m"4"[39m
+                  [33my[39m=[32m"8"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M2 14h2"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M20 14h2"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M15 13v2"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M9 13v2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0mAI[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33maria-label[39m=[32m"空间"[39m
+              [33mtitle[39m=[32m"空间"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-folder"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0m空间[0m
+              [36m</span>[39m
+            [36m</button>[39m
+            [36m<button[39m
+              [33maria-label[39m=[32m"任务"[39m
+              [33mtitle[39m=[32m"任务"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-list-todo"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M13 5h8"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M13 12h8"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M13 19h8"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"m3 17 2 2 4-4"[39m
+                [36m/>[39m
+                [36m<rect[39m
+                  [33mheight[39m=[32m"6"[39m
+                  [33mrx[39m=[32m"1"[39m
+                  [33mwidth[39m=[32m"6"[39m
+                  [33mx[39m=[32m"3"[39m
+                  [33my[39m=[32m"4"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span>[39m
+                [0m任务[0m
+              [36m</span>[39m
+            [36m</button>[39m
+          [36m</nav>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"账户设置"[39m
+            [33mclass[39m=[32m"hp-account-button"[39m
+            [33mtitle[39m=[32m"账户设置"[39m
+          [36m>[39m
+            [36m<svg[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"lucide lucide-user-round"[39m
+              [33mfill[39m=[32m"none"[39m
+              [33mheight[39m=[32m"24"[39m
+              [33mstroke[39m=[32m"currentColor"[39m
+              [33mstroke-linecap[39m=[32m"round"[39m
+              [33mstroke-linejoin[39m=[32m"round"[39m
+              [33mstroke-width[39m=[32m"2"[39m
+              [33mviewBox[39m=[32m"0 0 24 24"[39m
+              [33mwidth[39m=[32m"24"[39m
+              [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+            [36m>[39m
+              [36m<circle[39m
+                [33mcx[39m=[32m"12"[39m
+                [33mcy[39m=[32m"8"[39m
+                [33mr[39m=[32m"5"[39m
+              [36m/>[39m
+              [36m<path[39m
+                [33md[39m=[32m"M20 21a8 8 0 0 0-16 0"[39m
+              [36m/>[39m
+            [36m</svg>[39m
+          [36m</button>[39m
+        [36m</div>[39m
+        [36m<dialog[39m
+          [33maria-label[39m=[32m"上下文导航"[39m
+          [33mclass[39m=[32m"hp-surface hp-surface--region hp-context-sidebar "[39m
+          [33mopen[39m=[32m""[39m
+          [33mrole[39m=[32m"complementary"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"hp-surface-header"[39m
+          [36m>[39m
+            [36m<h2[39m
+              [33mtabindex[39m=[32m"-1"[39m
+            [36m>[39m
+              [0m上下文导航[0m
+            [36m</h2>[39m
+            [36m<button[39m
+              [33maria-label[39m=[32m"关闭上下文导航"[39m
+              [33mtitle[39m=[32m"关闭"[39m
+            [36m>[39m
+              [0m×[0m
+            [36m</button>[39m
+          [36m</header>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"hp-surface-body"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"rt-Box hp-sidebar"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"rt-Flex rt-r-fd-column"[39m
+                [33mstyle[39m=[32m"height: 100%;"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"rt-Flex rt-r-ai-center rt-r-jc-space-between hp-sidebar__header"[39m
+                [36m>[39m
+                  [36m<h2[39m
+                    [33mclass[39m=[32m"rt-Heading rt-r-size-3 rt-r-weight-bold"[39m
+                  [36m>[39m
+                    [0m对话[0m
+                  [36m</h2>[39m
+                  [36m<button[39m
+                    [33maria-label[39m=[32m"新建对话"[39m
+                    [33mclass[39m=[32m"rt-reset rt-BaseButton rt-r-size-1 rt-variant-soft rt-Button"[39m
+                    [33mdata-accent-color[39m=[32m""[39m
+                  [36m>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"lucide lucide-plus"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mheight[39m=[32m"14"[39m
+                      [33mstroke[39m=[32m"currentColor"[39m
+                      [33mstroke-linecap[39m=[32m"round"[39m
+                      [33mstroke-linejoin[39m=[32m"round"[39m
+                      [33mstroke-width[39m=[32m"2"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mwidth[39m=[32m"14"[39m
+                      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                    [36m>[39m
+                      [36m<path[39m
+                        [33md[39m=[32m"M5 12h14"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33md[39m=[32m"M12 5v14"[39m
+                      [36m/>[39m
+                    [36m</svg>[39m
+                    [0m新建[0m
+                  [36m</button>[39m
+                [36m</div>[39m
+                [36m<input[39m
+                  [33maria-label[39m=[32m"筛选已加载对话"[39m
+                  [33mclass[39m=[32m"hp-conversation-filter"[39m
+                  [33mplaceholder[39m=[32m"筛选已加载对话"[39m
+                  [33mvalue[39m=[32m""[39m
+                [36m/>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"rt-Flex rt-r-fd-column rt-r-gap-1 hp-sidebar__list"[39m
+                [36m>[39m
+                  [36m<div />[39m
+                  [36m<div />[39m
+                  [36m<div>[39m
+                    [36m<h3[39m
+                      [33mclass[39m=[32m"hp-conversation-group"[39m
+                    [36m>[39m
+                      [0m近 7 天[0m
+                    [36m</h3>[39m
+                    [36m<button[39m
+                      [33maria-current[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"hp-conv hp-conv--active"[39m
+                      [33mdata-conversation-id[39m=[32m"c1"[39m
+                      [33mtitle[39m=[32m"对话 c1"[39m
+                      [33mtype[39m=[32m"button"[39m
+                    [36m>[39m
+                      [36m<span[39m
+                        [33mclass[39m=[32m"rt-Text rt-r-size-2 rt-truncate"[39m
+                      [36m>[39m
+                        [0m对话 c1[0m
+                      [36m</span>[39m
+                    [36m</button>[39m
+                    [36m<button[39m
+                      [33mclass[39m=[32m"hp-conv "[39m
+                      [33mdata-conversation-id[39m=[32m"c2"[39m
+                      [33mtitle[39m=[32m"对话 c2"[39m
+                      [33mtype[39m=[32m"button"[39m
+                    [36m>[39m
+                      [36m<span[39m
+                        [33mclass[39m=[32m"rt-Text rt-r-size-2 rt-truncate"[39m
+                      [36m>[39m
+                        [0m对话 c2[0m
+                      [36m</span>[39m
+                    [36m</button>[39m
+                  [36m</div>[39m
+                  [36m<div />[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+        [36m</dialog>[39m
+        [36m<main[39m
+          [33mclass[39m=[32m"hp-main-canvas"[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"hp-canvas-header"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-label[39m=[32m"打开侧栏"[39m
+              [33mclass[39m=[32m"hp-sidebar-toggle"[39m
+              [33mtitle[39m=[32m"打开侧栏"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"lucide lucide-menu"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mheight[39m=[32m"24"[39m
+                [33mstroke[39m=[32m"currentColor"[39m
+                [33mstroke-linecap[39m=[32m"round"[39m
+                [33mstroke-linejoin[39m=[32m"round"[39m
+                [33mstroke-width[39m=[32m"2"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mwidth[39m=[32m"24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M4 5h16"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M4 12h16"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M4 19h16"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+            [36m<h1[39m
+              [33mid[39m=[32m"canvas-title"[39m
+              [33mtabindex[39m=[32m"-1"[39m
+            [36m>[39m
+              [0mAI[0m
+            [36m</h1>[39m
+            [36m<button[39m
+              [33mid[39m=[32m"artifact-create-trigger"[39m
+            [36m>[39m
+              [0m从回复生成 HTML[0m
+            [36m</button>[39m
+            [36m<button>[39m
+              [0m对话资料[0m
+            [36m</button>[39m
+            [36m<details[39m
+              [33mclass[39m=[32m"hp-run-lookup"[39m
+            [36m>[39m
+              [36m<summary>[39m
+                [0m按执行编号查询[0m
+              [36m</summary>[39m
+              [36m<form>[39m
+                [36m<label[39m
+                  [33mfor[39m=[32m"_r_5_"[39m
+                [36m>[39m
+                  [0m执行编号[0m
+                [36m</label>[39m
+                [36m<input[39m
+                  [33maria-invalid[39m=[32m"false"[39m
+                  [33mid[39m=[32m"_r_5_"[39m
+                  [33mrequired[39m=[32m""[39m
+                  [33mvalue[39m=[32m""[39m
+                [36m/>[39m
+                [36m<button>[39m
+                  [0m查询[0m
+                [36m</button>[39m
+              [36m</form>[39m
+            [36m</details>[39m
+          [36m</header>[39m
+          [36m<section[39m
+            [33maria-label[39m=[32m"对话页面"[39m
+            [33mclass[39m=[32m"hp-shell-chat"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"rt-Flex rt-r-fd-column"[39m
+              [33mstyle[39m=[32m"height: 100%;"[39m
+            [36m>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"rt-Flex rt-r-ai-center rt-r-jc-center rt-r-gap-2"[39m
+              [36m>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"rt-Spinner rt-r-size-2"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"rt-SpinnerLeaf"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"rt-SpinnerLeaf"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"rt-SpinnerLeaf"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"rt-SpinnerLeaf"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"rt-SpinnerLeaf"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"rt-SpinnerLeaf"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"rt-SpinnerLeaf"[39m
+                  [36m/>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"rt-SpinnerLeaf"[39m
+                  [36m/>[39m
+                [36m</span>[39m
+                [36m<span[39m
+                  [33mclass[39m=[32m"rt-Text"[39m
+                [36m>[39m
+                  [0m正在加载对话…[0m
+                [36m</span>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"rt-Flex rt-r-jc-center hp-loadmore"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33mclass[39m=[32m"rt-reset rt-BaseButton rt-r-size-1 rt-variant-soft rt-Button"[39m
+                  [33mdata-accent-color[39m=[32m""[39m
+                [36m>[39m
+                  [0m加载更早的消息[0m
+                [36m</button>[39m
+              [36m</div>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"rt-Box"[39m
+                [33mstyle[39m=[32m"flex: 1 1 0%; min-height: 0px; display: flex; flex-direction: column;"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"hp-thread"[39m
+                [36m>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"hp-thread__viewport"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"rt-Flex rt-r-ai-center rt-r-jc-center"[39m
+                      [33mstyle[39m=[32m"height: 100%; padding: 24px;"[39m
+                    [36m>[39m
+                      [36m<span[39m
+                        [33mclass[39m=[32m"rt-Text rt-r-size-3"[39m
+                        [33mdata-accent-color[39m=[32m"gray"[39m
+                      [36m>[39m
+                        [0m开始新的对话吧[0m
+                      [36m</span>[39m
+                    [36m</div>[39m
+                  [36m</div>[39m
+                  [36m<form[39m
+                    [33mclass[39m=[32m"hp-composer"[39m
+                  [36m>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"hp-conversation-resources"[39m
+                    [36m>[39m
+                      [36m<div[39m
+                        [33maria-label[39m=[32m"长期授权资料"[39m
+                        [33mclass[39m=[32m"hp-resource-chips"[39m
+                      [36m>[39m
+                        [36m<span>[39m
+                          [0m暂无长期资料[0m
+                        [36m</span>[39m
+                        [36m<button[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m使用资料[0m
+                        [36m</button>[39m
+                        [36m<button[39m
+                          [33mtype[39m=[32m"button"[39m
+                        [36m>[39m
+                          [0m高级资料管理[0m
+                        [36m</button>[39m
+                      [36m</div>[39m
+                    [36m</div>[39m
+                    [36m<textarea[39m
+                      [33maria-label[39m=[32m"消息输入"[39m
+                      [33mclass[39m=[32m"hp-composer__input"[39m
+                      [33mplaceholder[39m=[32m"输入消息，Enter 发送"[39m
+                    [36m/>[39m
+                    [36m<div[39m
+                      [33mclass[39m=[32m"rt-Flex rt-r-ai-center rt-r-gap-2 hp-composer__actions"[39m
+                    [36m>[39m
+                      [0m [0m
+                      [36m<select[39m
+                        [33maria-label[39m=[32m"执行模式"[39m
+                      [36m>[39m
+                        [36m<option[39m
+                          [33mvalue[39m=[32m"react"[39m
+                        [36m>[39m
+                          [0m快速[0m
+                        [36m</option>[39m
+                      [36m</select>[39m
+                      [36m<button[39m
+                        [33mclass[39m=[32m"hp-composer__send"[39m
+                        [33mdisabled[39m=[32m""[39m
+                        [33mtype[39m=[32m"submit"[39m
+                      [36m>[39m
+                        [0m发送[0m
+                      [36m</button>[39m
+                    [36m</div>[39m
+                  [36m</form>[39m
+                [36m</div>[39m
+              [36m</div>[39m
+            [36m</div>[39m
+          [36m</section>[39m
+          [36m<section[39m
+            [33maria-label[39m=[32m"空间页面"[39m
+            [33mclass[39m=[32m"hp-screen-scroll"[39m
+            [33mhidden[39m=[32m""[39m
+          [36m/>[39m
+          [36m<section[39m
+            [33maria-label[39m=[32m"任务页面"[39m
+            [33mclass[39m=[32m"hp-screen-scroll"[39m
+            [33mhidden[39m=[32m""[39m
+          [36m/>[39m
+        [36m</main>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</body>[39m
+[36m</html>[39m
+
+- Expected
++ Received
+
+  [
+    "c1",
++   "c2",
+    "c1",
+  ]
+
+ ❯ src/App.recovery.test.tsx:218:51
+    216|       api.detail = (id) => (id === "c1" ? pending.promise : detail(id)…
+    217|       fireEvent.click(screen.getByRole("button", { name: "对话 c1" }));
+    218|       await waitFor(() => expect(api.detailCalls).toEqual(["c1", "c1"]…
+       |                                                   ^
+    219|       fireEvent.click(screen.getByRole("button", { name: "对话 c2" }));
+    220|       await screen.findByText("c2 恢复的消息");
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/15]⎯
+
+ FAIL  src/App.recovery.test.tsx > UI1-R02 work Run lookup submissions > refreshes the same work ID and displays the new record
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.recovery.test.tsx:233:3
+    231|
+    232| describe("UI1-R02 work Run lookup submissions", () => {
+    233|   it("refreshes the same work ID and displays the new record", async (…
+       |   ^
+    234|     const api = backend();
+    235|     const input = await openLookup();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/15]⎯
+
+ FAIL  src/App.test.tsx > UI-1 Shell lifecycle > isolates a late account A list after switching A-B-A
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:262:3
+    260|
+    261| describe("UI-1 Shell lifecycle", () => {
+    262|   it("isolates a late account A list after switching A-B-A", async () …
+       |   ^
+    263|     const base = globalThis.fetch;
+    264|     let finish!: (response: Response) => void;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/15]⎯
+
+ FAIL  src/App.test.tsx > UI-1 Shell lifecycle > retains the active Run subscription across pages and aborts it on expiry
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:303:3
+    301|   });
+    302|
+    303|   it("retains the active Run subscription across pages and aborts it o…
+       |   ^
+    304|     const base = globalThis.fetch;
+    305|     const signals: AbortSignal[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/15]⎯
+
+ FAIL  src/App.test.tsx > UI-1 Shell lifecycle > keeps one chat runtime and its draft across navigation and an unavailable Inspector
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/App.test.tsx:361:3
+    359|     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    360|   });
+    361|   it("keeps one chat runtime and its draft across navigation and an un…
+       |   ^
+    362|     const base = globalThis.fetch;
+    363|     const requests: string[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/15]⎯
+
+ FAIL  src/components/LoginForm.test.tsx > LoginForm autocomplete > switches to login recovery after registration succeeds without a session
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/LoginForm.test.tsx:27:3
+     25|   });
+     26|
+     27|   it("switches to login recovery after registration succeeds without a…
+       |   ^
+     28|     const user = userEvent.setup();
+     29|     vi.stubGlobal(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/15]⎯
+
+ FAIL  src/components/LoginForm.test.tsx > LoginForm autocomplete > renders the server's safe invite error
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/LoginForm.test.tsx:53:3
+     51|   });
+     52|
+     53|   it("renders the server's safe invite error", async () => {
+       |   ^
+     54|     const user = userEvent.setup();
+     55|     vi.stubGlobal(
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/15]⎯
+
+ FAIL  src/components/conversation/ConversationResources.test.tsx > UI-2 long-term resources > shows only refreshed grants after a successful read-only authorization
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/conversation/ConversationResources.test.tsx:41:3
+     39| });
+     40| describe("UI-2 long-term resources", () => {
+     41|   it("shows only refreshed grants after a successful read-only authori…
+       |   ^
+     42|     let grants: Grant[] = [];
+     43|     vi.spyOn(HpApi.prototype, "listConversationResources").mockImpleme…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/15]⎯
+
+ FAIL  src/components/run/RunResources.test.tsx > keeps terminal resource denial local and never claims no files were used
+TestingLibraryElementError: Unable to find an element with the text: /不代表本次未使用资料/. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"使用资料与输出"[39m
+    [36m>[39m
+      [36m<h3>[39m
+        [0m候选资料[0m
+      [36m</h3>[39m
+      [36m<p>[39m
+        [0m当前接口不提供完整历史候选回放。[0m
+      [36m</p>[39m
+      [36m<button>[39m
+        [0m刷新资料[0m
+      [36m</button>[39m
+      [36m<h3>[39m
+        [0m已发布输出[0m
+      [36m</h3>[39m
+      [36m<button>[39m
+        [0m刷新输出[0m
+      [36m</button>[39m
+      [36m<p[39m
+        [33mrole[39m=[32m"status"[39m
+      [36m>[39m
+        [0m正在加载输出…[0m
+      [36m</p>[39m
+      [36m<section[39m
+        [33maria-label[39m=[32m"文件操作审批"[39m
+      [36m>[39m
+        [36m<h3>[39m
+          [0m文件操作审批[0m
+        [36m</h3>[39m
+        [36m<button>[39m
+          [0m同步审批[0m
+        [36m</button>[39m
+        [36m<p>[39m
+          [0m暂无操作审批。[0m
+        [36m</p>[39m
+      [36m</section>[39m
+    [36m</section>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"使用资料与输出"[39m
+    [36m>[39m
+      [36m<h3>[39m
+        [0m候选资料[0m
+      [36m</h3>[39m
+      [36m<p>[39m
+        [0m当前接口不提供完整历史候选回放。[0m
+      [36m</p>[39m
+      [36m<button>[39m
+        [0m刷新资料[0m
+      [36m</button>[39m
+      [36m<h3>[39m
+        [0m已发布输出[0m
+      [36m</h3>[39m
+      [36m<button>[39m
+        [0m刷新输出[0m
+      [36m</button>[39m
+      [36m<p[39m
+        [33mrole[39m=[32m"status"[39m
+      [36m>[39m
+        [0m正在加载输出…[0m
+      [36m</p>[39m
+      [36m<section[39m
+        [33maria-label[39m=[32m"文件操作审批"[39m
+      [36m>[39m
+        [36m<h3>[39m
+          [0m文件操作审批[0m
+        [36m</h3>[39m
+        [36m<button>[39m
+          [0m同步审批[0m
+        [36m</button>[39m
+        [36m<p>[39m
+          [0m暂无操作审批。[0m
+        [36m</p>[39m
+      [36m</section>[39m
+    [36m</section>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ src/components/run/RunResources.test.tsx:26:23
+     24|   );
+     25|   render(<RunResources runId="A" terminal />);
+     26|   expect(await screen.findByText(/不代表本次未使用资料/)).toBeInTheDocument();
+       |                       ^
+     27|   expect(screen.getByText(/不提供完整历史候选回放/)).toBeInTheDocument();
+     28|   expect(screen.getByRole("heading", { name: "已发布输出" })).toBeInTheDocu…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/15]⎯
+
+ FAIL  src/components/run/RunResources.test.tsx > serializes pagination and deduplicates node IDs
+TestingLibraryElementError: Unable to find role="button" and name "加载更多资料"
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"使用资料与输出"[39m
+    [36m>[39m
+      [36m<h3>[39m
+        [0m候选资料[0m
+      [36m</h3>[39m
+      [36m<p>[39m
+        [0m当前接口不提供完整历史候选回放。[0m
+      [36m</p>[39m
+      [36m<button>[39m
+        [0m刷新资料[0m
+      [36m</button>[39m
+      [36m<h3>[39m
+        [0m已发布输出[0m
+      [36m</h3>[39m
+      [36m<button>[39m
+        [0m刷新输出[0m
+      [36m</button>[39m
+      [36m<p[39m
+        [33mrole[39m=[32m"status"[39m
+      [36m>[39m
+        [0m正在加载输出…[0m
+      [36m</p>[39m
+      [36m<section[39m
+        [33maria-label[39m=[32m"文件操作审批"[39m
+      [36m>[39m
+        [36m<h3>[39m
+          [0m文件操作审批[0m
+        [36m</h3>[39m
+        [36m<button>[39m
+          [0m同步审批[0m
+        [36m</button>[39m
+        [36m<p>[39m
+          [0m暂无操作审批。[0m
+        [36m</p>[39m
+      [36m</section>[39m
+    [36m</section>[39m
+  [36m</div>[39m
+[36m</body>[39m
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<section[39m
+      [33maria-label[39m=[32m"使用资料与输出"[39m
+    [36m>[39m
+      [36m<h3>[39m
+        [0m候选资料[0m
+      [36m</h3>[39m
+      [36m<p>[39m
+        [0m当前接口不提供完整历史候选回放。[0m
+      [36m</p>[39m
+      [36m<button>[39m
+        [0m刷新资料[0m
+      [36m</button>[39m
+      [36m<h3>[39m
+        [0m已发布输出[0m
+      [36m</h3>[39m
+      [36m<button>[39m
+        [0m刷新输出[0m
+      [36m</button>[39m
+      [36m<p[39m
+        [33mrole[39m=[32m"status"[39m
+      [36m>[39m
+        [0m正在加载输出…[0m
+      [36m</p>[39m
+      [36m<section[39m
+        [33maria-label[39m=[32m"文件操作审批"[39m
+      [36m>[39m
+        [36m<h3>[39m
+          [0m文件操作审批[0m
+        [36m</h3>[39m
+        [36m<button>[39m
+          [0m同步审批[0m
+        [36m</button>[39m
+        [36m<p>[39m
+          [0m暂无操作审批。[0m
+        [36m</p>[39m
+      [36m</section>[39m
+    [36m</section>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ waitForWrapper node_modules/@testing-library/dom/dist/wait-for.js:163:27
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+ ❯ src/components/run/RunResources.test.tsx:52:29
+     50|     );
+     51|   const view = render(<RunResources runId="A" terminal />);
+     52|   const more = await screen.findByRole("button", { name: "加载更多资料" });
+       |                             ^
+     53|   fireEvent.click(more);
+     54|   fireEvent.click(more);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/15]⎯
+
+ FAIL  src/components/tasks/TaskIntegration.test.tsx > keeps report readable when files fail, retries files independently and renders markdown
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/tasks/TaskIntegration.test.tsx:24:1
+     22|   vi.restoreAllMocks();
+     23| });
+     24| it("keeps report readable when files fail, retries files independently…
+       | ^
+     25|   const work = workFixture({
+     26|     requirement: { ...workFixture().requirement, capability_key: "rese…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/15]⎯
+
+ FAIL  src/components/tasks/TaskSelfReview.test.tsx > R3 preserves every edited field through failed and successful retries and reviews the new revision
+TestingLibraryElementError: Unable to find an accessible element with the role "dialog" and name "放弃未提交的任务草稿？"
+
+There are no accessible roles. But there might be some inaccessible roles. If you wish to access them, then set the `hidden` option to `true`. Learn more about this here: https://testing-library.com/docs/dom-testing-library/api-queries#byrole
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div />[39m
+  [36m<div>[39m
+    [36m<dialog[39m
+      [33maria-label[39m=[32m"修改任务要求"[39m
+      [33maria-modal[39m=[32m"true"[39m
+      [33mclass[39m=[32m"hp-surface  "[39m
+      [33mhidden[39m=[32m""[39m
+      [33mopen[39m=[32m""[39m
+    [36m>[39m
+      [36m<header[39m
+        [33mclass[39m=[32m"hp-surface-header"[39m
+      [36m>[39m
+        [36m<h2[39m
+          [33mtabindex[39m=[32m"-1"[39m
+        [36m>[39m
+          [0m修改任务要求[0m
+        [36m</h2>[39m
+        [36m<button[39m
+          [33maria-label[39m=[32m"关闭修改任务要求"[39m
+          [33mtitle[39m=[32m"关闭"[39m
+        [36m>[39m
+          [0m×[0m
+        [36m</button>[39m
+      [36m</header>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"hp-surface-body"[39m
+      [36m>[39m
+        [36m<form[39m
+          [33mclass[39m=[32m"hp-operation-form"[39m
+        [36m>[39m
+          [36m<p>[39m
+            [0m当前基线 r[0m
+            [0m2[0m
+            [0m。修订将取消或收敛当前执行；暂停任务不会自动恢复。[0m
+          [36m</p>[39m
+          [36m<p[39m
+            [33mrole[39m=[32m"alert"[39m
+          [36m>[39m
+            [0m服务器已更新到 r[0m
+            [0m4[0m
+            [0m，草稿仍保留。[0m
+            [36m<button[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [0m已审阅最新要求，采用新基线提交[0m
+            [36m</button>[39m
+            [36m<details>[39m
+              [36m<summary>[39m
+                [0m查看最新要求[0m
+              [36m</summary>[39m
+              [36m<pre>[39m
+                [0m{
+  "objective": "目标",
+  "capability_key": "generic_work",
+  "spec": {
+    "schema_version": 1,
+    "reasoning_mode": "react"
+  },
+  "constraints": [],
+  "acceptance_criteria": [],
+  "completion_mode": "deliverable",
+  "timing": {
+    "schema_version": 1,
+    "kind": "immediate",
+    "timezone": "UTC"
+  },
+  "resource_requests": [],
+  "deliverable_policy": {
+    "schema_version": 1,
+    "required": false
+  }
+}[0m
+              [36m</pre>[39m
+            [36m</details>[39m
+          [36m</p>[39m
+          [36m<label>[39m
+            [0m工作类型[0m
+            [36m<select[39m
+              [33mdisabled[39m=[32m""[39m
+            [36m>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"reminder"[39m
+              [36m>[39m
+                [0m提醒[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"research_report"[39m
+              [36m>[39m
+                [0m研究报告[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"generic_work"[39m
+              [36m>[39m
+                [0m通用任务[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m目标 / 提醒内容[0m
+            [36m<textarea[39m
+              [33mmaxlength[39m=[32m"20000"[39m
+              [33mrequired[39m=[32m""[39m
+            [36m>[39m
+              [0mdraft objective[0m
+            [36m</textarea>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m约束（每行一条）[0m
+            [36m<textarea>[39m
+              [0mkeep constraint[0m
+            [36m</textarea>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m推理模式[0m
+            [36m<select>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"react"[39m
+              [36m>[39m
+                [0mReAct[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m执行时间[0m
+            [36m<select>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"immediate"[39m
+              [36m>[39m
+                [0m立即[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"once"[39m
+              [36m>[39m
+                [0m指定时间[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"daily"[39m
+              [36m>[39m
+                [0m每天[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m计划时区[0m
+            [36m<select>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"Asia/Shanghai"[39m
+              [36m>[39m
+                [0mAsia/Shanghai（UTC+8）[0m
+              [36m</option>[39m
+              [36m<option[39m
+                [33mvalue[39m=[32m"UTC"[39m
+              [36m>[39m
+                [0mUTC[0m
+              [36m</option>[39m
+            [36m</select>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m日期时间[0m
+            [36m<input[39m
+              [33mrequired[39m=[32m""[39m
+              [33mtype[39m=[32m"datetime-local"[39m
+              [33mvalue[39m=[32m"2027-02-01T13:00"[39m
+            [36m/>[39m
+          [36m</label>[39m
+          [36m<label>[39m
+            [0m修订原因[0m
+            [36m<textarea[39m
+              [33mrequired[39m=[32m""[39m
+            [36m>[39m
+              [0mdraft reason[0m
+            [36m</textarea>[39m
+          [36m</label>[39m
+          [36m<button>[39m
+            [0m提交修订[0m
+          [36m</button>[39m
+        [36m</form>[39m
+        [36m<dialog[39m
+          [33maria-label[39m=[32m"放弃未提交的任务草稿？"[39m
+          [33maria-modal[39m=[32m"true"[39m
+          [33mclass[39m=[32m"hp-surface  "[39m
+          [33mopen[39m=[32m""[39m
+        [36m>[39m
+          [36m<header[39m
+            [33mclass[39m=[32m"hp-surface-header"[39m
+          [36m>[39m
+            [36m<h2[39m
+              [33mtabindex[39m=[32m"-1"[39m
+            [36m>[39m
+              [0m放弃未提交的任务草稿？[0m
+            [36m</h2>[39m
+            [36m<button[39m
+              [33maria-label[39m=[32m"关闭放弃未提交的任务草稿？"[39m
+              [33mtitle[39m=[32m"关闭"[39m
+            [36m>[39m
+              [0m×[0m
+            [36m</button>[39m
+          [36m</header>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"hp-surface-body"[39m
+          [36m>[39m
+            [36m<p>[39m
+              [0m尚未提交的要求会丢弃。[0m
+            [36m</p>[39m
+            [36m<button>[39m
+              [0m继续编辑[0m
+            [36m</button>[39m
+            [36m<button>[39m
+              [0m放弃草稿并关闭[0m
+            [36m</button>[39m
+          [36m</div>[39m
+        [36m</dialog>[39m
+      [36m</div>[39m
+    [36m</dialog>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/tasks/TaskSelfReview.test.tsx:296:17
+    294|   checkDraft();
+    295|   fireEvent.click(screen.getByRole("button", { name: "关闭修改任务要求" }));
+    296|   expect(screen.getByRole("dialog", { name: "放弃未提交的任务草稿？" })).toBeVisi…
+       |                 ^
+    297|   fireEvent.click(screen.getByText("继续编辑"));
+    298|   fireEvent.click(screen.getByText("已审阅最新要求，采用新基线提交"));
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/15]⎯
+
+ FAIL  src/components/workspace/WorkspaceMigration.test.tsx > migrates directory creation to the selected formal directory and keeps its selection on refresh
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/components/workspace/WorkspaceMigration.test.tsx:41:1
+     39|   vi.spyOn(useWorkbench.getState(), "refreshActiveRun").mockResolvedVa…
+     40| });
+     41| it("migrates directory creation to the selected formal directory and k…
+       | ^
+     42|   useShell.setState({ route: { screen: "workspace", directoryId: "docs…
+     43|   const create = vi
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/15]⎯
+
+
+ Test Files  8 failed | 44 passed (52)
+      Tests  15 failed | 371 passed (386)
+   Start at  12:50:05
+   Duration  290.38s (transform 69.37s, setup 69.34s, import 193.83s, tests 293.13s, environment 509.51s)
+

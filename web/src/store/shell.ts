@@ -149,6 +149,7 @@ interface ShellState {
   navigate: (route: Route, replace?: boolean) => void;
   restore: (hash: string, context?: LegacyContext) => void;
   openInspector: (inspector: Inspector, child?: boolean) => void;
+  setInspectorTab: (tab: Inspector["tab"]) => void;
   closeInspector: () => void;
   back: () => void;
   reset: () => void;
@@ -244,10 +245,19 @@ export const useShell = create<ShellState>((set, get) => ({
     });
     set({ backStack: stack });
   },
+  setInspectorTab(tab) {
+    const { route } = get();
+    if (!route.inspector || !tab) return;
+    const normalized = parseRoute(
+      serializeRoute({ ...route, inspector: { ...route.inspector, tab } }),
+    ).route.inspector?.tab;
+    if (normalized !== tab) return;
+    get().navigate({ ...route, inspector: { ...route.inspector, tab } }, true);
+  },
   closeInspector() {
     const inspector = get().route.inspector;
     get().navigate({ ...get().route, inspector: undefined, workId: undefined });
-    if (get().pendingRoute || !["file", "task", "artifact"].includes(inspector?.kind ?? "")) return;
+    if (get().pendingRoute || !inspector) return;
     setTimeout(() => {
       if (get().route.inspector) return;
       const trigger =
@@ -259,7 +269,9 @@ export const useShell = create<ShellState>((set, get) => ({
             ? document.getElementById(`workspace-node-${inspector.objectId}`)
             : inspector?.kind === "task"
               ? document.getElementById(`task-${inspector.objectId}`)
-              : null;
+              : document.getElementById(
+                  inspector?.origin?.triggerId ?? `run-open-${inspector?.objectId}`,
+                );
       if (trigger?.isConnected && !trigger.closest("[hidden]")) trigger.focus();
       else document.getElementById("canvas-title")?.focus();
     }, 0);

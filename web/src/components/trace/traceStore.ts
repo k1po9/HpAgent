@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { useShell } from "../../store/shell";
 import { HpCommandError } from "../../api/types";
 import { api as defaultApi } from "../../api/client";
 import { HpApi } from "../../api/resources";
@@ -20,7 +19,6 @@ export interface TraceNode {
 }
 
 export interface TraceState {
-  open: boolean;
   runId: string | null;
   run: HpTraceRun | null;
   nodes: Record<string, TraceNode>;
@@ -30,10 +28,10 @@ export interface TraceState {
   error: string | null;
   modelInputs: Record<string, ModelInputState>;
 
-  setOpen: (open: boolean) => void;
   followRun: (runId: string | null) => void;
   selectRun: (runId: string) => void;
   loadTrace: () => Promise<void>;
+  refreshSelectedRun: (runId: string) => Promise<void>;
   applyEvent: (runId: string, event: TraceEventUpdate) => void;
   selectNode: (nodeId: string) => void;
   loadModelInput: (snapshotId: string) => Promise<void>;
@@ -75,17 +73,14 @@ function terminalStatus(value: string | null): HpTraceStatus {
   return "unknown";
 }
 
-export function createTraceStore(
-  api: HpApi = new HpApi(defaultApi),
-  onOpen?: (runId: string | null) => void,
-) {
+export function createTraceStore(api: HpApi = new HpApi(defaultApi)) {
+  let selected = false;
   let generation = 0;
   let request = 0;
   let modelGeneration = 0;
   let buffered: TraceEventUpdate[] = [];
   let overflow = false;
   return create<TraceState>()((set, get) => ({
-    open: false,
     runId: null,
     run: null,
     nodes: {},
@@ -95,27 +90,17 @@ export function createTraceStore(
     error: null,
     modelInputs: {},
 
-    setOpen: (open) => {
-      if (!open) {
-        generation += 1;
-        request += 1;
-        buffered = [];
-        set({ loading: false, modelInputs: {} });
-      }
-      set({ open });
-      onOpen?.(open ? get().runId : null);
-    },
-
     selectRun: (runId) => {
+      selected = false;
       generation += 1;
       request += 1;
       buffered = [];
-      set({ open: false, runId: null });
+      set({ runId: null });
       get().followRun(runId);
-      set({ open: true });
+      selected = true;
     },
     followRun: (runId) => {
-      if (get().open || get().runId === runId) return;
+      if (selected || get().runId === runId) return;
       generation += 1;
       set({
         runId,
@@ -129,6 +114,9 @@ export function createTraceStore(
       });
     },
 
+    refreshSelectedRun: async (runId) => {
+      if (selected && get().runId === runId) await get().loadTrace();
+    },
     loadTrace: async () => {
       const token = generation;
       const requestToken = ++request;
@@ -289,11 +277,11 @@ export function createTraceStore(
     },
 
     reset: () => {
+      selected = false;
       generation += 1;
       request += 1;
       buffered = [];
       set({
-        open: false,
         runId: null,
         run: null,
         nodes: {},
@@ -307,6 +295,4 @@ export function createTraceStore(
   }));
 }
 
-export const useTraceStore = createTraceStore(new HpApi(defaultApi), (runId) => {
-  if (runId) useShell.getState().openInspector({ kind: "run", objectId: runId });
-});
+export const useTraceStore = createTraceStore();

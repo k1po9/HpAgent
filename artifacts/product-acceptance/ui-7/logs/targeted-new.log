@@ -1,0 +1,114 @@
+
+> hpagent-web@0.1.0 test
+> vitest run src/components/shell src/components/run src/components/artifact src/components/workspace src/components/LoginForm.test.tsx
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+ ❯ src/components/workspace/WorkspaceMigration.test.tsx (3 tests | 1 failed) 3034ms
+   × migrates authority scope fencing: a delayed A response cannot populate B, and reset fences reopened A 1215ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/workspace/WorkspaceMigration.test.tsx > migrates authority scope fencing: a delayed A response cannot populate B, and reset fences reopened A
+AssertionError: expected "listConversationResources" to be called 3 times, but got 4 times
+
+Ignored nodes: comments, script, style
+[36m<html>[39m
+  [36m<head />[39m
+  [36m<body>[39m
+    [36m<div>[39m
+      [36m<section[39m
+        [33maria-label[39m=[32m"主体权限编辑"[39m
+        [33mclass[39m=[32m"hp-operation-form"[39m
+      [36m>[39m
+        [36m<p>[39m
+          [0m管理 [0m
+          [0m对话[0m
+          [0m「[0m
+          [0mA[0m
+          [0m」对[0m
+          [0m [0m
+          [0m资料[0m
+          [0m 的权限。[0m
+        [36m</p>[39m
+        [36m<p>[39m
+          [0m账户可浏览空间；AI 仅按所选主体授权使用。新增授权下一轮生效。[0m
+        [36m</p>[39m
+        [36m<p>[39m
+          [0m所选主体暂无适用规则。[0m
+        [36m</p>[39m
+        [36m<fieldset>[39m
+          [36m<legend>[39m
+            [0m新增权限[0m
+          [36m</legend>[39m
+          [36m<label>[39m
+            [36m<input[39m
+              [33mchecked[39m=[32m""[39m
+              [33mtype[39m=[32m"checkbox"[39m
+            [36m/>[39m
+            [0m发现资料[0m
+          [36m</label>[39m
+          [36m<label>[39m
+            [36m<input[39m
+              [33mchecked[39m=[32m""[39m
+              [33mtype[39m=[32m"checkbox"[39m
+            [36m/>[39m
+            [0m读取内容[0m
+          [36m</label>[39m
+          [36m<details>[39m
+            [36m<summary>[39m
+              [0m高级写入权限[0m
+            [36m</summary>[39m
+            [36m<label>[39m
+              [36m<input[39m
+                [33mtype[39m=[32m"checkbox"[39m
+              [36m/>[39m
+              [0m创建子项[0m
+            [36m</label>[39m
+            [36m<label>[39m
+              [36m<input[39m
+                [33mtype[39m=[32m"checkbox"[39m
+              [36m/>[39m
+              [0m修改内容[0m
+            [36m</label>[39m
+            [36m<label>[39m
+              [36m<input[39m
+                [33mtype[39m=[32m"checkbox"[39m
+              [36m/>[39m
+              [0m移除入口[0m
+            [36m</label>[39m
+          [36m</details>[39m
+          [36m<label>[39m
+            [36m<input[39m
+              [33mtype[39m=[32m"checkbox"[39m
+            [36m/>[39m
+            [0m包含此目录的所有子目录与文件[0m
+          [36m</label>[39m
+        [36m</fieldset>[39m
+        [36m<button>[39m
+          [0m确认授予所选权限[0m
+        [36m</button>[39m
+      [36m</section>[39m
+    [36m</div>[39m
+  [36m</body>[39m
+[36m</html>[39m
+ ❯ src/components/workspace/WorkspaceMigration.test.tsx:113:70
+    111|   act(() => useWorkspace.getState().reset());
+    112|   view.rerender(<GrantEditor node={dir} subject={{ kind: "conversation…
+    113|   await waitFor(() => expect(workspaceApi.listConversationResources).t…
+       |                                                                      ^
+    114|   await act(async () =>
+    115|     resolve({
+ ❯ runWithExpensiveErrorDiagnosticsDisabled node_modules/@testing-library/dom/dist/config.js:47:12
+ ❯ checkCallback node_modules/@testing-library/dom/dist/wait-for.js:124:77
+ ❯ Timeout.checkRealTimersCallback node_modules/@testing-library/dom/dist/wait-for.js:118:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 19 passed (20)
+      Tests  1 failed | 111 passed (112)
+   Start at  12:47:54
+   Duration  34.75s (transform 4.49s, setup 9.36s, import 13.26s, tests 32.78s, environment 66.40s)
+

@@ -64,7 +64,7 @@ make e2e
 
 Playwright 启动自己的 API 与 Vite（reuseExistingServer=false）。API 使用 Fake Run / Artifact executor；Chromium 真实操作页面、账户和数据库。测试依赖共享 alice / bob，按一个 worker 串行运行。重复使用测试库时，上一轮残留 Work / Run 可能阻塞测试执行器；清理应仅针对已确认的测试库，不能清理业务库。
 
-`web/e2e/manual-repair.spec.ts` 覆盖子目录创建、冲突、上传授权、切页草稿、窄屏 Work 创建/修订/授权；workspace-p1 / p3 与 artifact 覆盖保存、版本、下载及页面跳转。`web/src/components/WorkspacePanel.test.tsx` 覆盖保存成功而授权失败的补救与不重复上传。
+`web/e2e/manual-repair.spec.ts` 覆盖子目录创建、冲突、上传授权、切页草稿、窄屏 Work 创建/修订/授权；workspace-p1 / p3 与 artifact 覆盖保存、版本、下载及页面跳转。`web/src/components/workspace/WorkspaceMigration.test.tsx` 与 `workspaceOperations.test.ts` 覆盖保存成功而授权失败的补救与不重复上传；旧 WorkspacePanel 候选生命周期语义已迁入 `components/run/RunResources.test.tsx`。
 
 ## 能力与真实验收
 

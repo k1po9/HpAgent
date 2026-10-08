@@ -1,0 +1,13 @@
+
+> hpagent-web@0.1.0 test
+> vitest run --maxWorkers=2 src/components/shell/Surface.test.tsx src/components/shell/Assembly.test.tsx src/components/shell/useInspectorFlow.test.tsx src/components/artifact/ArtifactCreateForm.test.tsx src/components/run/RunLookup.test.tsx src/store/shell.test.ts src/store/sessionIsolation.test.ts src/components/trace/traceStore.test.ts src/components/run/RunInspector.test.tsx src/components/run/RunResources.test.tsx src/components/workspace/WorkspaceMigration.test.tsx src/App.recovery.test.tsx
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+
+ Test Files  12 passed (12)
+      Tests  87 passed (87)
+   Start at  14:59:40
+   Duration  34.57s (transform 3.39s, setup 3.63s, import 10.17s, tests 18.95s, environment 29.49s)
+

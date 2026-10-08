@@ -432,7 +432,7 @@ export function createWorkbenchStore(
             onTrace: (event) => {
               if (stale()) return;
               const trace = useTraceStore.getState();
-              if (trace.open && trace.runId === runId) trace.applyEvent(runId, event);
+              if (trace.runId === runId) trace.applyEvent(runId, event);
               if (event.nodeType) {
                 if (feedNodeTypes.size >= 512)
                   feedNodeTypes.delete(feedNodeTypes.keys().next().value!);
@@ -456,7 +456,7 @@ export function createWorkbenchStore(
               });
               void confirmRun(runId, generation);
               const trace = useTraceStore.getState();
-              if (trace.open && trace.runId === runId) void trace.loadTrace();
+              void trace.refreshSelectedRun(runId);
               feedNodeTypes.clear();
             },
             onDegraded: () => {

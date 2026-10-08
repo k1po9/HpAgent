@@ -1,3 +1,4 @@
+import { InspectorTabs } from "../shell/InspectorTabs";
 import { useEffect } from "react";
 import { useArtifacts, defaultVersion, latestSuccess } from "../../store/artifacts";
 import { useShell, type Inspector } from "../../store/shell";
@@ -140,45 +141,16 @@ export function ArtifactInspector({
           <button onClick={() => refreshArtifact(id, true)}>重试同步</button>
         </p>
       )}
-      <div
-        className="hp-artifact-tabs"
-        role="tablist"
-        aria-label="HTML 成果内容"
-        onKeyDown={(e) => {
-          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
-          e.preventDefault();
-          const keys = ["preview", "versions", "details"] as const;
-          const index = keys.indexOf(tab as (typeof keys)[number]);
-          const next =
-            e.key === "Home"
-              ? 0
-              : e.key === "End"
-                ? 2
-                : (index + (e.key === "ArrowRight" ? 1 : 2)) % 3;
-          change({ tab: keys[next] });
-          document.getElementById(`artifact-tab-${keys[next]}`)?.focus();
-        }}
-      >
-        {(
-          [
-            ["preview", "预览"],
-            ["versions", "版本历史"],
-            ["details", "详情"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            id={`artifact-tab-${key}`}
-            role="tab"
-            aria-selected={tab === key}
-            aria-controls={`artifact-panel-${key}`}
-            tabIndex={tab === key ? 0 : -1}
-            onClick={() => change({ tab: key })}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <InspectorTabs
+        prefix="artifact"
+        label="HTML 成果内容"
+        tabs={[
+          { id: "preview", label: "预览" },
+          { id: "versions", label: "版本历史" },
+          { id: "details", label: "详情" },
+        ]}
+        selected={tab}
+      />
       {!version && (
         <p role="alert">
           {versions.length ? "指定版本不可用，未替换为其他版本。" : "暂无版本内容。"}{" "}

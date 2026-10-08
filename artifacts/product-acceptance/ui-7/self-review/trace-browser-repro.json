@@ -1,0 +1,49 @@
+{
+  "scope": "Chromium with response fixtures and synthetic SSE terminal; no real API/backend",
+  "inspectorVisible": false,
+  "expectedTraceRequestsWithoutDiagnostics": 0,
+  "actualTraceRequests": 1,
+  "calls": [
+    {
+      "path": "/api/v1/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations/c1",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations/c1/messages",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations/c1/resources",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/runs/chat-run/events",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/runs/chat-run",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/runs/chat-run/trace",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/messages/assistant/artifacts",
+      "method": "GET"
+    }
+  ],
+  "pageErrors": []
+}

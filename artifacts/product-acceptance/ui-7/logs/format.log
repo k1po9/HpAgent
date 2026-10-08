@@ -1,0 +1,42 @@
+src/components/shell/AppShell.tsx 513ms
+src/components/shell/Assembly.tsx 19ms
+src/components/shell/InspectorHost.tsx 68ms (unchanged)
+src/components/shell/InspectorTabs.tsx 65ms
+src/components/shell/Surface.test.tsx 65ms
+src/components/shell/Surface.tsx 116ms
+src/components/shell/useShellWidth.ts 12ms
+src/components/run/ExecutionBlock.test.tsx 24ms (unchanged)
+src/components/run/ExecutionBlock.tsx 21ms (unchanged)
+src/components/run/RunBudget.test.tsx 16ms (unchanged)
+src/components/run/RunBudget.tsx 15ms (unchanged)
+src/components/run/RunInspector.test.tsx 155ms (unchanged)
+src/components/run/RunInspector.tsx 128ms
+src/components/run/RunLookup.test.tsx 33ms
+src/components/run/RunLookup.tsx 30ms
+src/components/run/RunResources.test.tsx 153ms
+src/components/run/RunResources.tsx 96ms
+src/components/artifact/ArtifactCreateForm.tsx 23ms
+src/components/artifact/ArtifactCreateForm.test.tsx 56ms
+src/components/artifact/ArtifactInspector.tsx 78ms
+src/components/tasks/TaskInspector.tsx 58ms
+src/components/RegistrationQqGate.tsx 9ms
+src/components/LoginForm.tsx 29ms (unchanged)
+src/components/trace/RunTraceContent.tsx 21ms
+src/components/trace/traceStore.ts 90ms
+src/components/workspace/FileInspector.tsx 71ms
+src/components/workspace/WorkspaceMigration.test.tsx 28ms
+src/store/auth.ts 28ms
+src/store/shell.ts 94ms
+src/store/artifacts.ts 138ms (unchanged)
+src/store/artifacts.test.ts 196ms (unchanged)
+src/store/workbench.ts 283ms (unchanged)
+src/styles.css 53ms (unchanged)
+src/styles/artifact.css 83ms (unchanged)
+src/styles/base.css 165ms
+src/styles/conversation.css 27ms
+src/styles/run.css 19ms
+src/styles/shell.css 87ms
+src/styles/tasks.css 36ms
+src/styles/tokens.css 18ms (unchanged)
+src/styles/unification.css 48ms
+src/styles/workspace.css 93ms

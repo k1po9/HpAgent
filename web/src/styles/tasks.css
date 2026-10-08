@@ -1,0 +1,212 @@
+/* UI-5 task center: shares Shell surfaces and workspace form primitives. */
+.hp-task-screen,
+.hp-task-inspector,
+.hp-task-outputs {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.hp-task-toolbar,
+.hp-task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hp-task-toolbar {
+  margin-bottom: 1.25rem;
+}
+
+.hp-task-toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.hp-task-screen button,
+.hp-task-inspector button,
+.hp-task-sidebar button,
+.hp-task-screen select {
+  min-height: 36px;
+  border: 1px solid var(--hp-border);
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  background: var(--hp-surface);
+  color: var(--hp-text);
+  cursor: pointer;
+  font: inherit;
+  max-width: 100%;
+}
+
+.hp-task-screen button:hover:not(:disabled),
+.hp-task-inspector button:hover:not(:disabled),
+.hp-task-sidebar button:hover:not(:disabled) {
+  background: var(--hp-subtle);
+}
+
+.hp-task-screen button:disabled,
+.hp-task-inspector button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.hp-task-sidebar {
+  padding: 1rem 0.75rem;
+}
+
+.hp-task-sidebar h2 {
+  font-size: 1.1rem;
+}
+
+.hp-task-sidebar button {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  text-align: left;
+  width: 100%;
+  margin: 0.3rem 0;
+}
+
+.hp-task-sidebar button[aria-current="page"] {
+  background: var(--hp-subtle);
+  border-color: var(--hp-accent);
+}
+
+.hp-task-sidebar small {
+  grid-column: 1 / -1;
+  margin-top: 0.3rem;
+  color: var(--hp-warning);
+}
+
+.hp-task-row {
+  padding: 1rem;
+  border: 1px solid var(--hp-border);
+  border-radius: var(--hp-radius);
+  background: var(--hp-surface);
+  margin-bottom: 0.75rem;
+}
+
+.hp-task-row--selected {
+  border-color: var(--hp-accent);
+  background: var(--hp-subtle);
+}
+
+.hp-task-row-heading {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.hp-task-screen .hp-task-title {
+  font-weight: 650;
+  text-align: left;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.hp-task-status {
+  font-size: 0.85rem;
+  color: var(--hp-text);
+  background: var(--hp-subtle);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+}
+
+.hp-task-objective {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hp-task-attention {
+  color: var(--hp-warning);
+}
+
+.hp-task-actions > p {
+  flex-basis: 100%;
+  margin: 0.3rem 0;
+}
+
+.hp-task-actions details {
+  position: relative;
+}
+
+.hp-task-actions summary {
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.hp-task-actions details > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--hp-border);
+  border-radius: 8px;
+}
+
+.hp-task-delivery,
+.hp-task-run,
+.hp-task-artifact,
+.hp-task-notification {
+  border-top: 1px solid var(--hp-border);
+  padding: 0.75rem 0;
+}
+
+.hp-task-report {
+  padding: 0.75rem;
+  background: var(--hp-surface);
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.hp-task-report table {
+  border-collapse: collapse;
+}
+
+.hp-task-report th,
+.hp-task-report td {
+  border: 1px solid var(--hp-border);
+  padding: 0.4rem;
+}
+
+.hp-task-report img {
+  max-width: 100%;
+}
+
+.hp-task-report pre,
+.hp-task-inspector pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.hp-task-inspector dl {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.hp-task-inspector dd {
+  margin: 0;
+}
+@media (max-width: 599px) {
+  .hp-task-row {
+    padding: 0.75rem;
+  }
+
+  .hp-task-toolbar label {
+    flex-basis: 100%;
+  }
+
+  .hp-task-screen button,
+  .hp-task-inspector button {
+    min-height: 44px;
+  }
+}

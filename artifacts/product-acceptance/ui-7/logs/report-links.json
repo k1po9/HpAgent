@@ -1,0 +1,9 @@
+{
+  "checked": [
+    "docs/implementation/ui-7-unification-cleanup-report.md",
+    "artifacts/product-acceptance/ui-7/README.md",
+    "artifacts/product-acceptance/ui-7/migration-map.md",
+    "artifacts/product-acceptance/ui-7/flows/README.md"
+  ],
+  "broken": []
+}

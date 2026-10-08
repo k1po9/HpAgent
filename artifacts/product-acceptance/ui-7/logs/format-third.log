@@ -1,0 +1,22 @@
+src/components/shell/AppShell.tsx 411ms (unchanged)
+src/components/shell/Assembly.test.tsx 35ms (unchanged)
+src/components/shell/Assembly.tsx 17ms (unchanged)
+src/components/shell/InspectorHost.tsx 45ms (unchanged)
+src/components/shell/InspectorTabs.tsx 24ms (unchanged)
+src/components/shell/Surface.test.tsx 45ms (unchanged)
+src/components/shell/Surface.tsx 79ms (unchanged)
+src/components/shell/useInspectorFlow.ts 13ms (unchanged)
+src/components/shell/useShellWidth.ts 10ms (unchanged)
+src/components/run/RunLookup.tsx 30ms (unchanged)
+src/components/tasks/TaskEditor.tsx 155ms (unchanged)
+src/styles/artifact.css 110ms
+src/styles/base.css 193ms
+src/styles/conversation.css 47ms
+src/styles/run.css 18ms
+src/styles/shell.css 78ms
+src/styles/tasks.css 38ms
+src/styles/tokens.css 7ms (unchanged)
+src/styles/unification.css 44ms
+src/styles/workspace.css 63ms
+src/components/workspace/WorkspaceMigration.test.tsx 49ms (unchanged)
+e2e/ui-7-unification.spec.ts 72ms (unchanged)

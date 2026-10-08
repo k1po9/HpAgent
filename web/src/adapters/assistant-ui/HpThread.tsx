@@ -417,24 +417,36 @@ export function HpThread({
               </label>
             ) : null}
             {toolbar}
-            {running ? (
-              <button
-                type="button"
-                className="hp-composer__cancel"
-                disabled={stopping || activeRun?.status === "cancelling"}
-                onClick={onCancel}
-              >
-                {stopping || activeRun?.status === "cancelling" ? "正在停止…" : "停止"}
-              </button>
-            ) : (
-              <button
-                type="submit"
-                className="hp-composer__send"
-                disabled={sendDisabled || submitting || !draft.text.trim()}
-              >
-                发送
-              </button>
-            )}
+            <button
+              type={running ? "button" : "submit"}
+              className={`hp-composer__action ${running ? "hp-composer__cancel" : "hp-composer__send"}`}
+              data-state={running ? "stop" : "send"}
+              aria-label={
+                running
+                  ? stopping || activeRun?.status === "cancelling"
+                    ? "正在停止…"
+                    : "停止"
+                  : "发送"
+              }
+              title={running ? "停止当前执行" : "发送消息"}
+              disabled={
+                running
+                  ? stopping || activeRun?.status === "cancelling"
+                  : sendDisabled || submitting || !draft.text.trim()
+              }
+              onClick={running ? onCancel : undefined}
+            >
+              <span className="hp-composer__action-size" aria-hidden="true">
+                正在停止…
+              </span>
+              <span>
+                {running
+                  ? stopping || activeRun?.status === "cancelling"
+                    ? "正在停止…"
+                    : "停止"
+                  : "发送"}
+              </span>
+            </button>
           </Flex>
         </form>
       </ThreadPrimitive.Root>

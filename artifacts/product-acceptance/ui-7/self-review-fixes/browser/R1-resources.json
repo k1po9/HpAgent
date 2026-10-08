@@ -1,0 +1,50 @@
+{
+  "title": "当前对话资料",
+  "calls": [
+    {
+      "path": "/api/v1/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/me",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations/c1",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations/c1/messages",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations/c1/resources",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/runs/chat-run/events",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/runs/run-A",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/workspace",
+      "method": "GET"
+    },
+    {
+      "path": "/api/v1/conversations/c1/resources",
+      "method": "GET"
+    }
+  ],
+  "errors": []
+}
