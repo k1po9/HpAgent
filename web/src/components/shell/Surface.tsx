@@ -1,3 +1,4 @@
+import { X } from "lucide-react";
 import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Theme } from "@radix-ui/themes";
@@ -175,7 +176,7 @@ export function Surface({
           {title}
         </h2>
         <button onClick={onClose} aria-label={`关闭${title}`} title="关闭">
-          ×
+          <X size={20} aria-hidden="true" />
         </button>
       </header>
       <div className="hp-surface-body">{children}</div>

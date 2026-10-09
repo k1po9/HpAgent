@@ -199,7 +199,9 @@ export function AppShell() {
             <Menu aria-hidden="true" />
           </button>
           <h1 id="canvas-title" tabIndex={-1}>
-            {screens.find((s) => s.id === route.screen)?.label}
+            {route.screen === "ai"
+              ? conversations.find((c) => c.conversation_id === conversationId)?.title || "AI"
+              : screens.find((s) => s.id === route.screen)?.label}
           </h1>
           {route.screen === "ai" && conversationId && (
             <button

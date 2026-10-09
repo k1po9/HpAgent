@@ -1,3 +1,4 @@
+import { Folder, Files } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useWorkspace } from "../../store/workspace";
 import { useShell } from "../../store/shell";
@@ -47,6 +48,7 @@ export function WorkspaceSidebar() {
             }
             onClick={() => go(node.node_id)}
           >
+            <Folder size={16} aria-hidden="true" />
             {node.parent_id === null ? "根目录" : node.name}
           </button>
         </div>
@@ -64,7 +66,7 @@ export function WorkspaceSidebar() {
           useShell.setState({ sidebarOpen: false });
         }}
       >
-        全部文件
+        <Files size={16} aria-hidden="true" /> 全部文件
       </button>
       {!tree && !error && <p role="status">正在加载目录…</p>}
       {tree && index?.nodes.get(tree.root_id) && (

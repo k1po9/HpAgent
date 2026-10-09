@@ -55,7 +55,7 @@ it("migrates directory creation to the selected formal directory and keeps its s
   fireEvent.click(screen.getByRole("button", { name: "新建目录" }));
   await screen.findByText("目录已创建。");
   expect(create).toHaveBeenCalledWith("docs", "项目");
-  fireEvent.click(await screen.findByRole("button", { name: "📁 项目" }));
+  fireEvent.click(await screen.findByRole("button", { name: "项目" }));
   expect(useShell.getState().route.directoryId).toBe("child");
   fireEvent.click(screen.getByRole("button", { name: "刷新空间" }));
   expect(useShell.getState().route.directoryId).toBe("child");

@@ -1,0 +1,173 @@
+{
+  "checked_on": "2026-10-09 Asia/Shanghai",
+  "project_branch": "main",
+  "project_commit": "7e77631d9c092bf864655099f15f756c69021d67",
+  "method": "Read-only HTTP metadata and upstream documentation; no third-party tool installation or execution. Upstream HEAD and README fetched separately; registry release and repository HEAD may differ.",
+  "environment": {
+    "os": "Ubuntu 24.04.1 LTS on WSL2",
+    "node": "22.23.2",
+    "npm": "10.9.8",
+    "installed_react": "19.2.8",
+    "installed_vite": "8.2.1",
+    "installed_typescript": "6.0.3",
+    "installed_playwright_test": "1.62.1"
+  },
+  "smoke": {
+    "tool": "existing Playwright library",
+    "browser": "Chromium 151.0.7922.34",
+    "result": "headless launch, local setContent, role locator, clean close passed",
+    "network": "No application or backend contacted"
+  },
+  "packages": [
+    {
+      "source": "https://registry.npmjs.org/impeccable/latest",
+      "name": "impeccable",
+      "version": "4.1.0",
+      "engines": {
+        "node": ">=22.18.0"
+      },
+      "peerDependencies": null,
+      "dependencies": null,
+      "optionalDependencies": {
+        "@impeccable/cli-linux-x64": "0.1.5",
+        "@impeccable/cli-darwin-x64": "0.1.5",
+        "@impeccable/cli-linux-arm64": "0.1.5",
+        "@impeccable/cli-windows-x64": "0.1.5",
+        "@impeccable/cli-darwin-arm64": "0.1.5"
+      },
+      "license": "Apache-2.0",
+      "integrity": "sha512-hnfdoUK/Xg3qPtL0/5xzh92qKOtmREOZloCmFgnC1nYh3M81ihwCQEL2QWKntYl8qg1OG+jQ7wubR634PgTDIw=="
+    },
+    {
+      "source": "https://registry.npmjs.org/react-grab/latest",
+      "name": "react-grab",
+      "version": "0.2.0",
+      "engines": null,
+      "peerDependencies": {
+        "react": ">=17.0.0"
+      },
+      "dependencies": {
+        "bippy": "^0.6.1",
+        "@react-grab/cli": "0.2.0"
+      },
+      "optionalDependencies": null,
+      "license": "MIT",
+      "integrity": "sha512-ohhsfXD4qN0j6cMQd56aaVJBPDF3kUdviF/Od1Eak/rEIXQ3svQ4gjkwTfuTZwTBnxHRL16p9JqdlVQO5nUHqA=="
+    },
+    {
+      "source": "https://registry.npmjs.org/@playwright%2fcli/latest",
+      "name": "@playwright/cli",
+      "version": "0.1.22",
+      "engines": {
+        "node": ">=18"
+      },
+      "peerDependencies": null,
+      "dependencies": {
+        "playwright": "1.64.0-alpha-1790635538000",
+        "playwright-core": "1.64.0-alpha-1790635538000"
+      },
+      "optionalDependencies": null,
+      "license": "Apache-2.0",
+      "integrity": "sha512-6WMkQNM4VEzqMkdr/l60X9Cr7i+tI/arK87IWz2K7pB6j8I2ZJ8KN+1JfhJDLnK+SXnab6Op8xGt4adcGLsyfA=="
+    },
+    {
+      "source": "https://registry.npmjs.org/motion/latest",
+      "name": "motion",
+      "version": "14.0.0",
+      "engines": null,
+      "peerDependencies": {
+        "react": "^18.0.0 || ^19.0.0",
+        "react-dom": "^18.0.0 || ^19.0.0"
+      },
+      "dependencies": {
+        "tslib": "^2.4.0",
+        "framer-motion": "14.0.0"
+      },
+      "optionalDependencies": null,
+      "license": "MIT",
+      "integrity": "sha512-oGc2lkge2lkRZCP+J8/JsnYu4NFjqP1MtXirNdetn3QbvK2JqwM9A200EdT4C598KfzDhjLT12zF21xDM4Oilw=="
+    },
+    {
+      "source": "https://registry.npmjs.org/@playwright%2fmcp/latest",
+      "name": "@playwright/mcp",
+      "version": "0.0.83",
+      "engines": {
+        "node": ">=18"
+      },
+      "peerDependencies": null,
+      "dependencies": {
+        "playwright": "1.64.0-alpha-1790635538000",
+        "playwright-core": "1.64.0-alpha-1790635538000"
+      },
+      "optionalDependencies": null,
+      "license": "Apache-2.0",
+      "integrity": "sha512-oNcl+Ae2/IAjhfPeP46BfIkSakfmprY+aOtkv5MjrQ4lPav4/yNtPhL0iq8SlIM90oApWgBDUxaNKvktazUKOg=="
+    },
+    {
+      "source": "https://registry.npmjs.org/vite/8.2.1",
+      "name": "vite",
+      "version": "8.2.1",
+      "engines": {
+        "node": "^20.19.0 || >=22.12.0"
+      },
+      "peerDependencies": {
+        "tsx": "^4.8.1",
+        "jiti": ">=1.21.0",
+        "less": "^4.0.0",
+        "sass": "^1.70.0",
+        "yaml": "^2.4.2",
+        "stylus": ">=0.54.8",
+        "terser": "^5.16.0",
+        "esbuild": "^0.27.0 || ^0.28.0",
+        "sugarss": "^5.0.0",
+        "@types/node": "^20.19.0 || >=22.12.0",
+        "sass-embedded": "^1.70.0",
+        "@vitejs/devtools": "^0.4.0"
+      },
+      "dependencies": {
+        "postcss": "^8.5.25",
+        "rolldown": "~1.2.1",
+        "picomatch": "^4.0.5",
+        "tinyglobby": "^0.2.17",
+        "lightningcss": "^1.33.0"
+      },
+      "optionalDependencies": {
+        "fsevents": "~2.3.3"
+      },
+      "license": "MIT",
+      "integrity": "sha512-EU/eS7BH3XROHh2YnBefjM6DBKA6ZeMZEYQbj7NLWg5wHYlhB8B/Mayd5XsgWq+NFYccDOTemRpdETWR6Ka/lw=="
+    }
+  ],
+  "documents": [
+    {
+      "repository": "pbakaus/impeccable",
+      "observed_head": "d631a8827f99414d2b6daba4ef08b7f8701751d7",
+      "readme_source": "https://github.com/pbakaus/impeccable/blob/d631a8827f99414d2b6daba4ef08b7f8701751d7/README.md",
+      "retrieved_text_sha256": "1c6a2cae65fc381ea2dd7989de5b3e7d78baaef4a79c5f7eb343fe14b0b15d93"
+    },
+    {
+      "repository": "aidenybai/react-grab",
+      "observed_head": "ea4bbec9e80f4802e8ae19ad18431edb9ddbb670",
+      "readme_source": "https://github.com/aidenybai/react-grab/blob/ea4bbec9e80f4802e8ae19ad18431edb9ddbb670/README.md",
+      "retrieved_text_sha256": "524cbe2c585b69976876e453b189961bfb4c68dad6406acb50fa157ad3f00c77"
+    },
+    {
+      "repository": "microsoft/playwright-cli",
+      "observed_head": "b85c7a736bb473bf55b584e54a09ffa698d6d871",
+      "readme_source": "https://github.com/microsoft/playwright-cli/blob/b85c7a736bb473bf55b584e54a09ffa698d6d871/README.md",
+      "retrieved_text_sha256": "45680e2004227e89dec1e2764722acb3cb3576db3d65f80ca74f64f6dce97f5e"
+    },
+    {
+      "repository": "Yu-369/VibeCurb",
+      "observed_head": "c324ba7695a3f23229cfe9068e4cbab98a3c38f3",
+      "readme_source": "https://github.com/Yu-369/VibeCurb/blob/c324ba7695a3f23229cfe9068e4cbab98a3c38f3/README.md",
+      "retrieved_text_sha256": "a4774913053dfd08239485853713b2fdefeb3197a06e85ea98fabc7db81d011b"
+    }
+  ],
+  "limitations": [
+    "New tools not installed or runtime-tested",
+    "WSLg headed mode and Windows clipboard not tested",
+    "React Grab source resolution and production elimination not tested",
+    "Not an exhaustive dependency security audit"
+  ]
+}

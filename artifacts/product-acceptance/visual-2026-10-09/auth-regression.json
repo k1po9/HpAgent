@@ -1,0 +1,8 @@
+{
+  "results": [
+    "Real invalid credential error",
+    "Real registration, password validation, QQ gate and explicit skip; new account empty conversations",
+    "Real sign-out",
+    "Real re-login; account data remains isolated"
+  ]
+}

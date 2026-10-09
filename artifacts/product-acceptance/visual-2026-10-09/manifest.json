@@ -1,0 +1,92 @@
+{
+  "date": "2026-10-09",
+  "timezone": "Asia/Shanghai",
+  "branch": "main",
+  "baseline": "7e77631d9c092bf864655099f15f756c69021d67",
+  "browser": "Chromium (installed Playwright 1.62.1)",
+  "viewport": {
+    "desktop": [
+      1536,
+      1024
+    ],
+    "mobile": [
+      390,
+      844
+    ],
+    "additional": [
+      [
+        1440,
+        900
+      ],
+      [
+        1024,
+        768
+      ]
+    ],
+    "geometryWidths": [
+      320,
+      390,
+      599,
+      600,
+      959,
+      960,
+      1024,
+      1279,
+      1280,
+      1303,
+      1304,
+      1403,
+      1404,
+      1440,
+      1536
+    ]
+  },
+  "deviceScaleFactor": 1,
+  "locale": "zh-CN",
+  "database": "hpagent_visual_20261009",
+  "templateDatabase": "hpagent_ui8_recheck_browser_20261008_04",
+  "apiPort": 8196,
+  "redisDb": 14,
+  "fileRoot": "/tmp/hpagent-visual-20261009-files",
+  "productionPreview": "http://127.0.0.1:5290",
+  "baselinePreview": "http://127.0.0.1:5291",
+  "dataProvenance": "New isolated accounts; public records created by actual browser/API requests. Existing repository Fake Run/Artifact executor, not production model/QQ acceptance. No Store injection or mock API responses.",
+  "baselineScreenshots": "Original HEAD source copied to ignored temporary Vite root; final before-* recaptured against the same test records as after-*. Original initial shots retained in round records where applicable. No branch switch.",
+  "finalScreenshots": "Built production dist served by vite preview; after-*; unchanged target PNGs.",
+  "tools": {
+    "playwright": "existing @playwright/test 1.62.1",
+    "impeccable": "4.1.0 download attempted; registry timeout, unavailable; no install/hooks",
+    "reactGrab": "not installed; DOM and repository source inspection used",
+    "cliMotionMcpVibeCurb": "not installed"
+  },
+  "checks": {
+    "typecheck": "passed",
+    "components": {
+      "files": 10,
+      "tests": 87,
+      "passed": true
+    },
+    "browserVisual": {
+      "tests": 2,
+      "passed": true
+    },
+    "nativeSurface": {
+      "tests": 1,
+      "passed": true
+    },
+    "build": "passed",
+    "changedFileEslint": "passed",
+    "format": "passed",
+    "diffCheck": "passed",
+    "productionToolStringScan": "no tool/test-account strings found",
+    "states": "passed",
+    "primaryTextContrast": {
+      "default": 4.78,
+      "hover": 5.43
+    }
+  },
+  "consoleObservation": [
+    "Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag."
+  ],
+  "browserVersion": "151.0.7922.34"
+}

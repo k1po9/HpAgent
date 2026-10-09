@@ -1,0 +1,185 @@
+{
+  "results": [
+    {
+      "width": 320,
+      "rootWidth": 320,
+      "rootScroll": 320,
+      "inspectorModal": true,
+      "inspectorRect": {
+        "x": 0,
+        "width": 320
+      },
+      "sidebarHidden": true,
+      "canvasWidth": 320
+    },
+    {
+      "width": 390,
+      "rootWidth": 390,
+      "rootScroll": 390,
+      "inspectorModal": true,
+      "inspectorRect": {
+        "x": 0,
+        "width": 390
+      },
+      "sidebarHidden": true,
+      "canvasWidth": 390
+    },
+    {
+      "width": 599,
+      "rootWidth": 599,
+      "rootScroll": 599,
+      "inspectorModal": true,
+      "inspectorRect": {
+        "x": 0,
+        "width": 599
+      },
+      "sidebarHidden": true,
+      "canvasWidth": 599
+    },
+    {
+      "width": 600,
+      "rootWidth": 600,
+      "rootScroll": 600,
+      "inspectorModal": true,
+      "inspectorRect": {
+        "x": 56,
+        "width": 544
+      },
+      "sidebarHidden": true,
+      "canvasWidth": 544
+    },
+    {
+      "width": 959,
+      "rootWidth": 959,
+      "rootScroll": 959,
+      "inspectorModal": true,
+      "inspectorRect": {
+        "x": 56,
+        "width": 903
+      },
+      "sidebarHidden": true,
+      "canvasWidth": 903
+    },
+    {
+      "width": 960,
+      "rootWidth": 960,
+      "rootScroll": 960,
+      "inspectorModal": true,
+      "inspectorRect": {
+        "x": 440,
+        "width": 520
+      },
+      "sidebarHidden": false,
+      "canvasWidth": 640
+    },
+    {
+      "width": 1024,
+      "rootWidth": 1024,
+      "rootScroll": 1024,
+      "inspectorModal": true,
+      "inspectorRect": {
+        "x": 504,
+        "width": 520
+      },
+      "sidebarHidden": false,
+      "canvasWidth": 704
+    },
+    {
+      "width": 1279,
+      "rootWidth": 1279,
+      "rootScroll": 1279,
+      "inspectorModal": true,
+      "inspectorRect": {
+        "x": 759,
+        "width": 520
+      },
+      "sidebarHidden": false,
+      "canvasWidth": 959
+    },
+    {
+      "width": 1280,
+      "rootWidth": 1280,
+      "rootScroll": 1280,
+      "inspectorModal": false,
+      "inspectorRect": {
+        "x": 860,
+        "width": 420
+      },
+      "sidebarHidden": true,
+      "canvasWidth": 796
+    },
+    {
+      "width": 1303,
+      "rootWidth": 1303,
+      "rootScroll": 1303,
+      "inspectorModal": false,
+      "inspectorRect": {
+        "x": 883,
+        "width": 420
+      },
+      "sidebarHidden": true,
+      "canvasWidth": 819
+    },
+    {
+      "width": 1304,
+      "rootWidth": 1304,
+      "rootScroll": 1304,
+      "inspectorModal": false,
+      "inspectorRect": {
+        "x": 884,
+        "width": 420
+      },
+      "sidebarHidden": false,
+      "canvasWidth": 564
+    },
+    {
+      "width": 1403,
+      "rootWidth": 1403,
+      "rootScroll": 1403,
+      "inspectorModal": false,
+      "inspectorRect": {
+        "x": 983,
+        "width": 420
+      },
+      "sidebarHidden": false,
+      "canvasWidth": 663
+    },
+    {
+      "width": 1404,
+      "rootWidth": 1404,
+      "rootScroll": 1404,
+      "inspectorModal": false,
+      "inspectorRect": {
+        "x": 984,
+        "width": 420
+      },
+      "sidebarHidden": false,
+      "canvasWidth": 664
+    },
+    {
+      "width": 1440,
+      "rootWidth": 1440,
+      "rootScroll": 1440,
+      "inspectorModal": false,
+      "inspectorRect": {
+        "x": 1020,
+        "width": 420
+      },
+      "sidebarHidden": false,
+      "canvasWidth": 700
+    },
+    {
+      "width": 1536,
+      "rootWidth": 1536,
+      "rootScroll": 1536,
+      "inspectorModal": false,
+      "inspectorRect": {
+        "x": 1116,
+        "width": 420
+      },
+      "sidebarHidden": false,
+      "canvasWidth": 796
+    }
+  ],
+  "draftAndMobileDrawer": "passed"
+}

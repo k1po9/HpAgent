@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Box, Button, Flex, Heading, Spinner, Text } from "@radix-ui/themes";
 import { conversationDateGroup } from "./conversation/dateGroup";
-import { Plus } from "lucide-react";
+import { Plus, MessageSquare } from "lucide-react";
 import type { HpConversation } from "../api/types";
 
 interface ConversationSidebarProps {
@@ -120,6 +120,7 @@ export function ConversationSidebar({
                       conversation.conversation_id === activeConversationId ? "true" : undefined
                     }
                   >
+                    <MessageSquare size={16} aria-hidden="true" />
                     <Text size="2" truncate>
                       {conversation.title || "未命名对话"}
                     </Text>

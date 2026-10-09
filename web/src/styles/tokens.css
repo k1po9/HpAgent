@@ -2,16 +2,16 @@
 :root,
 .radix-themes {
   --hp-surface: var(--color-background, #fff);
-  --hp-subtle: var(--gray-2, #f8f9fa);
-  --hp-border: var(--gray-7, #d0d4da);
-  --hp-text: var(--gray-12, #202735);
-  --hp-muted: var(--gray-11, #5f6878);
-  --hp-accent: var(--accent-11, #3948ad);
-  --hp-selection: var(--accent-3, #dee5fa);
+  --hp-subtle: #f7f9fc;
+  --hp-border: #e3e9f2;
+  --hp-text: #182235;
+  --hp-muted: #67758c;
+  --hp-accent: #1267df;
+  --hp-selection: #eaf2ff;
   --hp-danger: var(--red-11, #b42318);
   --hp-success: var(--green-11, #18794e);
   --hp-warning: var(--amber-11, #925700);
-  --hp-focus: var(--accent-9, #465acb);
+  --hp-focus: #1673f5;
   --hp-overlay: var(--black-a8, #17203366);
   --hp-shadow: var(--black-a3, #0002);
   --hp-radius: 8px;

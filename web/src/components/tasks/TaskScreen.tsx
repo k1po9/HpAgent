@@ -63,7 +63,9 @@ export function TaskScreen() {
         <button disabled={state === "scanning"} onClick={() => void useWorks.getState().load()}>
           刷新任务
         </button>
-        <button onClick={() => useShell.setState({ modal: "task-create" })}>新建任务</button>
+        <button className="hp-primary" onClick={() => useShell.setState({ modal: "task-create" })}>
+          新建任务
+        </button>
         <button onClick={() => useShell.setState({ modal: "task-inbox" })}>收件箱</button>
       </div>
       <h2>{bucketLabels[bucket]}</h2>

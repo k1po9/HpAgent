@@ -1,6 +1,6 @@
 # HpAgent 文档
 
-架构、开发、运维和参考文档描述当前实现。Web 相关文档已同步 UI-1～UI-8 重构与 2026-10-09 复验；其余文档按各自日期与基线阅读。`design/` 保存历史设计；`implementation/` 保存交接与验证边界，不应把阶段末的“尚未实现”当作当前能力状态。
+架构、开发、运维和参考文档描述当前实现。Web 相关文档已同步 UI-1～UI-8 重构与 2026-10-09 复验；其余文档按各自日期与基线阅读。`design/` 保存设计材料，包括下方最新视觉指导；`implementation/` 保存交接与验证边界，不应把阶段末的“尚未实现”当作当前能力状态。
 
 推荐阅读：架构总览 → Durable Work V1 → Web 前端架构 → 功能操作指南 → API / 测试 / 运维。本次前端重构从[UI-1～UI-8 交接](implementation/ui-refactor.md)进入；历史设计与其他验收从实施索引进入。
 
@@ -41,6 +41,8 @@
 
 ## 实施与验收
 
+- [前端视觉工具链与功能边界审查](design/frontend-visual-toolchain-review-2026-10-09.md)：Impeccable、React Grab、Playwright CLI/Test 的分阶段接入建议，布局耦合、生产隔离与无全量后端视觉检查方案；本轮仅审查，未安装工具。
+- [最新前端视觉迭代指导（含五张参考图）](design/frontend-visual-guide-latest.md)：前端代码是功能唯一真相源；PDF 仅作视觉参考，逐图说明多余功能排除项与截图迭代闭环。
 - [UI-1～UI-8 重构交接](implementation/ui-refactor.md)：全部阶段、关闭的缺陷、能力矩阵、批次结果、059 迁移、剩余验收与增强。
 - [UI 保留验收证据](../artifacts/product-acceptance/ui-refactor/README.md)：关键反例、最终日志、最后完整截图及迁移来源/哈希。
 - [实施与验收索引](implementation/README.md)：Durable Work、Workspace、人工 E2E 与剩余运行验收。

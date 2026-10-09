@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Box, Button, Flex, Heading, Text, TextField } from "@radix-ui/themes";
+import { MessageSquare, Folder, Activity, ArrowRight } from "lucide-react";
 import { api } from "../api/client";
 import { useAuth } from "../store/auth";
 
@@ -61,93 +62,125 @@ export function LoginForm() {
   }
 
   return (
-    <Box style={{ maxWidth: 360, margin: "20vh auto 0" }}>
-      <form onSubmit={onSubmit} aria-describedby={error ? "auth-error" : undefined}>
-        <Flex direction="column" gap="3">
-          <Heading as="h1" size="5" weight="bold">
-            HpAgent {mode === "login" ? "登录" : "注册"}
-          </Heading>
-          <label>
-            <Text as="span" size="2" color="gray">
-              用户名
-            </Text>
-            <TextField.Root
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              required
-            />
-          </label>
-          <label>
-            <Text as="span" size="2" color="gray">
-              密码
-            </Text>
-            <TextField.Root
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === "register" ? "new-password" : "current-password"}
-              minLength={mode === "register" ? 8 : undefined}
-              required
-            />
-          </label>
-          {mode === "register" ? (
-            <>
-              <label>
-                <Text as="span" size="2" color="gray">
-                  确认密码
-                </Text>
-                <TextField.Root
-                  type="password"
-                  value={confirmation}
-                  onChange={(e) => setConfirmation(e.target.value)}
-                  autoComplete="new-password"
-                  minLength={8}
-                  required
-                />
-              </label>
-              <label>
-                <Text as="span" size="2" color="gray">
-                  邀请码（可选）
-                </Text>
-                <TextField.Root
-                  type="password"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value)}
-                  autoComplete="off"
-                />
-              </label>
-            </>
-          ) : null}
-          {error ? (
-            <Text id="auth-error" role="alert" size="2" color="red">
-              {error}
-            </Text>
-          ) : null}
-          <Button type="submit" disabled={submitting}>
-            {submitting
-              ? mode === "login"
-                ? "登录中…"
-                : "注册中…"
-              : mode === "login"
-                ? "登录"
-                : "注册"}
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={submitting}
-            onClick={() => {
-              setMode(mode === "login" ? "register" : "login");
-              setRegisteredPendingLogin(false);
-              setError(null);
-              setConfirmation("");
-            }}
-          >
-            {mode === "login" ? "没有账号？注册" : "已有账号？登录"}
-          </Button>
-        </Flex>
-      </form>
-    </Box>
+    <div className="hp-auth-layout">
+      <section className="hp-auth-brand" aria-label="HpAgent 工作空间">
+        <div className="hp-auth-wordmark">
+          <span>Hp</span>Agent
+        </div>
+        <p className="hp-auth-tagline">你的个人 AI 工作空间</p>
+        <ul>
+          <li>
+            <MessageSquare aria-hidden="true" />与 AI 协作，推进想法
+          </li>
+          <li>
+            <Folder aria-hidden="true" />
+            管理文件与对话资料
+          </li>
+          <li>
+            <Activity aria-hidden="true" />
+            跟进任务，查看执行与成果
+          </li>
+        </ul>
+      </section>
+      <Box className="hp-auth-card">
+        <form onSubmit={onSubmit} aria-describedby={error ? "auth-error" : undefined}>
+          <Flex direction="column" gap="3">
+            <div className="hp-auth-card-heading">
+              <Heading
+                as="h1"
+                size="5"
+                weight="bold"
+                aria-label={`HpAgent ${mode === "login" ? "登录" : "注册"}`}
+              >
+                {mode === "login" ? "欢迎回来" : "创建新账户"}
+              </Heading>
+              <Text as="p" size="2" color="gray">
+                {mode === "login" ? "登录你的 HpAgent 账户" : "加入 HpAgent，开启你的 AI 工作空间"}
+              </Text>
+            </div>
+            <label>
+              <Text as="span" size="2" color="gray">
+                用户名
+              </Text>
+              <TextField.Root
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                required
+              />
+            </label>
+            <label>
+              <Text as="span" size="2" color="gray">
+                密码
+              </Text>
+              <TextField.Root
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === "register" ? "new-password" : "current-password"}
+                minLength={mode === "register" ? 8 : undefined}
+                required
+              />
+            </label>
+            {mode === "register" ? (
+              <>
+                <label>
+                  <Text as="span" size="2" color="gray">
+                    确认密码
+                  </Text>
+                  <TextField.Root
+                    type="password"
+                    value={confirmation}
+                    onChange={(e) => setConfirmation(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </label>
+                <label>
+                  <Text as="span" size="2" color="gray">
+                    邀请码（可选）
+                  </Text>
+                  <TextField.Root
+                    type="password"
+                    value={inviteCode}
+                    onChange={(e) => setInviteCode(e.target.value)}
+                    autoComplete="off"
+                  />
+                </label>
+              </>
+            ) : null}
+            {error ? (
+              <Text id="auth-error" role="alert" size="2" color="red">
+                {error}
+              </Text>
+            ) : null}
+            <Button className="hp-auth-submit" type="submit" disabled={submitting}>
+              {submitting
+                ? mode === "login"
+                  ? "登录中…"
+                  : "注册中…"
+                : mode === "login"
+                  ? "登录"
+                  : "注册"}
+              <ArrowRight size={16} aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={submitting}
+              onClick={() => {
+                setMode(mode === "login" ? "register" : "login");
+                setRegisteredPendingLogin(false);
+                setError(null);
+                setConfirmation("");
+              }}
+            >
+              {mode === "login" ? "没有账号？注册" : "已有账号？登录"}
+            </Button>
+          </Flex>
+        </form>
+      </Box>
+    </div>
   );
 }

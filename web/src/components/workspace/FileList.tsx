@@ -1,3 +1,4 @@
+import { Folder, FileText } from "lucide-react";
 import type { HpWorkspaceNode, HpWorkspaceSearchItem } from "../../api/types";
 import { useShell } from "../../store/shell";
 import { useWorkspace } from "../../store/workspace";
@@ -9,6 +10,7 @@ export function FileList({
   nodes: HpWorkspaceNode[];
   search?: HpWorkspaceSearchItem[];
 }) {
+  const selected = useShell((s) => s.route.inspector);
   const tree = useWorkspace((s) => s.tree);
   const rows = search ?? nodes;
   return (
@@ -39,14 +41,21 @@ export function FileList({
           };
           const purpose = "purpose" in row ? row.purpose : node?.source?.purpose;
           return (
-            <tr key={row.node_id}>
+            <tr
+              key={row.node_id}
+              data-selected={selected?.kind === "file" && selected.objectId === row.node_id}
+            >
               <td>
                 <button
                   id={`workspace-node-${row.node_id}`}
                   className="hp-file-name"
                   onClick={open}
                 >
-                  {isDirectory ? "📁 " : "📄 "}
+                  {isDirectory ? (
+                    <Folder className="hp-folder-icon" size={20} aria-hidden="true" />
+                  ) : (
+                    <FileText size={20} aria-hidden="true" />
+                  )}
                   {row.name}
                 </button>
                 {search && <small>{node ? nodePath(tree, row.node_id) : "位置待同步"}</small>}

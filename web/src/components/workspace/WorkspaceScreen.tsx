@@ -116,6 +116,7 @@ export function WorkspaceScreen() {
           全空间文件名称
           <input
             aria-label="长期文件名称"
+            placeholder="搜索全空间文件"
             value={filters.name ?? ""}
             onChange={(e) => setFilters({ ...filters, name: e.target.value })}
           />

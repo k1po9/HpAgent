@@ -1,0 +1,12 @@
+{
+  "results": [
+    "Real API file search, preview, versions and scope tabs (passed in initial execution)",
+    "HTML sandbox, interactive preview and download (passed in initial execution)",
+    "Real v2 persisted; artifact draft and DOM survive breakpoints (passed in initial execution)",
+    "Real HTML source copy saved to workspace (passed in initial execution)",
+    "Scheduled task pause/resume and edit discard/continue protect draft",
+    "Real send, online SSE status, stop and send again",
+    "HTML sandbox, interactive preview, download, real v2, draft and DOM survive breakpoints"
+  ],
+  "errors": []
+}
