@@ -745,8 +745,8 @@ services:
   # Vite HMR：
   # 修改 ts / tsx / css 后浏览器自动更新。
   #
-  # 不需要 restart
-  # 不需要 build
+  # 源码变化不需要 restart / build。
+  # package.json / lockfile 变化后重启 web-dev；启动时会校验并同步独立依赖卷。
   # ============================================================
 
   web-dev:
@@ -767,8 +767,11 @@ services:
       - sh
       - -c
       - |
-        if [ ! -x node_modules/.bin/vite ]; then
-          npm ci
+        set -e
+        dependency_fingerprint="$$(sha256sum package.json package-lock.json | sha256sum | cut -d ' ' -f 1)"
+        if [ ! -x node_modules/.bin/vite ] || [ ! -f node_modules/.hpagent-dependency-fingerprint ] || [ "$$(cat node_modules/.hpagent-dependency-fingerprint)" != "$$dependency_fingerprint" ]; then
+          npm ci --no-audit --no-fund
+          printf '%s' "$$dependency_fingerprint" > node_modules/.hpagent-dependency-fingerprint
         fi
         exec npm run dev -- --host 0.0.0.0
 

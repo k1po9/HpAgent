@@ -1,0 +1,156 @@
+{
+  "label": "after",
+  "conditions": "Chromium headless, 1440×1100, no recording/screenshots; one warmup + five measured runs per condition; shared host",
+  "results": [
+    {
+      "rate": 1,
+      "budget": "standard",
+      "medianElapsed": 1266,
+      "medianSetup": 7,
+      "medianP95": 33.3,
+      "slowFrameRatio": 0.009,
+      "runs": [
+        {
+          "setupMs": 9,
+          "elapsed": 1258,
+          "p95": 33.3,
+          "slow": 0,
+          "samples": 70,
+          "budget": "168 / 标准"
+        },
+        {
+          "setupMs": 7,
+          "elapsed": 1267,
+          "p95": 16.8,
+          "slow": 0,
+          "samples": 72,
+          "budget": "168 / 标准"
+        },
+        {
+          "setupMs": 9,
+          "elapsed": 1261,
+          "p95": 33.3,
+          "slow": 0,
+          "samples": 71,
+          "budget": "168 / 标准"
+        },
+        {
+          "setupMs": 7,
+          "elapsed": 1266,
+          "p95": 33.3,
+          "slow": 1,
+          "samples": 68,
+          "budget": "168 / 标准"
+        },
+        {
+          "setupMs": 7,
+          "elapsed": 1267,
+          "p95": 33.3,
+          "slow": 2,
+          "samples": 67,
+          "budget": "168 / 标准"
+        }
+      ]
+    },
+    {
+      "rate": 4,
+      "budget": "standard",
+      "medianElapsed": 1227,
+      "medianSetup": 54,
+      "medianP95": 49.9,
+      "slowFrameRatio": 0.105,
+      "runs": [
+        {
+          "setupMs": 54,
+          "elapsed": 1221,
+          "p95": 33.4,
+          "slow": 7,
+          "samples": 51,
+          "budget": "168 / 标准"
+        },
+        {
+          "setupMs": 35,
+          "elapsed": 1227,
+          "p95": 66.6,
+          "slow": 5,
+          "samples": 47,
+          "budget": "168 / 标准"
+        },
+        {
+          "setupMs": 45,
+          "elapsed": 1236,
+          "p95": 49.9,
+          "slow": 5,
+          "samples": 49,
+          "budget": "168 / 标准"
+        },
+        {
+          "setupMs": 61,
+          "elapsed": 1220,
+          "p95": 50.1,
+          "slow": 6,
+          "samples": 45,
+          "budget": "168 / 标准"
+        },
+        {
+          "setupMs": 63,
+          "elapsed": 1357,
+          "p95": 33.4,
+          "slow": 3,
+          "samples": 56,
+          "budget": "168 / 标准"
+        }
+      ]
+    },
+    {
+      "rate": 4,
+      "budget": "low",
+      "medianElapsed": 1214,
+      "medianSetup": 26,
+      "medianP95": 33.4,
+      "slowFrameRatio": 0.038,
+      "runs": [
+        {
+          "setupMs": 24,
+          "elapsed": 1213,
+          "p95": 33.4,
+          "slow": 1,
+          "samples": 60,
+          "budget": "48 / 低功耗"
+        },
+        {
+          "setupMs": 25,
+          "elapsed": 1214,
+          "p95": 33.4,
+          "slow": 4,
+          "samples": 55,
+          "budget": "48 / 低功耗"
+        },
+        {
+          "setupMs": 29,
+          "elapsed": 1218,
+          "p95": 33.4,
+          "slow": 3,
+          "samples": 59,
+          "budget": "48 / 低功耗"
+        },
+        {
+          "setupMs": 30,
+          "elapsed": 1223,
+          "p95": 33.4,
+          "slow": 2,
+          "samples": 61,
+          "budget": "48 / 低功耗"
+        },
+        {
+          "setupMs": 26,
+          "elapsed": 1206,
+          "p95": 33.4,
+          "slow": 1,
+          "samples": 57,
+          "budget": "48 / 低功耗"
+        }
+      ]
+    }
+  ]
+}

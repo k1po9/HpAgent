@@ -155,50 +155,6 @@
   scroll-margin: 16px;
 }
 
-.hp-assembly {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  pointer-events: none;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
-}
-
-.hp-assembly i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--hp-accent);
-  animation: hp-assemble 800ms both;
-}
-
-.hp-assembly i:nth-child(2) {
-  --offset: -36px;
-}
-
-.hp-assembly i:nth-child(3) {
-  --offset: 36px;
-}
-
-.hp-assembly i:nth-child(4) {
-  --offset: 72px;
-}
-@keyframes hp-assemble {
-  from {
-    opacity: 0;
-    transform: translateY(var(--offset, -72px));
-  }
-  35% {
-    opacity: 0.6;
-  }
-  to {
-    opacity: 0;
-    transform: translateY(0);
-  }
-}
-
 .hp-mode-select,
 .hp-composer__action,
 .hp-inspector > .hp-surface-body > button {
@@ -255,10 +211,6 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hp-assembly {
-    display: none;
-  }
-
   .hp-shell *,
   .hp-surface * {
     animation: none !important;

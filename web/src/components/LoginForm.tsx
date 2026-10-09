@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Box, Button, Flex, Heading, Text, TextField } from "@radix-ui/themes";
-import { MessageSquare, Folder, Activity, ArrowRight } from "lucide-react";
+import { MessageSquare, Folder, Activity, ArrowRight, Check } from "lucide-react";
 import { api } from "../api/client";
 import { useAuth } from "../store/auth";
 
@@ -10,7 +10,7 @@ import { useAuth } from "../store/auth";
  * The backend 303s back with a Set-Cookie; `/api/v1/me` then seeds the CSRF
  * token. Failed credentials show the server's safe message.
  */
-export function LoginForm() {
+export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -155,15 +155,28 @@ export function LoginForm() {
                 {error}
               </Text>
             ) : null}
-            <Button className="hp-auth-submit" type="submit" disabled={submitting}>
-              {submitting
+            <Button
+              className="hp-auth-submit"
+              type="submit"
+              disabled={submitting || confirmed}
+              data-confirmed={confirmed || undefined}
+            >
+              {confirmed
                 ? mode === "login"
-                  ? "登录中…"
-                  : "注册中…"
-                : mode === "login"
-                  ? "登录"
-                  : "注册"}
-              <ArrowRight size={16} aria-hidden="true" />
+                  ? "登录成功"
+                  : "账户已创建"
+                : submitting
+                  ? mode === "login"
+                    ? "登录中…"
+                    : "注册中…"
+                  : mode === "login"
+                    ? "登录"
+                    : "注册"}
+              {confirmed ? (
+                <Check size={16} aria-hidden="true" />
+              ) : (
+                <ArrowRight size={16} aria-hidden="true" />
+              )}
             </Button>
             <Button
               type="button"

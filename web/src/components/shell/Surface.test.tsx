@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { Surface } from "./Surface";
+import { EntryPendingContext } from "../entry/EntryPendingContext";
 afterEach(() => vi.restoreAllMocks());
 it("keeps the same content and unsaved text through every modal mode change", () => {
   const mount = vi.fn(),
@@ -156,4 +157,32 @@ it("R2: Tab from the final button must still reach a trailing native summary", (
   const button = screen.getByRole("button", { name: "刷新收件箱" });
   button.focus();
   expect(fireEvent.keyDown(button, { key: "Tab" })).toBe(true);
+});
+
+it("holds a restored modal outside the top layer until entry completes without remounting content", () => {
+  const mount = vi.fn();
+  function Content() {
+    useEffect(mount, []);
+    return <input aria-label="恢复的编辑器" defaultValue="保留内容" />;
+  }
+  const view = render(
+    <EntryPendingContext value={true}>
+      <Surface title="恢复的详情" onClose={vi.fn()}>
+        <Content />
+      </Surface>
+    </EntryPendingContext>,
+  );
+  expect(screen.queryByRole("dialog", { name: "恢复的详情" })).not.toBeInTheDocument();
+  const input = screen.getByLabelText("恢复的编辑器");
+  view.rerender(
+    <EntryPendingContext value={false}>
+      <Surface title="恢复的详情" onClose={vi.fn()}>
+        <Content />
+      </Surface>
+    </EntryPendingContext>,
+  );
+  expect(screen.getByRole("dialog", { name: "恢复的详情" })).toHaveAttribute("open");
+  expect(screen.getByLabelText("恢复的编辑器")).toBe(input);
+  expect(input).toHaveValue("保留内容");
+  expect(mount).toHaveBeenCalledTimes(1);
 });

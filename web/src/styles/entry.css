@@ -1,0 +1,128 @@
+.hp-entry {
+  min-height: 100dvh;
+  background: var(--hp-subtle);
+}
+.hp-entry[data-entering="true"] .hp-entry-destination {
+  opacity: 0;
+}
+.hp-entry[data-entering="true"] .hp-entry-origin {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  overflow: hidden;
+}
+.hp-entry-origin {
+  background: var(--hp-subtle);
+}
+.hp-entry-particles {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 101;
+  pointer-events: none;
+}
+.hp-auth-submit[data-confirmed="true"] {
+  background: var(--hp-accent);
+  color: white;
+  opacity: 1;
+}
+.hp-recovery {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--hp-subtle);
+  color: var(--hp-text);
+  padding: 24px;
+  box-sizing: border-box;
+}
+.hp-recovery-orbit {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  flex: none;
+}
+.hp-recovery-orbit h1 {
+  font-size: 30px;
+  letter-spacing: -1px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+.hp-recovery-orbit p {
+  font-size: 13px;
+  color: var(--hp-muted);
+  margin: 0;
+}
+.hp-recovery-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  pointer-events: none;
+  transform: rotate(-90deg);
+}
+.hp-recovery-track {
+  stroke: var(--hp-border);
+  stroke-width: 1;
+}
+.hp-recovery-arc {
+  stroke: var(--hp-accent);
+  stroke-width: 2;
+  stroke-dasharray: 160 544;
+  stroke-linecap: round;
+}
+.hp-recovery[data-state="checking"] .hp-recovery-ring {
+  animation: hp-recovery-rotate 1.6s linear infinite;
+}
+.hp-recovery[data-state="success"] .hp-recovery-arc {
+  stroke-dasharray: 704 0;
+  transition: stroke-dasharray 160ms ease-out;
+}
+.hp-recovery[data-state="error"] .hp-recovery-arc {
+  opacity: 0.4;
+}
+.hp-recovery-detail {
+  min-height: 80px;
+  text-align: center;
+  padding-top: 22px;
+  font-size: 12px;
+  color: var(--hp-muted);
+}
+.hp-recovery-detail button {
+  border: 1px solid var(--hp-border);
+  border-radius: 8px;
+  padding: 8px 20px;
+  background: var(--hp-surface);
+  color: var(--hp-text);
+  cursor: pointer;
+}
+@keyframes hp-recovery-rotate {
+  to {
+    transform: rotate(270deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-recovery[data-state="checking"] .hp-recovery-ring {
+    animation: none;
+  }
+  .hp-recovery[data-state="success"] .hp-recovery-arc {
+    transition: none;
+  }
+}
+
+.hp-entry-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

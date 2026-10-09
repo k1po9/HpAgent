@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Theme } from "@radix-ui/themes";
 import { advanceForegroundRevision } from "./foreground";
 import { tabOrder } from "./tabOrder";
+import { EntryPendingContext } from "../entry/EntryPendingContext";
 type LayerContext = { depth: number; group: object };
 const SurfaceParent = createContext<LayerContext | null>(null);
 let layerSequence = 0;
@@ -41,7 +42,7 @@ export function Surface({
   modal = true,
   className = "",
   onBack,
-  active = true,
+  active: requestedActive = true,
   role,
   dismissible = true,
 }: {
@@ -55,6 +56,8 @@ export function Surface({
   role?: "alertdialog";
   dismissible?: boolean;
 }) {
+  const entering = useContext(EntryPendingContext);
+  const active = requestedActive && !(modal && entering);
   const parent = useContext(SurfaceParent);
   const layer = useMemo<LayerContext>(
     () => ({

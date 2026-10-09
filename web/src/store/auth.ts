@@ -18,6 +18,7 @@ interface AuthState {
   capabilities: MeResponse["capabilities"];
   justRegistered: boolean;
   assemblyPending: boolean;
+  entrySource: "login" | "restore";
   check: (explicit?: boolean) => Promise<void>;
   markRegistered: () => void;
   dismissRegistrationHint: () => void;
@@ -26,19 +27,30 @@ interface AuthState {
 }
 
 let generation = 0;
-export const useAuth = create<AuthState>((set) => ({
+let sessionProbe: AbortController | null = null;
+export const useAuth = create<AuthState>((set, get) => ({
   status: "checking",
   account: null,
   identities: null,
   capabilities: {},
   justRegistered: false,
   assemblyPending: false,
+  entrySource: "restore",
 
   check: async (explicit = false) => {
+    const previous = get();
     const token = ++generation;
-    set((state) => (state.status === "signedIn" ? {} : { status: "checking" }));
+    sessionProbe?.abort();
+    const controller = new AbortController();
+    sessionProbe = controller;
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    set((state) =>
+      state.status === "signedIn"
+        ? {}
+        : { status: "checking", entrySource: explicit ? "login" : "restore" },
+    );
     try {
-      const me = await api.me();
+      const me = await api.me(controller.signal);
       if (token !== generation) return;
       if (me === null) {
         set({
@@ -56,7 +68,12 @@ export const useAuth = create<AuthState>((set) => ({
         account: me.account,
         identities: me.identities,
         capabilities: me.capabilities,
-        ...(explicit ? { assemblyPending: true } : {}),
+        ...(previous.status !== "signedIn" || previous.account?.account_id !== me.account.account_id
+          ? {
+              assemblyPending: true,
+              entrySource: explicit ? ("login" as const) : ("restore" as const),
+            }
+          : {}),
       });
     } catch {
       if (token !== generation) return;
@@ -67,6 +84,9 @@ export const useAuth = create<AuthState>((set) => ({
         capabilities: {},
         assemblyPending: false,
       });
+    } finally {
+      clearTimeout(timeout);
+      if (sessionProbe === controller) sessionProbe = null;
     }
   },
 
@@ -82,6 +102,8 @@ export const useAuth = create<AuthState>((set) => ({
 
   expire: () => {
     generation += 1;
+    sessionProbe?.abort();
+    sessionProbe = null;
     api.reset();
     set({
       status: "signedOut",

@@ -1,0 +1,22 @@
+[
+  {
+    "mode": "particles",
+    "condition": "desktop + recording",
+    "metrics": "粒子解构\t1280 / 1333 ms\t116.7 ms\t13 / 27\t168 / 标准\t时长在目标区间"
+  },
+  {
+    "mode": "flip",
+    "condition": "desktop + recording",
+    "metrics": "空间变形\t1280 / 1334 ms\t83.3 ms\t16 / 31\t0 / 标准\t时长在目标区间"
+  },
+  {
+    "mode": "particles",
+    "condition": "4x CPU / low budget",
+    "metrics": "粒子解构\t1280 / 1219 ms\t116.6 ms\t13 / 36\t48 / 低功耗\t时长在目标区间"
+  },
+  {
+    "mode": "flip",
+    "condition": "4x CPU / low budget",
+    "metrics": "空间变形\t1280 / 1186 ms\t33.4 ms\t1 / 60\t0 / 低功耗\t时长在目标区间"
+  }
+]

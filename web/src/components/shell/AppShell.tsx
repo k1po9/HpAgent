@@ -22,7 +22,6 @@ import type { SaveSource } from "../workspace/workspaceOperations";
 import { InspectorHost } from "./InspectorHost";
 import { Surface } from "./Surface";
 import { useShellWidth } from "./useShellWidth";
-import { Assembly } from "./Assembly";
 
 const screens = [
   { id: "ai", label: "AI", icon: Bot },
@@ -150,7 +149,6 @@ export function AppShell() {
       ref={shellRef}
       className={`hp-shell ${route.inspector ? "hp-shell--inspecting" : ""} ${collapsed ? "hp-shell--sidebar-collapsed" : ""}`}
     >
-      <Assembly />
       <div className="hp-rail">
         <span className="hp-brand" aria-label="HpAgent">
           H

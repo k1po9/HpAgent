@@ -1,0 +1,138 @@
+{
+  "label": "before",
+  "conditions": "Chromium headless, 1440×1100, no recording/screenshots; one warmup + five measured runs per condition; shared host",
+  "results": [
+    {
+      "rate": 1,
+      "budget": "standard",
+      "medianElapsed": 1255,
+      "medianP95": 33.3,
+      "slowFrameRatio": 0.011,
+      "runs": [
+        {
+          "elapsed": 1262,
+          "p95": 33.3,
+          "slow": 0,
+          "samples": 69,
+          "budget": "220 / 标准"
+        },
+        {
+          "elapsed": 1239,
+          "p95": 33.3,
+          "slow": 3,
+          "samples": 67,
+          "budget": "220 / 标准"
+        },
+        {
+          "elapsed": 1259,
+          "p95": 33.3,
+          "slow": 0,
+          "samples": 71,
+          "budget": "220 / 标准"
+        },
+        {
+          "elapsed": 1243,
+          "p95": 33.3,
+          "slow": 1,
+          "samples": 71,
+          "budget": "220 / 标准"
+        },
+        {
+          "elapsed": 1255,
+          "p95": 33.4,
+          "slow": 0,
+          "samples": 71,
+          "budget": "220 / 标准"
+        }
+      ]
+    },
+    {
+      "rate": 4,
+      "budget": "standard",
+      "medianElapsed": 1197,
+      "medianP95": 50,
+      "slowFrameRatio": 0.113,
+      "runs": [
+        {
+          "elapsed": 1197,
+          "p95": 50.1,
+          "slow": 8,
+          "samples": 45,
+          "budget": "220 / 标准"
+        },
+        {
+          "elapsed": 1206,
+          "p95": 66.6,
+          "slow": 7,
+          "samples": 43,
+          "budget": "220 / 标准"
+        },
+        {
+          "elapsed": 1189,
+          "p95": 50,
+          "slow": 5,
+          "samples": 46,
+          "budget": "220 / 标准"
+        },
+        {
+          "elapsed": 1180,
+          "p95": 50,
+          "slow": 5,
+          "samples": 48,
+          "budget": "220 / 标准"
+        },
+        {
+          "elapsed": 1315,
+          "p95": 33.4,
+          "slow": 2,
+          "samples": 56,
+          "budget": "220 / 标准"
+        }
+      ]
+    },
+    {
+      "rate": 4,
+      "budget": "low",
+      "medianElapsed": 1199,
+      "medianP95": 66.6,
+      "slowFrameRatio": 0.168,
+      "runs": [
+        {
+          "elapsed": 1199,
+          "p95": 50.1,
+          "slow": 7,
+          "samples": 48,
+          "budget": "64 / 低功耗"
+        },
+        {
+          "elapsed": 1184,
+          "p95": 66.6,
+          "slow": 7,
+          "samples": 45,
+          "budget": "64 / 低功耗"
+        },
+        {
+          "elapsed": 1185,
+          "p95": 66.6,
+          "slow": 5,
+          "samples": 45,
+          "budget": "64 / 低功耗"
+        },
+        {
+          "elapsed": 1202,
+          "p95": 83.3,
+          "slow": 7,
+          "samples": 40,
+          "budget": "64 / 低功耗"
+        },
+        {
+          "elapsed": 1221,
+          "p95": 83.3,
+          "slow": 10,
+          "samples": 36,
+          "budget": "64 / 低功耗"
+        }
+      ]
+    }
+  ]
+}
