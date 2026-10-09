@@ -6,6 +6,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from support.runtime_fakes import install_model_dispatch_guards
 
 from account.entitlement_service import AccountEntitlement, EntitlementLookup, EntitlementState
 from resources.model_budget_context import model_budget_scope
@@ -25,6 +26,11 @@ class _Entitlements:
 class _Snapshots:
     def __init__(self):
         self.items = []
+        self.dispatched = []
+
+    def mark_dispatched(self, account_id, snapshot_id):
+        assert snapshot_id is not None
+        self.dispatched.append((account_id, snapshot_id))
 
     def freeze(self, **values):
         digest = semantic_request_hash(
@@ -42,6 +48,8 @@ class _Snapshots:
 
 
 class _Budget:
+    database = object()
+
     def __init__(self):
         self.calls = []
 
@@ -123,6 +131,7 @@ async def test_g12_captured_dispatch_body_equals_snapshot_and_hash(monkeypatch, 
     _CapturingAsyncClient.captures = []
     monkeypatch.setattr(httpx, "AsyncClient", _CapturingAsyncClient)
     monkeypatch.setattr("resources.resource_pool.asyncio.to_thread", direct)
+    guards = install_model_dispatch_guards(monkeypatch)
     snapshots = _Snapshots()
     budget = _Budget()
     client = _client(f"{api_format}:primary", api_format)
@@ -139,11 +148,15 @@ async def test_g12_captured_dispatch_body_equals_snapshot_and_hash(monkeypatch, 
     messages = [{"role": "user", "content": "G12-PROMPT-SENTINEL"}]
     tools = [{"name": "lookup", "description": "lookup", "input_schema": {"type": "object"}}]
 
-    with model_budget_scope(uuid4(), uuid4(), "react-decision", phase="decision"):
+    account_id, run_id = uuid4(), uuid4()
+    with model_budget_scope(account_id, run_id, "react-decision", phase="decision"):
         result = await pool.generate(messages, "chat", tools=tools)
 
     captured = _CapturingAsyncClient.captures[0]
     snapshot = snapshots.items[0]
+    assert snapshots.dispatched == [(account_id, snapshot.snapshot_id)]
+    assert guards == [("acquire", run_id), ("authorize", account_id, run_id), ("release", run_id)]
+    assert [call[0] for call in budget.calls] == ["reserve", "settle"]
     assert captured["body"] == snapshot.payload
     assert captured["body"]["max_tokens"] == 37
     assert captured["body"]["temperature"] == 0.15

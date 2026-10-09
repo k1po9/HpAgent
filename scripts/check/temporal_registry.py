@@ -45,6 +45,7 @@ REQUIRED_WORKFLOWS = {
     "PlanAndExecuteWorkflow",
     "AgentStepWorkflow",
     "ToolExecutionWorkflow",
+    "WorkDelegationWorkflow",
     "NormalizeDocumentWorkflow",
     "ReflectWorkflow",
     "MetricsReportWorkflow",

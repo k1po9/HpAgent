@@ -32,7 +32,7 @@ async def cancel(request: RunLifecycleInput) -> dict[str, str]:
 
 @pytest.mark.temporal
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", ["completed", "failed", "cancelling", "cancelled"])
+@pytest.mark.parametrize("status", ["succeeded", "failed", "cancelling", "cancelled"])
 async def test_canonical_prepared_terminal_authority_never_starts_agent(status):
     if not os.getenv("TEMPORAL_HOST"):
         pytest.skip("TEMPORAL_HOST required")
@@ -53,12 +53,19 @@ async def test_canonical_prepared_terminal_authority_never_starts_agent(status):
             id=f"terminal-{run_id}",
             task_queue=WEB_LIFECYCLE_TASK_QUEUE,
         )
-        if status == "completed":
+        if status == "succeeded":
             assert (await handle.result())["outcome"] == "completed"
         else:
             with pytest.raises(WorkflowFailureError):
                 await handle.result()
         history = await handle.fetch_history()
+        scheduled = [
+            event.activity_task_scheduled_event_attributes.activity_type.name
+            for event in history.events
+            if event.HasField("activity_task_scheduled_event_attributes")
+        ]
+        assert scheduled == (["prepare_run_activity", "finalize_cancelled_activity"]
+                             if status in {"cancelling", "cancelled"} else ["prepare_run_activity"])
         assert not any(
             event.HasField("start_child_workflow_execution_initiated_event_attributes")
             for event in history.events

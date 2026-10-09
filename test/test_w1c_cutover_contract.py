@@ -1,4 +1,5 @@
 from dataclasses import fields
+from datetime import timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -10,7 +11,10 @@ from agent_workflows.ids import root_execution_id
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.run_lifecycle_activities import RunLifecycleActivities
-from orchestration.run_lifecycle_contracts import RunLifecycleInput
+from orchestration.run_lifecycle_contracts import (
+    WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
+    RunLifecycleInput,
+)
 from orchestration.web_dispatcher import TemporalClientAdapter
 from run_domain.input import RunInputLoader
 
@@ -20,7 +24,8 @@ async def test_dispatch_always_starts_canonical_workflow_and_rejects_legacy_owne
     class Client:
         async def start_workflow(self, function, request, **options):
             assert function == AgentLifecycleWorkflow.run
-            assert options["execution_timeout"] is None
+            assert options["execution_timeout"] == timedelta(seconds=WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
+            assert options["retry_policy"] is None
             raise WorkflowAlreadyStartedError(options["id"], "WebRunWorkflow", run_id="old")
 
     with pytest.raises(RuntimeError, match="another Workflow"):
@@ -118,6 +123,8 @@ async def test_terminal_cancel_wins_over_late_agent_outcome(monkeypatch, agent_f
         calls.append(name)
         if name == "prepare_run_activity":
             return {"run_id": "run", "status": "running"}
+        if name == "load_run_strategy_activity":
+            return {"strategy_kind": "generic_agent", "agent_strategy": "react", "executor_key": None}
         if name == "load_agent_run_input_activity":
             return SimpleNamespace(strategy="react")
         return {"run_id": "run", "status": "cancelled"}

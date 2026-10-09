@@ -16,6 +16,8 @@ from sandbox.tools.local.file_read import create_file_read_tools
 from storage.tenant_file_store import TenantFileReader
 from workspace.file_scope import RunFileWorkspace
 
+pytestmark = pytest.mark.postgres
+
 
 def _headers(csrf: str, key: str | None = None) -> dict[str, str]:
     headers = {"Origin": "https://testserver", "X-CSRF-Token": csrf}

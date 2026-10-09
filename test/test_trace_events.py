@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from support.runtime_fakes import ExecutionStoreBoundary, install_execution_uow
 
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.store import ToolOperationState
@@ -392,7 +393,7 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
     class Loader:
         async def load(self, _run_id):
             return ExecutionRequest(
-                run_id,
+                str(root_execution_id(run_id)),
                 account_id,
                 conversation_id,
                 session_id,
@@ -431,6 +432,7 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
 
 @pytest.mark.asyncio
 async def test_deduplicated_tool_activity_still_projects_tool_node(monkeypatch):
+    install_execution_uow(monkeypatch)
     async def in_process(function, *args, **kwargs):
         return function(*args, **kwargs)
 
@@ -453,7 +455,7 @@ async def test_deduplicated_tool_activity_still_projects_tool_node(monkeypatch):
         def for_run(self, _run_id):
             return Events()
 
-    class Store:
+    class Store(ExecutionStoreBoundary):
         def begin_tool_operation(self, _operation_id, _run_id):
             return ToolOperationState(
                 "completed",
@@ -521,16 +523,21 @@ async def test_canonical_finalize_closes_root_only_after_authoritative_commit(co
             recorded.append(("close",))
 
     class Lifecycle:
-        def complete(self, value, content):
+        def complete(self, value, content, result_ref):
             assert str(value) == run_id and content == "done"
+            assert result_ref == "result"
             if commit_fails:
                 raise RuntimeError("commit failed")
             recorded.append(("committed",))
-            return SimpleNamespace(run_id=run_id, status="completed")
+            return SimpleNamespace(run_id=run_id, status="succeeded")
+
+    def result_content(reference, owner):
+        assert reference == "result" and owner == run_id
+        return "done"
 
     runtime = DurableAgentActivities(
         context_bindings=ChatExecutionBindings(),
-        store=SimpleNamespace(result_content=lambda ref: "done"),
+        store=SimpleNamespace(result_content=result_content),
         loader=None, brain=None, actions=None,
         event_factory=SimpleNamespace(for_run=lambda value: Events()),
         lifecycle=Lifecycle(), resource_prep=None,
@@ -541,6 +548,6 @@ async def test_canonical_finalize_closes_root_only_after_authoritative_commit(co
             await runtime.finalize_agent_result(request)
         assert ("end", root_id, "completed") not in recorded
     else:
-        assert (await runtime.finalize_agent_result(request))["status"] == "completed"
+        assert (await runtime.finalize_agent_result(request))["status"] == "succeeded"
         assert recorded.index(("committed",)) < recorded.index(("end", root_id, "completed"))
     assert recorded[-1] == ("close",)

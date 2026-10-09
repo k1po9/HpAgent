@@ -1,0 +1,4 @@
+CI path checker: rejects missing files, accepts existing files
+Lifecycle Activity registration: 8 / 8
+Workflow registries: {'hpagent-web-lifecycle': ['AgentLifecycleWorkflow', 'NormalizeDocumentWorkflow'], 'hpagent-web-agent': ['AgentRunWorkflow', 'ReactAgentWorkflow', 'PlanAndExecuteWorkflow', 'AgentStepWorkflow', 'ToolExecutionWorkflow', 'WorkDelegationWorkflow'], 'hpagent-document': [], 'hpagent-task-queue': ['ReflectWorkflow', 'MetricsReportWorkflow']}
+CI YAML valid: 10 jobs

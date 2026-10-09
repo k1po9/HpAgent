@@ -1,0 +1,14 @@
+....................sssssss.....................s....................... [ 26%]
+........................................................................ [ 53%]
+.............................................................sssssssss.. [ 80%]
+................sss..............................s.                      [100%]
+--------------- generated xml file: /tmp/hpagent-ci-phase-a.xml ----------------
+=========================== short test summary info ============================
+SKIPPED [7] test/web_persistence/test_agent_segment_temporal.py:99: TEMPORAL_HOST required
+SKIPPED [1] test/web_persistence/test_durable_agent_activity_worker_kill.py:84: TEMPORAL_HOST is required for real Activity Worker crash acceptance
+SKIPPED [8] test/web_persistence/test_web_temporal_e2e.py:116: TEMPORAL_HOST required
+SKIPPED [1] test/web_persistence/test_web_temporal_e2e.py:334: TEMPORAL_HOST required
+SKIPPED [2] test/web_persistence/test_workspace_research_sigkill.py:50: TEMPORAL_HOST is required
+SKIPPED [1] test/web_persistence/test_workspace_temporal_revoke_tool.py:80: TEMPORAL_HOST is required
+SKIPPED [1] test/web_persistence/test_workspace_v41_p4_temporal.py:31: TEMPORAL_HOST is required
+246 passed, 21 skipped in 1028.82s (0:17:08)

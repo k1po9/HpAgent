@@ -1,0 +1,78 @@
+{
+  "unit-final": {
+    "selected": 575,
+    "passed": 554,
+    "skipped": 21,
+    "failed": 0
+  },
+  "phase-a": {
+    "selected": 267,
+    "passed": 246,
+    "skipped": 21,
+    "failed": 0
+  },
+  "phase-b": {
+    "selected": 64,
+    "passed": 64,
+    "skipped": 0,
+    "failed": 0
+  },
+  "phase-c-pg": {
+    "selected": 7,
+    "passed": 7,
+    "skipped": 0,
+    "failed": 0
+  },
+  "phase-c-unit": {
+    "selected": 15,
+    "passed": 15,
+    "skipped": 0,
+    "failed": 0
+  },
+  "phase-d": {
+    "selected": 28,
+    "passed": 28,
+    "skipped": 0,
+    "failed": 0
+  },
+  "baseline_failures": {
+    "reproduced": 34,
+    "restored": 34,
+    "nodeids": [
+      "test/test_durable_agent_hardening.py::test_tool_activity_reserves_and_settles_measured_usage_once",
+      "test/test_durable_agent_hardening.py::test_read_only_tool_failure_is_a_completed_failure_observation",
+      "test/test_durable_agent_hardening.py::test_file_tool_activity_projects_only_aggregate_trace_metadata",
+      "test/test_durable_agent_hardening.py::test_second_fencing_check_prevents_side_effect_after_local_lock_wait",
+      "test/test_durable_agent_hardening.py::test_non_idempotent_ack_gap_fails_closed_when_reconciliation_is_unsupported",
+      "test/test_durable_agent_hardening.py::test_fault_hook_marks_ack_gap_uncertain_after_exactly_one_side_effect",
+      "test/test_durable_agent_hardening.py::test_idempotent_write_ack_gap_retry_reuses_budget_operation",
+      "test/test_durable_agent_hardening.py::test_non_idempotent_completion_failure_is_exposed_as_uncertain",
+      "test/test_durable_agent_hardening.py::test_non_idempotent_transcript_conflict_after_side_effect_is_uncertain",
+      "test/test_durable_agent_hardening.py::test_redelivered_non_idempotent_intent_with_stale_fence_is_uncertain",
+      "test/test_durable_agent_hardening.py::test_redelivered_non_idempotent_intent_rejects_classification_drift",
+      "test/test_durable_agent_hardening.py::test_pre_side_effect_stale_fence_preserves_original_error",
+      "test/test_durable_agent_hardening.py::test_non_idempotent_action_error_is_uncertain_and_never_completed",
+      "test/test_durable_agent_hardening.py::test_cancellation_before_side_effect_window_fails_operation_and_propagates",
+      "test/test_durable_agent_hardening.py::test_cancellation_after_non_idempotent_window_is_uncertain_and_propagates",
+      "test/test_g12_capturing_provider.py::test_g12_captured_dispatch_body_equals_snapshot_and_hash[anthropic]",
+      "test/test_g12_capturing_provider.py::test_g12_captured_dispatch_body_equals_snapshot_and_hash[openai]",
+      "test/test_model_governance.py::test_fallback_groups_one_logical_call_and_conservatively_settles_uncertain_attempt",
+      "test/test_observability_preflight.py::test_web_memory_recall_reports_skipped_when_disabled",
+      "test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[None-False]",
+      "test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[None-True]",
+      "test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[TimeoutError-False]",
+      "test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[TimeoutError-True]",
+      "test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[RuntimeError-False]",
+      "test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[RuntimeError-True]",
+      "test/test_trace_events.py::test_context_activity_emits_root_memory_llm_and_context_nodes",
+      "test/test_trace_events.py::test_deduplicated_tool_activity_still_projects_tool_node",
+      "test/test_trace_events.py::test_canonical_finalize_closes_root_only_after_authoritative_commit[False]",
+      "test/test_trace_events.py::test_canonical_finalize_closes_root_only_after_authoritative_commit[True]",
+      "test/test_w1c_cutover_contract.py::test_dispatch_always_starts_canonical_workflow_and_rejects_legacy_owner",
+      "test/test_w1c_cutover_contract.py::test_terminal_cancel_wins_over_late_agent_outcome[False]",
+      "test/test_w1c_cutover_contract.py::test_terminal_cancel_wins_over_late_agent_outcome[True]",
+      "test/test_w3b_runtime_retirement.py::test_actual_production_registries_match_current_runtime",
+      "test/test_web_temporal_contract.py::test_worker_composition_uses_two_web_task_queues"
+    ]
+  }
+}

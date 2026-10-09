@@ -19,6 +19,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Validate explicit CI test paths
+        run: python scripts/check/ci-test-paths.py
       - run: make lint typecheck
 
   existing-unit-tests:
@@ -31,8 +33,10 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Validate explicit CI test paths
+        run: python scripts/check/ci-test-paths.py
       - name: Existing project test suite
-        run: python -m pytest -m "not postgres" test --junitxml=test-results/existing.xml
+        run: PYTHONPATH=.:src:test python -m pytest -m "not postgres" test --junitxml=test-results/existing.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -64,6 +68,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Validate explicit CI test paths
+        run: python scripts/check/ci-test-paths.py
       - name: Empty database migration smoke test
         run: PYTHONPATH=src APP_DATABASE_URL=$MIGRATION_DATABASE_URL python -m persistence.migrate
       - name: Configure test runtime role passwords
@@ -73,7 +79,7 @@ jobs:
           psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_api PASSWORD 'hpagent_api'"
           psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_worker PASSWORD 'hpagent_worker'"
       - name: Phase A PostgreSQL contract suite
-        run: PYTHONPATH=src python -m pytest -m postgres test/web_persistence --junitxml=test-results/phase-a.xml
+        run: PYTHONPATH=.:src:test python -m pytest -m postgres test/web_persistence --junitxml=test-results/phase-a.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -93,7 +99,14 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U hpagent_migrate -d hpagent"
           --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: [6379:6379]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
     env:
+      REDIS_URL: redis://localhost:6379/15
       MIGRATION_DATABASE_URL: postgresql://hpagent_migrate:hpagent_migrate@localhost:5432/hpagent
       APP_DATABASE_URL: postgresql://hpagent_api:hpagent_api@localhost:5432/hpagent
       WORKER_DATABASE_URL: postgresql://hpagent_worker:hpagent_worker@localhost:5432/hpagent
@@ -105,6 +118,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Validate explicit CI test paths
+        run: python scripts/check/ci-test-paths.py
       - name: Empty database migration
         run: PYTHONPATH=src APP_DATABASE_URL=$MIGRATION_DATABASE_URL python -m persistence.migrate
       - name: Configure runtime role passwords
@@ -113,8 +128,9 @@ jobs:
         run: |
           psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_api PASSWORD 'hpagent_api'"
           psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_worker PASSWORD 'hpagent_worker'"
+      # Real Temporal API contracts run in Phase D with the Temporal service.
       - name: Phase B API contract suite
-        run: PYTHONPATH=src python -m pytest -m postgres test/web_api --junitxml=test-results/phase-b.xml
+        run: PYTHONPATH=.:src:test python -m pytest -m "postgres and not temporal" test/web_api --junitxml=test-results/phase-b.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -146,6 +162,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Validate explicit CI test paths
+        run: python scripts/check/ci-test-paths.py
       - name: Empty database migration
         run: PYTHONPATH=src APP_DATABASE_URL=$MIGRATION_DATABASE_URL python -m persistence.migrate
       - name: Configure runtime role passwords
@@ -154,10 +172,10 @@ jobs:
         run: |
           psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_api PASSWORD 'hpagent_api'"
           psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_worker PASSWORD 'hpagent_worker'"
-      - name: Phase C session and context isolation tests
-        run: PYTHONPATH=src python -m pytest -m postgres test/web_persistence/test_phase_c_sessions.py test/web_persistence/test_phase_c_context.py --junitxml=test-results/phase-c-postgres.xml
+      - name: Phase C conversation and context isolation tests
+        run: PYTHONPATH=.:src:test python -m pytest -m postgres test/web_persistence/test_phase_c_conversations.py test/web_persistence/test_phase_c_context.py --junitxml=test-results/phase-c-postgres.xml
       - name: Phase C workspace isolation tests
-        run: PYTHONPATH=.:src python -m pytest test/test_context_assembly.py test/test_workspace_isolation.py --junitxml=test-results/phase-c-unit.xml
+        run: PYTHONPATH=.:src:test python -m pytest test/test_context_assembly.py test/test_workspace_isolation.py --junitxml=test-results/phase-c-unit.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -192,6 +210,7 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 24
     env:
       TEMPORAL_HOST: localhost:7233
+      TEMPORAL_TEST_NAMESPACE: default
       MIGRATION_DATABASE_URL: postgresql://hpagent_migrate:hpagent_migrate@localhost:5432/hpagent
       APP_DATABASE_URL: postgresql://hpagent_api:hpagent_api@localhost:5432/hpagent
       WORKER_DATABASE_URL: postgresql://hpagent_worker:hpagent_worker@localhost:5432/hpagent
@@ -203,6 +222,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Validate explicit CI test paths
+        run: python scripts/check/ci-test-paths.py
       - name: Empty database migration
         run: PYTHONPATH=src APP_DATABASE_URL=$MIGRATION_DATABASE_URL python -m persistence.migrate
       - name: Configure runtime role passwords
@@ -213,15 +234,16 @@ jobs:
           psql -h localhost -U hpagent_migrate -d hpagent -c "ALTER ROLE hpagent_worker PASSWORD 'hpagent_worker'"
       - name: Phase D frozen Workflow History replay
         run: >-
-          PYTHONPATH=.:src python -m pytest
+          PYTHONPATH=.:src:test python -m pytest
           test/test_agent_segment_replay.py
           --junitxml=test-results/phase-d-replay.xml
       - name: Phase D real Temporal and fault-injection suite
         run: >-
-          PYTHONPATH=.:src python -m pytest -s
+          PYTHONPATH=.:src:test python -m pytest -s
           test/test_web_temporal_integration.py
           test/web_persistence/test_web_temporal_e2e.py
           test/web_persistence/test_web_temporal_lifecycle.py
+          test/web_api/test_workspace_research_cancel_chain.py
           --junitxml=test-results/phase-d.xml
       - uses: actions/upload-artifact@v4
         if: always()
@@ -281,6 +303,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Validate explicit CI test paths
+        run: python scripts/check/ci-test-paths.py
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -320,9 +344,11 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
+      - name: Validate explicit CI test paths
+        run: python scripts/check/ci-test-paths.py
       - name: Phase F unit gate (unified identity / memory retention / background tasks)
         run: >-
-          PYTHONPATH=.:src python -m pytest
+          PYTHONPATH=.:src:test python -m pytest
           test/test_unbound_identity.py
           test/test_hindsight_retain_document.py
           test/test_web_background_tasks.py

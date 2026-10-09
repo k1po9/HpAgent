@@ -5,13 +5,14 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from support.runtime_fakes import install_model_dispatch_guards
 
 from account.entitlement_service import AccountEntitlement, EntitlementLookup, EntitlementState
 from common.types import ModelResponse
 from resources.model_budget_context import model_budget_scope
 from resources.model_client import ModelClient, ModelDispatchError
-from resources.model_input_snapshot import snapshot_content_hash
 from resources.model_governance_errors import ModelAccessTierDenied
+from resources.model_input_snapshot import snapshot_content_hash
 from resources.resource_pool import ResourcePool
 from tracing.metadata import sanitize_trace_metadata
 
@@ -81,6 +82,11 @@ class _Entitlements:
 class _Snapshots:
     def __init__(self):
         self.items = []
+        self.dispatched = []
+
+    def mark_dispatched(self, account_id, snapshot_id):
+        assert snapshot_id is not None
+        self.dispatched.append((account_id, snapshot_id))
 
     def freeze(self, **kwargs):
         self.items.append(kwargs)
@@ -88,6 +94,8 @@ class _Snapshots:
 
 
 class _Budget:
+    database = object()
+
     def __init__(self, *, deny: bool = False):
         self.calls = []
         self.deny = deny
@@ -148,6 +156,7 @@ async def test_fallback_groups_one_logical_call_and_conservatively_settles_uncer
     async def direct(function, *args, **kwargs):
         return function(*args, **kwargs)
     monkeypatch.setattr("resources.resource_pool.asyncio.to_thread", direct)
+    install_model_dispatch_guards(monkeypatch)
     first = _Transport(_client("first"), ModelDispatchError("timeout"))
     second = _Transport(_client("second"), ModelResponse(
         content="ok", usage={"input_tokens": 2, "output_tokens": 1,
@@ -158,7 +167,7 @@ async def test_fallback_groups_one_logical_call_and_conservatively_settles_uncer
     with model_budget_scope(account_id, run_id, "decision", phase="decision"):
         result = await pool.generate([{"role": "user", "content": "hello"}], "chat")
     assert result.content == "ok"
-    assert len(snapshots.items) == 2
+    assert len(snapshots.items) == len(snapshots.dispatched) == 2
     assert len({item["model_call_id"] for item in snapshots.items}) == 1
     assert [item["fallback_attempt"] for item in snapshots.items] == [1, 2]
     assert snapshots.items[0]["endpoint_id"] != snapshots.items[1]["endpoint_id"]
@@ -172,6 +181,7 @@ async def test_disallowed_tier_and_quota_denial_never_dispatch(monkeypatch):
     async def direct(function, *args, **kwargs):
         return function(*args, **kwargs)
     monkeypatch.setattr("resources.resource_pool.asyncio.to_thread", direct)
+    install_model_dispatch_guards(monkeypatch)
     denied = _Transport(_client(), ModelResponse(content="bad"))
     pool, snapshots, _budget = _pool({"primary": denied}, tier="basic")
     with model_budget_scope(uuid4(), uuid4(), "tier"):
@@ -201,3 +211,21 @@ def test_trace_accepts_snapshot_refs_and_rejects_prompt_or_secret_fields() -> No
     })
     assert safe["provider_outcome"] == "uncertain"
     assert "SECRET_SENTINEL" not in repr(safe)
+
+
+@pytest.mark.asyncio
+async def test_revoked_resource_authority_releases_capacity_and_budget_without_dispatch(monkeypatch):
+    from workspace.resources import ResourceDenied
+
+    guards = install_model_dispatch_guards(
+        monkeypatch, dispatch_error=ResourceDenied("revoked")
+    )
+    transport = _Transport(_client(), ModelResponse(content="must not dispatch"))
+    pool, snapshots, budget = _pool({"primary": transport})
+    account_id, run_id = uuid4(), uuid4()
+    with model_budget_scope(account_id, run_id, "revoked"):
+        with pytest.raises(ResourceDenied, match="revoked"):
+            await pool.generate([{"role": "user", "content": "hello"}], "chat")
+    assert guards == [("acquire", run_id), ("authorize", account_id, run_id), ("release", run_id)]
+    assert transport.dispatched == [] and snapshots.dispatched == []
+    assert [call[0] for call in budget.calls] == ["reserve", "release"]

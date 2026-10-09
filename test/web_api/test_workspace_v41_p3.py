@@ -2,11 +2,15 @@ from __future__ import annotations
 
 from uuid import UUID, uuid4
 
+import pytest
+
 from conversation_domain.commands import CommandService
 from file_runtime import OutputPublisher
 from storage.tenant_file_store import TenantFileStore
 from workspace.file_scope import RunFileScope
 from workspace.resources import ResourcePolicy
+
+pytestmark = pytest.mark.postgres
 
 
 def _headers(csrf: str, key: str | None = None) -> dict[str, str]:

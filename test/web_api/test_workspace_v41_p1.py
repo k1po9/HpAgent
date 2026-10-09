@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import pytest
+
+pytestmark = pytest.mark.postgres
+
 
 def _headers(csrf: str, key: str | None = None) -> dict[str, str]:
     headers = {"Origin": "https://testserver", "X-CSRF-Token": csrf}

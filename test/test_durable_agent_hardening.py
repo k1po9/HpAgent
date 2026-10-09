@@ -7,6 +7,11 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from support.runtime_fakes import (
+    ExecutionStoreBoundary,
+    install_execution_uow,
+    install_model_dispatch_guards,
+)
 from temporalio.exceptions import ApplicationError
 
 from actions.contracts import ActionRequest, ActionResult
@@ -43,6 +48,8 @@ def direct_to_thread(monkeypatch):
         return function(*args, **kwargs)
 
     monkeypatch.setattr("agent_activities.runtime.asyncio.to_thread", run)
+    install_execution_uow(monkeypatch)
+    install_model_dispatch_guards(monkeypatch)
 
 
 class Events:
@@ -64,7 +71,7 @@ class ResourcePrep:
         yield
 
 
-class Store:
+class Store(ExecutionStoreBoundary):
     def __init__(
         self,
         state: ToolOperationState,
@@ -85,7 +92,7 @@ class Store:
     def begin_tool_operation(self, operation_id: str, run_id: str) -> ToolOperationState:
         return self.state
 
-    def validate_and_renew_lease(self, account_id: str, run_id: str, token: int):
+    def validate_and_renew_lease(self, account_id: str, run_id: str, token: int, execution_id=None):
         self.validations += 1
         if self.validations == self.fence_on_validation:
             raise StaleFencingToken("taken over")
@@ -295,7 +302,7 @@ async def test_plan_activity_logging_does_not_duplicate_correlation_fields():
         def begin_operation(self, operation_id: str, run_id: str, kind: str):
             return None
 
-        def validate_and_renew_lease(self, account_id: str, run_id: str, token: int):
+        def validate_and_renew_lease(self, account_id: str, run_id: str, token: int, execution_id=None):
             return None
 
         def load_messages(self, transcript_id: str):
@@ -682,3 +689,40 @@ servers:
     )
     with pytest.raises(ValueError, match="invalid side_effect_class"):
         await MCPToolManager(str(config)).load_config()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tool_names,classification,allowed",
+    [([], "read_only", False), (["write_tool"], "read_only", True),
+     (["write_tool"], "non_idempotent_write", False)],
+)
+async def test_subagent_tool_manifest_and_read_only_boundary(
+    monkeypatch, tool_names, classification, allowed
+):
+    boundary = install_execution_uow(monkeypatch, role="subagent", tool_names=tool_names)
+    store = Store(ToolOperationState("started", None))
+    actions = Actions(classification)
+    if allowed:
+        assert (await activities(store, actions).tool_execution(request())).tool_success
+        assert actions.calls == 1 and store.completion is not None
+    else:
+        with pytest.raises(ApplicationError) as denied:
+            await activities(store, actions).tool_execution(request())
+        assert denied.value.type == "delegation_scope_denied"
+        assert denied.value.non_retryable
+        assert actions.calls == 0 and store.completion is None
+    assert boundary == ["fence", "execution"]
+
+
+@pytest.mark.asyncio
+async def test_initial_execution_fence_denial_prevents_tool_dispatch(monkeypatch):
+    boundary = install_execution_uow(monkeypatch, fence_error=StaleFencingToken("taken over"))
+    store = Store(ToolOperationState("started", None))
+    actions = Actions("non_idempotent_write")
+    with pytest.raises(ApplicationError) as denied:
+        await activities(store, actions).tool_execution(request())
+    assert denied.value.type == "stale_fencing_token"
+    assert denied.value.non_retryable
+    assert boundary == ["fence"]
+    assert actions.calls == 0 and store.completion is None

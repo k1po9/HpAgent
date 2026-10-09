@@ -17,6 +17,8 @@ from research_domain.models import (
 )
 from storage.tenant_file_store import TenantFileStore
 
+pytestmark = pytest.mark.postgres
+
 
 def _headers(csrf: str, key: str | None = None) -> dict[str, str]:
     result = {"Origin": "https://testserver", "X-CSRF-Token": csrf}

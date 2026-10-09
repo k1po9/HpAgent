@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from support.runtime_fakes import install_execution_uow
 
 from agent_workflows.ids import root_execution_id
 from application.context_assembly import ContextAssemblyService, WebContextBase
@@ -14,8 +15,9 @@ from application.context_assembly import ContextAssemblyService, WebContextBase
 async def test_web_memory_recall_reports_skipped_when_disabled(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    run_id = uuid4()
     base = WebContextBase(
-        run_id=uuid4(),
+        run_id=run_id,
         account_id=uuid4(),
         conversation_id=uuid4(),
         session_id=uuid4(),
@@ -23,7 +25,7 @@ async def test_web_memory_recall_reports_skipped_when_disabled(
         trigger_message_id=uuid4(),
         trigger_content="question",
         short_term_events=(),
-     execution_id=root_execution_id(uuid4()))
+     execution_id=root_execution_id(run_id))
     service = ContextAssemblyService(None, SimpleNamespace(), hindsight=None)
 
     with caplog.at_level(logging.INFO, logger="HpAgent.ContextAssembly"):
@@ -33,13 +35,15 @@ async def test_web_memory_recall_reports_skipped_when_disabled(
     assert [r.event for r in records] == ["memory_recall_skipped"]
     assert records[0].status == "skipped"
     assert records[0].reason == "memory_disabled"
-    assert records[0].run_id == records[0].execution_id == str(base.run_id)
+    assert records[0].run_id == str(base.run_id)
+    assert records[0].execution_id == str(root_execution_id(base.run_id))
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("final_only", [False, True])
 @pytest.mark.parametrize("failure", [None, TimeoutError, RuntimeError])
-async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog, final_only, failure):
+async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(monkeypatch, caplog, final_only, failure):
+    install_execution_uow(monkeypatch)
     from contextlib import asynccontextmanager
     from unittest.mock import AsyncMock, Mock
 
@@ -63,6 +67,8 @@ async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog,
         "react", "transcript", 1, 1, f"{run_id}:model:1", 1, final_only=final_only,
      execution_id=str(root_execution_id(run_id)))
     store = SimpleNamespace(
+        database_url=object(),
+        _assert_fence=Mock(side_effect=lambda uow: uow.assert_fence()),
         begin_operation=Mock(return_value=None),
         validate_and_renew_lease=Mock(),
         load_messages=Mock(return_value=([{"role": "user", "content": "hi"}], 1)),
@@ -92,8 +98,10 @@ async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog,
         if failure:
             with pytest.raises(ApplicationError) as raised:
                 await runtime.model_decision(request)
-            assert raised.value.type == "model_unavailable"
-            store.fail_operation.assert_called_once_with(request.operation_id, "model_unavailable")
+            code = "model_read_timeout" if failure is TimeoutError else "model_unavailable"
+            assert raised.value.type == code
+            assert not raised.value.non_retryable
+            store.fail_operation.assert_called_once_with(request.operation_id, code)
         else:
             assert (await runtime.model_decision(request)).decision_type == "final"
             store.complete_operation_with_event.assert_called_once()
@@ -102,8 +110,11 @@ async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog,
         "model_decision_started", "model_decision_failed" if failure else "model_decision_completed",
     ]
     for record in records:
-        assert record.run_id == record.execution_id == run_id
+        assert record.run_id == run_id
+        assert record.execution_id == request.execution_id
         assert record.account_id == account_id
         assert record.conversation_id == conversation_id
     events.close.assert_awaited_once()
-    actions.clear_execution.assert_called_once_with(session_id, run_id)
+    actions.clear_execution.assert_called_once_with(
+        f"{request.execution_id}:{request.lease_token}", request.execution_id
+    )

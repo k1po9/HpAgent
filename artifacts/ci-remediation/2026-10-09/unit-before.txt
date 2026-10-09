@@ -1,0 +1,3048 @@
+FFF.FFFFFFFFFFFF.....FF..F..FFFFFFF..........FFFFF....FFF.....F......... [ 81%]
+................                                                         [100%]
+=================================== FAILURES ===================================
+_________ test_tool_activity_reserves_and_settles_measured_usage_once __________
+
+    @pytest.mark.asyncio
+    async def test_tool_activity_reserves_and_settles_measured_usage_once():
+        calls: list[tuple] = []
+
+        class Budget:
+            def reserve(self, run_id, operation_id, values):
+                calls.append(("reserve", run_id, operation_id, values))
+
+            def settle(self, run_id, operation_id, values, source):
+                calls.append(("settle", run_id, operation_id, values, source))
+
+        item = request()
+>       result = await activities(
+            Store(ToolOperationState("started", None)),
+            Actions("read_only"),
+            run_budget=Budget(),
+        ).tool_execution(item)
+
+test/test_durable_agent_hardening.py:210:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bada5ce0f0>
+request = ToolExecutionInput(schema_version=4, run_id='8efe7fb9-7ae8-4893-a30d-295716596ab9', account_id='5f6d6373-9560-405c-8be...lan_id=None, plan_version=None, step_id=None, execution_id='9cdbae34-77fb-e931-b6f3-dc6f5374a8da', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+________ test_read_only_tool_failure_is_a_completed_failure_observation ________
+
+    @pytest.mark.asyncio
+    async def test_read_only_tool_failure_is_a_completed_failure_observation():
+        item = request()
+        store = Store(ToolOperationState("started", None))
+
+>       result = await activities(
+            store, Actions("read_only", error="mock read error")
+        ).tool_execution(item)
+
+test/test_durable_agent_hardening.py:234:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad35ee960>
+request = ToolExecutionInput(schema_version=4, run_id='f2d8e2ff-1463-4df9-86a6-fc70137413f3', account_id='a1f7a472-fe4a-4242-87f...lan_id=None, plan_version=None, step_id=None, execution_id='77f418fe-1572-9b0f-8807-f6f03f30d232', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+________ test_file_tool_activity_projects_only_aggregate_trace_metadata ________
+
+    @pytest.mark.asyncio
+    async def test_file_tool_activity_projects_only_aggregate_trace_metadata():
+        recorded: list[tuple] = []
+
+        class TraceEvents(Events):
+            async def trace_start(
+                self, node_id, parent_id, name, node_type, metadata=None
+            ):
+                recorded.append(("start", name, metadata))
+
+            async def trace_end(self, node_id, status, metadata=None):
+                recorded.append(("end", status, metadata))
+
+        class TraceFactory:
+            def for_run(self, run_id):
+                return TraceEvents()
+
+        item = request()
+        item = replace(
+            item,
+            tool_call=CompactToolCall(
+                "call-1", "count_matches", "decision:1#call-1"
+            ),
+        )
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=Store(ToolOperationState("started", None)),
+            loader=None,
+            brain=None,
+            actions=Actions("read_only"),
+            event_factory=TraceFactory(),
+            resource_prep=ResourcePrep(),
+            lifecycle=None,
+        )
+
+>       await runtime.tool_execution(item)
+
+test/test_durable_agent_hardening.py:284:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad34398e0>
+request = ToolExecutionInput(schema_version=4, run_id='101da840-199b-4d0b-9f8c-8f9dc962612c', account_id='4e4ee4ac-37d6-4dc2-b6f...lan_id=None, plan_version=None, step_id=None, execution_id='d067a3e1-458d-1c09-d790-59d1fdc15208', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+_____ test_second_fencing_check_prevents_side_effect_after_local_lock_wait _____
+
+    @pytest.mark.asyncio
+    async def test_second_fencing_check_prevents_side_effect_after_local_lock_wait():
+        store = Store(ToolOperationState("started", None), fence_on_validation=2)
+        actions = Actions("external_write")
+        with pytest.raises(ApplicationError) as failure:
+>           await activities(store, actions).tool_execution(request())
+
+test/test_durable_agent_hardening.py:380:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad343a150>
+request = ToolExecutionInput(schema_version=4, run_id='bc192d67-c813-4bb1-a270-a528b5b9a0cd', account_id='1a00a5d3-5006-40c4-9fd...lan_id=None, plan_version=None, step_id=None, execution_id='d1665b45-59f8-03dd-2be1-06c0d4aa2ce9', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+_ test_non_idempotent_ack_gap_fails_closed_when_reconciliation_is_unsupported __
+
+    @pytest.mark.asyncio
+    async def test_non_idempotent_ack_gap_fails_closed_when_reconciliation_is_unsupported():
+        req = request()
+        intent = {
+            "schema_version": 1,
+            "tool_call_id": "call-1",
+            "tool": "write_tool",
+            "arguments_hash": "48208f9428d64634bd8e28ff345bf0eab60d53c18fa2fbdb0b9bc1e84df2b5f6",
+            "side_effect_class": "non_idempotent_write",
+            "fencing_token": 11,
+        }
+        store = Store(ToolOperationState("intent_recorded", intent))
+        actions = Actions("external_write")
+        with pytest.raises(ApplicationError) as failure:
+>           await activities(
+                store,
+                actions,
+                reconciler=UnsupportedToolSideEffectReconciler(),
+            ).tool_execution(req)
+
+test/test_durable_agent_hardening.py:400:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad343b8c0>
+request = ToolExecutionInput(schema_version=4, run_id='b1534dab-86db-492d-becd-98b392766ae4', account_id='16fe0c60-7ea0-493e-a6c...lan_id=None, plan_version=None, step_id=None, execution_id='922d4a31-dab4-e394-748e-364448434a0c', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+____ test_fault_hook_marks_ack_gap_uncertain_after_exactly_one_side_effect _____
+
+    @pytest.mark.asyncio
+    async def test_fault_hook_marks_ack_gap_uncertain_after_exactly_one_side_effect():
+        store = Store(ToolOperationState("started", None))
+        actions = Actions("external_write")
+        with pytest.raises(ApplicationError) as failure:
+>           await activities(
+                store,
+                actions,
+                fault_injector=CrashAfterSideEffect(),
+            ).tool_execution(request())
+
+test/test_durable_agent_hardening.py:415:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad34f8620>
+request = ToolExecutionInput(schema_version=4, run_id='d1ff1d0a-ad77-4971-9420-e64b91dce3bc', account_id='7cd1a276-e416-4ada-bb5...lan_id=None, plan_version=None, step_id=None, execution_id='1acc51a5-ce5c-63ad-b6e4-a65c61095d52', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+_________ test_idempotent_write_ack_gap_retry_reuses_budget_operation __________
+
+    @pytest.mark.asyncio
+    async def test_idempotent_write_ack_gap_retry_reuses_budget_operation():
+        store = Store(ToolOperationState("started", None))
+        actions = Actions("idempotent_write")
+
+        class Budget:
+            settled: dict[str, dict[str, int]] = {}
+            used_tool_calls = 0
+
+            def reserve(self, run_id, operation_id, values):
+                return None
+
+            def settle(self, run_id, operation_id, values, source):
+                previous = self.settled.get(operation_id)
+                if previous is None:
+                    self.settled[operation_id] = dict(values)
+                    self.used_tool_calls += values["tool_calls"]
+                else:
+                    assert previous == values
+
+        budget = Budget()
+        item = request()
+        with pytest.raises(ApplicationError):
+>           await activities(
+                store, actions, run_budget=budget,
+                fault_injector=CrashAfterSideEffect(),
+            ).tool_execution(item)
+
+test/test_durable_agent_hardening.py:449:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad34f9610>
+request = ToolExecutionInput(schema_version=4, run_id='974c365e-ada1-4b7f-bfa3-3909e5fc48ea', account_id='297aa870-1cc0-4c4a-931...lan_id=None, plan_version=None, step_id=None, execution_id='7bcf74db-1d6a-58c5-5e94-88f75bec8b7b', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+________ test_non_idempotent_completion_failure_is_exposed_as_uncertain ________
+
+    @pytest.mark.asyncio
+    async def test_non_idempotent_completion_failure_is_exposed_as_uncertain():
+        store = Store(
+            ToolOperationState("started", None),
+            completion_error=RuntimeError("database write failed"),
+        )
+        actions = Actions("non_idempotent_write")
+        with pytest.raises(ApplicationError) as failure:
+>           await activities(store, actions).tool_execution(request())
+
+test/test_durable_agent_hardening.py:469:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad343b860>
+request = ToolExecutionInput(schema_version=4, run_id='8313aeab-c04f-48b6-a3d4-10488138ae84', account_id='9dcb3ea4-b3b7-4eb1-a59...lan_id=None, plan_version=None, step_id=None, execution_id='069cedbe-2652-6ed0-2e76-4817ea48124e', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+____ test_non_idempotent_transcript_conflict_after_side_effect_is_uncertain ____
+
+    @pytest.mark.asyncio
+    async def test_non_idempotent_transcript_conflict_after_side_effect_is_uncertain():
+        store = Store(
+            ToolOperationState("started", None),
+            completion_error=TranscriptVersionConflict("concurrent transcript update"),
+        )
+        actions = Actions("non_idempotent_write")
+        with pytest.raises(ApplicationError) as failure:
+>           await activities(store, actions).tool_execution(request())
+
+test/test_durable_agent_hardening.py:484:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad343ade0>
+request = ToolExecutionInput(schema_version=4, run_id='7ea30b31-301b-4ecb-b620-86ed37daca79', account_id='5511daf0-1e19-46ac-9fb...lan_id=None, plan_version=None, step_id=None, execution_id='c589a610-4798-7bb5-7d1a-568a6d164e34', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+_____ test_redelivered_non_idempotent_intent_with_stale_fence_is_uncertain _____
+
+    @pytest.mark.asyncio
+    async def test_redelivered_non_idempotent_intent_with_stale_fence_is_uncertain():
+        req = request()
+        intent = {
+            "schema_version": 1,
+            "tool_call_id": "call-1",
+            "tool": "write_tool",
+            "arguments_hash": "stable",
+            "side_effect_class": "non_idempotent_write",
+            "fencing_token": 11,
+        }
+        store = Store(
+            ToolOperationState("intent_recorded", intent),
+            fence_on_validation=1,
+        )
+        with pytest.raises(ApplicationError) as failure:
+>           await activities(store, Actions("non_idempotent_write")).tool_execution(req)
+
+test/test_durable_agent_hardening.py:506:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad35eedb0>
+request = ToolExecutionInput(schema_version=4, run_id='4df6d2f0-a8d5-45fc-a3e3-3d90060e3938', account_id='d297d9e0-5da4-48eb-9fc...lan_id=None, plan_version=None, step_id=None, execution_id='a19c3d03-d52f-606f-dc6f-a8047a4b871b', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+_____ test_redelivered_non_idempotent_intent_rejects_classification_drift ______
+
+    @pytest.mark.asyncio
+    async def test_redelivered_non_idempotent_intent_rejects_classification_drift():
+        req = request()
+        intent = {
+            "schema_version": 1,
+            "tool_call_id": "call-1",
+            "tool": "write_tool",
+            "arguments_hash": "48208f9428d64634bd8e28ff345bf0eab60d53c18fa2fbdb0b9bc1e84df2b5f6",
+            "side_effect_class": "non_idempotent_write",
+            "fencing_token": 11,
+        }
+        store = Store(ToolOperationState("intent_recorded", intent))
+        actions = Actions("read_only")
+        with pytest.raises(ApplicationError) as failure:
+>           await activities(store, actions).tool_execution(req)
+
+test/test_durable_agent_hardening.py:527:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad34f85f0>
+request = ToolExecutionInput(schema_version=4, run_id='a776d002-75c7-470e-9adf-400abaaceb88', account_id='99f6c3f9-58f9-46f7-baa...lan_id=None, plan_version=None, step_id=None, execution_id='910a65b8-c81b-8098-137d-37a2e3ea8816', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+__________ test_pre_side_effect_stale_fence_preserves_original_error ___________
+
+    @pytest.mark.asyncio
+    async def test_pre_side_effect_stale_fence_preserves_original_error():
+        store = Store(ToolOperationState("started", None), fence_on_validation=1)
+        actions = Actions("non_idempotent_write")
+        with pytest.raises(ApplicationError) as failure:
+>           await activities(store, actions).tool_execution(request())
+
+test/test_durable_agent_hardening.py:538:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad34fa5d0>
+request = ToolExecutionInput(schema_version=4, run_id='8802f3c4-fe11-4366-b81c-9ca1bf9d4713', account_id='5c1c0d8e-08a8-4e4c-ad4...lan_id=None, plan_version=None, step_id=None, execution_id='d7bfc3f2-1a52-ba14-6c74-5193ea57b45d', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+______ test_non_idempotent_action_error_is_uncertain_and_never_completed _______
+
+    @pytest.mark.asyncio
+    async def test_non_idempotent_action_error_is_uncertain_and_never_completed():
+        store = Store(ToolOperationState("started", None))
+        actions = Actions("non_idempotent_write", error="provider timed out")
+        with pytest.raises(ApplicationError) as failure:
+>           await activities(store, actions).tool_execution(request())
+
+test/test_durable_agent_hardening.py:550:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad34fb980>
+request = ToolExecutionInput(schema_version=4, run_id='3558aae6-e931-450e-946f-43ca33951ab7', account_id='a3636bed-3694-4314-996...lan_id=None, plan_version=None, step_id=None, execution_id='e0bca8dd-da6a-af57-3b8a-abe2bca712d7', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+__ test_cancellation_before_side_effect_window_fails_operation_and_propagates __
+
+    @pytest.mark.asyncio
+    async def test_cancellation_before_side_effect_window_fails_operation_and_propagates():
+        store = Store(
+            ToolOperationState("started", None),
+            load_error=asyncio.CancelledError(),
+        )
+        actions = Actions("non_idempotent_write")
+
+        with pytest.raises(asyncio.CancelledError):
+>           await activities(store, actions).tool_execution(request())
+
+test/test_durable_agent_hardening.py:566:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad34fae70>
+request = ToolExecutionInput(schema_version=4, run_id='b77faf90-4610-482e-b16a-ad2db04babc6', account_id='d7b33e82-7208-4d17-90a...lan_id=None, plan_version=None, step_id=None, execution_id='543d433b-9b0c-6e22-9a67-c44aa782ef2e', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+__ test_cancellation_after_non_idempotent_window_is_uncertain_and_propagates ___
+
+    @pytest.mark.asyncio
+    async def test_cancellation_after_non_idempotent_window_is_uncertain_and_propagates():
+        store = Store(ToolOperationState("started", None))
+        actions = Actions("non_idempotent_write", cancel=True)
+
+        with pytest.raises(asyncio.CancelledError):
+>           await activities(store, actions).tool_execution(request())
+
+test/test_durable_agent_hardening.py:579:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad35eeae0>
+request = ToolExecutionInput(schema_version=4, run_id='358f0902-1ef9-4963-9683-2031c2b5ea0c', account_id='4ee415e0-f77e-499b-946...lan_id=None, plan_version=None, step_id=None, execution_id='4bf54c90-2038-742a-8c17-72d0a28a228e', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+_____ test_g12_captured_dispatch_body_equals_snapshot_and_hash[anthropic] ______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bad343a870>
+api_format = 'anthropic'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("api_format", ["anthropic", "openai"])
+    async def test_g12_captured_dispatch_body_equals_snapshot_and_hash(monkeypatch, api_format):
+        """G12 captures the object passed to HTTP dispatch, not only _build_payload()."""
+        async def direct(function, *args, **kwargs):
+            return function(*args, **kwargs)
+
+        _CapturingAsyncClient.captures = []
+        monkeypatch.setattr(httpx, "AsyncClient", _CapturingAsyncClient)
+        monkeypatch.setattr("resources.resource_pool.asyncio.to_thread", direct)
+        snapshots = _Snapshots()
+        budget = _Budget()
+        client = _client(f"{api_format}:primary", api_format)
+        pool = ResourcePool(
+            SimpleNamespace(),
+            entitlement_service=_Entitlements(),
+            budget_coordinator=budget,
+            snapshot_repository=snapshots,
+        )
+        pool._model_clients = {
+            client.endpoint_id: {"client": client, "access_tier": "standard"}
+        }
+        pool._fallback_groups = {"chat": [client.endpoint_id]}
+        messages = [{"role": "user", "content": "G12-PROMPT-SENTINEL"}]
+        tools = [{"name": "lookup", "description": "lookup", "input_schema": {"type": "object"}}]
+
+        with model_budget_scope(uuid4(), uuid4(), "react-decision", phase="decision"):
+>           result = await pool.generate(messages, "chat", tools=tools)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/test_g12_capturing_provider.py:143:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <resources.resource_pool.ResourcePool object at 0x79bad34fa570>
+messages = [{'content': 'G12-PROMPT-SENTINEL', 'role': 'user'}]
+model_selector = 'chat'
+tools = [{'description': 'lookup', 'input_schema': {'type': 'object'}, 'name': 'lookup'}]
+stream = False, max_tokens = None, latency_budget = None
+
+    async def generate(
+        self,
+        messages: List[Dict[str, Any]],
+        model_selector: str = "default",
+        tools: Optional[List[Dict[str, Any]]] = None,
+        stream: bool = False,
+        max_tokens: Optional[int] = None,
+        latency_budget: Optional[float] = None,
+    ) -> Any:
+        """按退避链调用模型生成回复。
+
+        退避逻辑:
+          1. model_selector 可以是退避组名（"default"）或具体 model_id。
+          2. 按顺序逐一尝试候选模型。
+          3. ModelAPIError / ConnectionError / TimeoutError → 自动跳到下一个。
+          4. 其他异常（如 TypeError、ValueError）→ 不隐藏，直接抛出。
+          5. 所有模型都失败 → 抛出 ModelAPIError。
+
+        Args:
+            messages: LLM 标准 messages 列表。
+            model_selector: 模型选择器（退避组名或 model_id）。
+            tools: 工具定义列表。
+            stream: 是否启用流式返回。
+
+        Returns:
+            ModelResponse 对象。
+
+        Raises:
+            ModelAPIError: 所有模型均调用失败。
+        """
+        # 解析选择器: 优先查找退避组，找不到则视为单模型 ID
+        candidate_ids = self._fallback_groups.get(model_selector, [model_selector])
+        last_error = None
+        chain_start = time.monotonic()
+        attempt = 0
+        configured_candidates = 0
+        tier_denied_candidates = 0
+        call_context = current_model_call()
+        governed = any((self._entitlements, self._budget, self._snapshots))
+        if governed and not all((self._entitlements, self._budget, self._snapshots)):
+            raise RuntimeError("model governance services are only partially configured")
+        if governed and call_context is None:
+            raise RuntimeError("production model call is missing ModelCallContext")
+        if call_context is not None:
+            call_ordinal, model_call_id = call_context.begin_logical_call()
+            call_context.model_call_id = model_call_id
+
+        for model_id in candidate_ids:
+            attempt += 1
+            model_info = self._model_clients.get(model_id)
+            if not model_info:
+                continue
+            configured_candidates += 1
+            client = model_info["client"]
+            if call_context is not None:
+                call_context.endpoint_id = model_id
+                call_context.provider = getattr(client, "provider", None)
+                call_context.model = getattr(client, "model", None)
+                call_context.attempt = attempt
+                call_context.failure_logged = False
+                event_fields = dict(
+                    artifact_id=call_context.artifact_id,
+                    artifact_version_id=call_context.artifact_version_id,
+                    source_run_id=str(call_context.run_id),
+                    workflow_id=call_context.workflow_id,
+                    model_call_id=str(model_call_id),
+                    endpoint_id=model_id, provider=call_context.provider,
+                    model=call_context.model, attempt=attempt,
+                )
+            t0 = time.monotonic()
+            budget_operation_id = ""
+            reservation: dict[str, int] | None = None
+            should_settle = False
+            quota_date = None
+            prepared = None
+            snapshot = None
+            provider_dispatched = False
+            if governed and call_context is not None:
+                lookup = await asyncio.to_thread(
+                    self._entitlements.get, call_context.account_id
+                )
+                entitlement = getattr(lookup, "entitlement", None)
+                if getattr(getattr(lookup, "state", None), "value", None) != "valid" or entitlement is None:
+                    raise AccountModelEntitlementUnavailable("model entitlement unavailable")
+                endpoint_tier = str(model_info.get("access_tier", "standard"))
+                account_tier = str(entitlement.model_access_tier)
+                if account_tier != "owner" and account_tier != endpoint_tier:
+                    logger.info(
+                        "Skipping endpoint %s: Account tier %s cannot use %s",
+                        model_id, account_tier, endpoint_tier,
+                    )
+                    last_error = ModelAPIError("model endpoint access tier denied")
+                    tier_denied_candidates += 1
+                    continue
+                try:
+                    prepared = client.prepare_request(
+                        messages, tools, stream, max_tokens=max_tokens,
+                    )
+                except ModelRequestInvalid:
+                    raise
+                except Exception as exc:
+                    last_error = exc
+                    continue
+                body = prepared.body()
+                budget_operation_id = call_context.attempt_operation_id(
+                    model_call_id, attempt, model_id
+                )
+                input_tokens = estimate_messages_tokens(list(body.get("messages") or []))
+                if body.get("system"):
+                    input_tokens += estimate_tokens(str(body["system"])) + 4
+                if body.get("tools"):
+                    input_tokens += estimate_tokens(json.dumps(
+                        body["tools"], ensure_ascii=False, sort_keys=True,
+                    ))
+                output_tokens = max(0, int(body.get("max_tokens", 0)))
+                reservation = {
+                    "model_input_tokens": input_tokens,
+                    "model_output_tokens": max(0, output_tokens),
+                    "model_total_tokens": input_tokens + max(0, output_tokens),
+                    "model_calls": 1,
+                }
+                common_snapshot = dict(
+                    account_id=call_context.account_id, run_id=call_context.run_id,
+                    model_call_id=model_call_id, operation_id=budget_operation_id,
+                    execution_attempt=call_context.execution_attempt,
+                    call_ordinal=call_ordinal, fallback_attempt=attempt,
+                    phase=call_context.phase,
+                    entitlement_version=entitlement.version,
+                )
+                freeze = getattr(self._snapshots, "freeze", None)
+                if freeze is not None:
+                    snapshot = await asyncio.to_thread(
+                        freeze, **common_snapshot, endpoint_id=prepared.endpoint_id,
+                        provider=prepared.provider, model=prepared.model,
+                        api_format=prepared.api_format, payload=body,
+                        resolved_url=prepared.url,
+                        serializer_version=prepared.serializer_version,
+                    )
+                else:
+                    snapshot = await asyncio.to_thread(
+                        self._snapshots.create, **common_snapshot, prepared=prepared,
+                    )
+                mutation = await asyncio.to_thread(
+                    self._budget.reserve,
+                    call_context.account_id,
+                    call_context.run_id,
+                    budget_operation_id,
+                    reservation["model_total_tokens"],
+                    reservation,
+                    final_response=call_context.final_response,
+                    snapshot_id=snapshot.snapshot_id,
+                    expected_entitlement_version=entitlement.version,
+                    endpoint_access_tier=endpoint_tier,
+                )
+                quota_date = mutation.account.quota_date
+                should_settle = not (
+                    getattr(mutation.account, "replayed", False)
+                    and getattr(mutation.account, "state", "") in {"settled", "released"}
+                )
+            if call_context is not None and call_context.artifact_version_id:
+                log_event(logger, logging.INFO, "artifact_model_call_started", "artifact", **event_fields)
+            try:
+                from contextlib import AsyncExitStack
+                async with AsyncExitStack() as capacity_stack:
+                    if governed:
+                        from resources.capacity import CapacityService
+>                       await capacity_stack.enter_async_context(CapacityService(self._budget.database).slot(call_context.run_id, 'model'))
+                                                                                 ^^^^^^^^^^^^^^^^^^^^^
+E                       AttributeError: '_Budget' object has no attribute 'database'
+
+src/resources/resource_pool.py:286: AttributeError
+_______ test_g12_captured_dispatch_body_equals_snapshot_and_hash[openai] _______
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bad34ea3c0>
+api_format = 'openai'
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("api_format", ["anthropic", "openai"])
+    async def test_g12_captured_dispatch_body_equals_snapshot_and_hash(monkeypatch, api_format):
+        """G12 captures the object passed to HTTP dispatch, not only _build_payload()."""
+        async def direct(function, *args, **kwargs):
+            return function(*args, **kwargs)
+
+        _CapturingAsyncClient.captures = []
+        monkeypatch.setattr(httpx, "AsyncClient", _CapturingAsyncClient)
+        monkeypatch.setattr("resources.resource_pool.asyncio.to_thread", direct)
+        snapshots = _Snapshots()
+        budget = _Budget()
+        client = _client(f"{api_format}:primary", api_format)
+        pool = ResourcePool(
+            SimpleNamespace(),
+            entitlement_service=_Entitlements(),
+            budget_coordinator=budget,
+            snapshot_repository=snapshots,
+        )
+        pool._model_clients = {
+            client.endpoint_id: {"client": client, "access_tier": "standard"}
+        }
+        pool._fallback_groups = {"chat": [client.endpoint_id]}
+        messages = [{"role": "user", "content": "G12-PROMPT-SENTINEL"}]
+        tools = [{"name": "lookup", "description": "lookup", "input_schema": {"type": "object"}}]
+
+        with model_budget_scope(uuid4(), uuid4(), "react-decision", phase="decision"):
+>           result = await pool.generate(messages, "chat", tools=tools)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/test_g12_capturing_provider.py:143:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <resources.resource_pool.ResourcePool object at 0x79bad34ea510>
+messages = [{'content': 'G12-PROMPT-SENTINEL', 'role': 'user'}]
+model_selector = 'chat'
+tools = [{'description': 'lookup', 'input_schema': {'type': 'object'}, 'name': 'lookup'}]
+stream = False, max_tokens = None, latency_budget = None
+
+    async def generate(
+        self,
+        messages: List[Dict[str, Any]],
+        model_selector: str = "default",
+        tools: Optional[List[Dict[str, Any]]] = None,
+        stream: bool = False,
+        max_tokens: Optional[int] = None,
+        latency_budget: Optional[float] = None,
+    ) -> Any:
+        """按退避链调用模型生成回复。
+
+        退避逻辑:
+          1. model_selector 可以是退避组名（"default"）或具体 model_id。
+          2. 按顺序逐一尝试候选模型。
+          3. ModelAPIError / ConnectionError / TimeoutError → 自动跳到下一个。
+          4. 其他异常（如 TypeError、ValueError）→ 不隐藏，直接抛出。
+          5. 所有模型都失败 → 抛出 ModelAPIError。
+
+        Args:
+            messages: LLM 标准 messages 列表。
+            model_selector: 模型选择器（退避组名或 model_id）。
+            tools: 工具定义列表。
+            stream: 是否启用流式返回。
+
+        Returns:
+            ModelResponse 对象。
+
+        Raises:
+            ModelAPIError: 所有模型均调用失败。
+        """
+        # 解析选择器: 优先查找退避组，找不到则视为单模型 ID
+        candidate_ids = self._fallback_groups.get(model_selector, [model_selector])
+        last_error = None
+        chain_start = time.monotonic()
+        attempt = 0
+        configured_candidates = 0
+        tier_denied_candidates = 0
+        call_context = current_model_call()
+        governed = any((self._entitlements, self._budget, self._snapshots))
+        if governed and not all((self._entitlements, self._budget, self._snapshots)):
+            raise RuntimeError("model governance services are only partially configured")
+        if governed and call_context is None:
+            raise RuntimeError("production model call is missing ModelCallContext")
+        if call_context is not None:
+            call_ordinal, model_call_id = call_context.begin_logical_call()
+            call_context.model_call_id = model_call_id
+
+        for model_id in candidate_ids:
+            attempt += 1
+            model_info = self._model_clients.get(model_id)
+            if not model_info:
+                continue
+            configured_candidates += 1
+            client = model_info["client"]
+            if call_context is not None:
+                call_context.endpoint_id = model_id
+                call_context.provider = getattr(client, "provider", None)
+                call_context.model = getattr(client, "model", None)
+                call_context.attempt = attempt
+                call_context.failure_logged = False
+                event_fields = dict(
+                    artifact_id=call_context.artifact_id,
+                    artifact_version_id=call_context.artifact_version_id,
+                    source_run_id=str(call_context.run_id),
+                    workflow_id=call_context.workflow_id,
+                    model_call_id=str(model_call_id),
+                    endpoint_id=model_id, provider=call_context.provider,
+                    model=call_context.model, attempt=attempt,
+                )
+            t0 = time.monotonic()
+            budget_operation_id = ""
+            reservation: dict[str, int] | None = None
+            should_settle = False
+            quota_date = None
+            prepared = None
+            snapshot = None
+            provider_dispatched = False
+            if governed and call_context is not None:
+                lookup = await asyncio.to_thread(
+                    self._entitlements.get, call_context.account_id
+                )
+                entitlement = getattr(lookup, "entitlement", None)
+                if getattr(getattr(lookup, "state", None), "value", None) != "valid" or entitlement is None:
+                    raise AccountModelEntitlementUnavailable("model entitlement unavailable")
+                endpoint_tier = str(model_info.get("access_tier", "standard"))
+                account_tier = str(entitlement.model_access_tier)
+                if account_tier != "owner" and account_tier != endpoint_tier:
+                    logger.info(
+                        "Skipping endpoint %s: Account tier %s cannot use %s",
+                        model_id, account_tier, endpoint_tier,
+                    )
+                    last_error = ModelAPIError("model endpoint access tier denied")
+                    tier_denied_candidates += 1
+                    continue
+                try:
+                    prepared = client.prepare_request(
+                        messages, tools, stream, max_tokens=max_tokens,
+                    )
+                except ModelRequestInvalid:
+                    raise
+                except Exception as exc:
+                    last_error = exc
+                    continue
+                body = prepared.body()
+                budget_operation_id = call_context.attempt_operation_id(
+                    model_call_id, attempt, model_id
+                )
+                input_tokens = estimate_messages_tokens(list(body.get("messages") or []))
+                if body.get("system"):
+                    input_tokens += estimate_tokens(str(body["system"])) + 4
+                if body.get("tools"):
+                    input_tokens += estimate_tokens(json.dumps(
+                        body["tools"], ensure_ascii=False, sort_keys=True,
+                    ))
+                output_tokens = max(0, int(body.get("max_tokens", 0)))
+                reservation = {
+                    "model_input_tokens": input_tokens,
+                    "model_output_tokens": max(0, output_tokens),
+                    "model_total_tokens": input_tokens + max(0, output_tokens),
+                    "model_calls": 1,
+                }
+                common_snapshot = dict(
+                    account_id=call_context.account_id, run_id=call_context.run_id,
+                    model_call_id=model_call_id, operation_id=budget_operation_id,
+                    execution_attempt=call_context.execution_attempt,
+                    call_ordinal=call_ordinal, fallback_attempt=attempt,
+                    phase=call_context.phase,
+                    entitlement_version=entitlement.version,
+                )
+                freeze = getattr(self._snapshots, "freeze", None)
+                if freeze is not None:
+                    snapshot = await asyncio.to_thread(
+                        freeze, **common_snapshot, endpoint_id=prepared.endpoint_id,
+                        provider=prepared.provider, model=prepared.model,
+                        api_format=prepared.api_format, payload=body,
+                        resolved_url=prepared.url,
+                        serializer_version=prepared.serializer_version,
+                    )
+                else:
+                    snapshot = await asyncio.to_thread(
+                        self._snapshots.create, **common_snapshot, prepared=prepared,
+                    )
+                mutation = await asyncio.to_thread(
+                    self._budget.reserve,
+                    call_context.account_id,
+                    call_context.run_id,
+                    budget_operation_id,
+                    reservation["model_total_tokens"],
+                    reservation,
+                    final_response=call_context.final_response,
+                    snapshot_id=snapshot.snapshot_id,
+                    expected_entitlement_version=entitlement.version,
+                    endpoint_access_tier=endpoint_tier,
+                )
+                quota_date = mutation.account.quota_date
+                should_settle = not (
+                    getattr(mutation.account, "replayed", False)
+                    and getattr(mutation.account, "state", "") in {"settled", "released"}
+                )
+            if call_context is not None and call_context.artifact_version_id:
+                log_event(logger, logging.INFO, "artifact_model_call_started", "artifact", **event_fields)
+            try:
+                from contextlib import AsyncExitStack
+                async with AsyncExitStack() as capacity_stack:
+                    if governed:
+                        from resources.capacity import CapacityService
+>                       await capacity_stack.enter_async_context(CapacityService(self._budget.database).slot(call_context.run_id, 'model'))
+                                                                                 ^^^^^^^^^^^^^^^^^^^^^
+E                       AttributeError: '_Budget' object has no attribute 'database'
+
+src/resources/resource_pool.py:286: AttributeError
+_ test_fallback_groups_one_logical_call_and_conservatively_settles_uncertain_attempt _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bad34ebb60>
+
+    @pytest.mark.asyncio
+    async def test_fallback_groups_one_logical_call_and_conservatively_settles_uncertain_attempt(monkeypatch):
+        async def direct(function, *args, **kwargs):
+            return function(*args, **kwargs)
+        monkeypatch.setattr("resources.resource_pool.asyncio.to_thread", direct)
+        first = _Transport(_client("first"), ModelDispatchError("timeout"))
+        second = _Transport(_client("second"), ModelResponse(
+            content="ok", usage={"input_tokens": 2, "output_tokens": 1,
+                                 "total_tokens": 3, "usage_source": "provider"},
+        ))
+        pool, snapshots, budget = _pool({"first": first, "second": second})
+        account_id, run_id = uuid4(), uuid4()
+        with model_budget_scope(account_id, run_id, "decision", phase="decision"):
+>           result = await pool.generate([{"role": "user", "content": "hello"}], "chat")
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/test_model_governance.py:159:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <resources.resource_pool.ResourcePool object at 0x79bad34fd070>
+messages = [{'content': 'hello', 'role': 'user'}], model_selector = 'chat'
+tools = None, stream = False, max_tokens = None, latency_budget = None
+
+    async def generate(
+        self,
+        messages: List[Dict[str, Any]],
+        model_selector: str = "default",
+        tools: Optional[List[Dict[str, Any]]] = None,
+        stream: bool = False,
+        max_tokens: Optional[int] = None,
+        latency_budget: Optional[float] = None,
+    ) -> Any:
+        """按退避链调用模型生成回复。
+
+        退避逻辑:
+          1. model_selector 可以是退避组名（"default"）或具体 model_id。
+          2. 按顺序逐一尝试候选模型。
+          3. ModelAPIError / ConnectionError / TimeoutError → 自动跳到下一个。
+          4. 其他异常（如 TypeError、ValueError）→ 不隐藏，直接抛出。
+          5. 所有模型都失败 → 抛出 ModelAPIError。
+
+        Args:
+            messages: LLM 标准 messages 列表。
+            model_selector: 模型选择器（退避组名或 model_id）。
+            tools: 工具定义列表。
+            stream: 是否启用流式返回。
+
+        Returns:
+            ModelResponse 对象。
+
+        Raises:
+            ModelAPIError: 所有模型均调用失败。
+        """
+        # 解析选择器: 优先查找退避组，找不到则视为单模型 ID
+        candidate_ids = self._fallback_groups.get(model_selector, [model_selector])
+        last_error = None
+        chain_start = time.monotonic()
+        attempt = 0
+        configured_candidates = 0
+        tier_denied_candidates = 0
+        call_context = current_model_call()
+        governed = any((self._entitlements, self._budget, self._snapshots))
+        if governed and not all((self._entitlements, self._budget, self._snapshots)):
+            raise RuntimeError("model governance services are only partially configured")
+        if governed and call_context is None:
+            raise RuntimeError("production model call is missing ModelCallContext")
+        if call_context is not None:
+            call_ordinal, model_call_id = call_context.begin_logical_call()
+            call_context.model_call_id = model_call_id
+
+        for model_id in candidate_ids:
+            attempt += 1
+            model_info = self._model_clients.get(model_id)
+            if not model_info:
+                continue
+            configured_candidates += 1
+            client = model_info["client"]
+            if call_context is not None:
+                call_context.endpoint_id = model_id
+                call_context.provider = getattr(client, "provider", None)
+                call_context.model = getattr(client, "model", None)
+                call_context.attempt = attempt
+                call_context.failure_logged = False
+                event_fields = dict(
+                    artifact_id=call_context.artifact_id,
+                    artifact_version_id=call_context.artifact_version_id,
+                    source_run_id=str(call_context.run_id),
+                    workflow_id=call_context.workflow_id,
+                    model_call_id=str(model_call_id),
+                    endpoint_id=model_id, provider=call_context.provider,
+                    model=call_context.model, attempt=attempt,
+                )
+            t0 = time.monotonic()
+            budget_operation_id = ""
+            reservation: dict[str, int] | None = None
+            should_settle = False
+            quota_date = None
+            prepared = None
+            snapshot = None
+            provider_dispatched = False
+            if governed and call_context is not None:
+                lookup = await asyncio.to_thread(
+                    self._entitlements.get, call_context.account_id
+                )
+                entitlement = getattr(lookup, "entitlement", None)
+                if getattr(getattr(lookup, "state", None), "value", None) != "valid" or entitlement is None:
+                    raise AccountModelEntitlementUnavailable("model entitlement unavailable")
+                endpoint_tier = str(model_info.get("access_tier", "standard"))
+                account_tier = str(entitlement.model_access_tier)
+                if account_tier != "owner" and account_tier != endpoint_tier:
+                    logger.info(
+                        "Skipping endpoint %s: Account tier %s cannot use %s",
+                        model_id, account_tier, endpoint_tier,
+                    )
+                    last_error = ModelAPIError("model endpoint access tier denied")
+                    tier_denied_candidates += 1
+                    continue
+                try:
+                    prepared = client.prepare_request(
+                        messages, tools, stream, max_tokens=max_tokens,
+                    )
+                except ModelRequestInvalid:
+                    raise
+                except Exception as exc:
+                    last_error = exc
+                    continue
+                body = prepared.body()
+                budget_operation_id = call_context.attempt_operation_id(
+                    model_call_id, attempt, model_id
+                )
+                input_tokens = estimate_messages_tokens(list(body.get("messages") or []))
+                if body.get("system"):
+                    input_tokens += estimate_tokens(str(body["system"])) + 4
+                if body.get("tools"):
+                    input_tokens += estimate_tokens(json.dumps(
+                        body["tools"], ensure_ascii=False, sort_keys=True,
+                    ))
+                output_tokens = max(0, int(body.get("max_tokens", 0)))
+                reservation = {
+                    "model_input_tokens": input_tokens,
+                    "model_output_tokens": max(0, output_tokens),
+                    "model_total_tokens": input_tokens + max(0, output_tokens),
+                    "model_calls": 1,
+                }
+                common_snapshot = dict(
+                    account_id=call_context.account_id, run_id=call_context.run_id,
+                    model_call_id=model_call_id, operation_id=budget_operation_id,
+                    execution_attempt=call_context.execution_attempt,
+                    call_ordinal=call_ordinal, fallback_attempt=attempt,
+                    phase=call_context.phase,
+                    entitlement_version=entitlement.version,
+                )
+                freeze = getattr(self._snapshots, "freeze", None)
+                if freeze is not None:
+                    snapshot = await asyncio.to_thread(
+                        freeze, **common_snapshot, endpoint_id=prepared.endpoint_id,
+                        provider=prepared.provider, model=prepared.model,
+                        api_format=prepared.api_format, payload=body,
+                        resolved_url=prepared.url,
+                        serializer_version=prepared.serializer_version,
+                    )
+                else:
+                    snapshot = await asyncio.to_thread(
+                        self._snapshots.create, **common_snapshot, prepared=prepared,
+                    )
+                mutation = await asyncio.to_thread(
+                    self._budget.reserve,
+                    call_context.account_id,
+                    call_context.run_id,
+                    budget_operation_id,
+                    reservation["model_total_tokens"],
+                    reservation,
+                    final_response=call_context.final_response,
+                    snapshot_id=snapshot.snapshot_id,
+                    expected_entitlement_version=entitlement.version,
+                    endpoint_access_tier=endpoint_tier,
+                )
+                quota_date = mutation.account.quota_date
+                should_settle = not (
+                    getattr(mutation.account, "replayed", False)
+                    and getattr(mutation.account, "state", "") in {"settled", "released"}
+                )
+            if call_context is not None and call_context.artifact_version_id:
+                log_event(logger, logging.INFO, "artifact_model_call_started", "artifact", **event_fields)
+            try:
+                from contextlib import AsyncExitStack
+                async with AsyncExitStack() as capacity_stack:
+                    if governed:
+                        from resources.capacity import CapacityService
+>                       await capacity_stack.enter_async_context(CapacityService(self._budget.database).slot(call_context.run_id, 'model'))
+                                                                                 ^^^^^^^^^^^^^^^^^^^^^
+E                       AttributeError: '_Budget' object has no attribute 'database'
+
+src/resources/resource_pool.py:286: AttributeError
+_____________ test_web_memory_recall_reports_skipped_when_disabled _____________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x79bad34fcce0>
+
+    @pytest.mark.asyncio
+    async def test_web_memory_recall_reports_skipped_when_disabled(
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        base = WebContextBase(
+            run_id=uuid4(),
+            account_id=uuid4(),
+            conversation_id=uuid4(),
+            session_id=uuid4(),
+            context_message_seq=1,
+            trigger_message_id=uuid4(),
+            trigger_content="question",
+            short_term_events=(),
+         execution_id=root_execution_id(uuid4()))
+        service = ContextAssemblyService(None, SimpleNamespace(), hindsight=None)
+
+        with caplog.at_level(logging.INFO, logger="HpAgent.ContextAssembly"):
+            assert await service.recall_long_term(base, "rewritten") == ()
+
+        records = [r for r in caplog.records if getattr(r, "component", None) == "memory"]
+        assert [r.event for r in records] == ["memory_recall_skipped"]
+        assert records[0].status == "skipped"
+        assert records[0].reason == "memory_disabled"
+>       assert records[0].run_id == records[0].execution_id == str(base.run_id)
+E       AssertionError: assert '74f8980a-9f9...-6ecffc3845d6' == 'cc6085b0-412...-7bfc0c47d6d7'
+E
+E         - cc6085b0-4126-3e8b-b21e-7bfc0c47d6d7
+E         + 74f8980a-9f91-4886-a7c8-6ecffc3845d6
+
+test/test_observability_preflight.py:36: AssertionError
+------------------------------ Captured log call -------------------------------
+INFO     HpAgent.ContextAssembly:logging.py:49 memory_recall_skipped
+__ test_durable_model_lifecycle_preserves_correlation_and_cleanup[None-False] __
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad33a1280>
+request = ModelDecisionInput(schema_version=4, run_id='cec4ba9d-ba88-4389-afda-00e3146eb86f', account_id='5b53a16b-c868-4bfe-bd3...lan_id=None, plan_version=None, step_id=None, execution_id='5ba0925e-760a-181b-1d43-2df12849ac28', execution_attempt=1)
+
+    @activity.defn(name="model_decision_activity")
+    @fenced_activity
+    async def model_decision(self, request: ModelDecisionInput) -> ModelDecisionResult:
+        self._check_schema(request.schema_version)
+        started = time.monotonic()
+        fields = self._correlation(request)
+        events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        model_node_id = trace_node_id(request.run_id, "llm_call", request.operation_id)
+        model_phase = (
+            "synthesis"
+            if request.final_only and request.plan_id
+            else "forced_final"
+            if request.final_only
+            else "plan_step"
+            if request.plan_id and request.step_id
+            else "decision"
+        )
+        await trace_start(
+            events,
+            model_node_id,
+            root_node_id,
+            "LLMCall",
+            "llm",
+            {
+                "operation_id": request.operation_id,
+                "turn": request.turn,
+                "phase": model_phase,
+                "model_selector": "chat",
+            },
+        )
+        log_event(model_logger, logging.INFO, "model_decision_started", "model", **fields, status="started")
+        if int(fields["activity_attempt"]) > 1:
+            log_event(model_logger, logging.WARNING, "activity_retry_detected", "model", **fields, status="retrying")
+        previous = await asyncio.to_thread(
+            self.store.begin_operation, request.operation_id, request.run_id,
+            "synthesis" if request.final_only and request.plan_id else "model",
+        )
+        if previous is not None:
+            log_event(model_logger, logging.INFO, "operation_deduplicated", "model", **fields, status="deduplicated", result_ref=previous.get("decision_ref"))
+            result = self._decision_from_payload(previous)
+            await trace_end(
+                events,
+                model_node_id,
+                "completed",
+                {"deduplicated": True, "stop_reason": result.stop_reason},
+            )
+            await events.close()
+            return result
+        trace_status = "failed"
+        trace_metadata: dict[str, Any] = {"error_code": "model_unavailable"}
+        try:
+            await asyncio.to_thread(
+                self.store.validate_and_renew_lease,
+                request.account_id,
+                request.run_id,
+                request.lease_token,
+            )
+            messages, actual_version = await asyncio.to_thread(
+                self.store.load_messages, request.transcript_id
+            )
+            if actual_version != request.transcript_version:
+                raise TranscriptVersionConflict("model input transcript version changed")
+            model_messages = list(messages)
+            if request.objective:
+                objective_message = {
+                    "role": "system",
+                    "content": f"当前只执行此目标；完成后直接给出该步骤结果：{request.objective}",
+                }
+                position = 1 if model_messages and model_messages[0].get("role") == "system" else 0
+                model_messages.insert(position, objective_message)
+            if request.plan_id and request.step_id:
+                await events.progress("executing_step", "正在执行计划步骤。")
+            elif request.plan_id and request.final_only:
+                await events.progress("synthesizing", "正在汇总计划结果。")
+            else:
+                await events.progress("calling_model", "正在生成回复。")
+            from agent_activities.delegation import current_execution
+            from agent_workflows.delegation_contracts import DELEGATE_MANIFEST, DELEGATE_TOOL
+            from persistence.uow import UnitOfWork
+>           with UnitOfWork(self.store.database_url) as uow:
+                            ^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'types.SimpleNamespace' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:505: AttributeError
+
+The above exception was the direct cause of the following exception:
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x79bad34ea8a0>
+final_only = False, failure = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("final_only", [False, True])
+    @pytest.mark.parametrize("failure", [None, TimeoutError, RuntimeError])
+    async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog, final_only, failure):
+        from contextlib import asynccontextmanager
+        from unittest.mock import AsyncMock, Mock
+
+        from temporalio.exceptions import ApplicationError
+
+        from agent_activities.runtime import DurableAgentActivities
+        from agent_workflows.contracts import (
+            AGENT_SCHEMA_VERSION,
+            ChatContext,
+            ModelDecisionInput,
+            RunContext,
+            RunSource,
+        )
+        from brain.contracts import BrainDecision
+        from conversation_domain.execution_bindings import ChatExecutionBindings
+
+        run_id, account_id, conversation_id, session_id = [str(uuid4()) for _ in range(4)]
+        request = ModelDecisionInput(
+            AGENT_SCHEMA_VERSION, run_id, account_id, RunSource("chat", conversation_id),
+            RunContext(chat=ChatContext(conversation_id, session_id, None), surface="napcat"),
+            "react", "transcript", 1, 1, f"{run_id}:model:1", 1, final_only=final_only,
+         execution_id=str(root_execution_id(run_id)))
+        store = SimpleNamespace(
+            begin_operation=Mock(return_value=None),
+            validate_and_renew_lease=Mock(),
+            load_messages=Mock(return_value=([{"role": "user", "content": "hi"}], 1)),
+            complete_operation_with_event=Mock(return_value=2),
+            fail_operation=Mock(),
+        )
+        actions = SimpleNamespace(reset_execution=Mock(), select_tools=AsyncMock(return_value=[]),
+                                  clear_execution=Mock())
+        events = SimpleNamespace(progress=AsyncMock(), trace_start=AsyncMock(),
+                                 trace_end=AsyncMock(), close=AsyncMock())
+        decision = BrainDecision("answer", [], "stop", {})
+        brain = SimpleNamespace(
+            generate_chat_decision=AsyncMock(return_value=decision, side_effect=failure),
+            generate_final_decision=AsyncMock(return_value=decision, side_effect=failure),
+        )
+
+        @asynccontextmanager
+        async def workspace(*args):
+            yield
+
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(), store=store, loader=None,
+            brain=brain, actions=actions, event_factory=SimpleNamespace(for_run=lambda _: events),
+            resource_prep=SimpleNamespace(lease_for_run=workspace), lifecycle=None,
+        )
+        with caplog.at_level(logging.INFO, logger="HpAgent.ModelDecisionActivity"):
+            if failure:
+                with pytest.raises(ApplicationError) as raised:
+                    await runtime.model_decision(request)
+                assert raised.value.type == "model_unavailable"
+                store.fail_operation.assert_called_once_with(request.operation_id, "model_unavailable")
+            else:
+>               assert (await runtime.model_decision(request)).decision_type == "final"
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/test_observability_preflight.py:98:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad33a1280>
+request = ModelDecisionInput(schema_version=4, run_id='cec4ba9d-ba88-4389-afda-00e3146eb86f', account_id='5b53a16b-c868-4bfe-bd3...lan_id=None, plan_version=None, step_id=None, execution_id='5ba0925e-760a-181b-1d43-2df12849ac28', execution_attempt=1)
+
+    @activity.defn(name="model_decision_activity")
+    @fenced_activity
+    async def model_decision(self, request: ModelDecisionInput) -> ModelDecisionResult:
+        self._check_schema(request.schema_version)
+        started = time.monotonic()
+        fields = self._correlation(request)
+        events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        model_node_id = trace_node_id(request.run_id, "llm_call", request.operation_id)
+        model_phase = (
+            "synthesis"
+            if request.final_only and request.plan_id
+            else "forced_final"
+            if request.final_only
+            else "plan_step"
+            if request.plan_id and request.step_id
+            else "decision"
+        )
+        await trace_start(
+            events,
+            model_node_id,
+            root_node_id,
+            "LLMCall",
+            "llm",
+            {
+                "operation_id": request.operation_id,
+                "turn": request.turn,
+                "phase": model_phase,
+                "model_selector": "chat",
+            },
+        )
+        log_event(model_logger, logging.INFO, "model_decision_started", "model", **fields, status="started")
+        if int(fields["activity_attempt"]) > 1:
+            log_event(model_logger, logging.WARNING, "activity_retry_detected", "model", **fields, status="retrying")
+        previous = await asyncio.to_thread(
+            self.store.begin_operation, request.operation_id, request.run_id,
+            "synthesis" if request.final_only and request.plan_id else "model",
+        )
+        if previous is not None:
+            log_event(model_logger, logging.INFO, "operation_deduplicated", "model", **fields, status="deduplicated", result_ref=previous.get("decision_ref"))
+            result = self._decision_from_payload(previous)
+            await trace_end(
+                events,
+                model_node_id,
+                "completed",
+                {"deduplicated": True, "stop_reason": result.stop_reason},
+            )
+            await events.close()
+            return result
+        trace_status = "failed"
+        trace_metadata: dict[str, Any] = {"error_code": "model_unavailable"}
+        try:
+            await asyncio.to_thread(
+                self.store.validate_and_renew_lease,
+                request.account_id,
+                request.run_id,
+                request.lease_token,
+            )
+            messages, actual_version = await asyncio.to_thread(
+                self.store.load_messages, request.transcript_id
+            )
+            if actual_version != request.transcript_version:
+                raise TranscriptVersionConflict("model input transcript version changed")
+            model_messages = list(messages)
+            if request.objective:
+                objective_message = {
+                    "role": "system",
+                    "content": f"当前只执行此目标；完成后直接给出该步骤结果：{request.objective}",
+                }
+                position = 1 if model_messages and model_messages[0].get("role") == "system" else 0
+                model_messages.insert(position, objective_message)
+            if request.plan_id and request.step_id:
+                await events.progress("executing_step", "正在执行计划步骤。")
+            elif request.plan_id and request.final_only:
+                await events.progress("synthesizing", "正在汇总计划结果。")
+            else:
+                await events.progress("calling_model", "正在生成回复。")
+            from agent_activities.delegation import current_execution
+            from agent_workflows.delegation_contracts import DELEGATE_MANIFEST, DELEGATE_TOOL
+            from persistence.uow import UnitOfWork
+            with UnitOfWork(self.store.database_url) as uow:
+                self.store._assert_fence(uow)
+                execution = current_execution(uow)
+                is_child = execution["role"] == "subagent"
+            delegatable_tools = []
+            async with self._workspace(request):
+                await asyncio.to_thread(
+                    self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
+                    request.execution_id,
+                )
+                self.actions.reset_execution(self.context_bindings.resource_key(request), request.execution_id)
+                with model_budget_scope(
+                    request.account_id, request.run_id, request.operation_id,
+                    phase=model_phase,
+                    execution_attempt=request.execution_attempt,
+                    final_response=request.final_only and not is_child,
+                ):
+                    if request.final_only:
+                        decision = await self.brain.generate_final_decision(messages=model_messages)
+                    else:
+                        tools = await self.actions.select_tools(
+                            user_content=request.objective or self._last_user_content(model_messages),
+                            resource_key=self.context_bindings.resource_key(request),
+                            execution_id=request.execution_id,
+                        )
+                        def tool_name(tool):
+                            return tool.get("function", tool).get("name", "")
+                        delegatable_tools = [tool_name(tool) for tool in tools
+                            if self.actions.side_effect_class(self.context_bindings.resource_key(request), tool_name(tool)) == "read_only"]
+                        if is_child:
+                            allowed = execution["resource_scope"]["tool_names"]
+                            tools = [tool for tool in tools if tool_name(tool) in allowed
+                                and tool_name(tool) in delegatable_tools and tool_name(tool) != DELEGATE_TOOL]
+                        elif request.source.source_kind == "work":
+                            tools = [*tools, DELEGATE_MANIFEST]
+                        decision = await self.brain.generate_chat_decision(
+                            messages=model_messages,
+                            tools=tools or None,
+                        )
+            result_ref = f"agent-decision:{request.operation_id}"
+            calls = tuple(
+                CompactToolCall(item.id, item.name, f"{result_ref}#{item.id}")
+                for item in decision.action_requests
+            )
+            content = self._safe_final_content(decision.content) if not calls else decision.content
+            message: dict[str, Any] = {"role": "assistant", "content": content}
+            if calls:
+                message["tool_calls"] = [
+                    {
+                        "id": item.id,
+                        "name": item.name,
+                        "arguments": dict(item.arguments),
+                    }
+                    for item in decision.action_requests
+                ]
+            payload = {
+                "schema_version": AGENT_SCHEMA_VERSION,
+                "operation_id": request.operation_id,
+                "decision_type": "tool_calls" if calls else "final",
+                "decision_ref": result_ref,
+                "tool_calls": [asdict(item) for item in calls],
+                "delegatable_tools": delegatable_tools,
+                "tool_call_arguments": {
+                    item.id: dict(item.arguments)
+                    for item in decision.action_requests
+                },
+                "transcript_version": request.transcript_version,
+                "stop_reason": str(getattr(decision, "stop_reason", "")),
+                "display_summary": content[:240],
+                "content": content,
+            }
+            version = await asyncio.to_thread(
+                self.store.complete_operation_with_event,
+                transcript_id=request.transcript_id,
+                expected_version=request.transcript_version,
+                event_type="model_decision",
+                operation_id=request.operation_id,
+                event_payload={"message": message, "stop_reason": payload["stop_reason"]},
+                result_ref=result_ref,
+                result_payload=payload,
+            )
+            payload["transcript_version"] = version
+            result = self._decision_from_payload(payload)
+            input_context = getattr(decision, "input_context", None) or {}
+            trace_status = "completed"
+            trace_metadata = {
+                "stop_reason": result.stop_reason,
+                "tool_count": len(result.tool_calls),
+                "estimated_input_tokens": input_context.get("estimated_tokens"),
+                **model_observation_metadata(decision),
+            }
+        except StaleFencingToken as exc:
+            trace_metadata = {"error_code": exc.code}
+            await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
+            log_event(model_logger, logging.ERROR, "execution_fenced", "model", **fields, status="rejected", error_code=exc.code)
+            raise ApplicationError("执行租约已失效。", type=exc.code, non_retryable=True) from exc
+        except TranscriptVersionConflict as exc:
+            trace_metadata = {"error_code": exc.code}
+            await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
+            raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
+        except Exception as exc:
+            governance = classify_model_governance_failure(exc)
+            if governance is not None:
+                trace_metadata = {"error_code": governance.code}
+                await asyncio.to_thread(self.store.fail_operation, request.operation_id, governance.code)
+                raise ApplicationError(
+                    governance.safe_message, type=governance.code, non_retryable=True
+                ) from exc
+            if isinstance(exc, RunBudgetExhausted):
+                trace_metadata = {"error_code": exc.code}
+                await asyncio.to_thread(
+                    self.store.fail_operation, request.operation_id, exc.code
+                )
+                raise ApplicationError(
+                    "Run 执行预算已耗尽。", type=exc.code, non_retryable=True
+                ) from exc
+            if isinstance(exc, ApplicationError):
+                raise
+            from resources.model_failures import classify_model_failure
+            failure = classify_model_failure(exc)
+            trace_metadata = {"error_code": failure.code, "http_status": failure.http_status,
+                              "error_category": failure.category}
+            await asyncio.to_thread(self.store.fail_operation, request.operation_id, failure.code)
+            log_event(model_logger, logging.ERROR, "model_decision_failed", "model", **fields,
+                      status="failed", error_code=failure.code, error_category=failure.category,
+                      http_status=failure.http_status, retryable=failure.retryable,
+                      elapsed_ms=round((time.monotonic() - started) * 1000))
+>           raise ApplicationError(failure.safe_message, type=failure.code,
+                                   non_retryable=not failure.retryable) from exc
+E           temporalio.exceptions.ApplicationError: model_unavailable: 模型暂时不可用。
+
+src/agent_activities/runtime.py:632: ApplicationError
+------------------------------ Captured log call -------------------------------
+INFO     HpAgent.ModelDecisionActivity:logging.py:49 model_decision_started
+ERROR    HpAgent.ModelDecisionActivity:logging.py:49 model_decision_failed
+__ test_durable_model_lifecycle_preserves_correlation_and_cleanup[None-True] ___
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad3320e00>
+request = ModelDecisionInput(schema_version=4, run_id='ffff3c70-3c85-4580-93e0-0b5400e1ebe3', account_id='bb2c357e-52bf-4799-8c8...lan_id=None, plan_version=None, step_id=None, execution_id='642b998b-b18d-455b-0e36-4d830a747a96', execution_attempt=1)
+
+    @activity.defn(name="model_decision_activity")
+    @fenced_activity
+    async def model_decision(self, request: ModelDecisionInput) -> ModelDecisionResult:
+        self._check_schema(request.schema_version)
+        started = time.monotonic()
+        fields = self._correlation(request)
+        events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        model_node_id = trace_node_id(request.run_id, "llm_call", request.operation_id)
+        model_phase = (
+            "synthesis"
+            if request.final_only and request.plan_id
+            else "forced_final"
+            if request.final_only
+            else "plan_step"
+            if request.plan_id and request.step_id
+            else "decision"
+        )
+        await trace_start(
+            events,
+            model_node_id,
+            root_node_id,
+            "LLMCall",
+            "llm",
+            {
+                "operation_id": request.operation_id,
+                "turn": request.turn,
+                "phase": model_phase,
+                "model_selector": "chat",
+            },
+        )
+        log_event(model_logger, logging.INFO, "model_decision_started", "model", **fields, status="started")
+        if int(fields["activity_attempt"]) > 1:
+            log_event(model_logger, logging.WARNING, "activity_retry_detected", "model", **fields, status="retrying")
+        previous = await asyncio.to_thread(
+            self.store.begin_operation, request.operation_id, request.run_id,
+            "synthesis" if request.final_only and request.plan_id else "model",
+        )
+        if previous is not None:
+            log_event(model_logger, logging.INFO, "operation_deduplicated", "model", **fields, status="deduplicated", result_ref=previous.get("decision_ref"))
+            result = self._decision_from_payload(previous)
+            await trace_end(
+                events,
+                model_node_id,
+                "completed",
+                {"deduplicated": True, "stop_reason": result.stop_reason},
+            )
+            await events.close()
+            return result
+        trace_status = "failed"
+        trace_metadata: dict[str, Any] = {"error_code": "model_unavailable"}
+        try:
+            await asyncio.to_thread(
+                self.store.validate_and_renew_lease,
+                request.account_id,
+                request.run_id,
+                request.lease_token,
+            )
+            messages, actual_version = await asyncio.to_thread(
+                self.store.load_messages, request.transcript_id
+            )
+            if actual_version != request.transcript_version:
+                raise TranscriptVersionConflict("model input transcript version changed")
+            model_messages = list(messages)
+            if request.objective:
+                objective_message = {
+                    "role": "system",
+                    "content": f"当前只执行此目标；完成后直接给出该步骤结果：{request.objective}",
+                }
+                position = 1 if model_messages and model_messages[0].get("role") == "system" else 0
+                model_messages.insert(position, objective_message)
+            if request.plan_id and request.step_id:
+                await events.progress("executing_step", "正在执行计划步骤。")
+            elif request.plan_id and request.final_only:
+                await events.progress("synthesizing", "正在汇总计划结果。")
+            else:
+                await events.progress("calling_model", "正在生成回复。")
+            from agent_activities.delegation import current_execution
+            from agent_workflows.delegation_contracts import DELEGATE_MANIFEST, DELEGATE_TOOL
+            from persistence.uow import UnitOfWork
+>           with UnitOfWork(self.store.database_url) as uow:
+                            ^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'types.SimpleNamespace' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:505: AttributeError
+
+The above exception was the direct cause of the following exception:
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x79bad33a2570>
+final_only = True, failure = None
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("final_only", [False, True])
+    @pytest.mark.parametrize("failure", [None, TimeoutError, RuntimeError])
+    async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog, final_only, failure):
+        from contextlib import asynccontextmanager
+        from unittest.mock import AsyncMock, Mock
+
+        from temporalio.exceptions import ApplicationError
+
+        from agent_activities.runtime import DurableAgentActivities
+        from agent_workflows.contracts import (
+            AGENT_SCHEMA_VERSION,
+            ChatContext,
+            ModelDecisionInput,
+            RunContext,
+            RunSource,
+        )
+        from brain.contracts import BrainDecision
+        from conversation_domain.execution_bindings import ChatExecutionBindings
+
+        run_id, account_id, conversation_id, session_id = [str(uuid4()) for _ in range(4)]
+        request = ModelDecisionInput(
+            AGENT_SCHEMA_VERSION, run_id, account_id, RunSource("chat", conversation_id),
+            RunContext(chat=ChatContext(conversation_id, session_id, None), surface="napcat"),
+            "react", "transcript", 1, 1, f"{run_id}:model:1", 1, final_only=final_only,
+         execution_id=str(root_execution_id(run_id)))
+        store = SimpleNamespace(
+            begin_operation=Mock(return_value=None),
+            validate_and_renew_lease=Mock(),
+            load_messages=Mock(return_value=([{"role": "user", "content": "hi"}], 1)),
+            complete_operation_with_event=Mock(return_value=2),
+            fail_operation=Mock(),
+        )
+        actions = SimpleNamespace(reset_execution=Mock(), select_tools=AsyncMock(return_value=[]),
+                                  clear_execution=Mock())
+        events = SimpleNamespace(progress=AsyncMock(), trace_start=AsyncMock(),
+                                 trace_end=AsyncMock(), close=AsyncMock())
+        decision = BrainDecision("answer", [], "stop", {})
+        brain = SimpleNamespace(
+            generate_chat_decision=AsyncMock(return_value=decision, side_effect=failure),
+            generate_final_decision=AsyncMock(return_value=decision, side_effect=failure),
+        )
+
+        @asynccontextmanager
+        async def workspace(*args):
+            yield
+
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(), store=store, loader=None,
+            brain=brain, actions=actions, event_factory=SimpleNamespace(for_run=lambda _: events),
+            resource_prep=SimpleNamespace(lease_for_run=workspace), lifecycle=None,
+        )
+        with caplog.at_level(logging.INFO, logger="HpAgent.ModelDecisionActivity"):
+            if failure:
+                with pytest.raises(ApplicationError) as raised:
+                    await runtime.model_decision(request)
+                assert raised.value.type == "model_unavailable"
+                store.fail_operation.assert_called_once_with(request.operation_id, "model_unavailable")
+            else:
+>               assert (await runtime.model_decision(request)).decision_type == "final"
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/test_observability_preflight.py:98:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad3320e00>
+request = ModelDecisionInput(schema_version=4, run_id='ffff3c70-3c85-4580-93e0-0b5400e1ebe3', account_id='bb2c357e-52bf-4799-8c8...lan_id=None, plan_version=None, step_id=None, execution_id='642b998b-b18d-455b-0e36-4d830a747a96', execution_attempt=1)
+
+    @activity.defn(name="model_decision_activity")
+    @fenced_activity
+    async def model_decision(self, request: ModelDecisionInput) -> ModelDecisionResult:
+        self._check_schema(request.schema_version)
+        started = time.monotonic()
+        fields = self._correlation(request)
+        events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        model_node_id = trace_node_id(request.run_id, "llm_call", request.operation_id)
+        model_phase = (
+            "synthesis"
+            if request.final_only and request.plan_id
+            else "forced_final"
+            if request.final_only
+            else "plan_step"
+            if request.plan_id and request.step_id
+            else "decision"
+        )
+        await trace_start(
+            events,
+            model_node_id,
+            root_node_id,
+            "LLMCall",
+            "llm",
+            {
+                "operation_id": request.operation_id,
+                "turn": request.turn,
+                "phase": model_phase,
+                "model_selector": "chat",
+            },
+        )
+        log_event(model_logger, logging.INFO, "model_decision_started", "model", **fields, status="started")
+        if int(fields["activity_attempt"]) > 1:
+            log_event(model_logger, logging.WARNING, "activity_retry_detected", "model", **fields, status="retrying")
+        previous = await asyncio.to_thread(
+            self.store.begin_operation, request.operation_id, request.run_id,
+            "synthesis" if request.final_only and request.plan_id else "model",
+        )
+        if previous is not None:
+            log_event(model_logger, logging.INFO, "operation_deduplicated", "model", **fields, status="deduplicated", result_ref=previous.get("decision_ref"))
+            result = self._decision_from_payload(previous)
+            await trace_end(
+                events,
+                model_node_id,
+                "completed",
+                {"deduplicated": True, "stop_reason": result.stop_reason},
+            )
+            await events.close()
+            return result
+        trace_status = "failed"
+        trace_metadata: dict[str, Any] = {"error_code": "model_unavailable"}
+        try:
+            await asyncio.to_thread(
+                self.store.validate_and_renew_lease,
+                request.account_id,
+                request.run_id,
+                request.lease_token,
+            )
+            messages, actual_version = await asyncio.to_thread(
+                self.store.load_messages, request.transcript_id
+            )
+            if actual_version != request.transcript_version:
+                raise TranscriptVersionConflict("model input transcript version changed")
+            model_messages = list(messages)
+            if request.objective:
+                objective_message = {
+                    "role": "system",
+                    "content": f"当前只执行此目标；完成后直接给出该步骤结果：{request.objective}",
+                }
+                position = 1 if model_messages and model_messages[0].get("role") == "system" else 0
+                model_messages.insert(position, objective_message)
+            if request.plan_id and request.step_id:
+                await events.progress("executing_step", "正在执行计划步骤。")
+            elif request.plan_id and request.final_only:
+                await events.progress("synthesizing", "正在汇总计划结果。")
+            else:
+                await events.progress("calling_model", "正在生成回复。")
+            from agent_activities.delegation import current_execution
+            from agent_workflows.delegation_contracts import DELEGATE_MANIFEST, DELEGATE_TOOL
+            from persistence.uow import UnitOfWork
+            with UnitOfWork(self.store.database_url) as uow:
+                self.store._assert_fence(uow)
+                execution = current_execution(uow)
+                is_child = execution["role"] == "subagent"
+            delegatable_tools = []
+            async with self._workspace(request):
+                await asyncio.to_thread(
+                    self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
+                    request.execution_id,
+                )
+                self.actions.reset_execution(self.context_bindings.resource_key(request), request.execution_id)
+                with model_budget_scope(
+                    request.account_id, request.run_id, request.operation_id,
+                    phase=model_phase,
+                    execution_attempt=request.execution_attempt,
+                    final_response=request.final_only and not is_child,
+                ):
+                    if request.final_only:
+                        decision = await self.brain.generate_final_decision(messages=model_messages)
+                    else:
+                        tools = await self.actions.select_tools(
+                            user_content=request.objective or self._last_user_content(model_messages),
+                            resource_key=self.context_bindings.resource_key(request),
+                            execution_id=request.execution_id,
+                        )
+                        def tool_name(tool):
+                            return tool.get("function", tool).get("name", "")
+                        delegatable_tools = [tool_name(tool) for tool in tools
+                            if self.actions.side_effect_class(self.context_bindings.resource_key(request), tool_name(tool)) == "read_only"]
+                        if is_child:
+                            allowed = execution["resource_scope"]["tool_names"]
+                            tools = [tool for tool in tools if tool_name(tool) in allowed
+                                and tool_name(tool) in delegatable_tools and tool_name(tool) != DELEGATE_TOOL]
+                        elif request.source.source_kind == "work":
+                            tools = [*tools, DELEGATE_MANIFEST]
+                        decision = await self.brain.generate_chat_decision(
+                            messages=model_messages,
+                            tools=tools or None,
+                        )
+            result_ref = f"agent-decision:{request.operation_id}"
+            calls = tuple(
+                CompactToolCall(item.id, item.name, f"{result_ref}#{item.id}")
+                for item in decision.action_requests
+            )
+            content = self._safe_final_content(decision.content) if not calls else decision.content
+            message: dict[str, Any] = {"role": "assistant", "content": content}
+            if calls:
+                message["tool_calls"] = [
+                    {
+                        "id": item.id,
+                        "name": item.name,
+                        "arguments": dict(item.arguments),
+                    }
+                    for item in decision.action_requests
+                ]
+            payload = {
+                "schema_version": AGENT_SCHEMA_VERSION,
+                "operation_id": request.operation_id,
+                "decision_type": "tool_calls" if calls else "final",
+                "decision_ref": result_ref,
+                "tool_calls": [asdict(item) for item in calls],
+                "delegatable_tools": delegatable_tools,
+                "tool_call_arguments": {
+                    item.id: dict(item.arguments)
+                    for item in decision.action_requests
+                },
+                "transcript_version": request.transcript_version,
+                "stop_reason": str(getattr(decision, "stop_reason", "")),
+                "display_summary": content[:240],
+                "content": content,
+            }
+            version = await asyncio.to_thread(
+                self.store.complete_operation_with_event,
+                transcript_id=request.transcript_id,
+                expected_version=request.transcript_version,
+                event_type="model_decision",
+                operation_id=request.operation_id,
+                event_payload={"message": message, "stop_reason": payload["stop_reason"]},
+                result_ref=result_ref,
+                result_payload=payload,
+            )
+            payload["transcript_version"] = version
+            result = self._decision_from_payload(payload)
+            input_context = getattr(decision, "input_context", None) or {}
+            trace_status = "completed"
+            trace_metadata = {
+                "stop_reason": result.stop_reason,
+                "tool_count": len(result.tool_calls),
+                "estimated_input_tokens": input_context.get("estimated_tokens"),
+                **model_observation_metadata(decision),
+            }
+        except StaleFencingToken as exc:
+            trace_metadata = {"error_code": exc.code}
+            await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
+            log_event(model_logger, logging.ERROR, "execution_fenced", "model", **fields, status="rejected", error_code=exc.code)
+            raise ApplicationError("执行租约已失效。", type=exc.code, non_retryable=True) from exc
+        except TranscriptVersionConflict as exc:
+            trace_metadata = {"error_code": exc.code}
+            await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
+            raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
+        except Exception as exc:
+            governance = classify_model_governance_failure(exc)
+            if governance is not None:
+                trace_metadata = {"error_code": governance.code}
+                await asyncio.to_thread(self.store.fail_operation, request.operation_id, governance.code)
+                raise ApplicationError(
+                    governance.safe_message, type=governance.code, non_retryable=True
+                ) from exc
+            if isinstance(exc, RunBudgetExhausted):
+                trace_metadata = {"error_code": exc.code}
+                await asyncio.to_thread(
+                    self.store.fail_operation, request.operation_id, exc.code
+                )
+                raise ApplicationError(
+                    "Run 执行预算已耗尽。", type=exc.code, non_retryable=True
+                ) from exc
+            if isinstance(exc, ApplicationError):
+                raise
+            from resources.model_failures import classify_model_failure
+            failure = classify_model_failure(exc)
+            trace_metadata = {"error_code": failure.code, "http_status": failure.http_status,
+                              "error_category": failure.category}
+            await asyncio.to_thread(self.store.fail_operation, request.operation_id, failure.code)
+            log_event(model_logger, logging.ERROR, "model_decision_failed", "model", **fields,
+                      status="failed", error_code=failure.code, error_category=failure.category,
+                      http_status=failure.http_status, retryable=failure.retryable,
+                      elapsed_ms=round((time.monotonic() - started) * 1000))
+>           raise ApplicationError(failure.safe_message, type=failure.code,
+                                   non_retryable=not failure.retryable) from exc
+E           temporalio.exceptions.ApplicationError: model_unavailable: 模型暂时不可用。
+
+src/agent_activities/runtime.py:632: ApplicationError
+------------------------------ Captured log call -------------------------------
+INFO     HpAgent.ModelDecisionActivity:logging.py:49 model_decision_started
+ERROR    HpAgent.ModelDecisionActivity:logging.py:49 model_decision_failed
+_ test_durable_model_lifecycle_preserves_correlation_and_cleanup[TimeoutError-False] _
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x79bad334f470>
+final_only = False, failure = <class 'TimeoutError'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("final_only", [False, True])
+    @pytest.mark.parametrize("failure", [None, TimeoutError, RuntimeError])
+    async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog, final_only, failure):
+        from contextlib import asynccontextmanager
+        from unittest.mock import AsyncMock, Mock
+
+        from temporalio.exceptions import ApplicationError
+
+        from agent_activities.runtime import DurableAgentActivities
+        from agent_workflows.contracts import (
+            AGENT_SCHEMA_VERSION,
+            ChatContext,
+            ModelDecisionInput,
+            RunContext,
+            RunSource,
+        )
+        from brain.contracts import BrainDecision
+        from conversation_domain.execution_bindings import ChatExecutionBindings
+
+        run_id, account_id, conversation_id, session_id = [str(uuid4()) for _ in range(4)]
+        request = ModelDecisionInput(
+            AGENT_SCHEMA_VERSION, run_id, account_id, RunSource("chat", conversation_id),
+            RunContext(chat=ChatContext(conversation_id, session_id, None), surface="napcat"),
+            "react", "transcript", 1, 1, f"{run_id}:model:1", 1, final_only=final_only,
+         execution_id=str(root_execution_id(run_id)))
+        store = SimpleNamespace(
+            begin_operation=Mock(return_value=None),
+            validate_and_renew_lease=Mock(),
+            load_messages=Mock(return_value=([{"role": "user", "content": "hi"}], 1)),
+            complete_operation_with_event=Mock(return_value=2),
+            fail_operation=Mock(),
+        )
+        actions = SimpleNamespace(reset_execution=Mock(), select_tools=AsyncMock(return_value=[]),
+                                  clear_execution=Mock())
+        events = SimpleNamespace(progress=AsyncMock(), trace_start=AsyncMock(),
+                                 trace_end=AsyncMock(), close=AsyncMock())
+        decision = BrainDecision("answer", [], "stop", {})
+        brain = SimpleNamespace(
+            generate_chat_decision=AsyncMock(return_value=decision, side_effect=failure),
+            generate_final_decision=AsyncMock(return_value=decision, side_effect=failure),
+        )
+
+        @asynccontextmanager
+        async def workspace(*args):
+            yield
+
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(), store=store, loader=None,
+            brain=brain, actions=actions, event_factory=SimpleNamespace(for_run=lambda _: events),
+            resource_prep=SimpleNamespace(lease_for_run=workspace), lifecycle=None,
+        )
+        with caplog.at_level(logging.INFO, logger="HpAgent.ModelDecisionActivity"):
+            if failure:
+                with pytest.raises(ApplicationError) as raised:
+                    await runtime.model_decision(request)
+                assert raised.value.type == "model_unavailable"
+                store.fail_operation.assert_called_once_with(request.operation_id, "model_unavailable")
+            else:
+                assert (await runtime.model_decision(request)).decision_type == "final"
+                store.complete_operation_with_event.assert_called_once()
+        records = [r for r in caplog.records if getattr(r, "component", None) == "model"]
+        assert [r.event for r in records] == [
+            "model_decision_started", "model_decision_failed" if failure else "model_decision_completed",
+        ]
+        for record in records:
+>           assert record.run_id == record.execution_id == run_id
+E           AssertionError: assert 'e2fa612a-1bc...-26dec3b7e346' == '15fd9a5a-f7e...-c0ede44c1c7c'
+E
+E             - 15fd9a5a-f7e6-cfbb-5bc0-c0ede44c1c7c
+E             + e2fa612a-1bc1-4b3c-a149-26dec3b7e346
+
+test/test_observability_preflight.py:105: AssertionError
+------------------------------ Captured log call -------------------------------
+INFO     HpAgent.ModelDecisionActivity:logging.py:49 model_decision_started
+ERROR    HpAgent.ModelDecisionActivity:logging.py:49 model_decision_failed
+_ test_durable_model_lifecycle_preserves_correlation_and_cleanup[TimeoutError-True] _
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x79bad33229c0>
+final_only = True, failure = <class 'TimeoutError'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("final_only", [False, True])
+    @pytest.mark.parametrize("failure", [None, TimeoutError, RuntimeError])
+    async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog, final_only, failure):
+        from contextlib import asynccontextmanager
+        from unittest.mock import AsyncMock, Mock
+
+        from temporalio.exceptions import ApplicationError
+
+        from agent_activities.runtime import DurableAgentActivities
+        from agent_workflows.contracts import (
+            AGENT_SCHEMA_VERSION,
+            ChatContext,
+            ModelDecisionInput,
+            RunContext,
+            RunSource,
+        )
+        from brain.contracts import BrainDecision
+        from conversation_domain.execution_bindings import ChatExecutionBindings
+
+        run_id, account_id, conversation_id, session_id = [str(uuid4()) for _ in range(4)]
+        request = ModelDecisionInput(
+            AGENT_SCHEMA_VERSION, run_id, account_id, RunSource("chat", conversation_id),
+            RunContext(chat=ChatContext(conversation_id, session_id, None), surface="napcat"),
+            "react", "transcript", 1, 1, f"{run_id}:model:1", 1, final_only=final_only,
+         execution_id=str(root_execution_id(run_id)))
+        store = SimpleNamespace(
+            begin_operation=Mock(return_value=None),
+            validate_and_renew_lease=Mock(),
+            load_messages=Mock(return_value=([{"role": "user", "content": "hi"}], 1)),
+            complete_operation_with_event=Mock(return_value=2),
+            fail_operation=Mock(),
+        )
+        actions = SimpleNamespace(reset_execution=Mock(), select_tools=AsyncMock(return_value=[]),
+                                  clear_execution=Mock())
+        events = SimpleNamespace(progress=AsyncMock(), trace_start=AsyncMock(),
+                                 trace_end=AsyncMock(), close=AsyncMock())
+        decision = BrainDecision("answer", [], "stop", {})
+        brain = SimpleNamespace(
+            generate_chat_decision=AsyncMock(return_value=decision, side_effect=failure),
+            generate_final_decision=AsyncMock(return_value=decision, side_effect=failure),
+        )
+
+        @asynccontextmanager
+        async def workspace(*args):
+            yield
+
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(), store=store, loader=None,
+            brain=brain, actions=actions, event_factory=SimpleNamespace(for_run=lambda _: events),
+            resource_prep=SimpleNamespace(lease_for_run=workspace), lifecycle=None,
+        )
+        with caplog.at_level(logging.INFO, logger="HpAgent.ModelDecisionActivity"):
+            if failure:
+                with pytest.raises(ApplicationError) as raised:
+                    await runtime.model_decision(request)
+                assert raised.value.type == "model_unavailable"
+                store.fail_operation.assert_called_once_with(request.operation_id, "model_unavailable")
+            else:
+                assert (await runtime.model_decision(request)).decision_type == "final"
+                store.complete_operation_with_event.assert_called_once()
+        records = [r for r in caplog.records if getattr(r, "component", None) == "model"]
+        assert [r.event for r in records] == [
+            "model_decision_started", "model_decision_failed" if failure else "model_decision_completed",
+        ]
+        for record in records:
+>           assert record.run_id == record.execution_id == run_id
+E           AssertionError: assert 'f502038b-3d1...-933a5cfbca50' == '388715ab-973...-3d24687ce3fc'
+E
+E             - 388715ab-9730-d489-9794-3d24687ce3fc
+E             + f502038b-3d1b-4a64-b42e-933a5cfbca50
+
+test/test_observability_preflight.py:105: AssertionError
+------------------------------ Captured log call -------------------------------
+INFO     HpAgent.ModelDecisionActivity:logging.py:49 model_decision_started
+ERROR    HpAgent.ModelDecisionActivity:logging.py:49 model_decision_failed
+_ test_durable_model_lifecycle_preserves_correlation_and_cleanup[RuntimeError-False] _
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x79bad34ffc80>
+final_only = False, failure = <class 'RuntimeError'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("final_only", [False, True])
+    @pytest.mark.parametrize("failure", [None, TimeoutError, RuntimeError])
+    async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog, final_only, failure):
+        from contextlib import asynccontextmanager
+        from unittest.mock import AsyncMock, Mock
+
+        from temporalio.exceptions import ApplicationError
+
+        from agent_activities.runtime import DurableAgentActivities
+        from agent_workflows.contracts import (
+            AGENT_SCHEMA_VERSION,
+            ChatContext,
+            ModelDecisionInput,
+            RunContext,
+            RunSource,
+        )
+        from brain.contracts import BrainDecision
+        from conversation_domain.execution_bindings import ChatExecutionBindings
+
+        run_id, account_id, conversation_id, session_id = [str(uuid4()) for _ in range(4)]
+        request = ModelDecisionInput(
+            AGENT_SCHEMA_VERSION, run_id, account_id, RunSource("chat", conversation_id),
+            RunContext(chat=ChatContext(conversation_id, session_id, None), surface="napcat"),
+            "react", "transcript", 1, 1, f"{run_id}:model:1", 1, final_only=final_only,
+         execution_id=str(root_execution_id(run_id)))
+        store = SimpleNamespace(
+            begin_operation=Mock(return_value=None),
+            validate_and_renew_lease=Mock(),
+            load_messages=Mock(return_value=([{"role": "user", "content": "hi"}], 1)),
+            complete_operation_with_event=Mock(return_value=2),
+            fail_operation=Mock(),
+        )
+        actions = SimpleNamespace(reset_execution=Mock(), select_tools=AsyncMock(return_value=[]),
+                                  clear_execution=Mock())
+        events = SimpleNamespace(progress=AsyncMock(), trace_start=AsyncMock(),
+                                 trace_end=AsyncMock(), close=AsyncMock())
+        decision = BrainDecision("answer", [], "stop", {})
+        brain = SimpleNamespace(
+            generate_chat_decision=AsyncMock(return_value=decision, side_effect=failure),
+            generate_final_decision=AsyncMock(return_value=decision, side_effect=failure),
+        )
+
+        @asynccontextmanager
+        async def workspace(*args):
+            yield
+
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(), store=store, loader=None,
+            brain=brain, actions=actions, event_factory=SimpleNamespace(for_run=lambda _: events),
+            resource_prep=SimpleNamespace(lease_for_run=workspace), lifecycle=None,
+        )
+        with caplog.at_level(logging.INFO, logger="HpAgent.ModelDecisionActivity"):
+            if failure:
+                with pytest.raises(ApplicationError) as raised:
+                    await runtime.model_decision(request)
+                assert raised.value.type == "model_unavailable"
+                store.fail_operation.assert_called_once_with(request.operation_id, "model_unavailable")
+            else:
+                assert (await runtime.model_decision(request)).decision_type == "final"
+                store.complete_operation_with_event.assert_called_once()
+        records = [r for r in caplog.records if getattr(r, "component", None) == "model"]
+        assert [r.event for r in records] == [
+            "model_decision_started", "model_decision_failed" if failure else "model_decision_completed",
+        ]
+        for record in records:
+>           assert record.run_id == record.execution_id == run_id
+E           AssertionError: assert 'dfef36e4-47f...-76448cb4ee13' == 'f4f97633-613...-3bd92e417540'
+E
+E             - f4f97633-6130-17f1-2c92-3bd92e417540
+E             + dfef36e4-47f0-4fef-9e79-76448cb4ee13
+
+test/test_observability_preflight.py:105: AssertionError
+------------------------------ Captured log call -------------------------------
+INFO     HpAgent.ModelDecisionActivity:logging.py:49 model_decision_started
+ERROR    HpAgent.ModelDecisionActivity:logging.py:49 model_decision_failed
+_ test_durable_model_lifecycle_preserves_correlation_and_cleanup[RuntimeError-True] _
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x79bad32929c0>
+final_only = True, failure = <class 'RuntimeError'>
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("final_only", [False, True])
+    @pytest.mark.parametrize("failure", [None, TimeoutError, RuntimeError])
+    async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(caplog, final_only, failure):
+        from contextlib import asynccontextmanager
+        from unittest.mock import AsyncMock, Mock
+
+        from temporalio.exceptions import ApplicationError
+
+        from agent_activities.runtime import DurableAgentActivities
+        from agent_workflows.contracts import (
+            AGENT_SCHEMA_VERSION,
+            ChatContext,
+            ModelDecisionInput,
+            RunContext,
+            RunSource,
+        )
+        from brain.contracts import BrainDecision
+        from conversation_domain.execution_bindings import ChatExecutionBindings
+
+        run_id, account_id, conversation_id, session_id = [str(uuid4()) for _ in range(4)]
+        request = ModelDecisionInput(
+            AGENT_SCHEMA_VERSION, run_id, account_id, RunSource("chat", conversation_id),
+            RunContext(chat=ChatContext(conversation_id, session_id, None), surface="napcat"),
+            "react", "transcript", 1, 1, f"{run_id}:model:1", 1, final_only=final_only,
+         execution_id=str(root_execution_id(run_id)))
+        store = SimpleNamespace(
+            begin_operation=Mock(return_value=None),
+            validate_and_renew_lease=Mock(),
+            load_messages=Mock(return_value=([{"role": "user", "content": "hi"}], 1)),
+            complete_operation_with_event=Mock(return_value=2),
+            fail_operation=Mock(),
+        )
+        actions = SimpleNamespace(reset_execution=Mock(), select_tools=AsyncMock(return_value=[]),
+                                  clear_execution=Mock())
+        events = SimpleNamespace(progress=AsyncMock(), trace_start=AsyncMock(),
+                                 trace_end=AsyncMock(), close=AsyncMock())
+        decision = BrainDecision("answer", [], "stop", {})
+        brain = SimpleNamespace(
+            generate_chat_decision=AsyncMock(return_value=decision, side_effect=failure),
+            generate_final_decision=AsyncMock(return_value=decision, side_effect=failure),
+        )
+
+        @asynccontextmanager
+        async def workspace(*args):
+            yield
+
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(), store=store, loader=None,
+            brain=brain, actions=actions, event_factory=SimpleNamespace(for_run=lambda _: events),
+            resource_prep=SimpleNamespace(lease_for_run=workspace), lifecycle=None,
+        )
+        with caplog.at_level(logging.INFO, logger="HpAgent.ModelDecisionActivity"):
+            if failure:
+                with pytest.raises(ApplicationError) as raised:
+                    await runtime.model_decision(request)
+                assert raised.value.type == "model_unavailable"
+                store.fail_operation.assert_called_once_with(request.operation_id, "model_unavailable")
+            else:
+                assert (await runtime.model_decision(request)).decision_type == "final"
+                store.complete_operation_with_event.assert_called_once()
+        records = [r for r in caplog.records if getattr(r, "component", None) == "model"]
+        assert [r.event for r in records] == [
+            "model_decision_started", "model_decision_failed" if failure else "model_decision_completed",
+        ]
+        for record in records:
+>           assert record.run_id == record.execution_id == run_id
+E           AssertionError: assert 'e1cac275-94e...-bab1014f7f01' == '694157d9-e1b...-607d81ff5dbe'
+E
+E             - 694157d9-e1b6-c188-178b-607d81ff5dbe
+E             + e1cac275-94e6-449a-bc22-bab1014f7f01
+
+test/test_observability_preflight.py:105: AssertionError
+------------------------------ Captured log call -------------------------------
+INFO     HpAgent.ModelDecisionActivity:logging.py:49 model_decision_started
+ERROR    HpAgent.ModelDecisionActivity:logging.py:49 model_decision_failed
+________ test_context_activity_emits_root_memory_llm_and_context_nodes _________
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad33a1910>
+request = ContextBootstrapInput(schema_version=4, run_id='8210c8f3-e1ba-465c-af1c-59fa7e228864', account_id='89d70a58-036a-4951-...c-59fa7e228864:react:context', execution_id='0f6cd2a9-4bd7-ad77-12c8-fc0e456a1988', execution_attempt=1, lease_token=0)
+
+    @activity.defn(name="context_bootstrap_activity")
+    @fenced_activity
+    async def context_bootstrap(self, request: ContextBootstrapInput) -> ContextBootstrapResult:
+        self._check_schema(request.schema_version)
+        await asyncio.to_thread(
+            self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
+            request.execution_id,
+        )
+        started = time.monotonic()
+        fields = self._correlation(request)
+        events = self.event_factory.for_run(request.run_id)
+        root_node_id = trace_node_id(request.run_id, "agent_execution")
+        context_node_id = trace_node_id(
+            request.run_id, "context_assembly", request.operation_id
+        )
+        memory_node_id = trace_node_id(
+            request.run_id, "memory_recall", request.operation_id
+        )
+        rewrite_node_id = trace_node_id(
+            request.run_id, "memory_query_rewrite", request.operation_id
+        )
+        await trace_start(
+            events,
+            root_node_id,
+            None,
+            "AgentExecution",
+            "agent",
+            {"strategy": request.strategy, "surface": request.context.surface},
+        )
+        await trace_start(
+            events,
+            context_node_id,
+            root_node_id,
+            "ContextAssembly",
+            "context",
+            {"operation_id": request.operation_id},
+        )
+        log_event(context_logger, logging.INFO, "context_bootstrap_started", "context", **fields, status="started")
+        if int(fields["activity_attempt"]) > 1:
+            log_event(context_logger, logging.WARNING, "activity_retry_detected", "context", **fields, status="retrying")
+        previous = await asyncio.to_thread(
+            self.store.begin_operation, request.operation_id, request.run_id, "context"
+        )
+        if previous is not None:
+            log_event(context_logger, logging.INFO, "operation_deduplicated", "context", **fields, status="deduplicated")
+            await trace_end(
+                events, context_node_id, "completed", {"deduplicated": True}
+            )
+            await events.close()
+            return ContextBootstrapResult(**previous)
+        try:
+            loaded = await self.loader.load(request.run_id)
+>           self.context_bindings.validate_loaded(request, loaded)
+
+src/agent_activities/runtime.py:299:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <conversation_domain.execution_bindings.ChatExecutionBindings object at 0x79bad33a17c0>
+request = ContextBootstrapInput(schema_version=4, run_id='8210c8f3-e1ba-465c-af1c-59fa7e228864', account_id='89d70a58-036a-4951-...c-59fa7e228864:react:context', execution_id='0f6cd2a9-4bd7-ad77-12c8-fc0e456a1988', execution_attempt=1, lease_token=0)
+loaded = ExecutionRequest(execution_id='8210c8f3-e1ba-465c-af1c-59fa7e228864', account_id='89d70a58-036a-4951-917a-b1b9cd55de9c...its_root_memory_llm_and_context_nodes.<locals>.Memory object at 0x79bad33a1a00>, group_context_text='', sender_name='')
+
+    def validate_loaded(self, request, loaded) -> None:
+        chat = request.context.require_chat()
+        if (loaded.account_id != request.account_id or
+                loaded.conversation_id != chat.conversation_id or
+                loaded.execution_id != request.execution_id):
+>           raise ValueError("context identity mismatch")
+E           ValueError: context identity mismatch
+
+src/conversation_domain/execution_bindings.py:18: ValueError
+
+During handling of the above exception, another exception occurred:
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bad34ead80>
+
+    @pytest.mark.asyncio
+    async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypatch):
+        async def in_process(function, *args, **kwargs):
+            return function(*args, **kwargs)
+
+        monkeypatch.setattr("agent_activities.runtime.asyncio.to_thread", in_process)
+        run_id, account_id, conversation_id, session_id = (str(uuid4()) for _ in range(4))
+        recorded: list[tuple] = []
+
+        class Events:
+            async def progress(self, phase, summary):
+                return None
+
+            async def trace_start(self, node_id, parent_id, name, node_type, metadata=None):
+                recorded.append(("start", node_id, parent_id, name, node_type, metadata))
+
+            async def trace_end(self, node_id, status, metadata=None):
+                recorded.append(("end", node_id, status, metadata))
+
+            async def close(self):
+                recorded.append(("close",))
+
+        events = Events()
+
+        class EventFactory:
+            def for_run(self, _run_id):
+                return events
+
+        class Store:
+            def validate_and_renew_lease(self, *_args):
+                return None
+
+            def begin_operation(self, *_args):
+                return None
+
+            def create_transcript(self, **_kwargs):
+                return 1
+
+            def fail_operation(self, *_args):
+                raise AssertionError("context should not fail")
+
+        class Memory:
+            async def recall_long_term(self, query):
+                assert query == "rewritten"
+                return ("memory",)
+
+            def compose(self, memories):
+                assert memories == ("memory",)
+                return ({"role": "user", "content": "hello"},)
+
+        request = ContextBootstrapInput(
+            schema_version=AGENT_SCHEMA_VERSION,
+            run_id=run_id,
+            account_id=account_id,
+            strategy="react",
+            operation_id=f"{run_id}:react:context",
+            source=RunSource("chat", conversation_id),
+            context=RunContext(chat=ChatContext(conversation_id, session_id, None), surface="web"),
+         execution_id=str(root_execution_id(run_id)))
+
+        class Loader:
+            async def load(self, _run_id):
+                return ExecutionRequest(
+                    run_id,
+                    account_id,
+                    conversation_id,
+                    session_id,
+                    "hello",
+                    ({"role": "user", "content": "hello"},),
+                    context_provider=Memory(),
+                )
+
+        class Brain:
+            async def rewrite_recall_query(self, **_kwargs):
+                return "rewritten", [{"role": "user", "content": "hello"}]
+
+        activities = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=Store(),
+            loader=Loader(),
+            brain=Brain(),
+            actions=object(),
+            event_factory=EventFactory(),
+            resource_prep=object(),
+            lifecycle=None,
+        )
+>       result = await activities.context_bootstrap(request)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/test_trace_events.py:418:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+src/agent_activities/runtime.py:404: in context_bootstrap
+    await asyncio.to_thread(self.store.fail_operation, request.operation_id, code)
+test/test_trace_events.py:335: in in_process
+    return function(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <test_trace_events.test_context_activity_emits_root_memory_llm_and_context_nodes.<locals>.Store object at 0x79bad33a17f0>
+_args = ('8210c8f3-e1ba-465c-af1c-59fa7e228864:react:context', 'context_build_failed')
+
+    def fail_operation(self, *_args):
+>       raise AssertionError("context should not fail")
+E       AssertionError: context should not fail
+
+test/test_trace_events.py:371: AssertionError
+___________ test_deduplicated_tool_activity_still_projects_tool_node ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bad32c43e0>
+
+    @pytest.mark.asyncio
+    async def test_deduplicated_tool_activity_still_projects_tool_node(monkeypatch):
+        async def in_process(function, *args, **kwargs):
+            return function(*args, **kwargs)
+
+        monkeypatch.setattr("agent_activities.runtime.asyncio.to_thread", in_process)
+        run_id, account_id, conversation_id, session_id = (str(uuid4()) for _ in range(4))
+        operation_id = f"{run_id}:react:turn:1:tool:call-1"
+        recorded: list[tuple] = []
+
+        class Events:
+            async def trace_start(self, node_id, parent_id, name, node_type, metadata=None):
+                recorded.append(("start", node_id, name, metadata))
+
+            async def trace_end(self, node_id, status, metadata=None):
+                recorded.append(("end", node_id, status, metadata))
+
+            async def close(self):
+                recorded.append(("close",))
+
+        class EventFactory:
+            def for_run(self, _run_id):
+                return Events()
+
+        class Store:
+            def begin_tool_operation(self, _operation_id, _run_id):
+                return ToolOperationState(
+                    "completed",
+                    {
+                        "schema_version": AGENT_SCHEMA_VERSION,
+                        "operation_id": operation_id,
+                        "result_ref": f"agent-tool-result:{operation_id}",
+                        "transcript_version": 2,
+                        "display_summary": "done",
+                    },
+                )
+
+        request = ToolExecutionInput(
+            schema_version=AGENT_SCHEMA_VERSION,
+            run_id=run_id,
+            account_id=account_id,
+            strategy="react",
+            transcript_id=f"agent-transcript:{run_id}",
+            transcript_version=1,
+            turn=1,
+            operation_id=operation_id,
+            lease_token=1,
+            tool_call=CompactToolCall("call-1", "read_tool", "decision#call-1"),
+            source=RunSource("chat", conversation_id),
+            context=RunContext(chat=ChatContext(conversation_id, session_id, None), surface="web"),
+         execution_id=str(root_execution_id(run_id)))
+        activities = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=Store(),
+            loader=None,
+            brain=None,
+            actions=object(),
+            event_factory=EventFactory(),
+            resource_prep=object(),
+            lifecycle=None,
+        )
+
+>       result = await activities.tool_execution(request)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/test_trace_events.py:494:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/fencing.py:40: in wrapped
+    return await function(self, request)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <agent_activities.runtime.DurableAgentActivities object at 0x79bad33a2870>
+request = ToolExecutionInput(schema_version=4, run_id='43a588a9-0e08-4335-8e53-67be7267d532', account_id='c63a9854-ab8c-44af-a06...lan_id=None, plan_version=None, step_id=None, execution_id='3939cdd9-3210-691f-a7e0-aa1535d3eee7', execution_attempt=1)
+
+    @activity.defn(name="tool_execution_activity")
+    @fenced_activity
+    async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        self._check_schema(request.schema_version)
+        from agent_activities.delegation import current_execution
+        from persistence.uow import UnitOfWork
+>       with UnitOfWork(self.store.database_url) as uow:
+                        ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'Store' object has no attribute 'database_url'
+
+src/agent_activities/runtime.py:647: AttributeError
+__ test_canonical_finalize_closes_root_only_after_authoritative_commit[False] __
+
+commit_fails = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("commit_fails", [False, True])
+    async def test_canonical_finalize_closes_root_only_after_authoritative_commit(commit_fails):
+        from agent_workflows.contracts import FinalizeResultInput
+
+        run_id = str(uuid4())
+        recorded = []
+        root_id = trace_node_id(run_id, "agent_execution")
+
+        class Events:
+            async def trace_start(self, *args, **kwargs):
+                recorded.append(("start", args[0]))
+
+            async def trace_end(self, node_id, status, metadata=None):
+                recorded.append(("end", node_id, status))
+
+            async def close(self):
+                recorded.append(("close",))
+
+        class Lifecycle:
+            def complete(self, value, content):
+                assert str(value) == run_id and content == "done"
+                if commit_fails:
+                    raise RuntimeError("commit failed")
+                recorded.append(("committed",))
+                return SimpleNamespace(run_id=run_id, status="completed")
+
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=SimpleNamespace(result_content=lambda ref: "done"),
+            loader=None, brain=None, actions=None,
+            event_factory=SimpleNamespace(for_run=lambda value: Events()),
+            lifecycle=Lifecycle(), resource_prep=None,
+        )
+        request = FinalizeResultInput(AGENT_SCHEMA_VERSION, run_id, "result")
+        if commit_fails:
+            with pytest.raises(RuntimeError, match="commit failed"):
+                await runtime.finalize_agent_result(request)
+            assert ("end", root_id, "completed") not in recorded
+        else:
+>           assert (await runtime.finalize_agent_result(request))["status"] == "completed"
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+test/test_trace_events.py:544:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/runtime.py:1440: in finalize_agent_result
+    content = await asyncio.to_thread(self.store.result_content, request.result_ref, request.run_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = None
+
+    def run(self):
+        if not self.future.set_running_or_notify_cancel():
+            return
+
+        try:
+>           result = self.fn(*self.args, **self.kwargs)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: test_canonical_finalize_closes_root_only_after_authoritative_commit.<locals>.<lambda>() takes 1 positional argument but 2 were given
+
+/usr/lib/python3.12/concurrent/futures/thread.py:58: TypeError
+__ test_canonical_finalize_closes_root_only_after_authoritative_commit[True] ___
+
+commit_fails = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("commit_fails", [False, True])
+    async def test_canonical_finalize_closes_root_only_after_authoritative_commit(commit_fails):
+        from agent_workflows.contracts import FinalizeResultInput
+
+        run_id = str(uuid4())
+        recorded = []
+        root_id = trace_node_id(run_id, "agent_execution")
+
+        class Events:
+            async def trace_start(self, *args, **kwargs):
+                recorded.append(("start", args[0]))
+
+            async def trace_end(self, node_id, status, metadata=None):
+                recorded.append(("end", node_id, status))
+
+            async def close(self):
+                recorded.append(("close",))
+
+        class Lifecycle:
+            def complete(self, value, content):
+                assert str(value) == run_id and content == "done"
+                if commit_fails:
+                    raise RuntimeError("commit failed")
+                recorded.append(("committed",))
+                return SimpleNamespace(run_id=run_id, status="completed")
+
+        runtime = DurableAgentActivities(
+            context_bindings=ChatExecutionBindings(),
+            store=SimpleNamespace(result_content=lambda ref: "done"),
+            loader=None, brain=None, actions=None,
+            event_factory=SimpleNamespace(for_run=lambda value: Events()),
+            lifecycle=Lifecycle(), resource_prep=None,
+        )
+        request = FinalizeResultInput(AGENT_SCHEMA_VERSION, run_id, "result")
+        if commit_fails:
+            with pytest.raises(RuntimeError, match="commit failed"):
+>               await runtime.finalize_agent_result(request)
+
+test/test_trace_events.py:541:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/agent_activities/runtime.py:1440: in finalize_agent_result
+    content = await asyncio.to_thread(self.store.result_content, request.result_ref, request.run_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.12/asyncio/threads.py:25: in to_thread
+    return await loop.run_in_executor(None, func_call)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = None
+
+    def run(self):
+        if not self.future.set_running_or_notify_cancel():
+            return
+
+        try:
+>           result = self.fn(*self.args, **self.kwargs)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           TypeError: test_canonical_finalize_closes_root_only_after_authoritative_commit.<locals>.<lambda>() takes 1 positional argument but 2 were given
+
+/usr/lib/python3.12/concurrent/futures/thread.py:58: TypeError
+___ test_dispatch_always_starts_canonical_workflow_and_rejects_legacy_owner ____
+
+    @pytest.mark.asyncio
+    async def test_dispatch_always_starts_canonical_workflow_and_rejects_legacy_owner():
+        class Client:
+            async def start_workflow(self, function, request, **options):
+                assert function == AgentLifecycleWorkflow.run
+                assert options["execution_timeout"] is None
+                raise WorkflowAlreadyStartedError(options["id"], "WebRunWorkflow", run_id="old")
+
+        with pytest.raises(RuntimeError, match="another Workflow"):
+>           await TemporalClientAdapter(Client()).start_web_run("run", RunLifecycleInput(1, "run"))
+
+test/test_w1c_cutover_contract.py:27:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+src/orchestration/web_dispatcher.py:179: in start_web_run
+    handle = await self.client.start_workflow(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <test_w1c_cutover_contract.test_dispatch_always_starts_canonical_workflow_and_rejects_legacy_owner.<locals>.Client object at 0x79bad33a0d40>
+function = <function AgentLifecycleWorkflow.run at 0x79bad3cfcea0>
+request = RunLifecycleInput(schema_version=1, run_id='run')
+options = {'execution_timeout': datetime.timedelta(seconds=3000), 'id': 'run', 'id_conflict_policy': <WorkflowIDConflictPolicy.FAIL: 1>, 'id_reuse_policy': <WorkflowIDReusePolicy.REJECT_DUPLICATE: 3>, ...}
+@py_assert3 = None, @py_assert1 = None
+@py_format5 = 'datetime.timedelta(seconds=3000) is None'
+@py_format7 = 'assert datetime.timedelta(seconds=3000) is None'
+@py_assert0 = datetime.timedelta(seconds=3000), @py_assert2 = False
+
+    async def start_workflow(self, function, request, **options):
+        assert function == AgentLifecycleWorkflow.run
+>       assert options["execution_timeout"] is None
+E       assert datetime.timedelta(seconds=3000) is None
+
+test/test_w1c_cutover_contract.py:23: AssertionError
+___________ test_terminal_cancel_wins_over_late_agent_outcome[False] ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bad33a3e30>
+agent_failed = False
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("agent_failed", [False, True])
+    async def test_terminal_cancel_wins_over_late_agent_outcome(monkeypatch, agent_failed):
+        import asyncio
+        from unittest.mock import Mock
+
+        from temporalio import workflow
+
+        calls = []
+        async def execute(name, request, **kwargs):
+            calls.append(name)
+            if name == "prepare_run_activity":
+                return {"run_id": "run", "status": "running"}
+            if name == "load_agent_run_input_activity":
+                return SimpleNamespace(strategy="react")
+            return {"run_id": "run", "status": "cancelled"}
+        async def child(*args, **kwargs):
+            if agent_failed:
+                from temporalio.exceptions import ActivityError
+                raise ActivityError("model failed", scheduled_event_id=1, started_event_id=2,
+                                    identity="worker", activity_type="model", activity_id="a", retry_state=None)
+            return SimpleNamespace(result_ref="result")
+        monkeypatch.setattr(workflow, "execute_activity", execute)
+        monkeypatch.setattr(workflow, "execute_child_workflow", child)
+        monkeypatch.setattr(workflow, "logger", Mock())
+        monkeypatch.setattr(workflow, "info", lambda: SimpleNamespace(workflow_id="workflow", run_id="execution"))
+        with pytest.raises(asyncio.CancelledError):
+>           await AgentLifecycleWorkflow().run(RunLifecycleInput(1, "run"))
+
+test/test_w1c_cutover_contract.py:135:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <orchestration.agent_lifecycle_workflow.AgentLifecycleWorkflow object at 0x79bad33a28d0>
+request = RunLifecycleInput(schema_version=1, run_id='run')
+
+    @workflow.run
+    async def run(self, request: RunLifecycleInput) -> dict[str, str | int]:
+        request.validate()
+        workflow.logger.info(
+            "agent_lifecycle_started",
+            extra={
+                "event": "agent_lifecycle_started",
+                "component": "workflow",
+                "run_id": request.run_id,
+                "workflow_type": "AgentLifecycleWorkflow",
+                "workflow_id": workflow.info().workflow_id,
+                "workflow_run_id": workflow.info().run_id,
+                "status": "started",
+                "phase": "prepare",
+            },
+        )
+        try:
+            prepared: RunAuthority = await workflow.execute_activity(
+                "prepare_run_activity",
+                request,
+                task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                schedule_to_close_timeout=timedelta(seconds=WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS),
+                start_to_close_timeout=timedelta(seconds=WEB_PREPARE_START_TO_CLOSE_SECONDS),
+                retry_policy=_LIFECYCLE_RETRY,
+            )
+            status = prepared["status"]
+            workflow.logger.info(
+                "agent_lifecycle_prepared",
+                extra={
+                    "event": "agent_lifecycle_prepared",
+                    "component": "workflow",
+                    "run_id": request.run_id,
+                    "workflow_type": "AgentLifecycleWorkflow",
+                    "status": status,
+                    "phase": "prepare",
+                },
+            )
+            if status == "succeeded":
+                return _completed(request.run_id)
+            if status in ("cancelling", "cancelled"):
+                raise asyncio.CancelledError
+            if status == "failed":
+                raise ApplicationError("run already failed", non_retryable=True)
+
+            strategy = await workflow.execute_activity(
+                "load_run_strategy_activity", request,
+                task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                start_to_close_timeout=timedelta(seconds=20), retry_policy=_LIFECYCLE_RETRY,
+            )
+>           if strategy["strategy_kind"] == "fixed_workflow":
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'strategy_kind'
+
+src/orchestration/agent_lifecycle_workflow.py:123: KeyError
+___________ test_terminal_cancel_wins_over_late_agent_outcome[True] ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bad33a1b50>
+agent_failed = True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("agent_failed", [False, True])
+    async def test_terminal_cancel_wins_over_late_agent_outcome(monkeypatch, agent_failed):
+        import asyncio
+        from unittest.mock import Mock
+
+        from temporalio import workflow
+
+        calls = []
+        async def execute(name, request, **kwargs):
+            calls.append(name)
+            if name == "prepare_run_activity":
+                return {"run_id": "run", "status": "running"}
+            if name == "load_agent_run_input_activity":
+                return SimpleNamespace(strategy="react")
+            return {"run_id": "run", "status": "cancelled"}
+        async def child(*args, **kwargs):
+            if agent_failed:
+                from temporalio.exceptions import ActivityError
+                raise ActivityError("model failed", scheduled_event_id=1, started_event_id=2,
+                                    identity="worker", activity_type="model", activity_id="a", retry_state=None)
+            return SimpleNamespace(result_ref="result")
+        monkeypatch.setattr(workflow, "execute_activity", execute)
+        monkeypatch.setattr(workflow, "execute_child_workflow", child)
+        monkeypatch.setattr(workflow, "logger", Mock())
+        monkeypatch.setattr(workflow, "info", lambda: SimpleNamespace(workflow_id="workflow", run_id="execution"))
+        with pytest.raises(asyncio.CancelledError):
+>           await AgentLifecycleWorkflow().run(RunLifecycleInput(1, "run"))
+
+test/test_w1c_cutover_contract.py:135:
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <orchestration.agent_lifecycle_workflow.AgentLifecycleWorkflow object at 0x79bad33a1ca0>
+request = RunLifecycleInput(schema_version=1, run_id='run')
+
+    @workflow.run
+    async def run(self, request: RunLifecycleInput) -> dict[str, str | int]:
+        request.validate()
+        workflow.logger.info(
+            "agent_lifecycle_started",
+            extra={
+                "event": "agent_lifecycle_started",
+                "component": "workflow",
+                "run_id": request.run_id,
+                "workflow_type": "AgentLifecycleWorkflow",
+                "workflow_id": workflow.info().workflow_id,
+                "workflow_run_id": workflow.info().run_id,
+                "status": "started",
+                "phase": "prepare",
+            },
+        )
+        try:
+            prepared: RunAuthority = await workflow.execute_activity(
+                "prepare_run_activity",
+                request,
+                task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                schedule_to_close_timeout=timedelta(seconds=WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS),
+                start_to_close_timeout=timedelta(seconds=WEB_PREPARE_START_TO_CLOSE_SECONDS),
+                retry_policy=_LIFECYCLE_RETRY,
+            )
+            status = prepared["status"]
+            workflow.logger.info(
+                "agent_lifecycle_prepared",
+                extra={
+                    "event": "agent_lifecycle_prepared",
+                    "component": "workflow",
+                    "run_id": request.run_id,
+                    "workflow_type": "AgentLifecycleWorkflow",
+                    "status": status,
+                    "phase": "prepare",
+                },
+            )
+            if status == "succeeded":
+                return _completed(request.run_id)
+            if status in ("cancelling", "cancelled"):
+                raise asyncio.CancelledError
+            if status == "failed":
+                raise ApplicationError("run already failed", non_retryable=True)
+
+            strategy = await workflow.execute_activity(
+                "load_run_strategy_activity", request,
+                task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                start_to_close_timeout=timedelta(seconds=20), retry_policy=_LIFECYCLE_RETRY,
+            )
+>           if strategy["strategy_kind"] == "fixed_workflow":
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+E           KeyError: 'strategy_kind'
+
+src/orchestration/agent_lifecycle_workflow.py:123: KeyError
+___________ test_actual_production_registries_match_current_runtime ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bad3292180>
+
+    def test_actual_production_registries_match_current_runtime(monkeypatch):
+        monkeypatch.setattr("persistence.migrate.verify_schema", lambda database: None)
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "check"))
+        try:
+            from temporal_registry import scan
+            report = scan()
+        finally:
+            sys.path.pop(0)
+        assert report["pass"], report
+        registries = {item["task_queue"]: item for item in report["captured_registries"]}
+        assert len(registries) == 4
+>       assert registries["hpagent-web-agent"]["workflows"] == [
+            "AgentRunWorkflow", "ReactAgentWorkflow", "PlanAndExecuteWorkflow",
+            "AgentStepWorkflow", "ToolExecutionWorkflow",
+        ]
+E       AssertionError: assert ['AgentRunWor...tionWorkflow'] == ['AgentRunWor...tionWorkflow']
+E
+E         Left contains one more item: 'WorkDelegationWorkflow'
+E         Use -v to get more diff
+
+test/test_w3b_runtime_retirement.py:21: AssertionError
+_______________ test_worker_composition_uses_two_web_task_queues _______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x79bad34ff7a0>
+
+    def test_worker_composition_uses_two_web_task_queues(monkeypatch):
+        made: list[dict] = []
+
+        class FakeWorker:
+            def __init__(self, _client, **kwargs):
+                made.append(kwargs)
+
+        monkeypatch.setattr("orchestration.web_workers.Worker", FakeWorker)
+        workers = build_web_temporal_workers(object(), lifecycle_activities=[], agent_activities=[])
+        assert workers.lifecycle is not workers.agent
+        assert made[0]["task_queue"] == WEB_LIFECYCLE_TASK_QUEUE
+        assert made[0]["workflows"] == [
+            AgentLifecycleWorkflow,
+            NormalizeDocumentWorkflow,
+        ]
+        assert made[1]["task_queue"] == WEB_AGENT_TASK_QUEUE
+>       assert made[1]["workflows"] == [
+            AgentRunWorkflow,
+            ReactAgentWorkflow,
+            PlanAndExecuteWorkflow,
+            AgentStepWorkflow,
+            ToolExecutionWorkflow,
+        ]
+E       AssertionError: assert [<class 'agen...ionWorkflow'>] == [<class 'agen...ionWorkflow'>]
+E
+E         Left contains one more item: <class 'agent_workflows.delegation.WorkDelegationWorkflow'>
+E         Use -v to get more diff
+
+test/test_web_temporal_contract.py:90: AssertionError
+=========================== short test summary info ============================
+FAILED test/test_durable_agent_hardening.py::test_tool_activity_reserves_and_settles_measured_usage_once
+FAILED test/test_durable_agent_hardening.py::test_read_only_tool_failure_is_a_completed_failure_observation
+FAILED test/test_durable_agent_hardening.py::test_file_tool_activity_projects_only_aggregate_trace_metadata
+FAILED test/test_durable_agent_hardening.py::test_second_fencing_check_prevents_side_effect_after_local_lock_wait
+FAILED test/test_durable_agent_hardening.py::test_non_idempotent_ack_gap_fails_closed_when_reconciliation_is_unsupported
+FAILED test/test_durable_agent_hardening.py::test_fault_hook_marks_ack_gap_uncertain_after_exactly_one_side_effect
+FAILED test/test_durable_agent_hardening.py::test_idempotent_write_ack_gap_retry_reuses_budget_operation
+FAILED test/test_durable_agent_hardening.py::test_non_idempotent_completion_failure_is_exposed_as_uncertain
+FAILED test/test_durable_agent_hardening.py::test_non_idempotent_transcript_conflict_after_side_effect_is_uncertain
+FAILED test/test_durable_agent_hardening.py::test_redelivered_non_idempotent_intent_with_stale_fence_is_uncertain
+FAILED test/test_durable_agent_hardening.py::test_redelivered_non_idempotent_intent_rejects_classification_drift
+FAILED test/test_durable_agent_hardening.py::test_pre_side_effect_stale_fence_preserves_original_error
+FAILED test/test_durable_agent_hardening.py::test_non_idempotent_action_error_is_uncertain_and_never_completed
+FAILED test/test_durable_agent_hardening.py::test_cancellation_before_side_effect_window_fails_operation_and_propagates
+FAILED test/test_durable_agent_hardening.py::test_cancellation_after_non_idempotent_window_is_uncertain_and_propagates
+FAILED test/test_g12_capturing_provider.py::test_g12_captured_dispatch_body_equals_snapshot_and_hash[anthropic]
+FAILED test/test_g12_capturing_provider.py::test_g12_captured_dispatch_body_equals_snapshot_and_hash[openai]
+FAILED test/test_model_governance.py::test_fallback_groups_one_logical_call_and_conservatively_settles_uncertain_attempt
+FAILED test/test_observability_preflight.py::test_web_memory_recall_reports_skipped_when_disabled
+FAILED test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[None-False]
+FAILED test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[None-True]
+FAILED test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[TimeoutError-False]
+FAILED test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[TimeoutError-True]
+FAILED test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[RuntimeError-False]
+FAILED test/test_observability_preflight.py::test_durable_model_lifecycle_preserves_correlation_and_cleanup[RuntimeError-True]
+FAILED test/test_trace_events.py::test_context_activity_emits_root_memory_llm_and_context_nodes
+FAILED test/test_trace_events.py::test_deduplicated_tool_activity_still_projects_tool_node
+FAILED test/test_trace_events.py::test_canonical_finalize_closes_root_only_after_authoritative_commit[False]
+FAILED test/test_trace_events.py::test_canonical_finalize_closes_root_only_after_authoritative_commit[True]
+FAILED test/test_w1c_cutover_contract.py::test_dispatch_always_starts_canonical_workflow_and_rejects_legacy_owner
+FAILED test/test_w1c_cutover_contract.py::test_terminal_cancel_wins_over_late_agent_outcome[False]
+FAILED test/test_w1c_cutover_contract.py::test_terminal_cancel_wins_over_late_agent_outcome[True]
+FAILED test/test_w3b_runtime_retirement.py::test_actual_production_registries_match_current_runtime
+FAILED test/test_web_temporal_contract.py::test_worker_composition_uses_two_web_task_queues
+34 failed, 54 passed in 13.27s

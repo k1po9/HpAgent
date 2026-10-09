@@ -1,4 +1,4 @@
-"""MemoryRetentionService —— Web completed Run → 单个 Hindsight document。
+"""MemoryRetentionService —— Web succeeded Run → 单个 Hindsight document。
 
 Phase F F-04（doc §34-40）。职责只有一条链：
   run_id → 读 PostgreSQL → 构造 document → 调用 retain_document。
@@ -26,7 +26,7 @@ logger = logging.getLogger("HpAgent.MemoryRetention")
 class RetainOutcome:
     """retain 决策结果。
 
-    skipped=True  → 该 Run 不可 retain（非 completed 终态），Outbox 直接
+    skipped=True  → 该 Run 不可 retain（非 succeeded 终态），Outbox 直接
                     mark_processed（Run / Message 状态永不改变）。
     accepted=True → Hindsight 已接受；accepted=False → Outbox 重试。
     """
@@ -37,7 +37,7 @@ class RetainOutcome:
 
 
 class MemoryRetentionService:
-    """从 PostgreSQL 读取 completed Run 并构造用户可见的 Hindsight document。"""
+    """从 PostgreSQL 读取 succeeded Run 并构造用户可见的 Hindsight document。"""
 
     def __init__(self, database_url: object, hindsight_client: Any):
         self._database_url = database_url
@@ -47,7 +47,7 @@ class MemoryRetentionService:
         """读取 Run + trigger user Message + produced assistant Message。
 
         校验（doc §36）:
-          run.status == 'completed'
+          run.status == 'succeeded'
           assistant.status == 'completed' 且 content 非空
           trigger.role == 'user' 且 trigger.status == 'accepted'
           account_id / conversation_id 由 join 天然一致
@@ -85,7 +85,7 @@ class MemoryRetentionService:
         return row
 
     async def retain_completed_run(self, run_id: UUID) -> RetainOutcome:
-        """把 completed Run 作为 ``web-run:{run_id}`` 提交到 Hindsight。
+        """把 succeeded Run 作为 ``web-run:{run_id}`` 提交到 Hindsight。
 
         只 retain [user] trigger + [assistant] 最终回复（doc §5.4/§37）。
         """

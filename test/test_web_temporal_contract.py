@@ -13,6 +13,7 @@ from agent_activities.control import TemporalActivityControl
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ApprovalDecisionSignal
+from agent_workflows.delegation import WorkDelegationWorkflow
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
@@ -93,6 +94,7 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
         PlanAndExecuteWorkflow,
         AgentStepWorkflow,
         ToolExecutionWorkflow,
+        WorkDelegationWorkflow,
     ]
 
 

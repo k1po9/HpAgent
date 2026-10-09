@@ -1,9 +1,9 @@
 """
-MemoryRetentionService —— Web completed Run → Hindsight（doc §34-40 / §62）。
+MemoryRetentionService —— Web succeeded Run → Hindsight（doc §34-40 / §62）。
 
-⑥ load_completed_run 只放行 completed Run（queued/running/failed/cancelled → None）
+⑥ load_completed_run 只放行 succeeded Run（queued/running/failed/cancelled → None）
 ⑦ failed / cancelled Run → retain_completed_run 返回 skipped=True，Hindsight 不被调用
-⑧ Hindsight 失败（accepted=False）→ Run 保持 completed，accepted=False 如实返回
+⑧ Hindsight 失败（accepted=False）→ Run 保持 succeeded，accepted=False 如实返回
 - 成功路径提交 web-run:{run_id}，仅 user trigger + assistant 最终回复
 """
 from __future__ import annotations
@@ -38,11 +38,11 @@ def test_load_completed_run_only_returns_completed(
     _, _, queued = _conversation_and_run(database_url, account_id)
     assert service.load_completed_run(queued) is None
 
-    # completed → 放行，且角色/状态/内容全部满足 doc §36 校验
+    # succeeded → 放行，且角色/状态/内容全部满足 doc §36 校验
     _, run_id = _completed_run(database_url, worker_database_url, account_id)
     row = service.load_completed_run(run_id)
     assert row is not None
-    assert row["run_status"] == "completed"
+    assert row["run_status"] == "succeeded"
     assert row["assistant_status"] == "completed"
     assert row["assistant_content"] == "answer"
     assert row["trigger_role"] == "user"
@@ -50,7 +50,7 @@ def test_load_completed_run_only_returns_completed(
     assert row["account_id"] == account_id
     assert db.execute(
         "SELECT status FROM runs WHERE run_id=%s", (run_id,)
-    ).fetchone()[0] == "completed"
+    ).fetchone()[0] == "succeeded"
 
 
 @pytest.mark.asyncio
@@ -106,7 +106,7 @@ async def test_hindsight_failure_leaves_run_completed_and_surfaces_accepted_fals
     assert outcome.document_id == f"web-run:{run_id}"
     assert db.execute(
         "SELECT status FROM runs WHERE run_id=%s", (run_id,)
-    ).fetchone()[0] == "completed"
+    ).fetchone()[0] == "succeeded"
     assert len(calls) == 1
     events, user_id, document_id, kwargs = calls[0]
     assert document_id == f"web-run:{run_id}"
