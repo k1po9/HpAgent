@@ -8,6 +8,7 @@ import { ArtifactComposer } from "./ArtifactComposer";
 import { artifactFilename, downloadArtifact, clearArtifactDownloads } from "./artifactDownloads";
 import type { ArtifactSaveSource } from "../workspace/workspaceOperations";
 import { artifactStatus } from "./artifactPresentation";
+import { Download, FileCode, FolderPlus } from "lucide-react";
 const emptyVersions: never[] = [];
 async function refreshArtifact(id: string, force = false, active = () => true) {
   const token = useShell.getState().requestToken;
@@ -83,64 +84,32 @@ export function ArtifactInspector({
   const tab = inspector.tab ?? "preview";
   if (query?.status === 403 || query?.status === 404)
     return (
-      <div>
+      <div className="hp-artifact-empty">
         <p role="alert">对象不可用。</p>
         <button onClick={() => refreshArtifact(id, true)}>重新核实</button>
       </div>
     );
   if (!artifact)
     return (
-      <div>
+      <div className="hp-artifact-empty">
         <p role={query?.error ? "alert" : "status"}>{query?.error ?? "正在加载 HTML 成果…"}</p>
         {query?.error && <button onClick={() => refreshArtifact(id, true)}>重试</button>}
       </div>
     );
   return (
     <div className="hp-artifact-inspector" aria-label="HTML Artifact">
-      <header className="hp-artifact-heading">
-        <h3>{artifact.title}</h3>
-        <p>
-          HTML ·{" "}
-          {version
-            ? `正在查看 v${version.version} · ${artifactStatus[version.status]}`
-            : "版本不可用"}
-        </p>
-      </header>
-      {workId && (
-        <div className="hp-artifact-origin">
+      <header className="hp-artifact-heading" data-status={version?.status}>
+        <FileCode className="hp-artifact-heading-icon" size={24} aria-hidden="true" />
+        <div className="hp-artifact-heading-copy">
+          <h3 title={artifact.title}>{artifact.title}</h3>
           <p>
-            {reference
-              ? `任务原引用 · r${reference.source_requirement_revision} · ${originalVersion ? `v${originalVersion.version}` : reference.artifact_version_id}`
-              : "任务来源待核实"}
+            HTML ·{" "}
+            {version
+              ? `正在查看 v${version.version} · ${artifactStatus[version.status]}`
+              : "版本不可用"}
           </p>
-          {reference && reference.artifact_version_id !== version?.artifact_version_id && (
-            <p>
-              {version && originalVersion && version.version > originalVersion.version
-                ? "此版本由后续修改生成，不自动替代任务交付。"
-                : "正在查看其他版本，不自动替代任务交付。"}
-            </p>
-          )}
-          <button
-            onClick={() =>
-              useShell.getState().openInspector({ kind: "task", objectId: workId, tab: "outputs" })
-            }
-          >
-            返回任务成果与验收
-          </button>
         </div>
-      )}
-      {newest && newest.artifact_version_id !== inspector.versionId && (
-        <p role="status">
-          v{newest.version} · {artifactStatus[newest.status]}{" "}
-          <button onClick={() => select(newest.artifact_version_id)}>查看 v{newest.version}</button>
-        </p>
-      )}
-      {query?.error && (
-        <p role="alert">
-          同步中断：{query.error}{" "}
-          <button onClick={() => refreshArtifact(id, true)}>重试同步</button>
-        </p>
-      )}
+      </header>
       <InspectorTabs
         prefix="artifact"
         label="HTML 成果内容"
@@ -151,155 +120,197 @@ export function ArtifactInspector({
         ]}
         selected={tab}
       />
-      {!version && (
-        <p role="alert">
-          {versions.length ? "指定版本不可用，未替换为其他版本。" : "暂无版本内容。"}{" "}
-          {defaultVersion(versions) && (
-            <button onClick={() => select(defaultVersion(versions)!.artifact_version_id)}>
-              查看可用版本
+      <div className="hp-artifact-content">
+        {workId && (
+          <div className="hp-artifact-origin">
+            <p>
+              {reference
+                ? `任务原引用 · r${reference.source_requirement_revision} · ${originalVersion ? `v${originalVersion.version}` : reference.artifact_version_id}`
+                : "任务来源待核实"}
+            </p>
+            {reference && reference.artifact_version_id !== version?.artifact_version_id && (
+              <p>
+                {version && originalVersion && version.version > originalVersion.version
+                  ? "此版本由后续修改生成，不自动替代任务交付。"
+                  : "正在查看其他版本，不自动替代任务交付。"}
+              </p>
+            )}
+            <button
+              onClick={() =>
+                useShell
+                  .getState()
+                  .openInspector({ kind: "task", objectId: workId, tab: "outputs" })
+              }
+            >
+              返回任务成果与验收
             </button>
-          )}
-        </p>
-      )}
-      <section
-        id={`artifact-panel-${tab}`}
-        role="tabpanel"
-        aria-labelledby={`artifact-tab-${tab}`}
-        tabIndex={0}
-      >
-        {tab === "preview" && version && (
-          <>
-            {version.status === "completed" && version.html ? (
-              <>
-                <div className="hp-artifact-toolbar">
-                  <button
-                    onClick={() =>
-                      downloadArtifact(
-                        version.html!,
-                        artifactFilename(artifact.title, version.version),
-                      )
-                    }
-                  >
-                    下载 HTML
-                  </button>
-                  {onSaveHtml && (
-                    <button
-                      onClick={() =>
-                        onSaveHtml({
-                          html: version.html!,
-                          file_name: `${artifactFilename(artifact.title, version.version)}.txt`,
-                          artifactId: id,
-                          versionId: version.artifact_version_id,
-                          version: version.version,
-                          title: artifact.title,
-                        })
-                      }
-                    >
-                      保存源码副本到空间
+          </div>
+        )}
+        {newest && newest.artifact_version_id !== inspector.versionId && (
+          <p className="hp-artifact-notice" role="status">
+            v{newest.version} · {artifactStatus[newest.status]}{" "}
+            <button onClick={() => select(newest.artifact_version_id)}>
+              查看 v{newest.version}
+            </button>
+          </p>
+        )}
+        {query?.error && (
+          <p className="hp-artifact-notice hp-artifact-notice--error" role="alert">
+            同步中断：{query.error}{" "}
+            <button onClick={() => refreshArtifact(id, true)}>重试同步</button>
+          </p>
+        )}
+        {!version && (
+          <p role="alert">
+            {versions.length ? "指定版本不可用，未替换为其他版本。" : "暂无版本内容。"}{" "}
+            {defaultVersion(versions) && (
+              <button onClick={() => select(defaultVersion(versions)!.artifact_version_id)}>
+                查看可用版本
+              </button>
+            )}
+          </p>
+        )}
+        <section
+          className="hp-artifact-panel"
+          id={`artifact-panel-${tab}`}
+          role="tabpanel"
+          aria-labelledby={`artifact-tab-${tab}`}
+          tabIndex={0}
+        >
+          {tab === "preview" && version && (
+            <>
+              {version.status === "completed" && version.html ? (
+                <ArtifactPreview key={version.artifact_version_id} html={version.html} />
+              ) : (
+                <div
+                  className="hp-artifact-state"
+                  role={version.status === "failed" ? "alert" : "status"}
+                >
+                  <p>
+                    v{version.version} · {artifactStatus[version.status]}
+                  </p>
+                  {version.failure && <p>{version.failure.message}</p>}
+                  {parent && (
+                    <button onClick={() => select(parent.artifact_version_id)}>
+                      查看最近成功版本 v{parent.version}
                     </button>
                   )}
                 </div>
-                <ArtifactPreview key={version.artifact_version_id} html={version.html} />
-              </>
-            ) : (
-              <div
-                className="hp-artifact-state"
-                role={version.status === "failed" ? "alert" : "status"}
-              >
-                <p>
-                  v{version.version} · {artifactStatus[version.status]}
-                </p>
-                {version.failure && <p>{version.failure.message}</p>}
-                {parent && (
-                  <button onClick={() => select(parent.artifact_version_id)}>
-                    查看最近成功版本 v{parent.version}
-                  </button>
-                )}
-              </div>
-            )}
-          </>
-        )}
-        {tab === "versions" && (
-          <ol className="hp-artifact-history">
-            {[...versions]
-              .sort((a, b) => b.version - a.version)
-              .map((v) => (
-                <li key={v.artifact_version_id}>
-                  <button
-                    aria-current={
-                      v.artifact_version_id === inspector.versionId ? "true" : undefined
-                    }
-                    onClick={() => select(v.artifact_version_id)}
-                  >
-                    查看 v{v.version}
-                  </button>
-                  <p>
-                    {artifactStatus[v.status]} · {v.created_at}
-                  </p>
-                  <p>
-                    基准：
-                    {v.parent_version_id
-                      ? `v${versions.find((p) => p.artifact_version_id === v.parent_version_id)?.version ?? "未知"}`
-                      : "首次生成，无继承版本"}
-                  </p>
-                  <p>{v.instruction ?? "初始生成"}</p>
-                  {v.failure && <p role="alert">{v.failure.message}</p>}
-                </li>
-              ))}
-          </ol>
-        )}
-        {tab === "details" && (
-          <dl className="hp-artifact-details">
-            <dt>成果标识</dt>
-            <dd>{id}</dd>
-            <dt>来源</dt>
-            <dd>
-              {workId
-                ? `任务 ${workId}`
-                : artifact.conversation_id
-                  ? `对话 ${artifact.conversation_id}`
-                  : "来源待核实"}
-            </dd>
-            <dt>创建时间</dt>
-            <dd>{artifact.created_at}</dd>
-            <dt>版本标识</dt>
-            <dd>{version?.artifact_version_id ?? "不可用"}</dd>
-            <dt>版本完成时间</dt>
-            <dd>{version?.completed_at ?? "尚未完成"}</dd>
-            <dt>产生执行</dt>
-            <dd>
-              {version?.producing_run_id ? (
-                <button
-                  onClick={() =>
-                    useShell
-                      .getState()
-                      .openInspector({ kind: "run", objectId: version.producing_run_id! }, true)
-                  }
-                >
-                  {version.producing_run_id}
-                </button>
-              ) : (
-                "未提供"
               )}
-            </dd>
-            {version?.failure && (
-              <>
-                <dt>失败代码</dt>
-                <dd>{version.failure.code}</dd>
-              </>
-            )}
-            {intent?.result?.code && (
-              <>
-                <dt>请求错误</dt>
-                <dd>
-                  {intent.result.code} · {intent.result.requestId}
-                </dd>
-              </>
-            )}
-          </dl>
-        )}
-      </section>
-      <ArtifactComposer artifactId={id} versions={versions} onSelect={select} />
+            </>
+          )}
+          {tab === "versions" && (
+            <ol className="hp-artifact-history">
+              {[...versions]
+                .sort((a, b) => b.version - a.version)
+                .map((v) => (
+                  <li key={v.artifact_version_id}>
+                    <button
+                      aria-current={
+                        v.artifact_version_id === inspector.versionId ? "true" : undefined
+                      }
+                      onClick={() => select(v.artifact_version_id)}
+                    >
+                      查看 v{v.version}
+                    </button>
+                    <p>
+                      {artifactStatus[v.status]} · {v.created_at}
+                    </p>
+                    <p>
+                      基准：
+                      {v.parent_version_id
+                        ? `v${versions.find((p) => p.artifact_version_id === v.parent_version_id)?.version ?? "未知"}`
+                        : "首次生成，无继承版本"}
+                    </p>
+                    <p>{v.instruction ?? "初始生成"}</p>
+                    {v.failure && <p role="alert">{v.failure.message}</p>}
+                  </li>
+                ))}
+            </ol>
+          )}
+          {tab === "details" && (
+            <dl className="hp-artifact-details">
+              <dt>成果标识</dt>
+              <dd>{id}</dd>
+              <dt>来源</dt>
+              <dd>
+                {workId
+                  ? `任务 ${workId}`
+                  : artifact.conversation_id
+                    ? `对话 ${artifact.conversation_id}`
+                    : "来源待核实"}
+              </dd>
+              <dt>创建时间</dt>
+              <dd>{artifact.created_at}</dd>
+              <dt>版本标识</dt>
+              <dd>{version?.artifact_version_id ?? "不可用"}</dd>
+              <dt>版本完成时间</dt>
+              <dd>{version?.completed_at ?? "尚未完成"}</dd>
+              <dt>产生执行</dt>
+              <dd>
+                {version?.producing_run_id ? (
+                  <button
+                    onClick={() =>
+                      useShell
+                        .getState()
+                        .openInspector({ kind: "run", objectId: version.producing_run_id! }, true)
+                    }
+                  >
+                    {version.producing_run_id}
+                  </button>
+                ) : (
+                  "未提供"
+                )}
+              </dd>
+              {version?.failure && (
+                <>
+                  <dt>失败代码</dt>
+                  <dd>{version.failure.code}</dd>
+                </>
+              )}
+              {intent?.result?.code && (
+                <>
+                  <dt>请求错误</dt>
+                  <dd>
+                    {intent.result.code} · {intent.result.requestId}
+                  </dd>
+                </>
+              )}
+            </dl>
+          )}
+        </section>
+        <ArtifactComposer artifactId={id} versions={versions} onSelect={select} />
+      </div>
+      {tab === "preview" && version?.status === "completed" && version.html && (
+        <footer className="hp-artifact-toolbar" aria-label="HTML 成果操作">
+          {onSaveHtml && (
+            <button
+              className="hp-artifact-save"
+              onClick={() =>
+                onSaveHtml({
+                  html: version.html!,
+                  file_name: `${artifactFilename(artifact.title, version.version)}.txt`,
+                  artifactId: id,
+                  versionId: version.artifact_version_id,
+                  version: version.version,
+                  title: artifact.title,
+                })
+              }
+            >
+              <FolderPlus size={16} aria-hidden="true" />
+              保存源码副本到空间
+            </button>
+          )}
+          <button
+            onClick={() =>
+              downloadArtifact(version.html!, artifactFilename(artifact.title, version.version))
+            }
+          >
+            <Download size={16} aria-hidden="true" />
+            下载 HTML
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

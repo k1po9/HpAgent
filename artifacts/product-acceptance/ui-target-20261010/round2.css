@@ -1,0 +1,29 @@
+/* Second browser experiment. Requires the temporary DOM relocations in iterate.mjs. */
+@media (min-width: 1400px) {
+  .hp-shell .hp-context-sidebar.hp-surface--region { width: 280px; flex-basis: 280px; }
+  .hp-msg__marker { grid-row: 1; }
+  .hp-canvas-header > h1 { display: none; }
+  .hp-canvas-header > .hp-conversation-header { min-height: 0; padding: 0; flex: 1; gap: 6px; justify-content: flex-start; }
+  .hp-canvas-header > .hp-conversation-header h2 { display: block; flex: 0 1 auto; font-size: 22px; font-weight: 650; }
+  .hp-canvas-header > .hp-conversation-header button { font-size: 0; padding: 0; border: 0; min-width: 28px; min-height: 36px; background: transparent; }
+  .hp-canvas-header > .hp-conversation-header button::after { content: "⌄"; font-size: 20px; color: #586982; }
+  .hp-canvas-header { gap: 8px; padding-inline: 28px; }
+  .hp-run-lookup summary { font-size: 12px; white-space: nowrap; padding-inline: 2px; }
+  .hp-thread__viewport { padding-top: 20px; }
+  .hp-composer { display: grid; grid-template-columns: minmax(160px, 1fr) 52px 104px 78px 70px 44px; align-items: center; gap: 8px; padding: 8px 10px; min-height: 66px; }
+  .hp-composer__input { grid-column: 1; grid-row: 1; min-height: 48px; height: 48px; font-size: 14px; padding-inline: 10px; }
+  .hp-composer__actions { display: contents; }
+  .hp-composer__attach { grid-column: 2; grid-row: 1; justify-content: center; font-size: 13px; padding: 0; }
+  .hp-file-candidates { grid-column: 3; grid-row: 1; }
+  .hp-file-candidates summary { font-size: 12px; border: 0; padding-inline: 0; }
+  .hp-composer .hp-conversation-resources { grid-column: 4; grid-row: 1; }
+  .hp-resource-chips { gap: 0; }
+  .hp-resource-chips > span:only-of-type:not(.hp-resource-chip), .hp-resource-chips > button:last-of-type:not(:first-of-type) { display: none; }
+  .hp-resource-chips button { font-size: 13px; padding: 6px; border: 0; background: transparent; }
+  .hp-mode-select { grid-column: 5; grid-row: 1; margin: 0; min-width: 0; width: 70px; padding-inline: 8px; height: 40px; font-size: 13px; }
+  .hp-composer button.hp-composer__action { grid-column: 6; grid-row: 1; width: 44px; height: 44px; padding: 0; }
+  .hp-composer .hp-composer__action-size { display: none; }
+  .hp-composer__action > span:not(.hp-composer__action-size) { font-size: 12px; white-space: nowrap; }
+  .hp-inspector > .hp-surface-header > button[aria-pressed] { min-height: 28px; min-width: 0; font-size: 12px; padding: 4px 6px; }
+  .hp-artifact-heading { padding-right: 0; }
+}

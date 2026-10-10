@@ -1,0 +1,86 @@
+{
+  "1440": {
+    "overflow": false,
+    "composerClipsControls": false,
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 900
+      },
+      ".hp-context-sidebar": {
+        "x": 104,
+        "y": 0,
+        "width": 280,
+        "height": 900
+      },
+      ".hp-canvas-header": {
+        "x": 384,
+        "y": 0,
+        "width": 636,
+        "height": 72
+      },
+      ".hp-thread__viewport": {
+        "x": 384,
+        "y": 72,
+        "width": 636,
+        "height": 698
+      },
+      ".hp-composer": {
+        "x": 406,
+        "y": 816,
+        "width": 592,
+        "height": 66
+      },
+      ".hp-inspector": {
+        "x": 1020,
+        "y": 0,
+        "width": 420,
+        "height": 900
+      }
+    }
+  },
+  "1672": {
+    "overflow": false,
+    "composerClipsControls": false,
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 941
+      },
+      ".hp-context-sidebar": {
+        "x": 104,
+        "y": 0,
+        "width": 280,
+        "height": 941
+      },
+      ".hp-canvas-header": {
+        "x": 384,
+        "y": 0,
+        "width": 868,
+        "height": 72
+      },
+      ".hp-thread__viewport": {
+        "x": 384,
+        "y": 72,
+        "width": 868,
+        "height": 739
+      },
+      ".hp-composer": {
+        "x": 406,
+        "y": 857,
+        "width": 824,
+        "height": 66
+      },
+      ".hp-inspector": {
+        "x": 1252,
+        "y": 0,
+        "width": 420,
+        "height": 941
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Box, Button, Flex, Heading, Spinner, Text } from "@radix-ui/themes";
 import { conversationDateGroup } from "./conversation/dateGroup";
-import { Plus, MessageSquare } from "lucide-react";
+import { Plus, Folder, Search } from "lucide-react";
 import type { HpConversation } from "../api/types";
 
 interface ConversationSidebarProps {
@@ -55,7 +55,7 @@ export function ConversationSidebar({
   return (
     <Box className="hp-sidebar">
       <Flex direction="column" style={{ height: "100%" }}>
-        <Flex justify="between" align="center" className="hp-sidebar__header">
+        <Flex direction="column" align="stretch" className="hp-sidebar__header">
           <Heading as="h2" size="3" weight="bold">
             对话
           </Heading>
@@ -71,13 +71,16 @@ export function ConversationSidebar({
           </Button>
         </Flex>
 
-        <input
-          className="hp-conversation-filter"
-          aria-label="筛选已加载对话"
-          placeholder="筛选已加载对话"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
+        <div className="hp-conversation-search">
+          <Search size={16} aria-hidden="true" />
+          <input
+            className="hp-conversation-filter"
+            aria-label="筛选已加载对话"
+            placeholder="筛选已加载对话"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+        </div>
         <Flex direction="column" gap="1" className="hp-sidebar__list">
           {error && (
             <div role="alert">
@@ -120,10 +123,17 @@ export function ConversationSidebar({
                       conversation.conversation_id === activeConversationId ? "true" : undefined
                     }
                   >
-                    <MessageSquare size={16} aria-hidden="true" />
-                    <Text size="2" truncate>
+                    <Folder size={18} aria-hidden="true" />
+                    <Text className="hp-conv-title" size="2" truncate>
                       {conversation.title || "未命名对话"}
                     </Text>
+                    <time
+                      className="hp-conv-time"
+                      dateTime={conversation.updated_at}
+                      aria-hidden="true"
+                    >
+                      {updatedLabel(conversation.updated_at, today)}
+                    </time>
                   </button>
                 ))}
             </div>
@@ -137,4 +147,13 @@ export function ConversationSidebar({
       </Flex>
     </Box>
   );
+}
+
+function updatedLabel(value: string, today: Date) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const group = conversationDateGroup(value, today);
+  return group === "今天" || group === "昨天"
+    ? date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })
+    : `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }

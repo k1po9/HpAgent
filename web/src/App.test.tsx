@@ -375,12 +375,18 @@ describe("UI-1 Shell lifecycle", () => {
     );
     const composer = await screen.findByPlaceholderText(/输入消息/);
     fireEvent.change(composer, { target: { value: "尚未发送的草稿" } });
+    fireEvent.click(await screen.findByRole("button", { name: "修改标题" }));
+    const titleDraft = screen.getByRole("textbox", { name: "对话标题" });
+    fireEvent.change(titleDraft, { target: { value: "尚未保存的标题" } });
     const details = requests.filter((url) => url === "/api/v1/conversations/c1").length;
     const nav = screen.getByRole("navigation", { name: "主导航" });
     expect(within(nav).getAllByRole("button")).toHaveLength(3);
     fireEvent.click(within(nav).getByRole("button", { name: "空间" }));
     fireEvent.click(within(nav).getByRole("button", { name: "任务" }));
     fireEvent.click(within(nav).getByRole("button", { name: "AI" }));
+    expect(screen.getByRole("textbox", { name: "对话标题" })).toBe(titleDraft);
+    expect(titleDraft).toHaveValue("尚未保存的标题");
+    expect(document.querySelectorAll("#canvas-title")).toHaveLength(1);
     act(() => useShell.getState().openInspector({ kind: "run", objectId: "missing" }));
     expect(await screen.findByText("对象不可用。")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "回到所属页面" }));

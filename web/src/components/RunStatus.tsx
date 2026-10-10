@@ -1,5 +1,5 @@
 import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { HpRun } from "../api/types";
 import type { RunProgress } from "../sse/runFeed";
 import {
@@ -20,6 +20,7 @@ interface RunStatusProps {
   stopping: boolean;
   onStop: () => void;
   onRetry: () => void;
+  actions?: ReactNode;
 }
 
 /**
@@ -38,6 +39,7 @@ export function RunStatus({
   stopping,
   onStop,
   onRetry,
+  actions,
 }: RunStatusProps) {
   const [warnedRun, setWarnedRun] = useState<string | null>(null);
   const queuedRunId = activeRun?.status === "queued" ? activeRun.run_id : null;
@@ -64,66 +66,77 @@ export function RunStatus({
     );
 
   return (
-    <Box className="hp-runstrip" data-terminal={Boolean(activeRun && !running)}>
+    <Box
+      className="hp-runstrip"
+      data-terminal={Boolean(activeRun && !running)}
+      data-status={activeRun?.status}
+    >
       {busyMessage ? (
-        <Text size="2" color="red" role="status">
+        <Text className="hp-run-feedback" size="2" color="red" role="status">
           {busyMessage}
         </Text>
       ) : null}
       {activeRun ? (
-        <Flex gap="3" align="center" wrap="wrap">
-          {running ? (
-            <Spinner size="1" data-testid="run-spinner" />
-          ) : (
-            <Text size="2" color="gray" aria-hidden="true">
-              {activeRun.status === "succeeded" ? "✓" : activeRun.status === "failed" ? "!" : "■"}
+        <Flex className="hp-run-content" direction="column" gap="3">
+          <div className="hp-run-heading">
+            {running ? (
+              <Spinner size="2" data-testid="run-spinner" />
+            ) : (
+              <Text size="2" color="gray" aria-hidden="true">
+                {activeRun.status === "succeeded" ? "✓" : activeRun.status === "failed" ? "!" : "■"}
+              </Text>
+            )}
+            <Text size="2" weight="medium" role="status" data-testid="run-label">
+              {runStatusLabel(activeRun.status)}
             </Text>
-          )}
-          <Text size="2" weight="medium" role="status" data-testid="run-label">
-            {runStatusLabel(activeRun.status)}
-          </Text>
-          {activeRun.status === "queued" && warnedRun === activeRun.run_id ? (
-            <Text size="2" color="orange" role="status">
-              仍在等待执行 Worker 接管
-            </Text>
-          ) : null}
-          {degraded && running ? (
-            <Text size="2" color="orange" role="status" data-testid="run-degraded">
-              连接中断，正在同步执行状态
-            </Text>
-          ) : null}
-          {progress ? (
-            <Text size="2" color="gray" data-testid="run-progress">
-              {progress.summary || phaseLabel(progress.phase)}
-            </Text>
-          ) : null}
-          {unsafeSideEffect ? (
-            <Text size="2" color="red" role="alert" data-testid="unsafe-retry-message">
-              任务中存在无法确认是否已完成的外部操作，请检查结果后重新发起任务。
-            </Text>
-          ) : null}
-          {activeRun.status === "failed" && activeRun.failure?.message ? (
-            <Text size="2" color="red" role="status" data-testid="run-failure-message">
-              {activeRun.failure.message}
-            </Text>
-          ) : null}
-          {cancellable ? (
-            <Button
-              size="1"
-              variant="soft"
-              color="red"
-              onClick={onStop}
-              disabled={stopping || activeRun.status === "cancelling"}
-              data-testid="stop-run"
-            >
-              {stopping ? "正在停止…" : "停止"}
-            </Button>
-          ) : null}
-          {retryable ? (
-            <Button size="1" variant="soft" onClick={onRetry} data-testid="retry-run">
-              重试
-            </Button>
-          ) : null}
+          </div>
+          <div className="hp-run-description">
+            {activeRun.status === "queued" && warnedRun === activeRun.run_id ? (
+              <Text size="2" color="orange" role="status">
+                仍在等待执行 Worker 接管
+              </Text>
+            ) : null}
+            {degraded && running ? (
+              <Text size="2" color="orange" role="status" data-testid="run-degraded">
+                连接中断，正在同步执行状态
+              </Text>
+            ) : null}
+            {progress ? (
+              <Text size="2" color="gray" data-testid="run-progress">
+                {progress.summary || phaseLabel(progress.phase)}
+              </Text>
+            ) : null}
+            {unsafeSideEffect ? (
+              <Text size="2" color="red" role="alert" data-testid="unsafe-retry-message">
+                任务中存在无法确认是否已完成的外部操作，请检查结果后重新发起任务。
+              </Text>
+            ) : null}
+            {activeRun.status === "failed" && activeRun.failure?.message ? (
+              <Text size="2" color="red" role="status" data-testid="run-failure-message">
+                {activeRun.failure.message}
+              </Text>
+            ) : null}
+          </div>
+          <div className="hp-run-actions">
+            {actions}
+            {cancellable ? (
+              <Button
+                size="1"
+                variant="soft"
+                color="red"
+                onClick={onStop}
+                disabled={stopping || activeRun.status === "cancelling"}
+                data-testid="stop-run"
+              >
+                {stopping ? "正在停止…" : "停止"}
+              </Button>
+            ) : null}
+            {retryable ? (
+              <Button size="1" variant="soft" onClick={onRetry} data-testid="retry-run">
+                重试
+              </Button>
+            ) : null}
+          </div>
         </Flex>
       ) : null}
     </Box>

@@ -37,6 +37,7 @@ function coordinate() {
 }
 export function Surface({
   title,
+  headerActions,
   children,
   onClose,
   modal = true,
@@ -47,6 +48,7 @@ export function Surface({
   dismissible = true,
 }: {
   title: string;
+  headerActions?: ReactNode;
   children: ReactNode;
   onClose: () => void;
   modal?: boolean;
@@ -178,6 +180,7 @@ export function Surface({
         <h2 id={className.includes("inspector") ? "inspector-title" : undefined} tabIndex={-1}>
           {title}
         </h2>
+        {headerActions && <div className="hp-surface-header-actions">{headerActions}</div>}
         <button onClick={onClose} aria-label={`关闭${title}`} title="关闭">
           <X size={20} aria-hidden="true" />
         </button>

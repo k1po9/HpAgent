@@ -1,0 +1,664 @@
+{
+  "ai-1672": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell  ",
+    "titles": [
+      "新的对话"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 104,
+        "y": 0,
+        "width": 280,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-canvas-header": {
+        "x": 384,
+        "y": 0,
+        "width": 1288,
+        "height": 72,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 408,
+        "y": 15.5,
+        "width": 898.109375,
+        "height": 40,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 384,
+        "y": 72,
+        "width": 1288,
+        "height": 789,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 408,
+        "y": 861,
+        "width": 1240,
+        "height": 66,
+        "display": "flex"
+      },
+      ".hp-inspector": null
+    }
+  },
+  "artifact-1672": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell hp-shell--inspecting ",
+    "titles": [
+      "新的对话"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 104,
+        "y": 0,
+        "width": 280,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-canvas-header": {
+        "x": 384,
+        "y": 0,
+        "width": 868,
+        "height": 72,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 408,
+        "y": 15.5,
+        "width": 478.109375,
+        "height": 40,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 384,
+        "y": 72,
+        "width": 868,
+        "height": 743,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 408,
+        "y": 861,
+        "width": 820,
+        "height": 66,
+        "display": "flex"
+      },
+      ".hp-inspector": {
+        "x": 1252,
+        "y": 0,
+        "width": 420,
+        "height": 941,
+        "display": "flex"
+      }
+    }
+  },
+  "artifact-1440": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell hp-shell--inspecting ",
+    "titles": [
+      "新的对话"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 900,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 104,
+        "y": 0,
+        "width": 280,
+        "height": 900,
+        "display": "flex"
+      },
+      ".hp-canvas-header": {
+        "x": 384,
+        "y": 0,
+        "width": 636,
+        "height": 72,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 408,
+        "y": 15.5,
+        "width": 246.109375,
+        "height": 40,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 384,
+        "y": 72,
+        "width": 636,
+        "height": 650,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 408,
+        "y": 768,
+        "width": 588,
+        "height": 118,
+        "display": "flex"
+      },
+      ".hp-inspector": {
+        "x": 1020,
+        "y": 0,
+        "width": 420,
+        "height": 900,
+        "display": "flex"
+      }
+    }
+  },
+  "artifact-1366": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell hp-shell--inspecting hp-shell--sidebar-collapsed",
+    "titles": [
+      "新的对话"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 900,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "none"
+      },
+      ".hp-canvas-header": {
+        "x": 104,
+        "y": 0,
+        "width": 842,
+        "height": 72,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 182,
+        "y": 15.5,
+        "width": 398.109375,
+        "height": 40,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 104,
+        "y": 72,
+        "width": 842,
+        "height": 702,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 128,
+        "y": 820,
+        "width": 794,
+        "height": 66,
+        "display": "flex"
+      },
+      ".hp-inspector": {
+        "x": 946,
+        "y": 0,
+        "width": 420,
+        "height": 900,
+        "display": "flex"
+      }
+    }
+  },
+  "artifact-1280": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell hp-shell--inspecting hp-shell--sidebar-collapsed",
+    "titles": [
+      "新的对话"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 900,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "none"
+      },
+      ".hp-canvas-header": {
+        "x": 104,
+        "y": 0,
+        "width": 756,
+        "height": 72,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 182,
+        "y": 15.5,
+        "width": 312.109375,
+        "height": 40,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 104,
+        "y": 72,
+        "width": 756,
+        "height": 702,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 128,
+        "y": 820,
+        "width": 708,
+        "height": 66,
+        "display": "flex"
+      },
+      ".hp-inspector": {
+        "x": 860,
+        "y": 0,
+        "width": 420,
+        "height": 900,
+        "display": "flex"
+      }
+    }
+  },
+  "artifact-1024": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell hp-shell--inspecting ",
+    "titles": [
+      "新的对话"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 900,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 104,
+        "y": 0,
+        "width": 280,
+        "height": 900,
+        "display": "flex"
+      },
+      ".hp-canvas-header": {
+        "x": 384,
+        "y": 0,
+        "width": 640,
+        "height": 72,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 408,
+        "y": 15.5,
+        "width": 250.109375,
+        "height": 40,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 384,
+        "y": 72,
+        "width": 640,
+        "height": 650,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 408,
+        "y": 768,
+        "width": 592,
+        "height": 118,
+        "display": "flex"
+      },
+      ".hp-inspector": {
+        "x": 504,
+        "y": 0,
+        "width": 520,
+        "height": 900,
+        "display": "flex"
+      }
+    }
+  },
+  "artifact-390": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell hp-shell--inspecting hp-shell--sidebar-collapsed",
+    "titles": [
+      "新的对话"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 784,
+        "width": 390,
+        "height": 60,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "none"
+      },
+      ".hp-canvas-header": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 117,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 66,
+        "y": 10,
+        "width": 312,
+        "height": 44,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 0,
+        "y": 117,
+        "width": 390,
+        "height": 485,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 12,
+        "y": 658,
+        "width": 366,
+        "height": 114,
+        "display": "flex"
+      },
+      ".hp-inspector": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "display": "flex"
+      }
+    }
+  },
+  "ai-390": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell  hp-shell--sidebar-collapsed",
+    "titles": [
+      "新的对话"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 784,
+        "width": 390,
+        "height": 60,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "none"
+      },
+      ".hp-canvas-header": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 117,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 66,
+        "y": 10,
+        "width": 312,
+        "height": 44,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 0,
+        "y": 117,
+        "width": 390,
+        "height": 541,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 12,
+        "y": 658,
+        "width": 366,
+        "height": 114,
+        "display": "flex"
+      },
+      ".hp-inspector": null
+    }
+  },
+  "sidebar-390": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell  hp-shell--sidebar-collapsed",
+    "titles": [
+      "新的对话"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 784,
+        "width": 390,
+        "height": 60,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 844,
+        "display": "flex"
+      },
+      ".hp-canvas-header": {
+        "x": 0,
+        "y": 0,
+        "width": 390,
+        "height": 117,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 66,
+        "y": 10,
+        "width": 312,
+        "height": 44,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 0,
+        "y": 117,
+        "width": 390,
+        "height": 541,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 12,
+        "y": 658,
+        "width": 366,
+        "height": 114,
+        "display": "flex"
+      },
+      ".hp-inspector": null
+    }
+  },
+  "workspace-1672": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell  ",
+    "titles": [
+      "新的对话",
+      "空间"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 104,
+        "y": 0,
+        "width": 280,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-canvas-header": {
+        "x": 384,
+        "y": 0,
+        "width": 1288,
+        "height": 72,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "none"
+      },
+      ".hp-thread__viewport": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "flex"
+      },
+      ".hp-inspector": null
+    }
+  },
+  "tasks-1672": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell  ",
+    "titles": [
+      "新的对话",
+      "任务"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 104,
+        "y": 0,
+        "width": 280,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-canvas-header": {
+        "x": 384,
+        "y": 0,
+        "width": 1288,
+        "height": 72,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "none"
+      },
+      ".hp-thread__viewport": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "display": "flex"
+      },
+      ".hp-inspector": null
+    }
+  },
+  "new-ai-1672": {
+    "pageOverflow": false,
+    "shellClass": "hp-shell  ",
+    "titles": [
+      "AI"
+    ],
+    "regions": {
+      ".hp-rail": {
+        "x": 0,
+        "y": 0,
+        "width": 104,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-context-sidebar": {
+        "x": 104,
+        "y": 0,
+        "width": 280,
+        "height": 941,
+        "display": "flex"
+      },
+      ".hp-canvas-header": {
+        "x": 384,
+        "y": 0,
+        "width": 1288,
+        "height": 72,
+        "display": "flex"
+      },
+      ".hp-conversation-header": {
+        "x": 408,
+        "y": 19,
+        "width": 1111.234375,
+        "height": 33,
+        "display": "flex"
+      },
+      ".hp-thread__viewport": {
+        "x": 384,
+        "y": 72,
+        "width": 1288,
+        "height": 789,
+        "display": "block"
+      },
+      ".hp-composer": {
+        "x": 408,
+        "y": 861,
+        "width": 1240,
+        "height": 66,
+        "display": "flex"
+      },
+      ".hp-inspector": null
+    }
+  }
+}

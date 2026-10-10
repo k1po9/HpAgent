@@ -1,0 +1,12 @@
+
+> hpagent-web@0.1.0 test
+> vitest run src/components/artifact/ArtifactMessageItems.test.tsx src/components/artifact/ArtifactInspector.test.tsx src/components/artifact/UI6InspectorSelfReview.test.tsx src/components/ArtifactPreview.test.tsx src/components/shell/Surface.test.tsx src/components/shell/useInspectorFlow.test.tsx src/App.test.tsx
+
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent_web/web
+
+
+ Test Files  7 passed (7)
+      Tests  40 passed (40)
+   Start at  09:39:04
+   Duration  56.40s (transform 40.86s, setup 10.44s, import 65.76s, tests 27.72s, environment 78.63s)

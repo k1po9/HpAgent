@@ -1,0 +1,9 @@
+
+Running 2 tests using 1 worker
+
+(node:1312278) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 ../.data/ui-layout-round3-20261010/e2e/ui-6-artifact.spec.ts:77:5 › network fixtures: task original delivery, unavailable versions, layouts and layered focus (12.2s)
+  ✓  2 ../.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:116:5 › seven viewports and boundary resizes keep Artifact iframe, draft and query count (8.8s)
+
+  2 passed (23.8s)

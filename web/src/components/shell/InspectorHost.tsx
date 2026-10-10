@@ -6,6 +6,7 @@ import { ArtifactInspector } from "../artifact/ArtifactInspector";
 import type { ArtifactSaveSource } from "../workspace/workspaceOperations";
 import { useInspectorFlow } from "./useInspectorFlow";
 import { Surface } from "./Surface";
+import { Maximize2, Minimize2 } from "lucide-react";
 
 import { useWorkspace } from "../../store/workspace";
 import { FileInspector } from "../workspace/FileInspector";
@@ -54,13 +55,24 @@ export function InspectorHost({
     <Surface
       title={title}
       modal={compact}
-      className={`hp-inspector ${expanded ? "hp-inspector--expanded" : ""}`}
+      className={`hp-inspector hp-inspector--${inspector.kind} ${expanded ? "hp-inspector--expanded" : ""}`}
+      headerActions={
+        <button
+          className="hp-inspector-expand"
+          aria-pressed={expanded}
+          onClick={() => useShell.setState({ expanded: !expanded })}
+        >
+          {expanded ? (
+            <Minimize2 size={16} aria-hidden="true" />
+          ) : (
+            <Maximize2 size={16} aria-hidden="true" />
+          )}
+          {expanded ? "恢复宽度" : "扩大阅读"}
+        </button>
+      }
       onClose={back}
       onBack={backStack.length ? back : undefined}
     >
-      <button aria-pressed={expanded} onClick={() => useShell.setState({ expanded: !expanded })}>
-        {expanded ? "恢复宽度" : "扩大阅读"}
-      </button>
       {inspector.kind === "run" ? (
         <RunInspector key={inspector.objectId} inspector={inspector} onSaveFile={onSaveFile} />
       ) : inspector.kind === "task" ? (

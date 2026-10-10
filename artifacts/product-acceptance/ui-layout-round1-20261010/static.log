@@ -1,0 +1,6 @@
+
+> hpagent-web@0.1.0 typecheck
+> tsc --noEmit
+
+Checking formatting...
+All matched files use Prettier code style!

@@ -1,0 +1,21 @@
+
+Running 14 tests using 1 worker
+
+(node:615479) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:37:5 › lost DELETE responses close the dialog after authoritative empty readback (8.0s)
+  ✓   2 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:56:5 › revoke finishing during history navigation releases only its conversation lock (8.9s)
+  ✓   3 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:91:5 › B sends through the real API while A's POST is pending (23.0s)
+  ✓   4 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:124:5 › empty composer creates only on submission, handles IME, and restores per-conversation drafts (31.5s)
+  ✓   5 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:174:5 › a lost POST response is confirmed with the original key and does not duplicate messages (13.9s)
+  ✓   6 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:206:5 › creation completed after leaving AI does not send or navigate and keeps the draft (8.8s)
+  ✓   7 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:238:5 › attachment abandonment is confirmed and existing files are not deleted (10.0s)
+  ✓   8 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:255:5 › rename, read-only resources, focus return, and seven viewport layouts (10.8s)
+  ✓   9 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:323:5 › history prepend retains the visible anchor and streaming does not pull a reader to the bottom (19.1s)
+  ✓  10 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:393:5 › failed attachment keeps the draft and exposes a removable error; text zoom remains usable (6.7s)
+  ✓  11 ../.data/ui-layout-round2-20261010/e2e/ui-2-ai.spec.ts:435:5 › more than thirty conversations paginate and loaded-title filtering remains local (9.5s)
+  ✓  12 ../.data/ui-layout-round2-20261010/e2e/ui-3-execution.spec.ts:9:5 › real API: message-bound execution, tab navigation and terminal resource boundary (14.2s)
+  ✓  13 ../.data/ui-layout-round2-20261010/e2e/ui-3-execution.spec.ts:52:5 › network fixtures: Work snapshot, missing Trace, approvals and responsive inspector (8.6s)
+  ✓  14 ../.data/ui-layout-round2-20261010/e2e/ui-3-execution.spec.ts:198:5 › network fixtures: terminal outputs refresh and permission denial discards old model bodies (8.2s)
+
+  14 passed (3.1m)

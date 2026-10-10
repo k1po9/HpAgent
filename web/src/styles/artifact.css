@@ -1,160 +1,379 @@
-/* UI-6: HTML artifact stays inside the shared Inspector surface. */
-.hp-artifact-inspector {
+/* Existing HTML artifacts: message cards and the shared Inspector content. */
+.hp-artifact-message-items {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
   min-width: 0;
-  display: grid;
-  gap: 14px;
+  margin-top: 4px;
 }
-
-.hp-artifact-heading h3 {
-  margin: 0;
+.hp-artifact-message-items button,
+.hp-artifact-inspector button,
+.hp-artifact-empty button {
+  font: inherit;
+  font-size: 14px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 8px 12px;
+  color: var(--hp-text);
+  background: white;
+  border: 1px solid var(--hp-border);
+  border-radius: 7px;
+  white-space: normal;
   overflow-wrap: anywhere;
 }
+.hp-artifact-message-items button:hover:not(:disabled),
+.hp-artifact-inspector button:hover:not(:disabled),
+.hp-artifact-empty button:hover:not(:disabled) {
+  background: var(--hp-subtle);
+}
+.hp-artifact-message-items button:disabled,
+.hp-artifact-inspector button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.hp-artifact-message-items p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.hp-artifact-message-items .hp-artifact-message-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  border-radius: 10px;
+}
+.hp-artifact-message-items .hp-artifact-message-card:hover {
+  background: #fcfdff;
+  border-color: #c3d5ee;
+}
+.hp-artifact-message-icon,
+.hp-artifact-heading-icon {
+  box-sizing: content-box;
+  flex: none;
+  padding: 10px;
+  border-radius: 9px;
+  background: var(--hp-selection);
+  color: var(--hp-accent);
+}
+.hp-artifact-message-copy {
+  flex: 1;
+  min-width: 0;
+}
+.hp-artifact-message-copy strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.hp-artifact-message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  color: var(--hp-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.hp-artifact-kind {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--hp-subtle);
+}
+.hp-artifact-message-card[data-status="failed"] .hp-artifact-message-meta {
+  color: var(--hp-danger);
+}
+.hp-artifact-message-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  gap: 4px;
+  min-height: 36px;
+  padding: 5px 10px;
+  border: 1px solid var(--hp-border);
+  border-radius: 6px;
+  color: var(--hp-accent);
+  font-size: 13px;
+}
 
+/* The middle section scrolls; the header, tabs and available actions stay visible. */
+.hp-inspector--artifact > .hp-surface-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.hp-artifact-inspector {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.hp-artifact-heading {
+  display: flex;
+  align-items: flex-start;
+  flex: none;
+  gap: 12px;
+  padding: 16px 20px 12px;
+}
+.hp-artifact-heading-copy {
+  flex: 1;
+  min-width: 0;
+}
+.hp-artifact-heading h3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.hp-artifact-heading p {
+  margin: 5px 0 0;
+  color: var(--hp-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.hp-artifact-heading[data-status="failed"] p {
+  color: var(--hp-danger);
+}
+.hp-artifact-inspector .hp-inspector-tabs {
+  flex: none;
+  gap: 0;
+  margin: 0;
+  padding: 0 20px;
+}
+.hp-artifact-inspector .hp-inspector-tabs button {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--hp-muted);
+}
+.hp-artifact-inspector .hp-inspector-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--hp-accent);
+  color: var(--hp-accent);
+}
+.hp-artifact-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 20px;
+  scroll-padding: 16px;
+}
+.hp-artifact-panel {
+  min-width: 0;
+  outline-offset: -2px;
+}
+.hp-artifact-origin,
+.hp-artifact-notice {
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid var(--hp-border);
+  border-radius: 8px;
+  background: var(--hp-subtle);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.hp-artifact-origin p {
+  margin: 0 0 10px;
+}
+.hp-artifact-notice--error {
+  color: var(--hp-danger);
+}
+.hp-artifact-empty {
+  padding: 20px;
+}
 .hp-artifact-toolbar {
   display: flex;
   flex-wrap: wrap;
+  flex: none;
   gap: 8px;
+  padding: 14px 20px max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--hp-border);
+  background: white;
 }
-
+.hp-artifact-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+}
+.hp-artifact-toolbar button svg {
+  flex: none;
+}
+.hp-artifact-toolbar .hp-artifact-save {
+  flex: 1;
+  background: var(--hp-accent);
+  border-color: var(--hp-accent);
+  color: white;
+}
+.hp-artifact-toolbar .hp-artifact-save:hover:not(:disabled) {
+  background: #0c63df;
+  border-color: #0c63df;
+}
 .hp-artifact-history {
-  padding-left: 24px;
   display: grid;
   gap: 14px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
 }
-
 .hp-artifact-history li {
-  border-bottom: 1px solid var(--gray-6);
-  padding-bottom: 12px;
+  padding: 14px;
+  border: 1px solid var(--hp-border);
+  border-radius: 8px;
 }
-
-.hp-artifact-history p,
-.hp-artifact-details dd,
-.hp-artifact-origin {
+.hp-artifact-history button[aria-current="true"] {
+  background: var(--hp-selection);
+  color: var(--hp-accent);
+  border-color: #c3d5ee;
+}
+.hp-artifact-history p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--hp-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.hp-artifact-details {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.hp-artifact-details dd {
+  margin: 3px 0 16px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
-
-.hp-artifact-details dd {
-  margin: 0 0 12px;
-}
-
 .hp-artifact-details dt {
-  color: var(--gray-11);
+  color: var(--hp-muted);
 }
-
 .hp-artifact-composer {
   display: grid;
   gap: 8px;
-  border-top: 1px solid var(--gray-6);
-  padding-top: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--hp-border);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.7;
 }
-
+.hp-artifact-composer p {
+  margin: 0;
+}
 .hp-artifact-composer textarea {
   min-height: 100px;
   width: 100%;
   resize: vertical;
   box-sizing: border-box;
-}
-
-.hp-artifact-inspector .hp-artifact-preview iframe {
-  width: 100%;
-  height: clamp(260px, 46dvh, 650px);
-  border: 1px solid var(--gray-6);
-}
-
-.hp-artifact-message-items {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.hp-artifact-message-items button {
-  max-width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  text-align: left;
-}
-
-.hp-artifact-inspector button {
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 599px) {
-  .hp-artifact-inspector {
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-
-  .hp-artifact-toolbar button {
-    flex: 1 1 140px;
-  }
-
-  .hp-artifact-composer textarea {
-    font-size: 1rem;
-  }
-}
-
-.hp-artifact-inspector button,
-.hp-artifact-message-items button {
   font: inherit;
-  font-size: 0.875rem;
-  min-height: 40px;
-  padding: 8px 12px;
-  color: var(--hp-text);
-  background: var(--hp-surface);
-  border: 1px solid var(--hp-selection);
-  border-radius: 8px;
-}
-
-.hp-artifact-inspector button:hover,
-.hp-artifact-message-items button:hover {
-  background: var(--hp-subtle);
-}
-
-.hp-artifact-inspector button:disabled,
-.hp-artifact-message-items button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.hp-artifact-heading p,
-.hp-artifact-composer p {
-  margin: 8px 0;
-}
-
-.hp-artifact-origin {
-  padding: 12px;
-  background: var(--hp-subtle);
-  border-radius: 8px;
-}
-
-.hp-artifact-origin p {
-  margin: 0 0 10px;
-}
-
-.hp-artifact-inspector .hp-artifact-preview {
-  height: auto;
-}
-
-.hp-artifact-inspector .hp-artifact-toolbar {
-  margin-bottom: 10px;
-}
-
-.hp-artifact-composer textarea {
-  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
   padding: 12px;
   border: 1px solid var(--hp-border);
   border-radius: 8px;
+  background: #fcfdff;
 }
-
 .hp-artifact-composer > button {
   background: var(--hp-subtle);
-  border-color: var(--hp-muted);
+}
+.hp-artifact-preview {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.hp-artifact-preview iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.hp-artifact-inspector .hp-artifact-preview {
+  display: flex;
+  flex-direction: column;
+  height: clamp(280px, 60dvh, 680px);
+}
+.hp-artifact-inspector .hp-artifact-preview iframe {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--hp-border);
+  border-radius: 10px;
+  background: white;
+}
+.hp-artifact-runtime-error {
+  padding: 8px 12px;
+  background: var(--red-a3);
+  color: var(--hp-danger);
+  overflow-wrap: anywhere;
+}
+.hp-artifact-runtime-error button {
+  margin-left: 8px;
+}
+.hp-artifact-state {
+  padding: 24px 16px;
+  border: 1px solid var(--hp-border);
+  border-radius: 8px;
+  background: var(--hp-subtle);
+  color: var(--hp-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.hp-artifact-state[role="alert"] {
+  color: var(--hp-danger);
 }
 @media (max-width: 599px) {
+  .hp-artifact-message-items .hp-artifact-message-card {
+    padding: 12px;
+    gap: 10px;
+  }
+  .hp-artifact-message-icon {
+    padding: 8px;
+  }
+  .hp-artifact-message-open {
+    border: 0;
+    padding: 0;
+  }
+  .hp-artifact-message-open > span {
+    display: none;
+  }
+  .hp-artifact-heading,
+  .hp-artifact-content {
+    padding-inline: 16px;
+  }
+  .hp-artifact-inspector .hp-inspector-tabs {
+    padding-inline: 16px;
+  }
+  .hp-artifact-toolbar {
+    padding-inline: 16px;
+  }
+  .hp-artifact-toolbar button {
+    font-size: 13px;
+  }
   .hp-artifact-inspector button,
   .hp-artifact-message-items button {
     min-height: 44px;
+  }
+  .hp-artifact-composer textarea {
+    font-size: 16px;
   }
 }

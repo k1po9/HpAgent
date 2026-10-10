@@ -1,0 +1,58 @@
+
+Running 11 tests using 1 worker
+
+(node:1292928) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 ../.data/ui-layout-round3-20261010/e2e/ui-6-artifact.spec.ts:8:5 › real API: lost create/version responses replay keys and history keeps v1 selected (17.3s)
+  ✓   2 ../.data/ui-layout-round3-20261010/e2e/ui-6-artifact.spec.ts:77:5 › network fixtures: task original delivery, unavailable versions, layouts and layered focus (6.4s)
+  ✓   3 ../.data/ui-layout-round3-20261010/e2e/ui-6-artifact.spec.ts:210:5 › real API upload with injected lost PUT and name conflict: source copy recovers without reupload (12.8s)
+  ✓   4 ../.data/ui-layout-round3-20261010/e2e/ui-6-artifact.spec.ts:281:5 › network fixtures: loading and query failure recover to the default successful version (2.6s)
+  ✓   5 ../.data/ui-layout-round3-20261010/e2e/ui-6-self-review.spec.ts:36:5 › network fixtures over real HTML: no-version reopen waits for fresh data and cached preview recovers after query failure (12.4s)
+  ✓   6 ../.data/ui-layout-round3-20261010/e2e/ui-6-self-review.spec.ts:99:5 › network fixtures over a restored real message: its HTML row converges through interrupted polling without opening details (14.7s)
+  ✓   7 ../.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:116:5 › seven viewports and boundary resizes keep Artifact iframe, draft and query count (8.9s)
+  ✓   8 ../.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:176:5 › mobile saving suspends the parent; Escape restores draft, iframe and focus (3.3s)
+  ✘   9 ../.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:200:5 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots (17.0s)
+(node:1297127) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  10 ../.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:236:5 › formal Header creation keeps instruction and verified Run lookup handles denial (11.6s)
+  ✓  11 ../.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:263:5 › nested Task abandonment and inbox keep the parent; keyboard and color pairs remain usable (4.4s)
+
+
+  1) ../.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:200:5 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator:  locator('.hp-inspector [role=tab]').last()
+    Expected: focused
+    Received: inactive
+    Timeout:  15000ms
+
+    Call log:
+      - Expect "toBeFocused" with timeout 15000ms
+      - waiting for locator('.hp-inspector [role=tab]').last()
+        34 × locator resolved to <button role="tab" tabindex="-1" aria-selected="false" id="artifact-tab-details" aria-controls="artifact-panel-details">详情</button>
+           - unexpected value "inactive"
+
+
+      217 |     await tabs.first().focus();
+      218 |     await page.keyboard.press("End");
+    > 219 |     await expect(tabs.last()).toBeFocused();
+          |                               ^
+      220 |     await expect(tabs.last()).toHaveAttribute("aria-selected", "true");
+      221 |     await expect(page).toHaveURL(/tab=/);
+      222 |     await page.keyboard.press("Home");
+        at /home/hp/workspace/HpAgent_web/.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:219:31
+
+    Error Context: ../.data/ui-layout-round3-20261010/test-results/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots/error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    ../.data/ui-layout-round3-20261010/test-results/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots/trace.zip
+    Usage:
+
+        npx playwright show-trace ../.data/ui-layout-round3-20261010/test-results/ui-7-unification-all-four--8b8f4-ce-geometry-and-screenshots/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    ../.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:200:5 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots
+  10 passed (1.9m)

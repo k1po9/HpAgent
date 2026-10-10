@@ -1,11 +1,11 @@
 import { useCallback, useEffect } from "react";
 import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
+import { Files } from "lucide-react";
 import { HpThread } from "../adapters/assistant-ui/HpThread";
 import { isTerminalRunStatus, useWorkbench } from "../store/workbench";
 import { useAuth } from "../store/auth";
 import { useShell } from "../store/shell";
 import { emptyConversationUi, useConversationUi } from "../store/conversationUi";
-import { ConversationHeader } from "./conversation/ConversationHeader";
 import { ConversationResources } from "./conversation/ConversationResources";
 import type { HpFile } from "../api/types";
 
@@ -133,7 +133,6 @@ export function ChatPane({
           <Text>正在加载对话…</Text>
         </Flex>
       )}
-      <ConversationHeader />
       {pendingSend && !sending && (
         <button
           type="button"
@@ -195,62 +194,69 @@ export function ChatPane({
                       });
                   }}
                 >
-                  <summary>选择已有文件</summary>
-                  {loadingCandidates && <p role="status">正在加载文件…</p>}
-                  {candidatesError && (
-                    <p role="alert">
-                      {candidatesError}
-                      <button onClick={() => void loadFileCandidates()}>重试</button>
-                    </p>
-                  )}
-                  <div style={{ maxHeight: 160, overflowY: "auto" }}>
-                    {fileCandidates.map((file) => (
-                      <button
-                        key={file.file_id}
-                        type="button"
-                        disabled={
-                          strategyLocked ||
-                          attachments.length >= 10 ||
-                          attachments.some((a) => a.fileId === file.file_id)
-                        }
-                        onClick={() => selectExistingFile(file)}
-                      >
-                        {file.file_name} · {file.purpose === "output" ? "已发布输出" : "历史附件"}
-                      </button>
-                    ))}
-                    {fileCandidatesNext ? (
-                      <button
-                        type="button"
-                        disabled={loadingCandidates}
-                        onClick={() => void loadFileCandidates(true)}
-                      >
-                        更多文件
-                      </button>
-                    ) : null}
+                  <summary aria-label="选择已有文件" title="选择已有文件">
+                    <Files size={16} aria-hidden="true" />
+                    <span>选择已有文件</span>
+                  </summary>
+                  <div className="hp-file-candidates__panel">
+                    {loadingCandidates && <p role="status">正在加载文件…</p>}
+                    {candidatesError && (
+                      <p role="alert">
+                        {candidatesError}
+                        <button onClick={() => void loadFileCandidates()}>重试</button>
+                      </p>
+                    )}
+                    <div style={{ maxHeight: 160, overflowY: "auto" }}>
+                      {fileCandidates.map((file) => (
+                        <button
+                          key={file.file_id}
+                          type="button"
+                          disabled={
+                            strategyLocked ||
+                            attachments.length >= 10 ||
+                            attachments.some((a) => a.fileId === file.file_id)
+                          }
+                          onClick={() => selectExistingFile(file)}
+                        >
+                          {file.file_name} · {file.purpose === "output" ? "已发布输出" : "历史附件"}
+                        </button>
+                      ))}
+                      {fileCandidatesNext ? (
+                        <button
+                          type="button"
+                          disabled={loadingCandidates}
+                          onClick={() => void loadFileCandidates(true)}
+                        >
+                          更多文件
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </details>
-              ) : null}{" "}
-              <select
-                className="hp-mode-select"
-                data-mode={displayedStrategy}
-                aria-label="执行模式"
-                value={displayedStrategy}
-                disabled={strategyLocked}
-                onChange={(event) =>
-                  (() => {
-                    const strategy = event.target.value as "react" | "plan_and_execute";
-                    setAgentStrategy(strategy);
-                    useConversationUi.getState().update(conversationKey, { strategy });
-                  })()
-                }
-              >
-                <option value="react">快速</option>
-                {durableAgentEnabled ||
-                (strategyLocked && displayedStrategy === "plan_and_execute") ? (
-                  <option value="plan_and_execute">深度</option>
-                ) : null}
-              </select>
+              ) : null}
             </>
+          }
+          composerMode={
+            <select
+              className="hp-mode-select"
+              data-mode={displayedStrategy}
+              aria-label="执行模式"
+              value={displayedStrategy}
+              disabled={strategyLocked}
+              onChange={(event) =>
+                (() => {
+                  const strategy = event.target.value as "react" | "plan_and_execute";
+                  setAgentStrategy(strategy);
+                  useConversationUi.getState().update(conversationKey, { strategy });
+                })()
+              }
+            >
+              <option value="react">快速</option>
+              {durableAgentEnabled ||
+              (strategyLocked && displayedStrategy === "plan_and_execute") ? (
+                <option value="plan_and_execute">深度</option>
+              ) : null}
+            </select>
           }
           error={error}
           loadingHistory={loadingMessages}

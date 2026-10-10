@@ -17,7 +17,7 @@ import {
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { emptyConversationUi, useConversationUi } from "../../store/conversationUi";
 import { Flex, Spinner, Text } from "@radix-ui/themes";
-import { FileText, Paperclip, X } from "lucide-react";
+import { Bot, FileText, Paperclip, Send, Square, UserRound, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { HpFile, HpMessage, HpRun } from "../../api/types";
@@ -30,6 +30,7 @@ export interface HpThreadProps {
   conversationKey?: string;
   composerContext?: ReactNode;
   toolbar?: ReactNode;
+  composerMode?: ReactNode;
   error?: string | null;
   loadingHistory?: boolean;
   stopping?: boolean;
@@ -78,45 +79,59 @@ function HpMessageView({
   return (
     <MessagePrimitive.Root className="hp-msg" data-message-id={message.id}>
       <MessagePrimitive.If user>
-        <span className="hp-msg__marker hp-msg__marker--user" aria-hidden="true" />
+        <span className="hp-msg__marker hp-msg__marker--user" aria-hidden="true">
+          <UserRound size={22} />
+        </span>
       </MessagePrimitive.If>
       <MessagePrimitive.If assistant>
-        <span className="hp-msg__marker hp-msg__marker--assistant" aria-hidden="true" />
+        <span className="hp-msg__marker hp-msg__marker--assistant" aria-hidden="true">
+          <Bot size={24} />
+        </span>
       </MessagePrimitive.If>
-      <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
-      {message.role === "assistant" && runsByMessageId[message.id] && (
-        <ExecutionBlock runId={runsByMessageId[message.id]!} messageId={message.id} />
-      )}
-      {files.length ? (
-        <div className="hp-msg__files" aria-label="消息附件">
-          {files.map((file) => (
-            <span key={file.file_id}>
-              <a
-                className="hp-msg__file"
-                href={file.download_url ?? undefined}
-                aria-disabled={!file.download_url}
-              >
-                <FileText size={14} aria-hidden="true" />
-                <span>{file.file_name}</span>
-              </a>
-              {file.status === "ready" && onSaveFile ? (
-                <button type="button" onClick={() => onSaveFile(file)}>
-                  保存到 Workspace
-                </button>
-              ) : null}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      {canBuild && <ArtifactMessageItems messageId={message.id} />}
+      <div className="hp-msg__body">
+        <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
+        {message.role === "assistant" && runsByMessageId[message.id] && (
+          <ExecutionBlock runId={runsByMessageId[message.id]!} messageId={message.id} />
+        )}
+        {files.length ? (
+          <div className="hp-msg__files" aria-label="消息附件">
+            {files.map((file) => (
+              <span key={file.file_id}>
+                <a
+                  className="hp-msg__file"
+                  href={file.download_url ?? undefined}
+                  aria-disabled={!file.download_url}
+                >
+                  <FileText size={14} aria-hidden="true" />
+                  <span>{file.file_name}</span>
+                </a>
+                {file.status === "ready" && onSaveFile ? (
+                  <button type="button" onClick={() => onSaveFile(file)}>
+                    保存到 Workspace
+                  </button>
+                ) : null}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        {canBuild && <ArtifactMessageItems messageId={message.id} />}
+      </div>
     </MessagePrimitive.Root>
   );
+}
+
+function fitComposerInput(input: HTMLTextAreaElement | null) {
+  if (!input || !input.getClientRects().length) return;
+  input.style.height = "auto";
+  const limit = Number.parseFloat(getComputedStyle(input).maxHeight);
+  input.style.height = `${Math.min(input.scrollHeight, limit || input.scrollHeight)}px`;
 }
 
 export function HpThread({
   conversationKey = "standalone",
   composerContext,
   toolbar,
+  composerMode,
   loadingHistory = false,
   error,
   stopping = false,
@@ -139,6 +154,21 @@ export function HpThread({
   const submissions = useRef(new Map<string, symbol>());
   const [submittingKeys, setSubmittingKeys] = useState<Set<string>>(() => new Set());
   const viewport = useRef<HTMLDivElement>(null);
+  const composerInput = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => fitComposerInput(composerInput.current), [draft.text, conversationKey]);
+  useLayoutEffect(() => {
+    const input = composerInput.current;
+    if (!input || typeof ResizeObserver === "undefined") return;
+    let width = input.getBoundingClientRect().width;
+    const observer = new ResizeObserver(() => {
+      const nextWidth = input.getBoundingClientRect().width;
+      if (nextWidth === width) return;
+      width = nextWidth;
+      fitComposerInput(input);
+    });
+    observer.observe(input);
+    return () => observer.disconnect();
+  }, []);
   const previous = useRef<{ key: string; first?: string; count: number }>({ key: "", count: 0 });
   const restorePages = useRef(0);
   const running = Boolean(
@@ -322,7 +352,6 @@ export function HpThread({
             void submit();
           }}
         >
-          {composerContext}
           {attachments.length ? (
             <div className="hp-composer__attachments" aria-label="待发送附件">
               {attachments.map((attachment) => (
@@ -359,6 +388,8 @@ export function HpThread({
             </div>
           ) : null}
           <textarea
+            ref={composerInput}
+            rows={1}
             className="hp-composer__input"
             aria-label="消息输入"
             aria-describedby={
@@ -399,7 +430,7 @@ export function HpThread({
               请等待附件就绪，或移除上传失败的附件。
             </p>
           )}
-          <Flex gap="2" align="center" className="hp-composer__actions">
+          <div className="hp-composer__actions">
             {fileUploadEnabled ? (
               <label className="hp-composer__attach" aria-label="添加附件">
                 <Paperclip size={16} aria-hidden="true" />
@@ -417,37 +448,47 @@ export function HpThread({
               </label>
             ) : null}
             {toolbar}
-            <button
-              type={running ? "button" : "submit"}
-              className={`hp-composer__action ${running ? "hp-composer__cancel" : "hp-composer__send"}`}
-              data-state={running ? "stop" : "send"}
-              aria-label={
-                running
-                  ? stopping || activeRun?.status === "cancelling"
-                    ? "正在停止…"
-                    : "停止"
-                  : "发送"
-              }
-              title={running ? "停止当前执行" : "发送消息"}
-              disabled={
-                running
-                  ? stopping || activeRun?.status === "cancelling"
-                  : sendDisabled || submitting || !draft.text.trim()
-              }
-              onClick={running ? onCancel : undefined}
-            >
-              <span className="hp-composer__action-size" aria-hidden="true">
-                正在停止…
-              </span>
-              <span>
-                {running
-                  ? stopping || activeRun?.status === "cancelling"
-                    ? "正在停止…"
-                    : "停止"
-                  : "发送"}
-              </span>
-            </button>
-          </Flex>
+            {composerContext}
+            <div className="hp-composer__submit">
+              {composerMode}
+              <button
+                type={running ? "button" : "submit"}
+                className={`hp-composer__action ${running ? "hp-composer__cancel" : "hp-composer__send"}`}
+                data-state={running ? "stop" : "send"}
+                aria-label={
+                  running
+                    ? stopping || activeRun?.status === "cancelling"
+                      ? "正在停止…"
+                      : "停止"
+                    : "发送"
+                }
+                title={running ? "停止当前执行" : "发送消息"}
+                disabled={
+                  running
+                    ? stopping || activeRun?.status === "cancelling"
+                    : sendDisabled || submitting || !draft.text.trim()
+                }
+                onClick={running ? onCancel : undefined}
+              >
+                {running ? (
+                  stopping || activeRun?.status === "cancelling" ? (
+                    <Spinner size="1" />
+                  ) : (
+                    <Square size={16} aria-hidden="true" />
+                  )
+                ) : (
+                  <Send size={18} aria-hidden="true" />
+                )}
+                <span className="hp-composer__action-label">
+                  {running
+                    ? stopping || activeRun?.status === "cancelling"
+                      ? "正在停止…"
+                      : "停止"
+                    : "发送"}
+                </span>
+              </button>
+            </div>
+          </div>
         </form>
       </ThreadPrimitive.Root>
     </AssistantRuntimeProvider>

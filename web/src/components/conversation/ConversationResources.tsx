@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Folder } from "lucide-react";
 import { HpApi } from "../../api/resources";
 import { api } from "../../api/client";
 import { useAuth } from "../../store/auth";
@@ -135,8 +136,12 @@ export function ConversationResources({
   return (
     <div className="hp-conversation-resources">
       <div className="hp-resource-chips" aria-label="长期授权资料">
-        {id && data?.id !== id && !error && <span>正在加载长期资料…</span>}
-        {id && data?.id === id && !grants.length && <span>暂无长期资料</span>}
+        {id && data?.id !== id && !error && (
+          <span className="hp-resource-loading">正在加载长期资料…</span>
+        )}
+        {id && data?.id === id && !grants.length && (
+          <span className="hp-resource-empty">暂无长期资料</span>
+        )}
         {grouped.map((rules) => (
           <span className="hp-resource-chip" key={rules[0]!.node_id}>
             {rules[0]!.name} ·{" "}
@@ -152,24 +157,30 @@ export function ConversationResources({
             </button>
           </span>
         ))}
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => {
-            setNotice("");
-            setPicker(true);
-          }}
-        >
-          使用资料
-        </button>
-        {id && (
-          <button type="button" onClick={() => useShell.setState({ modal: "resources" })}>
-            高级资料管理
-          </button>
-        )}
       </div>
+      <button
+        className="hp-resource-use"
+        type="button"
+        disabled={busy}
+        onClick={() => {
+          setNotice("");
+          setPicker(true);
+        }}
+      >
+        <Folder size={16} aria-hidden="true" />
+        使用资料
+      </button>
+      {id && (
+        <button
+          className="hp-resource-manage"
+          type="button"
+          onClick={() => useShell.setState({ modal: "resources" })}
+        >
+          高级资料管理
+        </button>
+      )}
       {error && (
-        <p role="alert">
+        <p className="hp-resource-feedback" role="alert">
           {error}{" "}
           <button
             type="button"
@@ -183,7 +194,11 @@ export function ConversationResources({
           </button>
         </p>
       )}
-      {notice && <p role="status">{notice}</p>}
+      {notice && (
+        <p className="hp-resource-feedback" role="status">
+          {notice}
+        </p>
+      )}
       {picker && (
         <ResourcePicker
           key={account?.account_id ?? "anonymous"}

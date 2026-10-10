@@ -1,0 +1,44 @@
+/* Browser presentation experiment against existing components; not imported by the app. */
+@media (min-width: 1400px) {
+  .hp-rail { width: 104px; flex-basis: 104px; padding: 22px 10px; gap: 28px; }
+  .hp-brand { font-size: 0; width: 88px; }
+  .hp-brand::after { content: "HpAgent"; font-size: 21px; letter-spacing: -1px; color: #101828; }
+  .hp-rail nav { gap: 16px; }
+  .hp-rail nav button { min-height: 80px; font-size: 14px; gap: 9px; }
+  .hp-rail nav button svg { width: 26px; height: 26px; }
+  .hp-rail nav button[aria-current="page"]::before { left: -10px; width: 4px; top: 0; bottom: 0; }
+  .hp-context-sidebar { width: 280px; flex-basis: 280px; }
+  .hp-shell .hp-sidebar__header { min-height: 120px; padding: 22px 20px 10px; align-items: stretch; flex-direction: column; gap: 20px; }
+  .hp-sidebar__header h2 { font-size: 20px; }
+  .hp-sidebar__header .rt-Button { min-height: 44px; width: 100%; font-size: 14px; }
+  .hp-conversation-filter { min-height: 40px; margin: 10px 20px; font-size: 13px; }
+  .hp-sidebar__list { padding: 0 12px; }
+  .hp-conversation-group { font-size: 13px; margin-top: 20px; }
+  .hp-shell .hp-conv { min-height: 44px; padding: 10px 12px; }
+  .hp-context-sidebar { background: #f7faff; }
+  .hp-canvas-header { padding: 14px 28px; gap: 10px; min-height: 72px; }
+  .hp-canvas-header h1 { font-size: 22px; }
+  .hp-canvas-header button { font-size: 13px; white-space: nowrap; }
+  .hp-conversation-header h2 { display: none; }
+  .hp-conversation-header { min-height: 34px; justify-content: flex-end; padding: 0 28px; }
+  .hp-thread__viewport { padding: 20px 28px; }
+  .hp-msg { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; width: 100%; margin-bottom: 26px; align-items: start; }
+  .hp-msg:has(.hp-msg__marker--user), .hp-msg:has(.hp-msg__marker--assistant) { max-width: 100%; margin-inline: 0; align-items: start; }
+  .hp-msg > :not(.hp-msg__marker) { grid-column: 2; min-width: 0; }
+  .hp-msg__marker { display: grid; place-items: center; width: 40px; height: 40px; grid-column: 1; grid-row: 1 / span 5; border-radius: 10px; background: #eaf3ff; color: #0670ff; }
+  .hp-msg__marker--assistant::after { content: ""; width: 26px; height: 26px; background: center / contain no-repeat url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%230670ff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"%3E%3Crect x="4" y="7" width="16" height="13" rx="3"/%3E%3Cpath d="M12 3v4M2 12v4m20-4v4M8 16h8"/%3E%3Ccircle cx="9" cy="12" r=".8" fill="%230670ff"/%3E%3Ccircle cx="15" cy="12" r=".8" fill="%230670ff"/%3E%3C/svg%3E'); }
+  .hp-msg__marker--user { background: #edf1f6; border-radius: 50%; }
+  .hp-msg__marker--user::after { content: ""; width: 30px; height: 30px; background: center / contain no-repeat url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%2364758b" stroke-width="1.6"%3E%3Ccircle cx="12" cy="8" r="4"/%3E%3Cpath d="M4 21v-2a8 8 0 0 1 16 0v2"/%3E%3C/svg%3E'); }
+  .hp-text-part { font-size: 16px; line-height: 1.8; padding: 0; }
+  .hp-msg:has(.hp-msg__marker--user) .hp-text-part { padding: 12px 16px; border-radius: 10px; background: #eaf3ff; }
+  .hp-text-part p { margin-block: 0 12px; }
+  .hp-composer { margin: 0 22px 18px; padding: 12px; gap: 8px; border-radius: 10px; }
+  .hp-composer__input { min-height: 52px; padding: 8px 10px; resize: none; border: 0; background: transparent; font-size: 15px; }
+  .hp-composer__actions { min-height: 36px; }
+  .hp-artifact-message-items .hp-artifact-message-card { padding: 12px; }
+  .hp-inspector > .hp-surface-header { min-height: 72px; padding: 14px 20px; }
+  .hp-inspector > .hp-surface-body { padding: 14px 20px; }
+  .hp-artifact-heading h3 { font-size: 20px; line-height: 1.5; }
+  .hp-artifact-heading p { margin: 8px 0 16px; }
+  .hp-inspector-tabs { margin-block: 12px; }
+}

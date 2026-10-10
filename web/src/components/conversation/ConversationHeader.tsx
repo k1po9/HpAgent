@@ -1,17 +1,39 @@
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { useWorkbench } from "../../store/workbench";
 
-export function ConversationHeader() {
+export function ConversationHeader({
+  fallbackTitle = "AI",
+  active = true,
+}: {
+  fallbackTitle?: string;
+  active?: boolean;
+}) {
   const conversation = useWorkbench((s) => s.activeConversation);
-  if (!conversation) return null;
-  return <TitleEditor key={conversation.conversation_id} title={conversation.title} />;
+  if (!conversation)
+    return (
+      <div className="hp-conversation-header" hidden={!active}>
+        <h1 id={active ? "canvas-title" : undefined} tabIndex={-1} title={fallbackTitle}>
+          {fallbackTitle}
+        </h1>
+      </div>
+    );
+  return (
+    <TitleEditor key={conversation.conversation_id} title={conversation.title} active={active} />
+  );
 }
-function TitleEditor({ title }: { title: string }) {
+function TitleEditor({ title, active }: { title: string; active: boolean }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(title);
   const [busy, setBusy] = useState(false);
   return (
-    <header className="hp-conversation-header">
+    <div
+      className={`hp-conversation-header ${editing ? "hp-conversation-header--editing" : ""}`}
+      hidden={!active}
+    >
+      <h1 id={active ? "canvas-title" : undefined} tabIndex={-1} title={title}>
+        {title}
+      </h1>
       {editing ? (
         <form
           onSubmit={(e) => {
@@ -39,18 +61,19 @@ function TitleEditor({ title }: { title: string }) {
           </button>
         </form>
       ) : (
-        <>
-          <h2 title={title}>{title}</h2>
-          <button
-            onClick={() => {
-              setValue(title);
-              setEditing(true);
-            }}
-          >
-            修改标题
-          </button>
-        </>
+        <button
+          type="button"
+          className="hp-conversation-title-edit"
+          aria-label="修改标题"
+          title="修改标题"
+          onClick={() => {
+            setValue(title);
+            setEditing(true);
+          }}
+        >
+          <ChevronDown size={18} aria-hidden="true" />
+        </button>
       )}
-    </header>
+    </div>
   );
 }

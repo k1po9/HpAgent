@@ -1,0 +1,18 @@
+
+> hpagent-web@0.1.0 test:e2e
+> playwright test --config=playwright.entry.config.ts
+
+
+Running 7 tests using 1 worker
+
+(node:545974) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 e2e/entry/entry.spec.ts:51:1 › valid cookie: branded wait, actual particle pixels, stable shell and no navigation replay (3.4s)
+  ✓  2 e2e/entry/entry.spec.ts:93:1 › login keeps its card through authentication, then cookie reload uses the ring (4.7s)
+  ✓  3 e2e/entry/entry.spec.ts:132:1 › expired cookie and failed probe never play a success transition; retry recovers (2.9s)
+  ✓  4 e2e/entry/entry.spec.ts:150:1 › reduced motion: static ring and no particle backing store (1.2s)
+  ✓  5 e2e/entry/entry.spec.ts:165:1 › mobile task deep link remains intact and resize settles safely (1.0s)
+  ✓  6 e2e/entry/entry.spec.ts:177:1 › expiry during animation cancels the layer and cannot resurrect the workbench (2.9s)
+  ✓  7 e2e/entry/entry.spec.ts:197:1 › slow verification stays in the ring; changing motion preference mid-flight settles (5.8s)
+
+  7 passed (23.5s)

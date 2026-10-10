@@ -1,0 +1,8 @@
+
+Running 1 test using 1 worker
+
+(node:1300863) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 ../.data/ui-layout-round3-20261010/e2e/ui-7-unification.spec.ts:200:5 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots (50.9s)
+
+  1 passed (1.1m)

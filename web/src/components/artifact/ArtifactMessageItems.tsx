@@ -53,6 +53,7 @@ export function ArtifactMessageItems({ messageId }: { messageId: string }) {
           type="button"
           key={item.artifact.artifact_id}
           className="hp-artifact-message-card"
+          data-status={item.latest_version?.status}
           aria-label={`${item.artifact.title} · HTML · ${item.latest_version ? `v${item.latest_version.version} ${artifactStatus[item.latest_version.status]}` : "暂无版本"}`}
           id={`artifact-open-${item.artifact.artifact_id}`}
           onClick={() =>
@@ -70,14 +71,19 @@ export function ArtifactMessageItems({ messageId }: { messageId: string }) {
           <FileCode className="hp-artifact-message-icon" size={24} aria-hidden="true" />
           <span className="hp-artifact-message-copy">
             <strong>{item.artifact.title}</strong>
-            <span> · HTML · </span>
-            <small>
-              {item.latest_version
-                ? `v${item.latest_version.version} ${artifactStatus[item.latest_version.status]}`
-                : "暂无版本"}
+            <small className="hp-artifact-message-meta">
+              <span className="hp-artifact-kind">HTML</span>
+              <span>
+                {item.latest_version
+                  ? `v${item.latest_version.version} ${artifactStatus[item.latest_version.status]}`
+                  : "暂无版本"}
+              </span>
             </small>
           </span>
-          <ChevronRight size={18} aria-hidden="true" />
+          <span className="hp-artifact-message-open" aria-hidden="true">
+            <span>打开</span>
+            <ChevronRight size={16} />
+          </span>
         </button>
       ))}
       {query?.error ? (

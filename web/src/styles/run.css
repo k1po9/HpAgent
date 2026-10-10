@@ -1,9 +1,111 @@
 /* UI-3: execution belongs to a message; diagnostics remain inside the Surface. */
 .hp-execution-block {
-  margin-block: 12px;
-  padding: 12px;
-  border: 1px solid var(--gray-6);
+  width: 100%;
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--hp-border);
   border-radius: var(--hp-radius);
+}
+
+.hp-execution-block:not(:has(.hp-runstrip)) {
+  border: 0;
+  padding: 0;
+}
+.hp-thread__viewport > .hp-execution-block {
+  margin-left: 54px;
+  width: calc(100% - 54px);
+}
+.hp-runstrip {
+  min-width: 0;
+}
+.hp-run-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--hp-accent);
+}
+.hp-run-heading > .rt-Text {
+  color: inherit;
+}
+.hp-runstrip[data-status="succeeded"] .hp-run-heading {
+  color: var(--hp-success);
+}
+.hp-runstrip[data-status="failed"] .hp-run-heading {
+  color: var(--hp-danger);
+}
+.hp-runstrip[data-status="cancelled"] .hp-run-heading {
+  color: var(--hp-muted);
+}
+.hp-runstrip [data-testid="run-label"] {
+  font-size: 15px;
+  font-weight: 650;
+}
+.hp-run-description {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hp-run-description:empty {
+  display: none;
+}
+.hp-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.hp-run-actions:empty {
+  display: none;
+}
+.hp-run-actions .hp-run-detail {
+  margin-right: auto;
+}
+.hp-run-feedback {
+  display: block;
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.hp-run-detail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--hp-muted);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.hp-execution-block > button.hp-run-detail {
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--hp-muted);
+}
+.hp-run-actions .rt-Button {
+  min-height: 36px;
+}
+.hp-runstrip[data-terminal="true"] .hp-run-content {
+  gap: 8px;
+}
+@media (max-width: 599px) {
+  .hp-execution-block {
+    padding: 14px;
+  }
+  .hp-thread__viewport > .hp-execution-block {
+    margin-left: 42px;
+    width: calc(100% - 42px);
+  }
+  .hp-run-actions .rt-Button,
+  .hp-run-detail {
+    min-height: 44px;
+  }
 }
 
 .hp-run-inspector {

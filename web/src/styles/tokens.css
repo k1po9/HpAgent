@@ -26,9 +26,10 @@
   --hp-title: 1.5rem;
   --hp-inspector-title: 1.125rem;
   --hp-body: 0.875rem;
-  --hp-rail: 64px;
-  --hp-sidebar: 256px;
-  --hp-canvas-min: 560px;
+  --hp-rail: 104px;
+  --hp-sidebar: 280px;
+  --hp-canvas-min: 600px;
+  --hp-layout-gap: 4px;
   --hp-inspector: 420px;
   --hp-inspector-expanded: 520px;
   --hp-morph: 150ms;

@@ -1,0 +1,484 @@
+{
+  "ai": {
+    ".hp-rail": {
+      "x": 0,
+      "y": 0,
+      "width": 64,
+      "height": 941,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-context-sidebar": {
+      "x": 64,
+      "y": 0,
+      "width": 256,
+      "height": 941,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-canvas-header": {
+      "x": 320,
+      "y": 0,
+      "width": 1352,
+      "height": 72,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-conversation-header": {
+      "x": 320,
+      "y": 72,
+      "width": 1352,
+      "height": 57,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-thread__viewport": {
+      "x": 320,
+      "y": 129,
+      "width": 1352,
+      "height": 527,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "block"
+    },
+    ".hp-composer": {
+      "x": 344,
+      "y": 702,
+      "width": 1304,
+      "height": 215,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-composer__input": {
+      "x": 361,
+      "y": 760,
+      "width": 1270,
+      "height": 88,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "15px",
+      "display": "block"
+    },
+    ".hp-inspector": null,
+    ".hp-artifact-preview iframe": null
+  },
+  "artifact": {
+    ".hp-rail": {
+      "x": 0,
+      "y": 0,
+      "width": 64,
+      "height": 941,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-context-sidebar": {
+      "x": 64,
+      "y": 0,
+      "width": 256,
+      "height": 941,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-canvas-header": {
+      "x": 320,
+      "y": 0,
+      "width": 932,
+      "height": 72,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-conversation-header": {
+      "x": 320,
+      "y": 72,
+      "width": 932,
+      "height": 57,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-thread__viewport": {
+      "x": 320,
+      "y": 129,
+      "width": 932,
+      "height": 573,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "block"
+    },
+    ".hp-composer": {
+      "x": 344,
+      "y": 702,
+      "width": 884,
+      "height": 215,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-composer__input": {
+      "x": 361,
+      "y": 760,
+      "width": 850,
+      "height": 88,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "15px",
+      "display": "block"
+    },
+    ".hp-inspector": {
+      "x": 1252,
+      "y": 0,
+      "width": 420,
+      "height": 941,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-artifact-preview iframe": {
+      "x": 1273,
+      "y": 340.5,
+      "width": 379,
+      "height": 376.390625,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "inline"
+    }
+  },
+  "artifact-1440": {
+    ".hp-rail": {
+      "x": 0,
+      "y": 0,
+      "width": 64,
+      "height": 900,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-context-sidebar": {
+      "x": 64,
+      "y": 0,
+      "width": 256,
+      "height": 900,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-canvas-header": {
+      "x": 320,
+      "y": 0,
+      "width": 700,
+      "height": 72,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-conversation-header": {
+      "x": 320,
+      "y": 72,
+      "width": 700,
+      "height": 57,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-thread__viewport": {
+      "x": 320,
+      "y": 129,
+      "width": 700,
+      "height": 532,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "block"
+    },
+    ".hp-composer": {
+      "x": 344,
+      "y": 661,
+      "width": 652,
+      "height": 215,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-composer__input": {
+      "x": 361,
+      "y": 719,
+      "width": 618,
+      "height": 88,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "15px",
+      "display": "block"
+    },
+    ".hp-inspector": {
+      "x": 1020,
+      "y": 0,
+      "width": 420,
+      "height": 900,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-artifact-preview iframe": {
+      "x": 1041,
+      "y": 340.5,
+      "width": 379,
+      "height": 360,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "inline"
+    }
+  },
+  "artifact-1280": {
+    ".hp-rail": {
+      "x": 0,
+      "y": 0,
+      "width": 64,
+      "height": 900,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-context-sidebar": {
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "none"
+    },
+    ".hp-canvas-header": {
+      "x": 64,
+      "y": 0,
+      "width": 796,
+      "height": 72,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-conversation-header": {
+      "x": 64,
+      "y": 72,
+      "width": 796,
+      "height": 57,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-thread__viewport": {
+      "x": 64,
+      "y": 129,
+      "width": 796,
+      "height": 532,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "block"
+    },
+    ".hp-composer": {
+      "x": 88,
+      "y": 661,
+      "width": 748,
+      "height": 215,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-composer__input": {
+      "x": 105,
+      "y": 719,
+      "width": 714,
+      "height": 88,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "15px",
+      "display": "block"
+    },
+    ".hp-inspector": {
+      "x": 860,
+      "y": 0,
+      "width": 420,
+      "height": 900,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-artifact-preview iframe": {
+      "x": 881,
+      "y": 340.5,
+      "width": 379,
+      "height": 360,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "inline"
+    }
+  },
+  "artifact-1024": {
+    ".hp-rail": {
+      "x": 0,
+      "y": 0,
+      "width": 64,
+      "height": 900,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-context-sidebar": {
+      "x": 64,
+      "y": 0,
+      "width": 256,
+      "height": 900,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-canvas-header": {
+      "x": 320,
+      "y": 0,
+      "width": 704,
+      "height": 72,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-conversation-header": {
+      "x": 320,
+      "y": 72,
+      "width": 704,
+      "height": 57,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-thread__viewport": {
+      "x": 320,
+      "y": 129,
+      "width": 704,
+      "height": 532,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "block"
+    },
+    ".hp-composer": {
+      "x": 344,
+      "y": 661,
+      "width": 656,
+      "height": 215,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-composer__input": {
+      "x": 361,
+      "y": 719,
+      "width": 622,
+      "height": 88,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "15px",
+      "display": "block"
+    },
+    ".hp-inspector": {
+      "x": 504,
+      "y": 0,
+      "width": 520,
+      "height": 900,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-artifact-preview iframe": {
+      "x": 525,
+      "y": 340.5,
+      "width": 479,
+      "height": 360,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "inline"
+    }
+  },
+  "artifact-390": {
+    ".hp-rail": {
+      "x": 0,
+      "y": 784,
+      "width": 390,
+      "height": 60,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-context-sidebar": {
+      "x": 0,
+      "y": 0,
+      "width": 0,
+      "height": 0,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "none"
+    },
+    ".hp-canvas-header": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 117,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-conversation-header": {
+      "x": 0,
+      "y": 117,
+      "width": 390,
+      "height": 64,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-thread__viewport": {
+      "x": 0,
+      "y": 181,
+      "width": 390,
+      "height": 372.625,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "block"
+    },
+    ".hp-composer": {
+      "x": 12,
+      "y": 553.625,
+      "width": 366,
+      "height": 218.375,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-composer__input": {
+      "x": 25,
+      "y": 622.625,
+      "width": 340,
+      "height": 80.375,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "16px",
+      "display": "block"
+    },
+    ".hp-inspector": {
+      "x": 0,
+      "y": 0,
+      "width": 390,
+      "height": 844,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "flex"
+    },
+    ".hp-artifact-preview iframe": {
+      "x": 17,
+      "y": 341.5,
+      "width": 357,
+      "height": 360,
+      "fontFamily": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", \"Microsoft YaHei\", \"PingFang SC\", \"Noto Sans CJK SC\", \"WenQuanYi Zen Hei\", sans-serif",
+      "fontSize": "14px",
+      "display": "inline"
+    }
+  }
+}

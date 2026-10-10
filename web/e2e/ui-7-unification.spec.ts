@@ -213,6 +213,9 @@ test("all four Inspectors have keyboard tabs, URL replace, geometry and screensh
   ]) {
     await page.goto(`/#/${screen}?inspect=${kind}:${id}`);
     await expect(page.locator(".hp-inspector [role=tablist]")).toBeVisible();
+    // The restored Inspector can render before the entry transition releases focus.
+    await expect(page.locator(".hp-entry-destination")).not.toHaveAttribute("inert", "");
+    await expect(page.locator(".hp-entry-origin")).toHaveCount(0);
     const tabs = page.locator(".hp-inspector [role=tab]");
     await tabs.first().focus();
     await page.keyboard.press("End");

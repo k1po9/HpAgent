@@ -4,6 +4,7 @@ import { useShell, type Screen } from "../../store/shell";
 import { useAuth } from "../../store/auth";
 import { useWorkbench } from "../../store/workbench";
 import { ConversationSidebar } from "../ConversationSidebar";
+import { ConversationHeader } from "../conversation/ConversationHeader";
 import { ChatPane } from "../ChatPane";
 import { WorkspaceScreen } from "../workspace/WorkspaceScreen";
 import { WorkspaceSidebar } from "../workspace/WorkspaceSidebar";
@@ -31,7 +32,8 @@ const screens = [
 export function AppShell() {
   useTaskController();
   const shellRef = useRef<HTMLDivElement>(null);
-  const width = useShellWidth(shellRef);
+  const layout = useShellWidth(shellRef);
+  const { width } = layout;
   const expanded = useShell((s) => s.expanded);
   const route = useShell((s) => s.route);
   const modal = useShell((s) => s.modal);
@@ -143,7 +145,16 @@ export function AppShell() {
     );
   const collapsed =
     width < 960 ||
-    width < 64 + 256 + 560 + (route.inspector && width >= 1280 ? (expanded ? 520 : 420) : 0) + 4;
+    width <
+      layout.rail +
+        layout.sidebar +
+        layout.canvasMin +
+        (route.inspector && width >= 1280
+          ? expanded
+            ? layout.inspectorExpanded
+            : layout.inspector
+          : 0) +
+        layout.layoutGap;
   return (
     <div
       ref={shellRef}
@@ -151,7 +162,8 @@ export function AppShell() {
     >
       <div className="hp-rail">
         <span className="hp-brand" aria-label="HpAgent">
-          H
+          <span className="hp-brand-accent">Hp</span>
+          <span className="hp-brand-name">Agent</span>
         </span>
         <nav aria-label="主导航">
           {screens.map(({ id, label, icon: Icon }) => (
@@ -196,23 +208,35 @@ export function AppShell() {
           >
             <Menu aria-hidden="true" />
           </button>
-          <h1 id="canvas-title" tabIndex={-1}>
-            {route.screen === "ai"
-              ? conversations.find((c) => c.conversation_id === conversationId)?.title || "AI"
-              : screens.find((s) => s.id === route.screen)?.label}
-          </h1>
-          {route.screen === "ai" && conversationId && (
-            <button
-              id="artifact-create-trigger"
-              onClick={() => useShell.setState({ modal: "artifact-create" })}
-            >
-              从回复生成 HTML
-            </button>
+          <ConversationHeader
+            active={route.screen === "ai"}
+            fallbackTitle={
+              conversations.find((c) => c.conversation_id === conversationId)?.title || "AI"
+            }
+          />
+          {route.screen !== "ai" && (
+            <h1 id="canvas-title" tabIndex={-1}>
+              {screens.find((s) => s.id === route.screen)?.label}
+            </h1>
           )}
-          {route.screen === "ai" && conversationId && (
-            <button onClick={() => useShell.setState({ modal: "resources" })}>对话资料</button>
+          {route.screen === "ai" && (
+            <div className="hp-canvas-actions">
+              {conversationId && (
+                <>
+                  <button
+                    id="artifact-create-trigger"
+                    onClick={() => useShell.setState({ modal: "artifact-create" })}
+                  >
+                    从回复生成 HTML
+                  </button>
+                  <button onClick={() => useShell.setState({ modal: "resources" })}>
+                    对话资料
+                  </button>
+                </>
+              )}
+              <RunLookup />
+            </div>
           )}
-          {route.screen === "ai" && <RunLookup />}
         </header>
         {notice && (
           <p role="status">
