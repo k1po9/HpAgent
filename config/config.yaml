@@ -1,0 +1,89 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# HpAgent 配置文件
+# 所有可配置项及其默认值均在此列出。
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Temporal Server ──────────────────────────────────────────────────────────
+temporal:
+  host: "localhost:7233"
+  # task_queue: "hpagent-task-queue"
+
+# ── Redis（可选，空 url 表示禁用） ──────────────────────────────────────────
+#   容器模式：Docker Compose 通过 REDIS_URL 环境变量覆盖为 redis://redis:6379
+#   宿主机调试：需改为 redis://localhost:6379（映射自 docker-compose ports）
+redis:
+  url: "redis://localhost:6379"
+  default_ttl: 300         # 默认缓存 TTL（秒）
+  group_context_window: 80  # 群聊上下文滑动窗口消息数
+  group_context_ttl: 86400  # 群聊上下文 TTL（秒，默认 24h）
+  group_context_density_threshold: 2.0  # 群聊密度阈值（msg/min），低于此值允许发送进度提示
+
+# ── 定时调度器 ──────────────────────────────────────────────────────────────
+scheduler:
+  enabled: true
+  # data_dir: ".data/scheduler"
+  # poll_interval: 15.0
+
+# ── 沙箱（nsjail 隔离执行） ─────────────────────────────────────────────────
+sandbox:
+  native_tools_enabled: true    # 本地函数工具（fs_read/write/edit/Glob/Grep/Bash）
+  nsjail_enabled: false          # Nsjail OS 级隔离（仅对 Bash）
+  # runner_script: "/opt/nsjail-runner.py"  # 容器内独立路径，避免和 bind mount /work 冲突
+  # time_limit: 30              # 最大执行时间（秒）
+  # memory_limit_mb: 256        # 内存上限（MB）
+  # cpu_limit_seconds: 10       # CPU 时间上限（秒）
+  # max_processes: 32           # 最大进程数
+  # max_files: 64               # 最大文件句柄数
+  # disable_proc: true          # 禁止 /proc 访问
+  # disable_network: true       # 禁止网络访问
+  # readonly_root: true         # chroot 只读挂载
+  # max_idle_seconds: 300     # 空闲沙箱回收时间（秒）
+  # result_ttl: 3600          # 工具执行结果 Redis TTL（秒）
+
+# ── 工作区 ──────────────────────────────────────────────────────────────────
+workspace:
+  root: ".data/workspace"
+  # db_path: ""               # SQLite 路径，空则使用 root/workspace.db
+
+# ── Hindsight 长期记忆（可选，enabled: false 禁用） ──────────────────────────
+#   容器模式：Docker Compose 通过 HINDSIGHT_URL 环境变量覆盖为 http://hindsight:8888
+#   宿主机调试：使用 http://localhost:8001（映射自 docker-compose ports: 8001:8888）
+hindsight:
+  enabled: true
+  base_url: "http://localhost:8001"
+  # api_key: ""
+  # timeout: 30.0
+  # ── Bank 提取任务指令（可自定义以调优提取质量） ──
+  # retain_mission: "Extract factual information, user preferences, decisions, and personal details from conversations."
+  # reflect_mission: "Analyze conversation history for patterns, user preferences, and key insights about this user."
+
+# ── 会话存储 ────────────────────────────────────────────────────────────────
+session:
+  backup_dir: ".data/active-sessions"
+  # redis_ttl: 86400          # Redis 会话数据 TTL（秒，默认 24h）
+
+# ── 渠道启停 ────────────────────────────────────────────────────────────────
+# 在此管理渠道的启用/禁用，列表中的渠道才会启动（名称对应 ChannelType 枚举值）
+# 禁用 NapCat：注释或删除 napcat 即可，不会连接 QQ 网关也不会启动 WebSocket 服务
+channels:
+  enabled:
+    # - official_qq
+    # - web
+    - napcat   
+    # - console
+
+# ── Agent 行为参数 ──────────────────────────────────────────────────────────
+agent:
+  mode: "single"               # Agent 模式: "single" (单Agent ReAct) | "multi" (多Agent编排)
+  max_history_turns: 10       # 上下文窗口最大历史轮次
+  max_tool_turns: 5          # 单次 agentic loop 最大工具调用轮次
+  idle_timeout_minutes: 10     # 会话空闲自动关闭时间（分钟），0 表示永不超时
+  # recall_top_n: 5           # 记忆召回数量
+  # event_fetch_limit: 100    # 每次从 Redis 加载的事件上限
+  # activity_timeout: 120     # process_turn Activity 超时（秒）
+  # archive_timeout: 10       # archive Activity 超时（秒）
+  # ── 多Agent模式（mode=multi 时生效） ──
+  # multi_agent:
+  #   strategy: "supervisor"  # 编排策略: supervisor | council | workflow
+  #   max_review_rounds: 10   # 最大规划/审阅轮次
+  #   agents_config: "config/agents.yaml"  # Agent 定义文件
