@@ -1,0 +1,1330 @@
+{
+  "browser": "155.0.8059.39",
+  "metrics": [
+    {
+      "name": "auth-1680",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {}
+    },
+    {
+      "name": "auth-1280",
+      "viewport": 1280,
+      "document": 1280,
+      "regions": {}
+    },
+    {
+      "name": "auth-780",
+      "viewport": 780,
+      "document": 780,
+      "regions": {}
+    },
+    {
+      "name": "auth-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {}
+    },
+    {
+      "name": "register-error-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {}
+    },
+    {
+      "name": "ai-1680",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 1296,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 1248,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "new_ai-1680",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 1296,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 1248,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "artifact-1680",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 876,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 1260,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 828,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "run-1680",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 876,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 1260,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 828,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "workspace-1680",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 1296,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "file-1680",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 876,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 1260,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "tasks-1680",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 1296,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "task-1680",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 876,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 1260,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "ai-1280",
+      "viewport": 1280,
+      "document": 1280,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 896,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 848,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "new_ai-1280",
+      "viewport": 1280,
+      "document": 1280,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 896,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 848,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "artifact-1280",
+      "viewport": 1280,
+      "document": 1280,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 104,
+          "y": 0,
+          "width": 756,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 860,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 128,
+          "y": 920,
+          "width": 708,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "run-1280",
+      "viewport": 1280,
+      "document": 1280,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 104,
+          "y": 0,
+          "width": 756,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 860,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 128,
+          "y": 920,
+          "width": 708,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "workspace-1280",
+      "viewport": 1280,
+      "document": 1280,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 896,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "file-1280",
+      "viewport": 1280,
+      "document": 1280,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 104,
+          "y": 0,
+          "width": 756,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 860,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "tasks-1280",
+      "viewport": 1280,
+      "document": 1280,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 896,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "task-1280",
+      "viewport": 1280,
+      "document": 1280,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 104,
+          "y": 0,
+          "width": 756,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 860,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "ai-780",
+      "viewport": 780,
+      "document": 780,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 56,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 72,
+          "y": 868,
+          "width": 692,
+          "height": 118,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "new_ai-780",
+      "viewport": 780,
+      "document": 780,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 56,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 72,
+          "y": 868,
+          "width": 692,
+          "height": 118,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "artifact-780",
+      "viewport": 780,
+      "document": 780,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 56,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 72,
+          "y": 868,
+          "width": 692,
+          "height": 118,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "run-780",
+      "viewport": 780,
+      "document": 780,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 56,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 72,
+          "y": 868,
+          "width": 692,
+          "height": 118,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "workspace-780",
+      "viewport": 780,
+      "document": 780,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 56,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "file-780",
+      "viewport": 780,
+      "document": 780,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 56,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "tasks-780",
+      "viewport": 780,
+      "document": 780,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 56,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "task-780",
+      "viewport": 780,
+      "document": 780,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 56,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 56,
+          "y": 0,
+          "width": 724,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "ai-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 12,
+          "y": 658,
+          "width": 366,
+          "height": 114,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "new_ai-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 12,
+          "y": 658,
+          "width": 366,
+          "height": 114,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "artifact-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 12,
+          "y": 658,
+          "width": 366,
+          "height": 114,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "run-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 12,
+          "y": 658,
+          "width": 366,
+          "height": 114,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "workspace-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "file-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "tasks-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "task-390",
+      "viewport": 390,
+      "document": 390,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-inspector": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "focus-draft",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 1296,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 1248,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    },
+    {
+      "name": "resources-modal",
+      "viewport": 1680,
+      "document": 1680,
+      "regions": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(252, 253, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(247, 249, 252)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 1296,
+          "height": 1000,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 1248,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(24, 34, 53)"
+        }
+      }
+    }
+  ],
+  "errors": []
+}

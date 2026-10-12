@@ -1,0 +1,1214 @@
+diff --git a/docs/implementation/phase1-paper-flame/AUDIT.md b/docs/implementation/phase1-paper-flame/AUDIT.md
+new file mode 100644
+index 0000000..afa0b95
+--- /dev/null
++++ b/docs/implementation/phase1-paper-flame/AUDIT.md
+@@ -0,0 +1,26 @@
++# Phase 1 实施前审查 · 2026-10-12
++
++基线：main / a47d73b06a993d353b4177e282b69ddd28ffdb36，工作区无已有修改。实施分支：codex/phase1-paper-flame。
++
++规范源：用户附件 HpAgent_Paper_Flame_Color_Skill_v1.0.zip 与 Mercury_HpAgent_Motion_Skill_v1.0.zip（读取 SKILL.md、设计规范、repo-adaptation、兼容性与验收资料）。附件原型及分阶段 Prompt 是参考，当前用户限定的 Phase 1 范围优先。
++
++| 实际文件                                                 | 当前来源 / 风险                                                                                                          | 最小修改                                                                      |
++| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
++| web/src/main.tsx                                         | Radix light / blue / slate；Radix CSS 先于项目 CSS                                                                       | tomato 基础 + 精确语义色映射                                                  |
++| web/src/styles.css                                       | tokens→base→shell→conversation→run→workspace→tasks→artifact→unification→visual→entry                                     | 保持导入顺序，源头消除覆盖中的旧色                                            |
++| web/src/styles/tokens.css                                | hp accent/focus/selection 都为蓝色；布局宽度被 useShellWidth 读取                                                        | 建立 pf 官方色族与 hp 语义别名；保留全部尺寸/时长                             |
++| web/src/styles/shell.css                                 | Rail #fcfdff；品牌和导航消费浅底文字 Token；Canvas 无显式背景；Inspector 白色                                            | Rail 独立深色 Token，Context/Canvas/Inspector 独立空间 Token，Portal 同样生效 |
++| web/src/styles/visual.css                                | 登录、上传、新任务、文件图标、选中任务和 hover 均有后置蓝色硬编码；Rail hover 浅色                                       | 逐条迁移，避免新增全局覆盖层；普通文件图标/状态用中性色                       |
++| web/src/styles/base.css                                  | Trace 使用 blue-10/11/a3；gray-9/10 小字；错误与警告依赖 Radix                                                           | 改用 hp neutral/success/danger/warning；保留文字和图标                        |
++| web/src/styles/conversation.css                          | 新对话、send 蓝底；placeholder #8b97a9；用户气泡与 AI marker 共用 selection；Composer 低对比边界                         | 主按钮深橙配白字、品牌独立亮橙；用户蓝灰气泡、中性 AI marker；控件边界和焦点  |
++| web/src/styles/run.css                                   | 默认 heading accent，诊断灰色及 accent ramp                                                                              | 运行中用中性状态，成功/失败现有选择器保留；语义化诊断表面                     |
++| web/src/styles/workspace.css                             | Radix gray/selection + visual 后置覆盖；输入与按钮轻边框                                                                 | 统一表面、边界、选中；不改树/表格/权限逻辑                                    |
++| web/src/styles/tasks.css + TaskRow.tsx                   | 所有 status 被 visual.css 涂蓝；组件已有 presentTask 输出但无样式状态属性                                                | 只读 data-status/data-bucket，用当前状态和 bucket 着色；不新增状态模型        |
++| web/src/styles/artifact.css                              | hover/主按钮存在旧蓝；iframe 使用 sandbox/srcDoc                                                                         | 迁移外围卡片与操作；用户 HTML 内容保留                                        |
++| web/src/styles/entry.css + components/entry/particles.ts | 登录确认按钮复用 accent；粒子读取 hp accent/muted，fallback 蓝；GSAP 为单向登录/恢复过渡                                 | 只更新光学来源与 fallback；不改粒子数量、轨迹、帧缓存、生命周期               |
++| AppShell / InspectorHost / Surface / useShellWidth       | fit=rail+sidebar+canvasMin+inspector+gap；<960 抽屉，<1280 Inspector modal，<600 底栏；Surface 嵌套 portal 的 Theme      | 不改结构/阈值/导航；验证深色底栏及模态变量继承                                |
++| ChatPane / HpThread / ConversationSidebar                | viewport 包含消息和 ExecutionBlock；composer 独立；data-conversation-id 为真实宿主；业务由 workbench/conversationUi 控制 | 本轮仅记录 Mercury 接入边界，不添加 ref/收纳入口/展示态                       |
++
++风险优先级：P1 Radix/Portal 蓝色回退；P1 文本与交互对比；P1 状态色语义；P1 窄屏可操作性；P2 CSS 后置覆盖与粒子颜色。
++
++验证计划：当前 React 页同数据同视口 before/after；1680/1280/780/390；四类 Inspector、登录/注册/Modal、Tab 焦点、reduced-motion、草稿与 DOM 身份跨断点；typecheck、变更文件 lint/format、受影响组件单测与必要浏览器回归，不运行完整 CI。
+diff --git a/docs/implementation/phase1-paper-flame/MERCURY.md b/docs/implementation/phase1-paper-flame/MERCURY.md
+new file mode 100644
+index 0000000..4b1f25e
+--- /dev/null
++++ b/docs/implementation/phase1-paper-flame/MERCURY.md
+@@ -0,0 +1,64 @@
++# Mercury 兼容准备 · 未集成运动控制器
++
++依据：当前分支实读 AppShell、Surface、InspectorHost、ConversationSidebar、ChatPane、HpThread、shell/conversationUi/workbench Store、EntryTransition 与 particles；用户附件 Mercury v1.0 的 SKILL.md、design-and-history、repo-adaptation、implementation-plan。Paper Flame 是色彩权威；业务范围与本轮禁止项以用户请求为准。
++
++## 真实 DOM 边界
++
++| 边界                                                 | 当前事实                                                                                                                          | 后续适配限制                                                                                                    |
++| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
++| AppShell `.hp-main-canvas`                           | flex 阅读工作区，overflow:hidden；相邻 Context 和 Inspector；画布随 Inspector 与 sidebar fit 改变宽度                             | 可承载局部 overlay 主体；不能覆盖 Inspector、Canvas Header 或弹窗                                               |
++| ChatPane → HpThread `.hp-thread__viewport`           | 已有 viewport React ref；滚动、MutationObserver、消息 anchor / offset 恢复；包含真实消息、ExecutionBlock、附件链接、Artifact 操作 | 候选阅读测量边界，不代表已批准收纳整个 viewport。其内既有交互状态需要独立于阅读表面；不要复制 DOM、截图或销毁它 |
++| HpMessageView `.hp-text-part`                        | ReactMarkdown + GFM，真实可选中文本；同一 `.hp-msg__body` 还有 Run 与 Artifact                                                    | 文本可作为视觉采样边界，仍需先决定阅读表面是单条回复、独立阅读 Panel，还是历史区                                |
++| `.hp-composer`                                       | 与 viewport 为兄弟，受控草稿、IME、附件、资源与发送/停止；线程容器也包含输入区                                                    | 永远保持业务可操作；禁止整个 HpThread 粒子化                                                                    |
++| ConversationSidebar `.hp-conv[data-conversation-id]` | 真实会话 ID；筛选仅覆盖已加载项；历史分页；当前按钮 aria-current；可能在抽屉或屏幕外                                              | 仅用可见、当前且已测量的真实条目作为宿主；筛选/分页/滚动失去宿主时安全切终态                                    |
++| Surface / InspectorHost                              | 1280 以下原生 modal，嵌套 Surface portal 到 body；模态 top layer 与层栈协调焦点                                                   | overlay pointer-events:none、aria-hidden；不能跨越 modal top layer；原有焦点和层栈契约保留                      |
++| EntryTransition                                      | 登录/恢复 GSAP 单向过渡；固定粒子、预缓存 Path2D、resize/visibility/reduced-motion/卸载清理                                       | 已存在但不是 Mercury 可逆控制器。复用生命周期思想，不共享时间轴或重用登录目标集合                               |
++
++响应式并非仅按 960px：AppShell 用 rail + sidebar + canvasMin + inspector + gap 判定 sidebar 是否容得下。1680px 四区可见；1280px Inspector 仍为区域但 Context 可能已隐藏。780px 为侧栏抽屉与模态 Inspector；390px 为底部 Rail 与全屏 Surface。未来 host 缺失以实际可见几何判断，不能仅用一个媒体查询假定有宿主。
++
++## 光学兼容性
++
++当前加入 `--hp-motion-star-neutral/hot/core/trail`、`--hp-motion-reflection/depth`。仅登录粒子读取 neutral/hot；其它 Token 为待使用的颜色钩子，没有 Mercury renderer/controller/API。
++
++- 冷灰银 neutral #6E8290 对白底约 3.98:1，对 Canvas 约 3.78:1：装饰点可辨，低 alpha/细点仍需真实验证。
++- 珊瑚 hot #EB6044 对白底约 3.34:1，只能少量点缀，不作为粒子主体色或普通小字。
++- core #FFF3E9 与 reflection #C5D0D8 在白阅读面分别仅约 1.09 / 1.57:1：须依附冷灰轮廓、局部密度或局部暗衬。禁止为它们把整个 Main 变暗。
++- trail 使用中性银 35% alpha，避免沿全路径铺暖光。它不是可读性保证；低 alpha 在浅底可能消失。
++- depth #16212C 可提供局部深银材质，中段反射抑制与密度决定“重量”；左右清亮但不同，左端压缩/吸纳，右端真实几何发散。不能用降 opacity 代替发散。
++- Paper Flame 的白色阅读面优先于装饰；银丝来自群体局部密度，不能添加独立大亮膜。光学、FPS、CPU、内存及整段星潮在真实 UI 上均未测，本轮没有此效果。
++
++## 待实现的状态契约（文档提案）
++
++当前业务没有 folded 状态。建议未来独立、会话 ID 关联、session-scoped 的展示协调器，使用 accountId + conversationId 防止跨账户残留；不写 API，不改 activeConversationId，不把 leaveConversation/navigate 当折叠。
++
++```ts
++interface FoldPresentationContract {
++  conversationKey: string;
++  target: "reading" | "folded";
++  progress: number; // 0..1，唯一可寻址时间轴
++  velocity: number; // 中途反向继承速度
++  status: "idle" | "playing" | "settled" | "cancelled";
++}
++```
++
++同一粒子 ID、seed、flow geometry；展开为同批物质的反向。DOM 视觉消隐与粒子出生共享 phaseAt。上述为后续提案，当前没有类型、Store、按钮或路由实现。
++
++| 事件                                          | 后续必须满足                                                                   |
++| --------------------------------------------- | ------------------------------------------------------------------------------ |
++| fold/unfold                                   | 只改已批准阅读表面的展示；消息数/ID、URL、Run ID、草稿、附件不变；中途可反向   |
++| 会话切换 / 页面导航                           | 终止旧动画并恢复 DOM，随后使用原有 route guard；不能绕过附件/权限/任务草稿确认 |
++| Run streaming / 新消息 / 历史分页             | 不阻断 SSE、发送、停止、重试和 anchor 恢复；自动展开或通知方式待产品决定       |
++| Inspector / modal 开关                        | 不覆盖其操作；宿主/画布几何变化时重测或安全收敛                                |
++| reduced-motion / 后台 / resize / missing host | 立即到正确终态；不用动画锁住业务                                               |
++| logout / session expiry / unmount             | 清理 RAF/observer/listener/mask/canvas；不能恢复旧账户 DOM                     |
++
++## EXP-02 优先顺序与先决产品决定
++
++1. **Conversation 条目**：当前选中、hover、键盘焦点和宿主确认的视觉语言；窄屏/筛选缺席时的反馈位置。
++2. **阅读表面与消息**：先选收纳单位与真实 DOM 边界；长文、复制、链接、代码表格、滚动及 Run/Artifact 控件如何独立。不要默认整条 thread。
++3. **Composer 发送/停止**：可逆的发送/运行/停止反馈与 IME、附件、禁用语义；输入区域始终独立。
++4. **Run ExecutionBlock + Artifact 卡**：running/success/failed 的信息密度、微反馈、打开入口与与阅读区的空间关系。
++5. **Inspector Header/Tabs/底部操作**：扩大阅读与返回、模态/区域切换的视觉反馈，维护 iframe 和草稿身份。
++6. **Workspace 文件行 + Tasks 状态行**：选中/执行/注意/完成语言和焦点，使用相同色板做低幅度实验。
++
++先明确 folded 时新消息/运行中如何呈现、是否保留每个会话的展示态、入口位置、无宿主退化、reduced-motion 终态与生命周期责任，再另行设计控制器与性能档。当前不推进 EXP-02。
+diff --git a/web/e2e/ui-7-unification.spec.ts b/web/e2e/ui-7-unification.spec.ts
+index c4fd2c2..ba32027 100644
+--- a/web/e2e/ui-7-unification.spec.ts
++++ b/web/e2e/ui-7-unification.spec.ts
+@@ -122,0 +123,3 @@ test("seven viewports and boundary resizes keep Artifact iframe, draft and query
++  // The restored shell remains inert until EntryTransition completes.
++  await expect(page.locator(".hp-entry-origin")).toHaveCount(0);
++  await expect(page.locator(".hp-entry-destination")).not.toHaveAttribute("inert", "");
+diff --git a/web/playwright.phase1.config.ts b/web/playwright.phase1.config.ts
+new file mode 100644
+index 0000000..437d48f
+--- /dev/null
++++ b/web/playwright.phase1.config.ts
+@@ -0,0 +1,26 @@
++import process from "node:process";
++import { defineConfig } from "@playwright/test";
++
++if (process.env.HPAGENT_PHASE1_ISOLATED !== "1") {
++  throw new Error("Phase 1 UI checks require a separately provisioned isolated API");
++}
++
++// Provision the isolated API separately. This never migrates or starts services.
++export default defineConfig({
++  testDir: "./e2e",
++  testMatch: ["ui-7-unification.spec.ts", "ui-7-self-review.spec.ts", "entry/entry.spec.ts"],
++  workers: 1,
++  timeout: 60_000,
++  expect: { timeout: 15_000 },
++  reporter: "list",
++  use: {
++    baseURL: process.env.HPAGENT_PHASE1_BASE_URL ?? "http://127.0.0.1:5290",
++    viewport: { width: 1680, height: 1000 },
++    locale: "zh-CN",
++    timezoneId: "Asia/Shanghai",
++    launchOptions: process.env.HPAGENT_BROWSER_EXECUTABLE
++      ? { executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE }
++      : {},
++    trace: "retain-on-failure",
++  },
++});
+diff --git a/web/scripts/phase1-contrast.mjs b/web/scripts/phase1-contrast.mjs
+new file mode 100644
+index 0000000..c0d5642
+--- /dev/null
++++ b/web/scripts/phase1-contrast.mjs
+@@ -0,0 +1,102 @@
++/* global document, getComputedStyle, Node */
++// Solid rendered CSS contrast audit; excludes disabled text and user-authored iframes.
++export async function auditContrast(page) {
++  return page.evaluate(() => {
++    const rgba = (s) => {
++      const n = s.match(/[\d.]+/g)?.map(Number);
++      return n?.length >= 3 ? [n[0], n[1], n[2], n[3] ?? 1] : null;
++    };
++    const blend = (fg, bg) => fg.slice(0, 3).map((v, i) => v * fg[3] + bg[i] * (1 - fg[3]));
++    const luminance = (color) =>
++      color.slice(0, 3).reduce((v, c, i) => {
++        const n = c / 255;
++        return (
++          v +
++          (n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][i]
++        );
++      }, 0);
++    const contrast = (a, b) => {
++      const [hi, lo] = [luminance(a), luminance(b)].sort((a, b) => b - a);
++      return (hi + 0.05) / (lo + 0.05);
++    };
++    const background = (el) => {
++      const chain = [];
++      for (let p = el; p; p = p.parentElement) chain.unshift(p);
++      return chain.reduce(
++        (bg, p) => blend(rgba(getComputedStyle(p).backgroundColor) ?? [0, 0, 0, 0], bg),
++        [255, 255, 255],
++      );
++    };
++    const violations = [];
++    const legacyBlue = [];
++    let checked = 0;
++    for (const el of document.querySelectorAll("body *")) {
++      if (
++        !Array.from(el.childNodes).some(
++          (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim(),
++        )
++      )
++        continue;
++      if (el.closest('svg,style,script,[inert],:disabled,[aria-disabled="true"]')) continue;
++      const rect = el.getBoundingClientRect();
++      const style = getComputedStyle(el);
++      if (
++        !rect.width ||
++        !rect.height ||
++        rect.bottom <= 0 ||
++        rect.top >= document.documentElement.clientHeight ||
++        style.visibility !== "visible"
++      )
++        continue;
++      const bg = background(el);
++      const fg = rgba(style.color);
++      if (!fg) continue;
++      if (fg[2] > 150 && fg[2] > fg[0] * 1.2 && fg[2] > fg[1] * 1.2)
++        legacyBlue.push({ text: el.textContent.trim().slice(0, 50), color: style.color });
++      const size = parseFloat(style.fontSize);
++      const threshold =
++        size >= 24 || (size >= 18.66 && parseInt(style.fontWeight) >= 700) ? 3 : 4.5;
++      const ratio = contrast(blend(fg, bg), bg);
++      checked++;
++      if (ratio + 0.01 < threshold)
++        violations.push({
++          text: el.textContent.trim().slice(0, 70),
++          selector: el.tagName + "." + el.className,
++          color: style.color,
++          background: bg,
++          ratio,
++          threshold,
++        });
++    }
++    const tokens = {};
++    const style = getComputedStyle(
++      document.querySelector(".radix-themes") ?? document.documentElement,
++    );
++    for (const name of [
++      "--hp-primary",
++      "--hp-accent",
++      "--hp-muted",
++      "--hp-control-border",
++      "--hp-motion-star-neutral",
++      "--hp-motion-star-core",
++    ])
++      tokens[name] = style.getPropertyValue(name).trim();
++    const controls = [];
++    for (const selector of [
++      ".hp-conversation-filter",
++      ".hp-composer",
++      ".hp-workspace-search input",
++      ".hp-auth-card .rt-TextFieldRoot",
++    ]) {
++      const el = document.querySelector(selector);
++      if (!el || !el.getBoundingClientRect().width) continue;
++      const s = getComputedStyle(el);
++      const bg = background(el);
++      const border = rgba(s.borderColor);
++      if (border && parseFloat(s.borderWidth))
++        controls.push({ selector, ratio: contrast(blend(border, bg), bg), color: s.borderColor });
++      else controls.push({ selector, shadow: s.boxShadow });
++    }
++    return { checked, violations, legacyBlue, tokens, controls };
++  });
++}
+diff --git a/web/scripts/phase1-visual.mjs b/web/scripts/phase1-visual.mjs
+new file mode 100644
+index 0000000..851e659
+--- /dev/null
++++ b/web/scripts/phase1-visual.mjs
+@@ -0,0 +1,254 @@
++/* global document, getComputedStyle, innerWidth */
++import process from "node:process";
++import { Buffer } from "node:buffer";
++import console from "node:console";
++// Real React UI + isolated API only. Never point this at a daily-use account.
++import { auditContrast } from "./phase1-contrast.mjs";
++import { chromium, expect } from "@playwright/test";
++import { mkdir, readFile, writeFile } from "node:fs/promises";
++import { fileURLToPath } from "node:url";
++import { dirname, resolve } from "node:path";
++const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
++const evidence = resolve(root, "artifacts/product-acceptance/phase1-paper-flame-20261012");
++const phase = process.env.HPAGENT_PHASE1_PHASE ?? "before";
++if (process.env.HPAGENT_PHASE1_ISOLATED !== "1") throw new Error("Requires an isolated API");
++const browser = await chromium.launch({
++  headless: true,
++  ...(process.env.HPAGENT_BROWSER_EXECUTABLE
++    ? { executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE }
++    : {}),
++});
++const context = await browser.newContext({
++  viewport: { width: 1680, height: 1000 },
++  locale: "zh-CN",
++  timezoneId: "Asia/Shanghai",
++  reducedMotion: "reduce",
++});
++const page = await context.newPage();
++const errors = [];
++page.on("pageerror", (e) => errors.push(e.message));
++await mkdir(evidence, { recursive: true });
++const base = process.env.HPAGENT_PHASE1_BASE_URL ?? "http://127.0.0.1:5290";
++const user = process.env.HPAGENT_PHASE1_USER ?? "phase1_visual";
++const password = process.env.HPAGENT_PHASE1_PASSWORD ?? "phase1-isolated-password";
++let routes;
++const metrics = [];
++async function settled() {
++  await expect(page.locator(".hp-entry")).toHaveAttribute("data-entering", "false");
++  await expect(page.locator(".hp-entry-origin")).toHaveCount(0);
++  await expect(page.locator(".hp-entry-destination")).not.toHaveAttribute("inert", "");
++  await page.evaluate(() => document.fonts.ready);
++}
++async function shot(name) {
++  await page.evaluate(() => document.fonts.ready);
++  await page.screenshot({ path: resolve(evidence, `${phase}-${name}.png`) });
++  const geometry = await page.evaluate(() => {
++    const regions = {};
++    for (const selector of [
++      ".hp-rail",
++      ".hp-context-sidebar",
++      ".hp-main-canvas",
++      ".hp-inspector",
++      ".hp-composer",
++    ]) {
++      const el = document.querySelector(selector);
++      if (!el || el.hidden) continue;
++      const r = el.getBoundingClientRect();
++      const s = getComputedStyle(el);
++      regions[selector] = {
++        x: r.x,
++        y: r.y,
++        width: r.width,
++        height: r.height,
++        background: s.backgroundColor,
++        color: s.color,
++      };
++    }
++    return { viewport: innerWidth, document: document.documentElement.scrollWidth, regions };
++  });
++  expect(geometry.document).toBeLessThanOrEqual(geometry.viewport + 1);
++  const contrast = phase === "after" ? await auditContrast(page) : undefined;
++  metrics.push({ name, ...geometry, contrast });
++  if (contrast) {
++    expect(contrast.violations, name + " text contrast").toEqual([]);
++    expect(contrast.legacyBlue, name + " default blue text").toEqual([]);
++  }
++}
++try {
++  await page.goto(base);
++  await expect(page.getByRole("heading", { name: "HpAgent 登录" })).toBeVisible();
++  for (const width of [1680, 1280, 780, 390]) {
++    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
++    await shot(`auth-${width}`);
++  }
++  await page.setViewportSize({ width: 390, height: 844 });
++  await page.getByRole("button", { name: "没有账号？注册" }).click();
++  await page.getByLabel("用户名").fill("client_validation_only");
++  await page.getByLabel("密码", { exact: true }).fill("validation-password");
++  await page.getByLabel("确认密码").fill("different-password");
++  await page.getByRole("button", { name: "注册", exact: true }).click();
++  await expect(page.getByRole("alert")).toHaveText("两次输入的密码不一致。");
++  await shot("register-error-390");
++  await page.getByRole("button", { name: "已有账号？登录" }).click();
++  await page.setViewportSize({ width: 1680, height: 1000 });
++  if (process.env.HPAGENT_PHASE1_SEED === "1") {
++    if (process.env.HPAGENT_PHASE1_REGISTER === "1")
++      await page.getByRole("button", { name: "没有账号？注册" }).click();
++    await page.getByLabel("用户名").fill(user);
++    await page.getByLabel("密码", { exact: true }).fill(password);
++    if (process.env.HPAGENT_PHASE1_REGISTER === "1")
++      await page.getByLabel("确认密码").fill(password);
++    await page
++      .getByRole("button", {
++        name: process.env.HPAGENT_PHASE1_REGISTER === "1" ? "注册" : "登录",
++        exact: true,
++      })
++      .click();
++    await expect(page.locator(".hp-shell")).toBeVisible();
++    const skip = page.getByRole("button", { name: /以后再说/ });
++    if (await skip.count()) await skip.first().click();
++    await settled();
++    await page.getByRole("button", { name: "新建对话", exact: true }).click();
++    await page.getByLabel("选择已有文件", { exact: true }).click();
++    await expect(page.locator(".hp-conv--active")).toBeVisible();
++    await page.getByLabel("选择已有文件", { exact: true }).click();
++    await page
++      .getByLabel("消息输入")
++      .fill("请整理视觉基础迁入检查：Conversation、Workspace、Tasks。");
++    await page.getByRole("button", { name: "发送", exact: true }).click();
++    await expect(page.getByTestId("run-label")).toHaveText("已完成");
++    routes = { ai: page.url().replace(base, "") };
++    await page.getByRole("button", { name: "生成 HTML", exact: true }).click();
++    await expect(page.getByTitle("Artifact 预览")).toBeVisible();
++    routes.artifact = page.url().replace(base, "");
++    await page.getByRole("button", { name: "关闭HTML 成果" }).click();
++    await page
++      .getByRole("navigation", { name: "主导航" })
++      .getByRole("button", { name: "空间", exact: true })
++      .click();
++    await page.getByRole("button", { name: "上传文件", exact: true }).click();
++    const upload = page.getByRole("dialog", { name: "上传到空间" });
++    await upload.getByLabel("上传长期文件").setInputFiles({
++      name: "Phase1视觉检查.md",
++      mimeType: "text/markdown",
++      buffer: Buffer.from(
++        "# Phase 1 视觉基线\n\n独立测试 API 的公开检查记录。\n\n- 四区层级\n- 焦点与状态\n- Mercury 兼容准备\n",
++      ),
++    });
++    await upload.getByRole("button", { name: "上传并保存到 Workspace", exact: true }).click();
++    await expect(upload.getByRole("status")).toContainText("未自动授权");
++    await upload.getByRole("button", { name: "关闭上传到空间" }).click();
++    routes.workspace = page.url().replace(base, "");
++    await page.getByRole("button", { name: "Phase1视觉检查.md", exact: true }).click();
++    await expect(page.locator(".hp-file-preview")).toBeVisible();
++    routes.file = page.url().replace(base, "");
++    await page.getByRole("button", { name: "关闭文件详情" }).click();
++    await page
++      .getByRole("navigation", { name: "主导航" })
++      .getByRole("button", { name: "任务", exact: true })
++      .click();
++    await page.getByRole("button", { name: "新建任务", exact: true }).click();
++    const task = page.getByRole("dialog", { name: "新建任务", exact: true });
++    await task.getByLabel("工作名称").fill("Phase1基础视觉验收");
++    await task.getByLabel("目标 / 提醒内容").fill("核对页面色阶、可读性与后续实验边界。");
++    await task.getByLabel("执行时间").selectOption("once");
++    await task.getByLabel("日期时间").fill("2027-01-01T09:00");
++    await task.getByRole("button", { name: "创建工作", exact: true }).click();
++    await expect(page.locator(".hp-task-inspector")).toBeVisible();
++    routes.task = page.url().replace(base, "");
++    await page.getByRole("button", { name: "关闭任务详情" }).click();
++    await page
++      .getByRole("navigation", { name: "任务分类" })
++      .getByRole("button", { name: /等待或已计划/ })
++      .click();
++    routes.tasks = page.url().replace(base, "");
++    await writeFile(resolve(evidence, "routes.json"), JSON.stringify(routes, null, 2) + "\n");
++  } else {
++    routes = JSON.parse(await readFile(resolve(evidence, "routes.json"), "utf8"));
++    await page.getByLabel("用户名").fill(user);
++    await page.getByLabel("密码", { exact: true }).fill(password);
++    await page.getByRole("button", { name: "登录", exact: true }).click();
++    await settled();
++  }
++  await page.goto(base + routes.ai);
++  await settled();
++  await expect(page.locator(".hp-run-detail")).toBeVisible();
++  await page.locator(".hp-run-detail").click();
++  await expect(page.locator(".hp-run-inspector")).toBeVisible();
++  routes.run = page.url().replace(base, "");
++  routes.new_ai = "/#/ai";
++  await writeFile(resolve(evidence, "routes.json"), JSON.stringify(routes, null, 2) + "\n");
++  for (const width of [1680, 1280, 780, 390]) {
++    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
++    for (const scene of ["ai", "new_ai", "artifact", "run", "workspace", "file", "tasks", "task"]) {
++      await page.goto(base + routes[scene]);
++      await page.reload();
++      await settled();
++      await expect(page.locator(".hp-shell")).toBeVisible();
++      if (scene === "ai") await expect(page.locator(".hp-msg").first()).toBeVisible();
++
++      if (scene === "artifact") {
++        await expect(page.getByTitle("Artifact 预览")).toBeVisible();
++        await expect(
++          page.frameLocator('iframe[title="Artifact 预览"]').locator("body"),
++        ).not.toBeEmpty();
++      }
++      if (scene === "file") await expect(page.locator(".hp-file-preview")).toBeVisible();
++      if (scene === "run") await expect(page.locator(".hp-run-inspector")).toBeVisible();
++      if (scene === "task") await expect(page.locator(".hp-task-inspector")).toBeVisible();
++      if (["artifact", "run", "file", "task"].includes(scene))
++        await expect(page.locator(".hp-inspector")).toHaveAttribute(
++          width < 1280 ? "aria-modal" : "role",
++          width < 1280 ? "true" : "complementary",
++        );
++      await shot(`${scene}-${width}`);
++    }
++  }
++  await page.setViewportSize({ width: 1680, height: 1000 });
++  await page.goto(base + routes.ai);
++  await settled();
++  await page.getByLabel("消息输入").fill("保留的视觉验证草稿");
++  await page
++    .getByRole("navigation", { name: "主导航" })
++    .getByRole("button", { name: "空间", exact: true })
++    .click();
++  await page
++    .getByRole("navigation", { name: "主导航" })
++    .getByRole("button", { name: "AI", exact: true })
++    .click();
++  await expect(page.getByLabel("消息输入")).toHaveValue("保留的视觉验证草稿");
++  await page.getByLabel("消息输入").focus();
++  await page.keyboard.press("Tab");
++  expect(await page.evaluate(() => getComputedStyle(document.activeElement).outlineStyle)).not.toBe(
++    "none",
++  );
++  await shot("focus-draft");
++  await page.getByLabel("消息输入").fill("");
++  await page.getByRole("button", { name: "对话资料", exact: true }).click();
++  await shot("resources-modal");
++  await page.getByRole("button", { name: "关闭当前对话资料" }).click();
++  if (phase === "after") {
++    const rail = page
++      .getByRole("navigation", { name: "主导航" })
++      .getByRole("button", { name: "AI", exact: true });
++    await rail.focus();
++    expect(await rail.evaluate((el) => getComputedStyle(el).outlineColor)).toBe(
++      "rgb(255, 217, 203)",
++    );
++    await shot("focus-rail");
++  }
++  expect(errors).toEqual([]);
++  await writeFile(
++    resolve(evidence, `${phase}-geometry.json`),
++    JSON.stringify({ browser: await browser.version(), metrics, errors }, null, 2) + "\n",
++  );
++  console.log(
++    `${phase}: ${metrics.length} real UI screenshots; geometry, draft and focus checks passed`,
++  );
++} catch (error) {
++  await page.screenshot({ path: resolve(evidence, "failure.png") });
++  console.error(await page.locator("body").innerText());
++  throw error;
++} finally {
++  await browser.close();
++}
+diff --git a/web/src/components/RunStatus.tsx b/web/src/components/RunStatus.tsx
+index 880cb4a..aff83f6 100644
+--- a/web/src/components/RunStatus.tsx
++++ b/web/src/components/RunStatus.tsx
+@@ -95 +95 @@ export function RunStatus({
+-              <Text size="2" color="orange" role="status">
++              <Text size="2" color="amber" role="status">
+@@ -100 +100 @@ export function RunStatus({
+-              <Text size="2" color="orange" role="status" data-testid="run-degraded">
++              <Text size="2" color="amber" role="status" data-testid="run-degraded">
+diff --git a/web/src/components/entry/particles.ts b/web/src/components/entry/particles.ts
+index 004cd7a..3d6280b 100644
+--- a/web/src/components/entry/particles.ts
++++ b/web/src/components/entry/particles.ts
+@@ -76,2 +76,2 @@ export function createParticlePainter(
+-  const accent = theme.getPropertyValue("--hp-accent").trim() || "#1267df";
+-  const neutral = theme.getPropertyValue("--hp-muted").trim() || "#67758c";
++  const accent = theme.getPropertyValue("--hp-motion-star-hot").trim() || "#EB6044";
++  const neutral = theme.getPropertyValue("--hp-motion-star-neutral").trim() || "#6E8290";
+diff --git a/web/src/components/tasks/TaskRow.tsx b/web/src/components/tasks/TaskRow.tsx
+index e2f2601..25e75c2 100644
+--- a/web/src/components/tasks/TaskRow.tsx
++++ b/web/src/components/tasks/TaskRow.tsx
+@@ -14,0 +15,2 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
++      data-status={work.status}
++      data-bucket={p.bucket}
+diff --git a/web/src/main.tsx b/web/src/main.tsx
+index 5d6a0f3..7f2bb53 100644
+--- a/web/src/main.tsx
++++ b/web/src/main.tsx
+@@ -15 +15 @@ createRoot(rootElement).render(
+-    <Theme appearance="light" accentColor="blue" grayColor="slate" panelBackground="solid">
++    <Theme appearance="light" accentColor="tomato" grayColor="slate" panelBackground="solid">
+diff --git a/web/src/styles/artifact.css b/web/src/styles/artifact.css
+index 0cb3776..6358da2 100644
+--- a/web/src/styles/artifact.css
++++ b/web/src/styles/artifact.css
+@@ -20,2 +20,2 @@
+-  background: white;
+-  border: 1px solid var(--hp-border);
++  background: var(--hp-surface);
++  border: 1px solid var(--hp-control-border);
+@@ -52,2 +52,2 @@
+-  background: #fcfdff;
+-  border-color: #c3d5ee;
++  background: var(--hp-surface);
++  border-color: var(--hp-control-border);
+@@ -61,2 +61,2 @@
+-  background: var(--hp-selection);
+-  color: var(--hp-accent);
++  background: var(--hp-neutral-soft);
++  color: var(--hp-neutral);
+@@ -212 +212 @@
+-  background: white;
++  background: var(--hp-surface);
+@@ -226,3 +226,3 @@
+-  background: var(--hp-accent);
+-  border-color: var(--hp-accent);
+-  color: white;
++  background: var(--hp-primary);
++  border-color: var(--hp-primary);
++  color: var(--hp-on-primary);
+@@ -231,2 +231,2 @@
+-  background: #0c63df;
+-  border-color: #0c63df;
++  background: var(--hp-primary-hover);
++  border-color: var(--hp-primary-hover);
+@@ -249 +249 @@
+-  border-color: #c3d5ee;
++  border-color: var(--hp-control-border);
+@@ -294 +294 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+@@ -296 +296 @@
+-  background: #fcfdff;
++  background: var(--hp-surface);
+@@ -321 +321 @@
+-  background: white;
++  background: var(--hp-surface);
+@@ -325 +325 @@
+-  background: var(--red-a3);
++  background: var(--hp-danger-soft);
+diff --git a/web/src/styles/base.css b/web/src/styles/base.css
+index 1c37725..1382fc5 100644
+--- a/web/src/styles/base.css
++++ b/web/src/styles/base.css
+@@ -12,2 +12,2 @@ body,
+-  border-right: 1px solid var(--gray-a5);
+-  background: var(--color-panel);
++  border-right: 1px solid var(--hp-border);
++  background: var(--hp-context);
+@@ -40 +40 @@ body,
+-  background: var(--gray-a3);
++  background: var(--hp-subtle);
+@@ -44 +44 @@ body,
+-  background: var(--accent-a3);
++  background: var(--hp-selection);
+@@ -53 +53 @@ body,
+-  border-bottom: 1px solid var(--gray-a5);
++  border-bottom: 1px solid var(--hp-border);
+@@ -78 +78 @@ body,
+-  color: var(--gray-10);
++  color: var(--hp-muted);
+@@ -106 +106 @@ body,
+-  background: var(--gray-a3);
++  background: var(--hp-subtle);
+@@ -115,2 +115,2 @@ body,
+-  border-bottom: 1px solid var(--gray-a4);
+-  color: var(--gray-10);
++  border-bottom: 1px solid var(--hp-border);
++  color: var(--hp-muted);
+@@ -123,2 +123,2 @@ body,
+-  background: var(--gray-a3);
+-  color: var(--gray-11);
++  background: var(--hp-subtle);
++  color: var(--hp-muted);
+@@ -129,2 +129,2 @@ body,
+-  background: var(--blue-a3);
+-  color: var(--blue-11);
++  background: var(--hp-neutral-soft);
++  color: var(--hp-neutral);
+@@ -134,2 +134,2 @@ body,
+-  background: var(--green-a3);
+-  color: var(--green-11);
++  background: var(--hp-success-soft);
++  color: var(--hp-success);
+@@ -139,2 +139,2 @@ body,
+-  background: var(--red-a3);
+-  color: var(--red-11);
++  background: var(--hp-danger-soft);
++  color: var(--hp-danger);
+@@ -159 +159 @@ body,
+-  border-left: 1px solid var(--gray-a5);
++  border-left: 1px solid var(--hp-border);
+@@ -172 +172 @@ body,
+-  background: var(--accent-a3);
++  background: var(--hp-selection);
+@@ -210 +210 @@ body,
+-  color: var(--blue-10);
++  color: var(--hp-neutral);
+@@ -215 +215 @@ body,
+-  color: var(--green-10);
++  color: var(--hp-success);
+@@ -219 +219 @@ body,
+-  color: var(--red-10);
++  color: var(--hp-danger);
+@@ -223 +223 @@ body,
+-  color: var(--gray-9);
++  color: var(--hp-muted);
+@@ -242 +242 @@ body,
+-  color: var(--gray-9);
++  color: var(--hp-muted);
+@@ -249 +249 @@ body,
+-  color: var(--blue-10);
++  color: var(--hp-neutral);
+@@ -259 +259 @@ body,
+-  border-top: 1px solid var(--gray-a5);
++  border-top: 1px solid var(--hp-border);
+@@ -274,2 +274,2 @@ body,
+-  background: var(--gray-a3);
+-  color: var(--gray-11);
++  background: var(--hp-subtle);
++  color: var(--hp-muted);
+@@ -290 +290 @@ body,
+-  color: var(--gray-9);
++  color: var(--hp-muted);
+@@ -299 +299 @@ body,
+-  color: var(--gray-9);
++  color: var(--hp-muted);
+@@ -308 +308 @@ body,
+-  background: var(--gray-a3);
++  background: var(--hp-subtle);
+@@ -317 +317 @@ body,
+-  border: 1px solid var(--gray-a5);
++  border: 1px solid var(--hp-control-border);
+@@ -334 +334 @@ body,
+-  color: var(--gray-10);
++  color: var(--hp-muted);
+@@ -340 +340 @@ body,
+-  color: var(--amber-11);
++  color: var(--hp-warning);
+@@ -352,2 +352,2 @@ body,
+-  border-color: var(--amber-7);
+-  background: var(--amber-2);
++  border-color: var(--hp-warning);
++  background: var(--hp-warning-soft);
+@@ -362,2 +362,2 @@ body,
+-  border-bottom: 1px solid var(--red-a5);
+-  background: var(--red-a2);
++  border-bottom: 1px solid var(--hp-danger);
++  background: var(--hp-danger-soft);
+@@ -373 +373 @@ body,
+-  border-bottom: 1px solid var(--gray-a5);
++  border-bottom: 1px solid var(--hp-border);
+@@ -387 +387 @@ body,
+-  border: 1px solid var(--gray-6);
++  border: 1px solid var(--hp-border);
+@@ -419,0 +420,35 @@ body,
++
++/* Shared primitives also cover authentication and portal-mounted dialogs. */
++body {
++  color: var(--hp-text);
++  background: var(--hp-app);
++}
++:where(button, input, textarea, select, summary, a):focus-visible {
++  outline: 2px solid var(--hp-focus);
++  outline-offset: 3px;
++}
++input[type="checkbox"],
++input[type="radio"] {
++  accent-color: var(--hp-primary);
++}
++input::placeholder,
++textarea::placeholder {
++  color: var(--hp-muted);
++  opacity: 1;
++}
++.hp-shell [role="alert"],
++.hp-surface [role="alert"] {
++  color: var(--hp-danger);
++}
++
++.hp-shell a,
++.hp-surface a,
++.hp-auth-surface a {
++  color: var(--hp-accent);
++  text-underline-offset: 2px;
++}
++.hp-shell a:hover,
++.hp-surface a:hover,
++.hp-auth-surface a:hover {
++  color: var(--hp-primary-hover);
++}
+diff --git a/web/src/styles/conversation.css b/web/src/styles/conversation.css
+index 70a9e31..8c47eba 100644
+--- a/web/src/styles/conversation.css
++++ b/web/src/styles/conversation.css
+@@ -7 +7 @@
+-  background: var(--hp-subtle);
++  background: var(--hp-context);
+@@ -21,2 +21,2 @@
+-  background: #126de9;
+-  color: white;
++  background: var(--hp-primary);
++  color: var(--hp-on-primary);
+@@ -43 +43 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+@@ -45 +45 @@
+-  background: white;
++  background: var(--hp-surface);
+@@ -134 +134 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+@@ -159,0 +160 @@
++  background: var(--hp-canvas);
+@@ -165,0 +167 @@
++  background: var(--hp-surface);
+@@ -182,2 +184,2 @@
+-  background: var(--hp-selection);
+-  color: var(--hp-accent);
++  background: var(--hp-neutral-soft);
++  color: var(--hp-neutral);
+@@ -187 +189 @@
+-  background: #f0f3f8;
++  background: var(--hp-subtle);
+@@ -248 +250 @@
+-  background: var(--hp-selection);
++  background: var(--hp-bubble);
+@@ -300 +302 @@
+-  background: #f0f3f8;
++  background: var(--hp-subtle);
+@@ -360 +362 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+@@ -362,2 +364,2 @@
+-  background: white;
+-  box-shadow: 0 2px 12px #244a8603;
++  background: var(--hp-surface);
++  box-shadow: 0 2px 12px var(--hp-shadow);
+@@ -366 +368,2 @@
+-  border-color: #b7cef1;
++  border-color: var(--hp-focus);
++  box-shadow: 0 0 0 2px var(--hp-focus-halo);
+@@ -387 +390 @@
+-  color: #8b97a9;
++  color: var(--hp-muted);
+@@ -461 +464 @@
+-  background: white;
++  background: var(--hp-surface);
+@@ -507 +510 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+@@ -509 +512 @@
+-  background: white;
++  background: var(--hp-surface);
+@@ -517 +520 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+@@ -540,3 +543,3 @@
+-  background: #126de9;
+-  color: white;
+-  border-color: #126de9;
++  background: var(--hp-primary);
++  color: var(--hp-on-primary);
++  border-color: var(--hp-primary);
+@@ -545,2 +548,2 @@
+-  background: #edf2fa;
+-  color: #8b97a9;
++  background: var(--hp-subtle);
++  color: var(--hp-muted);
+@@ -551,2 +554,2 @@
+-  background: #0c63df;
+-  border-color: #0c63df;
++  background: var(--hp-primary-hover);
++  border-color: var(--hp-primary-hover);
+@@ -577 +580 @@
+-  border-color: var(--red-7);
++  border-color: var(--hp-danger);
+@@ -631 +634 @@
+-  background: white;
++  background: var(--hp-surface);
+diff --git a/web/src/styles/entry.css b/web/src/styles/entry.css
+index f621ebb..aba9194 100644
+--- a/web/src/styles/entry.css
++++ b/web/src/styles/entry.css
+@@ -27,2 +27,2 @@
+-  background: var(--hp-accent);
+-  color: white;
++  background: var(--hp-primary);
++  color: var(--hp-on-primary);
+@@ -77 +77 @@
+-  stroke: var(--hp-accent);
++  stroke: var(--hp-brand);
+@@ -100 +100 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+diff --git a/web/src/styles/run.css b/web/src/styles/run.css
+index c9614a8..d5a8e01 100644
+--- a/web/src/styles/run.css
++++ b/web/src/styles/run.css
+@@ -25 +25 @@
+-  color: var(--hp-accent);
++  color: var(--hp-neutral);
+@@ -124,2 +124,2 @@
+-  background: var(--accent-3);
+-  border-color: var(--accent-8);
++  background: var(--hp-selection);
++  border-color: var(--hp-accent);
+@@ -141 +141 @@
+-  border-bottom: 1px solid var(--gray-6);
++  border-bottom: 1px solid var(--hp-border);
+@@ -144 +144 @@
+-.hp-run-inspector .hp-run-inspector button,
++.hp-run-inspector button,
+@@ -149 +149 @@
+-  border: 1px solid var(--gray-6);
++  border: 1px solid var(--hp-control-border);
+@@ -151,2 +151,2 @@
+-  background: var(--color-panel-solid);
+-  color: var(--gray-12);
++  background: var(--hp-surface);
++  color: var(--hp-text);
+@@ -160 +160 @@
+-  background: var(--gray-3);
++  background: var(--hp-subtle);
+@@ -169,2 +169,2 @@
+-  background: var(--accent-3);
+-  border-color: var(--accent-8);
++  background: var(--hp-selection);
++  border-color: var(--hp-accent);
+diff --git a/web/src/styles/shell.css b/web/src/styles/shell.css
+index ca6e796..40cad93 100644
+--- a/web/src/styles/shell.css
++++ b/web/src/styles/shell.css
+@@ -8 +8 @@
+-  background: var(--hp-subtle);
++  background: var(--hp-app);
+@@ -21 +21 @@
+-  background: var(--hp-subtle);
++  background: var(--hp-app);
+@@ -47 +47,2 @@
+-  background: #fcfdff;
++  background: var(--hp-rail-surface);
++  color: var(--hp-rail-text);
+@@ -56 +57 @@
+-  color: var(--hp-text);
++  color: var(--hp-rail-text);
+@@ -60 +61 @@
+-  color: var(--hp-accent);
++  color: var(--hp-brand);
+@@ -73 +74 @@
+-  color: var(--hp-muted);
++  color: var(--hp-rail-muted);
+@@ -104 +105 @@
+-  background: var(--hp-accent);
++  background: var(--hp-brand);
+@@ -108,2 +109,2 @@
+-  background: var(--hp-selection);
+-  color: var(--hp-accent);
++  background: var(--hp-rail-hover);
++  color: var(--hp-rail-active);
+@@ -123 +124 @@
+-  background: var(--hp-subtle);
++  background: var(--hp-context);
+@@ -183,2 +184,2 @@
+-  border: 1px solid var(--hp-border);
+-  background: white;
++  border: 1px solid var(--hp-control-border);
++  background: var(--hp-surface);
+@@ -322,0 +324 @@
++  background: var(--hp-inspector-surface);
+@@ -518,0 +521,4 @@
++
++.hp-shell .hp-rail :focus-visible {
++  outline-color: var(--hp-rail-active);
++}
+diff --git a/web/src/styles/tasks.css b/web/src/styles/tasks.css
+index 151a2af..11b7ae8 100644
+--- a/web/src/styles/tasks.css
++++ b/web/src/styles/tasks.css
+@@ -32 +32 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+@@ -212,0 +213,10 @@
++
++/* The existing presentation bucket is a read-only styling hook. */
++.hp-task-row[data-bucket="attention"] .hp-task-status {
++  color: var(--hp-warning);
++  background: var(--hp-warning-soft);
++}
++.hp-task-row[data-status="completed"] .hp-task-status {
++  color: var(--hp-success);
++  background: var(--hp-success-soft);
++}
+diff --git a/web/src/styles/tokens.css b/web/src/styles/tokens.css
+index ed0328f..fe8d936 100644
+--- a/web/src/styles/tokens.css
++++ b/web/src/styles/tokens.css
+@@ -1 +1 @@
+-/* UI-7: shared semantic tokens, with Radix supplying the base palette. */
++/* Paper Flame v1.0: theme authority. Keep layout and motion tokens below unchanged. */
+@@ -4,13 +4,63 @@
+-  --hp-surface: var(--color-background, #fff);
+-  --hp-subtle: #f7f9fc;
+-  --hp-border: #e3e9f2;
+-  --hp-text: #182235;
+-  --hp-muted: #67758c;
+-  --hp-accent: #1267df;
+-  --hp-selection: #eaf2ff;
+-  --hp-danger: var(--red-11, #b42318);
+-  --hp-success: var(--green-11, #18794e);
+-  --hp-warning: var(--amber-11, #925700);
+-  --hp-focus: #1673f5;
+-  --hp-overlay: var(--black-a8, #17203366);
+-  --hp-shadow: var(--black-a3, #0002);
++  color-scheme: light;
++  --pf-rail: #16212c;
++  --pf-app: #f5f7f9;
++  --pf-context: #edf1f5;
++  --pf-context-end: #f2f5f8;
++  --pf-canvas: #f8f9fb;
++  --pf-inspector: #f4f6f8;
++  --pf-panel: #ffffff;
++  --pf-field: #f1f4f7;
++  --pf-bubble: #ebf1f5;
++  --pf-text: #202a34;
++  --pf-muted: #5d6f7b;
++  --pf-accent: #eb6044;
++  --pf-accent-hover: #cf482d;
++  --pf-accent-strong: #b94025;
++  --pf-accent-soft: #fdede8;
++  --pf-rail-text: #f1f4f7;
++  --pf-rail-muted: #a2afbb;
++  --pf-rail-active: #ffd9cb;
++
++  /* Production supplements: low contrast dividers vs identifiable controls. */
++  --hp-app: var(--pf-app);
++  --hp-rail-surface: var(--pf-rail);
++  --hp-rail-text: var(--pf-rail-text);
++  --hp-rail-muted: var(--pf-rail-muted);
++  --hp-rail-active: var(--pf-rail-active);
++  --hp-rail-hover: #243340;
++  --hp-context: var(--pf-context);
++  --hp-canvas: var(--pf-canvas);
++  --hp-inspector-surface: var(--pf-inspector);
++  --hp-surface: var(--pf-panel);
++  --hp-subtle: var(--pf-field);
++  --hp-bubble: var(--pf-bubble);
++  --hp-border: #d4dce3;
++  --hp-control-border: #7b8994;
++  --hp-text: var(--pf-text);
++  --hp-muted: var(--pf-muted);
++  --hp-brand: var(--pf-accent);
++  --hp-accent: var(--pf-accent-strong);
++  --hp-primary: var(--pf-accent-strong);
++  --hp-primary-hover: #a53620;
++  --hp-on-primary: var(--pf-panel);
++  --hp-selection: var(--pf-accent-soft);
++  --hp-neutral: #536875;
++  --hp-neutral-soft: var(--pf-bubble);
++  --hp-danger: #b42318;
++  --hp-danger-soft: #fcecea;
++  --hp-success: #1c755d;
++  --hp-success-soft: #e8f4ee;
++  --hp-warning: #8a580e;
++  --hp-warning-soft: #faf0db;
++  --hp-focus: var(--pf-accent-strong);
++  --hp-overlay: rgb(22 33 44 / 48%);
++  --hp-shadow: rgb(15 35 55 / 8%);
++  --hp-focus-halo: rgb(185 64 37 / 12%);
++
++  /* Reserved optics: these are not a Mercury rendering/controller API. */
++  --hp-motion-star-neutral: #6e8290;
++  --hp-motion-star-hot: var(--pf-accent);
++  --hp-motion-star-core: #fff3e9;
++  --hp-motion-star-trail: rgb(110 130 144 / 35%);
++  --hp-motion-reflection: #c5d0d8;
++  --hp-motion-depth: var(--pf-rail);
+@@ -38,0 +89,61 @@
++
++/* Radix consumes this same palette, including nested Theme/Portal surfaces.
++ * Explicit red/green/amber components retain their semantic accent mapping. */
++.radix-themes {
++  --color-background: var(--hp-app);
++  --color-panel-solid: var(--hp-surface);
++  --color-panel-translucent: var(--hp-surface);
++  --color-surface: var(--hp-surface);
++  --color-overlay: var(--hp-overlay);
++  --gray-1: var(--hp-surface);
++  --gray-2: var(--hp-canvas);
++  --gray-3: var(--hp-subtle);
++  --gray-7: var(--hp-control-border);
++  --gray-8: var(--hp-control-border);
++  --gray-9: var(--hp-muted);
++  --gray-10: var(--hp-muted);
++  --gray-11: var(--hp-muted);
++  --gray-12: var(--hp-text);
++  --gray-a7: var(--hp-control-border);
++  --gray-a8: var(--hp-control-border);
++  --gray-a9: var(--hp-muted);
++  --gray-a10: var(--hp-muted);
++  --gray-a11: var(--hp-muted);
++  --gray-a12: var(--hp-text);
++  --red-9: var(--hp-danger);
++  --red-10: var(--hp-danger);
++  --red-11: var(--hp-danger);
++  --green-9: var(--hp-success);
++  --green-10: var(--hp-success);
++  --green-11: var(--hp-success);
++  --amber-11: var(--hp-warning);
++  --amber-a11: var(--hp-warning);
++  --accent-1: var(--hp-surface);
++  --accent-2: var(--hp-selection);
++  --accent-3: var(--hp-selection);
++  --accent-4: #ffe2d9;
++  --accent-5: #facfc1;
++  --accent-6: #edb49f;
++  --accent-7: #d9937c;
++  --accent-8: var(--hp-accent);
++  --accent-9: var(--hp-primary);
++  --accent-10: var(--hp-primary-hover);
++  --accent-11: var(--hp-accent);
++  --accent-12: var(--hp-text);
++  --accent-a1: var(--accent-1);
++  --accent-a2: var(--accent-2);
++  --accent-a3: var(--accent-3);
++  --accent-a4: var(--accent-4);
++  --accent-a5: var(--accent-5);
++  --accent-a6: var(--accent-6);
++  --accent-a7: var(--accent-7);
++  --accent-a8: var(--accent-8);
++  --accent-a9: var(--accent-9);
++  --accent-a10: var(--accent-10);
++  --accent-a11: var(--accent-11);
++  --accent-a12: var(--accent-12);
++  --accent-contrast: var(--hp-on-primary);
++  --accent-surface: var(--hp-selection);
++  --accent-indicator: var(--hp-brand);
++  --accent-track: var(--hp-primary);
++}
+diff --git a/web/src/styles/unification.css b/web/src/styles/unification.css
+index 35d32b0..f9d69d8 100644
+--- a/web/src/styles/unification.css
++++ b/web/src/styles/unification.css
+@@ -20 +20 @@
+-  background: var(--hp-subtle);
++  background: var(--hp-context);
+diff --git a/web/src/styles/visual.css b/web/src/styles/visual.css
+index 25c7d69..7745a42 100644
+--- a/web/src/styles/visual.css
++++ b/web/src/styles/visual.css
+@@ -9 +9 @@
+-  background: #f5f8fd;
++  background: var(--hp-app);
+@@ -23 +23 @@
+-  color: #101b2e;
++  color: var(--hp-text);
+@@ -26 +26 @@
+-  color: #1673f5;
++  color: var(--hp-brand);
+@@ -56,2 +56,2 @@
+-  background: #ffffffd9;
+-  box-shadow: 0 8px 32px #244a8604;
++  background: var(--hp-surface);
++  box-shadow: 0 8px 32px var(--hp-shadow);
+@@ -75,2 +75,2 @@
+-  background: #fbfcfe;
+-  box-shadow: inset 0 0 0 1px var(--hp-border);
++  background: var(--hp-surface);
++  box-shadow: inset 0 0 0 1px var(--hp-control-border);
+@@ -82 +82 @@
+-    0 0 0 3px #1673f510;
++    0 0 0 3px var(--hp-focus-halo);
+@@ -91 +91 @@
+-  background: #126de9;
++  background: var(--hp-primary);
+@@ -101 +101 @@
+-  background: var(--hp-surface);
++  background: var(--hp-canvas);
+@@ -128 +128 @@
+-  background: #fff;
++  background: var(--hp-surface);
+@@ -188 +188 @@
+-  background: #fcfdff;
++  background: var(--hp-surface);
+@@ -192,3 +192,3 @@
+-  background: #126de9;
+-  color: #fff;
+-  border-color: #126de9;
++  background: var(--hp-primary);
++  color: var(--hp-on-primary);
++  border-color: var(--hp-primary);
+@@ -222 +222 @@
+-  color: #1673f5;
++  color: var(--hp-muted);
+@@ -225 +225 @@
+-  color: #e8a51c;
++  color: var(--hp-muted);
+@@ -231 +231 @@
+-  background: #f7faff;
++  background: var(--hp-subtle);
+@@ -259 +259 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+@@ -262 +262 @@
+-  background: #fcfdff;
++  background: var(--hp-surface);
+@@ -316,2 +316,2 @@
+-  background: #f4f8ff;
+-  border-color: #9dc4fa;
++  background: var(--hp-selection);
++  border-color: var(--hp-control-border);
+@@ -328,2 +328,2 @@
+-  background: var(--hp-selection);
+-  color: var(--hp-accent);
++  background: var(--hp-neutral-soft);
++  color: var(--hp-neutral);
+@@ -353 +352,0 @@
+-.hp-rail button:hover,
+@@ -429,2 +428,3 @@
+-.hp-shell .hp-sidebar {
+-  background: var(--hp-subtle);
++.hp-shell .hp-sidebar,
++.hp-sidebar-drawer .hp-sidebar {
++  background: var(--hp-context);
+@@ -468 +468 @@
+-  background: #fcfdff;
++  background: var(--hp-surface);
+@@ -483 +483 @@
+-  background: #fcfdff;
++  background: var(--hp-surface);
+@@ -507 +507 @@
+-  background: #f2f5f9;
++  background: var(--hp-rail-hover);
+@@ -536,3 +536,3 @@
+-  background: #0c63df;
+-  border-color: #0c63df;
+-  color: #fff;
++  background: var(--hp-primary-hover);
++  border-color: var(--hp-primary-hover);
++  color: var(--hp-on-primary);
+diff --git a/web/src/styles/workspace.css b/web/src/styles/workspace.css
+index 45b9c0b..25375cc 100644
+--- a/web/src/styles/workspace.css
++++ b/web/src/styles/workspace.css
+@@ -29 +29 @@
+-  background: var(--accent-a3);
++  background: var(--hp-selection);
+@@ -83 +83 @@
+-  border-bottom: 1px solid var(--gray-a5);
++  border-bottom: 1px solid var(--hp-border);
+@@ -101 +101 @@
+-  color: var(--gray-11);
++  color: var(--hp-muted);
+@@ -121 +121 @@
+-  background: var(--gray-a2);
++  background: var(--hp-subtle);
+@@ -161 +161 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);
+@@ -193 +193 @@
+-  border: 1px solid var(--hp-border);
++  border: 1px solid var(--hp-control-border);

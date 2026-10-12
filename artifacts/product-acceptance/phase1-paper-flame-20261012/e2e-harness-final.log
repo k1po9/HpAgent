@@ -1,0 +1,7 @@
+
+Running 2 tests using 1 worker
+
+  ok 1 ..\..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-self-review.spec.ts:265:1 › R2: native modal includes summary, tabindex, iframe and legend; excludes hidden/disabled controls (1.1s)
+  ok 2 ..\..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-self-review.spec.ts:333:1 › R2: desktop nonmodal permits background Tab navigation and preserves Escape focus return (514ms)
+
+  2 passed (7.0s)

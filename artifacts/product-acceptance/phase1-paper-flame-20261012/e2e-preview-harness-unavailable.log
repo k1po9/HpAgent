@@ -1,0 +1,7 @@
+
+Running 8 tests using 1 worker
+
+  ok 1 ..\..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\entry\entry.spec.ts:51:1 › valid cookie: branded wait, actual particle pixels, stable shell and no navigation replay (1.6s)
+  ok 2 ..\..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\entry\entry.spec.ts:150:1 › reduced motion: static ring and no particle backing store (526ms)
+  ok 3 ..\..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\entry\entry.spec.ts:197:1 › slow verification stays in the ring; changing motion preference mid-flight settles (4.7s)
+  x  4 ..\..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-self-review.spec.ts:265:1 › R2: native modal includes summary, tabindex, iframe and legend; excludes hidden/disabled controls (1.0m)
