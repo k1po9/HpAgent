@@ -41,6 +41,7 @@
 
 ## 实施与验收
 
+- [P0 系统能力与交互契约审计（2026-10-10）](design/ui-refactor-p0-2026-10-10/README.md)：前端创意重构的能力地图、状态与安全契约、实际调用链和设计输入；按当前源码基线核实，不规定导航、布局或视觉形式。
 - [前端视觉工具链与功能边界审查](design/frontend-visual-toolchain-review-2026-10-09.md)：Impeccable、React Grab、Playwright CLI/Test 的分阶段接入建议，布局耦合、生产隔离与无全量后端视觉检查方案；本轮仅审查，未安装工具。
 - [最新前端视觉迭代指导（含五张参考图）](design/frontend-visual-guide-latest.md)：前端代码是功能唯一真相源；PDF 仅作视觉参考，逐图说明多余功能排除项与截图迭代闭环。
 - [UI-1～UI-8 重构交接](implementation/ui-refactor.md)：全部阶段、关闭的缺陷、能力矩阵、批次结果、059 迁移、剩余验收与增强。
