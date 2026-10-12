@@ -26,7 +26,7 @@
 }
 
 .hp-tree-row [aria-current] {
-  background: var(--accent-a3);
+  background: var(--hp-selection);
   font-weight: 600;
 }
 
@@ -80,7 +80,7 @@
 .hp-file-table td {
   text-align: left;
   padding: 10px 8px;
-  border-bottom: 1px solid var(--gray-a5);
+  border-bottom: 1px solid var(--hp-border);
   overflow-wrap: anywhere;
 }
 
@@ -98,7 +98,7 @@
 
 .hp-file-table small {
   display: block;
-  color: var(--gray-11);
+  color: var(--hp-muted);
 }
 
 .hp-file-name {
@@ -118,7 +118,7 @@
   overflow-wrap: anywhere;
   font-family: inherit;
   padding: 12px;
-  background: var(--gray-a2);
+  background: var(--hp-subtle);
 }
 
 .hp-file-preview pre {
@@ -158,7 +158,7 @@
 .hp-workspace-sidebar button,
 .hp-subject-picker button,
 .hp-surface .hp-operation-form button {
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 8px;
   padding: 7px 11px;
   min-height: 34px;
@@ -190,7 +190,7 @@
 .hp-file-inspector select,
 .hp-subject-picker input,
 .hp-subject-picker select {
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 8px;
   padding: 8px 10px;
   min-width: 0;

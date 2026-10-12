@@ -92,12 +92,12 @@ export function RunStatus({
           </div>
           <div className="hp-run-description">
             {activeRun.status === "queued" && warnedRun === activeRun.run_id ? (
-              <Text size="2" color="orange" role="status">
+              <Text size="2" color="amber" role="status">
                 仍在等待执行 Worker 接管
               </Text>
             ) : null}
             {degraded && running ? (
-              <Text size="2" color="orange" role="status" data-testid="run-degraded">
+              <Text size="2" color="amber" role="status" data-testid="run-degraded">
                 连接中断，正在同步执行状态
               </Text>
             ) : null}

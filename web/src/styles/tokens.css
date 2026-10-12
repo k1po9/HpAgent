@@ -1,19 +1,69 @@
-/* UI-7: shared semantic tokens, with Radix supplying the base palette. */
+/* Paper Flame v1.0: theme authority. Keep layout and motion tokens below unchanged. */
 :root,
 .radix-themes {
-  --hp-surface: var(--color-background, #fff);
-  --hp-subtle: #f7f9fc;
-  --hp-border: #e3e9f2;
-  --hp-text: #182235;
-  --hp-muted: #67758c;
-  --hp-accent: #1267df;
-  --hp-selection: #eaf2ff;
-  --hp-danger: var(--red-11, #b42318);
-  --hp-success: var(--green-11, #18794e);
-  --hp-warning: var(--amber-11, #925700);
-  --hp-focus: #1673f5;
-  --hp-overlay: var(--black-a8, #17203366);
-  --hp-shadow: var(--black-a3, #0002);
+  color-scheme: light;
+  --pf-rail: #16212c;
+  --pf-app: #f5f7f9;
+  --pf-context: #edf1f5;
+  --pf-context-end: #f2f5f8;
+  --pf-canvas: #f8f9fb;
+  --pf-inspector: #f4f6f8;
+  --pf-panel: #ffffff;
+  --pf-field: #f1f4f7;
+  --pf-bubble: #ebf1f5;
+  --pf-text: #202a34;
+  --pf-muted: #5d6f7b;
+  --pf-accent: #eb6044;
+  --pf-accent-hover: #cf482d;
+  --pf-accent-strong: #b94025;
+  --pf-accent-soft: #fdede8;
+  --pf-rail-text: #f1f4f7;
+  --pf-rail-muted: #a2afbb;
+  --pf-rail-active: #ffd9cb;
+
+  /* Production supplements: low contrast dividers vs identifiable controls. */
+  --hp-app: var(--pf-app);
+  --hp-rail-surface: var(--pf-rail);
+  --hp-rail-text: var(--pf-rail-text);
+  --hp-rail-muted: var(--pf-rail-muted);
+  --hp-rail-active: var(--pf-rail-active);
+  --hp-rail-hover: #243340;
+  --hp-context: var(--pf-context);
+  --hp-canvas: var(--pf-canvas);
+  --hp-inspector-surface: var(--pf-inspector);
+  --hp-surface: var(--pf-panel);
+  --hp-subtle: var(--pf-field);
+  --hp-bubble: var(--pf-bubble);
+  --hp-border: #d4dce3;
+  --hp-control-border: #7b8994;
+  --hp-text: var(--pf-text);
+  --hp-muted: var(--pf-muted);
+  --hp-brand: var(--pf-accent);
+  --hp-accent: var(--pf-accent-strong);
+  --hp-primary: var(--pf-accent-strong);
+  --hp-primary-hover: #a53620;
+  --hp-on-primary: var(--pf-panel);
+  --hp-selection: var(--pf-accent-soft);
+  --hp-neutral: #536875;
+  --hp-neutral-soft: var(--pf-bubble);
+  --hp-danger: #b42318;
+  --hp-danger-soft: #fcecea;
+  --hp-success: #1c755d;
+  --hp-success-soft: #e8f4ee;
+  --hp-warning: #8a580e;
+  --hp-warning-soft: #faf0db;
+  --hp-focus: var(--pf-accent-strong);
+  --hp-overlay: rgb(22 33 44 / 48%);
+  --hp-shadow: rgb(15 35 55 / 8%);
+  --hp-focus-halo: rgb(185 64 37 / 12%);
+
+  /* Reserved optics: these are not a Mercury rendering/controller API. */
+  --hp-motion-star-neutral: #6e8290;
+  --hp-motion-star-hot: var(--pf-accent);
+  --hp-motion-star-core: #fff3e9;
+  --hp-motion-star-trail: rgb(110 130 144 / 35%);
+  --hp-motion-reflection: #c5d0d8;
+  --hp-motion-depth: var(--pf-rail);
   --hp-radius: 8px;
   --hp-space-1: 4px;
   --hp-space-2: 8px;
@@ -35,4 +85,65 @@
   --hp-morph: 150ms;
   --hp-flow: 220ms;
   --hp-settle: 160ms;
+}
+
+/* Radix consumes this same palette, including nested Theme/Portal surfaces.
+ * Explicit red/green/amber components retain their semantic accent mapping. */
+.radix-themes {
+  --color-background: var(--hp-app);
+  --color-panel-solid: var(--hp-surface);
+  --color-panel-translucent: var(--hp-surface);
+  --color-surface: var(--hp-surface);
+  --color-overlay: var(--hp-overlay);
+  --gray-1: var(--hp-surface);
+  --gray-2: var(--hp-canvas);
+  --gray-3: var(--hp-subtle);
+  --gray-7: var(--hp-control-border);
+  --gray-8: var(--hp-control-border);
+  --gray-9: var(--hp-muted);
+  --gray-10: var(--hp-muted);
+  --gray-11: var(--hp-muted);
+  --gray-12: var(--hp-text);
+  --gray-a7: var(--hp-control-border);
+  --gray-a8: var(--hp-control-border);
+  --gray-a9: var(--hp-muted);
+  --gray-a10: var(--hp-muted);
+  --gray-a11: var(--hp-muted);
+  --gray-a12: var(--hp-text);
+  --red-9: var(--hp-danger);
+  --red-10: var(--hp-danger);
+  --red-11: var(--hp-danger);
+  --green-9: var(--hp-success);
+  --green-10: var(--hp-success);
+  --green-11: var(--hp-success);
+  --amber-11: var(--hp-warning);
+  --amber-a11: var(--hp-warning);
+  --accent-1: var(--hp-surface);
+  --accent-2: var(--hp-selection);
+  --accent-3: var(--hp-selection);
+  --accent-4: #ffe2d9;
+  --accent-5: #facfc1;
+  --accent-6: #edb49f;
+  --accent-7: #d9937c;
+  --accent-8: var(--hp-accent);
+  --accent-9: var(--hp-primary);
+  --accent-10: var(--hp-primary-hover);
+  --accent-11: var(--hp-accent);
+  --accent-12: var(--hp-text);
+  --accent-a1: var(--accent-1);
+  --accent-a2: var(--accent-2);
+  --accent-a3: var(--accent-3);
+  --accent-a4: var(--accent-4);
+  --accent-a5: var(--accent-5);
+  --accent-a6: var(--accent-6);
+  --accent-a7: var(--accent-7);
+  --accent-a8: var(--accent-8);
+  --accent-a9: var(--accent-9);
+  --accent-a10: var(--accent-10);
+  --accent-a11: var(--accent-11);
+  --accent-a12: var(--accent-12);
+  --accent-contrast: var(--hp-on-primary);
+  --accent-surface: var(--hp-selection);
+  --accent-indicator: var(--hp-brand);
+  --accent-track: var(--hp-primary);
 }

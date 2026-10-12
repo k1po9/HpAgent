@@ -73,8 +73,8 @@ export function createParticlePainter(
   ctx.scale(resolution, resolution);
   // Carry the live product palette from the ring/card into the particles.
   const theme = getComputedStyle(canvas);
-  const accent = theme.getPropertyValue("--hp-accent").trim() || "#1267df";
-  const neutral = theme.getPropertyValue("--hp-muted").trim() || "#67758c";
+  const accent = theme.getPropertyValue("--hp-motion-star-hot").trim() || "#EB6044";
+  const neutral = theme.getPropertyValue("--hp-motion-star-neutral").trim() || "#6E8290";
   // Precompute positions/alpha once. The live frame only fills cached paths;
   // it does no trigonometry and performs at most eight fill calls.
   const steps = 80;

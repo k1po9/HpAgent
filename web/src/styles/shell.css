@@ -5,7 +5,7 @@
   place-items: center;
   padding: 24px;
   box-sizing: border-box;
-  background: var(--hp-subtle);
+  background: var(--hp-app);
 }
 
 .hp-auth-surface > div {
@@ -18,7 +18,7 @@
   height: 100dvh;
   overflow: hidden;
   color: var(--hp-text);
-  background: var(--hp-subtle);
+  background: var(--hp-app);
 }
 
 .hp-shell *,
@@ -44,7 +44,8 @@
   gap: 28px;
   padding: 20px 10px;
   border-right: 1px solid var(--hp-border);
-  background: #fcfdff;
+  background: var(--hp-rail-surface);
+  color: var(--hp-rail-text);
 }
 
 .hp-brand {
@@ -53,11 +54,11 @@
   font-weight: 750;
   letter-spacing: -0.9px;
   white-space: nowrap;
-  color: var(--hp-text);
+  color: var(--hp-rail-text);
 }
 
 .hp-brand-accent {
-  color: var(--hp-accent);
+  color: var(--hp-brand);
 }
 
 .hp-rail nav {
@@ -70,7 +71,7 @@
 .hp-rail button {
   border: 0;
   background: transparent;
-  color: var(--hp-muted);
+  color: var(--hp-rail-muted);
   border-radius: var(--hp-radius);
   min-height: 44px;
   display: flex;
@@ -101,12 +102,12 @@
   inset-block: 0;
   width: 4px;
   border-radius: 0 4px 4px 0;
-  background: var(--hp-accent);
+  background: var(--hp-brand);
 }
 
 .hp-rail button[aria-current="page"] {
-  background: var(--hp-selection);
-  color: var(--hp-accent);
+  background: var(--hp-rail-hover);
+  color: var(--hp-rail-active);
   font-weight: 700;
 }
 
@@ -120,7 +121,7 @@
   width: var(--hp-sidebar);
   overflow: auto;
   border-right: 1px solid var(--hp-border);
-  background: var(--hp-subtle);
+  background: var(--hp-context);
 }
 
 .hp-shell .hp-sidebar,
@@ -180,8 +181,8 @@
 
 .hp-canvas-header button,
 .hp-surface-header button {
-  border: 1px solid var(--hp-border);
-  background: white;
+  border: 1px solid var(--hp-control-border);
+  background: var(--hp-surface);
   border-radius: 6px;
   min-height: 40px;
   padding: 5px 10px;
@@ -320,6 +321,7 @@
 }
 
 .hp-inspector {
+  background: var(--hp-inspector-surface);
   flex: 0 0 var(--hp-inspector);
   width: var(--hp-inspector);
   max-height: none;
@@ -515,4 +517,8 @@
   .hp-surface {
     max-width: 100vw;
   }
+}
+
+.hp-shell .hp-rail :focus-visible {
+  outline-color: var(--hp-rail-active);
 }

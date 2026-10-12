@@ -9,8 +9,8 @@ body,
 .hp-sidebar {
   width: var(--hp-sidebar);
   min-width: var(--hp-sidebar);
-  border-right: 1px solid var(--gray-a5);
-  background: var(--color-panel);
+  border-right: 1px solid var(--hp-border);
+  background: var(--hp-context);
 }
 
 .hp-sidebar__list {
@@ -37,11 +37,11 @@ body,
 }
 
 .hp-conv:hover {
-  background: var(--gray-a3);
+  background: var(--hp-subtle);
 }
 
 .hp-conv--active {
-  background: var(--accent-a3);
+  background: var(--hp-selection);
 }
 /* ---- Trace Debug Panel ---- */
 .hp-trace-header {
@@ -50,7 +50,7 @@ body,
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--gray-a5);
+  border-bottom: 1px solid var(--hp-border);
 }
 
 .hp-trace-header > div:first-child {
@@ -75,7 +75,7 @@ body,
 
 .hp-trace-header small {
   overflow: hidden;
-  color: var(--gray-10);
+  color: var(--hp-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -103,7 +103,7 @@ body,
 }
 
 .hp-trace-header__actions button:hover:not(:disabled) {
-  background: var(--gray-a3);
+  background: var(--hp-subtle);
 }
 
 .hp-trace-summary {
@@ -112,32 +112,32 @@ body,
   gap: 8px;
   min-height: 24px;
   padding: 8px 14px;
-  border-bottom: 1px solid var(--gray-a4);
-  color: var(--gray-10);
+  border-bottom: 1px solid var(--hp-border);
+  color: var(--hp-muted);
   font-size: 0.75rem;
 }
 
 .hp-trace-badge {
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--gray-a3);
-  color: var(--gray-11);
+  background: var(--hp-subtle);
+  color: var(--hp-muted);
 }
 
 .hp-trace-badge--running,
 .hp-trace-badge--live {
-  background: var(--blue-a3);
-  color: var(--blue-11);
+  background: var(--hp-neutral-soft);
+  color: var(--hp-neutral);
 }
 
 .hp-trace-badge--completed {
-  background: var(--green-a3);
-  color: var(--green-11);
+  background: var(--hp-success-soft);
+  color: var(--hp-success);
 }
 
 .hp-trace-badge--failed {
-  background: var(--red-a3);
-  color: var(--red-11);
+  background: var(--hp-danger-soft);
+  color: var(--hp-danger);
 }
 
 .hp-trace-tree-wrap {
@@ -156,7 +156,7 @@ body,
 
 .hp-trace-tree ul {
   margin-left: 17px;
-  border-left: 1px solid var(--gray-a5);
+  border-left: 1px solid var(--hp-border);
   padding-left: 7px;
 }
 
@@ -169,7 +169,7 @@ body,
 
 .hp-trace-tree__row:hover,
 .hp-trace-tree__row.is-selected {
-  background: var(--accent-a3);
+  background: var(--hp-selection);
 }
 
 .hp-trace-tree__expand {
@@ -207,20 +207,20 @@ body,
 }
 
 .hp-trace-status--running {
-  color: var(--blue-10);
+  color: var(--hp-neutral);
   animation: hp-trace-spin 1.2s linear infinite;
 }
 
 .hp-trace-status--completed {
-  color: var(--green-10);
+  color: var(--hp-success);
 }
 
 .hp-trace-status--failed {
-  color: var(--red-10);
+  color: var(--hp-danger);
 }
 
 .hp-trace-status--cancelled {
-  color: var(--gray-9);
+  color: var(--hp-muted);
 }
 
 @keyframes hp-trace-spin {
@@ -239,14 +239,14 @@ body,
 }
 
 .hp-trace-tree__duration {
-  color: var(--gray-9);
+  color: var(--hp-muted);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.6875rem;
   white-space: nowrap;
 }
 
 .hp-trace-tree__model-input {
-  color: var(--blue-10);
+  color: var(--hp-neutral);
   font-size: 0.625rem;
   white-space: nowrap;
 }
@@ -256,7 +256,7 @@ body,
   min-height: 170px;
   overflow: auto;
   padding: 14px;
-  border-top: 1px solid var(--gray-a5);
+  border-top: 1px solid var(--hp-border);
   font-size: 0.75rem;
 }
 
@@ -271,8 +271,8 @@ body,
 .hp-trace-detail__heading code {
   padding: 2px 5px;
   border-radius: 4px;
-  background: var(--gray-a3);
-  color: var(--gray-11);
+  background: var(--hp-subtle);
+  color: var(--hp-muted);
 }
 
 .hp-trace-detail dl {
@@ -287,7 +287,7 @@ body,
 }
 
 .hp-trace-detail dt {
-  color: var(--gray-9);
+  color: var(--hp-muted);
 }
 
 .hp-trace-detail dd {
@@ -296,7 +296,7 @@ body,
 }
 
 .hp-trace-detail__metadata > span {
-  color: var(--gray-9);
+  color: var(--hp-muted);
 }
 
 .hp-trace-detail pre {
@@ -305,7 +305,7 @@ body,
   margin: 6px 0 0;
   padding: 10px;
   border-radius: 6px;
-  background: var(--gray-a3);
+  background: var(--hp-subtle);
   font-size: 0.6875rem;
   white-space: pre-wrap;
   word-break: break-word;
@@ -314,7 +314,7 @@ body,
 .hp-trace-detail__model-input {
   margin-bottom: 14px;
   padding: 10px;
-  border: 1px solid var(--gray-a5);
+  border: 1px solid var(--hp-control-border);
   border-radius: 6px;
 }
 
@@ -331,13 +331,13 @@ body,
 .hp-trace-empty,
 .hp-trace-warning {
   padding: 24px 12px;
-  color: var(--gray-10);
+  color: var(--hp-muted);
   text-align: center;
 }
 
 .hp-trace-warning {
   padding: 8px;
-  color: var(--amber-11);
+  color: var(--hp-warning);
   font-size: 0.75rem;
 }
 
@@ -349,8 +349,8 @@ body,
 
 .hp-approval {
   margin: 8px 12px;
-  border-color: var(--amber-7);
-  background: var(--amber-2);
+  border-color: var(--hp-warning);
+  background: var(--hp-warning-soft);
 }
 
 .hp-error {
@@ -359,8 +359,8 @@ body,
   text-align: left;
   padding: 6px 16px;
   border: 0;
-  border-bottom: 1px solid var(--red-a5);
-  background: var(--red-a2);
+  border-bottom: 1px solid var(--hp-danger);
+  background: var(--hp-danger-soft);
   cursor: pointer;
 }
 
@@ -370,7 +370,7 @@ body,
 
 .hp-qq-binding {
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--gray-a5);
+  border-bottom: 1px solid var(--hp-border);
 }
 
 .hp-qq-binding p {
@@ -384,7 +384,7 @@ body,
 .hp-operation-form {
   margin: 0 0 1.5rem;
   padding: 1rem;
-  border: 1px solid var(--gray-6);
+  border: 1px solid var(--hp-border);
   max-width: 1000px;
 }
 
@@ -416,4 +416,39 @@ body,
 .hp-operation-form pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* Shared primitives also cover authentication and portal-mounted dialogs. */
+body {
+  color: var(--hp-text);
+  background: var(--hp-app);
+}
+:where(button, input, textarea, select, summary, a):focus-visible {
+  outline: 2px solid var(--hp-focus);
+  outline-offset: 3px;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--hp-primary);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--hp-muted);
+  opacity: 1;
+}
+.hp-shell [role="alert"],
+.hp-surface [role="alert"] {
+  color: var(--hp-danger);
+}
+
+.hp-shell a,
+.hp-surface a,
+.hp-auth-surface a {
+  color: var(--hp-accent);
+  text-underline-offset: 2px;
+}
+.hp-shell a:hover,
+.hp-surface a:hover,
+.hp-auth-surface a:hover {
+  color: var(--hp-primary-hover);
 }

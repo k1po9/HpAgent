@@ -17,7 +17,7 @@
   flex: 0 0 var(--hp-sidebar);
   border-radius: 0;
   border-width: 0 1px 0 0;
-  background: var(--hp-subtle);
+  background: var(--hp-context);
 }
 
 .hp-context-sidebar.hp-surface--region > .hp-surface-header {

@@ -12,6 +12,8 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
   return (
     <article
       aria-label={work.title}
+      data-status={work.status}
+      data-bucket={p.bucket}
       className={`hp-task-row ${selected ? "hp-task-row--selected" : ""}`}
     >
       <div className="hp-task-row-heading">

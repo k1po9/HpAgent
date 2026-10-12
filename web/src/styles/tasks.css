@@ -29,7 +29,7 @@
 .hp-task-sidebar button,
 .hp-task-screen select {
   min-height: 36px;
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 8px;
   padding: 0.4rem 0.7rem;
   background: var(--hp-surface);
@@ -209,4 +209,14 @@
   .hp-task-inspector button {
     min-height: 44px;
   }
+}
+
+/* The existing presentation bucket is a read-only styling hook. */
+.hp-task-row[data-bucket="attention"] .hp-task-status {
+  color: var(--hp-warning);
+  background: var(--hp-warning-soft);
+}
+.hp-task-row[data-status="completed"] .hp-task-status {
+  color: var(--hp-success);
+  background: var(--hp-success-soft);
 }

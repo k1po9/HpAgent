@@ -17,8 +17,8 @@
   max-width: 100%;
   padding: 8px 12px;
   color: var(--hp-text);
-  background: white;
-  border: 1px solid var(--hp-border);
+  background: var(--hp-surface);
+  border: 1px solid var(--hp-control-border);
   border-radius: 7px;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -49,8 +49,8 @@
   border-radius: 10px;
 }
 .hp-artifact-message-items .hp-artifact-message-card:hover {
-  background: #fcfdff;
-  border-color: #c3d5ee;
+  background: var(--hp-surface);
+  border-color: var(--hp-control-border);
 }
 .hp-artifact-message-icon,
 .hp-artifact-heading-icon {
@@ -58,8 +58,8 @@
   flex: none;
   padding: 10px;
   border-radius: 9px;
-  background: var(--hp-selection);
-  color: var(--hp-accent);
+  background: var(--hp-neutral-soft);
+  color: var(--hp-neutral);
 }
 .hp-artifact-message-copy {
   flex: 1;
@@ -209,7 +209,7 @@
   gap: 8px;
   padding: 14px 20px max(14px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--hp-border);
-  background: white;
+  background: var(--hp-surface);
 }
 .hp-artifact-toolbar button {
   display: inline-flex;
@@ -223,13 +223,13 @@
 }
 .hp-artifact-toolbar .hp-artifact-save {
   flex: 1;
-  background: var(--hp-accent);
-  border-color: var(--hp-accent);
-  color: white;
+  background: var(--hp-primary);
+  border-color: var(--hp-primary);
+  color: var(--hp-on-primary);
 }
 .hp-artifact-toolbar .hp-artifact-save:hover:not(:disabled) {
-  background: #0c63df;
-  border-color: #0c63df;
+  background: var(--hp-primary-hover);
+  border-color: var(--hp-primary-hover);
 }
 .hp-artifact-history {
   display: grid;
@@ -246,7 +246,7 @@
 .hp-artifact-history button[aria-current="true"] {
   background: var(--hp-selection);
   color: var(--hp-accent);
-  border-color: #c3d5ee;
+  border-color: var(--hp-control-border);
 }
 .hp-artifact-history p {
   margin: 8px 0 0;
@@ -291,9 +291,9 @@
   font-size: 14px;
   line-height: 1.7;
   padding: 12px;
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 8px;
-  background: #fcfdff;
+  background: var(--hp-surface);
 }
 .hp-artifact-composer > button {
   background: var(--hp-subtle);
@@ -318,11 +318,11 @@
   min-height: 0;
   border: 1px solid var(--hp-border);
   border-radius: 10px;
-  background: white;
+  background: var(--hp-surface);
 }
 .hp-artifact-runtime-error {
   padding: 8px 12px;
-  background: var(--red-a3);
+  background: var(--hp-danger-soft);
   color: var(--hp-danger);
   overflow-wrap: anywhere;
 }

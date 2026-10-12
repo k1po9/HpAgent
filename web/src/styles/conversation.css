@@ -4,7 +4,7 @@
   padding: 20px 22px 10px;
   gap: 20px;
   border: 0;
-  background: var(--hp-subtle);
+  background: var(--hp-context);
 }
 
 .hp-sidebar__header h2 {
@@ -18,8 +18,8 @@
   min-height: 44px;
   padding-inline: 14px;
   font-size: 14px;
-  background: #126de9;
-  color: white;
+  background: var(--hp-primary);
+  color: var(--hp-on-primary);
 }
 
 .hp-conversation-search {
@@ -40,9 +40,9 @@
   margin: 0;
   padding: 9px 10px 9px 33px;
   min-width: 0;
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 8px;
-  background: white;
+  background: var(--hp-surface);
   color: inherit;
   font: inherit;
   font-size: 12px;
@@ -131,7 +131,7 @@
   flex: 1;
   min-width: 100px;
   min-height: 36px;
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 6px;
   padding: 6px 10px;
   color: inherit;
@@ -157,12 +157,14 @@
   min-height: 0;
   container-type: inline-size;
   container-name: hp-chat;
+  background: var(--hp-canvas);
 }
 .hp-thread__viewport {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   overflow-anchor: none;
+  background: var(--hp-surface);
   padding: 24px max(24px, calc((100% - 920px) / 2));
 }
 .hp-msg {
@@ -179,12 +181,12 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: var(--hp-selection);
-  color: var(--hp-accent);
+  background: var(--hp-neutral-soft);
+  color: var(--hp-neutral);
 }
 .hp-msg__marker--user {
   border-radius: 50%;
-  background: #f0f3f8;
+  background: var(--hp-subtle);
   color: var(--hp-muted);
 }
 .hp-msg__body {
@@ -245,7 +247,7 @@
   width: fit-content;
   padding: 10px 16px;
   border-radius: 10px;
-  background: var(--hp-selection);
+  background: var(--hp-bubble);
   color: var(--hp-text);
 }
 .hp-text-part p {
@@ -297,7 +299,7 @@
 .hp-text-part :not(pre) > code {
   padding: 0.1em 0.35em;
   border-radius: 4px;
-  background: #f0f3f8;
+  background: var(--hp-subtle);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.9em;
 }
@@ -357,13 +359,14 @@
   margin: 0 24px 14px;
   padding: 10px;
   min-height: 66px;
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 10px;
-  background: white;
-  box-shadow: 0 2px 12px #244a8603;
+  background: var(--hp-surface);
+  box-shadow: 0 2px 12px var(--hp-shadow);
 }
 .hp-composer:focus-within {
-  border-color: #b7cef1;
+  border-color: var(--hp-focus);
+  box-shadow: 0 0 0 2px var(--hp-focus-halo);
 }
 .hp-composer__input {
   flex: 1 1 160px;
@@ -384,7 +387,7 @@
   line-height: 24px;
 }
 .hp-composer__input::placeholder {
-  color: #8b97a9;
+  color: var(--hp-muted);
 }
 .hp-composer__input:focus-visible {
   outline: 2px solid var(--hp-focus);
@@ -458,7 +461,7 @@
   padding: 4px 8px;
   border: 1px solid var(--hp-border);
   border-radius: var(--hp-radius);
-  background: white;
+  background: var(--hp-surface);
 }
 .hp-composer .hp-resource-chips,
 .hp-composer__attachments,
@@ -504,9 +507,9 @@
   max-width: 100%;
   min-height: 44px;
   padding: 6px 10px;
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 8px;
-  background: white;
+  background: var(--hp-surface);
   color: var(--hp-text);
   font: inherit;
   font-size: 13px;
@@ -514,7 +517,7 @@
 .hp-composer button {
   min-height: 36px;
   padding: 5px 9px;
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 7px;
   background: var(--hp-subtle);
   color: var(--hp-text);
@@ -537,19 +540,19 @@
   padding: 0;
 }
 .hp-composer button.hp-composer__send {
-  background: #126de9;
-  color: white;
-  border-color: #126de9;
+  background: var(--hp-primary);
+  color: var(--hp-on-primary);
+  border-color: var(--hp-primary);
 }
 .hp-composer button.hp-composer__send:disabled {
-  background: #edf2fa;
-  color: #8b97a9;
+  background: var(--hp-subtle);
+  color: var(--hp-muted);
   border-color: var(--hp-border);
   opacity: 1;
 }
 .hp-composer button.hp-composer__send:hover:not(:disabled) {
-  background: #0c63df;
-  border-color: #0c63df;
+  background: var(--hp-primary-hover);
+  border-color: var(--hp-primary-hover);
 }
 .hp-composer button.hp-composer__cancel {
   color: var(--hp-danger);
@@ -574,7 +577,7 @@
 }
 .hp-attachment--failed {
   flex-wrap: wrap;
-  border-color: var(--red-7);
+  border-color: var(--hp-danger);
   color: var(--hp-danger);
 }
 .hp-attachment__name {
@@ -628,7 +631,7 @@
   padding: 10px;
   border: 1px solid var(--hp-border);
   border-radius: 8px;
-  background: white;
+  background: var(--hp-surface);
   box-shadow: 0 6px 24px var(--hp-shadow);
 }
 .hp-file-candidates__panel p {

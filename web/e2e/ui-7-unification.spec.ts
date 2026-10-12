@@ -120,6 +120,9 @@ test("seven viewports and boundary resizes keep Artifact iframe, draft and query
   const reads = await fixtures(page);
   await page.goto("/#/ai?inspect=artifact:ui7-artifact&version=ui7-v1");
   await expect(page.getByTitle("Artifact 预览")).toBeVisible();
+  // The restored shell remains inert until EntryTransition completes.
+  await expect(page.locator(".hp-entry-origin")).toHaveCount(0);
+  await expect(page.locator(".hp-entry-destination")).not.toHaveAttribute("inert", "");
   await page
     .frameLocator('iframe[title="Artifact 预览"]')
     .getByRole("button", { name: "改变预览状态" })

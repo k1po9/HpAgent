@@ -12,7 +12,7 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <Theme appearance="light" accentColor="blue" grayColor="slate" panelBackground="solid">
+    <Theme appearance="light" accentColor="tomato" grayColor="slate" panelBackground="solid">
       <App />
     </Theme>
   </StrictMode>,

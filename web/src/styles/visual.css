@@ -6,7 +6,7 @@
   font-family: var(--default-font-family);
 }
 .hp-auth-surface {
-  background: #f5f8fd;
+  background: var(--hp-app);
   padding: 48px 24px;
 }
 .hp-auth-surface > .hp-auth-layout {
@@ -20,10 +20,10 @@
   font-size: 48px;
   font-weight: 750;
   letter-spacing: -2px;
-  color: #101b2e;
+  color: var(--hp-text);
 }
 .hp-auth-wordmark span {
-  color: #1673f5;
+  color: var(--hp-brand);
 }
 .hp-auth-tagline {
   margin: 8px 0 40px;
@@ -53,8 +53,8 @@
   padding: 32px;
   border: 1px solid var(--hp-border);
   border-radius: 14px;
-  background: #ffffffd9;
-  box-shadow: 0 8px 32px #244a8604;
+  background: var(--hp-surface);
+  box-shadow: 0 8px 32px var(--hp-shadow);
 }
 .hp-auth-card-heading {
   margin-bottom: 10px;
@@ -72,14 +72,14 @@
 }
 .hp-auth-card .rt-TextFieldRoot {
   height: 44px;
-  background: #fbfcfe;
-  box-shadow: inset 0 0 0 1px var(--hp-border);
+  background: var(--hp-surface);
+  box-shadow: inset 0 0 0 1px var(--hp-control-border);
   border-radius: 8px;
 }
 .hp-auth-card .rt-TextFieldRoot:focus-within {
   box-shadow:
     inset 0 0 0 1px var(--hp-focus),
-    0 0 0 3px #1673f510;
+    0 0 0 3px var(--hp-focus-halo);
 }
 .hp-auth-card input {
   font-family: inherit;
@@ -88,7 +88,7 @@
 .hp-auth-card .hp-auth-submit {
   min-height: 44px;
   margin-top: 8px;
-  background: #126de9;
+  background: var(--hp-primary);
   border-radius: 8px;
 }
 .hp-auth-card .rt-Button:disabled {
@@ -98,7 +98,7 @@
   line-height: 1.6;
 }
 .hp-main-canvas {
-  background: var(--hp-surface);
+  background: var(--hp-canvas);
 }
 
 .hp-surface-header button {
@@ -125,7 +125,7 @@
 .hp-file-preview {
   border: 1px solid var(--hp-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--hp-surface);
   padding: 20px;
   line-height: 1.8;
 }
@@ -185,13 +185,13 @@
   padding: 16px;
   border: 1px solid var(--hp-border);
   border-radius: 10px;
-  background: #fcfdff;
+  background: var(--hp-surface);
 }
 .hp-workspace-toolbar button:first-child:not(:disabled),
 .hp-task-toolbar .hp-primary {
-  background: #126de9;
-  color: #fff;
-  border-color: #126de9;
+  background: var(--hp-primary);
+  color: var(--hp-on-primary);
+  border-color: var(--hp-primary);
 }
 .hp-file-table th {
   background: var(--hp-subtle);
@@ -219,16 +219,16 @@
 }
 .hp-file-name svg {
   flex-shrink: 0;
-  color: #1673f5;
+  color: var(--hp-muted);
 }
 .hp-file-name .hp-folder-icon {
-  color: #e8a51c;
+  color: var(--hp-muted);
 }
 .hp-file-table tr[data-selected="true"] {
   background: var(--hp-selection);
 }
 .hp-file-table tbody tr:hover {
-  background: #f7faff;
+  background: var(--hp-subtle);
 }
 .hp-file-table tr[data-selected="true"]:hover {
   background: var(--hp-selection);
@@ -256,10 +256,10 @@
 .hp-operation-form textarea,
 .hp-operation-form select {
   min-height: 40px;
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 8px;
   padding: 8px 10px;
-  background: #fcfdff;
+  background: var(--hp-surface);
   color: var(--hp-text);
   font: inherit;
 }
@@ -313,8 +313,8 @@
   border-radius: 10px;
 }
 .hp-task-row--selected {
-  background: #f4f8ff;
-  border-color: #9dc4fa;
+  background: var(--hp-selection);
+  border-color: var(--hp-control-border);
 }
 .hp-task-row-heading .hp-task-title {
   font-size: 16px;
@@ -325,8 +325,8 @@
   line-height: 1.7;
 }
 .hp-task-status {
-  background: var(--hp-selection);
-  color: var(--hp-accent);
+  background: var(--hp-neutral-soft);
+  color: var(--hp-neutral);
   font-size: 12px;
   border-radius: 20px;
   padding: 5px 10px;
@@ -350,7 +350,6 @@
     border-color var(--hp-morph),
     color var(--hp-morph);
 }
-.hp-rail button:hover,
 .hp-conv:hover {
   background: var(--hp-selection);
 }
@@ -426,8 +425,9 @@
 .hp-auth-card-heading h1 {
   font-weight: 700;
 }
-.hp-shell .hp-sidebar {
-  background: var(--hp-subtle);
+.hp-shell .hp-sidebar,
+.hp-sidebar-drawer .hp-sidebar {
+  background: var(--hp-context);
 }
 .hp-file-preview h1,
 .hp-file-preview h2 {
@@ -465,7 +465,7 @@
 .hp-workspace-search > label input {
   width: 100%;
   min-height: 40px;
-  background: #fcfdff;
+  background: var(--hp-surface);
   font: inherit;
   font-size: 14px;
 }
@@ -480,7 +480,7 @@
   padding: 16px;
   border: 1px solid var(--hp-border);
   border-radius: 8px;
-  background: #fcfdff;
+  background: var(--hp-surface);
 }
 .hp-file-table th:first-child {
   width: 40%;
@@ -504,7 +504,7 @@
 }
 
 .hp-rail button:hover:not([aria-current="page"]) {
-  background: #f2f5f9;
+  background: var(--hp-rail-hover);
 }
 @media (max-width: 599px) {
   .hp-workspace-screen {
@@ -533,7 +533,7 @@
 }
 .hp-task-toolbar .hp-primary:hover:not(:disabled),
 .hp-workspace-toolbar button:first-child:hover:not(:disabled) {
-  background: #0c63df;
-  border-color: #0c63df;
-  color: #fff;
+  background: var(--hp-primary-hover);
+  border-color: var(--hp-primary-hover);
+  color: var(--hp-on-primary);
 }

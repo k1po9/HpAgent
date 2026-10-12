@@ -24,8 +24,8 @@
   pointer-events: none;
 }
 .hp-auth-submit[data-confirmed="true"] {
-  background: var(--hp-accent);
-  color: white;
+  background: var(--hp-primary);
+  color: var(--hp-on-primary);
   opacity: 1;
 }
 .hp-recovery {
@@ -74,7 +74,7 @@
   stroke-width: 1;
 }
 .hp-recovery-arc {
-  stroke: var(--hp-accent);
+  stroke: var(--hp-brand);
   stroke-width: 2;
   stroke-dasharray: 160 544;
   stroke-linecap: round;
@@ -97,7 +97,7 @@
   color: var(--hp-muted);
 }
 .hp-recovery-detail button {
-  border: 1px solid var(--hp-border);
+  border: 1px solid var(--hp-control-border);
   border-radius: 8px;
   padding: 8px 20px;
   background: var(--hp-surface);
