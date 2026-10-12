@@ -1,0 +1,876 @@
+diff --git a/web/playwright.layout.config.ts b/web/playwright.layout.config.ts
+new file mode 100644
+index 0000000..8105d00
+--- /dev/null
++++ b/web/playwright.layout.config.ts
+@@ -0,0 +1,13 @@
++import { defineConfig } from "@playwright/test";
++import phase1 from "./playwright.phase1.config";
++
++// Scoped visual composition regressions; isolated API is provisioned separately.
++export default defineConfig({
++  ...phase1,
++  testMatch: [
++    "ui-7-unification.spec.ts",
++    "ui-7-self-review.spec.ts",
++    "ui-2-ai.spec.ts",
++    "entry/entry.spec.ts",
++  ],
++});
+diff --git a/web/scripts/phase1-visual.mjs b/web/scripts/phase1-visual.mjs
+index 851e659..e23681a 100644
+--- a/web/scripts/phase1-visual.mjs
++++ b/web/scripts/phase1-visual.mjs
+@@ -12 +12,5 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+-const evidence = resolve(root, "artifacts/product-acceptance/phase1-paper-flame-20261012");
++const evidence = resolve(
++  root,
++  process.env.HPAGENT_PHASE1_EVIDENCE_DIR ??
++    "artifacts/product-acceptance/phase1-paper-flame-20261012",
++);
+diff --git a/web/src/App.test.tsx b/web/src/App.test.tsx
+index 2525cd5..ad0b659 100644
+--- a/web/src/App.test.tsx
++++ b/web/src/App.test.tsx
+@@ -176 +176 @@ describe("App workbench", () => {
+-    expect(screen.getByText("新建", { selector: "button" })).toBeInTheDocument();
++    expect(screen.getByRole("button", { name: "新建对话" })).toBeInTheDocument();
+diff --git a/web/src/adapters/assistant-ui/HpThread.tsx b/web/src/adapters/assistant-ui/HpThread.tsx
+index e1d4fc9..8cb5895 100644
+--- a/web/src/adapters/assistant-ui/HpThread.tsx
++++ b/web/src/adapters/assistant-ui/HpThread.tsx
+@@ -19 +19 @@ import { emptyConversationUi, useConversationUi } from "../../store/conversation
+-import { Flex, Spinner, Text } from "@radix-ui/themes";
++import { Spinner, Text } from "@radix-ui/themes";
+@@ -78,0 +79 @@ function HpMessageView({
++  const hasTime = message.createdAt && Number.isFinite(message.createdAt.getTime());
+@@ -80 +81 @@ function HpMessageView({
+-    <MessagePrimitive.Root className="hp-msg" data-message-id={message.id}>
++    <MessagePrimitive.Root className="hp-msg" data-message-id={message.id} data-role={message.role}>
+@@ -91,0 +93,11 @@ function HpMessageView({
++        <div className="hp-msg__meta">
++          <span>{message.role === "assistant" ? "HpAgent" : "你"}</span>
++          {hasTime && (
++            <time dateTime={message.createdAt.toISOString()}>
++              {message.createdAt.toLocaleTimeString("zh-CN", {
++                hour: "2-digit",
++                minute: "2-digit",
++              })}
++            </time>
++          )}
++        </div>
+@@ -292,2 +304,5 @@ export function HpThread({
+-            <Flex align="center" justify="center" style={{ height: "100%", padding: 24 }}>
+-              <Text size="3" color="gray">
++            <div className="hp-thread-empty">
++              <span className="hp-thread-empty-icon" aria-hidden="true">
++                <Bot size={30} />
++              </span>
++              <Text as="p" size="5" weight="bold">
+@@ -296 +311,6 @@ export function HpThread({
+-            </Flex>
++              <p>
++                {fileUploadEnabled
++                  ? "输入问题，或添加资料与 HpAgent 一起开始。"
++                  : "输入问题，与 HpAgent 一起开始。"}
++              </p>
++            </div>
+diff --git a/web/src/components/ConversationSidebar.tsx b/web/src/components/ConversationSidebar.tsx
+index d379d06..d7985a8 100644
+--- a/web/src/components/ConversationSidebar.tsx
++++ b/web/src/components/ConversationSidebar.tsx
+@@ -4 +4 @@ import { conversationDateGroup } from "./conversation/dateGroup";
+-import { Plus, Folder, Search } from "lucide-react";
++import { Plus, MessageSquare, Search } from "lucide-react";
+@@ -54,0 +55 @@ export function ConversationSidebar({
++  const selected = conversations.find((c) => c.conversation_id === activeConversationId);
+@@ -70 +71 @@ export function ConversationSidebar({
+-            {creating ? "创建中…" : "新建"}
++            <span className="hp-sidebar-create-label">{creating ? "创建中…" : "新建"}</span>
+@@ -126 +127 @@ export function ConversationSidebar({
+-                    <Folder size={18} aria-hidden="true" />
++                    <MessageSquare className="hp-conv-icon" size={18} aria-hidden="true" />
+@@ -146,0 +148,9 @@ export function ConversationSidebar({
++        {selected && (
++          <aside className="hp-sidebar-context" aria-label="当前对话">
++            <MessageSquare size={16} aria-hidden="true" />
++            <div>
++              <span>当前对话</span>
++              <strong title={selected.title}>{selected.title || "未命名对话"}</strong>
++            </div>
++          </aside>
++        )}
+diff --git a/web/src/components/run/RunInspector.tsx b/web/src/components/run/RunInspector.tsx
+index d2468bf..b8f78d4 100644
+--- a/web/src/components/run/RunInspector.tsx
++++ b/web/src/components/run/RunInspector.tsx
+@@ -134 +134 @@ export function RunInspector({
+-    <div className="hp-run-inspector">
++    <div className="hp-run-inspector" data-status={run.status}>
+@@ -159 +159 @@ export function RunInspector({
+-          <>
++          <section className="hp-inspector-card" aria-label="执行概览">
+@@ -243 +243 @@ export function RunInspector({
+-          </>
++          </section>
+diff --git a/web/src/components/shell/AppShell.tsx b/web/src/components/shell/AppShell.tsx
+index adb6e44..8c5323a 100644
+--- a/web/src/components/shell/AppShell.tsx
++++ b/web/src/components/shell/AppShell.tsx
+@@ -2 +2 @@ import { useCallback, useEffect, useRef, useState } from "react";
+-import { Bot, Folder, ListTodo, UserRound, Menu } from "lucide-react";
++import { Bot, Folder, ListTodo, UserRound, Menu, Sparkles } from "lucide-react";
+@@ -165,2 +165,7 @@ export function AppShell() {
+-          <span className="hp-brand-accent">Hp</span>
+-          <span className="hp-brand-name">Agent</span>
++          <span className="hp-brand-symbol" aria-hidden="true">
++            <Sparkles size={22} />
++          </span>
++          <span className="hp-brand-wordmark">
++            <span className="hp-brand-accent">Hp</span>
++            <span className="hp-brand-name">Agent</span>
++          </span>
+@@ -211,11 +216,20 @@ export function AppShell() {
+-          <ConversationHeader
+-            active={route.screen === "ai"}
+-            fallbackTitle={
+-              conversations.find((c) => c.conversation_id === conversationId)?.title || "AI"
+-            }
+-          />
+-          {route.screen !== "ai" && (
+-            <h1 id="canvas-title" tabIndex={-1}>
+-              {screens.find((s) => s.id === route.screen)?.label}
+-            </h1>
+-          )}
++          <div className="hp-canvas-heading">
++            <span className="hp-page-context">
++              {route.screen === "ai"
++                ? "AI 工作空间"
++                : route.screen === "workspace"
++                  ? "文件与资料"
++                  : "任务与执行"}
++            </span>
++            <ConversationHeader
++              active={route.screen === "ai"}
++              fallbackTitle={
++                conversations.find((c) => c.conversation_id === conversationId)?.title || "AI"
++              }
++            />
++            {route.screen !== "ai" && (
++              <h1 id="canvas-title" tabIndex={-1}>
++                {screens.find((s) => s.id === route.screen)?.label}
++              </h1>
++            )}
++          </div>
+diff --git a/web/src/components/tasks/TaskInspector.tsx b/web/src/components/tasks/TaskInspector.tsx
+index 67f7d2e..a2b3452 100644
+--- a/web/src/components/tasks/TaskInspector.tsx
++++ b/web/src/components/tasks/TaskInspector.tsx
+@@ -58 +58 @@ export function TaskInspector({
+-    <div className="hp-task-inspector">
++    <div className="hp-task-inspector" data-status={work.status} data-bucket={p.bucket}>
+@@ -102 +102 @@ export function TaskInspector({
+-          <>
++          <section className="hp-inspector-card" aria-label="任务概览">
+@@ -174 +174 @@ export function TaskInspector({
+-          </>
++          </section>
+diff --git a/web/src/styles.css b/web/src/styles.css
+index 66b9488..f512043 100644
+--- a/web/src/styles.css
++++ b/web/src/styles.css
+@@ -10,0 +11 @@
++@import "./styles/workbench.css";
+diff --git a/web/src/styles/tokens.css b/web/src/styles/tokens.css
+index fe8d936..1cb15d3 100644
+--- a/web/src/styles/tokens.css
++++ b/web/src/styles/tokens.css
+@@ -79,2 +79,2 @@
+-  --hp-rail: 104px;
+-  --hp-sidebar: 280px;
++  --hp-rail: 84px;
++  --hp-sidebar: 252px;
+@@ -81,0 +82 @@
++  --hp-content: 760px;
+@@ -83,2 +84,2 @@
+-  --hp-inspector: 420px;
+-  --hp-inspector-expanded: 520px;
++  --hp-inspector: 344px;
++  --hp-inspector-expanded: 460px;
+diff --git a/web/src/styles/workbench.css b/web/src/styles/workbench.css
+new file mode 100644
+index 0000000..8c85661
+--- /dev/null
++++ b/web/src/styles/workbench.css
+@@ -0,0 +1,671 @@
++/* Reference layout: production composition over the Paper Flame palette.
++ * Shell dimensions still share tokens with useShellWidth; no motion state. */
++.hp-rail {
++  gap: 32px;
++  padding: 22px 10px;
++  border-color: var(--hp-rail-hover);
++}
++.hp-brand {
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 9px;
++  font-size: 14px;
++  line-height: 20px;
++  letter-spacing: -0.4px;
++}
++.hp-brand-symbol {
++  display: grid;
++  place-items: center;
++  width: 38px;
++  height: 38px;
++  border: 1px solid var(--hp-rail-hover);
++  border-radius: 12px;
++  color: var(--hp-brand);
++}
++.hp-rail nav {
++  gap: 18px;
++  margin-top: 24px;
++}
++.hp-rail nav button {
++  min-height: 72px;
++  gap: 8px;
++  font-size: 12px;
++  border-radius: 12px;
++}
++.hp-rail button svg {
++  width: 21px;
++  height: 21px;
++}
++.hp-rail nav button[aria-current="page"]::before {
++  width: 3px;
++  inset-block: 15px;
++}
++.hp-rail .hp-account-button {
++  border: 1px solid var(--hp-rail-hover);
++  border-radius: 50%;
++}
++
++/* Compact creation and quiet groups give real conversation records priority. */
++.hp-shell .hp-sidebar__header,
++.hp-sidebar-drawer .hp-sidebar__header {
++  display: grid;
++  grid-template-columns: minmax(0, 1fr) 36px;
++  align-items: center;
++  min-height: 90px;
++  padding: 22px 18px 12px;
++  gap: 12px;
++}
++.hp-sidebar__header h2 {
++  font-size: 19px;
++  letter-spacing: -0.4px;
++}
++.hp-sidebar__header .rt-Button {
++  width: 36px;
++  min-height: 36px;
++  padding: 0;
++  background: var(--hp-surface);
++  color: var(--hp-accent);
++  border: 1px solid var(--hp-control-border);
++  border-radius: 10px;
++}
++.hp-sidebar-create-label {
++  position: absolute;
++  width: 1px;
++  height: 1px;
++  overflow: hidden;
++  clip-path: inset(50%);
++}
++.hp-conversation-search {
++  margin: 8px 18px 14px;
++}
++.hp-conversation-filter {
++  min-height: 40px;
++  font-size: 12px;
++  border-radius: 10px;
++}
++.hp-sidebar__list {
++  padding: 0 12px 18px;
++}
++.hp-conversation-group {
++  display: flex;
++  align-items: center;
++  gap: 12px;
++  margin: 20px 6px 10px;
++  font-size: 11px;
++}
++.hp-conversation-group::after {
++  content: "";
++  height: 1px;
++  flex: 1;
++  background: var(--hp-border);
++}
++.hp-shell .hp-conv,
++.hp-sidebar-drawer .hp-conv {
++  position: relative;
++  grid-template-columns: 32px minmax(0, 1fr);
++  column-gap: 10px;
++  row-gap: 4px;
++  min-height: 64px;
++  padding: 12px 10px;
++  border-radius: 12px;
++  margin-bottom: 6px;
++}
++.hp-conv .hp-conv-icon {
++  grid-row: 1 / 3;
++  width: 32px;
++  height: 32px;
++  padding: 7px;
++  border-radius: 9px;
++  background: var(--hp-subtle);
++}
++.hp-conv-title {
++  font-weight: 550;
++}
++.hp-conv-time {
++  grid-column: 2;
++  text-align: left;
++  font-size: 11px;
++}
++.hp-conv--active::before {
++  content: "";
++  position: absolute;
++  inset-block: 16px;
++  left: 0;
++  width: 2px;
++  background: var(--hp-brand);
++  border-radius: 2px;
++}
++
++/* Two levels in the header; the actual title editor and actions stay intact. */
++.hp-canvas-header {
++  min-height: 78px;
++  padding: 16px 26px;
++  gap: 16px;
++}
++.hp-canvas-heading {
++  flex: 1 1 180px;
++  min-width: 0;
++  display: grid;
++  gap: 5px;
++}
++.hp-page-context {
++  font-size: 11px;
++  line-height: 16px;
++  letter-spacing: 0.08em;
++  color: var(--hp-muted);
++}
++.hp-canvas-header h1 {
++  font-size: 18px;
++  letter-spacing: -0.4px;
++  line-height: 26px;
++}
++.hp-conversation-header {
++  flex: none;
++}
++.hp-canvas-actions {
++  gap: 8px;
++}
++.hp-canvas-header button {
++  border-radius: 9px;
++  min-height: 36px;
++}
++
++/* Shared centered reading column, independent from the persistent composer. */
++.hp-thread__viewport {
++  background: var(--hp-canvas);
++  padding: 36px max(24px, calc((100% - var(--hp-content)) / 2)) 24px;
++}
++.hp-msg {
++  position: relative;
++  display: block;
++  margin-bottom: 30px;
++}
++.hp-msg__marker--assistant {
++  position: absolute;
++  left: 0;
++  top: 0;
++  width: 28px;
++  height: 28px;
++  border-radius: 9px;
++}
++.hp-msg__marker--assistant svg {
++  width: 18px;
++  height: 18px;
++}
++.hp-msg__meta {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  min-height: 28px;
++  padding-left: 38px;
++  font-size: 12px;
++  line-height: 20px;
++}
++.hp-msg__meta > span {
++  font-weight: 650;
++}
++.hp-msg__meta time {
++  margin-left: auto;
++  font-size: 11px;
++  color: var(--hp-muted);
++}
++.hp-msg__body {
++  gap: 10px;
++}
++.hp-msg[data-role="assistant"] .hp-text-part {
++  padding: 22px;
++  border: 1px solid var(--hp-border);
++  border-radius: 16px;
++  background: var(--hp-surface);
++  box-shadow: 0 3px 14px var(--hp-shadow);
++}
++.hp-text-part {
++  font-size: 14px;
++  line-height: 1.85;
++}
++.hp-msg[data-role="user"] {
++  display: flex;
++  justify-content: flex-end;
++}
++.hp-msg__marker--user {
++  display: none;
++}
++.hp-msg[data-role="user"] .hp-msg__body {
++  flex: 0 1 auto;
++  max-width: 90%;
++}
++.hp-msg[data-role="user"] .hp-msg__meta {
++  order: 2;
++  padding: 0;
++  justify-content: flex-end;
++  min-height: 18px;
++  color: var(--hp-muted);
++}
++.hp-msg[data-role="user"] .hp-msg__meta time {
++  margin: 0;
++}
++.hp-msg:has(.hp-msg__marker--user) .hp-text-part {
++  padding: 12px 18px;
++  border-radius: 14px 14px 4px 14px;
++  font-size: 14px;
++}
++.hp-thread__viewport > .hp-execution-block {
++  margin-left: 0;
++  width: 100%;
++}
++.hp-execution-block {
++  background: var(--hp-surface);
++  padding: 16px;
++  border-radius: 12px;
++}
++.hp-artifact-message-items .hp-artifact-message-card {
++  padding: 16px;
++  border-radius: 14px;
++}
++.hp-artifact-message-icon {
++  padding: 8px;
++}
++.hp-artifact-message-copy strong {
++  font-size: 14px;
++}
++.hp-artifact-message-items > button:not(.hp-artifact-message-card) {
++  font-size: 12px;
++  min-height: 34px;
++}
++.hp-artifact-message-open {
++  border: 0;
++  padding: 0;
++}
++.hp-thread-empty {
++  min-height: 100%;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  justify-content: center;
++  text-align: center;
++  padding: 24px;
++}
++.hp-thread-empty-icon {
++  display: grid;
++  place-items: center;
++  width: 64px;
++  height: 64px;
++  border: 1px solid var(--hp-border);
++  border-radius: 20px;
++  background: var(--hp-surface);
++  color: var(--hp-neutral);
++  margin-bottom: 20px;
++}
++.hp-thread-empty p {
++  margin: 0 0 10px;
++}
++.hp-thread-empty > p:last-child {
++  color: var(--hp-muted);
++  font-size: 13px;
++  line-height: 1.8;
++}
++
++.hp-composer {
++  align-self: center;
++  width: min(var(--hp-content), calc(100% - 48px));
++  margin: 0 0 24px;
++  padding: 14px;
++  gap: 8px;
++  min-height: 116px;
++  border-radius: 16px;
++  box-shadow: 0 6px 22px var(--hp-shadow);
++}
++.hp-composer__input {
++  flex: 0 0 100%;
++  width: 100%;
++  min-width: 0;
++  min-height: 44px;
++  font-size: 14px;
++  line-height: 22px;
++  padding: 4px;
++}
++.hp-mode-select {
++  min-height: 36px;
++  font-size: 12px;
++  padding: 4px 8px;
++  border-radius: 8px;
++}
++.hp-composer__attach,
++.hp-file-candidates summary,
++.hp-composer button.hp-resource-use {
++  min-height: 36px;
++  font-size: 12px;
++}
++.hp-composer button.hp-composer__action {
++  width: 38px;
++  height: 38px;
++  min-width: 38px;
++  border-radius: 11px;
++}
++
++/* The inspector becomes a compact stack of real information, never a mock dashboard. */
++.hp-inspector .hp-surface-header {
++  min-height: 78px;
++  padding: 14px 16px;
++}
++.hp-inspector .hp-surface-header h2 {
++  font-size: 15px;
++}
++.hp-inspector .hp-inspector-expand {
++  font-size: 11px;
++}
++.hp-inspector > .hp-surface-body {
++  padding: 18px 16px;
++}
++.hp-inspector-tabs {
++  margin: 14px 0 18px;
++}
++.hp-inspector-tabs button {
++  font-size: 12px;
++  padding: 10px 8px;
++}
++.hp-inspector-card {
++  background: var(--hp-surface);
++  border: 1px solid var(--hp-border);
++  border-radius: 14px;
++  padding: 18px;
++  margin-top: 16px;
++  font-size: 13px;
++  line-height: 1.8;
++}
++.hp-inspector-card h3 {
++  margin: 0 0 14px;
++  font-size: 16px;
++}
++.hp-inspector-card > p {
++  margin: 12px 0;
++}
++.hp-inspector-card:has(.hp-task-actions) .hp-task-actions {
++  padding-top: 16px;
++  border-top: 1px solid var(--hp-border);
++}
++.hp-run-inspector > button {
++  width: 100%;
++  background: var(--hp-subtle);
++}
++.hp-run-inspector dl {
++  display: grid;
++  gap: 12px;
++  margin-block: 20px;
++}
++.hp-run-inspector dl > div {
++  display: grid;
++  gap: 4px;
++}
++.hp-run-inspector dt {
++  color: var(--hp-muted);
++  font-size: 11px;
++}
++.hp-run-inspector dd {
++  margin: 0;
++  font-size: 12px;
++  overflow-wrap: anywhere;
++}
++.hp-task-inspector > h3 {
++  margin: 0 0 8px;
++  font-size: 18px;
++  line-height: 1.5;
++}
++.hp-task-inspector > p {
++  color: var(--hp-muted);
++  font-size: 12px;
++  line-height: 1.8;
++}
++.hp-file-inspector h3 {
++  font-size: 18px;
++  margin-top: 0;
++}
++.hp-file-actions {
++  gap: 8px;
++  padding: 12px 0;
++}
++.hp-file-actions a {
++  display: inline-flex;
++  align-items: center;
++  min-height: 36px;
++}
++.hp-file-preview {
++  padding: 18px;
++  border-radius: 14px;
++}
++.hp-artifact-heading {
++  padding: 18px 16px 14px;
++  gap: 10px;
++}
++.hp-artifact-heading-icon {
++  width: 20px;
++  height: 20px;
++  padding: 8px;
++}
++.hp-artifact-heading h3 {
++  font-size: 16px;
++}
++.hp-artifact-inspector .hp-inspector-tabs {
++  padding-inline: 16px;
++}
++.hp-artifact-content {
++  padding: 16px;
++}
++.hp-artifact-toolbar {
++  padding-inline: 16px;
++}
++.hp-artifact-toolbar button {
++  font-size: 12px;
++}
++
++/* Workspace and Tasks use the same deliberate content density. */
++.hp-screen-scroll {
++  padding: 32px;
++}
++.hp-workspace-screen,
++.hp-task-screen {
++  width: 100%;
++  max-width: 1100px;
++  margin-inline: auto;
++}
++.hp-workspace-screen > .hp-operation-form {
++  padding-top: 24px;
++}
++.hp-file-table {
++  background: var(--hp-surface);
++  border: 1px solid var(--hp-border);
++}
++.hp-file-table th {
++  background: var(--hp-subtle);
++}
++.hp-file-table td {
++  height: 62px;
++}
++.hp-workspace-screen .hp-file-name {
++  font-weight: 550;
++}
++.hp-workspace-search {
++  margin-bottom: 24px;
++}
++.hp-workspace-sidebar,
++.hp-task-sidebar {
++  padding: 26px 16px;
++}
++.hp-workspace-sidebar h2,
++.hp-task-sidebar h2 {
++  font-size: 19px;
++  margin: 0 0 24px;
++}
++.hp-task-sidebar button {
++  padding: 14px 12px;
++  border-radius: 12px;
++}
++.hp-task-sidebar > p {
++  font-size: 12px;
++  margin-bottom: 24px;
++}
++.hp-task-toolbar {
++  padding: 0 0 24px;
++}
++.hp-task-screen > h2 {
++  font-size: 22px;
++  margin-bottom: 8px;
++}
++.hp-task-screen > [role="status"] {
++  margin-bottom: 24px;
++}
++.hp-task-row {
++  border-radius: 16px;
++  padding: 22px;
++  margin-bottom: 16px;
++}
++.hp-task-row-heading .hp-task-title {
++  font-size: 16px;
++}
++.hp-task-objective {
++  margin: 14px 0 10px;
++  font-size: 13px;
++}
++.hp-task-row .hp-muted {
++  font-size: 12px;
++}
++.hp-task-row .hp-task-actions {
++  padding-top: 16px;
++  border-top: 1px solid var(--hp-border);
++}
++
++@media (max-width: 959px) {
++  .hp-rail {
++    padding-inline: 6px;
++  }
++  .hp-rail nav {
++    margin-top: 10px;
++  }
++  .hp-brand-symbol {
++    width: 32px;
++    height: 32px;
++  }
++  .hp-canvas-header {
++    padding: 14px 18px;
++    gap: 10px;
++  }
++  .hp-thread__viewport {
++    padding-top: 24px;
++  }
++  .hp-composer {
++    width: calc(100% - 32px);
++    margin-bottom: 16px;
++  }
++  .hp-composer__attach,
++  .hp-file-candidates summary,
++  .hp-composer button.hp-resource-use,
++  .hp-mode-select {
++    min-height: 44px;
++  }
++  .hp-composer button.hp-composer__action {
++    width: 44px;
++    min-width: 44px;
++    height: 44px;
++  }
++  .hp-screen-scroll {
++    padding: 20px;
++  }
++}
++@media (max-width: 599px) {
++  .hp-rail {
++    padding: 4px 12px env(safe-area-inset-bottom);
++    gap: 0;
++  }
++  .hp-brand {
++    display: none;
++  }
++  .hp-rail nav {
++    margin: 0;
++    gap: 0;
++  }
++  .hp-rail nav button {
++    min-height: 48px;
++    gap: 3px;
++  }
++  .hp-canvas-header {
++    padding: 10px 14px;
++    gap: 8px;
++  }
++  .hp-canvas-header h1 {
++    font-size: 16px;
++  }
++  .hp-canvas-header button {
++    min-height: 44px;
++  }
++  .hp-thread__viewport {
++    padding: 24px 14px 16px;
++  }
++  .hp-msg[data-role="user"] .hp-msg__body {
++    max-width: 100%;
++  }
++  .hp-msg[data-role="assistant"] .hp-text-part {
++    padding: 16px;
++    border-radius: 12px;
++  }
++  .hp-msg {
++    margin-bottom: 24px;
++  }
++  .hp-composer {
++    width: calc(100% - 28px);
++    margin-bottom: 12px;
++    padding: 10px;
++  }
++  .hp-composer__input {
++    font-size: 16px;
++  }
++  .hp-screen-scroll {
++    padding: 18px 14px;
++  }
++  .hp-task-row {
++    padding: 18px;
++  }
++}
++
++.hp-canvas-heading > h1 {
++  justify-self: start;
++  max-width: 100%;
++}
++.hp-inspector.hp-inspector--artifact > .hp-surface-body {
++  padding: 0;
++}
++.hp-execution-block:not(:has(.hp-runstrip)) {
++  background: transparent;
++}
++.hp-sidebar-context {
++  display: flex;
++  align-items: flex-start;
++  gap: 10px;
++  margin: 12px;
++  padding: 14px;
++  border: 1px solid var(--hp-border);
++  border-radius: 12px;
++  background: var(--hp-surface);
++}
++.hp-sidebar-context svg {
++  flex: none;
++  color: var(--hp-accent);
++  margin-top: 3px;
++}
++.hp-sidebar-context > div {
++  min-width: 0;
++  display: grid;
++  gap: 5px;
++}
++.hp-sidebar-context span {
++  color: var(--hp-muted);
++  font-size: 11px;
++}
++.hp-sidebar-context strong {
++  display: block;
++  font-size: 12px;
++  font-weight: 550;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}

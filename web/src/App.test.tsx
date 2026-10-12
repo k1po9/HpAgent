@@ -173,7 +173,7 @@ describe("App workbench", () => {
     render(<App />);
     expect(await screen.findByRole("button", { name: "测试对话" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/输入消息/)).toBeInTheDocument();
-    expect(screen.getByText("新建", { selector: "button" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新建对话" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "账户设置" }));
     expect(screen.getByText("绑定 QQ", { selector: "button" })).toBeInTheDocument();
   });

@@ -1,0 +1,19 @@
+
+Running 14 tests using 1 worker
+
+  ok  1 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\entry\entry.spec.ts:51:1 › valid cookie: branded wait, actual particle pixels, stable shell and no navigation replay (2.0s)
+  ok  2 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\entry\entry.spec.ts:150:1 › reduced motion: static ring and no particle backing store (907ms)
+  ok  3 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\entry\entry.spec.ts:197:1 › slow verification stays in the ring; changing motion preference mid-flight settles (5.1s)
+  ok  4 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-2-ai.spec.ts:124:1 › empty composer creates only on submission, handles IME, and restores per-conversation drafts (5.9s)
+  ok  5 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-2-ai.spec.ts:255:1 › rename, read-only resources, focus return, and seven viewport layouts (3.3s)
+  ok  6 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-2-ai.spec.ts:323:1 › history prepend retains the visible anchor and streaming does not pull a reader to the bottom (6.3s)
+  ok  7 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-2-ai.spec.ts:393:1 › failed attachment keeps the draft and exposes a removable error; text zoom remains usable (2.4s)
+  ok  8 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-self-review.spec.ts:265:1 › R2: native modal includes summary, tabindex, iframe and legend; excludes hidden/disabled controls (776ms)
+  ok  9 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-self-review.spec.ts:333:1 › R2: desktop nonmodal permits background Tab navigation and preserves Escape focus return (515ms)
+  ok 10 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-unification.spec.ts:116:1 › seven viewports and boundary resizes keep Artifact iframe, draft and query count (3.6s)
+  ok 11 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-unification.spec.ts:179:1 › mobile saving suspends the parent; Escape restores draft, iframe and focus (2.3s)
+  ok 12 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-unification.spec.ts:203:1 › all four Inspectors have keyboard tabs, URL replace, geometry and screenshots (4.9s)
+  ok 13 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-unification.spec.ts:242:1 › formal Header creation keeps instruction and verified Run lookup handles denial (5.6s)
+  ok 14 ..\..\..\..\..\wsl.localhost\Ubuntu-22.04\Ubuntu-22.04\home\hp\workspace\HpAgent\web\e2e\ui-7-unification.spec.ts:269:1 › nested Task abandonment and inbox keep the parent; keyboard and color pairs remain usable (2.7s)
+
+  14 passed (53.9s)

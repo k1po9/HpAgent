@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Box, Button, Flex, Heading, Spinner, Text } from "@radix-ui/themes";
 import { conversationDateGroup } from "./conversation/dateGroup";
-import { Plus, Folder, Search } from "lucide-react";
+import { Plus, MessageSquare, Search } from "lucide-react";
 import type { HpConversation } from "../api/types";
 
 interface ConversationSidebarProps {
@@ -52,6 +52,7 @@ export function ConversationSidebar({
     c.title.toLocaleLowerCase().includes(filter.toLocaleLowerCase()),
   );
   const groups = ["今天", "昨天", "近 7 天", "更早"];
+  const selected = conversations.find((c) => c.conversation_id === activeConversationId);
   return (
     <Box className="hp-sidebar">
       <Flex direction="column" style={{ height: "100%" }}>
@@ -67,7 +68,7 @@ export function ConversationSidebar({
             aria-label="新建对话"
           >
             <Plus size={14} />
-            {creating ? "创建中…" : "新建"}
+            <span className="hp-sidebar-create-label">{creating ? "创建中…" : "新建"}</span>
           </Button>
         </Flex>
 
@@ -123,7 +124,7 @@ export function ConversationSidebar({
                       conversation.conversation_id === activeConversationId ? "true" : undefined
                     }
                   >
-                    <Folder size={18} aria-hidden="true" />
+                    <MessageSquare className="hp-conv-icon" size={18} aria-hidden="true" />
                     <Text className="hp-conv-title" size="2" truncate>
                       {conversation.title || "未命名对话"}
                     </Text>
@@ -144,6 +145,15 @@ export function ConversationSidebar({
             </button>
           )}
         </Flex>
+        {selected && (
+          <aside className="hp-sidebar-context" aria-label="当前对话">
+            <MessageSquare size={16} aria-hidden="true" />
+            <div>
+              <span>当前对话</span>
+              <strong title={selected.title}>{selected.title || "未命名对话"}</strong>
+            </div>
+          </aside>
+        )}
       </Flex>
     </Box>
   );

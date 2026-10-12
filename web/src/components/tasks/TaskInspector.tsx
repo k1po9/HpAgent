@@ -55,7 +55,7 @@ export function TaskInspector({
     tab = tabs.some((t) => t.id === inspector.tab) ? inspector.tab : "overview";
   const valid = validSnapshot(work);
   return (
-    <div className="hp-task-inspector">
+    <div className="hp-task-inspector" data-status={work.status} data-bucket={p.bucket}>
       <h3>{work.title}</h3>
       <p>
         {bucketLabels[p.bucket]} · {p.label}
@@ -99,7 +99,7 @@ export function TaskInspector({
       />
       <section role="tabpanel" id="task-tab-body" aria-labelledby={`task-tab-${tab}`}>
         {tab === "overview" && (
-          <>
+          <section className="hp-inspector-card" aria-label="任务概览">
             <p>{work.requirement.objective}</p>
             <p>{typeLabel(work)}</p>
             <p>{p.attentionReasons.join("；")}</p>
@@ -171,7 +171,7 @@ export function TaskInspector({
                 打开关联对话
               </button>
             ))}
-          </>
+          </section>
         )}
         {tab === "outputs" && <TaskOutputs work={work} onSaveFile={onSaveFile} />}
         {tab === "resources" &&

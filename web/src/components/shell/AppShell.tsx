@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, Folder, ListTodo, UserRound, Menu } from "lucide-react";
+import { Bot, Folder, ListTodo, UserRound, Menu, Sparkles } from "lucide-react";
 import { useShell, type Screen } from "../../store/shell";
 import { useAuth } from "../../store/auth";
 import { useWorkbench } from "../../store/workbench";
@@ -162,8 +162,13 @@ export function AppShell() {
     >
       <div className="hp-rail">
         <span className="hp-brand" aria-label="HpAgent">
-          <span className="hp-brand-accent">Hp</span>
-          <span className="hp-brand-name">Agent</span>
+          <span className="hp-brand-symbol" aria-hidden="true">
+            <Sparkles size={22} />
+          </span>
+          <span className="hp-brand-wordmark">
+            <span className="hp-brand-accent">Hp</span>
+            <span className="hp-brand-name">Agent</span>
+          </span>
         </span>
         <nav aria-label="主导航">
           {screens.map(({ id, label, icon: Icon }) => (
@@ -208,17 +213,26 @@ export function AppShell() {
           >
             <Menu aria-hidden="true" />
           </button>
-          <ConversationHeader
-            active={route.screen === "ai"}
-            fallbackTitle={
-              conversations.find((c) => c.conversation_id === conversationId)?.title || "AI"
-            }
-          />
-          {route.screen !== "ai" && (
-            <h1 id="canvas-title" tabIndex={-1}>
-              {screens.find((s) => s.id === route.screen)?.label}
-            </h1>
-          )}
+          <div className="hp-canvas-heading">
+            <span className="hp-page-context">
+              {route.screen === "ai"
+                ? "AI 工作空间"
+                : route.screen === "workspace"
+                  ? "文件与资料"
+                  : "任务与执行"}
+            </span>
+            <ConversationHeader
+              active={route.screen === "ai"}
+              fallbackTitle={
+                conversations.find((c) => c.conversation_id === conversationId)?.title || "AI"
+              }
+            />
+            {route.screen !== "ai" && (
+              <h1 id="canvas-title" tabIndex={-1}>
+                {screens.find((s) => s.id === route.screen)?.label}
+              </h1>
+            )}
+          </div>
           {route.screen === "ai" && (
             <div className="hp-canvas-actions">
               {conversationId && (

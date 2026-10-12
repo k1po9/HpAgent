@@ -76,12 +76,13 @@
   --hp-title: 1.5rem;
   --hp-inspector-title: 1.125rem;
   --hp-body: 0.875rem;
-  --hp-rail: 104px;
-  --hp-sidebar: 280px;
+  --hp-rail: 84px;
+  --hp-sidebar: 252px;
   --hp-canvas-min: 600px;
+  --hp-content: 760px;
   --hp-layout-gap: 4px;
-  --hp-inspector: 420px;
-  --hp-inspector-expanded: 520px;
+  --hp-inspector: 344px;
+  --hp-inspector-expanded: 460px;
   --hp-morph: 150ms;
   --hp-flow: 220ms;
   --hp-settle: 160ms;

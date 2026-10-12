@@ -1,0 +1,8 @@
+
+ RUN  v4.1.10 /home/hp/workspace/HpAgent/web
+
+
+ Test Files  14 passed (14)
+      Tests  106 passed (106)
+   Start at  13:41:28
+   Duration  5.17s (transform 1.31s, setup 871ms, import 4.46s, tests 6.98s, environment 6.47s)

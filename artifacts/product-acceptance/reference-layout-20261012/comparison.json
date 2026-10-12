@@ -1,0 +1,364 @@
+{
+  "pairedScreenshots": 39,
+  "finalScreenshots": 40,
+  "visibleTextSamples": 1515,
+  "contrastViolations": 0,
+  "legacyBlueText": 0,
+  "layoutComparison": [
+    {
+      "scene": "ai-1680",
+      "before": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(237, 241, 245)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 1296,
+          "height": 1000,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 1248,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      },
+      "after": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 84,
+          "height": 1000,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-context-sidebar": {
+          "x": 84,
+          "y": 0,
+          "width": 252,
+          "height": 1000,
+          "background": "rgb(237, 241, 245)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-main-canvas": {
+          "x": 336,
+          "y": 0,
+          "width": 1344,
+          "height": 1000,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 628,
+          "y": 856,
+          "width": 760,
+          "height": 120,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      }
+    },
+    {
+      "scene": "artifact-1680",
+      "before": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(237, 241, 245)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 876,
+          "height": 1000,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-inspector": {
+          "x": 1260,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(244, 246, 248)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 408,
+          "y": 920,
+          "width": 828,
+          "height": 66,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      },
+      "after": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 84,
+          "height": 1000,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-context-sidebar": {
+          "x": 84,
+          "y": 0,
+          "width": 252,
+          "height": 1000,
+          "background": "rgb(237, 241, 245)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-main-canvas": {
+          "x": 336,
+          "y": 0,
+          "width": 1000,
+          "height": 1000,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-inspector": {
+          "x": 1336,
+          "y": 0,
+          "width": 344,
+          "height": 1000,
+          "background": "rgb(244, 246, 248)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 456,
+          "y": 856,
+          "width": 760,
+          "height": 120,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      }
+    },
+    {
+      "scene": "workspace-1680",
+      "before": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-context-sidebar": {
+          "x": 104,
+          "y": 0,
+          "width": 280,
+          "height": 1000,
+          "background": "rgb(237, 241, 245)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-main-canvas": {
+          "x": 384,
+          "y": 0,
+          "width": 1296,
+          "height": 1000,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      },
+      "after": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 84,
+          "height": 1000,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-context-sidebar": {
+          "x": 84,
+          "y": 0,
+          "width": 252,
+          "height": 1000,
+          "background": "rgb(237, 241, 245)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-main-canvas": {
+          "x": 336,
+          "y": 0,
+          "width": 1344,
+          "height": 1000,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      }
+    },
+    {
+      "scene": "task-1280",
+      "before": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 104,
+          "height": 1000,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-main-canvas": {
+          "x": 104,
+          "y": 0,
+          "width": 756,
+          "height": 1000,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-inspector": {
+          "x": 860,
+          "y": 0,
+          "width": 420,
+          "height": 1000,
+          "background": "rgb(244, 246, 248)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      },
+      "after": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 0,
+          "width": 84,
+          "height": 1000,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-main-canvas": {
+          "x": 84,
+          "y": 0,
+          "width": 852,
+          "height": 1000,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-inspector": {
+          "x": 936,
+          "y": 0,
+          "width": 344,
+          "height": 1000,
+          "background": "rgb(244, 246, 248)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      }
+    },
+    {
+      "scene": "ai-390",
+      "before": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 12,
+          "y": 658,
+          "width": 366,
+          "height": 114,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      },
+      "after": {
+        ".hp-rail": {
+          "x": 0,
+          "y": 784,
+          "width": 390,
+          "height": 60,
+          "background": "rgb(22, 33, 44)",
+          "color": "rgb(241, 244, 247)"
+        },
+        ".hp-main-canvas": {
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 784,
+          "background": "rgb(248, 249, 251)",
+          "color": "rgb(32, 42, 52)"
+        },
+        ".hp-composer": {
+          "x": 14,
+          "y": 654,
+          "width": 362,
+          "height": 118,
+          "background": "rgb(255, 255, 255)",
+          "color": "rgb(32, 42, 52)"
+        }
+      }
+    }
+  ]
+}

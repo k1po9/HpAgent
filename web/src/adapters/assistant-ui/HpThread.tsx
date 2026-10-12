@@ -16,7 +16,7 @@ import {
 } from "@assistant-ui/react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { emptyConversationUi, useConversationUi } from "../../store/conversationUi";
-import { Flex, Spinner, Text } from "@radix-ui/themes";
+import { Spinner, Text } from "@radix-ui/themes";
 import { Bot, FileText, Paperclip, Send, Square, UserRound, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -76,8 +76,9 @@ function HpMessageView({
   const message = useAuiState((s) => s.message);
   const files = filesByMessageId[message.id] ?? [];
   const canBuild = htmlMessageIds.has(message.id);
+  const hasTime = message.createdAt && Number.isFinite(message.createdAt.getTime());
   return (
-    <MessagePrimitive.Root className="hp-msg" data-message-id={message.id}>
+    <MessagePrimitive.Root className="hp-msg" data-message-id={message.id} data-role={message.role}>
       <MessagePrimitive.If user>
         <span className="hp-msg__marker hp-msg__marker--user" aria-hidden="true">
           <UserRound size={22} />
@@ -89,6 +90,17 @@ function HpMessageView({
         </span>
       </MessagePrimitive.If>
       <div className="hp-msg__body">
+        <div className="hp-msg__meta">
+          <span>{message.role === "assistant" ? "HpAgent" : "你"}</span>
+          {hasTime && (
+            <time dateTime={message.createdAt.toISOString()}>
+              {message.createdAt.toLocaleTimeString("zh-CN", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </time>
+          )}
+        </div>
         <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
         {message.role === "assistant" && runsByMessageId[message.id] && (
           <ExecutionBlock runId={runsByMessageId[message.id]!} messageId={message.id} />
@@ -289,11 +301,19 @@ export function HpThread({
           }}
         >
           <ThreadPrimitive.Empty>
-            <Flex align="center" justify="center" style={{ height: "100%", padding: 24 }}>
-              <Text size="3" color="gray">
+            <div className="hp-thread-empty">
+              <span className="hp-thread-empty-icon" aria-hidden="true">
+                <Bot size={30} />
+              </span>
+              <Text as="p" size="5" weight="bold">
                 开始新的对话吧
               </Text>
-            </Flex>
+              <p>
+                {fileUploadEnabled
+                  ? "输入问题，或添加资料与 HpAgent 一起开始。"
+                  : "输入问题，与 HpAgent 一起开始。"}
+              </p>
+            </div>
           </ThreadPrimitive.Empty>
           <ThreadPrimitive.Messages>
             {() => (

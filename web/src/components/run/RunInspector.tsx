@@ -131,7 +131,7 @@ export function RunInspector({
     );
   const run = snapshot.run;
   return (
-    <div className="hp-run-inspector">
+    <div className="hp-run-inspector" data-status={run.status}>
       <InspectorTabs
         prefix="run"
         label="执行详情页签"
@@ -156,7 +156,7 @@ export function RunInspector({
       </button>
       <div role="tabpanel" id={`run-panel-${tab}`} aria-labelledby={`run-tab-${tab}`}>
         {tab === "overview" && (
-          <>
+          <section className="hp-inspector-card" aria-label="执行概览">
             <h3>{runStatusLabel(run.status)}</h3>
             {snapshot.source_kind === "chat" ? (
               <>
@@ -240,7 +240,7 @@ export function RunInspector({
                 ))}
             </dl>
             <button onClick={() => changeTab("resources")}>查看操作审批</button>
-          </>
+          </section>
         )}
         {tab === "resources" && (
           <RunResources

@@ -9,7 +9,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const evidence = resolve(root, "artifacts/product-acceptance/phase1-paper-flame-20261012");
+const evidence = resolve(
+  root,
+  process.env.HPAGENT_PHASE1_EVIDENCE_DIR ??
+    "artifacts/product-acceptance/phase1-paper-flame-20261012",
+);
 const phase = process.env.HPAGENT_PHASE1_PHASE ?? "before";
 if (process.env.HPAGENT_PHASE1_ISOLATED !== "1") throw new Error("Requires an isolated API");
 const browser = await chromium.launch({
