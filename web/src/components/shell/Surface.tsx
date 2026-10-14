@@ -1,5 +1,16 @@
+import { animateSpatial, useMotionAllowed } from "../motion/preference";
+import { clearSurfaceRetreat, prepareSurfaceRetreat } from "../motion/surfaceFeedback";
 import { X } from "lucide-react";
-import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { createPortal } from "react-dom";
 import { Theme } from "@radix-ui/themes";
 import { advanceForegroundRevision } from "./foreground";
@@ -13,6 +24,8 @@ const hierarchy = new WeakMap<HTMLDialogElement, LayerContext>();
 
 // One native top-layer dialog at a time. Suspended parents keep their React subtree.
 const layers: HTMLDialogElement[] = [];
+const entered = new WeakSet<HTMLDialogElement>();
+const entrances = new WeakMap<HTMLDialogElement, () => void>();
 function coordinate() {
   layers.sort((a, b) => {
     const left = hierarchy.get(a)!,
@@ -23,6 +36,7 @@ function coordinate() {
   for (const node of layers) {
     if (node === top) continue;
     if (node.open && typeof node.close === "function") node.close();
+    entrances.get(node)?.();
     node.hidden = true;
     node.inert = true;
   }
@@ -32,11 +46,28 @@ function coordinate() {
     if (!top.open) {
       if (typeof top.showModal === "function") top.showModal();
       else top.setAttribute("open", "");
+      if (top.dataset.spatialMotion === "elevate" && !entered.has(top)) {
+        entered.add(top);
+        clearSurfaceRetreat();
+        entrances.set(
+          top,
+          animateSpatial(
+            top,
+            [
+              { opacity: 0.6, transform: "translateY(14px) scale(.986)" },
+              { opacity: 1, transform: "none" },
+            ],
+            310,
+            "cubic-bezier(.17,.74,.2,1)",
+          ),
+        );
+      }
     }
   }
 }
 export function Surface({
   title,
+  titleRef,
   headerActions,
   children,
   onClose,
@@ -46,8 +77,11 @@ export function Surface({
   active: requestedActive = true,
   role,
   dismissible = true,
+  motion = "none",
 }: {
+  motion?: "none" | "elevate";
   title: string;
+  titleRef?: Ref<HTMLHeadingElement>;
   headerActions?: ReactNode;
   children: ReactNode;
   onClose: () => void;
@@ -58,6 +92,7 @@ export function Surface({
   role?: "alertdialog";
   dismissible?: boolean;
 }) {
+  const motionEnabled = useMotionAllowed();
   const entering = useContext(EntryPendingContext);
   const active = requestedActive && !(modal && entering);
   const parent = useContext(SurfaceParent);
@@ -72,6 +107,21 @@ export function Surface({
   const previousActive = useRef<boolean | null>(null);
   const ref = useRef<HTMLDialogElement>(null);
   const closeRef = useRef(onClose);
+  useLayoutEffect(() => {
+    const node = ref.current;
+    return () => {
+      if (!node || motion !== "elevate" || !modal) return;
+      const retreat = prepareSurfaceRetreat(node);
+      queueMicrotask(() => {
+        if (
+          !node.isConnected &&
+          document.querySelector(".hp-shell") &&
+          !document.querySelector("dialog[open]:not(.hp-surface--region)")
+        )
+          retreat();
+      });
+    };
+  }, [motion, modal]);
   const trigger = useRef<HTMLElement | null>(null);
   useEffect(() => {
     closeRef.current = onClose;
@@ -93,6 +143,7 @@ export function Surface({
       ranks.set(layer.group, ++layerSequence);
     }
     previousActive.current = active;
+    if (!active) entered.delete(node);
     if (modal && active) {
       hierarchy.set(node, layer);
       layers.push(node);
@@ -114,13 +165,17 @@ export function Surface({
         node.contains(document.activeElement) && document.activeElement instanceof HTMLElement
           ? document.activeElement
           : null;
+      // Capture only a blank plane; close and release focus synchronously below.
+
+      entrances.get(node)?.();
+      if (!requestedActive) entered.delete(node);
       const index = layers.indexOf(node);
       if (index >= 0) layers.splice(index, 1);
       if (node.open && typeof node.close === "function") node.close();
       node.removeAttribute("open");
       coordinate();
     };
-  }, [modal, active, layer, parent]);
+  }, [modal, active, layer, parent, motion, requestedActive]);
   useEffect(() => {
     if (modal || !active || !dismissible) return;
     const escape = (event: KeyboardEvent) => {
@@ -144,6 +199,7 @@ export function Surface({
   const content = (
     <dialog
       ref={ref}
+      data-spatial-motion={motion === "elevate" && motionEnabled ? "elevate" : "none"}
       className={`hp-surface ${!modal ? "hp-surface--region" : ""} ${className}`}
       role={modal ? role : "complementary"}
       aria-label={title}
@@ -177,7 +233,11 @@ export function Surface({
             返回
           </button>
         )}
-        <h2 id={className.includes("inspector") ? "inspector-title" : undefined} tabIndex={-1}>
+        <h2
+          ref={titleRef}
+          id={className.includes("inspector") ? "inspector-title" : undefined}
+          tabIndex={-1}
+        >
           {title}
         </h2>
         {headerActions && <div className="hp-surface-header-actions">{headerActions}</div>}

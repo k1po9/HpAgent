@@ -8,19 +8,24 @@ import { RunTraceContent } from "../trace/RunTraceContent";
 import { ModelInputView } from "../trace/TraceDetail";
 import { RunResources } from "./RunResources";
 import { RunBudget } from "./RunBudget";
+import { VitalityHeading } from "../vitality/VitalitySignal";
+import { useVitality } from "../vitality/useVitality";
 import { RunStatus } from "../RunStatus";
 import type { HpFile, HpModelInputList } from "../../api/types";
 
 export function RunInspector({
   inspector,
   onSaveFile,
+  hideIdentity = false,
 }: {
   inspector: Inspector;
+  hideIdentity?: boolean;
   onSaveFile?: (file: HpFile) => void;
 }) {
   const state = useRunInspector();
   const active = useWorkbench((s) => s.activeRun);
   const messages = useWorkbench((s) => s.messages);
+  const generation = useWorkbench((s) => s.pollGeneration);
   const progress = useWorkbench((s) => s.activeRunProgress);
   const degraded = useWorkbench((s) => s.degraded);
   const stopping = useWorkbench((s) => s.stopping);
@@ -42,6 +47,12 @@ export function RunInspector({
       : state.runId === id
         ? state.snapshot
         : null;
+  const vitality = useVitality(
+    snapshot?.run ?? null,
+    live ? progress : null,
+    live ? generation : undefined,
+    live && degraded,
+  );
   const terminal = snapshot ? isTerminalRunStatus(snapshot.run.status) : false;
   useEffect(() => {
     useRunInspector.getState().select(id);
@@ -132,6 +143,13 @@ export function RunInspector({
   const run = snapshot.run;
   return (
     <div className="hp-run-inspector" data-status={run.status}>
+      {!hideIdentity && (
+        <header className="hp-run-identity">
+          <span className="hp-object-kind">
+            {snapshot.source_kind === "chat" ? "对话执行" : "任务执行"}
+          </span>
+        </header>
+      )}
       <InspectorTabs
         prefix="run"
         label="执行详情页签"
@@ -144,6 +162,7 @@ export function RunInspector({
       />
       {state.error && <p role="status">{state.error}</p>}
       <button
+        className="hp-run-sync"
         onClick={() => {
           void state.load();
           if (tab === "advanced") {
@@ -157,31 +176,54 @@ export function RunInspector({
       <div role="tabpanel" id={`run-panel-${tab}`} aria-labelledby={`run-tab-${tab}`}>
         {tab === "overview" && (
           <section className="hp-inspector-card" aria-label="执行概览">
-            <h3>{runStatusLabel(run.status)}</h3>
+            {!live && <VitalityHeading view={vitality} runId={id} size="detail" />}
+            {live && snapshot.source_kind === "chat" && (
+              <RunStatus
+                activeRun={snapshot.run}
+                generation={generation}
+                size="detail"
+                busyMessage={null}
+                progress={live ? progress : null}
+                degraded={live && degraded}
+                stopping={stopping}
+                onStop={() => {
+                  if (useWorkbench.getState().activeRun?.run_id === id)
+                    void useWorkbench.getState().stopRun();
+                }}
+                onRetry={() => {
+                  if (useWorkbench.getState().activeRun?.run_id === id)
+                    void useWorkbench.getState().retryRun();
+                }}
+              />
+            )}
+            <dl className="hp-vitality-facts">
+              <div>
+                <dt>状态</dt>
+                <dd>{vitality.runText}</dd>
+              </div>
+              <div>
+                <dt>阶段</dt>
+                <dd>{vitality.progressText ?? "阶段未提供"}</dd>
+              </div>
+              <div>
+                <dt>审批</dt>
+                <dd>
+                  {vitality.approvals === "unknown"
+                    ? "尚未核实"
+                    : vitality.approvals === "pending"
+                      ? "有待审批操作"
+                      : "已核实，无待审批"}
+                </dd>
+              </div>
+            </dl>
             {snapshot.source_kind === "chat" ? (
               <>
-                {live && (
-                  <RunStatus
-                    activeRun={snapshot.run}
-                    busyMessage={null}
-                    progress={live ? progress : null}
-                    degraded={live && degraded}
-                    stopping={stopping}
-                    onStop={() => {
-                      if (useWorkbench.getState().activeRun?.run_id === id)
-                        void useWorkbench.getState().stopRun();
-                    }}
-                    onRetry={() => {
-                      if (useWorkbench.getState().activeRun?.run_id === id)
-                        void useWorkbench.getState().retryRun();
-                    }}
-                  />
-                )}
                 {!live && snapshot.run.failure?.message && (
                   <p role="alert">{snapshot.run.failure.message}</p>
                 )}
                 {!live && (
                   <button
+                    className="hp-run-origin-action"
                     onClick={() =>
                       useShell
                         .getState()
@@ -223,7 +265,7 @@ export function RunInspector({
                 ))}
               </>
             )}
-            <dl>
+            <dl className="hp-run-timestamps" aria-label="执行时间">
               {(
                 [
                   ["创建", run.created_at],
@@ -235,11 +277,17 @@ export function RunInspector({
                 .map(([k, v]) => (
                   <div key={k}>
                     <dt>{k}</dt>
-                    <dd>{v}</dd>
+                    <dd>
+                      <time className="hp-run-time-readable" dateTime={v!} title={v!}>
+                        {new Date(v!).toLocaleString("zh-CN", { hour12: false })}
+                      </time>
+                    </dd>
                   </div>
                 ))}
             </dl>
-            <button onClick={() => changeTab("resources")}>查看操作审批</button>
+            <button className="hp-run-approvals-action" onClick={() => changeTab("resources")}>
+              查看操作审批
+            </button>
           </section>
         )}
         {tab === "resources" && (

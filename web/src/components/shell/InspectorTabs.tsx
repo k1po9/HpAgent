@@ -1,3 +1,5 @@
+import { useLayoutEffect, useRef } from "react";
+import { useMotionAllowed } from "../motion/preference";
 import type { Inspector } from "../../store/shell";
 import { useShell } from "../../store/shell";
 export function InspectorTabs({
@@ -13,8 +15,33 @@ export function InspectorTabs({
   selected: Inspector["tab"];
   panelId?: string;
 }) {
+  const root = useRef<HTMLDivElement>(null),
+    indicator = useRef<HTMLSpanElement>(null);
+  const motion = useMotionAllowed();
+  useLayoutEffect(() => {
+    const node = root.current,
+      line = indicator.current;
+    if (!node || !line) return;
+    const measure = () => {
+      const button = node.querySelector<HTMLElement>('[aria-selected="true"]');
+      if (!button) return;
+      line.style.width = `${button.offsetWidth}px`;
+      line.style.transform = `translate(${button.offsetLeft}px, ${button.offsetTop + button.offsetHeight - 2}px)`;
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [selected]);
   return (
-    <div role="tablist" aria-label={label} className="hp-inspector-tabs">
+    <div
+      ref={root}
+      role="tablist"
+      aria-label={label}
+      className="hp-inspector-tabs"
+      data-tab-motion={motion ? "enabled" : "reduced"}
+    >
+      <span ref={indicator} className="hp-inspector-tab-indicator" aria-hidden="true" />
       {tabs.map((tab, index) => (
         <button
           key={tab.id}

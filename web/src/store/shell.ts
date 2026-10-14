@@ -1,5 +1,12 @@
 import { create } from "zustand";
 import { useWorkbench } from "./workbench";
+import {
+  approveInspectorIntent,
+  captureInspectorIntent,
+  type InspectorIntent,
+} from "../components/spatial/inspectorIntent";
+type NavigationOptions = { stack: Inspector[]; intent?: InspectorIntent | null };
+let pendingNavigation: { route: Route; options: NavigationOptions } | null = null;
 
 export type Screen = "ai" | "workspace" | "tasks";
 export type Inspector = {
@@ -146,9 +153,9 @@ interface ShellState {
   sidebarOpen: boolean;
   expanded: boolean;
   requestToken: number;
-  navigate: (route: Route, replace?: boolean) => void;
+  navigate: (route: Route, replace?: boolean, options?: NavigationOptions) => boolean;
   restore: (hash: string, context?: LegacyContext) => void;
-  openInspector: (inspector: Inspector, child?: boolean) => void;
+  openInspector: (inspector: Inspector, child?: boolean, source?: InspectorIntent) => void;
   setInspectorTab: (tab: Inspector["tab"]) => void;
   closeInspector: () => void;
   back: () => void;
@@ -171,16 +178,18 @@ export const useShell = create<ShellState>((set, get) => ({
   sidebarOpen: false,
   expanded: false,
   requestToken: 0,
-  navigate(route, replace = false) {
+  navigate(route, replace = false, options) {
+    options ??= pendingNavigation?.route === route ? pendingNavigation.options : undefined;
+    pendingNavigation = options ? { route, options } : null;
     if (get().dirtyTaskEditor) {
       window.history.replaceState(null, "", serializeRoute(get().route));
       set({ pendingRoute: route, pendingRouteReason: "tasks", sidebarOpen: false });
-      return;
+      return false;
     }
     if (get().dirtyResourceEditor) {
       window.history.replaceState(null, "", serializeRoute(get().route));
       set({ pendingRoute: route, pendingRouteReason: "resources", sidebarOpen: false });
-      return;
+      return false;
     }
     const workbench = useWorkbench.getState();
     if (
@@ -195,13 +204,15 @@ export const useShell = create<ShellState>((set, get) => ({
         modal: null,
         sidebarOpen: false,
       });
-      return;
+      return false;
     }
     if (workbench.creatingConversation && !workbench.activeConversationId)
       workbench.leaveConversation();
     const hash = serializeRoute(route);
     if (window.location.hash !== hash)
       window.history[replace ? "replaceState" : "pushState"](null, "", hash);
+    approveInspectorIntent(options?.intent ?? null);
+    pendingNavigation = null;
     set({
       route,
       pendingRoute: null,
@@ -210,14 +221,16 @@ export const useShell = create<ShellState>((set, get) => ({
         [get().route.screen]: { ...get().route, inspector: undefined, workId: undefined },
       },
       backStack:
-        route.inspector?.kind === get().route.inspector?.kind &&
+        options?.stack ??
+        (route.inspector?.kind === get().route.inspector?.kind &&
         route.inspector?.objectId === get().route.inspector?.objectId
           ? get().backStack
-          : [],
+          : []),
       sidebarOpen: false,
       modal: null,
       requestToken: get().requestToken + 1,
     });
+    return true;
   },
   restore(hash, context) {
     const parsed = parseRoute(hash, context);
@@ -225,9 +238,10 @@ export const useShell = create<ShellState>((set, get) => ({
     if (get().pendingRoute) return;
     set({ modal: parsed.modal ?? null });
   },
-  openInspector(inspector, child = false) {
+  openInspector(inspector, child = false, source) {
     if (get().dirtyResourceEditor) {
-      get().requestResourceChange(() => get().openInspector(inspector, child));
+      const captured = source ?? captureInspectorIntent({ ...get().route, inspector }, inspector);
+      get().requestResourceChange(() => get().openInspector(inspector, child, captured));
       return;
     }
     const { route, backStack } = get();
@@ -236,14 +250,17 @@ export const useShell = create<ShellState>((set, get) => ({
       return;
     }
     const stack = child && route.inspector ? [...backStack, route.inspector].slice(-5) : [];
-    get().navigate({
+    const next = {
       ...route,
       ...(inspector.kind === "task" && route.screen === "tasks"
         ? { workId: inspector.objectId }
         : {}),
       inspector,
+    };
+    get().navigate(next, false, {
+      stack,
+      intent: source ? { ...source, route: next } : captureInspectorIntent(next, inspector),
     });
-    set({ backStack: stack });
   },
   setInspectorTab(tab) {
     const { route } = get();
@@ -258,8 +275,9 @@ export const useShell = create<ShellState>((set, get) => ({
     const inspector = get().route.inspector;
     get().navigate({ ...get().route, inspector: undefined, workId: undefined });
     if (get().pendingRoute || !inspector) return;
-    setTimeout(() => {
-      if (get().route.inspector) return;
+    const token = get().requestToken;
+    queueMicrotask(() => {
+      if (get().route.inspector || get().requestToken !== token) return;
       const trigger =
         inspector?.kind === "artifact"
           ? document.getElementById(
@@ -272,9 +290,10 @@ export const useShell = create<ShellState>((set, get) => ({
               : document.getElementById(
                   inspector?.origin?.triggerId ?? `run-open-${inspector?.objectId}`,
                 );
-      if (trigger?.isConnected && !trigger.closest("[hidden]")) trigger.focus();
+      if (trigger?.isConnected && !trigger.closest("[hidden]"))
+        trigger.focus({ preventScroll: true });
       else document.getElementById("canvas-title")?.focus();
-    }, 0);
+    });
   },
   back() {
     const stack = [...get().backStack];
@@ -283,11 +302,11 @@ export const useShell = create<ShellState>((set, get) => ({
       get().closeInspector();
       return;
     }
-    get().navigate({ ...get().route, inspector });
-    if (get().pendingRoute) return;
-    set({ backStack: stack });
+    get().navigate({ ...get().route, inspector }, false, { stack });
   },
   reset() {
+    pendingNavigation = null;
+    approveInspectorIntent(null);
     set({
       pendingRoute: null,
       dirtyResourceEditor: null,

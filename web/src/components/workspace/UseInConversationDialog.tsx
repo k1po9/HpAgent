@@ -27,6 +27,7 @@ export function UseInConversationDialog({
   const [locked, setLocked] = useState(Boolean(stored));
   return (
     <Surface
+      motion="elevate"
       title="在对话中使用资料"
       onClose={() => {
         if (!busy) onClose();

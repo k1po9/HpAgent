@@ -155,7 +155,7 @@ describe("UI1-R01 conversation re-selection", () => {
       expect(api.detailCalls).toEqual(["c1"]);
       expect(api.messageCalls).toEqual(["c1"]);
       api[stage] = stage === "detail" ? detail : messages;
-      fireEvent.click(screen.getByRole("button", { name: "对话 c1" }));
+      fireEvent.click(document.querySelector<HTMLButtonElement>('[data-conversation-id="c1"]')!);
       await waitFor(() => expect(api.detailCalls).toEqual(["c1", "c1"]));
       expect(api.messageCalls).toEqual(["c1", "c1"]);
       await screen.findByPlaceholderText(/输入消息/);
@@ -179,7 +179,8 @@ describe("UI1-R01 conversation re-selection", () => {
     const composer = await screen.findByPlaceholderText(/输入消息/);
     await waitFor(() => expect(api.streamSignals).toHaveLength(1));
     fireEvent.change(composer, { target: { value: "保留草稿" } });
-    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole("button", { name: "对话 c1" }));
+    for (let i = 0; i < 3; i++)
+      fireEvent.click(document.querySelector<HTMLButtonElement>('[data-conversation-id="c1"]')!);
     expect(api.detailCalls).toEqual(["c1"]);
     expect(api.messageCalls).toEqual(["c1"]);
     expect(api.streamSignals).toHaveLength(1);
@@ -214,7 +215,7 @@ describe("UI1-R01 conversation re-selection", () => {
       await screen.findByText("临时离线");
       const pending = deferred<Response>();
       api.detail = (id) => (id === "c1" ? pending.promise : detail(id));
-      fireEvent.click(screen.getByRole("button", { name: "对话 c1" }));
+      fireEvent.click(document.querySelector<HTMLButtonElement>('[data-conversation-id="c1"]')!);
       await waitFor(() => expect(api.detailCalls).toEqual(["c1", "c1"]));
       fireEvent.click(screen.getByRole("button", { name: "对话 c2" }));
       await screen.findByText("c2 恢复的消息");

@@ -31,7 +31,7 @@ export function UploadToWorkspaceDialog({
   const operationRef = useRef(id);
   const operation = id ? operations[id] : undefined;
   return (
-    <Surface title="上传到空间" onClose={onClose}>
+    <Surface motion="elevate" title="上传到空间" onClose={onClose}>
       <form
         className="hp-operation-form"
         onSubmit={(e) => {

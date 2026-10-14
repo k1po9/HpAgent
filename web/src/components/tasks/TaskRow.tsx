@@ -3,9 +3,16 @@ import type { HpWork } from "../../api/types";
 import { useShell } from "../../store/shell";
 import { presentTask, taskTime, typeLabel } from "./taskPresentation";
 import { TaskActions } from "./TaskActions";
+import { Bell, Search, FileText } from "lucide-react";
 export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }) {
   const now = useWorks((s) => s.now);
   const p = presentTask(work, now);
+  const Icon =
+    work.requirement.capability_key === "reminder"
+      ? Bell
+      : work.requirement.capability_key === "research_report"
+        ? Search
+        : FileText;
   const budget = work.budget;
   const used = budget?.used.model_total_tokens ?? 0,
     limit = budget?.limits.model_total_tokens;
@@ -14,8 +21,16 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
       aria-label={work.title}
       data-status={work.status}
       data-bucket={p.bucket}
+      data-work-id={work.work_id}
       className={`hp-task-row ${selected ? "hp-task-row--selected" : ""}`}
     >
+      <div className="hp-task-card-symbol">
+        <Icon size={19} aria-hidden="true" />
+      </div>
+      <p className="hp-task-card-meta hp-muted">
+        {typeLabel(work)}
+        {taskTime(work) ? ` · ${taskTime(work)}` : ""}
+      </p>
       <div className="hp-task-row-heading">
         <button
           id={`task-${work.work_id}`}
@@ -26,13 +41,9 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
         >
           {work.title}
         </button>
-        <span className="hp-task-status">{p.label}</span>
       </div>
       <p className="hp-task-objective">{work.requirement.objective}</p>
-      <p className="hp-muted">
-        {typeLabel(work)}
-        {taskTime(work) ? ` · ${taskTime(work)}` : ""}
-      </p>
+      <span className="hp-task-status">{p.label}</span>
       {p.attentionReasons.length > 0 && p.bucket !== "ended" && (
         <p className="hp-task-attention">{p.attentionReasons.join("；")}</p>
       )}

@@ -17,13 +17,15 @@ import {
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { emptyConversationUi, useConversationUi } from "../../store/conversationUi";
 import { Spinner, Text } from "@radix-ui/themes";
-import { Bot, FileText, Paperclip, Send, Square, UserRound, X } from "lucide-react";
+import { Bot, FileText, Paperclip, Send, Sparkles, Square, UserRound, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { HpFile, HpMessage, HpRun } from "../../api/types";
 import { ExecutionBlock } from "../../components/run/ExecutionBlock";
 import { useHpThreadRuntime } from "./runtime";
 import { ArtifactMessageItems } from "../../components/artifact/ArtifactMessageItems";
+import { deriveComposerActionPhase } from "../../components/input-action/policy";
+import { useMotionAllowed } from "../../components/motion/preference";
 import type { UploadAttachment } from "../../store/workbench";
 
 export interface HpThreadProps {
@@ -42,6 +44,8 @@ export interface HpThreadProps {
   attachments: UploadAttachment[];
   fileUploadEnabled: boolean;
   sendDisabled: boolean;
+  /** Existing pending idempotency intent; no confirmed acceptance yet. */
+  sendUncertain?: boolean;
   onFilesSelected: (files: File[]) => void;
   onRemoveAttachment: (localId: string) => void;
   onSaveFile?: (file: HpFile) => void;
@@ -86,7 +90,7 @@ function HpMessageView({
       </MessagePrimitive.If>
       <MessagePrimitive.If assistant>
         <span className="hp-msg__marker hp-msg__marker--assistant" aria-hidden="true">
-          <Bot size={24} />
+          <Sparkles size={16} className="hp-assistant-glyph" aria-hidden="true" />
         </span>
       </MessagePrimitive.If>
       <div className="hp-msg__body">
@@ -101,32 +105,40 @@ function HpMessageView({
             </time>
           )}
         </div>
-        <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
-        {message.role === "assistant" && runsByMessageId[message.id] && (
-          <ExecutionBlock runId={runsByMessageId[message.id]!} messageId={message.id} />
-        )}
-        {files.length ? (
-          <div className="hp-msg__files" aria-label="消息附件">
-            {files.map((file) => (
-              <span key={file.file_id}>
-                <a
-                  className="hp-msg__file"
-                  href={file.download_url ?? undefined}
-                  aria-disabled={!file.download_url}
-                >
-                  <FileText size={14} aria-hidden="true" />
-                  <span>{file.file_name}</span>
-                </a>
-                {file.status === "ready" && onSaveFile ? (
-                  <button type="button" onClick={() => onSaveFile(file)}>
-                    保存到 Workspace
-                  </button>
-                ) : null}
-              </span>
-            ))}
-          </div>
-        ) : null}
-        {canBuild && <ArtifactMessageItems messageId={message.id} />}
+        <div
+          className={
+            message.role === "assistant"
+              ? `hp-answer-surface${runsByMessageId[message.id] ? " hp-answer-surface--run" : ""}`
+              : "hp-message-content"
+          }
+        >
+          <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
+          {message.role === "assistant" && runsByMessageId[message.id] && (
+            <ExecutionBlock runId={runsByMessageId[message.id]!} messageId={message.id} />
+          )}
+          {files.length ? (
+            <div className="hp-msg__files" aria-label="消息附件">
+              {files.map((file) => (
+                <span key={file.file_id}>
+                  <a
+                    className="hp-msg__file"
+                    href={file.download_url ?? undefined}
+                    aria-disabled={!file.download_url}
+                  >
+                    <FileText size={14} aria-hidden="true" />
+                    <span>{file.file_name}</span>
+                  </a>
+                  {file.status === "ready" && onSaveFile ? (
+                    <button type="button" onClick={() => onSaveFile(file)}>
+                      保存到 Workspace
+                    </button>
+                  ) : null}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {canBuild && <ArtifactMessageItems messageId={message.id} />}
+        </div>
       </div>
     </MessagePrimitive.Root>
   );
@@ -155,6 +167,7 @@ export function HpThread({
   attachments,
   fileUploadEnabled,
   sendDisabled,
+  sendUncertain = false,
   onFilesSelected,
   onRemoveAttachment,
   onSaveFile,
@@ -162,7 +175,44 @@ export function HpThread({
   onCancel,
 }: HpThreadProps) {
   const draft = useConversationUi((s) => s.entries[conversationKey] ?? emptyConversationUi);
+  const motionAllowed = useMotionAllowed();
+  const [interaction, setInteraction] = useState({
+    key: conversationKey,
+    focused: false,
+    pointerIntent: false,
+    sendFocus: false,
+    composing: false,
+  });
+  const currentInteraction =
+    interaction.key === conversationKey
+      ? interaction
+      : { focused: false, pointerIntent: false, sendFocus: false, composing: false };
+  const interact = (changes: Partial<typeof currentInteraction>) =>
+    setInteraction((previous) => ({
+      ...(previous.key === conversationKey
+        ? previous
+        : {
+            key: conversationKey,
+            focused: false,
+            pointerIntent: false,
+            sendFocus: false,
+            composing: false,
+          }),
+      ...changes,
+    }));
+  useLayoutEffect(() => {
+    const cancelIntent = () => {
+      if (document.hidden)
+        setInteraction((previous) => ({ ...previous, pointerIntent: false, sendFocus: false }));
+    };
+    // Listen to visibility itself, even when motion was already disabled by reduction.
+    document.addEventListener("visibilitychange", cancelIntent);
+    return () => document.removeEventListener("visibilitychange", cancelIntent);
+  }, []);
   const composing = useRef(false);
+  useLayoutEffect(() => {
+    composing.current = false;
+  }, [conversationKey]);
   const submissions = useRef(new Map<string, symbol>());
   const [submittingKeys, setSubmittingKeys] = useState<Set<string>>(() => new Set());
   const viewport = useRef<HTMLDivElement>(null);
@@ -187,6 +237,18 @@ export function HpThread({
     activeRun && !["succeeded", "failed", "cancelled"].includes(activeRun.status),
   );
   const submitting = submittingKeys.has(conversationKey);
+  const actionPhase = deriveComposerActionPhase({
+    draft: draft.text,
+    sendDisabled,
+    attachmentsReady: attachments.every((a) => a.status === "ready" && Boolean(a.fileId)),
+    submitting,
+    uncertain: sendUncertain,
+    status: activeRun?.status ?? null,
+    stopping,
+    composing: currentInteraction.composing,
+    focused: currentInteraction.focused,
+    intent: currentInteraction.pointerIntent || currentInteraction.sendFocus,
+  });
   const submit = async () => {
     if (
       composing.current ||
@@ -367,6 +429,13 @@ export function HpThread({
         )}
         <form
           className="hp-composer"
+          data-action-phase={actionPhase}
+          data-action-motion={motionAllowed}
+          onFocusCapture={() => interact({ focused: true })}
+          onBlurCapture={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+              interact({ focused: false, pointerIntent: false, sendFocus: false });
+          }}
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
@@ -428,9 +497,11 @@ export function HpThread({
             }
             onCompositionStart={() => {
               composing.current = true;
+              interact({ composing: true, pointerIntent: false, sendFocus: false });
             }}
             onCompositionEnd={() => {
               composing.current = false;
+              interact({ composing: false });
             }}
             onKeyDown={(event) => {
               if (
@@ -451,23 +522,25 @@ export function HpThread({
             </p>
           )}
           <div className="hp-composer__actions">
-            {fileUploadEnabled ? (
-              <label className="hp-composer__attach" aria-label="添加附件">
-                <Paperclip size={16} aria-hidden="true" />
-                <span>附件</span>
-                <input
-                  type="file"
-                  multiple
-                  accept=".txt,.log,.md,.pdf,.docx,.xlsx,.pptx"
-                  disabled={sendDisabled || running}
-                  onChange={(event) => {
-                    onFilesSelected(Array.from(event.currentTarget.files ?? []));
-                    event.currentTarget.value = "";
-                  }}
-                />
-              </label>
-            ) : null}
-            {toolbar}
+            <div className="hp-composer__file-actions">
+              {fileUploadEnabled ? (
+                <label className="hp-composer__attach" aria-label="添加附件">
+                  <Paperclip size={16} aria-hidden="true" />
+                  <span>附件</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".txt,.log,.md,.pdf,.docx,.xlsx,.pptx"
+                    disabled={sendDisabled || running}
+                    onChange={(event) => {
+                      onFilesSelected(Array.from(event.currentTarget.files ?? []));
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+              ) : null}
+              {toolbar}
+            </div>
             {composerContext}
             <div className="hp-composer__submit">
               {composerMode}
@@ -475,6 +548,15 @@ export function HpThread({
                 type={running ? "button" : "submit"}
                 className={`hp-composer__action ${running ? "hp-composer__cancel" : "hp-composer__send"}`}
                 data-state={running ? "stop" : "send"}
+                onPointerEnter={(event) => {
+                  if (event.pointerType === "mouse") interact({ pointerIntent: true });
+                }}
+                onPointerLeave={() => interact({ pointerIntent: false })}
+                onPointerCancel={() => interact({ pointerIntent: false })}
+                onFocus={(event) =>
+                  interact({ sendFocus: event.currentTarget.matches(":focus-visible") })
+                }
+                onBlur={() => interact({ sendFocus: false })}
                 aria-label={
                   running
                     ? stopping || activeRun?.status === "cancelling"
@@ -499,13 +581,6 @@ export function HpThread({
                 ) : (
                   <Send size={18} aria-hidden="true" />
                 )}
-                <span className="hp-composer__action-label">
-                  {running
-                    ? stopping || activeRun?.status === "cancelling"
-                      ? "正在停止…"
-                      : "停止"
-                    : "发送"}
-                </span>
               </button>
             </div>
           </div>

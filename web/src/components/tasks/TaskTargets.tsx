@@ -80,7 +80,7 @@ export function TaskTargets({ work }: { work: HpWork }) {
       )}
       {intent?.error && <p role="alert">{intent.error}</p>}
       {target && (
-        <Surface title="停用通知目标" onClose={() => setTarget(null)}>
+        <Surface motion="elevate" title="停用通知目标" onClose={() => setTarget(null)}>
           <p>将停止向此目标投递，待发送或失败的通知会撤销。已经发送或结果未决的通知仍需核查。</p>
           <button
             disabled={intent?.busy}

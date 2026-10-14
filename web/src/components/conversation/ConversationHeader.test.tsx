@@ -48,7 +48,7 @@ describe("UI-2 title optimistic concurrency", () => {
       active_run: null,
     });
     render(<ConversationHeader />);
-    fireEvent.click(screen.getByRole("button", { name: "修改标题" }));
+    fireEvent.doubleClick(screen.getByRole("button", { name: conversation.title }));
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "我的修改" } });
     fireEvent.click(screen.getByRole("button", { name: "保存标题" }));
     await waitFor(() =>
@@ -69,10 +69,25 @@ describe("UI-2 title optimistic concurrency", () => {
       active_run: null,
     });
     render(<ConversationHeader />);
-    fireEvent.click(screen.getByRole("button", { name: "修改标题" }));
+    fireEvent.doubleClick(screen.getByRole("button", { name: conversation.title }));
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "已保存" } });
     fireEvent.click(screen.getByRole("button", { name: "保存标题" }));
     await screen.findByRole("heading", { name: "已保存" });
     expect(rename).toHaveBeenCalledTimes(1);
   });
+});
+
+it("opens with F2, cancels without writing and restores title focus", async () => {
+  const rename = vi.spyOn(HpApi.prototype, "renameConversation");
+  render(<ConversationHeader />);
+  const title = screen.getByRole("button", { name: conversation.title });
+  fireEvent.click(title, { detail: 1 });
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  fireEvent.keyDown(title, { key: "F2" });
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "不保存" } });
+  fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: conversation.title })).toHaveFocus(),
+  );
+  expect(rename).not.toHaveBeenCalled();
 });

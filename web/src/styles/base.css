@@ -368,15 +368,6 @@ body,
   padding: 8px;
 }
 
-.hp-qq-binding {
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--hp-border);
-}
-
-.hp-qq-binding p {
-  margin: 4px 0 0;
-}
-
 .hp-qq-binding__code {
   user-select: all;
   letter-spacing: 0.04em;

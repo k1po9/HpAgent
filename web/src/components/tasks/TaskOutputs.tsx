@@ -160,7 +160,7 @@ function ArtifactResult({
         </p>
       )}
       {confirm && (
-        <Surface title="接受指定成果版本" onClose={() => setConfirm(false)}>
+        <Surface motion="elevate" title="接受指定成果版本" onClose={() => setConfirm(false)}>
           <p>
             将接受任务 r{work.current_requirement_revision} 的原交付版本 {a.artifact_version_id}
             。此操作独立于查看或保存。

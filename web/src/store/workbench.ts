@@ -49,7 +49,13 @@ export function isCancellableRunStatus(status: HpRunStatus): boolean {
 }
 
 export function isRetryableRun(run: HpRun): boolean {
-  return run.status === "failed" && run.failure?.retryable !== false;
+  return (
+    run.status === "failed" &&
+    run.failure?.retryable !== false &&
+    !["tool_side_effect_uncertain", "side_effect_reconciliation_failed"].includes(
+      run.failure?.code ?? "",
+    )
+  );
 }
 
 /** Human-readable label for the run status area (progress lives here, not in content). */
@@ -423,7 +429,12 @@ export function createWorkbenchStore(
             },
             onProgress: (progress) => {
               if (stale()) return;
-              set({ activeRunProgress: progress });
+              set({
+                activeRunProgress: {
+                  ...progress,
+                  scope: { runId, generation, receivedAt: Date.now() },
+                },
+              });
             },
             onStatus: (status) => {
               if (stale()) return;

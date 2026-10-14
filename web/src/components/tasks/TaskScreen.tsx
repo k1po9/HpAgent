@@ -1,9 +1,34 @@
 import { TaskLookup } from "./TaskLookup";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Plus,
+  RefreshCw,
+  Inbox,
+  LoaderCircle,
+  Clock,
+  CircleCheck,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useWorks } from "../../store/works";
 import { useShell } from "../../store/shell";
-import { bucketLabels, taskType, presentTask, compareTasks } from "./taskPresentation";
+import {
+  bucketLabels,
+  taskType,
+  presentTask,
+  compareTasks,
+  type TaskBucket,
+} from "./taskPresentation";
 import { TaskRow } from "./TaskRow";
+import { useTaskOperations } from "./taskOperations";
+
+const bucketIcons = { attention: Inbox, active: LoaderCircle, waiting: Clock, ended: CircleCheck };
+type BoardContext = {
+  id: string;
+  order: string[];
+  filter: string;
+  placements: Record<string, TaskBucket>;
+};
+
 export function TaskScreen() {
   const now = useWorks((s) => s.now);
   const route = useShell((s) => s.route);
@@ -12,19 +37,17 @@ export function TaskScreen() {
   const state = useWorks((s) => s.loadState),
     error = useWorks((s) => s.error),
     last = useWorks((s) => s.lastCompletedAt);
-  const [context, setContext] = useState<{ id: string; order: string[]; filter: string } | null>(
-    null,
-  );
+  const [context, setContext] = useState<BoardContext | null>(null);
+  const board = useRef<HTMLDivElement>(null);
+  const screen = useRef<HTMLDivElement>(null);
   const bucket = route.bucket ?? "attention",
     type = route.type ?? "all";
   const selectedId = route.inspector?.kind === "task" ? route.inspector.objectId : route.workId;
   const selected = items.find((w) => w.work_id === selectedId);
-  const matching = items.filter(
-    (w) => (type === "all" || taskType(w) === type) && presentTask(w, now).bucket === bucket,
-  );
   const filter = `${bucket}:${type}`;
   const focused = context?.filter === filter ? context.id : null;
   const protectedIds = [selectedId, focused].filter(Boolean);
+  const matching = items.filter((w) => type === "all" || taskType(w) === type);
   const candidates = items
     .filter((w) => matching.includes(w) || protectedIds.includes(w.work_id))
     .sort((a, b) => compareTasks(a, b, now));
@@ -35,20 +58,56 @@ export function TaskScreen() {
       .filter((w): w is (typeof items)[number] => Boolean(w)),
     ...candidates.filter((w) => !frozen.includes(w.work_id)),
   ];
+  const displayBucket = (id: string, actual: TaskBucket) =>
+    context?.filter === filter && protectedIds.includes(id)
+      ? (context.placements[id] ?? actual)
+      : actual;
+  useEffect(() => {
+    if (bucket === "attention") {
+      const viewport = board.current?.closest<HTMLElement>(".hp-screen-scroll");
+      if (viewport) viewport.scrollTop = 0;
+      return;
+    }
+    board.current
+      ?.querySelector<HTMLElement>(`[data-task-lane="${bucket}"]`)
+      ?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  }, [bucket]);
+  useEffect(() => {
+    const release = (event: FocusEvent) => {
+      if (selectedId || !context || screen.current?.contains(event.target as Node)) return;
+      if (event.target === document.body && useTaskOperations.getState().intents[context.id]?.busy)
+        return;
+      setContext(null);
+    };
+    document.addEventListener("focusin", release);
+    return () => document.removeEventListener("focusin", release);
+  }, [selectedId, context]);
   return (
     <div
+      ref={screen}
       className="hp-task-screen"
       onFocusCapture={(e) => {
-        const row = (e.target as HTMLElement).closest("article");
-        const id = row?.querySelector(".hp-task-title")?.id.replace(/^task-/, "");
-        if (id && id !== focused) setContext({ id, order: rows.map((w) => w.work_id), filter });
+        const row = (e.target as HTMLElement).closest<HTMLElement>("[data-work-id]");
+        const id = row?.dataset.workId;
+        if (id && id !== focused)
+          setContext({
+            id,
+            order: rows.map((w) => w.work_id),
+            filter,
+            placements: Object.fromEntries(
+              rows.map((w) => [w.work_id, displayBucket(w.work_id, presentTask(w, now).bucket)]),
+            ),
+          });
       }}
       onBlurCapture={(e) => {
+        const id = (e.target as HTMLElement).closest<HTMLElement>("[data-work-id]")?.dataset.workId;
+        if (id && useTaskOperations.getState().intents[id]?.busy) return;
         if (!selectedId && !e.currentTarget.contains(e.relatedTarget as Node)) setContext(null);
       }}
     >
       <div className="hp-task-toolbar">
         <label>
+          <SlidersHorizontal size={16} aria-hidden="true" />
           任务类型
           <select
             value={type}
@@ -60,16 +119,32 @@ export function TaskScreen() {
             <option value="general">通用任务</option>
           </select>
         </label>
-        <button disabled={state === "scanning"} onClick={() => void useWorks.getState().load()}>
-          刷新任务
-        </button>
-        <button className="hp-primary" onClick={() => useShell.setState({ modal: "task-create" })}>
-          新建任务
-        </button>
-        <button onClick={() => useShell.setState({ modal: "task-inbox" })}>收件箱</button>
+        <div className="hp-task-toolbar-actions">
+          <button
+            className="hp-task-refresh"
+            disabled={state === "scanning"}
+            onClick={() => void useWorks.getState().load()}
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+            刷新任务
+          </button>
+          <button
+            className="hp-task-inbox-button"
+            onClick={() => useShell.setState({ modal: "task-inbox" })}
+          >
+            <Inbox size={16} aria-hidden="true" />
+            收件箱
+          </button>
+          <button
+            className="hp-primary"
+            onClick={() => useShell.setState({ modal: "task-create" })}
+          >
+            <Plus size={16} aria-hidden="true" />
+            新建任务
+          </button>
+        </div>
       </div>
-      <h2>{bucketLabels[bucket]}</h2>
-      <p role="status">
+      <p role="status" className="hp-task-sync">
         已加载 {items.length} 项 ·{" "}
         {type === "all"
           ? "全部类型"
@@ -101,29 +176,58 @@ export function TaskScreen() {
       {paused && !error && (
         <button onClick={() => void useWorks.getState().load(true)}>继续扫描</button>
       )}
-      {rows.map((work) => (
-        <div key={work.work_id}>
-          {protectedIds.includes(work.work_id) && !matching.includes(work) && (
-            <p role="status">
-              当前查看：此任务已归入「{bucketLabels[presentTask(work, now).bucket]}
-              」，仍保留查看上下文。
-            </p>
-          )}
-          <TaskRow work={work} selected={work === selected} />
-        </div>
-      ))}
+      <div ref={board} className="hp-task-board" aria-label="任务状态分区">
+        {(Object.keys(bucketLabels) as TaskBucket[]).map((lane) => {
+          const Icon = bucketIcons[lane];
+          const laneRows = rows.filter(
+            (w) => displayBucket(w.work_id, presentTask(w, now).bucket) === lane,
+          );
+          const count = matching.filter((w) => presentTask(w, now).bucket === lane).length;
+          return (
+            <section
+              key={lane}
+              className={`hp-task-lane ${lane === bucket ? "hp-task-lane--current" : ""}`}
+              data-task-lane={lane}
+              aria-labelledby={`task-lane-${lane}`}
+            >
+              <header className="hp-task-lane-heading">
+                <Icon size={17} aria-hidden="true" />
+                <h2 id={`task-lane-${lane}`}>{bucketLabels[lane]}</h2>
+                <span aria-label={`${count} 项`}>{count}</span>
+              </header>
+              {laneRows.map((work) => {
+                const actual = presentTask(work, now).bucket;
+                return (
+                  <div key={work.work_id}>
+                    {protectedIds.includes(work.work_id) &&
+                      (actual !== lane || !matching.includes(work)) && (
+                        <p className="hp-task-context-note" role="status">
+                          当前查看：此任务已归入「{bucketLabels[actual]}」，仍保留查看上下文。
+                        </p>
+                      )}
+                    <TaskRow work={work} selected={work === selected} />
+                  </div>
+                );
+              })}
+              {!laneRows.length && (
+                <div className="hp-task-lane-empty">
+                  <Icon size={26} aria-hidden="true" />
+                  <p>
+                    {state === "initial" || state === "scanning"
+                      ? "正在同步任务…"
+                      : state === "complete"
+                        ? items.length
+                          ? "当前筛选没有任务。"
+                          : "暂无任务，可新建提醒、研究或通用任务。"
+                        : "已加载范围内没有匹配任务，请完成同步后查看。"}
+                  </p>
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
       <TaskLookup />
-      {!rows.length && (
-        <p>
-          {state === "initial" || state === "scanning"
-            ? "正在同步任务…"
-            : state === "complete"
-              ? items.length
-                ? "当前筛选没有任务。"
-                : "暂无任务，可新建提醒、研究或通用任务。"
-              : "已加载范围内没有匹配任务，请完成同步后查看。"}
-        </p>
-      )}
     </div>
   );
 }

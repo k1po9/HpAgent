@@ -1,5 +1,6 @@
+import { AgentIcon, WorkspaceIcon, TasksIcon } from "../spatial/ReviewIcons";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, Folder, ListTodo, UserRound, Menu, Sparkles } from "lucide-react";
+import { UserRound, Menu, Sparkles, LogOut } from "lucide-react";
 import { useShell, type Screen } from "../../store/shell";
 import { useAuth } from "../../store/auth";
 import { useWorkbench } from "../../store/workbench";
@@ -17,29 +18,49 @@ import { useTaskController } from "../tasks/useTaskController";
 import { QQBindingPanel } from "../QQBindingPanel";
 import { RegistrationQqGate } from "../RegistrationQqGate";
 import { ArtifactCreateForm } from "../artifact/ArtifactCreateForm";
-import { RunLookup } from "../run/RunLookup";
 import { SaveToWorkspaceDialog as SaveWorkspaceDialog } from "../workspace/SaveToWorkspaceDialog";
 import type { SaveSource } from "../workspace/workspaceOperations";
 import { InspectorHost } from "./InspectorHost";
+import { useInspectorFlow } from "./useInspectorFlow";
 import { Surface } from "./Surface";
+import { clearSurfaceRetreat } from "../motion/surfaceFeedback";
+import { RailTrack } from "./RailTrack";
+import { useSpatialFeedback } from "../motion/useSpatialFeedback";
+import { useMotionAllowed, useMotionPreference, setMotionPreference } from "../motion/preference";
 import { useShellWidth } from "./useShellWidth";
 
 const screens = [
-  { id: "ai", label: "AI", icon: Bot },
-  { id: "workspace", label: "空间", icon: Folder },
-  { id: "tasks", label: "任务", icon: ListTodo },
+  { id: "ai", label: "AI", icon: AgentIcon },
+  { id: "workspace", label: "空间", icon: WorkspaceIcon },
+  { id: "tasks", label: "任务", icon: TasksIcon },
 ] as const;
 export function AppShell() {
   useTaskController();
   const shellRef = useRef<HTMLDivElement>(null);
+  const motion = useMotionAllowed();
+  const motionPreference = useMotionPreference();
+
   const layout = useShellWidth(shellRef);
   const { width } = layout;
-  const expanded = useShell((s) => s.expanded);
+  const flow = useInspectorFlow(width < 1280);
+  const expanded = flow.expanded;
   const route = useShell((s) => s.route);
+  useSpatialFeedback(
+    shellRef,
+    route.screen,
+    (root) =>
+      root.querySelector(".hp-shell-chat:not([hidden]) .hp-thread__viewport") ??
+      root.querySelector("section:not([hidden])"),
+    "region",
+  );
   const modal = useShell((s) => s.modal);
   const sidebarOpen = useShell((s) => s.sidebarOpen);
   const navigate = useShell((s) => s.navigate);
   const account = useAuth((s) => s.account);
+  useEffect(
+    () => () => clearSurfaceRetreat(),
+    [route.screen, route.conversationId, account?.account_id],
+  );
   const identities = useAuth((s) => s.identities);
   const justRegistered = useAuth((s) => s.justRegistered);
   const check = useAuth((s) => s.check);
@@ -149,7 +170,7 @@ export function AppShell() {
       layout.rail +
         layout.sidebar +
         layout.canvasMin +
-        (route.inspector && width >= 1280
+        (flow.occupies && width >= 1280
           ? expanded
             ? layout.inspectorExpanded
             : layout.inspector
@@ -158,7 +179,8 @@ export function AppShell() {
   return (
     <div
       ref={shellRef}
-      className={`hp-shell ${route.inspector ? "hp-shell--inspecting" : ""} ${collapsed ? "hp-shell--sidebar-collapsed" : ""}`}
+      data-spatial-motion={motion ? "enabled" : "reduced"}
+      className={`hp-shell ${flow.occupies ? "hp-shell--inspecting" : ""} ${collapsed ? "hp-shell--sidebar-collapsed" : ""}`}
     >
       <div className="hp-rail">
         <span className="hp-brand" aria-label="HpAgent">
@@ -171,6 +193,7 @@ export function AppShell() {
           </span>
         </span>
         <nav aria-label="主导航">
+          <RailTrack screen={route.screen} />
           {screens.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -196,6 +219,7 @@ export function AppShell() {
       <Surface
         title="上下文导航"
         className={`hp-context-sidebar ${collapsed ? "hp-sidebar-drawer" : ""}`}
+        motion="none"
         modal={collapsed}
         active={!collapsed || sidebarOpen}
         dismissible={collapsed}
@@ -229,28 +253,12 @@ export function AppShell() {
             />
             {route.screen !== "ai" && (
               <h1 id="canvas-title" tabIndex={-1}>
-                {screens.find((s) => s.id === route.screen)?.label}
+                {route.screen === "tasks"
+                  ? "任务中心"
+                  : screens.find((s) => s.id === route.screen)?.label}
               </h1>
             )}
           </div>
-          {route.screen === "ai" && (
-            <div className="hp-canvas-actions">
-              {conversationId && (
-                <>
-                  <button
-                    id="artifact-create-trigger"
-                    onClick={() => useShell.setState({ modal: "artifact-create" })}
-                  >
-                    从回复生成 HTML
-                  </button>
-                  <button onClick={() => useShell.setState({ modal: "resources" })}>
-                    对话资料
-                  </button>
-                </>
-              )}
-              <RunLookup />
-            </div>
-          )}
         </header>
         {notice && (
           <p role="status">
@@ -302,11 +310,17 @@ export function AppShell() {
           {route.screen === "tasks" && <TaskScreen />}
         </section>
       </main>
-      <InspectorHost compact={width < 1280} onSaveFile={saveFile} onSaveHtml={setSaveSource} />
+      <InspectorHost
+        flow={flow}
+        compact={width < 1280}
+        onSaveFile={saveFile}
+        onSaveHtml={setSaveSource}
+      />
       {modal === "task-create" && <TaskEditor onClose={() => useShell.setState({ modal: null })} />}
       {modal === "task-inbox" && <TaskInbox onClose={() => useShell.setState({ modal: null })} />}
       {pendingRoute && pendingReason === "tasks" && (
         <Surface
+          motion="elevate"
           title="放弃未提交的任务草稿？"
           onClose={() => useShell.setState({ pendingRoute: null })}
         >
@@ -324,6 +338,7 @@ export function AppShell() {
       )}
       {((pendingRoute && pendingReason === "resources") || pendingResourceChange) && (
         <Surface
+          motion="elevate"
           title="放弃未提交的权限编辑？"
           onClose={() => useShell.setState({ pendingRoute: null, pendingResourceChange: null })}
         >
@@ -349,7 +364,11 @@ export function AppShell() {
         </Surface>
       )}
       {pendingRoute && pendingReason === "attachments" && (
-        <Surface title="放弃本轮附件？" onClose={() => useShell.setState({ pendingRoute: null })}>
+        <Surface
+          motion="elevate"
+          title="放弃本轮附件？"
+          onClose={() => useShell.setState({ pendingRoute: null })}
+        >
           <p>切换对话将放弃本轮待发送附件。已有文件只取消选择。</p>
           <button onClick={() => useShell.setState({ pendingRoute: null })}>继续当前对话</button>
           <button
@@ -369,34 +388,65 @@ export function AppShell() {
         </Surface>
       )}
       {modal === "account" && (
-        <Surface title="账户设置" onClose={() => useShell.setState({ modal: null })}>
-          <p>登录身份：{identities?.web?.username ?? account?.account_id}</p>
+        <Surface
+          motion="elevate"
+          title="账户设置"
+          className="hp-account-settings"
+          onClose={() => useShell.setState({ modal: null })}
+        >
+          <section className="hp-account-identity" aria-label="登录身份">
+            <div className="hp-account-avatar">
+              <UserRound size={28} aria-hidden="true" />
+            </div>
+            <div>
+              <span>登录身份</span>
+              <h3>{identities?.web?.username ?? account?.account_id}</h3>
+            </div>
+          </section>
           <QQBindingPanel
             qq={identities?.qq}
             onCompleted={() => check()}
             startRequested={startBinding}
           />
-          <button
-            onClick={() => {
-              void useAuth
-                .getState()
-                .signOut()
-                .catch(() => {
-                  /* Local session is already disposed; /me will verify on next entry. */
-                });
-            }}
-          >
-            退出登录
-          </button>
+          <label className="hp-motion-setting">
+            <input
+              type="checkbox"
+              checked={motionPreference === "reduce"}
+              onChange={(e) => setMotionPreference(e.target.checked ? "reduce" : "system")}
+            />
+            减少动态效果
+            <small>系统减动设置始终优先</small>
+          </label>
+          <footer className="hp-account-footer">
+            <button
+              className="hp-account-signout"
+              onClick={() => {
+                void useAuth
+                  .getState()
+                  .signOut()
+                  .catch(() => {
+                    /* Local session is already disposed; /me will verify on next entry. */
+                  });
+              }}
+            >
+              <LogOut size={16} aria-hidden="true" />
+              退出登录
+            </button>
+          </footer>
         </Surface>
       )}
       {modal === "artifact-create" && (
-        <Surface title="从回复生成 HTML" onClose={() => useShell.setState({ modal: null })}>
+        <Surface
+          motion="elevate"
+          title="从回复生成 HTML"
+          onClose={() => useShell.setState({ modal: null })}
+        >
           <ArtifactCreateForm />
         </Surface>
       )}
       {modal === "resources" && (
         <Surface
+          motion="elevate"
           title="当前对话资料"
           onClose={() => {
             if (useShell.getState().dirtyResourceEditor) {

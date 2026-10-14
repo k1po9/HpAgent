@@ -7,6 +7,13 @@ import { useAuth } from "../store/auth";
 import { useShell } from "../store/shell";
 import { emptyConversationUi, useConversationUi } from "../store/conversationUi";
 import { ConversationResources } from "./conversation/ConversationResources";
+import { ActionHandoff } from "./input-action/ActionHandoff";
+import {
+  leaseForSubmission,
+  confirmHandoff,
+  cancelHandoff,
+  handoffSnapshot,
+} from "./input-action/handoff";
 import type { HpFile } from "../api/types";
 
 /**
@@ -87,7 +94,28 @@ export function ChatPane({
       if (!id) return false;
       const key = `${accountId}:${id}`;
       const submitted = useConversationUi.getState().entries[key];
+      const source = document
+        .querySelector<HTMLElement>(".hp-composer__send")
+        ?.getBoundingClientRect();
+      const ticket = leaseForSubmission(
+        {
+          account: accountId,
+          conversation: id,
+          previousRun: useWorkbench.getState().activeRun?.run_id ?? null,
+          navigation: useShell.getState().requestToken,
+        },
+        source ?? null,
+        useWorkbench.getState().pendingSendIds.includes(id),
+      );
       const ok = await sendMessage(content);
+      if (ok)
+        confirmHandoff(
+          ticket,
+          useWorkbench.getState().activeRun?.run_id,
+          useWorkbench.getState().pollGeneration,
+        );
+      else if (ticket !== undefined && !useWorkbench.getState().pendingSendIds.includes(id))
+        cancelHandoff(ticket);
       const current = useConversationUi.getState().entries[key];
       if (
         ok &&
@@ -127,6 +155,7 @@ export function ChatPane({
 
   return (
     <Flex direction="column" style={{ height: "100%" }}>
+      <ActionHandoff />
       {loadingMessages && (
         <Flex align="center" justify="center" gap="2">
           <Spinner />
@@ -137,12 +166,24 @@ export function ChatPane({
         <button
           type="button"
           onClick={() => {
+            const pendingHandoff = handoffSnapshot()?.ticket;
+            const ticket =
+              pendingHandoff?.account === accountId &&
+              pendingHandoff.conversation === conversationId
+                ? pendingHandoff.id
+                : undefined;
             const content = useWorkbench.getState().pendingSendContent[conversationId!];
             const submitted = useConversationUi.getState().entries[conversationKey];
             void useWorkbench
               .getState()
               .confirmPendingSend()
               .then((ok) => {
+                if (ok)
+                  confirmHandoff(
+                    ticket,
+                    useWorkbench.getState().activeRun?.run_id,
+                    useWorkbench.getState().pollGeneration,
+                  );
                 const current = useConversationUi.getState().entries[conversationKey];
                 if (
                   ok &&
@@ -268,6 +309,7 @@ export function ChatPane({
           activeRun={activeRun}
           attachments={attachments}
           fileUploadEnabled={fileUploadEnabled}
+          sendUncertain={pendingSend && !sending}
           sendDisabled={
             loadingMessages ||
             sending ||

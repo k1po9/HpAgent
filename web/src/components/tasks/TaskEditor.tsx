@@ -36,7 +36,7 @@ function BoundTaskEditor({ workId, onClose }: { workId?: string; onClose: () => 
     else onClose();
   };
   return (
-    <Surface title={workId ? "修改任务要求" : "新建任务"} onClose={close}>
+    <Surface motion="elevate" title={workId ? "修改任务要求" : "新建任务"} onClose={close}>
       {workId && query.error && (
         <p role="alert">
           {query.error}
@@ -55,7 +55,7 @@ function BoundTaskEditor({ workId, onClose }: { workId?: string; onClose: () => 
         />
       )}
       {abandon && (
-        <Surface title="放弃未提交的任务草稿？" onClose={() => setAbandon(false)}>
+        <Surface motion="elevate" title="放弃未提交的任务草稿？" onClose={() => setAbandon(false)}>
           <p>尚未提交的要求会丢弃。</p>
           <button onClick={() => setAbandon(false)}>继续编辑</button>
           <button onClick={onClose}>放弃草稿并关闭</button>

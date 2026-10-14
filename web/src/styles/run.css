@@ -121,7 +121,7 @@
 }
 
 .hp-run-inspector [role="tab"][aria-selected="true"] {
-  background: var(--hp-selection);
+  background: transparent;
   border-color: var(--hp-accent);
 }
 
@@ -156,7 +156,7 @@
 }
 
 .hp-run-inspector button:hover:not(:disabled),
-.hp-execution-block > button:hover {
+.hp-execution-block > button:hover:not(.hp-run-detail) {
   background: var(--hp-subtle);
 }
 
@@ -166,7 +166,7 @@
 }
 
 .hp-run-inspector [role="tab"][aria-selected="true"] {
-  background: var(--hp-selection);
+  background: transparent;
   border-color: var(--hp-accent);
 }
 
@@ -174,4 +174,368 @@
 .hp-run-inspector .hp-trace-detail {
   min-height: 0;
   flex: none;
+}
+
+/* C: bounded Run signals; Paper Flame surfaces and business controls stay authoritative. */
+.hp-vitality,
+.hp-vitality-heading {
+  --hv-tone: #2879bf;
+  --hv-soft: #e5f2ff;
+  --hv-line: #b9d9f0;
+  display: block;
+  flex: none;
+}
+:is(.hp-vitality, .hp-vitality-heading)[data-vitality="thinking"] {
+  --hv-tone: #7c57cc;
+  --hv-soft: #f0eaff;
+  --hv-line: #d7caf9;
+}
+:is(.hp-vitality, .hp-vitality-heading)[data-vitality="tool"] {
+  --hv-tone: #008e91;
+  --hv-soft: #e0f5f2;
+  --hv-line: #a4dddc;
+}
+:is(.hp-vitality, .hp-vitality-heading)[data-vitality="waiting"] {
+  --hv-tone: #b46f12;
+  --hv-soft: #fff0d5;
+  --hv-line: #e9c68e;
+}
+:is(.hp-vitality, .hp-vitality-heading)[data-vitality="succeeded"] {
+  --hv-tone: #18835e;
+  --hv-soft: #e2f6ec;
+  --hv-line: #acd9c4;
+}
+:is(.hp-vitality, .hp-vitality-heading)[data-vitality="failed"] {
+  --hv-tone: #cf3f4a;
+  --hv-soft: #ffe8ec;
+  --hv-line: #eab4bc;
+}
+:is(.hp-vitality, .hp-vitality-heading):is(
+  [data-vitality="cancelling"],
+  [data-vitality="cancelled"],
+  [data-vitality="idle"]
+) {
+  --hv-tone: #6e8290;
+  --hv-soft: #edf2f5;
+  --hv-line: #c7d4dd;
+}
+.hp-vitality__frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--hv-line);
+  border-radius: 11px;
+  color: var(--hv-tone);
+  background-color: var(--hv-soft);
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    color 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hp-vitality--detail .hp-vitality__frame {
+  width: 84px;
+  height: 84px;
+  border-radius: 20px;
+}
+.hp-vitality__layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.hp-vitality__layer svg {
+  width: 32px;
+  height: 32px;
+}
+.hp-vitality--detail .hp-vitality__layer svg {
+  width: 60px;
+  height: 60px;
+}
+.hp-vitality__outgoing {
+  animation: hv-out 360ms ease-out both;
+}
+.hp-vitality__current[data-entering="true"] {
+  animation: hv-in 470ms ease-out 55ms both;
+}
+@keyframes hv-out {
+  from {
+    opacity: var(--hv-out-opacity, 1);
+    transform: var(--hv-out-transform, none);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+}
+@keyframes hv-in {
+  from {
+    opacity: 0;
+    transform: scale(0.93);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.hp-vitality[data-animate="true"] .hp-vitality__current .hv-rotor {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+  animation: hv-spin 4.1s linear infinite;
+}
+.hp-vitality[data-animate="true"] .hp-vitality__current .hv-thought {
+  animation: hv-think 1.6s ease-in-out infinite;
+}
+.hp-vitality[data-animate="true"] .hp-vitality__current .hv-field {
+  transform-origin: 20px 20px;
+  animation: hv-field 2.3s ease-in-out infinite;
+}
+.hp-vitality[data-animate="true"] .hp-vitality__current .hv-node {
+  animation: hv-node 1.4s ease-in-out infinite;
+}
+.hp-vitality[data-animate="true"] .hp-vitality__current .hv-wait {
+  transform-origin: 20px 20px;
+  animation: hv-wait 3.1s ease-in-out infinite;
+}
+.hp-vitality[data-animate="true"][data-celebrate="true"] .hp-vitality__current .hv-check {
+  stroke-dasharray: 1;
+  animation: hv-complete 560ms ease-out both;
+}
+.hp-vitality[data-animate="true"][data-celebrate="true"] .hp-vitality__current .hv-break {
+  transform-origin: 20px 20px;
+  animation: hv-failed 460ms ease-out both;
+}
+@keyframes hv-spin {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+@keyframes hv-think {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: translateY(1px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+}
+@keyframes hv-field {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.1;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.2;
+  }
+}
+@keyframes hv-node {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+@keyframes hv-wait {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translateY(1px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+}
+@keyframes hv-complete {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes hv-failed {
+  0% {
+    opacity: 0.3;
+    transform: scale(0.94);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.hp-vitality[data-animate="false"] .hp-vitality__frame {
+  transition: none;
+}
+.hp-vitality[data-animate="false"] * {
+  animation: none !important;
+}
+.hp-run-heading.hp-vitality-heading {
+  display: flex;
+  color: var(--hp-text);
+  align-items: center;
+  gap: 12px;
+}
+.hp-vitality-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.hp-vitality-label {
+  font-size: 15px;
+  font-weight: 650;
+  color: var(--hv-tone);
+}
+.hp-vitality-caption {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--hp-muted);
+  overflow-wrap: anywhere;
+}
+.hp-vitality-heading--detail {
+  margin-bottom: 14px;
+}
+.hp-vitality-heading--detail .hp-vitality-label {
+  font-size: 18px;
+}
+.hp-vitality-heading--detail .hp-vitality-caption {
+  font-size: 13px;
+}
+.hp-vitality-facts {
+  font-size: 12px;
+  display: grid;
+  gap: 6px;
+  margin: 14px 0;
+  color: var(--hp-muted);
+}
+.hp-vitality-facts div {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+}
+.hp-vitality-facts dd {
+  margin: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-vitality * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Text uses deeper shades where the frozen signal tone is below AA. */
+.hp-vitality-heading[data-vitality="waiting"] .hp-vitality-label {
+  color: #8b550d;
+}
+.hp-vitality-heading[data-vitality="tool"] .hp-vitality-label {
+  color: #007174;
+}
+
+.hp-vitality-heading[data-vitality="running"] .hp-vitality-label {
+  color: #2169a5;
+}
+.hp-vitality-heading[data-vitality="thinking"] .hp-vitality-label {
+  color: #7147b8;
+}
+.hp-vitality-heading[data-vitality="succeeded"] .hp-vitality-label {
+  color: #14734f;
+}
+.hp-vitality-heading[data-vitality="failed"] .hp-vitality-label {
+  color: #b93240;
+}
+
+.hp-vitality-label {
+  transition: color 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hp-vitality-heading[data-animate="false"] .hp-vitality-label {
+  transition: none;
+}
+
+/* One-shot A relay: the business label/actions stay live while C receives. */
+.hp-action-relay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 90;
+  pointer-events: none;
+  overflow: hidden;
+}
+.hp-vitality[data-handoff] .hp-vitality__current .hv-rotor {
+  animation: none;
+  opacity: 0;
+}
+.hp-vitality[data-handoff] .hp-vitality__current svg > circle {
+  stroke: #a6bac6;
+  opacity: 0.5;
+}
+.hp-vitality[data-handoff] .hp-vitality__frame {
+  transition: none;
+}
+
+.hp-vitality[data-handoff] .hp-vitality__current {
+  animation: none;
+  transform: none;
+  opacity: 1;
+}
+.hp-vitality[data-handoff] .hp-vitality__outgoing {
+  animation: none;
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* State colours stay with their original facts; only the glyph ownership changes. */
+.hp-vitality[data-animate="true"][data-vitality="waiting"] .hp-vitality__current .hv-rotor {
+  animation-duration: 6.4s;
+}
+.hp-vitality[data-animate="true"] .hp-vitality__current .hv-work-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hv-wait 1.8s ease-in-out infinite;
+}
+.hp-vitality:is(
+    [data-vitality="running"][data-previous="waiting"],
+    [data-vitality="waiting"][data-previous="running"]
+  )
+  .hp-vitality__outgoing {
+  animation-duration: 200ms;
+}
+.hp-vitality:is(
+    [data-vitality="running"][data-previous="waiting"],
+    [data-vitality="waiting"][data-previous="running"]
+  )
+  .hp-vitality__current[data-entering="true"] {
+  animation-duration: 200ms;
+  animation-delay: 0ms;
+}
+
+/* Run is a real object card; the whole surface receives quiet warmth. */
+.hp-execution-block .hp-run-detail:is(:hover, :focus-visible) {
+  color: var(--pf-accent-strong);
+}
+.hp-execution-block:not(:has(.hp-runstrip)) > .hp-run-detail:is(:hover, :focus-visible),
+.hp-execution-block:has(.hp-runstrip):has(.hp-run-detail:is(:hover, :focus-visible)) {
+  background-color: color-mix(in srgb, var(--pf-accent) 3%, var(--pf-panel));
+  border-color: var(--hp-selection-edge);
+}
+.hp-run-detail .hp-run-reference-id {
+  color: var(--hp-muted);
+}
+
+.hp-execution-block:not(:has(.hp-runstrip)) > .hp-run-detail:is(:hover, :focus-visible) {
+  color: var(--pf-accent-strong);
 }

@@ -3,7 +3,10 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { Surface } from "./Surface";
 import { EntryPendingContext } from "../entry/EntryPendingContext";
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  Reflect.deleteProperty(HTMLElement.prototype, "animate");
+});
 it("keeps the same content and unsaved text through every modal mode change", () => {
   const mount = vi.fn(),
     unmount = vi.fn();
@@ -185,4 +188,44 @@ it("holds a restored modal outside the top layer until entry completes without r
   expect(screen.getByLabelText("恢复的编辑器")).toBe(input);
   expect(input).toHaveValue("保留内容");
   expect(mount).toHaveBeenCalledTimes(1);
+});
+
+it("B Elevate animates once, and restoring a suspended parent does not replay", () => {
+  const animate = vi.fn(
+    () => ({ cancel: vi.fn(), finished: new Promise(() => {}) }) as unknown as Animation,
+  );
+  Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
+  function Layers({ child }: { child: boolean }) {
+    return (
+      <Surface motion="elevate" title="普通父层" onClose={vi.fn()}>
+        <input aria-label="保留的输入" defaultValue="草稿" />
+        {child && (
+          <Surface motion="elevate" title="普通子层" onClose={vi.fn()}>
+            确认
+          </Surface>
+        )}
+      </Surface>
+    );
+  }
+  const view = render(<Layers child={false} />);
+  const input = screen.getByLabelText("保留的输入");
+  expect(animate).toHaveBeenCalledTimes(1);
+  view.rerender(<Layers child />);
+  expect(animate).toHaveBeenCalledTimes(2);
+  view.rerender(<Layers child={false} />);
+  expect(animate).toHaveBeenCalledTimes(2);
+  expect(screen.getByLabelText("保留的输入")).toBe(input);
+});
+
+it("ordinary motion is opt-in and does not add Elevate to Inspector", () => {
+  const animate = vi.fn(
+    () => ({ cancel: vi.fn(), finished: new Promise(() => {}) }) as unknown as Animation,
+  );
+  Object.defineProperty(HTMLElement.prototype, "animate", { configurable: true, value: animate });
+  render(
+    <Surface title="Inspector" className="hp-inspector" onClose={vi.fn()}>
+      对象
+    </Surface>,
+  );
+  expect(animate).not.toHaveBeenCalled();
 });

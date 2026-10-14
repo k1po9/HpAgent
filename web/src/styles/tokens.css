@@ -1,4 +1,4 @@
-/* Paper Flame v1.0: theme authority. Keep layout and motion tokens below unchanged. */
+/* Paper Flame theme and shared responsive dimensions. Existing motion durations stay intact. */
 :root,
 .radix-themes {
   color-scheme: light;
@@ -30,20 +30,36 @@
   --hp-rail-hover: #243340;
   --hp-context: var(--pf-context);
   --hp-canvas: var(--pf-canvas);
+  /* Broad, quiet warmth over the cold canvas, continuous through its header. */
+  --hp-canvas-warmth: rgb(235 96 68 / 4%);
+  --hp-reading-warmth: rgb(235 96 68 / 3%);
   --hp-inspector-surface: var(--pf-inspector);
   --hp-surface: var(--pf-panel);
+  /* Baseline PNG materials: neutral silver reading mat, warm gray selection. */
+  --hp-reading-surface: #e7e9ec;
+  --hp-reading-muted: #536570;
+  --hp-reading-accent: #a53620;
+  --hp-object-surface: var(--pf-field);
+  --hp-object-inset: var(--pf-bubble);
+  --hp-selection-edge: #eac6bd;
+  --hp-warm-selection: #ede5e6;
+  --hp-inspector-card-surface: #edf0f3;
+  --hp-task-lane-surface: #e9edf1;
+  --hp-rail-selection: rgb(235 96 68 / 13%);
+  --hp-shadow-card: 0 11px 34px rgb(15 35 55 / 3.5%);
+  --hp-shadow-raised: 0 12px 32px rgb(22 33 44 / 10%);
   --hp-subtle: var(--pf-field);
   --hp-bubble: var(--pf-bubble);
   --hp-border: #d4dce3;
   --hp-control-border: #7b8994;
   --hp-text: var(--pf-text);
-  --hp-muted: var(--pf-muted);
+  --hp-muted: var(--hp-reading-muted);
   --hp-brand: var(--pf-accent);
   --hp-accent: var(--pf-accent-strong);
   --hp-primary: var(--pf-accent-strong);
   --hp-primary-hover: #a53620;
   --hp-on-primary: var(--pf-panel);
-  --hp-selection: var(--pf-accent-soft);
+  --hp-selection: var(--hp-warm-selection);
   --hp-neutral: #536875;
   --hp-neutral-soft: var(--pf-bubble);
   --hp-danger: #b42318;
@@ -76,12 +92,12 @@
   --hp-title: 1.5rem;
   --hp-inspector-title: 1.125rem;
   --hp-body: 0.875rem;
-  --hp-rail: 84px;
-  --hp-sidebar: 252px;
+  --hp-rail: 104px;
+  --hp-sidebar: 280px;
   --hp-canvas-min: 600px;
-  --hp-content: 760px;
+  --hp-content: 790px;
   --hp-layout-gap: 4px;
-  --hp-inspector: 344px;
+  --hp-inspector: 390px;
   --hp-inspector-expanded: 460px;
   --hp-morph: 150ms;
   --hp-flow: 220ms;
@@ -129,7 +145,7 @@
   --accent-8: var(--hp-accent);
   --accent-9: var(--hp-primary);
   --accent-10: var(--hp-primary-hover);
-  --accent-11: var(--hp-accent);
+  --accent-11: var(--hp-reading-accent);
   --accent-12: var(--hp-text);
   --accent-a1: var(--accent-1);
   --accent-a2: var(--accent-2);

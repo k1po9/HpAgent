@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Box, Button, Flex, Heading, Spinner, Text } from "@radix-ui/themes";
+import { useSpatialFeedback } from "./motion/useSpatialFeedback";
 import { conversationDateGroup } from "./conversation/dateGroup";
 import { Plus, MessageSquare, Search } from "lucide-react";
 import type { HpConversation } from "../api/types";
@@ -37,6 +38,13 @@ export function ConversationSidebar({
   onSelect,
   onCreate,
 }: ConversationSidebarProps) {
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  useSpatialFeedback(
+    feedbackRef,
+    activeConversationId,
+    (root) => root.querySelector(".hp-conv--active"),
+    "seat",
+  );
   const [filter, setFilter] = useState("");
   const [today, setToday] = useState(() => new Date());
   useEffect(() => {
@@ -54,11 +62,14 @@ export function ConversationSidebar({
   const groups = ["今天", "昨天", "近 7 天", "更早"];
   const selected = conversations.find((c) => c.conversation_id === activeConversationId);
   return (
-    <Box className="hp-sidebar">
+    <Box ref={feedbackRef} className="hp-sidebar">
       <Flex direction="column" style={{ height: "100%" }}>
         <Flex direction="column" align="stretch" className="hp-sidebar__header">
+          <span className="hp-sidebar-eyebrow" aria-hidden="true">
+            AI / CONVERSATIONS
+          </span>
           <Heading as="h2" size="3" weight="bold">
-            对话
+            对话记录
           </Heading>
           <Button
             size="1"
@@ -125,7 +136,7 @@ export function ConversationSidebar({
                     }
                   >
                     <MessageSquare className="hp-conv-icon" size={18} aria-hidden="true" />
-                    <Text className="hp-conv-title" size="2" truncate>
+                    <Text className="hp-conv-title" size="2">
                       {conversation.title || "未命名对话"}
                     </Text>
                     <time

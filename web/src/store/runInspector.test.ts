@@ -195,3 +195,11 @@ describe("Run Inspector isolation and approval intentions", () => {
     expect(api.decideFileApproval).toHaveBeenCalledTimes(1);
   });
 });
+
+it("rejects a current response whose object identity differs from the requested Run", async () => {
+  const store = createRunInspector({ getRun: vi.fn().mockResolvedValue(work("other")) } as never);
+  store.getState().select("A");
+  await store.getState().load();
+  expect(store.getState().snapshot).toBeNull();
+  expect(store.getState().unavailable).toBe(true);
+});

@@ -282,7 +282,10 @@ test("network fixtures: four buckets, pausing decision, failure scope and empty 
     ]) {
       await page.goto(`/#/tasks?bucket=${bucket}`);
       await expect(page.getByRole("heading", { name: label, exact: true }).last()).toBeVisible();
-      await expect(page.getByRole("article")).toHaveCount(1);
+      await expect(page.locator(`[data-task-lane="${bucket}"]`).getByRole("article")).toHaveCount(
+        1,
+      );
+      await expect(page.getByRole("article")).toHaveCount(4);
       await page.screenshot({ path: resolve(evidence, `fixture-bucket-${bucket}-${width}.png`) });
     }
     await page.goto("/#/tasks?bucket=active&work=ui5-pausing&tab=outputs");
@@ -293,7 +296,9 @@ test("network fixtures: four buckets, pausing decision, failure scope and empty 
     await page.getByRole("button", { name: "关闭确认投递决策" }).click();
     await inspector(page).getByRole("button", { name: "关闭任务详情" }).click();
     await page.getByLabel("任务类型").selectOption("reminder");
-    await expect(page.getByText("当前筛选没有任务。", { exact: true })).toBeVisible();
+    await expect(
+      page.locator('[data-task-lane="active"]').getByText("当前筛选没有任务。", { exact: true }),
+    ).toBeVisible();
     await page.screenshot({ path: resolve(evidence, `fixture-filter-empty-${width}.png`) });
   }
 });

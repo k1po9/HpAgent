@@ -54,7 +54,7 @@
   border: 1px solid var(--hp-border);
   border-radius: 14px;
   background: var(--hp-surface);
-  box-shadow: 0 8px 32px var(--hp-shadow);
+  box-shadow: var(--hp-shadow-raised);
 }
 .hp-auth-card-heading {
   margin-bottom: 10px;
@@ -72,7 +72,7 @@
 }
 .hp-auth-card .rt-TextFieldRoot {
   height: 44px;
-  background: var(--hp-surface);
+  background: var(--hp-subtle);
   box-shadow: inset 0 0 0 1px var(--hp-control-border);
   border-radius: 8px;
 }
@@ -99,6 +99,9 @@
 }
 .hp-main-canvas {
   background: var(--hp-canvas);
+  background-image:
+    radial-gradient(ellipse 100% 75% at 100% 0%, var(--hp-canvas-warmth), transparent 80%),
+    linear-gradient(180deg, transparent, rgb(237 241 245 / 65%));
 }
 
 .hp-surface-header button {
@@ -153,7 +156,7 @@
   text-align: left;
   background: var(--hp-selection);
   border-color: transparent;
-  color: var(--hp-accent);
+  color: var(--hp-reading-accent);
 }
 .hp-tree-row button {
   border-color: transparent;
@@ -171,7 +174,7 @@
 }
 .hp-tree-row [aria-current] {
   background: var(--hp-selection);
-  color: var(--hp-accent);
+  color: var(--hp-reading-accent);
 }
 .hp-breadcrumbs {
   margin-bottom: 20px;
@@ -283,7 +286,7 @@
 .hp-task-sidebar button[aria-current="page"] {
   background: var(--hp-selection);
   border-color: transparent;
-  color: var(--hp-accent);
+  color: var(--hp-reading-accent);
 }
 .hp-task-sidebar button strong {
   font-size: 12px;
@@ -315,10 +318,6 @@
 .hp-task-row--selected {
   background: var(--hp-selection);
   border-color: var(--hp-control-border);
-}
-.hp-task-row-heading .hp-task-title {
-  font-size: 16px;
-  line-height: 1.5;
 }
 .hp-task-objective {
   color: var(--hp-muted);
@@ -428,6 +427,7 @@
 .hp-shell .hp-sidebar,
 .hp-sidebar-drawer .hp-sidebar {
   background: var(--hp-context);
+  background-image: linear-gradient(180deg, transparent, var(--pf-context-end));
 }
 .hp-file-preview h1,
 .hp-file-preview h2 {
@@ -492,9 +492,6 @@
   border-color: transparent;
   background: transparent;
   color: var(--hp-accent);
-}
-.hp-task-row-heading .hp-task-title {
-  font-weight: 700;
 }
 .hp-task-screen > h2 {
   font-weight: 700;

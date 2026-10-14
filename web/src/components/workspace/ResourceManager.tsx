@@ -87,6 +87,7 @@ function ConversationAttachments({ subject }: { subject: Subject }) {
       )}
       {fileId && (
         <Surface
+          motion="elevate"
           title="撤销附件可用性"
           onClose={() => {
             if (!busy) setFileId(null);

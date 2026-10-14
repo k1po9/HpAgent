@@ -47,6 +47,7 @@ export function ResourcePicker({
   }, [revision]);
   return (
     <Surface
+      motion="elevate"
       title="使用长期资料"
       onClose={() => {
         if (!busy) onClose();

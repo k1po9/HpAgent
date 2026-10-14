@@ -255,3 +255,50 @@ it("keeps a committed snapshot but does not navigate after the editor was closed
   expect(useShell.getState().route.screen).toBe("workspace");
   expect(close).not.toHaveBeenCalled();
 });
+
+it("keeps the focused board card DOM and lane stable until focus leaves after a status transition", () => {
+  const work = workFixture();
+  useShell.setState({ route: { screen: "tasks", bucket: "waiting", type: "all" } });
+  useWorks.setState({ items: [work], loadState: "complete" });
+  render(<TaskScreen />);
+  const title = screen.getByRole("button", { name: work.title });
+  fireEvent.focus(title);
+  act(() => useWorks.getState().upsert({ ...work, status: "completed", row_version: 2 }));
+  expect(screen.getByRole("button", { name: work.title })).toBe(title);
+  expect(title.closest("[data-task-lane]")).toHaveAttribute("data-task-lane", "waiting");
+  expect(screen.getByRole("article", { name: work.title })).toHaveTextContent("已完成");
+  fireEvent.blur(title, { relatedTarget: document.body });
+  expect(
+    screen.getByRole("button", { name: work.title }).closest("[data-task-lane]"),
+  ).toHaveAttribute("data-task-lane", "ended");
+});
+
+it("shows all four genuine projections and filters each lane by the existing business type", () => {
+  const base = workFixture();
+  const rows = [
+    workFixture({
+      work_id: "attention",
+      title: "等待补充",
+      continuation: { kind: "awaiting_input", reason: "more_input" },
+    }),
+    workFixture({ work_id: "active", title: "正在执行", active_coordinator_run_id: "run-active" }),
+    workFixture({
+      work_id: "waiting",
+      title: "计划提醒",
+      continuation: { kind: "at_time", reason: "scheduled", due_at: "2027-01-01T09:00:00+08:00" },
+      requirement: { ...base.requirement, capability_key: "reminder" },
+    }),
+    workFixture({ work_id: "ended", title: "已完成工作", status: "completed" }),
+  ];
+  useShell.setState({ route: { screen: "tasks", bucket: "attention", type: "all" } });
+  useWorks.setState({ items: rows, loadState: "complete" });
+  render(<TaskScreen />);
+  expect(screen.getAllByRole("article")).toHaveLength(4);
+  for (const work of rows)
+    expect(
+      screen.getByRole("article", { name: work.title }).closest("[data-task-lane]"),
+    ).toHaveAttribute("data-task-lane", work.work_id);
+  fireEvent.change(screen.getByLabelText("任务类型"), { target: { value: "reminder" } });
+  expect(screen.getAllByRole("article")).toHaveLength(1);
+  expect(screen.getByRole("article", { name: "计划提醒" })).toBeVisible();
+});

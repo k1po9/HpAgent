@@ -1,0 +1,14 @@
+[
+  {
+    "selector": ".hp-run-card-dot",
+    "prop": "background",
+    "reference": "rgba(0, 0, 0, 0) none repeat scroll 0% 0% / auto padding-box border-box",
+    "migrated": "rgba(0, 0, 0, 0) none repeat scroll 0px 0px / auto padding-box border-box"
+  },
+  {
+    "selector": ".hp-inspector-receiver",
+    "prop": "background",
+    "reference": "rgba(0, 0, 0, 0) none repeat scroll 0% 0% / auto padding-box border-box",
+    "migrated": "rgba(0, 0, 0, 0) none repeat scroll 0px 0px / auto padding-box border-box"
+  }
+]

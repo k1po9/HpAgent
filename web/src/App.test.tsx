@@ -375,7 +375,8 @@ describe("UI-1 Shell lifecycle", () => {
     );
     const composer = await screen.findByPlaceholderText(/输入消息/);
     fireEvent.change(composer, { target: { value: "尚未发送的草稿" } });
-    fireEvent.click(await screen.findByRole("button", { name: "修改标题" }));
+    await waitFor(() => expect(document.querySelector(".hp-title-trigger")).not.toBeNull());
+    fireEvent.doubleClick(document.querySelector<HTMLButtonElement>(".hp-title-trigger")!);
     const titleDraft = screen.getByRole("textbox", { name: "对话标题" });
     fireEvent.change(titleDraft, { target: { value: "尚未保存的标题" } });
     const details = requests.filter((url) => url === "/api/v1/conversations/c1").length;

@@ -1,16 +1,14 @@
-import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
+import { Box, Button, Flex, Text } from "@radix-ui/themes";
 import { useEffect, useState, type ReactNode } from "react";
 import type { HpRun } from "../api/types";
 import type { RunProgress } from "../sse/runFeed";
-import {
-  isCancellableRunStatus,
-  isRetryableRun,
-  isTerminalRunStatus,
-  runStatusLabel,
-} from "../store/workbench";
-import { phaseLabel } from "./progressLabels";
+import { isCancellableRunStatus, isRetryableRun, isTerminalRunStatus } from "../store/workbench";
+import { useVitality } from "./vitality/useVitality";
+import { VitalityHeading } from "./vitality/VitalitySignal";
 
 interface RunStatusProps {
+  generation?: number;
+  size?: "compact" | "detail";
   activeRun: HpRun | null;
   busyMessage: string | null;
   /** Volatile `run.progress` hint; never written into Message content (E-06). */
@@ -21,6 +19,7 @@ interface RunStatusProps {
   onStop: () => void;
   onRetry: () => void;
   actions?: ReactNode;
+  showStop?: boolean;
 }
 
 /**
@@ -33,6 +32,8 @@ interface RunStatusProps {
  */
 export function RunStatus({
   activeRun,
+  generation,
+  size = "compact",
   busyMessage,
   progress,
   degraded,
@@ -40,7 +41,9 @@ export function RunStatus({
   onStop,
   onRetry,
   actions,
+  showStop = true,
 }: RunStatusProps) {
+  const view = useVitality(activeRun, progress, generation, degraded);
   const [warnedRun, setWarnedRun] = useState<string | null>(null);
   const queuedRunId = activeRun?.status === "queued" ? activeRun.run_id : null;
   const queuedCreatedAt = activeRun?.status === "queued" ? activeRun.created_at : null;
@@ -78,18 +81,13 @@ export function RunStatus({
       ) : null}
       {activeRun ? (
         <Flex className="hp-run-content" direction="column" gap="3">
-          <div className="hp-run-heading">
-            {running ? (
-              <Spinner size="2" data-testid="run-spinner" />
-            ) : (
-              <Text size="2" color="gray" aria-hidden="true">
-                {activeRun.status === "succeeded" ? "✓" : activeRun.status === "failed" ? "!" : "■"}
-              </Text>
-            )}
-            <Text size="2" weight="medium" role="status" data-testid="run-label">
-              {runStatusLabel(activeRun.status)}
-            </Text>
-          </div>
+          <VitalityHeading
+            view={view}
+            runId={activeRun.run_id}
+            generation={generation}
+            size={size}
+            testId="run-label"
+          />
           <div className="hp-run-description">
             {activeRun.status === "queued" && warnedRun === activeRun.run_id ? (
               <Text size="2" color="amber" role="status">
@@ -99,11 +97,6 @@ export function RunStatus({
             {degraded && running ? (
               <Text size="2" color="amber" role="status" data-testid="run-degraded">
                 连接中断，正在同步执行状态
-              </Text>
-            ) : null}
-            {progress ? (
-              <Text size="2" color="gray" data-testid="run-progress">
-                {progress.summary || phaseLabel(progress.phase)}
               </Text>
             ) : null}
             {unsafeSideEffect ? (
@@ -119,7 +112,7 @@ export function RunStatus({
           </div>
           <div className="hp-run-actions">
             {actions}
-            {cancellable ? (
+            {showStop && cancellable ? (
               <Button
                 size="1"
                 variant="soft"

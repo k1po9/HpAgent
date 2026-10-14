@@ -42,7 +42,7 @@
   min-width: 0;
   border: 1px solid var(--hp-control-border);
   border-radius: 8px;
-  background: var(--hp-surface);
+  background: var(--hp-subtle);
   color: inherit;
   font: inherit;
   font-size: 12px;
@@ -157,7 +157,7 @@
   min-height: 0;
   container-type: inline-size;
   container-name: hp-chat;
-  background: var(--hp-canvas);
+  background: transparent;
 }
 .hp-thread__viewport {
   flex: 1;
@@ -249,15 +249,6 @@
   border-radius: 10px;
   background: var(--hp-bubble);
   color: var(--hp-text);
-}
-.hp-text-part p {
-  margin: 0.65em 0;
-}
-.hp-text-part p:first-child {
-  margin-top: 0;
-}
-.hp-text-part p:last-child {
-  margin-bottom: 0;
 }
 .hp-text-part h1,
 .hp-text-part h2,
@@ -389,8 +380,12 @@
 .hp-composer__input::placeholder {
   color: var(--hp-muted);
 }
+/* The composite input has one visible frame; toolbar controls keep their own rings. */
 .hp-composer__input:focus-visible {
-  outline: 2px solid var(--hp-focus);
+  outline: none;
+}
+.hp-composer:has(.hp-composer__input:focus-visible) {
+  outline: 2px solid #607c8e;
   outline-offset: 0;
 }
 .hp-composer__actions,
@@ -549,10 +544,6 @@
   color: var(--hp-muted);
   border-color: var(--hp-border);
   opacity: 1;
-}
-.hp-composer button.hp-composer__send:hover:not(:disabled) {
-  background: var(--hp-primary-hover);
-  border-color: var(--hp-primary-hover);
 }
 .hp-composer button.hp-composer__cancel {
   color: var(--hp-danger);

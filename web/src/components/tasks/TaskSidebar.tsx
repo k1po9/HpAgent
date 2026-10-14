@@ -14,6 +14,9 @@ export function TaskSidebar() {
   const icons = { attention: Inbox, active: LoaderCircle, waiting: Clock, ended: CircleCheck };
   return (
     <nav className="hp-task-sidebar" aria-label="任务分类">
+      <span className="hp-sidebar-eyebrow" aria-hidden="true">
+        TASK CENTER
+      </span>
       <h2>任务中心</h2>
       <p className="hp-muted">
         {state === "complete" ? "本轮已遍历的任务" : `已加载 ${items.length} 项 · 计数待同步`}

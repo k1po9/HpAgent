@@ -96,6 +96,10 @@ export function createRunInspector(resources: HpApi = runApi) {
       try {
         const snapshot = await resources.getRun(id, snapshotController.signal);
         if (token !== request || boundary !== generation) return;
+        if (snapshot.run.run_id !== id) {
+          set({ snapshot: null, loading: false, error: "对象不可用。", unavailable: true });
+          return;
+        }
         set({ snapshot, loading: false, error: null, unavailable: false });
       } catch (e) {
         if (token !== request || boundary !== generation) return;

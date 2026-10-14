@@ -1,0 +1,223 @@
+/* Account A: existing identity and QQ binding inside the shared native Surface. */
+.hp-account-settings.hp-surface {
+  width: min(540px, calc(100vw - 32px));
+  height: fit-content;
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  border-radius: 20px;
+  background: var(--hp-surface);
+}
+.hp-account-settings .hp-surface-header {
+  padding: 24px 28px 20px;
+  border: 0;
+  background: transparent;
+}
+.hp-account-settings .hp-surface-header h2 {
+  font-size: 23px;
+  line-height: 32px;
+  letter-spacing: -0.5px;
+  font-weight: 650;
+}
+.hp-account-settings .hp-surface-header button {
+  min-width: 36px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--hp-muted);
+}
+.hp-account-settings .hp-surface-body {
+  padding: 6px 28px 26px;
+}
+.hp-account-identity {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  padding: 21px;
+  margin-bottom: 26px;
+  border-radius: 14px;
+  background: linear-gradient(120deg, var(--hp-inspector-card-surface), var(--hp-warm-selection));
+  min-width: 0;
+}
+.hp-account-avatar {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  border-radius: 17px;
+  background: var(--hp-surface);
+  color: var(--hp-muted);
+}
+.hp-account-identity > div:last-child {
+  min-width: 0;
+}
+.hp-account-identity span {
+  color: var(--hp-muted);
+  font-size: 11px;
+  line-height: 20px;
+}
+.hp-account-identity h3 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 650;
+  line-height: 32px;
+  letter-spacing: -0.5px;
+  overflow-wrap: anywhere;
+}
+.hp-account-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--hp-border);
+}
+.hp-account-signout {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--hp-danger);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.hp-account-signout:hover {
+  background: var(--hp-danger-soft);
+}
+.hp-qq-binding__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.hp-qq-binding__identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.hp-qq-binding__identity > div:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hp-qq-binding__identity h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 24px;
+}
+.hp-qq-binding__icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  background: var(--hp-subtle);
+  border-radius: 12px;
+  color: var(--hp-muted);
+}
+.hp-qq-binding .hp-qq-binding__action {
+  display: inline-flex;
+  gap: 8px;
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 9px 14px;
+  border-radius: 9px;
+  background: var(--hp-primary);
+  color: var(--hp-on-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+.hp-qq-binding .hp-qq-binding__action:hover:not(:disabled) {
+  background: var(--hp-primary-hover);
+}
+.hp-qq-binding .hp-qq-binding__action:disabled {
+  background: var(--hp-subtle);
+  color: var(--hp-muted);
+}
+.hp-qq-binding__description {
+  margin: 12px 0 0;
+  color: var(--hp-muted);
+  font-size: 12px;
+  line-height: 21px;
+}
+.hp-qq-binding__challenge {
+  margin-top: 18px;
+  padding: 15px 16px;
+  background: var(--hp-subtle);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.hp-qq-binding__challenge p {
+  margin: 0;
+  line-height: 21px;
+}
+.hp-qq-binding__challenge .hp-qq-binding__code {
+  padding-block: 9px;
+  color: var(--hp-reading-accent);
+}
+.hp-qq-binding [role="alert"] {
+  margin: 14px 0 0;
+  color: var(--hp-danger);
+  font-size: 12px;
+  line-height: 21px;
+}
+@media (max-width: 599px) {
+  .hp-account-settings .hp-surface-header {
+    padding: 20px 20px 16px;
+  }
+  .hp-account-settings .hp-surface-header h2 {
+    font-size: 21px;
+  }
+  .hp-account-settings .hp-surface-header button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .hp-account-settings .hp-surface-body {
+    padding: 5px 20px 20px;
+  }
+  .hp-account-identity {
+    padding: 17px;
+    gap: 13px;
+    margin-bottom: 24px;
+  }
+  .hp-account-identity h3 {
+    font-size: 21px;
+  }
+  .hp-qq-binding__row {
+    flex-wrap: wrap;
+  }
+  .hp-qq-binding .hp-qq-binding__action {
+    width: 100%;
+    min-height: 44px;
+  }
+  .hp-account-signout {
+    min-height: 44px;
+  }
+}
+
+.hp-motion-setting {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--hp-text);
+}
+.hp-motion-setting input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--pf-accent-strong);
+}
+.hp-motion-setting small {
+  width: 100%;
+  padding-left: 26px;
+  color: var(--hp-muted);
+  font-size: 11px;
+}

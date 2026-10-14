@@ -213,6 +213,7 @@ export function ConversationResources({
       )}
       {removing?.[0] && (
         <Surface
+          motion="elevate"
           title="撤销长期资料授权"
           onClose={() => {
             if (!busy) setRemoving(null);

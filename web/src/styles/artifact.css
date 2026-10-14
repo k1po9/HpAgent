@@ -242,6 +242,7 @@
   padding: 14px;
   border: 1px solid var(--hp-border);
   border-radius: 8px;
+  background: var(--hp-surface);
 }
 .hp-artifact-history button[aria-current="true"] {
   background: var(--hp-selection);

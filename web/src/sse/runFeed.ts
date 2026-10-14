@@ -33,6 +33,8 @@ export const SSE_DEGRADE_REASONS = [
 export type SseDegradeReason = (typeof SSE_DEGRADE_REASONS)[number] | "connect_failed";
 
 export interface RunProgress {
+  /** Client receipt facts supplied by the existing Run owner, never wire state. */
+  scope?: { runId: string; generation: number; receivedAt: number };
   phase: string;
   summary: string;
 }

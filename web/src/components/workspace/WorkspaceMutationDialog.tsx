@@ -37,6 +37,7 @@ export function WorkspaceMutationDialog({
   const confirmed = preview?.fingerprint === fingerprint ? preview : null;
   return (
     <Surface
+      motion="elevate"
       title="管理空间入口"
       onClose={() => {
         if (!busy) onClose();

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { HpWork } from "../../api/types";
 import { useWorks } from "../../store/works";
 import { useShell } from "../../store/shell";
@@ -19,6 +19,13 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
   const intent = useTaskOperations((s) => s.intents[work.work_id]);
   const all = taskActions(work, now);
   const primary = presentTask(work, now).primaryAction;
+  const primaryButton = useRef<HTMLButtonElement>(null);
+  const restorePrimaryFocus = useRef(false);
+  useEffect(() => {
+    if (intent?.busy || !restorePrimaryFocus.current) return;
+    if (document.activeElement === document.body) primaryButton.current?.focus();
+    restorePrimaryFocus.current = false;
+  }, [intent?.busy, primary]);
   function act(action: TaskAction) {
     if (["view", "outputs", "resources"].includes(action)) {
       useShell.getState().openInspector({
@@ -31,11 +38,19 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
   }
   const button = (action: TaskAction) => (
     <button
-      key={action}
+      key={compact && action === primary ? "primary" : action}
+      ref={compact && action === primary ? primaryButton : undefined}
+      className={compact && action === primary ? "hp-task-primary-action" : undefined}
+      data-action={action}
       disabled={
         intent?.busy || (intent?.uncertain && !["view", "outputs", "resources"].includes(action))
       }
-      onClick={() => act(action)}
+      onClick={(event) => {
+        if (compact && action === primary && ["pause", "resume", "advance"].includes(action)) {
+          restorePrimaryFocus.current = document.activeElement === event.currentTarget;
+        }
+        act(action);
+      }}
     >
       {actionLabels[action]}
     </button>
@@ -89,7 +104,7 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
       )}
       {dialog === "edit" && <TaskEditor workId={work.work_id} onClose={() => setDialog(null)} />}
       {dialog === "stop" && (
-        <Surface title="停止任务" onClose={() => setDialog(null)}>
+        <Surface motion="elevate" title="停止任务" onClose={() => setDialog(null)}>
           <p>
             停止「{work.title}」后不再按原计划继续。未决外部操作仍需核查，任务可能暂时显示正在停止。
           </p>
@@ -110,7 +125,7 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
         </Surface>
       )}
       {dialog === "link" && (
-        <Surface title="关联任务到对话" onClose={() => setDialog(null)}>
+        <Surface motion="elevate" title="关联任务到对话" onClose={() => setDialog(null)}>
           <p>只关联任务，不复制权限或发送消息。</p>
           <label>
             目标对话

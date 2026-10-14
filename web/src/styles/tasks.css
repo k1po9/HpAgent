@@ -220,3 +220,263 @@
   color: var(--hp-success);
   background: var(--hp-success-soft);
 }
+
+/* Task B: shared state projections in four native, responsive regions. */
+.hp-task-screen {
+  container: taskboard / inline-size;
+  max-width: 1232px;
+  width: 100%;
+  margin-inline: auto;
+}
+.hp-task-toolbar {
+  justify-content: space-between;
+  gap: 14px;
+}
+.hp-task-toolbar label {
+  color: var(--hp-muted);
+  font-size: 12px;
+}
+.hp-task-screen .hp-task-toolbar select {
+  background: transparent;
+  border: 0;
+  font-size: 12px;
+}
+.hp-task-toolbar-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.hp-task-screen .hp-task-toolbar-actions button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--hp-muted);
+  border-radius: 10px;
+}
+.hp-task-screen .hp-task-toolbar-actions .hp-primary {
+  background: var(--hp-primary);
+  color: var(--hp-on-primary);
+  border-color: var(--hp-primary);
+  padding-inline: 14px;
+}
+.hp-task-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+  margin-block: 26px 30px;
+}
+.hp-task-lane {
+  min-width: 0;
+  padding: 14px 10px 6px;
+  border-radius: 16px;
+  background: var(--hp-task-lane-surface);
+  min-height: 340px;
+  scroll-margin-top: 18px;
+}
+.hp-task-lane--current {
+  box-shadow: inset 0 2px 0 var(--hp-selection-edge);
+}
+.hp-task-lane-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 4px 16px;
+  color: var(--hp-muted);
+}
+.hp-task-lane-heading h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 650;
+}
+.hp-task-lane-heading > span {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.hp-task-lane[data-task-lane="attention"] .hp-task-lane-heading {
+  color: var(--hp-reading-accent);
+}
+.hp-task-lane-empty {
+  display: grid;
+  justify-items: center;
+  gap: 15px;
+  text-align: center;
+  padding: 55px 16px;
+  color: var(--hp-muted);
+}
+.hp-task-lane-empty p {
+  font-size: 12px;
+  line-height: 21px;
+  margin: 0;
+}
+.hp-task-board .hp-task-row {
+  padding: 16px 14px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: var(--hp-surface);
+  border: 1px solid var(--hp-border);
+  box-shadow: var(--hp-shadow-card);
+}
+.hp-task-board .hp-task-row--selected {
+  border-color: var(--hp-accent);
+}
+.hp-task-card-symbol {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--hp-subtle);
+  color: var(--hp-muted);
+  margin-bottom: 15px;
+}
+.hp-task-row .hp-task-card-meta {
+  font-size: 11px;
+  line-height: 18px;
+  margin: 0 0 6px;
+}
+.hp-task-board .hp-task-title {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 650;
+  flex-basis: auto;
+}
+.hp-task-board .hp-task-objective {
+  margin: 8px 0 12px;
+  font-size: 12px;
+  line-height: 20px;
+}
+.hp-task-board .hp-task-status {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 18px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  max-width: 100%;
+}
+.hp-task-board .hp-task-row .hp-task-actions {
+  margin-top: 16px;
+  padding-top: 0;
+  border: 0;
+  gap: 4px;
+  align-items: start;
+}
+.hp-task-board .hp-task-actions > button {
+  font-size: 12px;
+  line-height: 18px;
+  padding: 7px 8px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--hp-muted);
+  text-align: left;
+}
+.hp-task-board .hp-task-row[data-bucket="attention"] .hp-task-primary-action {
+  color: var(--hp-reading-accent);
+  background: var(--hp-selection);
+}
+.hp-task-board .hp-task-actions details {
+  flex: 1;
+  min-width: 0;
+}
+.hp-task-board .hp-task-actions summary {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--hp-muted);
+  min-height: 36px;
+  padding: 8px;
+}
+.hp-task-board .hp-task-actions details > div {
+  background: var(--hp-surface);
+  padding: 8px;
+  gap: 6px;
+}
+.hp-task-board .hp-task-actions details button {
+  font-size: 12px;
+  border: 1px solid var(--hp-border);
+}
+.hp-task-row > p:not([class]) {
+  font-size: 11px;
+  line-height: 19px;
+}
+.hp-task-attention {
+  font-size: 11px;
+  line-height: 19px;
+}
+.hp-task-context-note {
+  font-size: 11px;
+  line-height: 19px;
+  color: var(--hp-warning);
+  margin: 0 4px 10px;
+}
+.hp-task-lookup {
+  border-top: 1px solid var(--hp-border);
+  padding-top: 18px;
+  color: var(--hp-muted);
+  font-size: 12px;
+}
+.hp-task-lookup summary {
+  cursor: pointer;
+  padding: 8px 0;
+  min-height: 36px;
+}
+.hp-task-lookup form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin-block: 16px;
+}
+.hp-task-lookup label {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 220px;
+}
+.hp-task-lookup input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--hp-control-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--hp-surface);
+  color: var(--hp-text);
+  font: inherit;
+}
+@container taskboard (max-width: 1040px) {
+  .hp-task-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container taskboard (max-width: 550px) {
+  .hp-task-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hp-task-lane {
+    min-height: 160px;
+  }
+  .hp-task-lane-empty {
+    padding: 30px 16px;
+  }
+}
+@media (max-width: 599px) {
+  .hp-task-toolbar label {
+    flex-basis: auto;
+  }
+  .hp-task-toolbar-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .hp-task-board .hp-task-actions > button,
+  .hp-task-board .hp-task-actions summary {
+    min-height: 44px;
+  }
+  .hp-task-screen .hp-task-toolbar select,
+  .hp-task-lookup input {
+    font-size: 16px;
+  }
+}

@@ -70,9 +70,9 @@ export function ArtifactMessageItems({ messageId }: { messageId: string }) {
         >
           <FileCode className="hp-artifact-message-icon" size={24} aria-hidden="true" />
           <span className="hp-artifact-message-copy">
+            <span className="hp-object-kind">HTML 成果</span>
             <strong>{item.artifact.title}</strong>
             <small className="hp-artifact-message-meta">
-              <span className="hp-artifact-kind">HTML</span>
               <span>
                 {item.latest_version
                   ? `v${item.latest_version.version} ${artifactStatus[item.latest_version.status]}`

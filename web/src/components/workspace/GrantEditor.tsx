@@ -174,6 +174,7 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
       ))}
       {removing && (
         <Surface
+          motion="elevate"
           title="确认撤销资料授权"
           onClose={() => {
             if (!busy) setRemoving(null);

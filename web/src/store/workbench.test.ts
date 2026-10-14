@@ -776,7 +776,10 @@ describe("workbench store", () => {
       }),
     );
     await vi.advanceTimersByTimeAsync(0);
-    expect(store.getState().activeRunProgress).toMatchObject({ phase: "executing_tool" });
+    expect(store.getState().activeRunProgress).toMatchObject({
+      phase: "executing_tool",
+      scope: { runId: "r1", generation: store.getState().pollGeneration, receivedAt: Date.now() },
+    });
     expect(store.getState().messages.find((m) => m.message_id === assistantId)?.content).toBe(
       "你好",
     );

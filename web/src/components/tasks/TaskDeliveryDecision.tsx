@@ -74,7 +74,7 @@ export function TaskDeliveryDecision({
         </div>
       )}
       {outcome && (
-        <Surface title="确认投递决策" onClose={() => setOutcome(null)}>
+        <Surface motion="elevate" title="确认投递决策" onClose={() => setOutcome(null)}>
           <p>
             {work.title} · {delivery.channel} · 投递 {delivery.delivery_id}
           </p>

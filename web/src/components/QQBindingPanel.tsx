@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Button, Flex, Text } from "@radix-ui/themes";
+import { Box, Button, Text } from "@radix-ui/themes";
+import { MessageSquare, Link2 } from "lucide-react";
 import { api, type MeResponse, type QqBindingChallenge } from "../api/client";
 
 interface QQBindingPanelProps {
@@ -56,29 +57,35 @@ export function QQBindingPanel({ qq, onCompleted, startRequested = false }: QQBi
     };
   }, [challenge?.challenge_id, challenge?.status, onCompleted]);
 
-  if (qq?.bound) {
-    return (
-      <Box className="hp-qq-binding">
-        <Text size="1" color="gray">
-          QQ
-        </Text>
-        <Text size="2">{qq.display_subject ?? "已绑定"}</Text>
-      </Box>
-    );
-  }
-
   return (
-    <Box className="hp-qq-binding">
-      <Flex justify="between" align="center">
-        <Text size="1" color="gray">
-          QQ：未绑定
-        </Text>
-        <Button size="1" variant="soft" disabled={loading} onClick={() => void createChallenge()}>
-          {loading ? "生成中…" : challenge ? "重新生成" : "绑定 QQ"}
-        </Button>
-      </Flex>
-      {challenge?.code ? (
-        <Box mt="2">
+    <Box className="hp-qq-binding" data-bound={qq?.bound === true}>
+      <div className="hp-qq-binding__row">
+        <div className="hp-qq-binding__identity">
+          <div className="hp-qq-binding__icon">
+            <MessageSquare size={22} aria-hidden="true" />
+          </div>
+          <div>
+            <h3>QQ 关联身份</h3>
+            <Text size="1" color="gray">
+              {qq?.bound ? (qq.display_subject ?? "已绑定") : "QQ：未绑定"}
+            </Text>
+          </div>
+        </div>
+        {!qq?.bound && (
+          <Button
+            size="1"
+            className="hp-qq-binding__action"
+            disabled={loading}
+            onClick={() => void createChallenge()}
+          >
+            <Link2 size={15} aria-hidden="true" />
+            {loading ? "生成中…" : challenge ? "重新生成" : "绑定 QQ"}
+          </Button>
+        )}
+      </div>
+      {!qq?.bound && <p className="hp-qq-binding__description">将需要使用的 QQ 关联到当前账户。</p>}
+      {challenge?.code && !qq?.bound ? (
+        <Box className="hp-qq-binding__challenge">
           <Text as="p" size="1" color="gray">
             请使用需要绑定的 QQ 发送：
           </Text>
@@ -90,13 +97,13 @@ export function QQBindingPanel({ qq, onCompleted, startRequested = false }: QQBi
           </Text>
         </Box>
       ) : null}
-      {challenge?.status === "expired" || challenge?.status === "cancelled" ? (
-        <Text as="p" size="1" color="red">
+      {(challenge?.status === "expired" || challenge?.status === "cancelled") && !qq?.bound ? (
+        <Text as="p" size="1" color="red" role="alert">
           绑定码已失效，请重新生成。
         </Text>
       ) : null}
-      {error ? (
-        <Text as="p" size="1" color="red">
+      {error && !qq?.bound ? (
+        <Text as="p" size="1" color="red" role="alert">
           {error}
         </Text>
       ) : null}

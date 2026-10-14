@@ -77,7 +77,7 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generation]);
   return (
-    <Surface title="账户收件箱" onClose={onClose}>
+    <Surface motion="elevate" title="账户收件箱" onClose={onClose}>
       <button
         disabled={busy}
         onClick={() => {

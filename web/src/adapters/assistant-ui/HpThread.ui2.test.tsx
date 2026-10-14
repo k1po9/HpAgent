@@ -1,8 +1,9 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HpMessage } from "../../api/types";
 import { useArtifacts } from "../../store/artifacts";
 import { HpThread } from "./HpThread";
+import { setMotionPreference } from "../../components/motion/preference";
 import { useConversationUi } from "../../store/conversationUi";
 
 beforeEach(() => useConversationUi.getState().reset());
@@ -181,4 +182,117 @@ it("offers HTML creation only for completed assistant messages with nonempty bod
   expect(load).not.toHaveBeenCalled();
   expect(create).not.toHaveBeenCalled();
   vi.restoreAllMocks();
+});
+
+it("microstates preserve real submission, IME, attachment and unknown boundaries", async () => {
+  const pending = defer<boolean>();
+  const onSend = vi.fn().mockReturnValue(pending.promise);
+  const { container, rerender } = render(
+    <HpThread {...props} conversationKey="a:micro" onSend={onSend} />,
+  );
+  const form = () => container.querySelector(".hp-composer")!;
+  const input = screen.getByRole("textbox", { name: "消息输入" });
+  const button = screen.getByRole("button", { name: "发送" });
+  fireEvent.change(input, { target: { value: "可提交草稿" } });
+  expect(form()).toHaveAttribute("data-action-phase", "ready");
+  fireEvent.compositionStart(input);
+  expect(form()).toHaveAttribute("data-action-phase", "composing");
+  fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+  expect(onSend).not.toHaveBeenCalled();
+  fireEvent.compositionEnd(input);
+  fireEvent.click(button);
+  expect(form()).toHaveAttribute("data-action-phase", "submitting");
+  fireEvent.click(button);
+  expect(onSend).toHaveBeenCalledTimes(1);
+  fireEvent.change(input, { target: { value: "后写的新稿" } });
+  pending.resolve(false);
+  await waitFor(() => expect(form()).toHaveAttribute("data-action-phase", "ready"));
+  expect(input).toHaveValue("后写的新稿");
+  rerender(<HpThread {...props} conversationKey="a:micro" onSend={onSend} sendUncertain />);
+  expect(form()).toHaveAttribute("data-action-phase", "uncertain");
+  rerender(
+    <HpThread
+      {...props}
+      conversationKey="a:micro"
+      onSend={onSend}
+      attachments={[
+        {
+          localId: "x",
+          name: "x.txt",
+          status: "uploading",
+          size: 1,
+          fileId: null,
+          file: null,
+          error: null,
+        },
+      ]}
+      sendDisabled
+    />,
+  );
+  expect(form()).toHaveAttribute("data-action-phase", "blocked");
+  rerender(
+    <HpThread
+      {...props}
+      conversationKey="a:micro"
+      onSend={onSend}
+      attachments={[
+        {
+          localId: "x",
+          name: "x.txt",
+          status: "ready",
+          size: 1,
+          fileId: null,
+          file: null,
+          error: null,
+        },
+      ]}
+    />,
+  );
+  expect(form()).toHaveAttribute("data-action-phase", "blocked");
+  expect(screen.getByRole("button", { name: "发送" })).toBe(button);
+});
+
+it("touch cannot leave a hover intention; account/conversation switches drop old pointer and IME state", () => {
+  const onSend = vi.fn().mockResolvedValue(false);
+  const { container, rerender } = render(
+    <HpThread {...props} conversationKey="a:pointer" onSend={onSend} />,
+  );
+  const input = screen.getByRole("textbox", { name: "消息输入" });
+  const button = screen.getByRole("button", { name: "发送" });
+  fireEvent.change(input, { target: { value: "pointer draft" } });
+  const pointer = (type: string) => {
+    const event = new Event("pointerover", { bubbles: true });
+    Object.defineProperty(event, "pointerType", { value: type });
+    fireEvent(button, event);
+  };
+  pointer("touch");
+  expect(container.querySelector(".hp-composer")).toHaveAttribute("data-action-phase", "ready");
+  pointer("mouse");
+  expect(container.querySelector(".hp-composer")).toHaveAttribute("data-action-phase", "intent");
+  expect(onSend).not.toHaveBeenCalled();
+  fireEvent.compositionStart(input);
+  rerender(<HpThread {...props} conversationKey="b:pointer" onSend={onSend} />);
+  fireEvent.change(input, { target: { value: "new account draft" } });
+  expect(container.querySelector(".hp-composer")).toHaveAttribute("data-action-phase", "ready");
+  expect(input).toBe(screen.getByRole("textbox", { name: "消息输入" }));
+});
+
+it("hidden clears intent even when system/local reduction already disabled motion", () => {
+  const { container, unmount } = render(<HpThread {...props} onSend={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("消息输入"), { target: { value: "draft" } });
+  const button = screen.getByRole("button", { name: "发送" });
+  const event = new Event("pointerover", { bubbles: true });
+  Object.defineProperty(event, "pointerType", { value: "mouse" });
+  fireEvent(button, event);
+  expect(container.querySelector(".hp-composer")).toHaveAttribute("data-action-phase", "intent");
+  act(() => setMotionPreference("reduce"));
+  const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+  fireEvent(document, new Event("visibilitychange"));
+  expect(container.querySelector(".hp-composer")).toHaveAttribute("data-action-phase", "ready");
+  hidden.mockReturnValue(false);
+  fireEvent(document, new Event("visibilitychange"));
+  expect(container.querySelector(".hp-composer")).toHaveAttribute("data-action-phase", "ready");
+  unmount();
+  hidden.mockRestore();
+  act(() => setMotionPreference("system"));
 });

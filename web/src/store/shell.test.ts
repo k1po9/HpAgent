@@ -86,3 +86,63 @@ it("validates Inspector tabs centrally and replaces the URL without growing hist
   useShell.getState().setInspectorTab("versions");
   expect(useShell.getState().route.inspector?.tab).toBe("advanced");
 });
+
+it.each(["dirtyTaskEditor", "dirtyResourceEditor"] as const)(
+  "does not corrupt child history when %s blocks navigation; confirmation preserves it",
+  (guard) => {
+    const shell = useShell.getState();
+    shell.openInspector({ kind: "run", objectId: "root" });
+    shell.openInspector({ kind: "run", objectId: "parent" }, true);
+    useShell.setState({ [guard]: "draft" });
+    const hash = window.location.hash;
+    shell.openInspector({ kind: "run", objectId: "child" }, true);
+    expect(useShell.getState().route.inspector?.objectId).toBe("parent");
+    expect(useShell.getState().backStack.map((i) => i.objectId)).toEqual(["root"]);
+    expect(window.location.hash).toBe(hash);
+    const next = useShell.getState().pendingRoute;
+    const retry = useShell.getState().pendingResourceChange;
+    useShell.setState({ [guard]: null, pendingResourceChange: null });
+    if (retry) retry();
+    else shell.navigate(next!);
+    expect(useShell.getState().backStack.map((i) => i.objectId)).toEqual(["root", "parent"]);
+    shell.back();
+    expect(useShell.getState().route.inspector?.objectId).toBe("parent");
+    shell.closeInspector();
+    expect(useShell.getState().route.inspector).toBeUndefined();
+    expect(useShell.getState().backStack).toEqual([]);
+  },
+);
+it("guarded back confirmation restores the remaining stack rather than losing ancestors", () => {
+  const shell = useShell.getState();
+  for (const id of ["root", "parent", "child"])
+    shell.openInspector({ kind: "run", objectId: id }, true);
+  useShell.setState({ dirtyTaskEditor: "draft" });
+  shell.back();
+  expect(useShell.getState().route.inspector?.objectId).toBe("child");
+  expect(useShell.getState().backStack.map((i) => i.objectId)).toEqual(["root", "parent"]);
+  const next = useShell.getState().pendingRoute!;
+  useShell.setState({ dirtyTaskEditor: null });
+  shell.navigate(next);
+  expect(useShell.getState().route.inspector?.objectId).toBe("parent");
+  expect(useShell.getState().backStack.map((i) => i.objectId)).toEqual(["root"]);
+});
+it.each(["close", "tab", "back"] as const)(
+  "dirty guard cancels %s without changing object, URL, token or history",
+  (operation) => {
+    const shell = useShell.getState();
+    shell.openInspector({ kind: "run", objectId: "A" });
+    shell.openInspector({ kind: "run", objectId: "B" }, true);
+    const before = useShell.getState(),
+      hash = window.location.hash;
+    useShell.setState({ dirtyTaskEditor: "draft" });
+    if (operation === "close") shell.closeInspector();
+    else if (operation === "tab") shell.setInspectorTab("advanced");
+    else shell.back();
+    expect(useShell.getState().route).toBe(before.route);
+    expect(window.location.hash).toBe(hash);
+    expect(useShell.getState().backStack).toEqual(before.backStack);
+    expect(useShell.getState().requestToken).toBe(before.requestToken);
+    useShell.setState({ pendingRoute: null, dirtyTaskEditor: null });
+    expect(useShell.getState().route.inspector?.objectId).toBe("B");
+  },
+);

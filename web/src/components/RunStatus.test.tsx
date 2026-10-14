@@ -152,3 +152,24 @@ describe("RunStatus retry safety", () => {
     expect(screen.queryByTestId("run-failure-message")).not.toBeInTheDocument();
   });
 });
+
+it.each(["tool_side_effect_uncertain", "side_effect_reconciliation_failed"])(
+  "never offers retry for %s even with retryable true",
+  (code) => {
+    const run = failedRun(true);
+    run.failure!.code = code;
+    render(
+      <RunStatus
+        activeRun={run}
+        busyMessage={null}
+        progress={null}
+        degraded={false}
+        stopping={false}
+        onStop={vi.fn()}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("retry-run")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("无法确认");
+  },
+);
