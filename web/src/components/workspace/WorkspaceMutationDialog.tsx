@@ -37,6 +37,7 @@ export function WorkspaceMutationDialog({
   const confirmed = preview?.fingerprint === fingerprint ? preview : null;
   return (
     <Surface
+      className="hp-object-operation"
       motion="elevate"
       title="管理空间入口"
       onClose={() => {

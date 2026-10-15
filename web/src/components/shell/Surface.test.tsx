@@ -66,7 +66,7 @@ it("suspends a parent dialog and restores it without mounting its editor again",
   expect(screen.getByRole("dialog", { name: "父层" })).toBe(parent);
   expect(mount).toHaveBeenCalledTimes(1);
 });
-it("desktop Escape is handled once and focus returns to the connected trigger", () => {
+it("desktop Escape is handled once and focus returns to the connected trigger", async () => {
   const close = vi.fn();
   const trigger = document.createElement("button");
   document.body.append(trigger);
@@ -81,8 +81,41 @@ it("desktop Escape is handled once and focus returns to the connected trigger", 
   );
   expect(close).toHaveBeenCalledTimes(1);
   view.unmount();
+  await act(async () => {});
   expect(trigger).toHaveFocus();
   trigger.remove();
+});
+
+it("restores the original trigger when an editor and nested guard unmount together", async () => {
+  function Example() {
+    const [editing, setEditing] = useState(false);
+    const [guard, setGuard] = useState(false);
+    return (
+      <Surface title="对象" onClose={vi.fn()}>
+        <button onClick={() => setEditing(true)}>修改要求</button>
+        {editing && (
+          <Surface title="编辑器" onClose={() => setGuard(true)}>
+            <button onClick={() => setGuard(true)}>放弃</button>
+            {guard && (
+              <Surface title="确认" onClose={() => setGuard(false)}>
+                <button onClick={() => setEditing(false)}>确认放弃</button>
+              </Surface>
+            )}
+          </Surface>
+        )}
+      </Surface>
+    );
+  }
+  render(<Example />);
+  const trigger = screen.getByRole("button", { name: "修改要求" });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const abandon = screen.getByRole("button", { name: "放弃" });
+  abandon.focus();
+  fireEvent.click(abandon);
+  fireEvent.click(screen.getByRole("button", { name: "确认放弃" }));
+  await act(async () => {});
+  expect(trigger).toHaveFocus();
 });
 
 it("nested confirmation remains visible while its parent is suspended", () => {

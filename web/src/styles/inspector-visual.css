@@ -1,0 +1,1338 @@
+/* EDITABLE BEGIN · INSPECTOR CSS
+ * Add scoped overrides for the AI Inspector and its existing related dialogs.
+ * Baseline source CSS is preserved in SOURCE-REFERENCE, production CSS in the payload.
+ * Never override [hidden], [inert], the arrival gate or disabled semantics.
+ * Default / expanded classes: .hp-inspector / .hp-inspector--expanded
+ * Kinds: .hp-inspector--run / --artifact / --file / --task
+ * Tab panels: #run-panel-overview/resources/advanced, #artifact-panel-preview/versions/details,
+ * #file-tab-body, #task-tab-body. Related Surface forms use .hp-operation-form.
+ * Preserve already accepted main navigation, conversation and composer styling.
+ */
+/*
+ * EDITABLE / Inspector Visual Study 01 — PAPER DOSSIER
+ * Paper Flame v1.0: ice-gray workspace, white evidence sheets, graphite labels,
+ * sparse living-flame actions. Only scope to inspector + its operation dialogs.
+ * Pure paint and spacing: never change route, gates, frame, title capture, or controls.
+ */
+.hp-inspector {
+  --pi-bg: #f4f6f8;
+  --pi-paper: #ffffff;
+  --pi-field: #f1f4f7;
+  --pi-cloud: #ebf1f5;
+  --pi-ink: #202a34;
+  --pi-muted: #5d6f7b;
+  --pi-line: rgba(47, 67, 81, 0.13);
+  --pi-hairline: rgba(47, 67, 81, 0.1);
+  --pi-orange: #eb6044;
+  --pi-accent: #cf482d;
+  --pi-action: #b94025;
+  --pi-soft: #fdede8;
+  --pi-ok: #1c755d;
+  --pi-bad: #b42318;
+  --pi-warn: #8a580e;
+  --pi-soft-shadow: 0 8px 24px rgba(15, 35, 55, 0.025);
+  color: var(--pi-ink);
+  background: var(--pi-bg);
+}
+/* The title capture / filament geometry is deliberately left untouched. */
+.hp-inspector > .hp-surface-header {
+  background: #fafbfc;
+  border-bottom: 1px solid var(--pi-line);
+  box-shadow: 0 2px 13px rgba(22, 33, 44, 0.022);
+}
+.hp-inspector > .hp-surface-header h2 {
+  color: var(--pi-ink);
+}
+.hp-inspector > .hp-surface-header .hp-surface-header-actions {
+  margin-left: auto;
+}
+.hp-inspector .hp-inspector-expand {
+  border-radius: 10px;
+  background: #fff;
+  border-color: #d7e0e7;
+  color: #455c6b;
+  font-weight: 550;
+  transition:
+    background-color 0.18s,
+    border-color 0.18s,
+    color 0.18s;
+}
+.hp-inspector .hp-inspector-expand[aria-pressed="true"] {
+  color: var(--pi-accent);
+  background: var(--pi-soft);
+  border-color: #edcbbf;
+}
+.hp-inspector .hp-inspector-expand:hover:not(:disabled) {
+  background: #eef3f6;
+  border-color: #a9bdc9;
+}
+.hp-inspector > .hp-surface-header > button:not(.hp-inspector-expand) {
+  border-radius: 9px;
+  color: #5d7180;
+  transition:
+    background-color 0.16s,
+    color 0.16s;
+}
+.hp-inspector > .hp-surface-header > button:not(.hp-inspector-expand):hover:not(:disabled) {
+  background: #e9eff3;
+  color: var(--pi-ink);
+}
+.hp-inspector > .hp-surface-body {
+  background: var(--pi-bg);
+}
+.hp-inspector .hp-inspector-presentation {
+  min-width: 0;
+}
+/* Receiving uses the actual gate. Only its text is restyled. */
+.hp-inspector .hp-inspector-receiving {
+  color: var(--pi-muted);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+/* One reading grammar shared by all four existing real inspectors. */
+.hp-inspector
+  :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector, .hp-artifact-inspector) {
+  color: var(--pi-ink);
+  font-size: 13px;
+  line-height: 1.68;
+}
+.hp-inspector
+  :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector, .hp-artifact-inspector)
+  :is(h3, h4) {
+  letter-spacing: -0.012em;
+}
+.hp-inspector :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector) :is(p, li, dd, td) {
+  overflow-wrap: anywhere;
+}
+.hp-inspector
+  :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector, .hp-artifact-inspector)
+  :is(small, dt) {
+  color: var(--pi-muted);
+}
+/* Tabs: preserve the measured translating indicator: do not change its positioning. */
+.hp-inspector .hp-inspector-tabs {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 3px;
+  align-items: stretch;
+  border-bottom: 1px solid #d7e1e7;
+  margin: 10px 0 12px;
+  padding-bottom: 0;
+}
+.hp-inspector .hp-inspector-tabs button[role="tab"] {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  padding: 10px 9px 11px;
+  min-height: 44px;
+  background: transparent;
+  border: 0;
+  border-radius: 9px 9px 0 0;
+  box-shadow: none;
+  color: #5a6d7b;
+  line-height: 1.36;
+  font-size: 12px;
+  font-weight: 520;
+  text-align: center;
+  white-space: normal;
+  word-break: keep-all;
+  transition:
+    background-color 0.18s,
+    color 0.18s;
+}
+.hp-inspector .hp-inspector-tabs button[role="tab"]:hover:not(:disabled) {
+  color: var(--pi-ink);
+  background: #eaf0f3;
+}
+.hp-inspector .hp-inspector-tabs button[role="tab"][aria-selected="true"] {
+  background: rgba(253, 237, 232, 0.68);
+  color: var(--pi-accent);
+  font-weight: 720;
+  border-color: transparent;
+}
+.hp-inspector .hp-inspector-tab-indicator {
+  height: 2px;
+  background: var(--pi-orange);
+  border-radius: 2px;
+}
+/* Quiet controls: the meaningful primary CTA remains the single warm action. */
+.hp-inspector
+  :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector, .hp-artifact-inspector)
+  button:not([role="tab"]):not(.hp-artifact-save):not(.hp-run-detail),
+.hp-inspector .hp-run-origin-action {
+  border-radius: 9px;
+  border-color: #d4e0e7;
+  color: #324858;
+  background: #fff;
+  font-size: 12.5px;
+  font-weight: 560;
+  min-height: 36px;
+  max-width: 100%;
+  box-shadow: none;
+  transition:
+    background-color 0.16s,
+    border-color 0.16s,
+    color 0.16s;
+}
+.hp-inspector
+  :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector, .hp-artifact-inspector)
+  button:not([role="tab"]):not(.hp-artifact-save):hover:not(:disabled) {
+  background: #f0f4f7;
+  border-color: #b9c9d3;
+  color: var(--pi-ink);
+}
+.hp-inspector
+  :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector, .hp-artifact-inspector)
+  button:disabled {
+  cursor: not-allowed;
+  box-shadow: none;
+  opacity: 0.58;
+}
+.hp-inspector :is(button, [role="tab"], input, select, textarea, summary, a):focus-visible,
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
+    .hp-operation-form
+  )
+  :is(button, input, select, textarea, summary, a):focus-visible {
+  outline: 2px solid var(--pi-action, #b94025);
+  outline-offset: 3px;
+}
+.hp-inspector :is(a, [role="link"]) {
+  color: #a83e29;
+  text-underline-offset: 3px;
+}
+.hp-inspector :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  background: #fff;
+  color: var(--pi-ink);
+  border: 1px solid #c9d7e0;
+  border-radius: 10px;
+  padding: 9px 11px;
+  min-height: 38px;
+  font-size: 13px;
+  max-width: 100%;
+}
+.hp-inspector :is(input, select, textarea):focus-visible {
+  border-color: var(--pi-accent);
+}
+.hp-inspector :is(label, fieldset) {
+  min-width: 0;
+}
+.hp-inspector fieldset {
+  border: 1px solid var(--pi-line);
+  border-radius: 12px;
+  padding: 11px 13px;
+  background: var(--pi-paper);
+}
+.hp-inspector legend {
+  color: #405563;
+  font-weight: 660;
+  padding: 0 5px;
+}
+/* Generic readable objects, not artificial new cards or DOM wrappers. */
+.hp-inspector .hp-inspector-card,
+.hp-inspector .hp-artifact-history li {
+  background: var(--pi-paper);
+  border: 1px solid #dce5eb;
+  border-radius: 15px;
+  box-shadow: var(--pi-soft-shadow);
+}
+.hp-inspector .hp-inspector-card {
+  padding: 17px;
+  margin-top: 12px;
+}
+.hp-inspector .hp-inspector-card > :is(h3, h4) {
+  margin-top: 0;
+  color: #293c49;
+  font-weight: 715;
+}
+.hp-inspector .hp-inspector-card p {
+  margin-top: 8px;
+}
+.hp-inspector :is([role="alert"], .hp-artifact-notice--error, .hp-trace-warning) {
+  color: var(--pi-bad);
+  font-weight: 520;
+}
+.hp-inspector [role="alert"]:not(button),
+.hp-inspector .hp-trace-warning {
+  border-left: 3px solid #bb4c3e;
+  background: #fff3f0;
+  border-radius: 4px 10px 10px 4px;
+  padding: 9px 11px;
+}
+.hp-inspector :is([role="status"], .hp-muted) {
+  color: var(--pi-muted);
+}
+.hp-inspector :is(pre, code, .hp-run-result) {
+  overflow-wrap: anywhere;
+}
+.hp-inspector pre,
+.hp-inspector .hp-trace-detail pre,
+.hp-inspector .hp-task-report pre {
+  padding: 13px 14px;
+  background: #edf2f5;
+  border: 1px solid #dbe5ec;
+  border-radius: 10px;
+  color: #293f4d;
+  line-height: 1.6;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+.hp-inspector :is(details) {
+  min-width: 0;
+}
+.hp-inspector details > summary {
+  padding: 8px 3px;
+  color: #40596a;
+  font-weight: 640;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.hp-inspector details[open] > summary {
+  color: #a83e29;
+}
+.hp-inspector details > summary:hover {
+  background: #eaf0f4;
+}
+/* RUN / the established state pictograms and colors remain authoritative. */
+.hp-inspector .hp-run-inspector .hp-inspector-card {
+  border-color: #dce5eb !important;
+  border-radius: 15px !important;
+  padding: 17px !important;
+  gap: 12px !important;
+  background: #fff !important;
+  box-shadow: var(--pi-soft-shadow) !important;
+}
+.hp-inspector .hp-run-inspector .hp-inspector-card > h3 {
+  color: #273d4b;
+}
+.hp-inspector .hp-run-inspector > .hp-run-sync {
+  display: block;
+  width: fit-content;
+  margin: 1px 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--pi-muted);
+  font-size: 12px;
+}
+.hp-inspector .hp-vitality-facts {
+  background: #f2f6f8;
+  border: 1px solid #e0e9ee;
+  border-radius: 12px;
+  padding: 12px;
+  gap: 10px;
+}
+.hp-inspector .hp-vitality-facts > div {
+  align-items: baseline;
+}
+.hp-inspector .hp-vitality-facts dt {
+  color: #596e7d;
+}
+.hp-inspector .hp-vitality-facts dd {
+  color: #293f4d;
+  font-weight: 680;
+}
+.hp-inspector .hp-run-result {
+  max-height: 300px;
+  padding: 14px 0 13px;
+  color: #344a58;
+  line-height: 1.72;
+  background: transparent;
+}
+.hp-inspector .hp-run-timestamps {
+  background: transparent;
+  border-color: var(--pi-line);
+  padding-block: 10px;
+  margin-block: 2px;
+  gap: 9px;
+}
+.hp-inspector .hp-run-timestamps dt {
+  color: var(--pi-muted);
+}
+.hp-inspector .hp-run-timestamps dd {
+  color: #2b4050;
+  font-weight: 520;
+  font-variant-numeric: tabular-nums;
+}
+.hp-inspector .hp-run-origin-action,
+.hp-inspector .hp-run-approvals-action {
+  color: #416478;
+  text-decoration: none;
+  font-weight: 630;
+}
+.hp-inspector .hp-run-inspector :is(article, section) {
+  border-color: var(--pi-line);
+}
+/* Trace is evidence reading, not a dashboard full of colorful boxes. */
+.hp-inspector .hp-trace-tree-wrap,
+.hp-inspector .hp-trace-detail {
+  min-width: 0;
+  border: 1px solid #dce5eb;
+  background: var(--pi-paper);
+  border-radius: 12px;
+  overflow: auto;
+}
+.hp-inspector .hp-trace-header {
+  padding: 10px 0;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hp-inspector .hp-trace-header__actions {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hp-inspector .hp-trace-tree__row {
+  border-radius: 8px;
+  min-width: 0;
+  transition: background-color 0.15s;
+}
+.hp-inspector .hp-trace-tree__row:hover {
+  background: #f2f6f8;
+}
+.hp-inspector .hp-trace-tree__row[aria-selected="true"],
+.hp-inspector .hp-trace-tree__row[data-selected="true"] {
+  background: #fceee9;
+  box-shadow: inset 3px 0 0 #cf482d;
+}
+.hp-inspector :is(.hp-trace-tree__name, .hp-trace-detail__metadata, .hp-trace-tree__duration) {
+  overflow-wrap: anywhere;
+}
+.hp-inspector .hp-trace-tree__duration {
+  color: var(--pi-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hp-inspector .hp-trace-detail {
+  padding: 12px;
+}
+.hp-inspector :is(.hp-trace-status--completed, .hp-trace-status--succeeded) {
+  color: var(--pi-ok);
+}
+.hp-inspector .hp-trace-status--failed {
+  color: var(--pi-bad);
+}
+.hp-inspector :is(.hp-trace-status--running, .hp-trace-status--cancelled) {
+  color: #48677a;
+}
+.hp-inspector :is(progress, meter) {
+  accent-color: #a4b8c4;
+  max-width: 100%;
+}
+.hp-inspector progress::-webkit-progress-bar {
+  background: #e5edf2;
+  border-radius: 99px;
+}
+.hp-inspector progress::-webkit-progress-value {
+  background: #7294a8;
+  border-radius: 99px;
+}
+/* ARTIFACT / the preview iframe is never moved or rebuilt. */
+.hp-inspector--artifact > .hp-surface-body {
+  background: var(--pi-bg);
+}
+.hp-inspector .hp-artifact-heading {
+  padding: 17px 16px 12px;
+  gap: 11px;
+  background: #f8fafb;
+  border-bottom: 1px solid #e3eaf0;
+}
+.hp-inspector .hp-artifact-heading-icon {
+  color: #587282;
+  background: #e9f0f4;
+  border: 1px solid #d6e3ea;
+  border-radius: 12px;
+}
+.hp-inspector .hp-artifact-heading h3 {
+  font-size: 16px;
+  font-weight: 740;
+  letter-spacing: -0.02em;
+  line-height: 1.42;
+}
+.hp-inspector .hp-artifact-heading p {
+  color: var(--pi-muted);
+  margin-top: 6px;
+}
+.hp-inspector .hp-artifact-heading[data-status="failed"] p {
+  color: var(--pi-bad);
+}
+.hp-inspector .hp-artifact-inspector .hp-inspector-tabs {
+  flex: none;
+  padding: 0 13px;
+  margin: 0;
+  background: #f8fafb;
+  gap: 3px;
+}
+.hp-inspector .hp-artifact-content {
+  background: var(--pi-bg);
+  padding: 15px 16px 18px;
+}
+.hp-inspector .hp-artifact-origin,
+.hp-inspector .hp-artifact-notice {
+  border: 1px solid #dbe5eb;
+  border-left: 3px solid #90adbc;
+  background: #f9fbfc;
+  padding: 11px 13px;
+  border-radius: 5px 11px 11px 5px;
+  font-size: 12.5px;
+  color: #435869;
+}
+.hp-inspector .hp-artifact-notice--error {
+  border-color: #f1c9c2;
+  border-left-color: #b42318;
+  background: #fff3f0;
+  color: var(--pi-bad);
+}
+.hp-inspector .hp-artifact-inspector .hp-artifact-preview {
+  border-radius: 12px;
+  background: #fff;
+  padding: 5px;
+  border: 1px solid #d9e4ea;
+  box-shadow: 0 10px 25px #142e4010;
+}
+.hp-inspector .hp-artifact-inspector .hp-artifact-preview iframe {
+  border: 0;
+  border-radius: 8px;
+  box-shadow: none;
+}
+.hp-inspector .hp-artifact-toolbar {
+  background: #fbfcfd;
+  border-top: 1px solid #dce6ed;
+  padding: 11px 16px max(12px, env(safe-area-inset-bottom));
+  gap: 7px;
+}
+.hp-inspector .hp-artifact-toolbar button {
+  min-height: 40px;
+}
+.hp-inspector .hp-artifact-toolbar .hp-artifact-save {
+  background: var(--pi-action);
+  border-color: var(--pi-action);
+  color: #fff;
+  font-weight: 680;
+}
+.hp-inspector .hp-artifact-toolbar .hp-artifact-save:hover:not(:disabled) {
+  background: #a93620;
+  border-color: #a93620;
+  color: #fff;
+}
+.hp-inspector .hp-artifact-history {
+  gap: 10px;
+}
+.hp-inspector .hp-artifact-history li {
+  padding: 14px 15px;
+  border-color: #dbe5eb;
+}
+.hp-inspector .hp-artifact-history button[aria-current="true"] {
+  background: var(--pi-soft);
+  border-color: #e8b7a8;
+  color: var(--pi-accent);
+  font-weight: 720;
+}
+.hp-inspector .hp-artifact-history p {
+  color: var(--pi-muted);
+}
+.hp-inspector .hp-artifact-details dt {
+  color: var(--pi-muted);
+  font-weight: 560;
+}
+.hp-inspector .hp-artifact-details dd {
+  border-bottom: 1px solid var(--pi-hairline);
+  padding-bottom: 10px;
+}
+.hp-inspector .hp-artifact-composer {
+  background: #fff;
+  border-color: #dce5eb;
+  border-radius: 13px;
+  padding: 15px;
+  gap: 10px;
+}
+.hp-inspector .hp-artifact-composer textarea {
+  background: #f9fbfc;
+  border-color: #cbdce5;
+}
+.hp-inspector .hp-artifact-state {
+  background: #f9fbfc;
+  border: 1px dashed #bdcdd7;
+  border-radius: 13px;
+  padding: 24px 15px;
+  color: var(--pi-muted);
+}
+.hp-inspector .hp-artifact-state[role="alert"] {
+  background: #fff4f1;
+  border-color: #e7ada4;
+  color: var(--pi-bad);
+}
+/* FILE / readable records and permissions with no false "success" coloring. */
+.hp-inspector .hp-file-inspector > h3 {
+  margin: 7px 0 4px;
+  color: #263b48;
+  font-size: 17px;
+  font-weight: 735;
+}
+.hp-inspector .hp-file-inspector .hp-object-path {
+  display: block;
+  background: #eaf0f4;
+  color: #465f6f;
+  border-radius: 9px;
+  padding: 7px 10px;
+  margin: 4px 0 13px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.hp-inspector .hp-file-inspector dl {
+  grid-template-columns: minmax(64px, 80px) minmax(0, 1fr);
+  padding: 13px 14px;
+  background: #fff;
+  border: 1px solid #dce5eb;
+  border-radius: 13px;
+  gap: 10px 13px;
+  margin-top: 12px;
+}
+.hp-inspector .hp-file-inspector dd {
+  font-weight: 530;
+}
+.hp-inspector .hp-file-preview {
+  background: #fff;
+  border: 1px solid #dce5eb;
+  border-radius: 12px;
+  padding: 15px;
+  line-height: 1.8;
+  color: #314656;
+}
+.hp-inspector .hp-file-preview :is(h1, h2, h3) {
+  color: #263b49;
+}
+.hp-inspector .hp-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.hp-inspector .hp-file-inspector :is(section, fieldset) {
+  min-width: 0;
+}
+.hp-inspector .hp-file-inspector section[aria-label] {
+  margin-block: 15px;
+}
+.hp-inspector .hp-file-inspector section[aria-label] > :is(h3, h4) {
+  color: #304c5b;
+}
+.hp-inspector .hp-file-inspector input[type="checkbox"] {
+  accent-color: #b94025;
+}
+/* TASK / clearer distinction between intent, evidence, and next actions. */
+.hp-inspector .hp-task-inspector > h3 {
+  font-size: 18px;
+  line-height: 1.42;
+  font-weight: 745;
+  margin: 7px 0 5px;
+  color: #263b48;
+}
+.hp-inspector .hp-task-inspector > p:first-of-type {
+  margin: 0 0 12px;
+  color: #5e7280;
+  font-size: 12px;
+}
+.hp-inspector .hp-task-inspector .hp-inspector-card {
+  margin-top: 12px;
+  padding: 15px;
+  border-radius: 14px;
+}
+.hp-inspector .hp-task-inspector :is(.hp-task-outputs, .hp-task-resources) {
+  min-width: 0;
+}
+.hp-inspector
+  .hp-task-inspector
+  :is(.hp-task-artifact, .hp-task-run, .hp-task-delivery, .hp-task-notification) {
+  border-top: 1px solid var(--pi-hairline);
+  padding: 13px 0;
+}
+.hp-inspector .hp-task-inspector .hp-task-report {
+  background: #fff;
+  border: 1px solid #dce5eb;
+  border-radius: 12px;
+  padding: 14px;
+}
+.hp-inspector .hp-task-report table {
+  width: 100%;
+  font-size: 12px;
+}
+.hp-inspector .hp-task-report th {
+  background: #f1f5f7;
+  color: #405767;
+}
+.hp-inspector .hp-task-report :is(th, td) {
+  border: 1px solid #dce5eb;
+  padding: 7px 8px;
+}
+.hp-inspector .hp-task-inspector dl {
+  grid-template-columns: minmax(84px, 38%) minmax(0, 1fr);
+  padding: 12px;
+  gap: 8px 11px;
+  background: #fff;
+  border: 1px solid #dce5eb;
+  border-radius: 12px;
+}
+.hp-inspector .hp-task-inspector dd {
+  overflow-wrap: anywhere;
+}
+.hp-inspector .hp-task-inspector .hp-task-actions {
+  gap: 7px;
+  margin: 12px 0;
+}
+.hp-inspector .hp-task-inspector .hp-task-actions > p {
+  color: var(--pi-muted);
+}
+.hp-inspector .hp-task-inspector form label {
+  display: grid;
+  gap: 6px;
+  color: #435a69;
+  font-weight: 550;
+}
+/* Real task control actions retain their data-action semantics. */
+.hp-inspector .hp-task-actions button[data-action="advance"]:not(:disabled),
+.hp-inspector .hp-task-actions button[data-action="resume"]:not(:disabled) {
+  background: #b94025;
+  color: #fff;
+  border-color: #b94025;
+  font-weight: 680;
+}
+.hp-inspector .hp-task-actions button[data-action="advance"]:hover:not(:disabled),
+.hp-inspector .hp-task-actions button[data-action="resume"]:hover:not(:disabled) {
+  background: #a93620;
+  border-color: #a93620;
+  color: #fff;
+}
+.hp-inspector .hp-task-actions button[data-action="stop"]:not(:disabled) {
+  color: #a42b21;
+  border-color: #e8c3bb;
+  background: #fff9f7;
+}
+/* Native Surface forms and nested controls related to Inspector. */
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
+    .hp-inspector
+  ):not(.hp-surface--region) {
+  --pi-action: #b94025;
+  --pi-ink: #202a34;
+  --pi-muted: #5d6f7b;
+  --pi-line: rgba(47, 67, 81, 0.13);
+  color: var(--pi-ink);
+  border: 1px solid #cbd9e1;
+  border-radius: 17px;
+  background: #f8fafb;
+  box-shadow: 0 22px 65px rgba(22, 33, 44, 0.2);
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
+    .hp-inspector
+  ):not(.hp-surface--region)
+  > .hp-surface-header {
+  background: #fff;
+  border-bottom: 1px solid rgba(47, 67, 81, 0.13);
+  padding: 16px 19px;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
+    .hp-inspector
+  ):not(.hp-surface--region)
+  > .hp-surface-body {
+  background: #f8fafb;
+  color: #202a34;
+  padding: 17px 19px 20px;
+  line-height: 1.7;
+  font-size: 13px;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
+    .hp-inspector
+  ):not(.hp-surface--region)
+  > .hp-surface-body
+  > button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 1px solid #d4dfe7;
+  background: #fff;
+  color: #344c5c;
+  font: inherit;
+  font-weight: 560;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
+    .hp-inspector
+  ):not(.hp-surface--region)
+  > .hp-surface-body
+  > button:hover:not(:disabled) {
+  background: #edf3f6;
+  border-color: #aec2cd;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
+    .hp-inspector
+  ):not(.hp-surface--region)
+  > .hp-surface-body
+  > label {
+  display: grid;
+  gap: 7px;
+  color: #445c6b;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
+    .hp-inspector
+  ):not(.hp-surface--region)
+  > .hp-surface-body
+  > :is(input, select, textarea),
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
+    .hp-inspector
+  ):not(.hp-surface--region)
+  > .hp-surface-body
+  > label
+  :is(input, select, textarea) {
+  max-width: 100%;
+  min-height: 38px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  border: 1px solid #cad9e2;
+  background: #fff;
+  color: #202a34;
+}
+
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
+  .hp-operation-form
+) {
+  --pi-action: #b94025;
+  --pi-line: rgba(47, 67, 81, 0.13);
+  --pi-ink: #202a34;
+  --pi-muted: #5d6f7b;
+  --pi-field: #f1f4f7;
+  color: var(--pi-ink);
+  background: #f8fafb;
+  border: 1px solid #cad9e2;
+  border-radius: 17px;
+  box-shadow: 0 20px 58px rgba(22, 33, 44, 0.18);
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
+    .hp-operation-form
+  )
+  > .hp-surface-header {
+  background: #fff;
+  padding: 17px 19px;
+  border-bottom: 1px solid var(--pi-line);
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
+    .hp-operation-form
+  )
+  > .hp-surface-body {
+  background: #f8fafb;
+  padding: 17px 19px 20px;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+  .hp-operation-form {
+  color: var(--pi-ink);
+  font-size: 13px;
+  line-height: 1.7;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+  .hp-operation-form
+  :is(input:not([type="checkbox"]), select, textarea) {
+  color: var(--pi-ink);
+  background: #fff;
+  border: 1px solid #cbd9e2;
+  border-radius: 9px;
+  padding: 9px 11px;
+  min-height: 38px;
+  max-width: 100%;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+  .hp-operation-form
+  :is(fieldset, section) {
+  min-width: 0;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+  .hp-operation-form
+  button {
+  background: #fff;
+  color: #304758;
+  border-color: #cddbe3;
+  border-radius: 9px;
+  min-height: 38px;
+  font-size: 13px;
+  font-weight: 550;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+  .hp-operation-form
+  button:hover:not(:disabled) {
+  background: #eef3f6;
+  border-color: #a9beca;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+  .hp-operation-form
+  button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+  .hp-operation-form
+  > button:not([type="button"]):not(:disabled) {
+  background: #b94025;
+  border-color: #b94025;
+  color: #fff;
+  font-weight: 660;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+  .hp-operation-form
+  > button:not([type="button"]):hover:not(:disabled) {
+  background: #a93620;
+  border-color: #a93620;
+  color: #fff;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+  .hp-operation-form
+  [role="alert"] {
+  border-left: 3px solid #b42318;
+  color: #b42318;
+  background: #fff4f1;
+  border-radius: 5px 9px 9px 5px;
+  padding: 9px 11px;
+}
+/* Mobile & 200% reading: preserve widths/breakpoints, prevent UI squashing. */
+@media (max-width: 1279px) {
+  .hp-inspector > .hp-surface-body {
+    overscroll-behavior: contain;
+  }
+  .hp-inspector .hp-inspector-tabs button[role="tab"] {
+    min-height: 44px;
+  }
+}
+@media (max-width: 599px) {
+  .hp-inspector .hp-inspector-tabs {
+    gap: 1px;
+  }
+  .hp-inspector .hp-inspector-tabs button[role="tab"] {
+    padding-inline: 6px;
+    font-size: 11.5px;
+  }
+  .hp-inspector .hp-inspector-card {
+    padding: 13px;
+  }
+  .hp-inspector .hp-artifact-content {
+    padding-inline: 13px;
+  }
+  .hp-inspector .hp-artifact-toolbar {
+    padding-inline: 13px;
+  }
+  .hp-inspector :is(.hp-file-inspector, .hp-task-inspector) button:not([role="tab"]) {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-inspector :is(button, [role="tab"], .hp-trace-tree__row) {
+    transition-duration: 0s;
+  }
+}
+
+/* ================= EDITABLE / DUAL-CAPTURE R2 · LIVING HANDOFF =================
+ * On true arrival, the new appearance path STARTS AT THE SAME target coordinate
+ * as the original filament, then bends into Run's corner / Artifact's pedestal.
+ * Native TitleCapture is retained as the original geometry/arrival authority.
+ * Visual adapter owns only its aria-hidden SVG; no business/ARIA focus edits.
+ */
+.hp-inspector .hp-run-reception.hp-capture-alt-ready {
+  isolation: isolate;
+  overflow: visible;
+}
+.hp-inspector
+  .hp-run-reception.hp-capture-alt-ready
+  > .hp-title-capture
+  :is(.capture-frame, .capture-shadow, .capture-sheen) {
+  opacity: 0 !important;
+}
+.hp-inspector .hp-run-reception.hp-capture-alt-ready > .hp-title-capture .capture-node {
+  opacity: 0.16 !important;
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual {
+  position: absolute;
+  z-index: 1;
+  display: block;
+  overflow: visible;
+  pointer-events: none !important;
+  user-select: none;
+  opacity: 0;
+  filter: drop-shadow(0 1px 1.5px rgba(92, 122, 145, 0.1));
+  transition: opacity 95ms ease-out;
+}
+.hp-inspector .hp-run-reception:has(> .hp-title-capture[data-active="true"]) > .hp-capture-dual {
+  opacity: 1;
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual :is(path, circle) {
+  pointer-events: none;
+  vector-effect: non-scaling-stroke;
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual .cap-ink {
+  stroke-width: 1.27px;
+  stroke-opacity: 0.94;
+}
+.hp-inspector .hp-run-reception[data-capture-kind="run"] > .hp-capture-dual .cap-ink {
+  stroke-width: 1.12px;
+}
+.hp-inspector .hp-run-reception[data-capture-kind="artifact"] > .hp-capture-dual .cap-ink {
+  stroke-width: 1.42px;
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual .cap-echo {
+  stroke: #a1b6c5;
+  stroke-width: 0.84px;
+  stroke-opacity: 0.45;
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual .cap-flow-halo {
+  stroke: #f1b59e;
+  stroke-width: 5.2px;
+  opacity: 0;
+  filter: blur(1.5px);
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual .cap-flow-core {
+  stroke-width: 2.15px;
+  opacity: 0;
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual .cap-dock-aura {
+  opacity: 0;
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual .cap-dock {
+  fill: #e7aa94;
+  stroke: #fffaf5;
+  stroke-width: 0.65px;
+  opacity: 0;
+}
+.hp-inspector .hp-run-reception > .hp-capture-dual .cap-arrival {
+  fill: #ffece0;
+  stroke: #f2b69d;
+  stroke-width: 0.6px;
+  opacity: 0;
+}
+.hp-inspector #inspector-artifact-title.hp-inspector-receiver {
+  transform: none !important;
+}
+/* Local preference & OS accessibility: immediate stable endpoint, no later replay. */
+@media (prefers-reduced-motion: reduce) {
+  .hp-inspector .hp-run-reception > .hp-capture-dual {
+    transition: none !important;
+  }
+  .hp-inspector
+    .hp-run-reception
+    > .hp-capture-dual
+    :is(.cap-flow-halo, .cap-flow-core, .cap-arrival) {
+    opacity: 0 !important;
+  }
+}
+.hp-shell[data-spatial-motion="reduced"] .hp-run-reception > .hp-capture-dual {
+  transition: none !important;
+}
+.hp-shell[data-spatial-motion="reduced"]
+  .hp-run-reception
+  > .hp-capture-dual
+  :is(.cap-flow-halo, .cap-flow-core, .cap-arrival) {
+  opacity: 0 !important;
+}
+/* ================= END EDITABLE DUAL-CAPTURE R2 ================= */
+
+/* INTEGRATION v1.1 | Six-page shared reading system | EDITABLE CSS ONLY.
+ * The Dual Capture R2 path, geometry, gates and visual adapter remain authoritative.
+ * These selectors affect presentation, never [hidden]/[inert], navigation, or iframe identity.
+ */
+.hp-inspector {
+  --hiv2-line: #dce5eb;
+  --hiv2-panel: #ffffff;
+  --hiv2-quiet: #f1f4f7;
+  --hiv2-ink: #202a34;
+  --hiv2-muted: #5d6f7b;
+  --hiv2-warm: #cf482d;
+  --hiv2-focus: #b94025;
+  --hiv2-danger: #b42318;
+}
+/* Identity: unique receiving title remains the hero, never enlarge its R2 geometry. */
+.hp-inspector .hp-run-reception + [data-inspector-gate] {
+  min-width: 0;
+}
+.hp-inspector .hp-inspector-presentation {
+  min-width: 0;
+}
+.hp-inspector .hp-inspector-tabs {
+  scrollbar-width: thin;
+}
+.hp-inspector .hp-inspector-tabs button[role="tab"]:focus-visible {
+  outline: 2px solid var(--hiv2-focus);
+  outline-offset: -3px;
+}
+.hp-inspector .hp-run-inspector [role="tabpanel"],
+.hp-inspector .hp-artifact-panel {
+  min-width: 0;
+}
+.hp-inspector :is(.hp-run-inspector, .hp-artifact-inspector) :is(h3, h4) {
+  color: #293c49;
+  letter-spacing: -0.015em;
+}
+/* Run / overview: a single paper reading block; evidence and state stay factual. */
+.hp-inspector .hp-run-inspector #run-panel-overview .hp-inspector-card {
+  background: #fff;
+  border-color: var(--hiv2-line);
+  box-shadow: 0 2px 14px #162a3709;
+}
+.hp-inspector .hp-run-inspector #run-panel-overview :is(dl, article, section) {
+  min-width: 0;
+}
+.hp-inspector .hp-run-inspector .hp-run-result {
+  background: #f8fafb;
+  border-color: #e1e9ee;
+  font-size: 13px;
+  line-height: 1.7;
+}
+/* Run / resources: preserve original DOM order and independent refresh endpoints.
+ * Display grouping is CSS-only; output-first belongs in React structure proposal. */
+.hp-inspector #run-panel-resources > section[aria-label="使用资料与输出"] {
+  min-width: 0;
+  display: flow-root;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.hp-inspector #run-panel-resources > section[aria-label="使用资料与输出"] > h3 {
+  font-size: 14px;
+  line-height: 1.45;
+  font-weight: 720;
+  margin: 22px 0 11px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hiv2-line);
+}
+.hp-inspector #run-panel-resources > section[aria-label="使用资料与输出"] > h3:first-child {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: none;
+}
+.hp-inspector #run-panel-resources > section[aria-label="使用资料与输出"] > p {
+  padding: 5px 0;
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.hp-inspector #run-panel-resources > section[aria-label="使用资料与输出"] > div {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  padding: 12px;
+  margin: 8px 0;
+  background: var(--hiv2-panel);
+  border: 1px solid var(--hiv2-line);
+  border-radius: 12px;
+}
+.hp-inspector #run-panel-resources > section[aria-label="使用资料与输出"] > div > a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  flex: 1 1 130px;
+  font-weight: 650;
+}
+.hp-inspector
+  #run-panel-resources
+  > section[aria-label="使用资料与输出"]
+  > section[aria-label="文件操作审批"] {
+  margin-top: 21px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hiv2-line);
+}
+.hp-inspector #run-panel-resources section[aria-label="文件操作审批"] > article {
+  background: #fff;
+  border: 1px solid var(--hiv2-line);
+  border-radius: 12px;
+  padding: 14px;
+  margin: 11px 0;
+  box-shadow: none;
+  overflow-wrap: anywhere;
+}
+.hp-inspector #run-panel-resources section[aria-label="文件操作审批"] > article strong {
+  color: #273b47;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.hp-inspector #run-panel-resources section[aria-label="文件操作审批"] > article details {
+  margin: 8px 0;
+  border-top: 1px solid #e9eef1;
+  padding-top: 7px;
+}
+/* Run / advanced: separate investigation layers, never mask source data. */
+.hp-inspector #run-panel-advanced {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hp-inspector #run-panel-advanced :is(.hp-trace-tree-wrap, .hp-trace-detail) {
+  box-shadow: 0 3px 12px #132b3908;
+  background: #fff;
+}
+.hp-inspector #run-panel-advanced .hp-trace-detail {
+  margin-top: 10px;
+}
+.hp-inspector #run-panel-advanced :is(pre, code) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.hp-inspector #run-panel-advanced details {
+  border-color: var(--hiv2-line);
+}
+/* Artifact / header: the R2 optical pedestal remains the sole identity ornament. */
+.hp-inspector .hp-artifact-heading {
+  box-shadow: none;
+  border-bottom-color: #e2e9ed;
+}
+.hp-inspector .hp-artifact-heading-copy {
+  min-width: 0;
+}
+.hp-inspector .hp-artifact-heading h3 {
+  overflow-wrap: anywhere;
+}
+.hp-inspector #artifact-panel-preview .hp-artifact-preview {
+  border-color: #dce5eb;
+  background: #fff;
+  box-shadow: 0 6px 18px #182f3e0b;
+}
+/* Artifact / history: true list, not nested floating cards. */
+.hp-inspector #artifact-panel-versions .hp-artifact-history {
+  list-style: none;
+  counter-reset: none;
+  margin: 0;
+  padding: 2px 0 2px 13px;
+  border-left: 1px solid #cddbe3;
+  gap: 0;
+}
+.hp-inspector #artifact-panel-versions .hp-artifact-history li {
+  position: relative;
+  background: #fff;
+  border: 1px solid #dce5eb;
+  border-radius: 11px;
+  box-shadow: none;
+  padding: 12px 13px;
+  margin: 10px 0 14px;
+  min-width: 0;
+}
+.hp-inspector #artifact-panel-versions .hp-artifact-history li::before {
+  content: "";
+  position: absolute;
+  left: -19px;
+  top: 20px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #a9bbc8;
+  box-shadow: 0 0 0 3px #f4f6f8;
+  pointer-events: none;
+}
+.hp-inspector #artifact-panel-versions .hp-artifact-history li:has(button[aria-current="true"]) {
+  border-color: #e2bbae;
+  background: #fff9f6;
+}
+.hp-inspector
+  #artifact-panel-versions
+  .hp-artifact-history
+  li:has(button[aria-current="true"])::before {
+  background: #cf482d;
+  border-color: #cf482d;
+}
+.hp-inspector #artifact-panel-versions .hp-artifact-history li p {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 6px 0;
+  overflow-wrap: anywhere;
+}
+.hp-inspector #artifact-panel-versions .hp-artifact-history li [role="alert"] {
+  border-left: 2px solid #b42318;
+  padding-left: 9px;
+}
+/* Artifact / details: compact source ledger. No invented relationship graph is inserted. */
+.hp-inspector #artifact-panel-details .hp-artifact-details {
+  display: grid;
+  grid-template-columns: minmax(70px, 34%) minmax(0, 1fr);
+  gap: 0;
+  padding: 5px 13px;
+  background: #fff;
+  border: 1px solid var(--hiv2-line);
+  border-radius: 13px;
+}
+.hp-inspector #artifact-panel-details .hp-artifact-details dt,
+.hp-inspector #artifact-panel-details .hp-artifact-details dd {
+  padding: 11px 0;
+  border-bottom: 1px solid #e8edf1;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.hp-inspector #artifact-panel-details .hp-artifact-details dt {
+  padding-right: 8px;
+  font-size: 12px;
+  color: #5d6f7b;
+}
+.hp-inspector #artifact-panel-details .hp-artifact-details dd {
+  font-size: 12.5px;
+  color: #304554;
+}
+.hp-inspector #artifact-panel-details .hp-artifact-details dt:nth-last-of-type(1),
+.hp-inspector #artifact-panel-details .hp-artifact-details dd:last-child {
+  border-bottom: 0;
+}
+/* Layered surface: strengthen intent-based hierarchy without remapping commands. */
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
+    .hp-operation-form
+  )
+  .hp-operation-form
+  :is(label, legend) {
+  color: #405666;
+  font-weight: 620;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
+    .hp-operation-form
+  )
+  .hp-operation-form
+  :is([role="alert"], [role="status"]) {
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
+    .hp-operation-form
+  )
+  .hp-operation-form
+  :is(button, input, select, textarea):focus-visible {
+  outline: 2px solid #b94025;
+  outline-offset: 3px;
+}
+/* Hover and keyboard are refined; never visually revive disabled or hidden controls. */
+.hp-inspector [role="alert"] {
+  overflow-wrap: anywhere;
+}
+.hp-inspector [role="status"] {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 599px) {
+  .hp-inspector #artifact-panel-details .hp-artifact-details {
+    grid-template-columns: minmax(67px, 34%) minmax(0, 1fr);
+    padding: 4px 11px;
+  }
+  .hp-inspector #run-panel-resources section[aria-label="文件操作审批"] > article {
+    padding: 12px;
+  }
+  .hp-inspector #artifact-panel-versions .hp-artifact-history li {
+    padding: 11px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-inspector #artifact-panel-versions .hp-artifact-history li {
+    transition: none;
+  }
+}
+
+/* EDITABLE END */
+/* Explicit visibility wins over every visual layout rule, including native
+   suspended dialogs. Inert stays an interaction contract, not a paint rule. */
+.hp-inspector [hidden],
+body:has(.hp-inspector) dialog.hp-object-operation[hidden],
+body:has(.hp-inspector) dialog.hp-object-operation [hidden] {
+  display: none !important;
+}
+/* A keyboard user can distinguish disabled controls without hover reviving them. */
+.hp-inspector button:disabled,
+body:has(.hp-inspector) dialog.hp-object-operation button:disabled {
+  cursor: not-allowed;
+}

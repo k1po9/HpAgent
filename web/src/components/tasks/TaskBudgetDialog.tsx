@@ -18,7 +18,12 @@ export function TaskBudgetDialog({ work, onClose }: { work: HpWork; onClose: () 
   const intent = useTaskOperations((s) => s.intents[work.work_id]);
   const budget = baseline.budget!;
   return (
-    <Surface motion="elevate" title="提高任务预算" onClose={onClose}>
+    <Surface
+      className="hp-object-operation"
+      motion="elevate"
+      title="提高任务预算"
+      onClose={onClose}
+    >
       <form
         className="hp-operation-form"
         onSubmit={(e) => {

@@ -320,6 +320,7 @@ export function AppShell() {
       {modal === "task-inbox" && <TaskInbox onClose={() => useShell.setState({ modal: null })} />}
       {pendingRoute && pendingReason === "tasks" && (
         <Surface
+          className="hp-object-operation"
           motion="elevate"
           title="放弃未提交的任务草稿？"
           onClose={() => useShell.setState({ pendingRoute: null })}
@@ -338,6 +339,7 @@ export function AppShell() {
       )}
       {((pendingRoute && pendingReason === "resources") || pendingResourceChange) && (
         <Surface
+          className="hp-object-operation"
           motion="elevate"
           title="放弃未提交的权限编辑？"
           onClose={() => useShell.setState({ pendingRoute: null, pendingResourceChange: null })}

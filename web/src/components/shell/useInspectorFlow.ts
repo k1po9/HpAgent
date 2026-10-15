@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useShell } from "../../store/shell";
 import { useAuth } from "../../store/auth";
 import { useRunInspector } from "../../store/runInspector";
+import { useArtifacts } from "../../store/artifacts";
 import { useMotionAllowed, motionAllowed, subscribeMotion } from "../motion/preference";
 import { inspectorIntent } from "../spatial/inspectorIntent";
 import { playFilament } from "../spatial/filament";
@@ -36,7 +37,8 @@ export function useInspectorFlow(compact: boolean) {
         scope,
         inspector.kind,
         inspector.objectId,
-        inspector.versionId,
+        // Artifact versions are internal selection, not a new spatial arrival.
+        inspector.kind === "artifact" ? null : inspector.versionId,
         inspector.origin?.conversationId,
         inspector.origin?.messageId,
         inspector.origin?.workId,
@@ -85,8 +87,12 @@ export function useInspectorFlow(compact: boolean) {
       height: r.height,
     };
   });
+  const artifactError = useArtifacts((s) =>
+    inspector?.kind === "artifact" ? Boolean(s.queries[inspector.objectId]?.error) : false,
+  );
   const safeError =
-    inspector?.kind === "run" && runId === inspector.objectId && (unavailable || Boolean(error));
+    artifactError ||
+    (inspector?.kind === "run" && runId === inspector.objectId && (unavailable || Boolean(error)));
   useLayoutEffect(() => {
     latest.current = { key, scope };
   });
@@ -145,7 +151,12 @@ export function useInspectorFlow(compact: boolean) {
         expanded: useShell.getState().expanded,
         landed: false,
       };
-      const receive = inspector?.kind === "run" && source && !compact && allowed && !safeError;
+      const receive =
+        (inspector?.kind === "run" || inspector?.kind === "artifact") &&
+        source &&
+        !compact &&
+        allowed &&
+        !safeError;
       const update = (phase: InspectorPhase, arrived = false) => {
         if (current())
           setView((v) => ({

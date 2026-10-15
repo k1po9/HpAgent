@@ -11,14 +11,18 @@ import { artifactStatus } from "./artifactPresentation";
 import { Download, FileCode, FolderPlus } from "lucide-react";
 const emptyVersions: never[] = [];
 async function refreshArtifact(id: string, force = false, active = () => true) {
-  const token = useShell.getState().requestToken;
+  const route = useShell.getState().route;
   const items = await useArtifacts.getState().loadArtifact(id, force);
   const shell = useShell.getState();
   const inspector = shell.route.inspector;
   if (
     !active() ||
     !items ||
-    shell.requestToken !== token ||
+    shell.route.screen !== route.screen ||
+    shell.route.conversationId !== route.conversationId ||
+    shell.route.directoryId !== route.directoryId ||
+    shell.route.workId !== route.workId ||
+    JSON.stringify(inspector?.origin) !== JSON.stringify(route.inspector?.origin) ||
     inspector?.kind !== "artifact" ||
     inspector.objectId !== id ||
     inspector.versionId
@@ -161,8 +165,12 @@ export function ArtifactInspector({
           </p>
         )}
         {!version && (
-          <p role="alert">
-            {versions.length ? "指定版本不可用，未替换为其他版本。" : "暂无版本内容。"}{" "}
+          <p role={query?.loading ? "status" : "alert"}>
+            {query?.loading
+              ? "正在加载版本内容…"
+              : versions.length
+                ? "指定版本不可用，未替换为其他版本。"
+                : "暂无版本内容。"}{" "}
             {defaultVersion(versions) && (
               <button onClick={() => select(defaultVersion(versions)!.artifact_version_id)}>
                 查看可用版本
@@ -177,28 +185,31 @@ export function ArtifactInspector({
           aria-labelledby={`artifact-tab-${tab}`}
           tabIndex={0}
         >
-          {tab === "preview" && version && (
-            <>
-              {version.status === "completed" && version.html ? (
-                <ArtifactPreview key={version.artifact_version_id} html={version.html} />
-              ) : (
-                <div
-                  className="hp-artifact-state"
-                  role={version.status === "failed" ? "alert" : "status"}
-                >
-                  <p>
-                    v{version.version} · {artifactStatus[version.status]}
-                  </p>
-                  {version.failure && <p>{version.failure.message}</p>}
-                  {parent && (
-                    <button onClick={() => select(parent.artifact_version_id)}>
-                      查看最近成功版本 v{parent.version}
-                    </button>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+          {/* Keep this version's iframe alive across local tabs and width changes. */}
+          <div hidden={tab !== "preview"} inert={tab !== "preview"}>
+            {version && (
+              <>
+                {version.status === "completed" && version.html ? (
+                  <ArtifactPreview key={version.artifact_version_id} html={version.html} />
+                ) : (
+                  <div
+                    className="hp-artifact-state"
+                    role={version.status === "failed" ? "alert" : "status"}
+                  >
+                    <p>
+                      v{version.version} · {artifactStatus[version.status]}
+                    </p>
+                    {version.failure && <p>{version.failure.message}</p>}
+                    {parent && (
+                      <button onClick={() => select(parent.artifact_version_id)}>
+                        查看最近成功版本 v{parent.version}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
           {tab === "versions" && (
             <ol className="hp-artifact-history">
               {[...versions]

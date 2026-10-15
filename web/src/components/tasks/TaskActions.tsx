@@ -104,7 +104,12 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
       )}
       {dialog === "edit" && <TaskEditor workId={work.work_id} onClose={() => setDialog(null)} />}
       {dialog === "stop" && (
-        <Surface motion="elevate" title="停止任务" onClose={() => setDialog(null)}>
+        <Surface
+          className="hp-object-operation"
+          motion="elevate"
+          title="停止任务"
+          onClose={() => setDialog(null)}
+        >
           <p>
             停止「{work.title}」后不再按原计划继续。未决外部操作仍需核查，任务可能暂时显示正在停止。
           </p>
@@ -125,7 +130,12 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
         </Surface>
       )}
       {dialog === "link" && (
-        <Surface motion="elevate" title="关联任务到对话" onClose={() => setDialog(null)}>
+        <Surface
+          className="hp-object-operation"
+          motion="elevate"
+          title="关联任务到对话"
+          onClose={() => setDialog(null)}
+        >
           <p>只关联任务，不复制权限或发送消息。</p>
           <label>
             目标对话

@@ -190,9 +190,21 @@ export function Surface({
   useEffect(
     () => () => {
       const target = trigger.current;
-      if (target?.isConnected && !target.closest("[hidden], [inert]")) target.focus();
-      else if (layers.at(-1)) layers.at(-1)?.querySelector<HTMLElement>("h2")?.focus();
-      else document.getElementById("canvas-title")?.focus();
+      // Nested surfaces can unmount together. Restore after every layer has
+      // released its native dialog, without overriding the parent's restore.
+      queueMicrotask(() => {
+        const top = layers.at(-1);
+        if (
+          target?.isConnected &&
+          !target.closest("[hidden], [inert]") &&
+          (!top || top.contains(target))
+        )
+          target.focus();
+        else if (top && !top.contains(document.activeElement))
+          top.querySelector<HTMLElement>("h2")?.focus();
+        else if (!top && (!document.activeElement || document.activeElement === document.body))
+          document.getElementById("canvas-title")?.focus();
+      });
     },
     [],
   );

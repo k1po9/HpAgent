@@ -60,7 +60,12 @@ function SaveView({
     "";
   // Query lifecycle is owned by the shared controller; this read is idempotent.
   return (
-    <Surface motion="elevate" title="保存到长期文件" onClose={onClose}>
+    <Surface
+      className="hp-object-operation"
+      motion="elevate"
+      title="保存到长期文件"
+      onClose={onClose}
+    >
       <WorkspaceDirectoryLoader />
       <form
         className="hp-operation-form"

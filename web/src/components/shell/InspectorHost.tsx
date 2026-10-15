@@ -1,4 +1,5 @@
 import { TitleCapture } from "../spatial/TitleCapture";
+import { InspectorTitleOrnament } from "../spatial/InspectorTitleOrnament";
 import { TaskInspector } from "../tasks/TaskInspector";
 import { useEffect, useState } from "react";
 import { useShell } from "../../store/shell";
@@ -69,6 +70,7 @@ function InspectorContent({
   const mediaCompact = useCompactInspector();
   const compact = compactOverride ?? mediaCompact;
   const tree = useWorkspace((s) => s.tree);
+  const hasReceiver = inspector?.kind === "run" || inspector?.kind === "artifact";
   const objectKey = inspector ? `${inspector.kind}:${inspector.objectId}` : null;
 
   const allowed = useMotionAllowed();
@@ -104,7 +106,7 @@ function InspectorContent({
   return (
     <Surface
       title={title}
-      titleRef={inspector.kind === "run" ? undefined : receiverRef}
+      titleRef={hasReceiver ? undefined : receiverRef}
       modal={compact}
       className={`hp-inspector hp-inspector--${inspector.kind} ${expanded ? "hp-inspector--expanded" : ""}`}
       headerActions={
@@ -132,18 +134,27 @@ function InspectorContent({
         data-inspector-arrived={flow.arrived}
         data-inspector-content={flow.detailsReveal ? "shown" : "held"}
       >
-        {inspector.kind === "run" && (
-          <header className="hp-run-identity hp-run-reception" aria-hidden={!reveal || undefined}>
+        {hasReceiver && (
+          <header
+            className="hp-run-identity hp-run-reception hp-capture-alt-ready"
+            data-capture-kind={inspector.kind}
+            aria-hidden={!reveal || undefined}
+          >
             <h3
               ref={receiverRef}
-              id="inspector-run-title"
+              id={inspector.kind === "run" ? "inspector-run-title" : "inspector-artifact-title"}
               className="hp-object-kind"
               data-revealed={reveal}
             >
-              执行详情
+              {inspector.kind === "run" ? "执行详情" : "HTML 成果"}
             </h3>
             <TitleCapture
               key={`${presentationKey}:${presentationToken}`}
+              active={reveal && flow.detailsReveal && (arrived || !allowed)}
+            />
+            <InspectorTitleOrnament
+              key={`ornament:${presentationKey}:${presentationToken}`}
+              kind={inspector.kind as "run" | "artifact"}
               active={reveal && flow.detailsReveal && (arrived || !allowed)}
             />
           </header>

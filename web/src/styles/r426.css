@@ -695,18 +695,20 @@ dialog.hp-surface[open] {
    Surface h2 remains the accessible dialog label and the reception h3 remains
    the genuine production filament target. When it is revealed, hide only the
    duplicate painted heading; keep the close/expand controls fully functional. */
-.hp-inspector--run .hp-surface-header {
+:is(.hp-inspector--run, .hp-inspector--artifact) .hp-surface-header {
   min-height: 40px !important;
   padding: 7px 14px 5px !important;
   border-bottom: 0 !important;
 }
-.hp-inspector--run:has(.hp-run-identity .hp-inspector-receiver[data-revealed="true"])
+:is(.hp-inspector--run, .hp-inspector--artifact):has(
+    .hp-run-identity .hp-inspector-receiver[data-revealed="true"]
+  )
   .hp-surface-header
   h2 {
   opacity: 0 !important;
   pointer-events: none;
 }
-.hp-inspector--run .hp-run-reception {
+:is(.hp-inspector--run, .hp-inspector--artifact) .hp-run-reception {
   margin-top: -2px;
 }
 
