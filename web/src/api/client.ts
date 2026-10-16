@@ -113,6 +113,7 @@ export class ApiClient {
   }
 
   async login(username: string, password: string): Promise<boolean> {
+    const generation = this.generation;
     const response = await this.fetchImpl("/auth/login", {
       method: "POST",
       credentials: "same-origin",
@@ -120,6 +121,7 @@ export class ApiClient {
       body: JSON.stringify({ username, password, return_to: "/" }),
       redirect: "follow",
     });
+    this.assertCurrent(generation);
     if (response.status === 401 || response.status === 422) {
       // A 401 carries the stable JSON error envelope; surface it as a typed
       // error so the login form can show the message.
@@ -128,10 +130,13 @@ export class ApiClient {
     // The 303 Set-Cookie has been stored by the browser (redirect: follow goes
     // to return_to `/`). The real proof of the session is /me, which also seeds
     // the CSRF token — never trust the login response alone.
-    return (await this.me()) !== null;
+    const me = await this.me();
+    this.assertCurrent(generation);
+    return me !== null;
   }
 
   async register(username: string, password: string, inviteCode?: string): Promise<boolean> {
+    const generation = this.generation;
     const body = {
       username,
       password,
@@ -143,14 +148,18 @@ export class ApiClient {
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(body),
     });
+    this.assertCurrent(generation);
     if (!response.ok) {
       throw await this.toError(response);
     }
     const result = (await response.json()) as { session_established?: boolean };
+    this.assertCurrent(generation);
     if (result.session_established === false) {
       return false;
     }
-    return (await this.me()) !== null;
+    const me = await this.me();
+    this.assertCurrent(generation);
+    return me !== null;
   }
 
   async logout(): Promise<void> {

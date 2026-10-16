@@ -19,6 +19,8 @@ export function UploadToWorkspaceDialog({
   directoryId: string;
   onClose: () => void;
 }) {
+  const [abandon, setAbandon] = useState(false);
+  const [dirtyChoice, setDirtyChoice] = useState(false);
   const tree = useWorkspace((s) => s.tree);
   const canUpload = useAuth((s) => s.capabilities?.file_upload === true);
   const operations = useWorkspaceOperations((s) => s.operations);
@@ -30,10 +32,22 @@ export function UploadToWorkspaceDialog({
   const [id, setId] = useState<string | null>(null);
   const operationRef = useRef(id);
   const operation = id ? operations[id] : undefined;
+  const close = () => {
+    if (dirtyChoice && (!operation || operation.canChangeSave)) setAbandon(true);
+    else onClose();
+  };
   return (
-    <Surface motion="elevate" title="上传到空间" onClose={onClose}>
+    <Surface motion="elevate" title="上传到空间" onClose={close}>
+      {abandon && (
+        <Surface title="放弃未提交的上传选择？" motion="elevate" onClose={() => setAbandon(false)}>
+          <p>尚未提交的文件、目录或名称选择将丢弃；已提交的操作记录保留。</p>
+          <button onClick={() => setAbandon(false)}>继续编辑</button>
+          <button onClick={onClose}>放弃选择并关闭</button>
+        </Surface>
+      )}
       <form
         className="hp-operation-form"
+        onChange={() => setDirtyChoice(true)}
         onSubmit={(e) => {
           e.preventDefault();
           if ((!file && !id) || !canUpload) return;
@@ -43,6 +57,7 @@ export function UploadToWorkspaceDialog({
               ? changeSaveTarget(previous, parent, name.trim())
               : previous
             : startSave(file!, parent, name.trim(), useForConversation ? subject : undefined);
+          setDirtyChoice(false);
           operationRef.current = operationId;
           setId(operationId);
           void resumeSave(operationId);

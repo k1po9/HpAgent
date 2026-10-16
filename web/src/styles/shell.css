@@ -276,6 +276,10 @@
   margin: 0;
 }
 
+.hp-file-title-reception {
+  position: relative;
+}
+
 .hp-surface-body {
   padding: 16px;
   overflow: auto;

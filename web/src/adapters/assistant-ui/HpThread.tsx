@@ -14,9 +14,15 @@ import {
   ThreadPrimitive,
   useAuiState,
 } from "@assistant-ui/react";
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { readingFoldBlock, useReadingFold } from "../../components/mercury/useReadingFold";
+import { useMercuryMotion } from "../../components/mercury/useMercuryMotion";
+import { useConversationTransit } from "../../components/mercury/useConversationTransit";
+import { ReadingPresentation } from "../../components/mercury/readingPresentation";
+import { MercuryLayer } from "../../components/mercury/MercuryLayer";
 import { emptyConversationUi, useConversationUi } from "../../store/conversationUi";
-import { Spinner, Text } from "@radix-ui/themes";
+import { Button, Flex, Spinner, Text } from "@radix-ui/themes";
 import { Bot, FileText, Paperclip, Send, Sparkles, Square, UserRound, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -30,6 +36,12 @@ import type { UploadAttachment } from "../../store/workbench";
 
 export interface HpThreadProps {
   conversationKey?: string;
+  readingControlsHost?: HTMLElement | null;
+  readingScope?: string;
+  readingOwner?: string;
+  readingReady?: boolean;
+  readingUnavailable?: boolean;
+  readingBlockedReason?: string | null;
   composerContext?: ReactNode;
   toolbar?: ReactNode;
   composerMode?: ReactNode;
@@ -153,6 +165,12 @@ function fitComposerInput(input: HTMLTextAreaElement | null) {
 
 export function HpThread({
   conversationKey = "standalone",
+  readingControlsHost,
+  readingScope = conversationKey,
+  readingOwner = conversationKey.split(":")[0]!,
+  readingReady = true,
+  readingUnavailable = false,
+  readingBlockedReason = null,
   composerContext,
   toolbar,
   composerMode,
@@ -215,7 +233,60 @@ export function HpThread({
   }, [conversationKey]);
   const submissions = useRef(new Map<string, symbol>());
   const [submittingKeys, setSubmittingKeys] = useState<Set<string>>(() => new Set());
-  const viewport = useRef<HTMLDivElement>(null);
+  const submitting = submittingKeys.has(conversationKey);
+  const readingId = useId();
+  const foldBlock =
+    readingBlockedReason ??
+    readingFoldBlock(
+      activeRun,
+      loadingHistory || Boolean(loadingMoreMessages) || sendUncertain || stopping || submitting,
+    );
+  const {
+    viewport,
+    region: readingRegion,
+    control: readingControl,
+    folded,
+    reveal: revealReading,
+    toggle: toggleReading,
+  } = useReadingFold(readingScope, messages, foldBlock);
+  const maskId = `hp-mercury-${readingId.replace(/:/g, "")}`;
+  const {
+    canvas: mercuryCanvas,
+    maskPath: mercuryMask,
+    active: mercuryActive,
+    prepare: prepareMercury,
+  } = useMercuryMotion({
+    scope: readingScope,
+    conversationKey,
+    messages,
+    blocked: foldBlock,
+    folded,
+    allowed: motionAllowed,
+    region: readingRegion,
+    viewport,
+    maskId,
+  });
+  const readingFrame = useMemo(
+    () => ({ key: conversationKey, messages, run: activeRun, hasMore: hasMoreMessages }),
+    [conversationKey, messages, activeRun, hasMoreMessages],
+  );
+  const transit = useConversationTransit({
+    frame: readingFrame,
+    owner: readingOwner,
+    ready: readingReady,
+    unavailable: readingUnavailable || submitting || sendUncertain || stopping,
+    folded,
+    allowed: motionAllowed,
+    reveal: revealReading,
+    region: readingRegion,
+    viewport,
+    canvas: mercuryCanvas,
+    maskPath: mercuryMask,
+    maskId,
+  });
+  const readingMessages = transit.frame.messages,
+    readingRun = transit.frame.run,
+    readingHasMore = transit.frame.hasMore;
   const composerInput = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => fitComposerInput(composerInput.current), [draft.text, conversationKey]);
   useLayoutEffect(() => {
@@ -236,7 +307,6 @@ export function HpThread({
   const running = Boolean(
     activeRun && !["succeeded", "failed", "cancelled"].includes(activeRun.status),
   );
-  const submitting = submittingKeys.has(conversationKey);
   const actionPhase = deriveComposerActionPhase({
     draft: draft.text,
     sendDisabled,
@@ -259,6 +329,7 @@ export function HpThread({
       !draft.text.trim()
     )
       return;
+    revealReading();
     const key = conversationKey,
       text = draft.text,
       revision = draft.revision;
@@ -287,6 +358,7 @@ export function HpThread({
     // The external runtime publishes its new message DOM after this parent's
     // layout effect. Restore only once that DOM reflects the requested page.
     const align = () => {
+      if (el.closest("[hidden], [inert]")) return;
       const rendered = Array.from(el.querySelectorAll<HTMLElement>("[data-message-id]"));
       if (
         rendered.length !== messages.length ||
@@ -333,99 +405,170 @@ export function HpThread({
     hasMoreMessages,
     loadingMoreMessages,
     onLoadMoreMessages,
+    viewport,
+    transit.busy,
   ]);
-  const runtime = useHpThreadRuntime({ messages, activeRun, sendDisabled, onSend, onCancel });
+  const runtime = useHpThreadRuntime({
+    messages: readingMessages,
+    activeRun: readingRun,
+    sendDisabled,
+    onSend,
+    onCancel,
+  });
   const filesByMessageId = Object.fromEntries(
-    messages.map((message) => [message.message_id, message.files ?? []]),
+    readingMessages.map((message) => [message.message_id, message.files ?? []]),
+  );
+  const foldControl = (
+    <button
+      ref={readingControl}
+      type="button"
+      className="hp-reading-toggle"
+      aria-controls={readingId}
+      aria-expanded={!folded}
+      aria-description={foldBlock ?? undefined}
+      disabled={transit.busy || (!folded && Boolean(foldBlock))}
+      aria-busy={transit.busy || undefined}
+      title={
+        transit.busy
+          ? "正在切换阅读区"
+          : (foldBlock ?? (folded ? "展开当前阅读区" : "仅收纳阅读区，保留输入与会话"))
+      }
+      onClick={() => {
+        prepareMercury(folded ? 0 : 1);
+        toggleReading(mercuryActive);
+      }}
+    >
+      {folded ? "展开阅读区" : "收纳阅读区"}
+    </button>
   );
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <ThreadPrimitive.Root className="hp-thread">
-        <ThreadPrimitive.Viewport
-          ref={viewport}
-          className="hp-thread__viewport"
-          autoScroll={false}
-          scrollToBottomOnRunStart={false}
-          scrollToBottomOnInitialize={false}
-          scrollToBottomOnThreadSwitch={false}
-          onScroll={(event) => {
-            if (loadingHistory) return;
-            const el = event.currentTarget;
-            const rect = el.getBoundingClientRect();
-            const anchor = Array.from(el.querySelectorAll<HTMLElement>("[data-message-id]")).find(
-              (m) => m.getBoundingClientRect().bottom > rect.top,
-            );
-            useConversationUi.getState().update(conversationKey, {
-              atBottom: el.scrollHeight - el.scrollTop - el.clientHeight < 48,
-              anchorMessageId: anchor?.dataset.messageId,
-              offset: anchor ? anchor.getBoundingClientRect().top - rect.top : 0,
-            });
-          }}
-        >
-          <ThreadPrimitive.Empty>
-            <div className="hp-thread-empty">
-              <span className="hp-thread-empty-icon" aria-hidden="true">
-                <Bot size={30} />
-              </span>
-              <Text as="p" size="5" weight="bold">
-                开始新的对话吧
-              </Text>
-              <p>
-                {fileUploadEnabled
-                  ? "输入问题，或添加资料与 HpAgent 一起开始。"
-                  : "输入问题，与 HpAgent 一起开始。"}
-              </p>
-            </div>
-          </ThreadPrimitive.Empty>
-          <ThreadPrimitive.Messages>
-            {() => (
-              <HpMessageView
-                filesByMessageId={filesByMessageId}
-                htmlMessageIds={
-                  new Set(
-                    messages
-                      .filter(
-                        (m) =>
-                          m.role === "assistant" &&
-                          m.status === "completed" &&
-                          Boolean(m.content?.trim()),
-                      )
-                      .map((m) => m.message_id),
-                  )
-                }
-                runsByMessageId={Object.fromEntries(
-                  messages
-                    .filter((m) => m.role === "assistant" && m.produced_by_run_id)
-                    .map((m) => [m.message_id, m.produced_by_run_id!]),
-                )}
-                onSaveFile={onSaveFile}
-              />
-            )}
-          </ThreadPrimitive.Messages>
-          {activeRun &&
-            !messages.some(
-              (m) => m.role === "assistant" && m.produced_by_run_id === activeRun.run_id,
-            ) && <ExecutionBlock runId={activeRun.run_id} />}
-        </ThreadPrimitive.Viewport>
-        {!draft.atBottom &&
-          draft.anchorMessageId &&
-          !messages.some((m) => m.message_id === draft.anchorMessageId) &&
-          hasMoreMessages && (
-            <button type="button" disabled={loadingMoreMessages} onClick={onLoadMoreMessages}>
-              原阅读位置尚未加载，继续加载历史
-            </button>
-          )}
-        {!draft.atBottom && (
-          <button
-            className="hp-thread-bottom"
-            type="button"
-            onClick={() => {
-              if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;
-              useConversationUi.getState().update(conversationKey, { atBottom: true });
-            }}
+      <ThreadPrimitive.Root className="hp-thread" data-reading-folded={folded}>
+        {readingControlsHost ? createPortal(foldControl, readingControlsHost) : foldControl}
+        <MercuryLayer
+          canvas={mercuryCanvas}
+          maskPath={mercuryMask}
+          maskId={maskId}
+          active={mercuryActive || transit.active}
+        />
+        <ReadingPresentation.Provider value={{ retiring: transit.busy, run: readingRun }}>
+          <div
+            ref={readingRegion}
+            id={readingId}
+            className="hp-reading"
+            data-reading-conversation={transit.frame.key}
+            data-mercury-retiring={transit.retiring || undefined}
+            hidden={folded && !mercuryActive && !transit.busy}
+            inert={folded || mercuryActive || transit.busy}
+            aria-hidden={folded || mercuryActive || transit.busy || undefined}
           >
-            有新消息 / 回到底部
-          </button>
+            {readingHasMore && (
+              <Flex justify="center" className="hp-loadmore">
+                <Button
+                  size="1"
+                  variant="soft"
+                  type="button"
+                  onClick={onLoadMoreMessages}
+                  disabled={loadingMoreMessages}
+                >
+                  {loadingMoreMessages ? "加载中…" : "加载更早的消息"}
+                </Button>
+              </Flex>
+            )}
+            <ThreadPrimitive.Viewport
+              ref={viewport}
+              className="hp-thread__viewport"
+              autoScroll={false}
+              scrollToBottomOnRunStart={false}
+              scrollToBottomOnInitialize={false}
+              scrollToBottomOnThreadSwitch={false}
+              onScroll={(event) => {
+                if (loadingHistory || folded || event.currentTarget.closest("[hidden], [inert]"))
+                  return;
+                const el = event.currentTarget;
+                const rect = el.getBoundingClientRect();
+                const anchor = Array.from(
+                  el.querySelectorAll<HTMLElement>("[data-message-id]"),
+                ).find((m) => m.getBoundingClientRect().bottom > rect.top);
+                useConversationUi.getState().update(conversationKey, {
+                  atBottom: el.scrollHeight - el.scrollTop - el.clientHeight < 48,
+                  anchorMessageId: anchor?.dataset.messageId,
+                  offset: anchor ? anchor.getBoundingClientRect().top - rect.top : 0,
+                });
+              }}
+            >
+              <ThreadPrimitive.Empty>
+                <div className="hp-thread-empty">
+                  <span className="hp-thread-empty-icon" aria-hidden="true">
+                    <Bot size={30} />
+                  </span>
+                  <Text as="p" size="5" weight="bold">
+                    开始新的对话吧
+                  </Text>
+                  <p>
+                    {fileUploadEnabled
+                      ? "输入问题，或添加资料与 HpAgent 一起开始。"
+                      : "输入问题，与 HpAgent 一起开始。"}
+                  </p>
+                </div>
+              </ThreadPrimitive.Empty>
+              <ThreadPrimitive.Messages>
+                {() => (
+                  <HpMessageView
+                    filesByMessageId={filesByMessageId}
+                    htmlMessageIds={
+                      new Set(
+                        readingMessages
+                          .filter(
+                            (m) =>
+                              m.role === "assistant" &&
+                              m.status === "completed" &&
+                              Boolean(m.content?.trim()),
+                          )
+                          .map((m) => m.message_id),
+                      )
+                    }
+                    runsByMessageId={Object.fromEntries(
+                      readingMessages
+                        .filter((m) => m.role === "assistant" && m.produced_by_run_id)
+                        .map((m) => [m.message_id, m.produced_by_run_id!]),
+                    )}
+                    onSaveFile={onSaveFile}
+                  />
+                )}
+              </ThreadPrimitive.Messages>
+              {readingRun &&
+                !readingMessages.some(
+                  (m) => m.role === "assistant" && m.produced_by_run_id === readingRun.run_id,
+                ) && <ExecutionBlock runId={readingRun.run_id} />}
+            </ThreadPrimitive.Viewport>
+            {!draft.atBottom &&
+              draft.anchorMessageId &&
+              !readingMessages.some((m) => m.message_id === draft.anchorMessageId) &&
+              readingHasMore && (
+                <button type="button" disabled={loadingMoreMessages} onClick={onLoadMoreMessages}>
+                  原阅读位置尚未加载，继续加载历史
+                </button>
+              )}
+            {!draft.atBottom && (
+              <button
+                className="hp-thread-bottom"
+                type="button"
+                onClick={() => {
+                  if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;
+                  useConversationUi.getState().update(conversationKey, { atBottom: true });
+                }}
+              >
+                有新消息 / 回到底部
+              </button>
+            )}
+          </div>
+        </ReadingPresentation.Provider>
+        {folded && !mercuryActive && (
+          <div className="hp-reading-folded" role="status">
+            <p>阅读区已收纳</p>
+            <p>输入与附件仍保留。发送消息或收到新内容时自动展开。</p>
+          </div>
         )}
         <form
           className="hp-composer"

@@ -153,3 +153,24 @@ it("indexes large trees once and preserves folder-first stable order", () => {
   expect(compareNodes(folder, file)).toBeLessThan(0);
   expect(performance.now() - start).toBeLessThan(5000);
 });
+
+it("retains the authorization DOM while cancel keeps draft and approved discard resets it", async () => {
+  vi.spyOn(workspaceApi, "listConversationResources").mockResolvedValue({
+    attachments: [],
+    grants: [],
+  });
+  const subject = { kind: "conversation" as const, id: "c", title: "Draft" };
+  render(<GrantEditor node={file} subject={subject} />);
+  const permission = screen.getByLabelText("读取内容");
+  fireEvent.click(permission);
+  expect(permission).not.toBeChecked();
+  const owner = useShell.getState().dirtyResourceEditor;
+  act(() => useShell.getState().closeInspector());
+  expect(useShell.getState().dirtyResourceEditor).toBe(owner);
+  act(() => useShell.setState({ pendingRoute: null }));
+  expect(screen.getByLabelText("读取内容")).toBe(permission);
+  expect(permission).not.toBeChecked();
+  act(() => useShell.setState({ dirtyResourceEditor: null }));
+  expect(screen.getByLabelText("读取内容")).toBe(permission);
+  expect(permission).toBeChecked();
+});

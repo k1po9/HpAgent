@@ -64,13 +64,21 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
               : "等待保存"}
           {s.state === "succeeded" && s.entry_id && (
             <button
+              id={`task-file-${work.work_id}-${s.run_id}`}
               onClick={() =>
-                useShell
-                  .getState()
-                  .openInspector(
-                    { kind: "file", objectId: s.entry_id!, origin: { workId: work.work_id } },
-                    true,
-                  )
+                useShell.getState().openInspector(
+                  {
+                    kind: "file",
+                    objectId: s.entry_id!,
+                    origin: {
+                      workId: work.work_id,
+                      runId: s.run_id,
+                      sourceRequirementRevision: s.requirement_revision,
+                      triggerId: `task-file-${work.work_id}-${s.run_id}`,
+                    },
+                  },
+                  true,
+                )
               }
             >
               查看空间入口

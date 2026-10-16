@@ -1,8 +1,12 @@
 # HpAgent UI 迭代总方案与调度合同
 
+当前状态（2026-10-17）：用户明确“R6 通过，进行收尾工作，清理，代码迁入，commit”，**R1–R6 UI迭代已正式接受**。接受241份源码/配置，指纹bcc85cb4b9f68570d33a217709636e937de1594d65910cf559ca5223a0efe867，含最新会话切换/阅读控件共用8.5×0.35时序。见[R6决定](../../../artifacts/product-acceptance/ui-iteration/R6/DECISION.md)、[接受合同](R6-ACCEPTED-CONTRACT.md)和[正式收尾](../../../artifacts/product-acceptance/ui-iteration/R6/attempt-04-accepted-closeout/CLOSEOUT.md)。当前生产源码已具备全部接受改动，本次授权正式本地提交；评审入口15346、隔离API+Fake15336。未推送/部署、不启动R7；真机/供应商/生产Worker等未测项不因UI接受变为已验证。以下保留历史。
+
+历史状态（2026-10-16）：R1–R5已正式接受，R5最后两项调整为0.35×及两个宿主端点缓动区间减半。240份源码指纹 `d767ac3b8d22330f20dbe63eb930f8020b0da56b36e8279c929f5dcf03996d22`。见[R5接受决定](../../../artifacts/product-acceptance/ui-iteration/R5/DECISION.md)和[R5计划](R5-PLAN.md)，入口http://127.0.0.1:5344/REVIEW.html。R6未启动，未提交/推送/部署。以下保留历史。
+
 日期：2026-10-13（Asia/Shanghai）。审计基线：`main@b8a5a02eb83b4e122367e321040e78e1aae7cd3e`。
 
-本文件把总调度对话中的只读审计和阶段决策保存为新实施对话可独立使用的上下文。当前状态（2026-10-14）：R1、R2、R3 均已正式接受，R3 功能清单已只读核查，R4.0已完成、R4.1待人审、R4.2尚未启动。执行窗口收到用户启动指令后按相应轮次实施。每个大轮次使用一个新对话，同一轮返修优先继续原实施对话。下方日期化交付记录保留历史状态，以最终决定与本段当前状态为准。
+历史状态（R5本次接受前，2026-10-16）：R1、R2、R3、R4 均已正式接受并冻结。用户“通过，下一步干什么”接受 attempt-16 的四类组合、跨轮回归与真实隔离 API 收口，完成 R4 整体验收；冻结209份源码/配置，指纹 `3f157303d1526c5357cfb899fe445035e01bc3c0d78926dd4240a80d573b5758`。决定见 [R4 DECISION](../../../artifacts/product-acceptance/ui-iteration/R4/DECISION.md)。R5.0 产品语义与基础收纳已正式接受并冻结；用户最新授权补正左侧会话切换、真实跨栏收束与主题配色候选，attempt-03已完成工程自审修复和验证，停在 **R5 整体待人审**；R6 未启动。入口见 [R5 计划](R5-PLAN.md)与[本轮交接](../../../artifacts/product-acceptance/ui-iteration/R5/attempt-03-conversation-transit/HANDOFF.md)，本地评审 http://127.0.0.1:5342/REVIEW.html；无提交/推送/部署授权。下方历史记录保留。
 
 2026-10-13 调度补充：R1 首轮候选已经交付，S1 被选择为方向；用户随后指出一次选择不足以代表静态审美收敛。R1 拆为 R1.1 方向选择、R1.2 整体打磨、R1.3 收敛验收。历史 attempt-01 的“已接受 S1”仅作为方向选择记录，不作为 R1 整轮放行。下述更新及新 Prompt 优先于旧 R1 退出措辞；保留历史证据，不改写过去记录。
 
@@ -100,9 +104,9 @@ B/C 中“A 尚未收敛”的说明已经落后于最新 A Skill；以 A4.2.1 �
 | R1 | R1.1方向选择→R1.2整体打磨→R1.3收敛验收 | 静止时的审美、层级和阅读 | 已正式接受，见 attempt-06 最终决定 |
 | R2 | B Conversation→Rail→Surface；C 映射/双尺度/连续切换；A 微状态 | 常用反馈和生命状态统一 | 已接受，见 R2/attempt-06 |
 | R3 | A 提交确认→渐冷光迹→同路径成环→C 接管 | 真实交互的因果与连贯性 | 已接受，见 R3/attempt-03；功能清单核查已完成 |
-| R4 | B Inspector 请求/呈现分轨、强化银丝、Arrival Gate、Soft Close | 进入、关闭、快切与四类对象 | R4.1待人审；R4.2未启动 |
-| R5 | Mercury 无特效语义→可逆颗粒→共同相位→密度材质 | 松解、吸纳、反向和性能 | 未启动 |
-| R6 | Workspace/Tasks/登录/异常/移动/组合回归及全站收敛 | 产品一致性、长时使用与最终接受 | 未启动 |
+| R4 | B Inspector 请求/呈现分轨、强化银丝、Arrival Gate、Soft Close | 进入、关闭、快切与四类对象 | 已正式接受并冻结，见 R4/DECISION.md |
+| R5 | Mercury 无特效语义→可逆颗粒→共同相位→密度材质 | 松解、吸纳、反向和性能 | 已正式接受并冻结，见 R5/DECISION.md |
+| R6 | Workspace/Tasks/登录/异常/移动/组合回归及全站收敛 | 产品一致性、长时使用与最终接受 | 已正式接受，见R6 DECISION |
 
 R2 内各子项仍按小步实现和验证。R3/R4 后必须展示连续“输入→执行→详情→关闭→继续阅读”，独立 Demo 不能代替组合验收。
 
@@ -133,6 +137,7 @@ R2 内各子项仍按小步实现和验证。R3/R4 后必须展示连续“输�
 
 ## 9. 当前可用启动材料
 
+- [R6 新窗口完整实施 Prompt](R6-PROMPT.md)（实施范围历史；R6现已接受，见最新决定）
 - [R3 功能清单核查](R3-FUNCTION-AUDIT.md)
 - [R4 实施计划](R4-PLAN.md)
 - [R4 新窗口完整 Prompt](R4-PROMPT.md)
@@ -211,3 +216,60 @@ R4.0基线与guard接缝核实完成；R4.1 Run接力、实际抵达门控、真
 ## R4.1 / R4.2.6 视觉迁回版已接受 · 2026-10-15
 
 用户认可当前改善 UI，授权“先commit，再逐步推进”。接受基线见 R4/attempt-10-r426-migration/STAGE-DECISION.md 与 INTERACTION-CONTRACT.md。原计划 R4.2 四类对象阶段仍待实施；下一步 Artifact，再 File/Task 与完整组合。R4 整轮未接受，R5 不启动。
+
+## R4.2 Artifact 第一步交付 · 2026-10-15
+
+先提交接受UI基线 `1a21a93` 与R1/R2/R3冻结文档 `8ca20b9`。Artifact已局部接入既有光丝/标题框，补齐版本归一化与同版本iframe保持；527项单测及production React夹具浏览器检查通过。当前 **Artifact待人审**，最新[HANDOFF](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-11-artifact/HANDOFF.md)。真实隔离API本轮未跑；File/Task与四类组合仍待逐步推进，R4整轮未接受。
+
+## AI Inspector 离线美化交接 · 2026-10-15
+
+用户改为把当前React导出给外部模型美化，范围为AI下全部Inspector、展开与所有子页/按钮/呈现。新增[交接包](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-12-ai-inspector-handoff/README.md)，包含完整离线HTML、可美化/业务保护边界、剩余工程要求、源码映射快照和返回指纹校验。16页默认/展开与深层内容等28项浏览器检查通过，外部请求0。当前等待返回美化HTML后迁回与逐项回归，File/Task新增接力暂不继续实现，R4整轮未接受。
+
+## File/目录接力本步交付 · 2026-10-16
+
+File/目录已接入共享实际抵达/标题/关闭机制，明确真实入口来源，保留预览、版本输入和授权草稿DOM，修复获准放弃与权限失败清理。当前 **File/目录接力待人审**，R4整轮未接受；Task完整接力、四类组合及真实隔离API仍按后续人审顺序推进。入口与独立交接见[attempt-14 HANDOFF](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-14-file-relay/HANDOFF.md)。真实React与完整离线HTML、源码备份/指纹、逐项I01–I20台账与本轮证据均保留。未提交/推送/部署；R5/R6未启动。
+
+
+## File 接受与 Task 授权 · 2026-10-16
+
+用户明确“通过，下一步执行”。[File 接受决定](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-14-file-relay/DECISION.md)记录接受范围。Task 新 attempt-15 已备份当前未提交源码、指纹、差异与接受构建；本步仅实施 Task，停“Task 接力待人审”。
+
+
+## Task 本步交付 · 2026-10-16
+
+真实Task完整接力已实施、自审、修复并验证，当前 **Task 接力待人审**。复用现有接力/标题/关闭机制，保留4Tab及表单DOM，修复历史guard与保留查询的生命周期接缝；全部16子页及关联弹层已接受视觉保持。入口与独立交接见[attempt-15 HANDOFF](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-15-task-relay/HANDOFF.md)。完整556测试、生产构建/静态检查及明确夹具浏览器验证通过；真实API仍未测。Task接受后再做四类组合与跨轮/隔离API，整轮R4未接受。未提交/推送/部署，R5/R6未启动。
+
+## 2026-10-16 · attempt-16 四类组合收口交付
+
+Run/Artifact/File/Task组合、R1–R3定向回归、真实隔离API已执行并自审；209份生产源码/配置与Task接受版完全一致，无新产品差异。556前端测试、186隔离后端测试、29独立原浏览器场景最终通过；夹具、真实API+Fake及canonical Worker事实准备分开记录，初次失败与未测项保留。
+
+评审入口 http://127.0.0.1:5333/REVIEW.html 。详见 [attempt-16交接](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-16-four-kind-closure/HANDOFF.md) 和 [逐项验收](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-16-four-kind-closure/CONTRACT_CHECKLIST.md)。**当前停“R4 整体待人审”**，尚未写整轮接受DECISION，R5/R6未启动。未提交、推送或部署。
+
+## 2026-10-16 · R4 整体接受与冻结
+
+用户“通过，下一步干什么”明确接受attempt-16的R4整轮交付。当前源码209份指纹核对一致，正式决定与冻结清单见 [R4 DECISION](../../../artifacts/product-acceptance/ui-iteration/R4/DECISION.md)。历史attempt、失败/未测证据及未提交成果保留。下一轮按总计划为R5 Mercury，先明确阅读区收纳/恢复语义，R5/R6尚未启动。
+
+
+## R5.0 基础收纳候选交付 · 2026-10-16
+
+本窗口已完成 R5.0 审计、实施、自审修复与真实 production React 验证，停 **R5.0 产品语义与基础收纳待人审**。候选合同仍需独立人审，不表示已接受。仅收纳当前消息阅读表面，Composer/真实DOM保留；活跃/未知执行禁用；发送/新事实/身份变化恢复阅读；无颗粒/松解/吸纳/相位/密度材质。
+
+[计划](R5-PLAN.md) · [候选合同](R5.0-INTERACTION-CONTRACT.md) · [交接与入口](../../../artifacts/product-acceptance/ui-iteration/R5/attempt-01-basic-fold/HANDOFF.md)。R4 209份冻结文件已逐文件核对；已接受未提交成果完整保留。68文件582前端测试、类型/构建/局部静态、22收纳浏览器场景、四类组合/16页同数据对照及隔离API+Fake整链证据均在新attempt。真机/系统冻结/真实供应商等未测限制明确。R5后续效果与R6未启动，未提交、推送或部署。
+
+
+## R5.0 已接受与下一步方案 · 2026-10-16
+
+用户“通过，下一步任务是什么，先给出你的方案”明确接受R5.0。工作区及原候选快照229/229重新核实一致，冻结指纹dbd14e7ac01cf6267331ab2087579e4836652c5f1c95479532513905afd8d673。[接受决定](../../../artifacts/product-acceptance/ui-iteration/R5/R5.0-DECISION.md)优先于原attempt交付时的待人审文字；原包不改写。
+
+建议下一步R5.1可逆星点运动基础，再分步推进R5.2共同相位/松解吸纳、R5.3密度材质/性能及R5整轮收口。具体见[R5计划](R5-PLAN.md)。这是方案，尚未授权实施效果；R5整轮未接受，R6未启动，未提交/推送/部署。
+
+
+## 历史：R5 速度候选补充（attempt-04）
+
+用户反馈切换过快，默认改0.50×；提供1.00/0.65/0.50/0.35/0.25五档评审选项。入口http://127.0.0.1:5343/REVIEW.html，离线与增量证据见artifacts/product-acceptance/ui-iteration/R5/attempt-04-speed-options。attempt-03历史完整保留，R5整体仍待人审。
+
+
+2026-10-17 评审入口恢复：用户Windows截图显示连接被拒绝。核实Windows保留端口5286–5385包含旧5346/5336，改为Windows回环评审 http://127.0.0.1:15346/REVIEW.html 与隔离API预览 http://127.0.0.1:15336/ 。源码241/241与attempt-01一致，未改产品；原包/证据保留。Windows端完整HTTP读取、真实隔离登录/me/退出204已验证。启动与边界见R6/attempt-02-windows-review-entry/README.md。仍停R6整体待人审。
+
+
+2026-10-17 · 用户要求切换对话的粒子收束/展开与“展开阅读区”参数一致。R6 attempt-03将两入口共用8.5×0.35与hostTempo=2，手动阅读原速度保持，切换从23基础系数放慢；真实数据等待/路径/配色不变。当前入口15346已切换到该候选，证据及恢复见artifacts/product-acceptance/ui-iteration/R6/attempt-03-unified-mercury-timing/HANDOFF.md。R6整体仍待人审，未提交/推送/部署。

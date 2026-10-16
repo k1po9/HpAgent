@@ -31,6 +31,8 @@ function SaveView({
   onClose: () => void;
   onSaved: (operation: SaveOperation) => void;
 }) {
+  const [abandon, setAbandon] = useState(false);
+  const [dirtyChoice, setDirtyChoice] = useState(false);
   const tree = useWorkspace((s) => s.tree);
   const [directory, setDirectory] = useState("");
   const [name, setName] = useState(file.file_name);
@@ -59,16 +61,28 @@ function SaveView({
     tree?.root_id ||
     "";
   // Query lifecycle is owned by the shared controller; this read is idempotent.
+  const close = () => {
+    if (dirtyChoice && (!operation || operation.canChangeSave)) setAbandon(true);
+    else onClose();
+  };
   return (
     <Surface
       className="hp-object-operation"
       motion="elevate"
       title="保存到长期文件"
-      onClose={onClose}
+      onClose={close}
     >
       <WorkspaceDirectoryLoader />
+      {abandon && (
+        <Surface title="放弃未提交的保存选择？" motion="elevate" onClose={() => setAbandon(false)}>
+          <p>尚未提交的文件、目录或名称选择将丢弃；已提交的操作记录保留。</p>
+          <button onClick={() => setAbandon(false)}>继续编辑</button>
+          <button onClick={onClose}>放弃选择并关闭</button>
+        </Surface>
+      )}
       <form
         className="hp-operation-form"
+        onChange={() => setDirtyChoice(true)}
         onSubmit={(e) => {
           e.preventDefault();
           const previous = operationRef.current;
@@ -77,6 +91,7 @@ function SaveView({
               ? changeSaveTarget(previous, target, name.trim())
               : previous
             : startSave(file, target, name.trim());
+          setDirtyChoice(false);
           operationRef.current = operationId;
           setId(operationId);
           void resumeSave(operationId).then(() => {
@@ -141,7 +156,7 @@ function SaveView({
             {operation?.busy ? "保存中…" : id ? "继续原保存" : "确认保存"}
           </button>
         )}
-        <button type="button" onClick={onClose}>
+        <button type="button" onClick={close}>
           {operation?.completed ? "完成" : "关闭"}
         </button>
       </form>

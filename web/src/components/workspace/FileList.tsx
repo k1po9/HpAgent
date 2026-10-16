@@ -30,13 +30,18 @@ export function FileList({
           const isDirectory = node?.kind === "directory";
           const open = () => {
             if (isDirectory) {
-              useWorkspace.setState({ allFiles: false, searchMode: false });
-              useShell.getState().navigate({ screen: "workspace", directoryId: row.node_id });
+              useShell.getState().requestResourceChange(() => {
+                if (useShell.getState().navigate({ screen: "workspace", directoryId: row.node_id }))
+                  useWorkspace.setState({ allFiles: false, searchMode: false });
+              });
             } else
               useShell.getState().openInspector({
                 kind: "file",
                 objectId: row.node_id,
-                origin: { directoryId: useShell.getState().route.directoryId },
+                origin: {
+                  directoryId: useShell.getState().route.directoryId,
+                  triggerId: `workspace-node-${row.node_id}`,
+                },
               });
           };
           const purpose = "purpose" in row ? row.purpose : node?.source?.purpose;
@@ -75,12 +80,16 @@ export function FileList({
               <td>{purpose === "output" ? "AI 输出" : purpose === "input" ? "上传" : "—"}</td>
               <td>
                 <button
+                  id={`workspace-details-${row.node_id}`}
                   aria-label={`查看${row.name}详情`}
                   onClick={() =>
                     useShell.getState().openInspector({
                       kind: "file",
                       objectId: row.node_id,
-                      origin: { directoryId: useShell.getState().route.directoryId },
+                      origin: {
+                        directoryId: useShell.getState().route.directoryId,
+                        triggerId: `workspace-details-${row.node_id}`,
+                      },
                     })
                   }
                 >

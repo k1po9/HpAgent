@@ -1,5 +1,5 @@
 import { InspectorTabs } from "../shell/InspectorTabs";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useShell, type Inspector } from "../../store/shell";
 import type { HpWorkspaceNode } from "../../api/types";
@@ -29,7 +29,7 @@ export function FileInspector({ inspector }: { inspector: Inspector }) {
       .catch(() => {});
   }, []);
   const node = tree?.nodes.find((n) => n.node_id === inspector.objectId);
-  if (!tree)
+  if (!tree || error)
     return (
       <p role={error ? "alert" : "status"}>
         {error || "正在加载对象…"}
@@ -67,7 +67,23 @@ export function FileInspector({ inspector }: { inspector: Inspector }) {
         </button>
       </div>
     );
-  return <FileBody key={`${node.node_id}:${node.file_id}`} node={node} inspector={inspector} />;
+  return <FileBody key={node.node_id} node={node} inspector={inspector} />;
+}
+/** A visited panel keeps its DOM and query owner; unvisited panels remain lazy. */
+function FilePanel({ id, active, children }: { id: string; active: boolean; children: ReactNode }) {
+  const [visited, setVisited] = useState(active);
+  if (active && !visited) setVisited(true);
+  return (
+    <section
+      role="tabpanel"
+      id={`file-panel-${id}`}
+      aria-labelledby={`file-tab-${id}`}
+      hidden={!active}
+      inert={!active}
+    >
+      {(active || visited) && children}
+    </section>
+  );
 }
 function FileBody({ node, inspector }: { node: HpWorkspaceNode; inspector: Inspector }) {
   const tree = useWorkspace((s) => s.tree);
@@ -88,6 +104,12 @@ function FileBody({ node, inspector }: { node: HpWorkspaceNode; inspector: Inspe
     node.kind === "file" && node.file_id ? `file:${node.file_id}` : null,
     () => workspaceApi.getFile(node.file_id!),
   );
+  if (metadata.error)
+    return (
+      <p role="alert">
+        文件信息不可用。<button onClick={metadata.retry}>重试文件信息</button>
+      </p>
+    );
   return (
     <div className="hp-file-inspector">
       <h3>
@@ -112,65 +134,63 @@ function FileBody({ node, inspector }: { node: HpWorkspaceNode; inspector: Inspe
           </button>
         )}
       </div>
-      {metadata.error && (
-        <p role="alert">
-          文件信息不可用。<button onClick={metadata.retry}>重试文件信息</button>
-        </p>
-      )}
       <InspectorTabs
         prefix="file"
         label="文件信息"
         tabs={tabs.filter((t) => node.kind === "file" || ["details", "usage"].includes(t.id))}
         selected={tab}
-        panelId="file-tab-body"
       />
-      <section role="tabpanel" id="file-tab-body" aria-labelledby={`file-tab-${tab}`}>
-        {tab === "preview" &&
-          node.kind === "file" &&
-          (metadata.data ? (
+      {node.kind === "file" && (
+        <FilePanel id="preview" active={tab === "preview"}>
+          {metadata.data ? (
             <FilePreview key={node.file_id} file={metadata.data.file} />
           ) : (
             !metadata.error && <p role="status">正在读取文件信息…</p>
-          ))}
-        {tab === "details" && (
-          <>
-            <dl>
-              <dt>类型</dt>
-              <dd>
-                {node.kind === "directory" ? "目录" : (metadata.data?.file.content_type ?? "—")}
-              </dd>
-              <dt>大小</dt>
-              <dd>
-                {node.kind === "directory"
-                  ? "—"
-                  : formatBytes(metadata.data?.file.size_bytes ?? node.source?.size_bytes)}
-              </dd>
-              <dt>来源</dt>
-              <dd>
-                {node.source?.purpose === "output"
-                  ? "AI 输出"
-                  : node.source?.purpose === "input"
-                    ? "上传"
-                    : "—"}
-              </dd>
-            </dl>
-            {node.kind === "file" && node.file_id && <FileDetails node={node} />}
-          </>
-        )}
-        {tab === "versions" && node.kind === "file" && <FileVersions node={node} />}
-        {tab === "usage" && (
-          <>
-            <p>仅管理所选主体；历史使用记录不代表当前有效授权或完整主体列表。</p>
-            <SubjectPicker value={subject} onChange={setSubject} />
-            {subject ? (
-              <GrantEditor node={node} subject={subject} />
-            ) : (
-              <p>选择对话或任务查看其权限。</p>
-            )}
-            {node.kind === "file" && <FileUsage node={node} />}
-          </>
-        )}
-      </section>
+          )}
+        </FilePanel>
+      )}
+      <FilePanel id="details" active={tab === "details"}>
+        <>
+          <dl>
+            <dt>类型</dt>
+            <dd>
+              {node.kind === "directory" ? "目录" : (metadata.data?.file.content_type ?? "—")}
+            </dd>
+            <dt>大小</dt>
+            <dd>
+              {node.kind === "directory"
+                ? "—"
+                : formatBytes(metadata.data?.file.size_bytes ?? node.source?.size_bytes)}
+            </dd>
+            <dt>来源</dt>
+            <dd>
+              {node.source?.purpose === "output"
+                ? "AI 输出"
+                : node.source?.purpose === "input"
+                  ? "上传"
+                  : "—"}
+            </dd>
+          </dl>
+          {node.kind === "file" && node.file_id && <FileDetails node={node} />}
+        </>
+      </FilePanel>
+      {node.kind === "file" && (
+        <FilePanel id="versions" active={tab === "versions"}>
+          <FileVersions node={node} />
+        </FilePanel>
+      )}
+      <FilePanel id="usage" active={tab === "usage"}>
+        <>
+          <p>仅管理所选主体；历史使用记录不代表当前有效授权或完整主体列表。</p>
+          <SubjectPicker value={subject} onChange={setSubject} />
+          {subject ? (
+            <GrantEditor node={node} subject={subject} />
+          ) : (
+            <p>选择对话或任务查看其权限。</p>
+          )}
+          {node.kind === "file" && <FileUsage node={node} />}
+        </>
+      </FilePanel>
       {mutation && <WorkspaceMutationDialog node={node} onClose={() => setMutation(false)} />}
       {using && <UseInConversationDialog node={node} onClose={() => setUsing(false)} />}
     </div>
@@ -224,10 +244,20 @@ function FileDetails({ node }: { node: HpWorkspaceNode }) {
       )}
       {trace.data?.source_work_id && (
         <button
+          id={`file-source-task-${node.node_id}`}
           onClick={() =>
-            useShell
-              .getState()
-              .openInspector({ kind: "task", objectId: trace.data!.source_work_id! }, true)
+            useShell.getState().openInspector(
+              {
+                kind: "task",
+                objectId: trace.data!.source_work_id!,
+                origin: {
+                  triggerId: `file-source-task-${node.node_id}`,
+                  workId: trace.data!.source_work_id!,
+                  runId: trace.data!.source_run_id ?? undefined,
+                },
+              },
+              true,
+            )
           }
         >
           查看来源任务

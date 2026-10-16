@@ -146,3 +146,21 @@ it.each(["close", "tab", "back"] as const)(
     expect(useShell.getState().route.inspector?.objectId).toBe("B");
   },
 );
+
+it("keeps the guarded history destination when its paired hashchange sees the restored current URL", () => {
+  const current = {
+    screen: "tasks" as const,
+    inspector: { kind: "task" as const, objectId: "w1", tab: "overview" as const },
+  };
+  useShell.getState().navigate(current);
+  useShell.setState({ dirtyTaskEditor: "w1" });
+  const desired = { ...current, inspector: { ...current.inspector, tab: "advanced" as const } };
+  useShell.getState().restore(serializeRoute(desired));
+  const pending = useShell.getState().pendingRoute;
+  expect(pending?.inspector?.tab).toBe("advanced");
+  useShell.getState().restore(window.location.hash);
+  expect(useShell.getState().pendingRoute).toBe(pending);
+  useShell.setState({ dirtyTaskEditor: null });
+  useShell.getState().navigate(pending!);
+  expect(useShell.getState().route.inspector?.tab).toBe("advanced");
+});

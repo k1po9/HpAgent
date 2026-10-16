@@ -1,4 +1,5 @@
 import { useEffect, useState, type RefObject } from "react";
+import { useReadingPresentation } from "../mercury/readingPresentation";
 import { useAuth } from "../../store/auth";
 import { useWorkbench } from "../../store/workbench";
 import { runApi } from "../../store/runInspector";
@@ -6,6 +7,7 @@ import type { HpRun } from "../../api/types";
 
 /** Visible history cards read their own Run; no inferred status, global selection or retained account cache. */
 export function useRunCard(runId: string, live: boolean, ref: RefObject<HTMLElement | null>) {
+  const { retiring } = useReadingPresentation();
   const account = useAuth((s) => s.account);
   const conversation = useWorkbench((s) => s.activeConversationId);
   const [loaded, setLoaded] = useState<{
@@ -15,13 +17,13 @@ export function useRunCard(runId: string, live: boolean, ref: RefObject<HTMLElem
     run: HpRun;
   } | null>(null);
   useEffect(() => {
-    if (live || !account || !ref.current) return;
+    if (retiring || live || !account || !ref.current) return;
     const controller = new AbortController();
     let valid = true,
       started = false,
       timer: ReturnType<typeof setTimeout> | undefined;
     const load = () => {
-      if (started) return;
+      if (started || ref.current?.closest("[data-mercury-retiring]")) return;
       started = true;
       timer = setTimeout(() => controller.abort(), 12000);
       void runApi
@@ -56,7 +58,7 @@ export function useRunCard(runId: string, live: boolean, ref: RefObject<HTMLElem
       clearTimeout(timer);
       observer?.disconnect();
     };
-  }, [account, conversation, runId, live, ref]);
+  }, [account, conversation, runId, live, ref, retiring]);
   const own =
     loaded?.account === account && loaded.conversation === conversation && loaded.id === runId
       ? loaded.run

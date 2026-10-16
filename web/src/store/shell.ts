@@ -26,6 +26,7 @@ export type Inspector = {
     conversationId?: string;
     messageId?: string;
     workId?: string;
+    runId?: string;
     originalVersionId?: string;
     sourceRequirementRevision?: number;
     triggerId?: string;
@@ -143,9 +144,11 @@ interface ShellState {
   pendingRoute: Route | null;
   dirtyResourceEditor: string | null;
   dirtyTaskEditor: string | null;
+  dirtyDirectoryEditor: (() => void) | null;
+  pendingDirectoryChange: (() => void) | null;
   pendingResourceChange: (() => void) | null;
   requestResourceChange: (action: () => void) => void;
-  pendingRouteReason: "attachments" | "resources" | "tasks";
+  pendingRouteReason: "attachments" | "resources" | "tasks" | "directory";
   route: Route;
   backStack: Inspector[];
   pages: Partial<Record<Screen, Route>>;
@@ -165,9 +168,12 @@ export const useShell = create<ShellState>((set, get) => ({
   pendingRoute: null,
   dirtyResourceEditor: null,
   dirtyTaskEditor: null,
+  dirtyDirectoryEditor: null,
+  pendingDirectoryChange: null,
   pendingResourceChange: null,
   requestResourceChange(action) {
     if (get().dirtyResourceEditor) set({ pendingResourceChange: action });
+    else if (get().dirtyDirectoryEditor) set({ pendingDirectoryChange: action });
     else action();
   },
   pendingRouteReason: "attachments",
@@ -189,6 +195,11 @@ export const useShell = create<ShellState>((set, get) => ({
     if (get().dirtyResourceEditor) {
       window.history.replaceState(null, "", serializeRoute(get().route));
       set({ pendingRoute: route, pendingRouteReason: "resources", sidebarOpen: false });
+      return false;
+    }
+    if (get().dirtyDirectoryEditor) {
+      window.history.replaceState(null, "", serializeRoute(get().route));
+      set({ pendingRoute: route, pendingRouteReason: "directory", sidebarOpen: false });
       return false;
     }
     const workbench = useWorkbench.getState();
@@ -233,6 +244,9 @@ export const useShell = create<ShellState>((set, get) => ({
     return true;
   },
   restore(hash, context) {
+    // A guarded popstate restores the visible URL. The paired hashchange must not
+    // replace its pending destination with that restored current route.
+    if (get().pendingRoute && hash === serializeRoute(get().route)) return;
     const parsed = parseRoute(hash, context);
     get().navigate(parsed.route, true);
     if (get().pendingRoute) return;
@@ -284,13 +298,15 @@ export const useShell = create<ShellState>((set, get) => ({
               inspector.origin?.triggerId ?? `artifact-open-${inspector.objectId}`,
             )
           : inspector?.kind === "file"
-            ? document.getElementById(`workspace-node-${inspector.objectId}`)
+            ? document.getElementById(
+                inspector.origin?.triggerId ?? `workspace-node-${inspector.objectId}`,
+              )
             : inspector?.kind === "task"
-              ? document.getElementById(`task-${inspector.objectId}`)
+              ? document.getElementById(inspector.origin?.triggerId ?? `task-${inspector.objectId}`)
               : document.getElementById(
                   inspector?.origin?.triggerId ?? `run-open-${inspector?.objectId}`,
                 );
-      if (trigger?.isConnected && !trigger.closest("[hidden]"))
+      if (trigger?.isConnected && !trigger.closest("[hidden], [inert]"))
         trigger.focus({ preventScroll: true });
       else document.getElementById("canvas-title")?.focus();
     });
@@ -311,6 +327,8 @@ export const useShell = create<ShellState>((set, get) => ({
       pendingRoute: null,
       dirtyResourceEditor: null,
       dirtyTaskEditor: null,
+      dirtyDirectoryEditor: null,
+      pendingDirectoryChange: null,
       pendingResourceChange: null,
       pendingRouteReason: "attachments",
       route: { screen: "ai" },

@@ -440,3 +440,25 @@ describe("bounded authenticated text", () => {
     await expect(body).rejects.toMatchObject({ name: "AbortError" });
   });
 });
+
+describe("stale authentication responses", () => {
+  for (const method of ["login", "register"] as const) {
+    it(`does not probe a new session after reset during ${method}`, async () => {
+      let finish!: (response: Response) => void;
+      const paths: string[] = [];
+      const client = new ApiClient(async (input) => {
+        paths.push(String(input));
+        if (String(input) === `/auth/${method}`)
+          return new Promise<Response>((resolve) => {
+            finish = resolve;
+          });
+        return OK({ account: {}, csrf_token: "old" });
+      });
+      const pending = client[method]("alice", "password");
+      client.reset();
+      finish(OK({ session_established: true }));
+      await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+      expect(paths).toEqual([`/auth/${method}`]);
+    });
+  }
+});

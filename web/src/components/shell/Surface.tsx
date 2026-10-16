@@ -68,6 +68,7 @@ function coordinate() {
 export function Surface({
   title,
   titleRef,
+  titleDecoration,
   headerActions,
   children,
   onClose,
@@ -82,6 +83,7 @@ export function Surface({
   motion?: "none" | "elevate";
   title: string;
   titleRef?: Ref<HTMLHeadingElement>;
+  titleDecoration?: ReactNode;
   headerActions?: ReactNode;
   children: ReactNode;
   onClose: () => void;
@@ -239,7 +241,7 @@ export function Surface({
         if (layers.at(-1) === ref.current) onClose();
       }}
     >
-      <header className="hp-surface-header">
+      <header className={`hp-surface-header${titleDecoration ? " hp-file-title-reception" : ""}`}>
         {onBack && (
           <button onClick={onBack} title="返回上一对象">
             返回
@@ -252,6 +254,7 @@ export function Surface({
         >
           {title}
         </h2>
+        {titleDecoration}
         {headerActions && <div className="hp-surface-header-actions">{headerActions}</div>}
         <button onClick={onClose} aria-label={`关闭${title}`} title="关闭">
           <X size={20} aria-hidden="true" />

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
+import { ReadingPresentation } from "../mercury/readingPresentation";
 import { ArtifactMessageItems } from "./ArtifactMessageItems";
 import { useArtifacts } from "../../store/artifacts";
 import { useShell } from "../../store/shell";
@@ -72,4 +73,21 @@ it("does not reopen an inspector after its creating message has unmounted", asyn
   view.unmount();
   resolve({ status: "success", artifact });
   await waitFor(() => expect(useShell.getState().route.inspector).toBeUndefined());
+});
+
+it("suspends retiring message discovery and loads only the real arriving message", async () => {
+  const load = useArtifacts.getState().loadForMessage;
+  vi.mocked(load).mockClear();
+  const view = render(
+    <ReadingPresentation.Provider value={{ retiring: true, run: null }}>
+      <ArtifactMessageItems messageId="old-message" />
+    </ReadingPresentation.Provider>,
+  );
+  expect(load).not.toHaveBeenCalled();
+  view.rerender(
+    <ReadingPresentation.Provider value={{ retiring: false, run: null }}>
+      <ArtifactMessageItems messageId="new-message" />
+    </ReadingPresentation.Provider>,
+  );
+  await waitFor(() => expect(load).toHaveBeenCalledExactlyOnceWith("new-message"));
 });

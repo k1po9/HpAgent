@@ -1,16 +1,20 @@
+import { useReadingPresentation } from "../mercury/readingPresentation";
 import { FileCode, ChevronRight } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useArtifacts } from "../../store/artifacts";
 import { useShell } from "../../store/shell";
 import { artifactStatus } from "./artifactPresentation";
 export function ArtifactMessageItems({ messageId }: { messageId: string }) {
+  const { retiring } = useReadingPresentation();
   const root = useRef<HTMLDivElement>(null);
   const items = useArtifacts((s) => s.artifactsByMessageId[messageId]);
   const query = useArtifacts((s) => s.messageQueries[messageId]);
   const intent = useArtifacts((s) => s.intents[`message:${messageId}`]);
   useEffect(() => {
+    if (retiring) return;
     const load = () => {
-      void useArtifacts.getState().loadForMessage(messageId);
+      if (!root.current?.closest("[data-mercury-retiring]"))
+        void useArtifacts.getState().loadForMessage(messageId);
     };
     if (typeof IntersectionObserver === "undefined") {
       load();
@@ -24,7 +28,7 @@ export function ArtifactMessageItems({ messageId }: { messageId: string }) {
     });
     if (root.current) observer.observe(root.current);
     return () => observer.disconnect();
-  }, [messageId]);
+  }, [messageId, retiring]);
   const create = async () => {
     const shell = useShell.getState(),
       token = shell.requestToken;

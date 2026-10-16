@@ -108,9 +108,18 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
           </p>
           {item.work_id && (
             <button
+              id={`task-notification-${item.notification_id}`}
               onClick={() => {
                 onClose();
-                useShell.getState().openInspector({ kind: "task", objectId: item.work_id! });
+                useShell.getState().openInspector({
+                  kind: "task",
+                  objectId: item.work_id!,
+                  origin: {
+                    triggerId: `task-notification-${item.notification_id}`,
+                    workId: item.work_id!,
+                    runId: item.run_id ?? undefined,
+                  },
+                });
               }}
             >
               查看任务

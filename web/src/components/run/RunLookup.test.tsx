@@ -155,3 +155,28 @@ it("R1: a responsive mode change alone keeps the pending lookup's navigation int
   await act(async () => pending.resolve(work("A")));
   expect(useShell.getState().route.inspector).toMatchObject({ kind: "run", objectId: "A" });
 });
+
+it("releases a retained lookup's busy state on tab navigation and ignores its late response", async () => {
+  let finish!: (value: Awaited<ReturnType<typeof runApi.getRun>>) => void;
+  vi.spyOn(runApi, "getRun").mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  useShell.getState().openInspector({ kind: "task", objectId: "parent", tab: "advanced" });
+  render(<RunLookup />);
+  fireEvent.click(screen.getByText("按执行编号查询"));
+  const input = screen.getByLabelText("执行编号");
+  fireEvent.change(input, { target: { value: "late" } });
+  fireEvent.submit(input.closest("form")!);
+  expect(screen.getByRole("button", { name: /查询/ })).toBeDisabled();
+  act(() => useShell.getState().setInspectorTab("overview"));
+  expect(screen.getByRole("button", { name: /查询/ })).not.toBeDisabled();
+  await act(async () =>
+    finish({ run: { run_id: "late" } } as Awaited<ReturnType<typeof runApi.getRun>>),
+  );
+  expect(useShell.getState().route.inspector).toMatchObject({ kind: "task", objectId: "parent" });
+  expect(screen.getByLabelText("执行编号")).toBe(input);
+  expect(input).toHaveValue("late");
+});

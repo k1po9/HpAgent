@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Box, Button, Flex, Heading, Text, TextField } from "@radix-ui/themes";
 import { MessageSquare, Folder, Activity, ArrowRight, Check } from "lucide-react";
 import { api } from "../api/client";
@@ -17,6 +17,7 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
   const [confirmation, setConfirmation] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const submission = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [registeredPendingLogin, setRegisteredPendingLogin] = useState(false);
   const check = useAuth((s) => s.check);
@@ -25,6 +26,8 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (submission.current || confirmed) return;
+    submission.current = true;
     setSubmitting(true);
     setError(null);
     try {
@@ -57,6 +60,7 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "登录失败，请重试。");
     } finally {
+      submission.current = false;
       setSubmitting(false);
     }
   }
@@ -83,7 +87,11 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
         </ul>
       </section>
       <Box className="hp-auth-card">
-        <form onSubmit={onSubmit} aria-describedby={error ? "auth-error" : undefined}>
+        <form
+          onSubmit={onSubmit}
+          aria-busy={submitting}
+          aria-describedby={error ? "auth-error" : undefined}
+        >
           <Flex direction="column" gap="3">
             <div className="hp-auth-card-heading">
               <Heading
@@ -103,6 +111,7 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
                 用户名
               </Text>
               <TextField.Root
+                disabled={submitting || confirmed}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
@@ -114,6 +123,7 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
                 密码
               </Text>
               <TextField.Root
+                disabled={submitting || confirmed}
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -129,6 +139,7 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
                     确认密码
                   </Text>
                   <TextField.Root
+                    disabled={submitting || confirmed}
                     type="password"
                     value={confirmation}
                     onChange={(e) => setConfirmation(e.target.value)}
@@ -142,6 +153,7 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
                     邀请码（可选）
                   </Text>
                   <TextField.Root
+                    disabled={submitting || confirmed}
                     type="password"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}

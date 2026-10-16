@@ -1,3 +1,4 @@
+import { revealConversationReading } from "../mercury/useConversationTransit";
 import { AgentIcon, WorkspaceIcon, TasksIcon } from "../spatial/ReviewIcons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UserRound, Menu, Sparkles, LogOut } from "lucide-react";
@@ -37,6 +38,7 @@ const screens = [
 export function AppShell() {
   useTaskController();
   const shellRef = useRef<HTMLDivElement>(null);
+  const [readingControlsHost, setReadingControlsHost] = useState<HTMLDivElement | null>(null);
   const motion = useMotionAllowed();
   const motionPreference = useMotionPreference();
 
@@ -71,6 +73,7 @@ export function AppShell() {
   const conversationsError = useWorkbench((s) => s.conversationsError);
   const pendingRoute = useShell((s) => s.pendingRoute);
   const pendingResourceChange = useShell((s) => s.pendingResourceChange);
+  const pendingDirectoryChange = useShell((s) => s.pendingDirectoryChange);
   const pendingReason = useShell((s) => s.pendingRouteReason);
   const loading = useWorkbench((s) => s.loadingConversations);
   const creating = useWorkbench((s) => s.creatingConversation);
@@ -147,7 +150,8 @@ export function AppShell() {
         onSelect={(id) => {
           const current = useShell.getState().route;
           const sameConversationRoute = current.screen === "ai" && current.conversationId === id;
-          navigate({ screen: "ai", conversationId: id });
+          const accepted = navigate({ screen: "ai", conversationId: id });
+          if (accepted && sameConversationRoute) revealConversationReading(id);
           // A failed load clears the active ID, but leaves this route selected.
           // The store still deduplicates re-selection while loading or ready.
           if (sameConversationRoute) void useWorkbench.getState().selectConversation(id);
@@ -259,6 +263,11 @@ export function AppShell() {
               </h1>
             )}
           </div>
+          <div
+            ref={setReadingControlsHost}
+            className="hp-reading-controls"
+            hidden={route.screen !== "ai"}
+          />
         </header>
         {notice && (
           <p role="status">
@@ -292,7 +301,11 @@ export function AppShell() {
               <button onClick={() => navigate({ screen: "ai" })}>返回新对话</button>
             </div>
           ) : (
-            <ChatPane onSaveFile={saveFile} resourceRefresh={refresh} />
+            <ChatPane
+              onSaveFile={saveFile}
+              resourceRefresh={refresh}
+              readingControlsHost={readingControlsHost}
+            />
           )}
         </section>
         <section
@@ -318,6 +331,35 @@ export function AppShell() {
       />
       {modal === "task-create" && <TaskEditor onClose={() => useShell.setState({ modal: null })} />}
       {modal === "task-inbox" && <TaskInbox onClose={() => useShell.setState({ modal: null })} />}
+      {((pendingRoute && pendingReason === "directory") || pendingDirectoryChange) && (
+        <Surface
+          title="放弃未提交的目录名称？"
+          motion="elevate"
+          onClose={() => useShell.setState({ pendingRoute: null, pendingDirectoryChange: null })}
+        >
+          <p>目录名称尚未保存。已提交的创建请求仍会继续处理。</p>
+          <button
+            onClick={() => useShell.setState({ pendingRoute: null, pendingDirectoryChange: null })}
+          >
+            继续编辑
+          </button>
+          <button
+            onClick={() => {
+              const discard = useShell.getState().dirtyDirectoryEditor;
+              useShell.setState({
+                dirtyDirectoryEditor: null,
+                pendingRoute: null,
+                pendingDirectoryChange: null,
+              });
+              discard?.();
+              if (pendingDirectoryChange) pendingDirectoryChange();
+              else if (pendingRoute) useShell.getState().navigate(pendingRoute);
+            }}
+          >
+            放弃目录名称并继续
+          </button>
+        </Surface>
+      )}
       {pendingRoute && pendingReason === "tasks" && (
         <Surface
           className="hp-object-operation"

@@ -140,10 +140,18 @@ export function ArtifactInspector({
               </p>
             )}
             <button
+              id={`artifact-source-task-${inspector.objectId}`}
               onClick={() =>
-                useShell
-                  .getState()
-                  .openInspector({ kind: "task", objectId: workId, tab: "outputs" })
+                useShell.getState().openInspector({
+                  kind: "task",
+                  objectId: workId,
+                  tab: "outputs",
+                  origin: {
+                    ...inspector.origin,
+                    workId,
+                    triggerId: `artifact-source-task-${inspector.objectId}`,
+                  },
+                })
               }
             >
               返回任务成果与验收

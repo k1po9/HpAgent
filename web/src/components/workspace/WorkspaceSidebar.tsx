@@ -18,8 +18,10 @@ export function WorkspaceSidebar() {
   }, []);
   const index = useMemo(() => (tree ? workspaceIndex(tree) : null), [tree]);
   function go(id: string) {
-    useWorkspace.setState({ allFiles: false, searchMode: false });
-    useShell.getState().navigate({ screen: "workspace", directoryId: id });
+    useShell.getState().requestResourceChange(() => {
+      if (useShell.getState().navigate({ screen: "workspace", directoryId: id }))
+        useWorkspace.setState({ allFiles: false, searchMode: false });
+    });
   }
   function directory(node: HpWorkspaceNode, seen: Set<string>) {
     if (seen.has(node.node_id)) return null;
@@ -62,8 +64,10 @@ export function WorkspaceSidebar() {
       <button
         aria-pressed={allFiles}
         onClick={() => {
-          useWorkspace.setState({ allFiles: true, searchMode: false });
-          useShell.setState({ sidebarOpen: false });
+          useShell.getState().requestResourceChange(() => {
+            useWorkspace.setState({ allFiles: true, searchMode: false });
+            useShell.setState({ sidebarOpen: false });
+          });
         }}
       >
         <Files size={16} aria-hidden="true" /> 全部文件

@@ -1,6 +1,6 @@
 import { useWorks } from "../../store/works";
 import { validSnapshot } from "../tasks/taskActions";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { HpWorkspaceNode } from "../../api/types";
 import { useShell } from "../../store/shell";
 import { useWorkspace } from "../../store/workspace";
@@ -60,6 +60,16 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
   const generation = useWorkspace((s) => s.generation);
   const viewId = useId();
   const editorKey = `${subject.kind}:${subject.id}:${node.node_id}:${viewId}`;
+  const dirty = useShell((s) => s.dirtyResourceEditor === editorKey);
+  const wasDirty = useRef(false);
+  useEffect(() => {
+    // A retained panel must honor an approved discard just as an unmounted panel did.
+    if (wasDirty.current && !dirty) {
+      setOperations(["list_metadata", "read_content"]);
+      setRecursive(false);
+    }
+    wasDirty.current = dirty;
+  }, [dirty]);
   const markDirty = () => useShell.setState({ dirtyResourceEditor: editorKey });
   useEffect(
     () => () => {

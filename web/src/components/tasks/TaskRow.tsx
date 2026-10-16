@@ -36,7 +36,15 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
           id={`task-${work.work_id}`}
           className="hp-task-title"
           onClick={() =>
-            useShell.getState().openInspector({ kind: "task", objectId: work.work_id })
+            useShell.getState().openInspector({
+              kind: "task",
+              objectId: work.work_id,
+              origin: {
+                triggerId: `task-${work.work_id}`,
+                workId: work.work_id,
+                sourceRequirementRevision: work.current_requirement_revision,
+              },
+            })
           }
         >
           {work.title}

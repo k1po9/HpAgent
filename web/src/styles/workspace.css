@@ -79,6 +79,7 @@
 .hp-file-table th,
 .hp-file-table td {
   text-align: left;
+  vertical-align: top;
   padding: 10px 8px;
   border-bottom: 1px solid var(--hp-border);
   overflow-wrap: anywhere;

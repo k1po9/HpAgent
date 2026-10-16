@@ -131,8 +131,20 @@ export function RunResources({
         <p key={c.node_id}>
           <button
             type="button"
+            id={`run-file-${runId}-${c.node_id}`}
             onClick={() =>
-              useShell.getState().openInspector({ kind: "file", objectId: c.node_id }, true)
+              useShell.getState().openInspector(
+                {
+                  kind: "file",
+                  objectId: c.node_id,
+                  origin: {
+                    ...useShell.getState().route.inspector?.origin,
+                    runId,
+                    triggerId: `run-file-${runId}-${c.node_id}`,
+                  },
+                },
+                true,
+              )
             }
           >
             {c.logical_name || c.name}

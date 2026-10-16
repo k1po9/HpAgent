@@ -219,6 +219,9 @@ it.each([undefined, null])(
     });
     vi.spyOn(api, "request").mockImplementation(async ({ path }) => {
       if (path.endsWith("/runs")) return { items: [runFixture] } as never;
+      if (path === "/api/v1/workspace") return { root_id: "root", nodes: [] } as never;
+      if (path.endsWith("/resources")) return { grants: [] } as never;
+      if (path.endsWith("/inputs")) return { items: [] } as never;
       return { work: recovered ? { ...valid, row_version: 2 } : invalid } as never;
     });
     render(<RoutedInspector />);

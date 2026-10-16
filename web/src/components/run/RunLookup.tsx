@@ -26,6 +26,7 @@ export function RunLookup() {
     () =>
       useShell.subscribe((state, previous) => {
         if (
+          state.requestToken !== previous.requestToken ||
           state.modal !== previous.modal ||
           state.sidebarOpen !== previous.sidebarOpen ||
           state.pendingRoute !== previous.pendingRoute ||

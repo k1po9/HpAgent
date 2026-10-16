@@ -15,6 +15,7 @@ export function WorkspaceMutationDialog({
   const tree = useWorkspace((s) => s.tree);
   const revision = useWorkspace((s) => s.revision);
   const generation = useWorkspace((s) => s.generation);
+  const [abandon, setAbandon] = useState(false);
   const [name, setName] = useState(node.name);
   const [parentId, setParentId] = useState(node.parent_id ?? "");
   const [action, setAction] = useState<"move" | "remove">("move");
@@ -41,9 +42,22 @@ export function WorkspaceMutationDialog({
       motion="elevate"
       title="管理空间入口"
       onClose={() => {
-        if (!busy) onClose();
+        if (busy) return;
+        if (
+          !unknown &&
+          (name !== node.name || parentId !== (node.parent_id ?? "") || action !== "move")
+        )
+          setAbandon(true);
+        else onClose();
       }}
     >
+      {abandon && (
+        <Surface title="放弃未提交的空间修改？" motion="elevate" onClose={() => setAbandon(false)}>
+          <p>名称、目标目录和操作选择尚未提交。</p>
+          <button onClick={() => setAbandon(false)}>继续编辑</button>
+          <button onClick={onClose}>放弃修改并关闭</button>
+        </Surface>
+      )}
       <div className="hp-operation-form">
         <p>{nodePath(tree, node.node_id)}</p>
         <label>

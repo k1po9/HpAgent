@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { ReadingPresentation } from "../mercury/readingPresentation";
 import { ExecutionBlock } from "./ExecutionBlock";
 import { useAuth } from "../../store/auth";
 import { useWorkbench } from "../../store/workbench";
@@ -67,4 +68,26 @@ it("aborts account-old requests and ignores their late result", async () => {
   await act(async () => finish(data()));
   expect(screen.getByText("状态待同步")).toBeVisible();
   expect(screen.queryByText("已完成")).toBeNull();
+});
+
+it("retires the old surface without a Run query and resumes only the target Run", async () => {
+  const get = vi.spyOn(runApi, "getRun").mockImplementation(async (id) => data(id, "target"));
+  const view = render(
+    <ReadingPresentation.Provider value={{ retiring: true, run: null }}>
+      <ExecutionBlock runId="A" />
+    </ReadingPresentation.Provider>,
+  );
+  act(() => useWorkbench.setState({ activeConversationId: "target", activeRun: null }));
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(get).not.toHaveBeenCalled();
+  view.rerender(
+    <ReadingPresentation.Provider value={{ retiring: false, run: null }}>
+      <ExecutionBlock runId="B" />
+    </ReadingPresentation.Provider>,
+  );
+  await waitFor(() => expect(get).toHaveBeenCalledOnce());
+  expect(get.mock.calls[0]![0]).toBe("B");
+  await waitFor(() => expect(screen.getByText("已完成")).toBeVisible());
 });

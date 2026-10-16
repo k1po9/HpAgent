@@ -718,3 +718,80 @@
     padding-bottom: max(8px, env(safe-area-inset-bottom));
   }
 }
+
+/* R5.0: local reading presentation. Keep the real viewport and Composer mounted. */
+.hp-reading {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+.hp-reading[hidden] {
+  display: none;
+}
+.hp-reading-controls {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+}
+.hp-reading-toggle {
+  font: inherit;
+  font-size: 12px;
+  padding: 7px 10px;
+  border: 1px solid var(--hp-border);
+  border-radius: 8px;
+  background: var(--hp-surface);
+  color: var(--hp-muted);
+  cursor: pointer;
+}
+.hp-reading-toggle:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.hp-reading-toggle:focus-visible {
+  outline: 2px solid var(--hp-accent);
+  outline-offset: 3px;
+}
+.hp-reading-folded {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: var(--hp-muted);
+  text-align: center;
+}
+.hp-reading-folded p {
+  margin: 4px 0;
+  font-size: 13px;
+}
+
+/* Mercury only decorates reading; native top-layer dialogs remain above this plane. */
+.hp-mercury-defs {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+.hp-mercury-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+.hp-mercury-layer[hidden] {
+  display: none;
+}
+
+/* During the short outgoing surface lease, loading must not displace its geometry. */
+.hp-shell-chat:has([data-mercury-retiring="true"]) .hp-conversation-loading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -1,6 +1,8 @@
 # R4 实施计划：对象进入 Inspector 与柔和关闭
 
-日期：2026-10-14。状态：R4.0已完成，R4.1及R4.2.6视觉迁回版已人审接受（2026-10-15）；原计划R4.2四类对象阶段准备推进。候选交接见 `artifacts/product-acceptance/ui-iteration/R4/attempt-02/HANDOFF.md`；以下实施合同保持。
+当前状态（2026-10-17）：R1–R6已正式接受；本次用户授权将此前已接受未提交的File/Task、R5、R6共同纳入本地commit，未推送或部署。最新决定见[R6 DECISION](../../../artifacts/product-acceptance/ui-iteration/R6/DECISION.md)。以下保留R4阶段历史。
+
+历史状态（2026-10-16）：R1、R2、R3、R4 均已正式接受并冻结。用户“通过，下一步干什么”接受 attempt-16 的四类组合、跨轮回归与真实隔离 API 收口，完成 R4 整体验收；冻结209份源码/配置，指纹 `3f157303d1526c5357cfb899fe445035e01bc3c0d78926dd4240a80d573b5758`。决定见 [R4 DECISION](../../../artifacts/product-acceptance/ui-iteration/R4/DECISION.md)。R5/R6 未启动，下一步先明确 R5 Mercury 产品语义；无提交/推送/部署授权。下方历史记录保留。
 
 ## 1. 接受基线与目标
 
@@ -98,3 +100,33 @@ R4 一个新窗口，按子阶段顺序推进：
 历史正常产品 5294、API 8197 与 review 5317 只作线索，复用前核实进程/隔离数据与用途；不得覆盖 R3 冻结评审。账户和数据库配置从既有 HANDOFF 读取，不把默认 DSN 当隔离库。单会话账户串行测试；不外发 QQ、不调用付费供应商、不清库迁移。真实 API/Fake 与浏览器夹具分别标注。
 
 只有准备工作在本调度窗口进行；前端在用户启动新窗口后实施。不自动提交、推送、合并、部署、创建/联系其他窗口或删除 Skill。R5 不自动启动。
+
+## 6. 最新小步状态 · 2026-10-15
+
+用户已授权先提交认可基线再逐步推进；该授权覆盖本轮提交，与第5节历史“不自动提交”的默认限制相比优先。接受UI提交为1a21a93，前轮冻结文档提交为8ca20b9。
+
+Artifact第一步候选已交付，见[attempt-11 HANDOFF](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-11-artifact/HANDOFF.md)：同次版本归一化不重播、同版本预览跨Tab/展开保持、慢加载/错误/快切及子Run返回。停Artifact待人审。后续按File→Task→四类组合与真实隔离API/跨轮回归推进，再停R4整体待人审；本记录不修改上述冻结交互合同。
+
+## File/目录接力本步交付 · 2026-10-16
+
+File/目录已接入共享实际抵达/标题/关闭机制，明确真实入口来源，保留预览、版本输入和授权草稿DOM，修复获准放弃与权限失败清理。当前 **File/目录接力待人审**，R4整轮未接受；Task完整接力、四类组合及真实隔离API仍按后续人审顺序推进。入口与独立交接见[attempt-14 HANDOFF](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-14-file-relay/HANDOFF.md)。真实React与完整离线HTML、源码备份/指纹、逐项I01–I20台账与本轮证据均保留。未提交/推送/部署；R5/R6未启动。
+
+
+## File 接受与 Task 授权 · 2026-10-16
+
+用户明确“通过，下一步执行”。[File 接受决定](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-14-file-relay/DECISION.md)记录接受范围。Task 新 attempt-15 已备份当前未提交源码、指纹、差异与接受构建；本步仅实施 Task，停“Task 接力待人审”。
+
+
+## Task 本步交付 · 2026-10-16
+
+真实Task完整接力已实施、自审、修复并验证，当前 **Task 接力待人审**。复用现有接力/标题/关闭机制，保留4Tab及表单DOM，修复历史guard与保留查询的生命周期接缝；全部16子页及关联弹层已接受视觉保持。入口与独立交接见[attempt-15 HANDOFF](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-15-task-relay/HANDOFF.md)。完整556测试、生产构建/静态检查及明确夹具浏览器验证通过；真实API仍未测。Task接受后再做四类组合与跨轮/隔离API，整轮R4未接受。未提交/推送/部署，R5/R6未启动。
+
+## 2026-10-16 · attempt-16 四类组合收口交付
+
+Run/Artifact/File/Task组合、R1–R3定向回归、真实隔离API已执行并自审；209份生产源码/配置与Task接受版完全一致，无新产品差异。556前端测试、186隔离后端测试、29独立原浏览器场景最终通过；夹具、真实API+Fake及canonical Worker事实准备分开记录，初次失败与未测项保留。
+
+评审入口 http://127.0.0.1:5333/REVIEW.html 。详见 [attempt-16交接](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-16-four-kind-closure/HANDOFF.md) 和 [逐项验收](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-16-four-kind-closure/CONTRACT_CHECKLIST.md)。**当前停“R4 整体待人审”**，尚未写整轮接受DECISION，R5/R6未启动。未提交、推送或部署。
+
+## 2026-10-16 · R4 整体接受与冻结
+
+用户“通过，下一步干什么”明确接受attempt-16的R4整轮交付。当前源码209份指纹核对一致，正式决定与冻结清单见 [R4 DECISION](../../../artifacts/product-acceptance/ui-iteration/R4/DECISION.md)。历史attempt、失败/未测证据及未提交成果保留。下一轮按总计划为R5 Mercury，先明确阅读区收纳/恢复语义，R5/R6尚未启动。

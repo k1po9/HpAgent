@@ -107,6 +107,14 @@ function InspectorContent({
     <Surface
       title={title}
       titleRef={hasReceiver ? undefined : receiverRef}
+      titleDecoration={
+        (inspector.kind === "file" || inspector.kind === "task") && (
+          <TitleCapture
+            key={`${presentationKey}:${presentationToken}`}
+            active={reveal && flow.detailsReveal && (arrived || !allowed)}
+          />
+        )
+      }
       modal={compact}
       className={`hp-inspector hp-inspector--${inspector.kind} ${expanded ? "hp-inspector--expanded" : ""}`}
       headerActions={

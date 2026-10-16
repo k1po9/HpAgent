@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "../api/client";
@@ -79,4 +79,31 @@ describe("LoginForm autocomplete", () => {
     await user.click(screen.getByRole("button", { name: "注册" }));
     expect(await screen.findByText("邀请码无效或不可用。")).toBeInTheDocument();
   });
+});
+
+it("deduplicates same-turn credential submissions while preserving failure retry", async () => {
+  let finish!: (value: boolean) => void;
+  const login = vi.spyOn(api, "login").mockImplementation(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  render(<LoginForm />);
+  fireEvent.change(screen.getByLabelText("用户名"), { target: { value: "alice" } });
+  fireEvent.change(screen.getByLabelText("密码"), { target: { value: "password" } });
+  const form = screen.getByLabelText("用户名").closest("form")!;
+  act(() => {
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+  });
+  expect(login).toHaveBeenCalledTimes(1);
+  expect(screen.getByLabelText("用户名")).toBeDisabled();
+  expect(screen.getByLabelText("密码")).toBeDisabled();
+  await act(async () => {
+    finish(false);
+  });
+  expect(screen.getByRole("alert")).toHaveTextContent("登录会话未建立");
+  expect(screen.getByRole("button", { name: "登录" })).toBeEnabled();
+  login.mockRestore();
 });

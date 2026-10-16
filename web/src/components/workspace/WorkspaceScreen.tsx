@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useShell } from "../../store/shell";
 import { useAuth } from "../../store/auth";
@@ -17,6 +17,19 @@ export function WorkspaceScreen() {
   const searchMode = state.searchMode;
   const setSearchMode = (value: boolean) => useWorkspace.setState({ searchMode: value });
   const [folder, setFolder] = useState("");
+  const draftVersion = useRef(0);
+  const discardDirectory = useCallback(() => {
+    draftVersion.current++;
+    setFolder("");
+  }, []);
+  useEffect(() => {
+    if (!folder) return;
+    useShell.setState({ dirtyDirectoryEditor: discardDirectory });
+    return () => {
+      if (useShell.getState().dirtyDirectoryEditor === discardDirectory)
+        useShell.setState({ dirtyDirectoryEditor: null });
+    };
+  }, [folder, discardDirectory]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -214,16 +227,22 @@ export function WorkspaceScreen() {
               setBusy(true);
               setError("");
               const generation = state.generation;
+              const version = draftVersion.current;
               void workspaceApi
                 .createWorkspaceDirectory(directoryId, folder.trim())
                 .then(() => {
                   if (generation !== useWorkspace.getState().generation) return;
                   state.invalidate();
-                  setFolder("");
-                  setNotice("目录已创建。");
+                  if (version === draftVersion.current) {
+                    setFolder("");
+                    setNotice("目录已创建。");
+                  }
                 })
                 .catch((err) => {
-                  if (generation === useWorkspace.getState().generation)
+                  if (
+                    generation === useWorkspace.getState().generation &&
+                    version === draftVersion.current
+                  )
                     setError(commandError(err));
                 })
                 .finally(() => {
@@ -240,7 +259,9 @@ export function WorkspaceScreen() {
                 disabled={busy}
               />
             </label>
-            <button disabled={busy || !folder.trim() || !directoryId}>新建目录</button>
+            <button disabled={busy || !folder.trim() || !directoryId}>
+              {busy ? "正在创建目录…" : "新建目录"}
+            </button>
           </form>
         </>
       )}

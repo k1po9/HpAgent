@@ -10,7 +10,10 @@ let intent: InspectorIntent | null = null;
 export function captureInspectorIntent(route: Route, inspector: Inspector): InspectorIntent {
   const source = inspector.origin?.triggerId
     ? document.getElementById(inspector.origin.triggerId)
-    : document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+    : inspector.kind !== "file" &&
+        inspector.kind !== "task" &&
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement !== document.body
       ? document.activeElement
       : null;
   return { route, source, account: useAuth.getState().account };

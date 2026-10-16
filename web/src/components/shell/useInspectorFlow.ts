@@ -3,6 +3,8 @@ import { useShell } from "../../store/shell";
 import { useAuth } from "../../store/auth";
 import { useRunInspector } from "../../store/runInspector";
 import { useArtifacts } from "../../store/artifacts";
+import { useWorks } from "../../store/works";
+import { useWorkspace } from "../../store/workspace";
 import { useMotionAllowed, motionAllowed, subscribeMotion } from "../motion/preference";
 import { inspectorIntent } from "../spatial/inspectorIntent";
 import { playFilament } from "../spatial/filament";
@@ -38,13 +40,14 @@ export function useInspectorFlow(compact: boolean) {
         inspector.kind,
         inspector.objectId,
         // Artifact versions are internal selection, not a new spatial arrival.
-        inspector.kind === "artifact" ? null : inspector.versionId,
+        inspector.kind === "artifact" || inspector.kind === "file" ? null : inspector.versionId,
         inspector.origin?.conversationId,
         inspector.origin?.messageId,
         inspector.origin?.workId,
         inspector.origin?.originalVersionId,
         inspector.origin?.sourceRequirementRevision,
         inspector.origin?.directoryId,
+        inspector.origin?.runId,
       ])
     : null;
   const [view, setView] = useState<{
@@ -90,8 +93,20 @@ export function useInspectorFlow(compact: boolean) {
   const artifactError = useArtifacts((s) =>
     inspector?.kind === "artifact" ? Boolean(s.queries[inspector.objectId]?.error) : false,
   );
+  const fileError = useWorkspace((s) => {
+    if (inspector?.kind !== "file") return false;
+    const node = s.tree?.nodes.find((n) => n.node_id === inspector.objectId);
+    return Boolean(
+      s.error || (s.tree && !node) || (node?.file_id && s.cache[`file:${node.file_id}`]?.error),
+    );
+  });
+  const taskError = useWorks((s) =>
+    inspector?.kind === "task" ? Boolean(s.detailErrors[inspector.objectId]) : false,
+  );
   const safeError =
+    taskError ||
     artifactError ||
+    fileError ||
     (inspector?.kind === "run" && runId === inspector.objectId && (unavailable || Boolean(error)));
   useLayoutEffect(() => {
     latest.current = { key, scope };
@@ -152,7 +167,10 @@ export function useInspectorFlow(compact: boolean) {
         landed: false,
       };
       const receive =
-        (inspector?.kind === "run" || inspector?.kind === "artifact") &&
+        (inspector?.kind === "run" ||
+          inspector?.kind === "artifact" ||
+          inspector?.kind === "file" ||
+          inspector?.kind === "task") &&
         source &&
         !compact &&
         allowed &&

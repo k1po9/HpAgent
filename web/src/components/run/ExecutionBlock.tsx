@@ -1,3 +1,4 @@
+import { useReadingPresentation } from "../mercury/readingPresentation";
 import { useWorkbench } from "../../store/workbench";
 import { useShell } from "../../store/shell";
 import { useApprovalFact } from "../vitality/useVitality";
@@ -15,7 +16,9 @@ export function ExecutionBlock({ runId, messageId }: { runId: string; messageId?
   const generation = useWorkbench((s) => s.pollGeneration);
   const pending = useApprovalFact(runId) === "pending";
   const busy = useWorkbench((s) => s.activeRunError);
-  const run = active?.run_id === runId ? active : null;
+  const presentation = useReadingPresentation();
+  const ownActive = presentation.retiring ? presentation.run : active;
+  const run = ownActive?.run_id === runId ? ownActive : null;
   const cardRef = useRef<HTMLElement>(null);
   const history = useRunCard(runId, Boolean(run), cardRef);
   const record = run ?? history;

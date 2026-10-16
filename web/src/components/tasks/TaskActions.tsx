@@ -13,6 +13,16 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
   const now = useWorks((s) => s.now);
   const [dialog, setDialog] = useState<TaskAction | "link" | null>(null);
   const [conversation, setConversation] = useState("");
+  const draftOwner = useShell((s) => s.dirtyTaskEditor);
+  const ownedDraft = useRef(false);
+  useEffect(() => {
+    if (dialog === "edit" && draftOwner === work.work_id) ownedDraft.current = true;
+    else if (ownedDraft.current && !draftOwner) {
+      // Approved navigation released this draft; a retained tab must not revive its editor.
+      ownedDraft.current = false;
+      setDialog(null);
+    }
+  }, [dialog, draftOwner, work.work_id]);
   const conversations = useWorkbench((s) => s.conversations);
   const more = useWorkbench((s) => s.hasMoreConversations);
   const loading = useWorkbench((s) => s.loadingMoreConversations);
@@ -28,9 +38,18 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
   }, [intent?.busy, primary]);
   function act(action: TaskAction) {
     if (["view", "outputs", "resources"].includes(action)) {
+      const current = useShell.getState().route.inspector;
       useShell.getState().openInspector({
         kind: "task",
         objectId: work.work_id,
+        origin:
+          current?.kind === "task" && current.objectId === work.work_id
+            ? current.origin
+            : {
+                triggerId: `task-action-${compact ? "row" : "inspector"}-${work.work_id}-${action}`,
+                workId: work.work_id,
+                sourceRequirementRevision: work.current_requirement_revision,
+              },
         tab: action === "view" ? "overview" : action === "outputs" ? "outputs" : "resources",
       });
     } else if (["stop", "budget", "edit"].includes(action)) setDialog(action);
@@ -41,6 +60,7 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
       key={compact && action === primary ? "primary" : action}
       ref={compact && action === primary ? primaryButton : undefined}
       className={compact && action === primary ? "hp-task-primary-action" : undefined}
+      id={`task-action-${compact ? "row" : "inspector"}-${work.work_id}-${action}`}
       data-action={action}
       disabled={
         intent?.busy || (intent?.uncertain && !["view", "outputs", "resources"].includes(action))

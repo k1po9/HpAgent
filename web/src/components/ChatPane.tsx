@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from "react";
-import { Box, Button, Flex, Spinner, Text } from "@radix-ui/themes";
+import { Box, Flex, Spinner, Text } from "@radix-ui/themes";
 import { Files } from "lucide-react";
 import { HpThread } from "../adapters/assistant-ui/HpThread";
 import { isTerminalRunStatus, useWorkbench } from "../store/workbench";
@@ -25,11 +25,18 @@ import type { HpFile } from "../api/types";
 export function ChatPane({
   onSaveFile,
   resourceRefresh = 0,
+  readingControlsHost,
 }: {
   onSaveFile?: (file: HpFile) => void;
   resourceRefresh?: number;
+  readingControlsHost?: HTMLElement | null;
 }) {
   const conversationId = useWorkbench((s) => s.activeConversationId);
+  const authStatus = useAuth((s) => s.status);
+  const capabilities = useAuth((s) => s.capabilities);
+  const route = useShell((s) => s.route);
+  const activeConversation = useWorkbench((s) => s.activeConversation);
+  const runUnknown = useWorkbench((s) => Boolean(s.activeRunError) || s.degraded);
   const accountId = useAuth((s) => s.account?.account_id ?? "anonymous");
   const conversationKey = `${accountId}:${conversationId ?? "new"}`;
   const ui = useConversationUi((s) => s.entries[conversationKey] ?? emptyConversationUi);
@@ -157,7 +164,13 @@ export function ChatPane({
     <Flex direction="column" style={{ height: "100%" }}>
       <ActionHandoff />
       {loadingMessages && (
-        <Flex align="center" justify="center" gap="2">
+        <Flex
+          className="hp-conversation-loading"
+          role="status"
+          align="center"
+          justify="center"
+          gap="2"
+        >
           <Spinner />
           <Text>正在加载对话…</Text>
         </Flex>
@@ -212,16 +225,38 @@ export function ChatPane({
           </Text>
         </button>
       ) : null}
-      {hasMoreMessages ? (
-        <Flex justify="center" className="hp-loadmore">
-          <Button size="1" variant="soft" onClick={handleLoadMore} disabled={loadingMoreMessages}>
-            {loadingMoreMessages ? "加载中…" : "加载更早的消息"}
-          </Button>
-        </Flex>
-      ) : null}
       <Box style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <HpThread
           conversationKey={conversationKey}
+          readingControlsHost={readingControlsHost}
+          readingOwner={`${accountId}:${authStatus}:${JSON.stringify(capabilities)}`}
+          readingReady={
+            authStatus === "signedIn" &&
+            route.screen === "ai" &&
+            activeConversation?.conversation_id === route.conversationId &&
+            !loadingMessages &&
+            !creating &&
+            !error
+          }
+          readingUnavailable={authStatus !== "signedIn" || Boolean(error)}
+          readingScope={`${conversationKey}:${route.screen}:${authStatus}:${JSON.stringify(capabilities)}`}
+          readingBlockedReason={
+            authStatus !== "signedIn" ||
+            route.screen !== "ai" ||
+            route.conversationId !== (conversationId ?? undefined) ||
+            !activeConversation ||
+            activeConversation.conversation_id !== conversationId ||
+            loadingMessages ||
+            loadingMoreMessages ||
+            creating ||
+            sending ||
+            stopping ||
+            pendingSend ||
+            runUnknown ||
+            Boolean(error)
+              ? "状态待确认，暂不能收纳阅读区"
+              : null
+          }
           composerContext={<ConversationResources refresh={resourceRefresh} ensure={ensure} />}
           toolbar={
             <>
