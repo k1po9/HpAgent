@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 /* global console */
 import { chromium, expect } from "@playwright/test";
 import { resolve } from "node:path";

@@ -1,50 +1,29 @@
-# HpAgent 文档
+# 文档导航
 
-架构、开发、运维和参考文档描述当前实现。Web 相关文档已同步 UI-1～UI-8 重构与 2026-10-09 复验；其余文档按各自日期与基线阅读。`design/` 保存设计材料，包括下方最新视觉指导；`implementation/` 保存交接与验证边界，不应把阶段末的“尚未实现”当作当前能力状态。
+当前操作以架构、开发、运维和参考文档为准。历史计划、交接与接受记录说明当时基线及验证范围，不作为当前部署健康或上线通过证明。
 
-推荐阅读：架构总览 → Durable Work V1 → Web 前端架构 → 功能操作指南 → API / 测试 / 运维。本次前端重构从[UI-1～UI-8 交接](implementation/ui-refactor.md)进入；历史设计与其他验收从实施索引进入。
+## 使用者
 
-## 架构
+- [功能操作指南](operations/web-workbench.md)：AI、空间、任务、资料授权、成果与账户操作。
+- [账户与模型治理](operations/account-governance.md)：注册、权益、额度与管理员管理。
+- [HTTP API](reference/api.md)：命令、查询、错误、权限与幂等。
 
-- [架构总览](architecture/overview.md)：系统上下文、逻辑分层、入口和标准执行流。
-- [Durable Work V1](architecture/durable-work-v1.md)：Main / Work / Run / Execution、策略、调度、交付、预算和有限分支。
-- [运行时](architecture/runtime.md)：命令接收、分发、Workflow、策略和 Activity。
-- [数据与状态](architecture/data-and-state.md)：状态归属和持久化边界。
-- [能力边界](architecture/capabilities.md)：Agent、工具、记忆、文件、研究、Artifact 和文档。
-- [可靠性](architecture/reliability.md)：持久化、重试、Lease、Fencing、幂等与取消。
-- [关键时序](architecture/sequences.md)：核心端到端流程。
-- [Workspace v4.1](architecture/workspace-v4.1.md)：长期文件目录、授权、Run 快照、版本、保存与 GC。
-- [Web 前端架构](architecture/web-ui.md)：三入口、唯一 Inspector、账户与请求生命周期、Task 四桶、权限和 HTML 版本契约。
+## 开发者
 
-## 开发
-
-- [环境搭建](development/setup.md)
-- [测试](development/testing.md)
-- [扩展 HpAgent](development/extending.md)
+- [环境搭建](development/setup.md) → [测试分层](development/testing.md) → [脚本入口](../scripts/README.md)。
+- [架构总览](architecture/overview.md)、[运行时](architecture/runtime.md)、[状态归属](architecture/data-and-state.md)、[可靠性](architecture/reliability.md)、[关键时序](architecture/sequences.md)、[能力边界](architecture/capabilities.md)。
+- [Durable Work](architecture/durable-work-v1.md)、[Workspace](architecture/workspace-v4.1.md)、[Web产品与交互约束](architecture/web-ui.md)。
+- [扩展方式](development/extending.md)、[配置参考](reference/configuration.md)、[目录参考](reference/repository-layout.md)、[Temporal](reference/temporal.md)。
 
 ## 运维
 
-- [功能操作指南](operations/web-workbench.md)：AI / 空间 / 任务、上下文 Inspector、资料授权、成果保存与人工复测。
-- [Account 与模型治理](operations/account-governance.md)
-- [部署](operations/deployment.md)
-- [运行手册](operations/runbook.md)
-- [日志](operations/logging.md)
-- [故障排查](operations/troubleshooting.md)
-- [备份与恢复](operations/backup-restore.md)
+- [部署与升级](operations/deployment.md)：拓扑、迁移门禁、版本与生产检查。
+- [运行手册](operations/runbook.md)：日常健康、启动/重载、人工操作入口。
+- [日志](operations/logging.md) → [故障排查](operations/troubleshooting.md)。
+- [备份与恢复](operations/backup-restore.md)：备份范围、一致性、隔离恢复和外部快照限制。
 
-## 参考
+## 合同、历史与归档
 
-- [配置](reference/configuration.md)
-- [仓库结构](reference/repository-layout.md)
-- [Temporal](reference/temporal.md)
-- [HTTP API](reference/api.md)
+当前UI约束维护在[Web架构](architecture/web-ui.md)；R1–R6接受决定、冻结指纹和当时测试范围从[接受与实施索引](implementation/README.md)进入。设计材料按[设计索引](design/README.md)区分接受依据和历史提案。完整原始材料的编号、校验和恢复方法见[归档索引](development/repository-archive-index.md)。
 
-## 实施与验收
-
-- [P0 系统能力与交互契约审计（2026-10-10）](design/ui-refactor-p0-2026-10-10/README.md)：前端创意重构的能力地图、状态与安全契约、实际调用链和设计输入；按当前源码基线核实，不规定导航、布局或视觉形式。
-- [前端视觉工具链与功能边界审查](design/frontend-visual-toolchain-review-2026-10-09.md)：Impeccable、React Grab、Playwright CLI/Test 的分阶段接入建议，布局耦合、生产隔离与无全量后端视觉检查方案；本轮仅审查，未安装工具。
-- [最新前端视觉迭代指导（含五张参考图）](design/frontend-visual-guide-latest.md)：前端代码是功能唯一真相源；PDF 仅作视觉参考，逐图说明多余功能排除项与截图迭代闭环。
-- [UI-1～UI-8 重构交接](implementation/ui-refactor.md)：全部阶段、关闭的缺陷、能力矩阵、批次结果、059 迁移、剩余验收与增强。
-- [UI 保留验收证据](../artifacts/product-acceptance/ui-refactor/README.md)：关键反例、最终日志、最后完整截图及迁移来源/哈希。
-- [实施与验收索引](implementation/README.md)：Durable Work、Workspace、人工 E2E 与剩余运行验收。
-- [Workspace P0～P5 记录与总体验收](implementation/workspace-v4.1/README.md)
+UI接受、自动化通过和生产上线验证分别记录，不能用旧批次通过数替代当前环境验证。

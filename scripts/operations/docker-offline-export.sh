@@ -2,6 +2,10 @@
 # Build, collect, and export every image required by the selected Compose profiles.
 set -euo pipefail
 
+if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
+  echo "用法：docker-offline-export.sh [ARCHIVE [PROFILE...]]；默认dist/hpagent-offline-images.tar与web-prod。构建/拉取Compose镜像并写tar/manifest/SHA256；不启动应用。依赖Docker Compose/sha256sum。"; exit 0
+fi
+[[ "${1:-}" != -* ]] || { echo "未知选项" >&2; exit 2; }
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 

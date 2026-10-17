@@ -29,7 +29,7 @@
 
 这些集合存在重叠，不累加为独立用例总数。单测与 Phase A 的 21 个跳过均为既有 Temporal 环境条件；本轮没有通过增加跳过消除失败。
 
-- 原 34 个失败：先实测 `34 failed, 54 passed`，再将完整 nodeid 与最终单测 JUnit 中通过记录逐一比对，`34/34` 恢复。详细映射见 [results.json](results.json)，原 traceback 见 [unit-before.txt](unit-before.txt)。
+- 原 34 个失败：先实测 `34 failed, 54 passed`，再将完整 nodeid 与最终单测 JUnit 中通过记录逐一比对，`34/34` 恢复。详细映射见 [results.json（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/ci-remediation/2026-10-09/results.json`），原 traceback 见 [unit-before.txt（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/ci-remediation/2026-10-09/unit-before.txt`）。
 - Phase B 最终收集 `64/97`，其余 33 个为 31 个非 PostgreSQL 用例和 2 个 Temporal 用例。31 个由普通单测运行；2 个由 Phase D 实际运行。五个漏标 API 用例均单独补验通过，并纳入最终 64 个用例整组验收。
 - Phase C 数据库七例：跨账户 send/cancel/retry 被拒且不留命令副作用；无 Session 的两个对话具有不同且正确归属的根 Execution；上下文只含本对话 watermark 内消息；retry 复用原 watermark；跨账户上下文读取被拒。另有 12 个 ContextAssembly 和 3 个 Workspace 隔离单测。
 - Phase D 共 20 个真实生命周期/数据库/取消用例 + 8 个冻结历史回放；终态成功、失败与取消均不启动 Agent，历史中也不调度 strategy 或失败兜底 Activity。
@@ -53,7 +53,7 @@ make lint typecheck
 
 隔离环境使用本轮新建的 PostgreSQL 16、Redis 7、Temporal 1.26.2 容器。PG 端口 55432，API/Phase A/Temporal 集合使用独立数据库；Redis 端口 56379、DB 15，Temporal 端口 57233。最终 Temporal 验收使用现有 `default` 测试 namespace。专用可丢弃 PG 临时关闭 fsync/synchronous_commit 以降低测试开销；本轮验证数据库契约与 Worker 生命周期，不验证 PostgreSQL 进程崩溃后的磁盘持久性。
 
-首次组合 Temporal 命令已经完成 26 个用例，随后在两个 API 用例默认不存在的 `hpagent-v41-final` namespace 启动阶段等待；该命令被中止，不作为门禁通过证据。修正测试 namespace 后两个 API 用例单独通过，最终完整 28 个用例命令再次执行并退出 0，见 [phase-d.txt](phase-d.txt)。
+首次组合 Temporal 命令已经完成 26 个用例，随后在两个 API 用例默认不存在的 `hpagent-v41-final` namespace 启动阶段等待；该命令被中止，不作为门禁通过证据。修正测试 namespace 后两个 API 用例单独通过，最终完整 28 个用例命令再次执行并退出 0，见 [phase-d.txt（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/ci-remediation/2026-10-09/phase-d.txt`）。
 
 最终日志和 JUnit 保存在本目录；失败基线日志仅清理行尾空白，traceback 与断言内容保留。测试容器及网络在验收后清理，现有业务服务没有被测试重置。前端与其余原已通过 Job 未作改动或本轮重新验收；真实模型 Provider 未调用。
 

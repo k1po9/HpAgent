@@ -1,7 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
 import { login, createConversation, sendMessage, expectReply } from "./helpers";
-const evidence = "../artifacts/product-acceptance/ui-2/screenshots";
+const evidencePath = (name: string) => test.info().outputPath(name);
 
 async function grantDirectory(page: Page) {
   const me = await (await page.request.get("/api/v1/me")).json();
@@ -126,10 +125,9 @@ test("empty composer creates only on submission, handles IME, and restores per-c
 }) => {
   await login(page);
   await page.getByRole("button", { name: "新建对话" }).click();
-  await mkdir(evidence, { recursive: true });
-  await page.screenshot({ path: `${evidence}/empty-desktop.png`, fullPage: true });
+  await page.screenshot({ path: evidencePath(`empty-desktop.png`), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: `${evidence}/empty-mobile.png`, fullPage: true });
+  await page.screenshot({ path: evidencePath(`empty-mobile.png`), fullPage: true });
   await page.setViewportSize({ width: 1280, height: 720 });
   let creates = 0;
   page.on("request", (request) => {
@@ -145,7 +143,7 @@ test("empty composer creates only on submission, handles IME, and restores per-c
   await input.dispatchEvent("compositionend");
   await input.press("Enter");
   await expect(page.locator("[data-testid=run-label]")).toHaveText(/排队中|运行中/);
-  await page.screenshot({ path: `${evidence}/streaming-desktop.png`, fullPage: true });
+  await page.screenshot({ path: evidencePath(`streaming-desktop.png`), fullPage: true });
   await expectReply(page);
   expect(creates).toBe(1);
   await expect(page.locator(".hp-msg")).toHaveCount(2);
@@ -272,7 +270,7 @@ test("rename, read-only resources, focus return, and seven viewport layouts", as
   const nodeId = (await created.json()).node_id;
   const tree = await (await page.request.get("/api/v1/workspace")).json();
   const node = tree.nodes.find((n: { node_id: string }) => n.node_id === nodeId);
-  await page.getByRole("button", { name: "修改标题" }).click();
+  await page.getByRole("heading", { level: 1 }).getByRole("button").dblclick();
   await page.getByRole("textbox", { name: "对话标题" }).fill("长中文标题 UI-2 验收与资料读取");
   await page.getByRole("button", { name: "保存标题" }).click();
   await expect(page.getByRole("heading", { name: "长中文标题 UI-2 验收与资料读取" })).toBeVisible();
@@ -292,7 +290,6 @@ test("rename, read-only resources, focus return, and seven viewport layouts", as
       .map((g: { operation: string }) => g.operation)
       .sort(),
   ).toEqual(["list_metadata", "read_content"]);
-  await mkdir(evidence, { recursive: true });
   for (const [width, height] of [
     [360, 800],
     [390, 844],
@@ -307,13 +304,13 @@ test("rename, read-only resources, focus return, and seven viewport layouts", as
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
-    await page.screenshot({ path: `${evidence}/ai-${width}x${height}.png`, fullPage: true });
+    await page.screenshot({ path: evidencePath(`ai-${width}x${height}.png`), fullPage: true });
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 390, height: 844 });
   await useResources.click();
   await page.screenshot({
-    path: `${evidence}/resources-mobile-reduced-motion.png`,
+    path: evidencePath(`resources-mobile-reduced-motion.png`),
     fullPage: true,
   });
   await page.getByRole("button", { name: "关闭使用长期资料" }).click();
@@ -338,23 +335,56 @@ test("history prepend retains the visible anchor and streaming does not pull a r
     created_at: "2026-10-07T00:00:00Z",
     completed_at: null,
   }));
-  await page.route("**/api/v1/conversations/*/messages?*", async (route) => {
-    const older = new URL(route.request().url()).searchParams.has("cursor");
+  let releasePage = () => {};
+  let paging = "";
+  let deliveredThirdPage = false;
+  const extra = (prefix: string) =>
+    messages.slice(0, 10).map((m, i) => ({ ...m, message_id: `${prefix}-${i}` }));
+  await page.route(`**/api/v1/conversations/${conversationId}/messages?*`, async (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    const older = Boolean(cursor);
+    if (cursor === "second" || cursor === "third") {
+      const gate = new Promise<void>((resolve) => {
+        releasePage = resolve;
+      });
+      paging = cursor;
+      await gate;
+    }
     await route.fulfill({
       json: {
-        items: older ? messages.slice(0, 10) : messages.slice(10),
-        has_more: !older,
-        next_cursor: older ? null : "older",
+        items:
+          cursor === "second"
+            ? extra("second")
+            : cursor === "third"
+              ? extra("third")
+              : older
+                ? messages.slice(0, 10)
+                : messages.slice(10),
+        has_more: cursor !== "third",
+        next_cursor: cursor === "second" ? "third" : older ? "second" : "older",
         conversation_last_message_seq: 60,
       },
     });
+    if (cursor === "third") deliveredThirdPage = true;
   });
   await page.reload();
   await expect(page.locator(".hp-msg")).toHaveCount(50);
   const viewport = page.locator(".hp-thread__viewport");
+  // Message DOM can commit while the shell still owns inert. A write then
+  // cannot establish reading intent and races the legitimate initial alignment.
+  await expect
+    .poll(() =>
+      viewport.evaluate(
+        (el) =>
+          !el.closest("[inert], [hidden]") && el.scrollHeight - el.scrollTop - el.clientHeight < 48,
+      ),
+    )
+    .toBe(true);
   await viewport.evaluate((el) => {
     el.scrollTop = 900;
   });
+  await expect(page.getByRole("button", { name: "有新消息 / 回到底部" })).toBeVisible();
+  await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBe(900);
   const anchor = page.locator('[data-message-id="history-13"]');
   const before = await anchor.evaluate(
     (el) =>
@@ -373,21 +403,74 @@ test("history prepend retains the visible anchor and streaming does not pull a r
         ),
     )
     .toBeCloseTo(before, 0);
+  // A second, deliberately pending page must use the reader's latest position.
+  await page.getByRole("button", { name: "加载更早的消息" }).click();
+  await expect.poll(() => paging).toBe("second");
+  await viewport.evaluate((el) => {
+    el.scrollTop += 200;
+  });
+  const movedTop = await viewport.evaluate((el) => el.scrollTop);
+  await expect
+    .poll(() =>
+      anchor.evaluate(
+        (el) =>
+          el.getBoundingClientRect().top -
+          el.closest(".hp-thread__viewport")!.getBoundingClientRect().top,
+      ),
+    )
+    .toBeCloseTo(before - 200, 0);
+  // Wait for the real scroll handler, rather than using a preparation sleep.
+  await viewport.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+  releasePage();
+  await expect(page.locator(".hp-msg")).toHaveCount(70);
+  await expect
+    .poll(() =>
+      anchor.evaluate(
+        (el) =>
+          el.getBoundingClientRect().top -
+          el.closest(".hp-thread__viewport")!.getBoundingClientRect().top,
+      ),
+    )
+    .toBeCloseTo(before - 200, 0);
+  expect(await viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(movedTop);
   const top = await viewport.evaluate((el) => el.scrollTop);
   await page.getByRole("textbox", { name: "消息输入" }).fill("阅读历史时的新执行");
   await page.getByRole("button", { name: "发送", exact: true }).click();
   await expect(page.locator("[data-testid=run-label]")).toHaveText("已完成");
-  await expect(page.locator(".hp-msg")).toHaveCount(62);
+  await expect(page.locator(".hp-msg")).toHaveCount(72);
   expect(await viewport.evaluate((el) => el.scrollTop)).toBeCloseTo(top, 0);
   await expect(page.getByRole("button", { name: "有新消息 / 回到底部" })).toBeVisible();
-  await mkdir(evidence, { recursive: true });
-  await page.screenshot({ path: `${evidence}/long-history.png`, fullPage: true });
+  await page.screenshot({ path: evidencePath(`long-history.png`), fullPage: true });
   await page.getByRole("button", { name: "有新消息 / 回到底部" }).click();
   await expect
     .poll(
       async () => await viewport.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight),
     )
     .toBeLessThan(48);
+  await sendMessage(page, "回到底部后恢复跟随");
+  await expectReply(page);
+  await expect
+    .poll(() => viewport.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight))
+    .toBeLessThan(48);
+  // A page completing after navigation cannot restore the old conversation.
+  await page.getByRole("button", { name: "加载更早的消息" }).click();
+  await expect.poll(() => paging).toBe("third");
+  await createConversation(page);
+  releasePage();
+  await expect.poll(() => deliveredThirdPage).toBe(true);
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+  await expect(page.locator(".hp-msg")).toHaveCount(0);
+  await expect(page.locator('[data-message-id="third-0"]')).toHaveCount(0);
 });
 
 test("failed attachment keeps the draft and exposes a removable error; text zoom remains usable", async ({
@@ -417,8 +500,7 @@ test("failed attachment keeps the draft and exposes a removable error; text zoom
   await expect(page.getByText("上传失败", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "发送", exact: true })).toBeDisabled();
   await expect(input).toHaveValue("附件失败时的草稿");
-  await mkdir(evidence, { recursive: true });
-  await page.screenshot({ path: `${evidence}/attachment-failure.png`, fullPage: true });
+  await page.screenshot({ path: evidencePath(`attachment-failure.png`), fullPage: true });
   await page.getByRole("button", { name: "移除 失败.txt" }).click();
   await expect(page.getByRole("button", { name: "发送", exact: true })).toBeEnabled();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -429,7 +511,7 @@ test("failed attachment keeps the draft and exposes a removable error; text zoom
     true,
   );
   await expect(input).toBeInViewport();
-  await page.screenshot({ path: `${evidence}/text-zoom-200-mobile.png`, fullPage: true });
+  await page.screenshot({ path: evidencePath(`text-zoom-200-mobile.png`), fullPage: true });
 });
 
 test("more than thirty conversations paginate and loaded-title filtering remains local", async ({

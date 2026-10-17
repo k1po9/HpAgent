@@ -1,3 +1,5 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 import { chromium, expect } from "@playwright/test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -7,7 +9,7 @@ const routes = JSON.parse(
 );
 await mkdir(resolve(out, "baseline"), { recursive: true });
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const ctx = await b.newContext({
   viewport: { width: 1680, height: 1000 },

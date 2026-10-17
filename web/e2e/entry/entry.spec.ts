@@ -170,7 +170,7 @@ test("mobile task deep link remains intact and resize settles safely", async ({ 
   await page.setViewportSize({ width: 420, height: 844 });
   await settled(page);
   await expect(page).toHaveURL(/#\/tasks/);
-  await expect(page.locator("#canvas-title")).toHaveText("任务");
+  await expect(page.locator("#canvas-title")).toHaveText("任务中心");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -211,3 +211,22 @@ test("slow verification stays in the ring; changing motion preference mid-flight
   await page.emulateMedia({ reducedMotion: "reduce" });
   await settled(page);
 });
+
+// Migrated from r13-default-check: product builds must not expose historical variant controls.
+for (const width of [1680, 390]) {
+  test(`production ignores review variants and exposes no candidate controls at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await fixtures(page, async () => "ok");
+    await page.goto("/?r1=s1&r12=baseline");
+    await settled(page);
+    await expect(page.locator(".hp-r1-controls")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.dataset.r1)).toBeUndefined();
+    expect(await page.evaluate(() => document.documentElement.dataset.r12)).toBeUndefined();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width + 1,
+    );
+  });
+}

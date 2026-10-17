@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # Durable Work V1 Phase 1 Implementation Report
 
 Date: 2026-10-02. Scope: Work Domain Foundation only. No commit made.
@@ -36,7 +38,7 @@ All PostgreSQL tests used a fresh isolated PostgreSQL 16 container and distinct 
 | Final Work + durable/Temporal/cutover contracts | 79 passed |
 | Frontend Run feed/workbench | 25 passed |
 | `pytest --collect-only -q` | 835 collected, no collection errors |
-| `scripts/schema-runtime-smoke.sh` | pass; migration/API/worker image migration manifest hashes match |
+| `scripts/check/schema-runtime-smoke.sh` | pass; migration/API/worker image migration manifest hashes match |
 | `make PYTHON=.venv/bin/python lint typecheck` | pass; Ruff and mypy |
 | Frontend typecheck and lint | pass |
 | Python `compileall`, `git diff --check` | pass |

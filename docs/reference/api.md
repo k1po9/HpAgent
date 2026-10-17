@@ -4,6 +4,18 @@ Compose 中 FastAPI 监听 `127.0.0.1:8080`。`GET /health/live`、`GET /health/
 
 认证入口为 `POST /auth/register`、`POST /auth/login`、`POST /api/v1/auth/logout`。注册包含 username / password，可选 invite_code；省略邀请使用默认自助 entitlement。Browser mutation 要求 Session Cookie、允许的 Public Origin、CSRF 与相应幂等键。Upload Content 使用 `application/octet-stream`，普通请求使用 JSON，event stream 使用 `text/event-stream`。
 
+## Chat 与发布检查消费者
+
+| 请求/事实 | 当前返回与限制 |
+| --- | --- |
+| `POST /auth/login` | JSON username/password/return_to；成功303并设置Session Cookie，不是JSON成功体 |
+| `GET /api/v1/me` | account与csrf_token；后续浏览器写请求同时满足Cookie、Origin与CSRF检查 |
+| `POST /api/v1/conversations` / `.../{conversation_id}/messages` | 分别201/202；发送消息返回run，使用稳定幂等键，不因未知响应擅自重发 |
+| `GET /api/v1/conversations/{conversation_id}/messages` | 分页条目字段为`items`；助手消息`status=completed`与Run的`succeeded`含义不同 |
+| `GET /api/v1/runs/{run_id}` | Run成功终态为`succeeded`；检查成果还须核实消息的`produced_by_run_id`及非空内容 |
+
+生产网关只代理`/api`和`/auth`等已配置路径；API的`/health/ready`从API入口或容器内验证，不能把网关SPA fallback的200作为API就绪。
+
 ## Work 命令与查询
 
 | Method / Path | 契约 |

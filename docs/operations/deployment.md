@@ -59,3 +59,11 @@ docker compose exec -T hpagent python -m orchestration.worker_health
 ```
 
 API ready 不能证明 Worker 已校验 Workflow 或能执行 Run。连接模型服务、真实 QQ 渠道和生产默认 Research lease 的恢复验证也分别进行；健康端点通过不替代这些验收。前端操作见[功能指南](web-workbench.md)。
+
+## 发布验证入口与限制
+
+`bash scripts/check/release-smoke.sh --help` 列出完整副作用；实际执行需 `--execute`、已有专用 `SMOKE_USER/SMOKE_PASSWORD`，默认仅使用 `web-prod`。配置必须在API/主Worker设置`HPAGENT_ENV=production`并关闭Fake；网关地址默认采用Compose API的`WEB_PUBLIC_ORIGIN`，显式`WEB_GATEWAY_URL`也必须与其一致，TLS终止和安全Cookie须按实际入口配置。该脚本可能build/up/迁移、写会话并调用真实模型，不属于安全静态检查。
+
+它通过Compose模型逐项核对服务，通过容器健康与迁移退出确认就绪，再验证登录303、CSRF Origin、消息202、本次Run的`succeeded`及其已完成助手消息。Document Worker无独立healthcheck时只证明进程运行，poller和实际文档任务仍须独立验收。网关不代理`/health/ready`，API ready由API容器健康检查验证；不能把网关SPA的200当作API健康。
+
+`--no-start`用于已部署组合，仍有写入和真实请求；脚本不停止服务或删除测试记录。不能用不同Compose project名推断端口、宿主源码或数据卷已经隔离。当前配置仍挂载宿主源码，升级前需固定checkout与镜像版本，并按[备份恢复](backup-restore.md)取得匹配快照；回滚须核对代码/schema兼容，迁移没有自动down路径。

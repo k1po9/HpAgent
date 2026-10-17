@@ -1,116 +1,75 @@
-# 测试
+# 测试与验证
 
-## 测试层与环境隔离
+## 分层和环境
 
-| 层 | 证明内容 | 不证明内容 |
+| 层 | 入口 | 范围与副作用 |
 | --- | --- | --- |
-| Unit / contract | 需求与策略、Provider 请求/分类、预算、上下文、SSE 状态和沙箱 import。 | 真实 Provider / QQ 行为。 |
-| PostgreSQL / API | 真实角色权限、事务、revision / epoch、lease / receipt、预算、授权与跨账户隔离。 | 真实外部网络和发送。 |
-| Temporal / replay / SIGKILL | 指定配置下 Workflow、attempt 恢复、去重与取消。 | 未使用的生产 lease / timeout 配置。 |
-| Chromium | 实际页面和真实 API / PG / Redis / 文件服务。 | 测试执行器覆盖的模型或 Artifact 供应商。 |
-| Live acceptance | 真实模型工具往返、渠道、生产恢复和压力。 | 不能由上面的通过次数自动替代。 |
+| 文档/脚本隔离测试 | `make docs-check scripts-test` | 不访问业务库或模型；脚本测试使用临时文件和本机临时HTTP服务。 |
+| Python静态/单元 | `make lint typecheck test-existing` | 先安装requirements-dev；`not postgres`不等于无基础设施，Work测试有自己的DSN要求。 |
+| PG/API契约 | `make test-db test-api` | 真实角色、事务、权限、授权与跨账户；fixture可能TRUNCATE，必须专用可丢弃库。 |
+| Temporal/replay/SIGKILL | CI的Phase D及`test/test_agent_segment_replay.py` | 受控namespace和实验Worker；不对正在工作的共享namespace执行kill harness。 |
+| 前端静态/单元 | `make ci-web` | ESLint/Prettier、TypeScript、Vitest和构建；不是浏览器或真实Provider证明。 |
+| 构建产物合同浏览器 | `make e2e-contract` | `playwright.entry.config.ts`，API/Auth路由夹具；不访问PG/Redis/模型。 |
+| 正式API浏览器 | `make e2e` / `make e2e-canonical` | 真实API/PG/Redis/File Store，Fake执行器；会迁移、注册账户并写业务夹具。 |
+| 发布/真实链路 | [脚本索引](../../scripts/README.md)中的release/model/benchmark入口 | 可能构建/启动服务、调用真实模型或对外请求，不作为安全日常测试运行。 |
 
-PG/API fixtures 会 TRUNCATE 业务表，浏览器会写入账户与执行数据。**先建立专用可丢弃测试库，不使用当前 root 业务库。** 三个 DSN 必须指向同一测试数据库的 migration / API / worker 角色，Redis 选择独立 DB，文件目录与端口也隔离。Makefile 和 E2E 脚本的默认 DSN 指向 hpagent，不能直接沿用来验证共享环境。
+## 后端环境
+
+宿主安装 `requirements-dev.txt`，从仓库根执行。三个DSN应指向同一**专用测试库**的migration/API/worker角色；Redis、文件目录、Temporal namespace与端口也要隔离。
 
 ```bash
-# 替换三个占位 DSN；测试库须事先建立，使用实际角色凭据。
 export MIGRATION_DATABASE_URL='postgresql://MIGRATION_ROLE:PASSWORD@localhost:5434/hpagent_test'
 export APP_DATABASE_URL='postgresql://API_ROLE:PASSWORD@localhost:5434/hpagent_test'
 export WORKER_DATABASE_URL='postgresql://WORKER_ROLE:PASSWORD@localhost:5434/hpagent_test'
 export HPAGENT_MIGRATIONS_DIR="$PWD/persistence/migrations"
 export REDIS_URL='redis://localhost:6379/15'
-```
-
-迁移使用完整 001–059 链与真实角色，保留 checksum；059 收窄 Artifact Version 的 API UPDATE 权限，升级证据见 [UI 重构交接](../implementation/ui-refactor.md)。旧架构非空业务库的门禁见[部署](../operations/deployment.md)。
-
-## Python 与数据库
-
-```bash
-make test-existing          # 非 postgres marker 集合；仍须检查用例自己的基础设施要求
-make lint typecheck
-PYTHONPATH=src python3 -m pytest test/test_model_protocol.py test/test_model_dispatch_logging.py test/test_durable_agent_contract.py -q
-
-# 仅在上面的隔离 DSN 已设置后执行
-make db-up
+# 测试数据库及角色由操作员预先建立；不从业务库复制未经脱敏的数据。
 make migrate
-make test-db
-make test-api
-PYTHONPATH=src python3 -m pytest test/work_domain -q
+make test-db test-api
 ```
 
-`test/work_domain/` 的 fixture 自己要求三个真实角色 DSN，部分测试还有 temporal marker；没有 postgres marker 不代表不会使用数据库。标记 temporal 的测试需要 TEMPORAL_HOST；崩溃/撤权测试使用独立 TEMPORAL_TEST_NAMESPACE，不能对正在工作的共享 namespace 执行 kill harness。
+使用完整迁移链和原checksum；旧业务库门禁见[部署](../operations/deployment.md)。`make db-up`只启动Compose所配置的数据库，不能据此认为它就是专用测试库。`make test`包括基础设施集合，运行前必须检查fixture要求。
 
-聚焦入口：
+模型协议测试使用MockTransport，不证明真实Provider；历史5秒lease恢复不证明生产默认lease恢复速度。测试范围和排除项必须随结果记录。
 
-- `test/test_model_protocol.py`、`test_model_dispatch_logging.py`：OpenAI / Anthropic 多工具和连续轮次、实际 MockTransport 发出体、分类和独立读取预算。
-- `test/test_durable_agent_contract.py`：包含 8 个注册 Workflow 的真实 sandbox prepare，防止网络依赖间接导入导致启动失败。
-- `test/work_domain/`：Work 基础、Execution 解耦、策略、continuation 和只读 delegation。
-- `test/web_persistence/test_work_integration.py`、`test_durable_review_regressions.py`：Work 累计预算、成果来源/采用、通知回执、容量、修订与恢复。
-- `test/web_api/test_work_foundation.py`、`test_phase_b_api.py`：命令版本、chat/work snapshot、错误与安全重试。
-- `test/web_api/test_workspace_direct_upload.py`、`test_workspace_v41_p*.py` 与对应 persistence 用例：父目录、冲突原因、重复授权、下一轮候选、撤权与版本。
-
-## Web 与浏览器
+## 前端与浏览器
 
 ```bash
 make web-install
-make ci-web                 # lint / typecheck / build / Vitest
-
-# 隔离 DSN / Redis 配置继续生效；独立目录/端口避免冲突
-export WEB_API_PORT=8180
-export WEB_DEV_PORT=5273
-export FILE_STORE_ROOT=/tmp/hpagent-test-file-store
-make e2e
+make web-lint web-typecheck web-test
+make web-build
 ```
 
-Playwright 启动自己的 API 与 Vite（reuseExistingServer=false）。API 使用 Fake Run / Artifact executor；Chromium 真实操作页面、账户和数据库。测试依赖共享 alice / bob，按一个 worker 串行运行。重复使用测试库时，上一轮残留 Work / Run 可能阻塞测试执行器；清理应仅针对已确认的测试库，不能清理业务库。
-
-`web/e2e/manual-repair.spec.ts` 覆盖子目录创建、冲突、上传授权、切页草稿、窄屏 Work 创建/修订/授权；workspace-p1 / p3 与 artifact 覆盖保存、版本、下载及页面跳转。`web/src/components/workspace/WorkspaceMigration.test.tsx` 与 `workspaceOperations.test.ts` 覆盖保存成功而授权失败的补救与不重复上传；旧 WorkspacePanel 候选生命周期语义已迁入 `components/run/RunResources.test.tsx`。
-
-UI-1～UI-8 的组件和状态契约见[前端架构](../architecture/web-ui.md)，阶段与缺陷矩阵见[交接](../implementation/ui-refactor.md)。前端四项门禁可分别执行：
+若已有服务使用`web/dist`，验证构建应写独立目录，避免影响现有预览：
 
 ```bash
 cd web
-npm run typecheck
-npm run lint
-npm run build
-npm test -- --maxWorkers=1
-npx playwright test --project=chromium --workers=1 --reporter=list,json
-# 先 build；复用隔离测试配置，另用独立端口/库，顺序执行
-npx playwright test --config=playwright.ui8-production.config.ts --project=chromium --workers=1 --reporter=list,json
+npm run build -- --outDir /tmp/hpagent-verification-build
 ```
 
-运行前用 `PLAYWRIGHT_JSON_OUTPUT_NAME` 和 `HPAGENT_UI8_EVIDENCE_DIR` 指向新的批次路径。UI-2～UI-7 specs 仍将截图写入各阶段临时目录；这些目录已忽略，不是保留证据。需要归档时把本轮产物复制到新批次，不能覆盖 `artifacts/product-acceptance/ui-refactor/` 的旧结果。原一次性本机 Docker 编排脚本已删除；基础设施配置以本指南和 Playwright 配置为准，历史准确命令保留在证据 JSON。
+合同测试默认启动本机5311预览，需先构建。也可通过`HPAGENT_ENTRY_BASE_URL`复用操作员自己创建的独立静态服务（例如上述输出目录）；它不配置或启动API。`HPAGENT_BROWSER_EXECUTABLE`可覆盖浏览器路径，默认使用Playwright Chromium。
 
-复跑 UI-8 后端综合集合，在上述隔离环境下执行：
+正式API套件：
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m pytest \
-  test/web_api test/work_domain \
-  test/web_persistence/test_work_integration.py \
-  test/web_persistence/test_web_artifacts.py \
-  test/web_persistence/test_model_input_snapshot.py \
-  test/web_persistence/test_permissions.py \
-  test/web_persistence/test_workspace_v41_p1.py \
-  test/web_persistence/test_workspace_v41_p2.py \
-  test/web_persistence/test_workspace_v41_p3.py \
-  test/web_persistence/test_workspace_temporal_revoke_tool.py \
-  test/web_persistence/test_web_temporal_e2e.py \
-  test/web_persistence/test_web_temporal_lifecycle.py \
-  -q --junitxml=/tmp/hpagent-ui-backend-results.xml
+# 延续上方显式隔离DSN与Redis；不可使用日常业务库。
+export E2E_ISOLATED=1
+export FILE_STORE_ROOT=/tmp/hpagent-dedicated-e2e-files
+export WEB_API_PORT=8180
+export WEB_DEV_PORT=5273
+export WEB_PUBLIC_ORIGIN=http://localhost:5273
+make e2e-canonical
+# 或 make e2e：整个正式套件
 ```
 
-后端命令在仓库根目录执行。按 10-09 范围复验时追加 `-k 'not qq and not napcat and not mobile'`，并记录排除项；此集合不替代完整验收。浏览器精确筛选见[原命令](../../artifacts/product-acceptance/ui-refactor/recheck/logs/browser-exits.json)。API import、SSE 握手窗口、取消/完成两锁顺序、Artifact 取消、Work 未来时间戳和三角色权限反例均在正式测试中，临时复现文本无需恢复。
+`e2e-backend.sh`要求隔离标记与显式资源配置，启动自己的API并注册alice/bob；默认端口8180/5273可覆盖，Vite使用strictPort，Playwright不复用已有服务。套件串行执行，避免共享alice登录相互失效。`--list`只验证配置/导入和用例发现，不执行浏览器或后端，不能作为浏览器通过证明。
 
-## 能力与真实验收
+旧R416的29项用例和有效可访问名称修正已合入`web/e2e/`；`playwright.r416.config.ts`仅为canonical选择器，使用同一正式API环境，不再保留重复测试目录或依赖5334端口。阶段性的phase1/final/visual配置仍需其独立环境；不能直接纳入默认CI或向日常业务API执行。
 
-```bash
-python scripts/check/mcp-health.py --help
-python scripts/check/models.py --help
-./scripts/check/gateway-smoke.sh
-./scripts/check/release-smoke.sh
-make agent-benchmark-check
-```
+截图、trace和JSON输出在忽略的`web/test-results/`，新实验输出在`artifacts/benchmark-runs/`。证据需形成独立受限批次，保留失败和环境错误；不要覆盖跟踪的历史摘要或将原始运行记录加入Git。
 
-Model / release smoke 和显式 `make agent-benchmark-run` 可能调用真实外部服务，需要有效凭据。模型验收至少覆盖工具首次返回后的第二次请求与多轮结果配对；应从实际 Worker 网络环境复验，并保存脱敏关联证据。快照冻结、MockTransport 或浏览器 Fake executor 的成功不代表真实供应商成功。
+## 覆盖与结果解释
 
-最新已通过批次、重叠计数规则、真实 Provider/业务链边界与 Research SIGKILL 的短租约条件见[实施索引](../implementation/README.md)。Workspace 1k / 10k 规模和原始阶段退出条件见[验收](../implementation/workspace-v4.1/ACCEPTANCE.md)。
+组件/store单测覆盖请求代际、授权、幂等、SSE、草稿/附件和Inspector身份；正式E2E覆盖真实页面与隔离API。合同浏览器还验证生产构建没有历史候选控制、查询参数不启用评审模式，以及减动/视口/认证恢复等行为。历史工具中未证明等价的断言继续保留，不能因当前套件通过就宣称全部替代。
+
+当前UI约束见[Web架构](../architecture/web-ui.md)，历史接受和各次验证范围见[实施索引](../implementation/README.md)。真实供应商、生产Worker、QQ外发、真机IME/软键盘/读屏、其他浏览器和恢复演练分别验收；本次文档/脚本修改不声明这些路径通过。

@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # Durable Work V1 — Phase 4
 
 Architecture and scope follow only `docs/design/durable-work-v1-implementation-design.md`, particularly §9 and the Phase 4 A–D boundary. Phase 5 delegation remains disabled.

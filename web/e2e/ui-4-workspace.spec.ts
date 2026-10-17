@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { login, createConversation } from "./helpers";
 import { workspace, uploadWorkspace, fileInspector } from "./workspace-helpers";
-const evidence = resolve(process.cwd(), "../artifacts/product-acceptance/ui-4");
+const evidence = resolve(process.cwd(), "./test-results/evidence/ui-4");
 
 test("directory deep links, direct children, all files, file preview and browser return", async ({
   page,

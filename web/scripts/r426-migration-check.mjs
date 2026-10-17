@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 /* global document, window, getComputedStyle, innerWidth, console */
 import { chromium, expect } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";

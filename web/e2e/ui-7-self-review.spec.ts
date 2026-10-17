@@ -2,10 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const evidence = resolve(
-  process.cwd(),
-  "../artifacts/product-acceptance/ui-7/self-review-fixes/browser",
-);
+const evidence = resolve(process.cwd(), "./test-results/evidence/ui-7/self-review-fixes/browser");
 const now = "2026-10-08T00:00:00Z";
 const conversation = {
   conversation_id: "c1",

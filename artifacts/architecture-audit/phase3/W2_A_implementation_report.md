@@ -26,8 +26,8 @@
 
 | 执行 | 结果 |
 | --- | --- |
-| `.venv/bin/python scripts/verify_w2a_contracts.py` | **120 passed / 0 skipped**，1147.80s；namespace `hpagent-w1b-test-893e1b3ab2`；原始输出见 [W2_A_validation_results.txt](W2_A_validation_results.txt) |
-| `.venv/bin/python scripts/verify_w2a_contracts.py test/web_persistence/test_conversation_commands.py` | **6 passed / 0 skipped**，92.14s；namespace `hpagent-w1b-test-2d6e004fe7`；原始输出见 [W2_A_retained_replay_validation.txt](W2_A_retained_replay_validation.txt) |
+| `.venv/bin/python scripts/verify_w2a_contracts.py` | **120 passed / 0 skipped**，1147.80s；namespace `hpagent-w1b-test-893e1b3ab2`；原始输出见 [W2_A_validation_results.txt（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_A_validation_results.txt`） |
+| `.venv/bin/python scripts/verify_w2a_contracts.py test/web_persistence/test_conversation_commands.py` | **6 passed / 0 skipped**，92.14s；namespace `hpagent-w1b-test-2d6e004fe7`；原始输出见 [W2_A_retained_replay_validation.txt（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_A_retained_replay_validation.txt`） |
 | Ruff（所有修改的 Python 文件）、`git diff --check` | PASS |
 
 主回归 collection 后发现附件存储顺序与请求顺序不同，已修正 retained replay 比较并新增一个测试；随后 6 项定向复验覆盖最终代码。两次合计 **121 个不同用例通过**，其中 5 项重复验证。最终脚本默认 collection 为 121 项。

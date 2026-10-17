@@ -1,3 +1,5 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 /* global getComputedStyle */
 import "./r1-isolation.mjs";
 import { chromium, expect } from "@playwright/test";
@@ -5,7 +7,7 @@ import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 const out = resolve("artifacts/product-acceptance/ui-iteration/R2/attempt-04");
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const c = await b.newContext({
     viewport: { width: 1680, height: 1000 },

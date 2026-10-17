@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 import "./r1-isolation.mjs";
 import { chromium, expect } from "@playwright/test";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -11,7 +12,7 @@ const stage = process.argv[3] && process.argv[3] !== "--isolated" ? process.argv
 const dir = resolve(out, "screenshots", stage);
 await mkdir(dir, { recursive: true });
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const p = await b.newPage({
   viewport: { width: 1680, height: 1000 },

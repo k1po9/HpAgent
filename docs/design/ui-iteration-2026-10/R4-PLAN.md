@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../../README.md)进入。
+
 # R4 实施计划：对象进入 Inspector 与柔和关闭
 
 当前状态（2026-10-17）：R1–R6已正式接受；本次用户授权将此前已接受未提交的File/Task、R5、R6共同纳入本地commit，未推送或部署。最新决定见[R6 DECISION](../../../artifacts/product-acceptance/ui-iteration/R6/DECISION.md)。以下保留R4阶段历史。
@@ -105,11 +107,11 @@ R4 一个新窗口，按子阶段顺序推进：
 
 用户已授权先提交认可基线再逐步推进；该授权覆盖本轮提交，与第5节历史“不自动提交”的默认限制相比优先。接受UI提交为1a21a93，前轮冻结文档提交为8ca20b9。
 
-Artifact第一步候选已交付，见[attempt-11 HANDOFF](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-11-artifact/HANDOFF.md)：同次版本归一化不重播、同版本预览跨Tab/展开保持、慢加载/错误/快切及子Run返回。停Artifact待人审。后续按File→Task→四类组合与真实隔离API/跨轮回归推进，再停R4整体待人审；本记录不修改上述冻结交互合同。
+Artifact第一步候选已交付，见[attempt-11 HANDOFF（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R4/attempt-11-artifact/HANDOFF.md`）：同次版本归一化不重播、同版本预览跨Tab/展开保持、慢加载/错误/快切及子Run返回。停Artifact待人审。后续按File→Task→四类组合与真实隔离API/跨轮回归推进，再停R4整体待人审；本记录不修改上述冻结交互合同。
 
 ## File/目录接力本步交付 · 2026-10-16
 
-File/目录已接入共享实际抵达/标题/关闭机制，明确真实入口来源，保留预览、版本输入和授权草稿DOM，修复获准放弃与权限失败清理。当前 **File/目录接力待人审**，R4整轮未接受；Task完整接力、四类组合及真实隔离API仍按后续人审顺序推进。入口与独立交接见[attempt-14 HANDOFF](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-14-file-relay/HANDOFF.md)。真实React与完整离线HTML、源码备份/指纹、逐项I01–I20台账与本轮证据均保留。未提交/推送/部署；R5/R6未启动。
+File/目录已接入共享实际抵达/标题/关闭机制，明确真实入口来源，保留预览、版本输入和授权草稿DOM，修复获准放弃与权限失败清理。当前 **File/目录接力待人审**，R4整轮未接受；Task完整接力、四类组合及真实隔离API仍按后续人审顺序推进。入口与独立交接见[attempt-14 HANDOFF（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R4/attempt-14-file-relay/HANDOFF.md`）。真实React与完整离线HTML、源码备份/指纹、逐项I01–I20台账与本轮证据均保留。未提交/推送/部署；R5/R6未启动。
 
 
 ## File 接受与 Task 授权 · 2026-10-16
@@ -119,7 +121,7 @@ File/目录已接入共享实际抵达/标题/关闭机制，明确真实入口�
 
 ## Task 本步交付 · 2026-10-16
 
-真实Task完整接力已实施、自审、修复并验证，当前 **Task 接力待人审**。复用现有接力/标题/关闭机制，保留4Tab及表单DOM，修复历史guard与保留查询的生命周期接缝；全部16子页及关联弹层已接受视觉保持。入口与独立交接见[attempt-15 HANDOFF](../../../artifacts/product-acceptance/ui-iteration/R4/attempt-15-task-relay/HANDOFF.md)。完整556测试、生产构建/静态检查及明确夹具浏览器验证通过；真实API仍未测。Task接受后再做四类组合与跨轮/隔离API，整轮R4未接受。未提交/推送/部署，R5/R6未启动。
+真实Task完整接力已实施、自审、修复并验证，当前 **Task 接力待人审**。复用现有接力/标题/关闭机制，保留4Tab及表单DOM，修复历史guard与保留查询的生命周期接缝；全部16子页及关联弹层已接受视觉保持。入口与独立交接见[attempt-15 HANDOFF（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R4/attempt-15-task-relay/HANDOFF.md`）。完整556测试、生产构建/静态检查及明确夹具浏览器验证通过；真实API仍未测。Task接受后再做四类组合与跨轮/隔离API，整轮R4未接受。未提交/推送/部署，R5/R6未启动。
 
 ## 2026-10-16 · attempt-16 四类组合收口交付
 

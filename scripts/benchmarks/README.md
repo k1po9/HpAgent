@@ -1,6 +1,6 @@
 # Benchmark Architecture
 
-实验脚本按故障模型分区，输出写入同名的 `artifacts/benchmarks/<experiment>/` 子目录。
+实验脚本按故障模型分区，代码和输入保留在本目录，历史可解释结果保留在 `artifacts/benchmarks/`；**新运行输出默认写入忽略的 `artifacts/benchmark-runs/<experiment>/`**，不覆盖跟踪的历史结果。Temporal/Outbox可用 `--output-dir` 覆盖；Agent策略用 `BENCHMARK_OUTPUT_DIR` 覆盖。所有失败与环境错误样本均保留，不改变现有统计口径。
 
 ```text
 scripts/benchmarks/

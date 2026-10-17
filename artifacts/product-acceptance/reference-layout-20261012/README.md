@@ -4,7 +4,7 @@
 
 基线代码/证据已提交：4191251 / 18d3818。当前分支：codex/reference-layout，从 18d3818 开始；旧基线仍可独立回退。新代码提交以本报告所在的 Git commit 为准。
 
-[用户参考图](reference.png) · [本轮 Git diff](code.diff) · [几何与对比度记录](comparison.json)。
+[用户参考图（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/reference.png`） · [本轮 Git diff（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/code.diff`） · [几何与对比度记录（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/comparison.json`）。
 
 ## 实际迁移
 
@@ -25,26 +25,26 @@ before 是已提交的 Paper Flame 颜色基线；after 是本轮生产 dist 的
 
 | 页面 · 1680×1000   | 颜色基线                            | 新布局                            |
 | ------------------ | ----------------------------------- | --------------------------------- |
-| AI / Conversation  | [before](before-ai-1680.png)        | [after](after-ai-1680.png)        |
-| 新对话             | [before](before-new_ai-1680.png)    | [after](after-new_ai-1680.png)    |
-| AI + Artifact      | [before](before-artifact-1680.png)  | [after](after-artifact-1680.png)  |
-| AI + Run Inspector | [before](before-run-1680.png)       | [after](after-run-1680.png)       |
-| Workspace          | [before](before-workspace-1680.png) | [after](after-workspace-1680.png) |
-| File Inspector     | [before](before-file-1680.png)      | [after](after-file-1680.png)      |
-| Tasks              | [before](before-tasks-1680.png)     | [after](after-tasks-1680.png)     |
-| Task Inspector     | [before](before-task-1680.png)      | [after](after-task-1680.png)      |
+| AI / Conversation  | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/before-ai-1680.png`）        | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-ai-1680.png`）        |
+| 新对话             | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/before-new_ai-1680.png`）    | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-new_ai-1680.png`）    |
+| AI + Artifact      | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/before-artifact-1680.png`）  | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-artifact-1680.png`）  |
+| AI + Run Inspector | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/before-run-1680.png`）       | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-run-1680.png`）       |
+| Workspace          | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/before-workspace-1680.png`） | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-workspace-1680.png`） |
+| File Inspector     | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/before-file-1680.png`）      | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-file-1680.png`）      |
+| Tasks              | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/before-tasks-1680.png`）     | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-tasks-1680.png`）     |
+| Task Inspector     | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/before-task-1680.png`）      | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-task-1680.png`）      |
 
-39 对截图另含 1280×1000 / 780×1000 / 390×844，以及登录/注册验证、资料弹窗与草稿焦点；另有最终 Rail 焦点图。[手机 AI](after-ai-390.png)、[手机文件](after-file-390.png)、[手机任务](after-task-390.png)。
+39 对截图另含 1280×1000 / 780×1000 / 390×844，以及登录/注册验证、资料弹窗与草稿焦点；另有最终 Rail 焦点图。[手机 AI（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-ai-390.png`）、[手机文件（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-file-390.png`）、[手机任务（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-task-390.png`）。
 
 人工读图修正了旧 display:flex 覆盖侧栏新网格、Artifact 双层 padding，以及孤立的 Run 入口背景；最终确认桌面中心列、窄屏输入、Inspector 读写操作及长标题。用户生成 HTML 的 iframe 内排版仍来自其原内容，不冒充本轮设计。
 
 ## 验证
 
-- **typecheck / 变更范围 ESLint / Prettier / git diff --check：通过**；不运行完整 CI。[静态检查](static.log)。
-- **14 文件、106 单测通过**：[日志](unit.log)。覆盖 App、恢复、HpThread、Conversation、Run、Surface、Inspector、Task、Workspace、Artifact。新建入口改为加号后，App 测试改用同一可访问名称“新建对话”查找按钮，不改变原行为断言。
-- **14 浏览器用例通过**：[日志](e2e.log)。覆盖 IME、按提交创建对话、草稿、标题/资料/焦点、历史 prepend 锚点与 streaming、不就绪附件/字号；四类 Inspector/iframe/查询次数跨 13 尺寸与边界、嵌套保存、任务草稿 guard、键盘 Tabs、扩大阅读；登录实际粒子像素、清理和 reduced-motion。harness 两项使用 Vite 开发页，未声称其在 dist 中存在。
-- **生产构建通过**：[日志](build.log)；保留已有 >500kB bundle 提示。
-- **最终生产截图脚本通过**：[日志](after.log)，40 张截图无页面运行错误、无页面横向溢出。before 的 39 张单独保存：[基线数据](before-geometry.json)、[最终数据](after-geometry.json)。
+- **typecheck / 变更范围 ESLint / Prettier / git diff --check：通过**；不运行完整 CI。[静态检查（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/static.log`）。
+- **14 文件、106 单测通过**：[日志（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/unit.log`）。覆盖 App、恢复、HpThread、Conversation、Run、Surface、Inspector、Task、Workspace、Artifact。新建入口改为加号后，App 测试改用同一可访问名称“新建对话”查找按钮，不改变原行为断言。
+- **14 浏览器用例通过**：[日志（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/e2e.log`）。覆盖 IME、按提交创建对话、草稿、标题/资料/焦点、历史 prepend 锚点与 streaming、不就绪附件/字号；四类 Inspector/iframe/查询次数跨 13 尺寸与边界、嵌套保存、任务草稿 guard、键盘 Tabs、扩大阅读；登录实际粒子像素、清理和 reduced-motion。harness 两项使用 Vite 开发页，未声称其在 dist 中存在。
+- **生产构建通过**：[日志（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/build.log`）；保留已有 >500kB bundle 提示。
+- **最终生产截图脚本通过**：[日志（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after.log`），40 张截图无页面运行错误、无页面横向溢出。before 的 39 张单独保存：[基线数据（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/before-geometry.json`）、[最终数据（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/reference-layout-20261012/after-geometry.json`）。
 - **已采样对比度通过**：1515 个可见文字组合（包括跨视口重复），低于相应 4.5/3:1 的组合为 0，遗留饱和蓝文字为 0。保留输入、按钮和深色 Rail 焦点；disabled/屏外/用户 iframe 内容不计入扫描，不宣称全站 WCAG 认证。
 
 环境仍为独立测试 API 8196、数据库 hpagent_phase1_20261012、Redis 15 和本机 headless Chrome；消息/HTML 为现有 Fake executor 内容，属于真实 React/API 验收数据，不是正式模型回复。未测正式模型、QQ、计划任务实际执行、Firefox/Safari、物理移动设备及 Mercury 性能。没有修改日常业务账户或生产数据库。

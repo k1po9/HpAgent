@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 import "./r1-isolation.mjs";
 /* global document, getComputedStyle, innerWidth */
 import console from "node:console";
@@ -13,7 +14,7 @@ await mkdir(dir, { recursive: true });
 const routes = JSON.parse(await readFile(resolve(out, "routes.json"))),
   base = "http://127.0.0.1:5294";
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const p = await b.newPage({
   viewport: { width: 1680, height: 1000 },

@@ -21,7 +21,7 @@
 
 复现：`.venv/bin/python scripts/verify_w2b_contracts.py`
 
-最终结果：**136 passed，458.46 秒，无 skip**。原始输出见 [W2_B_validation.txt](W2_B_validation.txt)。隔离 PostgreSQL 从空 schema 执行 migrations，独立 Redis 容器及 Temporal namespace；外部模型/工具/QQ 网络使用测试替身。
+最终结果：**136 passed，458.46 秒，无 skip**。原始输出见 [W2_B_validation.txt（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_B_validation.txt`）。隔离 PostgreSQL 从空 schema 执行 migrations，独立 Redis 容器及 Temporal namespace；外部模型/工具/QQ 网络使用测试替身。
 
 覆盖协议 private/group/guild/dm、稳定消息键、并发重投及不同首次消息、共享 busy、Session 复用/轮换、取消回执、身份未绑定/撤销、DB 故障与整笔事务回滚、非触发/缓存故障、PG 上下文与记忆来源。真实 PG/Temporal QQ 入站用例覆盖 completed/cancelled、Outbox dispatch、丢失启动确认、重投与 History replay；同时回归 Web canonical 生命周期、资源恢复、Trace、Memory 与共享 commands。
 

@@ -1,3 +1,5 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 /* global document, getComputedStyle */
 import "./r1-isolation.mjs";
 import { chromium, expect } from "@playwright/test";
@@ -14,7 +16,7 @@ for (const before of captures.metrics.filter((m) => m.variant === "before" && m.
   pairs.push({ before: before.name, after: after.name, sameMessages: true, sameObjects: true });
 }
 const browser = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const page = await browser.newPage({
   viewport: { width: 1680, height: 960 },

@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { login, createConversation, sendMessage, expectReply, expectRunLive } from "./helpers";
 
 const evidence = resolve(
-  process.env.HPAGENT_UI8_EVIDENCE_DIR ?? "../artifacts/product-acceptance/ui-8/browser",
+  process.env.HPAGENT_UI8_EVIDENCE_DIR ?? "./test-results/evidence/ui-8/browser",
 );
 
 async function instrument(page: Page) {

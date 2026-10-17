@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 import process from "node:process";
 
 // Browser scripts write sessions and review fixtures. The operator must first

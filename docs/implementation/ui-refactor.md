@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # UI-1～UI-8 前端重构交接
 
 更新于 2026-10-09（Asia/Shanghai）。UI-1～UI-7 已实现并提交；UI-8 的综合验收、定点修复及复验代码随本次文档整理提交。**现有自动化门禁在各自记录范围内通过，UI-8 仍未满足最终产品放行条件。** 当前契约见[前端架构](../architecture/web-ui.md)，操作见[功能指南](../operations/web-workbench.md)，复验见[测试指南](../development/testing.md)，原始数据见[证据索引](../../artifacts/product-acceptance/ui-refactor/README.md)。
@@ -137,6 +139,6 @@ UI-8 包含新增 `059_artifact_api_permissions.sql`；001～058 未修改。059
 
 本次把阶段计划、报告、自审/修复指南合并为本交接与当前前端架构，保留关键反例、最终日志/环境/指纹和最后完整截图。删除 UI-2～UI-7 重复截图、多轮中间输出、临时复现源码及依赖本机容器名的一次性验收编排脚本。历史内容仍可从既有提交恢复，当前复验使用正式测试和测试指南。Durable Work、Workspace 与更早产品验收不在本次 UI 清理范围。
 
-保留证据逐文件迁移来源与 SHA-256 见 [retained-evidence.json](../../artifacts/product-acceptance/ui-refactor/retained-evidence.json)。历史日志/audit 中的原路径和“原证据保留”描述表示当时审计，不应解释为清理后原目录仍存在；原始结果没有改写。本次文档/清理检查另存 `docs-sync/`，不混入旧批次计数。
+保留证据逐文件迁移来源与 SHA-256 见 [retained-evidence.json（已归档）](../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-refactor/retained-evidence.json`）。历史日志/audit 中的原路径和“原证据保留”描述表示当时审计，不应解释为清理后原目录仍存在；原始结果没有改写。本次文档/清理检查另存 `docs-sync/`，不混入旧批次计数。
 
-本次整理重新运行 typecheck、lint、build 与完整 Vitest（54 文件、408 项），全部通过；受影响 Python 文件 Ruff 通过。扩大到 11 个服务文件的 Mypy 发现 `src/delivery/service.py:310–313` 的 4 个既有 nullable 索引错误；原 HEAD 副本独立检查也复现同样 4 项。本次没有扩大修改范围来修复这些既有问题，完整 Mypy 不标为通过。文档链接、证据哈希、JUnit 解析和 diff 格式检查结果见[整理检查记录](../../artifacts/product-acceptance/ui-refactor/docs-sync/validation.json)。
+本次整理重新运行 typecheck、lint、build 与完整 Vitest（54 文件、408 项），全部通过；受影响 Python 文件 Ruff 通过。扩大到 11 个服务文件的 Mypy 发现 `src/delivery/service.py:310–313` 的 4 个既有 nullable 索引错误；原 HEAD 副本独立检查也复现同样 4 项。本次没有扩大修改范围来修复这些既有问题，完整 Mypy 不标为通过。文档链接、证据哈希、JUnit 解析和 diff 格式检查结果见[整理检查记录（已归档）](../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-refactor/docs-sync/validation.json`）。

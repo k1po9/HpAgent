@@ -4,7 +4,13 @@ import { useEffect, useRef } from "react";
 import { useArtifacts } from "../../store/artifacts";
 import { useShell } from "../../store/shell";
 import { artifactStatus } from "./artifactPresentation";
-export function ArtifactMessageItems({ messageId }: { messageId: string }) {
+export function ArtifactMessageItems({
+  messageId,
+  discoverOnEntry = false,
+}: {
+  messageId: string;
+  discoverOnEntry?: boolean;
+}) {
   const { retiring } = useReadingPresentation();
   const root = useRef<HTMLDivElement>(null);
   const items = useArtifacts((s) => s.artifactsByMessageId[messageId]);
@@ -12,23 +18,45 @@ export function ArtifactMessageItems({ messageId }: { messageId: string }) {
   const intent = useArtifacts((s) => s.intents[`message:${messageId}`]);
   useEffect(() => {
     if (retiring) return;
+    const node = root.current;
+    if (!node) return;
+    // Observe the message, not its footer: a long answer can be visible while
+    // its HTML controls are still outside the viewport.
+    const target = node.closest<HTMLElement>("[data-message-id]") ?? node;
+    const viewport = node.closest<HTMLElement>(".hp-thread__viewport");
+    let dispatched = false;
     const load = () => {
-      if (!root.current?.closest("[data-mercury-retiring]"))
-        void useArtifacts.getState().loadForMessage(messageId);
+      if (dispatched || node.closest("[data-mercury-retiring], [hidden], [inert]")) return;
+      const rect = target.getBoundingClientRect();
+      const bounds = viewport?.getBoundingClientRect();
+      if (!discoverOnEntry && bounds && (rect.bottom <= bounds.top || rect.top >= bounds.bottom))
+        return;
+      dispatched = true;
+      void useArtifacts.getState().loadForMessage(messageId);
     };
-    if (typeof IntersectionObserver === "undefined") {
-      load();
-      return;
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((e) => e.isIntersecting)) {
-        load();
-        observer.disconnect();
-      }
-    });
-    if (root.current) observer.observe(root.current);
-    return () => observer.disconnect();
-  }, [messageId, retiring]);
+    const observer =
+      typeof IntersectionObserver === "undefined"
+        ? null
+        : new IntersectionObserver((entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) load();
+          });
+    observer?.observe(target);
+    // Shell/reading transitions can release inert without another intersection
+    // event. Recheck on release and on scrolling, with one bounded entry read.
+    const presentation = new MutationObserver(load);
+    for (let parent: HTMLElement | null = node; parent; parent = parent.parentElement)
+      presentation.observe(parent, {
+        attributes: true,
+        attributeFilter: ["hidden", "inert", "data-mercury-retiring"],
+      });
+    viewport?.addEventListener("scroll", load, { passive: true });
+    load();
+    return () => {
+      observer?.disconnect();
+      presentation.disconnect();
+      viewport?.removeEventListener("scroll", load);
+    };
+  }, [messageId, retiring, discoverOnEntry]);
   const create = async () => {
     const shell = useShell.getState(),
       token = shell.requestToken;

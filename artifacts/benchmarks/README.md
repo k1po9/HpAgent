@@ -42,3 +42,7 @@ artifacts/benchmarks/
 4. 各实验 `report.md`、`summary.json`、`trials.csv`：生成报告、聚合数据和逐条数据。
 
 原始失败和环境错误均保留并明确标注，没有为了提高数字而删除或改写样本。
+
+## 原始材料归档（2026-10-17）
+
+上方目录树描述实验时布局。`temporal/*/runs/` 的 SQLite、同步标记及原始日志完整移至受限外部归档，包含失败与环境错误；未筛选样本。实验设计、报告、汇总、逐条 CSV/JSONL 及 pilot 记录继续保留，字节未改写。按原路径恢复的方法见[归档索引](../../docs/development/repository-archive-index.md)。

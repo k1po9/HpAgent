@@ -1,6 +1,6 @@
 # 人工 E2E 四项反馈：调查与实施方案
 
-调查日期：2026-10-04，时间均为 Asia/Shanghai。范围是当前工作目录、实际运行的 Worker、现有 PostgreSQL 记录及结构化日志。本轮只新增本报告及[脱敏证据摘要](./manual-e2e-investigation-evidence.json)，未修改业务代码、数据库或部署，也未发起新的真实模型请求。调查开始时仓库已有未提交修复，本报告以包含这些修复的当前代码为准。
+调查日期：2026-10-04，时间均为 Asia/Shanghai。范围是当前工作目录、实际运行的 Worker、现有 PostgreSQL 记录及结构化日志。本轮只新增本报告及[脱敏证据摘要（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/2026-10-04/manual-e2e-investigation-evidence.json`），未修改业务代码、数据库或部署，也未发起新的真实模型请求。调查开始时仓库已有未提交修复，本报告以包含这些修复的当前代码为准。
 
 ## 1. 选择“资料”后点击新建目录返回 409
 

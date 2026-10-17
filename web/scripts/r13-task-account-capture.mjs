@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 /* global document, innerWidth */
 import process from "node:process";
 import "./r1-isolation.mjs";
@@ -10,7 +11,7 @@ const stage = process.argv[2] ?? "initial";
 const dir = resolve(out, "screenshots", stage);
 await mkdir(dir, { recursive: true });
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const p = await b.newPage({
   viewport: { width: 1680, height: 1000 },

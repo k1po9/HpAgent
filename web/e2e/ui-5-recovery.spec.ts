@@ -3,10 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { login } from "./helpers";
 import { workFixture, runFixture, deliveryFixture } from "../src/components/tasks/taskFixtures";
-const evidence = resolve(
-  process.cwd(),
-  "../artifacts/product-acceptance/ui-5/self-review/screenshots",
-);
+const evidence = resolve(process.cwd(), "./test-results/evidence/ui-5/self-review/screenshots");
 const inspector = (page: Page) => page.locator(".hp-inspector");
 
 test("network fixtures: terminal output invalidation preserves expansion and empty results can refresh", async ({

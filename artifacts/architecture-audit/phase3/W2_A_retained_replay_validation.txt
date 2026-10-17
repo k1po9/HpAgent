@@ -1,3 +1,0 @@
-Isolated PG / Temporal fixtures: hpagent-w1b-test-2d6e004fe7
-......                                                                   [100%]
-6 passed in 92.14s (0:01:32)

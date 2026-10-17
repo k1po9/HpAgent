@@ -45,8 +45,8 @@ Only imports/ownership changed in canonical execution. Existing PG context, memo
 
 Run `.venv/bin/python scripts/audit_w3_reachability.py` to rebuild:
 
-- [Current retirement map](W3_A_retirement_map.csv): each scoped module's actual source/test/script import sites, baseline and current import chains, new owner, reason and status.
-- [Machine-readable reachability](W3_A_reachability.json): explicit roots, baseline revision, pre-commit HEAD, exact current-source SHA-256, dynamic import inventory and counts.
+- [Current retirement map（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_retirement_map.csv`）: each scoped module's actual source/test/script import sites, baseline and current import chains, new owner, reason and status.
+- [Machine-readable reachability（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_reachability.json`）: explicit roots, baseline revision, pre-commit HEAD, exact current-source SHA-256, dynamic import inventory and counts.
 
 Roots are Docker/entrypoint `main`, Web API `__main__`/app, standalone Web worker, Document worker and migration entrypoint. The graph resolves absolute/relative imports, parent package initializers, function-local/type imports and literal dynamic imports. It is conservative at module level: a module imported in a lazy export is not falsely treated as active execution. `UNKNOWN` records operational file readers/rewriters that module imports cannot prove unused.
 
@@ -56,9 +56,9 @@ Manual non-import review: worker's registered workflow list is ReflectWorkflow/M
 
 ## Validation
 
-Exact reproducible commands are in [validation commands](W3_A_validation_commands.txt). All tests keep original business assertions; test imports/patch targets follow new owners. Added ownership tests reject retired imports in a fresh process, verify scheduled account-failure isolation and unchanged Temporal names, exercise reminder tool creation/persisted reload/account filtering, and check conservative map classification.
+Exact reproducible commands are in [validation commands（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_validation_commands.txt`）. All tests keep original business assertions; test imports/patch targets follow new owners. Added ownership tests reject retired imports in a fresh process, verify scheduled account-failure isolation and unchanged Temporal names, exercise reminder tool creation/persisted reload/account filtering, and check conservative map classification.
 
-The initial integration collection failed because two test imports of BrainDecision were redirected to Actions rather than Brain. They were corrected to `brain.contracts`; [initial output](W3_A_integration_initial.txt) is retained as failed evidence. The first reminder test draft used `message` instead of the existing tool's `content` input; only the test was corrected. An intermediate extraction briefly included legacy-only Result/control/reply symbols; final caller review left them in their original owners and re-ran affected focused tests.
+The initial integration collection failed because two test imports of BrainDecision were redirected to Actions rather than Brain. They were corrected to `brain.contracts`; [initial output（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_integration_initial.txt`） is retained as failed evidence. The first reminder test draft used `message` instead of the existing tool's `content` input; only the test was corrected. An intermediate extraction briefly included legacy-only Result/control/reply symbols; final caller review left them in their original owners and re-ran affected focused tests.
 
 ## Gate scope
 
@@ -69,14 +69,14 @@ The initial integration collection failed because two test imports of BrainDecis
 
 | Check | Result | Evidence |
 | --- | --- | --- |
-| Focused unit / contracts / ownership / legacy consumer regression | **178 passed**, 17.25s, no skip/failure | [unit](W3_A_unit_validation.txt) |
-| Retained memory/archive/workspace/research schedule capabilities | **29 passed**, 13.87s; overlaps focused run, not added to distinct count | [retained capabilities](W3_A_retained_capability_validation.txt) |
-| PG/Redis/Temporal focused integration | **46 passed**, 483.31s, no skip/failure | [integration](W3_A_integration_validation.txt) |
-| Fresh-process retired-import guard / ownership tests | PASS, included in 178; separate 4-test check also passed | [ownership](W3_A_ownership_validation.txt) |
-| Rebuilt current-source reachability | PASS: zero forbidden capability imports; lazy legacy orchestration export explicitly retained | [reachability](W3_A_reachability.json) |
-| Changed Python Ruff F/I | **88 files PASS** | [static](W3_A_static_validation.txt) |
-| Working/staged `git diff --check`, baseline ancestry | PASS | [static](W3_A_static_validation.txt) |
-| Frozen phase2_2 / user phase2_1 / deleted files | unchanged / excluded / none | [static](W3_A_static_validation.txt) |
+| Focused unit / contracts / ownership / legacy consumer regression | **178 passed**, 17.25s, no skip/failure | [unit（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_unit_validation.txt`） |
+| Retained memory/archive/workspace/research schedule capabilities | **29 passed**, 13.87s; overlaps focused run, not added to distinct count | [retained capabilities（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_retained_capability_validation.txt`） |
+| PG/Redis/Temporal focused integration | **46 passed**, 483.31s, no skip/failure | [integration（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_integration_validation.txt`） |
+| Fresh-process retired-import guard / ownership tests | PASS, included in 178; separate 4-test check also passed | [ownership（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_ownership_validation.txt`） |
+| Rebuilt current-source reachability | PASS: zero forbidden capability imports; lazy legacy orchestration export explicitly retained | [reachability（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_reachability.json`） |
+| Changed Python Ruff F/I | **88 files PASS** | [static（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_static_validation.txt`） |
+| Working/staged `git diff --check`, baseline ancestry | PASS | [static（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_static_validation.txt`） |
+| Frozen phase2_2 / user phase2_1 / deleted files | unchanged / excluded / none | [static（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W3_A_static_validation.txt`） |
 
 Final map has **86 rows**: **46 SAFE_TO_DELETE_AFTER_W3_A**, **38 STILL_REACHABLE**, **2 UNKNOWN**. Its baseline classification records **23 SURVIVOR_EXTRACT_REQUIRED** owners, all extracted; the final status follows actual remaining import reachability rather than assuming an extracted file can always be deleted. The 38 include canonical modules that are not retirement targets, and residual Session/SQLite/lazy-export dependencies that block blanket deletion. The two UNKNOWNs are the operational session viewer and account merge script.
 

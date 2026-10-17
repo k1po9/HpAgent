@@ -1,9 +1,0 @@
-PASS 正文/面板: #202A34 / #FFFFFF = 14.56:1 (>= 4.5)
-PASS 正文/Canvas: #202A34 / #F8F9FB = 13.82:1 (>= 4.5)
-PASS 修正次文/Canvas: #5D6F7B / #F8F9FB = 4.95:1 (>= 4.5)
-PASS 修正次文/Field: #5D6F7B / #F1F4F7 = 4.73:1 (>= 4.5)
-PASS 深珊瑚文本/白: #CF482D / #FFFFFF = 4.55:1 (>= 4.5)
-PASS 主按钮白字/深珊瑚: #FFFFFF / #B94025 = 5.49:1 (>= 4.5)
-PASS Rail 次文/底色: #A2AFBB / #16212C = 7.29:1 (>= 4.5)
-PASS Rail 选中/底色: #FFD9CB / #16212C = 12.45:1 (>= 4.5)
-NOTE primary bright accent #EB6044 / white = 3.34:1; not for small text

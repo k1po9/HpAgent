@@ -16,7 +16,9 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:contract": "playwright test --config playwright.entry.config.ts",
+    "test:e2e:canonical": "playwright test --config playwright.r416.config.ts"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.8",

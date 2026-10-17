@@ -48,9 +48,9 @@ Chat completion 同事务创建唯一 delivery payload。发送失败仅重试�
 
 | 执行 | 结果 | 证据 |
 | --- | --- | --- |
-| 主回归 | 183 passed；新增组合测试最初 1 failed | [W2_validation.txt](W2_validation.txt) |
-| 新组合测试纠正后复验 | 1 passed | [W2_cross_surface_validation.txt](W2_cross_surface_validation.txt) |
-| 真实 PG Outbox 故障与恢复（targeted rerun，不累加） | 15 passed | [W2_outbox_validation.txt](W2_outbox_validation.txt) |
+| 主回归 | 183 passed；新增组合测试最初 1 failed | [W2_validation.txt（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_validation.txt`） |
+| 新组合测试纠正后复验 | 1 passed | [W2_cross_surface_validation.txt（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_cross_surface_validation.txt`） |
+| 真实 PG Outbox 故障与恢复（targeted rerun，不累加） | 15 passed | [W2_outbox_validation.txt（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_outbox_validation.txt`） |
 
 新增测试先错误读取 Web result 的 top-level conversation_id，随后错误假设 cancelled 可重试。两项均是测试预期错误，按既有 DTO 和 failed-only retry 合同纠正，最终通过；没有修改生产语义。已通过的 183 项未无理由重复执行。唯一 warning 是既有 Starlette/httpx 弃用提示。
 
@@ -82,7 +82,7 @@ Chat completion 同事务创建唯一 delivery payload。发送失败仅重试�
 | G05 / W3 retirement | NOT RUN，不能把候选清单当作删除完成 |
 | G11 | 仅空 schema 与测试服务通过；完整构建/全新镜像验收未重跑，W3 退出仍需执行 |
 
-`phase2_2/audit_tools/validate_review.py` 在当前 HEAD 返回 FAIL（[原始输出](W2_audit_validation.txt)），因为它校验审计时源码哈希、不得有源码变化/新文件。Phase 3 合法实现必然不满足这些历史审计范围断言；结构/引用类检查仍通过。工具写入的冻结 validation_report.json 已恢复原字节，未纳入提交。本报告不把该历史 checker 改成忽略失败来制造通过；G01 当前范围由 git diff、冻结目录不变和人工语义核对证明。
+`phase2_2/audit_tools/validate_review.py` 在当前 HEAD 返回 FAIL（[原始输出（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_audit_validation.txt`）），因为它校验审计时源码哈希、不得有源码变化/新文件。Phase 3 合法实现必然不满足这些历史审计范围断言；结构/引用类检查仍通过。工具写入的冻结 validation_report.json 已恢复原字节，未纳入提交。本报告不把该历史 checker 改成忽略失败来制造通过；G01 当前范围由 git diff、冻结目录不变和人工语义核对证明。
 
 ## Deviations
 

@@ -1,3 +1,5 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 /* global document, getComputedStyle, KeyboardEvent, CompositionEvent, Event */
 import "./r1-isolation.mjs";
 import { chromium, expect } from "@playwright/test";
@@ -10,7 +12,7 @@ const routes = JSON.parse(
   await readFile(resolve("artifacts/product-acceptance/ui-iteration/R2/attempt-03/routes.json")),
 );
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const login = await b.newContext({ reducedMotion: "reduce" }),
   p = await login.newPage();

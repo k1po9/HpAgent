@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # Durable Work V1 五阶段复查修复记录
 
 日期：2026-10-03。依据：[五阶段实施复查](../design/durable-work-v1-implementation-review-2026-10-02.md)。

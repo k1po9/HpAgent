@@ -6,7 +6,7 @@ test("creates a child in the selected directory and explains duplicate names", a
   await login(page);
   await page.getByRole("button", { name: "空间", exact: true }).click();
   const panel = page.getByRole("region", { name: "空间页面" });
-  await panel.getByRole("button", { name: "📁 资料", exact: true }).click();
+  await panel.getByRole("button", { name: "资料", exact: true }).click();
   await expect(panel.getByLabel("新目录名称")).toHaveValue("");
   const name = `child-${Date.now()}`;
   await panel.getByLabel("新目录名称").fill(name);
@@ -18,7 +18,7 @@ test("creates a child in the selected directory and explains duplicate names", a
   const tree = await (await page.request.get("/api/v1/workspace")).json();
   const child = tree.nodes.find((n: { name: string }) => n.name === name);
   expect(child.parent_id).toBe(tree.nodes.find((n: { name: string }) => n.name === "资料").node_id);
-  await expect(panel.getByRole("button", { name: `📁 ${name}`, exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: `${name}`, exact: true })).toBeVisible();
   await panel.getByLabel("新目录名称").fill(name);
   await panel.getByRole("button", { name: "新建目录", exact: true }).click();
   await expect(panel.getByRole("alert")).toContainText("同名");
@@ -34,7 +34,7 @@ test("uploads and authorizes the current conversation, and keeps chat drafts acr
   await page.getByRole("button", { name: "空间", exact: true }).click();
   const panel = page.getByRole("region", { name: "空间页面" });
   const name = `visible-next-run-${Date.now()}.txt`;
-  await panel.getByRole("button", { name: "📁 资料", exact: true }).click();
+  await panel.getByRole("button", { name: "资料", exact: true }).click();
   await uploadWorkspace(page, name, "next run discovers this file", conversationId);
   const rules = await (
     await page.request.get(`/api/v1/conversations/${conversationId}/resources`)
@@ -46,11 +46,13 @@ test("uploads and authorizes the current conversation, and keeps chat drafts acr
       .sort(),
   ).toEqual(["list_metadata", "read_content"]);
   await page.getByRole("button", { name: "AI", exact: true }).click();
-  await page.getByRole("button", { name: "对话资料", exact: true }).click();
+  await page.getByRole("button", { name: "使用资料", exact: true }).click();
   await expect(
-    page.getByRole("dialog", { name: "当前对话资料", exact: true }).getByLabel("目标对话"),
+    page
+      .getByRole("dialog", { name: "使用长期资料", exact: true })
+      .getByRole("checkbox", { name: `${name} · 文件` }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "关闭当前对话资料" }).click();
+  await page.getByRole("button", { name: "关闭使用长期资料" }).click();
   await page.getByRole("button", { name: "AI", exact: true }).click();
   await expect(page.getByPlaceholder(/输入消息/)).toHaveValue("切页后保留的草稿");
   await expect(page.getByRole("button", { name: `撤销 ${name} 的授权` })).toBeVisible();

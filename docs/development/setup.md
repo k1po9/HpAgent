@@ -5,11 +5,12 @@
 - Docker Engine 与 Docker Compose v2：运行受支持的服务拓扑。
 - Python 3.11+：宿主机后端开发（CI 使用 Python 3.12）。
 - Node.js 22+ 与 npm：宿主机前端开发。
+- GNU Make：使用`make`快捷命令时需要；也可按[脚本索引](../../scripts/README.md)执行对应命令。
 
 ## 环境与模型
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 ```
@@ -19,7 +20,7 @@ python3 -m venv .venv
 ## 首次启动
 
 ```bash
-docker compose --profile web up -d --build
+WEB_PUBLIC_ORIGIN=http://localhost:5173 WEB_COOKIE_SECURE=false docker compose --profile web up -d --build
 docker compose --profile web ps
 curl --fail http://127.0.0.1:8080/health/ready
 docker compose exec -T hpagent python -m orchestration.worker_health
@@ -35,8 +36,10 @@ docker compose --profile web up hpagent-migrate
 
 ```bash
 make web-install
-make web-dev
+HPAGENT_API_TARGET=http://127.0.0.1:8080 make web-dev
 ```
+
+若Compose的5173已占用，宿主开发使用 `cd web && HPAGENT_API_TARGET=http://127.0.0.1:8080 npm run dev -- --port 5274 --strictPort`，并让独立开发API的`WEB_PUBLIC_ORIGIN`与该浏览器origin一致；不要复用Cookie/Origin不匹配的业务API。
 
 Vite 监听 <http://127.0.0.1:5173>，并根据 `web/vite.config.ts` 代理 API。完整开发栈优先使用 Compose 的 `web-dev` 服务。
 
@@ -50,4 +53,4 @@ docker compose --profile qq up -d napcat
 
 开发时使用 `./scripts/operations/logs.sh` 查看日志；使用 `docker compose --profile web down` 停止服务。
 
-首次人工操作见[功能指南](../operations/web-workbench.md)。测试前另建隔离数据库并覆盖 Makefile / E2E 默认 DSN，详见[测试](testing.md)；不要让测试 fixture 清理已登录账户的业务环境。
+首次人工操作见[功能指南](../operations/web-workbench.md)。首次打开后通过注册创建带密码的Web账户；管理员bootstrap仅绑定身份，不创建密码。测试前另建隔离数据库并显式设置三个同库DSN与E2E隔离标记，详见[测试](testing.md)；不要让测试 fixture 清理已登录账户的业务环境。

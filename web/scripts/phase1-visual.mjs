@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 /* global document, getComputedStyle, innerWidth */
 import process from "node:process";
 import { Buffer } from "node:buffer";

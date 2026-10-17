@@ -1,6 +1,6 @@
 # 功能操作与人工校验
 
-前端只有 AI、空间、任务三个一级入口。登录位于业务 Shell 之前；账户与 QQ 绑定从头像打开。Run、文件、Task 和 HTML Artifact 在当前页面的 Inspector 中查看；面板内部返回可回到父对象。切页保留对话草稿，退出和账户切换清空账户内状态。本指南已同步 UI-1～UI-8 重构（2026-10-09）；架构契约见[Web 前端](../architecture/web-ui.md)，验证与未覆盖环境见[重构交接](../implementation/ui-refactor.md)。
+前端只有 AI、空间、任务三个一级入口。登录位于业务 Shell 之前；账户与 QQ 绑定从头像打开。Run、文件、Task 和 HTML Artifact 在当前页面的 Inspector 中查看；面板内部返回可回到父对象。切页保留对话草稿，退出和账户切换清空账户内状态。当前约束已收束至R1–R6接受基线，架构契约见[Web 前端](../architecture/web-ui.md)，接受依据与未覆盖环境见[实施索引](../implementation/README.md)。
 
 | 入口 | 主要操作 |
 | --- | --- |

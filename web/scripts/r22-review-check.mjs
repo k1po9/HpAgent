@@ -1,3 +1,5 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 /* global window, document, getComputedStyle, visualViewport */
 import "./r1-isolation.mjs";
 import { chromium, expect } from "@playwright/test";
@@ -7,7 +9,7 @@ import console from "node:console";
 import { auditContrast } from "./r13-material-contrast.mjs";
 const out = resolve("artifacts/product-acceptance/ui-iteration/R2/attempt-03");
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const c = await b.newContext({
   viewport: { width: 1680, height: 1000 },
@@ -156,8 +158,7 @@ for (const [name, path, button] of [
   ["A", "hpagent-input-action/assets/A2.1-Ember-Relay-Lab.html", null],
 ]) {
   const url =
-    "file:////wsl.localhost/Ubuntu-22.04/home/hp/workspace/HpAgent/ui_skill_delete_after_done/" +
-    path;
+    (process.env.HPAGENT_REVIEW_DESIGN_BASE_URL ?? "file:///restore-design-inputs-first/") + path;
   await p.goto(url);
   await p.waitForTimeout(300);
   if (button) {

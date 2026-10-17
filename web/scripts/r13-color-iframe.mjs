@@ -1,3 +1,5 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 /* global window */
 import "./r1-isolation.mjs";
 import { chromium, expect } from "@playwright/test";
@@ -7,7 +9,7 @@ import console from "node:console";
 const out = resolve("artifacts/product-acceptance/ui-iteration/R1.3/attempt-03");
 const routes = JSON.parse(await readFile(resolve(out, "routes.json")));
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const p = await b.newPage({
   viewport: { width: 1680, height: 1000 },

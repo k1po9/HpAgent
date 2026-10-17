@@ -812,7 +812,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=30)
     parser.add_argument(
         "--output-dir",
-        default=str(ROOT / "artifacts" / "benchmarks" / "temporal" / "activity_worker"),
+        default=str(ROOT / "artifacts" / "benchmark-runs" / "temporal" / "activity_worker"),
     )
     args = parser.parse_args()
     if not args.database_name.startswith("hpagent_") or not args.database_name.endswith(

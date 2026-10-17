@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 /* global innerWidth, innerHeight, outerWidth, devicePixelRatio, visualViewport, getComputedStyle, document */
 import "./r1-isolation.mjs";
 import { chromium, expect } from "@playwright/test";
@@ -28,7 +29,7 @@ for (const [name, zoom, font] of [
   };
   await writeFile(join(profile, "Default", "Preferences"), JSON.stringify(pref));
   const c = await chromium.launchPersistentContext(profile, {
-      executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+      executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
       headless: true,
       viewport: null,
       args: ["--window-size=1680,1000"],

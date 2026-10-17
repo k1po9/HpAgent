@@ -9,7 +9,8 @@
 | `test/` | Unit、Contract、Integration、Replay、Recovery Test 与 Fixture。 |
 | `scripts/dev/` | 本地开发辅助工具。 |
 | `scripts/operations/` | 部署、日志、备份、身份和可观测性工具。 |
-| `scripts/check/` | 当前连接与部署检查。 |
+| `scripts/check/` | 当前连接、schema、文档/CI路径及发布检查；含只读queued Run SQL。 |
+| `scripts/acceptance/` | 需独立数据环境的专项验收。 |
 | `scripts/benchmarks/` | 可复现的策略、Outbox 和 Temporal Recovery Benchmark。 |
 | `docs/` | 当前架构、开发、运维和参考文档，以及 UI 重构 / Durable Work / Workspace 实施与验收交接。 |
 | `artifacts/` | Evidence 与 Benchmark Output，不是当前文档入口。 |
@@ -45,7 +46,11 @@ Workspace 代码主要位于 `src/workspace/`、`src/web_domain/file_lifecycle.p
 | `web/src/store/` / `sse/` / `api/` | UI 与领域状态、账户生命周期、权威查询、Chat/Work feed 与命令。 |
 | `web/src/styles/` | tokens 和按领域拆分的样式；styles.css 为统一导入入口。 |
 | `web/e2e/` / `playwright.ui8-production.config.ts` | 正式浏览器回归与构建产物验收。 |
-| `docs/architecture/web-ui.md` / `docs/implementation/ui-refactor.md` | 当前契约与 UI-1～UI-8 交接。 |
-| `artifacts/product-acceptance/ui-refactor/` | 保留原始结果、关键反例、最后完整截图和来源/哈希。 |
+| `docs/architecture/web-ui.md` / `docs/implementation/ui-refactor.md` | 当前契约与历史交接，接受基线以R1–R6索引为准。 |
+| `artifacts/product-acceptance/ui-refactor/` | 保留摘要、关键反例文字和来源/哈希；原始截图通过归档恢复。 |
 
-阅读[前端架构](../architecture/web-ui.md)与[重构交接](../implementation/ui-refactor.md)。E2E 仍会创建旧 UI 阶段名的截图输出目录，这些是忽略的临时输出；需要归档时复制到新的独立批次，不覆盖已保留证据。
+阅读[前端架构](../architecture/web-ui.md)与[重构交接](../implementation/ui-refactor.md)。正式E2E的截图和trace输出在忽略的`web/test-results/`；新Benchmark原始运行在忽略的`artifacts/benchmark-runs/`。R416副本已合入`web/e2e/`，旧配置名仅选择正式源文件，见[脚本索引](../../scripts/README.md)。
+
+## 历史产物归档
+
+`artifacts/` 保留接受决定、合同、源码指纹、最终验证摘要、必要反例文字，以及 Benchmark 设计、报告、汇总和逐条数据。历史原始运行状态、截图、视频、trace、源码副本、本地设计包和离线镜像归档于仓库外；恢复与暂缓目录见[归档索引](../development/repository-archive-index.md)。`dist/` 仍可由离线导出脚本重新生成，不是必需源码输入。

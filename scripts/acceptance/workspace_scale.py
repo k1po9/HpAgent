@@ -8,6 +8,10 @@ import time
 from pathlib import Path
 from uuid import UUID, uuid4
 
+if __name__ == "__main__":
+    import argparse
+    argparse.ArgumentParser(description="隔离Workspace规模验收；会大量写PG和File Store。显式设置三个DSN、FILE_STORE_ROOT/RUN_SCOPE_ROOT；--help无副作用。").parse_args()
+
 import psycopg
 
 from conversation_domain.commands import CommandService

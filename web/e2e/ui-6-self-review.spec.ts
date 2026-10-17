@@ -4,10 +4,7 @@ import { resolve } from "node:path";
 import { login, createConversation, sendMessage, expectReply } from "./helpers";
 import type { HpArtifact, HpArtifactVersion } from "../src/api/types";
 
-const evidence = resolve(
-  process.cwd(),
-  "../artifacts/product-acceptance/ui-6/self-review/fix/screenshots",
-);
+const evidence = resolve(process.cwd(), "./test-results/evidence/ui-6/self-review/fix/screenshots");
 async function createHtml(page: Page) {
   await login(page);
   await createConversation(page);

@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 import ts from "typescript";
 import { JSDOM } from "jsdom";
 import { readFile, writeFile } from "node:fs/promises";

@@ -1,10 +1,12 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 /* global document, getComputedStyle */
 import { chromium, expect } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import console from "node:console";
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const p = await b.newPage({ viewport: { width: 1680, height: 1000 }, reducedMotion: "reduce" });
 try {

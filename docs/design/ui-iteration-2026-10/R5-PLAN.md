@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../../README.md)进入。
+
 # R5 已接受并冻结
 
 2026-10-16，用户指定0.35×、收束及下一次展开两个端点缓动区间各减半，并明确“代表我通过”。两项已完成且增量复验通过，R5整体正式接受。默认A、真实跨栏星流、会话切换及R5.0语义保持。
@@ -19,7 +21,7 @@ R6未启动，后续需明确授权；未提交、推送或部署。
 593前端测试、24切换场景、19+22+9收纳回归、四类/R3/16子页/7弹层、真实隔离API5组、80次切换资源与旧版每次请求数对照通过。真实设备IME/OS冻结/其他浏览器/GPU/长期堆分析等未测，详见报告。中断后同份源码未变，原隔离容器重验并仅恢复丢失的专用tmpfs测试数据，真实API整链复验；没有触及产品数据库。
 
 - [本轮交互合同](R5-CONVERSATION-TRANSIT-CONTRACT.md) · [逐项验收](R5-CONVERSATION-TRANSIT-ACCEPTANCE.md)
-- [交接/启动/恢复](../../../artifacts/product-acceptance/ui-iteration/R5/attempt-03-conversation-transit/HANDOFF.md) · [验证结果](../../../artifacts/product-acceptance/ui-iteration/R5/attempt-03-conversation-transit/VALIDATION_RESULTS.md)
+- [交接/启动/恢复（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R5/attempt-03-conversation-transit/HANDOFF.md`） · [验证结果（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R5/attempt-03-conversation-transit/VALIDATION_RESULTS.md`）
 - 本地总入口 http://127.0.0.1:5342/REVIEW.html；单文件离线 offline/REVIEW.Standalone.html；三种颜色只在评审包中切换，不新增产品设置。
 
 <details><summary>历史：上一轮R5.1–R5.3范围与交付；“不新增切换动画”已由最新用户授权更新</summary>
@@ -40,7 +42,7 @@ R6未启动，后续需明确授权；未提交、推送或部署。
 R5.0基线229/229一致后完整备份。最终236份源码指纹831565b57260bf62d0a1e827b3114f2cb5c3113153329a3ecf54c86b149f1649，3个原文件修改、7新增，其他226原hash；已接受的未提交File/Task成果保留。69文件589测试、类型/生产构建/局部静态、50收纳生产场景、四类/R3/16子页/7弹层、真实隔离API、30完整往返资源等验证通过。实测条件和未测项详见报告，不代表真实硬件60fps。
 
 - [合同](R5.1-R5.3-INTERACTION-CONTRACT.md) · [逐项验收](R5.1-R5.3-ACCEPTANCE.md)
-- [本轮交接](../../../artifacts/product-acceptance/ui-iteration/R5/attempt-02-mercury-r51-r53/HANDOFF.md) · [验证](../../../artifacts/product-acceptance/ui-iteration/R5/attempt-02-mercury-r51-r53/VALIDATION_RESULTS.md)
+- [本轮交接（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R5/attempt-02-mercury-r51-r53/HANDOFF.md`） · [验证（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R5/attempt-02-mercury-r51-r53/VALIDATION_RESULTS.md`）
 - 本地入口 http://127.0.0.1:5341/REVIEW.html；完整离线包为同attempt下offline/REVIEW.Standalone.html。
 - R5整体接受后须另获明确授权再推进后续；本轮没有接受决定。
 
@@ -54,7 +56,7 @@ R5.0：产品语义与无特效基础收纳，已完成并获独立人审接受�
 
 - [本轮合同](R5.0-INTERACTION-CONTRACT.md)
 - [本轮验收](R5.0-ACCEPTANCE.md)
-- [attempt-01](../../../artifacts/product-acceptance/ui-iteration/R5/attempt-01-basic-fold/HANDOFF.md)
+- [attempt-01（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R5/attempt-01-basic-fold/HANDOFF.md`）
 
 核实 209/209 冻结文件一致，汇总 3f157303d1526c5357cfb899fe445035e01bc3c0d78926dd4240a80d573b5758。227 份源码/配置、工作区与暂存差异、原始交接输入已备份。无祖先/子目录 AGENTS.md。Mercury 本地 Skill 及三个接入/实施/验收参考已阅读；以本窗口用户授权优先，仅实现建议产品合同，不把原型当产品事实。
 

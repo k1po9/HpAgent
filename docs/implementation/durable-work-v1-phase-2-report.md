@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # Durable Work V1 — Phase 2 实施记录
 
 唯一实施依据：`docs/design/durable-work-v1-implementation-design.md`，阶段二 Conversation / Work Execution Decoupling。开始实施前已完整阅读设计，并核对 Phase 1 的实际 schema、命令服务、Research 与聊天执行链。

@@ -58,7 +58,7 @@
 
 ## 真实 Provider 验证边界
 
-已尝试当前 MiniMax-M3 端点的工具往返验收，但首个请求在连接阶段超时，尚未取得模型或 HTTP 错误响应。当前 Worker 中 DNS 可解析出 3 个地址，直连 `api.minimaxi.com:443` 的 TCP 连接同样在 5 秒超时。详见 [脱敏结果](./manual-e2e-provider-roundtrip.json)。
+已尝试当前 MiniMax-M3 端点的工具往返验收，但首个请求在连接阶段超时，尚未取得模型或 HTTP 错误响应。当前 Worker 中 DNS 可解析出 3 个地址，直连 `api.minimaxi.com:443` 的 TCP 连接同样在 5 秒超时。详见 [脱敏结果（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/2026-10-04/manual-e2e-provider-roundtrip.json`）。
 
 因此：错误请求格式的修复、第二轮发出体、权限上下文和错误传播已通过测试；**真实 Provider 完整工具往返仍待连接恢复后复验**。该连接现象是本次复验时的状态，不能拿它改写此前三次 HTTP 500 的调查结论，也不能宣称 root 的线上失败已经实证消失。
 

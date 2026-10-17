@@ -12,7 +12,6 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
-from account.invite_service import EntitlementProfile, RegistrationInviteService  # noqa: E402
 
 
 def _timestamp(value: str | None) -> datetime | None:
@@ -36,6 +35,7 @@ def main() -> int:
     parser.add_argument("--invite-expires-at", type=_timestamp)
     parser.add_argument("--database-url", default=os.getenv("MIGRATION_DATABASE_URL"))
     args = parser.parse_args()
+    from account.invite_service import EntitlementProfile, RegistrationInviteService
     if not args.database_url:
         parser.error("set MIGRATION_DATABASE_URL or pass --database-url")
     created = RegistrationInviteService(args.database_url).create(

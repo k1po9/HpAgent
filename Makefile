@@ -2,10 +2,8 @@
 
 NPM ?= npm
 
-MIGRATION_DATABASE_URL ?= postgresql://hpagent_migrate:hpagent_migrate@localhost:5434/hpagent
-APP_DATABASE_URL ?= postgresql://hpagent_api:hpagent_api@localhost:5434/hpagent
-WORKER_DATABASE_URL ?= postgresql://hpagent_worker:hpagent_worker@localhost:5434/hpagent
 PYTHON ?= python3
+export MIGRATION_DATABASE_URL APP_DATABASE_URL WORKER_DATABASE_URL
 
 install:
 	$(PYTHON) -m pip install -r requirements-dev.txt
@@ -22,14 +20,15 @@ test:
 test-existing:
 	PYTHONPATH=src $(PYTHON) -m pytest -m "not postgres" test
 
-test-db:
-	PYTHONPATH=src MIGRATION_DATABASE_URL=$(MIGRATION_DATABASE_URL) APP_DATABASE_URL=$(APP_DATABASE_URL) WORKER_DATABASE_URL=$(WORKER_DATABASE_URL) $(PYTHON) -m pytest -m postgres test/web_persistence
+test-db: check-test-env
+	@PYTHONPATH=src $(PYTHON) -m pytest -m postgres test/web_persistence
 
-test-api:
-	PYTHONPATH=src MIGRATION_DATABASE_URL=$(MIGRATION_DATABASE_URL) APP_DATABASE_URL=$(APP_DATABASE_URL) WORKER_DATABASE_URL=$(WORKER_DATABASE_URL) $(PYTHON) -m pytest -m postgres test/web_api
+test-api: check-test-env
+	@PYTHONPATH=src $(PYTHON) -m pytest -m postgres test/web_api
 
 migrate:
-	PYTHONPATH=src APP_DATABASE_URL=$(MIGRATION_DATABASE_URL) $(PYTHON) -m persistence.migrate
+	@test -n "$$MIGRATION_DATABASE_URL" || { echo "必须显式设置 MIGRATION_DATABASE_URL；目标库会执行迁移" >&2; exit 2; }
+	@PYTHONPATH=src APP_DATABASE_URL="$$MIGRATION_DATABASE_URL" $(PYTHON) -m persistence.migrate
 
 db-up:
 	docker compose up -d app-postgres
@@ -43,7 +42,7 @@ ci: lint typecheck test-existing test-db test-api
 ci-web: web-lint web-typecheck web-build web-test
 
 web-install:
-	cd web && $(NPM) install
+	cd web && $(NPM) ci
 
 web-lint:
 	cd web && $(NPM) run lint
@@ -68,3 +67,25 @@ agent-benchmark-check:
 
 agent-benchmark-run:
 	bash scripts/benchmarks/agent_strategy/agent_strategy.sh run
+
+.PHONY: help docs-check e2e-contract e2e-canonical scripts-test
+help:
+	@echo "开发：install web-install web-dev；静态：lint typecheck docs-check；前端：ci-web"
+	@echo "浏览器：e2e-contract（构建产物+夹具）；e2e/e2e-canonical（显式隔离DB/Redis/File Store）"
+	@echo "脚本副作用、环境参数及运维入口见 scripts/README.md；测试边界见 docs/development/testing.md"
+
+docs-check:
+	$(PYTHON) scripts/check/docs-links.py
+
+e2e-contract:
+	cd web && $(NPM) run test:e2e:contract
+
+e2e-canonical:
+	cd web && $(NPM) run test:e2e:canonical
+
+scripts-test:
+	$(PYTHON) -m unittest discover -s test/scripts -v
+
+.PHONY: check-test-env
+check-test-env:
+	@test -n "$$MIGRATION_DATABASE_URL" -a -n "$$APP_DATABASE_URL" -a -n "$$WORKER_DATABASE_URL" || { echo "数据库测试必须显式设置三个专用同库DSN" >&2; exit 2; }

@@ -10,7 +10,7 @@ R4 的 Run / Artifact / File（含目录）/ Task 接力、实际光头抵达门
 
 已接受的16子页视觉继续冻结。File/目录与Task的局部接受决定分别保留在attempt-14、attempt-15；本决定完成整轮放行。
 
-冻结源码：209份源码/配置，SHA-256汇总指纹 `3f157303d1526c5357cfb899fe445035e01bc3c0d78926dd4240a80d573b5758`。逐文件清单见 [ACCEPTED_SOURCE_FINGERPRINTS.json](ACCEPTED_SOURCE_FINGERPRINTS.json)，实际快照在 [attempt-16/source-snapshot](attempt-16-four-kind-closure/source-snapshot)。记录时已逐文件核实当前工作区与该快照一致。HEAD仍为9d47e55；冻结对象包括已接受的未提交成果，不能用纯HEAD替代或reset覆盖。
+冻结源码：209份源码/配置，SHA-256汇总指纹 `3f157303d1526c5357cfb899fe445035e01bc3c0d78926dd4240a80d573b5758`。逐文件清单见 [ACCEPTED_SOURCE_FINGERPRINTS.json](ACCEPTED_SOURCE_FINGERPRINTS.json)，实际快照在 [attempt-16/source-snapshot（已归档）](../../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R4/attempt-16-four-kind-closure/source-snapshot`）。记录时已逐文件核实当前工作区与该快照一致。HEAD仍为9d47e55；冻结对象包括已接受的未提交成果，不能用纯HEAD替代或reset覆盖。
 
 ## 合同与证据
 

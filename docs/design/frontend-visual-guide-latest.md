@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # HpAgent 前端视觉迭代指导｜当前代码约束版
 
 更新日期：2026-10-09（Asia/Shanghai）。用途：指导后续前端样式改造与截图迭代，不是功能规划、接口扩展清单或已完成验收报告。
@@ -25,16 +27,16 @@
 
 | 范围 | 当前前端事实与必须保留的边界 | 主要证据 |
 | --- | --- | --- |
-| 一级导航 | 只有 AI、空间、任务。账户在 Rail 底部进入弹层；成果是上下文 Inspector，不是第四个一级页面 | [AppShell.tsx](/home/hp/workspace/HpAgent_web/web/src/components/shell/AppShell.tsx)、[shell.ts](/home/hp/workspace/HpAgent_web/web/src/store/shell.ts) |
-| 认证 | 登录为用户名、密码；注册为用户名、密码、确认密码、可选邀请码。保留提交中、密码校验、错误、注册后自动登录失败的回退，以及会话恢复/连接错误 | [LoginForm.tsx](/home/hp/workspace/HpAgent_web/web/src/components/LoginForm.tsx)、[App.tsx](/home/hp/workspace/HpAgent_web/web/src/App.tsx) |
-| 注册后的账户操作 | 已有 QQ 绑定提示、明确跳过、账户内绑定与退出登录；不能因为原图没画就删除 | [RegistrationQqGate.tsx](/home/hp/workspace/HpAgent_web/web/src/components/RegistrationQqGate.tsx)、[QQBindingPanel.tsx](/home/hp/workspace/HpAgent_web/web/src/components/QQBindingPanel.tsx) |
-| AI | 新对话、历史与分页、消息、附件/已有文件、对话资料、快速/深度模式、执行状态与详情。上传和深度模式遵守现有能力开关及运行中的锁定条件 | [ChatPane.tsx](/home/hp/workspace/HpAgent_web/web/src/components/ChatPane.tsx)、[HpThread.tsx](/home/hp/workspace/HpAgent_web/web/src/adapters/assistant-ui/HpThread.tsx)、[ConversationResources.tsx](/home/hp/workspace/HpAgent_web/web/src/components/conversation/ConversationResources.tsx) |
-| 空间 | 目录树、全部文件、面包屑、文件搜索和高级搜索、上传、新建目录、文件详情/版本/使用范围及已有对象操作 | [WorkspaceScreen.tsx](/home/hp/workspace/HpAgent_web/web/src/components/workspace/WorkspaceScreen.tsx)、[WorkspaceSidebar.tsx](/home/hp/workspace/HpAgent_web/web/src/components/workspace/WorkspaceSidebar.tsx)、[FileInspector.tsx](/home/hp/workspace/HpAgent_web/web/src/components/workspace/FileInspector.tsx) |
-| 文件预览 | 已就绪、UTF-8、已知大小不超过 1 MiB 的文本；Markdown 按现有组件渲染。不支持的文件保留元数据与下载说明 | [FilePreview.tsx](/home/hp/workspace/HpAgent_web/web/src/components/workspace/FilePreview.tsx) |
-| 任务 | 四桶为“需要我处理 / 进行中 / 等待或已计划 / 已结束”；类型筛选为全部/提醒/研究/通用任务。保留刷新、同步与计数状态、新建、收件箱和详情 | [TaskScreen.tsx](/home/hp/workspace/HpAgent_web/web/src/components/tasks/TaskScreen.tsx)、[taskPresentation.ts](/home/hp/workspace/HpAgent_web/web/src/components/tasks/taskPresentation.ts) |
-| 任务操作 | 暂停、恢复、停止、修改要求、继续执行、提高预算、成果验收与投递处理，均按已有状态与资格条件出现；创建表单时间选项为立即、指定时间、每天 | [TaskEditor.tsx](/home/hp/workspace/HpAgent_web/web/src/components/tasks/TaskEditor.tsx)、[taskActions.ts](/home/hp/workspace/HpAgent_web/web/src/components/tasks/taskActions.ts)、[TaskDeliveryDecision.tsx](/home/hp/workspace/HpAgent_web/web/src/components/tasks/TaskDeliveryDecision.tsx) |
-| 成果 | HTML 成果预览、版本历史、详情、继续修改生成版本、下载 HTML、保存源码副本到空间；保留对话/任务来源和任务原引用版本语义 | [ArtifactInspector.tsx](/home/hp/workspace/HpAgent_web/web/src/components/artifact/ArtifactInspector.tsx)、[ArtifactComposer.tsx](/home/hp/workspace/HpAgent_web/web/src/components/artifact/ArtifactComposer.tsx) |
-| 执行诊断 | 已有 Run 概览、使用资料与输出、高级诊断、Trace/Model Input；可降低默认视觉权重，不得删除现有查看与故障恢复入口 | [RunInspector.tsx](/home/hp/workspace/HpAgent_web/web/src/components/run/RunInspector.tsx) |
+| 一级导航 | 只有 AI、空间、任务。账户在 Rail 底部进入弹层；成果是上下文 Inspector，不是第四个一级页面 | [AppShell.tsx](../../web/src/components/shell/AppShell.tsx)、[shell.ts](../../web/src/store/shell.ts) |
+| 认证 | 登录为用户名、密码；注册为用户名、密码、确认密码、可选邀请码。保留提交中、密码校验、错误、注册后自动登录失败的回退，以及会话恢复/连接错误 | [LoginForm.tsx](../../web/src/components/LoginForm.tsx)、[App.tsx](../../web/src/App.tsx) |
+| 注册后的账户操作 | 已有 QQ 绑定提示、明确跳过、账户内绑定与退出登录；不能因为原图没画就删除 | [RegistrationQqGate.tsx](../../web/src/components/RegistrationQqGate.tsx)、[QQBindingPanel.tsx](../../web/src/components/QQBindingPanel.tsx) |
+| AI | 新对话、历史与分页、消息、附件/已有文件、对话资料、快速/深度模式、执行状态与详情。上传和深度模式遵守现有能力开关及运行中的锁定条件 | [ChatPane.tsx](../../web/src/components/ChatPane.tsx)、[HpThread.tsx](../../web/src/adapters/assistant-ui/HpThread.tsx)、[ConversationResources.tsx](../../web/src/components/conversation/ConversationResources.tsx) |
+| 空间 | 目录树、全部文件、面包屑、文件搜索和高级搜索、上传、新建目录、文件详情/版本/使用范围及已有对象操作 | [WorkspaceScreen.tsx](../../web/src/components/workspace/WorkspaceScreen.tsx)、[WorkspaceSidebar.tsx](../../web/src/components/workspace/WorkspaceSidebar.tsx)、[FileInspector.tsx](../../web/src/components/workspace/FileInspector.tsx) |
+| 文件预览 | 已就绪、UTF-8、已知大小不超过 1 MiB 的文本；Markdown 按现有组件渲染。不支持的文件保留元数据与下载说明 | [FilePreview.tsx](../../web/src/components/workspace/FilePreview.tsx) |
+| 任务 | 四桶为“需要我处理 / 进行中 / 等待或已计划 / 已结束”；类型筛选为全部/提醒/研究/通用任务。保留刷新、同步与计数状态、新建、收件箱和详情 | [TaskScreen.tsx](../../web/src/components/tasks/TaskScreen.tsx)、[taskPresentation.ts](../../web/src/components/tasks/taskPresentation.ts) |
+| 任务操作 | 暂停、恢复、停止、修改要求、继续执行、提高预算、成果验收与投递处理，均按已有状态与资格条件出现；创建表单时间选项为立即、指定时间、每天 | [TaskEditor.tsx](../../web/src/components/tasks/TaskEditor.tsx)、[taskActions.ts](../../web/src/components/tasks/taskActions.ts)、[TaskDeliveryDecision.tsx](../../web/src/components/tasks/TaskDeliveryDecision.tsx) |
+| 成果 | HTML 成果预览、版本历史、详情、继续修改生成版本、下载 HTML、保存源码副本到空间；保留对话/任务来源和任务原引用版本语义 | [ArtifactInspector.tsx](../../web/src/components/artifact/ArtifactInspector.tsx)、[ArtifactComposer.tsx](../../web/src/components/artifact/ArtifactComposer.tsx) |
+| 执行诊断 | 已有 Run 概览、使用资料与输出、高级诊断、Trace/Model Input；可降低默认视觉权重，不得删除现有查看与故障恢复入口 | [RunInspector.tsx](../../web/src/components/run/RunInspector.tsx) |
 
 此表是视觉改造的边界索引，不是重新定义完整业务契约。实施某个按钮或状态前，还须沿对应组件读取 store、API 调用和资格判断。不要把“组件存在”当作“所有账户、所有状态都应显示”。
 
@@ -54,7 +56,7 @@
 | Inspector | 清楚的对象标题、关闭、Tabs、内容、操作区；打开后仍能识别原上下文 | 保留现有单一 Inspector、返回路径、选中版本和焦点行为 |
 | 窄屏 | 保持内容可读、表单可提交、抽屉可关闭，避免强行四列 | 服从现有宽度判断：窄于 1280 时 Inspector 使用紧凑呈现；侧栏同时考虑 960 阈值与剩余空间，不把图片当作移动端规格 |
 
-样式入口：[tokens.css](/home/hp/workspace/HpAgent_web/web/src/styles/tokens.css)、[shell.css](/home/hp/workspace/HpAgent_web/web/src/styles/shell.css)、[styles.css](/home/hp/workspace/HpAgent_web/web/src/styles.css)、[main.tsx](/home/hp/workspace/HpAgent_web/web/src/main.tsx)。确认实际层叠顺序与 Radix 变量覆盖，不能只修改未生效的 fallback 值。
+样式入口：[tokens.css](../../web/src/styles/tokens.css)、[shell.css](../../web/src/styles/shell.css)、[styles.css](../../web/src/styles.css)、[main.tsx](../../web/src/main.tsx)。确认实际层叠顺序与 Radix 变量覆盖，不能只修改未生效的 fallback 值。
 
 以下图片链接使用本工作区绝对路径；迁移仓库位置时需同步更新链接，原图保存在 `docs/design/assets/frontend-visual-guide/`。
 
@@ -62,7 +64,7 @@
 
 ### 图 A：登录 / 注册与进入工作区（PDF 第 6 页）
 
-![登录注册视觉参考：含当前代码未提供的邮箱和 Google 登录等示意内容](/home/hp/workspace/HpAgent_web/docs/design/assets/frontend-visual-guide/auth-pdf-reference.png)
+![登录注册视觉参考：含当前代码未提供的邮箱和 Google 登录等示意内容](assets/frontend-visual-guide/auth-pdf-reference.png)
 
 **追近目标：** 左侧品牌、右侧克制表单、充足留白、浅色细边框、统一主 CTA；登录/注册在同一表面原地扩展；窄屏保证表单优先。图是四个状态的拼图，不是一个页面放四张登录卡片。
 
@@ -74,7 +76,7 @@
 
 ### 图 B：AI 对话与 Composer（PDF 第 13 页）
 
-![AI 对话视觉参考：三入口实现应省略原图成果导航，消息和进度采用真实数据](/home/hp/workspace/HpAgent_web/docs/design/assets/frontend-visual-guide/ai-pdf-reference.png)
+![AI 对话视觉参考：三入口实现应省略原图成果导航，消息和进度采用真实数据](assets/frontend-visual-guide/ai-pdf-reference.png)
 
 **追近目标：** 左侧历史分组与轻选中背景；主内容上方对象标题，中间宽松对话阅读区，底部完整 Composer；用户消息轻底色，Assistant 内容接近文档；执行块使用细边框、步骤与低噪声状态图标。
 
@@ -84,7 +86,7 @@
 
 ### 图 C：空间与文件 Inspector（PDF 第 17 页）
 
-![空间视觉参考：回收站、多类型预览等示意不构成新增功能要求](/home/hp/workspace/HpAgent_web/docs/design/assets/frontend-visual-guide/workspace-pdf-reference.png)
+![空间视觉参考：回收站、多类型预览等示意不构成新增功能要求](assets/frontend-visual-guide/workspace-pdf-reference.png)
 
 **追近目标：** 目录树、顶部路径与工具区、轻量表格/列表、浅蓝选中行、右侧文件预览及使用范围；文件名、类型、时间等列有稳定对齐和留白。优先表现文件本身，版本、权限与来源沿现有 Tabs 展开。
 
@@ -94,7 +96,7 @@
 
 ### 图 D：任务列表与任务 Inspector（PDF 第 22 页）
 
-![任务视觉参考：分类、操作资格、预算和计划以当前代码为准](/home/hp/workspace/HpAgent_web/docs/design/assets/frontend-visual-guide/tasks-pdf-reference.png)
+![任务视觉参考：分类、操作资格、预算和计划以当前代码为准](assets/frontend-visual-guide/tasks-pdf-reference.png)
 
 **追近目标：** 需要行动的任务更易识别；标题、状态、说明、时间、预算、操作分层清楚；卡片或任务行轻边框，选中对象轻底色；右侧详情沿对象信息组织，不做 KPI 仪表盘。
 
@@ -104,7 +106,7 @@
 
 ### 图 E：对话 + HTML 成果 Inspector（PDF 第 28 页）
 
-![成果上下文视觉参考：原图 Markdown 示意只借鉴排版，实际成果按现有 HTML 能力呈现](/home/hp/workspace/HpAgent_web/docs/design/assets/frontend-visual-guide/artifact-pdf-reference.png)
+![成果上下文视觉参考：原图 Markdown 示意只借鉴排版，实际成果按现有 HTML 能力呈现](assets/frontend-visual-guide/artifact-pdf-reference.png)
 
 **追近目标：** 对话留在原位，消息中成果卡片与右侧标题、版本有视觉对应；预览占主体，版本历史/详情清楚；主对话输入与成果修改输入视觉同属一个家族，同时明确用途不同。
 

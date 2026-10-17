@@ -9,7 +9,7 @@ test("uploads, saves, moves, and downloads a Workspace entry", async ({ page }) 
   const panel = await workspace(page);
   await panel.getByLabel("新目录名称").fill(projectName);
   await panel.getByRole("button", { name: "新建目录" }).click();
-  await panel.getByRole("button", { name: `📁 ${projectName}`, exact: true }).click();
+  await panel.getByRole("button", { name: `${projectName}`, exact: true }).click();
   await page.getByRole("button", { name: "AI", exact: true }).click();
   await createConversation(page);
   const uploaded = page.waitForResponse(
@@ -28,7 +28,7 @@ test("uploads, saves, moves, and downloads a Workspace entry", async ({ page }) 
   await dialog.getByRole("button", { name: "确认保存" }).click();
   await expect(dialog).not.toBeVisible();
   await workspace(page);
-  await panel.getByRole("button", { name: "📄 报告.md", exact: true }).click();
+  await panel.getByRole("button", { name: "报告.md", exact: true }).click();
   await fileInspector(page).getByRole("button", { name: "改名、移动或移除入口" }).click();
   const mutation = page.getByRole("dialog", { name: "管理空间入口" });
   await mutation.getByLabel("Workspace 目标目录").selectOption({ label: "/" });
@@ -40,7 +40,7 @@ test("uploads, saves, moves, and downloads a Workspace entry", async ({ page }) 
     .getByRole("navigation", { name: "空间路径" })
     .getByRole("button", { name: "根目录", exact: true })
     .click();
-  await panel.getByRole("button", { name: `📄 ${movedName}`, exact: true }).click();
+  await panel.getByRole("button", { name: `${movedName}`, exact: true }).click();
   const download = page.waitForEvent("download");
   await fileInspector(page).getByRole("link", { name: "下载", exact: true }).click();
   const downloaded = await download;

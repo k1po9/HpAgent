@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 import "./r1-isolation.mjs";
 import process from "node:process";
 import console from "node:console";
@@ -11,7 +12,7 @@ const stage = process.argv[2] ?? "final";
 const base = "http://127.0.0.1:5294";
 const routes = JSON.parse(await readFile(resolve(out, "routes.json")));
 const browser = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
   headless: true,
 });
 const context = await browser.newContext({

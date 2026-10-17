@@ -1,3 +1,5 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 import console from "node:console";
 import { URL } from "node:url";
 /* global window, document, performance, requestAnimationFrame, EventTarget, location */
@@ -9,7 +11,7 @@ import os from "node:os";
 const out = resolve("artifacts/product-acceptance/ui-iteration/R4/attempt-01");
 const data = JSON.parse(await readFile(resolve(out, "fixture.json"), "utf8"));
 const b = await chromium.launch({
-    executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
   }),
   c = await b.newContext({
     viewport: { width: 1680, height: 1000 },

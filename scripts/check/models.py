@@ -368,6 +368,7 @@ async def run(
         else:
             print(f"{cat:<10} {name:<48} {st['rate']:>5.0f}% {'N/A':>7} {'N/A':>7} {'N/A':>7}")
     print(f"{'='*75}")
+    return int(any(stats["fails"] for _, _, _, stats in all_stats))
 
 
 def main():
@@ -379,6 +380,13 @@ def main():
                         help="使用项目 ModelClient 调用（默认直连 API）")
     parser.add_argument("--stream", action="store_true", help="流式模式（仅直连 API 支持）")
     args = parser.parse_args()
+    if args.n <= 0:
+        parser.error("-n must be positive")
+    if args.native and args.stream:
+        parser.error("--stream is supported only in direct mode")
+    requested = [category.strip() for category in args.categories.split(",")]
+    if not requested or any(category not in TEXT_CATEGORIES for category in requested):
+        parser.error("--categories must contain only fast,chat,reasoning")
 
     load_env()
     all_models = load_all_models()
@@ -401,8 +409,8 @@ def main():
     if args.native:
         print("\n⚠  项目模式：每个调用创建新的 ModelClient 实例（与生产一致）")
 
-    asyncio.run(run(selected, args.n, native=args.native, stream=args.stream))
+    return asyncio.run(run(selected, args.n, native=args.native, stream=args.stream))
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

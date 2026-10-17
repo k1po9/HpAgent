@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # Durable Work V1 — Phase 3
 
 Implementation boundary: `docs/design/durable-work-v1-implementation-design.md`, especially §8 and Phase 3 in §11. This builds on commits `1217d2b` and `189125b`.

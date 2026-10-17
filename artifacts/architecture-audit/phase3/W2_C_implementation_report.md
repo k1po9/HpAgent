@@ -20,13 +20,13 @@
 
 完整复现：`.venv/bin/python scripts/verify_w2c_contracts.py`。
 
-**完整回归：140 passed，260.94 秒，无 skip**，见 [完整回归输出](W2_C_full_validation.txt)。包含 W2-B 的真实 PG/Temporal 生命周期、Web/QQ commands、Session、memory、resource、协议回归，以及 delivery 的失败重试、分段恢复、uncertain/显式恢复。
+**完整回归：140 passed，260.94 秒，无 skip**，见 [完整回归输出（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_C_full_validation.txt`）。包含 W2-B 的真实 PG/Temporal 生命周期、Web/QQ commands、Session、memory、resource、协议回归，以及 delivery 的失败重试、分段恢复、uncertain/显式恢复。
 
 专项：
 
-- [PG/Temporal 输出](W2_C_validation.txt)：10 passed。QQ → ingress → PG → Outbox → canonical durable → committed result → 首次失败 → delivery 重试，正文相同且模型调用次数不增加；同时回归 Web completed/failed/cancelled 与 History replay。
-- [worker/协议输出](W2_C_unit_validation.txt)：16 passed。
-- [adapter 输出](W2_C_adapter_validation.txt)：3 passed，覆盖 quote/@/CQ 转义/附件引用、NapCat 按 bot 选连接并等待确认、Official 相同内容失败后再次实际发送。
+- [PG/Temporal 输出（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_C_validation.txt`）：10 passed。QQ → ingress → PG → Outbox → canonical durable → committed result → 首次失败 → delivery 重试，正文相同且模型调用次数不增加；同时回归 Web completed/failed/cancelled 与 History replay。
+- [worker/协议输出（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_C_unit_validation.txt`）：16 passed。
+- [adapter 输出（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_C_adapter_validation.txt`）：3 passed，覆盖 quote/@/CQ 转义/附件引用、NapCat 按 bot 选连接并等待确认、Official 相同内容失败后再次实际发送。
 
 专项与完整回归重叠，不累加为独立测试数。使用空 schema 的隔离 PG、Redis 与 Temporal namespace；模型、工具及 QQ 外网为受控替身。初次测试发现导入路径及 worker 接线缩进错误，已修复后重新运行，上述文件为修复后证据。
 

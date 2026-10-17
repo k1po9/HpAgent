@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { login, createConversation, sendMessage, expectReply } from "./helpers";
 import { workFixture, artifactFixture } from "../src/components/tasks/taskFixtures";
-const evidence = resolve(process.cwd(), "../artifacts/product-acceptance/ui-6/screenshots");
+const evidence = resolve(process.cwd(), "./test-results/evidence/ui-6/screenshots");
 
 test("real API: lost create/version responses replay keys and history keeps v1 selected", async ({
   page,

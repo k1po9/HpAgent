@@ -4,9 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { login } from "./helpers";
-const evidence = resolve(
-  process.env.HPAGENT_UI5_EVIDENCE_DIR ?? "../artifacts/product-acceptance/ui-5",
-);
+const evidence = resolve(process.env.HPAGENT_UI5_EVIDENCE_DIR ?? "./test-results/evidence/ui-5");
 const inspector = (page: Page) => page.locator(".hp-inspector");
 async function create(page: Page, title: string, kind = "reminder") {
   await page.getByRole("button", { name: "新建任务", exact: true }).click();

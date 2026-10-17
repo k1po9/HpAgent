@@ -2,15 +2,20 @@
  * Playwright browser E2E (phase-e E-07).
  *
  * Two servers are started for every run: the real HpAgent web API (Fake Run
- * Executor + PostgreSQL + Redis, see scripts/e2e-backend.sh) on :8080, and the
- * vite dev server on :5173 proxying same-origin /api and /auth to it. Each spec
+ * Executor + PostgreSQL + Redis, see scripts/e2e-backend.sh) on WEB_API_PORT (default 8180), and the
+ * vite dev server on WEB_DEV_PORT (default 5273) proxying same-origin /api and /auth to it. Each spec
  * drives real browsers against real infrastructure — no mocks, no shared local
  * state, and different accounts are isolated by separate browser contexts.
  */
 import { defineConfig, devices } from "@playwright/test";
 
-const BACKEND_PORT = Number(process.env.WEB_API_PORT ?? 8080);
-const WEB_PORT = Number(process.env.WEB_DEV_PORT ?? 5173);
+const BACKEND_PORT = Number(process.env.WEB_API_PORT ?? 8180);
+const WEB_PORT = Number(process.env.WEB_DEV_PORT ?? 5273);
+for (const port of [BACKEND_PORT, WEB_PORT]) {
+  if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error("E2E ports must be integers in 1..65535");
+}
+if (BACKEND_PORT === WEB_PORT) throw new Error("API and frontend ports must differ");
 const WEB_BASE = `http://localhost:${WEB_PORT}`;
 
 export default defineConfig({
@@ -38,7 +43,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: `npm run dev -- --port ${WEB_PORT}`,
+      command: `npm run dev -- --host 127.0.0.1 --port ${WEB_PORT} --strictPort`,
       url: WEB_BASE,
       reuseExistingServer: false,
       timeout: 60_000,

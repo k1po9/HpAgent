@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../../README.md)进入。
+
 # R2 计划：空间反馈、执行生命状态与输入微状态
 
 日期：2026-10-13。状态：启动资料已准备，尚未实施。本文是新实施窗口的工作合同，不是已完成效果报告。
@@ -20,7 +22,7 @@ R1 解决静止时的阅读、材质、对象身份、任务四区和账户面�
 
 ## 2. 必须继承的静态合同
 
-完整读取 [attempt-04 合同](../../../artifacts/product-acceptance/ui-iteration/R1.3/attempt-04/STATIC-DESIGN-CONTRACT.md)、[attempt-05 合同](../../../artifacts/product-acceptance/ui-iteration/R1.3/attempt-05/STATIC-DESIGN-CONTRACT.md)、[attempt-06 合同](../../../artifacts/product-acceptance/ui-iteration/R1.3/attempt-06/STATIC-DESIGN-CONTRACT.md)，后者及用户最新决定优先。不得只读旧 R1 S1 候选。
+完整读取 [attempt-04 合同（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R1.3/attempt-04/STATIC-DESIGN-CONTRACT.md`）、[attempt-05 合同（已归档）](../../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R1.3/attempt-05/STATIC-DESIGN-CONTRACT.md`）、[attempt-06 合同](../../../artifacts/product-acceptance/ui-iteration/R1.3/attempt-06/STATIC-DESIGN-CONTRACT.md)，后者及用户最新决定优先。不得只读旧 R1 S1 候选。
 
 - 现有 Rail 104、Context 280、Inspector 390（展开 460）、阅读宽度 790；维持既有响应式断点和手机底部导航，不套回旧布局数字。
 - 回答统一银瓷面 `#E7E9EC`，正文、执行与成果关系保持；主背景与已接受的微暖材质保持，不把所有对象重新改成同权重白卡。

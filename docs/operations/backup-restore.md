@@ -5,9 +5,10 @@
 Compose 服务运行时执行：
 
 ```bash
-./scripts/operations/backup.sh
 BACKUP_DIR=/secure/location ./scripts/operations/backup.sh
 ```
+
+必须显式指定仓库外绝对目录；脚本拒绝仓库内路径、创建受限独立子目录，失败保留`.incomplete`并非零退出。Shell帮助不会运行备份。
 
 脚本生成带时间戳的 Application PostgreSQL 与 Hindsight PostgreSQL Custom-format Dump，并压缩 `.data/workspace`（Git 代码工作区）。Redis 是临时状态，不进行备份。**账号长期文件 Workspace 的目录、权限和修订在 Application PostgreSQL 中，字节在 File Store Volume 中**；脚本不包含 File Store Volume 和 Temporal PostgreSQL。Work、requirement、wakeup / schedule、Execution / receipt、累计预算、notifications / deliveries 都包含在 Application PostgreSQL dump 内。需要完整恢复文件或进行中的 Workflow History 时，必须在部署层取得同一恢复点的 Volume Snapshot。
 

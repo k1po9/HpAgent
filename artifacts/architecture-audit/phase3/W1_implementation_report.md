@@ -55,7 +55,7 @@ resume：核验 Run authority → reacquire → 新 token → 后续 capability 
 
 ## Tests / 运行证据
 
-原始摘要保存在 [W1_validation_results.txt](W1_validation_results.txt)。本轮使用临时 PostgreSQL 容器、独立 API/Worker 角色、新 Temporal namespace，并从空 schema 执行 migrations。没有使用或清空现有应用数据库。
+原始摘要保存在 [W1_validation_results.txt（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W1_validation_results.txt`）。本轮使用临时 PostgreSQL 容器、独立 API/Worker 角色、新 Temporal namespace，并从空 schema 执行 migrations。没有使用或清空现有应用数据库。
 
 | 执行 | 结果 |
 | --- | --- |

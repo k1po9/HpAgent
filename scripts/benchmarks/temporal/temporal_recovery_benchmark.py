@@ -573,7 +573,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=45)
     parser.add_argument(
         "--output-dir",
-        default=str(ROOT / "artifacts" / "benchmarks" / "temporal" / "workflow_worker"),
+        default=str(ROOT / "artifacts" / "benchmark-runs" / "temporal" / "workflow_worker"),
     )
     parser.add_argument("--clean-runs", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()

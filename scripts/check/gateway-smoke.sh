@@ -13,22 +13,28 @@
 # =============================================================================
 set -euo pipefail
 
+if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
+  echo "用法：gateway-smoke.sh（无参数）；构建镜像/前端并创建隔离Nginx与stub容器/网络，结束只移除本次资源。不调用模型、不连接业务库。GATEWAY_IMAGE/GATEWAY_PORT/STUB_IMAGE可覆盖。"; exit 0
+fi
+[[ $# == 0 ]] || { echo "未知参数" >&2; exit 2; }
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 WEB_DIR="$ROOT/web"
 GATEWAY_IMAGE="${GATEWAY_IMAGE:-hpagent-web-gateway:smoke}"
 GATEWAY_PORT="${GATEWAY_PORT:-}"
 DIST_DIR="$WEB_DIR/dist"
 
-STUB_PID=""
+STUB_CONTAINER=""
+SMOKE_NETWORK="gateway-smoke-$$"
+SMOKE_TMP="$(mktemp -d)"
 GW_CONTAINER=""
 
 cleanup() {
   if [[ -n "$GW_CONTAINER" ]]; then
     docker rm -f "$GW_CONTAINER" >/dev/null 2>&1 || true
   fi
-  if [[ -n "$STUB_PID" ]]; then
-    kill "$STUB_PID" >/dev/null 2>&1 || true
-  fi
+  [[ -z "$STUB_CONTAINER" ]] || docker rm -f "$STUB_CONTAINER" >/dev/null 2>&1 || true
+  docker network rm "$SMOKE_NETWORK" >/dev/null 2>&1 || true
+  rm -rf "$SMOKE_TMP"
 }
 trap cleanup EXIT
 
@@ -47,8 +53,8 @@ if ! docker image inspect "$GATEWAY_IMAGE" >/dev/null 2>&1; then
   docker build -t "$GATEWAY_IMAGE" "$WEB_DIR"
 fi
 
-# ── 3. 启动 stub API（宿主机 0.0.0.0:8080，模拟 hpagent-api）──
-STUB_SCRIPT="$(mktemp)"
+# ── 3. 启动 stub API（隔离容器内 :8080，模拟 hpagent-api）──
+STUB_SCRIPT="$SMOKE_TMP/stub.py"
 cat > "$STUB_SCRIPT" <<'PYEOF'
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -81,11 +87,12 @@ class H(BaseHTTPRequestHandler):
 
 HTTPServer(("0.0.0.0", 8080), H).serve_forever()
 PYEOF
-python3 "$STUB_SCRIPT" &
-STUB_PID=$!
-sleep 1
+docker network create "$SMOKE_NETWORK" >/dev/null
+STUB_CONTAINER="gateway-stub-$$"
+docker run -d --name "$STUB_CONTAINER" --network "$SMOKE_NETWORK" --network-alias hpagent-api \
+  -v "$STUB_SCRIPT:/stub.py:ro" "${STUB_IMAGE:-python:3.12-alpine}" python /stub.py >/dev/null
 
-# ── 4. 启动网关容器（hpagent-api → host-gateway）──
+# ── 4. 启动网关容器（hpagent-api → private-network）──
 if [[ -z "$GATEWAY_PORT" ]]; then
   # 找一个可用宿主机端口
   GATEWAY_PORT="$(
@@ -100,8 +107,8 @@ PYEOF
 fi
 GW_CONTAINER="gw-smoke-$$"
 docker run -d --name "$GW_CONTAINER" \
-  --add-host hpagent-api:host-gateway \
-  -p "$GATEWAY_PORT:80" \
+  --network "$SMOKE_NETWORK" \
+  -p "127.0.0.1:$GATEWAY_PORT:80" \
   "$GATEWAY_IMAGE" >/dev/null
 sleep 2
 
@@ -123,10 +130,10 @@ code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:$GATEWA
 echo "[gateway-smoke] PASS G-T03 /api+/auth proxy"
 
 # ── 7. G-T04: SSE 不 buffering ──
-headers="$(curl -s -N -D - -o /tmp/gw-sse-body-$$ "http://127.0.0.1:$GATEWAY_PORT/api/v1/runs/r1/events")"
+headers="$(curl -s -N -D - -o $SMOKE_TMP/sse-body "http://127.0.0.1:$GATEWAY_PORT/api/v1/runs/r1/events")"
 echo "$headers" | grep -qi "x-accel-buffering: no" \
   || fail "SSE route missing X-Accel-Buffering: no"
-grep -q '"type":"ping"' "/tmp/gw-sse-body-$$" \
+grep -q '"type":"ping"' "$SMOKE_TMP/sse-body" \
   || fail "SSE event body not streamed"
 echo "[gateway-smoke] PASS G-T04 SSE no buffering"
 

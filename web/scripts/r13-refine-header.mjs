@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 /* global document, innerWidth, CompositionEvent, KeyboardEvent */
 import "./r1-isolation.mjs";
 import { chromium, expect } from "@playwright/test";
@@ -14,7 +15,7 @@ const out = resolve("artifacts/product-acceptance/ui-iteration/R1.3/attempt-02")
   );
 await mkdir(dir, { recursive: true });
 const browser = await chromium.launch({
-    executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+    executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
   }),
   p = await browser.newPage({
     viewport: { width: 1680, height: 1000 },

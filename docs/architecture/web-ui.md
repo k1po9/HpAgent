@@ -1,6 +1,6 @@
 # Web 前端架构与交互契约
 
-本文描述 UI-1～UI-8 重构后的当前实现，更新于 2026-10-09（Asia/Shanghai）。产品操作见[功能指南](../operations/web-workbench.md)，验证范围、提交沿革与剩余验收见[重构交接](../implementation/ui-refactor.md)。
+本文描述当前 `web/src` 的产品与交互约束（2026-10-17核对）。产品操作见[功能指南](../operations/web-workbench.md)，测试环境见[测试指南](../development/testing.md)。R1–R6接受依据和原始验证范围保留在[实施索引](../implementation/README.md)，不承担当前操作说明。
 
 ## 入口、布局和路由
 
@@ -94,3 +94,23 @@ HTML 仍通过受限 sandbox / CSP 预览；下载保留 `.html`，空间保存�
 | `hp-test-*` / `hp-page-*` 与旧固定侧板 CSS | tokens 和分领域样式；共用 Markdown、code、iframe、Trace 树保留。 |
 
 Workspace 旧测试语义已迁入 WorkspaceMigration、WorkspaceCommands、UI4SelfReview 和 RunResources 的正式回归；保留取消/迟到候选、queued→running 刷新、未知 Run 404、主体 A→B→A、分页隔离和仅补授权。当前没有旧/新 Shell 发布开关或第二套数据层。
+
+## 当前视觉与交互约束
+
+当前以 [R6 接受合同](../design/ui-iteration-2026-10/R6-ACCEPTED-CONTRACT.md)及其冻结指纹为准。会话切换与阅读收纳共用 Mercury 时序，保留真实数据等待、对象身份、单 Composer、草稿/附件/IME 与账户请求世代保护；Workspace/Tasks 的授权、预算、成果验收、投递确认与完成事实分别处理。减动、窄屏、失联、快切和异常必须安全收敛。离线评审桥和独立 HTML 不属于产品构建入口。
+
+接受记录与验证范围保留在原路径；截图、重复源码及原始运行输出的恢复见[归档索引](../development/repository-archive-index.md)。UI 接受未覆盖真实供应商、生产 Worker、QQ 外发、真机输入/读屏、其他浏览器和长期堆分析，不能代替上线验证。
+
+
+| 范围 | 当前必须保留的行为 | 实现与正式验证位置 |
+| --- | --- | --- |
+| R1 静态呈现 | Paper Flame语义token、冷瓷灰与焰橙层级；评审控制/候选查询参数不进入正常构建 | `styles/tokens.css`、`App.tsx`；`e2e/entry/entry.spec.ts` |
+| R2 导航与反馈 | 表面、导航和状态装饰观察已获准事实，不提前改变领域状态；减动/窄屏可操作，焦点与模态层级正确 | `components/shell`、`components/vitality`及相邻单测；`e2e/ui-7-self-review.spec.ts` |
+| R3 执行接力 | 真实请求获准后才接力；queued/running、失败、停止及快切保留原事实，不由动画制造成功 | `components/conversation`、`components/input-action`及相邻单测 |
+| R4 四类Inspector | Run/Artifact/File/Task立即请求，数据与实际抵达分别门控；抵达前中性头部；同对象Tab/展开/版本保持身份；X真关闭、Escape最高层、dirty guard不提前导航 | `components/shell/InspectorHost.tsx`、`store/shell.ts`、四类Inspector与相邻测试；正式E2E |
+| R5 阅读与切换 | 同一消息DOM和单Composer；会话粒子固定身份/可逆轨迹，真实跨栏抵达对应条目；目标活跃执行优先；草稿/附件/IME不被装饰重置 | `components/mercury`及相邻单测 |
+| R6 收口 | 切换与阅读收纳共用Mercury时间轴；omega=8.5×0.35、hostTempo=2，端点收束按接受版；真实数据等待不压缩。认证跨await核对代际，同轮提交去重，旧响应不污染新账户 | `components/mercury`、`components/LoginForm.tsx`、`store/auth.ts`及相邻单测 |
+
+窄屏、减动、隐藏/恢复、宿主失联、快切、长帧和渲染异常要直达真实状态并回收装饰资源，不能让旧timer/arrival回调覆盖新对象。长期空闲不保持动画循环；性能结论须注明设备、采样及测量方法。
+
+这些约束不改变API、授权、预算、成果验收、投递确认和任务完成的独立含义。真实供应商、生产Worker、QQ外发、真机IME/软键盘/读屏、其他浏览器和长期堆分析须独立验证。

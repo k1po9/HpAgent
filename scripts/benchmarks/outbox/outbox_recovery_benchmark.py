@@ -680,7 +680,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--database-name", default="hpagent_outbox_benchmark")
     parser.add_argument("--timeout", type=float, default=120)
     parser.add_argument(
-        "--output-dir", default=str(ROOT / "artifacts" / "benchmarks" / "outbox")
+        "--output-dir", default=str(ROOT / "artifacts" / "benchmark-runs" / "outbox")
     )
     args = parser.parse_args()
     if args.requests < 1:

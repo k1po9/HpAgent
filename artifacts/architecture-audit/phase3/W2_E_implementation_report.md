@@ -16,7 +16,7 @@ Baseline：`d4a8ef493a4e7120eeca32cf6949c9470cae266d`。仅修复用户指定的
 - 历史主执行日志是 183 passed + 1 failed，后续修正单项复验通过，主 collection 为 **184 distinct**。15 项 Outbox targeted 输出不再加入历史 distinct 总数。
 - 当前已提交的 `scripts/verify_w2_contracts.py` 默认列表包含 `test_outbox_and_lifecycle.py` 的 15 个 node IDs。此前报告对应主执行与后来提交的脚本范围不同，不能拿当前 collection 反推历史执行总数。
 - 本轮未改变 verifier scope，实际 collection 为 **202 unique node IDs**：当前基线 199 + 新增 3（Official 首次失败两种参数 + NapCat media）。已有 chunk 用例增加断言，不新增 node ID。
-- [collection 原始输出](W2_E_collection.txt)、[唯一 node ID 清单与计数](W2_E_collection.json)。`collected=distinct=202`，无重复 node ID。完整执行和 targeted 重复用例不再累加。
+- [collection 原始输出（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_E_collection.txt`）、[唯一 node ID 清单与计数（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_E_collection.json`）。`collected=distinct=202`，无重复 node ID。完整执行和 targeted 重复用例不再累加。
 
 ## Validation
 
@@ -28,11 +28,11 @@ Targeted：
 
 完整：`.venv/bin/python scripts/verify_w2_contracts.py`。
 
-Targeted：**16 passed，179.57 秒，无 skip**，见 [targeted](W2_E_targeted_validation.txt)。完整重跑：**202 passed，951.05 秒，无失败/skip**，见 [full](W2_E_validation.txt)。进程退出码 0；唯一 warning 为既有 Starlette/httpx 弃用提示。202 与 collection 的唯一 node ID 数一致；不累加 targeted 16 项。
+Targeted：**16 passed，179.57 秒，无 skip**，见 [targeted（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_E_targeted_validation.txt`）。完整重跑：**202 passed，951.05 秒，无失败/skip**，见 [full（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_E_validation.txt`）。进程退出码 0；唯一 warning 为既有 Starlette/httpx 弃用提示。202 与 collection 的唯一 node ID 数一致；不累加 targeted 16 项。
 
-修改的 5 个 Python 文件使用项目 Ruff 默认 F/I 规则检查，通过；`git diff --check` 通过，见 [static validation](W2_E_static_validation.txt)。真实 PG/Redis/Temporal 隔离 fixture，QQ 外网与 Hindsight/模型使用受控替身；不扩大为外网验收。
+修改的 5 个 Python 文件使用项目 Ruff 默认 F/I 规则检查，通过；`git diff --check` 通过，见 [static validation（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_E_static_validation.txt`）。真实 PG/Redis/Temporal 隔离 fixture，QQ 外网与 Hindsight/模型使用受控替身；不扩大为外网验收。
 
-首次完整执行被环境中断：测试 PG 返回 `AdminShutdown`，随后 PG/Redis 测试容器消失，Temporal crash 用例亦失败。原输出为 127 passed / 2 failed / 73 errors，保留在 [interrupted validation](W2_E_interrupted_validation.txt)，不计为通过证据。环境恢复后使用新隔离容器完整重跑，未为环境失败修改产品代码。
+首次完整执行被环境中断：测试 PG 返回 `AdminShutdown`，随后 PG/Redis 测试容器消失，Temporal crash 用例亦失败。原输出为 127 passed / 2 failed / 73 errors，保留在 [interrupted validation（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/architecture-audit/phase3/W2_E_interrupted_validation.txt`），不计为通过证据。环境恢复后使用新隔离容器完整重跑，未为环境失败修改产品代码。
 
 ## Gates
 

@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../../README.md)进入。
+
 # R3 · 本次发送确认到 C 接管
 
 2026-10-14。用户已明确“整个 R2 通过，进入 R3”。接受基线是 R2/attempt-06 的 DECISION、INTERACTION-CONTRACT、HANDOFF 与 source-manifest。工作区仍 main@b8a5a02+dirty，不 reset、不提交/部署、不自动进入 R4。

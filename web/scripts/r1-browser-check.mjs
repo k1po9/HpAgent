@@ -1,3 +1,4 @@
+import "./review-runtime.mjs";
 import "./r1-isolation.mjs";
 import { URL } from "node:url";
 import process from "node:process";
@@ -15,7 +16,7 @@ await mkdir(evidence, { recursive: true });
 const routes = JSON.parse(await readFile(resolve(out, "routes.json")));
 const base = "http://127.0.0.1:5294";
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
   headless: true,
 });
 const ctx = await b.newContext({

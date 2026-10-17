@@ -1,9 +1,11 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 import { chromium, expect } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 const out = resolve("artifacts/product-acceptance/ui-iteration/R1.3/attempt-06");
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const p = await b.newPage({ viewport: { width: 1280, height: 950 } });
 const results = [],

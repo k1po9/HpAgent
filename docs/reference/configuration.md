@@ -103,3 +103,7 @@ Work schedule 由 PostgreSQL evaluator 维护，不使用 Temporal Schedule 配�
 `config/models.yaml` 的 timeout 决定常规模型等待。HTTP connect 为 `min(timeout, 5 秒)`，read 默认沿用 endpoint timeout；Artifact Activity scope 单独覆盖 read 为 `ARTIFACT_MODEL_READ_TIMEOUT_SECONDS`，不改其他聊天调用。
 
 Provider serializer 标识为 `hpagent-provider-request-v2`，OpenAI tool calls 使用 type / function 和 JSON 字符串参数；Anthropic system 为独立字段，工具用 tool_use / tool_result。规范化请求先校验，再冻结快照与预留，不能通过旧原始 transcript 直接请求或覆盖已保存快照。更多失败分类见[可靠性](../architecture/reliability.md)。
+
+## 工具参数与运行配置分界
+
+测试隔离标记、脚本备份输出、Benchmark输出与浏览器路径属于开发/运维入口参数，不是应用领域配置；其默认值、帮助及副作用统一维护在[脚本索引](../../scripts/README.md)。变更`.env`或Compose environment后，已有容器不会因`restart`自动获得新的环境，部署操作见[部署指南](../operations/deployment.md)。

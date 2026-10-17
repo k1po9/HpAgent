@@ -1,3 +1,5 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 import "./r1-isolation.mjs";
 import { URL } from "node:url";
 import console from "node:console";
@@ -6,7 +8,7 @@ import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 const out = resolve("artifacts/product-acceptance/ui-iteration/R1/attempt-01");
 const browser = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
   headless: true,
 });
 const page = await browser.newPage({

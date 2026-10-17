@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { login, createConversation, sendMessage, expectReply } from "./helpers";
 import { workFixture } from "../src/components/tasks/taskFixtures";
 test.setTimeout(120_000);
-const evidence = resolve(process.cwd(), "../artifacts/product-acceptance/ui-7/screenshots");
+const evidence = resolve(process.cwd(), "./test-results/evidence/ui-7/screenshots");
 const sizes = [
   [360, 800],
   [390, 844],

@@ -27,7 +27,7 @@ export async function uploadWorkspace(
     conversationId ? "已保存并授权" : "未自动授权",
   );
   await dialog.getByRole("button", { name: "关闭上传到空间" }).click();
-  await expect(panel.getByRole("button", { name: `📄 ${name}`, exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: `${name}`, exact: true })).toBeVisible();
   return panel;
 }
 export function fileInspector(page: Page) {

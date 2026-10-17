@@ -27,7 +27,6 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_PROJECT_ROOT / "src"))
 
-from account.bootstrap import bootstrap_identity  # noqa: E402
 
 
 def main() -> int:
@@ -46,6 +45,7 @@ def main() -> int:
         help="Admin/migration PostgreSQL DSN (default MIGRATION_DATABASE_URL)",
     )
     args = parser.parse_args()
+    from account.bootstrap import bootstrap_identity
 
     if not args.database_url:
         parser.error(

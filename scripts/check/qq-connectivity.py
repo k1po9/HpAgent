@@ -15,6 +15,10 @@ import os
 import sys
 from pathlib import Path
 
+if __name__ == "__main__":
+    import argparse
+    argparse.ArgumentParser(description="请求QQ官方token/gateway并连接WebSocket等待事件；需QQ官方凭据，可能访问外网。无参数执行，--help不连接网络。").parse_args()
+
 # ── 加载 .env ──
 _project_root = Path(__file__).resolve().parents[2]
 try:

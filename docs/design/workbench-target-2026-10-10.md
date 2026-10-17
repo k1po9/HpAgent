@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # HpAgent 工作台布局与样式改造指导方案
 
 本方案依据用户提供的目标图、当前前端源码，以及本次对话中已经完成的实际页面检查和两轮浏览器视觉试验。范围按用户最新要求收敛为：在现有功能上调整布局、组件排布和 UI 样式。
@@ -41,7 +43,7 @@ API、业务 Store、SSE、权限、发送与停止资格、版本选择规则�
 
 颜色继续使用现有语义 tokens：正文 #182235、次要文字 #67758c、边框 #e3e9f2、主色 #1267df；用户消息和选中背景可在现有浅蓝基础上微调。正文、卡片和输入外壳圆角先取 8–12px。一般按钮高度 36–40px，主要按钮和手机可点击区域至少 44px。字体沿用现有中文无衬线回退。
 
-对照材料：[目标图](../../artifacts/product-acceptance/ui-target-20261010/target.png)、[当前同屏](../../artifacts/product-acceptance/ui-target-20261010/current-artifact-top-1672.png)、[第一轮试验](../../artifacts/product-acceptance/ui-target-20261010/round1-artifact-1672.png)、[第二轮试验](../../artifacts/product-acceptance/ui-target-20261010/round2-artifact-1672.png)、[1440px 试验](../../artifacts/product-acceptance/ui-target-20261010/round2-artifact-1440.png)。尺寸见[当前记录](../../artifacts/product-acceptance/ui-target-20261010/geometry.json)与[试验记录](../../artifacts/product-acceptance/ui-target-20261010/experiment-geometry.json)。
+对照材料：[目标图（已归档）](../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-target-20261010/target.png`）、[当前同屏（已归档）](../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-target-20261010/current-artifact-top-1672.png`）、[第一轮试验（已归档）](../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-target-20261010/round1-artifact-1672.png`）、[第二轮试验（已归档）](../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-target-20261010/round2-artifact-1672.png`）、[1440px 试验（已归档）](../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-target-20261010/round2-artifact-1440.png`）。尺寸见[当前记录（已归档）](../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-target-20261010/geometry.json`）与[试验记录（已归档）](../development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-target-20261010/experiment-geometry.json`）。
 
 试验确认了四栏和紧凑输入区的方向；第二轮在 1672px、1440px 下未发现页面溢出或所检查输入控件的水平裁切。试验中出现的头像跨行空白、侧栏宽度覆盖冲突、扩大阅读按钮挤窄正文问题已经经过看图修正。现有试验使用临时 CSS 和 DOM 排布，正式实现应使用 React 组件组合，不能复制 DOM 搬移脚本。
 

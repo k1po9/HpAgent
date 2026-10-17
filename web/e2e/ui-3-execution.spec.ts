@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createConversation, expectReply, login, sendMessage } from "./helpers";
 import { mkdir } from "node:fs/promises";
 import type { HpModelInputDetail, HpRunSnapshot } from "../src/api/types";
-const evidence = "../artifacts/product-acceptance/ui-3";
+const evidence = process.env.HPAGENT_UI3_EVIDENCE_DIR ?? "./test-results/evidence/ui-3";
 const id = "33333333-3333-4333-8333-333333333333";
 const workId = "44444444-4444-4444-8444-444444444444";
 

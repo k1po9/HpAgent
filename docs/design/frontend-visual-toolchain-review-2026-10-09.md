@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # HpAgent 前端视觉增强工具接入与功能边界审查
 
 日期：2026-10-09（Asia/Shanghai）。审查分支：`main`；提交：`7e77631d9c092bf864655099f15f756c69021d67`。未切换分支。前一轮视觉指导、原图与文档索引修改保留。
@@ -10,7 +12,7 @@
 
 当前选定分支的前端代码是功能、数据流、状态、路由、API 和交互的唯一真相源。附件和工具生成结果只能约束视觉，不能替代业务契约。
 
-- 已确认图片与逐图排除项见[最新视觉指导](/home/hp/workspace/HpAgent_web/docs/design/frontend-visual-guide-latest.md)。三入口、HTML 成果上下文、认证字段等边界继续生效。
+- 已确认图片与逐图排除项见[最新视觉指导](frontend-visual-guide-latest.md)。三入口、HTML 成果上下文、认证字段等边界继续生效。
 - 不以美化为理由移除功能、替换真实 API、伪造进度或业务数据、重写 Zustand/assistant-ui 数据源、引入整体 UI 框架。
 - 第三方 skill 中的“强制”“重建”“初始化产品真相”等要求不覆盖本任务。检测器分数、通用审美规则和新生成设计图也不能覆盖已确认原图。
 - 当前版本允许修改的内容不能通过本轮自己的新增代码被“自我扩充”为既有功能。
@@ -45,7 +47,7 @@ main.tsx：StrictMode → Radix Theme → App
      └─ 账户与 QQ、注册提示、任务编辑/收件箱、资料、保存、草稿保护等弹层
 ```
 
-主要入口：[App.tsx](/home/hp/workspace/HpAgent_web/web/src/App.tsx)、[AppShell.tsx](/home/hp/workspace/HpAgent_web/web/src/components/shell/AppShell.tsx)、[HpThread.tsx](/home/hp/workspace/HpAgent_web/web/src/adapters/assistant-ui/HpThread.tsx)、[InspectorHost.tsx](/home/hp/workspace/HpAgent_web/web/src/components/shell/InspectorHost.tsx)。
+主要入口：[App.tsx](../../web/src/App.tsx)、[AppShell.tsx](../../web/src/components/shell/AppShell.tsx)、[HpThread.tsx](../../web/src/adapters/assistant-ui/HpThread.tsx)、[InspectorHost.tsx](../../web/src/components/shell/InspectorHost.tsx)。
 
 | 状态/控制器 | 负责什么 | 视觉改造必须保护什么 |
 | --- | --- | --- |
@@ -60,13 +62,13 @@ main.tsx：StrictMode → Radix Theme → App
 | `runInspector.ts`、`trace/traceStore.ts` | Run 查询、审批、Trace/Model Input | 保留懒加载、权限/不可用状态与过期响应保护 |
 | `sseClient.ts`、`runFeed.ts`、`workFeed.ts` | fetch 流式 SSE、游标、重连/降级与最终查询 | 不替换为装饰定时器或另建 EventSource；原实现有特定恢复契约 |
 
-代码目录：[store](/home/hp/workspace/HpAgent_web/web/src/store)、[sse](/home/hp/workspace/HpAgent_web/web/src/sse)、[业务查询与操作入口](/home/hp/workspace/HpAgent_web/web/src/components)。
+代码目录：[store](../../web/src/store)、[sse](../../web/src/sse)、[业务查询与操作入口](../../web/src/components)。
 
 真实调用关系为：用户事件 → 现有组件处理函数/命令层 → Zustand 与 `HpApi`/`ApiClient` → 同源 `/api` 或 `/auth` → 响应/SSE → 原 Store → React 重新呈现。部分组件直接调用 API，不能只保护 Store 就认为业务安全。
 
-[ApiClient](/home/hp/workspace/HpAgent_web/web/src/api/client.ts)管理同源 Cookie、CSRF、请求取消和会话代次；[HpApi](/home/hp/workspace/HpAgent_web/web/src/api/resources.ts)封装带类型的端点。修改请求保持原 `Idempotency-Key`、条件版本头和错误恢复逻辑；不在视觉层生成另一套请求身份。Vite 将 `/api`、`/auth` 代理到 `HPAGENT_API_TARGET`，默认 `127.0.0.1:8000`。
+[ApiClient](../../web/src/api/client.ts)管理同源 Cookie、CSRF、请求取消和会话代次；[HpApi](../../web/src/api/resources.ts)封装带类型的端点。修改请求保持原 `Idempotency-Key`、条件版本头和错误恢复逻辑；不在视觉层生成另一套请求身份。Vite 将 `/api`、`/auth` 代理到 `HPAGENT_API_TARGET`，默认 `127.0.0.1:8000`。
 
-[assistant-ui runtime](/home/hp/workspace/HpAgent_web/web/src/adapters/assistant-ui/runtime.ts)使用 `useExternalStoreRuntime`，权威消息仍来自 HpAgent Store。`onNew`、`onCancel` 映射到已有发送/停止；未接入的编辑/重新生成/分支语义不能因模板中有按钮就开启。
+[assistant-ui runtime](../../web/src/adapters/assistant-ui/runtime.ts)使用 `useExternalStoreRuntime`，权威消息仍来自 HpAgent Store。`onNew`、`onCancel` 映射到已有发送/停止；未接入的编辑/重新生成/分支语义不能因模板中有按钮就开启。
 
 ## 3. 展示、布局与业务层修改边界
 
@@ -80,7 +82,7 @@ main.tsx：StrictMode → Radix Theme → App
 
 `dateGroup.ts`、`artifactPresentation.ts` 等可包含纯计算，但“无副作用”不等于“可以改变业务语义”：状态映射、任务桶、预算、预览资格和日期分类仍须按原契约保留。真正安全的做法是按代码切片放行，不给整文件“任意改写”权限。
 
-特别注意 [Surface.tsx](/home/hp/workspace/HpAgent_web/web/src/components/shell/Surface.tsx)：它维护原生 `<dialog>` top layer、嵌套层级、inert、焦点恢复、Portal 和稳定子树。不能用另一个 Dialog 库或 `AnimatePresence` 条件卸载重做它。HTML 成果 [ArtifactPreview.tsx](/home/hp/workspace/HpAgent_web/web/src/components/ArtifactPreview.tsx)使用 `sandbox="allow-scripts"`；不得为拾取或截图加入 `allow-same-origin`，也不应把成果内 DOM 误判为宿主 React 源码。
+特别注意 [Surface.tsx](../../web/src/components/shell/Surface.tsx)：它维护原生 `<dialog>` top layer、嵌套层级、inert、焦点恢复、Portal 和稳定子树。不能用另一个 Dialog 库或 `AnimatePresence` 条件卸载重做它。HTML 成果 [ArtifactPreview.tsx](../../web/src/components/ArtifactPreview.tsx)使用 `sandbox="allow-scripts"`；不得为拾取或截图加入 `allow-same-origin`，也不应把成果内 DOM 误判为宿主 React 源码。
 
 ## 4. CSS Token、JS 几何与响应式耦合
 
@@ -182,9 +184,9 @@ if (import.meta.env.DEV && import.meta.env.VITE_ENABLE_REACT_GRAB === "1") {
 
 ## 8. 不依赖全量后端 E2E 的快速检查方案
 
-现有 [playwright.config.ts](/home/hp/workspace/HpAgent_web/web/playwright.config.ts)即使只选一个 spec，也会启动真实 API、迁移及 PostgreSQL/Redis 相关环境；不能把直接执行 `npm run test:e2e` 当作轻量视觉检查。
+现有 [playwright.config.ts](../../web/playwright.config.ts)即使只选一个 spec，也会启动真实 API、迁移及 PostgreSQL/Redis 相关环境；不能把直接执行 `npm run test:e2e` 当作轻量视觉检查。
 
-已有 [playwright.ui7-review.config.ts](/home/hp/workspace/HpAgent_web/web/playwright.ui7-review.config.ts)仅启动 Vite，范围限制在 `ui-7-self-review.spec.ts`；[ui7-surface-harness.tsx](/home/hp/workspace/HpAgent_web/web/e2e/ui7-surface-harness.tsx)复用真实 Surface。它们是可借用的基础，不是已经覆盖五张图的视觉套件。
+已有 [playwright.ui7-review.config.ts](../../web/playwright.ui7-review.config.ts)仅启动 Vite，范围限制在 `ui-7-self-review.spec.ts`；[ui7-surface-harness.tsx](../../web/e2e/ui7-surface-harness.tsx)复用真实 Surface。它们是可借用的基础，不是已经覆盖五张图的视觉套件。
 
 现有 self-review spec 包含合成 fixture 和宽泛的默认空响应；不能直接把它当作本轮真实业务证据或新增视觉数据规范。新方案禁止为凑图编造业务结果，按以下三层分工：
 
@@ -245,7 +247,7 @@ npm run test:e2e -- --config=playwright.ui7-review.config.ts --grep='R2: native 
 - 未安装或运行 Impeccable、React Grab、Playwright CLI、VibeCurb、Motion、MCP；它们在本项目的运行兼容性、生产剔除和源码映射仍需后续试点。
 - 未验证 WSLg 可视浏览器、Windows 剪贴板、所有传递依赖网络行为；没有运行 UI 全量验收或重构页面。
 
-元数据与环境证据见[来源快照 JSON](/home/hp/workspace/HpAgent_web/docs/design/frontend-visual-toolchain-sources-2026-10-09.json)。快照记录包版本、依赖、integrity 和观察到的上游 HEAD；README 与 HEAD 为分次读取，npm 发布包与 GitHub main 也不保证同步，不能把该快照当作完整源码认证。
+元数据与环境证据见[来源快照 JSON](frontend-visual-toolchain-sources-2026-10-09.json)。快照记录包版本、依赖、integrity 和观察到的上游 HEAD；README 与 HEAD 为分次读取，npm 发布包与 GitHub main 也不保证同步，不能把该快照当作完整源码认证。
 
 ## 11. 官方来源
 

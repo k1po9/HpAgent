@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../README.md)进入。
+
 # HpAgent Durable Work V1 五阶段实施复查
 
 > 历史设计/复查基线：本文保留当时状态与证据。当前已实现架构见 [Durable Work V1](../architecture/durable-work-v1.md)，阶段演进和后续人工修复见[实施索引](../implementation/README.md)。

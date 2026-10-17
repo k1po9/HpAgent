@@ -25,18 +25,18 @@
 
 | 场景 | 修改前 | 最终 |
 | --- | --- | --- |
-| 1672 × 941 四栏 | [before](before-artifact-1672.png) | [final](final-artifact-1672.png) |
-| 1440 × 900 四栏 | [before](before-artifact-1440.png) | [final](final-artifact-1440.png) |
-| 1366 × 900 收起侧栏 | [before](before-artifact-1366.png) | [final](final-artifact-1366.png) |
-| 1280 × 900 | [before](before-artifact-1280.png) | [final](final-artifact-1280.png) |
-| 1024 × 900 模态 Inspector | [before](before-artifact-1024.png) | [final](final-artifact-1024.png) |
-| 390 × 844 AI 页面 | [before](before-ai-390.png) | [final](final-ai-390.png) |
-| 390 × 844 对话抽屉 | [before](before-sidebar-390.png) | [final](final-sidebar-390.png) |
-| 空间 | [before](before-workspace-1672.png) | [final](final-workspace-1672.png) |
-| 任务 | [before](before-tasks-1672.png) | [final](final-tasks-1672.png) |
-| 新对话 | [before](before-new-ai-1672.png) | [final](final-new-ai-1672.png) |
+| 1672 × 941 四栏 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-artifact-1672.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-artifact-1672.png`） |
+| 1440 × 900 四栏 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-artifact-1440.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-artifact-1440.png`） |
+| 1366 × 900 收起侧栏 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-artifact-1366.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-artifact-1366.png`） |
+| 1280 × 900 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-artifact-1280.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-artifact-1280.png`） |
+| 1024 × 900 模态 Inspector | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-artifact-1024.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-artifact-1024.png`） |
+| 390 × 844 AI 页面 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-ai-390.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-ai-390.png`） |
+| 390 × 844 对话抽屉 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-sidebar-390.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-sidebar-390.png`） |
+| 空间 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-workspace-1672.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-workspace-1672.png`） |
+| 任务 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-tasks-1672.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-tasks-1672.png`） |
+| 新对话 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-new-ai-1672.png`） | [final（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-new-ai-1672.png`） |
 
-[原目标图](../ui-target-20261010/target.png)、[第一版手机](iteration1-ai-390.png)、[展开查询修正前](review-run-lookup-before.png)、[展开查询最终](check-run-lookup.png)、[长标题手机](check-long-title-390.png)、[键盘焦点手机](check-title-focus-mobile.png)。
+[原目标图（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-target-20261010/target.png`）、[第一版手机（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/iteration1-ai-390.png`）、[展开查询修正前（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/review-run-lookup-before.png`）、[展开查询最终（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/check-run-lookup.png`）、[长标题手机（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/check-long-title-390.png`）、[键盘焦点手机（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/check-title-focus-mobile.png`）。
 
 ## 数据与检查边界
 
@@ -54,6 +54,6 @@
 - 16 个检查宽度：1672、1440、1408、1407、1366、1280、1279、1024、988、987、960、959、600、599、390、320px；另检查扩大阅读的 1508 / 1507 / 1440px。页面无横向溢出，所检查顶栏控件没有越出顶栏水平范围。
 - typecheck、生产 build、变更文件 ESLint / Prettier、git diff --check 通过。生产构建仍提示已有的大 bundle 警告。
 
-截图尺寸：[基线](before-geometry.json)、[最终](final-geometry.json)；浏览器回归：[结果](regression.json)。检查日志保存在本目录。
+截图尺寸：[基线（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/before-geometry.json`）、[最终（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/final-geometry.json`）；浏览器回归：[结果（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-layout-round1-20261010/regression.json`）。检查日志保存在本目录。
 
 1672px 下实测：导航 104px、侧栏 280px、中央区域 868px、Inspector 420px；普通顶栏 72px。1440px 下中央区域 636px，仍可保留四栏。

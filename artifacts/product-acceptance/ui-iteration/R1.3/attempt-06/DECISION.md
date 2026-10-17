@@ -14,4 +14,4 @@
 
 不自动提交、推送、合并、发布、删除 Skill、创建或联系其他对话。后续阶段使用本轮 HANDOFF 和 STATIC-DESIGN-CONTRACT；本次仅记录验收，停在 R1。
 
-[HANDOFF](HANDOFF.md) · [反馈落实表](FEEDBACK-MATRIX.md) · [验证记录](VALIDATION.md)
+[HANDOFF](HANDOFF.md) · [反馈落实表（已归档）](../../../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R1.3/attempt-06/FEEDBACK-MATRIX.md`） · [验证记录（已归档）](../../../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/ui-iteration/R1.3/attempt-06/VALIDATION.md`）

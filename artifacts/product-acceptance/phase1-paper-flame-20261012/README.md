@@ -5,7 +5,7 @@
 - 原分支 / commit：main / a47d73b06a993d353b4177e282b69ddd28ffdb36。
 - 实施分支：codex/phase1-paper-flame。
 - 代码提交：419125121faf40893d0133b60e5fd93b8d1c1434。
-- [实际源码及文档 diff](code.diff)。运行 `git diff a47d73b..4191251 -- web docs/implementation/phase1-paper-flame` 可复查；交付截图与报告在后续 evidence commit。
+- [实际源码及文档 diff（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/code.diff`）。运行 `git diff a47d73b..4191251 -- web docs/implementation/phase1-paper-flame` 可复查；交付截图与报告在后续 evidence commit。
 - [实施前逐文件审查](../../../docs/implementation/phase1-paper-flame/AUDIT.md)；[Mercury 兼容与 EXP-02 决策](../../../docs/implementation/phase1-paper-flame/MERCURY.md)。
 
 ## 改动与 Token 迁入
@@ -31,38 +31,38 @@
 
 | 页面 / 状态                            | 修改前                                  | 修改后                                |
 | -------------------------------------- | --------------------------------------- | ------------------------------------- |
-| AI / Conversation · 1680×1000          | [before](before-ai-1680.png)            | [after](after-ai-1680.png)            |
-| 新对话 · 1680×1000                     | [before](before-new_ai-1680.png)        | [after](after-new_ai-1680.png)        |
-| AI + Artifact Inspector · 1680×1000    | [before](before-artifact-1680.png)      | [after](after-artifact-1680.png)      |
-| AI + Run Inspector · 1680×1000         | [before](before-run-1680.png)           | [after](after-run-1680.png)           |
-| Workspace · 1680×1000                  | [before](before-workspace-1680.png)     | [after](after-workspace-1680.png)     |
-| Workspace + File Inspector · 1680×1000 | [before](before-file-1680.png)          | [after](after-file-1680.png)          |
-| Tasks · 1680×1000                      | [before](before-tasks-1680.png)         | [after](after-tasks-1680.png)         |
-| Task Inspector · 1680×1000             | [before](before-task-1680.png)          | [after](after-task-1680.png)          |
-| 登录 · 1680×1000                       | [before](before-auth-1680.png)          | [after](after-auth-1680.png)          |
-| AI · 390×844                           | [before](before-ai-390.png)             | [after](after-ai-390.png)             |
-| Artifact 模态 · 390×844                | [before](before-artifact-390.png)       | [after](after-artifact-390.png)       |
-| 文件模态 · 390×844                     | [before](before-file-390.png)           | [after](after-file-390.png)           |
-| 任务模态 · 390×844                     | [before](before-task-390.png)           | [after](after-task-390.png)           |
-| 注册验证错误 · 390×844                 | [before](before-register-error-390.png) | [after](after-register-error-390.png) |
-| 资料弹窗                               | [before](before-resources-modal.png)    | [after](after-resources-modal.png)    |
-| Composer 键盘焦点 / 草稿               | [before](before-focus-draft.png)        | [after](after-focus-draft.png)        |
+| AI / Conversation · 1680×1000          | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-ai-1680.png`）            | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-ai-1680.png`）            |
+| 新对话 · 1680×1000                     | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-new_ai-1680.png`）        | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-new_ai-1680.png`）        |
+| AI + Artifact Inspector · 1680×1000    | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-artifact-1680.png`）      | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-artifact-1680.png`）      |
+| AI + Run Inspector · 1680×1000         | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-run-1680.png`）           | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-run-1680.png`）           |
+| Workspace · 1680×1000                  | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-workspace-1680.png`）     | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-workspace-1680.png`）     |
+| Workspace + File Inspector · 1680×1000 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-file-1680.png`）          | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-file-1680.png`）          |
+| Tasks · 1680×1000                      | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-tasks-1680.png`）         | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-tasks-1680.png`）         |
+| Task Inspector · 1680×1000             | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-task-1680.png`）          | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-task-1680.png`）          |
+| 登录 · 1680×1000                       | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-auth-1680.png`）          | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-auth-1680.png`）          |
+| AI · 390×844                           | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-ai-390.png`）             | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-ai-390.png`）             |
+| Artifact 模态 · 390×844                | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-artifact-390.png`）       | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-artifact-390.png`）       |
+| 文件模态 · 390×844                     | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-file-390.png`）           | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-file-390.png`）           |
+| 任务模态 · 390×844                     | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-task-390.png`）           | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-task-390.png`）           |
+| 注册验证错误 · 390×844                 | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-register-error-390.png`） | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-register-error-390.png`） |
+| 资料弹窗                               | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-resources-modal.png`）    | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-resources-modal.png`）    |
+| Composer 键盘焦点 / 草稿               | [before（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-focus-draft.png`）        | [after（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-focus-draft.png`）        |
 
-所有上表页面另有 1280/780/390 的截图，命名 `before/after-{scene}-{width}.png`。[Rail 焦点补充](after-focus-rail.png)。
+所有上表页面另有 1280/780/390 的截图，命名 `before/after-{scene}-{width}.png`。[Rail 焦点补充（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-focus-rail.png`）。
 
 人工读图覆盖桌面四区、三大页面、登录/注册错误、手机输入区、四类 Inspector；初版采样混入过渡或空 iframe，修正同步后重采，当前只保留稳定最终画面。历史对话冷恢复不显示已终态的实时 Run strip 是现有行为；通过真实 Run Inspector 核对记录，未改其业务含义。
 
 ## 验证结果与边界
 
 - **typecheck：通过**，`tsc --noEmit`；`tsc -b` 初次生产构建也通过。
-- **lint / format：通过**，对实际修改的 TS/TSX、脚本、配置和 UI7 用例执行 ESLint；对所有组件 CSS 与上述文件执行 Prettier。没有执行全仓 `npm run lint` 或完整 CI。[静态检查日志](static-checks.log)。
+- **lint / format：通过**，对实际修改的 TS/TSX、脚本、配置和 UI7 用例执行 ESLint；对所有组件 CSS 与上述文件执行 Prettier。没有执行全仓 `npm run lint` 或完整 CI。[静态检查日志（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/static-checks.log`）。
 - **单测：15 文件 / 104 项通过**，App/恢复、HpThread、Conversation Header/Sidebar、RunStatus、Surface/Inspector flow、Task Integration/SelfReview、Workspace SelfReview、Artifact Preview/Inspector/MessageItems、LoginForm。命令使用 `node node_modules/vitest/vitest.mjs run` 加以上对应测试文件；没有运行完整单测集。
-- **生产 UI：6 项通过**，[日志](e2e-final.log)：真实粒子像素与清理、reduced-motion、切换动效偏好；Artifact iframe/草稿/查询次数跨 13 个尺寸和边界、扩大阅读、200% 字号；手机嵌套保存 Escape/焦点；四类 Inspector 的键盘 Tabs、URL replace、几何。
-- **开发 harness：2 项通过**，[日志](e2e-harness-final.log)：native modal 的键盘候选与背景禁用；desktop nonmodal 的背景导航与 Escape 返回。harness 是源文件，不在生产 dist；误在 preview 执行曾失败，之后改在 Vite 5293 单独复验，不据此声称生产支持 harness。
-- **真实 UI 截图脚本：通过**，[日志](visual-final.log)：39 对 + 1 焦点图，真实 API 数据、四种宽度、页面导航、草稿保留、注册验证、文件读取与 HTML iframe 内容；没有页面运行错误。
-- **渲染色 / 对比：通过已采样范围**，1409 个可见文本组合（包含跨视口重复项），0 个低于对应 4.5/3:1 的组合，0 个遗留高饱和蓝文字；[最终实测](after-geometry.json)、[基线](before-geometry.json)、[比较](comparison.json)、[Skill 色板计算](palette.log)。扫描按实际 computed style 合成透明背景，排除 disabled 文本、屏外文本、用户 iframe；并非全站 WCAG 认证。人工确认控件与焦点，常规搜索/Composer 边界约 3.59:1。
+- **生产 UI：6 项通过**，[日志（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/e2e-final.log`）：真实粒子像素与清理、reduced-motion、切换动效偏好；Artifact iframe/草稿/查询次数跨 13 个尺寸和边界、扩大阅读、200% 字号；手机嵌套保存 Escape/焦点；四类 Inspector 的键盘 Tabs、URL replace、几何。
+- **开发 harness：2 项通过**，[日志（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/e2e-harness-final.log`）：native modal 的键盘候选与背景禁用；desktop nonmodal 的背景导航与 Escape 返回。harness 是源文件，不在生产 dist；误在 preview 执行曾失败，之后改在 Vite 5293 单独复验，不据此声称生产支持 harness。
+- **真实 UI 截图脚本：通过**，[日志（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/visual-final.log`）：39 对 + 1 焦点图，真实 API 数据、四种宽度、页面导航、草稿保留、注册验证、文件读取与 HTML iframe 内容；没有页面运行错误。
+- **渲染色 / 对比：通过已采样范围**，1409 个可见文本组合（包含跨视口重复项），0 个低于对应 4.5/3:1 的组合，0 个遗留高饱和蓝文字；[最终实测（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/after-geometry.json`）、[基线（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/before-geometry.json`）、[比较（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/comparison.json`）、[Skill 色板计算（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/palette.log`）。扫描按实际 computed style 合成透明背景，排除 disabled 文本、屏外文本、用户 iframe；并非全站 WCAG 认证。人工确认控件与焦点，常规搜索/Composer 边界约 3.59:1。
 - **布局：通过已测范围**，39 对截图中 Rail/Context/Main/Inspector/Composer 的 x/y/width/height 对比无变化，页面无横向溢出；尺寸为 1680×1000、1280×1000、780×1000、390×844。
-- **build：通过**，[日志](build.log)；已有 >500kB bundle 警告保留，未在本轮进行代码拆包。
+- **build：通过**，[日志（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/phase1-paper-flame-20261012/build.log`）；已有 >500kB bundle 警告保留，未在本轮进行代码拆包。
 - **基线测试问题：已修正同步**，[分析](baseline-draft-failure.md)：原基线和初版都在仍 inert 的登录过渡中填写草稿；仅给既有用例增加等待，原基线与最终版本都通过。没有为通过测试改产品动画或草稿逻辑。
 
 环境：Linux Node 22.23.3（复用已安装 Docker runtime）、现有锁定依赖；Windows Node 24.14.0 调用 Playwright / 本机 Chrome 155.0.8059.39。WSL 缺少浏览器运行时且安装源不可达，改用本机 headless Chrome；不将结果扩展为 Firefox/Safari/真实移动设备验证。

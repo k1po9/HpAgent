@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../../README.md)进入。
+
 # HpAgent UI Capability Map — P0 系统能力审计
 
 审计日期：2026-10-10（Asia/Shanghai）。代码基线：当前检出 `main`，HEAD `a47d73b06a993d353b4177e282b69ddd28ffdb36`；开始时工作区干净。当前本地 `origin/main` 指向同一提交，另有 `codex/workspace-v41-final-acceptance` 分支；本次没有切分支、拉取远端或以默认分支名称推断新旧。所有结论限定于该工作副本。

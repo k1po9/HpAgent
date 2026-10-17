@@ -37,7 +37,7 @@ API 和 Worker 启动时只读核对迁移清单及校验和。Schema 缺失或�
 ./scripts/operations/logs.sh --api
 ./scripts/operations/logs.sh --worker
 python scripts/check/mcp-health.py --help
-./scripts/check/gateway-smoke.sh
+./scripts/check/gateway-smoke.sh --help
 ```
 
 `scripts/operations/observability-viewer.py` 可在本机只读查看结构化 JSONL 日志与 PostgreSQL 执行状态；它是排障辅助工具，不是运行时服务。
@@ -54,14 +54,9 @@ python scripts/check/mcp-health.py --help
 docker compose --profile web down --volumes
 ```
 
-## 备份
+## 备份与恢复
 
-```bash
-./scripts/operations/backup.sh
-BACKUP_DIR=/secure/location ./scripts/operations/backup.sh
-```
-
-执行恢复或破坏性重置前，请先阅读[备份与恢复](backup-restore.md)。
+操作步骤与一致性范围统一维护在[备份与恢复](backup-restore.md)。脚本要求显式仓库外输出；本手册不重复维护备份/恢复命令。
 
 ## Work 操作与执行排查
 

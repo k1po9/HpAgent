@@ -5,9 +5,17 @@
 # only, never production) and streams the contract's online SSE events so the
 # browser can observe the live pipeline. Credentials are provisioned at startup
 # as argon2id hashes for the E2E accounts. Migrations are checksummed and
-# idempotent, so a pre-existing schema is left untouched.
+# idempotent; setup still writes accounts and must use a disposable database.
 set -euo pipefail
 
+if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
+  echo "内部Playwright辅助：E2E_ISOLATED=1；必须显式指定三个同库DSN、独立REDIS_URL和FILE_STORE_ROOT。会迁移、注册alice/bob并启动Fake API；不得用于业务环境。"; exit 0
+fi
+[[ $# == 0 ]] || { echo "未知参数" >&2; exit 2; }
+[[ "${E2E_ISOLATED:-}" == 1 ]] || { echo "必须显式设置 E2E_ISOLATED=1 并核实隔离资源" >&2; exit 2; }
+for name in APP_DATABASE_URL WORKER_DATABASE_URL MIGRATION_DATABASE_URL REDIS_URL FILE_STORE_ROOT; do
+  [[ -n "${!name:-}" ]] || { echo "必须显式设置 $name" >&2; exit 2; }
+done
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PY="${REPO_ROOT}/.venv/bin/python"
 # Local dev uses the repo venv; CI installs into the system interpreter.
@@ -16,14 +24,15 @@ if [ ! -x "${PY}" ]; then
 fi
 
 export HPAGENT_ENV=test
-export APP_DATABASE_URL="${APP_DATABASE_URL:-postgresql://hpagent_api:hpagent_api@localhost:5434/hpagent}"
-export WORKER_DATABASE_URL="${WORKER_DATABASE_URL:-postgresql://hpagent_worker:hpagent_worker@localhost:5434/hpagent}"
-export MIGRATION_DATABASE_URL="${MIGRATION_DATABASE_URL:-postgresql://hpagent_migrate:hpagent_migrate@localhost:5434/hpagent}"
-export REDIS_URL="${REDIS_URL:-redis://localhost:6379}"
+export WEB_API_PORT="${WEB_API_PORT:-8180}"
+export APP_DATABASE_URL
+export WORKER_DATABASE_URL
+export MIGRATION_DATABASE_URL
+export REDIS_URL
 
 # The browser origin the API accepts for CSRF (vite dev server). Cookies are
 # non-secure because E2E runs over plain http://localhost.
-export WEB_PUBLIC_ORIGIN="${WEB_PUBLIC_ORIGIN:-http://localhost:${WEB_DEV_PORT:-5173}}"
+export WEB_PUBLIC_ORIGIN="${WEB_PUBLIC_ORIGIN:-http://localhost:${WEB_DEV_PORT:-5273}}"
 export WEB_COOKIE_SECURE=false
 export WEB_CURSOR_SECRET="e2e-cursor-secret-0123456789abcdef-32bytes"
 export WEB_SESSION_TOKEN_PEPPER="e2e-session-pepper-0123456789abcdef-32bytes"
@@ -34,7 +43,7 @@ export QQ_BINDING_CODE_PEPPER="e2e-qq-binding-code-pepper-0123456789abcdef"
 # conversation-busy guard, fast enough to not drag the suite.
 export WEB_FAKE_EXECUTOR_ENABLED=true
 export WEB_FILE_UPLOAD_ENABLED=true
-export FILE_STORE_ROOT="${FILE_STORE_ROOT:-/tmp/hpagent-e2e-file-store}"
+export FILE_STORE_ROOT
 export WEB_FAKE_EXECUTOR_DELAY_SECONDS="${WEB_FAKE_EXECUTOR_DELAY_SECONDS:-4}"
 export WEB_FAKE_EXECUTOR_MODE=success
 export WEB_FAKE_EXECUTOR_CONTENT="$(cat <<'EOF'

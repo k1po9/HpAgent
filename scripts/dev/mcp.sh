@@ -98,5 +98,6 @@ case "${1:-start}" in
     --stop|-s)    stop ;;
     --status|-st) status ;;
     start|--start) start ;;
-    *) echo "用法: $0 [start|--stop|--status]" ;;
+    --help|-h) echo "用法: $0 [start|--stop|--status]；启动/停止本地MCP服务并写.data/mcp.pids" ;;
+    *) echo "未知参数；用法: $0 [start|--stop|--status]" >&2; exit 2 ;;
 esac

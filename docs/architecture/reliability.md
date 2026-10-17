@@ -24,4 +24,4 @@ Provider 请求格式在快照和预算预留前校验。`model_request_invalid 
 
 2026-10-03 的 Research SIGKILL 回归使用 5 秒自然到期 stage lease 验证接管和成果去重；生产默认 stage lease 3600 秒与 publish/save Activity 的 120 秒 schedule-to-close 不匹配，尚未证明默认配置下快速恢复。2026-10-04 的修复未修改此策略。
 
-受控恢复、浏览器和真实供应商验证分别记录，见[实施索引](../implementation/README.md)。当前 MiniMax-M3 工具往返复验在连接阶段超时，不能用测试执行器的成功替代真实 Provider 验收。
+受控恢复、浏览器和真实供应商验证分别记录，见[实施索引](../implementation/README.md)。历史批次中的供应商超时或受控协议通过都不能证明当前真实业务链可用；发布时须按实际Worker网络、Provider和配置独立复验。

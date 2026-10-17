@@ -29,7 +29,7 @@ RUNTIME_ENV = ROOT / ".data" / "benchmarks" / "agent_strategy.env.json"
 BENCHMARK_DIR = ROOT / "scripts" / "benchmarks" / "agent_strategy"
 RUNNER = BENCHMARK_DIR / "agent_strategy_benchmark.py"
 SUMMARIZER = BENCHMARK_DIR / "summarize_agent_strategy_benchmark.py"
-ARTIFACTS = ROOT / "artifacts" / "benchmarks" / "agent_strategy"
+ARTIFACTS = Path(os.environ.get("BENCHMARK_OUTPUT_DIR", str(ROOT / "artifacts" / "benchmark-runs" / "agent_strategy")))
 PILOTS = ARTIFACTS / "pilots"
 REQUIRED_SERVICES = {
     "app-postgres",

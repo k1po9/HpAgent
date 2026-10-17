@@ -1,6 +1,6 @@
 # 现有 Web 产品覆盖审计与浏览器验收
 
-当前四项人工问题的修复与复验见[人工 E2E 实施验收](manual-e2e-repair-results.md)，对应 `0fcf505`：目录、长期文件发现、工具协议和八页面已实施，受控浏览器 21 项、前端 100 项与核心后端 91 项通过；真实 Provider 完整往返仍受连接超时阻碍。原因见[调查](manual-e2e-investigation.md)，连接证据见[脱敏记录](manual-e2e-provider-roundtrip.json)。
+当前四项人工问题的修复与复验见[人工 E2E 实施验收](manual-e2e-repair-results.md)，对应 `0fcf505`：目录、长期文件发现、工具协议和八页面已实施，受控浏览器 21 项、前端 100 项与核心后端 91 项通过；真实 Provider 完整往返仍受连接超时阻碍。原因见[调查](manual-e2e-investigation.md)，连接证据见[脱敏记录（已归档）](../../../docs/development/repository-archive-index.md)（原路径 `artifacts/product-acceptance/2026-10-04/manual-e2e-provider-roundtrip.json`）。
 
 当前使用方式见[功能指南](../../../docs/operations/web-workbench.md)，架构与全部阶段证据见[实施索引](../../../docs/implementation/README.md)。下文及原覆盖/失败报告保留各次审计的历史基线；“没有独立表单”或旧用例计数不表示当前界面状态。
 

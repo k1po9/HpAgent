@@ -4,7 +4,7 @@
  * The backend script (scripts/e2e-backend.sh) provisions the same account
  * credentials and Fake Run Executor content these helpers rely on.
  */
-import { expect, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 export const E2E_PASSWORD = "e2e-password";
 /** First line of the Fake Run Executor's reply content. */
@@ -15,6 +15,7 @@ export const COMPOSER_PLACEHOLDER = "输入消息，Enter 发送";
 
 /** Sign in through the real login form and wait for the workbench. */
 export async function login(page: Page, username = "alice"): Promise<void> {
+  await diagnoseBrowser(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "HpAgent 登录" })).toBeVisible();
   await page.getByLabel("用户名").fill(username);
@@ -68,6 +69,97 @@ export async function expectReply(page: Page, timeout = 15_000): Promise<Locator
 
 /** Wait until the run-status strip reports a live (cancellable) Run. */
 export async function expectRunLive(page: Page): Promise<void> {
-  await expect(page.locator("[data-testid='stop-run']")).toBeVisible();
+  await expect(page.getByRole("button", { name: "停止", exact: true })).toBeVisible();
   await expect(page.locator("[data-testid='run-label']")).toHaveText(/运行中|正在停止/);
+}
+
+const browserDiagnostics = new WeakMap<Page, unknown[]>();
+test.afterEach(async ({ page }, info) => {
+  const events = browserDiagnostics.get(page);
+  if (!events) return;
+  await info.attach("browser-diagnostics", {
+    body: JSON.stringify({ baseURL: info.project.use.baseURL, url: page.url(), events }, null, 2),
+    contentType: "application/json",
+  });
+});
+
+/** Preserve startup failures separately from authentication assertions. */
+async function diagnoseBrowser(page: Page) {
+  if (browserDiagnostics.has(page)) return;
+  const events: unknown[] = [];
+  browserDiagnostics.set(page, events);
+  const log = (kind: string, detail: unknown) => events.push({ time: Date.now(), kind, detail });
+  page.on("requestfailed", (r) =>
+    log("requestfailed", {
+      url: r.url(),
+      method: r.method(),
+      resource: r.resourceType(),
+      error: r.failure(),
+    }),
+  );
+  page.on("pageerror", (e) => log("pageerror", e.message));
+  page.on("console", (m) => {
+    if (m.type() === "error") log("console", m.text());
+  });
+  page.on("crash", () => log("crash", page.url()));
+  if (process.env.E2E_READING_DIAGNOSTICS !== "1") return;
+  await page.addInitScript(() => {
+    const record = (kind: string, detail?: unknown) => {
+      const v = document.querySelector<HTMLElement>(".hp-thread__viewport");
+      const rows = v?.querySelectorAll<HTMLElement>("[data-message-id]");
+      console.debug(
+        "READING " +
+          JSON.stringify({
+            time: performance.now(),
+            kind,
+            detail,
+            top: v?.scrollTop,
+            height: v?.scrollHeight,
+            first: rows?.[0]?.dataset.messageId,
+            last: rows?.[rows.length - 1]?.dataset.messageId,
+            anchor: Array.from(rows ?? [])
+              .filter(
+                (n) => n.getBoundingClientRect().bottom > (v?.getBoundingClientRect().top ?? 0),
+              )
+              .slice(0, 1)
+              .map((n) => [
+                n.dataset.messageId,
+                n.getBoundingClientRect().top - v!.getBoundingClientRect().top,
+              ]),
+            inert: Boolean(v?.closest("[inert]")),
+            bottomButton: Boolean(document.querySelector(".hp-thread-bottom")),
+          }),
+      );
+    };
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop")!;
+    Object.defineProperty(Element.prototype, "scrollTop", {
+      ...descriptor,
+      set(value) {
+        if (this.matches(".hp-thread__viewport"))
+          record("write", { value, stack: new Error().stack });
+        descriptor.set!.call(this, value);
+      },
+    });
+    document.addEventListener("scroll", () => record("scroll"), true);
+    new MutationObserver(() => record("dom")).observe(document, { subtree: true, childList: true });
+    const IO = window.IntersectionObserver;
+    window.IntersectionObserver = class extends IO {
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+        super((entries, observer) => {
+          record(
+            "intersection",
+            entries.map((e) => ({
+              target: (e.target as HTMLElement).className,
+              intersecting: e.isIntersecting,
+              rect: e.boundingClientRect.toJSON(),
+            })),
+          );
+          callback(entries, observer);
+        }, options);
+      }
+    };
+  });
+  page.on("console", (m) => {
+    if (m.text().startsWith("READING ")) log("reading", JSON.parse(m.text().slice(8)));
+  });
 }

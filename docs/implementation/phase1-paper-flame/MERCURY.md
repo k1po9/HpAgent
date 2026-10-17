@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../../README.md)进入。
+
 # Mercury 兼容准备 · 未集成运动控制器
 
 依据：当前分支实读 AppShell、Surface、InspectorHost、ConversationSidebar、ChatPane、HpThread、shell/conversationUi/workbench Store、EntryTransition 与 particles；用户附件 Mercury v1.0 的 SKILL.md、design-and-history、repo-adaptation、implementation-plan。Paper Flame 是色彩权威；业务范围与本轮禁止项以用户请求为准。

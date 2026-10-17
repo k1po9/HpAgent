@@ -16,7 +16,7 @@ test("upgrades an entry in place and keeps its version when renamed", async ({ p
   await page.getByRole("button", { name: "保存到 Workspace" }).click();
   await saveReadyFile(page);
   const panel = await workspace(page);
-  await panel.getByRole("button", { name: `📄 ${name}`, exact: true }).click();
+  await panel.getByRole("button", { name: `${name}`, exact: true }).click();
   const inspector = fileInspector(page);
   await inspector.getByRole("tab", { name: "版本历史" }).click();
   await expect(inspector.getByText(/当前版本：不可变入口/)).toBeVisible();
@@ -33,6 +33,6 @@ test("upgrades an entry in place and keeps its version when renamed", async ({ p
   await mutation.getByLabel("Workspace 名称").fill(renamed);
   await mutation.getByRole("button", { name: "预览改名或移动影响" }).click();
   await mutation.getByRole("button", { name: "确认改名或移动" }).click();
-  await expect(panel.getByRole("button", { name: `📄 ${renamed}`, exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: `${renamed}`, exact: true })).toBeVisible();
   await expect(inspector.getByText(/当前版本：1/)).toBeVisible();
 });

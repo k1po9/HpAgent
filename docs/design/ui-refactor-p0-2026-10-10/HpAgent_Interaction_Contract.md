@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../../README.md)进入。
+
 # HpAgent Interaction Contract — P0 交互契约与重构边界
 
 基线：2026-10-10，当前检出 `main@a47d73b06a993d353b4177e282b69ddd28ffdb36`。本轮只检查源码、契约和测试断言，未运行应用或测试。**F＝源码已核实；I＝合理推断；U＝未确认。** 完整能力与证据目录见 [Capability Map](HpAgent_UI_Capability_Map.md)，实际调用链和路由见 [Integration Map](HpAgent_Frontend_Integration_Map.md)。以下约束描述业务语义，不要求保留旧布局、文字标签或组件。

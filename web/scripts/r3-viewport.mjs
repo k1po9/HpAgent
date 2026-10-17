@@ -1,3 +1,5 @@
+import process from "node:process";
+import "./review-runtime.mjs";
 import { Buffer } from "node:buffer";
 /* global window,document,innerWidth,innerHeight,devicePixelRatio */
 import "./r1-isolation.mjs";
@@ -7,7 +9,7 @@ import { mkdir, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 const out = resolve("artifacts/product-acceptance/ui-iteration/R3/attempt-01");
 const b = await chromium.launch({
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
 });
 const c = await b.newContext({ viewport: { width: 1680, height: 1000 }, reducedMotion: "reduce" });
 const p = await c.newPage();
@@ -79,7 +81,7 @@ await writeFile(
   JSON.stringify({ partition: { default_zoom_level: { x: Math.log(2) / Math.log(1.2) } } }),
 );
 const z = await chromium.launchPersistentContext(profile, {
-  executablePath: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  executablePath: process.env.HPAGENT_BROWSER_EXECUTABLE,
   headless: true,
   viewport: null,
   args: ["--window-size=1680,1000"],

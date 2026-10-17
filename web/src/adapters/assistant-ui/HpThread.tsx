@@ -149,7 +149,12 @@ function HpMessageView({
               ))}
             </div>
           ) : null}
-          {canBuild && <ArtifactMessageItems messageId={message.id} />}
+          {canBuild && (
+            <ArtifactMessageItems
+              messageId={message.id}
+              discoverOnEntry={message.id === [...htmlMessageIds].at(-1)}
+            />
+          )}
         </div>
       </div>
     </MessagePrimitive.Root>
@@ -393,9 +398,15 @@ export function HpThread({
     };
     const observer = new MutationObserver(align);
     observer.observe(el, { childList: true, subtree: true, characterData: true });
+    // Ancestor presentation can release inert after our first frame without
+    // changing message DOM (for example the shell's entrance transition).
+    const presentation = new MutationObserver(align);
+    for (let parent = el.parentElement; parent; parent = parent.parentElement)
+      presentation.observe(parent, { attributes: true, attributeFilter: ["hidden", "inert"] });
     const frame = requestAnimationFrame(align);
     return () => {
       observer.disconnect();
+      presentation.disconnect();
       cancelAnimationFrame(frame);
     };
   }, [

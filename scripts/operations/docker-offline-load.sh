@@ -2,6 +2,10 @@
 # Load an offline image archive and verify that Compose can resolve it without pulls/builds.
 set -euo pipefail
 
+if [[ "${1:-}" == --help || "${1:-}" == -h ]]; then
+  echo "用法：docker-offline-load.sh [ARCHIVE [PROFILE...]]；默认dist/hpagent-offline-images.tar与web-prod。校验并加载镜像到Docker；不启动应用。依赖Docker Compose/sha256sum。"; exit 0
+fi
+[[ "${1:-}" != -* ]] || { echo "未知选项" >&2; exit 2; }
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 

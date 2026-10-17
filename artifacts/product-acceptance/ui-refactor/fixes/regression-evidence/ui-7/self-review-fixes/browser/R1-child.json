@@ -1,9 +1,0 @@
-{
-  "calls": [
-    {
-      "path": "/api/v1/runs/run-A",
-      "method": "GET"
-    }
-  ],
-  "errors": []
-}

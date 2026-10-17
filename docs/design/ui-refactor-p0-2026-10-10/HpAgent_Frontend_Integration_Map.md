@@ -1,3 +1,5 @@
+> 历史设计/交接记录：保留当时基线和验证边界；当前实现与操作从[文档导航](../../README.md)进入。
+
 # HpAgent Frontend Integration Map — P0 前后端映射
 
 基线：当前检出 `main@a47d73b06a993d353b4177e282b69ddd28ffdb36`，2026-10-10。**F＝已逐段检查的源码调用关系；I＝设计/适配推断；U＝未运行确认。** 不把组件名、旧布局或注释当作后端能力；例如adapter注释提到cancelled重试，实际 `CommandService.retry_run`拒绝cancelled。未修改代码、未执行应用或测试。能力及边界见 [Capability Map](HpAgent_UI_Capability_Map.md) 与 [Interaction Contract](HpAgent_Interaction_Contract.md)。
