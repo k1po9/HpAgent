@@ -1,4 +1,6 @@
-# 部署
+# 首次部署
+
+首次上线使用独立空库；先在[配置确认表](first-release-configuration.md)逐项确定域名、凭据、模型、功能与存储，再准备生产环境。
 
 ## Compose 拓扑
 
@@ -24,7 +26,7 @@ Profile：
 ## 启动
 
 ```bash
-cp .env.example .env
+cp -n .env.example .env
 docker compose --profile web-prod up -d --build
 docker compose --profile web-prod ps
 curl --fail http://127.0.0.1:8080/health/ready
@@ -37,17 +39,15 @@ curl --fail http://127.0.0.1:${WEB_GATEWAY_PORT:-80}/
 
 Compose 把 `scripts/operations/start-hindsight.sh` 挂载为 Hindsight 启动入口，并配置专用的 `hindsight-postgres` 与 `HINDSIGHT_API_DATABASE_URL`；当前部署不使用 embedded pg0。
 
-## 旧架构数据库切换
+## 空库初始化
 
-054 / 055 / 057 的开发阶段迁移分别检查旧 Run / Task、Run、Work / Artifact 存储的空条件；058 加入有限子 Execution。没有历史 Task / Work 双写、backfill 或运行时兼容开关。`hpagent-migrate` 自动执行 schema 历史，不等于允许对任意旧业务库原位升级。迁移 checksum 不得修改来绕过检查。
+本项目首次上线，不保留旧开发/测试业务数据，不执行旧库转换或历史数据回填。生产使用独立的空数据库/卷，不能把当前日常或测试卷当作生产输入。
 
-切换前核对代码版本、完整迁移清单、数据库内容与仍在运行的 Temporal Workflow。保留应用 PostgreSQL、File Store、Temporal 和配置的匹配备份，停止旧 ingress / producer，明确旧 Workflow 的处置。需要保留历史业务数据时先另行设计数据转换；当前迁移未提供该路径。可丢弃开发环境可以建立新空数据库/卷，运行完整迁移链并显式切换 DSN；不把清空现有数据库作为启动步骤。
+`persistence/docker-init/` 创建运行角色，`hpagent-migrate` 执行 `persistence/migrations/` 的完整 SQL 链，创建当前表、索引和权限。文件名虽然叫 Migration，也是从零建库的必要输入；API/Worker 启动时还会校验 manifest/checksum，因此保留初始化器和全部 SQL。
 
-新环境先验证 schema、API ready、主 Worker healthy、Document poller，然后用账户只读查询与一条受控流程验证。已完成一次本地切换不等于所有部署环境已升级。各阶段的部署与恢复限制见[实施索引](../implementation/README.md)。
+先确认初始化服务成功退出，再检查 API ready、主 Worker healthy 和 Document poller；之后创建首个账户并执行真实模型流程。无需导入旧业务备份；投产后的数据保护见[备份恢复](backup-restore.md)。
 
 ## 发布与健康验证
-
-UI-8 新增 059 权限迁移，撤销 API 对 `artifact_versions` 的 UPDATE，保留 Worker 发布权限。已有 058 环境需要先成功运行 `hpagent-migrate`；仅重载要求 059 的 API / Worker 会在 schema 校验阶段失败。001～058 的文件与 checksum 保持不变，验证与未部署边界见[UI 重构交接](../implementation/ui-refactor.md)。
 
 宿主机源码挂载变化需要对应 API / Worker 重载；镜像或 environment 变化使用 Compose recreate / build，`restart` 不读取新的容器环境。
 

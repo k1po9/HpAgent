@@ -17,7 +17,8 @@
 
 ## 运维
 
-- [部署与升级](operations/deployment.md)：拓扑、迁移门禁、版本与生产检查。
+- [首次上线配置确认表](operations/first-release-configuration.md)：按编号逐项确定域名、凭据、模型、功能、存储与容量。
+- [首次部署](operations/deployment.md)：空库初始化、服务拓扑与生产检查。
 - [运行手册](operations/runbook.md)：日常健康、启动/重载、人工操作入口。
 - [日志](operations/logging.md) → [故障排查](operations/troubleshooting.md)。
 - [备份与恢复](operations/backup-restore.md)：备份范围、一致性、隔离恢复和外部快照限制。

@@ -28,4 +28,4 @@ BACKUP_DIR=/secure/location ./scripts/operations/backup.sh
 
 不要在没有 Reconciliation 方案时，混用不同时间点的 Application PostgreSQL、File Store 或 Temporal Snapshot。
 
-旧架构数据库恢复后不应直接执行 054–058 并假设完成历史业务转换；开发期迁移的空数据门禁、版本匹配与切换方式见[部署](deployment.md)。通知或外部效果处于 uncertain 时保留原回执与预算事实，恢复完成先 reconciliation，不盲目重发。
+首次上线使用空库，不导入旧开发/测试数据；本页恢复步骤用于投产后创建的匹配备份。通知或外部效果处于 uncertain 时保留原回执与预算事实，恢复完成先 reconciliation，不盲目重发。

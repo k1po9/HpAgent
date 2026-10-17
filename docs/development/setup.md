@@ -26,7 +26,7 @@ curl --fail http://127.0.0.1:8080/health/ready
 docker compose exec -T hpagent python -m orchestration.worker_health
 ```
 
-Web Profile 包含应用 PostgreSQL、Temporal PostgreSQL、Redis、Hindsight、SearXNG、Gotenberg、Migration Job、API、主 Worker、Document Worker 和 Vite 前端。Migration 是 API 与 Worker 的启动依赖。旧架构有业务行的数据库受 054 / 055 / 057 空存储门禁限制，不能直接视为普通升级；切换方式见[部署](../operations/deployment.md)。显式执行：
+Web Profile 包含应用 PostgreSQL、Temporal PostgreSQL、Redis、Hindsight、SearXNG、Gotenberg、Migration Job、API、主 Worker、Document Worker 和 Vite 前端。Migration 是 API 与 Worker 的启动依赖。首次上线使用独立空库，保留完整 SQL 初始化链，见[首次部署](../operations/deployment.md)。显式执行：
 
 ```bash
 docker compose --profile web up hpagent-migrate

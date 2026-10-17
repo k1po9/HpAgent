@@ -26,11 +26,13 @@ HpAgent 是支持 Web 与 QQ 入口的 AI 助手平台。Main 负责对话，Wor
 
 4. 打开 <http://localhost:5173>，选择注册并创建 Web 用户名/密码（密码8–128字符），成功后自动登录；首次QQ绑定引导可选择稍后处理。当前自助注册默认获得 standard 档、每日50,000 token额度和不展示Prompt；邀请码可提供管理员预置权益。管理员身份绑定工具不创建登录密码，不能替代注册。使用模型前还须核实所选档位与模型配置匹配。
 
-Compose 自动先运行迁移。**已有旧架构业务数据时，先阅读[部署与升级限制](docs/operations/deployment.md)**：054/055/057 有空业务存储门禁，自动迁移不提供历史数据转换。API ready、Worker healthy 与真实模型链验收分别成立。
+Compose 自动先完成空库 schema 初始化。首次上线不迁移旧开发/测试数据；建库 SQL 和初始化服务继续保留，见[首次部署](docs/operations/deployment.md)。API ready、Worker healthy 与真实模型链验收分别执行。
 
 ## 生产部署
 
-使用 `web-prod` 网关组合，按[部署文档](docs/operations/deployment.md)设置生产 Secret、TLS、公共 Origin 和安全 Cookie，并取得匹配的应用PG、File Store与Temporal备份。当前 Compose 的部分应用服务仍挂载宿主源码，发布版本必须包含对应checkout，不能只记录镜像tag。
+首先填写[首次上线配置确认表](docs/operations/first-release-configuration.md)，按编号确定域名、Secret、模型、渠道、存储与容量。`.env.example` 集中列出 Compose 可设置的环境变量。
+
+使用 `web-prod` 网关组合，步骤见[首次部署](docs/operations/deployment.md)。当前 Compose 的部分应用服务仍挂载宿主源码；生产环境的镜像、挂载和TLS方案列入配置确认表，待确定后落地。
 
 UI 的 R1–R6 接受不等于生产上线验证；真实模型、Worker、外发、恢复和真机范围须单独验收。[发布检查](scripts/README.md)会明确列出构建、启动和真实请求副作用。
 
