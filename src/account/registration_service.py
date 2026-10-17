@@ -17,7 +17,7 @@ logger = logging.getLogger("HpAgent.Account")
 
 DEFAULT_SELF_SERVICE_ENTITLEMENT = EntitlementProfile(
     model_access_tier="standard",
-    daily_token_limit=50_000,
+    daily_token_limit=5_000,
     prompt_visibility="none",
 )
 

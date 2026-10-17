@@ -231,3 +231,23 @@ async def test_small_text_keeps_bounded_direct_read(tmp_path: Path) -> None:
     result = json.loads(await tools["read_file"].ainvoke({"file": "small.txt"}))
     assert result["route"] == "bounded_direct_read"
     assert "small text" in result["text"]
+
+
+async def test_direct_read_limit_is_enforced_before_adapter_work(tmp_path, monkeypatch):
+    import pytest
+
+    scope = _scope(tmp_path)
+    (scope.inputs_root / "note.txt").write_text("hello")
+    scope.inputs = (RunFileInput(uuid4(), "note.txt", 5, "utf-8", "text/plain"),)
+    resource_size = 5
+    monkeypatch.setenv("FILE_DIRECT_READ_MAX_BYTES", str(resource_size - 1))
+    tools = {tool.name: tool for tool in create_file_read_tools(lambda: scope)}
+    with pytest.raises(ValueError, match="FILE_DIRECT_READ_MAX_BYTES"):
+        await tools["read_file"].ainvoke({"file": "note.txt"})
+
+    # Exactly at the limit is permitted, and typed bounded reads remain usable.
+    monkeypatch.setenv("FILE_DIRECT_READ_MAX_BYTES", str(resource_size))
+    tools = {tool.name: tool for tool in create_file_read_tools(lambda: scope)}
+    result = json.loads(await tools["read_file"].ainvoke({"file": "note.txt"}))
+    assert result["route"] == "bounded_direct_read"
+    assert "hello" in result["text"]

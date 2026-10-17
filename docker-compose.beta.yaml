@@ -1,0 +1,96 @@
+# Beta only: resource budgets are intentionally required, not guessed.
+# See docs/operations/first-release-configuration.md.
+services:
+  app-postgres:
+    cpus: ${BETA_APP_POSTGRES_CPUS:?请填写app-postgres CPU预算}
+    mem_limit: ${BETA_APP_POSTGRES_MEMORY:?请填写app-postgres内存预算}
+  redis:
+    cpus: ${BETA_REDIS_CPUS:?请填写redis CPU预算}
+    mem_limit: ${BETA_REDIS_MEMORY:?请填写redis内存预算}
+  searxng:
+    cpus: ${BETA_SEARXNG_CPUS:?请填写searxng CPU预算}
+    mem_limit: ${BETA_SEARXNG_MEMORY:?请填写searxng内存预算}
+    environment:
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+  gotenberg:
+    cpus: ${BETA_GOTENBERG_CPUS:?请填写gotenberg CPU预算}
+    mem_limit: ${BETA_GOTENBERG_MEMORY:?请填写gotenberg内存预算}
+  temporal-postgres:
+    cpus: ${BETA_TEMPORAL_POSTGRES_CPUS:?请填写temporal-postgres CPU预算}
+    mem_limit: ${BETA_TEMPORAL_POSTGRES_MEMORY:?请填写temporal-postgres内存预算}
+  temporal:
+    cpus: ${BETA_TEMPORAL_CPUS:?请填写temporal CPU预算}
+    mem_limit: ${BETA_TEMPORAL_MEMORY:?请填写temporal内存预算}
+  hindsight-postgres:
+    cpus: ${BETA_HINDSIGHT_POSTGRES_CPUS:?请填写hindsight-postgres CPU预算}
+    mem_limit: ${BETA_HINDSIGHT_POSTGRES_MEMORY:?请填写hindsight-postgres内存预算}
+    deploy:
+      resources:
+        limits:
+          cpus: ${BETA_HINDSIGHT_POSTGRES_CPUS:?请填写CPU预算}
+          memory: ${BETA_HINDSIGHT_POSTGRES_MEMORY:?请填写hindsight-postgres内存预算}
+  hindsight:
+    cpus: ${BETA_HINDSIGHT_CPUS:?请填写hindsight CPU预算}
+    mem_limit: ${BETA_HINDSIGHT_MEMORY:?请填写hindsight内存预算}
+    deploy:
+      resources:
+        limits:
+          cpus: ${BETA_HINDSIGHT_CPUS:?请填写CPU预算}
+          memory: ${BETA_HINDSIGHT_MEMORY:?请填写hindsight内存预算}
+    environment:
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+  hpagent-migrate:
+    cpus: ${BETA_HPAGENT_MIGRATE_CPUS:?请填写hpagent-migrate CPU预算}
+    mem_limit: ${BETA_HPAGENT_MIGRATE_MEMORY:?请填写hpagent-migrate内存预算}
+  hpagent:
+    cpus: ${BETA_HPAGENT_CPUS:?请填写hpagent CPU预算}
+    mem_limit: ${BETA_HPAGENT_MEMORY:?请填写hpagent内存预算}
+    environment:
+      HPAGENT_ENV: production
+      WEB_FILE_SHELL_ENABLED: "false"
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+  hpagent-api:
+    cpus: ${BETA_HPAGENT_API_CPUS:?请填写hpagent-api CPU预算}
+    mem_limit: ${BETA_HPAGENT_API_MEMORY:?请填写hpagent-api内存预算}
+    environment:
+      HPAGENT_ENV: production
+      WEB_PUBLIC_ORIGIN: https://hpagent.cloud
+      WEB_COOKIE_SECURE: "true"
+      WEB_FILE_SHELL_ENABLED: "false"
+  hpagent-document-worker:
+    cpus: ${BETA_HPAGENT_DOCUMENT_WORKER_CPUS:?请填写hpagent-document-worker CPU预算}
+    mem_limit: ${BETA_HPAGENT_DOCUMENT_WORKER_MEMORY:?请填写hpagent-document-worker内存预算}
+    deploy:
+      resources:
+        limits:
+          cpus: ${BETA_HPAGENT_DOCUMENT_WORKER_CPUS:?请填写CPU预算}
+          memory: ${BETA_HPAGENT_DOCUMENT_WORKER_MEMORY:?请填写hpagent-document-worker内存预算}
+    environment:
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
+  web-gateway:
+    cpus: ${BETA_WEB_GATEWAY_CPUS:?请填写web-gateway CPU预算}
+    mem_limit: ${BETA_WEB_GATEWAY_MEMORY:?请填写web-gateway内存预算}
+  napcat:
+    cpus: ${BETA_NAPCAT_CPUS:?请填写napcat CPU预算}
+    mem_limit: ${BETA_NAPCAT_MEMORY:?请填写napcat内存预算}
+    image: ${NAPCAT_IMAGE:?请填写已核实的NapCat版本或digest}

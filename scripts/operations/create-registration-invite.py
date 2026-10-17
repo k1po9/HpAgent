@@ -25,10 +25,10 @@ def _timestamp(value: str | None) -> datetime | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create an optional registration invite with an Account entitlement profile")
-    parser.add_argument("--profile", required=True, help="Model access tier")
+    parser.add_argument("--profile", required=True, choices=("standard",), help="Ordinary Beta invite model tier (A/B/C use standard)")
     parser.add_argument("--daily-token-limit", type=int)
     parser.add_argument(
-        "--prompt-visibility", choices=("none", "summary", "full_safe"), default="summary"
+        "--prompt-visibility", choices=("none", "summary", "full_safe"), default="none"
     )
     parser.add_argument("--entitlement-expires-at", type=_timestamp)
     parser.add_argument("--max-redemptions", type=int, default=1)

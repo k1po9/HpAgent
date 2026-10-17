@@ -1,133 +1,116 @@
-# 首次上线配置确认表
+# 首次五人 Beta 配置入口
 
-状态基线：2026-10-17。首次上线使用空库，不进行旧业务数据转换。此表是本轮唯一的配置决策入口；按编号逐项填写“确认结果”。建议值在确认前不改变当前运行环境。
+2026-10-18。依据用户填写表、当日对照检视及本轮明确决定实施；本文替代旧的待确认表。状态为**代码/模板已调整，未部署、未完成运行验收**。允许公开注册，面向约五人使用及面试展示，本轮不增加注册或 API 限速。
 
-实际运行配置仍由 `.env`、Compose、`config/config.yaml`、`config/models.yaml` 及 MCP/搜索配置加载。本表不新增配置加载器，也不复制真实密钥；确认结果应在后续环境落地时写回对应来源。
+## 启用范围与发布
 
-## 逐项确认
+Web、NapCat、Research、长期记忆、上传和受控 Office→PDF 转换开启。图像链为空，没有发现现有图像生成工具或 Web 操作入口；不为此更改文件上传类型支持。DeepSeek 无启用 provider/模型引用，仅保留兼容变量入口；生产 Web Host Shell 关闭。
 
-可直接回复：`E01=...，N01=...，M01=...`；涉及密钥仅确认“已生成/由哪个 Secret 管理”，不填密钥值。
+摘要 fast 仅 MiniMax，沿用旗舰模型变量、现有超时和重试。SiliconFlow 保留供 Embedding、Rerank 及 Hindsight 使用，必须提供相应凭据。Alibaba 无其他启用引用，已删除配置。Hindsight LLM 的 provider/base URL/model/key 仍须单独填写。
 
-| 编号 | 配置项 | 仓库当前值/事实 | 建议及需要决定的内容 | 落地位置 | 确认结果 |
-| --- | --- | --- | --- | --- | --- |
-| `E01` | 上线机器 | 尚未指定 CPU / 内存 / 磁盘 / OS | 填写服务器规格、部署目录与可用空间 | 部署环境 | 待确认 |
-| `E02` | 首发范围 | Compose 有 web-prod / qq / tools；config 默认启用 napcat | 先明确 Web、QQ、Research、长期记忆及文件能力的启用范围 | docker-compose.yaml；config/config.yaml | 待确认 |
-| `E03` | 发布模式 | 主 Worker / API / 初始化服务仍挂载宿主 src | 生产使用固定版本镜像，去掉源码覆盖；开发继续保留挂载 | docker-compose.yaml / 生产 overlay | 待确认 |
-| `E04` | 环境隔离 | 基础设施服务无 profile；命名卷跟随 Compose project | 生产使用独立 project、目录和卷，不能沿用日常库 | Compose project / volumes | 待确认 |
-| `E05` | 数据库起点 | 首次上线，旧开发/测试数据可丢弃 | 新建空数据库/卷，执行完整 schema 初始化；无需旧库转换 | persistence/docker-init；persistence/migrations | 已确认 |
-| `N01` | 域名与 Origin | 模板为 http://127.0.0.1:5173 | 填写最终 https://域名（有非默认端口时含端口），无路径 | WEB_PUBLIC_ORIGIN | 待确认 |
-| `N02` | TLS 与网关 | web-gateway 仅监听容器 HTTP 80；宿主端口默认80 | 确认 TLS 终止点、证书续期、宿主绑定和 SSE 代理 | WEB_GATEWAY_PORT；web/nginx.conf；外部反代 | 待确认 |
-| `N03` | 生产认证 | HPAGENT_ENV=development；WEB_COOKIE_SECURE=false | 生产分别设 production / true；API 强制 HTTPS Origin | HPAGENT_ENV；WEB_COOKIE_SECURE | 待确认 |
-| `N04` | 网络与代理 | 基础设施/API多数 loopback；可选 HTTP(S)_PROXY | 确认服务端直连或代理，NO_PROXY 覆盖所有内部服务 | HTTP_PROXY；HTTPS_PROXY；NO_PROXY | 待确认 |
-| `S01` | 应用数据库凭据 | 模板3个角色密码均为 change-me | 3个独立随机密码；避免直接使用需额外 URL 编码的字符 | HPAGENT_MIGRATE_PASSWORD；HPAGENT_API_PASSWORD；HPAGENT_WORKER_PASSWORD | 待确认 |
-| `S02` | 认证签名材料 | 模板为 change-me / 开发占位值 | 独立生成 cursor / session / CSRF / QQ binding secret，各至少32字节；不在表内填值 | WEB_CURSOR_SECRET；WEB_SESSION_TOKEN_PEPPER；WEB_CSRF_SIGNING_KEY；QQ_BINDING_CODE_PEPPER | 待确认 |
-| `S03` | 内部数据库凭据 | Temporal / Hindsight 密码在 Compose 中固定 | 确认并参数化内部数据库密码，更新对应消费者；不能只改一个端点 | docker-compose.yaml：temporal-postgres/temporal/hindsight-postgres/hindsight | 待确认 |
-| `S04` | 开户与权益 | 自助注册默认 standard，每日50000 token；邀请码支持预置权益 | 确认公开注册还是邀请准入、首个管理员和首发额度；准入策略变更需实现 | account 服务；邀请码运维入口；docs/operations/account-governance.md | 待确认 |
-| `M01` | 主对话/推理模型 | chat/reasoning 使用 MiniMax；默认注册档位模型是否匹配仍需核实 | 确认 Provider、Base URL、模型名、可用档位和供应商限额 | config/models.yaml；MINIMAX_* | 待确认 |
-| `M02` | 摘要与回退链 | fast 为 MiniMax → SiliconFlow → Alibaba | 逐个确认保留的提供商及其模型；不用的条目从链和 providers 一并移除 | config/models.yaml；SILICONFLOW_*；ALIBABA_BAILIAN_* | 待确认 |
-| `M03` | 向量与重排 | embedding / rerank 使用 SiliconFlow，tool_rag.enabled=true | 确认 embedding/rerank 型号、费用及工具检索是否开启 | config/models.yaml；SILICONFLOW_* | 待确认 |
-| `M04` | 长期记忆 | hindsight.enabled=true；Hindsight 自己配置 LLM/embedding/rerank | 确认记忆启用、模型、数据保留；当前 Compose 启用服务不随 YAML 自动裁剪 | config/config.yaml；HINDSIGHT_API_LLM_*；docker-compose.yaml | 待确认 |
-| `M05` | 未配齐的图像链 | image 引用 openai，但 providers 未定义 openai | 首发不提供图像生成则明确关闭/移除该链，否则补齐 provider | config/models.yaml：image / providers | 待确认 |
-| `M06` | 其他模型与超时 | DeepSeek 变量预留；成果读取超时90秒；模型路径支持覆盖 | 确认是否启用 DeepSeek、成果超时与链级超时 | DEEPSEEK_*；ARTIFACT_MODEL_READ_TIMEOUT_SECONDS；HPAGENT_MODELS_PATH | 待确认 |
-| `F01` | 文件能力 | 上传开；transform/shell关；预算 enforce | 确认上传、格式转换；生产 Web host shell 必须关闭 | WEB_FILE_UPLOAD_ENABLED；WEB_FILE_TRANSFORM_ENABLED；WEB_FILE_SHELL_ENABLED；RUN_BUDGET_MODE | 待确认 |
-| `F02` | 文件限额 | 单文件128MiB；每消息10个；直读1MiB；清理周期300秒 | 逐个确认并与网关请求体限制对齐 | FILE_MAX_BYTES；FILE_MAX_COUNT_PER_MESSAGE；FILE_DIRECT_READ_MAX_BYTES；FILE_CLEANUP_INTERVAL_SECONDS | 待确认 |
-| `F03` | 文件与执行目录 | File Store/Run/Document 使用各自卷；workspace 在 .data | 确认磁盘路径、配额、保留周期、所有权和备份位置 | docker-compose.yaml：volumes；WORKSPACE_ISOLATION_MODE | 待确认 |
-| `X01` | 渠道 | config/config.yaml 默认 napcat；qq profile 控制可选容器 | Web 首发若不启用 QQ，必须同步取消渠道配置；不能只不启动 qq profile | config/config.yaml：channels.enabled；NAPCAT_*；QQ_OFFICIAL_* | 待确认 |
-| `X02` | MCP 外部工具 | servers.yaml 含远程端点和 stdio 工具；auto_connect=true | 逐个确认 server、外部凭据、数据访问和可执行工具 | config/mcp/servers.yaml；config/models.yaml：mcp | 待确认 |
-| `X03` | 工具与沙箱 | native_tools_enabled=true；nsjail_enabled=false；Skills开启 | 明确代码/命令执行权限、隔离方式及可用 Skill | config/config.yaml：sandbox；config/models.yaml：skills | 待确认 |
-| `X04` | 搜索与文档转换 | SearXNG / Gotenberg 内部URL及镜像摘要已配置 | 确认启用、SEARXNG_SECRET、真实搜索和文档任务可用性 | SEARXNG_*；GOTENBERG_*；config/searxng | 待确认 |
-| `C01` | 后台并发 | 账户4、全局32；资源默认全局12、交互保留4、账户3 | 按服务器与供应商额度决定；这些源码变量当前未在 Compose 中透传 | src/resources/capacity.py：WORK_* / CAPACITY_* | 待确认 |
-| `C02` | Lease、超时和恢复 | Execution lease900秒；Research lease及各Activity超时分散在实现 | 先按现值记录；用真实 Worker 验证取消、故障接管及资源释放后再调整 | AGENT_EXECUTION_LEASE_TTL_SECONDS；runtime/Activity 配置 | 待确认 |
-| `O01` | 镜像与基础版本 | 应用默认 :offline；NapCat为latest；Python混用3.11/3.12 | 选择发布标签/摘要及支持的Python版本；固定已验证组合 | HPAGENT_*_IMAGE；WEB_GATEWAY_IMAGE；Dockerfile；docker-compose.yaml | 待确认 |
-| `O02` | 日志与监控 | LOG_LEVEL=INFO；日志在.data；部分服务有轮转 | 确认保留天数、容量、磁盘告警、API/Worker/Document监控 | LOG_LEVEL；Compose logging；健康检查 | 待确认 |
-| `O03` | 备份和恢复 | 现脚本备份 App/Hindsight PG与Git workspace；缺Temporal/File Store一致性快照 | 首次空库不需导入旧备份；投产后的恢复点、备份存储和恢复演练仍需确定 | scripts/operations/backup.sh；docs/operations/backup-restore.md | 待确认 |
+只保留一套常驻 Beta。首次新建空卷，旧开发数据保留，不导入、不删除。独立 Beta 目录、干净 Git 提交、镜像 ID、配置版本及迁移状态共同标记发布版本；保留源码挂载。Python 修改需重启对应 API/Worker；依赖、前端、Document 及其他未挂载内容变化按需重建。禁止在日常开发目录边编辑边对外服务。
 
-## 环境变量集中入口
+建议 project 名 `hpagent-beta`；最终目录待填写。卷实际按 project 前缀生成，例如 `hpagent-beta_app-pgdata`，部署前用 `docker volume inspect` 核实。测试只用临时隔离目录、端口、卷及假凭据；仅换 project 名不能隔离固定端口和 `.data`。
 
-[根 .env.example](../../.env.example) 已补齐当前 Compose 的全部66个插值变量，包括此前缺失的安全Cookie、文件限额、预算模式、模型路径及应用镜像引用。模板继续保留开发默认值；生产修改以本表确认结果为准。
+## 配置准备
 
-下面从仓库中的 Compose 与示例模板核对，不读取本机 `.env`。有些开关、目录和数据库端点在 Compose 中写死；写入 `.env` 并不会自动覆盖这些值，必须修改 Compose/overlay。容量参数属于此类未透传问题。
+复制 [.env.example](../../.env.example) 到独立 Beta 目录的私有 `.env`，权限限制为运维本人。不要将其提交 Git。示例仍保留本地认证默认值；Beta 必须合并 [docker-compose.beta.yaml](../../docker-compose.beta.yaml)：
 
-| 变量 | 示例模板默认值 | Compose 使用的缺省/要求 |
-| --- | --- | --- |
-| `AGENT_EXECUTION_LEASE_TTL_SECONDS` | 900 | 900 |
-| `ALIBABA_BAILIAN_API_KEY` | 空（待填） | 未提供缺省 |
-| `ALIBABA_BAILIAN_BASE_URL` | 空（待填） | 未提供缺省 |
-| `ALIBABA_BAILIAN_FAST_MODEL` | 空（待填） | 未提供缺省 |
-| `ARTIFACT_MODEL_READ_TIMEOUT_SECONDS` | 90 | 90 |
-| `DEEPSEEK_API_BASE_URL` | https://api.deepseek.com | 未提供缺省 |
-| `DEEPSEEK_API_KEY` | 空（待填） | 未提供缺省 |
-| `DEEPSEEK_FLAGSHIP_MODEL` | 空（待填） | 未提供缺省 |
-| `DEEPSEEK_HIGHSPEED_MODEL` | 空（待填） | 未提供缺省 |
-| `DEEPSEEK_STANDARD_MODEL` | 空（待填） | 未提供缺省 |
-| `FILE_CLEANUP_INTERVAL_SECONDS` | 300 | 300 |
-| `FILE_DIRECT_READ_MAX_BYTES` | 1048576 | 1048576 |
-| `FILE_MAX_BYTES` | 134217728 | 134217728 |
-| `FILE_MAX_COUNT_PER_MESSAGE` | 10 | 10 |
-| `GOTENBERG_IMAGE` | gotenberg/gotenberg@sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466 | gotenberg/gotenberg@sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466 |
-| `GOTENBERG_URL` | http://gotenberg:3000 | http://gotenberg:3000 |
-| `HINDSIGHT_API_LLM_API_KEY` | 空（待填） | 未提供缺省 |
-| `HINDSIGHT_API_LLM_BASE_URL` | 空（待填） | 未提供缺省 |
-| `HINDSIGHT_API_LLM_MODEL` | 空（待填） | 未提供缺省 |
-| `HINDSIGHT_API_LLM_PROVIDER` | 空（待填） | 未提供缺省 |
-| `HPAGENT_API_IMAGE` | hpagent/hpagent-api:offline | hpagent/hpagent-api:offline |
-| `HPAGENT_API_PASSWORD` | 占位值，生产需独立生成 | 必填/开发占位回退，生产不用回退值 |
-| `HPAGENT_DOCUMENT_IMAGE` | hpagent/hpagent-document:offline | hpagent/hpagent-document:offline |
-| `HPAGENT_ENV` | development | development |
-| `HPAGENT_IMAGE` | hpagent/hpagent:offline | hpagent/hpagent:offline |
-| `HPAGENT_MIGRATE_IMAGE` | hpagent/hpagent-migrate:offline | hpagent/hpagent-migrate:offline |
-| `HPAGENT_MIGRATE_PASSWORD` | 占位值，生产需独立生成 | 必填/开发占位回退，生产不用回退值 |
-| `HPAGENT_MODELS_PATH` | /app/config/models.yaml | /app/config/models.yaml |
-| `HPAGENT_WORKER_PASSWORD` | 占位值，生产需独立生成 | 必填/开发占位回退，生产不用回退值 |
-| `HTTPS_PROXY` | 空（待填） | 空 |
-| `HTTP_PROXY` | 空（待填） | 空 |
-| `LOG_LEVEL` | INFO | INFO |
-| `MINIMAX_API_BASE_URL` | 空（待填） | 未提供缺省 |
-| `MINIMAX_API_KEY` | 空（待填） | 未提供缺省 |
-| `MINIMAX_FLAGSHIP_MODEL` | 空（待填） | 未提供缺省 |
-| `MINIMAX_HIGHSPEED_MODEL` | 空（待填） | 未提供缺省 |
-| `MINIMAX_STANDARD_MODEL` | 空（待填） | 未提供缺省 |
-| `NAPCAT_ACCOUNT` | 空（待填） | 未提供缺省 |
-| `NAPCAT_QUICK_PASSWORD` | 空（待填） | 必填/开发占位回退，生产不用回退值 |
-| `NO_PROXY` | localhost,127.0.0.1,::1,searxng,gotenberg,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api | localhost,127.0.0.1,::1；localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api；localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api,hpagent-document-worker；localhost,127.0.0.1,::1,searxng,gotenberg,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api |
-| `QQ_BINDING_CHALLENGE_SECONDS` | 300 | 300 |
-| `QQ_BINDING_CODE_PEPPER` | 占位值，生产需独立生成 | 必填/开发占位回退，生产不用回退值 |
-| `QQ_OFFICIAL_APP_ID` | 空（待填） | 空 |
-| `QQ_OFFICIAL_CLIENT_SECRET` | 空（待填） | 必填/开发占位回退，生产不用回退值 |
-| `QQ_OFFICIAL_SANDBOX` | false | false |
-| `RUN_BUDGET_MODE` | enforce | enforce |
-| `SEARXNG_IMAGE` | searxng/searxng@sha256:b36af7984b87191b595bc5301418ed6432c047668a4547ab531a7439b816fac3 | searxng/searxng@sha256:b36af7984b87191b595bc5301418ed6432c047668a4547ab531a7439b816fac3 |
-| `SEARXNG_SECRET` | 占位值，生产需独立生成 | 必填/开发占位回退，生产不用回退值 |
-| `SEARXNG_URL` | http://searxng:8080 | http://searxng:8080 |
-| `SILICONFLOW_API_KEY` | 空（待填） | 未提供缺省 |
-| `SILICONFLOW_BASE_URL` | 空（待填） | 未提供缺省 |
-| `SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL` | 空（待填） | 未提供缺省 |
-| `SILICONFLOW_EMBEDDING_MODEL` | 空（待填） | 未提供缺省 |
-| `SILICONFLOW_RERANK_MODEL` | 空（待填） | 未提供缺省 |
-| `WEB_COOKIE_SECURE` | false | false |
-| `WEB_CSRF_SIGNING_KEY` | 占位值，生产需独立生成 | 必填/开发占位回退，生产不用回退值 |
-| `WEB_CURSOR_ACTIVE_KEY_ID` | v1 | v1 |
-| `WEB_CURSOR_SECRET` | 占位值，生产需独立生成 | 必填/开发占位回退，生产不用回退值 |
-| `WEB_FILE_SHELL_ENABLED` | false | false |
-| `WEB_FILE_TRANSFORM_ENABLED` | false | false |
-| `WEB_FILE_UPLOAD_ENABLED` | true | true |
-| `WEB_GATEWAY_IMAGE` | hpagent/web-gateway:offline | hpagent/web-gateway:offline |
-| `WEB_GATEWAY_PORT` | 80 | 80 |
-| `WEB_PUBLIC_ORIGIN` | http://127.0.0.1:5173 | https://localhost |
-| `WEB_SESSION_TOKEN_PEPPER` | 占位值，生产需独立生成 | 必填/开发占位回退，生产不用回退值 |
-| `WORKSPACE_ISOLATION_MODE` | single_process_account_lock | single_process_account_lock |
+```bash
+# 以下仅为后续部署操作说明，本轮没有执行 up/stop/迁移。
+export COMPOSE_PROJECT_NAME=hpagent-beta
+export COMPOSE_FILE=docker-compose.yaml:docker-compose.beta.yaml
+# 补齐私有 .env 后只做语法检查；勿公开完整 config 输出。
+docker compose --profile web-prod --profile qq config --quiet
+```
 
-## 空库初始化约定
+Beta overlay 固定 `production`、`https://hpagent.cloud`、Secure Cookie、Host Shell=false、外部服务直连；API 保持 Fake=false。实际 `.env` 中历史的 128MiB/10 个/transform=false 会覆盖基础 Compose 默认值，迁移时要按下表明确更新。
 
-- 生产建立独立空卷；旧开发/测试数据无需迁移，尚在运行的本地库不作为生产输入。
-- 保留 `persistence/docker-init/`、全部 `persistence/migrations/` 与 `hpagent-migrate`。这些文件也是从零创建角色、表、索引和权限的执行链。
-- API、Worker 和测试依赖 migration manifest/checksum；本轮不合并或删除 SQL，不改变初始化器。
-- 生产环境、域名、Secret、模型和存储确认后，再执行[首次部署](deployment.md)。
+| 项目 | Beta 值/处理 |
+| --- | --- |
+| 单文件 / 每消息 | `FILE_MAX_BYTES=33554432` / `FILE_MAX_COUNT_PER_MESSAGE=5` |
+| 普通直读 / 清理轮询 | `FILE_DIRECT_READ_MAX_BYTES=1048576` / `FILE_CLEANUP_INTERVAL_SECONDS=300` |
+| 文件开关 | upload=true、transform=true、shell=false、预算 enforce |
+| Work 活跃 Run | 账户3 / 全局16，API、Worker均透传 |
+| model、tool、fetch | 每种分别 GLOBAL=8 / INTERACTIVE_RESERVED=3 / ACCOUNT=2 |
+| Lease / 成果读取超时 | 沿用900秒 / 90秒 |
+| 渠道 | `channels.enabled: [napcat]`；Web 独立服务，官方QQ未启用 |
 
-## 待确认事项
+Work 上限只计 `source_kind=work` 且 queued/running/cancelling 的 Run。资源票据按 model、tool、fetch **分别计数**，不是整机共8个并发，也不是每个活跃 Work 都在调用模型。交互保留3使各资源后台总上限5；账户2且有交互保留时，单账户后台该资源上限1。调度、预算预留/结算及 UTC 日期语义未改。
 
-- E01–O03 中标为待确认的项目尚无用户选定值；模型档位须以真实账户/供应商请求验证。
-- 生产 Compose 尚未实现去除源码挂载、容量透传及内部数据库凭据参数化；缺少目标机器与配置决定。
-- 当前构建排除规则未完整覆盖 `.env`/本地设计输入，Document 的 `src` context 也需专门审查；生产镜像内容尚未验收。
-- 宿主网络变化记录包含 Hindsight 周期重启线索；缺少其稳定运行与真实模型链路的当前证据。
-- 真实Worker、外发（若启用）、长期容量释放和匹配的备份恢复尚无首发环境验收记录。
+所有主要 Beta 服务都有 `BETA_<服务名>_CPUS` / `_MEMORY` 必填入口（连字符改为下划线，见示例）。这包括三套数据库、Redis、Temporal、Hindsight、搜索、Gotenberg、迁移、主/文档Worker、API、网关及NapCat。填写之前 overlay 会报缺失错误；没有提供冒充安全预算的默认值。先确定 WSL/Docker 总预算并给 Windows 日常使用留余量，再分配各服务，压测后确认。容器预算不是每任务隔离；每任务1核/1GiB/120秒仅为评估目标。没有新增调度或任务容器系统。
+
+## 密码与账户
+
+`TEMPORAL_DB_PASSWORD` 同时用于 Temporal PostgreSQL 与 Temporal；`HINDSIGHT_DB_PASSWORD` 同时用于 Hindsight PostgreSQL 与连接 DSN。Compose 缺失或空值时报明确错误（开发也必须填写）。两项独立生成和保管；Hindsight 密码应使用 URL 安全的随机十六进制，避免未经编码的 DSN 特殊字符。应用数据库三角色密码及四类认证签名材料仍需独立配置；此轮没有生成/轮换任何实际密钥。**已初始化数据库不能仅改变量**，须另行受控变更库内角色密码及客户端；本轮未接触运行库。
+
+A/B/C 是套餐名称，分别5000/50000/100000 token每天，均使用现有 `standard` 模型 tier，没有等级继承。自助注册默认 A，Prompt 可见性 `none`；邀请码 CLI 默认也改为 `none`，只接受普通 `standard`，B/C复用现有邀请码：
+
+```bash
+python scripts/operations/create-registration-invite.py --profile standard --daily-token-limit 50000 --prompt-visibility none
+python scripts/operations/create-registration-invite.py --profile standard --daily-token-limit 100000 --prompt-visibility none
+```
+
+上述命令后续需要运维迁移凭据，实际执行会写库并输出一次性邀请码，本轮未执行。普通邀请不得授予 owner/管理员；底层邀请服务仍是受控数据库运维能力，不能当成面向用户的任意 profile API。签发前复核 tier、额度、Prompt 可见性；历史邀请码保持原权限，不自动撤销或修改，部署前应人工审查。
+
+D 的额度目标300000，模型访问权限另行记录/确认。`owner` 当前可访问全部模型 tier，但不是管理员后台或角色系统。受控 `bootstrap_identity` 新建账户仍授予 owner/full_safe、无每日上限且不创建 Web 密码，仅供身份恢复/首位维护者处理；普通 Web 注册、邀请码注册、QQ绑定不得借此批量开户。已有账户路径不会被默认额度修改自动追溯变更。D的tier/Prompt/额度须通过受控运维事务核实，不新增管理API。各档更高 Prompt 可见性尚待用户选择，默认不额外授权。
+
+日额度仍按 UTC 日历日（北京时间08:00），不改预算预留/结算归属。5000是模型输入输出综合额度，不能保证一次多步骤 Research 必然完成。详见[账户治理](account-governance.md)。
+
+## 文件、网关与代理信任
+
+API 对上传单文件字节数和消息附件数量执行限额；Worker和Document读取相同单文件上限。Worker普通 `read_file` 实际消费1MiB直读阈值，超过阈值报错，可使用已有的格式专用按页/范围读取。API没有直接读取工具，不把变量透传冒充 API 执行直读限制。现有镜像MarkItDown缺少DOCX快速文本转换可选依赖，专用DOCX按段落/表格读取已通过测试，普通DOCX全文快读不列为已验收。Document自动归一化路由目前因取消传播边界未完成而关闭，此轮不重开。Document服务保留，不承诺所有文件自动进入Docling。清理线程每300秒检查现有的Run清理队列，不等于24小时保留策略。
+
+受控转换沿用已有 Gotenberg Provider，开启 transform 时注册 `convert_file_to_pdf`，只接受当前Run内 DOCX/XLSX/PPTX 并发布PDF，输出受字节限制；关闭时不可调用。不执行Host Shell。
+
+前端每个文件单独发原始 PUT，不是将5个文件打包。仓库网关 `client_max_body_size 32m` 与32MiB边界一致，不设160/180MiB。宝塔站点也需 `client_max_body_size 32m;`。其他 JSON 请求保留 API 的独立限制。
+
+本地网关 `/api/`（覆盖 Work SSE）、`/api/v1/runs/`（Run SSE）均关闭缓冲/缓存，读写超时3600秒、HTTP/1.1并清空Connection。云端宝塔在相应代理 location 同样设置：
+
+```nginx
+client_max_body_size 32m;
+proxy_http_version 1.1;
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header Forwarded "";
+proxy_set_header Connection "";
+proxy_buffering off;
+proxy_cache off;
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
+```
+
+只在维护者检查现有站点后合并，本文不是已应用的云端配置。外层 HTTPS 请求的 scheme=https；本地HTTP跳转网关重建自己的代理头，内层 scheme=http。API 显式不解析代理头，认证 Cookie 与来源校验使用固定公开Origin与Secure设置，因此不依赖内层 scheme 推断公网协议。未引入 RealIP 或任意来源可信代理，不用外部 X-Forwarded-For 做安全授权；未来若需真实客户端IP，要先配置精确可信代理来源。
+
+网关默认绑定127.0.0.1；实际启用 Tailscale 入口时，`WEB_GATEWAY_BIND_ADDRESS` 须填经核实属于 Docker宿主的受控地址，或配合防火墙/Tailnet ACL 明确限制入口。不能把未核实的 `100.97.222.24` 直接当成 WSL可绑定地址。确认Windows/WSL/Docker拓扑、重启后路由、防火墙、云到本地连通、域名解析、证书续期及电脑休眠影响。静态代码不能证明这些已通过。
+
+## 工具、镜像与权限
+
+`mcp.auto_connect=false` 且现有每个 server 均 `disabled=true`；`skills.enabled=false`。现有远程候选为 tavily-mcp、amap-maps、bazi-mcp、howtocook-mcp、12306-mcp；stdio stock-sdk 和 Skill pdf-processing 均不启用。这些只是待审核候选，没有被认定为只读或已授权。后续逐个确认业务用途、实际工具读写/执行能力、端点与数据去向，才可启用对应配置；`side_effect_class` 不是权限沙箱。没有新增通用白名单平台。
+
+核查 `setup_tools`、SandboxManager 及执行注册路径：Host Bash默认关闭，文件模式下普通本地工具/MCP/Skills不注册；Web只开放当前Run文件作用域及既有Work工具。配置保留 native_tools，但不能据此断言所有通道都有Bash。Research搜索/抓取是独立路径，不依赖外部MCP。
+
+主Worker/API/Document镜像当前未声明USER，默认root；保持现有卷读写兼容性，本轮没有机械切换USER，也没有宣称非特权隔离已完成。未配置 privileged、Docker socket 或宿主根目录挂载；主Worker仍写挂载的src/tools/.data，API源码只读，Document只读File Store并写独立临时卷。仅受控运维人员可写Beta源码与配置；不承诺防御任意代码执行的OS级隔离。跨账户路径与文件操作有现有测试，实际卷ownership、重建后写入需部署验收。
+
+根、src（Document独立context）、web构建排除规则覆盖环境密钥和运行数据；配置通过只读挂载注入，不在镜像中复制生产 `.env`。MCP注释中不必要的疑似凭据明文已移除。历史中若有有效凭据仍由所有者撤销/轮换，本轮未尝试验证或自动轮换。
+
+## 操作约定与待填写
+
+- 文件总10GiB/账户3GiB、Run/Document各3GiB、结束后24小时清理仅为人工容量目标；总量优先，满时先人工暂停接收文件。没有实现累计配额/24小时自动清理，不删除运行任务材料。
+- 记忆90天自动过期未实现；`memory_retention_worker` 是写入Outbox消费者。当前适配器没有用户记忆删除/注销清理API，也没有可承诺的敏感信息自动过滤。删除请求需维护者核实账户对应bank与上游Hindsight版本实际删除能力，暂停相关写入防止再写入，再受控处理并核验；本轮不调用上游、不删历史、不承诺一键删除。
+- 应用日志按日轮转保留14个历史文件，JSON文件跟随LOG_LEVEL；Docker日志补齐有界轮转。14天/总2GiB是人工预算，单日文件及总量硬限制、自动容量告警、独立备用通知尚未实现。使用现有日志/observability-viewer，人工检查磁盘与服务健康。
+- RPO48小时/RTO24小时、每日低峰完整备份、30天保留、云端15GiB为目标，需容量核实与隔离恢复演练；完整步骤见[备份恢复](backup-restore.md)。没有建立自动调度、加密异机同步或告警闭环。
+
+仍需填写：Beta绝对目录与上线时段；WSL/Docker总CPU/内存和各服务预算、磁盘空闲；网关绑定与Tailscale地址归属/ACL；独立密码与签名材料的保管/注入状态；MiniMax/SiliconFlow/Hindsight实际模型ID及凭据；NapCat账号/连接与已验证固定镜像tag/digest；远程MCP/Skills白名单（暂全关）；B/C/D Prompt可见性和D模型访问tier；项目外及异机备份路径、加密材料保管位置、独立告警渠道。不要填写设备ID/产品ID或在本文粘贴密钥。
+
+## 验收边界
+
+此次只执行静态和隔离测试，不执行发布smoke、真实模型、QQ外发、部署、云端修改或真实数据清理。实际还要在维护者安排的验收窗口检查 HTTPS注册/登录/退出/CSRF、32MiB及超限上传、5个附件、Run/Work SSE更新与断线恢复、Research/记忆/受控转换、QQ绑定及收发、取消与故障恢复、容量与卷权限、日志增长、完整备份隔离恢复。未演练前不标记RPO/RTO或首发验收通过。
+
+## 本轮验证记录（2026-10-18）
+
+- 114项相关测试通过：文件读写/权限/转换工具路由、单文件32MiB与超出1字节的chunked上传、注册及邀请码权益、文件谱系/直接上传、配置校验、脚本安全与冷备失败/成功路径。数据库测试使用本轮独立内部Docker网络和tmpfs PostgreSQL，不挂载业务卷，测试后移除。
+- Compose仅用假凭据和假预算、`--env-file /dev/null`验证合并、两套内部密码消费者一致、API/Worker容量及文件参数一致、服务限制及缺失必填值错误；没有读取/改写生产.env，没有以假预算启动Beta。
+- 网关镜像在无网络临时容器中运行`nginx -t`通过；修改Python文件的Ruff检查、备份Shell语法、脚本安全测试通过。文档检查33个Markdown文件，0处本地链接错误。
+- 未构建新发布镜像，未执行完整真实冷备/恢复、发布smoke、模型/QQ/云端/Tailscale/证书/真实卷权限与资源负载验收。归档测试使用假Docker和临时数据，不表示RPO/RTO达成。

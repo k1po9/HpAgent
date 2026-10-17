@@ -189,7 +189,7 @@ class SandboxManager:
                     self._file_output_publisher,
                     self._file_conversion_provider,
                 ):
-                    if tool.name == "convert_file_to_pdf":
+                    if tool.name == "convert_file_to_pdf" and self._file_conversion_provider is None:
                         continue
                     registry.register(tool, category="native", routing=routing_for(tool, "native"))
 

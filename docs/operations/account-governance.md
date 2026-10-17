@@ -2,13 +2,13 @@
 
 ## 注册与 Entitlement
 
-`POST /auth/register` 支持不填写 `invite_code` 的自助注册。`src/account/registration_service.py` 当前默认写入 `model_access_tier=standard`、`daily_token_limit=50000`、`prompt_visibility=none`，且不设置 entitlement 到期时间。填写邀请码时，注册服务验证它未撤销、未过期且尚有兑换次数，并把其中的 `entitlement_profile` 复制到新账号的 `account_entitlements`；账号、身份、凭据、entitlement 和兑换计数在同一事务中写入。无效邀请码不会回退到默认权限。
+`POST /auth/register` 支持不填写 `invite_code` 的自助注册。`src/account/registration_service.py` 当前默认写入 `model_access_tier=standard`、`daily_token_limit=5000`、`prompt_visibility=none`，且不设置 entitlement 到期时间。填写邀请码时，注册服务验证它未撤销、未过期且尚有兑换次数，并把其中的 `entitlement_profile` 复制到新账号的 `account_entitlements`；账号、身份、凭据、entitlement 和兑换计数在同一事务中写入。无效邀请码不会回退到默认权限。
 
 邀请码是管理员预先创建、带特定 entitlement profile 的注册凭证。`registration_invites.entitlement_profile.daily_token_limit` 只决定后续使用该凭证注册的账号初始值；已注册账号的额度存在 `account_entitlements.daily_token_limit`，后续读取与治理都以账号记录为准。修改现有邀请 profile 不会自动更新已注册账号。
 
 ## 创建邀请码
 
-完成 Migration 后，在具备数据库访问与项目 Python 依赖的环境运行 `scripts/operations/create-registration-invite.py`。设置 `MIGRATION_DATABASE_URL`，或传入 `--database-url` 覆盖它。`--profile` 必填，表示模型访问 tier；当前普通账号的 tier 为 `standard`，`owner` 用于 owner 权限。`--daily-token-limit` 接受正整数；省略时为 `NULL`，表示不设置 Account 每日上限。`--prompt-visibility` 可取 `none`、`summary`、`full_safe`，脚本默认 `summary`。
+完成 Migration 后，在具备数据库访问与项目 Python 依赖的环境运行 `scripts/operations/create-registration-invite.py`。设置 `MIGRATION_DATABASE_URL`，或传入 `--database-url` 覆盖它。`--profile` 必填，表示模型访问 tier；本轮普通邀请码只接受 `standard`，不能签发 `owner`。`--daily-token-limit` 接受正整数；省略时为 `NULL`，表示不设置 Account 每日上限。`--prompt-visibility` 可取 `none`、`summary`、`full_safe`，脚本默认 `none`。
 
 `--entitlement-expires-at` 指复制到账号的 entitlement 到期时间；`--invite-expires-at` 指邀请码自身不能再兑换的时间，两者都要求带时区的 ISO-8601 时间。`--max-redemptions` 为可兑换次数，默认 1，必须为正整数。
 
@@ -17,7 +17,7 @@
 ```bash
 export MIGRATION_DATABASE_URL='postgresql://...'
 python scripts/operations/create-registration-invite.py --profile standard --daily-token-limit 50000 --prompt-visibility none
-python scripts/operations/create-registration-invite.py --profile standard --daily-token-limit 200000 --max-redemptions 5
+python scripts/operations/create-registration-invite.py --profile standard --daily-token-limit 100000 --max-redemptions 5
 python scripts/operations/create-registration-invite.py --profile standard --invite-expires-at 2026-12-31T23:59:59Z --entitlement-expires-at 2027-01-31T23:59:59Z
 ```
 
@@ -34,6 +34,10 @@ python scripts/operations/create-registration-invite.py --profile standard --inv
 ## Prompt / Model Input 可见性
 
 账号 `prompt_visibility` 控制模型输入查询：`none` 的 Run 列表只给最小元数据，单个 Snapshot 查询返回 403；`summary` 返回模型、端点、时间、消息和工具数量等摘要；`full_safe` 还返回已保存的 Provider 请求体。查询只限当前认证账号自己的 Run/Snapshot。`full_safe` 是请求体投影，并非额外的 Secret 脱敏步骤；不要把 API Key、认证头或其他 Secret 写入 Prompt 或模型输入。端点见 [HTTP API 参考](../reference/api.md)。
+
+## Beta 套餐与受控维护
+
+A/B/C仅为套餐名，额度分别5000/50000/100000，模型tier都为standard。D额度300000与模型权限单独确认，不通过普通邀请码授予管理员。首位维护者bootstrap路径新建账号会设owner/full_safe且额度NULL，不创建登录密码；不得用其替代普通注册。历史邀请与既有账户不会自动追溯变更，部署前人工核实。更高Prompt可见性需明确授权；默认none。
 
 ## 当前管理边界
 

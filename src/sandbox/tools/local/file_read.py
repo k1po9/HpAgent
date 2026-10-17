@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Callable
 from typing import Any
 
@@ -123,6 +124,9 @@ def create_file_read_tools(
     document_router: Any | None = None,
     account_id_provider: Callable[[], str] | None = None,
 ) -> list[StructuredTool]:
+    direct_read_max_bytes = int(os.getenv("FILE_DIRECT_READ_MAX_BYTES", str(1024 * 1024)))
+    if direct_read_max_bytes < 1:
+        raise ValueError("FILE_DIRECT_READ_MAX_BYTES must be positive")
     adapters = registry or default_file_adapter_registry()
 
     def resolve(file: str, capability: str) -> tuple[FileResource, Any]:
@@ -147,6 +151,11 @@ def create_file_read_tools(
                 "normalized_document_ref": reference,
                 "truncated": bool(reference["truncated"]),
             })
+        if resource.size_bytes > direct_read_max_bytes:
+            raise ValueError(
+                "file exceeds FILE_DIRECT_READ_MAX_BYTES; use bounded format-specific reads; "
+                "automatic document normalization is unavailable"
+            )
         view = await run_blocking(adapter.convert, resource, max_chars=max_chars)
         return _encode(resource, {
             "route": "bounded_direct_read",

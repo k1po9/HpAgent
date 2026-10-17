@@ -10,3 +10,21 @@ dist
 artifacts
 **/__pycache__
 **/*.pyc
+
+# Keep credentials and runtime/test inputs out of every Python build context.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+**/.data
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.log
+**/*.dump
+**/*.key
+**/*.pem
+.data
+artifacts
+prototypes

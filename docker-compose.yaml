@@ -1,3 +1,9 @@
+x-beta-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "3"
+
 services:
 
   # ============================================================
@@ -13,6 +19,7 @@ services:
 
   # ==================== App PostgreSQL ====================
   app-postgres:
+    logging: *default-logging
     image: postgres:16-alpine
 
     environment:
@@ -80,6 +87,7 @@ services:
 
   # ==================== Research Search ====================
   searxng:
+    logging: *default-logging
     image: ${SEARXNG_IMAGE:-searxng/searxng@sha256:b36af7984b87191b595bc5301418ed6432c047668a4547ab531a7439b816fac3}
     entrypoint: ["/bin/sh", "/usr/local/bin/hpagent-searxng-entrypoint.sh"]
 
@@ -120,6 +128,7 @@ services:
 
   # ==================== File Conversion ====================
   gotenberg:
+    logging: *default-logging
     image: ${GOTENBERG_IMAGE:-gotenberg/gotenberg@sha256:87c16b9f364279d321bc9772d31fa58aa6abe036423c270698bd636c3a8e9466}
     command:
       - gotenberg
@@ -151,7 +160,7 @@ services:
     environment:
       TZ: Asia/Shanghai
       POSTGRES_USER: temporal
-      POSTGRES_PASSWORD: temporal
+      POSTGRES_PASSWORD: ${TEMPORAL_DB_PASSWORD:?未配置Temporal数据库密码}
       POSTGRES_DB: temporal
 
     volumes:
@@ -189,7 +198,7 @@ services:
       - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=temporal
-      - POSTGRES_PWD=temporal
+      - POSTGRES_PWD=${TEMPORAL_DB_PASSWORD:?未配置Temporal数据库密码}
       - POSTGRES_SEEDS=temporal-postgres
 
     ports:
@@ -232,7 +241,7 @@ services:
     environment:
       TZ: Asia/Shanghai
       POSTGRES_USER: hindsight
-      POSTGRES_PASSWORD: hindsight
+      POSTGRES_PASSWORD: ${HINDSIGHT_DB_PASSWORD:?未配置Hindsight数据库密码}
       POSTGRES_DB: hindsight
 
     command: >
@@ -287,7 +296,7 @@ services:
       - no_proxy=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
 
       # PostgreSQL
-      - HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:hindsight@hindsight-postgres:5432/hindsight
+      - HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:${HINDSIGHT_DB_PASSWORD:?未配置Hindsight数据库密码}@hindsight-postgres:5432/hindsight
 
       # LLM
       - HINDSIGHT_API_LLM_PROVIDER=${HINDSIGHT_API_LLM_PROVIDER}
@@ -354,6 +363,7 @@ services:
   # ============================================================
 
   hpagent-migrate:
+    logging: *default-logging
     profiles:
       - agent
       - web
@@ -467,15 +477,27 @@ services:
       - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
       - HPAGENT_MIGRATIONS_DIR=/opt/hpagent/migrations
       - HPAGENT_SERVICE=hpagent
+      - WORK_ACCOUNT_COORDINATORS=${WORK_ACCOUNT_COORDINATORS:-3}
+      - WORK_GLOBAL_COORDINATORS=${WORK_GLOBAL_COORDINATORS:-16}
+      - CAPACITY_MODEL_GLOBAL=${CAPACITY_MODEL_GLOBAL:-8}
+      - CAPACITY_MODEL_INTERACTIVE_RESERVED=${CAPACITY_MODEL_INTERACTIVE_RESERVED:-3}
+      - CAPACITY_MODEL_ACCOUNT=${CAPACITY_MODEL_ACCOUNT:-2}
+      - CAPACITY_TOOL_GLOBAL=${CAPACITY_TOOL_GLOBAL:-8}
+      - CAPACITY_TOOL_INTERACTIVE_RESERVED=${CAPACITY_TOOL_INTERACTIVE_RESERVED:-3}
+      - CAPACITY_TOOL_ACCOUNT=${CAPACITY_TOOL_ACCOUNT:-2}
+      - CAPACITY_FETCH_GLOBAL=${CAPACITY_FETCH_GLOBAL:-8}
+      - CAPACITY_FETCH_INTERACTIVE_RESERVED=${CAPACITY_FETCH_INTERACTIVE_RESERVED:-3}
+      - CAPACITY_FETCH_ACCOUNT=${CAPACITY_FETCH_ACCOUNT:-2}
       - AGENT_EXECUTION_LEASE_TTL_SECONDS=${AGENT_EXECUTION_LEASE_TTL_SECONDS:-900}
 
       # Web file workspace (read-only P0 rollout)
       - WEB_FILE_UPLOAD_ENABLED=${WEB_FILE_UPLOAD_ENABLED:-true}
-      - WEB_FILE_TRANSFORM_ENABLED=${WEB_FILE_TRANSFORM_ENABLED:-false}
+      - WEB_FILE_TRANSFORM_ENABLED=${WEB_FILE_TRANSFORM_ENABLED:-true}
       - WEB_FILE_SHELL_ENABLED=${WEB_FILE_SHELL_ENABLED:-false}
       - FILE_STORE_ROOT=/var/lib/hpagent/file-store
       - FILE_RUN_ROOT=/var/lib/hpagent/file-runs
-      - FILE_MAX_BYTES=${FILE_MAX_BYTES:-134217728}
+      - FILE_MAX_BYTES=${FILE_MAX_BYTES:-33554432}
+      - FILE_MAX_COUNT_PER_MESSAGE=${FILE_MAX_COUNT_PER_MESSAGE:-5}
       - FILE_DIRECT_READ_MAX_BYTES=${FILE_DIRECT_READ_MAX_BYTES:-1048576}
       - FILE_CLEANUP_INTERVAL_SECONDS=${FILE_CLEANUP_INTERVAL_SECONDS:-300}
       - RUN_BUDGET_MODE=${RUN_BUDGET_MODE:-enforce}
@@ -490,12 +512,6 @@ services:
       - SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL}
       - SILICONFLOW_EMBEDDING_MODEL=${SILICONFLOW_EMBEDDING_MODEL}
       - SILICONFLOW_RERANK_MODEL=${SILICONFLOW_RERANK_MODEL}
-      - SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL=${SILICONFLOW_DeepSeek_R1_0528_Qwen3_8B_MODEL}
-
-      # Alibaba Bailian
-      - ALIBABA_BAILIAN_API_KEY=${ALIBABA_BAILIAN_API_KEY}
-      - ALIBABA_BAILIAN_BASE_URL=${ALIBABA_BAILIAN_BASE_URL}
-      - ALIBABA_BAILIAN_FAST_MODEL=${ALIBABA_BAILIAN_FAST_MODEL}
 
       # MiniMax
       - MINIMAX_API_KEY=${MINIMAX_API_KEY}
@@ -585,6 +601,7 @@ services:
   # ============================================================
 
   hpagent-document-worker:
+    logging: *default-logging
     profiles:
       - agent
       - web
@@ -606,7 +623,7 @@ services:
       - WORKER_DATABASE_URL=postgresql://hpagent_worker:${HPAGENT_WORKER_PASSWORD:-hpagent_worker}@app-postgres:5432/hpagent
       - FILE_STORE_ROOT=/var/lib/hpagent/file-store
       - DOCUMENT_RUN_ROOT=/var/lib/hpagent/document-runs
-      - FILE_MAX_BYTES=${FILE_MAX_BYTES:-134217728}
+      - FILE_MAX_BYTES=${FILE_MAX_BYTES:-33554432}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - HTTP_PROXY=${HTTP_PROXY:-}
       - HTTPS_PROXY=${HTTPS_PROXY:-}
@@ -636,6 +653,7 @@ services:
 
 
   hpagent-api:
+    logging: *default-logging
     profiles:
       - web
       - web-prod
@@ -674,17 +692,29 @@ services:
       QQ_BINDING_CHALLENGE_SECONDS: ${QQ_BINDING_CHALLENGE_SECONDS:-300}
 
 
+      WORK_ACCOUNT_COORDINATORS: ${WORK_ACCOUNT_COORDINATORS:-3}
+      WORK_GLOBAL_COORDINATORS: ${WORK_GLOBAL_COORDINATORS:-16}
+      CAPACITY_MODEL_GLOBAL: ${CAPACITY_MODEL_GLOBAL:-8}
+      CAPACITY_MODEL_INTERACTIVE_RESERVED: ${CAPACITY_MODEL_INTERACTIVE_RESERVED:-3}
+      CAPACITY_MODEL_ACCOUNT: ${CAPACITY_MODEL_ACCOUNT:-2}
+      CAPACITY_TOOL_GLOBAL: ${CAPACITY_TOOL_GLOBAL:-8}
+      CAPACITY_TOOL_INTERACTIVE_RESERVED: ${CAPACITY_TOOL_INTERACTIVE_RESERVED:-3}
+      CAPACITY_TOOL_ACCOUNT: ${CAPACITY_TOOL_ACCOUNT:-2}
+      CAPACITY_FETCH_GLOBAL: ${CAPACITY_FETCH_GLOBAL:-8}
+      CAPACITY_FETCH_INTERACTIVE_RESERVED: ${CAPACITY_FETCH_INTERACTIVE_RESERVED:-3}
+      CAPACITY_FETCH_ACCOUNT: ${CAPACITY_FETCH_ACCOUNT:-2}
       WEB_FAKE_EXECUTOR_ENABLED: "false"
 
 
-      # Web file upload API. Transform/shell stay closed until their P1 tools
-      # and browser E2E are complete.
+      # Beta uploads and controlled Gotenberg conversion; Host Shell stays closed.
       WEB_FILE_UPLOAD_ENABLED: ${WEB_FILE_UPLOAD_ENABLED:-true}
-      WEB_FILE_TRANSFORM_ENABLED: ${WEB_FILE_TRANSFORM_ENABLED:-false}
+      WEB_FILE_TRANSFORM_ENABLED: ${WEB_FILE_TRANSFORM_ENABLED:-true}
       WEB_FILE_SHELL_ENABLED: ${WEB_FILE_SHELL_ENABLED:-false}
+      FILE_DIRECT_READ_MAX_BYTES: ${FILE_DIRECT_READ_MAX_BYTES:-1048576}
+      FILE_CLEANUP_INTERVAL_SECONDS: ${FILE_CLEANUP_INTERVAL_SECONDS:-300}
       FILE_STORE_ROOT: /var/lib/hpagent/file-store
-      FILE_MAX_BYTES: ${FILE_MAX_BYTES:-134217728}
-      FILE_MAX_COUNT_PER_MESSAGE: ${FILE_MAX_COUNT_PER_MESSAGE:-10}
+      FILE_MAX_BYTES: ${FILE_MAX_BYTES:-33554432}
+      FILE_MAX_COUNT_PER_MESSAGE: ${FILE_MAX_COUNT_PER_MESSAGE:-5}
       RUN_BUDGET_MODE: ${RUN_BUDGET_MODE:-enforce}
 
       LOG_DIR: /app/.data/logs
@@ -750,6 +780,7 @@ services:
   # ============================================================
 
   web-dev:
+    logging: *default-logging
     profiles:
       - web
 
@@ -808,6 +839,7 @@ services:
   # ============================================================
 
   web-gateway:
+    logging: *default-logging
     profiles:
       - web-prod
 
@@ -820,7 +852,7 @@ services:
       TZ: UTC
 
     ports:
-      - "${WEB_GATEWAY_PORT:-80}:80"
+      - "${WEB_GATEWAY_BIND_ADDRESS:-127.0.0.1}:${WEB_GATEWAY_PORT:-80}:80"
 
     depends_on:
       hpagent-api:
@@ -862,7 +894,7 @@ services:
     profiles:
       - qq
 
-    image: mlikiowa/napcat-docker:latest
+    image: ${NAPCAT_IMAGE:-mlikiowa/napcat-docker:latest}
 
     logging:
       driver: json-file

@@ -32,7 +32,7 @@ def test_registration_without_invite_provisions_default_entitlement(db, database
         "provisioned_by_invite_id FROM account_entitlements WHERE account_id=%s",
         (result.account_id,),
     ).fetchone()
-    assert tuple(entitlement) == ("standard", 50_000, "none", None, None)
+    assert tuple(entitlement) == ("standard", 5_000, "none", None, None)
 
 
 def test_valid_invite_provisions_complete_account_atomically(

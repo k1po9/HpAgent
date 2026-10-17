@@ -83,7 +83,10 @@ def test_run_file_scope_binding_is_explicit_and_released() -> None:
     assert manager.get_active_run_file_scope("session-1") is None
 
 @pytest.mark.asyncio
-async def test_p2_web_tool_registry_has_no_account_workspace_or_mcp_bypass(tmp_path: Path) -> None:
+@pytest.mark.parametrize("conversion_enabled", [False, True])
+async def test_p2_web_tool_registry_has_no_account_workspace_or_mcp_bypass(
+    tmp_path: Path, conversion_enabled: bool
+) -> None:
     class RemoteTools:
         def get_cached_tools(self):
             from langchain_core.tools import StructuredTool
@@ -97,7 +100,8 @@ async def test_p2_web_tool_registry_has_no_account_workspace_or_mcp_bypass(tmp_p
     manager = SandboxManager(
         native_tools_enabled=True, file_tools_enabled=True,
         host_bash_enabled=True, mcp_manager=RemoteTools(), nsjail_enabled=False,
-        file_output_publisher=object(), file_conversion_provider=object(),
+        file_output_publisher=object(),
+        file_conversion_provider=object() if conversion_enabled else None,
     )
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -110,7 +114,8 @@ async def test_p2_web_tool_registry_has_no_account_workspace_or_mcp_bypass(tmp_p
     names = {item["function"]["name"] for item in await sandbox.list_tools()}
     assert {"list_run_candidates", "select_run_candidate", "read_file"} <= names
     assert names.isdisjoint({"Bash", "fs_read", "fs_write", "fs_edit", "Glob", "Grep",
-                             "remote_file_read", "convert_file_to_pdf"})
+                             "remote_file_read"})
+    assert (sandbox._registry.get("convert_file_to_pdf") is not None) == conversion_enabled
     assert "save_persistent_file" not in names
     result, _ = await sandbox.execute("save_persistent_file", {})
     assert not result.success

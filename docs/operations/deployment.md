@@ -27,13 +27,16 @@ Profile：
 
 ```bash
 cp -n .env.example .env
+# 先按配置入口补齐全部凭据、预算、绑定地址和NapCat版本
+export COMPOSE_PROJECT_NAME=hpagent-beta
+export COMPOSE_FILE=docker-compose.yaml:docker-compose.beta.yaml
 docker compose --profile web-prod up -d --build
 docker compose --profile web-prod ps
 curl --fail http://127.0.0.1:8080/health/ready
 curl --fail http://127.0.0.1:${WEB_GATEWAY_PORT:-80}/
 ```
 
-对外暴露前需要配置生产 Secret、Provider Credential、`WEB_PUBLIC_ORIGIN`，并按部署环境设置 `WEB_COOKIE_SECURE=true`。Compose 将 PostgreSQL、Redis、Temporal、SearXNG、Gotenberg、Hindsight 和 API 绑定在 Loopback；Gateway 是预期的公网入口。
+对外暴露前需要配置生产 Secret、Provider Credential、`WEB_PUBLIC_ORIGIN`，并按部署环境设置 `WEB_COOKIE_SECURE=true`。Compose 将 PostgreSQL、Redis、Temporal、SearXNG、Gotenberg、Hindsight 和 API 绑定在 Loopback；Gateway 默认也绑定 Loopback，Beta 需按已核实Tailscale拓扑指定绑定地址及防火墙。
 
 离线镜像传输使用 `scripts/operations/docker-offline-export.sh` 和 `scripts/operations/docker-offline-load.sh`。
 

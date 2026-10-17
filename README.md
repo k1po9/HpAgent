@@ -32,7 +32,7 @@ Compose 自动先完成空库 schema 初始化。首次上线不迁移旧开发/
 
 首先填写[首次上线配置确认表](docs/operations/first-release-configuration.md)，按编号确定域名、Secret、模型、渠道、存储与容量。`.env.example` 集中列出 Compose 可设置的环境变量。
 
-使用 `web-prod` 网关组合，步骤见[首次部署](docs/operations/deployment.md)。当前 Compose 的部分应用服务仍挂载宿主源码；生产环境的镜像、挂载和TLS方案列入配置确认表，待确定后落地。
+使用 `web-prod` 网关组合，步骤见[首次部署](docs/operations/deployment.md)。当前 Compose 的部分应用服务仍挂载宿主源码；首次五人Beta保留源码挂载，云端Nginx终止HTTPS经Tailscale进入本地；配置、预算及待验收项见配置入口。
 
 UI 的 R1–R6 接受不等于生产上线验证；真实模型、Worker、外发、恢复和真机范围须单独验收。[发布检查](scripts/README.md)会明确列出构建、启动和真实请求副作用。
 

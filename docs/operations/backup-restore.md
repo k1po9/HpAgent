@@ -1,31 +1,28 @@
-# 备份与恢复
+# Beta 完整冷备与隔离恢复
 
-## 备份
+RPO48小时/RTO24小时是目标，未演练前不视为达成。每日低峰一次、30天保留、云端15GiB均需实际容量核实；此轮不增加自动调度、增量去重、异机传输或告警平台。
 
-Compose 服务运行时执行：
+## 维护窗口与备份
 
-```bash
-BACKUP_DIR=/secure/location ./scripts/operations/backup.sh
-```
+只在安排好的维护窗口执行，不在测试中对真实服务执行以下命令。使用与部署相同的独立Beta目录、COMPOSE_FILE、COMPOSE_PROJECT_NAME及私有.env；不要换project误备份开发环境。
 
-必须显式指定仓库外绝对目录；脚本拒绝仓库内路径、创建受限独立子目录，失败保留`.incomplete`并非零退出。Shell帮助不会运行备份。
+1. 通知用户暂停使用；云端临时维护页/入口阻断新请求，暂停NapCat接入。等可完成的任务结束；不确定外发状态保留回执供核对。
+2. `docker compose --profile web-prod --profile qq stop` 停止本project全部容器，包括API、主/Document Worker、NapCat、Hindsight、Temporal、三套PostgreSQL、Redis、搜索与转换。只停应用不保证记忆/执行历史停止写入。核实同project没有其他运行实例，也没有宿主进程或另一project共享这些可写卷/目录。禁止用 `down -v`。
+3. 运行 `BACKUP_DIR=/已确认的项目外私有目录 scripts/operations/backup.sh`。脚本不停止/启动服务，发现容器未exited、缺少必要服务或持久卷时失败。源卷只读挂载到本地已有postgres:16-alpine辅助容器，禁用网络、禁止拉镜像；不启动数据库、不执行迁移、不连接外部服务。
+4. 备份包含所有部署容器实际挂载的命名卷（三套PG物理数据、Redis、File Store、Run、Document临时卷等）、整个`.data`（含Git workspace、NapCat登录/配置及日志）、config和Compose文件、卷/挂载清单、Git提交与脏状态、实际镜像ID、SHA256校验。数据库schema事实在物理备份内；不要仅备份workspace而遗漏账户文件字节。
+5. `cd /本次备份目录 && sha256sum -c SHA256SUMS`。`.incomplete`存在或任一命令失败均不得认作有效备份。记录数据库版本、发布配置版本和干净Git提交；私有.env及签名/密码材料从密码管理器独立安全恢复，备份中不展开Compose配置。确保同一Git提交可取得、镜像可取得（离线场景另存镜像包）。
+6. 将整批备份加密后经Tailscale同步到已确认异机路径，加密材料分离保管；校验异机副本，记录时间/批次/位置/大小。只有完整且已异机校验的副本才能更新最近有效备份时间。15GiB不足时先调整保留/容量，不能删除唯一有效副本。
+7. 恢复原服务组合、确认健康与登录后再开放入口。不要仅运行无profile的up，遗漏应用。脚本不自动重启，失败也由维护者决定恢复服务或继续排查。
 
-脚本生成带时间戳的 Application PostgreSQL 与 Hindsight PostgreSQL Custom-format Dump，并压缩 `.data/workspace`（Git 代码工作区）。Redis 是临时状态，不进行备份。**账号长期文件 Workspace 的目录、权限和修订在 Application PostgreSQL 中，字节在 File Store Volume 中**；脚本不包含 File Store Volume 和 Temporal PostgreSQL。Work、requirement、wakeup / schedule、Execution / receipt、累计预算、notifications / deliveries 都包含在 Application PostgreSQL dump 内。需要完整恢复文件或进行中的 Workflow History 时，必须在部署层取得同一恢复点的 Volume Snapshot。
+脚本输出目录权限受umask077保护，但归档包含用户数据、NapCat凭据与可能的日志敏感信息，**未自动加密**。归档成功只证明文件归档流程结束，不证明PG恢复、业务一致性或RPO/RTO。备份前停止与禁止其他共享写入者是维护者责任，脚本无法静态证明宿主全部写入者均已停止。
 
-备份集应与 Repository Revision、`.env`/Secret 引用、镜像版本和 Compose Volume Inventory 一起保存。Dump 应按生产数据保护。
+## 隔离恢复
 
-## 恢复
+1. 使用临时隔离目录、project、端口和新卷，禁用QQ、MCP、定时调度、记忆写入及真实Provider网络，防止恢复后盲目外发。不要直接启动复制出来的完整生产组合；基础Compose的端口/目录固定，必须另做隔离覆盖。先检查归档与SHA256，不使用`.incomplete`批次。
+2. 取得同版本代码、Compose、config、镜像及匹配私有环境材料。物理PG备份使用原数据库镜像/主版本与扩展，Hindsight pgvector不能换成无扩展的普通PG。先创建空的新卷，不对旧卷覆盖解压。
+3. 按`volumes.txt`和`mounts.jsonl`建立旧卷→新卷映射。每个`volume-<旧卷>.tar.gz`仅解压至对应空卷，保留uid/gid/mode；`data.tar.gz`恢复到隔离目录。实际权限与目录写入兼容性必须验证。config/Compose供核对，不覆盖正在运行的配置；不要将两个批次的App、Temporal、Hindsight、File Store混用。
+4. 先启动隔离数据库并检查恢复/一致性日志。用只读方式核对账户、entitlement、文件元数据及字节校验、Work/Run/预算回执、Hindsight对应bank、Temporal workflow history。迁移前先确认代码/schema版本与兼容性，禁止把默认初始化当作恢复既有数据。
+5. 检查持久文件能读取、记忆与执行历史一致、运行目录权限正确。暂停或核对待执行/uncertain外部效果后，才在专用网络与账号下另约业务验收；不能在本轮隔离恢复中顺便调用真实模型/发送QQ。
+6. 记录恢复点、演练开始/恢复时间、校验项目与差异、实际RPO/RTO和证据位置。恢复完成的临时资源按明确清单人工清理，不能使用匹配模糊名称的批量删除。
 
-先在隔离环境恢复：
-
-1. 停止 API 和 Worker，避免写入。
-2. 使用 Migration Owner 和 `pg_restore` 将应用 Dump 恢复到 `hpagent` 数据库。
-3. 将 Hindsight Dump 恢复到 Hindsight 数据库。
-4. 将 Git 代码工作区 Archive 恢复到 `.data/workspace`，保留原有 Ownership 和 Permission；账号长期文件还须恢复匹配的 File Store Volume。
-5. 如果备份中包含 File Store 与 Temporal Volume，从同一恢复点还原。
-6. 启动依赖，运行 `hpagent-migrate`，再启动 API/Worker。
-7. 验证 `/health/ready`、Worker Poller/Log，并进行一次只读 Account/Conversation 查询后再接收流量。
-
-不要在没有 Reconciliation 方案时，混用不同时间点的 Application PostgreSQL、File Store 或 Temporal Snapshot。
-
-首次上线使用空库，不导入旧开发/测试数据；本页恢复步骤用于投产后创建的匹配备份。通知或外部效果处于 uncertain 时保留原回执与预算事实，恢复完成先 reconciliation，不盲目重发。
+目前没有恢复自动化、独立告警闭环或已通过演练的证据。最近有效备份超过48小时、归档/同步/校验失败需维护者从独立渠道处置；告警渠道与责任时段待填写。

@@ -83,3 +83,25 @@ async def test_upload_body_limit_applies_without_trusting_route_code() -> None:
         )
         assert response.status_code == 413
         assert response.json()["error"]["code"] == "file_too_large"
+
+
+@pytest.mark.parametrize("excess", [0, 1])
+async def test_beta_32mib_upload_boundary_with_chunked_bytes(excess):
+    limit = 32 * 1024 * 1024
+
+    async def chunks():
+        for _ in range(32):
+            yield b"x" * (1024 * 1024)
+        if excess:
+            yield b"x"
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_app(limit=limit)), base_url="http://test"
+    ) as client:
+        response = await client.put(
+            "/api/v1/uploads/00000000-0000-0000-0000-000000000001/content",
+            content=chunks(), headers={"content-type": "application/octet-stream"},
+        )
+    assert response.status_code == (413 if excess else 200)
+    if not excess:
+        assert response.json()["size"] == limit

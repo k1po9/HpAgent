@@ -33,6 +33,7 @@ servers:
 
   # ── tavily 网页搜索 ──────────────────────────────────────
   tavily-mcp:
+    disabled: true  # Beta：待逐项审核
     url: "https://mcp.api-inference.modelscope.net/1cf7c250530c4e/mcp"
     description: "tavily-websearch-mcp-server"
     required: false
@@ -47,17 +48,16 @@ servers:
         enrich: " 用于提取/阅读网页正文内容。"
 
   # china-stock-mcp:
-  #   url: "https://mcp.api-inference.modelscope.net/3d2deab5595c41/mcp"
   #   description: "china-stock-mcp-server"
 
   # akshare-one-mcp:
-  #   url: "https://mcp.api-inference.modelscope.net/99b6212ed95046/sse"
   #   description: "A股行情数据（历史K线/实时行情/财报/新闻/技术指标）"
   #   request_timeout: 30
   #   truncate_limit: 4000
 
   # ── stock-sdk 股票行情 ───────────────────────────────────
   stock-sdk:
+    disabled: true  # Beta：待逐项审核
     transport: "stdio"
     command: "node"
     args:
@@ -135,7 +135,6 @@ servers:
 
   # ── TickDB 股票行情 ──────────────────────────────────────
   # tickdb:
-  #   url: "https://mcp.tickdb.ai/"
   #   description: "TickDB 股票行情数据"
   #   headers:
   #     X-TickDB-Key: "if87o9K9D0fqcgMrVFLwsE5Krp8Z8HVT"
@@ -144,6 +143,7 @@ servers:
 
   # ── 高德地图 ──────────────────────────────────────────────
   amap-maps:
+    disabled: true  # Beta：待逐项审核
     url: "https://mcp.api-inference.modelscope.net/e1abf638e8c84e/mcp"
     description: "高德地图（地理编码/POI/路径规划/地点搜索）"
     request_timeout: 15
@@ -175,6 +175,7 @@ servers:
 
   # ── 八字命理 ──────────────────────────────────────────────
   bazi-mcp:
+    disabled: true  # Beta：待逐项审核
     url: "https://mcp.api-inference.modelscope.net/6f5b65c7897c43/mcp"
     description: "八字/五行/命理推算"
     tools:
@@ -195,6 +196,7 @@ servers:
 
   # ── 菜谱查询 ──────────────────────────────────────────────
   howtocook-mcp:
+    disabled: true  # Beta：待逐项审核
     url: "https://mcp.api-inference.modelscope.net/58c96d150d0943/mcp"
     description: "菜谱查询"
     tools:
@@ -204,6 +206,7 @@ servers:
 
   # ── 12306 火车票 ──────────────────────────────────────────
   12306-mcp:
+    disabled: true  # Beta：待逐项审核
     url: "https://mcp.api-inference.modelscope.net/9b18d6a824ef4e/mcp"
     description: "12306 火车票查询"
     tools:

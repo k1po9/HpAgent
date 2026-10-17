@@ -93,14 +93,14 @@ def setup_logging(
         log_path = Path(log_dir)
         log_path.mkdir(parents=True, exist_ok=True)
 
-        # JSONL 全量日志（每天轮转，保留 30 天）
+        # JSONL 全量日志（每天轮转，保留 14 天）
         json_handler = TimedRotatingFileHandler(
             str(log_path / json_filename),
             when="midnight",
-            backupCount=30,
+            backupCount=14,
             encoding="utf-8",
         )
-        json_handler.setLevel(logging.DEBUG)
+        json_handler.setLevel(level)
         json_handler.setFormatter(_JsonFormatter())
         root.addHandler(json_handler)
 
@@ -108,7 +108,7 @@ def setup_logging(
         err_handler = TimedRotatingFileHandler(
             str(log_path / error_log_filename),
             when="midnight",
-            backupCount=30,
+            backupCount=14,
             encoding="utf-8",
         )
         err_handler.setLevel(logging.ERROR)
