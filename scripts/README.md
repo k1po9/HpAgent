@@ -21,6 +21,7 @@
 | `bash scripts/check/gateway-smoke.sh` | Docker、curl、python3；`GATEWAY_IMAGE/GATEWAY_PORT/STUB_IMAGE` | 可构建前端/镜像，创建独立stub/网关容器及私有网络；宿主仅发布网关随机端口。结束仅删除本次资源。不连接真实API/模型；stdout结果，失败非零。CI网关检查。 |
 | `bash scripts/check/schema-runtime-smoke.sh` | Docker Compose、python3；无参数 | 构建Migration/API/Worker镜像并运行临时容器，只读核对镜像内SQL清单/哈希；不执行迁移。stdout指纹，不一致非零。 |
 | `psql "$APP_DATABASE_URL" -v ON_ERROR_STOP=1 -v run_id=UUID -f scripts/check/queued-run-diagnostic.sql` | psql、目标库只读权限 | 只读Run/Outbox/Workflow分发状态，stdout诊断行；不重试或解锁业务。SQL是内部查询，无CLI。 |
+| `python3 scripts/check/model-map.py --env-file .env --beta` | Docker Compose、PyYAML；指定私有.env，--beta合并Beta overlay | 仅解析配置并输出脱敏用途/模型/凭据存在状态；不启动容器、不调用模型。错误不回显原始配置。详见[模型分工](../docs/reference/model-routing.md)。 |
 | `python scripts/check/models.py --help` / `bash scripts/check/models-compose.sh --help` | 模型配置与Provider凭据；后者需Docker，`--build`会构建，`--direct/--stream/-n/-c`见帮助 | **实际请求模型并产生费用**；stdout延迟/错误。只能对获准Provider运行，非法次数/类别/模式在读取凭据前失败；任一样本失败则非零退出，统计口径不变，不是业务链验收。 |
 | `python scripts/check/mcp-health.py --help` | MCP配置、依赖；`--server/--timeout/--json/--strict-security` | 连接外部MCP并查询工具元数据，不执行工具调用；stdout报告，安全/连接失败依选项非零。 |
 | `python scripts/check/qq-connectivity.py --help` | QQ官方凭据；沙箱开关`QQ_OFFICIAL_SANDBOX` | **请求官方token/gateway并等待WebSocket事件**；不作为离线测试。不输出/公开诊断中的凭据；连接失败非零。 |

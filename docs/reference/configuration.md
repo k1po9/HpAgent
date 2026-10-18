@@ -25,8 +25,8 @@
 | `SILICONFLOW_RERANK_MODEL` | 取决于模型配置 | 无 | Model/Hindsight | Rerank Model。 |
 | `MINIMAX_API_KEY` | 取决于模型配置 | 无 | Model | MiniMax 凭据。 |
 | `MINIMAX_API_BASE_URL` | 取决于模型配置 | 无 | Model | MiniMax OpenAI-compatible Endpoint。 |
-| `MINIMAX_FLAGSHIP_MODEL` | 当前 Chat Chain | 无 | Model | Fast/Chat/Reasoning Model Name。 |
-| `ALIBABA_BAILIAN_*` | 取决于 Fallback | 无 | Model | Bailian Key、Endpoint 和 Fast Model。 |
+| `MINIMAX_FLAGSHIP_MODEL` / `MINIMAX_STANDARD_MODEL` / `MINIMAX_HIGHSPEED_MODEL` | 取决于启用链 | 无 | Model | MiniMax模型目录；当前Worker未选用，Hindsight默认引用STANDARD；详见模型分工表。 |
+| `SILICONFLOW_FLAGSHIP_MODEL` / `SILICONFLOW_STANDARD_MODEL` / `SILICONFLOW_HIGHSPEED_MODEL` | 可选 | 空 | Model | 当前分别用于reasoning / chat / fast，不自动回退。 |
 | `DEEPSEEK_*` | 可选 | 见 `.env.example` | Model/Check | DeepSeek Endpoint、Key 和 Model Name。 |
 | `HPAGENT_MODELS_PATH` | 否 | `/app/config/models.yaml` | Worker | 替代 Model Config 路径。 |
 | `WEB_PUBLIC_ORIGIN` | 对外服务时必需 | Compose 中为 `https://localhost` | API | 允许的浏览器 Origin。 |
@@ -63,6 +63,8 @@
 `.env.example` 是部署模板。Source Settings 还提供 SSE Buffer、Outbox Recovery、Cleanup Interval 和 Budget Policy 等调优变量；没有运维证据时应保留代码默认值。
 
 ## 模型配置
+
+完整的用途、供应商、变量、调用位置和脱敏检查见[模型分工表](model-routing.md)。Research报告与HTML成果共用chat，长期记忆是独立的Hindsight配置，reasoning不自动被业务选用。
 
 `config/models.yaml` 定义 Provider，以及 `fast`、`chat`、`embedding`、`image`、`reasoning` 的有序 Model Chain 和一个 Reranker。Provider Entry 包含 API Format 和环境变量引用，凭据只保存在 `.env`。同一文件还声明 Tool Retrieval、MCP Config Path、Skill Path 和各 Surface 的 Token/Timeout Override。
 

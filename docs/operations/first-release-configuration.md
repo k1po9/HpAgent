@@ -6,7 +6,7 @@
 
 Web、NapCat、Research、长期记忆、上传和受控 Office→PDF 转换开启。图像链为空，没有发现现有图像生成工具或 Web 操作入口；不为此更改文件上传类型支持。DeepSeek 无启用 provider/模型引用，仅保留兼容变量入口；生产 Web Host Shell 关闭。
 
-摘要 fast 仅 MiniMax，沿用旗舰模型变量、现有超时和重试。SiliconFlow 保留供 Embedding、Rerank 及 Hindsight 使用，必须提供相应凭据。Alibaba 无其他启用引用，已删除配置。Hindsight LLM 的 provider/base URL/model/key 仍须单独填写。
+当前源码选择 SiliconFlow 文本链：fast 引用 SILICONFLOW_HIGHSPEED_MODEL，chat 引用 SILICONFLOW_STANDARD_MODEL，reasoning 引用 SILICONFLOW_FLAGSHIP_MODEL，保持现有超时和重试；reasoning 不自动被业务选用。Hindsight 的 LLM 仍独立使用 MiniMax 配置。完整映射与安全检查见[模型分工表](../reference/model-routing.md)。SiliconFlow 同时供 Embedding、Rerank 及 Hindsight 检索使用，必须提供相应凭据。原生请求参数尚待按[方案](../design/model-native-parameters-plan.md)核实，不视为已兼容。Alibaba 无其他启用引用，已删除配置。Hindsight LLM 的 provider/base URL/model/key 仍须单独填写。
 
 只保留一套常驻 Beta。首次新建空卷，旧开发数据保留，不导入、不删除。独立 Beta 目录、干净 Git 提交、镜像 ID、配置版本及迁移状态共同标记发布版本；保留源码挂载。Python 修改需重启对应 API/Worker；依赖、前端、Document 及其他未挂载内容变化按需重建。禁止在日常开发目录边编辑边对外服务。
 
