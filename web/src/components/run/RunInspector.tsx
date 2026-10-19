@@ -248,9 +248,10 @@ export function RunInspector({
                   <p role="alert">{snapshot.run.failure.message}</p>
                 )}
                 {snapshot.assistant_message.content && (
-                  <div className="hp-run-overview-result">
-                    <h3>回复正文</h3>
-                    <p className="hp-run-result">{snapshot.assistant_message.content}</p>
+                  <div className="hp-run-overview-result" aria-label="回复正文">
+                    <p className="hp-run-result" tabIndex={0}>
+                      {snapshot.assistant_message.content}
+                    </p>
                   </div>
                 )}
               </>
@@ -284,7 +285,9 @@ export function RunInspector({
             )}
             <RunTimeline key={id} run={run} />
             <button className="hp-run-approvals-action" onClick={() => changeTab("resources")}>
-              查看操作审批 <ArrowUpRight size={14} aria-hidden="true" />
+              <ShieldQuestion size={20} aria-hidden="true" />
+              <span>查看操作审批</span>
+              <ArrowUpRight size={18} aria-hidden="true" />
             </button>
           </section>
         )}

@@ -1,34 +1,54 @@
-/* Run overview: silver reading surface, factual state, a quiet chronological rail.
- * Scoped to the overview so resources, diagnostics and other Inspectors keep their layouts. */
+/* Accepted Paper Flame concept: a white object card, silver facts and reading mat.
+ * Only Run overview uses these surfaces; shared Inspectors and other tabs stay intact. */
 .hp-run-inspector .hp-run-overview {
   display: flex;
   flex-direction: column;
-  gap: 22px;
-  padding: 4px 0 12px;
+  gap: 18px;
   min-width: 0;
+  margin-top: 6px;
+  padding: 18px;
+  background: var(--hp-surface);
+  border: 1px solid #dce4eb;
+  border-radius: 16px;
+  box-shadow: 0 8px 26px rgb(22 33 44 / 4%);
 }
 .hp-run-inspector .hp-run-overview-facts {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 18px 16px;
+  gap: 14px 0;
   margin: 0;
-  padding: 0 0 20px;
-  border-bottom: 1px solid var(--hp-border);
+  padding: 16px;
+  background: #f1f5f7;
+  border: 1px solid #dce6ed;
+  border-radius: 12px;
 }
 .hp-run-inspector .hp-run-overview-facts > div {
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
 }
 .hp-run-overview-facts dt {
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  color: var(--hp-muted);
+}
+.hp-run-overview-state {
+  padding-right: 12px;
+}
+.hp-run-overview-approval {
+  padding-left: 18px;
+  border-left: 1px solid #d9e2e9;
 }
 .hp-run-inspector .hp-run-overview-facts dd {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   min-height: 32px;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 650;
   line-height: 1.5;
   color: var(--hp-text);
+}
+.hp-run-overview-state > dd > span:last-child {
+  color: var(--hp-success);
 }
 .hp-run-completion {
   display: inline-grid;
@@ -36,22 +56,26 @@
   flex: 0 0 32px;
   height: 32px;
   color: var(--hp-success);
-  background: linear-gradient(145deg, var(--hp-reading-surface), var(--hp-inspector-surface));
+  background: #e1f2eb;
   border-radius: 50%;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%);
 }
 .hp-run-overview-state .hp-vitality-copy {
   gap: 0;
 }
-.hp-run-overview-state .hp-vitality-label {
-  font-size: 13px;
+/* R426 defines these properties as important globally; contain the override here. */
+.hp-inspector .hp-run-overview .hp-vitality-label {
+  font-size: 15px !important;
+  font-weight: 650 !important;
 }
 .hp-run-overview-state .hp-vitality-caption {
   display: none;
 }
 .hp-run-overview-approval svg {
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   color: var(--hp-muted);
+  stroke-width: 1.5;
 }
 .hp-run-overview-approval[data-approval="pending"] dd,
 .hp-run-overview-approval[data-approval="pending"] svg {
@@ -64,104 +88,205 @@
 }
 .hp-run-inspector .hp-run-overview-activity dd {
   min-height: 0;
+  font-size: 13px;
   font-weight: 400;
-}
-.hp-inspector .hp-run-overview h3 {
-  margin: 0 0 12px;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  color: var(--hp-muted);
-}
-.hp-inspector .hp-run-overview .hp-run-result {
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
-  max-height: none;
-  overflow: visible;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  color: var(--hp-text);
-  font-size: 14px;
-  line-height: 1.85;
 }
 .hp-run-overview-result {
   min-width: 0;
 }
-.hp-run-timeline {
-  border-top: 1px solid var(--hp-border);
-  padding-top: 18px;
-}
-.hp-run-timeline ol {
-  list-style: none;
+.hp-inspector .hp-run-overview .hp-run-result {
   margin: 0;
-  padding: 0;
+  padding: 16px;
+  background: #f6f8fa;
+  border: 1px solid #e0e8ee;
+  border-radius: 12px;
+  max-height: 440px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #a2adb5 transparent;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #293e4c;
+  font-size: 14px;
+  line-height: 1.85;
 }
-.hp-run-timeline li {
-  position: relative;
-  margin-left: 4px;
-  padding: 0 0 18px 20px;
-  border-left: 1px solid var(--hp-border);
+.hp-run-result:focus-visible {
+  outline: 2px solid var(--hp-focus);
+  outline-offset: 2px;
 }
-.hp-run-timeline li:last-child {
-  padding-bottom: 0;
-  border-left-color: transparent;
+.hp-run-timeline {
+  padding-block: 16px 12px;
+  border-block: 1px solid #dce4eb;
 }
-.hp-run-timeline li::before {
-  content: "";
-  position: absolute;
-  width: 5px;
-  height: 5px;
-  top: 6px;
-  left: -3px;
-  background: var(--hp-inspector-surface);
-  border: 1px solid var(--hp-control-border);
-  border-radius: 50%;
-}
-.hp-run-timeline li[data-recorded="true"]::before {
-  background: var(--hp-neutral);
-  border-color: var(--hp-neutral);
-}
-.hp-run-timeline-event {
+.hp-run-timeline-summary {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  color: var(--hp-text);
+  gap: 8px 12px;
+  margin-bottom: 8px;
+}
+.hp-inspector .hp-run-timeline h3 {
+  margin: 0;
   font-size: 12px;
-  line-height: 1.6;
+  font-weight: 500;
+  color: #344d5e;
+  letter-spacing: 0;
+}
+.hp-run-durations {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
 }
 .hp-run-duration {
-  color: var(--hp-muted);
-  font-variant-numeric: tabular-nums;
-}
-.hp-run-timeline time,
-.hp-run-time-missing {
-  display: block;
-  margin-top: 3px;
-  color: var(--hp-muted);
-  font-size: 11px;
-  line-height: 1.6;
-  font-variant-numeric: tabular-nums;
-}
-.hp-run-inspector #run-panel-overview .hp-run-approvals-action {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 36px;
-  padding: 6px 0;
-  margin-top: -6px;
-  text-decoration: none;
-  border: 0;
-  background: transparent;
+  gap: 5px;
   color: var(--hp-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.hp-run-duration::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #91a5b5;
+}
+.hp-run-duration[data-phase="execution"]::before {
+  background: var(--hp-brand);
+}
+.hp-run-time-chart {
+  position: relative;
+  margin: 0 5px;
+  min-width: 0;
+}
+.hp-run-time-track {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+.hp-run-time-segment {
+  position: absolute;
+  top: 0;
+  height: 2px;
+  background: #a7b7c4;
+}
+.hp-run-time-segment[data-phase="execution"] {
+  background: var(--hp-brand);
+  opacity: 0.7;
+}
+.hp-run-time-point {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: -5px;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%);
+  border: 2px solid var(--hp-surface);
+  border-radius: 50%;
+  background: #8ea3b4;
+  box-shadow: 0 0 0 1px #c8d5df;
+}
+.hp-run-time-point[data-start="true"] {
+  background: var(--hp-brand);
+}
+.hp-run-time-point[data-current="true"] {
+  background: var(--hp-brand);
+}
+.hp-run-time-chart[data-status="queued"] .hp-run-time-point[data-current="true"] {
+  background: #8ea3b4;
+}
+.hp-run-time-chart[data-status="succeeded"] .hp-run-time-point[data-end="true"] {
+  background: var(--hp-success);
+  color: #fff;
+}
+.hp-run-time-chart[data-status="failed"] .hp-run-time-point[data-end="true"] {
+  background: var(--hp-danger);
+}
+.hp-run-time-chart[data-status="cancelled"] .hp-run-time-point[data-end="true"] {
+  background: var(--hp-muted);
+}
+.hp-run-time-chart ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.hp-run-time-chart li {
+  position: absolute;
+  left: clamp(
+    0px,
+    calc(var(--time-position) - var(--time-label-width) / 2),
+    calc(100% - var(--time-label-width))
+  );
+  width: var(--time-label-width);
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #344d5e;
+}
+.hp-run-time-chart li:first-child {
+  text-align: left;
+}
+.hp-run-time-chart li:last-child:not(:first-child) {
+  text-align: right;
+}
+.hp-run-time-chart time {
+  display: block;
+  margin-top: 2px;
+  color: var(--hp-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hp-run-time-chart time span {
+  display: block;
+}
+.hp-run-inspector .hp-run-time-unavailable {
+  margin: 8px 0 0;
+  gap: 7px;
+}
+.hp-run-inspector .hp-run-time-unavailable > div {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+}
+.hp-run-time-note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--hp-muted);
+}
+.hp-run-inspector #run-panel-overview .hp-run-approvals-action {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  order: initial;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 14px;
+  margin: 0;
+  border: 1px solid #dce6ed;
+  border-radius: 11px;
+  background: #f3f6f8;
+  text-decoration: none;
+  color: #344d5e;
   font-weight: 500;
-  font-size: 12px;
+  font-size: 13px;
+}
+.hp-run-approvals-action > svg:last-child {
+  margin-left: auto;
+}
+.hp-run-inspector #run-panel-overview .hp-run-approvals-action:hover {
+  background: #edf2f5;
+  border-color: #b9c9d3;
+  color: var(--hp-accent);
 }
 .hp-run-overview .hp-runstrip {
-  margin: -8px 0 0;
+  margin: -4px 0 0;
   padding: 0;
   background: transparent;
   border: 0;
@@ -177,17 +302,29 @@
   line-height: 1.5;
   color: var(--hp-muted);
 }
-
-.hp-run-inspector #run-panel-overview .hp-run-approvals-action:hover {
-  background: transparent;
-  color: var(--hp-accent);
-}
-/* R426 defines these two properties as important globally; contain the override here. */
-.hp-inspector .hp-run-overview .hp-vitality-label {
-  font-size: 13px !important;
-  font-weight: 500 !important;
-}
 .hp-run-overview .hp-run-actions {
   padding-top: 0;
   border-top: 0;
+}
+@media (max-width: 480px) {
+  .hp-run-inspector .hp-run-overview {
+    padding: 14px;
+    gap: 16px;
+  }
+  .hp-run-inspector .hp-run-overview-facts {
+    padding: 12px;
+  }
+  .hp-run-overview-approval {
+    padding-left: 12px;
+  }
+  .hp-run-inspector .hp-run-overview-facts dd {
+    font-size: 13px;
+    gap: 6px;
+  }
+  .hp-inspector .hp-run-overview .hp-vitality-label {
+    font-size: 13px !important;
+  }
+  .hp-inspector .hp-run-overview .hp-run-result {
+    padding: 12px;
+  }
 }

@@ -66,3 +66,40 @@ it.each(["failed", "cancelled"] as const)(
     expect(screen.getByText("时间未提供")).toBeVisible();
   },
 );
+it("places the start at elapsed/total without distributing points evenly", () => {
+  const { container } = render(
+    <RunTimeline
+      run={{
+        ...run,
+        created_at: "2026-10-19T00:00:00Z",
+        started_at: "2026-10-19T00:00:07Z",
+        finished_at: "2026-10-19T00:00:28Z",
+      }}
+    />,
+  );
+  expect(
+    [...container.querySelectorAll("li")].map((el) => el.getAttribute("data-position")),
+  ).toEqual(["0", "25", "100"]);
+  expect(container.querySelector('[data-phase="waiting"].hp-run-time-segment')).toHaveStyle({
+    width: "25%",
+  });
+  expect(container.querySelector('[data-phase="execution"].hp-run-time-segment')).toHaveStyle({
+    width: "75%",
+  });
+});
+it("merges equal timestamps and never invents a waiting interval", () => {
+  const { container } = render(<RunTimeline run={{ ...run, started_at: run.created_at }} />);
+  expect(screen.getByText("创建 / 开始")).toBeVisible();
+  expect(container.querySelectorAll("li")).toHaveLength(2);
+  expect(container.querySelector('[data-phase="waiting"].hp-run-time-segment')).toHaveStyle({
+    width: "0%",
+  });
+});
+it("keeps a completely zero-duration execution at a single point without a track", () => {
+  const { container } = render(
+    <RunTimeline run={{ ...run, started_at: run.created_at, finished_at: run.created_at }} />,
+  );
+  expect(screen.getByText("创建 / 开始 / 结束")).toBeVisible();
+  expect(container.querySelectorAll(".hp-run-time-point")).toHaveLength(1);
+  expect(container.querySelectorAll(".hp-run-time-segment")).toHaveLength(0);
+});
