@@ -10,6 +10,7 @@ import {
   useRef,
   type ReactNode,
   type Ref,
+  type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
 import { Theme } from "@radix-ui/themes";
@@ -69,6 +70,9 @@ export function Surface({
   title,
   titleRef,
   titleDecoration,
+  titleContent,
+  edgeControl,
+  style,
   headerActions,
   children,
   onClose,
@@ -84,6 +88,9 @@ export function Surface({
   title: string;
   titleRef?: Ref<HTMLHeadingElement>;
   titleDecoration?: ReactNode;
+  titleContent?: ReactNode;
+  edgeControl?: ReactNode;
+  style?: CSSProperties;
   headerActions?: ReactNode;
   children: ReactNode;
   onClose: () => void;
@@ -213,6 +220,7 @@ export function Surface({
   const content = (
     <dialog
       ref={ref}
+      style={style}
       data-spatial-motion={motion === "elevate" && motionEnabled ? "elevate" : "none"}
       className={`hp-surface ${!modal ? "hp-surface--region" : ""} ${className}`}
       role={modal ? role : "complementary"}
@@ -241,6 +249,7 @@ export function Surface({
         if (layers.at(-1) === ref.current) onClose();
       }}
     >
+      {edgeControl}
       <header className={`hp-surface-header${titleDecoration ? " hp-file-title-reception" : ""}`}>
         {onBack && (
           <button onClick={onBack} title="返回上一对象">
@@ -252,7 +261,7 @@ export function Surface({
           id={className.includes("inspector") ? "inspector-title" : undefined}
           tabIndex={-1}
         >
-          {title}
+          {titleContent ?? title}
         </h2>
         {titleDecoration}
         {headerActions && <div className="hp-surface-header-actions">{headerActions}</div>}

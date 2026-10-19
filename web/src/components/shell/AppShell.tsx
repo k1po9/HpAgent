@@ -1,6 +1,6 @@
 import { revealConversationReading } from "../mercury/useConversationTransit";
 import { AgentIcon, WorkspaceIcon, TasksIcon } from "../spatial/ReviewIcons";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { UserRound, Menu, Sparkles, LogOut } from "lucide-react";
 import { useShell, type Screen } from "../../store/shell";
 import { useAuth } from "../../store/auth";
@@ -46,6 +46,7 @@ export function AppShell() {
   const { width } = layout;
   const flow = useInspectorFlow(width < 1280);
   const expanded = flow.expanded;
+  const runWidth = useShell((s) => s.runInspectorWidth);
   const route = useShell((s) => s.route);
   useSpatialFeedback(
     shellRef,
@@ -175,14 +176,20 @@ export function AppShell() {
         layout.sidebar +
         layout.canvasMin +
         (flow.occupies && width >= 1280
-          ? expanded
-            ? layout.inspectorExpanded
-            : layout.inspector
+          ? flow.kind === "run"
+            ? Math.min(
+                runWidth,
+                Math.max(360, width - layout.rail - layout.canvasMin - layout.layoutGap),
+              )
+            : expanded
+              ? layout.inspectorExpanded
+              : layout.inspector
           : 0) +
         layout.layoutGap;
   return (
     <div
       ref={shellRef}
+      style={{ "--hp-run-inspector-width": `${runWidth}px` } as CSSProperties}
       data-spatial-motion={motion ? "enabled" : "reduced"}
       className={`hp-shell ${flow.occupies ? "hp-shell--inspecting" : ""} ${collapsed ? "hp-shell--sidebar-collapsed" : ""}`}
     >

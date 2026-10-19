@@ -1,3 +1,4 @@
+import { RunRefresh } from "./RunRefresh";
 import { InspectorTabs } from "../shell/InspectorTabs";
 import { useEffect, useState } from "react";
 import { useShell, type Inspector } from "../../store/shell";
@@ -161,18 +162,7 @@ export function RunInspector({
         selected={tab}
       />
       {state.error && <p role="status">{state.error}</p>}
-      <button
-        className="hp-run-sync"
-        onClick={() => {
-          void state.load();
-          if (tab === "advanced") {
-            useTraceStore.getState().clearModelInputs();
-            void useTraceStore.getState().loadTrace();
-          }
-        }}
-      >
-        同步执行
-      </button>
+      {!hideIdentity && <RunRefresh inspector={inspector} />}
       <div role="tabpanel" id={`run-panel-${tab}`} aria-labelledby={`run-tab-${tab}`}>
         {tab === "overview" && (
           <section className="hp-inspector-card" aria-label="执行概览">

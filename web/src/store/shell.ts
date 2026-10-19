@@ -155,6 +155,7 @@ interface ShellState {
   modal: "account" | "resources" | "artifact-create" | "task-create" | "task-inbox" | null;
   sidebarOpen: boolean;
   expanded: boolean;
+  runInspectorWidth: number;
   requestToken: number;
   navigate: (route: Route, replace?: boolean, options?: NavigationOptions) => boolean;
   restore: (hash: string, context?: LegacyContext) => void;
@@ -183,6 +184,7 @@ export const useShell = create<ShellState>((set, get) => ({
   modal: null,
   sidebarOpen: false,
   expanded: false,
+  runInspectorWidth: 460,
   requestToken: 0,
   navigate(route, replace = false, options) {
     options ??= pendingNavigation?.route === route ? pendingNavigation.options : undefined;
@@ -337,6 +339,7 @@ export const useShell = create<ShellState>((set, get) => ({
       modal: null,
       sidebarOpen: false,
       expanded: false,
+      runInspectorWidth: 460,
       requestToken: get().requestToken + 1,
     });
   },

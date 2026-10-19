@@ -57,10 +57,12 @@ export function InspectorTitleOrnament({
         h = header.getBoundingClientRect();
       if (!title.isConnected || !r.width || !r.height) return false;
       geometry = [r.left, r.top, r.width, r.height, h.left, h.top];
-      const left = r.left - h.left - 13,
-        top = r.top - h.top - 9;
-      const width = r.width + 26,
-        height = r.height + 18;
+      const insetX = kind === "run" ? 18 : 13,
+        insetY = kind === "run" ? 12 : 9;
+      const left = r.left - h.left - insetX,
+        top = r.top - h.top - insetY;
+      const width = r.width + insetX * 2,
+        height = r.height + insetY * 2;
       const point = relayTargetPoint(title);
       const x = point.x - h.left - left,
         y = point.y - h.top - top;

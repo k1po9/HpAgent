@@ -58,6 +58,7 @@ export function useInspectorFlow(compact: boolean) {
     arrived?: boolean;
     details?: boolean;
     token?: number;
+    exitKind?: string;
     exitAnchor?: { left: number; top: number; width: number; height: number };
   }>({ key: null, scope, phase: "closed", expanded });
   const serial = useRef(0),
@@ -68,6 +69,7 @@ export function useInspectorFlow(compact: boolean) {
     source: HTMLElement | null;
     expanded: boolean;
     landed: boolean;
+    kind: string | undefined;
   } | null>(null);
   const target = useRef<HTMLElement>(null);
   const returnStart = useRef({ x: 0, y: 0 });
@@ -128,6 +130,7 @@ export function useInspectorFlow(compact: boolean) {
           phase: "closing",
           expanded: old.expanded,
           exitAnchor: exitAnchor.current,
+          exitKind: old.kind,
         });
         const finish = () => {
           dispose();
@@ -162,6 +165,7 @@ export function useInspectorFlow(compact: boolean) {
       previous.current = {
         key,
         scope,
+        kind: inspector?.kind,
         source,
         expanded: useShell.getState().expanded,
         landed: false,
@@ -255,6 +259,7 @@ export function useInspectorFlow(compact: boolean) {
       ? "closing"
       : "closed";
   return {
+    kind: inspector?.kind ?? (closing ? view.exitKind : undefined),
     phase,
     receiverRef,
     exitAnchor: view.exitAnchor ?? { left: 20, top: 24, width: 200, height: 24 },
