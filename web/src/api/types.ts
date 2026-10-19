@@ -89,7 +89,7 @@ export interface HpTokenUsage {
 export interface HpUsageCounter {
   used: number;
   reserved: number;
-  limit: number;
+  limit: number | null;
 }
 
 export interface HpRunBudget {
@@ -102,12 +102,13 @@ export interface HpRunBudget {
     in_flight: number;
     unmetered: number;
     total_attempts: number;
-    limit: number;
+    limit: number | null;
   };
   by_source: Record<"provider" | "measured" | "estimated", HpTokenUsage>;
   usage_state: "none" | "in_flight" | "complete" | "partial";
   usage_quality: "none" | "provider" | "estimated" | "mixed";
   has_estimates: boolean;
+  final_response_reserve_tokens?: number;
   model_total_tokens_used: number;
   model_total_tokens_limit: number;
   tool_calls_used: number;
@@ -117,6 +118,7 @@ export interface HpRunBudget {
 }
 
 export interface HpRun {
+  run_ordinal?: number;
   execution_id?: string;
   run_id: string;
   conversation_id: string;
@@ -155,6 +157,7 @@ export interface HpRunBranch {
 export interface HpWorkRunSnapshot {
   source_kind: "work";
   run: {
+    run_ordinal?: number;
     source_kind: "work";
     run_id: string;
     execution_id: string;

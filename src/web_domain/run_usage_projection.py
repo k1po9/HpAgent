@@ -58,11 +58,11 @@ def budget_dto(
         "mixed" if token_sources else "none"
     )
 
-    def counter(dimension: str) -> dict[str, int]:
+    def counter(dimension: str) -> dict[str, int | None]:
         return {
             "used": int(used.get(dimension, 0)),
             "reserved": int(reserved.get(dimension, 0)),
-            "limit": int(limits.get(dimension, 0)),
+            "limit": int(limits[dimension]) if dimension in limits else None,
         }
 
     return {
@@ -75,12 +75,13 @@ def budget_dto(
         },
         "model_calls": {
             **calls, "total_attempts": sum(calls.values()),
-            "limit": int(limits.get("model_calls", 0)),
+            "limit": int(limits["model_calls"]) if "model_calls" in limits else None,
         },
         "by_source": by_source,
         "usage_state": usage_state,
         "usage_quality": usage_quality,
         "has_estimates": "estimated" in settled_sources,
+        "final_response_reserve_tokens": int(budget_row.get("final_response_reserve_tokens", 0)),
         **{
             f"{dimension}_{suffix}": int(source.get(dimension, 0))
             for dimension in ("model_total_tokens", "tool_calls", "bytes_scanned")

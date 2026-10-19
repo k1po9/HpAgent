@@ -189,7 +189,9 @@ describe("Run polling lifecycle", () => {
     };
     const pending = deferred<HpTraceTree>();
     const get = vi.spyOn(runApi, "getRun").mockResolvedValue(running);
-    vi.spyOn(runApi, "listRunModelInputs").mockResolvedValue({ visibility: "summary", items: [] });
+    const listInputs = vi
+      .spyOn(runApi, "listRunModelInputs")
+      .mockResolvedValue({ visibility: "summary", items: [] });
     const trace = vi
       .spyOn(api, "request")
       .mockResolvedValue(tree)
@@ -198,6 +200,7 @@ describe("Run polling lifecycle", () => {
     open("advanced");
     await act(async () => {});
     expect(trace).toHaveBeenCalledTimes(1);
+    expect(listInputs).not.toHaveBeenCalled();
     await tick(5000);
     expect(trace).toHaveBeenCalledTimes(2);
     visibility(true);

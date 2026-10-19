@@ -298,6 +298,7 @@ class QueryService:
                     "ORDER BY rf.created_at LIMIT 1", (account_id, run_id),
                 ).fetchone()
                 run = dto(work_run)
+                run["run_ordinal"] = self._run_ordinal(uow, work_run)
                 run["budget"] = load_run_budget_projection(uow, run_id)
                 run["published_file"] = file_dto(published) if published else None
                 run["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (run_id,)).fetchone()["execution_id"])
@@ -355,9 +356,22 @@ class QueryService:
             uow, row["account_id"], [row["m_message_id"]]
         ).get(row["m_message_id"], [])
         run = run_dto(row)
+        run["run_ordinal"] = self._run_ordinal(uow, row)
         run["budget"] = load_run_budget_projection(uow, row["run_id"])
         run["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (row["run_id"],)).fetchone()["execution_id"])
         return {"source_kind": "chat", "run": run, "assistant_message": message_dto(message, files)}
+
+    @staticmethod
+    def _run_ordinal(uow: UnitOfWork, row: dict[str, Any]) -> int:
+        # Retained Run history: independent of message pagination and Trace.
+        parent = "work_id" if row["source_kind"] == "work" else "conversation_id"
+        result = uow.execute(
+            f"SELECT COUNT(*) AS ordinal FROM runs WHERE account_id=%s "
+            f"AND source_kind=%s AND {parent}=%s "
+            "AND (created_at,run_id) <= (%s,%s)",
+            (row["account_id"], row["source_kind"], row[parent], row["created_at"], row["run_id"]),
+        ).fetchone()
+        return int(result["ordinal"])
 
     @staticmethod
     def _message_files(

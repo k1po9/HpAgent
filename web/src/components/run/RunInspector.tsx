@@ -2,19 +2,19 @@ import { Check, ShieldCheck, ShieldQuestion, ShieldAlert, ArrowUpRight } from "l
 import { RunTimeline } from "./RunTimeline";
 import { RunRefresh } from "./RunRefresh";
 import { InspectorTabs } from "../shell/InspectorTabs";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useShell, type Inspector } from "../../store/shell";
 import { useWorkbench, isTerminalRunStatus, runStatusLabel } from "../../store/workbench";
-import { runApi, useRunInspector } from "../../store/runInspector";
+import { useRunInspector } from "../../store/runInspector";
 import { useTraceStore } from "../trace/traceStore";
 import { RunTraceContent } from "../trace/RunTraceContent";
-import { ModelInputView } from "../trace/TraceDetail";
 import { RunResources } from "./RunResources";
 import { RunBudget } from "./RunBudget";
+import { RunDiagnosticIdentity } from "./RunDiagnosticIdentity";
 import { VitalityHeading } from "../vitality/VitalitySignal";
 import { useVitality } from "../vitality/useVitality";
 import { RunStatus } from "../RunStatus";
-import type { HpFile, HpModelInputList } from "../../api/types";
+import type { HpFile } from "../../api/types";
 
 export function RunInspector({
   inspector,
@@ -302,68 +302,12 @@ export function RunInspector({
         )}
         {tab === "advanced" && (
           <>
-            <p>执行标识：{id}</p>
+            <RunDiagnosticIdentity key={id} snapshot={snapshot} />
             <RunBudget budget={run.budget} />
             <RunTraceContent />
-            <ModelInputs key={id} runId={id} />
           </>
         )}
       </div>
     </div>
-  );
-}
-function ModelInputs({ runId }: { runId: string }) {
-  const [list, setList] = useState<HpModelInputList | null>(null);
-  const [error, setError] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const inputs = useTraceStore((s) => s.modelInputs);
-  useEffect(() => {
-    let valid = true;
-    useTraceStore.getState().clearModelInputs();
-    void runApi
-      .listRunModelInputs(runId)
-      .then((data) => {
-        if (valid) {
-          setList(data);
-          setError(false);
-          if (data.visibility === "none") useTraceStore.getState().clearModelInputs();
-        }
-      })
-      .catch(() => {
-        if (valid) {
-          setList(null);
-          setError(true);
-          useTraceStore.getState().clearModelInputs();
-        }
-      });
-    return () => {
-      valid = false;
-    };
-  }, [runId, attempt]);
-  return (
-    <section aria-label="Model Input 列表">
-      <h3>Model Input</h3>
-      <button
-        onClick={() => {
-          setList(null);
-          useTraceStore.getState().clearModelInputs();
-          setAttempt((a) => a + 1);
-        }}
-      >
-        同步模型记录
-      </button>
-      {error && <p role="alert">模型记录待同步，请重试。</p>}
-      {list?.visibility === "none" && <p>当前账号不可查看 Model Input。</p>}
-      {list && !list.items.length && <p>暂无模型记录。</p>}
-      {list?.visibility !== "none" &&
-        list?.items.map((input) => (
-          <article key={input.snapshot_id}>
-            <button onClick={() => void useTraceStore.getState().loadModelInput(input.snapshot_id)}>
-              查看模型记录 {input.snapshot_id.slice(0, 8)}
-            </button>
-            {inputs[input.snapshot_id] && <ModelInputView state={inputs[input.snapshot_id]!} />}
-          </article>
-        ))}
-    </section>
   );
 }

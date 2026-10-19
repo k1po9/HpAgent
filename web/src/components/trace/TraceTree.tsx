@@ -1,132 +1,141 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
-  Circle,
-  CircleCheck,
-  CircleX,
+  Check,
+  X,
+  Minus,
+  CircleDashed,
   LoaderCircle,
 } from "lucide-react";
 import type { HpTraceStatus } from "../../api/types";
 import type { TraceNode } from "./traceStore";
-
 interface TraceTreeProps {
   nodes: Record<string, TraceNode>;
   rootIds: string[];
   selectedNodeId: string | null;
   onSelect: (nodeId: string) => void;
 }
-
-function durationLabel(durationMs: number | null): string {
-  if (durationMs === null) return "";
-  return durationMs < 1000 ? `${durationMs} ms` : `${(durationMs / 1000).toFixed(2)} s`;
+const statusLabel = {
+  running: "运行中",
+  completed: "已完成",
+  failed: "失败",
+  cancelled: "已取消",
+  unknown: "状态未知",
+};
+const typeLabel: Record<string, string> = {
+  llm: "模型",
+  tool: "工具",
+  agent: "执行",
+  workflow: "流程",
+  step: "步骤",
+};
+function durationLabel(ms: number | null): string {
+  if (ms === null || !Number.isFinite(ms) || ms < 0) return "—";
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
 }
-
 function StatusIcon({ status }: { status: HpTraceStatus }) {
-  if (status === "running")
-    return <LoaderCircle className="hp-trace-status hp-trace-status--running" />;
-  if (status === "completed")
-    return <CircleCheck className="hp-trace-status hp-trace-status--completed" />;
-  if (status === "failed") return <CircleX className="hp-trace-status hp-trace-status--failed" />;
-  return <Circle className="hp-trace-status hp-trace-status--cancelled" />;
+  const Icon = {
+    running: LoaderCircle,
+    completed: Check,
+    failed: X,
+    cancelled: Minus,
+    unknown: CircleDashed,
+  }[status];
+  return <Icon className={`hp-trace-status hp-trace-status--${status}`} aria-hidden="true" />;
 }
-
-function TraceTreeNode({
-  node,
-  childrenByParent,
-  selected,
-  onSelect,
-}: {
-  node: TraceNode;
-  childrenByParent: Map<string, TraceNode[]>;
-  selected: string | null;
-  onSelect: (nodeId: string) => void;
-}) {
-  const [expanded, setExpanded] = useState(true);
-  const children = childrenByParent.get(node.id) ?? [];
-  return (
-    <li className="hp-trace-tree__item">
-      <div className={`hp-trace-tree__row${selected === node.id ? " is-selected" : ""}`}>
-        <button
-          type="button"
-          className="hp-trace-tree__expand"
-          aria-label={expanded ? "折叠节点" : "展开节点"}
-          disabled={children.length === 0}
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {children.length === 0 ? null : expanded ? <ChevronDown /> : <ChevronRight />}
-        </button>
-        <button type="button" className="hp-trace-tree__node" onClick={() => onSelect(node.id)}>
-          <StatusIcon status={node.status} />
-          <span className="hp-trace-tree__name">{node.name}</span>
-          {typeof node.metadata.snapshot_id === "string" ? (
-            <span className="hp-trace-tree__model-input">Model Input</span>
-          ) : null}
-          <span className="hp-trace-tree__duration">{durationLabel(node.durationMs)}</span>
-        </button>
-      </div>
-      {expanded && children.length ? (
-        <ul>
-          {children.map((child) => (
-            <ConnectedNode
-              key={child.id}
-              node={child}
-              childrenByParent={childrenByParent}
-              selected={selected}
-              onSelect={onSelect}
-            />
-          ))}
-        </ul>
-      ) : null}
-    </li>
-  );
-}
-
-function ConnectedNode({
-  node,
-  childrenByParent,
-  selected,
-  onSelect,
-}: {
-  node: TraceNode;
-  childrenByParent: Map<string, TraceNode[]>;
-  selected: string | null;
-  onSelect: (nodeId: string) => void;
-}) {
-  return (
-    <TraceTreeNode
-      node={node}
-      childrenByParent={childrenByParent}
-      selected={selected}
-      onSelect={onSelect}
-    />
-  );
-}
-
 export function TraceTree({ nodes, rootIds, selectedNodeId, onSelect }: TraceTreeProps) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const childrenByParent = useMemo(() => {
     const index = new Map<string, TraceNode[]>();
     Object.values(nodes).forEach((node) => {
-      if (!node.parentId) return;
-      index.set(node.parentId, [...(index.get(node.parentId) ?? []), node]);
+      if (node.parentId) index.set(node.parentId, [...(index.get(node.parentId) ?? []), node]);
     });
     return index;
   }, [nodes]);
-
-  const renderNode = (node: TraceNode): ReactNode => {
+  const renderNode = (
+    node: TraceNode,
+    depth: number,
+    ancestors: Set<string>,
+  ): import("react").ReactNode => {
+    if (ancestors.has(node.id)) return null;
+    const children = childrenByParent.get(node.id) ?? [];
+    const expanded = !collapsed.has(node.id);
     return (
-      <TraceTreeNode
+      <li
         key={node.id}
-        node={node}
-        childrenByParent={childrenByParent}
-        selected={selectedNodeId}
-        onSelect={onSelect}
-      />
+        className="hp-trace-tree__item"
+        data-root={depth === 0}
+        data-status={node.status}
+      >
+        <div
+          className={`hp-trace-tree__row${selectedNodeId === node.id ? " is-selected" : ""}`}
+          data-selected={selectedNodeId === node.id}
+        >
+          {children.length > 0 ? (
+            <button
+              type="button"
+              className="hp-trace-tree__expand"
+              aria-label={`${expanded ? "折叠" : "展开"}节点：${node.name}`}
+              aria-expanded={expanded}
+              onClick={() =>
+                setCollapsed((previous) => {
+                  const next = new Set(previous);
+                  if (next.has(node.id)) next.delete(node.id);
+                  else next.add(node.id);
+                  return next;
+                })
+              }
+            >
+              {expanded ? <ChevronDown /> : <ChevronRight />}
+            </button>
+          ) : (
+            <span className="hp-trace-leaf-space" aria-hidden="true" />
+          )}
+          <button
+            type="button"
+            className="hp-trace-tree__node"
+            aria-label={`${node.name}，${statusLabel[node.status]}，${durationLabel(node.durationMs)}`}
+            aria-pressed={selectedNodeId === node.id}
+            title={`${node.name} · ${statusLabel[node.status]}`}
+            onClick={() => onSelect(node.id)}
+          >
+            <StatusIcon status={node.status} />
+            <span className="hp-trace-tree__name">{node.name}</span>
+            <span
+              className="hp-trace-type"
+              title={`第 ${depth + 1} 层 · ${typeLabel[node.type] ?? node.type}`}
+            >
+              {depth > 4 ? `层 ${depth + 1}` : (typeLabel[node.type] ?? node.type)}
+            </span>
+            <span className="hp-trace-tree__duration">{durationLabel(node.durationMs)}</span>
+          </button>
+        </div>
+        {node.status === "failed" && typeof node.metadata.error_code === "string" && (
+          <p className="hp-trace-error">执行异常 · {node.metadata.error_code}</p>
+        )}
+        {expanded && children.length > 0 ? (
+          <ul
+            style={{ marginLeft: depth < 4 ? 16 : 0 }}
+            data-compact={depth >= 4}
+            className={
+              depth === 0 &&
+              children.some((child) => (childrenByParent.get(child.id)?.length ?? 0) > 0)
+                ? "hp-trace-branches"
+                : undefined
+            }
+          >
+            {children.map((child) =>
+              renderNode(child, depth + 1, new Set([...ancestors, node.id])),
+            )}
+          </ul>
+        ) : null}
+      </li>
     );
   };
-
-  const roots = rootIds
-    .map((id) => nodes[id])
-    .filter((node): node is TraceNode => node !== undefined);
-  return <ul className="hp-trace-tree">{roots.map(renderNode)}</ul>;
+  return (
+    <ul className="hp-trace-tree">
+      {rootIds.map((id) => (nodes[id] ? renderNode(nodes[id]!, 0, new Set()) : null))}
+    </ul>
+  );
 }

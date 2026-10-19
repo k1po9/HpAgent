@@ -4,6 +4,13 @@ import { useTraceStore } from "./traceStore";
 import { TraceTree } from "./TraceTree";
 import { TraceDetail } from "./TraceDetail";
 
+const statusLabel = {
+  running: "运行中",
+  completed: "已完成",
+  failed: "失败",
+  cancelled: "已取消",
+  unknown: "状态未知",
+};
 export function RunTraceContent() {
   const runId = useTraceStore((state) => state.runId);
   const run = useTraceStore((state) => state.run);
@@ -16,55 +23,74 @@ export function RunTraceContent() {
   const loadTrace = useTraceStore((state) => state.loadTrace);
   const selectNode = useTraceStore((state) => state.selectNode);
   const loadModelInput = useTraceStore((state) => state.loadModelInput);
-
   useEffect(() => {
     if (runId) void loadTrace();
   }, [runId, loadTrace]);
-
   const selectedNode = selectedNodeId ? (nodes[selectedNodeId] ?? null) : null;
-
+  const start = run?.started_at ? Date.parse(run.started_at) : NaN;
+  const end = run?.ended_at ? Date.parse(run.ended_at) : NaN;
+  const duration =
+    Number.isFinite(start) && Number.isFinite(end) && end >= start
+      ? `${((end - start) / 1000).toFixed(2)} s`
+      : null;
   return (
     <section className="hp-run-trace" aria-label="执行诊断记录">
-      <header className="hp-trace-header">
-        <div>
-          <span className="hp-trace-title">
-            <Activity aria-hidden="true" /> Trace Debug
-          </span>
-          <small>{runId ? `Run ${runId.slice(0, 8)}` : "当前对话暂无 Run"}</small>
+      <div className="hp-quiet-rail">
+        <header className="hp-trace-header">
+          <div>
+            <h3 className="hp-trace-title">
+              <Activity aria-hidden="true" />
+              执行轨迹
+            </h3>
+            <small>
+              {run ? (
+                <>
+                  <span className={`hp-trace-state hp-trace-state--${run.status}`}>
+                    {statusLabel[run.status]}
+                  </span>
+                  {rootIds.length > 0 ? ` · ${Object.keys(nodes).length} 个节点` : ""}
+                  {duration ? ` · 总跨度 ${duration}` : ""}
+                </>
+              ) : loading ? (
+                "正在读取执行记录…"
+              ) : (
+                "诊断记录"
+              )}
+            </small>
+          </div>
+          <div className="hp-trace-header__actions">
+            <button
+              type="button"
+              aria-label="刷新执行轨迹"
+              title="仅刷新执行轨迹"
+              aria-busy={loading}
+              disabled={!runId || loading}
+              onClick={() => void loadTrace()}
+            >
+              <RefreshCw aria-hidden="true" />
+            </button>
+          </div>
+        </header>
+        <div className="hp-trace-tree-wrap" aria-busy={loading}>
+          {rootIds.length === 0 ? (
+            <div className="hp-trace-empty" role="status">
+              {loading ? "正在加载执行轨迹…" : (error ?? "暂无可用诊断记录。")}
+            </div>
+          ) : (
+            <TraceTree
+              key={runId}
+              nodes={nodes}
+              rootIds={rootIds}
+              selectedNodeId={selectedNodeId}
+              onSelect={selectNode}
+            />
+          )}
+          {error && rootIds.length > 0 ? (
+            <div className="hp-trace-warning" role="status">
+              {error}
+            </div>
+          ) : null}
         </div>
-        <div className="hp-trace-header__actions">
-          <button
-            type="button"
-            aria-label="刷新 Trace"
-            title="刷新 Trace"
-            disabled={!runId || loading}
-            onClick={() => void loadTrace()}
-          >
-            <RefreshCw aria-hidden="true" />
-          </button>
-        </div>
-      </header>
-      <div className="hp-trace-summary">
-        <span className={`hp-trace-badge hp-trace-badge--${run?.status ?? "idle"}`}>
-          {run?.status ?? (rootIds.length ? "live" : "idle")}
-        </span>
-        <span>{Object.keys(nodes).length} nodes</span>
-      </div>
-      <div className="hp-trace-tree-wrap">
-        {loading && rootIds.length === 0 ? (
-          <div className="hp-trace-empty">正在加载 Trace…</div>
-        ) : null}
-        {!loading && rootIds.length === 0 ? (
-          <div className="hp-trace-empty">{error ?? "暂无可用诊断记录。"}</div>
-        ) : (
-          <TraceTree
-            nodes={nodes}
-            rootIds={rootIds}
-            selectedNodeId={selectedNodeId}
-            onSelect={selectNode}
-          />
-        )}
-        {error && rootIds.length > 0 ? <div className="hp-trace-warning">{error}</div> : null}
       </div>
       <TraceDetail
         node={selectedNode}
