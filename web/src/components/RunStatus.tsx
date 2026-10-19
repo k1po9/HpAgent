@@ -20,6 +20,7 @@ interface RunStatusProps {
   onRetry: () => void;
   actions?: ReactNode;
   showStop?: boolean;
+  showHeading?: boolean;
 }
 
 /**
@@ -42,6 +43,7 @@ export function RunStatus({
   onRetry,
   actions,
   showStop = true,
+  showHeading = true,
 }: RunStatusProps) {
   const view = useVitality(activeRun, progress, generation, degraded);
   const [warnedRun, setWarnedRun] = useState<string | null>(null);
@@ -81,13 +83,15 @@ export function RunStatus({
       ) : null}
       {activeRun ? (
         <Flex className="hp-run-content" direction="column" gap="3">
-          <VitalityHeading
-            view={view}
-            runId={activeRun.run_id}
-            generation={generation}
-            size={size}
-            testId="run-label"
-          />
+          {showHeading && (
+            <VitalityHeading
+              view={view}
+              runId={activeRun.run_id}
+              generation={generation}
+              size={size}
+              testId="run-label"
+            />
+          )}
           <div className="hp-run-description">
             {activeRun.status === "queued" && warnedRun === activeRun.run_id ? (
               <Text size="2" color="amber" role="status">

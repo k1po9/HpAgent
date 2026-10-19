@@ -1,3 +1,5 @@
+import { Check, ShieldCheck, ShieldQuestion, ShieldAlert, ArrowUpRight } from "lucide-react";
+import { RunTimeline } from "./RunTimeline";
 import { RunRefresh } from "./RunRefresh";
 import { InspectorTabs } from "../shell/InspectorTabs";
 import { useEffect, useState } from "react";
@@ -165,66 +167,91 @@ export function RunInspector({
       {!hideIdentity && <RunRefresh inspector={inspector} />}
       <div role="tabpanel" id={`run-panel-${tab}`} aria-labelledby={`run-tab-${tab}`}>
         {tab === "overview" && (
-          <section className="hp-inspector-card" aria-label="执行概览">
-            {!live && <VitalityHeading view={vitality} runId={id} size="detail" />}
-            {live && snapshot.source_kind === "chat" && (
-              <RunStatus
-                activeRun={snapshot.run}
-                generation={generation}
-                size="detail"
-                busyMessage={null}
-                progress={live ? progress : null}
-                degraded={live && degraded}
-                stopping={stopping}
-                onStop={() => {
-                  if (useWorkbench.getState().activeRun?.run_id === id)
-                    void useWorkbench.getState().stopRun();
-                }}
-                onRetry={() => {
-                  if (useWorkbench.getState().activeRun?.run_id === id)
-                    void useWorkbench.getState().retryRun();
-                }}
-              />
-            )}
-            <dl className="hp-vitality-facts">
-              <div>
-                <dt>状态</dt>
-                <dd>{vitality.runText}</dd>
-              </div>
-              <div>
-                <dt>阶段</dt>
-                <dd>{vitality.progressText ?? "阶段未提供"}</dd>
-              </div>
-              <div>
-                <dt>审批</dt>
+          <section className="hp-run-overview" aria-label="执行概览">
+            <dl className="hp-run-overview-facts">
+              <div className="hp-run-overview-state">
+                <dt>执行状态</dt>
                 <dd>
-                  {vitality.approvals === "unknown"
-                    ? "尚未核实"
-                    : vitality.approvals === "pending"
-                      ? "有待审批操作"
-                      : "已核实，无待审批"}
+                  {run.status === "succeeded" ? (
+                    <>
+                      <span
+                        className="hp-run-completion"
+                        role="img"
+                        aria-label="执行成功"
+                        title="执行成功"
+                      >
+                        <Check size={20} strokeWidth={1.8} aria-hidden="true" />
+                      </span>
+                      <span>{vitality.runText}</span>
+                    </>
+                  ) : (
+                    <VitalityHeading
+                      view={vitality}
+                      runId={id}
+                      generation={live ? generation : undefined}
+                      size="compact"
+                    />
+                  )}
                 </dd>
               </div>
+              <div className="hp-run-overview-approval" data-approval={vitality.approvals}>
+                <dt>操作审批</dt>
+                <dd>
+                  {vitality.approvals === "unknown" ? (
+                    <ShieldQuestion size={16} aria-hidden="true" />
+                  ) : vitality.approvals === "pending" ? (
+                    <ShieldAlert size={16} aria-hidden="true" />
+                  ) : (
+                    <ShieldCheck size={16} aria-hidden="true" />
+                  )}
+                  <span>
+                    {vitality.approvals === "unknown"
+                      ? "尚未核实"
+                      : vitality.approvals === "pending"
+                        ? "有待审批操作"
+                        : "已核实，无待审批"}
+                  </span>
+                </dd>
+              </div>
+              {vitality.progressText && (
+                <div className="hp-run-overview-activity">
+                  <dt>当前活动</dt>
+                  <dd>{vitality.progressText}</dd>
+                </div>
+              )}
             </dl>
+            {live &&
+              snapshot.source_kind === "chat" &&
+              !["succeeded", "cancelled"].includes(run.status) && (
+                <RunStatus
+                  activeRun={snapshot.run}
+                  generation={generation}
+                  size="detail"
+                  showHeading={false}
+                  busyMessage={null}
+                  progress={live ? progress : null}
+                  degraded={live && degraded}
+                  stopping={stopping}
+                  onStop={() => {
+                    if (useWorkbench.getState().activeRun?.run_id === id)
+                      void useWorkbench.getState().stopRun();
+                  }}
+                  onRetry={() => {
+                    if (useWorkbench.getState().activeRun?.run_id === id)
+                      void useWorkbench.getState().retryRun();
+                  }}
+                />
+              )}
             {snapshot.source_kind === "chat" ? (
               <>
                 {!live && snapshot.run.failure?.message && (
                   <p role="alert">{snapshot.run.failure.message}</p>
                 )}
-                {!live && (
-                  <button
-                    className="hp-run-origin-action"
-                    onClick={() =>
-                      useShell
-                        .getState()
-                        .navigate({ screen: "ai", conversationId: snapshot.run.conversation_id })
-                    }
-                  >
-                    回到所属对话核对执行与操作
-                  </button>
-                )}
                 {snapshot.assistant_message.content && (
-                  <p className="hp-run-result">{snapshot.assistant_message.content}</p>
+                  <div className="hp-run-overview-result">
+                    <h3>回复正文</h3>
+                    <p className="hp-run-result">{snapshot.assistant_message.content}</p>
+                  </div>
                 )}
               </>
             ) : (
@@ -255,28 +282,9 @@ export function RunInspector({
                 ))}
               </>
             )}
-            <dl className="hp-run-timestamps" aria-label="执行时间">
-              {(
-                [
-                  ["创建", run.created_at],
-                  ["开始", run.started_at],
-                  ["结束", run.finished_at],
-                ] as const
-              )
-                .filter(([, v]) => v)
-                .map(([k, v]) => (
-                  <div key={k}>
-                    <dt>{k}</dt>
-                    <dd>
-                      <time className="hp-run-time-readable" dateTime={v!} title={v!}>
-                        {new Date(v!).toLocaleString("zh-CN", { hour12: false })}
-                      </time>
-                    </dd>
-                  </div>
-                ))}
-            </dl>
+            <RunTimeline key={id} run={run} />
             <button className="hp-run-approvals-action" onClick={() => changeTab("resources")}>
-              查看操作审批
+              查看操作审批 <ArrowUpRight size={14} aria-hidden="true" />
             </button>
           </section>
         )}
