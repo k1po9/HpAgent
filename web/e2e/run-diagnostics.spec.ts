@@ -1,7 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { fileURLToPath } from "node:url";
 const evidence = fileURLToPath(
-  new URL("../../artifacts/product-acceptance/run-diagnostics-2026-10-19", import.meta.url),
+  new URL(
+    "../../artifacts/product-acceptance/run-diagnostics-reference-2026-10-19",
+    import.meta.url,
+  ),
 );
 async function open(page: import("@playwright/test").Page, query = "") {
   await page.goto(
@@ -20,6 +23,7 @@ test("local diagnostic screenshots", async ({ page }) => {
   await page.locator(".hp-inspector--run").screenshot({
     path: `${evidence}/${process.env.DIAGNOSTICS_BASELINE ? "before" : "after"}-panel.png`,
   });
+  await page.locator(".hp-quiet-rail").screenshot({ path: `${evidence}/after-trace.png` });
 });
 
 test("identity copy, independent disclosures, selection and collapse survive refresh and resizing", async ({
@@ -86,6 +90,7 @@ test("default, wide, minimum, narrow and mobile remain readable", async ({ page 
   await edge.blur();
   await page.screenshot({ path: `${evidence}/after-wide.png` });
   await page.locator(".hp-inspector--run").screenshot({ path: `${evidence}/after-wide-panel.png` });
+  await page.locator(".hp-quiet-rail").screenshot({ path: `${evidence}/after-wide-trace.png` });
   await edge.focus();
   await page.keyboard.press("Home");
   await edge.blur();

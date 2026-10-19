@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Activity, RefreshCw } from "lucide-react";
+import { Activity, RefreshCw, CircleCheck } from "lucide-react";
 import { useTraceStore } from "./traceStore";
 import { TraceTree } from "./TraceTree";
 import { TraceDetail } from "./TraceDetail";
@@ -37,26 +37,27 @@ export function RunTraceContent() {
     <section className="hp-run-trace" aria-label="执行诊断记录">
       <div className="hp-quiet-rail">
         <header className="hp-trace-header">
-          <div>
-            <h3 className="hp-trace-title">
-              <Activity aria-hidden="true" />
-              执行轨迹
-            </h3>
-            <small>
-              {run ? (
-                <>
-                  <span className={`hp-trace-state hp-trace-state--${run.status}`}>
-                    {statusLabel[run.status]}
+          <h3 className="hp-trace-title">
+            <Activity aria-hidden="true" />
+            执行轨迹
+          </h3>
+          <div className="hp-trace-summary">
+            {run ? (
+              <>
+                <span className={`hp-trace-state hp-trace-state--${run.status}`}>
+                  {run.status === "completed" && <CircleCheck size={13} aria-hidden="true" />}
+                  {statusLabel[run.status]}
+                </span>
+                {rootIds.length > 0 && <span>{Object.keys(nodes).length} 个节点</span>}
+                {duration && (
+                  <span className="hp-trace-total" title="按执行开始与结束时间计算">
+                    总跨度 {duration}
                   </span>
-                  {rootIds.length > 0 ? ` · ${Object.keys(nodes).length} 个节点` : ""}
-                  {duration ? ` · 总跨度 ${duration}` : ""}
-                </>
-              ) : loading ? (
-                "正在读取执行记录…"
-              ) : (
-                "诊断记录"
-              )}
-            </small>
+                )}
+              </>
+            ) : (
+              <span>{loading ? "正在读取执行记录…" : "诊断记录"}</span>
+            )}
           </div>
           <div className="hp-trace-header__actions">
             <button

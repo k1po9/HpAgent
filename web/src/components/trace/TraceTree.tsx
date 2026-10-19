@@ -97,17 +97,18 @@ export function TraceTree({ nodes, rootIds, selectedNodeId, onSelect }: TraceTre
             className="hp-trace-tree__node"
             aria-label={`${node.name}，${statusLabel[node.status]}，${durationLabel(node.durationMs)}`}
             aria-pressed={selectedNodeId === node.id}
-            title={`${node.name} · ${statusLabel[node.status]}`}
+            title={`${node.name} · ${typeLabel[node.type] ?? node.type} · ${statusLabel[node.status]}`}
             onClick={() => onSelect(node.id)}
           >
             <StatusIcon status={node.status} />
             <span className="hp-trace-tree__name">{node.name}</span>
-            <span
-              className="hp-trace-type"
-              title={`第 ${depth + 1} 层 · ${typeLabel[node.type] ?? node.type}`}
-            >
-              {depth > 4 ? `层 ${depth + 1}` : (typeLabel[node.type] ?? node.type)}
-            </span>
+            {depth > 2 ? (
+              <span className="hp-trace-type" title={`第 ${depth + 1} 层`}>
+                层 {depth + 1}
+              </span>
+            ) : typeof node.metadata.snapshot_id === "string" ? (
+              <span className="hp-trace-model-tag">模型输入</span>
+            ) : null}
             <span className="hp-trace-tree__duration">{durationLabel(node.durationMs)}</span>
           </button>
         </div>
@@ -116,8 +117,8 @@ export function TraceTree({ nodes, rootIds, selectedNodeId, onSelect }: TraceTre
         )}
         {expanded && children.length > 0 ? (
           <ul
-            style={{ marginLeft: depth < 4 ? 16 : 0 }}
-            data-compact={depth >= 4}
+            style={{ marginLeft: depth < 2 ? (depth === 0 ? 26 : 16) : 0 }}
+            data-compact={depth >= 2}
             className={
               depth === 0 &&
               children.some((child) => (childrenByParent.get(child.id)?.length ?? 0) > 0)
