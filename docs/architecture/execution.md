@@ -36,6 +36,8 @@ Run succeeded 只说明有限执行成功；Work completed 需要当前 revision
 
 Chat Context 使用对话历史、记忆与授权资料；Work Context 使用冻结需求、checkpoint、输入和候选，不加载关联聊天全文。Generic Work root 可一次委派最多三个只读子 Execution，费用仍属同 Run/Work；串行 plan steps 沿用当前 Execution，不等同并行 Subagent。
 
+复杂调用持久事实使用迁移 060：`capability_invocations` 是不可变描述，caller Operation 是调用生命周期权威，capability Execution 是生产者生命周期权威，`capability_results` 保存专业语义 outcome。三者不互相推断终态。`capability_observations` 关联 caller transcript 与生产 Operation；结果已提交而观察缺失时可查询结果，具体恢复编排尚未接入。capability 与只读 subagent 使用不同角色；两类子执行均受长期资源写入保护，Run 取消/终态会收敛活动子执行并使其 fence 失效。
+
 ## 进程与调度
 
 [worker.py](../../src/orchestration/worker.py) 持有进程启动/关闭顺序：先构造共享依赖，再连接 Temporal、启动 Worker 与渠道监听；退出先停 ingress/producer，再退出 Worker，最后关闭共享资源。初始化失败也释放已取得资源。
@@ -77,3 +79,5 @@ model_request_invalid、model_response_invalid、model_access_denied、model_req
 隔离恢复测试使用实际默认 lease：长阶段跨越初始到期时间仍拒绝抢占；发布或保存提交后 SIGKILL 原 Worker，由替代 Worker 恢复，并校验历史基线、保存意图与结果去重。测试不清 lease、不强制接管，也不缩短默认值。
 
 真实 Provider、生产 Worker、QQ 外发与恢复演练使用实际网络/配置分别验证；隔离或协议测试通过不能替代这些结论。诊断入口见[故障排查](../operations/troubleshooting.md)和[测试指南](../development/testing.md)。
+
+复杂能力通过 [CapabilityInvocationWorkflow](../../src/agent_workflows/capability.py) 在同 Run 的独立 Execution 内运行；父登记和父观察是分离的短 segment，中间等待不持父 lease。子结果、父观察和 Run/Work 终态是独立事实；固定身份恢复、调用上限与取消约束见[能力边界](capabilities.md#通用持久调用与-harness)。

@@ -33,8 +33,9 @@ def claim_file_deletion(
         "OR EXISTS(SELECT 1 FROM output_publish_operations "
         "WHERE account_id=%s AND file_id=%s AND status='pending') "
         "OR EXISTS(SELECT 1 FROM work_input_refs WHERE account_id=%s AND file_id=%s) "
-        "OR EXISTS(SELECT 1 FROM artifact_versions WHERE account_id=%s AND file_id=%s) AS retained",
-        (account_id, file_id) * 10,
+        "OR EXISTS(SELECT 1 FROM artifact_versions WHERE account_id=%s AND file_id=%s) "
+        "OR EXISTS(SELECT 1 FROM capability_result_refs WHERE account_id=%s AND file_id=%s) AS retained",
+        (account_id, file_id) * 11,
     ).fetchone()["retained"]
     if retained:
         return "bound"

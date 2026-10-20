@@ -8,6 +8,7 @@ from typing import cast
 from temporalio import workflow
 from temporalio.common import RetryPolicy
 
+from .capability_contracts import CAPABILITY_TOOL_PREFIX
 from .contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
@@ -47,6 +48,14 @@ class ToolExecutionWorkflow:
 
     @workflow.run
     async def run(self, request: ToolExecutionInput) -> ToolExecutionResult:
+        if request.tool_call.name.startswith(CAPABILITY_TOOL_PREFIX):
+            capability_result: ToolExecutionResult = await workflow.execute_child_workflow(
+                "CapabilityInvocationWorkflow", request,
+                id=f"hpagent-invocation-{request.operation_id}", task_queue=AGENT_TASK_QUEUE,
+                result_type=ToolExecutionResult,
+                cancellation_type=workflow.ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
+            )
+            return capability_result
         if request.tool_call.name == DELEGATE_TOOL:
             delegated: ToolExecutionResult = await workflow.execute_child_workflow(
                 "WorkDelegationWorkflow", request,

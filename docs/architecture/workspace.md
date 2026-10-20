@@ -20,7 +20,7 @@ Chat 初始上下文与 Work brief 提供授权候选总数、第一页最多 20
 
 OutputPublisher 的发布是 Run 输出的不可变持久事实；WorkspaceCatalog 的保存/版本内核随后创建长期 Workspace entry 或向 destination 提交新 revision，Research 自动保存由独立 Activity 调用该内核。两者使用独立 operation 身份，发布成功不等于长期保存成功。版本更新检查预期 revision/hash 与当前 `update_content`；CAS 冲突保留已发布输出供另存，不覆盖当前版本。Work 在创建 Run 时冻结 requirement revision、保存目标和 operation ID；required 保存成功后才能完成 Run。Research Work 的 Run、取消及终态不依赖 Conversation/Assistant Message；聊天专属 SSE 仅用于聊天 Run。
 
-移除 entry 仅移除长期入口，不能立即释放物理空间。消息、Run 绑定、Work 输入、Artifact 版本、历史修订、活动固定、当前 destination 与 pending 发布等仍可能保留文件。统一 GC 在文件行锁下检查引用、声明删除，再幂等清理 TenantFileStore 字节。首期历史默认保守保留，不提供绕过 GC 的物理删除 API。
+移除 entry 仅移除长期入口，不能立即释放物理空间。消息、Run 绑定、Work 输入、Artifact 版本、capability_result_refs（包括尚未被父观察的结果）、历史修订、活动固定、当前 destination 与 pending 发布等仍可能保留文件。统一 GC 在文件行锁下检查引用、声明删除，再幂等清理 TenantFileStore 字节。能力结果引用插入与 GC 竞争同一 stored_files 行锁；检查证据也建立真实文件引用，不仅保存 JSON 字符串。能力引用和采用事实暂不提供删除接口。首期历史默认保守保留，不提供绕过 GC 的物理删除 API。
 
 所有者可用 `/api/v1/workspace/search` 按名称、MIME 类型、来源、Work、Run、日期与摘要过滤；Run Agent 用 `/api/v1/runs/{run_id}/workspace/search`，还受固定候选、当前元数据权限与摘要内容权限约束。`/api/v1/workspace/space` 按唯一 file_id 计物理字节；单文件 retention 与 entry trace 解释引用、来源、版本和操作。Research Markdown 摘要索引与 file_id/hash 绑定。
 

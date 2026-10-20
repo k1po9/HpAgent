@@ -24,7 +24,8 @@ class Guard(importlib.abc.MetaPathFinder):
 sys.meta_path.insert(0, Guard())
 for name in (
     'run_domain.execution_context', 'run_domain.execution', 'run_domain.delegation',
-    'run_domain.results', 'run_domain.lifecycle', 'work_domain.completion',
+    'run_domain.results', 'run_domain.capabilities', 'run_domain.capability_contracts',
+    'run_domain.lifecycle', 'work_domain.completion',
     'work_domain.commands', 'workspace.catalog', 'workspace.resources',
     'workspace.execution', 'file_runtime.output', 'research_domain.persistence',
 ):
@@ -66,3 +67,19 @@ async def test_execution_identity_isolated_between_tasks_threads_and_nested_scop
     assert execution_fence.get() is None
     await asyncio.gather(branch(1), branch(2))
     assert execution_fence.get() is None
+
+
+def test_capability_value_import_does_not_load_database_or_schema_runtime():
+    root = Path(__file__).resolve().parents[1]
+    code = """
+import sys
+from run_domain.capability_contracts import CapabilityObservation
+assert CapabilityObservation('caller', 'producer', 'capability-result:caller').to_dict()['schema_version'] == 1
+assert not {'jsonschema', 'psycopg', 'temporalio', 'agent_activities'} & sys.modules.keys()
+"""
+    subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=root,
+        check=True,
+        env={**os.environ, "PYTHONPATH": str(root / "src")},
+    )

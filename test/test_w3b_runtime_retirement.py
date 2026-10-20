@@ -24,6 +24,7 @@ def test_actual_production_registries_match_current_runtime(monkeypatch):
     assert registries["hpagent-web-agent"]["workflows"] == [
         "AgentRunWorkflow", "ReactAgentWorkflow", "PlanAndExecuteWorkflow",
         "AgentStepWorkflow", "ToolExecutionWorkflow", "WorkDelegationWorkflow",
+        "CapabilityInvocationWorkflow",
     ]
     assert registries["hpagent-task-queue"]["workflows"] == [
         "ReflectWorkflow", "MetricsReportWorkflow",

@@ -8,6 +8,7 @@ import pytest
 from agent_activities.runtime import DurableAgentActivities
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
+from agent_workflows.capability import CapabilityInvocationWorkflow
 from agent_workflows.contracts import (
     AGENT_STRATEGY_PLAN,
     AGENT_STRATEGY_REACT,
@@ -95,6 +96,7 @@ def test_canonical_registry_excludes_legacy_execution(monkeypatch):
         AgentStepWorkflow,
         ToolExecutionWorkflow,
         WorkDelegationWorkflow,
+        CapabilityInvocationWorkflow,
     ]
 
 
@@ -107,7 +109,7 @@ async def test_registered_workflows_validate_in_temporal_sandbox():
     for workflow_type in (
         AgentLifecycleWorkflow, NormalizeDocumentWorkflow, AgentRunWorkflow,
         ReactAgentWorkflow, PlanAndExecuteWorkflow, AgentStepWorkflow,
-        ToolExecutionWorkflow, WorkDelegationWorkflow,
+        ToolExecutionWorkflow, WorkDelegationWorkflow, CapabilityInvocationWorkflow,
     ):
         runner.prepare_workflow(workflow._Definition.must_from_class(workflow_type))
 

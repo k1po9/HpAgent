@@ -208,6 +208,7 @@ class WorkspaceDiscovery:
                 ("message_references", "message_files", "file_id", ""),
                 ("work_inputs", "work_input_refs", "file_id", ""),
                 ("artifact_versions", "artifact_versions", "file_id", ""),
+                ("capability_results", "capability_result_refs", "file_id", ""),
                 ("run_bindings", "run_files", "file_id", ""),
                 ("fixed_candidates", "run_resource_candidates", "fixed_file_id", ""),
                 ("run_access", "run_resource_access", "file_id", ""),

@@ -17,12 +17,12 @@ def current_execution(uow):
 
 def child_scope(uow):
     execution = current_execution(uow)
-    return execution["resource_scope"] if execution and execution["role"] == "subagent" else None
+    return execution["resource_scope"] if execution and execution["role"] in {"subagent", "capability"} else None
 
 
 def require_root_write(uow):
     if child_scope(uow) is not None:
-        raise DelegationDenied("Subagent cannot change long-term resources or permissions")
+        raise DelegationDenied("Child Execution cannot change long-term resources or permissions")
 
 
 def branch_projection(uow, account_id, run_id):

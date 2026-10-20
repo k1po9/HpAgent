@@ -195,6 +195,10 @@ def compose_durable_runtime(
         ),
     )
     artifact_activities = ArtifactActivities(artifact_build)
+    from agent_activities.capabilities import empty_capabilities
+
+    capability_activities = empty_capabilities(durable_activities.store)
+    durable_activities.capabilities = capability_activities
     segment_activities = SegmentActivities(durable_activities.store)
     from agent_activities.delegation import DelegationActivities
 
@@ -230,6 +234,9 @@ def compose_durable_runtime(
             research_activities.fail_research_activity,
         ],
         agent_activities=[
+            capability_activities.prepare,
+            capability_activities.observe,
+            capability_activities.close,
             delegation_activities.prepare,
             delegation_activities.finish,
             delegation_activities.finish_branch,

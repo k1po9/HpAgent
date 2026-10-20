@@ -386,6 +386,11 @@ class ResourcePolicy:
                 "AND run_id=%s AND fixed_file_id=%s", (account_id, run_id, file_id)).fetchall()
             if not any(str(node["node_id"]) in scope["node_ids"] for node in nodes):
                 return False
+        return self._subject_file_authorized_in_uow(uow, account_id, run_id, file_id)
+
+    def _subject_file_authorized_in_uow(self, uow: UnitOfWork, account_id: UUID,
+                                        run_id: UUID, file_id: UUID) -> bool:
+        """Current Run subject grants. Callers must separately enforce Execution/result scope."""
         if uow.execute(
             "SELECT 1 FROM run_files rf JOIN stored_files sf "
             "ON sf.account_id=rf.account_id AND sf.file_id=rf.file_id "

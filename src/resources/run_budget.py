@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from typing import Any, cast
 from uuid import UUID
 
+import psycopg
+
 from persistence.uow import UnitOfWork, retryable_transaction
 
 DIMENSIONS = frozenset(
@@ -36,6 +38,10 @@ class RunBudgetError(RuntimeError):
 
 class RunBudgetExhausted(RunBudgetError):
     code = "run_budget_exhausted"
+
+
+class CapabilityBudgetExhausted(RunBudgetExhausted):
+    code = "capability_budget_exhausted"
 
 
 class RunBudgetConflict(RunBudgetError):
@@ -124,6 +130,10 @@ class RunBudgetService:
                 return self._reserve_in_uow(
                     uow, run_id, operation_id, amounts, final_response=final_response
                 )
+        except psycopg.errors.RaiseException as error:
+            if error.diag.message_primary == "capability invocation call limit exceeded":
+                raise CapabilityBudgetExhausted("Capability invocation call limit exceeded") from error
+            raise
         except RunBudgetExhausted as error:
             # Work exhaustion has its own contract; only defer a Run rejection.
             if type(error) is not RunBudgetExhausted:
@@ -139,6 +149,14 @@ class RunBudgetService:
     def _reserve_in_uow(
         self, uow, run_id, operation_id, amounts, *, final_response=False
     ) -> BudgetMutation:
+        from run_domain.execution import StaleFencingToken, assert_execution_fence
+        from run_domain.execution_context import execution_fence
+
+        fence = execution_fence.get()
+        if fence is not None:
+            assert_execution_fence(uow)
+            if str(run_id) != fence[1]:
+                raise StaleFencingToken("budget reservation is outside the Execution Run")
         requested = _amounts(amounts)
         if not operation_id or len(operation_id) > 200:
             raise ValueError("operation_id must contain 1 to 200 characters")
@@ -192,8 +210,6 @@ class RunBudgetService:
         enforced_exhaustion = bool(exceeded and budget["mode"] == "enforce")
         if enforced_exhaustion:
             raise RunBudgetExhausted("Run budget exhausted for: " + ", ".join(sorted(exceeded)))
-        from run_domain.execution_context import execution_fence
-        fence = execution_fence.get()
         for dimension, amount in requested.items():
             uow.execute(
                 "INSERT INTO run_usage_ledger(run_id,operation_id,dimension,state,"
