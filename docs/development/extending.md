@@ -29,4 +29,4 @@ Main 工具复用 WorkCommandService 并绑定可信 Account / source Message；
 
 增加 Workflow 后同步 Registry 和真实 sandbox prepare 测试，避免 Activity 网络依赖出现在间接 import 链。新增错误 code 要贯通 Activity、Lifecycle stable failure mapping、API failure 和 retry contract，不能仅在一个捕获层改错误文字。Model Provider 适配经 Prepared Request v2 和快照边界，不能改写历史请求体。
 
-文档同步顺序：当前[Work 架构](../architecture/durable-work-v1.md) → API / 配置 / Temporal → 操作 / 测试 → [实施索引](../implementation/README.md)。历史阶段报告保留原验证条件，不将未执行的真实验收补写为已通过。
+文档同步顺序：当前[Work 架构](../architecture/work.md) → API / 配置 / Temporal → 操作 / 测试。只原位维护当前契约和限制，不新增阶段报告；未执行的真实验收不能写为通过。

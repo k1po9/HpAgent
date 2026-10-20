@@ -10,6 +10,7 @@ from uuid import UUID
 from uuid6 import uuid7
 
 from persistence.uow import UnitOfWork, retryable_transaction
+from run_domain.execution import assert_execution_fence
 from web_domain.errors import DomainError, ResourceNotFound
 
 
@@ -49,9 +50,8 @@ class WorkspaceCatalog:
     @retryable_transaction
     def initialize(self, account_id: UUID) -> dict[str, Any]:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             uow.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended(%s::text,421))",
@@ -134,9 +134,8 @@ class WorkspaceCatalog:
     def create_directory(self, account_id: UUID, parent_id: UUID, name: str) -> UUID:
         display, key = normalize_name(name)
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             workspace_id = self._workspace(uow, account_id)
             node_id = uuid7()
@@ -159,9 +158,8 @@ class WorkspaceCatalog:
             [str(parent_id), str(file_id), display], separators=(",", ":")
         ).encode()).hexdigest()
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             workspace_id = self._workspace(uow, account_id)
             previous = uow.execute(
@@ -238,9 +236,8 @@ class WorkspaceCatalog:
     def upgrade_file(self, account_id: UUID, node_id: UUID) -> dict[str, Any]:
         """Promote exactly one immutable entry without copying its initial object."""
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             self._workspace(uow, account_id)
             node = uow.execute(
@@ -305,9 +302,8 @@ class WorkspaceCatalog:
 
     def versions(self, account_id: UUID, node_id: UUID) -> dict[str, Any]:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             current = self._current_in_uow(uow, account_id, node_id)
             if current["destination_id"] is None:
@@ -343,9 +339,8 @@ class WorkspaceCatalog:
              expected_sha256], separators=(",", ":")
         ).encode()).hexdigest()
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             self._workspace(uow, account_id)
             prior = uow.execute(
@@ -443,9 +438,8 @@ class WorkspaceCatalog:
 
     def preview_change(self, account_id: UUID, node_id: UUID) -> dict[str, Any]:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             workspace = uow.execute(
                 "SELECT workspace_id,topology_version FROM account_workspaces "
@@ -476,9 +470,8 @@ class WorkspaceCatalog:
              preview_token: str | None = None) -> None:
         display, key = normalize_name(name)
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             workspace_id = self._workspace(uow, account_id)
             if preview_token is not None:
@@ -505,9 +498,8 @@ class WorkspaceCatalog:
     def remove(self, account_id: UUID, node_id: UUID,
                preview_token: str | None = None) -> None:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             workspace_id = self._workspace(uow, account_id)
             if uow.execute(

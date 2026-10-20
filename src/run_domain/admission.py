@@ -76,10 +76,11 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
     previous = uow.execute(
         "SELECT run_id,status FROM runs WHERE account_id=%s AND work_id=%s "
         "AND requirement_revision=%s "
-        "ORDER BY created_at DESC,run_id DESC LIMIT 1",
+        "ORDER BY work_control_epoch DESC,run_id DESC LIMIT 1",
         (account_id, work_id, requirement["revision"]),
     ).fetchone()
-    # Only an explicit retry/advance of the latest failed attempt has ancestry.
+    # The locked Work's monotonic epoch orders attempts even if the database
+    # clock moves backwards. Only an explicit retry/advance has ancestry.
     # A later occurrence or a step following success is a new execution.
     retry = (previous if wakeup["kind"] in {"advance", "retry"} and previous
              and previous["status"] in {"failed", "cancelled"} else None)

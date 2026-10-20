@@ -1,6 +1,6 @@
 # Web 前端架构与交互契约
 
-本文描述当前 `web/src` 的产品与交互约束（2026-10-17核对）。产品操作见[功能指南](../operations/web-workbench.md)，测试环境见[测试指南](../development/testing.md)。R1–R6接受依据和原始验证范围保留在[实施索引](../implementation/README.md)，不承担当前操作说明。
+本文维护当前产品与交互约束。操作见[功能指南](../operations/web-workbench.md)，环境与覆盖边界见[测试指南](../development/testing.md)。
 
 ## 入口、布局和路由
 
@@ -16,7 +16,7 @@
 
 `store/shell.ts` 是路由与显示权威：集中 parse/serialize、push/replace、对象 origin、最多五层内部返回栈和导航 token。旧 `#chat` / `#files` / `#works` / `#research` 规范化到三个入口；旧成果和诊断地址缺少明确对象时返回 AI。URL 仅保存标识和允许的枚举，表单内容和凭据不写入 URL。
 
-`Surface` 统一侧栏、sheet 与 dialog 的 Esc、inert、Tab 圈定和焦点返回；上层局部弹窗暂挂父层。Inspector 的身份在断点变化时保持，iframe、草稿与请求不因布局切换重复创建。桌面宽度 ≥1280px 使用非模态侧栏；960～1279px 使用右侧 sheet，600～959px 接近全屏，<600px 全屏。Sidebar 还根据实际 Canvas / Inspector 所需宽度折叠。`styles.css` 按 tokens、base、shell、conversation、run、workspace、tasks、artifact、unification 顺序导入；语义色、字号、间距、焦点与动效参数集中到 tokens，支持 reduced-motion。
+`Surface` 统一侧栏、sheet 与 dialog 的 Esc、inert、Tab 圈定和焦点返回；上层局部弹窗暂挂父层。Inspector 的身份在断点变化时保持，iframe、草稿与请求不因布局切换重复创建。桌面宽度 ≥1280px 使用非模态侧栏；960～1279px 使用右侧 sheet，600～959px 接近全屏，<600px 全屏。Sidebar 还根据实际 Canvas / Inspector 所需宽度折叠。`styles.css` 的显式导入顺序是样式层叠入口；语义色、字号、间距、焦点与动效参数集中到 tokens，支持 reduced-motion。
 
 ## UI 状态与领域状态
 
@@ -31,6 +31,10 @@
 退出或切账户时同步失效 API 请求、Chat/Work feed、轮询、查询、下载 Blob、对话/HTML 草稿及 Shell；迟到响应必须同时通过账户、对象和查询世代检查。首次认证保留深链，离开旧账户后清除旧对象路由。退出清理前端监控，不等于取消服务端 Run / Work。
 
 组件发出显式导航意图；领域 store 不以 Trace 直播或 Artifact 缓存变化自动跳页。活动 Run 跟随和历史诊断选择分别维护，普通聊天完成不触发未打开的 Trace 查询。Work Run 不写入 Chat DTO、不占聊天槽位。Work feed 最多两条，快照恢复与完整分页共用不重叠的查询控制器；页面隐藏暂停列表轮询，恢复可见后同步。
+
+`store/workbench.ts` 保持对外 API，内部 `store/workbench/` 分为对话、附件、发送意图、Run 动作与监控。`context.ts` 共享账户/对象/查询世代及冻结意图；门面负责统一 reset，`runMonitor.ts` 集中释放 SSE、预算定时器和轮询等待，不在各模块重复维护生命周期。
+
+`styles/presentation/` 按调色、Shell、对话、Run、Surface、Composer、响应式和 Inspector 动效组织最终表现规则；导入顺序由 `styles.css` 固定。移动规则时保留层叠顺序。
 
 ## AI 对话与执行
 
@@ -82,35 +86,28 @@ HTML 仍通过受限 sandbox / CSP 预览；下载保留 `.html`，空间保存�
 
 059 迁移撤销 API 对 `artifact_versions` 的 UPDATE；API 只 SELECT/INSERT，父 `artifacts` 的 UPDATE 保留用于行锁。Worker 保留发布所需 INSERT/UPDATE；账户过滤、组合外键与不可变 provenance 分别承担隔离和结果约束，表级授权不能替代它们。
 
-## 删除的旧入口及能力归属
+## 视觉、阅读与会话切换
 
-| 旧组件/接线 | 当前实现 |
-| --- | --- |
-| `TestPages`、`ArtifactPanel` | AI Header 的 `ArtifactCreateForm`、消息 `ArtifactMessageItems`、`ArtifactInspector`，公共 `SaveToWorkspaceDialog`。 |
-| `WorkPanel`、`WorkManagement`、`ResearchOutputs` | `TaskScreen` / `TaskInspector`、任务编辑/预算/投递/资料组件、`TaskOutputs`。 |
-| `WorkspacePanel` | `WorkspaceScreen` / `FileInspector` / `GrantEditor`，Run 候选迁入 `RunResources`。 |
-| `LegacyUtilities` | ChatPane 正式空态与 Task Header 的 `TaskInbox`。 |
-| `TracePanel` 和 store 导航 bridge | 按需 `RunTraceContent`、独立诊断选择和 Shell 显式导航。 |
-| `hp-test-*` / `hp-page-*` 与旧固定侧板 CSS | tokens 和分领域样式；共用 Markdown、code、iframe、Trace 树保留。 |
+Paper Flame 使用冷瓷灰与少量焰橙的语义 tokens；评审控制及候选参数不进入产品构建。导航、反馈与动效观察已获准事实，不能提前改变领域状态。请求获准后才执行接力，排队、运行、失败、停止保留真实含义。
 
-Workspace 旧测试语义已迁入 WorkspaceMigration、WorkspaceCommands、UI4SelfReview 和 RunResources 的正式回归；保留取消/迟到候选、queued→running 刷新、未知 Run 404、主体 A→B→A、分页隔离和仅补授权。当前没有旧/新 Shell 发布开关或第二套数据层。
+四类 Inspector 立即请求，数据就绪与实际抵达分别门控；抵达前显示中性头部。同对象页签、展开、版本保持身份，关闭按钮真实关闭，Escape 作用于最高层，dirty guard 获准前不导航。
 
-## 当前视觉与交互约束
+会话切换与阅读收纳共用 Mercury 时间轴：omega=8.5×speed，默认 speed=0.35，hostTempo=2；两方向端点均按时间轴收束，不压缩数据等待。粒子固定 320 个身份，以进度和速度可逆推进，真实跨栏抵达对应 Conversation 条目。保留单 Composer、真实消息 DOM、草稿/附件/IME；目标活跃执行优先。渲染 DPR 上限 1.5，低档为 1，超过 180ms 的长帧安全降级；产品不提供速度设置。
 
-当前以 [R6 接受合同](../design/ui-iteration-2026-10/R6-ACCEPTED-CONTRACT.md)及其冻结指纹为准。会话切换与阅读收纳共用 Mercury 时序，保留真实数据等待、对象身份、单 Composer、草稿/附件/IME 与账户请求世代保护；Workspace/Tasks 的授权、预算、成果验收、投递确认与完成事实分别处理。减动、窄屏、失联、快切和异常必须安全收敛。离线评审桥和独立 HTML 不属于产品构建入口。
+阅读收纳只在已确认终态的 active Run，或已完成加载且无 Run 时可用。pending/unknown/queued/running/cancelling、错误、加载和忙状态都不能收纳。提交 guard 获准后先恢复阅读再发送，不额外聚焦或发请求；新消息引用/服务端事实变化自动恢复。手动恢复不拉取数据，保持阅读锚点或贴底；hidden/inert 阶段的滚动不更新阅读事实。收纳状态仅属本地生命周期，不写 URL 或 localStorage。
 
-接受记录与验证范围保留在原路径；截图、重复源码及原始运行输出的恢复见[归档索引](../development/repository-archive-index.md)。UI 接受未覆盖真实供应商、生产 Worker、QQ 外发、真机输入/读屏、其他浏览器和长期堆分析，不能代替上线验证。
+窄屏（Mercury 使用 960px 边界）、减动、隐藏/恢复、宿主失联、快切、resize、modal、长帧和渲染异常要收敛至真实状态并清理资源；旧 timer/arrival 不得覆盖新对象，空闲不保持 RAF。具体实现位于 `components/mercury`、`components/shell` 及相邻测试。真机 IME/软键盘/读屏、其他浏览器与长期堆分析需要独立验证，不能从本机静态或单元检查推断。
 
+## 执行详情与诊断
 
-| 范围 | 当前必须保留的行为 | 实现与正式验证位置 |
-| --- | --- | --- |
-| R1 静态呈现 | Paper Flame语义token、冷瓷灰与焰橙层级；评审控制/候选查询参数不进入正常构建 | `styles/tokens.css`、`App.tsx`；`e2e/entry/entry.spec.ts` |
-| R2 导航与反馈 | 表面、导航和状态装饰观察已获准事实，不提前改变领域状态；减动/窄屏可操作，焦点与模态层级正确 | `components/shell`、`components/vitality`及相邻单测；`e2e/ui-7-self-review.spec.ts` |
-| R3 执行接力 | 真实请求获准后才接力；queued/running、失败、停止及快切保留原事实，不由动画制造成功 | `components/conversation`、`components/input-action`及相邻单测 |
-| R4 四类Inspector | Run/Artifact/File/Task立即请求，数据与实际抵达分别门控；抵达前中性头部；同对象Tab/展开/版本保持身份；X真关闭、Escape最高层、dirty guard不提前导航 | `components/shell/InspectorHost.tsx`、`store/shell.ts`、四类Inspector与相邻测试；正式E2E |
-| R5 阅读与切换 | 同一消息DOM和单Composer；会话粒子固定身份/可逆轨迹，真实跨栏抵达对应条目；目标活跃执行优先；草稿/附件/IME不被装饰重置 | `components/mercury`及相邻单测 |
-| R6 收口 | 切换与阅读收纳共用Mercury时间轴；omega=8.5×0.35、hostTempo=2，端点收束按接受版；真实数据等待不压缩。认证跨await核对代际，同轮提交去重，旧响应不污染新账户 | `components/mercury`、`components/LoginForm.tsx`、`store/auth.ts`及相邻单测 |
+桌面 ≥1280px 的 Run Inspector 可拖动左边界：默认宽 460px，最小 360px、最大 880px，主 Canvas 至少 600px，实际可用宽度继续约束上限。分隔条命中宽 12px，键盘步长 16px、Shift 48px、Home/End 到边界；拖动使用 pointer capture。宽度仅在当前会话内存保留，resize 不重建 DOM、查询或页签。关闭命中区 40×40px，退出期间保留宽度；其他对象和窄屏不继承拖宽行为。
 
-窄屏、减动、隐藏/恢复、宿主失联、快切、长帧和渲染异常要直达真实状态并回收装饰资源，不能让旧timer/arrival回调覆盖新对象。长期空闲不保持动画循环；性能结论须注明设备、采样及测量方法。
+标题工具栏刷新 Run 快照；高级诊断还刷新 Trace 并使 Model Input 正文缓存失效，资料/审批等独立资源各自刷新。标题保留抵达身份，页签切换不伪装成新对象打开。
 
-这些约束不改变API、授权、预算、成果验收、投递确认和任务完成的独立含义。真实供应商、生产Worker、QQ外发、真机IME/软键盘/读屏、其他浏览器和长期堆分析须独立验证。
+概览原始回复显示完整 Markdown 字符文本，不摘要、不二次渲染、不折叠；具可访问名称，独立可聚焦滚动区最大高 440px。时间线按真实事件相对 created_at、end/sample_at 定位，等待灰、执行橙、成功绿；零时长合并，不补假宽、不移动点解决文字碰撞。跨日显示日期，缺失/倒序/非法时间标未知，不能当 0。活动且可见时按秒更新采样，隐藏停止、终态停止；位置不表示完成百分比。
+
+Run 序号来自账号及真实 Conversation/Work 来源内按 created_at/run_id 排序的授权 PG 查询，不按消息数或前端缓存计数；重试新 Run 有新序号，缺失显示“本次执行”。
+
+用量聚合以 run_budgets 为准；请求尝试以 run_usage_ledger 的 settled/inflight/released 事实计数，可能包含重试/fallback 与发送前释放。Snapshot/Trace 数量不是调用数；单次调用只按真实 model_call_id 关联。Trace 可能只保留最终响应，缺少的用量、关联或耗时明确显示未知，不猜 token 拆分、供应商延迟或任意 90% 告警线。最终结算、当前预留与预算强制边界分别解释。
+
+Trace 节点选择与折叠独立，刷新/调宽保留状态；多根/深树按真实层级截断，详情仍可读完整节点。只有 snapshot_id 可打开 Model Input，不另发输入列表查询。执行中才有运行装饰，终态与减动静止。总跨度用起止差，不累加可能重叠的节点耗时。实现见 `components/run`、`components/trace`、`store/runInspector.ts` 及相邻测试。

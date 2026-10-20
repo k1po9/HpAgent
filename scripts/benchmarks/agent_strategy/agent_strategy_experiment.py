@@ -500,7 +500,7 @@ def execute() -> None:
     print(summary.stdout, end="")
     if summary.returncode:
         raise SystemExit(summary.stderr.strip() or "summary generation failed")
-    print("Experiment complete. Review artifacts/benchmarks/agent_strategy/README.md")
+    print(f"Experiment complete. Review {ARTIFACTS / 'report.md'}")
 
 
 def main() -> None:

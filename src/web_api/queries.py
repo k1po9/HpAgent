@@ -302,7 +302,7 @@ class QueryService:
                 run["budget"] = load_run_budget_projection(uow, run_id)
                 run["published_file"] = file_dto(published) if published else None
                 run["execution_id"] = str(uow.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (run_id,)).fetchone()["execution_id"])
-                from agent_activities.delegation import branch_projection
+                from run_domain.delegation import branch_projection
                 run["branches"] = branch_projection(uow, account_id, run_id)
                 return {"source_kind": "work", "run": run}
             row = uow.execute(

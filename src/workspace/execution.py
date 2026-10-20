@@ -4,10 +4,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from agent_activities.fencing import execution_fence
-from agent_activities.store import AgentDataStore
 from application.interaction_profiles import select_interaction_profile
 from persistence.uow import UnitOfWork
+from run_domain.execution import assert_execution_fence, lock_execution, require_active_run
+from run_domain.execution_context import execution_fence
 
 
 class ExecutionResourceService:
@@ -20,9 +20,9 @@ class ExecutionResourceService:
     @asynccontextmanager
     async def lease_for_run(self, account_id, run_id, control=None):
         with UnitOfWork(self.database) as uow:
-            AgentDataStore._assert_fence(uow)
-            run = AgentDataStore._active_run(uow, str(account_id), str(run_id))
-            execution = AgentDataStore._execution(uow, str(account_id), str(run_id))
+            assert_execution_fence(uow)
+            run = require_active_run(uow, str(account_id), str(run_id))
+            execution = lock_execution(uow, str(account_id), str(run_id))
         execution_id = str(execution["execution_id"])
         fence = execution_fence.get()
         if fence is None or fence[2] != execution_id:
@@ -61,7 +61,7 @@ class ExecutionResourceService:
 
     def _sandbox(self, account_id, run_id, execution_id, scratch, run):
         with UnitOfWork(self.database) as uow:
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             origin = uow.execute(
                 "SELECT origin FROM messages WHERE message_id=%s", (run["trigger_message_id"],)
             ).fetchone()

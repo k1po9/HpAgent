@@ -3,12 +3,15 @@ import sys
 from dataclasses import fields
 from pathlib import Path
 
+from bootstrap.worker_dependencies import WorkerDependencies
 from orchestration.config import TemporalConfig
-from orchestration.worker import WorkerDependencies
 
 
 def test_actual_production_registries_match_current_runtime(monkeypatch):
-    monkeypatch.setattr("persistence.migrate.verify_schema", lambda database: None)
+    def unexpected_database_io(*args, **kwargs):
+        raise AssertionError("registry scan must not connect to a database")
+
+    monkeypatch.setattr("psycopg.connect", unexpected_database_io)
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts" / "check"))
     try:
         from temporal_registry import scan

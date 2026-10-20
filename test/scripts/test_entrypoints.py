@@ -84,8 +84,8 @@ class ReleaseSmokeTests(unittest.TestCase):
             smoke.exercise(Fake(False), "user", "password", 1)
 
     def test_http_client_sends_origin_and_valid_json_handles_303_without_redirect(self):
-        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
         import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
         seen = []
 
         class Handler(BaseHTTPRequestHandler):

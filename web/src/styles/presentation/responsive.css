@@ -1,0 +1,48 @@
+@media (max-width: 959px) {
+  .hp-shell .hp-composer {
+    border-radius: 15px;
+  }
+}
+@media (max-width: 599px) {
+  .hp-shell .hp-composer {
+    margin-bottom: 10px;
+    padding: 10px;
+  }
+  .hp-execution-block:not(:has(.hp-runstrip)) > .hp-run-detail {
+    grid-template-columns: minmax(0, 1fr) 28px !important;
+    gap: 8px 9px !important;
+    padding: 12px !important;
+  }
+  .hp-execution-block:not(:has(.hp-runstrip)) .hp-run-reference-kind,
+  .hp-execution-block:not(:has(.hp-runstrip)) .hp-run-reference-copy {
+    grid-column: 1 !important;
+  }
+  .hp-run-card-status {
+    grid-column: 1 !important;
+    grid-row: 3 !important;
+    justify-self: start;
+  }
+  .hp-execution-block:not(:has(.hp-runstrip)) .hp-run-card-meta {
+    grid-column: 1 / span 2 !important;
+    grid-row: 4 !important;
+  }
+  .hp-execution-block:not(:has(.hp-runstrip)) .hp-run-detail > svg {
+    grid-column: 2 !important;
+    grid-row: 1 / span 3 !important;
+  }
+  .hp-inspector .hp-surface-header {
+    min-height: 70px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hp-run-card-status[data-status="running"] .hp-run-card-dot {
+    animation: none;
+  }
+  .hp-shell .hp-conv,
+  .hp-rail nav button,
+  .hp-shell .hp-composer,
+  .hp-execution-block:not(:has(.hp-runstrip)) > .hp-run-detail {
+    transition: none !important;
+    transform: none !important;
+  }
+}

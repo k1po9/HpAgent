@@ -17,7 +17,6 @@ from orchestration.research_workflow import (
     ResearchWorkflowInput,
 )
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
-from orchestration.web_dispatcher import TemporalClientAdapter
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 
@@ -177,10 +176,12 @@ async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_af
     run_id = str(uuid4())
     workflow_id = f"hpagent-research-{run_id}"
     async with worker:
-        temporal_run_id = await TemporalClientAdapter(client).start_research_run(
-            workflow_id, ResearchWorkflowInput(1, run_id)
+        # Exercise the registered research graph directly; production dispatch
+        # is covered by the Work/Lifecycle integration suite.
+        handle = await client.start_workflow(
+            ResearchReportWorkflow.run, ResearchWorkflowInput(1, run_id),
+            id=workflow_id, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
         )
-        handle = client.get_workflow_handle(workflow_id, run_id=temporal_run_id)
         result = await handle.result()
         history = await handle.fetch_history()
     replay = await Replayer(workflows=[ResearchReportWorkflow]).replay_workflow(history)

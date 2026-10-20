@@ -30,15 +30,16 @@ from agent_workflows.delegation_contracts import (
     DelegationPrepared,
 )
 from persistence.uow import UnitOfWork, retryable_transaction
+from run_domain.delegation import (
+    DelegationDenied,
+    branch_projection,
+    current_execution,
+)
+from run_domain.execution import assert_execution_fence, lock_execution, require_active_run
 from run_domain.lifecycle import RunLifecycleService
 from workspace.resources import ResourcePolicy
 
-from .fencing import execution_fence, fenced_activity
-from .store import AgentDataStore
-
-
-class DelegationDenied(ValueError):
-    pass
+from .fencing import fenced_activity
 
 
 def validate_briefs(arguments):
@@ -98,57 +99,14 @@ def validate_briefs(arguments):
     return briefs
 
 
-def current_execution(uow):
-    fence = execution_fence.get()
-    if fence is None:
-        return None
-    return AgentDataStore._execution(uow, fence[0], fence[1], fence[2])
 
 
-def child_scope(uow):
-    execution = current_execution(uow)
-    return execution["resource_scope"] if execution and execution["role"] == "subagent" else None
 
 
-def require_root_write(uow):
-    if child_scope(uow) is not None:
-        raise DelegationDenied("Subagent cannot change long-term resources or permissions")
 
 
-def branch_projection(uow, account_id, run_id):
-    """Usage is a projection of original reservations, never another charge."""
-    from work_domain.persistence import dto
-
-    rows = uow.execute(
-        "SELECT execution_id,parent_execution_id,branch_key,branch_attempt,status,result_ref,error_code,"
-        "context_manifest->'brief'->'required' AS required FROM run_executions "
-        "WHERE account_id=%s AND run_id=%s AND role='subagent' ORDER BY branch_key,branch_attempt",
-        (account_id, run_id),
-    ).fetchall()
-    for row in rows:
-        usage = uow.execute(
-            "SELECT dimension,sum(CASE WHEN state='settled' THEN actual_amount ELSE 0 END) AS used,"
-            "sum(CASE WHEN state='reserved' THEN reserved_amount ELSE 0 END) AS reserved "
-            "FROM run_usage_ledger WHERE run_id=%s AND execution_id=%s GROUP BY dimension",
-            (run_id, row["execution_id"]),
-        ).fetchall()
-        row["usage"] = {
-            v["dimension"]: {"used": int(v["used"]), "reserved": int(v["reserved"])} for v in usage
-        }
-    return dto(rows)
 
 
-def required_branch_gaps(uow, account_id, run_id):
-    return [
-        row["branch_key"]
-        for row in uow.execute(
-            "SELECT b->>'branch_key' AS branch_key FROM execution_delegations d, jsonb_array_elements(d.briefs) b "
-            "WHERE d.account_id=%s AND d.run_id=%s AND (b->>'required')::boolean AND NOT EXISTS("
-            "SELECT 1 FROM run_executions e WHERE e.parent_execution_id=d.execution_id "
-            "AND e.branch_key=b->>'branch_key' AND e.status='succeeded')",
-            (account_id, run_id),
-        ).fetchall()
-    ]
 
 
 class DelegationActivities:
@@ -186,8 +144,8 @@ class DelegationActivities:
     @retryable_transaction
     def _prepare(self, request, briefs):
         with UnitOfWork(self.database) as uow:
-            AgentDataStore._assert_fence(uow)
-            run = AgentDataStore._active_run(uow, request.account_id, request.run_id)
+            assert_execution_fence(uow)
+            run = require_active_run(uow, request.account_id, request.run_id)
             parent = current_execution(uow)
             if parent["role"] != "root" or run["executor_key"] != "work_agent":
                 raise DelegationDenied("only Generic Work root may delegate")
@@ -372,7 +330,7 @@ class DelegationActivities:
     def _finish_branch(self, request):
         with UnitOfWork(self.database) as uow:
             run = RunLifecycleService.lock(uow, UUID(request.account_id), UUID(request.run_id))
-            row = AgentDataStore._execution(
+            row = lock_execution(
                 uow, request.account_id, request.run_id, request.execution_id
             )
             if row["role"] != "subagent":
@@ -450,7 +408,7 @@ class DelegationActivities:
 
     def _aggregate(self, request):
         with UnitOfWork(self.database) as uow:
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             delegation = uow.execute(
                 "SELECT briefs FROM execution_delegations WHERE execution_id=%s AND operation_id=%s",
                 (UUID(request.execution_id), request.operation_id),

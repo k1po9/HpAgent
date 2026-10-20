@@ -130,7 +130,7 @@ class SnapshotRepository:
             ).fetchone()
             if owns is None:
                 raise LookupError("Run does not belong to model-call Account")
-            from agent_activities.fencing import execution_fence
+            from run_domain.execution_context import execution_fence
             fence = execution_fence.get()
             row = uow.execute(
                 "INSERT INTO model_input_snapshots(snapshot_id,account_id,run_id,"

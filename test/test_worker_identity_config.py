@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from orchestration.worker import load_worker_qq_binding_code_pepper
+from bootstrap.worker_dependencies import load_worker_qq_binding_code_pepper
 
 
 def test_worker_production_qq_pepper_fails_closed(monkeypatch):

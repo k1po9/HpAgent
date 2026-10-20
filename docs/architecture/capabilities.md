@@ -12,7 +12,7 @@ Agent 能力由 Context Assembly、Brain/Model 决策循环和持久化策略 Wo
 
 ## Work 与执行策略
 
-Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 continuation。提醒、研究、通用工作和成果构建通过服务端 StrategyRegistry 选择注册 executor；不支持的能力直接拒绝。Main 使用 Work 管理工具，Work Agent 不获得这些工具；工作上下文不加载关联聊天全文。Generic Work root 可一次委派最多三个只读分支，共用 Run / Work 预算。完成由持久证据与 WorkCompletionPolicy 判断。详见 [Durable Work V1](durable-work-v1.md)。
+Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 continuation。提醒、研究、通用工作和成果构建通过服务端 StrategyRegistry 选择注册 executor；不支持的能力直接拒绝。Main 使用 Work 管理工具，Work Agent 不获得这些工具；工作上下文不加载关联聊天全文。Generic Work root 可一次委派最多三个只读分支，共用 Run / Work 预算。完成由持久证据与 WorkCompletionPolicy 判断。详见 [Work](work.md)。
 
 ## Actions、Tools、MCP 与 Sandbox
 
@@ -24,7 +24,7 @@ Context Assembly 在模型执行前从 Hindsight 召回长期记忆。完成的 
 
 ## File 与 Workspace
 
-File 能力负责上传、校验、不可变对象、Run 绑定和生成输出。账号级长期文件 Workspace 用稳定目录与 entry ID 组织对象；Conversation/Work 授权控制 Agent 发现与读取，Run 冻结候选并在选择时固定版本。发布输出与保存长期入口是两次独立操作。PostgreSQL 是目录、授权、修订、操作与保留引用的权威；TenantFileStore 保存字节，RunFileWorkspace 仅按需物化临时副本。Git Repository 是代码任务的独立能力，不参与普通文件保存与 GC。详见 [Workspace v4.1](workspace-v4.1.md)。
+File 能力负责上传、校验、不可变对象、Run 绑定和生成输出。账号级长期文件 Workspace 用稳定目录与 entry ID 组织对象；Conversation/Work 授权控制 Agent 发现与读取，Run 冻结候选并在选择时固定版本。发布输出与保存长期入口是两次独立操作。PostgreSQL 是目录、授权、修订、操作与保留引用的权威；TenantFileStore 保存字节，RunFileWorkspace 仅按需物化执行副本。Git Repository 是代码任务的独立能力，不参与普通文件保存与 GC。详见 [Workspace](workspace.md)。
 
 ## Research
 
@@ -40,6 +40,6 @@ Heavy Document Normalization 是 File 能力中高开销的执行分支。独立
 
 ## Provider 请求与通知
 
-Provider serializer v2 显式规范化 OpenAI / Anthropic transcript，并在快照和预留前校验工具调用结果配对。安全失败 code 贯通 Activity / Lifecycle / API，日志保留调用关联和受限 Provider 错误字段；Artifact 使用独立读取预算。详见[可靠性](reliability.md)。
+Provider serializer v2 显式规范化 OpenAI / Anthropic transcript，并在快照和预留前校验工具调用结果配对。安全失败 code 贯通 Activity / Lifecycle / API，日志保留调用关联和受限 Provider 错误字段；Artifact 使用独立读取预算。详见[执行与恢复](execution.md)。
 
 统一 Notification / Delivery 面向 Web 私有 inbox 与经过绑定核验的 QQ 目标。渠道接受不是用户已读，未知发送结果不自动重发；Work 完成只采用要求明确指定的证据。

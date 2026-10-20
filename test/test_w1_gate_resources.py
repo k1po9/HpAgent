@@ -31,7 +31,7 @@ async def test_startup_failure_releases_shared_resources(monkeypatch, failure):
 
 @pytest.mark.asyncio
 async def test_init_failure_unwinds_resources_registered_during_construction(monkeypatch):
-    from orchestration import worker
+    from bootstrap import worker_dependencies as worker
 
     closed = AsyncMock()
 
@@ -69,11 +69,12 @@ def test_sandbox_manager_close_destroys_every_owned_sandbox():
 @pytest.mark.asyncio
 async def test_web_lifespan_startup_failure_closes_acquired_pool(monkeypatch):
     from web_api import app as app_module
+    from web_api import lifespan as lifespan_module
     from web_api.config import WebApiSettings
 
     pool = SimpleNamespace(wait=Mock(), close=Mock())
-    monkeypatch.setattr(app_module, "ConnectionPool", Mock(return_value=pool))
-    monkeypatch.setattr(app_module, "verify_schema", Mock())
+    monkeypatch.setattr(lifespan_module, "ConnectionPool", Mock(return_value=pool))
+    monkeypatch.setattr(lifespan_module, "verify_schema", Mock())
     settings = WebApiSettings(
         database_url="postgresql://unused",
         public_origin="https://example.test",
@@ -163,16 +164,16 @@ async def test_worker_stops_background_producers_before_temporal_workers(monkeyp
     monkeypatch.setattr(worker, "compose_durable_runtime", Mock(return_value=composition))
     monkeypatch.setattr(
         worker,
-        "_build_web_background_tasks",
+        "start_durable_background_tasks",
         lambda *, tasks, **_kwargs: tasks.create(owned_loop()),
     )
     monkeypatch.setattr(qq_delivery, "QQDeliveryService", Delivery)
-    monkeypatch.setattr(worker, "_setup_reflect_schedule", AsyncMock())
+    monkeypatch.setattr(worker, "setup_reflect_schedule", AsyncMock())
 
     async def metrics_ready(*_args):
         ready.set()
 
-    monkeypatch.setattr(worker, "_setup_metrics_schedule", metrics_ready)
+    monkeypatch.setattr(worker, "setup_metrics_schedule", metrics_ready)
     monkeypatch.setenv("WORKER_DATABASE_URL", "postgresql://unused")
     config = AppConfig()
     config.channels.enabled = []

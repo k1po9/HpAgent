@@ -47,28 +47,18 @@ data/
 # 旧版运行时目录（逐步迁移）
 users_workspace/
 
-# Historical UI output is external; retained decisions/contracts are already tracked.
-/artifacts/product-acceptance/ui-[2-8]/
-/artifacts/product-acceptance/ui-8-fixes/
-/artifacts/product-acceptance/ui-8-recheck/
-
 # MCP 服务器（从外部克隆的仓库）
 tools/mcp/
 
 # 向量数据库（运行时产物，不应提交）
 tools/vectors/
 
-# Local UI review archives and downloaded design skills are preserved outside Git.
-# Accepted decisions/contracts and small source manifests are added explicitly.
+# Dependencies and generated outputs; source docs contain only current contracts.
 /node_modules/
 /ui_skill_delete_after_done/
-/artifacts/product-acceptance/ui-iteration/
-
-# Pre-release cleanup: generated/raw evidence stays outside the tracked tree.
 /artifacts/
 /web/playwright-report/
 /web/test-results/
-# Existing tracked evidence remains tracked; add new reviewed summaries explicitly.
 
 # Defense in depth: operators must put backups outside this checkout.
 /backups/

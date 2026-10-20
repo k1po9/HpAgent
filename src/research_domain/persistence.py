@@ -20,14 +20,14 @@ from research_domain.models import (
     SourceCandidate,
     SourceContent,
 )
+from run_domain.execution import assert_execution_fence
 
 
 def execution_repository_method(function):
     from functools import wraps
     @wraps(function)
     def wrapped(self, uow, *args, **kwargs):
-        from agent_activities.store import AgentDataStore
-        AgentDataStore._assert_fence(uow)
+        assert_execution_fence(uow)
         return function(self, uow, *args, **kwargs)
     return wrapped
 

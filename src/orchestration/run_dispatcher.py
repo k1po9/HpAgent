@@ -6,10 +6,12 @@ from uuid import UUID
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from agent_activities.store import AgentDataStore, RunNotExecutable, StaleFencingToken
+from agent_activities.store import AgentDataStore
 from orchestration.execution_strategy import StrategyRegistry
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from persistence.uow import UnitOfWork
+from run_domain.execution import RunNotExecutable, StaleFencingToken, assert_execution_fence
+from run_domain.results import complete_operation
 from web_domain.errors import DomainError
 
 
@@ -73,8 +75,8 @@ class ReminderActivities:
             raise ApplicationError("Reminder contract rejected", non_retryable=True) from exc
 
     def _execute(self, run_id, attempt=1):
-        from agent_activities.fencing import fence_scope
         from agent_workflows.lifecycle_contracts import SegmentInput
+        from run_domain.execution_context import fence_scope
         from run_domain.lifecycle import RunLifecycleService
         from work_domain.models import continuation
 
@@ -98,7 +100,7 @@ class ReminderActivities:
                 # No model, sandbox, external channel or filesystem is involved.
                 with UnitOfWork(self.database) as uow:
                     run = RunLifecycleService.lock(uow, UUID(identity["account_id"]), UUID(run_id))
-                    AgentDataStore._assert_fence(uow)
+                    assert_execution_fence(uow)
                     RunLifecycleService.check_work(uow, run)
                     spec = run["input_snapshot"]["requirement"]["spec"]
                     operation_id = f"reminder:{run_id}:enqueue:v1"
@@ -106,7 +108,7 @@ class ReminderActivities:
                         "INSERT INTO execution_operations(operation_id,run_id,operation_type) VALUES (%s,%s,'deterministic') ON CONFLICT DO NOTHING",
                         (operation_id, UUID(run_id)),
                     )
-                    from agent_activities.fencing import execution_fence
+                    from run_domain.execution_context import execution_fence
                     from run_domain.results import ResultReceiptService
 
                     ResultReceiptService.register_attempt(uow, operation_id, execution_fence.get())
@@ -154,7 +156,7 @@ class ReminderActivities:
                             "awaiting_delivery", "reminder_enqueued", receipt_ref=str(intent_id)
                         ),
                     }
-                    AgentDataStore._complete_operation(
+                    complete_operation(
                         uow,
                         operation_id,
                         f"operation:{operation_id}",

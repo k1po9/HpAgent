@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID, uuid5
 
-from agent_activities.fencing import fence_scope
 from agent_activities.store import AgentDataStore
 from agent_workflows.lifecycle_contracts import SegmentInput
 from persistence.uow import UnitOfWork
 from resources.model_budget_context import model_budget_scope
+from run_domain.execution import assert_execution_fence
+from run_domain.execution_context import fence_scope
 from run_domain.lifecycle import RunLifecycleService
+from run_domain.results import complete_operation
 from web_artifacts.publisher import publish
 from work_domain.models import continuation
 
@@ -72,7 +74,7 @@ class ArtifactBuildService:
             run = RunLifecycleService.lock(
                 uow, UUID(self.store.run_identity(str(run_id))["account_id"]), run_id
             )
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             RunLifecycleService.check_work(uow, run)
             if run["input_snapshot"]["requirement"]["spec"]["artifact_version_id"] != str(
                 version_id
@@ -134,13 +136,13 @@ class ArtifactBuildService:
                 "SELECT account_id FROM runs WHERE run_id=%s", (run_id,)
             ).fetchone()
             run = RunLifecycleService.lock(uow, identity["account_id"], run_id)
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             row = uow.execute(
                 "SELECT artifact_id FROM artifact_versions WHERE account_id=%s AND artifact_version_id=%s",
                 (run["account_id"], version_id),
             ).fetchone()
             publish(uow, run_id, row["artifact_id"], version_id, html, operation_id=operation)
-            AgentDataStore._complete_operation(
+            complete_operation(
                 uow,
                 operation,
                 f"artifact-version:{version_id}",
@@ -173,7 +175,7 @@ class ArtifactBuildService:
             run = RunLifecycleService.lock(uow, identity["account_id"], run_id)
             if run["status"] != "running":
                 return
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             uow.execute(
                 "UPDATE artifact_versions SET status='failed',html=NULL,failure_code=%s,failure_message=%s,completed_at=now(),updated_at=now() WHERE artifact_version_id=%s AND producing_run_id=%s AND status='running'",
                 (code, message[:1000], version_id, run_id),

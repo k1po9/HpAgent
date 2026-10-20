@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+
 import pytest
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel
@@ -9,8 +10,13 @@ from sandbox.tools.registry import ToolRegistry
 from sandbox.tools.routing.capability import CapabilityMatcher
 from sandbox.tools.routing.contracts import NATIVE_ROUTING_SPECS, routing_for
 from sandbox.tools.routing.models import (
-    ResourceFact, ResourceScope, RuntimeCapabilitySnapshot, ScoredCandidate,
-    SemanticRetrievalResult, ToolExposure, ToolRoutingConfigurationError,
+    ResourceFact,
+    ResourceScope,
+    RuntimeCapabilitySnapshot,
+    ScoredCandidate,
+    SemanticRetrievalResult,
+    ToolExposure,
+    ToolRoutingConfigurationError,
     ToolRoutingSpec,
 )
 from sandbox.tools.routing.policy import CandidatePolicy

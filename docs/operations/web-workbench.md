@@ -1,6 +1,6 @@
 # 功能操作与人工校验
 
-前端只有 AI、空间、任务三个一级入口。登录位于业务 Shell 之前；账户与 QQ 绑定从头像打开。Run、文件、Task 和 HTML Artifact 在当前页面的 Inspector 中查看；面板内部返回可回到父对象。切页保留对话草稿，退出和账户切换清空账户内状态。当前约束已收束至R1–R6接受基线，架构契约见[Web 前端](../architecture/web-ui.md)，接受依据与未覆盖环境见[实施索引](../implementation/README.md)。
+前端只有 AI、空间、任务三个一级入口。登录位于业务 Shell 之前；账户与 QQ 绑定从头像打开。Run、文件、Task 和 HTML Artifact 在当前页面的 Inspector 中查看；面板内部返回可回到父对象。切页保留对话草稿，退出和账户切换清空账户内状态。交互契约见[Web 前端](../architecture/web-ui.md)，验证范围见[测试指南](../development/testing.md)。
 
 | 入口 | 主要操作 |
 | --- | --- |
@@ -42,4 +42,4 @@
 
 从消息执行块或 Task 的某次执行打开 Run Inspector；AI Header 与 Task 高级详情也可输入已有编号。先查看失败 code / message / retryable，再切到高级诊断查看 Trace、Model Input 和日志。历史 Run 不被当前聊天流抢占；Model Input 仍受账户可见范围限制。诊断没有独立一级入口。
 
-文件与页面验收可使用[浏览器回归](../development/testing.md)。这些测试由真实 API / PostgreSQL / Redis 与测试执行器组成；真实模型、QQ 和生产恢复验收要另行执行。已知边界及证据见[实施索引](../implementation/README.md)。
+文件与页面验收可使用[浏览器回归](../development/testing.md)。这些测试由真实 API / PostgreSQL / Redis 与测试执行器组成；真实模型、QQ 和生产恢复验收要另行执行。已知恢复限制见[执行与恢复](../architecture/execution.md)。

@@ -12,6 +12,7 @@ from typing import Any, Iterator
 from uuid import UUID, uuid4
 
 from persistence.uow import UnitOfWork
+from run_domain.execution import assert_execution_fence, lock_execution
 from storage.tenant_file_store import FileStoreError, TenantFileReader, TenantFileStore
 
 
@@ -89,8 +90,7 @@ class RunFileWorkspace:
     def load_rows(self, account_id: UUID, run_id: UUID, *,
                   include_selected: bool = False) -> list[dict[str, Any]]:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             owned = uow.execute(
                 "SELECT source_kind,status FROM runs WHERE account_id=%s AND run_id=%s",
                 (account_id, run_id),
@@ -128,7 +128,7 @@ class RunFileWorkspace:
                 ).fetchone():
                     continue
                 if not authority._file_authorized_in_uow(uow, account_id, run_id, row["file_id"]):
-                    from agent_activities.delegation import child_scope
+                    from run_domain.delegation import child_scope
                     if child_scope(uow) is not None:
                         continue
                     raise RunFileScopeUnavailable("Run input permission was revoked")
@@ -139,11 +139,10 @@ class RunFileWorkspace:
     def prepare(self, account_id: UUID, run_id: UUID, *,
                 include_selected: bool = False) -> Iterator[RunFileScope]:
         rows = self.load_rows(account_id, run_id, include_selected=include_selected)
-        from agent_activities.fencing import execution_fence
+        from run_domain.execution_context import execution_fence
         fence = execution_fence.get()
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            execution = AgentDataStore._execution(uow, str(account_id), str(run_id), fence[2] if fence else None)
+            execution = lock_execution(uow, str(account_id), str(run_id), fence[2] if fence else None)
         if execution is None:
             raise RunFileScopeUnavailable("Execution is unavailable")
         with self.prepare_rows(run_id, rows, account_id=account_id,

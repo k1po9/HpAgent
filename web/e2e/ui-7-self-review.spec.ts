@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { workFixture } from "../src/components/tasks/taskFixtures";
 
 const evidence = resolve(process.cwd(), "./test-results/evidence/ui-7/self-review-fixes/browser");
 const now = "2026-10-08T00:00:00Z";
@@ -129,6 +130,7 @@ async function fixture(page: Page) {
           },
         ],
       };
+    if (path === "/api/v1/works/work-A") json = { work: workFixture({ work_id: "work-A" }) };
     if (path === "/api/v1/runs/run-A") {
       if (firstLookup) {
         firstLookup = false;
@@ -184,29 +186,53 @@ async function record(page: Page, name: string, data: unknown) {
   await writeFile(resolve(evidence, `${name}.json`), JSON.stringify(data, null, 2) + "\n");
   await page.screenshot({ path: resolve(evidence, `${name}.png`), fullPage: true });
 }
-for (const foreground of ["account", "resources", "sidebar"] as const) {
-  test(`R1: late Header lookup preserves newer ${foreground}`, async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+for (const { foreground, width } of [
+  { foreground: "account", width: 390 },
+  { foreground: "resources", width: 390 },
+  { foreground: "sidebar", width: 390 },
+  { foreground: "account", width: 1536 },
+  { foreground: "resources", width: 1536 },
+] as const) {
+  const mounted = width >= 1280;
+  test(`R1: late Task lookup ${mounted ? "while mounted" : "after close"} preserves newer ${foreground}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
     const f = await fixture(page);
-    await page.goto("/#/ai/c1");
+    await page.goto("/#/ai/c1?inspect=task:work-A&tab=advanced");
     await page.getByText("按执行编号查询", { exact: true }).click();
-    await page.getByLabel("执行编号", { exact: true }).fill("run-A");
+    await page.locator(".hp-run-lookup").getByLabel("执行编号", { exact: true }).fill("run-A");
     await page.getByRole("button", { name: "查询", exact: true }).click();
     await expect.poll(() => f.calls.some((c) => c.path === "/api/v1/runs/run-A")).toBe(true);
+    const lookup = await page.locator(".hp-run-lookup").elementHandle();
+    // Mobile has a modal Inspector; desktop permits a new foreground while its owner remains mounted.
+    if (!mounted) {
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".hp-inspector")).toHaveCount(0);
+    }
     if (foreground === "account")
       await page.getByRole("button", { name: "账户设置", exact: true }).click();
     if (foreground === "resources")
-      await page.getByRole("button", { name: "对话资料", exact: true }).click();
+      await page.getByRole("button", { name: "使用资料", exact: true }).click();
     if (foreground === "sidebar")
       await page.getByRole("button", { name: "打开侧栏", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toHaveCount(1);
     const title = await dialog.getAttribute("aria-label");
+    const response = page.waitForResponse(
+      (r) => new URL(r.url()).pathname === "/api/v1/runs/run-A",
+    );
     f.releaseLookup();
-    await expect(page.getByRole("button", { name: "查询", exact: true })).toBeEnabled();
+    await (await response).finished();
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
+    expect(await lookup!.evaluate((node) => node.isConnected)).toBe(mounted);
+    await expect(page.locator(".hp-run-lookup")).toHaveCount(mounted ? 1 : 0);
     await expect(dialog).toHaveAttribute("aria-label", title!);
-    await expect(page.locator(".hp-inspector")).toHaveCount(0);
-    await record(page, `R1-${foreground}`, { title, calls: f.calls, errors: f.errors });
+    await expect(page.locator(".hp-inspector--run")).toHaveCount(0);
+    await expect(page.locator(".hp-task-inspector")).toHaveCount(mounted ? 1 : 0);
+    await record(page, `R1-${foreground}-${width}`, { title, calls: f.calls, errors: f.errors });
     expect(f.errors).toEqual([]);
   });
 }

@@ -11,6 +11,7 @@ from uuid6 import uuid7
 from persistence.command_result import CommandResult
 from persistence.repositories import AccountRepository, IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
+from run_domain.execution import assert_execution_fence
 from web_domain.errors import DomainError, IdempotencyConflict, ResourceNotFound
 from work_domain.models import Requirement, continuation, digest
 from work_domain.persistence import WorkRepository, dto
@@ -31,8 +32,7 @@ class WorkCommandService:
         self.idempotency = IdempotencyRepository()
 
     def _claim(self, uow, account_id, operation, key, payload):
-        from agent_activities.store import AgentDataStore
-        AgentDataStore._assert_fence(uow)
+        assert_execution_fence(uow)
         request_hash = digest(payload)
         row = self.idempotency.claim(uow, uuid7(), account_id, operation, key, request_hash,
                                      datetime.now(UTC) + timedelta(days=7))

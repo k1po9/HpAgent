@@ -36,7 +36,7 @@ Beta实际编辑路径为 `/home/hp/deploy/hpagent-beta/.env` 和 `/home/hp/depl
 
 `FLAGSHIP/STANDARD/HIGHSPEED`只是你给供应商模型目录起的标签，不是模型供应商认可的固定等级，也不等于账户A/B/C权限。三个变量可以填同一个模型ID，依然可按各链的超时、输出长度和请求参数分别运行。
 
-当前三条文本链均已显式选用SiliconFlow对应目录变量，Embedding／Rerank也使用SiliconFlow。MiniMax目录仍可保留，Hindsight LLM按独立配置使用MiniMax。没有增加跨供应商回退。原生参数核实与未来校验方案见[设计方案](../design/model-native-parameters-plan.md)。
+当前三条文本链均已显式选用SiliconFlow对应目录变量，Embedding／Rerank也使用SiliconFlow。MiniMax目录仍可保留，Hindsight LLM按独立配置使用MiniMax。没有增加跨供应商回退。Provider 与模型的 extra_body 以模型配置覆盖合并，序列化时放请求顶层；禁止覆盖 model/messages/tools/stream/max_tokens 等保留字段。当前只校验结构及保留字段，未按模型能力验证每个原生参数，真实兼容性须独立请求验证。
 
 ## .env规范写法
 

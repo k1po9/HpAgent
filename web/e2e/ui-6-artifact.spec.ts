@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { login, createConversation, sendMessage, expectReply } from "./helpers";
 import { workFixture, artifactFixture } from "../src/components/tasks/taskFixtures";
+import type { HpArtifactVersion } from "../src/api/types";
 const evidence = resolve(process.cwd(), "./test-results/evidence/ui-6/screenshots");
 
 test("real API: lost create/version responses replay keys and history keeps v1 selected", async ({
@@ -88,7 +89,7 @@ test("network fixtures: task original delivery, unavailable versions, layouts an
     created_at: "2026-10-08T00:00:00Z",
     updated_at: "2026-10-08T00:00:00Z",
   };
-  const v1 = {
+  const v1: HpArtifactVersion = {
     artifact_id: artifact.artifact_id,
     artifact_version_id: "ui6-v1",
     version: 1,
@@ -160,7 +161,7 @@ test("network fixtures: task original delivery, unavailable versions, layouts an
     [1280, 800],
     [1440, 900],
     [1920, 1080],
-  ]) {
+  ] as const) {
     await page.setViewportSize({ width, height });
     await expect(page.getByLabel("修改指令")).toBeVisible();
     expect(

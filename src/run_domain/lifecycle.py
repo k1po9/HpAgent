@@ -123,10 +123,9 @@ class RunLifecycleService:
             if any(c['required'] and 'delivery_receipt' in c['evidence_types'] for c in requirement['acceptance_criteria']):
                 from uuid import UUID
 
-                from agent_activities.fencing import execution_fence
-                from agent_activities.store import AgentDataStore
                 from delivery.service import enqueue, ensure_inbox
-                from run_domain.results import ResultReceiptService
+                from run_domain.execution_context import execution_fence
+                from run_domain.results import ResultReceiptService, complete_operation
                 operation = f'deliverable:{run["run_id"]}:enqueue:v1'
                 uow.execute("INSERT INTO execution_operations(operation_id,run_id,operation_type) VALUES (%s,%s,'notification') ON CONFLICT DO NOTHING", (operation,run['run_id']))
                 ResultReceiptService.register_attempt(uow,operation,execution_fence.get())
@@ -136,7 +135,7 @@ class RunLifecycleService:
                 notification = enqueue(uow,run['account_id'],f'deliverable:{run["run_id"]}',
                                        {'content':f"{work['title']}: 成果已就绪，请登录原账户查看。",'summary':f"Work {work['work_id']}: 成果已就绪，请登录原账户查看。"},
                                        work=work,run={**run,'execution_id':execution['execution_id']},operation_id=operation,purpose='fulfillment',target_id=target)
-                AgentDataStore._complete_operation(uow,operation,f'notification:{notification}',{'notification_id':str(notification),'side_effect_class':'idempotent_write'})
+                complete_operation(uow,operation,f'notification:{notification}',{'notification_id':str(notification),'side_effect_class':'idempotent_write'})
                 result = {**result,'continuation':continuation('awaiting_delivery','deliverable_enqueued',receipt_ref=str(notification))}
                 accept_result = False
         if (run['executor_key'] == 'artifact_html' and status in {'failed', 'cancelled'}

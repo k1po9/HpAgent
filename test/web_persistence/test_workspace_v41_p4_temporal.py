@@ -5,16 +5,22 @@ import os
 from uuid import UUID, uuid4
 
 import pytest
+from support.lifecycle_workers import lifecycle_control_activities
 from support.work_fixtures import accept_research, advance_work
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from agent_activities.store import AgentDataStore
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
-from orchestration.research_workflow import ResearchReportWorkflow, ResearchWorkflowInput
-from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
+from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.run_lifecycle_activities import RunLifecycleActivities
+from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
 from persistence.uow import UnitOfWork
 from research_activities import ResearchActivities
+from run_domain.input import RunInputLoader
 from storage.tenant_file_store import TenantFileStore
+from web_domain.lifecycle import WebRunLifecycleService
+from web_domain.workflow_execution import PostgresWorkflowExecutionStore
 from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
 
@@ -56,8 +62,13 @@ async def test_real_temporal_activity_retry_resumes_save_only(
     monkeypatch.setattr(WorkspaceCatalog, "save_file", fail_once)
     client = await Client.connect(host, namespace=os.getenv(
         "TEMPORAL_TEST_NAMESPACE", "hpagent-p4-20260926"))
+    controls = RunLifecycleActivities(
+        WebRunLifecycleService(worker_database_url),
+        RunInputLoader(AgentDataStore(worker_database_url)),
+    )
     worker = Worker(client, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-        workflows=[ResearchReportWorkflow], activities=[
+        workflows=[AgentLifecycleWorkflow], activities=[
+            *lifecycle_control_activities(worker_database_url, controls),
             activities.prepare_research_activity,
             activities.create_research_plan_activity,
             activities.discover_research_sources_activity,
@@ -76,8 +87,10 @@ async def test_real_temporal_activity_retry_resumes_save_only(
             activities.fail_research_activity,
         ])
     async with worker:
-        result = await client.execute_workflow(ResearchReportWorkflow.run,
-            ResearchWorkflowInput(1, str(run_id)), id=f"p4-actual-{run_id}",
+        decision = PostgresWorkflowExecutionStore(worker_database_url).prepare_start(run_id)
+        assert decision.should_start
+        result = await client.execute_workflow(AgentLifecycleWorkflow.run,
+            RunLifecycleInput(1, str(run_id)), id=decision.workflow_id,
             task_queue=WEB_LIFECYCLE_TASK_QUEUE)
     assert result["outcome"] == "report_published"
     assert attempts == 2 and len(synthesis.objectives) == 1

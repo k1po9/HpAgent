@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from typing import cast
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -47,13 +48,14 @@ class ToolExecutionWorkflow:
     @workflow.run
     async def run(self, request: ToolExecutionInput) -> ToolExecutionResult:
         if request.tool_call.name == DELEGATE_TOOL:
-            return await workflow.execute_child_workflow(
+            delegated: ToolExecutionResult = await workflow.execute_child_workflow(
                 "WorkDelegationWorkflow", request,
                 id=f"hpagent-delegation-{request.execution_id}", task_queue=AGENT_TASK_QUEUE,
                 result_type=ToolExecutionResult,
                 cancellation_type=workflow.ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED,
             )
-        result = await execute_segment(
+            return delegated
+        result: ToolExecutionResult = await execute_segment(
             "tool_execution_activity",
             request,
             task_queue=AGENT_TASK_QUEUE,
@@ -73,6 +75,8 @@ class ToolExecutionWorkflow:
             else workflow.now() + timedelta(hours=24)
         )
 
+        approval_id = result.approval_id
+
         async def probe():
             authoritative = await workflow.execute_activity(
                 "file_action_approval_status_activity",
@@ -81,7 +85,7 @@ class ToolExecutionWorkflow:
                     request.account_id,
                     request.run_id,
                     request.operation_id,
-                    result.approval_id,
+                    approval_id,
                 ),
                 task_queue=AGENT_TASK_QUEUE,
                 result_type=ApprovalStatusResult,
@@ -102,7 +106,7 @@ class ToolExecutionWorkflow:
             execution_id=request.execution_id,
         )
         try:
-            authoritative = await self._wait.run(wait, probe)
+            authoritative = cast(ApprovalStatusResult, await self._wait.run(wait, probe))
         except TimeoutError:
             # A deadline is not authorization. No side effect on expiry.
             authoritative = ApprovalStatusResult(
@@ -144,7 +148,6 @@ class ToolExecutionWorkflow:
                 result.approval_id,
                 "approved",
                 result.approval_expires_at,
-            execution_id=request.execution_id,
             )
         return ToolExecutionResult(
             result.schema_version,
@@ -155,5 +158,4 @@ class ToolExecutionWorkflow:
             result.approval_id,
             authoritative.status,
             result.approval_expires_at,
-            execution_id=request.execution_id,
         )

@@ -103,6 +103,7 @@ test("B sends through the real API while A's POST is pending", async ({ page }) 
   await page.route("**/api/v1/conversations/*/messages", async (route) => {
     if (route.request().method() !== "POST") return route.continue();
     const id = new URL(route.request().url()).pathname.split("/")[4];
+    if (!id) throw new Error("Message request must identify a conversation");
     requests.push(id);
     if (id === aId) await gate;
     await route.continue();
@@ -298,7 +299,7 @@ test("rename, read-only resources, focus return, and seven viewport layouts", as
     [1280, 800],
     [1440, 900],
     [1920, 1080],
-  ]) {
+  ] as const) {
     await page.setViewportSize({ width, height });
     await expect(page.getByRole("textbox", { name: "消息输入" })).toBeInViewport();
     expect(

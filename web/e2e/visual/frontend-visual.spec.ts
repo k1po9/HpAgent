@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 // These checks use the application and its real API. No Store injection or response fixtures.
 const enabled = process.env.HPAGENT_VISUAL_ISOLATED === "1";
-const evidence = resolve(process.cwd(), "./test-results/evidence/visual-2026-10-09/recheck");
+const evidence = resolve(process.cwd(), "./test-results/evidence/visual");
 async function screenshot(page: Page, name: string) {
   await mkdir(evidence, { recursive: true });
   await page.evaluate(() => document.fonts.ready);

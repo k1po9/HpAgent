@@ -1,0 +1,69 @@
+.hp-shell .hp-inspector {
+  background: linear-gradient(105deg, #f1f4f7, #f7f9fb);
+  border-left: 1px solid #c6d4de;
+  box-shadow: inset 5px 0 12px #bbccd40b;
+}
+.hp-inspector .hp-surface-header {
+  border-bottom: 1px solid #d8e4ea;
+  background: linear-gradient(180deg, #fafbfc, #f2f6f8);
+  padding: 13px 16px;
+}
+.hp-inspector .hp-surface-header h2 {
+  letter-spacing: -0.01em;
+  color: #243749;
+}
+.hp-run-identity .hp-object-kind {
+  font-size: 12px !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase;
+  color: #677e8f !important;
+}
+.hp-inspector-tabs {
+  border-bottom: 1px solid #dce6ec;
+  padding-bottom: 2px;
+}
+.hp-inspector-tabs button {
+  border-radius: 9px 9px 0 0 !important;
+  font-size: 12px !important;
+  color: #6f8493;
+}
+.hp-inspector-tabs button[aria-selected="true"] {
+  color: #a94a33;
+  font-weight: 700;
+  background: #fceee8a6 !important;
+}
+.hp-inspector-tab-indicator {
+  height: 2px;
+  background: #eb6044;
+  border-radius: 3px;
+}
+.hp-inspector :is(button, [role="tab"]):focus-visible,
+.hp-shell button:focus-visible {
+  outline: 2px solid #b94025;
+  outline-offset: 2px;
+}
+.hp-inspector .hp-run-sync {
+  color: #507389 !important;
+}
+.hp-inspector-presentation[data-inspector-phase="receiving"] [data-inspector-gate] {
+  visibility: hidden;
+}
+.hp-inspector-accept {
+  border-color: #afc0cb;
+}
+.hp-filament-shell {
+  stroke: #c5d2da;
+  stroke-opacity: 0.33;
+}
+.hp-filament-echo {
+  stroke: #f0f6f9;
+  stroke-opacity: 0.78;
+}
+
+.hp-surface[open],
+dialog.hp-surface[open] {
+  box-shadow:
+    0 22px 68px #142e4026,
+    0 1px 0 #fff inset;
+  border: 1px solid #cbdce5;
+}

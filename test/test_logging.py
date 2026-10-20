@@ -137,4 +137,5 @@ def test_web_api_entrypoint_uses_independent_logs_and_disables_access_log(
         "host": "0.0.0.0",
         "port": 8080,
         "access_log": False,
+        "proxy_headers": False,
     }]

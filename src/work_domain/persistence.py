@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from uuid6 import uuid7
@@ -99,7 +99,7 @@ class WorkRepository:
             from web_domain.errors import IdempotencyConflict
 
             raise IdempotencyConflict()
-        return row['wakeup_id']
+        return cast(UUID, row['wakeup_id'])
 
 
 def sync_schedule(uow, work, requirement):

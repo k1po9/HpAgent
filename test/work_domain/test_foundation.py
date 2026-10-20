@@ -51,8 +51,8 @@ def controlled_result(ref='controlled-test-receipt:1'):
 
 
 def persisted_result(database, account_id, run):
-    from agent_activities.fencing import fence_scope
     from agent_activities.store import AgentDataStore
+    from run_domain.execution_context import fence_scope
 
     store = AgentDataStore(database)
     lease = store.acquire_lease(str(account_id), run['run_id'])

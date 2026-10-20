@@ -9,9 +9,8 @@ from temporalio.client import Client, WorkflowFailureError
 from temporalio.exceptions import ApplicationError
 from temporalio.worker import Replayer, Worker
 
-from agent_activities.fencing import fence_scope
 from agent_activities.segments import SegmentActivities
-from agent_activities.store import AgentDataStore, StaleFencingToken
+from agent_activities.store import AgentDataStore
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     AGENT_TASK_QUEUE,
@@ -21,6 +20,8 @@ from agent_workflows.contracts import (
 )
 from agent_workflows.ids import root_execution_id
 from agent_workflows.lifecycle_contracts import SegmentInput, SegmentLease
+from run_domain.execution import StaleFencingToken
+from run_domain.execution_context import fence_scope
 
 from .test_phase_a_invariants import _conversation_and_run
 
@@ -153,7 +154,8 @@ def assert_no_resources(db, account_id, probes):
     )
     assert (
         db.execute(
-            "SELECT count(*) FROM pg_stat_activity WHERE usename='hpagent_worker' AND state='idle in transaction'"
+            "SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() "
+                "AND usename='hpagent_worker' AND state='idle in transaction'"
         ).fetchone()[0]
         == 0
     )

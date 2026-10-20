@@ -33,4 +33,6 @@ Web 查询与 SSE / notifications → deliveries → Web inbox / QQ
 
 Conversation 保留同对话单 active chat Run；Work Run 不占聊天槽、不伪造 Message、不强制依赖 Session / Git。单 Work 协调权、Execution attempt lease、资源锁和跨进程容量票据是四项独立约束。
 
-延伸阅读：[Durable Work V1](durable-work-v1.md)、[运行时](runtime.md)、[状态归属](data-and-state.md)、[Workspace](workspace-v4.1.md)、[可靠性](reliability.md)、[时序](sequences.md)。Web 布局、账户生命周期、任务投影与 HTML 交互见[前端架构](web-ui.md)。操作入口见[功能指南](../operations/web-workbench.md)，历史与验收见[实施索引](../implementation/README.md)。
+当前目录存在跨领域调用，并未形成严格依赖隔离；新增改动要沿实际事务和调用链检查，不能根据目录名假定边界已经闭合。
+
+按任务找入口见[代码地图](../reference/repository-layout.md)。继续阅读：[执行、状态与恢复](execution.md)、[Work](work.md)、[Workspace](workspace.md)、[能力边界](capabilities.md)、[Web 契约](web-ui.md)。操作见[功能指南](../operations/web-workbench.md)。

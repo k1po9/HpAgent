@@ -16,12 +16,12 @@ from temporalio.worker import Worker
 
 from account.validation import validate_unified_account_backend
 from agent_workflows.agent_run import AgentRunWorkflow
-from agent_workflows.delegation import WorkDelegationWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.contracts import (
     DURABLE_LEASE_SAFETY_MARGIN_SECONDS,
     DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS,
 )
+from agent_workflows.delegation import WorkDelegationWorkflow
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow

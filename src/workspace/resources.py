@@ -7,6 +7,7 @@ from uuid import UUID
 from uuid6 import uuid7
 
 from persistence.uow import UnitOfWork, retryable_transaction
+from run_domain.execution import assert_execution_fence
 from web_domain.errors import DomainError, ResourceNotFound
 
 OPERATIONS = frozenset({
@@ -82,9 +83,8 @@ class ResourcePolicy:
         if not operations or set(operations) - OPERATIONS:
             raise ValueError("invalid resource operations")
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             self._subject(uow, account_id, kind, subject_id)
             node = uow.execute(
@@ -126,9 +126,8 @@ class ResourcePolicy:
     def revoke(self, account_id: UUID, grant_id: UUID, commands: Any | None = None) -> list[UUID]:
         """Commit denial first. Returned Runs require control-plane cancellation."""
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             grant = uow.execute(
                 "SELECT * FROM resource_grants WHERE account_id=%s AND grant_id=%s FOR UPDATE",
@@ -169,8 +168,7 @@ class ResourcePolicy:
     @retryable_transaction
     def snapshot(self, account_id: UUID, run_id: UUID, conversation_id: UUID) -> None:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             self.snapshot_in_uow(uow, account_id, run_id, conversation_id)
 
     def snapshot_in_uow(self, uow: UnitOfWork, account_id: UUID, run_id: UUID,
@@ -246,8 +244,7 @@ class ResourcePolicy:
 
     def candidates_in_uow(self, uow: UnitOfWork, account_id: UUID, run_id: UUID,
                           after: str | None = None, limit: int = 50) -> dict[str, Any]:
-        from agent_activities.store import AgentDataStore
-        AgentDataStore._assert_fence(uow)
+        assert_execution_fence(uow)
         snapshot = uow.execute(
             "SELECT s.* FROM run_resource_snapshots s JOIN runs r ON r.run_id=s.run_id "
             "WHERE s.account_id=%s AND s.run_id=%s AND r.account_id=%s "
@@ -277,7 +274,7 @@ class ResourcePolicy:
             uow, account_id, snapshot["subject_kind"], snapshot["subject_id"],
             row["node_id"], "list_metadata"
         )]
-        from agent_activities.delegation import child_scope
+        from run_domain.delegation import child_scope
         scope = child_scope(uow)
         if scope is not None:
             allowed = [row for row in allowed if str(row["node_id"]) in scope["node_ids"]]
@@ -302,15 +299,14 @@ class ResourcePolicy:
     @retryable_transaction
     def _select(self, account_id: UUID, run_id: UUID, node_id: UUID) -> dict[str, Any]:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             run = uow.execute(
                 "SELECT status,conversation_id FROM runs WHERE account_id=%s AND run_id=%s FOR UPDATE",
                 (account_id, run_id),
             ).fetchone()
             if run is None or run["status"] not in {"queued", "running"}:
                 raise ResourceDenied("Run is not active")
-            from agent_activities.delegation import child_scope
+            from run_domain.delegation import child_scope
             scope = child_scope(uow)
             if scope is not None and str(node_id) not in scope["node_ids"]:
                 raise ResourceDenied("node is outside branch scope")
@@ -383,7 +379,7 @@ class ResourcePolicy:
 
     def _file_authorized_in_uow(self, uow: UnitOfWork, account_id: UUID,
                                 run_id: UUID, file_id: UUID) -> bool:
-        from agent_activities.delegation import child_scope
+        from run_domain.delegation import child_scope
         scope = child_scope(uow)
         if scope is not None and str(file_id) not in scope["file_ids"]:
             nodes = uow.execute("SELECT node_id FROM run_resource_candidates WHERE account_id=%s "
@@ -437,9 +433,8 @@ class ResourcePolicy:
     def check_dispatch(self, account_id: UUID, run_id: UUID) -> None:
         """Recheck selected inputs after capacity waiting, immediately before sending."""
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
             from run_domain.lifecycle import RunLifecycleService
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             run = uow.execute("SELECT r.* FROM runs r JOIN accounts a USING(account_id) WHERE r.account_id=%s "
                               "AND r.run_id=%s AND a.status='active' AND r.status IN ('queued','running')",
                               (account_id,run_id)).fetchone()
@@ -447,7 +442,7 @@ class ResourcePolicy:
                 raise ResourceDenied('Run is not active')
             if run['work_id']:
                 RunLifecycleService.check_work(uow,run)
-            from agent_activities.delegation import child_scope
+            from run_domain.delegation import child_scope
             scope = child_scope(uow)
             for row in uow.execute("SELECT file_id FROM run_files WHERE account_id=%s AND run_id=%s AND direction='input'",
                                    (account_id,run_id)).fetchall():
@@ -462,8 +457,7 @@ class ResourcePolicy:
                        reason: str, *, node_id: UUID | None = None,
                        file_id: UUID | None = None) -> None:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             uow.execute(
                 "INSERT INTO run_resource_denials(denial_id,account_id,run_id,operation,"
                 "node_id,file_id,reason) SELECT %s,%s,%s,%s,%s,%s,%s "
@@ -475,8 +469,7 @@ class ResourcePolicy:
     def _check_file(self, account_id: UUID, run_id: UUID, file_id: UUID,
                     *, mark_read: bool) -> None:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             run = uow.execute(
                 "SELECT status FROM runs WHERE account_id=%s AND run_id=%s",
                 (account_id, run_id),
@@ -500,8 +493,7 @@ class ResourcePolicy:
 
     def grants(self, account_id: UUID, kind: str, subject_id: UUID) -> list[dict[str, Any]]:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             self._subject(uow, account_id, kind, subject_id)
             rows = uow.execute(
                 "SELECT g.grant_id,g.node_id,n.name,n.kind,g.operation,g.recursive,g.created_at "
@@ -518,8 +510,7 @@ class ResourcePolicy:
     def conversation_files(self, account_id: UUID,
                            conversation_id: UUID) -> list[dict[str, Any]]:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             self._subject(uow, account_id, "conversation", conversation_id)
             rows = uow.execute(
                 "SELECT crf.file_id,sf.display_name,crf.available FROM conversation_resource_files crf "
@@ -535,9 +526,8 @@ class ResourcePolicy:
     def revoke_conversation_file(self, account_id: UUID, conversation_id: UUID,
                                  file_id: UUID, commands: Any) -> list[UUID]:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.delegation import require_root_write
+            assert_execution_fence(uow)
+            from run_domain.delegation import require_root_write
             require_root_write(uow)
             self._subject(uow, account_id, "conversation", conversation_id)
             changed = uow.execute(

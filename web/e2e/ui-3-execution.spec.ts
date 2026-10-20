@@ -1,10 +1,47 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { createConversation, expectReply, login, sendMessage } from "./helpers";
 import { mkdir } from "node:fs/promises";
-import type { HpModelInputDetail, HpRunSnapshot } from "../src/api/types";
+import type { HpModelInputDetail, HpRunSnapshot, HpTraceTree } from "../src/api/types";
 const evidence = process.env.HPAGENT_UI3_EVIDENCE_DIR ?? "./test-results/evidence/ui-3";
 const id = "33333333-3333-4333-8333-333333333333";
 const workId = "44444444-4444-4444-8444-444444444444";
+
+function modelTrace(snapshotIds: string[]): HpTraceTree {
+  return {
+    run: {
+      trace_run_id: "synthetic-trace",
+      run_id: id,
+      conversation_id: null,
+      strategy: "react",
+      status: "completed",
+      started_at: "2026-10-07T00:00:01Z",
+      ended_at: "2026-10-07T00:00:02Z",
+      metadata: {},
+    },
+    roots: snapshotIds.map((snapshotId) => ({
+      event: {
+        trace_event_id: `node-${snapshotId}`,
+        trace_run_id: "synthetic-trace",
+        parent_event_id: null,
+        event_type: "llm",
+        name: `模型调用 ${snapshotId}`,
+        status: "completed",
+        started_at: "2026-10-07T00:00:01Z",
+        ended_at: "2026-10-07T00:00:02Z",
+        duration_ms: 1000,
+        metadata: { snapshot_id: snapshotId, model_call_id: `call-${snapshotId}` },
+      },
+      children: [],
+    })),
+  };
+}
+async function selectInput(page: Page, snapshotId: string) {
+  await page.getByRole("button", { name: new RegExp(`^模型调用 ${snapshotId}，`) }).click();
+}
+async function openInput(page: Page, snapshotId: string) {
+  await selectInput(page, snapshotId);
+  await page.getByRole("button", { name: "查看 Model Input", exact: true }).click();
+}
 
 test("real API: message-bound execution, tab navigation and terminal resource boundary", async ({
   page,
@@ -34,7 +71,8 @@ test("real API: message-bound execution, tab navigation and terminal resource bo
   await expect(page.getByRole("tabpanel")).toContainText("不代表本次未使用资料");
   await page.screenshot({ path: `${evidence}/resources-terminal-desktop.png`, fullPage: true });
   await page.getByRole("tab", { name: "高级诊断", exact: true }).click();
-  await expect(page.getByRole("tabpanel")).toContainText("Model Input");
+  await expect(page.getByRole("tabpanel")).toContainText("暂无可用诊断记录");
+  await expect(page.getByRole("button", { name: "查看 Model Input", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "关闭执行详情" }).click();
   await expect(page.getByRole("button", { name: "查看执行详情", exact: true })).toBeFocused();
   await page.getByPlaceholder("输入消息，Enter 发送").fill("保留草稿");
@@ -55,6 +93,12 @@ test("network fixtures: Work snapshot, missing Trace, approvals and responsive i
   await login(page);
   let posts = 0,
     status = "pending";
+  let hasTrace = false;
+  const inputRequests: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.includes("model-inputs")) inputRequests.push(path);
+  });
   const approval = () => ({
     approval_id: "55555555-5555-4555-8555-555555555555",
     run_id: id,
@@ -99,10 +143,12 @@ test("network fixtures: Work snapshot, missing Trace, approvals and responsive i
     }),
   );
   await page.route(`**/api/v1/runs/${id}/trace`, (route) =>
-    route.fulfill({
-      status: 404,
-      json: { error: { code: "resource_not_found", message: "no tree" } },
-    }),
+    hasTrace
+      ? route.fulfill({ json: modelTrace(["synthetic-snapshot"]) })
+      : route.fulfill({
+          status: 404,
+          json: { error: { code: "resource_not_found", message: "no tree" } },
+        }),
   );
   await page.route(`**/api/v1/runs/${id}/published-files`, (route) =>
     route.fulfill({ json: { files: [] } }),
@@ -115,26 +161,6 @@ test("network fixtures: Work snapshot, missing Trace, approvals and responsive i
     status = "approved";
     await route.abort("connectionfailed");
   });
-  await page.route(`**/api/v1/runs/${id}/model-inputs`, (route) =>
-    route.fulfill({
-      json: {
-        visibility: "summary",
-        items: [
-          {
-            snapshot_id: "synthetic-snapshot",
-            content_hash: "abc123",
-            model_call_id: "call-1",
-            provider: "synthetic",
-            model: "safe-test",
-            phase: "decision",
-            fallback_attempt: 0,
-            message_count: 1,
-            tool_count: 0,
-          },
-        ],
-      },
-    }),
-  );
   await page.route("**/api/v1/model-inputs/synthetic-snapshot", (route) =>
     route.fulfill({
       json: {
@@ -162,7 +188,12 @@ test("network fixtures: Work snapshot, missing Trace, approvals and responsive i
   expect(posts).toBe(1);
   await page.getByRole("tab", { name: "高级诊断", exact: true }).click();
   await expect(page.getByRole("tabpanel")).toContainText("暂无可用诊断记录");
-  await page.getByRole("button", { name: /查看模型记录/ }).click();
+  expect(inputRequests).toEqual([]);
+  await expect(page.getByRole("button", { name: "查看 Model Input", exact: true })).toHaveCount(0);
+  hasTrace = true;
+  await page.getByRole("button", { name: "刷新执行轨迹", exact: true }).click();
+  await openInput(page, "synthetic-snapshot");
+  expect(inputRequests).toEqual(["/api/v1/model-inputs/synthetic-snapshot"]);
   await expect(page.getByTestId("model-input-summary")).toContainText("synthetic");
   for (const [width, height] of [
     [360, 800],
@@ -203,6 +234,11 @@ test("network fixtures: terminal outputs refresh and permission denial discards 
   let outputReads = 0,
     firstReads = 0,
     restored = false;
+  const inputRequests: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.includes("model-inputs")) inputRequests.push(path);
+  });
   const run: HpRunSnapshot = {
     source_kind: "work",
     run: {
@@ -245,7 +281,7 @@ test("network fixtures: terminal outputs refresh and permission denial discards 
       message_count: 1,
       tool_count: 0,
       ...(visibility === "full_safe"
-        ? { provider_request_body: { messages: ["synthetic review fixture"] } }
+        ? { provider_request_body: { messages: [`synthetic body ${snapshotId}`] } }
         : {}),
     },
   });
@@ -270,20 +306,7 @@ test("network fixtures: terminal outputs refresh and permission denial discards 
     });
   });
   await page.route(`**/api/v1/runs/${id}/trace`, (route) =>
-    route.fulfill({
-      status: 404,
-      json: { error: { code: "resource_not_found", message: "synthetic missing trace" } },
-    }),
-  );
-  await page.route(`**/api/v1/runs/${id}/model-inputs`, (route) =>
-    route.fulfill({
-      json: {
-        visibility: "full_safe",
-        items: ["first-input", "late-input", "denied-input"].map(
-          (value) => detail(value, "summary").model_input,
-        ),
-      },
-    }),
+    route.fulfill({ json: modelTrace(["first-input", "late-input", "denied-input"]) }),
   );
   await page.route("**/api/v1/model-inputs/first-input", (route) => {
     firstReads++;
@@ -325,25 +348,35 @@ test("network fixtures: terminal outputs refresh and permission denial discards 
     fullPage: true,
   });
   await page.getByRole("tab", { name: "高级诊断", exact: true }).click();
-  await page.getByRole("button", { name: "查看模型记录 first-in", exact: true }).click();
+  await openInput(page, "first-input");
   await expect(page.getByTestId("model-input-provider-body")).toHaveCount(1);
   const lateStarted = page.waitForRequest((request) =>
     new URL(request.url()).pathname.endsWith("/model-inputs/late-input"),
   );
-  await page.getByRole("button", { name: "查看模型记录 late-inp", exact: true }).click();
+  await openInput(page, "late-input");
   await lateStarted;
-  await page.getByRole("button", { name: "查看模型记录 denied-i", exact: true }).click();
+  await openInput(page, "denied-input");
   await expect(page.getByText("当前账号不可查看 Model Input。", { exact: true })).toBeVisible();
   await expect(page.getByTestId("model-input-provider-body")).toHaveCount(0);
   const lateResponse = page.waitForResponse((response) =>
     new URL(response.url()).pathname.endsWith("/model-inputs/late-input"),
   );
   releaseLate();
-  await lateResponse;
+  await (await lateResponse).finished();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  await selectInput(page, "late-input");
+  await expect(page.getByRole("button", { name: "查看 Model Input", exact: true })).toBeVisible();
+  await expect(page.getByTestId("model-input-provider-body")).toHaveCount(0);
   restored = true;
-  await page.getByRole("button", { name: "查看模型记录 first-in", exact: true }).click();
+  await openInput(page, "first-input");
   await expect(page.getByTestId("model-input-summary")).toContainText("synthetic");
   expect(firstReads).toBe(2);
+  expect(inputRequests).toEqual([
+    "/api/v1/model-inputs/first-input",
+    "/api/v1/model-inputs/late-input",
+    "/api/v1/model-inputs/denied-input",
+    "/api/v1/model-inputs/first-input",
+  ]);
   await expect(page.getByTestId("model-input-provider-body")).toHaveCount(0);
   await page.screenshot({
     path: `${evidence}/self-review/model-permission-denied.png`,

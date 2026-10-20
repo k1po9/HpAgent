@@ -17,7 +17,7 @@ class WorkCompletionPolicy:
             run['work_control_epoch'] != work['control_epoch']
         ):
             raise ValueError('result does not match current mandate')
-        from agent_activities.delegation import required_branch_gaps
+        from run_domain.delegation import required_branch_gaps
         if required_branch_gaps(uow, run['account_id'], run['run_id']):
             raise ValueError('required investigation branch is missing')
         requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'],

@@ -4,9 +4,9 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from agent_activities.store import StaleFencingToken
 from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork
+from run_domain.execution import StaleFencingToken
 from run_domain.lifecycle import RunLifecycleService
 from web_artifacts.build import ArtifactBuildService
 from web_artifacts.services import ArtifactService

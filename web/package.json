@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.e2e.json --noEmit",
     "lint": "eslint . && prettier --check .",
     "lint:fix": "eslint . --fix && prettier --write .",
     "format": "prettier --write .",
@@ -18,7 +18,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:contract": "playwright test --config playwright.entry.config.ts",
-    "test:e2e:canonical": "playwright test --config playwright.r416.config.ts"
+    "test:e2e:canonical": "playwright test --config playwright.canonical.config.ts",
+    "test:e2e:fixtures": "playwright test --config playwright.fixtures.config.ts",
+    "test:e2e:visual": "playwright test --config playwright.visual.config.ts"
   },
   "dependencies": {
     "@assistant-ui/react": "^0.15.8",

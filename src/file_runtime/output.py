@@ -9,6 +9,7 @@ from pathlib import Path
 from uuid import UUID, uuid5
 
 from persistence.uow import UnitOfWork
+from run_domain.execution import assert_execution_fence
 from storage.tenant_file_store import FileStoreError, TenantFileStore
 from workspace.file_scope import RunFileScope
 
@@ -65,8 +66,7 @@ class OutputPublisher:
         file_id = uuid5(_OUTPUT_NAMESPACE, f"{scope.run_id}:{operation_id}")
         staged = self.store.stage_output(file_id, source)
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             subject = uow.execute(
                 "SELECT account_id,status FROM runs WHERE run_id=%s FOR UPDATE", (scope.run_id,)
             ).fetchone()
@@ -84,8 +84,7 @@ class OutputPublisher:
                     or intent["logical_name"] != name or intent["sha256"] != staged.sha256):
                 raise RuntimeError("output operation belongs to another content or logical file")
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             subject = uow.execute(
                 "SELECT account_id,conversation_id,status FROM runs WHERE run_id=%s FOR UPDATE",
                 (scope.run_id,),
@@ -151,8 +150,7 @@ class OutputPublisher:
 
     def _existing(self, run_id: UUID, operation_id: str) -> PublishedOutput | None:
         with UnitOfWork(self.database) as uow:
-            from agent_activities.store import AgentDataStore
-            AgentDataStore._assert_fence(uow)
+            assert_execution_fence(uow)
             return self._existing_in_uow(uow, run_id, operation_id)
 
     @staticmethod

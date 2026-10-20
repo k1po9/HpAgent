@@ -147,14 +147,13 @@ class ReactAgentWorkflow:
                     source=request.source,
                     context=request.context,
                 )
-                tool_result = await workflow.execute_child_workflow(
+                tool_result: ToolExecutionResult = await workflow.execute_child_workflow(
                     ToolExecutionWorkflow.run,
                     tool_input,
                     id=tool_execution_workflow_id(
                         request.run_id, tool_input.operation_id
                     ),
                     task_queue=AGENT_TASK_QUEUE,
-                    result_type=ToolExecutionResult,
                 )
                 transcript_version = tool_result.transcript_version
             tool_turns += 1

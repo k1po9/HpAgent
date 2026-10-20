@@ -199,7 +199,7 @@ def test_db_018_reverse_terminal_mismatch_is_rejected(
     with psycopg.connect(migration_database_url) as connection:
         connection.execute("SET search_path=hpagent,public")
         connection.execute(
-            "UPDATE messages SET status='completed',content='bad',completed_at=now() "
+            "UPDATE messages SET status='completed',content='bad',completed_at=GREATEST(now(),created_at) "
             "WHERE produced_by_run_id=%s",
             (run_id,),
         )

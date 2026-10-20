@@ -15,29 +15,19 @@ from psycopg.types.json import Jsonb
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION
 from agent_workflows.lifecycle_contracts import FinishWaitInput, SegmentInput, WaitInput
 from persistence.uow import UnitOfWork, retryable_transaction
-from run_domain.results import ResultReceiptService
-
-from .fencing import execution_fence
-
-
-class LeaseConflict(RuntimeError):
-    code = "execution_lease_conflict"
-
-
-class StaleFencingToken(RuntimeError):
-    code = "stale_fencing_token"
-
-
-class RunNotExecutable(RuntimeError):
-    code = "run_not_executable"
-
-
-class SegmentClosed(RuntimeError):
-    code = "execution_segment_closed"
-
-
-class TranscriptVersionConflict(RuntimeError):
-    code = "transcript_version_conflict"
+from run_domain.execution import (
+    LeaseConflict,
+    RunNotExecutable,
+    SegmentClosed,
+    StaleFencingToken,
+    TranscriptVersionConflict,
+    assert_execution_fence,
+    lock_execution,
+    require_active_run,
+    require_owned_record,
+)
+from run_domain.execution_context import execution_fence
+from run_domain.results import ResultReceiptService, complete_operation
 
 
 @dataclass(frozen=True)
@@ -78,29 +68,18 @@ def preserve_late_result(function):
 
 
 class AgentDataStore:
+    # Shared transaction policy; Activity collaborators can supply their own store boundary.
+    _execution = staticmethod(lock_execution)
+    _active_run = staticmethod(require_active_run)
+    _assert_fence = staticmethod(assert_execution_fence)
+    _owned_record = staticmethod(require_owned_record)
+
     def __init__(self, database_url: object, *, lease_ttl_seconds: int = 3600):
         if lease_ttl_seconds <= 0:
             raise ValueError("lease_ttl_seconds must be positive")
         self.database_url = database_url
         self.lease_ttl_seconds = lease_ttl_seconds
 
-    @staticmethod
-    def _execution(uow, account_id, run_id, execution_id=None):
-        if execution_id is None and execution_fence.get() is not None:
-            execution_id = execution_fence.get()[2]
-        row = uow.execute(
-            "SELECT * FROM run_executions WHERE account_id=%s AND run_id=%s "
-            "AND ((%s::uuid IS NULL AND role='root') OR execution_id=%s) FOR UPDATE",
-            (
-                UUID(account_id),
-                UUID(run_id),
-                UUID(execution_id) if execution_id else None,
-                UUID(execution_id) if execution_id else None,
-            ),
-        ).fetchone()
-        if row is None:
-            raise RunNotExecutable("Execution does not belong to the Run and Account")
-        return row
 
     @retryable_transaction
     def acquire_lease(self, account_id: str, run_id: str, execution_id=None) -> ExecutionLease:
@@ -196,19 +175,6 @@ class AgentDataStore:
             raise ValueError("run not found")
         return {key: str(value) if isinstance(value, UUID) else value for key, value in row.items()}
 
-    @staticmethod
-    def _owned_record(uow, table, column, value):
-        fence = execution_fence.get()
-        if fence is None:
-            return
-        account, run, execution, _ = fence
-        row = uow.execute(
-            f"SELECT 1 FROM {table} WHERE {column}=%s AND account_id=%s AND run_id=%s "
-            "AND execution_id=%s",
-            (value, UUID(account), UUID(run), UUID(execution)),
-        ).fetchone()
-        if row is None:
-            raise StaleFencingToken("record is outside the Execution context")
 
     def operation_result(self, operation_id: str) -> dict[str, Any] | None:
         with UnitOfWork(self.database_url) as uow:
@@ -432,7 +398,7 @@ class AgentDataStore:
                 "transcript_version": 1,
                 "context_ref": f"transcript:{transcript_id}:1",
             }
-            self._complete_operation(uow, operation_id, str(payload["context_ref"]), payload)
+            complete_operation(uow, operation_id, str(payload["context_ref"]), payload)
         return 1
 
     def load_messages(self, transcript_id: str) -> tuple[list[dict[str, Any]], int]:
@@ -507,7 +473,7 @@ class AgentDataStore:
                 (version, transcript_id),
             )
             result_payload["transcript_version"] = version
-            self._complete_operation(uow, operation_id, result_ref, result_payload)
+            complete_operation(uow, operation_id, result_ref, result_payload)
         return version
 
     @preserve_late_result
@@ -517,52 +483,8 @@ class AgentDataStore:
     ) -> None:
         with UnitOfWork(self.database_url) as uow:
             self._assert_fence(uow)
-            self._complete_operation(uow, operation_id, result_ref, result_payload)
+            complete_operation(uow, operation_id, result_ref, result_payload)
 
-    @staticmethod
-    def _complete_operation(
-        uow: UnitOfWork, operation_id: str, result_ref: str, result_payload: dict[str, Any]
-    ) -> None:
-        AgentDataStore._owned_record(uow, "execution_operations", "operation_id", operation_id)
-        prior = uow.execute(
-            "SELECT status,result_ref,result_payload FROM execution_operations "
-            "WHERE operation_id=%s FOR UPDATE",
-            (operation_id,),
-        ).fetchone()
-        if prior is None:
-            raise ValueError("operation not found")
-        if prior["status"] == "completed":
-            if prior["result_ref"] != result_ref or prior["result_payload"] != result_payload:
-                raise ValueError("completed operation result conflict")
-            return
-        fence = execution_fence.get()
-        if fence is not None:
-            from run_domain.results import result_digest
-
-            attempt = uow.execute(
-                "SELECT * FROM execution_operation_attempts WHERE operation_id=%s "
-                "AND fencing_token=%s",
-                (operation_id, fence[3]),
-            ).fetchone()
-            if attempt is None:
-                raise ValueError("result attempt was not registered")
-            uow.execute(
-                "INSERT INTO execution_result_receipts(account_id,run_id,execution_id,operation_id,"
-                "attempt_no,requirement_revision,result_ref,digest,disposition) "
-                "SELECT account_id,run_id,execution_id,operation_id,%s,requirement_revision,%s,%s,'current' "
-                "FROM execution_operations WHERE operation_id=%s ON CONFLICT DO NOTHING",
-                (
-                    attempt["attempt_no"],
-                    attempt["receipt_ref"],
-                    result_digest(result_payload),
-                    operation_id,
-                ),
-            )
-        uow.execute(
-            "UPDATE execution_operations SET status='completed' ,result_ref=%s,result_payload=%s,"
-            "error_code=NULL,completed_at=now(),updated_at=now() WHERE operation_id=%s",
-            (result_ref, Jsonb(result_payload), operation_id),
-        )
 
     def result_content(self, result_ref: str, run_id: str) -> str:
         with UnitOfWork(self.database_url) as uow:
@@ -580,45 +502,7 @@ class AgentDataStore:
             raise ValueError("agent result has no content")
         return content
 
-    @staticmethod
-    def _active_run(uow, account_id, run_id):
-        from persistence.repositories import AccountRepository
-        from run_domain.lifecycle import RunLifecycleService
-        from web_domain.errors import DomainError
 
-        try:
-            run = RunLifecycleService.lock(uow, UUID(account_id), UUID(run_id))
-            if not AccountRepository().require_active(uow, UUID(account_id)):
-                raise RunNotExecutable("Account is disabled")
-            if run["source_kind"] == "work":
-                RunLifecycleService.check_work(uow, run)
-            if run["status"] not in {"queued", "running"}:
-                raise RunNotExecutable("Run cannot execute")
-            return run
-        except DomainError as exc:
-            raise RunNotExecutable("Run no longer owns progression") from exc
-
-    @staticmethod
-    def _assert_fence(uow):
-        fence = execution_fence.get()
-        if fence is None:
-            return
-        account_id, run_id, execution_id, token = fence
-        try:
-            AgentDataStore._active_run(uow, account_id, run_id)
-            execution = AgentDataStore._execution(uow, account_id, run_id, execution_id)
-            if execution["status"] not in {"queued", "running"}:
-                raise RunNotExecutable("Execution is terminal or fenced")
-        except RunNotExecutable as exc:
-            raise StaleFencingToken("late execution cannot read or commit durable state") from exc
-        row = uow.execute(
-            "SELECT fencing_token FROM execution_attempt_leases WHERE account_id=%s "
-            "AND run_id=%s AND execution_id=%s AND fencing_token=%s "
-            "AND lease_expires_at>clock_timestamp() FOR SHARE",
-            (UUID(account_id), UUID(run_id), UUID(execution_id), token),
-        ).fetchone()
-        if row is None:
-            raise StaleFencingToken("late execution cannot read or commit durable state")
 
     @retryable_transaction
     def acquire_segment(self, request: SegmentInput) -> int:

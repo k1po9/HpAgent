@@ -7,7 +7,7 @@ fresh fence for its own segment. Retries release before using a Workflow timer.
 import asyncio
 from dataclasses import replace
 from datetime import datetime, timedelta
-from typing import Any, Awaitable, Callable, TypeVar
+from typing import Any, Awaitable, Callable, Literal, TypeVar
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -123,7 +123,7 @@ class DurableWait:
         probe: Callable[[], Awaitable[T | None]] | None = None,
     ) -> T | None:
         self.wait_id = request.wait_id
-        state = "cancelled"
+        state: Literal["resumed", "cancelled", "expired"] = "cancelled"
         try:
             await _control("begin_agent_wait_activity", request)
             deadline = datetime.fromisoformat(request.deadline)

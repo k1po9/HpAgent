@@ -13,7 +13,14 @@
 
 @import "./styles/entry.css";
 
-@import "./styles/r426.css";
+@import "./styles/presentation/palette.css";
+@import "./styles/presentation/shell.css";
+@import "./styles/presentation/conversation.css";
+@import "./styles/presentation/run.css";
+@import "./styles/presentation/surfaces.css";
+@import "./styles/presentation/composer.css";
+@import "./styles/presentation/responsive.css";
+@import "./styles/presentation/inspector-motion.css";
 
 @import "./styles/inspector-visual.css";
 

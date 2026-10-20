@@ -37,7 +37,7 @@ ready 后应有持久 advance wakeup；not_due、waiting_capacity、awaiting_inp
 
 serializer v2 的 OpenAI 请求需要 type / 嵌套 function / JSON 字符串 arguments；Anthropic 使用独立 system 与 tool_use / tool_result。不覆盖历史快照来修复旧证据。只有新调用才能验证新格式。
 
-Artifact 默认 read 90 秒、connect 最多 5 秒；常规聊天 read 沿用 endpoint timeout。当前端点对宿主机可达而容器失败时，从实际 Worker 网络环境检查。2026-10-04 真实 MiniMax-M3 复验在连接阶段超时，未获得 HTTP 响应；这不能替代或改写此前三次 HTTP 500 证据，详见[实施索引](../implementation/README.md)。实时检查入口 `python scripts/check/models.py --help`；真实请求会调用外部服务。
+Artifact 默认 read 90 秒、connect 最多 5 秒；常规聊天 read 沿用 endpoint timeout。当前端点对宿主机可达而容器失败时，从实际 Worker 网络环境检查。实时检查入口 `python scripts/check/models.py --help`；真实请求会调用外部服务。
 
 ## 新建目录 409 / 长期资料不可见
 
@@ -55,4 +55,4 @@ Artifact 默认 read 90 秒、connect 最多 5 秒；常规聊天 read 沿用 en
 
 Memory：检查 Hindsight health、Hindsight LLM、Embedding / Rerank 和日志；降级不改变 PG 业务权威。Research：查 SearXNG、SEARXNG_URL、Proxy、证据进度与 required Workspace save；报告生成不等于保存完成。
 
-Document：确认 hpagent-document-worker / gotenberg / temporal、文件卷与 hpagent-document Poller。Research Worker 被杀后恢复还须考虑 stage lease 3600 秒与 publish/save Activity 120 秒窗口的已知不匹配；短租约受控验收未证明生产默认快速恢复。不要清租约、未知费用或回执来伪造恢复成功。详细边界见[可靠性](../architecture/reliability.md)。
+Document：确认 hpagent-document-worker / gotenberg / temporal、文件卷与 hpagent-document Poller。Research Worker 被杀后，检查阶段 lease 的到期时间、owner segment 和 fencing token。默认阶段 lease 为 30 秒，运行时每 5 秒续租；重试应等待正常到期后取得新 token。若仍不推进，再查 Temporal 活动重试与超时、队列 Poller 和 PG 可用性。不要清租约、未知费用或回执来伪造恢复成功。详细边界见[可靠性](../architecture/execution.md)。

@@ -54,6 +54,11 @@ from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunL
 async def lifecycle_prepare(request: RunLifecycleInput) -> dict[str, str]:
     return {"run_id": request.run_id, "status": "running"}
 
+
+@activity.defn(name="load_run_strategy_activity")
+async def lifecycle_strategy(request: RunLifecycleInput) -> dict[str, str]:
+    return {"strategy_kind": "generic_agent", "executor_key": "chat_agent"}
+
 @activity.defn(name="load_agent_run_input_activity")
 async def lifecycle_input(request: RunLifecycleInput) -> AgentRunInput:
     data = json.loads((_STATE_DIR / "run-input.json").read_text())
@@ -64,7 +69,7 @@ async def lifecycle_input(request: RunLifecycleInput) -> AgentRunInput:
 
 @activity.defn(name="finalize_agent_result_activity")
 async def lifecycle_complete(request: FinalizeResultInput) -> dict[str, str]:
-    return {"run_id": request.run_id, "status": "completed"}
+    return {"run_id": request.run_id, "status": "succeeded"}
 
 _STATE_DIR: Path
 _FAULT_BOUNDARY: str | None = None
@@ -339,7 +344,7 @@ async def _serve(args: argparse.Namespace) -> None:
     if args.role == "lifecycle":
         worker = Worker(client, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
                         workflows=[AgentLifecycleWorkflow],
-                        activities=[lifecycle_prepare, lifecycle_input, lifecycle_complete])
+                        activities=[lifecycle_prepare, lifecycle_strategy, lifecycle_input, lifecycle_complete])
     elif args.role == "workflow":
         worker = Worker(
             client,

@@ -1,5 +1,5 @@
 """
-``_build_web_background_tasks`` —— start_worker 的 Web 后台任务组合代码。
+``start_durable_background_tasks`` —— start_worker 的 Web 后台任务组合代码。
 
 回归保护（P0）：Phase F 的 MemoryRetentionService 挂在
 ``DurableRuntimeComposition.memory_retention``（组合层），**不在**
@@ -14,12 +14,9 @@ import uuid
 
 import pytest
 
+from bootstrap.durable_runtime import DurableRuntimeComposition
 from orchestration.web_workers import WebTemporalWorkers
-from orchestration.worker import (
-    BackgroundTasks,
-    DurableRuntimeComposition,
-    _build_web_background_tasks,
-)
+from orchestration.worker_tasks import BackgroundTasks, start_durable_background_tasks
 
 
 @pytest.fixture(autouse=True)
@@ -94,7 +91,7 @@ async def test_background_tasks_wire_memory_retention_and_consume_outbox():
     outbox = _FakeOutbox()
     retention = _FakeMemoryRetention()
     tasks = BackgroundTasks()
-    _build_web_background_tasks(
+    start_durable_background_tasks(
         tasks=tasks,
         web_dispatcher=_FakeDispatcher(outbox),
         web_reconciler=_FakeReconciler(),
@@ -128,7 +125,7 @@ async def test_background_tasks_wire_memory_retention_and_consume_outbox():
 async def test_background_tasks_without_memory_retention_omit_only_memory_tasks():
     outbox = _FakeOutbox()
     tasks = BackgroundTasks()
-    _build_web_background_tasks(
+    start_durable_background_tasks(
         tasks=tasks,
         web_dispatcher=_FakeDispatcher(outbox),
         web_reconciler=_FakeReconciler(),

@@ -1,0 +1,28 @@
+.hp-shell .hp-conversation-header {
+  border-bottom: 1px solid #dce4eb;
+  background: #fbfcfe;
+}
+.hp-title-trigger {
+  font-weight: 680;
+  letter-spacing: -0.025em;
+  color: #233445;
+}
+.hp-thread__viewport {
+  scrollbar-color: #b5c7d3 transparent;
+}
+.hp-msg[data-role="assistant"] .hp-text-part {
+  line-height: 1.78;
+  letter-spacing: 0.006em;
+}
+.hp-msg[data-role="assistant"] .hp-answer-surface::after {
+  border-color: #b5c6d1;
+}
+.hp-artifact-message-open {
+  color: #a9422a !important;
+  border-color: #e7b5a5 !important;
+  background: #fffaf8 !important;
+  border-radius: 10px !important;
+}
+.hp-artifact-message-open:hover {
+  background: #fff0e8 !important;
+}

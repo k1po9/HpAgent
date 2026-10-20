@@ -84,14 +84,13 @@ class AgentStepWorkflow:
                     source=request.agent.source,
                     context=request.agent.context,
                 )
-                result = await workflow.execute_child_workflow(
+                result: ToolExecutionResult = await workflow.execute_child_workflow(
                     ToolExecutionWorkflow.run,
                     tool_input,
                     id=tool_execution_workflow_id(
                         request.agent.run_id, tool_input.operation_id
                     ),
                     task_queue=AGENT_TASK_QUEUE,
-                    result_type=ToolExecutionResult,
                 )
                 transcript_version = result.transcript_version
             tool_turns += 1

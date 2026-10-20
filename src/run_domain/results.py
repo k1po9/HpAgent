@@ -8,11 +8,19 @@ from __future__ import annotations
 
 import hashlib
 import json
+from typing import Any
 from uuid import UUID
 
 from psycopg.types.json import Jsonb
 
 from persistence.uow import UnitOfWork, retryable_transaction
+from run_domain.execution import (
+    assert_execution_fence,
+    lock_execution,
+    require_active_run,
+    require_owned_record,
+)
+from run_domain.execution_context import execution_fence
 
 
 def result_digest(payload):
@@ -139,12 +147,11 @@ class EffectService:
 
     @retryable_transaction
     def register(self, account_id, run_id, execution_id, operation_id, effect_key, parameters):
-        from agent_activities.store import AgentDataStore
 
         with UnitOfWork(self.database) as uow:
-            run = AgentDataStore._active_run(uow, account_id, run_id)
-            AgentDataStore._execution(uow, account_id, run_id, execution_id)
-            AgentDataStore._assert_fence(uow)
+            run = require_active_run(uow, account_id, run_id)
+            lock_execution(uow, account_id, run_id, execution_id)
+            assert_execution_fence(uow)
             if run["source_kind"] != "work":
                 raise ValueError("cross-Run effects require Work ownership")
             digest = result_digest(parameters)
@@ -190,3 +197,47 @@ class EffectService:
                     "SELECT * FROM execution_operations WHERE operation_id=%s", (operation_id,)
                 ).fetchone()
             )
+
+
+def complete_operation(
+    uow: UnitOfWork, operation_id: str, result_ref: str, result_payload: dict[str, Any]
+) -> None:
+    require_owned_record(uow, "execution_operations", "operation_id", operation_id)
+    prior = uow.execute(
+        "SELECT status,result_ref,result_payload FROM execution_operations "
+        "WHERE operation_id=%s FOR UPDATE",
+        (operation_id,),
+    ).fetchone()
+    if prior is None:
+        raise ValueError("operation not found")
+    if prior["status"] == "completed":
+        if prior["result_ref"] != result_ref or prior["result_payload"] != result_payload:
+            raise ValueError("completed operation result conflict")
+        return
+    fence = execution_fence.get()
+    if fence is not None:
+
+        attempt = uow.execute(
+            "SELECT * FROM execution_operation_attempts WHERE operation_id=%s "
+            "AND fencing_token=%s",
+            (operation_id, fence[3]),
+        ).fetchone()
+        if attempt is None:
+            raise ValueError("result attempt was not registered")
+        uow.execute(
+            "INSERT INTO execution_result_receipts(account_id,run_id,execution_id,operation_id,"
+            "attempt_no,requirement_revision,result_ref,digest,disposition) "
+            "SELECT account_id,run_id,execution_id,operation_id,%s,requirement_revision,%s,%s,'current' "
+            "FROM execution_operations WHERE operation_id=%s ON CONFLICT DO NOTHING",
+            (
+                attempt["attempt_no"],
+                attempt["receipt_ref"],
+                result_digest(result_payload),
+                operation_id,
+            ),
+        )
+    uow.execute(
+        "UPDATE execution_operations SET status='completed' ,result_ref=%s,result_payload=%s,"
+        "error_code=NULL,completed_at=now(),updated_at=now() WHERE operation_id=%s",
+        (result_ref, Jsonb(result_payload), operation_id),
+    )

@@ -6,8 +6,8 @@ from pathlib import Path
 
 from actions.runtime import ActionRuntime
 from bootstrap.qq import build_qq_surface_services
+from bootstrap.worker_dependencies import WorkerDependencies
 from orchestration.config import AgentConfig, AppConfig, WorkspaceConfig
-from orchestration.worker import WorkerDependencies
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -20,7 +20,12 @@ def test_legacy_state_authority_modules_are_absent() -> None:
         "scripts/session-viewer.py",
         "scripts/migrate-memory-format.py",
     )
-    assert [path for path in retired if (ROOT / path).exists()] == []
+    # Removed source packages can leave an ignored __pycache__ directory in a
+    # developer checkout. It is not an executable source implementation.
+    assert [
+        path for path in retired
+        if (ROOT / path).is_file() or any((ROOT / path).rglob("*.py"))
+    ] == []
 
 
 def test_composition_has_no_session_store_or_workspace_sqlite_authority() -> None:

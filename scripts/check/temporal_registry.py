@@ -141,6 +141,8 @@ async def capture_registries() -> tuple[list[dict[str, object]], dict[str, objec
         close=AsyncMock(),
     )
     with patch.dict(os.environ, WORKER_DATABASE_URL="postgresql://registry-only/unused"), patch(
+        "persistence.migrate.verify_schema"
+    ), patch(
         "orchestration.web_workers.Worker", side_effect=record
     ):
         composition = worker.compose_durable_runtime(Mock(), config, deps)

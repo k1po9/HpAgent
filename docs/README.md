@@ -1,30 +1,19 @@
-# 文档导航
+# 当前文档
 
-当前操作以架构、开发、运维和参考文档为准。历史计划、交接与接受记录说明当时基线及验证范围，不作为当前部署健康或上线通过证明。
+首次进入从[架构总览](architecture/overview.md)和[按任务找代码](reference/repository-layout.md)开始；自动化修改规则见[根 AGENTS.md](../AGENTS.md)。
 
-## 使用者
+| 需要了解什么 | 入口 |
+| --- | --- |
+| 项目定位、职责与执行链 | [总览](architecture/overview.md)、[执行、状态与恢复](architecture/execution.md) |
+| 委托、调度、完成与预算 | [Work](architecture/work.md) |
+| 文件授权、版本、发布/保存、保留 | [Workspace](architecture/workspace.md) |
+| 模型、工具、记忆与研究 | [能力边界](architecture/capabilities.md) |
+| 前端导航、账户世代、交互与诊断 | [Web 契约](architecture/web-ui.md)、[前端指南](../web/AGENTS.md) |
+| 开发环境、测试与扩展 | [搭建](development/setup.md)、[验证](development/testing.md)、[扩展](development/extending.md)、[脚本入口](../scripts/README.md) |
+| API、配置与编排 | [HTTP API](reference/api.md)、[配置](reference/configuration.md)、[模型分工](reference/model-routing.md)、[Temporal](reference/temporal.md) |
+| 产品操作与账号管理 | [工作台](operations/web-workbench.md)、[账户治理](operations/account-governance.md) |
+| 部署与运行 | [上线配置](operations/first-release-configuration.md)、[部署](operations/deployment.md)、[运行手册](operations/runbook.md) |
+| 诊断与恢复 | [日志](operations/logging.md)、[排障](operations/troubleshooting.md)、[备份恢复](operations/backup-restore.md) |
+| 尚需核对的设计输入 | [设计入口](design/README.md)，不代表当前实现状态 |
 
-- [功能操作指南](operations/web-workbench.md)：AI、空间、任务、资料授权、成果与账户操作。
-- [账户与模型治理](operations/account-governance.md)：注册、权益、额度与管理员管理。
-- [HTTP API](reference/api.md)：命令、查询、错误、权限与幂等。
-
-## 开发者
-
-- [环境搭建](development/setup.md) → [测试分层](development/testing.md) → [脚本入口](../scripts/README.md)。
-- [架构总览](architecture/overview.md)、[运行时](architecture/runtime.md)、[状态归属](architecture/data-and-state.md)、[可靠性](architecture/reliability.md)、[关键时序](architecture/sequences.md)、[能力边界](architecture/capabilities.md)。
-- [Durable Work](architecture/durable-work-v1.md)、[Workspace](architecture/workspace-v4.1.md)、[Web产品与交互约束](architecture/web-ui.md)。
-- [扩展方式](development/extending.md)、[配置参考](reference/configuration.md)、[目录参考](reference/repository-layout.md)、[Temporal](reference/temporal.md)。
-
-## 运维
-
-- [首次上线配置确认表](operations/first-release-configuration.md)：按编号逐项确定域名、凭据、模型、功能、存储与容量。
-- [首次部署](operations/deployment.md)：空库初始化、服务拓扑与生产检查。
-- [运行手册](operations/runbook.md)：日常健康、启动/重载、人工操作入口。
-- [日志](operations/logging.md) → [故障排查](operations/troubleshooting.md)。
-- [备份与恢复](operations/backup-restore.md)：备份范围、一致性、隔离恢复和外部快照限制。
-
-## 合同、历史与归档
-
-当前UI约束维护在[Web架构](architecture/web-ui.md)；R1–R6接受决定、冻结指纹和当时测试范围从[接受与实施索引](implementation/README.md)进入。设计材料按[设计索引](design/README.md)区分接受依据和历史提案。完整原始材料的编号、校验和恢复方法见[归档索引](development/repository-archive-index.md)。
-
-UI接受、自动化通过和生产上线验证分别记录，不能用旧批次通过数替代当前环境验证。
+文档只保留当前事实与明确限制；修改契约时原位更新。迁移和回放 fixture 是执行输入，运行报告、历史交接与验收批次不作为项目文档保存。

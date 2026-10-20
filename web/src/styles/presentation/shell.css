@@ -1,0 +1,104 @@
+.hp-shell {
+  background: #f5f7f9;
+}
+.hp-shell .hp-rail {
+  background: #16212c;
+  box-shadow: inset -1px 0 0 #283946;
+  gap: 21px;
+}
+.hp-rail .hp-brand-symbol {
+  color: #ee7a60;
+  border-color: #354757;
+  background: #1b2a37;
+}
+.hp-rail .hp-brand-wordmark {
+  letter-spacing: -0.035em;
+}
+.hp-rail nav {
+  gap: 8px;
+}
+.hp-rail nav button {
+  border-radius: 15px;
+  min-height: 66px;
+  transition:
+    background 0.22s var(--r42-ease),
+    color 0.22s ease,
+    transform 0.22s var(--r42-ease);
+}
+.hp-rail nav button svg {
+  width: 23px;
+  height: 23px;
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.hp-rail nav button[aria-current="page"] {
+  background: #34414a;
+  color: #fff0e9;
+}
+.hp-rail nav button:hover:not([aria-current="page"]) {
+  background: #263743;
+  color: #f4f7fa;
+  transform: translateY(-1px);
+}
+.hp-rail .hp-rail-track {
+  background: #eb6044;
+  border-radius: 5px;
+  box-shadow: 0 0 8px #eb604439;
+}
+.hp-shell .hp-sidebar {
+  background: linear-gradient(112deg, #edf1f5 0%, #f3f6f9 100%);
+  border-right: 1px solid #d8e1e9;
+}
+.hp-sidebar-eyebrow {
+  color: #ac5845;
+  letter-spacing: 0.14em;
+  font-size: 10px;
+}
+.hp-shell .hp-sidebar__header {
+  padding-bottom: 10px;
+}
+.hp-conversation-search {
+  background: #fff;
+  border: 1px solid #d5dfe7;
+  border-radius: 13px;
+  box-shadow: 0 2px 8px #20344605;
+}
+.hp-conversation-search:focus-within {
+  border-color: #9bacba;
+  box-shadow: 0 0 0 3px #b4c8d22b;
+}
+.hp-shell .hp-conv {
+  border-radius: 15px;
+  border: 1px solid transparent;
+  transition:
+    background 0.22s var(--r42-ease),
+    border-color 0.22s var(--r42-ease),
+    box-shadow 0.22s var(--r42-ease),
+    transform 0.22s var(--r42-ease);
+}
+.hp-shell .hp-conv:hover:not(.hp-conv--active) {
+  background: #ffffffa8;
+  transform: translateX(1px);
+}
+.hp-shell .hp-conv--active {
+  background: #fff;
+  border-color: #cbd9e4;
+  box-shadow:
+    0 8px 22px #1c35480b,
+    inset 0 1px 0 #fff;
+}
+.hp-conv--active::before {
+  width: 2px !important;
+  background: #d26950 !important;
+  border-radius: 8px;
+  opacity: 0.85;
+}
+.hp-conv-icon {
+  stroke-width: 1.7 !important;
+}
+.hp-conv--active .hp-conv-icon {
+  color: #ad513a;
+  background: #fcebe6;
+  border-color: #f4c7b9;
+}

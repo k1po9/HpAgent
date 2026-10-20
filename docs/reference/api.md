@@ -1,6 +1,6 @@
 # HTTP API 参考
 
-Compose 中 FastAPI 监听 `127.0.0.1:8080`。`GET /health/live`、`GET /health/ready` 无需认证。Route 列表以 [`src/web_api/app.py`](../../src/web_api/app.py) 为准，测试位于 `test/web_api/`；下表只列主要操作。
+Compose 中 FastAPI 监听 `127.0.0.1:8080`。`GET /health/live`、`GET /health/ready` 无需认证。Route 定义按业务位于 [`src/web_api/routes/`](../../src/web_api/routes/)，由 [app.py](../../src/web_api/app.py) 装配；完整路径与 DTO 以应用 OpenAPI 为准，测试位于 `test/web_api/`；下表只列主要操作。
 
 认证入口为 `POST /auth/register`、`POST /auth/login`、`POST /api/v1/auth/logout`。注册包含 username / password，可选 invite_code；省略邀请使用默认自助 entitlement。Browser mutation 要求 Session Cookie、允许的 Public Origin、CSRF 与相应幂等键。Upload Content 使用 `application/octet-stream`，普通请求使用 JSON，event stream 使用 `text/event-stream`。
 
@@ -56,7 +56,7 @@ Conversation 支持创建、列表、读取、改名、消息列表及发送；�
 
 Run SSE 在订阅/缓冲后读取权威快照，snapshot 为第一帧；握手期间的终态不会因先读取快照而丢失，终态快照不再发送缓冲 delta。恢复仍遵循 stream/seq 与权威查询，不重放历史 started。Work feed 与 Chat feed 独立，Work 终态不发布 Chat 消息。
 
-full_safe 不在查询时再作 Secret 脱敏，不应把凭据放入输入。快照存在不证明分发；诊断须结合 dispatch、失败分类与 HTTP 状态。模型 code / retryability 见[可靠性](../architecture/reliability.md)。
+full_safe 不在查询时再作 Secret 脱敏，不应把凭据放入输入。快照存在不证明分发；诊断须结合 dispatch、失败分类与 HTTP 状态。模型 code / retryability 见[可靠性](../architecture/execution.md)。
 
 ## 长期文件 Workspace
 
@@ -68,7 +68,7 @@ full_safe 不在查询时再作 Secret 脱敏，不应把凭据放入输入。�
 - Conversation 的 `/api/v1/conversations/{conversation_id}/resources` GET / POST / DELETE grant 管理发现/读取/写入权限。Work 使用上表的 resources 入口。
 - `GET /api/v1/runs/{run_id}/workspace/search`、`resources`、`published-files`：只在该 Run 的冻结范围内搜索或查询。
 
-已知目录/名称约束返回 409 `workspace_conflict`，`error.details.reason` 如 name_exists / invalid_name / invalid_parent，附 request_id；未知数据库错误不伪装成冲突。上传供对话使用是保存后另行 grant，所有者能看到文件不等于 Agent 有权限。移除 entry 不立即释放对象字节。详见[Workspace](../architecture/workspace-v4.1.md)。
+已知目录/名称约束返回 409 `workspace_conflict`，`error.details.reason` 如 name_exists / invalid_name / invalid_parent，附 request_id；未知数据库错误不伪装成冲突。上传供对话使用是保存后另行 grant，所有者能看到文件不等于 Agent 有权限。移除 entry 不立即释放对象字节。详见[Workspace](../architecture/workspace.md)。
 
 ## Artifact 与身份
 

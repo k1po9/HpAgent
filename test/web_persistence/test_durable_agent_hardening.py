@@ -53,7 +53,7 @@ def test_tool_operation_intent_and_uncertain_survive_activity_redelivery(
 def test_expired_same_run_acquires_new_fence_and_rejects_old_interval(
     db, account_id, database_url, worker_database_url
 ):
-    from agent_activities.store import StaleFencingToken
+    from run_domain.execution import StaleFencingToken
 
     _, _, run_id = _conversation_and_run(database_url, account_id)
     store = AgentDataStore(worker_database_url, lease_ttl_seconds=30)

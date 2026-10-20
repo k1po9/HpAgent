@@ -10,7 +10,6 @@ import psycopg
 import pytest
 from support.qq_messages import qq_message
 
-from agent_activities.fencing import fence_scope
 from agent_activities.store import AgentDataStore
 from application.main_agent import create_main_work_tools
 from conversation_domain.commands import CommandService
@@ -18,6 +17,7 @@ from orchestration.work_schedule import WorkScheduleService, run_work_schedule_l
 from persistence.uow import UnitOfWork
 from resources.model_budget_coordinator import ModelBudgetCoordinator
 from resources.run_budget import RunBudgetExhausted, RunBudgetService
+from run_domain.execution_context import fence_scope
 from run_domain.lifecycle import RunLifecycleService
 from sandbox.sandbox_manager import SandboxManager
 from work_domain.commands import WorkCommandService
@@ -162,6 +162,26 @@ def test_retry_chain_ends_at_success_and_new_occurrence(
         assert next_run == (None,)
     else:
         assert advance(commands, account_id, current)['retry_of_run_id'] is None
+
+
+def test_retry_chain_follows_control_epoch_when_database_clock_moves_backwards(
+    db, account_id, database_url, worker_database_url
+):
+    commands, work = accept(database_url, account_id, completion_mode='ongoing')
+    first = advance(commands, account_id, work)
+    # Simulate a clock correction before the next admission. A later execution
+    # must remain the retry parent even if its created_at precedes an older Run.
+    db.execute("UPDATE runs SET created_at=created_at+interval '1 day' WHERE run_id=%s",
+               (first['run_id'],))
+    lifecycle = RunLifecycleService(worker_database_url)
+    parent = first
+    for _ in range(2):
+        lifecycle.finish(account_id, UUID(parent['run_id']), 'failed', failure_code='controlled_failure')
+        current = commands.get(account_id, UUID(work['work_id']))['work']
+        child = advance(commands, account_id, current)
+        assert child['retry_of_run_id'] == parent['run_id']
+        assert child['work_control_epoch'] > parent['work_control_epoch']
+        parent = child
 
 
 def test_admission_failure_is_local_and_pending_wakeup_recovers(

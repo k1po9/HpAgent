@@ -30,13 +30,6 @@ from web_domain.lifecycle import WebRunLifecycleService
 from workspace.catalog import WorkspaceCatalog
 
 
-class RecoveryTestStore(AgentDataStore):
-    """Accelerate natural lease expiry without clearing holds or forcing takeover."""
-
-    def __init__(self, database):
-        super().__init__(database, lease_ttl_seconds=5)
-
-
 class Discovery:
     async def discover(self, query, *, strategy, limit):
         return [SourceCandidate("https://example.com/a", provider="fixture"),
@@ -63,12 +56,6 @@ class Synthesis:
 
 
 async def main() -> None:
-    import research_activities.runtime as research_runtime
-
-    # Production defaults to one hour, beyond this test's Activity timeout.
-    # Exercise normal expiry/fencing in bounded time; this does not verify the
-    # production default's recovery latency.
-    research_runtime.AgentDataStore = RecoveryTestStore
     role, phase, state_root = sys.argv[1:4]
     state = Path(state_root)
     database = os.environ["WORKER_DATABASE_URL"]

@@ -16,7 +16,6 @@ from test_delegation import brief
 
 from actions.contracts import ActionRequest
 from agent_activities.delegation import DelegationActivities
-from agent_activities.fencing import execution_fence
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
@@ -30,6 +29,7 @@ from agent_workflows.tool_execution import ToolExecutionWorkflow
 from application.work_context import RunExecutionBindings, WorkContextProvider
 from brain.contracts import BrainDecision
 from resources.run_budget import RunBudgetService
+from run_domain.execution_context import execution_fence
 from run_domain.lifecycle import RunLifecycleService
 from web_api.queries import QueryService
 from work_domain.models import Requirement

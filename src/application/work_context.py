@@ -6,6 +6,7 @@ from uuid import UUID
 
 from application.execution_contracts import ExecutionRequest
 from persistence.uow import UnitOfWork
+from run_domain.execution import assert_execution_fence, lock_execution
 from run_domain.lifecycle import RunLifecycleService
 
 
@@ -17,13 +18,12 @@ class WorkContextProvider:
         return await asyncio.to_thread(self._load, UUID(run_id))
 
     def _load(self, run_id):
-        from agent_activities.store import AgentDataStore
 
         with UnitOfWork(self.database) as uow:
-            AgentDataStore._assert_fence(uow)
-            from agent_activities.fencing import execution_fence
+            assert_execution_fence(uow)
+            from run_domain.execution_context import execution_fence
             fence = execution_fence.get()
-            execution = AgentDataStore._execution(uow, fence[0], str(run_id), fence[2]) if fence else None
+            execution = lock_execution(uow, fence[0], str(run_id), fence[2]) if fence else None
             if execution and execution["role"] == "subagent":
                 brief = execution["context_manifest"]["brief"]
                 return ExecutionRequest(
@@ -182,7 +182,7 @@ def generic_result(uow, run, work, content, result_ref):
         ).fetchone()
         if not receipt:
             raise ValueError("Generic acceptance needs a verified tool receipt from this Run")
-    from agent_activities.delegation import required_branch_gaps
+    from run_domain.delegation import required_branch_gaps
     gaps = required_branch_gaps(uow, run["account_id"], run["run_id"])
     if gaps and result["kind"] == "deliverable_ready":
         result["kind"] = "progress_saved"

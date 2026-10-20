@@ -19,12 +19,7 @@ from actions.runtime import ActionRuntime
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.side_effects import UnsupportedToolSideEffectReconciler
-from agent_activities.store import (
-    LeaseConflict,
-    StaleFencingToken,
-    ToolOperationState,
-    TranscriptVersionConflict,
-)
+from agent_activities.store import ToolOperationState
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     ChatContext,
@@ -38,6 +33,7 @@ from agent_workflows.contracts import (
 from agent_workflows.ids import root_execution_id
 from agent_workflows.lifecycle_contracts import SegmentInput
 from conversation_domain.execution_bindings import ChatExecutionBindings
+from run_domain.execution import LeaseConflict, StaleFencingToken, TranscriptVersionConflict
 from sandbox.tools.adapters.mcp import CachedTool, MCPToolManager, _build_langchain_tool
 from web_domain.failures import is_failure_retryable
 

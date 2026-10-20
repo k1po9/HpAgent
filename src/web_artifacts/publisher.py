@@ -2,12 +2,12 @@
 
 from uuid6 import uuid7
 
-from agent_activities.store import AgentDataStore
+from run_domain.execution import assert_execution_fence
 from run_domain.lifecycle import RunLifecycleService
 
 
 def publish(uow, run_id, artifact_id, version_id, html, *, operation_id, title="", markdown=None):
-    AgentDataStore._assert_fence(uow)
+    assert_execution_fence(uow)
     identity = uow.execute("SELECT account_id FROM runs WHERE run_id=%s", (run_id,)).fetchone()
     run = RunLifecycleService.lock(uow, identity["account_id"], run_id)
     if run["status"] != "running":

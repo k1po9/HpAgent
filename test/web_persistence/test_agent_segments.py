@@ -4,16 +4,11 @@ from uuid import uuid4
 
 import pytest
 
-from agent_activities.fencing import fence_scope
-from agent_activities.store import (
-    AgentDataStore,
-    LeaseConflict,
-    RunNotExecutable,
-    SegmentClosed,
-    StaleFencingToken,
-)
+from agent_activities.store import AgentDataStore
 from agent_workflows.ids import root_execution_id
 from agent_workflows.lifecycle_contracts import FinishWaitInput, SegmentInput, WaitInput
+from run_domain.execution import LeaseConflict, RunNotExecutable, SegmentClosed, StaleFencingToken
+from run_domain.execution_context import fence_scope
 
 from .test_phase_a_invariants import _conversation_and_run
 

@@ -5,7 +5,7 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 
-from web_api.app import BodyLimitMiddleware, ProtocolMiddleware
+from web_api.middleware import BodyLimitMiddleware, ProtocolMiddleware
 
 
 def _app(limit: int = 32) -> FastAPI:

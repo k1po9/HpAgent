@@ -3,6 +3,7 @@
 import asyncio
 from dataclasses import replace
 from datetime import timedelta
+from typing import Any
 
 from temporalio import workflow
 from temporalio.common import RetryPolicy
@@ -43,12 +44,12 @@ class WorkDelegationWorkflow:
             account_id=tool.account_id,
             operation_id=tool.operation_id,
         )
-        options = dict(
+        options: dict[str, Any] = dict(
             task_queue=AGENT_TASK_QUEUE,
             start_to_close_timeout=timedelta(seconds=30),
             retry_policy=RetryPolicy(maximum_attempts=3),
         )
-        prepared = await execute_segment(
+        prepared: DelegationPrepared = await execute_segment(
             "prepare_delegation_activity", request, result_type=DelegationPrepared, **options
         )
         if prepared.replay:
@@ -99,7 +100,7 @@ class WorkDelegationWorkflow:
                 )
                 if not retry.error:
                     await asyncio.gather(*(branch(child) for child in retry.children))
-        return await execute_segment(
+        finished: ToolExecutionResult = await execute_segment(
             "finish_delegation_activity",
             DelegationFinishInput(
                 tool,
@@ -111,3 +112,4 @@ class WorkDelegationWorkflow:
             result_type=ToolExecutionResult,
             **options,
         )
+        return finished

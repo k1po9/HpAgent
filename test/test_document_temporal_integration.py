@@ -92,6 +92,7 @@ async def test_large_document_read_tool_routes_through_real_document_worker(
     scope = RunFileScope(
         run_id, inputs, tmp_path / "scratch", tmp_path / "outputs",
         (RunFileInput(file_id, "large.txt", len(content), "utf-8", "text/plain"),),
+        authorize=lambda candidate: None if candidate == file_id else pytest.fail("unexpected file"),
     )
     router = TemporalDocumentRouter(
         client, direct_read_max_bytes=1, workflow_task_queue=lifecycle_queue

@@ -66,10 +66,10 @@ def test_chat_loader_rejects_missing_conversation_instead_of_stringifying_none()
 def test_production_cutover_has_no_legacy_switch_or_host():
     assert "durable_agent_enabled" not in {field.name for field in fields(TemporalConfig)}
     root = Path(__file__).parents[1]
-    source = (root / "src/orchestration/worker.py").read_text()
-    composition = source[
-        source.index("def compose_durable_runtime(") : source.index("class BackgroundTasks:")
-    ]
+    import inspect
+
+    from bootstrap.durable_runtime import compose_durable_runtime
+    composition = inspect.getsource(compose_durable_runtime)
     for legacy in (
         "WebExecutionHost",
         "DefaultBrainActionLoop",

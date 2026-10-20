@@ -1,12 +1,7 @@
-# 设计材料索引
+# 待核对的设计输入
 
-当前产品和交互约束统一维护在[Web架构](../architecture/web-ui.md)、[Work架构](../architecture/durable-work-v1.md)和[Workspace架构](../architecture/workspace-v4.1.md)。修改产品时先核对源码、正式测试及这些当前文档。
+当前实现以[架构文档](../architecture/overview.md)和源码为准，设计输入不作为功能状态或验收结论。
 
-| 类别 | 位置与用途 |
-| --- | --- |
-| 接受依据 | [R1–R6索引](ui-iteration-2026-10/README.md)：接受决定、合同、指纹、验证范围及未测项；最新R6覆盖旧参数 |
-| 历史架构提案 | [Work设计](durable-work-v1-implementation-design.md)与[当时复查](durable-work-v1-implementation-review-2026-10-02.md)，不代替当前API/运行时 |
-| 历史UI提案与工具研究 | 其余Creative Directions、visual guide、工具链研究及P0能力审计；文件名含latest仍仅指当时版本，不是当前操作指南 |
-| 历史Prompt与创作输入 | 已核验后退役的Prompt可按[归档索引](../development/repository-archive-index.md)原路径恢复；不用于正常构建 |
+- [执行详情整体计划](run-inspector-2026-10-19-plan.md)：保留原文；其中部分内容已在当前 Run Inspector 实现，不能依据文内“尚未实施”判断现状。当前行为见 [Web 契约](../architecture/web-ui.md)，剩余范围需要与代码逐项核对。
 
-后续新设计应明确待提案/已接受状态，不以阶段计划中的“下一轮”自动授权实现；不把离线HTML整站覆盖到产品。
+新增提案只描述当前问题、目标约束和待决定项；实现后将有效规则归入对应当前文档，不累计阶段报告。

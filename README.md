@@ -24,7 +24,7 @@ HpAgent 是支持 Web 与 QQ 入口的 AI 助手平台。Main 负责对话，Wor
    docker compose exec -T hpagent python -m orchestration.worker_health
    ```
 
-4. 打开 <http://localhost:5173>，选择注册并创建 Web 用户名/密码（密码8–128字符），成功后自动登录；首次QQ绑定引导可选择稍后处理。当前自助注册默认获得 standard 档、每日50,000 token额度和不展示Prompt；邀请码可提供管理员预置权益。管理员身份绑定工具不创建登录密码，不能替代注册。使用模型前还须核实所选档位与模型配置匹配。
+4. 打开 <http://localhost:5173>，选择注册并创建 Web 用户名/密码（密码8–128字符），成功后自动登录；首次QQ绑定引导可选择稍后处理。当前自助注册默认获得 standard 档、每日5,000 token额度和不展示Prompt；邀请码可提供管理员预置权益。管理员身份绑定工具不创建登录密码，不能替代注册。使用模型前还须核实所选档位与模型配置匹配。
 
 Compose 自动先完成空库 schema 初始化。首次上线不迁移旧开发/测试数据；建库 SQL 和初始化服务继续保留，见[首次部署](docs/operations/deployment.md)。API ready、Worker healthy 与真实模型链验收分别执行。
 
@@ -34,7 +34,7 @@ Compose 自动先完成空库 schema 初始化。首次上线不迁移旧开发/
 
 使用 `web-prod` 网关组合，步骤见[首次部署](docs/operations/deployment.md)。当前 Compose 的部分应用服务仍挂载宿主源码；首次五人Beta保留源码挂载，云端Nginx终止HTTPS经Tailscale进入本地；配置、预算及待验收项见配置入口。
 
-UI 的 R1–R6 接受不等于生产上线验证；真实模型、Worker、外发、恢复和真机范围须单独验收。[发布检查](scripts/README.md)会明确列出构建、启动和真实请求副作用。
+真实模型、Worker、外发、恢复和真机范围须单独验收。[发布检查](scripts/README.md)会明确列出构建、启动和真实请求副作用。
 
 ## 配置、开发与测试
 
@@ -58,6 +58,6 @@ make ci-web                 # lint、typecheck、Vitest、生产构建
 
 ## 目录
 
-`src/` 应用/领域/Worker/API；`web/` React/Vite与正式测试；`config/` 运行配置；`persistence/` 迁移与初始化；`test/` 后端测试及fixture；`scripts/` 开发/运维/检查/实验；`docs/` 当前文档及明确标注的历史依据。详细职责见[目录参考](docs/reference/repository-layout.md)。
+`src/` 应用/领域/Worker/API；`web/` React/Vite与正式测试；`config/` 运行配置；`persistence/` 迁移与初始化；`test/` 后端测试及fixture；`scripts/` 开发/运维/检查/实验；`docs/` 当前架构、开发、运维和参考文档。详细职责见[目录参考](docs/reference/repository-layout.md)。
 
-当前约束从[架构总览](docs/architecture/overview.md)、[Work](docs/architecture/durable-work-v1.md)、[Workspace](docs/architecture/workspace-v4.1.md)和[Web交互](docs/architecture/web-ui.md)进入。历史接受基线与验证范围见[实施索引](docs/implementation/README.md)，仓库外材料恢复见[归档索引](docs/development/repository-archive-index.md)。
+修改前先读 [AGENTS.md](AGENTS.md)，按[代码地图](docs/reference/repository-layout.md)定位职责。当前约束见[总览](docs/architecture/overview.md)、[执行与状态](docs/architecture/execution.md)、[Work](docs/architecture/work.md)、[Workspace](docs/architecture/workspace.md)和[Web 契约](docs/architecture/web-ui.md)。

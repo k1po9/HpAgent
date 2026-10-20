@@ -1,25 +1,12 @@
 """Execution fence propagated into short data-plane transactions and threads."""
 
 import asyncio
-from contextlib import contextmanager
-from contextvars import ContextVar
 from functools import wraps
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-execution_fence: ContextVar[tuple[str, str, str, int] | None] = ContextVar(
-    "execution_fence", default=None
-)
-
-
-@contextmanager
-def fence_scope(account_id: str, run_id: str, token: int, execution_id: str):
-    reset = execution_fence.set((account_id, run_id, execution_id, token))
-    try:
-        yield
-    finally:
-        execution_fence.reset(reset)
+from run_domain.execution_context import fence_scope
 
 
 async def _heartbeat_segment(request):

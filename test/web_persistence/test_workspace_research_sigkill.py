@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import time
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -93,7 +94,12 @@ async def test_research_worker_sigkill_preserves_history_intent_and_results(
         )
         await _wait_file(state / f"{phase}.committed")
         assert await asyncio.wait_for(first.wait(), 10) == -9
-        with UnitOfWork(database_url) as uow:
+        with UnitOfWork(worker_database_url) as uow:
+            lease_at_kill = uow.execute(
+                "SELECT fencing_token,lease_expires_at-clock_timestamp() AS remaining "
+                "FROM execution_attempt_leases WHERE run_id=%s", (run_id,),
+            ).fetchone()
+            assert 0 < lease_at_kill["remaining"].total_seconds() <= 30
             baseline_at_kill = uow.execute(
                 "SELECT selected FROM research_history_baselines WHERE run_id=%s", (run_id,),
             ).fetchone()["selected"]
@@ -103,10 +109,16 @@ async def test_research_worker_sigkill_preserves_history_intent_and_results(
                 "ORDER BY operation_id", (run_id,),
             ).fetchall()]
             assert len(publish_operations_at_kill) == 1
+        recovery_started = time.monotonic()
         replacement = await _worker("replacement", phase, state, env)
-        result = await asyncio.wait_for(handle.result(), 120)
+        result = await asyncio.wait_for(handle.result(), 90)
+        assert time.monotonic() - recovery_started < 90
         assert result["outcome"] == "report_published"
-        with UnitOfWork(database_url) as uow:
+        with UnitOfWork(worker_database_url) as uow:
+            recovered_token = uow.execute(
+                "SELECT fencing_token FROM execution_attempt_leases WHERE run_id=%s", (run_id,),
+            ).fetchone()["fencing_token"]
+            assert recovered_token > lease_at_kill["fencing_token"]
             after_intent = uow.execute(
                 "SELECT operation_id,target_directory_id,required,state,entry_id "
                 "FROM research_run_save_intents WHERE run_id=%s", (run_id,),

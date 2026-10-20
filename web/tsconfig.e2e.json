@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vite/client"],
+    "composite": false
+  },
+  "include": ["e2e/**/*.ts", "e2e/**/*.tsx", "playwright*.config.ts"],
+  "references": []
+}

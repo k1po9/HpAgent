@@ -8,7 +8,7 @@
 
 ## 创建邀请码
 
-完成 Migration 后，在具备数据库访问与项目 Python 依赖的环境运行 `scripts/operations/create-registration-invite.py`。设置 `MIGRATION_DATABASE_URL`，或传入 `--database-url` 覆盖它。`--profile` 必填，表示模型访问 tier；本轮普通邀请码只接受 `standard`，不能签发 `owner`。`--daily-token-limit` 接受正整数；省略时为 `NULL`，表示不设置 Account 每日上限。`--prompt-visibility` 可取 `none`、`summary`、`full_safe`，脚本默认 `none`。
+完成 Migration 后，在具备数据库访问与项目 Python 依赖的环境运行 `scripts/operations/create-registration-invite.py`。设置 `MIGRATION_DATABASE_URL`，或传入 `--database-url` 覆盖它。`--profile` 必填，表示模型访问 tier；普通邀请码只接受 `standard`，不能签发 `owner`。`--daily-token-limit` 接受正整数；省略时为 `NULL`，表示不设置 Account 每日上限。`--prompt-visibility` 可取 `none`、`summary`、`full_safe`，脚本默认 `none`。
 
 `--entitlement-expires-at` 指复制到账号的 entitlement 到期时间；`--invite-expires-at` 指邀请码自身不能再兑换的时间，两者都要求带时区的 ISO-8601 时间。`--max-redemptions` 为可兑换次数，默认 1，必须为正整数。
 
@@ -29,7 +29,7 @@ python scripts/operations/create-registration-invite.py --profile standard --inv
 
 模型调用先检查 entitlement / endpoint tier、规范化并校验 Provider 请求、冻结 Model Input Snapshot，再在一个 PostgreSQL 事务中按 Account/day → Work（若有）→ Run 顺序预留，随后分发并结算或释放。Snapshot 冻结是另一个事务；快照存在不证明请求发出。未知外部调用按估算承担费用，不能通过重试或清除预留抹去。
 
-排查先确认 entitlement 与 UTC quota_date，再检查 `account_daily_model_budgets / account_model_usage_ledger`、`work_budgets / work_usage_ledger` 和 `run_budgets / run_usage_ledger`。修订、重试、fallback、Subagent 不重置 Work 用量。提升 Work 预算需要带版本和幂等键的显式命令，不修改 Account entitlement 或日额度；已有 Work 也不会因默认值变动自动增额。详见[Work 架构](../architecture/durable-work-v1.md)与[API](../reference/api.md)。
+排查先确认 entitlement 与 UTC quota_date，再检查 `account_daily_model_budgets / account_model_usage_ledger`、`work_budgets / work_usage_ledger` 和 `run_budgets / run_usage_ledger`。修订、重试、fallback、Subagent 不重置 Work 用量。提升 Work 预算需要带版本和幂等键的显式命令，不修改 Account entitlement 或日额度；已有 Work 也不会因默认值变动自动增额。详见[Work 架构](../architecture/work.md)与[API](../reference/api.md)。
 
 ## Prompt / Model Input 可见性
 

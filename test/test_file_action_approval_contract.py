@@ -1,7 +1,5 @@
 from pathlib import Path
 
-from fastapi.routing import APIRoute
-
 from web_api.app import create_app
 from web_api.config import WebApiSettings
 
@@ -45,8 +43,9 @@ def test_api_exposes_owned_list_and_idempotent_decision_routes():
         csrf_signing_key=b"test",
     ))
     routes = {
-        (route.path, tuple(sorted(route.methods or set())))
-        for route in app.routes if isinstance(route, APIRoute)
+        (path, (method.upper(),))
+        for path, operations in app.openapi()["paths"].items()
+        for method in operations
     }
     assert ("/api/v1/runs/{run_id}/file-action-approvals", ("GET",)) in routes
     assert ("/api/v1/file-action-approvals/{approval_id}/approve", ("POST",)) in routes

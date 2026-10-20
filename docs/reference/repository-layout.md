@@ -1,56 +1,48 @@
-# 仓库结构
+# 按修改任务找代码
 
-| 路径 | 用途 |
+先读[总览](../architecture/overview.md)。下面沿真实调用边界定位，目录是职责入口，并不表示已实现严格依赖隔离。
+
+## 进程与组合入口
+
+| 入口 | 职责 |
 | --- | --- |
-| `src/` | Python Domain、Application Service、Adapter、Capability、Temporal Workflow/Activity、Worker 与 FastAPI。 |
-| `web/` | React/Vite UI、Browser Test、Nginx Gateway 和前端构建配置。 |
-| `config/` | 当前 Application、Model、Prompt、MCP 和 SearXNG 配置。 |
-| `persistence/` | 有序 SQL Migration 与 Compose 数据库初始化。 |
-| `test/` | Unit、Contract、Integration、Replay、Recovery Test 与 Fixture。 |
-| `scripts/dev/` | 本地开发辅助工具。 |
-| `scripts/operations/` | 部署、日志、备份、身份和可观测性工具。 |
-| `scripts/check/` | 当前连接、schema、文档/CI路径及发布检查；含只读queued Run SQL。 |
-| `scripts/acceptance/` | 需独立数据环境的专项验收。 |
-| `scripts/benchmarks/` | 可复现的策略、Outbox 和 Temporal Recovery Benchmark。 |
-| `docs/` | 当前架构、开发、运维和参考文档，以及 UI 重构 / Durable Work / Workspace 实施与验收交接。 |
-| `artifacts/` | Evidence 与 Benchmark Output，不是当前文档入口。 |
+| [main.py](../../src/main.py)、[bootstrap](../../src/bootstrap/) | QQ 入口与共享运行时组装。 |
+| [web_api/__main__.py](../../src/web_api/__main__.py)、[app.py](../../src/web_api/app.py) | HTTP 进程与应用工厂；[lifespan.py](../../src/web_api/lifespan.py) 持有连接池、Redis、发布器及测试执行器生命周期。 |
+| [worker.py](../../src/orchestration/worker.py) | 进程启动/关闭和渠道监听；[worker_dependencies.py](../../src/bootstrap/worker_dependencies.py) 构造共享资源，[durable_runtime.py](../../src/bootstrap/durable_runtime.py) 注入 Activity 与持久执行协作者，[web_workers.py](../../src/orchestration/web_workers.py) 注册队列。 |
+| [document_worker.py](../../src/orchestration/document_worker.py) | 高开销文档 Activity 独立进程。 |
+| [docker-compose.yaml](../../docker-compose.yaml)、[Makefile](../../Makefile) | 服务拓扑、公开开发/验证命令。 |
 
-`persistence/migrations/` 中的可执行 Schema 历史即使年代较早，仍是全新安装所必需的。Test Fixture 放在 `test/fixtures/`；Production `config/` 只包含运行时配置。
+## 服务端改动路径
 
-Workspace 代码主要位于 `src/workspace/`、`src/web_domain/file_lifecycle.py`、`src/file_runtime/` 与 `src/web_api/`；P0～P5 阶段记录位于 [`docs/implementation/workspace-v4.1/`](../implementation/workspace-v4.1/README.md)。
-
-## Durable Work 与执行模块
-
-| 路径 | 归属 |
+| 要修改什么 | 规则/命令 → 执行/存储 → 验证 |
 | --- | --- |
-| `src/conversation_domain/` | 聊天命令、admission、消息和来源投影。 |
-| `src/work_domain/` | requirement、Work 命令/状态、完成证据、输入/成果/预算/目标集成。 |
-| `src/run_domain/` | 通用 admission、冻结输入、Run 生命周期和结果。 |
-| `src/agent_workflows/` / `src/agent_activities/` | 策略、Execution attempt / transcript / operation、有限 delegation。 |
-| `src/application/work_context.py` | Work / Subagent brief，与 Main context 分开。 |
-| `src/orchestration/execution_strategy.py` | 服务端注册 executor / version 决策。 |
-| `src/orchestration/work_schedule.py` | PostgreSQL Work schedule / occurrence / wakeup evaluator。 |
-| `src/delivery/` / `src/application/qq_delivery.py` | 统一通知/目标/投递服务与 QQ Adapter。 |
-| `src/resources/` | 模型请求协议/分类、Account / Work / Run 预算和容量。 |
-| `web/src/components/tasks/` / `workspace/` / `artifact/` / `run/` | Task、长期文件、HTML 和执行的当前页面/Inspector；旧 WorkManagement / TestPages 已删除。 |
-| `persistence/migrations/054–059` | Work、Execution、策略、集成、有限 Subagent 与 Artifact Version API 权限收窄；实际 SQL 文件以目录为准。 |
+| 聊天接收、幂等、单 active Run | [conversation_domain](../../src/conversation_domain/) → [run_domain](../../src/run_domain/)、[run_dispatcher](../../src/orchestration/run_dispatcher.py) → [web_persistence 测试](../../test/web_persistence/)。 |
+| Work 需求、修订、暂停、停止、完成 | [work_domain/commands.py](../../src/work_domain/commands.py)、[completion.py](../../src/work_domain/completion.py) → [persistence.py](../../src/work_domain/persistence.py)、[work_schedule.py](../../src/orchestration/work_schedule.py) → [test](../../test/) 中相关 Work 测试。 |
+| admission、冻结输入、Run 终态/重试 | [run_domain](../../src/run_domain/) → [agent_lifecycle_workflow.py](../../src/orchestration/agent_lifecycle_workflow.py)、[execution_strategy.py](../../src/orchestration/execution_strategy.py)。 |
+| 执行身份、fencing、回执、分支事实 | [execution.py](../../src/run_domain/execution.py)、[execution_context.py](../../src/run_domain/execution_context.py)、[results.py](../../src/run_domain/results.py)、[delegation.py](../../src/run_domain/delegation.py)；函数复用调用方事务，不依赖 Activity。 |
+| Agent 策略、attempt、工具、Subagent | [agent_workflows](../../src/agent_workflows/) → [agent_activities](../../src/agent_activities/)、[application](../../src/application/) → [sandbox 契约测试](../../test/test_durable_agent_contract.py)。 |
+| 模型、额度、并发、Provider 协议 | [resources](../../src/resources/)、[config](../../config/) → [模型分工](model-routing.md)、[能力边界](../architecture/capabilities.md)。 |
+| 文件、授权、版本、发布/保存、GC | [workspace](../../src/workspace/)、[file_lifecycle.py](../../src/web_domain/file_lifecycle.py)、[file_runtime](../../src/file_runtime/) → [Workspace 契约](../architecture/workspace.md)。 |
+| 研究与成果生成 | [research_domain](../../src/research_domain/)、[research_activities](../../src/research_activities/) → [research_workflow.py](../../src/orchestration/research_workflow.py)、[artifact_activities.py](../../src/orchestration/artifact_activities.py)。 |
+| 通知/投递/QQ | [delivery](../../src/delivery/)、[qq_delivery.py](../../src/application/qq_delivery.py) → 渠道 Adapter 与独立投递回执。 |
+| API、权限、快照、SSE、诊断 | [routes](../../src/web_api/routes/)、[dependencies.py](../../src/web_api/dependencies.py)、[middleware.py](../../src/web_api/middleware.py)、[error_handlers.py](../../src/web_api/error_handlers.py) → [web_domain](../../src/web_domain/)、[persistence](../../src/persistence/) → [API 测试](../../test/web_api/)。 |
+| schema/角色权限 | [migrations](../../persistence/migrations/) → [数据库测试](../development/testing.md)；新增有序迁移，不修改已应用文件。 |
 
-当前文档从[总览](../architecture/overview.md)和[Work 架构](../architecture/durable-work-v1.md)进入；[实施索引](../implementation/README.md)连接历史设计、阶段报告和人工验收证据。
+定位具体测试先使用 `rg --files test` 与相关领域名搜索，不按文件名中的旧阶段编号推断当前覆盖范围。
 
-## Web 前端与验收
+## 前端改动路径
 
-| 路径 | 归属 |
+| 要修改什么 | 入口 |
 | --- | --- |
-| `web/src/App.tsx` / `components/shell/` | Pre-Shell、三入口四区布局、唯一 Inspector 与 Surface。 |
-| `web/src/components/conversation/` / `adapters/assistant-ui/` | 对话、Composer、消息渲染、资料入口。 |
-| `web/src/store/` / `sse/` / `api/` | UI 与领域状态、账户生命周期、权威查询、Chat/Work feed 与命令。 |
-| `web/src/styles/` | tokens 和按领域拆分的样式；styles.css 为统一导入入口。 |
-| `web/e2e/` / `playwright.ui8-production.config.ts` | 正式浏览器回归与构建产物验收。 |
-| `docs/architecture/web-ui.md` / `docs/implementation/ui-refactor.md` | 当前契约与历史交接，接受基线以R1–R6索引为准。 |
-| `artifacts/product-acceptance/ui-refactor/` | 保留摘要、关键反例文字和来源/哈希；原始截图通过归档恢复。 |
+| 认证、账户切换 | [App.tsx](../../web/src/App.tsx)、[store](../../web/src/store/)、[api](../../web/src/api/)。 |
+| 导航、唯一 Inspector、Surface | [shell.ts](../../web/src/store/shell.ts)、[components/shell](../../web/src/components/shell/)。 |
+| 对话、Composer、阅读与切换 | [conversation](../../web/src/components/conversation/)、[assistant-ui adapter](../../web/src/adapters/assistant-ui/)、[mercury](../../web/src/components/mercury/)。 |
+| 任务、文件、成果、执行诊断 | [tasks](../../web/src/components/tasks/)、[workspace](../../web/src/components/workspace/)、[artifact](../../web/src/components/artifact/)、[run](../../web/src/components/run/)、[trace](../../web/src/components/trace/)。 |
+| 对话状态与生命周期 | [workbench.ts](../../web/src/store/workbench.ts) 门面与 reset；[workbench](../../web/src/store/workbench/) 内部动作、共享 context 和 Run monitor。 |
+| 权威快照、幂等、分页、订阅 | [store](../../web/src/store/)、[sse](../../web/src/sse/)、[api](../../web/src/api/)。 |
+| 视觉与动效 | [styles.css](../../web/src/styles.css) 的显式导入顺序、[styles](../../web/src/styles/) 语义 tokens；行为见 [Web 契约](../architecture/web-ui.md)。 |
+| 验证 | 组件/store 相邻单测、[e2e](../../web/e2e/)、[共享浏览器配置](../../web/e2e/config/shared.ts)、[package.json](../../web/package.json) 与 [测试指南](../development/testing.md)。 |
 
-阅读[前端架构](../architecture/web-ui.md)与[重构交接](../implementation/ui-refactor.md)。正式E2E的截图和trace输出在忽略的`web/test-results/`；新Benchmark原始运行在忽略的`artifacts/benchmark-runs/`。R416副本已合入`web/e2e/`，旧配置名仅选择正式源文件，见[脚本索引](../../scripts/README.md)。
+## 配置与辅助代码
 
-## 历史产物归档
-
-`artifacts/` 保留接受决定、合同、源码指纹、最终验证摘要、必要反例文字，以及 Benchmark 设计、报告、汇总和逐条数据。历史原始运行状态、截图、视频、trace、源码副本、本地设计包和离线镜像归档于仓库外；恢复与暂缓目录见[归档索引](../development/repository-archive-index.md)。`dist/` 仍可由离线导出脚本重新生成，不是必需源码输入。
+[config](../../config/) 是运行时配置；[scripts](../../scripts/README.md) 按开发、检查、运维与实验划分；[prototypes](../../prototypes/) 是独立实验室，不属于产品构建。迁移与 [test/fixtures](../../test/fixtures/) 是可执行输入，不能作为历史材料删除。截图、日志、trace、benchmark 结果不纳入当前文档；运行输出位置及副作用见脚本索引。

@@ -1,5 +1,3 @@
-from agent_workflows.ids import root_execution_id
-
 """Pure Workflow scenarios for the W1-B PG/Temporal gate."""
 
 from dataclasses import dataclass, replace
@@ -9,7 +7,8 @@ from temporalio import workflow
 from temporalio.common import RetryPolicy
 
 from agent_workflows.contracts import AGENT_TASK_QUEUE, ModelDecisionInput
-from agent_workflows.lifecycle_contracts import WaitInput
+from agent_workflows.ids import root_execution_id
+from agent_workflows.lifecycle_contracts import LIFECYCLE_SCHEMA_VERSION, WaitInput
 from agent_workflows.segments import DurableWait, execute_segment
 
 
@@ -60,7 +59,7 @@ class SegmentScenarioWorkflow:
 
         await self.wait.run(
             WaitInput(
-                1,
+                LIFECYCLE_SCHEMA_VERSION,
                 request.run_id,
                 request.account_id,
                 f"{request.run_id}:wait",

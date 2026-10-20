@@ -25,4 +25,4 @@ docker compose exec temporal tctl --address localhost:7233 cluster health
 docker compose exec -T hpagent python -m orchestration.worker_health
 ```
 
-UI 位于 <http://127.0.0.1:8088>。主 Worker ready 要求 schema 验证、Temporal 连接、Lifecycle / Agent Worker 及 Dispatcher 已启动。API ready 不能替代 Worker 健康。恢复限制见[可靠性](../architecture/reliability.md)，实现与验收见[实施索引](../implementation/README.md)。
+UI 位于 <http://127.0.0.1:8088>。主 Worker ready 要求 schema 验证、Temporal 连接、Lifecycle / Agent Worker 及 Dispatcher 已启动。API ready 不能替代 Worker 健康。恢复限制见[可靠性](../architecture/execution.md)。

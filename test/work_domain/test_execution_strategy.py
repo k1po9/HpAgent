@@ -112,8 +112,8 @@ async def test_generic_frozen_brief_and_progress_do_not_use_chat(commands, accou
     assert manifest['requirement_revision'] == 1 and manifest['input_snapshot_ref'] == f'run:{run_id}'
     with pytest.raises(psycopg.Error):
         owner.execute("UPDATE runs SET input_snapshot='{}' WHERE run_id=%s", (run_id,))
-    from agent_activities.fencing import fence_scope
     from agent_activities.store import AgentDataStore
+    from run_domain.execution_context import fence_scope
     store = AgentDataStore(urls[2])
     lease = store.acquire_lease(str(account_id), str(run_id))
     operation = f'{lease.execution_id}:model:final'
@@ -150,8 +150,8 @@ async def test_main_mandate_slot_replays_across_chat_retry(commands, account_id,
 def test_generic_completion_requires_verified_evidence_and_policy(commands, account_id, urls, owner):
     import json
 
-    from agent_activities.fencing import fence_scope
     from agent_activities.store import AgentDataStore
+    from run_domain.execution_context import fence_scope
 
     req = Requirement('Complete a verified action', 'generic_work', {'schema_version': 1},
         acceptance_criteria=({'id': 'action', 'required': True, 'evidence_types': ['operation_receipt']},))

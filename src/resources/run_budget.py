@@ -192,7 +192,7 @@ class RunBudgetService:
         enforced_exhaustion = bool(exceeded and budget["mode"] == "enforce")
         if enforced_exhaustion:
             raise RunBudgetExhausted("Run budget exhausted for: " + ", ".join(sorted(exceeded)))
-        from agent_activities.fencing import execution_fence
+        from run_domain.execution_context import execution_fence
         fence = execution_fence.get()
         for dimension, amount in requested.items():
             uow.execute(

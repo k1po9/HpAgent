@@ -1,11 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { fileURLToPath } from "node:url";
-const evidence = fileURLToPath(
-  new URL(
-    "../../artifacts/product-acceptance/run-diagnostics-reference-2026-10-19",
-    import.meta.url,
-  ),
-);
+const evidence = "test-results/evidence/run-diagnostics";
 async function open(page: import("@playwright/test").Page, query = "") {
   await page.goto(
     `/e2e/run-diagnostics-harness.html?${query}#/ai?inspect=run:0199ed39-a674-7001-8000-000000000007&tab=advanced`,

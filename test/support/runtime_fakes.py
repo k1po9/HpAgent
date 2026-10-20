@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from uuid import UUID
 
-from agent_activities.fencing import execution_fence
+from run_domain.execution_context import execution_fence
 
 
 class ExecutionStoreBoundary:

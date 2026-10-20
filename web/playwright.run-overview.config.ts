@@ -1,19 +1,11 @@
 import { defineConfig } from "@playwright/test";
+import { fixtureConfig } from "./e2e/config/shared";
+const base = fixtureConfig({ testMatch: "run-overview.spec.ts" });
 export default defineConfig({
-  testDir: "./e2e",
-  testMatch: "run-overview.spec.ts",
-  workers: 1,
-  timeout: 45_000,
+  ...base,
   use: {
-    baseURL: "http://127.0.0.1:5292",
+    ...base.use,
     viewport: { width: 1536, height: 1000 },
-    reducedMotion: "reduce",
-    trace: "retain-on-failure",
-    video: "on",
-  },
-  webServer: {
-    command: "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5292 --strictPort",
-    url: "http://127.0.0.1:5292",
-    reuseExistingServer: true,
+    contextOptions: { reducedMotion: "reduce" },
   },
 });

@@ -8,8 +8,7 @@ import psycopg
 import pytest
 
 from agent_activities.delegation import DelegationActivities, DelegationDenied, validate_briefs
-from agent_activities.fencing import fence_scope
-from agent_activities.store import AgentDataStore, StaleFencingToken
+from agent_activities.store import AgentDataStore
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     CompactToolCall,
@@ -22,6 +21,8 @@ from agent_workflows.lifecycle_contracts import SegmentInput
 from application.work_context import WorkContextProvider, generic_result
 from persistence.uow import UnitOfWork
 from resources.run_budget import RunBudgetService
+from run_domain.execution import StaleFencingToken
+from run_domain.execution_context import fence_scope
 from run_domain.lifecycle import RunLifecycleService
 from web_api.queries import QueryService
 from work_domain.models import Requirement

@@ -3,10 +3,11 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
-from agent_activities.fencing import fence_scope
-from agent_activities.store import AgentDataStore, StaleFencingToken
+from agent_activities.store import AgentDataStore
 from agent_workflows.lifecycle_contracts import SegmentInput
 from conversation_domain.commands import CommandService
+from run_domain.execution import StaleFencingToken
+from run_domain.execution_context import fence_scope
 from run_domain.lifecycle import RunLifecycleService
 from run_domain.results import EffectService, ResultReceiptService
 from web_api.sse import load_run_snapshot

@@ -40,6 +40,7 @@ from common.logging import log_event
 from resources.model_budget_context import model_budget_scope
 from resources.model_governance_errors import classify_model_governance_failure
 from resources.run_budget import RunBudgetExhausted
+from run_domain.execution import StaleFencingToken, TranscriptVersionConflict
 from tracing import (
     model_observation_metadata,
     trace_end,
@@ -57,7 +58,7 @@ from .side_effects import (
     UnsupportedToolSideEffectReconciler,
     normalize_side_effect_class,
 )
-from .store import AgentDataStore, StaleFencingToken, TranscriptVersionConflict
+from .store import AgentDataStore
 
 context_logger = logging.getLogger("HpAgent.AgentContextActivity")
 model_logger = logging.getLogger("HpAgent.ModelDecisionActivity")
@@ -499,9 +500,9 @@ class DurableAgentActivities:
                 await events.progress("synthesizing", "正在汇总计划结果。")
             else:
                 await events.progress("calling_model", "正在生成回复。")
-            from agent_activities.delegation import current_execution
             from agent_workflows.delegation_contracts import DELEGATE_MANIFEST, DELEGATE_TOOL
             from persistence.uow import UnitOfWork
+            from run_domain.delegation import current_execution
             with UnitOfWork(self.store.database_url) as uow:
                 self.store._assert_fence(uow)
                 execution = current_execution(uow)
@@ -642,8 +643,8 @@ class DurableAgentActivities:
     @fenced_activity
     async def tool_execution(self, request: ToolExecutionInput) -> ToolExecutionResult:
         self._check_schema(request.schema_version)
-        from agent_activities.delegation import current_execution
         from persistence.uow import UnitOfWork
+        from run_domain.delegation import current_execution
         with UnitOfWork(self.store.database_url) as uow:
             self.store._assert_fence(uow)
             execution = current_execution(uow)

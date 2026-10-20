@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-const evidence = "../artifacts/product-acceptance/run-overview-accepted-2026-10-19";
+const evidence = "test-results/evidence/run-overview";
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/v1/**", (route) =>
     route.fulfill({
