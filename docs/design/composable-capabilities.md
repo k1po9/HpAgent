@@ -1,327 +1,228 @@
-# 通用助手与可组合能力：目标架构提案
+# 可组合能力：剩余验收与设计边界
 
-状态：S7 的待实施设计。S1 基础契约、S2 持久调用边界、S3 局部 Research 与 S4 HTML/成果采用 已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)和[Workspace](../architecture/workspace.md)；S5 Main/任务/UI 接口见[Work](../architecture/work.md)与[Web 契约](../architecture/web-ui.md)，以源码和测试为准。S6 持续推进保护与静默通知已归入 [Work](../architecture/work.md#有界推进与静默通知)，实现存在不代表全部环境验收已通过。本文不授权清库、部署或真实外发。
+可组合能力、Main/Work/UI 接口及有界推进的现行契约已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)、[Work](../architecture/work.md)、[Workspace](../architecture/workspace.md)和[Web 契约](../architecture/web-ui.md)。本文只保留 S7 尚需确认的验收输入；接口存在、脚本决策通过均不代表真实模型或渠道已通过验收。
 
-设计基线：最新提交，依据用户提供的《HpAgent 通用 AI 助手平台》愿景、后续需求澄清及代码静态核查。实施前必须重新核对最新代码；S1 已固定的名称和字段以当前架构文档及源码为准，其余新入口仍是设计名称。
+## S7 — 全链验收与冗余路径收敛
 
-## 1. 产品目标与明确排除项
+范围：验证组合、反馈、恢复、权限和产品控制；收敛已被替代且无独立价值的生成/完成路径。不新增运行时、预算账本、调用状态机、Work 调度平台或生成应用托管能力。
 
-HpAgent 是面向普通用户、目标驱动的通用 AI 云助手。用户描述目标，Agent 在授权和预算内组合能力，观察真实结果、修正路径并交付可复用成果。Research、HTML 是首批专业能力，不是能力架构的上限。
+当前生产入口共用静态能力目录、CapabilityInvocation/Execution、模型预算和不可变 ResultRef。固定 Research/Artifact 入口保留父侧准入、展示、保存及验收职责；确定性研究阅读视图不替代交互 HTML 能力。测试/Fake 执行器仅适配同一局部实现，不能用于证明生产 Temporal 恢复。普通文件不依赖 Git。
 
-已确认的产品要求：
+展示目标：获准来源 → Research Markdown → HTML → 用户明确修改 → 新版本保存。离页后应能找回；HTML 故障不重跑研究；Worker 重启不重复已提交副作用。当前 Research 不支持隐式读取上传资料；展示必须遵守现有 source_strategy 与显式授权能力，不能假称已支持任意资料输入。HTML 基础检查不含真实浏览器交互检查。
 
-- 保留 Web / QQ 统一业务底座；现有前端形态基本保留，仅补必要的任务、消息、控制与成果契约。
-- 即时聊天不自动成为 Work。需要脱离当前交互继续履行的目标由 Work 承担；离页、断网不取消执行。
-- 任务界面可查看、暂停、继续、停止和找回成果，并定位到来源 Chat Message。
-- 执行中仍可聊天。普通消息不修改 Work；查询进度只读；明确补充或修改任务的指令走受控命令。
-- 暂停后可继续；停止结束委托，成果保留；后续可基于成果创建新任务。
-- Research 完成要求报告持久化与明确的基础检查通过，不要求用户已经满意；用户可继续微调。
-- 无进展、预算不足、重复失败任一达到条件，停止无效推进；原因决定阻塞、等待或暂停，不统一永久停止 Work。
-- 现有测试数据不要求保留，最终可以重建空库；仍保留完整迁移链、checksum 和回放 fixture。
-- 展示深度来自真实组合、反馈修正、恢复与成果复用；以业务目标为先。
+确定性组合与恢复入口见[测试指南](../development/testing.md)。真实模型验收仍须在获准、隔离环境中完成：
 
-不属于本轮范围：
+- 观察真实模型依据 Research 的结果选择 HTML，而不是只执行固定脚本。
+- 对不足结果改变行动，复用已提交成果；用户明确修改后固定旧版本并保存新版本。
+- 单独验证真实 Provider、QQ/外部渠道接受与 uncertain 对账。渠道接受、用户验收、Work 完成分别记账。
 
-- 生成另一套包含真实登录和数据库的应用。此前对此存在误解；实际只是 HpAgent 自身已接域名、可公网访问。
-- 生成应用的长期托管、数据库供应、凭据平台或公网部署能力。
-- 前端重设计、任意 Agent 递归、跨 Work DAG、动态插件市场、任意事件自动化平台。
-- 新建另一套预算、授权、调度、审计或 Workflow 引擎。
-- 旧测试数据搬迁、线上热升级或长期双写兼容。
+真实执行依据用户明确授权，不由设计文本推定。S7-1 已确认的授权与当前执行阶段见下节；QQ 等渠道外发及现有部署变更不在授权内。没有运行的链路必须标为未验证。
 
-“幂等”和“保密”均作为工程约束，不以用户口述中的歧义扩展产品范围。任何破坏性环境切换在实际执行时指定目标，不由本提案推定。
+## S7-1 — 真实模型全链路验收方案（修复已实施，完整验收未通过）
 
-## 2. 已核实的现状与约束
+本节保留验收方法与退出条件；驱动及隔离故障钩子已在 `scripts/acceptance/s7_1.py` 与 `scripts/acceptance/s7/` 实现，完整场景须以实际运行证据判定，不能因入口存在宣称通过。S7-1 验证真实模型在现有产品链路中选择、组合和修正能力；QQ 真实投递与 nsjail 执行验收分别处理。通过 S7-1 不等于 S7 全部退出。
 
-| 当前事实 | 代码依据 | 对设计的影响 |
+### 当前授权、准备状态与执行阶段
+
+以下是用户已经明确提供的当前执行约束，不是运行报告。后续执行沿用这些授权，无需重复询问已确认项目；若遇到超出范围的外部模型、费用或副作用，再说明具体缺口。
+
+| 项目 | 当前约束 |
+| --- | --- |
+| 代码与资源 | 允许实现 S7-1 验收驱动，使用当前工作区代码，创建并清理本轮专用测试容器/资源。需冻结未提交改动；不将现有部署当测试环境。 |
+| 模型配置来源 | 仅从 `/home/hp/deploy/hpagent-beta/.env` 精确读取 `SILICONFLOW_FLAGSHIP_MODEL` 及所需 `SILICONFLOW_BASE_URL`、`SILICONFLOW_API_KEY`，只读使用。不得输出凭据、完整文件或注入全部部署环境。 |
+| 已确认模型 | Provider 为 SiliconFlow，变量解析的模型 ID 为 `deepseek-ai/DeepSeek-V4-Flash`，端点为 `https://api.siliconflow.cn/v1`。新窗口先重验变量存在与解析结果；若值有变化，报告差异并重新冻结，不能沿用旧探测结论。 |
+| 模型用途 | 本次真实文本决策、Research synthesis、HTML generation 及必要文本辅助调用均显式使用所选旗舰模型，不静默切换标准/高速或其他 Provider。其他 embedding/rerank/记忆模型并未因出现在配置中获得授权；优先明确关闭非必需服务，确属必需且不能使用已授权路径时再说明并取得补充范围。 |
+| 整批预算 | 用户先授权 1,000,000、追加 600,000，后将**跨批累计总上限调整为 4,800,000 tokens**；不是每个新窗口的额度。包括准备探测、pilot、全部场景、失败、重试、辅助文本调用和未回执请求的保守占额，不按窗口、账户、Run 或 UTC 日期重置。运行前读取原累计账本；代码仅通过独立、显式、幂等 CAS 升级入口应用两次授权，不按 manifest 自动增额，不删除历史。 |
+| 研究资料 | 用户委托自动选择公开技术文档。执行者选择主题、资料与事实判据后冻结 URL/域名和出口允许范围，不因普通选题重复请求确认；不访问需私有登录的资料、不做发布或写入外部站点。 |
+| 故障测试 | 已允许仅在本轮测试环境执行 HTML 候选故障注入、终止并重启测试 Worker、暂停/继续/停止、撤权和预算拒绝测试。不得终止业务进程或把未知 Provider 发送变成自动重发。 |
+| 未指定的细项 | 用户未指定最长运行时间及独立请求次数上限。实现者应结合实际 lease、Activity timeout、单请求上限和剩余 token 预算，选择保守、有限的场景/批次时限与请求上限并写入 manifest；不能留作无限等待，也不能将自定值说成用户承诺。无法在现有额度内安全约束时先报告，不扩大额度。 |
+| 排除项 | 不清空现有数据、不变更现有部署、不重启业务服务、不改已应用迁移；不进行 QQ/邮件等真实渠道外发，不运行其他 Provider、旧 benchmark 或 release smoke 代替本验收。 |
+
+准备状态：上述三个必需变量已确认存在且非空；通过一次仅请求短文本的直连调用取得 HTTP 200 和非空文本。该调用不是通过生产预算/Run 链执行，已按供应商 usage 将 11 tokens 纳入整批消耗；没有向业务账本补造运行事实。它仅证明当时的基本文本访问可用，**未验证工具调用、流式响应、生产 ModelClient 协议、复杂能力或自主组合**。部署 chat/fast/reasoning 当时均解析为同一模型，但验收仍须生成并核对独立路由，不能依赖部署配置持续不变。
+
+用户已通过下方“新窗口执行请求”授权进入驱动实现、离线验证与真实 pilot；完整批次仍以同一冻结配置下 M1/M3 均通过为前提。入口、隔离准备、证据采集与清理方法见[测试指南](../development/testing.md)。运行结果与失败证据保存在仓库外受限批次目录，累计用量以跨批账本为准，不从本页的准备探测数字推断剩余额度；不得重置账本或丢弃失败后反复试到通过。
+
+### 验证问题与证据范围
+
+必须回答：Main 能否将明确的持续、多能力委托交给 generic_work；Work Agent 能否根据真实研究结果选择 HTML；局部不足后能否改变行动并复用报告；用户明确修改后能否固定旧版本、保存新版本；重启与权限/预算干预后能否继续遵守既有状态权威与副作用边界。
+
+两类证据分开计数，不能相互替代：
+
+- **真实产品链路**：浏览器 → 正式 HTTP 命令 → Main → Work → 真实 Agent 决策 → Research/HTML → 父保存/typed evidence → 权威查询。Main、父 Agent、Research synthesis 和 HTML generation 均使用获准真实 Provider；来源使用批准的公开站点，不能用固定模型响应或直接指定工具调用序列代替。
+- **真实模型加受控故障**：保留相同生产链和真实决策，只在预声明的 Activity/Adapter 边界制造一次局部不足、丢失响应或进程终止。此类结果证明模型对该受控观察的响应，不证明 Provider 会自然产生同一故障。
+
+现有 [确定性组合测试](../../test/work_domain/test_composable_chain.py) 手写父模型决策并使用来源/模型夹具，继续承担离线回归；不将它改名后充当真实模型证据。[策略 benchmark](../../scripts/benchmarks/agent_strategy/README.md) 有独立代码工作区和接口假设，模型连通性及 release smoke 也不覆盖本方案，均不直接作为 S7-1 入口。
+
+### 冻结输入与隔离环境
+
+执行前冻结一份验收 manifest，至少含以下字段；manifest 是测试输入，实际凭据只通过私有配置提供：
+
+| 类别 | 必填内容 |
+| --- | --- |
+| 代码与能力 | Git commit、工作区改动摘要/哈希、镜像摘要、完整迁移清单/checksum；registry 定义版本、策略、prompt 和工具定义摘要。不能只记录 HEAD 而遗漏未提交改动。 |
+| 模型 | 所有实际用途的 Provider、模型 ID、端点标识、请求参数/输出上限、回退链与 SDK 版本；chat/fast、embedding/rerank、记忆相关请求逐项登记。不能把 selector 名称当作实际模型。 |
+| 来源 | 事先批准的站点/URL、任务资料主题、预期可验证事实与引用位置；运行时保存实际获取时间、URL、内容 hash 和受限证据摘录。公开资料变化时保留当次字节证据，不用旧答案硬判新内容。 |
+| 资源 | 显式专用三角色 DSN、Redis、File Store/Run Scope、独立 Temporal 服务及 namespace、网络、API/前端端口和输出目录；测试账户与 Workspace 目录/授权。不同 namespace 不隔离相同 task queue，故不得连接业务 Temporal。 |
+| 限制 | 批次/场景/Run 的 token、请求次数、时长、输出大小上限，以及 Account/day、Work、Run 的实际 enforce 配置；允许的 Provider/检索网络目标；故障注入场景和次数。 |
+| 样本与操作 | 固定场景、重复次数、用户原文、允许的澄清回答、干预时点、判定规则、浏览器版本；原始失败、重试与人工操作全部关联保存。 |
+
+禁止借用现有业务服务、清空旧库或修改已应用 SQL。新建可丢弃数据库，串行应用完整原迁移链；重跑另建数据库/账户资源，避免历史夹具占满全局容量，不提高容量门禁来掩盖污染。使用独立 checkout/挂载与配置；仅准备器可按上节精确读取获准 `.env` 中的模型字段，生成最小测试配置，测试 API/Worker 不得挂载部署目录或读取其他部署文件。关闭 Fake executor；禁止 QQ、邮件、未批准 MCP/工具、Shell/Git 和公网发布副作用。需要保留的记忆服务及其他辅助模型调用必须显式授权并纳入边界；禁用可选服务时记录测试环境限制，不将其伪装为生产同配置。
+
+Research 不支持隐式 uploaded_files 输入。本轮基准资料使用获准公开技术文档，目标规模建议为 2–3 个来源、3–5 个可核对事实。`preferred_domains` 只是来源偏好，不能作为安全白名单；若声称只联网到批准目标，必须由独立网络出口策略实际执行。无法满足时先停止，不放开全网或跳过原资源访问规则。
+
+### 自然语言任务与独立判定
+
+正常场景的用户提示只描述目标、授权和交付约束，例如：
+
+> 这是一个需要后台继续完成的任务。请依据本次批准的公开技术资料，整理指定主题的比较说明，做成带内容筛选的单页，并保存到我已授权的“验收成果”目录。保留引用；资料不足时说明缺口，不要编造。我离开页面后请继续。
+
+提示中的主题、批准资料和目录必须在 manifest 中替换为真实可用值。不给工具函数名、调用顺序、ResultRef 或 fence；也不在失败后由驱动告诉模型“下一步调用 HTML”。模型可以澄清，驱动只能按冻结的用户意图回答，并记录为新用户消息。预期事实、版本关系、操作回执与行为检查由独立判定器核对，不以同一模型的自评作通过证据。
+
+端到端场景必须通过正常 UI/HTTP 消息进入，接受后取得权威 Work ID，并核对 source_message_id 与 generic_work。目录由测试用户按现有资源命令显式授权给该 Work，再推进冻结输入；不得仅因关联 Conversation、模型知道目录 ID 或账户拥有文件就推定授权。若 Work 接受后已经自动创建 Run，授权变更仍走正常暂停/授权/继续或后续 Run，不能修改已冻结快照或人为跳过调度；准备期产生的 Run、拒绝及费用完整关联记录，不以删除记录制造一次成功。验收驱动不得直接插入 Work/Run、伪造 transcript、补写完成事实或替模型调用能力。若普通产品流程无法完成上述准备或 Main 选错入口，该场景失败；另外通过 API 预建 generic_work 的分层诊断可以定位问题，但不计 Main 全链路通过。
+
+### 场景矩阵
+
+建议首批固定 13 个场景样本：M1/M2/M3 各 3 次，M4–M7 各 1 次。M2 的 3 次分别引用对应 M1 的成果；实际产生的 Work/Run/Provider 请求数另计，不把“13 样本”写成“13 次模型调用”。先运行 M1 和 M3 各 1 次作为 pilot；配置完全不变时计入原计划样本，调整后必须另起批次，保留原失败。
+
+| ID / 次数 | 操作与触发 | 通过所需的持久事实和行为 |
 | --- | --- | --- |
-| ReAct 与 Plan-and-Execute 已有持久工具循环 | [Agent workflows](../../src/agent_workflows/)、[Activities](../../src/agent_activities/runtime.py) | 复用 Harness，不另造通用 Agent Runtime |
-| StrategyRegistry 为顶层 Run 选 executor | [registry](../../src/orchestration/execution_strategy.py) | 不把它直接当作内部 Capability Registry |
-| Main 有 Work 接受与控制工具 | [main_agent.py](../../src/application/main_agent.py) | 保留命令边界、mandate 幂等、群聊披露限制 |
-| 同 Work 单 active Run；Work Run 无聊天 Message | [Work 契约](../architecture/work.md)、[迁移 054](../../persistence/migrations/054_durable_work_foundation.sql) | 不采用同 Work 并行 Child Run 主方案 |
-| Subagent 限于 Generic Work root、一次委派、最多三只读分支 | [delegation](../../src/agent_activities/delegation.py)、[迁移 058](../../persistence/migrations/058_optional_subagents.sql) | 不能仅放开 prompt 就复用为通用写入子能力 |
-| Research 阶段和报告以 invocation 为身份；父适配器完成 Run | [runtime](../../src/research_activities/runtime.py)、[persistence](../../src/research_domain/persistence.py) | 后续 HTML/采用复用局部结果与当前授权边界 |
-| Research 已有 Markdown，报告 HTML 是确定性展示 | [research_workflow.py](../../src/orchestration/research_workflow.py) | 不误认为需要从零实现报告输出；展示失败不能否定研究结果 |
-| HTML 请求创建有限 Chat Run，显式 Work 复用相同 HTML 能力 | [services](../../src/web_artifacts/services.py)、[build](../../src/web_artifacts/build.py) | 后续入口复用局部能力与父侧采用服务 |
-| Artifact publisher 已有生产 Operation / Execution | [publisher](../../src/web_artifacts/publisher.py) | 复用发布内核，补输入与结果契约 |
-| Operation / Receipt 支持 attempt、迟到结果与跨 Run effect 引用 | [results](../../src/run_domain/results.py) | Invocation 以 Operation 为锚点 |
-| 工具完成和 transcript 事件可以同事务提交 | [store](../../src/agent_activities/store.py) | 保留可靠父观察提交，不用 Signal 裁定完成 |
-| Generic 验收主要验证成功工具回执 | [work_context](../../src/application/work_context.py)、[completion](../../src/work_domain/completion.py) | 需增加具体结果和检查谓词，不能仅相信 tool_success |
-| Document Router 启动稳定 Workflow 后在调用侧等待 | [routing](../../src/file_runtime/routing.py) | 不是完整的释放父 Activity 持久等待范式 |
-| 工具注册依运行模式分支，文件与原生/MCP 不天然同时可用 | [sandbox_manager](../../src/sandbox/sandbox_manager.py) | 新能力注册不能依赖打开危险工具模式 |
+| M1 / 3 | 无故障自然语言委托；取得 Work 后离页，运行中发普通聊天，再重连找回。 | Main 接受一个准确来源的 generic_work；普通聊天不修订它、不占其协调槽。真实父模型调用 Research，随后使用其 Markdown ResultRef 调用 HTML；research.basic/html.basic 的准确 subject/verifier/version 证据存在，父保存及 required typed evidence 提交，Run/Work 满足各自终态规则。任务与成果可从来源消息/任务页找回。 |
+| M2 / 3 | 用户对 M1 已完成成果提出明确修改，例如新增“按类别筛选”，保持原有事实和引用；通过正常消息选择准确旧成果作为新委托输入。 | 已完成 Work 不重开；新 Chat/Work 按目标生命周期建立，新 Work 获得显式输入及独立目录权限。模型固定、显式采用准确旧 ResultRef，HTML previous_ref 指向选定旧版本，产生新版本并保存；旧字节、旧生产者与原 Work 交付不变。没有新增研究需求时不重跑 Research。 |
+| M3 / 3 | Research 成功后，首个 HTML invocation 的候选文档在可信校验前被一次性改成不完整 HTML；此后解除故障。 | 原硬化/检查路径提交真实 insufficient 结果，父 Operation/transcript 观察可靠配对；真实父模型读到不足观察后发起新 HTML 调用，复用原 Markdown；无第二次 Research synthesis；新 HTML 通过、保存并达到目标。若模型在声明预算内只反复叙述成功或无效重试，判失败。 |
+| M4 / 1 | 在 HTML 输出和 capability_results 已提交、父观察尚未提交的屏障终止专用 Worker，再启动同配置 Worker。 | 使用原 invocation/Execution/Operation 恢复并补齐观察；同一成功生产 Operation 不重复请求模型或发布文件，输出 hash/版本/保存标识不变。后续父模型继续决策属于合法新请求，不能要求整条 Run 请求数不增加。 |
+| M5 / 1 | 活动 Work 中按公开命令依次暂停、继续，再在后续执行中停止；在声明屏障触发，使用当前 If-Match。 | paused 后不继续推进；resume 使用新 Run/fence，旧响应不能推进新 revision/epoch；stopped 后不自动唤醒。已保存成果可找回。已发出的请求可能在控制提交后返回或产生费用，必须按原 Operation 对账，不将其等同于控制后新发请求。 |
+| M6 / 1 | 在已登记候选、尚未父保存的屏障，通过公开资源命令撤销目标目录 create_child。 | 当前授权检查拒绝保存；没有长期入口/保存回执，不得以候选已生成宣称 Work completed。允许安全等待、阻塞或失败，须保留可见原因与原候选；后续重新授权也不赋予旧 fence 新权力。 |
+| M7 / 1 | 使用独立测试账户，在运行前设定足以触发下一次请求预留拒绝的 Account/day 或 Work/Run 硬限额；不篡改账本。 | 真实预算服务在发出对应请求前拒绝；没有以该失败预留对应的 Provider 发送事实、没有跨 Run/重试绕过额度；原因在权威状态可查，未伪造完成。该样本只证明本次选择的限额层，其他层仍由既有隔离契约测试覆盖。 |
 
-这些是静态事实，不代表已通过本轮运行验证。当前事实文档不应在实现前改写为目标架构。
+报告质量另由预登记事实/引用判定及独立人工复核确认，核对遗漏、误引和 HTML 新增的无依据事实；`research.basic` 不证明事实真实，不以“文件非空”代替质量。需要额外模型评审时，必须另行登记模型、费用与证据范围，不能默认调用。
 
-## 3. 主方案与责任边界
+M5 不验证“任意时刻搬移完整执行”，M6 不证明所有资源权限类型，M7 不证明所有配额组合。它们是对真实模型环境的控制烟测，不能替代 S7 已有的确定性 fencing、GC、权限与预算矩阵。
 
-```mermaid
-flowchart TD
-    UI[Web / QQ 交互与命令] --> C[Chat Run / Main]
-    C -->|接受明确委托| W[Work requirement / control / budget]
-    W --> R[单协调 Run]
-    C --> H[共享 Harness]
-    R --> H
-    H --> I[Operation 锚定的能力调用]
-    I --> T[Atomic Tool / 当前 Execution]
-    I --> E[复杂能力 / 独立 Capability Execution]
-    E --> F[Fixed Workflow 或 Specialist Agent]
-    T --> O[持久结果与检查证据]
-    F --> O
-    O --> J[父 Execution 校验并提交观察]
-    J --> H
-    H --> P[提出交付或 continuation]
-    P --> A[Run 终态 / Work 验收]
-```
+HTML 功能由独立 Playwright 在真实生成的 sandbox iframe 中检查一个预声明交互：切换筛选后，匹配项目可见、非匹配项目隐藏，恢复后全部出现；仅有按钮文字或截图不够。判定器可按语义控件定位，缺少可检验的控件/可访问名称应报失败，不事后挑选“看起来能用”的功能。浏览器结果是验收证据，不补写成生产 `html.basic` 的 browser_interactions=passed。模型没有浏览器检查工具，不能声称它自行观察并修复了浏览器错误。
 
-推荐决策：
+### 故障注入约束
 
-1. Work 管理目标；Run 管理有限执行；Execution 管理执行上下文。保留单 Work 协调权。
-2. Harness 是现有 Workflow、Activities、Context 和 Actions 的职责集合，不是新部署服务。
-3. Atomic Tool 通常在调用方 Execution 内完成；需要隔离的复杂能力使用同 Run 下的 Capability Execution。
-4. Child Workflow 是编排关系，不等于新 Run。复杂能力不拥有 Work 控制权，不直接完成父 Run。
-5. CapabilityInvocation 以调用方 Operation 为逻辑身份，附加不可变描述和执行关联，不建立独立可写的调用状态机。
-6. 默认子能力不脱离父 Run 存续。父执行终止时取消子执行；已持久化结果保留。Worker 重启属于恢复同一执行，不是独立存续。
-7. Automation 复用 Work 的 ongoing 与现有调度，本轮仍支持已实现的 immediate / once / daily，不承诺任意事件触发。
+注入器仅用于专用验收 composition，不增加生产默认开关或 Workflow 中的 I/O。每次注入先持久记录批次、场景、目标 Run/invocation/Operation、触发条件与一次性消费标记，跨 Worker 重启也不重新触发。记录必须在仓库外或测试专用存储，不成为新的业务状态权威。
 
-替代方案与拒绝理由：
+- M3 必须发生在已选中的 HTML 调用内部：真实 Provider 请求按原预算和回执处理；保留原响应摘要/hash，再将候选字节破坏，使原验证器得出不足。不得直接伪造 CapabilityResult、tool_result 或下一次模型决策。费用仍按真实请求结算，不因注入退回。它不计“无故障 Provider 成功率”。
+- M4 使用可查询的提交屏障并阻止父继续观察，确认事务已提交后才杀本轮 Worker；不能靠任意 sleep 猜时机。屏障放 Activity/Adapter，不能持数据库事务、父 segment lease、Workspace 锁或物理容量票据等待；若现有位置无法满足，先实现专用测试包装器并验证取消清理，不修改业务提交顺序。
+- M4 的恢复期限从实际 lease、Activity timeout、重试和排队上限推导，登记是否使用生产默认值；不能只缩短 lease 后宣称验证了默认恢复时长。
+- M5/M6 同样记录实际控制提交与在途请求/保存提交的先后关系；若竞争窗口未命中，标为未覆盖并保留该样本，不能据无异常宣称通过。
+- 不在真实 Provider 正在发送、但结果未知的窗口注入“自动重试”实验。此类不确定性只允许查询和既有显式决议；发现 uncertain 时停止自动推进，不能借新 ID 重发。
 
-| 方案 | 优点 | 本轮处理 |
+### 预算、停止与重试
+
+当前授权的 Provider/旗舰模型、跨批累计 4,800,000 tokens 上限和自动选择资料范围以上节为准。执行者须把具体来源、单请求/Run/场景/批次有界参数补入 manifest；任何必填限制未落实时，preflight 拒绝真实执行，不能把用户未指定时长解释为必须再次取得相同授权或允许无限等待。费用硬上限只有在当前 Provider/账户实际提供且已配置时才能宣称成立；否则登记保守计价假设、token/请求上限与在途请求成本，不能把客户端费用估算称为原子预算门禁。
+
+4,800,000 tokens 按输入加输出累计；若 total_tokens 已包含 reasoning tokens，不重复加计。用量缺失或结果未知时保留保守上界占额，不把 unknown 当零。所有专用账户和 UTC 日的分配累计受同一授权剩余额度限制，不能通过新账户或跨日重获整批预算。准备/连通性探测同样先分配小额上限并扣除已知消耗；不能使用授权额度反复做无关探测。
+
+正式业务请求继续走规范化校验 → Snapshot → Account/day + Work + Run 原子预留 → Provider → 结算/释放；快照不是已发送证明。外层驱动的计时器/费用观察只用于停止追加样本，不能代替业务预算。单次请求、单 Run、单 Work 和整批均须有界；停止批次后保留账本、结果和未知状态，不清库、退款式清账或盲目重发。
+
+只按既有产品重试/幂等机制恢复。命令响应丢失重放原 key/payload；能力 insufficient 后由真实模型决定是否发起新调用。Provider 401/403、协议不兼容、额度不足、网络环境错误分别分类，不静默切换模型、提高预算、延长超时、放宽权限或重跑到成功。预算增额与配置变更需要新的明确范围，全部保留在批次关联中。
+
+### 证据采集与独立判定
+
+最少关联链：用户消息 → Main 模型请求/accept_work Operation → Work requirement/revision → coordinator Run → 父决策 → caller Operation/invocation → capability Execution/生产 Operation → CapabilityResult/ResultRef/check → 父观察 → 保存 Operation/目标 → Run 终态/Work 验收。M2 再核对旧生产者与 parent_version，M4 再核对 attempt/fence 与恢复前后操作身份。
+
+优先使用账户过滤的正式查询：Work 详情/runs/events/artifacts，Run 详情/capability-results/research report+evidence/model-inputs/trace，以及准确 Artifact Version 和 Workspace 查询。正式查询不足以表达的账本、观察关联、租约和发送关联，使用本轮专用最小只读查询适配器核对；不能让浏览器或模型获得管理员 DSN。只有授权可见性允许时读取 Model Input 正文，缺关键决策证据时该断言记未验证，不能靠正文猜测或绕过 prompt_visibility。
+
+Provider 发送证据由真实 Adapter 的请求关联/完成状态及可用供应商 request ID、用量组成，和 Snapshot、预算预留、operation/receipt 交叉核对。只存在 Snapshot、Trace 节点、reserved 账本或模型自述均不足以证明已发送；缺精确用量时记 unknown，不从 Trace 数量估算 token。必须保留足以确认“父决策确实来自真实模型”的受限原始关联；公共摘要不暴露凭据、完整输入或响应正文。
+
+每个样本输出 pass / fail / not_covered / environment_error / uncertain，并附独立断言和原因；环境错误仍占原计划样本，不从分母删除。批次分别报告各场景计划数、实际数、成功数、失败/未覆盖/环境错误数及观测成功率，不将 3 次运行外推为统计可靠性承诺。保留原始失败、所有重试、配置变化和人工干预，不只留成功截图。
+
+运行数据只写忽略目录或仓库外受限目录，建议包括 manifest、事件关联 JSONL、逐项断言、模型/预算使用摘要、产物 hash 和 Playwright trace。不提交日志、截图或批次报告；只有无 Secret、可复用的场景 manifest/schema、判定器、驱动与故障回放输入可以作为可执行测试输入纳入仓库。
+
+### 验收入口与实施顺序
+
+独立入口为 `python3 scripts/acceptance/s7_1.py --help`。各阶段都要求 `--output` 指向仓库外的批次目录，freeze 创建新清单，后续阶段沿用该目录。当前驱动使用已冻结公开文档候选与生产内容获取器；不启动搜索引擎、不使用来源正文夹具。浏览器与人工事实复核的证据分别记录；人工复核未完成时不能满足退出条件。
+
+| 阶段 | 责任 |
+| --- | --- |
+| preflight | 默认离线：校验 manifest、隔离配置、预算、版本、端口、禁止副作用及证据要求；不读取/打印 Secret，不发送请求。服务在线探测及 Provider probe 单独显式选择，后者也消耗授权预算。 |
+| prepare | 在明确的新建测试目标中启动专用依赖、串行迁移、建立测试账户/目录和最小权限；不能重用仅因名字相似的旧容器或已有业务实例。 |
+| run | 需要显式真实模型执行选项与完整授权 manifest；按固定样本顺序，经公开产品入口运行。故障场景另需允许列表；默认禁止杀任何非本批 Worker。 |
+| verify | 对已结束样本只读采集权威事实和独立浏览器行为结果，输出逐项断言，不补写业务状态；保留采集时点，不能把运行中投影当最终结果。 |
+| cleanup | 仅停止/移除本批创建的专用进程、容器和新建测试资源；先完成未知状态记录与证据保存。默认保留外部费用/回执事实和仓库外证据，不操作现有部署。 |
+
+实施顺序：先实现离线 manifest 校验、事实采集和判定器单测，再用现有确定性模型/来源夹具验证驱动、屏障、取消和清理；之后依上节已有授权冻结实际清单，并在用户明确进入执行阶段后运行两项 pilot，核对模型/工具/来源/预算证据后才继续冻结的完整批次。Fake 验证仅证明驱动可用，不计真实模型场景通过。若发现产品接口缺口，先修复对应现有边界并补隔离回归，不在验收脚本里绕过。
+
+### S7-1 退出标准与未定参数
+
+- 实际完整执行冻结的 13 个样本，M1/M2/M3 各 3/3 通过，M4–M7 各命中并通过；环境错误、未覆盖或 uncertain 不能满足退出。该门槛只表示本次有限验收通过，不表示生产成功率保证。
+- 所有权限越界、旧 fence 写入、预算绕过、误报完成、相同已确认副作用重复提交等红线必须为零；任一发生立即停止批次并保留证据，修复后以新批次回归。
+- Main 委托、真实父模型选择及反馈修正、真实 Research/HTML 输出、公开修改命令、保存、独立交互检查和恢复证据齐全；必需保存和检查成功不等同用户已验收。
+- 同一最终代码/配置下的相关静态、单元、PG、API、Temporal 注册/sandbox/回放/恢复、前端及浏览器回归有明确结果；修改后选择受影响集合复验，不用历史通过覆盖新变更。
+- 结果按两类证据分别解释，真实 QQ/其他外部投递、nsjail、上传资料研究、模型自带浏览器纠错和未选策略保持未验证，不并入 S7-1 成功声明。
+
+执行者下一步须冻结：自动选择的来源/网络范围与事实判据、独立路由与请求参数、剩余额度的分配、有限时限/请求次数、专用资源位置和故障屏障。模型、整批 token 上限、自动选题及本轮故障测试已有用户授权，不重复列为待用户填写。默认先验收 ReAct；若实际产品配置要求 Plan-and-Execute 同时退出，必须另立同等场景批次且共享原累计额度，不能用一个策略推断另一个，也不能重获完整额度。
+
+### 待实施修复与复验顺序
+
+用户后续将累计总上限调整为 4,800,000 tokens，须独立记录 1,600,000→4,800,000 的幂等授权；全部历史用量继续累计。用户已对三笔缺供应商精确回执的 HTML 请求逐笔明确决定：保留原有全额占额、人工放弃且禁止重发原请求，允许具体修复后另冻结新批次；具体请求、决议和占额以原账本为准。这不代表已知实耗或成功回执，也不适用于后续新的未知请求。
+
+以下保留修复要求与复验门槛。累计授权、发送前检查、多片段提取及合成响应回执已实现；真实场景是否通过仍由冻结批次证据判定。保留当前未提交改动，先核对实际调用与现有契约，不覆盖已有实现。原始失败证据仍在仓库外受限目录；它们只用于定位和离线回放，不改名作为成功批次。此次额度增额不改变模型、隔离、副作用和 pilot 闸门。
+
+| 顺序 | 修改边界与方案 | 完成判据 |
 | --- | --- | --- |
-| 全部在父 Execution 中运行 | 身份少 | 仅用于简单能力；复杂能力独立上下文与生产者需要隔离 |
-| 同 Work Child Run | 可复用部分 Run 化专业代码 | 拒绝作为主方案；会改变单 active Run、协调、预算和验收边界 |
-| 每次能力新 Work | 生命周期现成 | 拒绝；用户目标碎片化，难以统一干预和验收 |
-| 独立能力 Job 平台 | 可脱离父执行、跨任务共享 | 延后，当前没有足够业务需求 |
-| 新 Invocation 全生命周期状态机 | 查询直观 | 拒绝重复状态权威；允许描述表和派生投影 |
+| 1. 累计授权升级 | 修改 `scripts/acceptance/s7/core.py`、`scripts/acceptance/s7_1.py` 及安全测试。修复前 manifest 校验硬编码 1M，SQLite `authorization` 又要求上限完全相等，仅编辑 manifest 会被拒绝。现使用独立、离线、显式的授权升级入口，在单个 SQLite 事务中校验旧上限 1,000,000，记录用户追加 600,000 的授权标识、旧值/新值与时点，再 CAS 更新为 1,600,000；相同授权标识重放不重复加额，不允许任意增额或自动按新 manifest 提额。 | 原账本 `/home/hp/.local/state/hpagent/s7-1-20261021/ledger.sqlite` 的 prior=11、历史 sends/actual/unknown、faults、halted、旧批次 manifest/hash 均保留。历史批次仍可只读核验/清理，已停止批次不能恢复发送；新真实执行必须新冻结批次。离线验证重复升级、竞争升级、错误旧值、越权增额及跨账户/日期累计不重置。 |
+| 2. 请求额度与发送边界 | 修改验收器 `worker.py` 的预留位置及必要的现有模型 Adapter/ResourcePool 接口。完整工具 schema 与上下文增长必须纳入保守上界；不能把估算值当实耗，也不能为放行缩小估算公式。单请求可从 98,304 tokens 的候选上限开始评估，但须结合合成证据增量和完整后续请求重新核算，再冻结场景/Run/Work、Account/day、次数及时限。区分验收外层上界与实际业务额度，不能让 manifest 声称的治理值与生效配置不符。外层拒绝须在业务标记 dispatch 和 HTTP 开始之前完成，发送后继续按真实 usage 结算。 | 用真实序列形状的离线输入覆盖 Research→HTML→保存及普通聊天；验证场景已耗用加下一次最坏预留仍可容纳。拒绝时无 Provider POST、无对应发送事实，业务预算正确释放；真实发送失败或丢失回执仍保留 uncertain。全局已用加在途占额不得超出 4,800,000；不能只提高上限后直接跑真实 pilot。 |
+| 3. 研究证据覆盖 | 修改 `src/research_domain/excerpts.py` 与 `src/research_activities/runtime.py` 的提取/充分性判断。单来源单个 1,000 字符片段不足以支撑多概念比较；改为每来源多个有界、不重复原文区间，保留原文偏移、source locator 和稳定证据身份。按任务概念分配覆盖，设置单来源/总片段数及总输入字节上限；TaskGroup/gather/Lock/Event/Queue 只作为验收数据，不硬编码进生产算法。概念出现只是覆盖启发式，不能代替事实核对。 | 用本地多章节资料测试分散概念、重复导航、Unicode 偏移、去重、上限及真实缺口；片段能定位回原文。获取网页成功不等于证据充分，来源本身缺失时返回明确 gaps。保持来源/网络/授权限制，不用模型常识补造引用，不以减少任务范围让样本变绿。 |
+| 4. 合成校验与恢复 | 修改 `src/research_adapters/synthesis.py`、Research Activity/Workflow 及结果提交边界。空引用、未知 ID、JSON 格式、字段形状等须返回不同的稳定错误，不能共用“unknown EvidenceItem”。对已收到的合法供应商响应，先沿现有 Operation/模型结果机制保存必要的响应回执与解析状态，再执行语义校验；同 Operation 重入读取已存结果，不重新请求模型。Trace、Snapshot 或 usage 本身都不是响应缓存。若当前存储不足，先确认最小必要持久化改动，不另建模型账本/调用状态机，不改旧迁移。 | 无引用结论不能作为成功报告；返回带 gaps/检查失败的 `insufficient` 给父 Agent，不把确定性校验错误交给 Temporal 盲目重试。保留每 invocation 一次合成调用的约束；父侧可在预算/授权允许时决定新行动，但不能在原 Operation 中偷偷再合成。HTTP 已发而回执未知时保持 uncertain，不因恢复而换 ID 重发。不得简单过滤无引用 claims，却把正文中的同一无依据事实继续作为成功报告。 |
+| 5. 隔离回归与真实复验 | 按根 AGENTS.md 和测试指南选择静态/单元、PG/API、Temporal 注册/sandbox/恢复及相关前端/浏览器用例。用确定性供应商夹具覆盖上述边界后，重新核对获准模型字段、剩余额度，冻结新代码/配置/来源/治理/时限，再经正常产品入口各执行一次 M1/M3。 | M3 必须先有成功且有证据的 Research，再命中唯一 HTML 候选破坏，父侧复用同一 Markdown 修正；不得以研究失败时的安全阻塞代替 M3 通过。只有同配置两个 pilot 均通过才继续其余 11 个样本，最后做独立事实质量复核；失败保留，只有具体修复后才另建批次，不反复重跑同配置碰成功。 |
 
-## 4. 能力定义与发现
+重点回归包括：授权升级不抹除旧用量；预算拒绝无发送且发送未知不误释放；原响应提交后 Activity 重入不二次付费；缺引用、错引用、错误 JSON 和证据真实不足都不伪报成功；Research 不足观察与父 Operation/transcript 可靠配对；单次合成预算耗尽不覆盖最初的校验原因。模型/来源夹具通过仅证明修复边界，不计真实 pilot。
 
-新增逻辑 Capability Registry，与顶层 StrategyRegistry 分离；首期服务端静态注册，不允许运行中由模型注册实现。
+当前剩余验收要求仍为上节完整 13 样本与独立事实质量复核。已经观测到通过结构／保存／交互检查的 HTML 仍会引入与来源冲突的限定或遗漏预登记事实；当前通用 HTML 能力没有语义事实保持验证器，S7-1 退出条件尚未满足。不得把局部运行通过或历史失败的离线重放记为完整验收通过。追加额度不是要求花完的额度，也不授权外部发布、QQ/邮件、其他模型或现有部署变更。
 
-每个 definition 至少包含：
+### 当前实施结果与后续修复门槛
 
-| 字段 | 语义 |
+以下为 2026-10-22 当前工作区的实施与验收摘要，供远端分析修复方案；本次只提交方案与摘要，相关实现、迁移及测试代码仍在工作区，尚未随本文提交。下表表示已实现的边界，不表示 S7-1 已验收通过。
+
+| 修复边界 | 当前实现与验证重点 |
 | --- | --- |
-| key / contract_version / implementation_version | 能力身份、输入输出契约与实现版本 |
-| description / input_schema / output_schema | 模型可理解的能力、严格结构化输入和结果 |
-| executor_kind | atomic / fixed_workflow / specialist_agent |
-| execution_mode | inline / isolated_execution |
-| allowed_surfaces / required_services | Chat / Work 可用性与运行依赖 |
-| resource_operations / side_effect_policy | 允许申请的资源动作及副作用分类 |
-| limits / retry_policy / cancellation_policy | 时间、调用、并发、重试及取消策略 |
-| verifier_keys | 可以产生哪些检查证据，不能由模型任意声称 |
+| 授权与发送 | `scripts/acceptance/s7/core.py`、`s7_1.py` 实现累计授权 CAS 升级、未知请求逐笔决议及停止批次不可恢复发送；`src/resources/model_client.py`、`resource_pool.py` 在业务 dispatch 与 HTTP 前检查完整请求的保守预留，拒绝时释放业务预留。已发送未知请求继续保留全额占额。 |
+| 证据提取与持久化 | `src/research_domain/excerpts.py`、Research runtime 使用有界、多片段、稳定身份与 Unicode 原文偏移；新增迁移 `071_research_evidence_spans.sql` 解除每来源仅一条证据的旧唯一约束，保留原迁移链与组合外键。网页提取保留正文定义项，概念覆盖仍只是启发式。 |
+| 合成与恢复 | `src/research_adapters/synthesis.py` 及 Research runtime 区分格式、引用和覆盖错误；先保存原供应商响应再校验，重入不重复付费；报告正文由已登记且有引用的 claims 渲染。当前最多 16 claims，单次合成输出上限 4,096 tokens；引用合法不证明事实蕴含。 |
+| 委托、工具与保存 | Main 接受委托后交由 Work 推进；子能力显式接收任务指令和版本引用。规范化可空字段并保留有意义的冲突，完整公开工具属性；模型 HTML 调用缺指令在发送前拒绝。保存区分新入口与 CAS 更新，返回权威 Operation/ResultRef；最终 JSON 围栏解析仍须通过持久化事实校验。 |
+| HTML 与验收器 | HTML 完整文档及唯一围栏规范化、CSP 位于 head；测试专用组合统一实际治理配置。修复 CONNECT 代理隐含 120 秒超时、停止后继续取样及复用账户目录冲突。`html.basic` 只证明结构和策略，不能证明语义事实正确。 |
 
-发现先按身份、当前授权、依赖和执行模式筛选，再做语义检索。执行时再次验证，发现成功不是授权凭证。对模型优先暴露有类型的能力函数，不要求它填写执行角色、fence 或预算主体。
+验证结果按实际执行层次区分：静态检查通过，Mypy 覆盖 85 个源文件；最新单元选择集 704 通过、3 项因缺少 nsjail 跳过、471 项未选。脚本测试 49 通过。相关隔离 PG 回归覆盖多片段持久化、保存及工具契约，最新补充选择集 7 通过；对应 Temporal 补充用例 1 通过，此前另有 Research、API、恢复与前端选择集通过。这些不是最终代码上的全量 PG/API/Temporal 联合验收，不把历史选择集叠加成全量通过。文档链接检查 32 页、0 错误。
 
-已有 Atomic Tool 使用轻量适配，不为每次读取额外创建 Execution 或描述记录。Research / HTML 等复杂调用通过统一持久调用边界执行；注册不等于绕过权限。
+最新冻结批次 `s7-5e6c0ebd0fff` 使用获准的 SiliconFlow `deepseek-ai/DeepSeek-V4-Flash`，关闭 thinking/stream。单请求输出上限 8,192（合成 4,096），请求时限 240 秒、代理 270 秒；外层单请求保守上界 131,072 tokens，场景 320,000，Run 160,000，Work 240,000，普通 Account/day 800,000；累计请求上限 640、每样本 24 次。M7 的账户额度另冻结为 1 token。冻结来源为 Python 官方 asyncio task、sync、queue 三页，仍按预登记事实核对，不删减失败判据。
 
-首期复杂能力只允许 root 发起，默认串行；允许同一能力多次调用。现有只读调查分支保留边界，不顺带扩成任意递归。专业 Agent 可以使用获准原子工具，本轮不允许再递归创建复杂能力 Execution。后续扩大并行或深度需有真实场景和单独容量验证。
+该批只执行两个 pilot：M1-1 运行及交互检查通过，12 次请求、91,880 tokens；M3-1 未通过，13 次请求、106,171 tokens。其余 11 个样本未执行。M1 保存、类型化结果、真实 sandbox iframe 筛选和离开页面后继续推进均有证据，但独立事实复核发现：
 
-## 5. 调用事实、状态与持久恢复
+- HTML 将 Event 写为“无特殊限制”，与已获取的官方同步原语不具备线程安全、不得用于 OS 线程同步的限定冲突。证据来自 `https://docs.python.org/3/library/asyncio-sync.html`，规范化正文区间 `[0, 1200)`。
+- 预登记的 Lock 获取公平性未出现在成果中；来源已可用，不能在见到结果后删除该判据。
 
-### 5.1 推荐数据关系
+被复核 HTML 的 SHA-256 为 `2af81b2a214d4cfd01c102fd549e8194ceacc24b80be336bd23de633046ba9b8`。因此 M1 的运行通过不等于质量通过，M3 也不能作为合格故障样本，完整 13 样本退出条件未满足。发现质量失败后已停止新付费请求，保留失败结果并清理专用资源；现有部署未变更。原摘要、独立复核和受限权威证据位于仓库外 `/home/hp/.local/state/hpagent/s7-repair-pilot-o-20261022/`，不提交模型输入正文、日志、截图或 trace。
 
-以下是逻辑契约，不预先指定迁移编号；实施 S1 时确定准确 SQL 和兼容字段。
+跨批原账本最终记录：已知用量 2,779,024 tokens（含准备调用 11），三笔人工放弃但永久保留的占额分别为 15,664、21,178、20,112，合计 56,954；总扣占 **2,835,978 / 4,800,000 tokens**，共 377 次请求，剩余额度 1,964,022。无在途请求，无尚待显式决议的未知请求；三笔放弃请求的实际用量仍未知，未解除占额，也不得重发原请求。
 
-- 调用方 `execution_operations.operation_id` 同时作为 invocation ID。模型只能提出业务参数，身份由可信执行代码产生。
-- 为复杂调用增加一对一不可变描述，建议名 `capability_invocations`：caller Operation、account/run/execution、capability 和版本、规范化输入/摘要、资源范围、限制、父 requirement revision/control epoch、初始子 Execution 关联。
-- 子执行使用新的明确角色（建议 `capability`），不能冒用当前只读 `subagent`。创建时验证 parent、同 account/run 和调用描述。
-- 子阶段各有 Operation，绑定子 Execution；子最终结果是已提交的生产 Operation 结果，并记录在子 Execution 的 result_ref。
-- 调用描述不再存可独立更新的 succeeded/failed。父调用生命周期看 caller Operation；子执行生命周期看子 Execution；专业产物看其领域记录。
-- 查询投影可显示 accepted / executing / waiting_approval / result_ready / observed / failed / cancelling / cancelled / uncertain，但必须说明来源，不能反向写入这些派生状态。
+下一步先解决通用 HTML 从研究结果转换时的事实保持与限定完整性：明确 claim/来源到 HTML 内容的可核验对应、遗漏与新增断言的处理，以及父侧收到失败后的有界修正路径，再补离线反例和隔离回归。不能硬编码本次 Python 答案、用关键词覆盖冒充语义正确，或仅靠提示词与 `html.basic` 宣称解决。方案及具体实现可复核后，才能重新冻结新批次，先过同配置 M1/M3 和独立事实复核，再执行其余 11 样本；不得直接重跑现配置碰成功。现有额度授权继续累计，不要求花完。
 
-避免两个容易混淆的事实：子执行成功表示局部结果已提交；父 Operation 完成表示该结果已作为父观察可靠交付。二者不同，不是两份竞争的成功状态。
+### 新窗口执行请求
 
-### 5.2 提交与执行流程
+以下请求用于用户在新窗口明确进入执行阶段；不是本轮自动执行指令，也不授权任何现有部署变更：
 
-1. 父模型决策已持久化，固定 tool call 与 arguments ref。
-2. 短事务验证当前权限、版本、父执行、预算可用性和调用限制，登记 caller Operation、不可变输入及子 Execution。相同身份不同输入拒绝。
-3. 父 Workflow 根据登记结果启动稳定 ID 的 Child Workflow。Activity 结果丢失时先读取同一登记事实；不要换 ID。
-4. 父不持有 segment lease、Workspace 锁或物理 model/tool/fetch 容量等待子 Workflow。Run 协调资格与有限时长仍有效，等待不无限延长 Run。
-5. 子能力通过自己的 segment/attempt/fence 执行，并提交产物、检查及局部结果；不能完成父 Run。
-6. 父获得新的 segment，按当前权限、revision、control epoch 读取子结果；在一个事务里完成 caller Operation 并追加配对的 tool_result。
-7. Harness 基于 observation 决定继续、修正、等待或交付；只有领域边界能接受 Work 完成。
+> 请阅读 AGENTS.md、docs/design/composable-capabilities.md 的 S7-1 全部内容，按“待实施修复与复验顺序”修复并复验 S7-1，保留当前工作区已有改动和失败证据。用户最终确认跨批累计总上限为 4,800,000 tokens；运行前必须重读原账本核实全部实际用量和未知占额。先实现并离线验证显式幂等授权升级，保留原账本全部历史，不删除账本、不把 prior_tokens 改为总实耗、不重置批次或账户用量；不得只改 manifest 自动提额。随后修复请求额度及发送边界、研究多片段证据覆盖、合成校验/响应持久化与不足反馈，完成相关离线和隔离回归。只读精确核对 /home/hp/deploy/hpagent-beta/.env 中 SILICONFLOW_FLAGSHIP_MODEL、SILICONFLOW_BASE_URL、SILICONFLOW_API_KEY，所有核心文本及必要文本辅助调用仍使用 deepseek-ai/DeepSeek-V4-Flash，不静默换模型。重新冻结代码、来源、网络、实际治理和有限预算/请求次数/时限后，执行 M1/M3 pilot，均通过且配置不变才继续其余 11 样本及人工质量复核。允许新建和清理专用测试资源及文档列出的隔离故障测试；公开技术资料可自动选择并冻结。不得用来源/模型夹具代替真实验收，不借用现有业务服务、不清旧库、不变更或重启现有部署、不做 QQ/邮件真实外发、不修改已应用迁移。保留 fail/not_covered/environment_error/uncertain；确定性校验失败不得盲目重发付费请求，不重跑同配置碰成功。完成后说明修复、实际执行/未执行结果、跨批累计用量和未满足的退出条件；仅维护现有文档，不新增阶段报告或交接文件，不提交运行日志/截图/trace。
 
-若 parent 已失效，保留原生产事实，不交付到新的 transcript 或推进新需求。后续 Run 只能通过显式结果采用复用。
+## 完整退出条件
 
-### 5.3 故障与恢复矩阵
-
-| 窗口 | 行为 |
-| --- | --- |
-| 登记提交、Activity 响应丢失 | 重读同一调用、子 Execution，不再次登记 |
-| Child 启动响应丢失 | 同一稳定 Workflow 身份恢复，输入摘要必须一致 |
-| 子阶段完成、后阶段失败 | 复用已确认阶段；结果是否可重用由能力契约决定 |
-| 子结果提交、父观察未提交 | 只补父观察，不重做子能力 |
-| 父观察提交、Workflow 响应丢失 | transcript/Operation 去重，继续后续决策 |
-| 权限撤销、需求修订、暂停或停止 | 阻止新副作用；取消子执行；迟到结果仅归原生产者 |
-| 外部动作已发出、结果未知 | uncertain，先 reconciliation 或显式决议，不自动重发 |
-| 旧 attempt 迟到 | 原 attempt receipt 保留；不得覆盖新结果或借新 fence 提交 |
-
-基建重试是同一调用；模型看到失败后提出重新执行是新调用。新调用不能借此逃避 Work 预算或重复外部动作的 effect 对账。按输入做缓存是独立优化，首期不做通用缓存。
-
-审批等待复用持久 wait 和权威 probe，Signal 只唤醒。批准固定具体参数、目标及有效期，恢复时重查当前权限；不能把过期批准套用到新 revision 或变更参数。
-
-对于长时间人工等待：Run 可在有限期限内持久等待；期限耗尽后保留业务待办并结束 Run，新的 Run 重新验证，不无限续命。复杂调用的取消必须等到子执行或未知副作用得到可确认处理，不能仅依据 Temporal cancel 请求报告已停止。
-
-## 6. 权限、写入、预算和容量
-
-有效授权 = 账户资格 ∩ Conversation/Work 当前授权 ∩ 父执行范围 ∩ 能力声明 ∩ 本次调用限制。
-
-- Invocation 固定的是输入与权限上限，不是永久授权；读、模型发送前的资源使用、发布和保存均检查当前有效性。
-- 子 Execution 可在自己的 scratch 中处理获准输入、产生不可变输出；不自动获得父执行所有工具或全部文件。
-- 创建候选产物不等于长期保存。长期 entry 创建、版本覆盖、删除、通知、外部发布分别验证授权和 CAS。
-- 默认子能力不直接修改长期 Workspace 或发送通知。父侧可信提交服务完成保存/采用；在父失效后不自动提交。
-- 同 Run 新生成的结果通过明确的 invocation 结果关系向父授予受控读取，不扩大冻结的外部候选集合。兄弟能力只接收父显式传入的结果子集。
-- ResultRef 不是 bearer token；读取必须解析归属和当前授权。来源文本、工具输出是数据，不得提升为系统指令或批准。
-- 旧成果派生内容不自动全量写入 Memory。本轮避免把受限文件正文无边界保留；已有长期记忆的撤权政策不得宣称已解决。
-- 默认不新增 Host Bash、网络或部署权限；保密性包括凭据隔离、群聊摘要披露和模型输入最小化。
-
-费用保持 Account/day + Work（若有）+ Run 原子预留与结算，真实消费记一次，按 producing Execution / Operation 归属。调用级统计是投影；调用限制可作为额外上限，但不建立另一份费用账本，不父子重复计费。
-
-能力 admission 的“预算尚有余量”不能替代每次模型/工具真实调用的原子预留。为最终观察和收尾保留可配置余量；余量不足时返回持久结构化结果，不依赖额外模型调用才能正确停止。
-
-容量分开校验协调 Run、子 Execution 数量、模型/工具/抓取执行票据。复杂能力等待时父不占物理执行票据；子执行预算和容量不足要有界等待或返回阻塞，避免父占资源导致子永远无法启动。
-
-## 7. ResultRef、验证与成果采用
-
-建议统一逻辑结果外壳，专业 payload 保持有类型：
-
-```text
-CapabilityResult v1
-  outcome: succeeded | insufficient | failed | cancelled | uncertain
-  summary: bounded text
-  outputs: typed immutable refs
-  checks: verifier + version + subject_ref + verdict + evidence_ref
-  gaps: bounded structured items
-  error: code + safe_message + retry_class (optional)
-  provenance: producing invocation / execution / operation
-```
-
-上述 outcome 是专业调用的语义结果，不能与 Execution/Run 状态直接等同。已正常完成的检查可以返回“不通过”；基础设施失败只有在安全、可验证地转换为观察时才返回父 Agent。授权失效、父取消和 uncertain 必须走相应控制路径。
-
-ResultRef 至少包括 type、对象 ID、准确版本或不可变文件 ID、生产者关联；需要时有内容摘要/hash。支持 Markdown、Artifact Version、文件和检查证据，不强制所有结果成为 HTML Artifact，不新增第三份文件正文。
-
-引用必须建立持久引用/保留关系，使 GC 能识别未交付调用、被采用结果和活动执行；仅有 JSON 中的字符串不够。摘要和正文走同一授权原则；长内容按引用读取，不全部塞入 Temporal History 或模型 transcript。
-
-验收采用服务端注册的有类型谓词：
-
-- `output_exists`：指定成果版本确实提交。
-- `check_passed`：指定 verifier 对相同成果版本检查通过。
-- `workspace_saved`：指定保存目标与版本操作确实提交。
-- `user_accepted` / `delivery_accepted`：各自独立的可信回执。
-
-具体字段在 S1 固定。模型可以提出 criterion 与证据对应关系，但不能定义任意可执行谓词、伪造检查结果或用无关成功工具回执满足质量条件。检查覆盖范围、失败与未检查必须可查询。
-
-跨 Run 默认固定版本：用户选定成果 → admission/显式采用记录固定版本 → 当前授权检查 → 作为输入。执行中不追随“最新”。旧 producing Run/Execution 不改写，采用记录绑定当前 Work revision；停止/失败 Run 的有效部分成果也可以在检查后显式采用。
-
-### 7.1 Research
-
-Research 业务实例由 invocation 标识，stage、plan、report、source/evidence 和历史比较不能再依赖“每 Run 仅一个研究”。Run 仍用于归属、预算和查询关联。
-
-局部成功契约：
-
-1. Markdown 已作为不可变输出提交。
-2. 来源和结构化 claim/evidence 已关联该研究实例。
-3. 必需基础检查通过：非空/结构、引用身份与定位一致、无声明必需但缺失的输出；检查版本和范围可追溯。
-4. 引用无效或必需检查不通过返回 insufficient，保留草稿与 gaps，允许父调整；来源较弱等非必需项可警告，不冒称事实全部验证。
-
-确定性的报告阅读视图可以保留，但不决定 Research 成功。交互 HTML 是单独调用。Workspace 必需保存是父目标交付条件，不由 Research 完成整个 Work。
-
-### 7.2 HTML
-
-已实现契约见[HTML 与父侧成果采用](../architecture/capabilities.md#html-与父侧成果采用)。后续产品入口须保持准确 ResultRef/旧版本输入、父侧保存和 typed evidence 边界；当前基础检查不包含真实浏览器交互，不得描述为发现并修复了浏览器功能错误。
-
-## 8. Chat、后台委托与干预
-
-Main 仍使用现有共享 Harness。接受长期委托后快速返回已提交 Work 身份；Work Run 不占聊天槽、不创建伪造 Message。
-
-使用既有 Work-Conversation 关联和接受命令的 source_message 作为来源锚点，必要时补充精确关联投影。前端在来源消息旁展示可更新的任务引用卡片，从权威 Work 查询状态；不不断改写已完成 assistant 文本。任务详情可定位来源消息；来源不可用时返回可用会话或任务本身，不伪造消息。
-
-普通 Chat 执行也不因离页取消。任务中心可投影仍在运行的 chat Run，但不将它伪装成 Work：chat Run 提供查看/取消，持续委托才有 Work 暂停/继续。交互式 Chat 使用较短执行限制；预计需要持续后台执行时，Main 先接受 Work。
-
-运行中转后台采用明确的委托边界：提交可用中间成果和 Work 输入引用，完成 Chat 返回；不让两个 root 同时执行同一副作用。不做任意时刻搬移完整 transcript/lease 的通用“Run 升级”。
-
-消息处理：
-
-| 用户意图 | 行为 |
-| --- | --- |
-| 普通问答 | 新 chat Run，不改变 Work |
-| 查询进度 | 只读 Work 查询 |
-| 改变目标/约束 | revise：新 requirement revision，取消旧协调执行，重新准入 |
-| 增加执行所需资料 | 显式输入/授权命令；当前冻结输入不静默扩张，下一 Run 使用 |
-| 暂停 | 收敛当前子执行并保留进展，随后 paused |
-| 继续 | 新 Run 从 checkpoint 与合法结果引用继续，不恢复旧 fence |
-| 停止 | 收敛取消和未知副作用后 stopped，禁止自动再调度 |
-| 对已完成成果提出新修改 | 默认新关联 Work/Chat 调用，输入固定旧成果版本；不永久重开所有完成 Work |
-
-指代不明确才澄清。明确低风险委托可直接接受；可信业务规则限制动作范围。首期不新增通用 Proposal 系统；必要确认复用具体审批/命令机制。Main 的 prompt 不能代替授权。
-
-## 9. 停止条件、持续服务与通知
-
-现行 revision 保护、预算恢复、daily 固定基线、通知筛选与去重契约见 [Work](../architecture/work.md#有界推进与静默通知)。S7 继续验证真实组合、恢复和渠道行为；不由设计文本替代运行证据。
-
-## 10. 实施单元与依赖门禁
-
-以下是按新窗口顺序实施的工作范围，不是已经执行的阶段报告。每个单元先核对最新代码和前置契约；完成后原位更新当前架构/参考文档，不另建历史交接报告。不能把“测试未配置”当通过。
-
-依赖顺序：S1 → S2 → S3 → S4 → S5 → S6 → S7。先完成并验证基础契约，再公开依赖它的入口。用户可以逐一交予新窗口，不应同时实施互相依赖的单元。
-
-### S1 — 固定契约与持久事实
-
-本单元的已实现接口见[能力基础契约](../architecture/capabilities.md#可组合能力基础契约)，数据库新增迁移 060，旧迁移链保留。后续实现统一使用 CapabilityFacts 与版本 1 值对象；不得自行发明 invocation / ResultRef 字段。Harness 接入见 S2，生产 Research 绑定见 S3；通用 typed predicate 求值与 UI 接入仍属于后续单元。
-
-门禁仍要求静态/单元与隔离 PG 验证：同身份去重/冲突，跨 account/run/parent 拒绝，caller/producer 分离，结果引用阻止 GC，旧 attempt 不推进状态。不能因接口已存在就推断这些验证通过。
-
-### S2 — 通用持久调用与 Harness 接入
-
-已实现边界见[通用持久调用与 Harness](../architecture/capabilities.md#通用持久调用与-harness)。后续专业能力统一使用 CapabilityBinding、CapabilityExecutionInput、独立 segment、`invocation_context` 与 `commit_result`；不复制父登记/观察事务或增加另一份费用账本。生产 registry 已注册 Research，确定性能力只用于隔离测试。专业能力内部的短阶段、取消清理、持久审批和实际资源使用仍由可信实现负责；注册不赋予长期写入或外发权限。
-
-### S3 — Research 成为局部能力
-
-已实现边界见[Research 能力](../architecture/capabilities.md#research)、[阶段 lease 与恢复](../architecture/execution.md#research-阶段-lease-与恢复)、[输出与保留](../architecture/workspace.md#输出版本与保留)，新增迁移 062–064。后续统一使用 `research` v1、ResearchCapabilityWorkflow、invocation 定位与 Markdown ResultRef；固定 `research_report` 入口仅承担父层准入、可选展示、保存和验收，不复制研究流程。HTML 生成、通用 typed predicate、跨 Run 成果采用与产品入口仍属后续单元。验证门禁仍包括同 Run 两次研究、独立报告读取、无效引用不足、阅读视图失败、必需保存失败、历史版本/撤权及发布后 SIGKILL 恢复；不能仅据接口存在推断验证通过。
-
-### S4 — HTML 与通用成果采用
-
-本单元接口归入[HTML 与父侧成果采用](../architecture/capabilities.md#html-与父侧成果采用)与[输出版本及保留](../architecture/workspace.md#输出版本与保留)，新增迁移 065–068。后续统一使用 `html` v1、HtmlCapabilityWorkflow、ResultAdoptionService 与 AcceptancePredicate v1；Artifact API 为有限 Chat Run 薄适配，不再强制新 Work。Generic evidence 不接受任意成功工具回执。S5 接入自然语言/既有 UI 时复用上述接口，不另建生成、保存、预算或验收内核。门禁仍包括报告引用到 HTML、局部失败、多版本、跨 Run/撤权、GC、父保存与检查、Chat 无专属 Work；实现存在不代表所有环境验收已通过。
-
-### S5 — Main、后台任务与既有 UI 接入
-
-已实现接口见[Work](../architecture/work.md)、[Web 契约](../architecture/web-ui.md)与[API](../reference/api.md)：Main 复用 Work 命令，准确来源投影与消息卡片复用账户 Work 快照，Chat/Work 按调用实例展示成果，专业快捷入口沿用 S3/S4 能力。当前字段足以表达来源，不新增迁移或另一套执行/保存内核。
-
-验证门禁仍包括离页继续、重连恢复、任务跳消息、聊天与后台槽独立、显式修订、暂停/继续/停止及账户/群聊隔离。隔离 Fake API 与脚本决策不能证明真实模型自然语言自主选择；真实 Provider/QQ 链路仍按 S7 单独授权验收。自动定位消息最多向前加载 20 页，超出或不可用时可手动读取历史或保留任务入口。
-
-### S6 — 有界持续推进与静默通知
-
-已实现接口归入 [Work](../architecture/work.md#有界推进与静默通知)、[API](../reference/api.md)与[Web 契约](../architecture/web-ui.md)，新增迁移 069–070。后续复用 progress policy v1、复杂调用样本、准确 daily_baseline_run_id 与现有通知/投递链；不另建预算或触发平台。
-
-门禁仍需验证跨 Run/同 Run 保护、无变化静默、失败不推进基线、重放不重复通知、ongoing 不因单次成功终结、预算恢复及暂停/停止。静态/夹具测试不能代替真实模型自主性或真实渠道证据。
-
-### S7 — 全链验收与冗余路径收敛
-
-范围：验证组合、反馈、恢复、权限、产品控制，删除已被替代且无独立价值的生成/完成路径；更新当前文档，处理本提案已落实部分。
-
-展示主场景：授权资料 → Research Markdown → HTML → 用户明确修改 → 新版本保存；中途离页可找回、HTML 故障不重跑研究、重启不重复副作用。真实浏览器检查能力未接入时，只展示真实具备的检查。
-
-动态组合验证：测试模型或脚本决策用于确定性故障覆盖；另以获准真实模型验证模型会依据结果选择下一能力、响应不足结果改变行动。固定脚本通过不能证明真实模型自主性。
-
-完整退出标准：
-
-- 所有已公开入口走同一能力执行/预算/结果契约，无重复“新旧核心实现”。
-- 静态、单元、PG、API、Temporal 注册/sandbox/恢复、前端和浏览器各有明确结果。
-- 未进行的真实 Provider/QQ/外部链路单独标明，不写为通过。
+- 所有已公开入口走同一能力执行、预算和结果契约，无重复核心实现。
+- 静态、单元、PG、API、Temporal 注册/sandbox/恢复、前端与浏览器各有明确运行结果；缺依赖和跳过项明确报告。
+- 未进行的真实 Provider、QQ、外部链路单列，不写成通过；真实模型自主组合有独立证据。
 - 所有者/授权主体、结果引用与 GC、暂停停止、预算和 uncertain 无开放阻断问题。
-- 新增一个无特殊副作用的测试能力无需修改核心 Agent 循环；这验证扩展边界而非宣称所有未来能力零成本。
+- 新增无特殊副作用的测试能力只需定义、绑定和实现，不需修改核心 Agent 循环；不外推为未来能力零成本。
 
-## 11. 新窗口实施约定
+静态与脚本决策不能代替真实模型证据。离页/重连的 Fake API 浏览器测试不证明持续执行；实际推进与新 fence 恢复应由独立 Temporal 测试证明。任何发现的阻断问题先修复，再重跑相关门禁，不能仅收缩文档宣告退出。
 
-用户可复制以下请求，并替换实施单元：
+## 后续范围与环境边界
 
-> 请阅读 AGENTS.md、docs/design/composable-capabilities.md 和其中相关源码，实施 S1（或指定单元）。先核对前置单元实际已完成且契约一致；只实施本单元及必需的契约/文档/测试改动，不重做前端、不扩展为应用托管平台。保持现有授权、fencing、预算、结果来源和副作用边界。缺测试依赖明确报告，禁止借用现有业务服务。完成后说明改动、验证结果、尚未满足的退出条件和下一单元是否具备前提；不要生成阶段报告文件，不清库、不部署、不进行未授权真实外发。
+任意 Agent 递归、跨 Work DAG、动态插件、任意事件自动化、应用认证/数据库供应/长期托管均不属于本轮；扩大并行或深度需单独设计和容量验证。Document Router 的持久等待改造也不由 S7 顺带扩展。
 
-这段请求用于限定实施范围，不授权跳过前置单元。新窗口以源码和测试为准；若发现本文设计与已实现契约冲突，优先定位实际约束并更新同一提案，不另建互相竞争的方案。
+测试使用显式专用 DSN、Redis、File Store、Temporal namespace 与端口，按[测试指南](../development/testing.md)运行；构建写独立目录。不得借用业务服务，不清空现有数据、不部署、不修改已应用迁移；保留完整迁移链、checksum 和回放 fixture。没有 schema 变化时不为验收新增空迁移。
 
-## 12. 验证、环境与文档生命周期
+旧测试数据无需搬迁不意味着允许现在清库。实际环境切换须另行指定目标，先处置旧执行、核对 Worker/队列；不可无条件将旧 History 交给不兼容实现。
 
-文档变更使用 `make docs-check scripts-test`；实现时依[测试指南](../development/testing.md)选择 `make lint typecheck test-unit`、`make test-db`、`make test-api`、`make test-temporal` 和 `make ci-web`；基础设施必须显式独立，浏览器构建不得覆盖现有部署正在使用的目录。
-
-测试数据不需保留不意味着现在清库。后续切换使用指定可丢弃环境，由完整原迁移链加新增迁移建立目标 schema；不修改旧 checksum，不删除测试回放输入。无需历史数据搬迁，也无需兼容仍在运行的旧 Workflow；实际切换时须先停止/处置旧执行并核对新 Worker/队列，不能把旧 History 无条件交给不兼容实现。
-
-设计实施后，把已生效规则原位归入 architecture/reference/operations 页面，并删除或收缩本文已实现部分。这里只保留仍待决定的设计，不累计历史批次、日志、截图和验收报告。
+实现后的规则继续原位维护 architecture/reference/operations；仅在问题实际解决并有对应验证后删除本文的剩余输入。不新增阶段报告、交接记录、历史验收索引，不提交日志、截图或 trace。
