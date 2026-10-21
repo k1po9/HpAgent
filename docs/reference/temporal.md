@@ -3,11 +3,11 @@
 | Task Queue | 所有者 | 当前 Workflow / Activity |
 | --- | --- | --- |
 | `hpagent-web-lifecycle` | 主 Worker | `AgentLifecycleWorkflow`、`NormalizeDocumentWorkflow` 与 Lifecycle Activity；reminder、research_report、artifact_html 由有限 Run 入口调度。 |
-| `hpagent-web-agent` | 主 Worker | `AgentRunWorkflow`、`ReactAgentWorkflow`、`PlanAndExecuteWorkflow`、`AgentStepWorkflow`、`ToolExecutionWorkflow`、`WorkDelegationWorkflow`、`CapabilityInvocationWorkflow`、`ResearchCapabilityWorkflow` 与 Agent / delegation Activity。 |
+| `hpagent-web-agent` | 主 Worker | `AgentRunWorkflow`、`ReactAgentWorkflow`、`PlanAndExecuteWorkflow`、`AgentStepWorkflow`、`ToolExecutionWorkflow`、`WorkDelegationWorkflow`、`CapabilityInvocationWorkflow`、`ResearchCapabilityWorkflow`、`HtmlCapabilityWorkflow` 与 Agent / delegation / capability Activity。 |
 | `hpagent-task-queue` | 主 Worker | `ReflectWorkflow`、`MetricsReportWorkflow` 与对应 Activity。 |
 | `hpagent-document` | Document Worker | Heavy Document Normalization Activity，Workflow 编排仍在生命周期队列。 |
 
-主 Worker 使用一个 Temporal Client 和多个 Worker Context。Document Process 单独连接，形成有意的资源边界。Research 的固定顶层入口在统一 Lifecycle 内作父适配器，启动稳定的 ResearchCapabilityWorkflow 子执行（Agent 队列），短阶段 Activity 仍在 Lifecycle 队列；通用 Harness 调用同一子 Workflow；Artifact HTML 是注册 executor 的 Activity，没有独立 Artifact Build Workflow。
+主 Worker 使用一个 Temporal Client 和多个 Worker Context。Document Process 单独连接，形成有意的资源边界。Research 的固定顶层入口在统一 Lifecycle 内作父适配器，启动稳定的 ResearchCapabilityWorkflow 子执行（Agent 队列），短阶段 Activity 仍在 Lifecycle 队列；通用 Harness 调用同一子 Workflow。Artifact HTML 的父适配器也等待 HtmlCapabilityWorkflow 子执行，没有独立的顶层 Artifact Build Workflow。
 
 Run Workflow ID 固定为 `hpagent-web-run-{run_id}`，Generic Agent 子 Workflow 为 `hpagent-agent-run-{run_id}`。Activity Input 关联 Run / Execution / operation；安全性来自持久化 attempt / receipt、幂等、lease 与 fence，不是假设 Activity 只运行一次。
 
@@ -26,3 +26,5 @@ docker compose exec -T hpagent python -m orchestration.worker_health
 ```
 
 UI 位于 <http://127.0.0.1:8088>。主 Worker ready 要求 schema 验证、Temporal 连接、Lifecycle / Agent Worker 及 Dispatcher 已启动。API ready 不能替代 Worker 健康。恢复限制见[可靠性](../architecture/execution.md)。
+
+HTML 局部调用注册 `HtmlCapabilityWorkflow` 与 `produce_html_activity`；固定 Artifact 父适配器使用 prepare/complete 短 Activity，中间等待子 Workflow 时不保留父 segment。HTML 结果提交后的丢失响应按 invocation 恢复；HTML 完成不是父 Run 或 Work 完成。

@@ -91,9 +91,9 @@ class WorkContextProvider:
                     "For independent investigation directions, delegate_work is available once with up to three bounded briefs. "
                     "Declare required branches honestly and verify each result; missing required branches forbid completion. "
                     "Finish with a JSON result: schema_version=1; kind=deliverable_ready/progress_saved/waiting_input/waiting_due; "
-                    "evidence=[{criterion_id,type:operation_receipt,ref:exact_tool_result_ref}]; "
+                    "evidence=[{criterion_id,type:output_exists/check_passed/workspace_saved,ref:exact_evidence_id}]; "
                     "continuation={schema_version:1,kind:ready/at_time/awaiting_input/blocked,reason,due_at?}. "
-                    "Only use verified tool receipts for required criteria. Missing input or evidence saves progress; "
+                    "Use parent result evidence with an exact subject and registered verifier for required criteria. Missing input or evidence saves progress; "
                     "request completion only when all acceptance criteria are met. Do not claim user acceptance.",
                 },
                 {"role": "user", "content": text},
@@ -170,18 +170,10 @@ def generic_result(uow, run, work, content, result_ref):
     for evidence in evidence_items:
         if not isinstance(evidence, dict):
             raise ValueError("invalid Generic evidence")
-        if evidence.get("type") != "operation_receipt":
-            raise ValueError("Generic executor cannot manufacture acceptance evidence")
-        reference = evidence.get("ref")
-        receipt = uow.execute(
-            "SELECT 1 FROM execution_operations o JOIN execution_result_receipts r USING(operation_id) "
-            "WHERE o.account_id=%s AND o.run_id=%s AND o.result_ref=%s "
-            "AND o.status='completed' AND r.disposition='current' AND o.operation_type='tool' "
-            "AND o.result_payload->>'tool_success'='true'",
-            (run["account_id"], run["run_id"], reference),
-        ).fetchone()
-        if not receipt:
-            raise ValueError("Generic acceptance needs a verified tool receipt from this Run")
+        if evidence.get("type") not in {"output_exists", "check_passed", "workspace_saved"}:
+            raise ValueError("Generic completion needs typed result evidence, not arbitrary successful tools")
+        from run_domain.acceptance import validate_typed_evidence
+        validate_typed_evidence(uow, run, evidence)
     from run_domain.delegation import required_branch_gaps
     gaps = required_branch_gaps(uow, run["account_id"], run["run_id"])
     if gaps and result["kind"] == "deliverable_ready":
@@ -199,4 +191,9 @@ def generic_result(uow, run, work, content, result_ref):
             "next_steps": [],
             "evidence_refs": [result_ref],
         }
-    return result, result["kind"] == "deliverable_ready"
+    suggest_completion = result["kind"] == "deliverable_ready"
+    criteria = run["input_snapshot"].get("requirement", {}).get("acceptance_criteria", [])
+    if suggest_completion and any(c["required"] and "user_acceptance" in c["evidence_types"] for c in criteria):
+        result["continuation"] = continuation("awaiting_input", "user_acceptance_required")
+        suggest_completion = False
+    return result, suggest_completion

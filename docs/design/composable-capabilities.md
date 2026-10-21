@@ -1,6 +1,6 @@
 # 通用助手与可组合能力：目标架构提案
 
-状态：S4–S7 的待实施设计。S1 基础契约、S2 持久调用边界与 S3 局部 Research 已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)和[Workspace](../architecture/workspace.md)，以源码和测试为准；Research 已接入局部能力，HTML/成果采用与 Main/UI 尚待后续单元。本文不授权清库、部署或真实外发。
+状态：S5–S7 的待实施设计。S1 基础契约、S2 持久调用边界、S3 局部 Research 与 S4 HTML/成果采用 已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)和[Workspace](../architecture/workspace.md)，以源码和测试为准；后续 Main/UI 与持续推进入口尚待实施。本文不授权清库、部署或真实外发。
 
 设计基线：2026-10-20，本地提交 `a35b3d5`。依据用户提供的《HpAgent 通用 AI 助手平台》愿景、后续需求澄清及代码静态核查。实施前必须重新核对最新代码；S1 已固定的名称和字段以当前架构文档及源码为准，其余新入口仍是设计名称。
 
@@ -41,7 +41,7 @@ HpAgent 是面向普通用户、目标驱动的通用 AI 云助手。用户描�
 | Subagent 限于 Generic Work root、一次委派、最多三只读分支 | [delegation](../../src/agent_activities/delegation.py)、[迁移 058](../../persistence/migrations/058_optional_subagents.sql) | 不能仅放开 prompt 就复用为通用写入子能力 |
 | Research 阶段和报告以 invocation 为身份；父适配器完成 Run | [runtime](../../src/research_activities/runtime.py)、[persistence](../../src/research_domain/persistence.py) | 后续 HTML/采用复用局部结果与当前授权边界 |
 | Research 已有 Markdown，报告 HTML 是确定性展示 | [research_workflow.py](../../src/orchestration/research_workflow.py) | 不误认为需要从零实现报告输出；展示失败不能否定研究结果 |
-| HTML 请求创建 artifact_build Work | [services](../../src/web_artifacts/services.py)、[build](../../src/web_artifacts/build.py) | 生成服务应与专属 Work 生命周期拆开 |
+| HTML 请求创建有限 Chat Run，显式 Work 复用相同 HTML 能力 | [services](../../src/web_artifacts/services.py)、[build](../../src/web_artifacts/build.py) | 后续入口复用局部能力与父侧采用服务 |
 | Artifact publisher 已有生产 Operation / Execution | [publisher](../../src/web_artifacts/publisher.py) | 复用发布内核，补输入与结果契约 |
 | Operation / Receipt 支持 attempt、迟到结果与跨 Run effect 引用 | [results](../../src/run_domain/results.py) | Invocation 以 Operation 为锚点 |
 | 工具完成和 transcript 事件可以同事务提交 | [store](../../src/agent_activities/store.py) | 保留可靠父观察提交，不用 Signal 裁定完成 |
@@ -227,11 +227,7 @@ Research 业务实例由 invocation 标识，stage、plan、report、source/evid
 
 ### 7.2 HTML
 
-输入为授权的 Markdown/文本/成果版本及修改指令，可显式引用 previous Artifact Version。输出为新 Artifact Version 与检查证据。生成器、publisher 与父目标生命周期分离。
-
-首期必需检查只承诺已有能力可实现的 HTML 完整性、大小和预览约束；明确标注未进行浏览器功能验证。如要展示“发现页面交互错误并修复”，必须另有真实浏览器检查能力，否则不得如此描述。
-
-Chat 可直接调用 HTML，无需强制 artifact_build Work。较长、需要后台继续管理的目标进入 Work。现有显式 Artifact 操作也必须调用同一底层能力，不保留另一套生成/预算/完成实现。
+已实现契约见[HTML 与父侧成果采用](../architecture/capabilities.md#html-与父侧成果采用)。后续产品入口须保持准确 ResultRef/旧版本输入、父侧保存和 typed evidence 边界；当前基础检查不包含真实浏览器交互，不得描述为发现并修复了浏览器功能错误。
 
 ## 8. Chat、后台委托与干预
 
@@ -299,13 +295,7 @@ Main 仍使用现有共享 Harness。接受长期委托后快速返回已提交 
 
 ### S4 — HTML 与通用成果采用
 
-范围：HTML 从来源 Message/专属 artifact_build 身份解耦；支持授权 ResultRef、准确旧版本输入；直接 Chat 与 Work 调用；父侧保存、检查验收和跨 Run 采用。
-
-主要入口：[web_artifacts](../../src/web_artifacts/)、[Work integration](../../src/work_domain/integration.py)、[completion](../../src/work_domain/completion.py)、[Workspace](../../src/workspace/)、[Generic result](../../src/application/work_context.py)。
-
-要求：现有 Artifact API 转薄适配器，共享 generator/publisher，不再为每次 HTML 调用强制新 Work；保留版本来源与 CAS。新增 typed evidence validator，替换“任意成功 tool receipt 足够证明目标完成”的粗粒度判断。
-
-验收：报告 → HTML 通过真实结果引用连接；HTML 失败只重试局部；同 Run 多版本身份独立；新 Run 采用旧报告不重写生产者；撤权拒绝读取；GC 引用有效；Chat HTML 不创建专属 Work。
+本单元接口归入[HTML 与父侧成果采用](../architecture/capabilities.md#html-与父侧成果采用)与[输出版本及保留](../architecture/workspace.md#输出版本与保留)，新增迁移 065–068。后续统一使用 `html` v1、HtmlCapabilityWorkflow、ResultAdoptionService 与 AcceptancePredicate v1；Artifact API 为有限 Chat Run 薄适配，不再强制新 Work。Generic evidence 不接受任意成功工具回执。S5 接入自然语言/既有 UI 时复用上述接口，不另建生成、保存、预算或验收内核。门禁仍包括报告引用到 HTML、局部失败、多版本、跨 Run/撤权、GC、父保存与检查、Chat 无专属 Work；实现存在不代表所有环境验收已通过。
 
 ### S5 — Main、后台任务与既有 UI 接入
 

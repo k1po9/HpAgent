@@ -383,6 +383,18 @@ class CapabilityFacts:
         ).fetchone():
             raise ResourceDenied("result file is unavailable")
 
+    @staticmethod
+    def authorize_result_file(uow, account_id, file_id):
+        facts = CapabilityFacts(CapabilityRegistry(()))
+        refs = uow.execute("SELECT ref_id FROM capability_result_refs WHERE account_id=%s AND (file_id=%s OR artifact_version_id IN (SELECT artifact_version_id FROM artifact_versions WHERE account_id=%s AND file_id=%s))", (account_id, file_id, account_id, file_id)).fetchall()
+        for ref in refs:
+            try:
+                facts.read_ref(uow, ref["ref_id"])
+                return
+            except ResourceDenied:
+                continue
+        raise ResourceDenied("file is not an authorized result")
+
     def adopt(self, uow: UnitOfWork, ref_id: UUID) -> dict[str, Any]:
         """Fix a prior result to the current root revision; no producer rewrite or save."""
         run, root = self._context(uow)

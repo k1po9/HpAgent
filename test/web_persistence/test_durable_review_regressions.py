@@ -232,9 +232,9 @@ async def test_schedule_loop_recovers_iteration_failure_and_propagates_cancel(mo
 
 @pytest.mark.parametrize('action', ['none', 'pause', 'stop', 'revise', 'complete'])
 def test_ready_wakeup_is_deduplicated_and_obeys_latest_work(
-    db, account_id, database_url, worker_database_url, action
+    db, account_id, database_url, worker_database_url, action, tmp_path
 ):
-    criteria = (({'id': 'action', 'required': True, 'evidence_types': ['operation_receipt']},)
+    criteria = (({'id': 'action', 'required': True, 'evidence_types': ['output_exists']},)
                 if action == 'complete' else ())
     commands, work = accept(database_url, account_id, acceptance_criteria=criteria)
     run = advance(commands, account_id, work)
@@ -242,15 +242,8 @@ def test_ready_wakeup_is_deduplicated_and_obeys_latest_work(
     lifecycle.start(account_id, UUID(run['run_id']))
     result = progress()
     if action == 'complete':
-        store = AgentDataStore(worker_database_url)
-        lease = store.acquire_lease(str(account_id), run['run_id'])
-        operation = lease.execution_id + ':verified'
-        with fence_scope(str(account_id), run['run_id'], lease.fencing_token, lease.execution_id):
-            store.begin_tool_operation(operation, run['run_id'])
-            store.complete_operation(operation, 'operation:' + operation,
-                                     {'tool_success': True, 'side_effect_class': 'read_only'})
-        result['evidence'] = [{'criterion_id': 'action', 'type': 'operation_receipt',
-                               'ref': 'operation:' + operation}]
+        from support.html_results import evidence
+        result['evidence'] = [asyncio.run(evidence(worker_database_url, account_id, run['run_id'], tmp_path / 'files', 'action'))]
     lifecycle.finish(account_id, UUID(run['run_id']), 'succeeded', result=result,
                      accept_result=action == 'complete')
     lifecycle.finish(account_id, UUID(run['run_id']), 'succeeded', result=result)

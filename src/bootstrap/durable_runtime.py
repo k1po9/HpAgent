@@ -192,12 +192,16 @@ def compose_durable_runtime(
             infrastructure.resource_pool,
             max_bytes=int(os.getenv("ARTIFACT_HTML_MAX_BYTES", str(1024 * 1024))),
             read_timeout_seconds=float(os.getenv("ARTIFACT_MODEL_READ_TIMEOUT_SECONDS", "90")),
-        ),
+        ), publisher=infrastructure.file_output_publisher,
     )
     artifact_activities = ArtifactActivities(artifact_build)
     from research_activities.composition import compose_research
 
-    capability_activities, research_parent = compose_research(research_activities, durable_activities.store)
+    capability_activities, research_parent = compose_research(research_activities, durable_activities.store, html_available=infrastructure.file_output_publisher is not None)
+    from web_artifacts.local import HtmlActivities
+    artifact_build.capabilities = capability_activities
+    artifact_build.publisher = infrastructure.file_output_publisher
+    html_activities = HtmlActivities(capability_activities, artifact_build.generator, infrastructure.file_output_publisher)
     durable_activities.capabilities = capability_activities
     segment_activities = SegmentActivities(durable_activities.store)
     from agent_activities.delegation import DelegationActivities
@@ -215,7 +219,8 @@ def compose_durable_runtime(
             lifecycle_activities.finalize_failed,
             lifecycle_activities.finalize_cancelled,
             durable_activities.finalize_agent_result,
-            artifact_activities.execute,
+            artifact_activities.prepare,
+            artifact_activities.complete,
             research_parent.prepare_research_parent_activity,
             research_activities.prepare_research_activity,
             research_activities.commit_research_result_activity,
@@ -236,6 +241,7 @@ def compose_durable_runtime(
             research_parent.fail_research_activity,
         ],
         agent_activities=[
+            html_activities.produce,
             capability_activities.prepare,
             capability_activities.observe,
             capability_activities.close,

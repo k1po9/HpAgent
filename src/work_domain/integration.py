@@ -48,6 +48,10 @@ def projections(uow, account, work):
 def validate_evidence(uow, work, run, evidence):
     for item in evidence:
         kind, ref = item["type"], item["ref"]
+        if kind in {"output_exists", "check_passed", "workspace_saved"}:
+            from run_domain.acceptance import validate_typed_evidence
+            validate_typed_evidence(uow, run, item)
+            continue
         if kind in {"artifact_version", "research_report"}:
             valid = uow.execute(
                 "SELECT 1 FROM artifact_versions WHERE account_id=%s AND artifact_version_id=%s "
@@ -121,6 +125,11 @@ def validate_evidence(uow, work, run, evidence):
 
 def adopt_artifacts(uow, work, evidence, event_id):
     for item in evidence:
+        if item["type"] in {"output_exists", "check_passed", "workspace_saved"}:
+            ref = uow.execute("SELECT f.artifact_version_id FROM capability_acceptance_evidence e JOIN capability_result_refs f ON f.account_id=e.account_id AND f.ref_id=e.subject_ref WHERE e.account_id=%s AND e.evidence_id=%s", (work["account_id"], UUID(item["ref"]))).fetchone()
+            if not ref or not ref["artifact_version_id"]:
+                continue
+            item = {**item, "type": "artifact_version", "ref": str(ref["artifact_version_id"])}
         if item["type"] in {"artifact_version", "research_report"}:
             if item["type"] == "research_report" and uow.execute(
                 "SELECT 1 FROM research_reports WHERE markdown_file_id=%s", (UUID(item["ref"]),)
@@ -297,7 +306,12 @@ def integration_command(service, account, work_id, key, version, action, payload
                 "SELECT * FROM stored_files WHERE account_id=%s AND file_id=%s AND status='ready' FOR UPDATE",
                 (account, file_id),
             ).fetchone()
-            if not file or file["purpose"] != "input":
+            if not file:
+                raise ResourceNotFound()
+            if file["purpose"] != "input" and not uow.execute(
+                "SELECT 1 FROM capability_result_refs f LEFT JOIN artifact_versions v USING(account_id,artifact_version_id) WHERE f.account_id=%s AND COALESCE(f.file_id,v.file_id)=%s AND f.type IN ('markdown','file','artifact_version')",
+                (account, file_id),
+            ).fetchone():
                 raise ResourceNotFound()
             source = payload.get("source_message_id")
             if (
@@ -442,7 +456,13 @@ def integration_command(service, account, work_id, key, version, action, payload
                 "WHERE r.account_id=%s AND r.work_id=%s AND r.status='succeeded' AND r.requirement_revision=%s "
                 "AND r.work_control_epoch=%s AND v.artifact_version_id=%s AND v.status='completed' "
                 "AND EXISTS(SELECT 1 FROM jsonb_array_elements(r.result_json->'evidence') e WHERE e->>'ref'=v.artifact_version_id::text "
-                "AND e->>'type' IN ('artifact_version','research_report')) ORDER BY r.created_at DESC LIMIT 1",
+                "AND e->>'type' IN ('artifact_version','research_report') OR EXISTS("
+                "SELECT 1 FROM capability_acceptance_evidence ce JOIN capability_result_refs f "
+                "ON f.account_id=ce.account_id AND f.ref_id=ce.subject_ref "
+                "WHERE ce.account_id=r.account_id AND ce.run_id=r.run_id AND ce.evidence_id::text=e->>'ref' "
+                "AND ce.criterion_id=e->>'criterion_id' AND ce.predicate->>'kind'=e->>'type' "
+                "AND f.artifact_version_id=v.artifact_version_id AND capability_predicate_valid(r.account_id,r.run_id,ce.predicate))) "
+                "ORDER BY r.created_at DESC LIMIT 1",
                 (
                     account,
                     work_id,

@@ -64,8 +64,8 @@ class FakeRunExecutor:
         account_id = UUID(str(event["account_id"]))
         run_id = UUID(str(event["run_id"]))
         with UnitOfWork(self.lifecycle.database_url) as uow:
-            source = uow.execute('SELECT source_kind FROM runs WHERE run_id=%s',(run_id,)).fetchone()
-        if source and source['source_kind'] != 'chat':
+            source = uow.execute('SELECT source_kind,executor_key FROM runs WHERE run_id=%s',(run_id,)).fetchone()
+        if source and (source['source_kind'] != 'chat' or source['executor_key'] != 'chat_agent'):
             await asyncio.to_thread(self.outbox.mark_retryable_failure,event_id,self.worker_id,'other_executor','Handled by another executor',datetime.now(UTC))
             return
         if event["event_type"] == "cancel_run":
@@ -164,7 +164,17 @@ class FakeArtifactExecutor:
 
         self.database = database
         self.outbox = OutboxService(database)
-        self.build = ArtifactBuildService(database, WebArtifactGenerator(_FakeArtifactModel()))
+
+        from agent_activities.capabilities import CapabilityActivities, CapabilityBinding
+        from agent_activities.store import AgentDataStore
+        from file_runtime.output import OutputPublisher
+        from run_domain.capabilities import CapabilityFacts
+        from run_domain.capability_contracts import CapabilityRegistry
+        from storage.tenant_file_store import TenantFileStore
+        from web_artifacts.capability import html_definition, html_scope
+        publisher = OutputPublisher(database, TenantFileStore(settings.file_store_root, max_bytes=1024 * 1024))
+        capabilities = CapabilityActivities(AgentDataStore(database), CapabilityFacts(CapabilityRegistry((html_definition(),)), services=frozenset({"html"})), (CapabilityBinding("html", 1, "HtmlCapabilityWorkflow", html_scope),))
+        self.build = ArtifactBuildService(database, WebArtifactGenerator(_FakeArtifactModel()), capabilities, publisher)
         self.worker_id = "web-e2e-fake-artifact"
         self._task: asyncio.Task[None] | None = None
 
@@ -190,7 +200,8 @@ class FakeArtifactExecutor:
                     await asyncio.to_thread(self.outbox.mark_retryable_failure,event['outbox_event_id'],self.worker_id,'other_executor','Handled by another executor',datetime.now(UTC))
                     continue
                 await asyncio.to_thread(RunLifecycleService(self.database).start,run['account_id'],run['run_id'])
-                version = UUID(run['input_snapshot']['requirement']['spec']['artifact_version_id'])
+                snapshot = run['input_snapshot']
+                version = UUID(snapshot.get('artifact_version_id') or snapshot['requirement']['spec']['artifact_version_id'])
                 await self.build.execute(version,run_id=run['run_id'])
                 await asyncio.to_thread(self.outbox.mark_processed,event['outbox_event_id'],self.worker_id)
             await asyncio.sleep(0.1)

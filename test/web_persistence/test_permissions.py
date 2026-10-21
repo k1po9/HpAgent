@@ -71,6 +71,11 @@ def test_artifact_runtime_permissions_are_split_by_responsibility(
     created = service.create_artifact(account_id, message, str(uuid4()))
     artifact_id = UUID(created.body["artifact"]["artifact_id"])
     version_id = UUID(created.body["version"]["artifact_version_id"])
+    from web_domain.errors import ConversationBusy
+    with pytest.raises(ConversationBusy):
+        service.create_version(account_id, artifact_id, str(uuid4()), "next")
+    build_run = db.execute("SELECT run_id FROM runs WHERE account_id=%s AND executor_key='artifact_html' AND status='queued'", (account_id,)).fetchone()[0]
+    commands.cancel_run(account_id, build_run, str(uuid4()))
     assert service.create_version(account_id, artifact_id, str(uuid4()), "next").response_status == 202
     with psycopg.connect(database_url) as connection:
         with pytest.raises(psycopg.errors.InsufficientPrivilege) as denied:

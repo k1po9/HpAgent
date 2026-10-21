@@ -46,7 +46,8 @@ class WorkCompletionPolicy:
                 'FROM research_run_save_intents i WHERE i.account_id=%s AND i.run_id=%s '
                 'AND i.work_id=%s AND i.requirement_revision=%s AND i.required',
                 (work['account_id'], run['run_id'], work['work_id'], run['requirement_revision'])).fetchone()
-            if not row or row['state'] != 'succeeded' or not row['committed']:
+            from run_domain.acceptance import required_workspace_saved
+            if (not row or row['state'] != 'succeeded' or not row['committed']) and not required_workspace_saved(uow, run, requirement['deliverable_policy'], evidence):
                 raise ValueError('required Workspace save has not committed')
         if requirement['completion_mode'] == 'ongoing':
             event = WorkRepository.event(uow, work, 'result_accepted', run_id=run['run_id'], evidence=evidence)

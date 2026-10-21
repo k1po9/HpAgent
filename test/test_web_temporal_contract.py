@@ -15,6 +15,7 @@ from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.capability import CapabilityInvocationWorkflow
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ApprovalDecisionSignal
 from agent_workflows.delegation import WorkDelegationWorkflow
+from agent_workflows.html import HtmlCapabilityWorkflow
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
@@ -99,12 +100,15 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
         WorkDelegationWorkflow,
         CapabilityInvocationWorkflow,
         ResearchCapabilityWorkflow,
+        HtmlCapabilityWorkflow,
     ]
 
 
 def test_artifact_uses_the_registered_web_lifecycle_task_queue():
     source = __import__('inspect').getsource(AgentLifecycleWorkflow.run)
-    assert 'execute_artifact_build_activity' in source
+    assert 'prepare_artifact_build_activity' in source
+    assert 'complete_artifact_build_activity' in source
+    assert 'execute_child_workflow' in source
     assert 'task_queue=WEB_LIFECYCLE_TASK_QUEUE' in source
 
 

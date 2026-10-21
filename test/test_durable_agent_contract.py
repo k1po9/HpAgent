@@ -15,6 +15,7 @@ from agent_workflows.contracts import (
     CompactToolCall,
 )
 from agent_workflows.delegation import WorkDelegationWorkflow
+from agent_workflows.html import HtmlCapabilityWorkflow
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
@@ -99,6 +100,7 @@ def test_canonical_registry_excludes_legacy_execution(monkeypatch):
         WorkDelegationWorkflow,
         CapabilityInvocationWorkflow,
         ResearchCapabilityWorkflow,
+        HtmlCapabilityWorkflow,
     ]
 
 
@@ -111,7 +113,7 @@ async def test_registered_workflows_validate_in_temporal_sandbox():
     for workflow_type in (
         AgentLifecycleWorkflow, NormalizeDocumentWorkflow, AgentRunWorkflow,
         ReactAgentWorkflow, PlanAndExecuteWorkflow, AgentStepWorkflow,
-        ToolExecutionWorkflow, WorkDelegationWorkflow, CapabilityInvocationWorkflow, ResearchCapabilityWorkflow,
+        ToolExecutionWorkflow, WorkDelegationWorkflow, CapabilityInvocationWorkflow, ResearchCapabilityWorkflow, HtmlCapabilityWorkflow,
     ):
         runner.prepare_workflow(workflow._Definition.must_from_class(workflow_type))
 

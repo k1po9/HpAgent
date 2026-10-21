@@ -86,6 +86,6 @@ make e2e-canonical
 
 当前UI约束见[Web架构](../architecture/web-ui.md)。真实供应商、生产Worker、QQ外发、真机IME/软键盘/读屏、其他浏览器和恢复演练分别验收；单元及隔离测试不能证明这些路径通过。
 
-正式 Fake Executor 只完成 chat/artifact，不执行所有提醒/研究 Work。重复复用同一测试库会累积 queued coordinator，达到账号容量上限后 HTML 生成可能 waiting_capacity。完整确认使用新建隔离 PG/Redis/API/File Store，不延长超时或放宽业务容量掩盖该限制。独立 auth-transition 实验室的 CPU/Flip/资源释放断言不能仅凭正式 UI 套件通过宣称已等价覆盖。
+正式 Fake Executor 只完成 chat/artifact，不执行所有提醒/研究 Work。Artifact 复用局部 HTML 能力与有限 Chat Run，受同 Conversation 单 active 槽约束；排队 Work 不占此槽。完整确认使用新建隔离 PG/Redis/API/File Store，不延长超时或放宽业务容量掩盖限制。独立 auth-transition 实验室的 CPU/Flip/资源释放断言不能仅凭正式 UI 套件通过宣称已等价覆盖。
 
 执行查询回归从任务高级详情进入：窄屏关闭所属 Inspector 后、桌面所属 Inspector 仍挂载时，迟到响应均不得覆盖新前景。Model Input 回归从 Trace 节点的 snapshot_id 查询；无 Trace 不发输入查询，账号可见范围拒绝须清除已有正文，并拒绝在途正文回灌。用例见 [执行查询与前景](../../web/e2e/ui-7-self-review.spec.ts) 与 [执行详情和输入权限](../../web/e2e/ui-3-execution.spec.ts)。

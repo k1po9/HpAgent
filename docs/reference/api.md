@@ -42,7 +42,7 @@ Compose 中 FastAPI 监听 `127.0.0.1:8080`。`GET /health/live`、`GET /health/
 
 Work 创建和写命令使用 `Idempotency-Key`；已存在 Work 的写命令还要求 `If-Match: "work-{work_id}-v{row_version}"`，缺少为 428，格式/版本不匹配为 409。预算命令同时检查 budget_version。修订只发送 requirement 可编辑字段，不能直接回传包含审计字段的 GET 对象。冲突时刷新核对版本；响应不确定时对同一意图重用键。输入 Schema 见 [`models.py`](../../src/web_api/models.py) 和 [`Requirement`](../../src/work_domain/models.py)。
 
-Requirement 核心字段为 objective、capability_key、spec；另有 constraints、acceptance_criteria、completion_mode、timing、resource_requests、deliverable_policy。能力是 reminder / research_report / generic_work / artifact_build；注册 executor 决策由服务端完成。daily 要求 ongoing；once 带 offset。旧 `/api/v1/tasks` 及 Task schedule / resources 入口已退休，没有兼容双写层。
+Requirement 核心字段为 objective、capability_key、spec；另有 constraints、acceptance_criteria、completion_mode、timing、resource_requests、deliverable_policy。能力是 reminder / research_report / generic_work / artifact_build；Generic Work 的验收 evidence_types 为 output_exists / check_passed / workspace_saved，并使用服务器求值的准确成果证据；input 命令可显式选取已有不可变能力输出。注册 executor 决策由服务端完成。daily 要求 ongoing；once 带 offset。旧 `/api/v1/tasks` 及 Task schedule / resources 入口已退休，没有兼容双写层。
 
 ## Conversation、Run 与模型诊断
 
@@ -72,8 +72,10 @@ full_safe 不在查询时再作 Secret 脱敏，不应把凭据放入输入。�
 
 ## Artifact 与身份
 
-`POST/GET /api/v1/messages/{message_id}/artifacts`、`GET /api/v1/artifacts/{artifact_id}`、`GET/POST .../versions`、`GET /api/v1/artifact-versions/{artifact_version_id}` 管理消息来源成果及版本。异步构建创建 Work / Run；生产版本与采用版本分别追溯。
+`POST/GET /api/v1/messages/{message_id}/artifacts`、`GET /api/v1/artifacts/{artifact_id}`、`GET/POST .../versions`、`GET /api/v1/artifact-versions/{artifact_version_id}` 管理消息来源成果及版本。异步构建创建有限 Chat Run，不强制创建 Work；生产版本与采用版本分别追溯。
 
-HTML 手工修改以最近成功版本为 parent，不自动替换 Work 的原交付/验收证据。下载 `.html`，保存到空间为 `.html.txt` 文本源码副本，保存不自动授权。已领取版本的生产 Run failed/cancelled 时由 Worker 终态事务收敛 running 版本；取消使用 `failed` 与 `artifact_cancelled`，不新增状态。059 迁移使 API 对 artifact_versions 仅 SELECT/INSERT，Worker 保留生成发布所需权限。
+版本查询返回 `result_ref_id`、`producing_invocation_id`、`result_outcome`/`result_summary` 和 `checks`（verifier_key/version、准确 subject/evidence ref、verdict）；queued 或旧非能力版本可为空，空值不代表检查通过。
+
+HTML 手工修改以最近成功版本为 parent，不自动替换 Work 的原交付/验收证据。下载 `.html`，保存到空间为 `.html.txt` 文本源码副本，保存不自动授权。已领取版本的生产 Run failed/cancelled 时由 Worker 终态事务收敛 running 版本；取消使用 `failed` 与 `artifact_cancelled`，queued 版本也会关闭，不新增状态。API 对 artifact_versions 保持 SELECT/INSERT；067 仅开放核对终态 Run 的窄取消函数，Worker 保留生成发布所需权限。
 
 Account 入口为 `GET /api/v1/me`；QQ challenge 位于 `/api/v1/identity-bindings/qq/challenges`。账户、渠道和所有权检查不会因页面切换被绕过。操作流程见[功能指南](../operations/web-workbench.md)。

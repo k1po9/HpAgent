@@ -99,6 +99,7 @@ class CommandService:
             "bytes_returned_to_model": 2 * 1024 * 1024,
             "bytes_written": 512 * 1024 * 1024,
             "output_file_bytes": 128 * 1024 * 1024, "wall_time_ms": 600000,
+            "sources_discovered": 30, "source_fetches": 20, "research_iterations": 3,
         })
         self.final_response_reserve_tokens = final_response_reserve_tokens
 
@@ -138,7 +139,7 @@ class CommandService:
             return self._send_message_in_uow(uow, account_id, conversation_id, key, content, agent_strategy, file_ids)
 
     def _send_message_in_uow(
-        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, key: str, content: str, agent_strategy: str = "react", file_ids: tuple[UUID, ...] = ()
+        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, key: str, content: str, agent_strategy: str = "react", file_ids: tuple[UUID, ...] = (), *, fixed_html: dict[str, Any] | None = None
     ) -> CommandResult:
         if agent_strategy not in {"react", "plan_and_execute"}:
             raise ValueError("unsupported agent strategy")
@@ -146,6 +147,8 @@ class CommandService:
         payload: dict[str, Any] = {
             "conversation_id": str(conversation_id), "content": content
         }
+        if fixed_html is not None:
+            payload["fixed_html"] = fixed_html
         if agent_strategy != "react":
             payload["agent_strategy"] = agent_strategy
         if file_ids:
@@ -205,7 +208,7 @@ class CommandService:
         )
         self.runs.insert(
             uow, run_id, account_id, conversation_id, session_id, user_message_id,
-            workflow_id, allocated - 1, agent_strategy=agent_strategy
+            workflow_id, allocated - 1, agent_strategy=agent_strategy, fixed_html=fixed_html
         )
         self.messages.insert_assistant(
             uow, assistant_message_id, account_id, conversation_id, allocated, run_id
@@ -238,6 +241,8 @@ class CommandService:
     def _explicit_file_authority(self, uow: UnitOfWork, account_id: UUID,
                                  conversation_id: UUID, file: dict[str, Any]
                                  ) -> tuple[str, UUID | None, UUID | None] | None:
+        if uow.execute("SELECT 1 FROM conversation_resource_files WHERE account_id=%s AND conversation_id=%s AND file_id=%s AND available", (account_id, conversation_id, file["file_id"])).fetchone():
+            return ("explicit_attachment", None, None)
         if file["conversation_id"] == conversation_id:
             available = uow.execute(
                 "SELECT available FROM conversation_resource_files WHERE account_id=%s "
@@ -397,6 +402,7 @@ class CommandService:
                     source["trigger_message_id"], f"hpagent-web-run-{run_id}",
                     source["context_message_seq"], source_run_id,
                     str(source.get("agent_strategy") or "react"),
+                    fixed_html=source["input_snapshot"] if source["executor_key"] == "artifact_html" else None,
                 )
                 self.messages.insert_assistant(
                     uow, assistant_message_id, account_id, source["conversation_id"],

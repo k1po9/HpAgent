@@ -122,8 +122,27 @@ class AgentLifecycleWorkflow:
             )
             if strategy["strategy_kind"] == "fixed_workflow":
                 if strategy['executor_key'] == 'artifact_html':
-                    await workflow.execute_activity('execute_artifact_build_activity', request,
-                        task_queue=WEB_LIFECYCLE_TASK_QUEUE, start_to_close_timeout=timedelta(minutes=10), heartbeat_timeout=timedelta(seconds=30), retry_policy=_LIFECYCLE_RETRY)
+                    from agent_workflows.capability_contracts import (
+                        CapabilityClose,
+                        CapabilityExecutionInput,
+                    )
+                    child = await workflow.execute_activity("prepare_artifact_build_activity", {"run_id": request.run_id},
+                        result_type=CapabilityExecutionInput, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                        start_to_close_timeout=timedelta(seconds=30), retry_policy=_LIFECYCLE_RETRY)
+                    child_status = "failed"
+                    try:
+                        await workflow.execute_child_workflow(child.workflow_name, child,
+                            id=f"hpagent-capability-{child.execution_id}", task_queue=AGENT_TASK_QUEUE,
+                            cancellation_type=workflow.ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED)
+                        child_status = "succeeded"
+                    except asyncio.CancelledError:
+                        child_status = "cancelled"
+                        raise
+                    finally:
+                        await asyncio.shield(workflow.execute_activity("close_capability_activity", CapabilityClose(child, child_status),
+                            task_queue=AGENT_TASK_QUEUE, start_to_close_timeout=timedelta(seconds=30), retry_policy=_LIFECYCLE_RETRY))
+                    await workflow.execute_activity("complete_artifact_build_activity", child,
+                        task_queue=WEB_LIFECYCLE_TASK_QUEUE, start_to_close_timeout=timedelta(seconds=30), retry_policy=_LIFECYCLE_RETRY)
                     return _completed(request.run_id)
                 # The registered graph runs within this same finite Workflow identity.
                 return await ResearchReportWorkflow().run(ResearchWorkflowInput(1, request.run_id))

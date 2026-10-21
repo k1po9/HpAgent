@@ -1,6 +1,7 @@
 """Ownership-scoped repositories.  No method accepts a bare public resource ID."""
 from __future__ import annotations
 
+import json
 from collections.abc import Collection
 from datetime import datetime
 from typing import Any, cast
@@ -167,13 +168,17 @@ class RunRepository:
         session_id: UUID | None, trigger_message_id: UUID, workflow_id: str,
         context_message_seq: int, retry_of_run_id: UUID | None = None,
         agent_strategy: str = "react",
+        fixed_html: dict[str, Any] | None = None,
     ) -> None:
         uow.execute(
             "INSERT INTO runs(run_id,account_id,conversation_id,session_id,trigger_message_id,"
-            "retry_of_run_id,workflow_id,context_message_seq,agent_strategy) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            "retry_of_run_id,workflow_id,context_message_seq,agent_strategy,strategy_kind,executor_key,input_snapshot) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)",
             (run_id, account_id, conversation_id, session_id, trigger_message_id,
-             retry_of_run_id, workflow_id, context_message_seq, agent_strategy),
+             retry_of_run_id, workflow_id, context_message_seq, None if fixed_html else agent_strategy,
+             "fixed_workflow" if fixed_html else "generic_agent",
+             "artifact_html" if fixed_html else "chat_agent",
+             json.dumps(fixed_html or {"schema_version": 1})),
         )
 
     def set_cancelling(self, uow: UnitOfWork, run_id: UUID) -> None:

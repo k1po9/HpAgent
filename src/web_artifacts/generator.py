@@ -109,7 +109,7 @@ class WebArtifactGenerator:
         return self.harden(str(getattr(response, "content", "") or ""))
 
     def harden(self, value: str) -> str:
-        html = self._strip_fence(value).strip()
+        html = self._strip_fence(value).replace(_CSP + _ERROR_BRIDGE, "").strip()
         if not html or not re.search(r"<html(?:\s|>)", html, re.I) or not re.search(r"</html\s*>", html, re.I):
             raise ArtifactGenerationError("artifact_invalid_html", "模型未返回完整 HTML。")
         injection = _CSP + _ERROR_BRIDGE

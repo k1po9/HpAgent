@@ -770,7 +770,9 @@ class DurableAgentActivities:
                 heartbeat_task = asyncio.create_task(
                     self._tool_heartbeat_loop(request)
                 )
-                side_effect_class = normalize_side_effect_class(str(
+                from agent_activities.result_tools import NAMES as RESULT_TOOLS
+                parent_result_tool = self.capabilities is not None and request.tool_call.name in RESULT_TOOLS
+                side_effect_class = "idempotent_write" if parent_result_tool else normalize_side_effect_class(str(
                     self.actions.side_effect_class(self.context_bindings.resource_key(request), request.tool_call.name)
                 ))
                 if execution["role"] != "root" and side_effect_class != "read_only":
@@ -862,7 +864,7 @@ class DurableAgentActivities:
                         request.lease_token,
                     )
                     reservation = {"tool_calls": 1}
-                    if self.run_budget is not None:
+                    if self.run_budget is not None and not parent_result_tool:
                         reservation = self.actions.budget_reservation(
                             self.context_bindings.resource_key(request), request.tool_call.name
                         )
@@ -879,6 +881,8 @@ class DurableAgentActivities:
                                 type=exc.code,
                                 non_retryable=True,
                             ) from exc
+                    if self.run_budget is not None and parent_result_tool:
+                        await asyncio.to_thread(self.run_budget.reserve, request.run_id, request.operation_id, reservation)
                     tool_dispatched = False
                     try:
                         with model_budget_scope(
@@ -893,13 +897,17 @@ class DurableAgentActivities:
                                 tool_dispatched = True
                                 if side_effect_class == 'non_idempotent_write':
                                     non_idempotent_may_have_executed = True
-                                result_value = await self.actions.execute_request(
-                                    action,
-                                    resource_key=self.context_bindings.resource_key(request),
-                                    execution_id=request.execution_id,
-                                    user_query="",
-                                    idempotency_key=request.operation_id,
-                                )
+                                if parent_result_tool:
+                                    from agent_activities.result_tools import execute
+                                    result_value = await asyncio.to_thread(execute, self.store.database_url, self.capabilities.facts, action, request.operation_id)
+                                else:
+                                    result_value = await self.actions.execute_request(
+                                        action,
+                                        resource_key=self.context_bindings.resource_key(request),
+                                        execution_id=request.execution_id,
+                                        user_query="",
+                                        idempotency_key=request.operation_id,
+                                    )
                     except BaseException:
                         if self.run_budget is not None:
                             if tool_dispatched:

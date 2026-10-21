@@ -134,7 +134,7 @@ class Requirement:
                 criterion['id'] in ids or not isinstance(criterion['required'], bool) or
                 not isinstance(criterion['evidence_types'], list) or
                 not criterion['evidence_types'] or
-                set(criterion['evidence_types']) - {'research_report', 'artifact_version', 'operation_receipt', 'delivery_receipt', 'user_acceptance'}
+                set(criterion['evidence_types']) - {'research_report', 'artifact_version', 'operation_receipt', 'delivery_receipt', 'user_acceptance', 'output_exists', 'check_passed', 'workspace_saved'}
             ):
                 raise ValueError('invalid acceptance criterion')
             ids.add(criterion['id'])

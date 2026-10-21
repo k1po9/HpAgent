@@ -14,6 +14,20 @@ from persistence.repositories import IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
 
+_VERSION_SELECT = (
+    "SELECT * FROM artifact_versions LEFT JOIN LATERAL ("
+    "SELECT f.ref_id AS result_ref_id,e.invocation_id AS producing_invocation_id,"
+    "cr.payload->'checks' AS checks,cr.payload->>'outcome' AS result_outcome,"
+    "cr.payload->>'summary' AS result_summary FROM run_executions e "
+    "JOIN capability_results cr ON cr.account_id=e.account_id "
+    "AND cr.producing_execution_id=e.execution_id AND cr.invocation_id=e.invocation_id "
+    "LEFT JOIN capability_result_refs f ON f.account_id=cr.account_id "
+    "AND f.invocation_id=cr.invocation_id AND f.artifact_version_id=artifact_versions.artifact_version_id "
+    "AND f.type='artifact_version' WHERE e.account_id=artifact_versions.account_id "
+    "AND e.execution_id=artifact_versions.producing_execution_id "
+    "ORDER BY f.created_at,f.ref_id LIMIT 1) result_metadata ON true "
+)
+
 
 def _digest(value: object) -> bytes:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
@@ -123,7 +137,7 @@ class ArtifactService:
             items = []
             for row in rows:
                 latest = uow.execute(
-                    "SELECT * FROM artifact_versions WHERE account_id=%s AND artifact_id=%s "
+                    _VERSION_SELECT + "WHERE account_id=%s AND artifact_id=%s "
                     "ORDER BY version DESC LIMIT 1", (account_id, row["artifact_id"]),
                 ).fetchone()
                 items.append({"artifact": self._artifact_dto(row),
@@ -138,7 +152,7 @@ class ArtifactService:
         with UnitOfWork(self.database) as uow:
             artifact = self._artifact_row(uow, account_id, artifact_id)
             rows = uow.execute(
-                "SELECT * FROM artifact_versions WHERE account_id=%s AND artifact_id=%s "
+                _VERSION_SELECT + "WHERE account_id=%s AND artifact_id=%s "
                 "ORDER BY version", (account_id, artifact_id),
             ).fetchall()
             return {"artifact": self._artifact_dto(artifact),
@@ -153,7 +167,7 @@ class ArtifactService:
                 latest_key: str = "version") -> dict[str, Any]:
         artifact = self._artifact_row(uow, account_id, artifact_id)
         latest = uow.execute(
-            "SELECT * FROM artifact_versions WHERE account_id=%s AND artifact_id=%s "
+            _VERSION_SELECT + "WHERE account_id=%s AND artifact_id=%s "
             "ORDER BY version DESC LIMIT 1", (account_id, artifact_id),
         ).fetchone()
         return {"artifact": self._artifact_dto(artifact),
@@ -172,7 +186,7 @@ class ArtifactService:
     @staticmethod
     def _version_row(uow: UnitOfWork, account_id: UUID, version_id: UUID):
         row = uow.execute(
-            "SELECT * FROM artifact_versions WHERE account_id=%s AND artifact_version_id=%s",
+            _VERSION_SELECT + "WHERE account_id=%s AND artifact_version_id=%s",
             (account_id, version_id),
         ).fetchone()
         if not row:
@@ -203,28 +217,29 @@ class ArtifactService:
 
     @staticmethod
     def _enqueue(uow, event_id, account_id, conversation_id, artifact_id, version_id, operation, key):
-        from resources.work_budget import WorkBudgetService
-        from work_domain.models import Requirement, continuation
-        from work_domain.persistence import WorkRepository, sync_schedule
-        work_id = uuid7()
-        # A new background mandate owns this build and its cost; source is merely input.
-        command = uow.execute("SELECT idempotency_command_id FROM idempotency_commands WHERE account_id=%s AND operation=%s AND idempotency_key=%s AND status='in_progress'", (account_id,operation,key)).fetchone()
-        if command is None:
-            raise ValueError('artifact build command missing')
-        value = Requirement('Build the requested HTML artifact', 'artifact_build',
-                            {'schema_version':1,'artifact_version_id':str(version_id)},
-                            acceptance_criteria=({'id':'artifact_ready','required':True,'evidence_types':['artifact_version']},)).to_dict()
-        uow.execute("INSERT INTO works(work_id,account_id,title,continuation) VALUES (%s,%s,'HTML artifact build',%s::jsonb)",
-                    (work_id,account_id,json.dumps(continuation())))
-        WorkBudgetService.create(uow,account_id,work_id)
-        WorkRepository.insert_requirement(uow,account_id,work_id,1,value,command['idempotency_command_id'],'artifact_build_requested')
-        work = WorkRepository.get(uow,account_id,work_id)
-        if conversation_id:
-            from work_domain.commands import WorkCommandService
-            WorkCommandService._link(uow,work,conversation_id,command['idempotency_command_id'])
-        WorkRepository.event(uow,work,'accepted',command_id=command['idempotency_command_id'])
-        sync_schedule(uow,work,value)
-        WorkRepository.wakeup(uow,work,f'artifact:{version_id}','accepted','artifact_build_requested')
+        from conversation_domain.commands import CommandService
+        commands = CommandService(None)
+        if conversation_id is None:
+            # An explicit standalone Artifact action is a finite Chat command too.
+            conversation_id = uuid7()
+            commands.conversations.create(uow, conversation_id, account_id, "HTML artifact")
+        previous = uow.execute("SELECT p.file_id FROM artifact_versions v JOIN artifact_versions p ON p.account_id=v.account_id AND p.artifact_version_id=v.parent_version_id WHERE v.account_id=%s AND v.artifact_version_id=%s AND p.status='completed'", (account_id, version_id)).fetchone()
+        inputs = ()
+        if previous and previous["file_id"]:
+            # Explicit user selection authorizes exactly these immutable bytes, never all prior inputs.
+            file_id = previous["file_id"]
+            revoked = uow.execute("SELECT 1 FROM conversation_resource_files WHERE account_id=%s AND conversation_id=%s AND file_id=%s AND NOT available", (account_id, conversation_id, file_id)).fetchone()
+            if revoked:
+                raise ResourceNotFound()
+            uow.execute("INSERT INTO conversation_resource_files(account_id,conversation_id,file_id) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING", (account_id, conversation_id, file_id))
+            inputs = (file_id,)
+        # The explicit user action creates a finite chat Run, with normal slot and budget rules.
+        from uuid import NAMESPACE_URL, uuid5
+        commands._send_message_in_uow(
+            uow, account_id, conversation_id, str(uuid5(NAMESPACE_URL, f"artifact:{account_id}:{operation}:{key}")),
+            f"生成 HTML 成果 {artifact_id}，版本 {version_id}。",
+            file_ids=inputs, fixed_html={"schema_version": 1, "artifact_version_id": str(version_id)},
+        )
 
     @staticmethod
     def _instruction(value: str | None, required: bool = False) -> str | None:
@@ -273,6 +288,11 @@ class ArtifactService:
                 "producing_run_id": str(row['producing_run_id']) if row.get('producing_run_id') else None,
                 "producing_execution_id": str(row['producing_execution_id']) if row.get('producing_execution_id') else None,
                 "producing_operation_id": row.get('producing_operation_id'),
+                "producing_invocation_id": row.get('producing_invocation_id'),
+                "result_ref_id": str(row['result_ref_id']) if row.get('result_ref_id') else None,
+                "checks": row.get('checks') or [],
+                "result_outcome": row.get('result_outcome'),
+                "result_summary": row.get('result_summary'),
                 "created_at": cls._timestamp(row["created_at"]),
                 "started_at": cls._timestamp(row["started_at"]),
                 "completed_at": cls._timestamp(row["completed_at"])}

@@ -332,9 +332,12 @@ async def test_blocked_work_does_not_block_same_account_chat(
     """Real Research Activity holds its fence while original/new chats call Brain."""
     if not os.getenv("TEMPORAL_HOST"):
         pytest.skip("TEMPORAL_HOST required")
+    from file_runtime import OutputPublisher, ResearchMarkdownPublisher
     from orchestration.web_reconcile_adapters import LifecycleReconcileStore
     from orchestration.web_reconciler import TemporalInspectorAdapter, WebRunReconciler
+    from research_activities.composition import compose_research
     from research_activities.runtime import ResearchActivities
+    from storage.tenant_file_store import TenantFileStore
     from web_domain.errors import ConversationBusy
     from work_domain.commands import WorkCommandService
     from work_domain.models import Requirement
@@ -367,16 +370,20 @@ async def test_blocked_work_does_not_block_same_account_chat(
             entered.set()
             await asyncio.Event().wait()
 
-    research = BlockedResearch(worker_database_url, None, None, None, None)
+    research = BlockedResearch(worker_database_url, None, None, None, None,
+        markdown_publisher=ResearchMarkdownPublisher(OutputPublisher(worker_database_url,
+            TenantFileStore(tmp_path / "research-files", max_bytes=1024 * 1024))))
+    capabilities, parent = compose_research(research)
+    runtime.capabilities = capabilities
     controls = RunLifecycleActivities(lifecycle, RunInputLoader(store), events)
     segments = SegmentActivities(store)
     workers = build_web_temporal_workers(
         client,
         lifecycle_activities=[*lifecycle_control_activities(worker_database_url, controls),
                               runtime.finalize_agent_result,
-                              research.prepare_research_activity, research.create_research_plan_activity,
-                              research.fail_research_activity],
-        agent_activities=[segments.acquire, segments.release, segments.begin_wait, segments.finish_wait,
+                              parent.prepare_research_parent_activity, research.prepare_research_activity, research.create_research_plan_activity,
+                              parent.fail_research_activity],
+        agent_activities=[capabilities.close, segments.acquire, segments.release, segments.begin_wait, segments.finish_wait,
                           runtime.context_bootstrap, runtime.model_decision, runtime.tool_execution,
                           runtime.planning, runtime.evaluate_plan],
     )

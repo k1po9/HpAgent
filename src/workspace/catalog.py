@@ -194,7 +194,8 @@ class WorkspaceCatalog:
                     "AND rf.direction='output' AND sf.source_run_id=%s",
                     (account_id, agent_run_id, file_id, agent_run_id),
                 ).fetchone() is None:
-                    raise ResourceDenied("file is not this Run's published output")
+                    from run_domain.capabilities import CapabilityFacts
+                    CapabilityFacts.authorize_result_file(uow, account_id, file_id)
             file = uow.execute(
                 "SELECT purpose,conversation_id,source_workspace_id,expires_at FROM stored_files "
                 "WHERE account_id=%s AND file_id=%s AND status='ready' FOR UPDATE",
@@ -400,7 +401,11 @@ class WorkspaceCatalog:
                 (account_id, run_id, file_id, run_id),
             ).fetchone()
             if published is None:
-                raise ResourceDenied("file is not this Run's published output")
+                from run_domain.capabilities import CapabilityFacts
+                CapabilityFacts.authorize_result_file(uow, account_id, file_id)
+                published = uow.execute("SELECT sha256 FROM stored_files WHERE account_id=%s AND file_id=%s AND status='ready' FOR UPDATE", (account_id, file_id)).fetchone()
+                if published is None:
+                    raise ResourceDenied("result bytes unavailable")
             revision = expected_revision + 1
             uow.execute(
                 "INSERT INTO persistent_file_revisions(account_id,destination_id,revision,"

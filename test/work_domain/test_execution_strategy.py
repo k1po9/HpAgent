@@ -170,14 +170,14 @@ def test_generic_completion_requires_verified_evidence_and_policy(commands, acco
         store.complete_operation(f'{lease.execution_id}:tool', tool_ref, {'tool_success': True})
     result = {'schema_version': 1, 'kind': 'deliverable_ready',
               'evidence': [{'criterion_id': 'action', 'type': 'operation_receipt', 'ref': 'forged'}]}
-    with pytest.raises(ValueError, match='verified tool receipt'):
+    with pytest.raises(ValueError, match='typed result evidence'):
         lifecycle.complete(run_id, json.dumps(result), final_ref)
     assert commands.get(account_id, work_id)['work']['status'] == 'active'
     result['evidence'][0]['ref'] = tool_ref
-    lifecycle.complete(run_id, json.dumps(result), final_ref)
+    with pytest.raises(ValueError, match='typed result evidence'):
+        lifecycle.complete(run_id, json.dumps(result), final_ref)
     current = commands.get(account_id, work_id)['work']
-    assert current['status'] == 'completed'
-    assert current['completion_receipt']['evaluator'] == 'work_completion_policy_v1'
+    assert current['status'] == 'active' and current['completion_receipt'] is None
 
 
 def test_generic_waiting_due_commits_a_durable_continuation(commands, account_id, urls, owner):

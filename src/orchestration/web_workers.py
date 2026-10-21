@@ -23,6 +23,7 @@ from agent_workflows.contracts import (
     DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS,
 )
 from agent_workflows.delegation import WorkDelegationWorkflow
+from agent_workflows.html import HtmlCapabilityWorkflow
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
@@ -141,6 +142,7 @@ def build_web_temporal_workers(
                 WorkDelegationWorkflow,
                 CapabilityInvocationWorkflow,
                 ResearchCapabilityWorkflow,
+                HtmlCapabilityWorkflow,
             ],
             activities=list(agent_activities),
             # Temporal otherwise throttles heartbeat RPCs to most of the

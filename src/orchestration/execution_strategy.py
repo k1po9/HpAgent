@@ -28,7 +28,8 @@ class StrategyRegistry:
         return self._strategies[capability]
 
     def validate_run(self, run):
-        expected = (StrategySnapshot('generic_agent', 'chat_agent') if run['source_kind'] == 'chat'
+        expected = ((self._strategies['artifact_build'] if run['executor_key'] == 'artifact_html'
+                     else StrategySnapshot('generic_agent', 'chat_agent')) if run['source_kind'] == 'chat'
                     else next((s for s in self._strategies.values()
                                if s.executor_key == run['executor_key']), None))
         if expected is None or any(run[k] != v for k, v in expected.to_dict().items()):

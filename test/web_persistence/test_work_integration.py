@@ -13,6 +13,7 @@ from persistence.uow import UnitOfWork
 from resources.run_budget import RunBudgetService
 from resources.work_budget import WorkBudgetExhausted
 from run_domain.lifecycle import RunLifecycleService
+from web_artifacts.generator import ArtifactGenerationError
 from web_artifacts.services import ArtifactService
 from web_domain.errors import ResourceNotFound
 from work_domain.commands import WorkCommandService
@@ -196,11 +197,13 @@ async def test_artifact_build_has_new_work_run_provenance(
     created = ArtifactService(database_url).create_artifact(account_id, message, str(uuid4()))
     version = created.body["version"]["artifact_version_id"]
     service = WorkCommandService(database_url)
-    work = next(
-        w
-        for w in service.list(account_id)["items"]
-        if w["requirement"]["capability_key"] == "artifact_build"
-    )
+    # An explicit Work is still supported; the Artifact API itself no longer creates it.
+    with UnitOfWork(database_url) as uow:
+        pending_run = uow.execute("SELECT run_id FROM runs WHERE account_id=%s AND executor_key='artifact_html' AND status='queued'", (account_id,)).fetchone()["run_id"]
+    chat.cancel_run(account_id, pending_run, str(uuid4()))
+    work = service.accept(account_id, str(uuid4()), "Explicit HTML mandate",
+        Requirement("Build HTML", "artifact_build", {"schema_version": 1, "artifact_version_id": version},
+            acceptance_criteria=({"id": "artifact", "required": True, "evidence_types": ["artifact_version"]},))).body["work"]
     if mode == "user_and_delivery":
         criteria = (
             {"id": "artifact", "required": True, "evidence_types": ["artifact_version"]},
@@ -227,7 +230,6 @@ async def test_artifact_build_has_new_work_run_provenance(
             return "<html><body>Result</body></html>"
 
     if mode == "retry":
-        from web_artifacts.generator import ArtifactGenerationError
 
         class FailedGenerator:
             async def generate(self, **kwargs):
@@ -235,13 +237,9 @@ async def test_artifact_build_has_new_work_run_provenance(
                     "artifact_model_timeout", "Retryable timeout", retryable=True
                 )
 
-        with pytest.raises(ArtifactGenerationError):
-            await ArtifactBuildService(worker_database_url, FailedGenerator()).execute(
-                UUID(version), run_id=UUID(run["run_id"])
-            )
-        RunLifecycleService(worker_database_url).finish(
-            account_id, UUID(run["run_id"]), "failed", failure_code="artifact_model_timeout"
-        )
+        failed = await ArtifactBuildService(worker_database_url, FailedGenerator()).execute(
+            UUID(version), run_id=UUID(run["run_id"]))
+        assert failed["status"] == "failed"
         old = ArtifactService(database_url).get_version(account_id, UUID(version))["version"]
         work = service.get(account_id, UUID(work["work_id"]))["work"]
         run = advance(service, work, worker_database_url)
@@ -285,10 +283,12 @@ async def test_artifact_build_has_new_work_run_provenance(
         ).replayed
         manual_version = manual.body["version"]["artifact_version_id"]
         assert manual.body["version"]["parent_version_id"] == version
-        manual_work = next(
-            candidate for candidate in service.list(account_id)["items"]
-            if candidate["requirement"]["spec"].get("artifact_version_id") == manual_version
-        )
+        with UnitOfWork(database_url) as uow:
+            pending_run = uow.execute("SELECT run_id FROM runs WHERE account_id=%s AND executor_key='artifact_html' AND status='queued'", (account_id,)).fetchone()["run_id"]
+            prior_file = uow.execute("SELECT file_id FROM artifact_versions WHERE artifact_version_id=%s", (UUID(version),)).fetchone()["file_id"]
+        chat.cancel_run(account_id, pending_run, str(uuid4()))
+        manual_work = service.accept(account_id, str(uuid4()), "Manual successor", Requirement("Build HTML", "artifact_build", {"schema_version": 1, "artifact_version_id": manual_version})).body["work"]
+        manual_work = service.integration(account_id, UUID(manual_work["work_id"]), str(uuid4()), manual_work["row_version"], "input", {"file_id": prior_file, "purpose": "Selected previous HTML"}).body["work"]
         manual_work = service.revise(
             account_id, UUID(manual_work["work_id"]), str(uuid4()), manual_work["row_version"],
             Requirement("Manual successor requiring review", "artifact_build", manual_work["requirement"]["spec"],
@@ -347,7 +347,7 @@ async def test_artifact_build_has_new_work_run_provenance(
             database_url,
             account_id,
             criteria=(
-                {"id": "artifact", "required": True, "evidence_types": ["artifact_version"]},
+                {"id": "artifact", "required": True, "evidence_types": ["output_exists"]},
             ),
         )
         reuse = service.integration(
@@ -358,23 +358,26 @@ async def test_artifact_build_has_new_work_run_provenance(
             "artifact_reference",
             {"artifact_version_id": UUID(version), "role": "evidence"},
         ).body["work"]
+        with UnitOfWork(database_url) as uow:
+            source_file = uow.execute("SELECT file_id FROM artifact_versions WHERE artifact_version_id=%s", (UUID(version),)).fetchone()["file_id"]
+            source_ref = uow.execute("SELECT ref_id FROM capability_result_refs WHERE artifact_version_id=%s", (UUID(version),)).fetchone()["ref_id"]
+        reuse = service.integration(account_id, UUID(reuse["work_id"]), str(uuid4()), reuse["row_version"], "input", {"file_id": source_file, "purpose": "Explicit result reuse"}).body["work"]
         reuse_run = advance(service, reuse, worker_database_url)
         assert reuse_run["input_snapshot"]["artifact_refs"] == [
             {"artifact_version_id": version, "role": "evidence"}
         ]
-        RunLifecycleService(worker_database_url).finish(
-            account_id,
-            UUID(reuse_run["run_id"]),
-            "succeeded",
-            accept_result=True,
-            result={
-                "schema_version": 1,
-                "kind": "deliverable_ready",
-                "evidence": [
-                    {"criterion_id": "artifact", "type": "artifact_version", "ref": version}
-                ],
-            },
-        )
+
+        from run_domain.acceptance import ResultAdoptionService
+        from run_domain.capabilities import CapabilityFacts
+        from run_domain.capability_contracts import AcceptancePredicate, CapabilityRegistry
+        facts = CapabilityFacts(CapabilityRegistry(()))
+        def finish_reuse(identity):
+            adoption = ResultAdoptionService(worker_database_url, facts)
+            adoption.adopt(str(source_ref))
+            evidence = adoption.evidence("artifact", AcceptancePredicate("output_exists", str(source_ref)))
+            RunLifecycleService(worker_database_url).finish(account_id, UUID(reuse_run["run_id"]), "succeeded", accept_result=True,
+                result={"schema_version": 1, "kind": "deliverable_ready", "evidence": [evidence]})
+        ArtifactBuildService(worker_database_url, None)._root(UUID(reuse_run["run_id"]), "test-reuse", finish_reuse)
         reused = service.get(account_id, UUID(reuse["work_id"]))["work"]
         assert reused["status"] == "completed"
         assert any(a["accepted_for_revision"] == 1 for a in reused["artifacts"])

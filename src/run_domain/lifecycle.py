@@ -156,6 +156,8 @@ class RunLifecycleService:
                     'version=version+1,updated_at=now() WHERE run_id=%s',
                     (status, failure_code, failure_message, json.dumps(result) if result else None, run['run_id']))
         run = dict(uow.execute('SELECT * FROM runs WHERE run_id=%s', (run['run_id'],)).fetchone())
+        if run['executor_key'] == 'artifact_html' and status in {'failed','cancelled'}:
+            uow.execute('SELECT close_pending_html(%s,%s)', (run['account_id'], run['run_id']))
         if work is None:
             from conversation_domain.run_projection import project_terminal
 

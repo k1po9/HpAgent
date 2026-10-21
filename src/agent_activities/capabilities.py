@@ -77,6 +77,7 @@ class CapabilityActivities:
             (d["key"], d["contract_version"]): d
             for d in self.facts.registry.discover(surface, set(self.facts.services))
         }
+        from agent_activities.result_tools import discover
         return [
             {
                 "type": "function",
@@ -88,7 +89,7 @@ class CapabilityActivities:
             }
             for name, b in self.bindings.items()
             if (d := available.get((b.key, b.contract_version))) is not None
-        ]
+        ] + (discover() if available else [])
 
     @activity.defn(name="prepare_capability_activity")
     @fenced_activity

@@ -24,7 +24,7 @@ Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 
 
 检查记录固定 verifier key/version、subject_ref、verdict（passed / failed / not_checked）和 evidence_ref；证据必须引用同一结果的 check_evidence 输出。检查由可信实现提供，基础服务只验证登记与关联，不执行专业检查。AcceptancePredicate 固定 output_exists / check_passed / workspace_saved / user_accepted / delivery_accepted 的字段；`check_passed` 固定 verifier key/version；`workspace_saved` 的 target_id 为 Workspace node_id，operation_id 固定保存/版本操作，target_revision 可固定 destination revision；user/delivery 的 target_id 指向各自可信回执。Generic Work 已接入前三类准确成果谓词，用户/渠道仍通过各自可信回执验收；固定专业父适配器保留原有专用证据。
 
-`CapabilityObservation` 固定 schema_version / invocation_id / producing_operation_id / producer_result_ref，放在父 Operation result_payload 和 tool_result 事件 payload 的 `capability_observation` 字段。子生产引用为 `capability-result:{invocation_id}`，父 Operation 使用自己的唯一引用（例如 `capability-observation:{invocation_id}`）；不能复用生产引用。`record_observation` 要求父事件及 caller Operation 已在同一 UoW 中写入，且两处指针与精确 producer 一致。Harness 的持久调用边界见下节；Research 已注册局部能力。专业快捷入口和通用调用的边界见下文。
+`CapabilityObservation` 固定 schema_version / invocation_id / producing_operation_id / producer_result_ref，放在父 Operation result_payload 和 tool_result 事件 payload 的 `capability_observation` 字段。子生产引用为 `capability-result:{invocation_id}`，父 Operation 使用自己的唯一引用（例如 `capability-observation:{invocation_id}`）；不能复用生产引用。`record_observation` 要求父事件及 caller Operation 已在同一 UoW 中写入，且两处指针与精确 producer 一致。Harness 的持久调用边界见下节；Research 与 HTML 已注册局部能力。专业快捷入口和通用调用的边界见下文。
 
 ## 通用持久调用与 Harness
 
@@ -58,13 +58,21 @@ File 能力负责上传、校验、不可变对象、Run 绑定和生成输出�
 
 局部输出为不可变 Markdown 文件和检查证据 JSON，各自建立 ResultRef 与 GC 引用。`research.basic` v1 检查标题/非空正文/结构化 claims、每个 claim 的引用身份及来源精确定位、必需输出；引用缺失或无效返回 `insufficient`，保留草稿和 gaps。弱来源仅警告；检查不证明所有事实正确，也不包含浏览器功能验证。Markdown 是独立可读取的结果，不要求存在 HTML。
 
-顶层 `research_report` 由 [ResearchParentActivities](../../src/research_activities/parent.py) 薄适配：共用登记容量/预算准入和同一子 Workflow，之后执行父侧 Workspace 保存与验收。确定性阅读视图是可选父侧展示，失败不否定已提交研究。必需保存失败保留报告，父 Run/Work 不得成功；Research 子能力本身不完成 Run/Work、不长期保存、不发送通知。Research 的旧 evidence_types 验收增加精确 Markdown 与成功基础检查事实，通用 typed predicate 与跨 Run 采用留待后续单元。已有用户验收命令仍以 Artifact Version 为目标；阅读视图存在时保留该兼容证据，Markdown 已保留准确 ResultRef；产品中的选择与展示入口见后续单元。
+顶层 `research_report` 由 [ResearchParentActivities](../../src/research_activities/parent.py) 薄适配：共用登记容量/预算准入和同一子 Workflow，之后执行父侧 Workspace 保存与验收。确定性阅读视图是可选父侧展示，失败不否定已提交研究。必需保存失败保留报告，父 Run/Work 不得成功；Research 子能力本身不完成 Run/Work、不长期保存、不发送通知。Research 的旧 evidence_types 验收增加精确 Markdown 与成功基础检查事实，通用 typed predicate 与跨 Run 采用使用下述父侧成果服务。已有用户验收命令仍以 Artifact Version 为目标；阅读视图存在时保留该兼容证据，Markdown 可通过准确 ResultRef 采用；产品中的选择与展示入口见后续单元。
 
 历史仅从父固定候选与本次调用显式 node 范围中选择同 Work、先前成功 Run 的获准报告；冻结 invocation、file_id、requirement revision、snapshot/hash，之后不追随最新版本，使用前仍检查当前 read_content。报告正文、证据与准确 invocation 可通过现有 Research 查询读取；访问仍按账号过滤。
 
-## Artifact
+## HTML 与父侧成果采用
 
-Artifact 是与来源 Message 或 Research 关联的版本化应用输出。异步 HTML 构建创建 artifact_build Work，由其有限 Run 承担模型成本。版本保存 producing Run / Execution / operation，生成、采用、Workspace 保存与用户验收分别记账。
+`html` v1 使用 [HtmlCapabilityWorkflow](../../src/agent_workflows/html.py) 与 [HtmlActivities](../../src/web_artifacts/local.py)。输入二选一：有界 `text` 或准确 `source_ref`；修改可带 `previous_ref` 和 instruction。ResultRef 必须由父侧当前可读，并显式列入子调用 scope；旧版本不追随最新。输出是新的 Artifact Version 和检查证据 JSON，生产 invocation / Execution / Operation 保持独立；同 Run 可多次调用。已有不可变 HTML 文件或完整结果可恢复，避免响应丢失后重复生成；局部失败返回 insufficient，父可发起新的 HTML 调用，不重做 Research。
+
+`html.basic` v1 只承诺完整 HTML、字节大小和受限预览策略；证据标注浏览器交互未检查。生成器和 publisher 由直接 Chat、Generic Work 和显式 Artifact 命令共用。HTML 使用原模型预算协调器，输出字节使用 Run/Work 现有预算；不另建调用账本。子能力只创建候选，不保存 Workspace、不完成父 Run/Work。
+
+[ResultAdoptionService](../../src/run_domain/acceptance.py) 在当前 root fence 下执行采用、保存和证据求值。Harness 的 `result__adopt`、`result__save`、`result__evidence` 不依赖 native/MCP 工具模式。采用记录绑定当前 Run/Execution、Work revision/epoch，引用固定版本，原生产者不改写；账户所有权本身不授予 Agent 读取权，跨 Run 每次读取、模型输入和保存仍检查现有授权。Workspace 新建和 CAS 更新共用原保存内核，不复制正文或给兄弟能力扩大输入集合。
+
+Generic Work 的 evidence 只接受 `output_exists`、`check_passed`、`workspace_saved`，ref 指向服务器登记的 capability_acceptance_evidence。谓词沿用 AcceptancePredicate v1：检查必须匹配同一 subject_ref 与准确 verifier/version；保存必须匹配同一不可变文件、目标和操作，必需保存另核对 deliverable_policy。成功工具回执不能代替这些条件。用户验收、渠道接受仍走既有独立可信回执，不由模型生成；固定 Research/Artifact 父适配器保留原专用验收接口。
+
+显式 Artifact API 创建有限 Chat Run，使用正常同 Conversation 单 active 槽和独立预算，不再自动新建 artifact_build Work。已有显式 artifact_build Work 仍调用同一 HTML 能力；需要持续委托时由 Work 承担。版本保留准确 parent、生产者和不可变 file_id；取消/失败关闭未完成版本，重试产生新版本。迁移 065–068 增加 typed evidence、通用必需保存与最小权限的 queued HTML 取消函数，不修改旧迁移。
 
 ## Heavy Document
 

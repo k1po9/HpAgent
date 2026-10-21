@@ -49,7 +49,7 @@ flowchart TD
 | `reminder` | `deterministic / reminder` | 持久通知入队；不调用模型，不创建 Git / 文件 / Sandbox。Run 成功后 Work 可继续等待投递回执。 |
 | `research_report` | `fixed_workflow / research_report` | 父适配器调用同一局部 Research 能力；按 Markdown/基础检查事实验收，并承担必需保存。阅读视图失败不否定研究。 |
 | `generic_work` | `generic_agent / work_agent` | Work brief + ReAct / Plan-and-Execute，不加载 Main 聊天全文或管理工具。 |
-| `artifact_build` | `fixed_workflow / artifact_html` | Artifact-build Work 拥有新 Run 和模型成本，不从来源聊天 Run 借额度。 |
+| `artifact_build` | `fixed_workflow / artifact_html` | 显式 Artifact-build Work 通过共享 HTML 能力执行；Artifact API 默认创建有限 Chat Run。每个生产 Run 自负模型成本。 |
 
 所有外部 I/O 都在 Activity 中执行。Workflow 只编排和等待；通用资源准备使用 Execution attempt 隔离的 scratch，Git 仅在明确需要代码资源时使用。
 

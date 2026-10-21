@@ -1,8 +1,9 @@
-"""Artifact API admission uses a new Work; generation is covered by test_work_integration."""
+"""Artifact API uses a finite Chat invocation with independent immutable provenance."""
 import asyncio
 from uuid import UUID, uuid4
 
 import pytest
+from temporalio.exceptions import ApplicationError
 
 from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork
@@ -31,7 +32,7 @@ def test_artifact_admission_replays_without_duplicate_mandates(database_url,acco
     assert service.create_artifact(account_id,message,key).replayed
     with pytest.raises(IdempotencyConflict):
         service.create_artifact(account_id,message,key,'Changed')
-    assert len(WorkCommandService(database_url).list(account_id)['items'])==1
+    assert len(WorkCommandService(database_url).list(account_id)['items'])==0
     with pytest.raises(ResourceNotFound):
         service.get_version(uuid4(),UUID(created.body['version']['artifact_version_id']))
 
@@ -50,12 +51,11 @@ async def test_artifact_run_cancel_preserves_provenance_and_rejects_late_publish
     artifacts = ArtifactService(database_url)
     created = artifacts.create_artifact(account_id, message, str(uuid4()))
     version_id = UUID(created.body["version"]["artifact_version_id"])
-    works = WorkCommandService(database_url)
-    work = works.list(account_id)["items"][0]
-    run_id = UUID(works.advance(account_id, UUID(work["work_id"]), str(uuid4()), work["row_version"]).body["run"]["run_id"])
+    run_id = db.execute("SELECT run_id FROM runs WHERE account_id=%s AND executor_key='artifact_html'", (account_id,)).fetchone()[0]
     entered, release = asyncio.Event(), asyncio.Event()
 
     class Generator:
+        read_timeout_seconds = 90
         async def generate(self, **kwargs):
             entered.set()
             await release.wait()
@@ -78,26 +78,25 @@ async def test_artifact_run_cancel_preserves_provenance_and_rejects_late_publish
             assert version["producing_run_id"] == str(run_id)
             assert version["producing_execution_id"] and version["producing_operation_id"]
         else:
-            # No producer ever claimed this version; a later advance may use it.
-            assert version["status"] == "queued" and version["producing_run_id"] is None
+            # Cancellation is visible even before any producer claimed the queued version.
+            assert version["status"] == "failed" and version["producing_run_id"] is None
         assert lifecycle.finalize_cancelled(run_id).status == "cancelled"
         assert artifacts.get_version(account_id, version_id)["version"] == version
-        current = works.get(account_id, UUID(work["work_id"]))["work"]
-        assert current["status"] == "active" and current["active_coordinator_run_id"] is None
-        assert db.execute("SELECT count(*) FROM work_events WHERE work_id=%s AND event_type='run_cancelled'", (UUID(work["work_id"]),)).fetchone()[0] == 1
+        assert db.execute("SELECT count(*) FROM works WHERE account_id=%s", (account_id,)).fetchone()[0] == 0
         assert db.execute("SELECT count(*) FROM work_artifacts WHERE artifact_version_id=%s", (version_id,)).fetchone()[0] == 0
-        assert db.execute("SELECT count(*) FROM messages WHERE produced_by_run_id=%s", (run_id,)).fetchone()[0] == 0
+        assert db.execute("SELECT count(*) FROM messages WHERE produced_by_run_id=%s", (run_id,)).fetchone()[0] == 1
     finally:
         release.set()
         if build is not None:
-            with pytest.raises(StaleFencingToken):
+            with pytest.raises((StaleFencingToken, ApplicationError)):
                 await asyncio.wait_for(build, 5)
     assert artifacts.get_version(account_id, version_id)["version"]["html"] is None
     if phase == "running":
         # A later advance produces a fresh version; cancelled provenance is not reused.
-        following = UUID(works.advance(account_id, UUID(work["work_id"]), str(uuid4()), current["row_version"]).body["run"]["run_id"])
+        next_version = artifacts.create_version(account_id, UUID(created.body["artifact"]["artifact_id"]), str(uuid4()), "Retry with a new command").body["version"]
+        following = db.execute("SELECT run_id FROM runs WHERE account_id=%s AND status='queued'", (account_id,)).fetchone()[0]
         RunLifecycleService(worker_database_url).start(account_id, following)
-        built = await ArtifactBuildService(worker_database_url, Generator()).execute(version_id, run_id=following)
+        built = await ArtifactBuildService(worker_database_url, Generator()).execute(UUID(next_version["artifact_version_id"]), run_id=following)
         assert built["artifact_version_id"] != str(version_id)
         fresh = artifacts.get_version(account_id, UUID(built["artifact_version_id"]))["version"]
         assert fresh["status"] == "completed" and fresh["producing_run_id"] == str(following)
