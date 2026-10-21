@@ -5,13 +5,14 @@ import asyncio
 from uuid import UUID, uuid4
 
 import pytest
+from support.research_driver import ResearchDriver as ResearchActivities
 from support.work_fixtures import accept_research, advance_work
 
 from agent_activities.store import AgentDataStore
 from agent_workflows.lifecycle_contracts import SegmentInput
 from orchestration.research_workflow import ResearchWorkflowInput
 from persistence.uow import UnitOfWork
-from research_activities import ResearchActivities
+from research_domain.context import research_request
 from run_domain.execution import LeaseConflict
 from work_domain.commands import WorkCommandService
 
@@ -35,18 +36,23 @@ async def test_default_research_lease_is_renewed_past_initial_expiry(
         await finish.wait()
         return {"item_count": 1}
 
-    task = asyncio.create_task(research._run_stage(run_id, "LeaseProbe", action))
+    local = research.local(ResearchWorkflowInput(1, str(run_id)))
+    reset = research_request.set(local)
+    try:
+        task = asyncio.create_task(research.research._run_stage(run_id, "LeaseProbe", action))
+    finally:
+        research_request.reset(reset)
     try:
         await asyncio.wait_for(started.wait(), 10)
         with UnitOfWork(worker_database_url) as uow:
             lease = uow.execute("SELECT execution_id,fencing_token,lease_expires_at "
-                                "FROM execution_attempt_leases WHERE run_id=%s", (run_id,)).fetchone()
+                                "FROM execution_attempt_leases WHERE run_id=%s AND execution_id=%s", (run_id, local.execution_id)).fetchone()
         # Real elapsed time, with the production default and no expiry updates from the test.
         await asyncio.sleep(35)
         with UnitOfWork(worker_database_url) as uow:
             current = uow.execute("SELECT fencing_token,lease_expires_at,"
                                   "lease_expires_at>clock_timestamp() AS active "
-                                  "FROM execution_attempt_leases WHERE run_id=%s", (run_id,)).fetchone()
+                                  "FROM execution_attempt_leases WHERE run_id=%s AND execution_id=%s", (run_id, local.execution_id)).fetchone()
         assert current["fencing_token"] == lease["fencing_token"]
         assert current["active"] and current["lease_expires_at"] > lease["lease_expires_at"]
         rival = SegmentInput(1, str(run_id), str(account_id), "competing-stage",

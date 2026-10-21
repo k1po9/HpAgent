@@ -195,9 +195,9 @@ def compose_durable_runtime(
         ),
     )
     artifact_activities = ArtifactActivities(artifact_build)
-    from agent_activities.capabilities import empty_capabilities
+    from research_activities.composition import compose_research
 
-    capability_activities = empty_capabilities(durable_activities.store)
+    capability_activities, research_parent = compose_research(research_activities, durable_activities.store)
     durable_activities.capabilities = capability_activities
     segment_activities = SegmentActivities(durable_activities.store)
     from agent_activities.delegation import DelegationActivities
@@ -216,7 +216,9 @@ def compose_durable_runtime(
             lifecycle_activities.finalize_cancelled,
             durable_activities.finalize_agent_result,
             artifact_activities.execute,
+            research_parent.prepare_research_parent_activity,
             research_activities.prepare_research_activity,
+            research_activities.commit_research_result_activity,
             research_activities.create_research_plan_activity,
             research_activities.discover_research_sources_activity,
             research_activities.rank_research_sources_activity,
@@ -228,10 +230,10 @@ def compose_durable_runtime(
             research_activities.synthesize_research_report_activity,
             research_activities.verify_research_citations_activity,
             research_activities.compare_previous_research_activity,
-            research_activities.publish_research_artifact_activity,
-            research_activities.save_research_workspace_activity,
-            research_activities.complete_research_activity,
-            research_activities.fail_research_activity,
+            research_parent.publish_research_artifact_activity,
+            research_parent.save_research_workspace_activity,
+            research_parent.complete_research_activity,
+            research_parent.fail_research_activity,
         ],
         agent_activities=[
             capability_activities.prepare,

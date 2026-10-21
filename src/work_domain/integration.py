@@ -54,6 +54,16 @@ def validate_evidence(uow, work, run, evidence):
                 "AND producing_run_id=%s AND status='completed'",
                 (work["account_id"], UUID(ref), run["run_id"]),
             ).fetchone()
+            if not valid and kind == "research_report":
+                valid = uow.execute(
+                    "SELECT 1 FROM research_reports rr JOIN capability_results cr USING(invocation_id) "
+                    "JOIN stored_files sf ON sf.file_id=rr.markdown_file_id AND sf.account_id=cr.account_id "
+                    "WHERE cr.account_id=%s AND rr.run_id=%s AND rr.markdown_file_id=%s "
+                    "AND cr.payload->>'outcome'='succeeded' AND sf.status='ready' "
+                    "AND EXISTS(SELECT 1 FROM capability_result_checks ck WHERE ck.invocation_id=cr.invocation_id "
+                    "AND ck.verifier_key='research.basic' AND ck.verifier_version='1' AND ck.verdict='passed')",
+                    (work["account_id"], run["run_id"], UUID(ref)),
+                ).fetchone()
             if not valid and kind == "artifact_version":
                 valid = uow.execute(
                     "SELECT 1 FROM artifact_versions v JOIN work_artifacts a USING(account_id,artifact_version_id) "
@@ -112,6 +122,10 @@ def validate_evidence(uow, work, run, evidence):
 def adopt_artifacts(uow, work, evidence, event_id):
     for item in evidence:
         if item["type"] in {"artifact_version", "research_report"}:
+            if item["type"] == "research_report" and uow.execute(
+                "SELECT 1 FROM research_reports WHERE markdown_file_id=%s", (UUID(item["ref"]),)
+            ).fetchone():
+                continue  # Capability refs retain the Markdown; no Artifact Version is invented.
             uow.execute(
                 "INSERT INTO work_artifacts(reference_id,account_id,work_id,artifact_version_id,"
                 "source_requirement_revision,role,accepted_for_revision,acceptance_event_id) "

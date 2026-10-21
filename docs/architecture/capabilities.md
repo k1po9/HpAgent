@@ -22,13 +22,13 @@ Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 
 
 `publish_result` 从当前 fence 填充并核对结果 provenance（invocation_id / execution_id / operation_id），即使没有输出也保留准确生产者；原子完成子生产 Operation、回执、结果、引用和检查记录，并设置子 Execution 的 result_ref；不完成 caller Operation、Execution、Run 或 Work。`read_result` 仅供同 Run 的 caller / producer 查询；`read_ref` 返回 ResultRef 值对象，解析准确 file_id 或 Artifact Version，并检查当前执行身份、显式输入或采用关系及当前资源权限。结果元数据接口不直接返回文件字节。`adopt` 由 root 将获准旧结果固定到当前 Execution、revision 和 control epoch，读取仍重验；采用不改写生产者，也不代表 Workspace 保存。
 
-检查记录固定 verifier key/version、subject_ref、verdict（passed / failed / not_checked）和 evidence_ref；证据必须引用同一结果的 check_evidence 输出。检查由可信实现提供，基础服务只验证登记与关联，不执行专业检查。AcceptancePredicate 固定 output_exists / check_passed / workspace_saved / user_accepted / delivery_accepted 的字段；`check_passed` 固定 verifier key/version；`workspace_saved` 的 target_id 为 Workspace node_id，operation_id 固定保存/版本操作，target_revision 可固定 destination revision；user/delivery 的 target_id 指向各自可信回执。现有 Work evidence_types 验收保持原行为，尚未接入这些谓词求值。
+检查记录固定 verifier key/version、subject_ref、verdict（passed / failed / not_checked）和 evidence_ref；证据必须引用同一结果的 check_evidence 输出。检查由可信实现提供，基础服务只验证登记与关联，不执行专业检查。AcceptancePredicate 固定 output_exists / check_passed / workspace_saved / user_accepted / delivery_accepted 的字段；`check_passed` 固定 verifier key/version；`workspace_saved` 的 target_id 为 Workspace node_id，operation_id 固定保存/版本操作，target_revision 可固定 destination revision；user/delivery 的 target_id 指向各自可信回执。Generic Work 已接入前三类准确成果谓词，用户/渠道仍通过各自可信回执验收；固定专业父适配器保留原有专用证据。
 
-`CapabilityObservation` 固定 schema_version / invocation_id / producing_operation_id / producer_result_ref，放在父 Operation result_payload 和 tool_result 事件 payload 的 `capability_observation` 字段。子生产引用为 `capability-result:{invocation_id}`，父 Operation 使用自己的唯一引用（例如 `capability-observation:{invocation_id}`）；不能复用生产引用。`record_observation` 要求父事件及 caller Operation 已在同一 UoW 中写入，且两处指针与精确 producer 一致。Harness 的持久调用边界见下节；当前没有注册 Research / HTML 等生产复杂能力。Research / HTML 仍使用下面描述的现有路径，不能把基础契约视为功能已开放。
+`CapabilityObservation` 固定 schema_version / invocation_id / producing_operation_id / producer_result_ref，放在父 Operation result_payload 和 tool_result 事件 payload 的 `capability_observation` 字段。子生产引用为 `capability-result:{invocation_id}`，父 Operation 使用自己的唯一引用（例如 `capability-observation:{invocation_id}`）；不能复用生产引用。`record_observation` 要求父事件及 caller Operation 已在同一 UoW 中写入，且两处指针与精确 producer 一致。Harness 的持久调用边界见下节；Research 已注册局部能力。专业快捷入口和通用调用的边界见下文。
 
 ## 通用持久调用与 Harness
 
-[CapabilityInvocationWorkflow](../../src/agent_workflows/capability.py) 接入共享 ToolExecutionWorkflow。服务端 [CapabilityBinding](../../src/agent_activities/capabilities.py) 将准确契约版本绑定到固定 Workflow 和输入资源范围解析器；`capability__` 前缀保留给复杂能力。模型只填写有类型的业务参数，不提供 Execution、fence、资源上限或 Workflow 名称。生产组合目前注册空能力集合；确定性能力仅位于测试支持代码，不开放给用户。`delegate_work` 仍走独立的只读分支边界。
+[CapabilityInvocationWorkflow](../../src/agent_workflows/capability.py) 接入共享 ToolExecutionWorkflow。服务端 [CapabilityBinding](../../src/agent_activities/capabilities.py) 将准确契约版本绑定到固定 Workflow 和输入资源范围解析器；`capability__` 前缀保留给复杂能力。模型只填写有类型的业务参数，不提供 Execution、fence、资源上限或 Workflow 名称。生产组合注册 `research` v1（`capability__research__v1`），固定到 ResearchCapabilityWorkflow；确定性能力仅位于测试支持代码。`delegate_work` 仍走独立的只读分支边界。
 
 发现按 surface 与服务依赖筛选，仅 root 获得复杂能力工具。执行时再次检查当前账号、Run、Work revision/control epoch、父 Execution、输入 schema、冻结定义和显式资源范围。输入读取适配器使用 `invocation_context` 检查当前子 fence、定义实现版本和资源权限；专业实现每次使用资源和发出模型请求仍须重验，不可把登记视为永久授权。
 
@@ -54,7 +54,13 @@ File 能力负责上传、校验、不可变对象、Run 绑定和生成输出�
 
 ## Research
 
-Research 是固定 Workflow：规划查询、通过 SearXNG 发现来源、获取和提取内容、生成 Evidence、综合 Claim 并发布 Report。其持续委托、资源和调度由 Work 拥有；固定研究图在通用 Run Lifecycle 内执行。它不替代 ReAct 或 Plan-and-Execute。
+`research` v1 是固定局部能力：[定义](../../src/research_domain/capability.py)、[实现](../../src/research_activities/runtime.py)、[编排](../../src/orchestration/research_workflow.py)。输入固定 objective 与 source_strategy；不获得长期写入或通知权限，不支持从 uploaded_files 隐式读取资料。每次调用以父 tool Operation 的 invocation_id 为研究实例，拥有独立 capability Execution；plan、阶段、iteration、source/evidence、claim/citation、报告和历史基线均按实例隔离。Run 只提供归属、现有预算和查询关联，同 Run 可顺序研究多次。迁移 062–064 保留旧行的 Run 查询键，新执行必须带已登记的 invocation 身份。
+
+局部输出为不可变 Markdown 文件和检查证据 JSON，各自建立 ResultRef 与 GC 引用。`research.basic` v1 检查标题/非空正文/结构化 claims、每个 claim 的引用身份及来源精确定位、必需输出；引用缺失或无效返回 `insufficient`，保留草稿和 gaps。弱来源仅警告；检查不证明所有事实正确，也不包含浏览器功能验证。Markdown 是独立可读取的结果，不要求存在 HTML。
+
+顶层 `research_report` 由 [ResearchParentActivities](../../src/research_activities/parent.py) 薄适配：共用登记容量/预算准入和同一子 Workflow，之后执行父侧 Workspace 保存与验收。确定性阅读视图是可选父侧展示，失败不否定已提交研究。必需保存失败保留报告，父 Run/Work 不得成功；Research 子能力本身不完成 Run/Work、不长期保存、不发送通知。Research 的旧 evidence_types 验收增加精确 Markdown 与成功基础检查事实，通用 typed predicate 与跨 Run 采用留待后续单元。已有用户验收命令仍以 Artifact Version 为目标；阅读视图存在时保留该兼容证据，Markdown 已保留准确 ResultRef；产品中的选择与展示入口见后续单元。
+
+历史仅从父固定候选与本次调用显式 node 范围中选择同 Work、先前成功 Run 的获准报告；冻结 invocation、file_id、requirement revision、snapshot/hash，之后不追随最新版本，使用前仍检查当前 read_content。报告正文、证据与准确 invocation 可通过现有 Research 查询读取；访问仍按账号过滤。
 
 ## Artifact
 

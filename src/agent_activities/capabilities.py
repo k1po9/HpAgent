@@ -152,60 +152,7 @@ class CapabilityActivities:
             run, parent = self.facts._context(uow)
             if str(parent["execution_id"]) != request.tool.execution_id:
                 raise ResourceDenied("caller identity mismatch")
-            # Serialize cross-process admission; no physical ticket survives this transaction.
-            uow.execute("SELECT pg_advisory_xact_lock(4830020601)")
-            prior = uow.execute(
-                "SELECT 1 FROM capability_invocations WHERE invocation_id=%s",
-                (request.operation_id,),
-            ).fetchone()
-            if not prior:
-                counts = uow.execute(
-                    "SELECT count(*) AS total,count(*) FILTER(WHERE account_id=%s) AS account,"
-                    "count(*) FILTER(WHERE parent_execution_id=%s) AS parent FROM run_executions "
-                    "WHERE role='capability' AND status IN ('queued','running','cancelling')",
-                    (run["account_id"], parent["execution_id"]),
-                ).fetchone()
-                if (
-                    counts["parent"]
-                    or counts["total"] >= int(os.getenv("CAPABILITY_GLOBAL_EXECUTIONS", "32"))
-                    or counts["account"] >= int(os.getenv("CAPABILITY_ACCOUNT_EXECUTIONS", "4"))
-                ):
-                    raise ResourceDenied("capability capacity exhausted")
-                # Admission is only a headroom check. Implementations still reserve every real
-                # model/tool call in the existing account/day + Work + Run ledger.
-                if (
-                    definition["limits"]["max_model_calls"]
-                    or definition["limits"]["max_tool_calls"]
-                ):
-                    for table, column, value in (
-                        ("run_budgets", "run_id", run["run_id"]),
-                        ("work_budgets", "work_id", run["work_id"]),
-                    ):
-                        if value is None:
-                            continue
-                        budget = uow.execute(
-                            f"SELECT limits,used,reserved FROM {table} WHERE {column}=%s", (value,)
-                        ).fetchone()
-                        dimensions = []
-                        if definition["limits"]["max_model_calls"]:
-                            dimensions.extend(
-                                [
-                                    "model_calls",
-                                    "model_total_tokens",
-                                    "model_input_tokens",
-                                    "model_output_tokens",
-                                ]
-                            )
-                        if definition["limits"]["max_tool_calls"]:
-                            dimensions.append("tool_calls")
-                        if not budget or any(
-                            budget["limits"].get(d, 0)
-                            - budget["used"].get(d, 0)
-                            - budget["reserved"].get(d, 0)
-                            <= 0
-                            for d in dimensions
-                        ):
-                            raise ResourceDenied("aggregate invocation budget exhausted")
+            self.admit_in_uow(uow, run, parent, definition, request.operation_id)
             invocation = self.facts.create(
                 uow,
                 operation_id=request.operation_id,
@@ -229,6 +176,63 @@ class CapabilityActivities:
                 f"{request.operation_id}:produce",
             )
             return CapabilityPrepared(child=child, result_committed=bool(committed))
+
+    def admit_in_uow(self, uow, run, parent, definition, operation_id):
+        """Shared bounded admission for the Harness and fixed parent adapters."""
+        # Serialize cross-process admission; no physical ticket survives this transaction.
+        uow.execute("SELECT pg_advisory_xact_lock(4830020601)")
+        prior = uow.execute(
+            "SELECT 1 FROM capability_invocations WHERE invocation_id=%s",
+            (operation_id,),
+        ).fetchone()
+        if not prior:
+            counts = uow.execute(
+                "SELECT count(*) AS total,count(*) FILTER(WHERE account_id=%s) AS account,"
+                "count(*) FILTER(WHERE parent_execution_id=%s) AS parent FROM run_executions "
+                "WHERE role='capability' AND status IN ('queued','running','cancelling')",
+                (run["account_id"], parent["execution_id"]),
+            ).fetchone()
+            if (
+                counts["parent"]
+                or counts["total"] >= int(os.getenv("CAPABILITY_GLOBAL_EXECUTIONS", "32"))
+                or counts["account"] >= int(os.getenv("CAPABILITY_ACCOUNT_EXECUTIONS", "4"))
+            ):
+                raise ResourceDenied("capability capacity exhausted")
+            # Admission is only a headroom check. Implementations still reserve every real
+            # model/tool call in the existing account/day + Work + Run ledger.
+            if (
+                definition["limits"]["max_model_calls"]
+                or definition["limits"]["max_tool_calls"]
+            ):
+                for table, column, value in (
+                    ("run_budgets", "run_id", run["run_id"]),
+                    ("work_budgets", "work_id", run["work_id"]),
+                ):
+                    if value is None:
+                        continue
+                    budget = uow.execute(
+                        f"SELECT limits,used,reserved FROM {table} WHERE {column}=%s", (value,)
+                    ).fetchone()
+                    dimensions = []
+                    if definition["limits"]["max_model_calls"]:
+                        dimensions.extend(
+                            [
+                                "model_calls",
+                                "model_total_tokens",
+                                "model_input_tokens",
+                                "model_output_tokens",
+                            ]
+                        )
+                    if definition["limits"]["max_tool_calls"]:
+                        dimensions.append("tool_calls")
+                    if not budget or any(
+                        budget["limits"].get(d, 0)
+                        - budget["used"].get(d, 0)
+                        - budget["reserved"].get(d, 0)
+                        <= 0
+                        for d in dimensions
+                    ):
+                        raise ResourceDenied("aggregate invocation budget exhausted")
 
     def invocation_context(self, uow, request):
         """Trusted implementations load inputs under their own current segment fence."""

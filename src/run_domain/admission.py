@@ -82,8 +82,13 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
     # The locked Work's monotonic epoch orders attempts even if the database
     # clock moves backwards. Only an explicit retry/advance has ancestry.
     # A later occurrence or a step following success is a new execution.
-    retry = (previous if wakeup["kind"] in {"advance", "retry"} and previous
-             and previous["status"] in {"failed", "cancelled"} else None)
+    retry = (
+        previous
+        if wakeup["kind"] in {"advance", "retry"}
+        and previous
+        and previous["status"] in {"failed", "cancelled"}
+        else None
+    )
     uow.execute(
         "INSERT INTO runs(run_id,account_id,source_kind,work_id,requirement_revision,"
         "work_control_epoch,wakeup_id,strategy_kind,executor_key,workflow_id,agent_strategy,retry_of_run_id,"
@@ -145,12 +150,22 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
         )
     )
     if strategy in {"generic_agent", "fixed_workflow"}:
-        limits.update({
-            "bytes_scanned": 1024 * 1024 * 1024,
-            "bytes_returned_to_model": 2 * 1024 * 1024,
-            "bytes_written": 256 * 1024 * 1024,
-            "output_file_bytes": 256 * 1024 * 1024,
-        })
+        limits.update(
+            {
+                "bytes_scanned": 1024 * 1024 * 1024,
+                "bytes_returned_to_model": 2 * 1024 * 1024,
+                "bytes_written": 256 * 1024 * 1024,
+                "output_file_bytes": 256 * 1024 * 1024,
+            }
+        )
+    # Local Research shares the producing Run's ledger, including Generic Work.
+    for dimension, amount in {
+        "sources_discovered": 30,
+        "source_fetches": 20,
+        "research_iterations": 3,
+    }.items():
+        limits.setdefault(dimension, amount)
+    limits.setdefault("wall_time_ms", 600000)
     RunBudgetRepository().create_snapshot(
         uow, run_id, account_id, None, "work-foundation-v1", budget_mode, json.dumps(limits), 0
     )

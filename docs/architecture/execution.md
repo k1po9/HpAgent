@@ -28,7 +28,7 @@ Run succeeded 只说明有限执行成功；Work completed 需要当前 revision
 
 1. Web/QQ 把身份与输入转为统一命令。聊天在同一事务写 Message、Run、幂等事实和 start_run Outbox；Conversation 单 active 限制仅作用于聊天。
 2. Work 命令提交不可变 requirement、checkpoint、continuation、预算与 wakeup。admission 在 Work 锁下校验 revision/control epoch、协调权、预算、资源及容量，冻结输入和策略，创建无聊天 Message 的 Run/root Execution。
-3. Dispatcher 使用稳定 hpagent-web-run-{run_id} 启动 AgentLifecycleWorkflow。reminder 直接入队通知；research_report 运行固定研究图；artifact_html 构建成果；chat_agent/work_agent 启动 AgentRunWorkflow（ReAct 或 Plan-and-Execute），子 Workflow ID 为 hpagent-agent-run-{run_id}。
+3. Dispatcher 使用稳定 hpagent-web-run-{run_id} 启动 AgentLifecycleWorkflow。reminder 直接入队通知；research_report 由父适配器登记 invocation 并等待 ResearchCapabilityWorkflow，再执行父侧保存/验收；artifact_html 构建成果；chat_agent/work_agent 启动 AgentRunWorkflow（ReAct 或 Plan-and-Execute），子 Workflow ID 为 hpagent-agent-run-{run_id}。
 4. Activity 提交 operation/receipt、输出和通用 Run 终态 succeeded/failed/cancelled。聊天投影、WorkCompletionPolicy 与通知分别依据持久事实推进。
 5. Work 成功后的 ready continuation 在终态事务去重创建下一 wakeup；等待、blocked、暂停、停止和完成不忙循环。投递独立处理已提交通知，不因渠道失败重新执行 Agent。
 
@@ -72,9 +72,9 @@ model_request_invalid、model_response_invalid、model_access_denied、model_req
 
 ## Research 阶段 lease 与恢复
 
-主 Agent store 注入 agent_execution_lease_ttl_seconds（默认 900 秒）。ResearchActivities 独立持有默认 30 秒 lease 的 store；获得阶段 segment 后，每 5 秒校验并续租 PG 所有权，再发送 Temporal 心跳。等待其他 segment 时仅发送等待心跳，不延长对方 lease。
+主 Agent store 注入 agent_execution_lease_ttl_seconds（默认 900 秒）。ResearchActivities 独立持有默认 30 秒 lease 的 store，按 invocation 的子 Execution 取得各阶段 segment；获得阶段 segment 后，每 5 秒校验并续租 PG 所有权，再发送 Temporal 心跳。等待其他 segment 时仅发送等待心跳，不延长对方 lease。
 
-续租失败会停止当前阶段并清理后台任务；失效 lease 不能被续活，旧线程的持久写入仍由 fencing 拒绝。Worker 崩溃后，新 attempt 等待旧 lease 自然到期，再以新 token 接管；阶段 operation、发布与保存意图复用原标识。publish/save 的 Activity 窗口为 start-to-close 60 秒、schedule-to-close 120 秒，端到端恢复还受 Temporal 重试、排队和依赖可用性影响，30 秒 lease 不是完成时间承诺。
+续租失败会停止当前阶段并清理后台任务；失效 lease 不能被续活，旧线程的持久写入仍由 fencing 拒绝。Worker 崩溃后，新 attempt 等待旧 lease 自然到期，再以新 token 接管；阶段 operation 与不可变输出发布按 invocation 固定，父保存意图仍按顶层 Run 固定；重试复用原标识。publish/save 的 Activity 窗口为 start-to-close 60 秒、schedule-to-close 120 秒，端到端恢复还受 Temporal 重试、排队和依赖可用性影响，30 秒 lease 不是完成时间承诺。
 
 隔离恢复测试使用实际默认 lease：长阶段跨越初始到期时间仍拒绝抢占；发布或保存提交后 SIGKILL 原 Worker，由替代 Worker 恢复，并校验历史基线、保存意图与结果去重。测试不清 lease、不强制接管，也不缩短默认值。
 

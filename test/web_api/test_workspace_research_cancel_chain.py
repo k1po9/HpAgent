@@ -15,9 +15,11 @@ from temporalio.client import Client, WorkflowExecutionStatus
 from temporalio.worker import Worker
 
 from agent_activities.store import AgentDataStore
+from agent_workflows.contracts import AGENT_TASK_QUEUE
 from file_domain.models import SourceLocator, TextView
-from file_runtime import FileAdapterRegistry
+from file_runtime import FileAdapterRegistry, OutputPublisher, ResearchMarkdownPublisher
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.research_workflow import ResearchCapabilityWorkflow
 from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from orchestration.web_dispatcher import (
@@ -29,6 +31,7 @@ from orchestration.web_reconcile_adapters import LifecycleReconcileStore
 from orchestration.web_reconciler import TemporalInspectorAdapter, WebRunReconciler
 from persistence.uow import UnitOfWork
 from research_activities import ResearchActivities
+from research_activities.composition import compose_research
 from run_domain.input import RunInputLoader
 from sandbox.tools.local.file_read import create_file_read_tools
 from storage.tenant_file_store import TenantFileStore
@@ -145,7 +148,7 @@ async def test_work_revoke_uses_production_cancel_chain(
         "extract_research_evidence_activity", "assess_research_corroboration_activity",
         "analyze_research_gaps_activity", "synthesize_research_report_activity",
         "verify_research_citations_activity", "compare_previous_research_activity",
-        "publish_research_artifact_activity", "save_research_workspace_activity",
+        "commit_research_result_activity", "publish_research_artifact_activity", "save_research_workspace_activity",
         "complete_research_activity", "fail_research_activity",
     )
 
@@ -154,7 +157,9 @@ async def test_work_revoke_uses_production_cancel_chain(
             return {"item_count": 1, "sufficient": True}
         return activity.defn(name=name)(stage)
 
-    research = ResearchActivities(worker_database_url, None, None, None, None)
+    research = ResearchActivities(worker_database_url, None, None, None, None,
+        markdown_publisher=ResearchMarkdownPublisher(OutputPublisher(worker_database_url, store)))
+    capabilities, parent = compose_research(research)
     temporal = await Client.connect(host, namespace=os.getenv(
         "TEMPORAL_TEST_NAMESPACE", "hpagent-v41-final"))
     executions = PostgresWorkflowExecutionStore(worker_database_url)
@@ -188,9 +193,10 @@ async def test_work_revoke_uses_production_cancel_chain(
         return Worker(temporal, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
             workflows=[AgentLifecycleWorkflow],
             activities=[*lifecycle_control_activities(worker_database_url, controls),
-                        research.prepare_research_activity, blocked_fetch,
+                        parent.prepare_research_parent_activity, research.prepare_research_activity, blocked_fetch,
                         *(stub(name) for name in names)])
 
+    child_worker = Worker(temporal, task_queue=AGENT_TASK_QUEUE, workflows=[ResearchCapabilityWorkflow], activities=[capabilities.close])
     worker = make_worker()
     stop = asyncio.Event()
 
@@ -200,7 +206,7 @@ async def test_work_revoke_uses_production_cancel_chain(
             await asyncio.sleep(0.05)
 
     try:
-        async with worker:
+        async with worker, child_worker:
             consumer = asyncio.create_task(consume())
             try:
                 assert await asyncio.to_thread(entered.wait, 20)

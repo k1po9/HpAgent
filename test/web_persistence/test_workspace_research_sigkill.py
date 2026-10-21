@@ -9,6 +9,7 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
+from support.research_driver import ResearchDriver as ResearchActivities
 from support.work_fixtures import accept_research, advance_work
 from temporalio.client import Client
 
@@ -16,7 +17,6 @@ from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
 from persistence.uow import UnitOfWork
-from research_activities import ResearchActivities
 from storage.tenant_file_store import TenantFileStore
 from web_domain.workflow_execution import PostgresWorkflowExecutionStore
 from work_domain.commands import WorkCommandService
@@ -96,8 +96,8 @@ async def test_research_worker_sigkill_preserves_history_intent_and_results(
         assert await asyncio.wait_for(first.wait(), 10) == -9
         with UnitOfWork(worker_database_url) as uow:
             lease_at_kill = uow.execute(
-                "SELECT fencing_token,lease_expires_at-clock_timestamp() AS remaining "
-                "FROM execution_attempt_leases WHERE run_id=%s", (run_id,),
+                "SELECT execution_id,fencing_token,lease_expires_at-clock_timestamp() AS remaining "
+                "FROM execution_attempt_leases WHERE run_id=%s AND owner_segment_id IS NOT NULL", (run_id,),
             ).fetchone()
             assert 0 < lease_at_kill["remaining"].total_seconds() <= 30
             baseline_at_kill = uow.execute(
@@ -108,15 +108,15 @@ async def test_research_worker_sigkill_preserves_history_intent_and_results(
                 "SELECT operation_id FROM output_publish_operations WHERE run_id=%s "
                 "ORDER BY operation_id", (run_id,),
             ).fetchall()]
-            assert len(publish_operations_at_kill) == 1
+            assert len(publish_operations_at_kill) == (1 if phase == "publish" else 2)
         recovery_started = time.monotonic()
         replacement = await _worker("replacement", phase, state, env)
         result = await asyncio.wait_for(handle.result(), 90)
         assert time.monotonic() - recovery_started < 90
-        assert result["outcome"] == "report_published"
+        assert result["outcome"] == "report_ready"
         with UnitOfWork(worker_database_url) as uow:
             recovered_token = uow.execute(
-                "SELECT fencing_token FROM execution_attempt_leases WHERE run_id=%s", (run_id,),
+                "SELECT fencing_token FROM execution_attempt_leases WHERE run_id=%s AND execution_id=%s", (run_id, lease_at_kill["execution_id"]),
             ).fetchone()["fencing_token"]
             assert recovered_token > lease_at_kill["fencing_token"]
             after_intent = uow.execute(
@@ -142,14 +142,15 @@ async def test_research_worker_sigkill_preserves_history_intent_and_results(
                 (before_intent["operation_id"],),
             ).fetchone()["n"]
         assert history == baseline_at_kill
-        assert publish_operations_after == publish_operations_at_kill
+        assert set(publish_operations_at_kill) <= set(publish_operations_after)
+        assert len(publish_operations_after) == 2
         assert (after_intent["operation_id"], after_intent["target_directory_id"],
                 after_intent["required"]) == (
                     before_intent["operation_id"], before_intent["target_directory_id"],
                     before_intent["required"],
                 )
         assert after_intent["state"] == "succeeded" and after_intent["entry_id"] is not None
-        assert (report_count, output_count, entry_count) == (1, 1, 1)
+        assert (report_count, output_count, entry_count) == (1, 2, 1)
     finally:
         for process in (replacement, first):
             if process is not None and process.returncode is None:

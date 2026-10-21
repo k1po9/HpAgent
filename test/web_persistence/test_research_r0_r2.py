@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
+from support.research_driver import ResearchDriver as ResearchActivities
 from support.work_fixtures import accept_research, advance_work
 from uuid6 import uuid7
 
 from orchestration.research_workflow import ResearchIterationInput, ResearchWorkflowInput
 from persistence.uow import UnitOfWork
-from research_activities import ResearchActivities
 from research_domain.models import (
     ClaimDraft,
     ResearchReport,
@@ -335,17 +335,9 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
         ).fetchone()
     assert published == {"artifacts": 1, "versions": 1}
 
-    db.execute(
-        "UPDATE hpagent.research_citations SET locator='{}'::jsonb WHERE run_id=%s",
-        (run_id,),
-    )
-    with UnitOfWork(worker_database_url) as uow:
-        ResearchRepository().verify_citations(uow, UUID(run_id))
-    invalid = db.execute(
-        "SELECT verification_status FROM hpagent.research_citations WHERE run_id=%s",
-        (run_id,),
-    ).fetchone()[0]
-    assert invalid == "invalid"
+    from run_domain.execution import RunNotExecutable
+    with pytest.raises(RunNotExecutable):
+        await activities.verify_research_citations_activity(request)
 
     other_account = uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (other_account,))
@@ -434,7 +426,7 @@ async def test_fetch_activity_retry_reuses_original_budget_reservation(
     await activities.discover_research_sources_activity(iteration)
     await activities.rank_research_sources_activity(iteration)
 
-    operation_id = f"research:{run_id}:Fetch:1:budget:v1"
+    operation_id = f"research:{uuid5(NAMESPACE_URL, activities.children[str(run_id)].invocation_id)}:Fetch:1:budget:v1"
     RunBudgetService(worker_database_url).reserve(
         run_id, operation_id, {"source_fetches": 2}
     )

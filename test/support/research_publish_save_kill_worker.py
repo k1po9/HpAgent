@@ -11,12 +11,15 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from agent_activities.store import AgentDataStore
+from agent_workflows.contracts import AGENT_TASK_QUEUE
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.research_workflow import ResearchCapabilityWorkflow
 from orchestration.run_dispatcher import RunStrategyActivities
 from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from research_activities import ResearchActivities
+from research_activities.composition import compose_research
 from research_domain.models import (
     ClaimDraft,
     ResearchReport,
@@ -84,6 +87,7 @@ async def main() -> None:
         min_evidence=1, min_distinct_sources=1,
         markdown_publisher=ResearchMarkdownPublisher(publisher),
     )
+    capabilities, parent = compose_research(activities)
     client = await Client.connect(os.environ["TEMPORAL_HOST"],
                                   namespace=os.environ["TEMPORAL_TEST_NAMESPACE"])
     lifecycle = RunLifecycleActivities(WebRunLifecycleService(database),
@@ -95,7 +99,9 @@ async def main() -> None:
             lifecycle.finalize_cancelled,
             lifecycle.finalize_failed,
             strategy.load_strategy,
+            parent.prepare_research_parent_activity,
             activities.prepare_research_activity,
+            activities.commit_research_result_activity,
             activities.create_research_plan_activity,
             activities.discover_research_sources_activity,
             activities.rank_research_sources_activity,
@@ -107,12 +113,13 @@ async def main() -> None:
             activities.synthesize_research_report_activity,
             activities.verify_research_citations_activity,
             activities.compare_previous_research_activity,
-            activities.publish_research_artifact_activity,
-            activities.save_research_workspace_activity,
-            activities.complete_research_activity,
-            activities.fail_research_activity,
+            parent.publish_research_artifact_activity,
+            parent.save_research_workspace_activity,
+            parent.complete_research_activity,
+            parent.fail_research_activity,
         ])
-    async with worker:
+    child_worker = Worker(client, task_queue=AGENT_TASK_QUEUE, workflows=[ResearchCapabilityWorkflow], activities=[capabilities.close])
+    async with worker, child_worker:
         (state / f"{role}.ready").write_text("ready")
         await asyncio.Event().wait()
 

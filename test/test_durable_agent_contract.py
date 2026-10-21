@@ -20,6 +20,7 @@ from agent_workflows.react import ReactAgentWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.document_workflow import NormalizeDocumentWorkflow
+from orchestration.research_workflow import ResearchCapabilityWorkflow
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from orchestration.web_workers import build_web_temporal_workers
 from web_api.models import SendMessageRequest
@@ -97,6 +98,7 @@ def test_canonical_registry_excludes_legacy_execution(monkeypatch):
         ToolExecutionWorkflow,
         WorkDelegationWorkflow,
         CapabilityInvocationWorkflow,
+        ResearchCapabilityWorkflow,
     ]
 
 
@@ -109,7 +111,7 @@ async def test_registered_workflows_validate_in_temporal_sandbox():
     for workflow_type in (
         AgentLifecycleWorkflow, NormalizeDocumentWorkflow, AgentRunWorkflow,
         ReactAgentWorkflow, PlanAndExecuteWorkflow, AgentStepWorkflow,
-        ToolExecutionWorkflow, WorkDelegationWorkflow, CapabilityInvocationWorkflow,
+        ToolExecutionWorkflow, WorkDelegationWorkflow, CapabilityInvocationWorkflow, ResearchCapabilityWorkflow,
     ):
         runner.prepare_workflow(workflow._Definition.must_from_class(workflow_type))
 

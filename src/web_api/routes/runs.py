@@ -21,13 +21,13 @@ router = APIRouter()
 
 
 @router.get("/api/v1/runs/{run_id}/research/evidence")
-def research_evidence(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
-    return ResearchQueryService(request.app.state.api_pool).evidence(context.account_id, run_id)
+def research_evidence(run_id: UUID, request: Request, invocation_id: str | None = None, context: AuthContext = Depends(auth_context)):
+    return ResearchQueryService(request.app.state.api_pool).evidence(context.account_id, run_id, invocation_id)
 
 
 @router.get("/api/v1/runs/{run_id}/research/report")
-def research_report(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
-    return ResearchQueryService(request.app.state.api_pool).report(context.account_id, run_id)
+def research_report(run_id: UUID, request: Request, invocation_id: str | None = None, context: AuthContext = Depends(auth_context)):
+    return ResearchQueryService(request.app.state.api_pool).report(context.account_id, run_id, invocation_id)
 
 
 @router.get("/api/v1/runs/{run_id}")

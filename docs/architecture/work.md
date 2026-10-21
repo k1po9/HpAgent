@@ -47,7 +47,7 @@ flowchart TD
 | --- | --- | --- |
 | 聊天 | `generic_agent / chat_agent` | Main 上下文与 Work 管理工具。 |
 | `reminder` | `deterministic / reminder` | 持久通知入队；不调用模型，不创建 Git / 文件 / Sandbox。Run 成功后 Work 可继续等待投递回执。 |
-| `research_report` | `fixed_workflow / research_report` | 在统一 Lifecycle 内运行固定研究图；保留证据、引用核验、报告和必需保存。 |
+| `research_report` | `fixed_workflow / research_report` | 父适配器调用同一局部 Research 能力；按 Markdown/基础检查事实验收，并承担必需保存。阅读视图失败不否定研究。 |
 | `generic_work` | `generic_agent / work_agent` | Work brief + ReAct / Plan-and-Execute，不加载 Main 聊天全文或管理工具。 |
 | `artifact_build` | `fixed_workflow / artifact_html` | Artifact-build Work 拥有新 Run 和模型成本，不从来源聊天 Run 借额度。 |
 

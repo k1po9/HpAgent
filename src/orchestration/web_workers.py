@@ -29,6 +29,7 @@ from agent_workflows.tool_execution import ToolExecutionWorkflow
 
 from .agent_lifecycle_workflow import AgentLifecycleWorkflow
 from .document_workflow import NormalizeDocumentWorkflow
+from .research_workflow import ResearchCapabilityWorkflow
 from .run_lifecycle_contracts import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
     WEB_AGENT_TASK_QUEUE,
@@ -139,6 +140,7 @@ def build_web_temporal_workers(
                 ToolExecutionWorkflow,
                 WorkDelegationWorkflow,
                 CapabilityInvocationWorkflow,
+                ResearchCapabilityWorkflow,
             ],
             activities=list(agent_activities),
             # Temporal otherwise throttles heartbeat RPCs to most of the

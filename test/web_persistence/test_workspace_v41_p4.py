@@ -5,12 +5,12 @@ import asyncio
 from uuid import UUID, uuid4
 
 import pytest
+from support.research_driver import ResearchDriver as ResearchActivities
 from support.work_fixtures import accept_research, advance_work, revise_output
 
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.research_workflow import ResearchIterationInput, ResearchWorkflowInput
 from persistence.uow import UnitOfWork
-from research_activities import ResearchActivities
 from research_domain.history import authorized_history
 from research_domain.models import (
     ClaimDraft,
@@ -281,7 +281,7 @@ async def test_target_change_freezes_old_run_and_save_retry_skips_research(
                              (f"workspace-save:{run_id}:research_markdown",)).fetchone()
         assert source == {"source_kind": "work_auto", "source_run_id": run_id}
         assert uow.execute("SELECT count(*) AS n FROM run_files WHERE run_id=%s AND "
-                           "direction='output'", (run_id,)).fetchone()["n"] == 1
+                           "direction='output'", (run_id,)).fetchone()["n"] == 2
     assert intent["target_directory_id"] == entry["parent_id"] == replacement
     assert intent["state"] == "succeeded"
     assert attempts == 3 and len(synthesis.objectives) == 1
@@ -313,13 +313,13 @@ async def test_history_read_revocation_blocks_snapshot_even_after_selection(
     second = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
     await activities.prepare_research_activity(ResearchWorkflowInput(1, str(second)))
     with UnitOfWork(database_url) as uow:
-        assert authorized_history(uow, second)[0]["run_id"] == str(first)
+        assert authorized_history(uow, second, instance_id=activities.children[str(second)].invocation_id)[0]["run_id"] == str(first)
         grant = uow.execute("SELECT grant_id FROM resource_grants WHERE subject_id=%s "
                             "AND node_id=%s AND operation='read_content' AND revoked_at IS NULL",
                             (work_id, target)).fetchone()["grant_id"]
     ResourcePolicy(database_url).revoke(account_id, grant)
     with UnitOfWork(database_url) as uow, pytest.raises(ResourceDenied):
-        authorized_history(uow, second)
+        authorized_history(uow, second, instance_id=activities.children[str(second)].invocation_id)
 
 
 @pytest.mark.asyncio

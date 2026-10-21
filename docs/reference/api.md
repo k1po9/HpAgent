@@ -51,7 +51,7 @@ Conversation 支持创建、列表、读取、改名、消息列表及发送；�
 - `GET /api/v1/runs/{run_id}`：discriminated snapshot。chat variant 有 assistant_message；work variant 无该字段，Run 包含 work_id / requirement_revision 和执行策略。
 - `GET /api/v1/runs/{run_id}/trace`、`events`：Trace / SSE。
 - `POST /api/v1/runs/{run_id}/cancel`、`retry`：Run 控制；取消 Work Run 不等于停止 Work。retry 依据 failure.retryable 与副作用安全条件拒绝或创建新 Run。
-- `GET /api/v1/runs/{run_id}/research/evidence`、`report`：Research Work 的证据 / 报告。
+- `GET /api/v1/runs/{run_id}/research/evidence`、`report`：Research 证据 / 报告；可带 `invocation_id` 精确读取同 Run 的某次研究。省略时仅支持固定 research_report 入口及旧报告；账号不匹配或 invocation 不属于该 Run 返回 404。报告包含准确 `markdown_file_id`；并返回 `capability_result`（旧报告为 null），其中有 outcome、gaps、检查版本和证据引用，无需 HTML 阅读视图成功。
 - `GET /api/v1/runs/{run_id}/model-inputs`、`GET /api/v1/model-inputs/{snapshot_id}`：账号内模型输入快照。none 只允许列表最小元数据，单快照为 403；summary 为摘要，full_safe 额外返回已保存 provider_request_body。
 
 Run SSE 在订阅/缓冲后读取权威快照，snapshot 为第一帧；握手期间的终态不会因先读取快照而丢失，终态快照不再发送缓冲 delta。恢复仍遵循 stream/seq 与权威查询，不重放历史 started。Work feed 与 Chat feed 独立，Work 终态不发布 Chat 消息。

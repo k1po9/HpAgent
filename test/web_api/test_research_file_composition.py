@@ -3,11 +3,11 @@ from __future__ import annotations
 from uuid import UUID, uuid4
 
 import pytest
+from support.research_driver import ResearchDriver as ResearchActivities
 from support.work_fixtures import research_requirement
 
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.research_workflow import ResearchIterationInput, ResearchWorkflowInput
-from research_activities import ResearchActivities
 from research_domain.models import (
     ClaimDraft,
     ResearchReport,
@@ -118,6 +118,11 @@ async def test_standalone_research_report_becomes_downloadable_run_output(
     report = client.get(
         f"/api/v1/runs/{run_id}/research/report"
     ).json()["report"]
+    exact = client.get(f"/api/v1/runs/{run_id}/research/report", params={"invocation_id": report["invocation_id"]})
+    assert exact.status_code == 200 and exact.json()["report"]["markdown_file_id"] == report["markdown_file_id"]
+    assert exact.json()["capability_result"]["outcome"] == "succeeded"
+    assert exact.json()["capability_result"]["checks"][0]["verifier_key"] == "research.basic"
+    assert client.get(f"/api/v1/runs/{run_id}/research/report", params={"invocation_id": "unrelated"}).status_code == 404
     assert run["status"] == "succeeded"
     assert evidence and report["artifact_id"]
     assert report["report_markdown"].startswith(markdown)
@@ -127,7 +132,7 @@ async def test_standalone_research_report_becomes_downloadable_run_output(
     assert any(item["work_id"] == work_id for item in history_works)
     history_runs = client.get(f"/api/v1/works/{work_id}/runs").json()["items"]
     assert history_runs[0]["run_id"] == run_id
-    assert attachment["file_name"] == "research-report.md"
+    assert attachment["file_name"].startswith("research-") and attachment["file_name"].endswith(".md")
     downloaded = client.get(attachment["download_url"])
     assert downloaded.status_code == 200
     assert downloaded.content.decode("utf-8") == report["report_markdown"]
@@ -148,7 +153,7 @@ async def test_standalone_research_report_becomes_downloadable_run_output(
         "WHERE rf.run_id=%s AND rf.direction='output'",
         (UUID(run_id),),
     ).fetchone()
-    assert rows[0] == 1
+    assert rows[0] == 2  # Markdown and the independently retained check evidence.
     assert rows[1] == "utf-8"
     assert db.execute(
         "SELECT sf.conversation_id,sf.source_run_id FROM stored_files sf "

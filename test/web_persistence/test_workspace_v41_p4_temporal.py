@@ -11,12 +11,15 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from agent_activities.store import AgentDataStore
+from agent_workflows.contracts import AGENT_TASK_QUEUE
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
+from orchestration.research_workflow import ResearchCapabilityWorkflow
 from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
 from persistence.uow import UnitOfWork
 from research_activities import ResearchActivities
+from research_activities.composition import compose_research
 from run_domain.input import RunInputLoader
 from storage.tenant_file_store import TenantFileStore
 from web_domain.lifecycle import WebRunLifecycleService
@@ -49,6 +52,7 @@ async def test_real_temporal_activity_retry_resumes_save_only(
         Canonicalizer(), synthesis, min_evidence=1, min_distinct_sources=1,
         markdown_publisher=ResearchMarkdownPublisher(OutputPublisher(
             worker_database_url, TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024))))
+    capabilities, research_parent = compose_research(activities)
     original_save = WorkspaceCatalog.save_file
     attempts = 0
 
@@ -69,7 +73,9 @@ async def test_real_temporal_activity_retry_resumes_save_only(
     worker = Worker(client, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
         workflows=[AgentLifecycleWorkflow], activities=[
             *lifecycle_control_activities(worker_database_url, controls),
+            research_parent.prepare_research_parent_activity,
             activities.prepare_research_activity,
+            activities.commit_research_result_activity,
             activities.create_research_plan_activity,
             activities.discover_research_sources_activity,
             activities.rank_research_sources_activity,
@@ -81,18 +87,19 @@ async def test_real_temporal_activity_retry_resumes_save_only(
             activities.synthesize_research_report_activity,
             activities.verify_research_citations_activity,
             activities.compare_previous_research_activity,
-            activities.publish_research_artifact_activity,
-            activities.save_research_workspace_activity,
-            activities.complete_research_activity,
-            activities.fail_research_activity,
+            research_parent.publish_research_artifact_activity,
+            research_parent.save_research_workspace_activity,
+            research_parent.complete_research_activity,
+            research_parent.fail_research_activity,
         ])
-    async with worker:
+    child_worker = Worker(client, task_queue=AGENT_TASK_QUEUE, workflows=[ResearchCapabilityWorkflow], activities=[capabilities.close])
+    async with worker, child_worker:
         decision = PostgresWorkflowExecutionStore(worker_database_url).prepare_start(run_id)
         assert decision.should_start
         result = await client.execute_workflow(AgentLifecycleWorkflow.run,
             RunLifecycleInput(1, str(run_id)), id=decision.workflow_id,
             task_queue=WEB_LIFECYCLE_TASK_QUEUE)
-    assert result["outcome"] == "report_published"
+    assert result["outcome"] == "report_ready"
     assert attempts == 2 and len(synthesis.objectives) == 1
     with UnitOfWork(database_url) as uow:
         intent = uow.execute("SELECT state,entry_id FROM research_run_save_intents "

@@ -8,6 +8,7 @@ import pytest
 
 from orchestration.research_workflow import (
     RESEARCH_WORKFLOW_SCHEMA_VERSION,
+    ResearchCapabilityWorkflow,
     ResearchIterationInput,
     ResearchReportWorkflow,
     ResearchWorkflowInput,
@@ -17,14 +18,14 @@ from orchestration.web_dispatcher import StartDecision, TemporalOutboxDispatcher
 
 
 def test_research_workflow_input_and_history_payload_are_compact():
-    assert list(ResearchWorkflowInput.__dataclass_fields__) == ["schema_version", "run_id"]
+    assert list(ResearchWorkflowInput.__dataclass_fields__) == ["schema_version", "run_id", "invocation_id", "account_id", "execution_id"]
     assert list(ResearchIterationInput.__dataclass_fields__) == [
         "schema_version",
         "run_id",
-        "iteration",
+        "iteration", "invocation_id", "account_id", "execution_id",
     ]
     ResearchWorkflowInput(RESEARCH_WORKFLOW_SCHEMA_VERSION, "run-1").validate()
-    source = inspect.getsource(ResearchReportWorkflow)
+    source = inspect.getsource(ResearchReportWorkflow) + inspect.getsource(ResearchCapabilityWorkflow)
     tree = ast.parse(source)
     names = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
     assert "execute_activity" not in names  # attribute calls only

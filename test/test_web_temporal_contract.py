@@ -23,6 +23,7 @@ from common.types import ChannelType, UnifiedMessage
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.config import TemporalConfig
 from orchestration.document_workflow import NormalizeDocumentWorkflow
+from orchestration.research_workflow import ResearchCapabilityWorkflow
 from orchestration.run_lifecycle_contracts import (
     WEB_AGENT_TASK_QUEUE,
     WEB_LIFECYCLE_TASK_QUEUE,
@@ -97,6 +98,7 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
         ToolExecutionWorkflow,
         WorkDelegationWorkflow,
         CapabilityInvocationWorkflow,
+        ResearchCapabilityWorkflow,
     ]
 
 

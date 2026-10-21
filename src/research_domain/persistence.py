@@ -12,6 +12,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 from uuid6 import uuid7
 
 from persistence.uow import UnitOfWork
+from research_domain.context import invocation_id, research_identity, research_key
 from research_domain.history import authorized_history
 from research_domain.models import (
     EvidenceItem,
@@ -25,31 +26,56 @@ from run_domain.execution import assert_execution_fence
 
 def execution_repository_method(function):
     from functools import wraps
+
     @wraps(function)
     def wrapped(self, uow, *args, **kwargs):
         assert_execution_fence(uow)
+        if invocation_id() is not None:
+            from run_domain.execution_context import execution_fence
+
+            fence = execution_fence.get()
+            allowed = "child_execution_id=%s"
+            parameters = (invocation_id(), fence[0], fence[1], fence[2])
+            if function.__name__ in {"stage_result", "save_stage_result"}:
+                allowed = "(child_execution_id=%s OR caller_execution_id=%s)"
+                parameters += (fence[2],)
+            if not uow.execute(
+                "SELECT 1 FROM capability_invocations WHERE invocation_id=%s "
+                "AND account_id=%s AND run_id=%s AND " + allowed,
+                parameters,
+            ).fetchone():
+                raise PermissionError("Research instance is outside producer Execution")
         return function(self, uow, *args, **kwargs)
+
     return wrapped
 
 
 class ResearchRepository:
     @execution_repository_method
     def create_plan(self, uow: UnitOfWork, run_id: UUID, plan: ResearchPlan) -> None:
-        owner = uow.execute("SELECT work_id,account_id,requirement_revision FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+        owner = uow.execute(
+            "SELECT work_id,account_id,requirement_revision FROM runs WHERE run_id=%s", (run_id,)
+        ).fetchone()
         work_id = owner["work_id"]
         uow.execute(
-            "INSERT INTO research_plans(run_id,work_id,account_id,requirement_revision,plan_version,plan) "
-            "VALUES (%s,%s,%s,%s,%s,%s::jsonb) ON CONFLICT (run_id) DO NOTHING",
-            (run_id, work_id, owner["account_id"], owner["requirement_revision"], plan.version, json.dumps(plan.to_dict())),
+            "INSERT INTO research_plans(run_id,invocation_id,work_id,account_id,requirement_revision,plan_version,plan) "
+            "VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb) ON CONFLICT (research_id) DO NOTHING",
+            (
+                run_id,
+                invocation_id(),
+                work_id,
+                owner["account_id"],
+                owner["requirement_revision"],
+                plan.version,
+                json.dumps(plan.to_dict()),
+            ),
         )
 
     @execution_repository_method
     def load_plan(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
         row = uow.execute(
-            "SELECT p.plan,q.work_id,q.objective FROM research_plans p JOIN work_requirements q "
-            "ON q.account_id=p.account_id AND q.work_id=p.work_id AND q.revision=p.requirement_revision "
-            "WHERE p.run_id=%s",
-            (run_id,),
+            "SELECT p.plan,p.work_id,p.plan->>'objective' AS objective FROM research_plans p WHERE p.research_id=%s",
+            (research_key(run_id),),
         ).fetchone()
         if row is None:
             raise LookupError(f"research plan not found: {run_id}")
@@ -66,22 +92,25 @@ class ResearchRepository:
         iteration: int = 1,
         question_id: str = "q1",
     ) -> list[UUID]:
-        owner = uow.execute("SELECT work_id,account_id,requirement_revision FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+        owner = uow.execute(
+            "SELECT work_id,account_id,requirement_revision FROM runs WHERE run_id=%s", (run_id,)
+        ).fetchone()
         work_id = owner["work_id"]
         source_ids: list[UUID] = []
         for candidate in candidates:
             source_id = uuid7()
             canonical_uri = canonicalize(candidate.uri)
             row = uow.execute(
-                "INSERT INTO source_records(source_id,run_id,work_id,provider,source_type,"
+                "INSERT INTO source_records(source_id,run_id,invocation_id,work_id,provider,source_type,"
                 "canonical_uri,title,publisher,published_at,source_tier,metadata,iteration,question_id,account_id,requirement_revision) "
-                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s) "
-                "ON CONFLICT (run_id,canonical_uri) DO UPDATE SET "
+                "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s) "
+                "ON CONFLICT (research_id,canonical_uri) DO UPDATE SET "
                 "metadata=source_records.metadata || EXCLUDED.metadata,updated_at=now() "
                 "RETURNING source_id",
                 (
                     source_id,
                     run_id,
+                    invocation_id(),
                     work_id,
                     candidate.provider,
                     candidate.source_type,
@@ -106,11 +135,13 @@ class ResearchRepository:
     ) -> list[dict[str, Any]]:
         iteration_sql = " AND iteration=%s" if iteration is not None else ""
         params: tuple[Any, ...] = (
-            (run_id, iteration, limit) if iteration is not None else (run_id, limit)
+            (research_key(run_id), iteration, limit)
+            if iteration is not None
+            else (research_key(run_id), limit)
         )
         return list(
             uow.execute(
-                "SELECT * FROM source_records WHERE run_id=%s AND fetch_status='discovered' "
+                "SELECT * FROM source_records WHERE research_id=%s AND fetch_status='discovered' "
                 + iteration_sql
                 + " ORDER BY source_tier ASC,"
                 "CASE WHEN metadata->>'preferred_domain'='true' THEN 0 ELSE 1 END,"
@@ -127,15 +158,14 @@ class ResearchRepository:
         content: SourceContent,
     ) -> tuple[str | None, bool]:
         source = uow.execute(
-            "SELECT run_id FROM source_records WHERE source_id=%s FOR UPDATE", (source_id,)
+            "SELECT run_id,research_id FROM source_records WHERE source_id=%s FOR UPDATE",
+            (source_id,),
         ).fetchone()
         if source is None:
             raise LookupError(f"source not found: {source_id}")
         duplicate = uow.execute(
-            "SELECT source_id FROM source_records WHERE run_id=%s "
-            "AND (content_hash=%s OR canonical_uri=%s) AND fetch_status='fetched' "
-            "AND source_id<>%s ORDER BY source_id LIMIT 1",
-            (source["run_id"], content.content_hash, content.canonical_uri, source_id),
+            "SELECT source_id FROM source_records WHERE research_id=%s AND (content_hash=%s OR canonical_uri=%s) AND fetch_status='fetched' AND source_id<>%s ORDER BY source_id LIMIT 1",
+            (source["research_id"], content.content_hash, content.canonical_uri, source_id),
         ).fetchone()
         if duplicate is not None:
             uow.execute(
@@ -183,22 +213,21 @@ class ResearchRepository:
     def evidence_sources(self, uow: UnitOfWork, run_id: UUID) -> list[dict[str, Any]]:
         return list(
             uow.execute(
-                "SELECT s.*,c.content_text FROM source_records s JOIN source_contents c "
-                "ON c.source_id=s.source_id WHERE s.run_id=%s AND s.fetch_status='fetched' "
-                "ORDER BY s.source_id",
-                (run_id,),
+                "SELECT s.*,c.content_text FROM source_records s JOIN source_contents c ON c.source_id=s.source_id WHERE s.research_id=%s AND s.fetch_status='fetched' ORDER BY s.source_id",
+                (research_key(run_id),),
             ).fetchall()
         )
 
     @execution_repository_method
     def add_evidence(self, uow: UnitOfWork, item: EvidenceItem) -> bool:
         row = uow.execute(
-            "INSERT INTO evidence_items(evidence_id,run_id,source_id,excerpt,content_ref,"
-            "source_locator,source_quality,metadata) VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s::jsonb) "
-            "ON CONFLICT (run_id,source_id) DO NOTHING RETURNING evidence_id",
+            "INSERT INTO evidence_items(evidence_id,run_id,invocation_id,source_id,excerpt,content_ref,"
+            "source_locator,source_quality,metadata) VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s::jsonb) "
+            "ON CONFLICT (research_id,source_id) DO NOTHING RETURNING evidence_id",
             (
                 UUID(item.evidence_id),
                 UUID(item.run_id),
+                invocation_id(),
                 UUID(item.source_id),
                 item.excerpt,
                 item.content_ref,
@@ -226,17 +255,17 @@ class ResearchRepository:
         result: dict[str, Any],
     ) -> None:
         uow.execute(
-            "INSERT INTO research_stage_results(operation_id,run_id,stage,result) "
-            "VALUES (%s,%s,%s,%s::jsonb) ON CONFLICT (operation_id) DO NOTHING",
-            (operation_id, run_id, stage, json.dumps(result)),
+            "INSERT INTO research_stage_results(operation_id,run_id,invocation_id,stage,result) "
+            "VALUES (%s,%s,%s,%s,%s::jsonb) ON CONFLICT (operation_id) DO NOTHING",
+            (operation_id, run_id, invocation_id(), stage, json.dumps(result)),
         )
 
     @execution_repository_method
     def start_iteration(self, uow: UnitOfWork, run_id: UUID, iteration: int, query: str) -> None:
         uow.execute(
-            "INSERT INTO research_iterations(run_id,iteration,query) VALUES (%s,%s,%s) "
-            "ON CONFLICT (run_id,iteration) DO NOTHING",
-            (run_id, iteration, query),
+            "INSERT INTO research_iterations(run_id,invocation_id,iteration,query) VALUES (%s,%s,%s,%s) "
+            "ON CONFLICT (research_id,iteration) DO NOTHING",
+            (run_id, invocation_id(), iteration, query),
         )
 
     @execution_repository_method
@@ -244,9 +273,8 @@ class ResearchRepository:
         self, uow: UnitOfWork, run_id: UUID, iteration: int, value: dict[str, Any]
     ) -> None:
         uow.execute(
-            "UPDATE research_iterations SET corroboration=%s::jsonb,updated_at=now() "
-            "WHERE run_id=%s AND iteration=%s",
-            (json.dumps(value), run_id, iteration),
+            "UPDATE research_iterations SET corroboration=%s::jsonb,updated_at=now() WHERE research_id=%s AND iteration=%s",
+            (json.dumps(value), research_key(run_id), iteration),
         )
 
     @execution_repository_method
@@ -260,61 +288,80 @@ class ResearchRepository:
         sufficient: bool,
     ) -> None:
         uow.execute(
-            "UPDATE research_iterations SET gap_analysis=%s::jsonb,status=%s,updated_at=now() "
-            "WHERE run_id=%s AND iteration=%s",
-            (json.dumps(value), "sufficient" if sufficient else "insufficient", run_id, iteration),
+            "UPDATE research_iterations SET gap_analysis=%s::jsonb,status=%s,updated_at=now() WHERE research_id=%s AND iteration=%s",
+            (
+                json.dumps(value),
+                "sufficient" if sufficient else "insufficient",
+                research_key(run_id),
+                iteration,
+            ),
         )
 
     @execution_repository_method
     def evidence_for_synthesis(self, uow: UnitOfWork, run_id: UUID) -> list[dict[str, Any]]:
         return list(
             uow.execute(
-                "SELECT e.evidence_id,e.excerpt,e.source_locator,e.source_quality,"
-                "s.source_id,s.title,s.canonical_uri,s.publisher,s.source_tier "
-                "FROM evidence_items e JOIN source_records s ON s.source_id=e.source_id "
-                "WHERE e.run_id=%s ORDER BY e.source_quality,e.evidence_id",
-                (run_id,),
+                "SELECT e.evidence_id,e.excerpt,e.source_locator,e.source_quality,s.source_id,s.title,s.canonical_uri,s.publisher,s.source_tier FROM evidence_items e JOIN source_records s ON s.source_id=e.source_id WHERE e.research_id=%s ORDER BY e.source_quality,e.evidence_id",
+                (research_key(run_id),),
             ).fetchall()
         )
 
     @execution_repository_method
     def load_report(self, uow: UnitOfWork, run_id: UUID) -> dict[str, Any] | None:
-        row = uow.execute("SELECT * FROM research_reports WHERE run_id=%s", (run_id,)).fetchone()
+        row = uow.execute(
+            "SELECT * FROM research_reports WHERE research_id=%s", (research_key(run_id),)
+        ).fetchone()
         return dict(row) if row else None
+
+    @execution_repository_method
+    def save_empty_report(self, uow, run_id):
+        markdown = "# Research incomplete\n\nNo usable source evidence was found.\n"
+        structured = {"title": "Research incomplete", "report_markdown": markdown, "claims": []}
+        uow.execute(
+            "INSERT INTO research_reports(run_id,invocation_id,report_markdown,report_structured_json) "
+            "VALUES (%s,%s,%s,%s::jsonb) ON CONFLICT (research_id) DO NOTHING",
+            (run_id, invocation_id(), markdown, json.dumps(structured)),
+        )
+        return 0
 
     @execution_repository_method
     def save_report(self, uow: UnitOfWork, run_id: UUID, report: ResearchReport) -> int:
         uow.execute(
-            "INSERT INTO research_reports(run_id,report_markdown,report_structured_json) "
-            "VALUES (%s,%s,%s::jsonb) ON CONFLICT (run_id) DO NOTHING",
-            (run_id, report.report_markdown, json.dumps(report.to_dict())),
+            "INSERT INTO research_reports(run_id,invocation_id,report_markdown,report_structured_json) "
+            "VALUES (%s,%s,%s,%s::jsonb) ON CONFLICT (research_id) DO NOTHING",
+            (run_id, invocation_id(), report.report_markdown, json.dumps(report.to_dict())),
         )
         evidence = {
             str(row["evidence_id"]): row for row in self.evidence_for_synthesis(uow, run_id)
         }
         for ordinal, claim in enumerate(report.claims, start=1):
-            claim_id = uuid5(NAMESPACE_URL, f"hpagent:research:{run_id}:claim:{ordinal}")
+            claim_id = uuid5(
+                NAMESPACE_URL, f"hpagent:research:{research_identity(run_id)}:claim:{ordinal}"
+            )
             uow.execute(
-                "INSERT INTO research_claims(claim_id,run_id,statement,importance,ordinal) "
-                "VALUES (%s,%s,%s,%s,%s) ON CONFLICT (run_id,ordinal) DO NOTHING",
-                (claim_id, run_id, claim.statement, claim.importance, ordinal),
+                "INSERT INTO research_claims(claim_id,run_id,invocation_id,statement,importance,ordinal) "
+                "VALUES (%s,%s,%s,%s,%s,%s) ON CONFLICT (research_id,ordinal) DO NOTHING",
+                (claim_id, run_id, invocation_id(), claim.statement, claim.importance, ordinal),
             )
             for evidence_id_text in claim.evidence_ids:
                 evidence_row = evidence.get(evidence_id_text)
                 if evidence_row is None:
-                    raise ValueError("claim cites EvidenceItem outside the Research Run")
+                    if invocation_id() is None:
+                        raise ValueError("claim cites EvidenceItem outside the Research Run")
+                    continue
                 evidence_id = UUID(evidence_id_text)
                 citation_id = uuid5(
                     NAMESPACE_URL,
-                    f"hpagent:research:{run_id}:citation:{claim_id}:{evidence_id}",
+                    f"hpagent:research:{research_identity(run_id)}:citation:{claim_id}:{evidence_id}",
                 )
                 uow.execute(
-                    "INSERT INTO research_citations(citation_id,run_id,claim_id,evidence_id,locator) "
-                    "VALUES (%s,%s,%s,%s,%s::jsonb) "
+                    "INSERT INTO research_citations(citation_id,run_id,invocation_id,claim_id,evidence_id,locator) "
+                    "VALUES (%s,%s,%s,%s,%s,%s::jsonb) "
                     "ON CONFLICT (claim_id,evidence_id) DO NOTHING",
                     (
                         citation_id,
                         run_id,
+                        invocation_id(),
                         claim_id,
                         evidence_id,
                         json.dumps(evidence_row["source_locator"]),
@@ -325,14 +372,8 @@ class ResearchRepository:
     @execution_repository_method
     def verify_citations(self, uow: UnitOfWork, run_id: UUID) -> tuple[int, bool]:
         rows = uow.execute(
-            "SELECT c.citation_id,c.claim_id,c.locator,e.source_locator,e.source_quality,"
-            "e.excerpt,e.content_ref,e.run_id AS evidence_run_id,cl.importance,"
-            "s.run_id AS source_run_id,s.canonical_uri,sc.content_text "
-            "FROM research_citations c JOIN evidence_items e ON e.evidence_id=c.evidence_id "
-            "JOIN research_claims cl ON cl.claim_id=c.claim_id "
-            "JOIN source_records s ON s.source_id=e.source_id "
-            "JOIN source_contents sc ON sc.content_ref=e.content_ref WHERE c.run_id=%s",
-            (run_id,),
+            "SELECT c.citation_id,c.claim_id,c.locator,e.source_locator,e.source_quality,e.excerpt,e.content_ref,e.run_id AS evidence_run_id,e.source_id,e.invocation_id AS evidence_invocation_id,cl.importance,s.run_id AS source_run_id,s.invocation_id AS source_invocation_id,s.content_ref AS source_content_ref,s.canonical_uri,sc.source_id AS content_source_id,sc.content_text FROM research_citations c JOIN evidence_items e ON e.evidence_id=c.evidence_id JOIN research_claims cl ON cl.claim_id=c.claim_id JOIN source_records s ON s.source_id=e.source_id JOIN source_contents sc ON sc.content_ref=e.content_ref WHERE c.research_id=%s",
+            (research_key(run_id),),
         ).fetchall()
         needs_review = False
         claim_states: dict[UUID, list[str]] = {}
@@ -346,9 +387,14 @@ class ResearchRepository:
                 locator == source_locator
                 and row["evidence_run_id"] == run_id
                 and row["source_run_id"] == run_id
+                and row["evidence_invocation_id"] == invocation_id()
+                and row["source_invocation_id"] == invocation_id()
+                and row["content_source_id"] == row["source_id"]
+                and row["source_content_ref"] == row["content_ref"]
                 and locator.get("canonical_uri") == row["canonical_uri"]
                 and locator.get("content_ref") == row["content_ref"]
-                and isinstance(start, int) and isinstance(end, int)
+                and isinstance(start, int)
+                and isinstance(end, int)
                 and 0 <= start < end <= len(text)
                 and text[start:end] == row["excerpt"]
                 and locator.get("excerpt") == row["excerpt"]
@@ -368,7 +414,7 @@ class ResearchRepository:
             )
             claim_states.setdefault(UUID(str(row["claim_id"])), []).append(status)
         claims = uow.execute(
-            "SELECT claim_id FROM research_claims WHERE run_id=%s", (run_id,)
+            "SELECT claim_id FROM research_claims WHERE research_id=%s", (research_key(run_id),)
         ).fetchall()
         for claim in claims:
             statuses = claim_states.get(UUID(str(claim["claim_id"])), [])
@@ -385,8 +431,8 @@ class ResearchRepository:
                 (evidence_status, claim["claim_id"]),
             )
         uow.execute(
-            "UPDATE research_reports SET citation_status=%s,updated_at=now() WHERE run_id=%s",
-            ("needs_review" if needs_review else "verified", run_id),
+            "UPDATE research_reports SET citation_status=%s,updated_at=now() WHERE research_id=%s",
+            ("needs_review" if needs_review else "verified", research_key(run_id)),
         )
         return len(rows), needs_review
 
@@ -406,32 +452,37 @@ class ResearchRepository:
 
         def snapshot(target: UUID) -> dict[str, Any]:
             rows = uow.execute(
-                "SELECT cl.claim_id,cl.statement,cl.importance,"
-                "COALESCE(jsonb_agg(DISTINCT jsonb_build_object("
-                "'evidence_id',e.evidence_id,'source_id',s.source_id,"
-                "'canonical_uri',s.canonical_uri,'content_hash',s.content_hash)) "
-                "FILTER (WHERE e.evidence_id IS NOT NULL),'[]'::jsonb) AS evidence "
-                "FROM research_claims cl LEFT JOIN research_citations c ON c.claim_id=cl.claim_id "
-                "LEFT JOIN evidence_items e ON e.evidence_id=c.evidence_id "
-                "LEFT JOIN source_records s ON s.source_id=e.source_id "
-                "WHERE cl.run_id=%s GROUP BY cl.claim_id ORDER BY cl.ordinal",
+                "SELECT cl.claim_id,cl.statement,cl.importance,COALESCE(jsonb_agg(DISTINCT jsonb_build_object('evidence_id',e.evidence_id,'source_id',s.source_id,'canonical_uri',s.canonical_uri,'content_hash',s.content_hash)) FILTER (WHERE e.evidence_id IS NOT NULL),'[]'::jsonb) AS evidence FROM research_claims cl LEFT JOIN research_citations c ON c.claim_id=cl.claim_id LEFT JOIN evidence_items e ON e.evidence_id=c.evidence_id LEFT JOIN source_records s ON s.source_id=e.source_id WHERE cl.research_id=%s GROUP BY cl.claim_id ORDER BY cl.ordinal",
                 (target,),
             ).fetchall()
-            return {"run_id": str(target), "claims": [
-                {"claim_id": str(row["claim_id"]), "statement": row["statement"],
-                 "importance": row["importance"], "evidence": list(row["evidence"])}
-                for row in rows
-            ]}
+            return {
+                "run_id": str(run_id),
+                "invocation_id": invocation_id(),
+                "claims": [
+                    {
+                        "claim_id": str(row["claim_id"]),
+                        "statement": row["statement"],
+                        "importance": row["importance"],
+                        "evidence": list(row["evidence"]),
+                    }
+                    for row in rows
+                ],
+            }
 
-        current = snapshot(run_id)
+        current = snapshot(research_key(run_id))
         prior = previous["snapshot"] if previous else {"claims": []}
         unmatched = list(prior["claims"])
         diff: dict[str, list[dict[str, Any]]] = {
-            "new": [], "changed": [], "continuing": [], "invalidated": []
+            "new": [],
+            "changed": [],
+            "continuing": [],
+            "invalidated": [],
         }
         for claim in current["claims"]:
             key = self._claim_key(str(claim["statement"]))
-            exact = next((old for old in unmatched if self._claim_key(str(old["statement"])) == key), None)
+            exact = next(
+                (old for old in unmatched if self._claim_key(str(old["statement"])) == key), None
+            )
             best = exact
             if best is None and unmatched:
                 candidate = max(
@@ -440,9 +491,10 @@ class ResearchRepository:
                         None, key, self._claim_key(str(old["statement"]))
                     ).ratio(),
                 )
-                if SequenceMatcher(
-                    None, key, self._claim_key(str(candidate["statement"]))
-                ).ratio() >= 0.6:
+                if (
+                    SequenceMatcher(None, key, self._claim_key(str(candidate["statement"]))).ratio()
+                    >= 0.6
+                ):
                     best = candidate
             if best is None:
                 diff["new"].append(claim)
@@ -451,9 +503,7 @@ class ResearchRepository:
             same_statement = self._claim_key(str(best["statement"])) == key
             same_sources = {
                 (item["canonical_uri"], item["content_hash"]) for item in claim["evidence"]
-            } == {
-                (item["canonical_uri"], item["content_hash"]) for item in best["evidence"]
-            }
+            } == {(item["canonical_uri"], item["content_hash"]) for item in best["evidence"]}
             bucket = "continuing" if same_statement and same_sources else "changed"
             diff[bucket].append({"current": claim, "previous": best})
         diff["invalidated"] = unmatched
@@ -464,8 +514,12 @@ class ResearchRepository:
         if isinstance(report_json, str):
             report_json = json.loads(report_json)
         report_json = {**dict(report_json), "snapshot": current, "daily_diff": diff}
-        labels = (("new", "新增"), ("changed", "变化"),
-                  ("continuing", "持续关注"), ("invalidated", "失效 / 撤回"))
+        labels = (
+            ("new", "新增"),
+            ("changed", "变化"),
+            ("continuing", "持续关注"),
+            ("invalidated", "失效 / 撤回"),
+        )
         lines = ["## Daily Diff"]
         for key_name, label in labels:
             lines.append(f"### {label}")
@@ -480,25 +534,15 @@ class ResearchRepository:
             markdown = markdown.split(marker, 1)[0]
         markdown = markdown.rstrip() + "\n\n" + "\n".join(lines) + "\n"
         uow.execute(
-            "UPDATE research_reports SET previous_run_id=%s,snapshot=%s::jsonb,"
-            "daily_diff=%s::jsonb,report_structured_json=%s::jsonb,report_markdown=%s,"
-            "updated_at=now() WHERE run_id=%s",
-            (previous["run_id"] if previous else None, json.dumps(current), json.dumps(diff),
-             json.dumps(report_json), markdown, run_id),
+            "UPDATE research_reports SET previous_invocation_id=%s,previous_run_id=%s,snapshot=%s::jsonb,daily_diff=%s::jsonb,report_structured_json=%s::jsonb,report_markdown=%s,updated_at=now() WHERE research_id=%s",
+            (
+                previous.get("invocation_id") if previous else None,
+                UUID(previous["run_id"]) if previous else None,
+                json.dumps(current),
+                json.dumps(diff),
+                json.dumps(report_json),
+                markdown,
+                research_key(run_id),
+            ),
         )
         return diff
-
-    @execution_repository_method
-    def publish_report_artifact(self, uow: UnitOfWork, run_id: UUID, html: str) -> UUID:
-        report = self.load_report(uow, run_id)
-        if report is None:
-            raise LookupError(f"research report not found: {run_id}")
-        if report["artifact_id"] is not None:
-            return UUID(str(report["artifact_id"]))
-        artifact_id = uuid5(NAMESPACE_URL, f"hpagent:research:{run_id}:artifact")
-        version_id = uuid5(NAMESPACE_URL, f"hpagent:research:{run_id}:artifact:v1")
-        from web_artifacts.publisher import publish
-        publish(uow, run_id, artifact_id, version_id, html, operation_id=f'research:{run_id}:PublishArtifact:v1',
-                title='Research Report', markdown=report['report_markdown'])
-        uow.execute('UPDATE research_reports SET artifact_id=%s,artifact_version_id=%s,updated_at=now() WHERE run_id=%s', (artifact_id,version_id,run_id))
-        return artifact_id

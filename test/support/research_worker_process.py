@@ -8,7 +8,10 @@ from temporalio import activity
 from temporalio.client import Client
 from temporalio.worker import Worker
 
+from agent_workflows.capability_contracts import CapabilityExecutionInput
+from agent_workflows.contracts import AGENT_TASK_QUEUE
 from orchestration.research_workflow import (
+    ResearchCapabilityWorkflow,
     ResearchIterationInput,
     ResearchReportWorkflow,
 )
@@ -35,6 +38,18 @@ def simple(name, stage):
     return implementation
 
 
+
+@activity.defn(name="prepare_research_parent_activity")
+async def prepare_parent(request):
+    run_id = request["run_id"] if isinstance(request, dict) else request.run_id
+    return CapabilityExecutionInput(run_id, run_id, run_id, f"{run_id}:research", "ResearchCapabilityWorkflow", 3600, 4, f"{run_id}:produce")
+
+
+@activity.defn(name="close_capability_activity")
+async def close_capability(request):
+    pass
+
+
 prepare = simple("prepare_research_activity", "Planning")
 plan = simple("create_research_plan_activity", "SourceStrategy")
 discover = simple("discover_research_sources_activity", "SourceDiscovery")
@@ -45,6 +60,7 @@ corroborate = simple("assess_research_corroboration_activity", "Corroboration")
 synthesize = simple("synthesize_research_report_activity", "Synthesis")
 verify = simple("verify_research_citations_activity", "CitationVerification")
 compare = simple("compare_previous_research_activity", "DailyDiff")
+commit_result = simple("commit_research_result_activity", "CommitResult")
 publish = simple("publish_research_artifact_activity", "PublishArtifact")
 save = simple("save_research_workspace_activity", "WorkspaceSave")
 complete = simple("complete_research_activity", "Complete")
@@ -80,11 +96,13 @@ async def main() -> None:
         task_queue=WEB_LIFECYCLE_TASK_QUEUE,
         workflows=[ResearchReportWorkflow],
         activities=[
-            prepare, plan, discover, rank, fetch, normalize, evidence, corroborate,
+            prepare_parent, close_capability, commit_result, prepare, plan, discover, rank, fetch, normalize, evidence, corroborate,
             gaps, synthesize, verify, compare, publish, save, complete, fail, trigger_schedule,
         ],
     )
-    async with worker:
+    child_worker = Worker(client, task_queue=AGENT_TASK_QUEUE,
+        workflows=[ResearchCapabilityWorkflow], activities=[close_capability])
+    async with worker, child_worker:
         (state / f"{role}.ready").touch()
         await asyncio.Future()
 

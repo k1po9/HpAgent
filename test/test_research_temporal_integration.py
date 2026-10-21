@@ -8,10 +8,14 @@ from google.protobuf.duration_pb2 import Duration
 from temporalio import activity
 from temporalio.api.workflowservice.v1 import RegisterNamespaceRequest
 from temporalio.client import Client
+from temporalio.exceptions import ApplicationError
 from temporalio.service import RPCError, RPCStatusCode
 from temporalio.worker import Replayer, Worker
 
+from agent_workflows.capability_contracts import CapabilityExecutionInput
+from agent_workflows.contracts import AGENT_TASK_QUEUE
 from orchestration.research_workflow import (
+    ResearchCapabilityWorkflow,
     ResearchIterationInput,
     ResearchReportWorkflow,
     ResearchWorkflowInput,
@@ -23,6 +27,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.temporal]
 stages: list[str] = []
 sufficient_after = 1
 save_attempts = 0
+view_failure = False
 
 
 def _result(request, stage: str, count: int = 1, *, sufficient: bool | None = None):
@@ -37,6 +42,18 @@ def _result(request, stage: str, count: int = 1, *, sufficient: bool | None = No
     if sufficient is not None:
         result["sufficient"] = sufficient
     return result
+
+
+
+@activity.defn(name="prepare_research_parent_activity")
+async def prepare_parent(request):
+    run_id = request["run_id"] if isinstance(request, dict) else request.run_id
+    return CapabilityExecutionInput(run_id, run_id, run_id, f"{run_id}:research", "ResearchCapabilityWorkflow", 3600, 4, f"{run_id}:produce")
+
+
+@activity.defn(name="close_capability_activity")
+async def close_capability(request):
+    pass
 
 
 @activity.defn(name="prepare_research_activity")
@@ -104,9 +121,17 @@ async def compare(request: ResearchWorkflowInput):
     return _result(request, "DailyDiff", 1)
 
 
+@activity.defn(name="commit_research_result_activity")
+async def commit_result(request: ResearchWorkflowInput):
+    return _result(request, "CommitResult")
+
+
 @activity.defn(name="publish_research_artifact_activity")
 async def publish(request: ResearchWorkflowInput):
-    return _result(request, "PublishArtifact", 1)
+    result = _result(request, "PublishArtifact", 1)
+    if view_failure:
+        raise ApplicationError("reading view unavailable", non_retryable=True)
+    return result
 
 
 @activity.defn(name="save_research_workspace_activity")
@@ -128,9 +153,10 @@ async def fail(request: ResearchWorkflowInput):
     return _result(request, "Failed", 0)
 
 
-@pytest.mark.parametrize("stop_after", [1, 4])
-async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_after):
-    global sufficient_after, save_attempts
+@pytest.mark.parametrize("stop_after,fail_view", [(1, False), (4, True)])
+async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_after, fail_view):
+    global sufficient_after, save_attempts, view_failure
+    view_failure = fail_view
     temporal_host = os.getenv("TEMPORAL_HOST")
     if not temporal_host:
         pytest.skip("TEMPORAL_HOST is required")
@@ -153,9 +179,9 @@ async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_af
     worker = Worker(
         client,
         task_queue=WEB_LIFECYCLE_TASK_QUEUE,
-        workflows=[ResearchReportWorkflow],
+        workflows=[ResearchReportWorkflow, ResearchCapabilityWorkflow],
         activities=[
-            prepare,
+            prepare_parent, close_capability, commit_result, prepare,
             plan,
             discover,
             rank,
@@ -175,7 +201,9 @@ async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_af
     )
     run_id = str(uuid4())
     workflow_id = f"hpagent-research-{run_id}"
-    async with worker:
+    child_worker = Worker(client, task_queue=AGENT_TASK_QUEUE,
+        workflows=[ResearchCapabilityWorkflow], activities=[close_capability])
+    async with worker, child_worker:
         # Exercise the registered research graph directly; production dispatch
         # is covered by the Work/Lifecycle integration suite.
         handle = await client.start_workflow(
@@ -184,9 +212,9 @@ async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_af
         )
         result = await handle.result()
         history = await handle.fetch_history()
-    replay = await Replayer(workflows=[ResearchReportWorkflow]).replay_workflow(history)
+    replay = await Replayer(workflows=[ResearchReportWorkflow, ResearchCapabilityWorkflow]).replay_workflow(history)
     assert replay.replay_failure is None
-    assert result == {"schema_version": 1, "run_id": run_id, "outcome": "report_published"}
+    assert result == {"schema_version": 1, "run_id": run_id, "outcome": "report_ready"}
     expected = [
         "Planning",
         "SourceStrategy",
@@ -199,7 +227,7 @@ async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_af
             f"GapAnalysis:{iteration}",
         ])
     expected.extend([
-        "Synthesis", "CitationVerification", "DailyDiff", "PublishArtifact", "WorkspaceSave", "Complete"
+        "Synthesis", "CitationVerification", "DailyDiff", "CommitResult", "PublishArtifact", "WorkspaceSave", "Complete"
     ])
     assert stages == expected
     assert save_attempts == 2

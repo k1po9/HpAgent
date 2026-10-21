@@ -103,6 +103,8 @@ def migrate(database_url: str | None = None) -> None:
                 )
                 applied = cursor.fetchone()
                 if applied is None:
+                    # A resumed chain must have the same schema as a fresh chain.
+                    cursor.execute("SET search_path TO hpagent, public")
                     cursor.execute(sql)
                     cursor.execute(
                         "INSERT INTO hpagent.schema_migrations(version,checksum) VALUES (%s,%s)",

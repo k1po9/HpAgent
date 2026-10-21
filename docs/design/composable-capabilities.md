@@ -1,6 +1,6 @@
 # 通用助手与可组合能力：目标架构提案
 
-状态：S3–S7 的待实施设计。S1 基础契约与 S2 持久调用边界已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)和[Workspace](../architecture/workspace.md)，以源码和测试为准；复杂能力尚未开放给用户。本文不授权清库、部署或真实外发。
+状态：S4–S7 的待实施设计。S1 基础契约、S2 持久调用边界与 S3 局部 Research 已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)和[Workspace](../architecture/workspace.md)，以源码和测试为准；Research 已接入局部能力，HTML/成果采用与 Main/UI 尚待后续单元。本文不授权清库、部署或真实外发。
 
 设计基线：2026-10-20，本地提交 `a35b3d5`。依据用户提供的《HpAgent 通用 AI 助手平台》愿景、后续需求澄清及代码静态核查。实施前必须重新核对最新代码；S1 已固定的名称和字段以当前架构文档及源码为准，其余新入口仍是设计名称。
 
@@ -39,7 +39,7 @@ HpAgent 是面向普通用户、目标驱动的通用 AI 云助手。用户描�
 | Main 有 Work 接受与控制工具 | [main_agent.py](../../src/application/main_agent.py) | 保留命令边界、mandate 幂等、群聊披露限制 |
 | 同 Work 单 active Run；Work Run 无聊天 Message | [Work 契约](../architecture/work.md)、[迁移 054](../../persistence/migrations/054_durable_work_foundation.sql) | 不采用同 Work 并行 Child Run 主方案 |
 | Subagent 限于 Generic Work root、一次委派、最多三只读分支 | [delegation](../../src/agent_activities/delegation.py)、[迁移 058](../../persistence/migrations/058_optional_subagents.sql) | 不能仅放开 prompt 就复用为通用写入子能力 |
-| Research 阶段和报告以 Run 为身份，并直接完成 Run | [runtime](../../src/research_activities/runtime.py)、[persistence](../../src/research_domain/persistence.py) | 必须引入局部调用身份，隔离顶层完成责任 |
+| Research 阶段和报告以 invocation 为身份；父适配器完成 Run | [runtime](../../src/research_activities/runtime.py)、[persistence](../../src/research_domain/persistence.py) | 后续 HTML/采用复用局部结果与当前授权边界 |
 | Research 已有 Markdown，报告 HTML 是确定性展示 | [research_workflow.py](../../src/orchestration/research_workflow.py) | 不误认为需要从零实现报告输出；展示失败不能否定研究结果 |
 | HTML 请求创建 artifact_build Work | [services](../../src/web_artifacts/services.py)、[build](../../src/web_artifacts/build.py) | 生成服务应与专属 Work 生命周期拆开 |
 | Artifact publisher 已有生产 Operation / Execution | [publisher](../../src/web_artifacts/publisher.py) | 复用发布内核，补输入与结果契约 |
@@ -285,23 +285,17 @@ Main 仍使用现有共享 Harness。接受长期委托后快速返回已提交 
 
 ### S1 — 固定契约与持久事实
 
-本单元的已实现接口见[能力基础契约](../architecture/capabilities.md#可组合能力基础契约)，数据库新增迁移 060，旧迁移链保留。后续实现统一使用 CapabilityFacts 与版本 1 值对象；不得自行发明 invocation / ResultRef 字段。静态 registry 尚无生产复杂能力；Harness 接入见 S2，专业能力、typed predicate 求值与 UI 仍属于后续单元。
+本单元的已实现接口见[能力基础契约](../architecture/capabilities.md#可组合能力基础契约)，数据库新增迁移 060，旧迁移链保留。后续实现统一使用 CapabilityFacts 与版本 1 值对象；不得自行发明 invocation / ResultRef 字段。Harness 接入见 S2，生产 Research 绑定见 S3；通用 typed predicate 求值与 UI 接入仍属于后续单元。
 
 门禁仍要求静态/单元与隔离 PG 验证：同身份去重/冲突，跨 account/run/parent 拒绝，caller/producer 分离，结果引用阻止 GC，旧 attempt 不推进状态。不能因接口已存在就推断这些验证通过。
 
 ### S2 — 通用持久调用与 Harness 接入
 
-已实现边界见[通用持久调用与 Harness](../architecture/capabilities.md#通用持久调用与-harness)。后续专业能力统一使用 CapabilityBinding、CapabilityExecutionInput、独立 segment、`invocation_context` 与 `commit_result`；不复制父登记/观察事务或增加另一份费用账本。生产 registry 目前为空，确定性能力只用于隔离测试。专业能力内部的短阶段、取消清理、持久审批和实际资源使用仍由可信实现负责；注册不赋予长期写入或外发权限。
+已实现边界见[通用持久调用与 Harness](../architecture/capabilities.md#通用持久调用与-harness)。后续专业能力统一使用 CapabilityBinding、CapabilityExecutionInput、独立 segment、`invocation_context` 与 `commit_result`；不复制父登记/观察事务或增加另一份费用账本。生产 registry 已注册 Research，确定性能力只用于隔离测试。专业能力内部的短阶段、取消清理、持久审批和实际资源使用仍由可信实现负责；注册不赋予长期写入或外发权限。
 
 ### S3 — Research 成为局部能力
 
-范围：研究实例改为 invocation 身份，阶段/来源/报告/历史关联一致调整；输出 Markdown 与基础检查；移除专业能力内部的顶层 Run/Work 完成、保存和通知责任。
-
-主要入口：[research_domain](../../src/research_domain/)、[research_activities](../../src/research_activities/)、[research_workflow](../../src/orchestration/research_workflow.py)、[Research 历史](../../src/research_domain/history.py)。
-
-要求：现有 research_report 顶层入口暂作薄适配器，调用同一能力再执行父层验收，不复制研究流程。阶段 lease/续租、历史授权与发布后 kill 恢复约束继续成立。
-
-验收：同一父 Run 两次研究不冲突；报告可独立读取；展示失败不否定研究；引用无效返回不足而非成功；需要保存却失败时保留报告，父目标不误完成；历史版本和权限固定。
+已实现边界见[Research 能力](../architecture/capabilities.md#research)、[阶段 lease 与恢复](../architecture/execution.md#research-阶段-lease-与恢复)、[输出与保留](../architecture/workspace.md#输出版本与保留)，新增迁移 062–064。后续统一使用 `research` v1、ResearchCapabilityWorkflow、invocation 定位与 Markdown ResultRef；固定 `research_report` 入口仅承担父层准入、可选展示、保存和验收，不复制研究流程。HTML 生成、通用 typed predicate、跨 Run 成果采用与产品入口仍属后续单元。验证门禁仍包括同 Run 两次研究、独立报告读取、无效引用不足、阅读视图失败、必需保存失败、历史版本/撤权及发布后 SIGKILL 恢复；不能仅据接口存在推断验证通过。
 
 ### S4 — HTML 与通用成果采用
 
