@@ -26,6 +26,25 @@ afterEach(() => {
   feeds.max = 0;
   feeds.opened = [];
 });
+it("observes related active Work on AI and releases feeds when the conversation closes", async () => {
+  vi.spyOn(useWorks.getState(), "load").mockResolvedValue();
+  useWorks.setState({
+    items: [
+      workFixture({ work_id: "related", conversation_ids: ["c"], active_coordinator_run_id: "r" }),
+      workFixture({
+        work_id: "private",
+        conversation_ids: ["other"],
+        active_coordinator_run_id: "r2",
+      }),
+    ],
+  });
+  useShell.setState({ route: { screen: "ai", conversationId: "c" } });
+  renderHook(() => useTaskController());
+  await act(async () => {});
+  expect([...feeds.active]).toEqual(["related"]);
+  act(() => useShell.setState({ route: { screen: "ai" } }));
+  expect(feeds.active.size).toBe(0);
+});
 it("bounds feeds to two, prioritizes selected paused task and releases on leaving", async () => {
   vi.spyOn(useWorks.getState(), "load").mockResolvedValue();
   useWorks.setState({

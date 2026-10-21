@@ -27,6 +27,49 @@ const defer = <T,>() => {
   });
   return { promise, resolve, reject };
 };
+it("locates a source through history pagination and records an exact reading anchor", async () => {
+  const message = (id: string): HpMessage => ({
+    message_id: id,
+    conversation_id: "c",
+    role: "user",
+    status: "accepted",
+    content: id,
+    sequence: id === "source" ? 1 : 2,
+    created_at: "2026-10-20T00:00:00Z",
+    completed_at: null,
+    client_request_id: null,
+    produced_by_run_id: null,
+    files: [],
+  });
+  const load = vi.fn();
+  const view = render(
+    <HpThread
+      {...props}
+      conversationKey="a:c"
+      targetMessageId="source"
+      messages={[message("latest")]}
+      hasMoreMessages
+      onLoadMoreMessages={load}
+      onSend={vi.fn()}
+    />,
+  );
+  await waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+  view.rerender(
+    <HpThread
+      {...props}
+      conversationKey="a:c"
+      targetMessageId="source"
+      messages={[message("source"), message("latest")]}
+      hasMoreMessages={false}
+      onLoadMoreMessages={load}
+      onSend={vi.fn()}
+    />,
+  );
+  await waitFor(() =>
+    expect(useConversationUi.getState().entries["a:c"]?.anchorMessageId).toBe("source"),
+  );
+  expect(useConversationUi.getState().entries["a:c"]?.atBottom).toBe(false);
+});
 describe("UI-2 controlled composer", () => {
   it("retains the real input on rejection and clears only accepted text", async () => {
     const onSend = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);

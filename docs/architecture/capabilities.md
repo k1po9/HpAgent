@@ -58,7 +58,7 @@ File 能力负责上传、校验、不可变对象、Run 绑定和生成输出�
 
 局部输出为不可变 Markdown 文件和检查证据 JSON，各自建立 ResultRef 与 GC 引用。`research.basic` v1 检查标题/非空正文/结构化 claims、每个 claim 的引用身份及来源精确定位、必需输出；引用缺失或无效返回 `insufficient`，保留草稿和 gaps。弱来源仅警告；检查不证明所有事实正确，也不包含浏览器功能验证。Markdown 是独立可读取的结果，不要求存在 HTML。
 
-顶层 `research_report` 由 [ResearchParentActivities](../../src/research_activities/parent.py) 薄适配：共用登记容量/预算准入和同一子 Workflow，之后执行父侧 Workspace 保存与验收。确定性阅读视图是可选父侧展示，失败不否定已提交研究。必需保存失败保留报告，父 Run/Work 不得成功；Research 子能力本身不完成 Run/Work、不长期保存、不发送通知。Research 的旧 evidence_types 验收增加精确 Markdown 与成功基础检查事实，通用 typed predicate 与跨 Run 采用使用下述父侧成果服务。已有用户验收命令仍以 Artifact Version 为目标；阅读视图存在时保留该兼容证据，Markdown 可通过准确 ResultRef 采用；产品中的选择与展示入口见后续单元。
+顶层 `research_report` 由 [ResearchParentActivities](../../src/research_activities/parent.py) 薄适配：共用登记容量/预算准入和同一子 Workflow，之后执行父侧 Workspace 保存与验收。确定性阅读视图是可选父侧展示，失败不否定已提交研究。必需保存失败保留报告，父 Run/Work 不得成功；Research 子能力本身不完成 Run/Work、不长期保存、不发送通知。Research 的旧 evidence_types 验收增加精确 Markdown 与成功基础检查事实，通用 typed predicate 与跨 Run 采用使用下述父侧成果服务。已有用户验收命令仍以 Artifact Version 为目标；阅读视图存在时保留该兼容证据，Markdown 可通过准确 ResultRef 采用；产品中的选择与展示入口见[Web 契约](web-ui.md)。
 
 历史仅从父固定候选与本次调用显式 node 范围中选择同 Work、先前成功 Run 的获准报告；冻结 invocation、file_id、requirement revision、snapshot/hash，之后不追随最新版本，使用前仍检查当前 read_content。报告正文、证据与准确 invocation 可通过现有 Research 查询读取；访问仍按账号过滤。
 

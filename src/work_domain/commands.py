@@ -64,6 +64,14 @@ class WorkCommandService:
         work['conversation_ids'] = [row['conversation_id'] for row in uow.execute(
             'SELECT conversation_id FROM work_conversations WHERE account_id=%s AND work_id=%s '
             'ORDER BY conversation_id', (account_id, work_id)).fetchall()]
+        # Exact, durable message anchors; linking alone never invents a source.
+        work['sources'] = [dict(row) for row in uow.execute(
+            'SELECT wc.conversation_id,m.message_id AS source_message_id '
+            'FROM work_conversations wc JOIN conversations c USING(account_id,conversation_id) '
+            'LEFT JOIN messages m ON m.account_id=wc.account_id '
+            'AND m.conversation_id=wc.conversation_id AND m.message_id=wc.source_message_id '
+            'WHERE wc.account_id=%s AND wc.work_id=%s ORDER BY wc.created_at,wc.conversation_id',
+            (account_id, work_id)).fetchall()]
         return dto(work)
 
     def get(self, account_id: UUID, work_id: UUID) -> dict:
@@ -107,12 +115,15 @@ class WorkCommandService:
                 return replay
             if not AccountRepository().require_active(uow, account_id):
                 raise ResourceNotFound()
-            if source_message_id and not uow.execute(
-                'SELECT 1 FROM messages WHERE account_id=%s AND message_id=%s '
+            source = uow.execute(
+                'SELECT conversation_id FROM messages WHERE account_id=%s AND message_id=%s '
                 'AND (%s::uuid IS NULL OR conversation_id=%s)',
                 (account_id, source_message_id, conversation_id, conversation_id),
-            ).fetchone():
+            ).fetchone() if source_message_id else None
+            if source_message_id and source is None:
                 raise ResourceNotFound()
+            if source and conversation_id is None:
+                conversation_id = source['conversation_id']
             uow.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', (str(account_id),))
             import os
             count = uow.execute("SELECT count(*) AS n FROM works WHERE account_id=%s AND status NOT IN ('stopped','completed')", (account_id,)).fetchone()['n']

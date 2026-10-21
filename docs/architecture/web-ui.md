@@ -20,6 +20,10 @@
 
 ## UI 状态与领域状态
 
+AI 页面与任务页面共用 Work 查询控制器；可见时定期刷新权威快照，至多订阅两个相关活动 Work，离页/隐藏/退出清理本地监控而不取消服务端执行。来源消息旁的任务卡片只匹配 `sources` 中的准确会话和消息，不改写 assistant 正文。任务详情的“定位来源消息”使用 `#/ai/{conversationId}?message={messageId}&fromWork={workId}`，按需向前加载历史（自动最多 20 页），找不到时保留当前对话、提示与“返回来源任务”入口；关联但无来源消息只打开会话。
+
+Run 概览与任务执行输出可按需读取能力成果，独立展示 outcome、summary、checks 与 gaps；Research 报告按 invocation_id 读取，HTML 打开 ResultRef 的准确版本。此查询只面向账户所有者，不是模型执行授权或 Work 验收回执；不把局部 succeeded 推断为 Work completed，也不宣称基础检查包含浏览器验证。
+
 | 模块 | 责任 |
 | --- | --- |
 | `store/auth.ts` / `sessionLifecycle.ts` / `api/client.ts` | 身份检查、请求取消与账户世代隔离；普通 401 失效；CSRF 同意图重试。 |

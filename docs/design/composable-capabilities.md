@@ -1,6 +1,6 @@
 # 通用助手与可组合能力：目标架构提案
 
-状态：S5–S7 的待实施设计。S1 基础契约、S2 持久调用边界、S3 局部 Research 与 S4 HTML/成果采用 已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)和[Workspace](../architecture/workspace.md)，以源码和测试为准；后续 Main/UI 与持续推进入口尚待实施。本文不授权清库、部署或真实外发。
+状态：S6–S7 的待实施设计。S1 基础契约、S2 持久调用边界、S3 局部 Research 与 S4 HTML/成果采用 已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)和[Workspace](../architecture/workspace.md)；S5 Main/任务/UI 接口见[Work](../architecture/work.md)与[Web 契约](../architecture/web-ui.md)，以源码和测试为准。持续推进保护与静默通知尚待实施。本文不授权清库、部署或真实外发。
 
 设计基线：2026-10-20，本地提交 `a35b3d5`。依据用户提供的《HpAgent 通用 AI 助手平台》愿景、后续需求澄清及代码静态核查。实施前必须重新核对最新代码；S1 已固定的名称和字段以当前架构文档及源码为准，其余新入口仍是设计名称。
 
@@ -299,13 +299,9 @@ Main 仍使用现有共享 Harness。接受长期委托后快速返回已提交 
 
 ### S5 — Main、后台任务与既有 UI 接入
 
-范围：自然语言接受持续目标、明确干预、来源消息锚点、任务查询投影、Chat/Work 结果展示与控制；专业快捷入口复用能力。
+已实现接口见[Work](../architecture/work.md)、[Web 契约](../architecture/web-ui.md)与[API](../reference/api.md)：Main 复用 Work 命令，准确来源投影与消息卡片复用账户 Work 快照，Chat/Work 按调用实例展示成果，专业快捷入口沿用 S3/S4 能力。当前字段足以表达来源，不新增迁移或另一套执行/保存内核。
 
-主要入口：[Main](../../src/application/main_agent.py)、[Work commands](../../src/work_domain/commands.py)、[API routes](../../src/web_api/routes/)、[Web 指南](../../web/AGENTS.md)、[tasks](../../web/src/components/tasks/)、[conversation](../../web/src/components/conversation/)。
-
-要求：不重设计视觉；业务状态以权威查询为准；Main 重试不重复接受；暂停继续不要求保留进程；Work 不创建聊天 Message。普通问答与正在执行的 Work 独立。不能隐式复制 Conversation 的全部授权。
-
-验收：离页继续、重连恢复、任务跳消息；聊天不被后台 Run 占槽；明确修改触发新 revision；普通问答不改任务；暂停/继续/停止正确；跨账户/群聊不披露私有结果。运行 API、前端及相应隔离浏览器用例。
+验证门禁仍包括离页继续、重连恢复、任务跳消息、聊天与后台槽独立、显式修订、暂停/继续/停止及账户/群聊隔离。隔离 Fake API 与脚本决策不能证明真实模型自然语言自主选择；真实 Provider/QQ 链路仍按 S7 单独授权验收。自动定位消息最多向前加载 20 页，超出或不可用时可手动读取历史或保留任务入口。
 
 ### S6 — 有界持续推进与静默通知
 

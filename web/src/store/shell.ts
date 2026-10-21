@@ -36,6 +36,8 @@ export type Inspector = {
 export type Route = {
   screen: Screen;
   conversationId?: string;
+  messageId?: string;
+  sourceWorkId?: string;
   directoryId?: string;
   bucket?: "attention" | "active" | "waiting" | "ended";
   type?: string;
@@ -91,6 +93,8 @@ export function parseRoute(
     }
   }
   if (screen === "workspace") route.directoryId = id(params.get("dir"));
+  if (screen === "ai" && route.conversationId) route.messageId = id(params.get("message"));
+  if (screen === "ai" && route.messageId) route.sourceWorkId = id(params.get("fromWork"));
   if (screen === "tasks") {
     route.bucket = (
       buckets.includes(params.get("bucket") ?? "") ? params.get("bucket") : "attention"
@@ -126,6 +130,10 @@ export function parseRoute(
 
 export function serializeRoute(route: Route): string {
   const params = new URLSearchParams();
+  if (route.screen === "ai" && route.conversationId && route.messageId)
+    params.set("message", route.messageId);
+  if (route.screen === "ai" && route.messageId && route.sourceWorkId)
+    params.set("fromWork", route.sourceWorkId);
   if (route.screen === "workspace" && route.directoryId) params.set("dir", route.directoryId);
   if (route.screen === "tasks") {
     params.set("bucket", route.bucket ?? "attention");

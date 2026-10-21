@@ -432,6 +432,7 @@ export interface HpWork {
   current_requirement_revision: number;
   active_coordinator_run_id: string | null;
   conversation_ids: string[];
+  sources?: Array<{ conversation_id: string; source_message_id: string | null }>;
   control_epoch: number;
   created_at: string;
   updated_at: string;

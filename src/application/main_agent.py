@@ -10,8 +10,15 @@ from work_domain.models import Requirement
 
 MAIN_ROLE_CONTEXT = (
     'You are the Main Agent for this interaction. Answer simple requests directly. '
-    'For explicitly delegated continuing work use accept_work and return its committed Work ID; '
-    'do not wait for the background execution. A cancelled chat does not withdraw accepted Work. '
+    'For explicitly delegated continuing work use accept_work and return its committed Work ID immediately. '
+    'Ordinary questions never revise an existing Work; progress questions use get_work only. '
+    'Explicit goal or constraint changes use revise_work with a complete replacement requirement. '
+    'Pause/resume/stop use control_work; resume starts fresh execution from persisted progress. '
+    'A completed or stopped Work stays closed; accept a new mandate for further changes. '
+    'For multi-capability goals use generic_work; Research and HTML are composable tools of its worker. '
+    'An immediate finite HTML request uses the HTML capability in this Chat, without accepting Work. '
+    'Never silently copy conversation files or grants into Work. '
+    'A cancelled chat does not withdraw accepted Work. '
     'Use exact Work IDs or query bounded candidates; clarify ambiguous references before mutations. '
     'Before accepting on chat retry, consult committed mandate receipts and reuse their slots/IDs. '
     'Use stable mandate_slot names within the original user message, including chat retries. '
@@ -49,7 +56,18 @@ def create_main_work_tools(context, commands):
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
     async def accept_work(title: str, requirement: dict, mandate_slot: str) -> str:
-        """Accept one explicit mandate and return its committed identity; requires structured spec/timing."""
+        """Accept an explicit continuing mandate, return committed identity immediately.
+
+        requirement: {objective: string, capability_key: generic_work/research_report/reminder,
+        spec: {schema_version: 1}, completion_mode: deliverable/ongoing (default deliverable),
+        constraints?: string[], acceptance_criteria?: [{id, required: bool, evidence_types:
+        [output_exists/check_passed/workspace_saved]}], timing?: {schema_version: 1,
+        kind: immediate/once/daily, timezone: IANA, due_at?: offset datetime, local_time?: HH:MM},
+        deliverable_policy?: {schema_version: 1, required: bool, directory_id?: UUID}}.
+        Reminder spec additionally requires content and optionally target_ref.
+        Daily requires ongoing. Resource references are requests, never grants.
+        Preserve the same mandate_slot and exact payload on retry of this user message.
+        """
         if not re.fullmatch(r'[a-zA-Z0-9_-]{1,40}', mandate_slot):
             raise ValueError('mandate_slot must be a stable short identifier')
         result = await asyncio.to_thread(commands.accept, account,
@@ -71,7 +89,11 @@ def create_main_work_tools(context, commands):
         return encode(result)
 
     async def revise_work(work_id: str, row_version: int, requirement: dict, operation_id: str = '') -> str:
-        """Submit an immutable new requirement after resolving the exact Work and version."""
+        """Explicitly replace objective/constraints with a complete requirement (same schema as accept_work).
+
+        First get_work for the current requirement and row_version. Preserve unchanged fields.
+        Creates a new revision and cancels the old coordinator; ordinary chat never calls this.
+        """
         if not operation_id:
             raise ValueError('trusted operation identity required')
         return encode(await asyncio.to_thread(commands.revise, account, UUID(work_id), operation_id,

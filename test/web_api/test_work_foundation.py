@@ -31,6 +31,29 @@ def requirement(objective: str) -> dict:
                 "evidence_types": ["operation_receipt"]}]}
 
 
+def test_capability_query_is_owned_and_available_while_chat_runs(seed_identity, client_factory, db):
+    account = seed_identity('s5-owner')
+    seed_identity('s5-other')
+    client = client_factory()
+    csrf = login(client, 's5-owner')
+    from conversation_domain.commands import CommandService
+    commands = CommandService(client.app.state.api_pool)
+    cid = commands.create_conversation(account, str(uuid4())).body['conversation_id']
+    from uuid import UUID
+    sent = commands.send_message(account, UUID(cid), str(uuid4()), 'Hello')
+    run_id = sent['run_id']
+    response = client.get(f'/api/v1/runs/{run_id}/capability-results')
+    assert response.status_code == 200 and response.json() == {'items': [], 'truncated': False}
+    source = db.execute('SELECT trigger_message_id FROM runs WHERE run_id=%s', (run_id,)).fetchone()[0]
+    work = client.post('/api/v1/works', json={'title': 'Source', 'requirement': requirement('Goal'),
+        'source_message_id': str(source)}, headers=headers(csrf, str(uuid4())))
+    assert work.status_code == 201, work.text
+    assert work.json()['work']['sources'] == [{'conversation_id': cid, 'source_message_id': str(source)}]
+    login(client, 's5-other')
+    assert client.get(f'/api/v1/runs/{run_id}/capability-results').status_code == 404
+    assert client.get('/api/v1/works').json()['items'] == []
+
+
 def test_work_http_lifecycle_and_cross_account_visibility(seed_identity, client_factory, db):
     account_id = seed_identity("work-owner")
     seed_identity("work-other")

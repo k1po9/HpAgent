@@ -9,6 +9,7 @@ import { useRunInspector } from "../../store/runInspector";
 import { useTraceStore } from "../trace/traceStore";
 import { RunTraceContent } from "../trace/RunTraceContent";
 import { RunResources } from "./RunResources";
+import { RunCapabilityResults } from "./RunCapabilityResults";
 import { RunBudget } from "./RunBudget";
 import { RunDiagnosticIdentity } from "./RunDiagnosticIdentity";
 import { VitalityHeading } from "../vitality/VitalitySignal";
@@ -284,6 +285,7 @@ export function RunInspector({
               </>
             )}
             <RunTimeline key={id} run={run} />
+            <RunCapabilityResults key={`results:${id}`} runId={id} revision={run.version} />
             <button className="hp-run-approvals-action" onClick={() => changeTab("resources")}>
               <ShieldQuestion size={20} aria-hidden="true" />
               <span>查看操作审批</span>

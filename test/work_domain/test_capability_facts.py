@@ -37,6 +37,24 @@ def facts():
     return CapabilityFacts(CapabilityRegistry((definition(),)))
 
 
+def test_owner_projection_keeps_each_invocation_and_rejects_other_account(facts, urls, account_id, owner):
+    from run_domain.queries import capability_results
+    from web_domain.errors import ResourceNotFound
+
+    run = chat(urls, account_id)
+    with execution(urls, account_id, run) as (store, _, _):
+        first = begin(facts, urls, store, run, 'first')
+        second = begin(facts, urls, store, run, 'second')
+    publish(facts, urls, owner, account_id, run, first)
+    publish(facts, urls, owner, account_id, run, second)
+    result = capability_results(urls[1], account_id, run)
+    assert {r['invocation_id'] for r in result['items']} == {first['invocation_id'], second['invocation_id']}
+    assert not result['truncated']
+    assert all(r['payload']['outcome'] == 'insufficient' for r in result['items'])
+    with pytest.raises(ResourceNotFound):
+        capability_results(urls[1], uuid4(), run)
+
+
 def chat(urls, account_id):
     commands = CommandService(urls[1])
     cid = UUID(commands.create_conversation(account_id, str(uuid4())).body["conversation_id"])

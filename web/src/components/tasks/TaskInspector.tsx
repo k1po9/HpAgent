@@ -180,6 +180,23 @@ export function TaskInspector({
               打开关联对话
             </button>
           ))}
+          {work.sources
+            ?.filter((s) => s.source_message_id)
+            .map((source) => (
+              <button
+                key={source.conversation_id}
+                onClick={() =>
+                  useShell.getState().navigate({
+                    screen: "ai",
+                    conversationId: source.conversation_id,
+                    messageId: source.source_message_id!,
+                    sourceWorkId: work.work_id,
+                  })
+                }
+              >
+                定位来源消息
+              </button>
+            ))}
         </section>
       </TaskPanel>
       <TaskPanel id="outputs" active={tab === "outputs"}>

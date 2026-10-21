@@ -20,6 +20,10 @@ Work 的需求 revision 不可变。修订、暂停、停止和推进是带幂�
 
 ## 统一有限执行链
 
+Main 的 `accept_work` 使用原始用户消息与稳定 mandate_slot 生成幂等键，重试前读取已提交委托回执。工具描述提供 Requirement 结构；组合目标使用 generic_work，有限即时 HTML 请求留在 Chat。普通问答不修改 Work，进度查询只读；明确修改走完整 Requirement 的 revise 命令，控制走 pause/resume/stop。已完成或停止的目标后续修改创建新委托。
+
+Work 快照的 `sources` 保存 `{conversation_id, source_message_id}`，来自既有 work_conversations 的组合归属；无来源的关联返回 null 消息，不制造锚点。只提供 source_message_id 时，接受命令从账户内真实消息推导会话。来源投影不复制文件授权。Web 来源消息展示权威快照任务卡片，任务详情可返回准确消息；Chat 与任务控制互不替代。
+
 ```mermaid
 flowchart TD
     C[Web / QQ Main 命令] --> CHAT[chat Run]

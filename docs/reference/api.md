@@ -22,11 +22,12 @@ Compose 中 FastAPI 监听 `127.0.0.1:8080`。`GET /health/live`、`GET /health/
 | --- | --- |
 | `GET /api/v1/works` | Account 内列表，`before` 分页。 |
 | `POST /api/v1/works` | title、结构化 requirement、可选 conversation_id / source_message_id；201，返回 Location。 |
-| `GET /api/v1/works/{work_id}` | Work、current requirement、执行/预算/成果等投影，返回 ETag。 |
+| `GET /api/v1/works/{work_id}` | Work、current requirement、执行/预算/成果等投影，返回 ETag；sources 数组包含准确 conversation_id / source_message_id，无消息锚点时 source_message_id 为 null。 |
 | `POST /api/v1/works/{work_id}/revisions` | requirement、change_reason；创建不可变新 revision。 |
 | `POST /api/v1/works/{work_id}/pause`、`resume`、`stop`、`advance` | 控制或推进，JSON `{}`；advance 可返回 not_due / waiting_capacity。 |
 | `PUT /api/v1/works/{work_id}/conversations/{conversation_id}` | 关联交互来源，不导入历史或授予资料权限。 |
 | `GET /api/v1/works/{work_id}/runs`、`events` | 执行与 Work event 查询；events 支持数值 `after`。 |
+| `GET /api/v1/runs/{run_id}/capability-results` | 账户所有者查询当前 Run 最近 100 个不可变能力结果；items 包含 capability_key、invocation_id、payload、created_at，truncated 表示还有更早结果。不是执行侧 ResultRef 授权。 |
 | `GET /api/v1/works/{work_id}/events/stream` | `work.event` SSE，独立 event_seq，支持 Last-Event-ID / after 与恢复查询。 |
 | `GET/POST /api/v1/works/{work_id}/resources` | 当前 grant / 新 grant。 |
 | `DELETE /api/v1/works/{work_id}/resources/{grant_id}` | 撤权并阻断受影响执行。 |

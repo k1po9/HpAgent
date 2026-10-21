@@ -20,6 +20,13 @@ from web_domain.errors import ResourceNotFound
 router = APIRouter()
 
 
+@router.get("/api/v1/runs/{run_id}/capability-results")
+def run_capability_results(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+    from run_domain.queries import capability_results
+
+    return capability_results(request.app.state.api_pool, context.account_id, run_id)
+
+
 @router.get("/api/v1/runs/{run_id}/research/evidence")
 def research_evidence(run_id: UUID, request: Request, invocation_id: str | None = None, context: AuthContext = Depends(auth_context)):
     return ResearchQueryService(request.app.state.api_pool).evidence(context.account_id, run_id, invocation_id)

@@ -28,6 +28,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { HpFile, HpMessage, HpRun } from "../../api/types";
 import { ExecutionBlock } from "../../components/run/ExecutionBlock";
+import { WorkMessageItems } from "../../components/tasks/WorkMessageItems";
 import { useHpThreadRuntime } from "./runtime";
 import { ArtifactMessageItems } from "../../components/artifact/ArtifactMessageItems";
 import { deriveComposerActionPhase } from "../../components/input-action/policy";
@@ -36,6 +37,7 @@ import type { UploadAttachment } from "../../store/workbench";
 
 export interface HpThreadProps {
   conversationKey?: string;
+  targetMessageId?: string;
   readingControlsHost?: HTMLElement | null;
   readingScope?: string;
   readingOwner?: string;
@@ -125,6 +127,7 @@ function HpMessageView({
           }
         >
           <MessagePrimitive.Parts components={{ Text: HpTextPart }} />
+          <WorkMessageItems messageId={message.id} />
           {message.role === "assistant" && runsByMessageId[message.id] && (
             <ExecutionBlock runId={runsByMessageId[message.id]!} messageId={message.id} />
           )}
@@ -170,6 +173,7 @@ function fitComposerInput(input: HTMLTextAreaElement | null) {
 
 export function HpThread({
   conversationKey = "standalone",
+  targetMessageId,
   readingControlsHost,
   readingScope = conversationKey,
   readingOwner = conversationKey.split(":")[0]!,
@@ -198,6 +202,12 @@ export function HpThread({
   onCancel,
 }: HpThreadProps) {
   const draft = useConversationUi((s) => s.entries[conversationKey] ?? emptyConversationUi);
+  const sourceJump = useRef({
+    key: "",
+    done: false,
+    pages: 0,
+    requestedFirst: null as string | null,
+  });
   const motionAllowed = useMotionAllowed();
   const [interaction, setInteraction] = useState({
     key: conversationKey,
@@ -360,6 +370,9 @@ export function HpThread({
   useLayoutEffect(() => {
     const el = viewport.current;
     if (!el || loadingHistory) return;
+    const sourceKey = `${conversationKey}:${targetMessageId ?? ""}`;
+    if (sourceJump.current.key !== sourceKey)
+      sourceJump.current = { key: sourceKey, done: false, pages: 0, requestedFirst: null };
     // The external runtime publishes its new message DOM after this parent's
     // layout effect. Restore only once that DOM reflects the requested page.
     const align = () => {
@@ -371,6 +384,28 @@ export function HpThread({
       )
         return;
       const saved = useConversationUi.getState().entries[conversationKey] ?? emptyConversationUi;
+      if (targetMessageId && !sourceJump.current.done) {
+        const target = rendered.find((m) => m.dataset.messageId === targetMessageId);
+        if (target) {
+          el.scrollTop += target.getBoundingClientRect().top - el.getBoundingClientRect().top;
+          useConversationUi.getState().update(conversationKey, {
+            anchorMessageId: targetMessageId,
+            offset: 0,
+            atBottom: false,
+          });
+          sourceJump.current.done = true;
+        } else if (
+          hasMoreMessages &&
+          !loadingMoreMessages &&
+          sourceJump.current.pages < 20 &&
+          sourceJump.current.requestedFirst !== (messages[0]?.message_id ?? "")
+        ) {
+          sourceJump.current.requestedFirst = messages[0]?.message_id ?? "";
+          sourceJump.current.pages++;
+          onLoadMoreMessages?.();
+        }
+        return;
+      }
       const switched = previous.current.key !== conversationKey;
       if (switched) restorePages.current = 0;
       const prepended = !switched && previous.current.first !== messages[0]?.message_id;
@@ -411,6 +446,7 @@ export function HpThread({
     };
   }, [
     conversationKey,
+    targetMessageId,
     loadingHistory,
     messages,
     hasMoreMessages,
@@ -455,6 +491,13 @@ export function HpThread({
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <ThreadPrimitive.Root className="hp-thread" data-reading-folded={folded}>
+        {targetMessageId &&
+          !messages.some((m) => m.message_id === targetMessageId) &&
+          !loadingHistory && (
+            <p role="status">
+              来源消息尚未载入或已不可用，可继续读取历史、查看当前对话或返回任务。
+            </p>
+          )}
         {readingControlsHost ? createPortal(foldControl, readingControlsHost) : foldControl}
         <MercuryLayer
           canvas={mercuryCanvas}

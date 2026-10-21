@@ -226,8 +226,18 @@ export function ChatPane({
         </button>
       ) : null}
       <Box style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        {route.sourceWorkId && route.messageId && (
+          <button
+            onClick={() =>
+              useShell.getState().openInspector({ kind: "task", objectId: route.sourceWorkId! })
+            }
+          >
+            返回来源任务
+          </button>
+        )}
         <HpThread
           conversationKey={conversationKey}
+          targetMessageId={route.conversationId === conversationId ? route.messageId : undefined}
           readingControlsHost={readingControlsHost}
           readingOwner={`${accountId}:${authStatus}:${JSON.stringify(capabilities)}`}
           readingReady={
@@ -239,7 +249,7 @@ export function ChatPane({
             !error
           }
           readingUnavailable={authStatus !== "signedIn" || Boolean(error)}
-          readingScope={`${conversationKey}:${route.screen}:${authStatus}:${JSON.stringify(capabilities)}`}
+          readingScope={`${conversationKey}:${route.screen}:${route.messageId ?? ""}:${authStatus}:${JSON.stringify(capabilities)}`}
           readingBlockedReason={
             authStatus !== "signedIn" ||
             route.screen !== "ai" ||

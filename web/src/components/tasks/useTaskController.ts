@@ -11,7 +11,10 @@ export function useTaskController() {
   const generation = useWorks((s) => s.generation);
   const selected =
     route.inspector?.kind === "task" ? route.inspector.objectId : route.inspector?.origin?.workId;
-  const enabled = route.screen === "tasks" || route.inspector?.kind === "task";
+  const enabled =
+    route.screen === "tasks" ||
+    route.inspector?.kind === "task" ||
+    (route.screen === "ai" && Boolean(route.conversationId));
   const [visible, setVisible] = useState(!document.hidden);
   useEffect(() => {
     const update = () => setVisible(!document.hidden);
@@ -24,7 +27,8 @@ export function useTaskController() {
     let timer: ReturnType<typeof setTimeout>;
     async function sync() {
       useWorks.setState({ now: Date.now() });
-      if (!useWorks.getState().scanPaused) await useWorks.getState().load();
+      if (useShell.getState().route.screen === "ai" || !useWorks.getState().scanPaused)
+        await useWorks.getState().load();
       if (valid) timer = setTimeout(() => void sync(), 10000);
     }
     void sync();
@@ -42,8 +46,11 @@ export function useTaskController() {
             ...items
               .filter(
                 (w) =>
+                  (route.screen !== "ai" ||
+                    w.conversation_ids.includes(route.conversationId ?? "")) &&
                   (!route.type || route.type === "all" || taskType(w) === route.type) &&
-                  presentTask(w, now).bucket === (route.bucket ?? "attention"),
+                  (route.screen === "ai" ||
+                    presentTask(w, now).bucket === (route.bucket ?? "attention")),
               )
               .sort((a, b) => compareTasks(a, b, now))
               .map((w) => w.work_id),

@@ -9,6 +9,7 @@ import { useTaskQuery } from "./useTaskQuery";
 import { acceptanceEligible } from "./taskActions";
 import { useTaskOperations } from "./taskOperations";
 import { TaskDeliveryDecision } from "./TaskDeliveryDecision";
+import { RunCapabilityResults } from "../run/RunCapabilityResults";
 type SaveFile = (file: { file_id: string; file_name: string }) => void;
 export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: SaveFile }) {
   const runs = useTaskQuery<{ items: HpTaskRun[] }>(
@@ -261,6 +262,7 @@ function PublishedOutput({
   );
   return (
     <div>
+      <RunCapabilityResults runId={run.run_id} revision={run.status} />
       <div className="hp-task-actions">
         <button disabled={files.loading} onClick={files.retry}>
           刷新输出文件
