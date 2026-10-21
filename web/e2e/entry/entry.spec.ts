@@ -51,6 +51,8 @@ async function settled(page: Page) {
 test("valid cookie: branded wait, actual particle pixels, stable shell and no navigation replay", async ({
   page,
 }, testInfo) => {
+  // This case checks animated pixels; fixture defaults otherwise request reduced motion.
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   let release!: () => void;
@@ -228,5 +230,52 @@ for (const width of [1680, 390]) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width + 1,
     );
+  });
+}
+
+for (const reason of ["no_progress", "repeated_failure"] as const) {
+  test(`progress protection ${reason} requires intervention on desktop and mobile`, async ({
+    page,
+  }) => {
+    const { workFixture } = await import("../../src/components/tasks/taskFixtures");
+    const work = workFixture({
+      continuation: { kind: "blocked", reason },
+      progress: {
+        policy_version: 1,
+        failure_limit: 3,
+        no_progress_limit: 3,
+        consecutive_failures: reason === "repeated_failure" ? 3 : 0,
+        no_progress_count: 3,
+        blocked_reason: reason,
+      },
+    });
+    await fixtures(page, async () => "ok");
+    await page.route("**/api/v1/works**", (route) => {
+      const path = new URL(route.request().url()).pathname;
+      return route.fulfill({
+        json:
+          path === `/api/v1/works/${work.work_id}`
+            ? { work }
+            : path === "/api/v1/works"
+              ? { items: [work], next_before: null }
+              : { items: [] },
+      });
+    });
+    await page.goto(`/#/tasks?work=${work.work_id}`);
+    await settled(page);
+    for (const width of [1536, 390]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const inspector = page.locator(".hp-inspector");
+      await expect(
+        inspector.getByText(
+          reason === "no_progress"
+            ? "持续执行没有新进展，请修改要求或补充资料"
+            : "连续执行失败，请调整要求后重试",
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect(inspector.getByRole("button", { name: "继续执行", exact: true })).toHaveCount(0);
+      await expect(inspector.getByRole("button", { name: "修改要求", exact: true })).toBeVisible();
+    }
   });
 }

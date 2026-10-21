@@ -91,3 +91,5 @@ make e2e-canonical
 Main/UI 组合契约由 `test/work_domain/test_main_ui.py`、能力结果持久化查询用例和 `test/web_api/test_work_foundation.py` 验证消息来源、接受重放、revision 与账户隔离；群聊裁剪沿用 durable review 用例。`web/e2e/composable-main.spec.ts` 使用隔离 Fake API 验证离页/刷新找回、准确来源消息和普通聊天独立；它只证明后台协调 Run 的持久身份不丢失，实际持续执行与新 fence 恢复由 `test/work_domain/test_continuation_temporal.py` 验证。自然语言工具描述和脚本调用测试不证明真实模型决策，真实 Provider / QQ 外发仍需单独授权。
 
 执行查询回归从任务高级详情进入：窄屏关闭所属 Inspector 后、桌面所属 Inspector 仍挂载时，迟到响应均不得覆盖新前景。Model Input 回归从 Trace 节点的 snapshot_id 查询；无 Trace 不发输入查询，账号可见范围拒绝须清除已有正文，并拒绝在途正文回灌。用例见 [执行查询与前景](../../web/e2e/ui-7-self-review.spec.ts) 与 [执行详情和输入权限](../../web/e2e/ui-3-execution.spec.ts)。
+
+有界推进用例在 `test/work_domain/test_progress.py`：跨 Run 与同 Run 保护、样本重放、内容/摘要身份、固定 daily 基线、失败不推进、预算实际增额、旧生产者及暂停/停止。浏览器 `web/e2e/entry/entry.spec.ts` 的 progress protection 用例使用 API 路由夹具，在桌面/窄屏核对原因和干预入口，不证明真实 Provider 决策或 QQ 投递。基础设施集合使用独立资源；同一 PostgreSQL cluster 上新建多个测试库时，完整迁移需串行执行，旧链包含 cluster 级角色配置。

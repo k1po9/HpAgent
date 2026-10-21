@@ -118,7 +118,19 @@ class RunLifecycleService:
                         checkpoint['checkpoint_version'] != work['checkpoint']['checkpoint_version']+1
                     ):
                         raise ValueError('checkpoint provenance/version mismatch')
-        if work is not None and status == 'succeeded' and result['kind'] == 'deliverable_ready':
+        daily_unchanged = False
+        if work is not None and status == 'succeeded':
+            from work_domain.progress import comparison_baseline, daily_signature
+            signature = daily_signature(uow, run)
+            previous = comparison_baseline(uow, work, run) if signature is not None else None
+            daily_unchanged = previous is not None and previous['signature'] == signature
+            if daily_unchanged:
+                # A normal unchanged occurrence requires no new channel receipt.
+                accept_result = False
+        from work_domain.progress import blocked_reason
+        if (work is not None and status == 'succeeded' and not daily_unchanged
+                and result['kind'] == 'deliverable_ready' and not blocked_reason(uow, work)
+                and not self.unresolved_effect(uow, work)):
             requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'], run['requirement_revision'])
             if any(c['required'] and 'delivery_receipt' in c['evidence_types'] for c in requirement['acceptance_criteria']):
                 from uuid import UUID
@@ -151,6 +163,21 @@ class RunLifecycleService:
                  '构建已取消。' if status == 'cancelled' else (failure_message or '构建未能完成。')[:1000],
                  run['account_id'], run['run_id']),
             )
+        if work is not None and status == 'failed':
+            from work_domain.progress import record_result
+            for invocation in uow.execute(
+                'SELECT i.* FROM capability_invocations i LEFT JOIN capability_results r '
+                'USING(account_id,invocation_id) WHERE i.account_id=%s AND i.run_id=%s '
+                'AND r.invocation_id IS NULL ORDER BY i.created_at,i.invocation_id',
+                (run['account_id'], run['run_id']),
+            ).fetchall():
+                if failure_code not in {'work_budget_exhausted', 'run_budget_exhausted',
+                                        'account_daily_model_budget_exhausted',
+                                        'account_daily_budget_exhausted', 'capability_budget_exhausted', 'capability_uncertain'}:
+                    record_result(uow, run, invocation, dict(
+                        outcome='failed', outputs=[], checks=[], gaps=[],
+                        error={'code': failure_code or 'attempt_failed', 'retry_class': 'transient'},
+                    ))
         uow.execute('UPDATE runs SET status=%s,failure_code=%s,failure_message=%s,'
                     'result_json=%s::jsonb,finished_at=GREATEST(now(),created_at,COALESCE(started_at,created_at)),'
                     'version=version+1,updated_at=now() WHERE run_id=%s',
@@ -163,7 +190,12 @@ class RunLifecycleService:
 
             project_terminal(uow, run, status, content)
             return True
-        next_step = continuation('blocked', 'attempt_cancelled' if status=='cancelled' else 'budget_exhausted' if failure_code in {'work_budget_exhausted','run_budget_exhausted'} else 'attempt_failed')
+        budget_failure = failure_code in {
+            'work_budget_exhausted', 'run_budget_exhausted', 'account_daily_model_budget_exhausted',
+            'account_daily_budget_exhausted', 'capability_budget_exhausted',
+        }
+        next_step = continuation('blocked', 'attempt_cancelled' if status=='cancelled' else
+                                 'budget_exhausted' if budget_failure else 'attempt_failed')
         if status=='succeeded':
             raw = result.get('continuation', continuation('ready','execution_succeeded'))
             next_step = continuation(raw['kind'], raw['reason'], **{k:v for k,v in raw.items()
@@ -179,6 +211,16 @@ class RunLifecycleService:
                 next_step = (continuation('ready', 'latest_occurrence_pending') if pending else
                              continuation('at_time', 'next_daily_occurrence',
                                           due_at=next_daily(requirement['timing'], datetime.now(UTC)).isoformat()))
+        if daily_unchanged:
+            from datetime import UTC, datetime
+
+            from work_domain.timing import next_daily
+            next_step = continuation('at_time', 'next_daily_occurrence',
+                                     due_at=next_daily(run['input_snapshot']['requirement']['timing'],
+                                                       datetime.now(UTC)).isoformat())
+        protection = blocked_reason(uow, work)
+        if protection and not budget_failure:
+            next_step = continuation('blocked', protection)
         unresolved = self.unresolved_effect(uow, work)
         if unresolved:
             next_step = continuation('blocked', 'side_effect_uncertain', operation_ref=unresolved['operation_id'])
@@ -191,6 +233,7 @@ class RunLifecycleService:
             next_step = work['continuation']
         if target_status in {'pausing','stopping'} and not next_step.get('operation_ref'):
             target_status = {'pausing':'paused','stopping':'stopped'}[target_status]
+        prior_block = work['continuation'] if work['continuation']['kind'] in {'blocked', 'awaiting_input'} else None
         checkpoint = result.get('checkpoint', work['checkpoint']) if status=='succeeded' else work['checkpoint']
         work = dict(uow.execute('UPDATE works SET active_coordinator_run_id=NULL,status=%s,'
                                 'continuation=%s::jsonb,checkpoint=%s::jsonb,row_version=row_version+1,'
@@ -201,7 +244,12 @@ class RunLifecycleService:
                                 (target_status, json.dumps(next_step), json.dumps(checkpoint), target_status,
                                  target_status, work['work_id'], run['run_id'])).fetchone())
         WorkRepository.event(uow, work, f'run_{status}', run_id=run['run_id'], status=target_status)
-        if accept_result and status=='succeeded':
+        if target_status in {'paused', 'stopped'}:
+            WorkRepository.event(uow, work, target_status, run_id=run['run_id'], status=target_status)
+        if (work['status'] == 'active' and next_step['kind'] in {'blocked', 'awaiting_input'}
+                and next_step != prior_block):
+            WorkRepository.event(uow, work, 'blocked', run_id=run['run_id'], reason=next_step['reason'])
+        if accept_result and status=='succeeded' and not protection:
             from work_domain.completion import WorkCompletionPolicy
 
             WorkCompletionPolicy.accept(uow, work, run)
@@ -209,6 +257,12 @@ class RunLifecycleService:
         current = WorkRepository.get(uow, work['account_id'], work['work_id'])
         requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'], current['current_requirement_revision'])
         sync_schedule(uow, current, requirement)
+        if (status == 'succeeded' and current['status'] == 'active'
+                and current['current_requirement_revision'] == run['requirement_revision']
+                and current['control_epoch'] == run['work_control_epoch']
+                and next_step['kind'] not in {'blocked', 'awaiting_input'}):
+            from work_domain.progress import accept_daily_result
+            accept_daily_result(uow, current, run)
         if (status == 'succeeded' and current['status'] == 'active'
                 and current['current_requirement_revision'] == run['requirement_revision']
                 and next_step['kind'] in {'ready', 'at_time', 'retry_after'}):

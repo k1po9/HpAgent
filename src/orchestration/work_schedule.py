@@ -145,6 +145,8 @@ class WorkScheduleService:
                     logger.warning('Work admission blocked: %s', type(exc).__name__)
                     uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1 WHERE work_id=%s',
                                 (json.dumps(continuation('blocked', 'budget_exhausted' if isinstance(exc, RunBudgetExhausted) else 'admission_rejected')), work['work_id']))
+                    current = WorkRepository.get(uow, work['account_id'], work['work_id'])
+                    WorkRepository.event(uow, current, 'blocked', reason=current['continuation']['reason'])
                 except Exception:
                     # The savepoint rolls back this admission only. Keep its wakeup
                     # pending for recovery and let other accounts make progress.

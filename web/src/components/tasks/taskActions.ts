@@ -41,6 +41,8 @@ export function taskActions(work: HpWork, now: number): TaskAction[] {
     ["ready", "blocked", "at_time", "retry_after"].includes(c.kind) &&
     ![
       "budget_exhausted",
+      "no_progress",
+      "repeated_failure",
       "waiting_capacity",
       "side_effect_uncertain",
       "user_acceptance_required",

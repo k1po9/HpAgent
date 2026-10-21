@@ -115,6 +115,13 @@ class CapabilityFacts:
             if prior["descriptor"] != descriptor:
                 raise ValueError("invocation identity input conflict")
             return dict(prior)
+        if run['source_kind'] == 'work':
+            from run_domain.lifecycle import RunLifecycleService
+            from work_domain.progress import ProgressBlocked, blocked_reason
+            work = RunLifecycleService.check_work(uow, run)
+            reason = blocked_reason(uow, work)
+            if reason:
+                raise ProgressBlocked(reason)
         policy = ResourcePolicy(uow)
         for node in scope["node_ids"]:
             candidate = uow.execute(
@@ -307,6 +314,9 @@ class CapabilityFacts:
             "UPDATE run_executions SET result_ref=%s,updated_at=now() WHERE execution_id=%s",
             (f"capability-result:{invocation_id}", child["execution_id"]),
         )
+
+        from work_domain.progress import record_result
+        record_result(uow, run, invocation, payload)
 
     def read_ref(self, uow: UnitOfWork, ref_id: UUID) -> ResultRef:
         """Resolve exact metadata under current authority. This is not a bearer reference."""

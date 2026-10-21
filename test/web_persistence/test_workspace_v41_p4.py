@@ -42,6 +42,8 @@ class Canonicalizer:
 class Content:
     async def fetch(self, candidate):
         value = "fixed evidence " + candidate.uri
+        if hasattr(self, "generation"):
+            value += f" observation {self.generation}"
         return SourceContent(canonical_uri=candidate.uri, title="Fixture", text=value,
                              content_hash=content_sha256(value), mime_type="text/html")
 
@@ -156,11 +158,15 @@ async def test_thirty_standalone_runs_use_bounded_authorized_history_and_save(
     synthesis = Synthesis()
     publisher = ResearchMarkdownPublisher(OutputPublisher(
         worker_database_url, TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024)))
-    activities = ResearchActivities(worker_database_url, Discovery(), Content(),
+    content = Content()
+    activities = ResearchActivities(worker_database_url, Discovery(), content,
                                     Canonicalizer(), synthesis, min_evidence=1,
                                     min_distinct_sources=1, markdown_publisher=publisher)
     run_ids = []
     for index in range(30):
+        # This is an immediate continuation stress test. Each round must have
+        # new verified evidence; unchanged periodic observations use daily Work.
+        content.generation = index
         run_id = UUID(advance_work(commands, account_id, work_id, str(uuid4())).body["run"]["run_id"])
         if index == 1:
             catalog.move(account_id, target, parent, "改名后的日报")

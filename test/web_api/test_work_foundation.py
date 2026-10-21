@@ -113,3 +113,33 @@ def test_work_http_lifecycle_and_cross_account_visibility(seed_identity, client_
     assert other.get(url).status_code == 404
     assert other.get(f"{url}/events").status_code == 404
     assert other.get(f"{url}/runs").status_code == 404
+
+
+def test_progress_projection_and_http_advance_gate(seed_identity, client_factory, db):
+    seed_identity('progress-owner')
+    seed_identity('progress-other')
+    client = client_factory()
+    csrf = login(client, 'progress-owner')
+    response = client.post('/api/v1/works', json={
+        'title': 'Bounded goal', 'requirement': {
+            'objective': 'Bounded goal', 'capability_key': 'generic_work', 'spec': {'schema_version': 1},
+        },
+    }, headers=headers(csrf, str(uuid4())))
+    assert response.status_code == 201
+    work = response.json()['work']
+    work_id = work['work_id']
+    assert work['progress'] is None and work['daily_baseline'] is None
+    # Migration-role fixture injects an already established protection fact;
+    # production writes are verified with worker-role complex calls in test_progress.
+    db.execute('INSERT INTO work_progress(account_id,work_id,requirement_revision,failure_limit,'
+               'no_progress_limit,no_progress_count,blocked_reason) VALUES (%s,%s,1,3,3,3,%s)',
+               (work['account_id'], work_id, 'no_progress'))
+    url = f'/api/v1/works/{work_id}'
+    current = client.get(url)
+    assert current.json()['work']['progress']['blocked_reason'] == 'no_progress'
+    rejected = client.post(url + '/advance', json={},
+                           headers=headers(csrf, str(uuid4()), current.headers['ETag']))
+    assert rejected.status_code == 409
+    assert client.get(url + '/runs').json()['items'] == []
+    login(client, 'progress-other')
+    assert client.get(url).status_code == 404

@@ -1,8 +1,8 @@
 # 通用助手与可组合能力：目标架构提案
 
-状态：S6–S7 的待实施设计。S1 基础契约、S2 持久调用边界、S3 局部 Research 与 S4 HTML/成果采用 已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)和[Workspace](../architecture/workspace.md)；S5 Main/任务/UI 接口见[Work](../architecture/work.md)与[Web 契约](../architecture/web-ui.md)，以源码和测试为准。持续推进保护与静默通知尚待实施。本文不授权清库、部署或真实外发。
+状态：S7 的待实施设计。S1 基础契约、S2 持久调用边界、S3 局部 Research 与 S4 HTML/成果采用 已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)和[Workspace](../architecture/workspace.md)；S5 Main/任务/UI 接口见[Work](../architecture/work.md)与[Web 契约](../architecture/web-ui.md)，以源码和测试为准。S6 持续推进保护与静默通知已归入 [Work](../architecture/work.md#有界推进与静默通知)，实现存在不代表全部环境验收已通过。本文不授权清库、部署或真实外发。
 
-设计基线：2026-10-20，本地提交 `a35b3d5`。依据用户提供的《HpAgent 通用 AI 助手平台》愿景、后续需求澄清及代码静态核查。实施前必须重新核对最新代码；S1 已固定的名称和字段以当前架构文档及源码为准，其余新入口仍是设计名称。
+设计基线：最新提交，依据用户提供的《HpAgent 通用 AI 助手平台》愿景、后续需求澄清及代码静态核查。实施前必须重新核对最新代码；S1 已固定的名称和字段以当前架构文档及源码为准，其余新入口仍是设计名称。
 
 ## 1. 产品目标与明确排除项
 
@@ -256,22 +256,7 @@ Main 仍使用现有共享 Harness。接受长期委托后快速返回已提交 
 
 ## 9. 停止条件、持续服务与通知
 
-停止无效推进条件为 OR，但不等于把所有情况标成 stopped：
-
-| 条件 | 推荐处置 |
-| --- | --- |
-| 预算不足 | blocked/budget_exhausted，显式增加预算后可继续 |
-| 连续重复失败达到上限 | blocked/repeated_failure，保留失败分类与可恢复动作 |
-| 无进展达到上限 | blocked/no_progress，保存成果，等待明确新输入/策略改变 |
-| 等待输入/审批 | 持久等待或结束当前 Run 并设 continuation，不算无进展 |
-| 正常周期任务无变化 | 本轮正常成功，等待下一 occurrence，不打扰用户 |
-| 用户暂停/停止 | 按 Work 控制状态收敛，不由模型忽略 |
-
-建议初始策略：相同能力、规范化输入和错误类别连续三次失败触发保护；连续三次已终结的复杂调用没有新增有效成果、检查或业务事实触发无进展保护。它们是可配置、版本化的工程默认值，不是用户已确认的固定数字；必须用测试校准，不能直接用文本摘要变化判断进展。Atomic Tool 不逐个计入复杂调用进展窗口。
-
-计数在同 Work/revision 内持久化，不能每个新 Run 重置以绕过限制。有效成果、明确用户干预或经记录的恢复决议可以按规则重置；定时触发本身不清除异常记录。
-
-首期持续服务仍用 PostgreSQL 调度。只有重要变化、完成、异常或需要用户处理时通知；比较基线固定版本，失败不得推进基线。消息入队、渠道 accepted、已读、验收保持独立。是否重要由任务策略和证据决定，通知发送仍受可信目标与内容范围约束。
+现行 revision 保护、预算恢复、daily 固定基线、通知筛选与去重契约见 [Work](../architecture/work.md#有界推进与静默通知)。S7 继续验证真实组合、恢复和渠道行为；不由设计文本替代运行证据。
 
 ## 10. 实施单元与依赖门禁
 
@@ -305,13 +290,9 @@ Main 仍使用现有共享 Harness。接受长期委托后快速返回已提交 
 
 ### S6 — 有界持续推进与静默通知
 
-范围：同 Work/revision 的进展与重复失败记录、OR 保护、预算阻塞恢复、daily 结果基线、变化通知去重。
+已实现接口归入 [Work](../architecture/work.md#有界推进与静默通知)、[API](../reference/api.md)与[Web 契约](../architecture/web-ui.md)，新增迁移 069–070。后续复用 progress policy v1、复杂调用样本、准确 daily_baseline_run_id 与现有通知/投递链；不另建预算或触发平台。
 
-主要入口：[lifecycle](../../src/run_domain/lifecycle.py)、[work_schedule](../../src/orchestration/work_schedule.py)、[Work domain](../../src/work_domain/)、[delivery](../../src/delivery/)。
-
-要求：无进展由事实变化判断，不让 LLM 自述重置；无变化是合法周期结果；不引入任意触发平台。预算失败和未知副作用不能通过自动新 Run 绕过。
-
-验收：保护跨 Run 生效；正常无变化无通知；失败不推进基线；恢复后不重复外发；ongoing Work 不因单次成功终结；暂停/停止期间无新 wakeup 推进。
+门禁仍需验证跨 Run/同 Run 保护、无变化静默、失败不推进基线、重放不重复通知、ongoing 不因单次成功终结、预算恢复及暂停/停止。静态/夹具测试不能代替真实模型自主性或真实渠道证据。
 
 ### S7 — 全链验收与冗余路径收敛
 

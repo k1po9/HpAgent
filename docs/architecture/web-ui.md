@@ -74,6 +74,8 @@ Run SSE Gateway 先订阅并缓冲，再读取快照；snapshot 始终为第一�
 | T13～T17 | paused、at_time、retry_after、正常 awaiting_delivery、waiting_capacity | 等待或已计划：已暂停 / 已计划 / 自动重试 / 回执 / 执行资源。 |
 | T18～T19 | ready 无 coordinator，其他合法非终态 | 等待或已计划：准备继续 / 等待继续。 |
 
+任务为 blocked/no_progress 或 blocked/repeated_failure 时展示具体保护原因，并隐藏直接“继续执行”；恢复通过修改要求，或明确暂停后继续。budget_exhausted 的暂停/继续仍保留预算阻塞，须显式增额。progress 和 daily_baseline 为服务器查询投影，不能从界面事件数推算。
+
 `paused + blocked/delivery_resolved` 在无 coordinator、operation 和当前失败/不确定投递时按已暂停显示。旧 revision 投递异常保留在历史；单次 Run succeeded 不表示 ongoing Work 已完成，Run failed 也不直接把 Work 归已结束。过期 due_at 仍显示等待执行。冻结 M01～M21 及异常输入的正式表驱动回归见 [`taskPresentation.test.ts`](../../web/src/components/tasks/taskPresentation.test.ts)。
 
 Works 串行追完所有页后才给出精确计数，未完成时明确已加载范围；刷新按 row_version 合并，单对象深链 upsert。所有写命令服从 Work If-Match、原意图 key 和服务端裁决；冲突保留要求草稿。预算比例只用 used.model_total_tokens / limits.model_total_tokens，reserved 单列，增额为显式命令。

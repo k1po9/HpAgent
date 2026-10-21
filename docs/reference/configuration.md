@@ -91,6 +91,7 @@ Work schedule 由 PostgreSQL evaluator 维护，不使用 Temporal Schedule 配�
 | 变量 | 默认值 | 用途 |
 | --- | --- | --- |
 | `WORK_ACCOUNT_ACCEPT_LIMIT` | `100` | 账户接受的非停止/完成委托上限，具体计数以 WorkCommandService 为准。 |
+| `WORK_REPEATED_FAILURE_LIMIT` / `WORK_NO_PROGRESS_LIMIT` | 各 `3` | policy v1 在 Work/revision 首次计数时冻结；范围 1–100，不追改已有窗口。 |
 | `WORK_ACCOUNT_COORDINATORS` / `WORK_GLOBAL_COORDINATORS` | `4` / `32` | 有限后台 Run admission。 |
 | `CAPACITY_{MODEL,TOOL,FETCH}_GLOBAL` | 各 `12` | 资源票据的全局上限。 |
 | `CAPACITY_{MODEL,TOOL,FETCH}_ACCOUNT` | 各 `3` | 每账户资源票据上限。 |

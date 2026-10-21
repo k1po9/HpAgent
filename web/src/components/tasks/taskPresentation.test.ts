@@ -243,3 +243,14 @@ it("keeps classification tied to continuation while preserving extra facts as at
   };
   expect(presentTask(resolved, now).label).toBe("已暂停");
 });
+
+it("requires intervention before retrying progress protection", () => {
+  for (const reason of ["no_progress", "repeated_failure"]) {
+    const work = { ...workFixture(), continuation: c("blocked", reason) };
+    expect(taskActions(work, now)).not.toContain("advance");
+    expect(taskActions(work, now)).toContain("edit");
+    expect(presentTask(work, now).label).toContain(
+      reason === "no_progress" ? "没有新进展" : "连续执行失败",
+    );
+  }
+});

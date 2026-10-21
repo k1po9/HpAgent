@@ -15,7 +15,11 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
     account_id, work_id = work["account_id"], work["work_id"]
     from resources.capacity import CapacityService
     from resources.work_budget import WorkBudgetExhausted
-
+    from work_domain.progress import blocked_reason
+    # Applies equally to scheduler and explicit advance; a new Run cannot reset protection.
+    reason = blocked_reason(uow, work)
+    if reason or work['continuation']['reason'] == 'budget_exhausted':
+        return None
     if not CapacityService.admission(uow, work):
         uow.execute(
             "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
@@ -63,6 +67,10 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
         "checkpoint": work["checkpoint"],
         "wakeup_id": str(wakeup_id),
     }
+    if requirement['timing']['kind'] == 'daily':
+        from work_domain.progress import previous_daily
+        baseline = previous_daily(uow, work)
+        snapshot['daily_baseline_run_id'] = str(baseline['run_id']) if baseline else None
     snapshot["artifact_refs"] = dto(
         uow.execute(
             "SELECT artifact_version_id,role FROM work_artifacts WHERE account_id=%s AND work_id=%s "

@@ -446,6 +446,15 @@ export interface HpWork {
     receipt_ref?: string;
     operation_ref?: string;
   };
+  progress?: {
+    policy_version: number;
+    failure_limit: number;
+    no_progress_limit: number;
+    consecutive_failures: number;
+    no_progress_count: number;
+    blocked_reason: "repeated_failure" | "no_progress" | null;
+  } | null;
+  daily_baseline?: { run_id: string; previous_run_id: string | null; changed: boolean } | null;
   requirement: HpRequirement;
   budget: {
     limits: Record<string, number>;

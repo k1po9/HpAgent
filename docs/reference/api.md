@@ -24,7 +24,7 @@ Compose 中 FastAPI 监听 `127.0.0.1:8080`。`GET /health/live`、`GET /health/
 | `POST /api/v1/works` | title、结构化 requirement、可选 conversation_id / source_message_id；201，返回 Location。 |
 | `GET /api/v1/works/{work_id}` | Work、current requirement、执行/预算/成果等投影，返回 ETag；sources 数组包含准确 conversation_id / source_message_id，无消息锚点时 source_message_id 为 null。 |
 | `POST /api/v1/works/{work_id}/revisions` | requirement、change_reason；创建不可变新 revision。 |
-| `POST /api/v1/works/{work_id}/pause`、`resume`、`stop`、`advance` | 控制或推进，JSON `{}`；advance 可返回 not_due / waiting_capacity。 |
+| `POST /api/v1/works/{work_id}/pause`、`resume`、`stop`、`advance` | 控制或推进，JSON `{}`；advance 可返回 not_due / waiting_capacity；保护或预算阻塞返回 409，不能以新 Run 绕过。 |
 | `PUT /api/v1/works/{work_id}/conversations/{conversation_id}` | 关联交互来源，不导入历史或授予资料权限。 |
 | `GET /api/v1/works/{work_id}/runs`、`events` | 执行与 Work event 查询；events 支持数值 `after`。 |
 | `GET /api/v1/runs/{run_id}/capability-results` | 账户所有者查询当前 Run 最近 100 个不可变能力结果；items 包含 capability_key、invocation_id、payload、created_at，truncated 表示还有更早结果。不是执行侧 ResultRef 授权。 |
@@ -42,6 +42,8 @@ Compose 中 FastAPI 监听 `127.0.0.1:8080`。`GET /health/live`、`GET /health/
 | `GET /api/v1/notifications` | 已进入账户私有 Web inbox 的通知，before 分页。 |
 
 Work 创建和写命令使用 `Idempotency-Key`；已存在 Work 的写命令还要求 `If-Match: "work-{work_id}-v{row_version}"`，缺少为 428，格式/版本不匹配为 409。预算命令同时检查 budget_version。修订只发送 requirement 可编辑字段，不能直接回传包含审计字段的 GET 对象。冲突时刷新核对版本；响应不确定时对同一意图重用键。输入 Schema 见 [`models.py`](../../src/web_api/models.py) 和 [`Requirement`](../../src/work_domain/models.py)。
+
+Work 快照另含可空 `progress`：policy_version、failure_limit、no_progress_limit、consecutive_failures、no_progress_count、blocked_reason（no_progress / repeated_failure / null）；可空 `daily_baseline` 为 run_id、previous_run_id、changed。它们来自当前 revision 的权威事实；daily Run admission 另冻结 input_snapshot.daily_baseline_run_id。无变化轮次正常成功，SSE 仍可观察事件，但不产生逐轮通知。预算解除要求 limits 至少一项实际增加；同值命令不会解除 budget_exhausted。具体恢复规则见 [Work](../architecture/work.md#有界推进与静默通知)。
 
 Requirement 核心字段为 objective、capability_key、spec；另有 constraints、acceptance_criteria、completion_mode、timing、resource_requests、deliverable_policy。能力是 reminder / research_report / generic_work / artifact_build；Generic Work 的验收 evidence_types 为 output_exists / check_passed / workspace_saved，并使用服务器求值的准确成果证据；input 命令可显式选取已有不可变能力输出。注册 executor 决策由服务端完成。daily 要求 ongoing；once 带 offset。旧 `/api/v1/tasks` 及 Task schedule / resources 入口已退休，没有兼容双写层。
 

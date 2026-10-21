@@ -26,7 +26,11 @@ def fenced_activity(function):
             try:
                 return await function(self, request)
             except Exception as exc:
-                if getattr(exc, "code", None) == "stale_fencing_token":
+                if getattr(exc, "code", None) in {
+                    "stale_fencing_token", "no_progress", "repeated_failure",
+                    "run_budget_exhausted", "work_budget_exhausted",
+                    "capability_budget_exhausted", "account_daily_model_budget_exhausted",
+                }:
                     raise ApplicationError(str(exc), type=exc.code, non_retryable=True) from exc
                 raise
             finally:

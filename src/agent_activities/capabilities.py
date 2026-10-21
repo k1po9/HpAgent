@@ -110,6 +110,9 @@ class CapabilityActivities:
             self.store.begin_tool_operation, request.operation_id, request.run_id
         )
         if prior.status == "completed":
+            reason = await asyncio.to_thread(self.protection, request.account_id, request.run_id)
+            if reason:
+                raise ApplicationError(reason, type=reason, non_retryable=True)
             return CapabilityPrepared(
                 replay=ToolExecutionResult(
                     **{
@@ -180,6 +183,12 @@ class CapabilityActivities:
 
     def admit_in_uow(self, uow, run, parent, definition, operation_id):
         """Shared bounded admission for the Harness and fixed parent adapters."""
+        if run['source_kind'] == 'work':
+            from work_domain.progress import ProgressBlocked, blocked_reason
+            work = RunLifecycleService.check_work(uow, run)
+            reason = blocked_reason(uow, work)
+            if reason:
+                raise ProgressBlocked(reason)
         # Serialize cross-process admission; no physical ticket survives this transaction.
         uow.execute("SELECT pg_advisory_xact_lock(4830020601)")
         prior = uow.execute(
@@ -233,7 +242,10 @@ class CapabilityActivities:
                         <= 0
                         for d in dimensions
                     ):
-                        raise ResourceDenied("aggregate invocation budget exhausted")
+                        from resources.run_budget import RunBudgetExhausted
+                        from resources.work_budget import WorkBudgetExhausted
+                        error = WorkBudgetExhausted if table == 'work_budgets' else RunBudgetExhausted
+                        raise error("aggregate invocation budget exhausted")
 
     def invocation_context(self, uow, request):
         """Trusted implementations load inputs under their own current segment fence."""
@@ -332,7 +344,22 @@ class CapabilityActivities:
     @activity.defn(name="observe_capability_activity")
     @fenced_activity
     async def observe(self, request: CapabilityFinish) -> ToolExecutionResult:
-        return await asyncio.to_thread(self._observe, request)
+        response = await asyncio.to_thread(self._observe, request)
+        # Observation is committed before raising the control condition. Retrying cannot
+        # duplicate the sample or transcript; no further model call is needed to stop.
+        reason = await asyncio.to_thread(self.protection, request.account_id, request.run_id)
+        if reason:
+            raise ApplicationError(reason, type=reason, non_retryable=True)
+        return response
+
+    def protection(self, account_id, run_id):
+        from work_domain.progress import blocked_reason
+        with UnitOfWork(self.store.database_url) as uow:
+            run = RunLifecycleService.lock(uow, UUID(account_id), UUID(run_id))
+            if run['source_kind'] == 'work':
+                work = RunLifecycleService.check_work(uow, run)
+                return blocked_reason(uow, work)
+        return None
 
     @retryable_transaction
     def _observe(self, request):

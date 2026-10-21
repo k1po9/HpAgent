@@ -242,16 +242,24 @@ def integration_command(service, account, work_id, key, version, action, payload
             if any(k not in budget["limits"] or v < budget["limits"][k] for k, v in limits.items()):
                 raise ValueError("budget adjustment can only explicitly increase limits")
             merged = {**budget["limits"], **limits}
+            increased = any(v > budget['limits'][k] for k, v in limits.items())
             uow.execute(
                 "UPDATE work_budgets SET limits=%s::jsonb,version=version+1,updated_at=now() WHERE account_id=%s AND work_id=%s",
                 (json.dumps(merged), account, work_id),
             )
-            if work["status"] == "active" and work["continuation"]["reason"] == "budget_exhausted":
+            if (increased and work["status"] == "active"
+                    and work["continuation"]["reason"] == "budget_exhausted"
+                    and not work['continuation'].get('operation_ref')):
+                from work_domain.progress import blocked_reason
+                protection = blocked_reason(uow, work)
+                next_step = (continuation('blocked', protection) if protection else
+                             continuation('ready', 'budget_increased'))
                 uow.execute(
-                    "UPDATE works SET continuation=%s::jsonb WHERE work_id=%s",
-                    (json.dumps(continuation("ready", "budget_increased")), work_id),
+                    "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1 WHERE work_id=%s",
+                    (json.dumps(next_step), work_id),
                 )
-                WorkRepository.wakeup(uow, work, f"budget:{command}", "advance", "budget_increased")
+                if not protection:
+                    WorkRepository.wakeup(uow, work, f"budget:{command}", "advance", "budget_increased")
         elif action == "grant_resource":
             from workspace.resources import ResourcePolicy
 

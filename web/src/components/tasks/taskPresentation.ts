@@ -33,7 +33,13 @@ export function presentTask(work: HpWork, now: number) {
   const current = (work.deliveries ?? []).filter(
     (d) => d.requirement_revision === work.current_requirement_revision,
   );
-  const attentionReasons: string[] = [];
+  const protectionLabel =
+    c?.reason === "no_progress"
+      ? "持续执行没有新进展，请修改要求或补充资料"
+      : c?.reason === "repeated_failure"
+        ? "连续执行失败，请调整要求后重试"
+        : null;
+  const attentionReasons: string[] = protectionLabel ? [protectionLabel] : [];
   if (current.some((d) => d.state === "uncertain")) attentionReasons.push("发送结果待确认");
   if (c?.reason === "side_effect_uncertain" || c?.operation_ref)
     attentionReasons.push("外部操作结果待确认");
@@ -88,7 +94,7 @@ export function presentTask(work: HpWork, now: number) {
             : c?.kind === "awaiting_input"
               ? "等待你的补充"
               : c?.kind === "blocked" && !systemWait && !resolvedPause
-                ? "执行受阻，需要处理"
+                ? (protectionLabel ?? "执行受阻，需要处理")
                 : null;
   const reasonOrder = [
     "发送结果待确认",

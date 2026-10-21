@@ -69,6 +69,22 @@ Work 协调权由 `active_coordinator_run_id + requirement_revision + control_ep
 
 `WorkCompletionPolicy` 使用本 revision 的持久证据推进状态：成功 operation receipt、研究报告、精确 Artifact Version、必需 Workspace 保存、渠道回执和显式用户验收。Generic Work 的文字回复仅是候选；没有有效完成证据时进入等待输入。ongoing 委托不因一轮成功就完成。成功后的 ready continuation 在终态事务中创建去重 wakeup；等待输入、blocked、暂停、停止和完成不会自动续跑。
 
+## 有界推进与静默通知
+
+迁移 069–070 增加 `work_progress / work_progress_samples / work_progress_facts` 与 `work_daily_results / work_daily_result_refs`。保护按 Account、Work、requirement revision 持久化，Run 更换、定时触发和 Activity 重试均不清零。policy v1 首次计数时冻结阈值，重复失败和无进展默认各三次，任一达到即 `blocked/repeated_failure` 或 `blocked/no_progress`；配置见[配置参考](../reference/configuration.md)。
+
+只有服务器注册的复杂能力调用进入窗口，Atomic Tool 不逐个计数。生产结果与样本同事务提交；同 invocation 只计一次。未提交局部结果的基础设施失败在当前 Run 失败事务中补样本；失败类别可从关联的 CapabilityResult 或 Run failure_code 查询。重复失败身份由能力、契约版本、规范化输入和错误类别组成，不保存模型摘要作为身份。cancelled、uncertain 和明确 requires_input 不进入异常窗口。
+
+有效进展来自 ready 文件/已提交 Artifact 的内容 hash，以及绑定同一内容与 verifier/version 的通过检查；Research 使用结构化 claims 和来源 URI/hash 的规范化快照，忽略生产者、claim/evidence 随机 ID 和展示文本。重复成果换引用 ID、改写摘要或 checkpoint 文字不产生进展；新有效事实重置未触发的无进展窗口。有有效成果/检查事实的正常 daily 无变化结果清零无进展计数；只有成功摘要而没有有效事实仍计入保护。定时唤醒本身不清零。已触发的保护保持到显式干预：修改需求形成新 revision；明确暂停后继续在原 revision 记录恢复并清零计数，已见事实和历史样本保留。补资料本身不扩大当前 Run 的冻结输入，也不自动解除保护。
+
+保护阻止新的复杂调用及新 Run admission；Harness 先提交父观察，再以持久保护原因终止后续决策，无需额外模型调用决定停止。旧 attempt/revision/control epoch 不得更新新窗口。预算失败仍为独立 `blocked/budget_exhausted`：advance、定时、新 revision 和暂停/继续不能清除，实际显式增额后才重新评估准入；相同额度重放不解除阻塞，增额也不清除独立的进展保护。Account/day、Work、Run 费用账本不变，uncertain 的对账门禁优先于自动推进。
+
+daily Run admission 固定 `input_snapshot.daily_baseline_run_id`。仅当前协调资格下成功结束的 Run，并且局部结果均成功、检查通过、有有效成果，才能提交新的固定比较基线；父保存/验收事务失败、insufficient、Run 失败和迟到结果都不推进基线。每次记录精确 ResultRef 保留关系，不授予读取基线正文的权限；Research 历史仍须符合冻结候选与当前 read_content grant，并限定到本轮固定基线。policy v1 把 Research 结构化事实变化、其他能力有效输出内容/通过检查变化视为重要变化，不做 LLM 自述重要性判断。无变化是正常成功，等待下一 occurrence，ongoing 委托不因这一轮成功结束。明确的周期提醒仍按每个 occurrence 履约，不把提醒文案相同当作无变化研究结果。
+
+所有 Work event 和 Outbox 继续同事务保存并供 SSE 恢复；通知不再逐条复制 accepted、advanced、run_succeeded 等内部事件。只通知完成、暂停/停止、需要输入或处理的阻塞、投递异常及重要 daily 变化。相同终态重放不重复入队；需要渠道回执的成果沿原 fulfillment 通知，不再额外发送变化通知，无变化轮次不创建新的 fulfillment。投递重试仅消费原通知，不能重跑生产业务；暂停/停止/修订会取消尚未发送的变化通知，发送前继续检查可信目标与当前有效性。消息入队、渠道 accepted、已读和用户验收仍为独立事实。
+
+Work 查询补充 `progress`（策略/阈值/计数/原因）与 `daily_baseline`（准确 Run、前一 Run、changed），没有记录时为 null。界面显示无进展/重复失败原因，隐藏直接 advance；用户可修改要求或显式暂停后继续。预算不足仍使用增额入口。
+
 ## 资源、费用与上下文
 
 Work 有显式 `work_input_refs`，权限以 `subject_kind=work` 管理；聊天采用 Conversation grant。Run admission 冻结候选与输入引用，使用前检查当前权限。Chat 和 Work brief 展示候选第一页最多 20 条元数据及分页指引，文件正文须 select / read；运行中新增资料在下一 Run 生效。

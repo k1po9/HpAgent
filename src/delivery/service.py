@@ -111,12 +111,19 @@ def cancel_pending(uow, work):
         "UPDATE deliveries d SET state='cancelled',updated_at=now() FROM notifications n "
         "WHERE d.notification_id=n.notification_id AND d.account_id=n.account_id AND n.account_id=%s "
         "AND n.work_id=%s AND d.state IN ('pending','failed') AND (n.purpose='fulfillment' "
-        "OR n.payload->>'event_type' IN ('completed','result_accepted'))",
+        "OR n.payload->>'event_type' IN ('completed','result_accepted','result_changed'))",
         (work["account_id"], work["work_id"]),
     )
 
 
 def enqueue_event(uow, work, event_id, event_type, run_id=None):
+    # SSE keeps all business events. Inbox/external notifications are reserved
+    # for actionable state, accepted completion and trusted daily changes.
+    if event_type == 'delivery_accepted' and work['continuation']['kind'] != 'awaiting_input':
+        return
+    if event_type not in {'completed', 'paused', 'stopped', 'blocked', 'result_changed',
+                          'delivery_blocked', 'delivery_accepted'}:
+        return
     enqueue(
         uow,
         work["account_id"],
@@ -129,7 +136,8 @@ def enqueue_event(uow, work, event_id, event_type, run_id=None):
         work=work,
         source_event_id=event_id,
     )
-    if event_type in {"completed", "paused", "stopped", "result_accepted"}:
+    if event_type in {"completed", "paused", "stopped", "blocked", "result_changed",
+                      "delivery_blocked", "delivery_accepted"}:
         for target in uow.execute(
             "SELECT * FROM delivery_targets WHERE account_id=%s AND work_id=%s AND enabled AND channel<>'web'",
             (work["account_id"], work["work_id"]),
@@ -305,6 +313,10 @@ class DeliveryService:
                 return None
             if (
                 not target_authorized(uow, row)
+                or (row['payload'].get('event_type') == 'result_changed' and (
+                    work['status'] != 'active'
+                    or work['current_requirement_revision'] != row['requirement_revision']
+                ))
                 or row["purpose"] == "fulfillment"
                 and (
                     work["status"] != "active"

@@ -19,7 +19,7 @@ def freeze_history(uow: UnitOfWork, account_id: UUID, run_id: UUID) -> None:
         (research_key(run_id), run_id),
     ).fetchone():
         return
-    run = uow.execute("SELECT work_id,created_at FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+    run = uow.execute("SELECT work_id,created_at,input_snapshot FROM runs WHERE run_id=%s", (run_id,)).fetchone()
     policy = ResourcePolicy(None)
     candidates = uow.execute(
         "SELECT c.node_id,sf.file_id,rr.run_id AS source_run_id,rr.invocation_id,rr.snapshot,r.created_at,r.requirement_revision AS source_requirement_revision "
@@ -31,8 +31,11 @@ def freeze_history(uow: UnitOfWork, account_id: UUID, run_id: UUID) -> None:
         "JOIN research_reports rr ON rr.run_id=sf.source_run_id AND (rr.markdown_file_id=sf.file_id OR rr.invocation_id IS NULL) "
         "JOIN runs r ON r.run_id=rr.run_id "
         "WHERE c.run_id=%s AND r.work_id=%s AND r.status='succeeded' "
-        "AND r.created_at<%s ORDER BY r.created_at DESC,r.run_id DESC LIMIT 20",
-        (run_id, run["work_id"], run["created_at"]),
+        "AND r.created_at<%s AND (%s OR r.run_id=%s) "
+        "ORDER BY r.created_at DESC,r.run_id DESC LIMIT 20",
+        (run_id, run["work_id"], run["created_at"],
+         run['input_snapshot'].get('requirement', {}).get('timing', {}).get('kind') != 'daily',
+         run['input_snapshot'].get('daily_baseline_run_id')),
     ).fetchall()
     allowed_nodes = None
     if invocation_id():
