@@ -551,3 +551,20 @@ async def test_canonical_finalize_closes_root_only_after_authoritative_commit(co
         assert (await runtime.finalize_agent_result(request))["status"] == "succeeded"
         assert recorded.index(("committed",)) < recorded.index(("end", root_id, "completed"))
     assert recorded[-1] == ("close",)
+
+
+def test_trace_terminal_fallback_maps_business_success_to_trace_completed():
+    statuses = []
+
+    class Repository:
+        def start_event(self, *_args):
+            pass
+
+        def finish_event(self, _run, _event, status, _metadata):
+            assert status in {'completed', 'failed', 'cancelled'}
+            statuses.append(status)
+
+    observer = TraceLifecycleObserver(Repository())
+    for status in ('succeeded', 'failed', 'cancelled'):
+        observer.observe_terminal(uuid4(), status)
+    assert statuses == ['completed', 'failed', 'cancelled']

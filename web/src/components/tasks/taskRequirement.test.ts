@@ -1,6 +1,53 @@
 import { expect, it } from "vitest";
 import { buildRequirement, localToInstant, localValue } from "./taskRequirement";
 import { workFixture } from "./taskFixtures";
+it("selects a save directory without granting access and keeps independent checks", () => {
+  const base = {
+    ...workFixture().requirement,
+    capability_key: "generic_work",
+    acceptance_criteria: [
+      { id: "workspace_save_1", required: true, evidence_types: ["check_passed"] },
+    ],
+  };
+  const result = buildRequirement(base, {
+    objective: "make a page",
+    capability: "generic_work",
+    constraints: "",
+    mode: "react",
+    timing: "immediate",
+    zone: "UTC",
+    due: "",
+    time: "",
+    timingChanged: false,
+    saveChanged: true,
+    saveDirectory: "chosen-directory",
+  });
+  expect(result.deliverable_policy).toEqual({
+    schema_version: 1,
+    required: true,
+    directory_id: "chosen-directory",
+  });
+  expect(result.acceptance_criteria).toEqual([
+    ...base.acceptance_criteria,
+    { id: "workspace_save_2", required: true, evidence_types: ["workspace_saved"] },
+  ]);
+  expect(result.resource_requests).toEqual(base.resource_requests);
+  const unchanged = buildRequirement(result, {
+    objective: "same page",
+    capability: "generic_work",
+    constraints: "",
+    mode: "react",
+    timing: "immediate",
+    zone: "UTC",
+    due: "",
+    time: "",
+    timingChanged: false,
+    saveChanged: true,
+    saveDirectory: "",
+  });
+  expect(unchanged.deliverable_policy).toEqual(result.deliverable_policy);
+  expect(unchanged.acceptance_criteria).toEqual(result.acceptance_criteria);
+});
 it("preserves full research policy, source strategy, timezone and ongoing mode", () => {
   const base = {
     ...workFixture().requirement,

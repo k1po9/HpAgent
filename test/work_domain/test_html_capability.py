@@ -109,6 +109,7 @@ async def test_html_chat_versions_exact_parent_replay_and_local_failure(
         admit(caps, urls, account_id, run, {"text": "# Report", "previous_ref": ref["ref_id"]}),
     )
     assert failed["outcome"] == "insufficient"
+    assert failed["error"]["retry_class"] == "transient"
     model.fail = False
     second = await produce(
         caps,
@@ -211,6 +212,16 @@ async def test_explicit_artifact_api_uses_chat_without_work(urls, owner, account
     assert view["status"] == "failed" and view["result_outcome"] == "insufficient"
     assert view["checks"] == [] and view["result_ref_id"] is None
     assert view["producing_invocation_id"]
+    # A pending candidate with different input must not replace the successful
+    # base's source. Persisted provenance is never rewritten to build this fixture.
+    owner.execute("INSERT INTO artifact_versions(artifact_version_id,artifact_id,account_id,version,source_markdown) VALUES (%s,%s,%s,4,'pending candidate source')",
+                  (uuid4(), UUID(version["artifact_id"]), account_id))
+    retry = service.create_version(account_id, UUID(version["artifact_id"]), str(uuid4()), "try layout again")
+    baseline = owner.execute("SELECT source_markdown FROM artifact_versions WHERE artifact_version_id=%s",
+                             (UUID(retry.body["version"]["parent_version_id"]),)).fetchone()
+    next_source = owner.execute("SELECT source_markdown FROM artifact_versions WHERE artifact_version_id=%s",
+                               (UUID(retry.body["version"]["artifact_version_id"]),)).fetchone()
+    assert next_source["source_markdown"] == baseline["source_markdown"] == "# Source"
 
 
 async def test_report_to_html_cross_run_adoption_revocation_and_gc(
@@ -349,21 +360,31 @@ async def test_work_html_typed_checks_and_parent_save(urls, owner, account_id, t
         check = service.evidence(
             "html", AcceptancePredicate("check_passed", subject, "html.basic", "1")
         )
-        saved = service.save(
-            subject, directory_id=str(directory), name="result.html", operation_id="save-html"
-        )
+        from actions.contracts import ActionRequest
+        from agent_activities.result_tools import execute as execute_parent_result
+
+        save_reply = execute_parent_result(urls[2], caps.facts, ActionRequest("save-call", "result__save", {
+            "ref_id": subject, "directory_id": str(directory), "name": "result.html", "entry_id": None, "expected_revision": None, "expected_sha256": None,
+        }), "save-html")
+        assert save_reply.success
+        saved = save_reply.output
         assert (
             service.save(
                 subject, directory_id=str(directory), name="result.html", operation_id="save-html"
             )
             == saved
         )
-        evidence = service.evidence(
-            "save",
-            AcceptancePredicate(
-                "workspace_saved", subject, target_id=saved["node_id"], operation_id="save-html"
-            ),
-        )
+        assert saved["operation_id"] == "save-html"
+        assert saved["subject_ref"] == subject
+        with UnitOfWork(urls[2]) as uow:
+            assert uow.execute("SELECT count(*) AS count FROM capability_acceptance_evidence WHERE run_id=%s", (run,)).fetchone()["count"] == 1
+        with pytest.raises(ValueError, match="omit it"):
+            service.evidence("save", AcceptancePredicate(**{**saved["workspace_saved_predicate"], "target_revision": 1}))
+        evidence_reply = execute_parent_result(urls[2], caps.facts, ActionRequest("evidence-call", "result__evidence", {
+            "criterion_id": "save", "predicate": {"verifier_key": None, "verifier_version": None, **saved["workspace_saved_predicate"], "target_revision": None},
+        }), "evidence-tool")
+        assert evidence_reply.success
+        evidence = evidence_reply.output
         with UnitOfWork(urls[2]) as uow:
             current_run = dict(uow.execute("SELECT * FROM runs WHERE run_id=%s", (run,)).fetchone())
             current_work = WorkRepository.get(uow, account_id, wid)
@@ -372,7 +393,7 @@ async def test_work_html_typed_checks_and_parent_save(urls, owner, account_id, t
                     uow,
                     current_run,
                     current_work,
-                    json.dumps(
+                    "Registered evidence.\n```json\n" + json.dumps(
                         {
                             "schema_version": 1,
                             "kind": "deliverable_ready",
@@ -384,20 +405,20 @@ async def test_work_html_typed_checks_and_parent_save(urls, owner, account_id, t
                                 }
                             ],
                         }
-                    ),
+                    ) + "\n```",
                     "result",
                 )
             completion, ready = generic_result(
                 uow,
                 current_run,
                 current_work,
-                json.dumps(
+                "Registered evidence.\n```json\n" + json.dumps(
                     {
                         "schema_version": 1,
                         "kind": "deliverable_ready",
                         "evidence": [check, evidence],
                     }
-                ),
+                ) + "\n```",
                 "result",
             )
             assert ready is (not review)
@@ -499,3 +520,52 @@ async def test_failed_run_result_adoption_updates_only_frozen_workspace_revision
         == source
     )
     assert catalog.versions(account_id, target)["current"]["revision"] == 2
+
+
+async def test_selected_old_artifact_freezes_discoverable_ref_without_implicit_adoption(
+    urls, owner, account_id, tmp_path
+):
+    from work_domain.commands import WorkCommandService
+    from work_domain.models import Requirement
+
+    run = chat(urls, account_id)
+    caps, html, _ = setup(urls, tmp_path)
+    child = admit(caps, urls, account_id, run, {'text': 'Original source'})
+    produced = await produce(caps, html, urls, account_id, run, child)
+    old = next(ref for ref in produced['outputs'] if ref['type'] == 'artifact_version')
+    version = UUID(old['version'])
+    file_id = owner.execute('SELECT file_id FROM artifact_versions WHERE artifact_version_id=%s', (version,)).fetchone()['file_id']
+    commands = WorkCommandService(urls[1])
+    w = commands.accept(account_id, str(uuid4()), 'Explicit selected revision',
+        Requirement('Change the selected old version', 'generic_work', {'schema_version': 1})).body['work']
+    wid = UUID(w['work_id'])
+    w = commands.integration(account_id, wid, str(uuid4()), w['row_version'], 'input',
+        {'file_id': file_id, 'purpose': 'explicit selection'}).body['work']
+    w = commands.integration(account_id, wid, str(uuid4()), w['row_version'], 'artifact_reference',
+        {'artifact_version_id': version, 'role': 'input'}).body['work']
+    accepted = commands.advance(account_id, wid, str(uuid4()), w['row_version']).body['run']
+    frozen = owner.execute('SELECT input_snapshot FROM runs WHERE run_id=%s', (UUID(accepted['run_id']),)).fetchone()['input_snapshot']
+    assert frozen['artifact_refs'] == [{'artifact_version_id': str(version), 'role': 'input', 'result_ref_id': old['ref_id']}]
+    assert owner.execute('SELECT count(*) AS n FROM capability_result_adoptions WHERE run_id=%s', (UUID(accepted['run_id']),)).fetchone()['n'] == 0
+
+
+async def test_missing_research_citation_is_insufficient_and_reentry_does_not_resend(
+    urls, owner, account_id, tmp_path
+):
+    run = chat(urls, account_id)
+    caps, html, model = setup(urls, tmp_path)
+    result = await produce(
+        caps, html, urls, account_id, run,
+        admit(caps, urls, account_id, run, {
+            'text': 'YouthPass requires advance booking except on closure days. [E:policy-1]',
+            'instruction': 'Use interactive cards',
+        }),
+    )
+    assert result['outcome'] == 'insufficient'
+    assert result['error']['code'] == 'artifact_missing_citations'
+    assert result['error']['retry_class'] == 'requires_input'
+    assert not result['outputs']
+    assert model.calls == 1
+    assert owner.execute(
+        'SELECT count(*) AS n FROM artifact_versions WHERE account_id=%s', (account_id,)
+    ).fetchone()['n'] == 0

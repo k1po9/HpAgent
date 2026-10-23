@@ -385,6 +385,21 @@ async def test_static_timeout_retries_before_browser_fallback():
     assert content.metadata["fetch_mode"] == "playwright"
 
 
+@pytest.mark.parametrize(('content', 'code'), [
+    ('{"title":', 'invalid_json'),
+    ('{"title":"R","report_markdown":"unsupported","claims":{}}', 'invalid_fields'),
+    ('{"title":"R","report_markdown":"unsupported","claims":[]}', 'missing_claims'),
+    ('{"title":"R","report_markdown":"unsupported","claims":[{"statement":"fact","evidence_ids":[]}]}', 'missing_citation'),
+    ('{"title":"R","report_markdown":"unsupported","claims":[{"statement":"fact","evidence_ids":["absent"]}]}', 'unknown_evidence'),
+    ('{"title":"R","report_markdown":"unsupported","claims":[{"statement":"fact","evidence_ids":"known"}]}', 'invalid_fields'),
+])
+def test_synthesis_validation_codes_preserve_failure_reason(content, code):
+    from research_adapters.synthesis import SynthesisValidationError
+    with pytest.raises(SynthesisValidationError) as error:
+        ResourcePoolResearchSynthesizer.parse({'content': content}, 'objective', [{'evidence_id': 'known'}])
+    assert error.value.code == code
+
+
 def test_semantic_main_keeps_definition_names_and_excludes_navigation():
     html = '''<html><body><nav>ExcludedNavigation</nav><main>
     <h1>Primitives</h1><dl><dt><code>example.</code><strong>Mailbox</strong></dt>
@@ -396,6 +411,98 @@ def test_semantic_main_keeps_definition_names_and_excludes_navigation():
     assert 'Delivers messages in order.' in text
     assert 'Excluded' not in text
 
+
+def test_synthesis_deliverable_contains_only_registered_claims_and_references():
+    import json
+
+    response = {"content": json.dumps({"title": "R", "report_markdown": "Supported fact. Also invent an unsupported API rule.",
+        "claims": [{"statement": "Supported fact", "evidence_ids": ["E1"]}]})}
+    report = ResourcePoolResearchSynthesizer.parse(response, "Compare facts", [{"evidence_id": "E1", "source_locator": {"canonical_uri": "https://example.com/reference"}}])
+    assert "Supported fact" in report.report_markdown
+    assert "unsupported API rule" not in report.report_markdown
+    assert "[E:E1]" in report.report_markdown and "https://example.com/reference" in report.report_markdown
+    assert "unsupported API rule" in response["content"]
+
+
+def test_synthesis_cannot_hide_missing_named_subject_in_free_narrative():
+    import json
+
+    response = {"content": json.dumps({"title": "R", "report_markdown": "AlphaGroup and BetaQueue are present here only.",
+        "claims": [{"statement": "AlphaGroup supported fact", "evidence_ids": ["E1"]}]})}
+    with pytest.raises(ValueError, match="betaqueue"):
+        ResourcePoolResearchSynthesizer.parse(response, "Compare `AlphaGroup` and `BetaQueue`", [{"evidence_id": "E1"}])
+
+
+def test_synthesis_can_render_current_claim_only_response_without_duplicate_body():
+    import json
+
+    report = ResourcePoolResearchSynthesizer.parse({"content": json.dumps({"title": "R", "claims": [
+        {"statement": "Fact", "evidence_ids": ["E1"]}]})}, "Describe facts", [{"evidence_id": "E1"}])
+    assert report.report_markdown.startswith("# R")
+    assert "Fact [E:E1]" in report.report_markdown
+
+
+@pytest.mark.parametrize("count", [10, 15, 16, 17])
+def test_claim_inventory_is_bounded_without_truncating_cited_facts(count):
+    import json
+
+    response = {"content": json.dumps({"title": "R", "claims": [
+        {"statement": f"Supported fact {index}", "evidence_ids": ["E1"]} for index in range(count)]})}
+    if count > 16:
+        with pytest.raises(ValueError, match="claim bound"):
+            ResourcePoolResearchSynthesizer.parse(response, "Compare facts", [{"evidence_id": "E1"}])
+    else:
+        report = ResourcePoolResearchSynthesizer.parse(response, "Compare facts", [{"evidence_id": "E1"}])
+        assert len(report.claims) == count
+        assert f"Supported fact {count-1}" in report.report_markdown
+
+
+async def test_claims_to_html_retains_conditions_types_and_exceptions_for_another_topic():
+    import json
+    from html import escape
+
+    from web_artifacts.generator import WebArtifactGenerator
+
+    statements = [
+        'YouthPass is available only to visitors under 18; visitors under 12 require a guardian.',
+        'ResidentPass requires local residency proof; temporary addresses are not accepted.',
+        'All admission passes require advance booking and must not be used on closure days.',
+        'The quota property is a number, while reserve() is an action; quota is not a method.',
+    ]
+    evidence = [{'evidence_id': f'p{i}', 'excerpt': value,
+                 'source_locator': {'canonical_uri': 'https://example.invalid/policy', 'excerpt': value}}
+                for i, value in enumerate(statements)]
+
+    class Pool:
+        calls = 0
+
+        async def generate(self, **kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                payload = json.loads(kwargs['messages'][1]['content'])
+                assert [item['excerpt'] for item in payload['evidence']] == statements
+                assert all('excerpt' not in item['source_locator'] for item in payload['evidence'])
+                return SimpleNamespace(content=json.dumps({'title': 'Admission policy', 'claims': [
+                    {'statement': value, 'evidence_ids': [f'p{i}']} for i, value in enumerate(statements)
+                ]}))
+            payload = json.loads(kwargs['messages'][0]['content'].splitlines()[-1])
+            assert payload['previous_html'] == '<html><body>No restrictions</body></html>'
+            for value in statements:
+                assert value in payload['source_markdown']
+            # A deterministic adapter tests the transfer, not model reasoning.
+            return SimpleNamespace(content='<html><head></head><body><button>Filter</button><pre>'
+                                   + escape(payload['source_markdown']) + '</pre></body></html>')
+
+    pool = Pool()
+    report = await ResourcePoolResearchSynthesizer(pool).synthesize('Compare YouthPass ResidentPass', evidence)
+    assert [claim.statement for claim in report.claims] == statements
+    html = await WebArtifactGenerator(pool).generate(
+        source_markdown=report.report_markdown, instruction='Use tabs',
+        previous_html='<html><body>No restrictions</body></html>')
+    for i, value in enumerate(statements):
+        assert escape(value) in html
+        assert f'[E:p{i}]' in html
+    assert pool.calls == 2
 
 
 def test_long_discovery_brief_becomes_bounded_search_without_changing_objective():
@@ -410,14 +517,12 @@ def test_long_discovery_brief_becomes_bounded_search_without_changing_objective(
     assert discovery_query('Museum admission policy', SourceStrategy()) == 'Museum admission policy'
 
 
-
 def test_long_discovery_can_use_other_subjects_and_explicit_domain_preferences():
     from research_adapters.web import discovery_query
     result = discovery_query('Compare `admission` and `membership`. ' + 'Please explain all requirements. ' * 20,
                              SourceStrategy(preferred_domains=('museum.example',)))
     assert 'site:museum.example' in result and 'admission' in result and 'membership' in result
     assert len(result) <= 240
-
 
 
 async def test_discovery_prioritizes_explicit_site_hints_in_long_objectives():
@@ -435,7 +540,6 @@ async def test_discovery_prioritizes_explicit_site_hints_in_long_objectives():
     assert all(r.metadata['preferred_domain'] for r in results)
 
 
-
 @pytest.mark.parametrize('days,time_range', [(None, None), (0, None), (7, 'month'), (1, 'day'), (90, 'year')])
 async def test_search_freshness_default_and_frozen_policy(days, time_range):
     strategy = SourceStrategy.from_dict({} if days is None else {'freshness_days': days})
@@ -447,7 +551,6 @@ async def test_search_freshness_default_and_frozen_policy(days, time_range):
     assert results.diagnostics['query'] == 'specific query'
     assert results.diagnostics['freshness_days'] == (days or 0)
     assert results.diagnostics['upstream_errors'][0]['engine'] == 'google'
-
 
 
 def test_explicit_freshness_never_treats_unknown_or_old_dates_as_current():
@@ -462,7 +565,6 @@ def test_explicit_freshness_never_treats_unknown_or_old_dates_as_current():
     assert SourceStrategy.from_dict({'freshness_days': 7}).freshness_days == 7
 
 
-
 async def test_search_diagnostics_distinguish_empty_partial_and_all_unavailable():
     from research_adapters.web import DiscoveryCandidates
     class Provider:
@@ -475,13 +577,11 @@ async def test_search_diagnostics_distinguish_empty_partial_and_all_unavailable(
         assert result.diagnostics['status'] == expected
 
 
-
 def test_long_query_retains_lowercase_compound_directives():
     from research_adapters.web import discovery_query
     query = discovery_query('Compare HTTP Cache-Control no-cache no-store max-age. ' + 'Preserve all documented conditions and restrictions. ' * 15, SourceStrategy(preferred_domains=('developer.mozilla.org',)))
     assert all(term in query for term in ('no-cache', 'no-store', 'max-age', 'cache-control'))
     assert len(query) <= 240
-
 
 
 @pytest.mark.parametrize('value', [True, 7.5, '7', None])

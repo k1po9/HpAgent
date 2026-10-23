@@ -25,7 +25,7 @@ def _tool_definition_payload(tool: BaseTool) -> dict:
         "version": _TOOL_DEFINITION_HASH_VERSION,
         "name": tool.name,
         "description": tool.description or "",
-        "parameters": tool.args_schema.model_json_schema() if tool.args_schema else {},
+        "parameters": tool.args_schema if isinstance(tool.args_schema, dict) else tool.args_schema.model_json_schema() if tool.args_schema else {},
         "metadata": dict(getattr(tool, "metadata", None) or {}),
     }
 

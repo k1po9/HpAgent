@@ -71,13 +71,20 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
         from work_domain.progress import previous_daily
         baseline = previous_daily(uow, work)
         snapshot['daily_baseline_run_id'] = str(baseline['run_id']) if baseline else None
-    snapshot["artifact_refs"] = dto(
-        uow.execute(
-            "SELECT artifact_version_id,role FROM work_artifacts WHERE account_id=%s AND work_id=%s "
-            "AND source_requirement_revision=%s AND role IN ('input','evidence') ORDER BY created_at LIMIT 100",
-            (account_id, work_id, requirement["revision"]),
-        ).fetchall()
-    )
+    selected_artifacts = uow.execute(
+        "SELECT a.artifact_version_id,a.role,f.ref_id AS result_ref_id FROM work_artifacts a "
+        "LEFT JOIN capability_result_refs f ON f.account_id=a.account_id "
+        "AND f.artifact_version_id=a.artifact_version_id AND f.type='artifact_version' "
+        "WHERE a.account_id=%s AND a.work_id=%s AND a.source_requirement_revision=%s "
+        "AND a.role IN ('input','evidence') ORDER BY a.created_at,f.ref_id LIMIT 100",
+        (account_id, work_id, requirement["revision"]),
+    ).fetchall()
+    # Exact result metadata makes an explicitly selected old version discoverable.
+    # It neither adopts it nor replaces current file/resource authorization.
+    snapshot["artifact_refs"] = dto([
+        {key: value for key, value in row.items() if value is not None}
+        for row in selected_artifacts
+    ])
     wakeup = uow.execute(
         "SELECT kind FROM work_wakeups WHERE wakeup_id=%s", (wakeup_id,)
     ).fetchone()

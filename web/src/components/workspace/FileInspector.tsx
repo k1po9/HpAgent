@@ -134,6 +134,7 @@ function FileBody({ node, inspector }: { node: HpWorkspaceNode; inspector: Inspe
           </button>
         )}
       </div>
+      {node.kind === "file" && <FileArtifactLink node={node} />}
       <InspectorTabs
         prefix="file"
         label="文件信息"
@@ -193,6 +194,46 @@ function FileBody({ node, inspector }: { node: HpWorkspaceNode; inspector: Inspe
       </FilePanel>
       {mutation && <WorkspaceMutationDialog node={node} onClose={() => setMutation(false)} />}
       {using && <UseInConversationDialog node={node} onClose={() => setUsing(false)} />}
+    </div>
+  );
+}
+function FileArtifactLink({ node }: { node: HpWorkspaceNode }) {
+  const trace = useWorkspaceQuery(`trace:${node.node_id}`, () =>
+    workspaceApi.getWorkspaceTrace(node.node_id),
+  );
+  const artifact = trace.data?.artifact;
+  return (
+    <div>
+      {artifact && (
+        <>
+          <p>空间保留文件字节；交互预览与自然语言修改在 HTML 成果中打开。</p>
+          <button
+            id={`file-artifact-${node.node_id}`}
+            onClick={() =>
+              useShell.getState().openInspector(
+                {
+                  kind: "artifact",
+                  objectId: artifact.artifact_id,
+                  versionId: artifact.artifact_version_id,
+                  origin: {
+                    triggerId: `file-artifact-${node.node_id}`,
+                    workId: trace.data?.source_work_id ?? undefined,
+                    runId: trace.data?.source_run_id ?? undefined,
+                  },
+                },
+                true,
+              )
+            }
+          >
+            打开交互成果 v{artifact.version}
+          </button>
+        </>
+      )}
+      {trace.error && (
+        <p role="alert">
+          交互成果来源暂不可用。<button onClick={trace.retry}>重试成果来源</button>
+        </p>
+      )}
     </div>
   );
 }

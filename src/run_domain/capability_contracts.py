@@ -22,6 +22,21 @@ def canonical(value: dict[str, Any], limit: int = 32768) -> dict[str, Any]:
     return dict(json.loads(raw))
 
 
+def normalize_inputs(value: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+    """Canonicalize absent optional string fields; never discard meaningful inputs."""
+    value = canonical(value)
+    required = set(schema.get("required", []))
+    for name, field_schema in schema.get("properties", {}).items():
+        if not isinstance(field_schema, dict) or name in required or field_schema.get("type") != "string" or name not in value:
+            continue
+        empty_nonempty_string = value[name] == "" and (
+            field_schema.get("minLength", 0) > 0 or field_schema.get("format") == "uuid"
+        )
+        if value[name] is None or empty_nonempty_string:
+            del value[name]
+    return value
+
+
 def key(value: str) -> None:
     if not isinstance(value, str) or not re.fullmatch(r"[a-z][a-z0-9_.-]{0,79}", value):
         raise ValueError("invalid capability key")

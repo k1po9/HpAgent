@@ -229,3 +229,23 @@ async def test_revoked_resource_authority_releases_capacity_and_budget_without_d
     assert guards == [("acquire", run_id), ("authorize", account_id, run_id), ("release", run_id)]
     assert transport.dispatched == [] and snapshots.dispatched == []
     assert [call[0] for call in budget.calls] == ["reserve", "release"]
+
+
+@pytest.mark.asyncio
+async def test_composition_guard_rejects_before_dispatch_and_releases_business_budget(monkeypatch):
+    from resources.model_failures import ModelRequestInvalid
+    install_model_dispatch_guards(monkeypatch)
+    transport = _Transport(_client(), ModelResponse(content="unreachable"))
+    async def reject(prepared):
+        assert prepared.body()["tools"]  # Full serialized schema is available.
+        raise ModelRequestInvalid("outer cumulative envelope exhausted")
+    monkeypatch.setattr(transport, "before_dispatch", reject, raising=False)
+    pool, snapshots, budget = _pool({"primary": transport})
+    with model_budget_scope(uuid4(), uuid4(), "decision", phase="decision"):
+        with pytest.raises(ModelRequestInvalid, match="envelope"):
+            await pool.generate([{"role": "user", "content": "hello"}], "chat",
+                                tools=[{"name": "lookup", "description": "x", "input_schema": {"type": "object"}}])
+    assert len(snapshots.items) == 1
+    assert not snapshots.dispatched
+    assert not transport.dispatched
+    assert [kind for kind, _, _ in budget.calls] == ["reserve", "release"]

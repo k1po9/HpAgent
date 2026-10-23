@@ -42,6 +42,11 @@ export function ArtifactComposer({
           </button>
         )}
       </p>
+      {parent && (
+        <p>
+          展示修改复用原研究内容与最近成功版本，生成独立新版；旧成功版本保留。生成完成后可查看、下载或保存源码副本。
+        </p>
+      )}
       <label htmlFor={`artifact-instruction-${artifactId}`}>修改指令</label>
       <textarea
         id={`artifact-instruction-${artifactId}`}

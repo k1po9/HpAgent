@@ -722,3 +722,50 @@ async def test_initial_execution_fence_denial_prevents_tool_dispatch(monkeypatch
     assert denied.value.non_retryable
     assert boundary == ["fence"]
     assert actions.calls == 0 and store.completion is None
+
+
+@pytest.mark.asyncio
+async def test_trusted_web_tool_bypasses_native_dispatch_and_outer_budget():
+    from types import SimpleNamespace
+
+    from agent_activities.web_tools import WebTools
+    from research_domain.models import SourceCandidate
+    from web_retrieval.service import WebRetrievalService
+
+    class Search:
+        async def discover(self, *args, **kwargs):
+            return [SourceCandidate('https://docs.python.org/a', title='Tasks')]
+
+    class Budget:
+        def __init__(self):
+            self.calls = []
+        def reserve(self, run, operation, values, **kwargs):
+            assert kwargs == {'enforce_limits': True}
+            self.calls.append(('reserve', operation))
+            return SimpleNamespace(replayed=False)
+        def settle(self, run, operation, values, source):
+            self.calls.append(('settle', operation))
+
+    item = request()
+    item = replace(item, tool_call=replace(item.tool_call, name='web_search'))
+    store = Store(ToolOperationState('started', None))
+    store.tool_call_arguments = lambda *args: {'query': 'TaskGroup'}
+    native, budget = Actions('unknown'), Budget()
+    runtime = activities(store, native, run_budget=budget,
+        web_tools=WebTools(WebRetrievalService({'legacy': Search()}, {'local': object()}), budget))
+    result = await runtime.tool_execution(item)
+    assert result.tool_success and native.calls == 0
+    assert len(budget.calls) == 2
+    assert all(operation.endswith(':retrieval:search:v1') for _, operation in budget.calls)
+    assert store.completion['event_payload']['side_effect_class'] == 'read_only'
+
+
+@pytest.mark.asyncio
+async def test_trusted_web_tool_is_denied_to_branch_even_if_listed(monkeypatch):
+    install_execution_uow(monkeypatch, role='delegation', tool_names=('web_search',))
+    item = request()
+    item = replace(item, tool_call=replace(item.tool_call, name='web_search'))
+    store = Store(ToolOperationState('started', None))
+    with pytest.raises(ApplicationError) as error:
+        await activities(store, Actions('read_only'), web_tools=object()).tool_execution(item)
+    assert error.value.type == 'delegation_scope_denied'

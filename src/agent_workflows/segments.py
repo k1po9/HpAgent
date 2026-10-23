@@ -124,6 +124,7 @@ class DurableWait:
     ) -> T | None:
         self.wait_id = request.wait_id
         state: Literal["resumed", "cancelled", "expired"] = "cancelled"
+        evicted = False
         try:
             await _control("begin_agent_wait_activity", request)
             deadline = datetime.fromisoformat(request.deadline)
@@ -148,10 +149,18 @@ class DurableWait:
                     )
                 except TimeoutError:
                     pass
+        except GeneratorExit:
+            # Worker cache eviction destroys a suspended coroutine outside the
+            # Workflow loop. Replay owns recovery; it must not emit a command.
+            evicted = True
+            raise
         finally:
-            active = await _control(
-                "finish_agent_wait_activity", FinishWaitInput(request, state), bool
-            )
-            self.wait_id = None
-            if state == "resumed" and not active:
-                raise asyncio.CancelledError
+            if evicted:
+                self.wait_id = None
+            else:
+                active = await _control(
+                    "finish_agent_wait_activity", FinishWaitInput(request, state), bool
+                )
+                self.wait_id = None
+                if state == "resumed" and not active:
+                    raise asyncio.CancelledError

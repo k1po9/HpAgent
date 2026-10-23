@@ -223,7 +223,7 @@ class ResearchRepository:
         row = uow.execute(
             "INSERT INTO evidence_items(evidence_id,run_id,invocation_id,source_id,excerpt,content_ref,"
             "source_locator,source_quality,metadata) VALUES (%s,%s,%s,%s,%s,%s,%s::jsonb,%s,%s::jsonb) "
-            "ON CONFLICT (research_id,source_id) DO NOTHING RETURNING evidence_id",
+            "ON CONFLICT (evidence_id) DO NOTHING RETURNING evidence_id",
             (
                 UUID(item.evidence_id),
                 UUID(item.run_id),
@@ -314,9 +314,10 @@ class ResearchRepository:
         return dict(row) if row else None
 
     @execution_repository_method
-    def save_empty_report(self, uow, run_id):
-        markdown = "# Research incomplete\n\nNo usable source evidence was found.\n"
-        structured = {"title": "Research incomplete", "report_markdown": markdown, "claims": []}
+    def save_empty_report(self, uow, run_id, gaps=None):
+        gaps = gaps or [{"code": "missing_evidence", "message": "No usable source evidence was found."}]
+        markdown = "# Research incomplete\n\n" + "\n".join(str(gap["message"]) for gap in gaps) + "\n"
+        structured = {"title": "Research incomplete", "report_markdown": markdown, "claims": [], "gaps": gaps}
         uow.execute(
             "INSERT INTO research_reports(run_id,invocation_id,report_markdown,report_structured_json) "
             "VALUES (%s,%s,%s,%s::jsonb) ON CONFLICT (research_id) DO NOTHING",

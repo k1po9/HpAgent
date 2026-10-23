@@ -21,6 +21,40 @@ afterEach(() => {
   useShell.getState().reset();
   vi.restoreAllMocks();
 });
+it("shows committed parent saves independently and opens the exact saved entry", async () => {
+  const work = workFixture({
+    workspace_saves: [
+      {
+        run_id: "run",
+        requirement_revision: 2,
+        state: "succeeded",
+        failure_code: null,
+        operation_id: "save-1",
+        entry_id: "node-1",
+      },
+      {
+        run_id: "run",
+        requirement_revision: 2,
+        state: "succeeded",
+        failure_code: null,
+        operation_id: "save-2",
+        entry_id: "node-2",
+      },
+    ],
+  });
+  vi.spyOn(api, "request").mockResolvedValue({ items: [] });
+  render(<TaskOutputs work={work} onSaveFile={() => {}} />);
+  const buttons = screen.getAllByRole("button", { name: "查看空间入口" });
+  expect(buttons[0]!.id).not.toBe(buttons[1]!.id);
+  fireEvent.click(buttons[1]!);
+  expect(useShell.getState().route.inspector).toMatchObject({
+    kind: "file",
+    objectId: "node-2",
+    origin: { workId: "w1", runId: "run", triggerId: buttons[1]!.id },
+  });
+  expect(screen.getAllByText(/已保存/)).toHaveLength(2);
+  await screen.findByText("暂无执行记录。");
+});
 it("keeps report readable when files fail, retries files independently and renders markdown", async () => {
   const work = workFixture({
     requirement: { ...workFixture().requirement, capability_key: "research_report" },

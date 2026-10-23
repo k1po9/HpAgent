@@ -8,15 +8,15 @@ def html_definition():
         key="html",
         contract_version=1,
         implementation_version="html-v1",
-        description="Create an immutable HTML version from text or an authorized exact ResultRef. Checks cover document shape, size and preview policy; browser interactions are not tested.",
+        description="将来源内容制作为可保存的交互 HTML 成果版本。返回不可变 Artifact Version / ResultRef 和基础检查；直接在聊天或最终回复中输出 HTML 不会产生这些事实。Create an immutable HTML version from text or an authorized exact ResultRef. Checks cover document shape, size and preview policy; browser interactions are not tested. source_ref supplies content only; the child does not inherit the parent conversation or Work brief. Put every requested layout, control, interaction, accessible name and revision constraint in instruction.",
         input_schema={
             "type": "object",
             "additionalProperties": False,
             "properties": {
-                "text": {"type": "string", "minLength": 1, "maxLength": 20000},
-                "source_ref": {"type": "string", "format": "uuid"},
-                "previous_ref": {"type": "string", "format": "uuid"},
-                "instruction": {"type": "string", "maxLength": 4000},
+                "text": {"type": "string", "minLength": 1, "maxLength": 20000, "description": "Only for literal source content when source_ref is absent. Never supply nonempty text with source_ref. Put layout/change requests in instruction."},
+                "source_ref": {"type": "string", "format": "uuid", "description": "准确来源 ResultRef.ref_id，例如成功研究的 Markdown 引用；服务端读取该不可变版本，无需把正文抄入 text。"},
+                "previous_ref": {"type": "string", "format": "uuid", "description": "修改时固定用户选定的旧 HTML ResultRef.ref_id；跨 Run 使用前父侧须显式采用。"},
+                "instruction": {"type": "string", "maxLength": 4000, "description": "完整转交用户要求的布局、交互、控件名称、内容结构及修改约束。source_ref 仅提供来源正文，子能力不会自动读取父任务或聊天；需要交互或修改时请显式填写。Forward the full requested behavior and revision constraints, not just a generic conversion request."},
             },
             "oneOf": [
                 {"required": ["text"], "not": {"required": ["source_ref"]}},

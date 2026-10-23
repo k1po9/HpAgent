@@ -20,19 +20,6 @@ class ArtifactBuildService:
     def __init__(self, database, generator, capabilities=None, publisher=None):
         self.database, self.generator = database, generator
         self.store = AgentDataStore(database)
-        if capabilities is None:
-            from agent_activities.capabilities import CapabilityActivities, CapabilityBinding
-            from run_domain.capabilities import CapabilityFacts
-            from run_domain.capability_contracts import CapabilityRegistry
-            from web_artifacts.capability import html_definition
-
-            capabilities = CapabilityActivities(
-                self.store,
-                CapabilityFacts(
-                    CapabilityRegistry((html_definition(),)), services=frozenset({"html"})
-                ),
-                (CapabilityBinding("html", 1, "HtmlCapabilityWorkflow", html_scope),),
-            )
         if publisher is None:
             import os
 
@@ -44,6 +31,12 @@ class ArtifactBuildService:
                     database,
                     TenantFileStore(os.environ["FILE_STORE_ROOT"], max_bytes=2 * 1024 * 1024),
                 )
+        if capabilities is None:
+            from agent_activities.composition import compose_capabilities
+
+            capabilities = compose_capabilities(
+                self.store, services=frozenset({"html"} if publisher is not None else ())
+            )
         self.capabilities = capabilities
         self.publisher = publisher
 
@@ -113,8 +106,8 @@ class ArtifactBuildService:
                     str(invocation["child_execution_id"]),
                     operation,
                     "HtmlCapabilityWorkflow",
-                    600,
-                    3,
+                    definition["limits"]["max_duration_seconds"],
+                    definition["retry_policy"]["max_attempts"],
                     operation + ":produce",
                 )
 

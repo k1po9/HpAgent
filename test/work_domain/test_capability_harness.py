@@ -555,3 +555,71 @@ async def test_input_revocation_blocks_result_summary_delivery(urls, account_id,
     assert not owner.execute(
         "SELECT 1 FROM capability_observations WHERE invocation_id=%s", (tool.operation_id,)
     ).fetchone()
+
+
+@pytest.mark.temporal
+async def test_new_candidate_capability_uses_unchanged_tool_workflow(urls, account_id):
+    """Extension requires only definition/binding/implementation, never a core loop branch."""
+    from support.capability_worker import ProbeActivities
+    from support.capability_workflow import DeterministicCapabilityWorkflow
+    from temporalio.worker import Worker
+    from test_capability_contracts import definition
+
+    from agent_activities.capabilities import CapabilityBinding
+    from agent_activities.segments import SegmentActivities
+    from agent_activities.store import AgentDataStore
+    from agent_workflows.capability import CapabilityInvocationWorkflow
+    from agent_workflows.contracts import AGENT_TASK_QUEUE
+    from agent_workflows.tool_execution import ToolExecutionWorkflow
+    from run_domain.capabilities import CapabilityFacts
+    from run_domain.capability_contracts import CapabilityRegistry
+
+    binding = CapabilityBinding("test.additional", 1, "DeterministicCapabilityWorkflow")
+    probe = ProbeActivities(
+        AgentDataStore(urls[2]),
+        CapabilityFacts(CapabilityRegistry((replace(definition(), key=binding.key),))),
+        (binding,),
+    )
+    run = chat(urls, account_id)
+    original = tool_input(urls, account_id, run, text="additional candidate")
+    tool = replace(original, tool_call=replace(original.tool_call, name=binding.tool_name))
+    assert probe.discover("chat")[0]["function"]["name"] == binding.tool_name
+    segments = SegmentActivities(probe.store)
+    client = await Client.connect(
+        os.environ["TEMPORAL_HOST"], namespace=os.environ["TEMPORAL_TEST_NAMESPACE"]
+    )
+    async with Worker(
+        client,
+        task_queue=AGENT_TASK_QUEUE,
+        workflows=[
+            ToolExecutionWorkflow,
+            CapabilityInvocationWorkflow,
+            DeterministicCapabilityWorkflow,
+        ],
+        activities=[
+            probe.prepare,
+            probe.observe,
+            probe.close,
+            probe.publish,
+            segments.acquire,
+            segments.release,
+            segments.begin_wait,
+            segments.finish_wait,
+        ],
+    ):
+        result = await asyncio.wait_for(
+            client.execute_workflow(
+                ToolExecutionWorkflow.run,
+                tool,
+                id=f"additional-{uuid4()}",
+                task_queue=AGENT_TASK_QUEUE,
+                result_type=ToolExecutionResult,
+            ),
+            30,
+        )
+    assert result.tool_success and result.transcript_version == 2
+    with execution(urls, account_id, run):
+        with UnitOfWork(urls[2]) as uow:
+            committed = probe.facts.read_result(uow, tool.operation_id)
+    assert committed["summary"] == "additional candidate"
+    assert committed["outputs"] == []

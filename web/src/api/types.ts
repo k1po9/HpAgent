@@ -545,6 +545,7 @@ export interface HpWorkspaceSearchPage {
   next_after: string | null;
 }
 export interface HpWorkspaceTrace {
+  artifact?: { artifact_id: string; artifact_version_id: string; version: number } | null;
   node_id: string;
   file_id: string;
   destination_id: string | null;

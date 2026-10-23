@@ -2,8 +2,8 @@
 
 
 def basic_checks(report, citations, claims):
-    gaps = []
     structured = report["report_structured_json"]
+    gaps = list(structured.get("gaps", []))
     if not report["report_markdown"].strip() or not structured.get("title") or not claims:
         gaps.append(
             {"code": "invalid_structure", "message": "Report title, body and claims are required."}

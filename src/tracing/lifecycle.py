@@ -53,6 +53,8 @@ class TraceLifecycleObserver:
             "agent",
             {"terminal_fallback": True},
         )
-        self._repository.finish_event(run_id, root_node_id, status, metadata)
+        self._repository.finish_event(
+            run_id, root_node_id, "completed" if status == "succeeded" else status, metadata
+        )
         if self._on_terminal is not None:
             self._on_terminal(str(run_id))

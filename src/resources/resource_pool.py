@@ -294,6 +294,10 @@ class ResourcePool(IResources):
                         if (getattr(getattr(current_lookup,'state',None),'value',None) != 'valid' or
                             current_entitlement is None or current_entitlement.version != entitlement.version):
                             raise AccountModelEntitlementUnavailable('model entitlement changed before dispatch')
+                        call_context.snapshot_id = str(snapshot.snapshot_id)
+                        guard = getattr(client, "before_dispatch", None)
+                        if guard is not None:
+                            await guard(prepared)
                         await asyncio.to_thread(self._snapshots.mark_dispatched, call_context.account_id, snapshot.snapshot_id)
                     if call_context is not None:
                         call_context.snapshot_id = str(snapshot.snapshot_id) if snapshot else None

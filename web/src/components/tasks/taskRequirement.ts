@@ -34,6 +34,8 @@ export function buildRequirement(
     due: string;
     time: string;
     timingChanged: boolean;
+    saveDirectory?: string;
+    saveChanged?: boolean;
   },
 ): HpRequirement {
   const sameType = base?.capability_key === values.capability;
@@ -63,6 +65,48 @@ export function buildRequirement(
               ? { local_time: values.time }
               : {}),
         };
+  const policy =
+    values.saveChanged && values.saveDirectory
+      ? {
+          schema_version: 1,
+          required: Boolean(values.saveDirectory),
+          ...(values.saveDirectory ? { directory_id: values.saveDirectory } : {}),
+        }
+      : (base?.deliverable_policy ?? { schema_version: 1, required: false });
+  const criteria = sameType
+    ? base.acceptance_criteria
+    : [
+        {
+          id: "result",
+          required: true,
+          evidence_types: [
+            values.capability === "reminder"
+              ? "delivery_receipt"
+              : values.capability === "research_report"
+                ? "research_report"
+                : "operation_receipt",
+          ],
+        },
+      ];
+  // Saving and output checks remain independent requirements. Never replace an
+  // existing criterion or erase it when changing the destination.
+  const acceptance =
+    values.saveChanged &&
+    values.saveDirectory &&
+    values.capability === "generic_work" &&
+    !criteria.some((c) => c.required && c.evidence_types.includes("workspace_saved"))
+      ? [
+          ...criteria,
+          {
+            id: Array.from(
+              { length: criteria.length + 1 },
+              (_, i) => `workspace_save_${i + 1}`,
+            ).find((id) => !criteria.some((c) => c.id === id))!,
+            required: true,
+            evidence_types: ["workspace_saved"],
+          },
+        ]
+      : criteria;
   return {
     objective: values.objective,
     capability_key: values.capability,
@@ -71,23 +115,9 @@ export function buildRequirement(
       .split("\n")
       .map((v) => v.trim())
       .filter(Boolean),
-    acceptance_criteria: sameType
-      ? base.acceptance_criteria
-      : [
-          {
-            id: "result",
-            required: true,
-            evidence_types: [
-              values.capability === "reminder"
-                ? "delivery_receipt"
-                : values.capability === "research_report"
-                  ? "research_report"
-                  : "operation_receipt",
-            ],
-          },
-        ],
+    acceptance_criteria: acceptance,
     resource_requests: base?.resource_requests ?? [],
-    deliverable_policy: base?.deliverable_policy ?? { schema_version: 1, required: false },
+    deliverable_policy: policy,
     completion_mode:
       base && !values.timingChanged
         ? base.completion_mode

@@ -165,15 +165,12 @@ class FakeArtifactExecutor:
         self.database = database
         self.outbox = OutboxService(database)
 
-        from agent_activities.capabilities import CapabilityActivities, CapabilityBinding
+        from agent_activities.composition import compose_capabilities
         from agent_activities.store import AgentDataStore
         from file_runtime.output import OutputPublisher
-        from run_domain.capabilities import CapabilityFacts
-        from run_domain.capability_contracts import CapabilityRegistry
         from storage.tenant_file_store import TenantFileStore
-        from web_artifacts.capability import html_definition, html_scope
         publisher = OutputPublisher(database, TenantFileStore(settings.file_store_root, max_bytes=1024 * 1024))
-        capabilities = CapabilityActivities(AgentDataStore(database), CapabilityFacts(CapabilityRegistry((html_definition(),)), services=frozenset({"html"})), (CapabilityBinding("html", 1, "HtmlCapabilityWorkflow", html_scope),))
+        capabilities = compose_capabilities(AgentDataStore(database), services=frozenset({"html"}))
         self.build = ArtifactBuildService(database, WebArtifactGenerator(_FakeArtifactModel()), capabilities, publisher)
         self.worker_id = "web-e2e-fake-artifact"
         self._task: asyncio.Task[None] | None = None

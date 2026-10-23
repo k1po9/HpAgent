@@ -13,7 +13,6 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
-from uuid6 import uuid7
 
 from agent_activities.store import AgentDataStore
 from agent_workflows.lifecycle_contracts import LIFECYCLE_SCHEMA_VERSION, SegmentInput
@@ -119,6 +118,8 @@ class ResearchActivities:
             ref["invocation_id"] = invocation_id()
         if "sufficient" in result:
             ref["sufficient"] = bool(result["sufficient"])
+        if "stop_reason" in result:
+            ref["stop_reason"] = str(result["stop_reason"])
         return ref
 
     @retryable_transaction
@@ -317,7 +318,7 @@ class ResearchActivities:
                 if asyncio.iscoroutine(value):
                     value = await value
             result = value if isinstance(value, dict) else {"item_count": int(value or 0)}
-            compact = {key: result[key] for key in ("item_count", "sufficient") if key in result}
+            compact = {key: result[key] for key in ("item_count", "sufficient", "stop_reason", "search", "fetch") if key in result}
             elapsed_ms = max(1, int((time.monotonic() - started) * 1000))
             if wall_entry is None or wall_entry[0] == "reserved":
                 await asyncio.to_thread(
@@ -344,6 +345,25 @@ class ResearchActivities:
                     governance.safe_message, type=governance.code, non_retryable=True
                 ) from exc
             raise
+
+    def _research_feedback(self, run_id, *, passed=False):
+        with UnitOfWork(self.database) as uow:
+            assert_execution_fence(uow)
+            budget = uow.execute("SELECT limits,used,reserved FROM run_budgets WHERE run_id=%s", (run_id,)).fetchone()
+            rows = uow.execute("SELECT query,gap_analysis FROM research_iterations WHERE run_id=%s ORDER BY created_at,iteration", (run_id,)).fetchall()
+            stages = uow.execute("SELECT stage,result FROM research_stage_results WHERE research_id=%s AND (stage LIKE 'SourceDiscovery:%%' OR stage LIKE 'Fetch:%%') ORDER BY stage", (research_key(run_id),)).fetchall()
+        used = budget["used"].get("research_iterations", 0)
+        limit = budget["limits"].get("research_iterations", 0)
+        remaining = max(0, limit - used - budget["reserved"].get("research_iterations", 0))
+        searches = [row for row in stages if row["stage"].startswith("SourceDiscovery:")]
+        # Keep bounded facts in the existing immutable result envelope.
+        return {"research": {"used": used, "limit": limit, "remaining": remaining,
+            "stop_reason": next((row["result"].get("stop_reason") for row in reversed(searches) if row["result"].get("stop_reason")), "sufficient" if passed else "iteration_limit" if not remaining else "insufficient_evidence"),
+            "queries": list(dict.fromkeys(row["query"] for row in rows))[:3],
+            "major_gaps": [row["gap_analysis"] for row in rows if row["gap_analysis"]][-1:],
+            "search_statuses": [row["result"].get("search", {}).get("status", "unknown") for row in searches],
+            "freshness_rejected": [row["result"].get("search", {}).get("freshness_rejected", {}) for row in searches],
+            "fetch": [row["result"].get("fetch", {}) for row in stages if row["stage"].startswith("Fetch:")]}}
 
     @activity.defn
     @local_research_activity
@@ -381,20 +401,16 @@ class ResearchActivities:
     def _create_plan(self, run_id: UUID) -> int:
         with UnitOfWork(self.database) as uow:
             assert_execution_fence(uow)
-            task = uow.execute(
-                "SELECT q.objective,q.spec->'source_strategy' AS source_strategy FROM work_requirements q JOIN runs r "
-                "ON r.account_id=q.account_id AND r.work_id=q.work_id AND r.requirement_revision=q.revision WHERE r.run_id=%s",
-                (run_id,),
-            ).fetchone()
             request = research_request.get()
-            if request is not None and request.execution_id:
-                descriptor = self.capabilities.invocation_context(uow, request)
-                task = {
-                    "objective": descriptor["inputs"]["objective"],
-                    "source_strategy": descriptor["inputs"].get("source_strategy", {}),
-                }
-            if task is None:
-                raise LookupError("Research objective is missing")
+            if request is None or not request.execution_id:
+                from workspace.resources import ResourceDenied
+
+                raise ResourceDenied("Research plan requires an admitted capability identity")
+            descriptor = self.capabilities.invocation_context(uow, request)
+            task = {
+                "objective": descriptor["inputs"]["objective"],
+                "source_strategy": descriptor["inputs"].get("source_strategy", {}),
+            }
             strategy_value = task["source_strategy"]
             if isinstance(strategy_value, str):
                 strategy_value = json.loads(strategy_value)
@@ -450,6 +466,11 @@ class ResearchActivities:
         with UnitOfWork(self.database) as uow:
             assert_execution_fence(uow)
             self.repository.start_iteration(uow, run_id, iteration, query)
+            # The committed start consumes one round, including failed network attempts.
+            # A hold without this start remains releasable by existing termination cleanup.
+            self.budget.settle_in_uow(uow, run_id,
+                f"research:{research_identity(run_id)}:iteration:{iteration}:budget:v1",
+                {"research_iterations": 1}, "measured")
 
     @activity.defn
     @local_research_activity
@@ -464,8 +485,23 @@ class ResearchActivities:
             lambda: self._discover(run_id, request.iteration),
         )
 
-    async def _discover(self, run_id: UUID, iteration: int) -> int:
+    async def _discover(self, run_id: UUID, iteration: int) -> dict[str, Any]:
         query, strategy = self._iteration_context(run_id, iteration)
+        with UnitOfWork(self.database) as uow:
+            assert_execution_fence(uow)
+            duplicate = uow.execute(
+                "SELECT 1 FROM research_iterations i JOIN research_plans p USING(research_id) "
+                "WHERE i.run_id=%s AND i.query=%s AND p.plan->'source_strategy'=%s::jsonb "
+                "AND NOT (i.research_id=%s AND i.iteration=%s) LIMIT 1",
+                (run_id, query, json.dumps(strategy.to_dict()), research_key(run_id), iteration),
+            ).fetchone()
+        if duplicate:
+            return {"item_count": 0, "stop_reason": "no_new_query", "search": {"query": query, "status": "duplicate_query", "freshness_days": strategy.freshness_days}}
+        round_operation = f"research:{research_identity(run_id)}:iteration:{iteration}:budget:v1"
+        try:
+            await asyncio.to_thread(self.budget.reserve, run_id, round_operation, {"research_iterations": 1})
+        except RunBudgetExhausted:
+            return {"item_count": 0, "stop_reason": "research_iterations_exhausted", "search": {"query": query, "status": "not_started"}}
         await asyncio.to_thread(self._start_iteration, run_id, iteration, query)
         operation_id = f"research:{research_identity(run_id)}:SourceDiscovery:{iteration}:budget:v1"
         ledger_entry = await asyncio.to_thread(
@@ -494,7 +530,7 @@ class ResearchActivities:
                     {"sources_discovered": existing},
                     "measured",
                 )
-            return existing
+            return {"item_count": existing}
         remaining = max(0, self.max_sources - total)
         if ledger_entry is None:
             with UnitOfWork(self.database) as uow:
@@ -514,7 +550,7 @@ class ResearchActivities:
         else:
             remaining = min(remaining, ledger_entry[1])
         if not remaining:
-            return 0
+            return {"item_count": 0, "stop_reason": "source_limit"}
         reserved_sources = ledger_entry[1] if ledger_entry is not None else remaining
         await asyncio.to_thread(
             self.budget.reserve,
@@ -522,14 +558,32 @@ class ResearchActivities:
             operation_id,
             {"sources_discovered": reserved_sources},
         )
-        from web_retrieval.budget import retrieval_budget_scope
+        try:
+            from web_retrieval.budget import retrieval_budget_scope
 
-        with retrieval_budget_scope(self.budget, run_id, operation_id):
-            candidates = await self.discovery.discover(query, strategy=strategy, limit=remaining)
+            with retrieval_budget_scope(self.budget, run_id, operation_id):
+                candidates = await self.discovery.discover(query, strategy=strategy, limit=remaining)
+            diagnostic = getattr(candidates, "diagnostics", {"status": "ok", "candidate_count": len(candidates)})
+        except RunBudgetExhausted:
+            raise
+        except Exception as exc:
+            candidates = []
+            diagnostic = {"status": "all_unavailable", "upstream_errors": [{"error": type(exc).__name__}]}
+        from research_adapters.web import freshness_status
+        rejected: dict[str, int] = {}
+        accepted = []
+        for candidate in candidates:
+            status = freshness_status(candidate, strategy)
+            if status in {"date_unknown", "outside_interval"}:
+                rejected[status] = rejected.get(status, 0) + 1
+            else:
+                accepted.append(candidate)
+        diagnostic = {**diagnostic, "query": query, "freshness_days": strategy.freshness_days,
+                      "freshness_rejected": rejected, "usable_candidates": len(accepted)}
         with UnitOfWork(self.database) as uow:
             assert_execution_fence(uow)
             source_ids = self.repository.add_candidates(
-                uow, run_id, candidates, self.canonicalizer.canonicalize, iteration=iteration
+                uow, run_id, accepted, self.canonicalizer.canonicalize, iteration=iteration
             )
         await asyncio.to_thread(
             self.budget.settle,
@@ -538,7 +592,7 @@ class ResearchActivities:
             {"sources_discovered": len(source_ids)},
             "measured",
         )
-        return len(source_ids)
+        return {"item_count": len(source_ids), "search": diagnostic}
 
     @activity.defn
     @local_research_activity
@@ -579,7 +633,7 @@ class ResearchActivities:
             run_id, f"Fetch:{request.iteration}", lambda: self._fetch(run_id, request.iteration)
         )
 
-    async def _fetch(self, run_id: UUID, iteration: int) -> int:
+    async def _fetch(self, run_id: UUID, iteration: int) -> dict[str, Any]:
         _, strategy = self._iteration_context(run_id, iteration)
         with UnitOfWork(self.database) as uow:
             assert_execution_fence(uow)
@@ -658,7 +712,10 @@ class ResearchActivities:
                 {"source_fetches": reserved_fetches},
                 "measured",
             )
-        return reserved_fetches
+        with UnitOfWork(self.database) as uow:
+            assert_execution_fence(uow)
+            statuses = uow.execute("SELECT fetch_status,count(*) AS n FROM source_records WHERE research_id=%s AND iteration=%s GROUP BY fetch_status", (research_key(run_id), iteration)).fetchall()
+        return {"item_count": reserved_fetches, "fetch": {str(row["fetch_status"]): int(row["n"]) for row in statuses}}
 
     @activity.defn
     @local_research_activity
@@ -705,22 +762,28 @@ class ResearchActivities:
                 "SELECT s.*,c.content_text FROM source_records s JOIN source_contents c ON c.source_id=s.source_id LEFT JOIN evidence_items e ON e.source_id=s.source_id WHERE s.research_id=%s AND s.iteration=%s AND s.fetch_status='fetched' AND e.evidence_id IS NULL ORDER BY s.source_id",
                 (research_key(run_id), iteration),
             ).fetchall()
+            existing = uow.execute(
+                "SELECT count(*) AS count,COALESCE(sum(octet_length(excerpt)),0) AS bytes FROM evidence_items WHERE research_id=%s",
+                (research_key(run_id),),
+            ).fetchone()
+            remaining_spans = max(0, 24 - int(existing["count"]))
+            remaining_bytes = max(0, 24000 - int(existing["bytes"]))
             for source in sources:
+                if not remaining_spans or not remaining_bytes:
+                    break
                 content_text = str(source["content_text"])
-                paragraph_matches = list(
-                    __import__("re").finditer(
-                        r"\S(?:.*?\S)?(?=\n\s*\n|\Z)", content_text.rstrip(), __import__("re").S
-                    )
-                )
-                match = paragraph_matches[0] if paragraph_matches else None
-                excerpt = match.group(0)[:1000] if match else ""
-                if match is not None and excerpt:
-                    start = match.start()
-                    end = start + len(excerpt)
+                from research_domain.excerpts import evidence_spans
+
+                plan = self.repository.load_plan(uow, run_id)
+                spans = evidence_spans(content_text, str(plan['objective']), max_spans=min(6, remaining_spans), max_bytes=min(7200, remaining_bytes))
+                for start, end, paragraph_index in spans:
+                    remaining_spans -= 1
+                    remaining_bytes -= len(content_text[start:end].encode('utf-8'))
+                    excerpt = content_text[start:end]
                     self.repository.add_evidence(
                         uow,
                         EvidenceItem(
-                            evidence_id=str(uuid7()),
+                            evidence_id=str(uuid5(NAMESPACE_URL, f"hpagent:evidence:{research_identity(run_id)}:{source['source_id']}:{source['content_ref']}:{start}:{end}")),
                             run_id=str(run_id),
                             source_id=str(source["source_id"]),
                             excerpt=excerpt,
@@ -729,12 +792,12 @@ class ResearchActivities:
                                 "type": "web",
                                 "canonical_uri": str(source["canonical_uri"]),
                                 "content_ref": str(source["content_ref"]),
-                                "paragraph_index": 0,
+                                "paragraph_index": paragraph_index,
                                 "text_span": {"start": start, "end": end},
                                 "excerpt": excerpt,
                             },
                             source_quality=int(source["source_tier"]),
-                            metadata={"extractor": "research-r3-v1", "iteration": iteration},
+                            metadata={"extractor": "research-passages-v2", "iteration": iteration},
                         ),
                     )
             return int(
@@ -794,8 +857,14 @@ class ResearchActivities:
             meets_threshold = (
                 evidence_count >= self.min_evidence and source_count >= self.min_distinct_sources
             )
-            sufficient = meets_threshold
+            from research_domain.excerpts import missing_concepts
+
+            plan = self.repository.load_plan(uow, run_id)
+            excerpts = uow.execute("SELECT excerpt FROM evidence_items WHERE research_id=%s", (research_key(run_id),)).fetchall()
+            missing = missing_concepts(str(plan["objective"]), [str(e["excerpt"]) for e in excerpts])
+            sufficient = meets_threshold and not missing
             value = {
+                "missing_concepts": missing,
                 "evidence_count": evidence_count,
                 "source_count": source_count,
                 "missing_evidence": max(0, self.min_evidence - evidence_count),
@@ -804,9 +873,6 @@ class ResearchActivities:
                 and not meets_threshold,
             }
             self.repository.save_gap_analysis(uow, run_id, iteration, value, sufficient=sufficient)
-        operation_id = f"research:{research_identity(run_id)}:GapAnalysis:{iteration}:budget:v1"
-        self.budget.reserve(run_id, operation_id, {"research_iterations": 1})
-        self.budget.settle(run_id, operation_id, {"research_iterations": 1}, "measured")
         return {"item_count": evidence_count, "sufficient": sufficient}
 
     @activity.defn
@@ -835,27 +901,58 @@ class ResearchActivities:
             plan = self.repository.load_plan(uow, run_id)
             evidence = self.repository.evidence_for_synthesis(uow, run_id)
             history = authorized_history(uow, run_id)
-        if not evidence:
+        from research_domain.excerpts import missing_concepts
+
+        missing = missing_concepts(str(plan["objective"]), [str(row["excerpt"]) for row in evidence])
+        gaps = [{"code": "missing_concept", "message": f"No source excerpt covers {term}."} for term in missing]
+        if len(evidence) < self.min_evidence:
+            gaps.append({"code": "missing_evidence", "message": "Too few usable evidence spans."})
+        if len({str(row["source_id"]) for row in evidence}) < self.min_distinct_sources:
+            gaps.append({"code": "missing_sources", "message": "Too few distinct usable sources."})
+        if gaps:
             with UnitOfWork(self.database) as uow:
-                return self.repository.save_empty_report(uow, run_id)
+                assert_execution_fence(uow)
+                return self.repository.save_empty_report(uow, run_id, gaps)
+        from research_adapters.synthesis import (
+            ResourcePoolResearchSynthesizer,
+            SynthesisValidationError,
+        )
+
+        objective = str(plan["objective"]) + (
+            "\nAuthorized prior report claims: "
+            + json.dumps([item["snapshot"] for item in history], ensure_ascii=False) if history else ""
+        )
+        operation_id = f"research:{research_identity(run_id)}:Synthesis:model:v1"
         with model_budget_scope(
-            owner["account_id"],
-            run_id,
-            f"research:{research_identity(run_id)}:Synthesis:model:v1",
-            phase="research_synthesis",
-            execution_attempt=self._attempt(),
-            final_response=True,
+            owner["account_id"], run_id, operation_id, phase="research_synthesis",
+            execution_attempt=self._attempt(), final_response=True,
         ):
-            report = await self.synthesis.synthesize(
-                str(plan["objective"])
-                + (
-                    "\nAuthorized prior report claims: "
-                    + json.dumps([item["snapshot"] for item in history], ensure_ascii=False)
-                    if history
-                    else ""
-                ),
-                [dict(row) for row in evidence],
-            )
+            try:
+                if isinstance(self.synthesis, ResourcePoolResearchSynthesizer):
+                    # The existing stage receipt stores exact received text before parsing.
+                    # A dispatch marker without a response is unknown, never permission to resend.
+                    receipt = self._load_stage_result(operation_id)
+                    if receipt is None:
+                        if self._load_stage_result(operation_id + ":dispatch") is not None:
+                            raise ApplicationError("Research synthesis response is uncertain; reconcile original operation.",
+                                                   type="research_synthesis_uncertain", non_retryable=True)
+                        self.store.begin_operation(operation_id, str(run_id), "research_stage")
+                        self.store.begin_operation(operation_id + ":dispatch", str(run_id), "research_stage")
+                        self._save_stage_result(operation_id + ":dispatch", run_id, "SynthesisDispatch", {"operation_id": operation_id})
+                        receipt = await self.synthesis.request(objective, [dict(row) for row in evidence])
+                        self._save_stage_result(operation_id, run_id, "SynthesisResponse", receipt)
+                    report = self.synthesis.parse(receipt, objective, [dict(row) for row in evidence])
+                    self.store.begin_operation(operation_id + ":validation", str(run_id), "research_stage")
+                    self._save_stage_result(operation_id + ":validation", run_id, "SynthesisValidation", {"status": "valid"})
+                else:
+                    report = await self.synthesis.synthesize(objective, [dict(row) for row in evidence])
+            except SynthesisValidationError as exc:
+                gaps = [{"code": exc.code, "message": str(exc)}]
+                self.store.begin_operation(operation_id + ":validation", str(run_id), "research_stage")
+                self._save_stage_result(operation_id + ":validation", run_id, "SynthesisValidation", {"status": "invalid", "gaps": gaps})
+                with UnitOfWork(self.database) as uow:
+                    assert_execution_fence(uow)
+                    return self.repository.save_empty_report(uow, run_id, gaps)
         with UnitOfWork(self.database) as uow:
             assert_execution_fence(uow)
             return cast(int, self.repository.save_report(uow, run_id, report))
@@ -972,9 +1069,8 @@ class ResearchActivities:
             producer,
             CapabilityResult(
                 "succeeded" if checks["passed"] else "insufficient",
-                "Research Markdown and basic checks are available."
-                if checks["passed"]
-                else "Research draft requires corrected evidence.",
+                ("Research Markdown and basic checks are available. " if checks["passed"] else "Research insufficient; HTML has not been generated. ")
+                + json.dumps(self._research_feedback(run_id, passed=checks["passed"]), ensure_ascii=False)[:1800],
                 outputs=(subject, evidence),
                 checks=(
                     Check(

@@ -79,7 +79,9 @@ class CapabilityFacts:
             or not set(definition["required_services"]) <= self.services
         ):
             raise ResourceDenied("capability is unavailable on this surface or service set")
-        inputs = canonical(inputs)
+        from run_domain.capability_contracts import normalize_inputs
+
+        inputs = normalize_inputs(inputs, definition["input_schema"])
         Draft202012Validator(definition["input_schema"]).validate(inputs)
         scope = resource_scope(scope)
         invocation_limits = limits(invocation_limits)

@@ -58,7 +58,7 @@ class ModelEntry:
 class ToolRagConfig:
     """工具 RAG 检索配置。"""
     enabled: bool = True
-    top_k: int = 8                          # 最终返回工具数量上限
+    top_k: int = 12                         # 最终返回工具数量上限
     persist_path: str = "tools/vectors"
 
 

@@ -11,6 +11,7 @@ from typing import Any, Dict, List, cast
 
 from actions.contracts import ActionRequest, ActionResult
 from common.token_counter import estimate_messages_tokens
+from sandbox.tools.routing.models import ToolRoutingConfigurationError
 
 logger = logging.getLogger("HpAgent.ActionRuntime")
 
@@ -28,7 +29,7 @@ class ActionRuntime:
         sandbox_manager: Any = None,
         resource_pool: Any = None,
         prompts: Any = None,
-        tool_rag_top_k: int = 8,
+        tool_rag_top_k: int = 12,
         tool_result_summary_enabled: bool = True,
         tool_result_summary_threshold: int = 4000,
         tool_result_summary_max_chars: int = 1000,
@@ -101,6 +102,10 @@ class ActionRuntime:
             )
 
             return tools
+        except ToolRoutingConfigurationError:
+            # Required Work/file entrypoints cannot disappear from the model manifest.
+            # A configuration error must fail before dispatch, rather than becoming [].
+            raise
         except Exception as e:
             logger.warning("Tool retrieval failed for resource=%s: %s", resource_key, e)
             return []

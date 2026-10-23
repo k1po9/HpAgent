@@ -34,8 +34,10 @@ class ResultAdoptionService:
     ):
         from workspace.catalog import WorkspaceCatalog
 
+        if not isinstance(operation_id, str) or not 1 <= len(operation_id) <= 200:
+            raise ValueError("save needs a bounded exact operation identity")
         if bool(entry_id) == bool(directory_id):
-            raise ValueError("choose exactly one save destination")
+            raise ValueError("new entry: directory_id (UUID) plus name; CAS update: entry_id (existing node UUID) plus expected_revision and expected_sha256; choose exactly one destination")
         if entry_id:
             if type(expected_revision) is not int or expected_revision < 1 or not expected_sha256:
                 raise ValueError("update needs an exact revision and hash")
@@ -70,16 +72,25 @@ class ResultAdoptionService:
                 operation_id,
                 work_auto=True,
             )
-            return result
+            return self._save_receipt(result, ref_id, operation_id)
         if not directory_id or not name:
             raise ValueError("save needs directory_id and name")
-        return {
-            "node_id": str(
-                catalog.save_file(
-                    account_id, UUID(directory_id), file_id, name, operation_id, agent_run_id=run_id
-                )
-            )
-        }
+        result = {"node_id": str(catalog.save_file(
+            account_id, UUID(directory_id), file_id, name, operation_id, agent_run_id=run_id
+        ))}
+        return self._save_receipt(result, ref_id, operation_id)
+
+    @staticmethod
+    def _save_receipt(result, ref_id, operation_id):
+        # A reusable evaluator input, not an acceptance fact. evidence() still
+        # checks the current Run, criterion, grant and exact persisted save.
+        predicate = AcceptancePredicate(
+            "workspace_saved", str(ref_id), target_id=result["node_id"],
+            operation_id=operation_id, target_revision=result.get("revision"),
+        ).to_dict()
+        predicate = {key: value for key, value in predicate.items() if value is not None}
+        return {**result, "operation_id": operation_id, "subject_ref": str(ref_id),
+                "workspace_saved_predicate": predicate}
 
     def evidence(self, criterion_id, predicate: AcceptancePredicate):
         value = predicate.to_dict()
@@ -100,6 +111,13 @@ class ResultAdoptionService:
             ).fetchone()
             if not criterion:
                 raise ValueError("predicate does not match criterion")
+            if value["kind"] == "workspace_saved" and value.get("target_revision") is not None:
+                created = uow.execute(
+                    "SELECT 1 FROM workspace_save_operations WHERE account_id=%s AND source_run_id=%s AND operation_id=%s AND node_id=%s",
+                    (run["account_id"], run["run_id"], value["operation_id"], UUID(value["target_id"])),
+                ).fetchone()
+                if created:
+                    raise ValueError("new-entry save has no target_revision; omit it and copy workspace_saved_predicate from result__save exactly")
             if not uow.execute(
                 "SELECT capability_predicate_valid(%s,%s,%s) AS valid",
                 (run["account_id"], run["run_id"], Jsonb(value)),

@@ -159,7 +159,15 @@ class WorkspaceDiscovery:
                 "SELECT run_id,operation,reason,created_at FROM run_resource_denials "
                 "WHERE account_id=%s AND node_id=%s ORDER BY created_at DESC LIMIT 100",
                 (account_id, node_id)).fetchall()
+            artifact = uow.execute(
+                "SELECT artifact_id,artifact_version_id,version FROM artifact_versions "
+                "WHERE account_id=%s AND file_id=%s AND status='completed' "
+                "ORDER BY version DESC,artifact_version_id LIMIT 1",
+                (account_id, row["file_id"])).fetchone()
             return {"node_id": str(node_id), "file_id": str(row["file_id"]),
+                    "artifact": {"artifact_id": str(artifact["artifact_id"]),
+                                 "artifact_version_id": str(artifact["artifact_version_id"]),
+                                 "version": artifact["version"]} if artifact else None,
                     "destination_id": str(row["destination_id"])
                     if row["destination_id"] else None,
                     "current_revision": row["current_revision"],

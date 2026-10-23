@@ -13,7 +13,7 @@ class ToolSchemaProjector:
         tool = registered.tool
         raw = tool.to_openai_function() if hasattr(tool, "to_openai_function") else {
             "type": "function", "function": {"name": tool.name, "description": tool.description,
-            "parameters": tool.args_schema.model_json_schema() if tool.args_schema else {}},
+            "parameters": tool.args_schema if isinstance(tool.args_schema, dict) else tool.args_schema.model_json_schema() if tool.args_schema else {}},
         }
         result = deepcopy(raw)
         func = result.get("function", result)

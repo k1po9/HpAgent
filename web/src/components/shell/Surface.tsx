@@ -132,10 +132,15 @@ export function Surface({
     };
   }, [motion, modal]);
   const trigger = useRef<HTMLElement | null>(null);
+  const triggerCaptured = useRef(false);
   useEffect(() => {
     closeRef.current = onClose;
   }, [onClose]);
   useEffect(() => {
+    // StrictMode replays effects after the dialog has moved focus. Preserve the
+    // original opener through that replay, as well as responsive mode changes.
+    if (triggerCaptured.current) return;
+    triggerCaptured.current = true;
     trigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   }, []);
   useEffect(() => {

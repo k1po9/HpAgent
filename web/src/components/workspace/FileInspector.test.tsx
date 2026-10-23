@@ -48,7 +48,24 @@ beforeEach(() => {
     nodes: [root, folder, file],
   });
   vi.spyOn(workspaceApi, "getFile").mockResolvedValue({ file: metadata });
+  vi.spyOn(workspaceApi, "getWorkspaceTrace").mockResolvedValue({ artifact: null } as never);
   vi.spyOn(workspaceApi, "readFileText").mockResolvedValue("<script>window.unsafe = true</script>");
+});
+it("opens the exact persisted interactive Artifact from a saved file without executing file HTML", async () => {
+  vi.mocked(workspaceApi.getWorkspaceTrace).mockResolvedValue({
+    artifact: { artifact_id: "a", artifact_version_id: "v2", version: 2 },
+    source_work_id: "work",
+    source_run_id: "run",
+  } as never);
+  render(<FileInspector inspector={{ kind: "file", objectId: "node" }} />);
+  fireEvent.click(await screen.findByRole("button", { name: "打开交互成果 v2" }));
+  expect(useShell.getState().route.inspector).toMatchObject({
+    kind: "artifact",
+    objectId: "a",
+    versionId: "v2",
+    origin: { workId: "work", runId: "run" },
+  });
+  expect(document.querySelector("iframe")).toBeNull();
 });
 it("renders HTML as text and never creates executable elements", async () => {
   const { container } = render(<FileInspector inspector={{ kind: "file", objectId: "node" }} />);

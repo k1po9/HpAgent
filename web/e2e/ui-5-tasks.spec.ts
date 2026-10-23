@@ -24,6 +24,50 @@ async function create(page: Page, title: string, kind = "reminder") {
   await expect(inspector(page).getByRole("heading", { name: title, exact: true })).toBeVisible();
   return body.work;
 }
+test("selects a delivery folder and explicitly grants Work write access without internal IDs", async ({
+  page,
+}) => {
+  await login(page);
+  await page.getByRole("button", { name: "任务", exact: true }).click();
+  await page.getByRole("button", { name: "新建任务", exact: true }).click();
+  const form = page.getByRole("dialog", { name: "新建任务", exact: true });
+  await form.getByLabel("工作名称").fill(`保存研究页面-${Date.now()}`);
+  await form.getByLabel("工作类型").selectOption("generic_work");
+  await form.getByLabel("目标 / 提醒内容").fill("整理公开资料，生成交互 HTML 并保存");
+  await form.getByLabel("执行时间").selectOption("once");
+  await form.getByLabel("日期时间").fill("2027-01-01T09:00");
+  await form.getByLabel("成果保存目录").selectOption({ label: "/资料" });
+  const accepted = page.waitForResponse(
+    (r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/v1/works",
+  );
+  await form.getByRole("button", { name: "创建工作", exact: true }).click();
+  const { work } = await (await accepted).json();
+  expect(work.requirement.deliverable_policy.required).toBe(true);
+  expect(work.requirement.acceptance_criteria).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ required: true, evidence_types: ["workspace_saved"] }),
+    ]),
+  );
+  const before = await (await page.request.get(`/api/v1/works/${work.work_id}/resources`)).json();
+  expect(before.grants).toEqual([]);
+  await inspector(page).getByRole("tab", { name: "使用资料" }).click();
+  await expect(inspector(page).getByText("要求保存到：/资料", { exact: true })).toBeVisible();
+  await inspector(page).getByText("高级写入权限", { exact: true }).click();
+  await inspector(page).getByLabel("创建子项", { exact: true }).check();
+  await inspector(page).getByRole("button", { name: "确认授予所选权限" }).click();
+  await expect(
+    inspector(page).getByText("授权已生效，下一轮可用。", { exact: true }),
+  ).toBeVisible();
+  const after = await (await page.request.get(`/api/v1/works/${work.work_id}/resources`)).json();
+  expect(after.grants).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        node_id: work.requirement.deliverable_policy.directory_id,
+        operation: "create_child",
+      }),
+    ]),
+  );
+});
 test("creates, revises, controls, increases one limit and returns from inspector children", async ({
   page,
 }) => {

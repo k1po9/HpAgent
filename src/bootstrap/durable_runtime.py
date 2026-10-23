@@ -167,22 +167,29 @@ def compose_durable_runtime(
         run_budget=RunBudgetService(worker_database_url),
         approval_service=FileActionApprovalService(worker_database_url),
     )
+    from agent_activities.text_result import TextActivities
+    from research_activities.composition import compose_research
+    from web_artifacts.local import HtmlActivities
+
+    capability_activities, research_parent = compose_research(
+        research_activities,
+        durable_activities.store,
+        html_available=infrastructure.file_output_publisher is not None,
+    )
     artifact_build = ArtifactBuildService(
         worker_database_url,
         WebArtifactGenerator(
             infrastructure.resource_pool,
             max_bytes=int(os.getenv("ARTIFACT_HTML_MAX_BYTES", str(1024 * 1024))),
             read_timeout_seconds=float(os.getenv("ARTIFACT_MODEL_READ_TIMEOUT_SECONDS", "90")),
-        ), publisher=infrastructure.file_output_publisher,
+        ),
+        capabilities=capability_activities,
+        publisher=infrastructure.file_output_publisher,
     )
     artifact_activities = ArtifactActivities(artifact_build)
-    from research_activities.composition import compose_research
-
-    capability_activities, research_parent = compose_research(research_activities, durable_activities.store, html_available=infrastructure.file_output_publisher is not None)
-    from web_artifacts.local import HtmlActivities
-    artifact_build.capabilities = capability_activities
-    artifact_build.publisher = infrastructure.file_output_publisher
-    html_activities = HtmlActivities(capability_activities, artifact_build.generator, infrastructure.file_output_publisher)
+    html_activities = HtmlActivities(
+        capability_activities, artifact_build.generator, infrastructure.file_output_publisher
+    )
     from agent_activities.web_tools import WebTools
 
     durable_activities.capabilities = capability_activities
@@ -226,6 +233,7 @@ def compose_durable_runtime(
         ],
         agent_activities=[
             html_activities.produce,
+            TextActivities(capability_activities, infrastructure.file_output_publisher).produce,
             capability_activities.prepare,
             capability_activities.observe,
             capability_activities.close,

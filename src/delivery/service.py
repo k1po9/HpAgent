@@ -124,6 +124,10 @@ def enqueue_event(uow, work, event_id, event_type, run_id=None):
     if event_type not in {'completed', 'paused', 'stopped', 'blocked', 'result_changed',
                           'delivery_blocked', 'delivery_accepted'}:
         return
+    from work_domain.integration import completed_outputs
+    from work_domain.persistence import dto
+
+    results = dto(completed_outputs(uow, work)) if event_type == "completed" else []
     enqueue(
         uow,
         work["account_id"],
@@ -132,6 +136,7 @@ def enqueue_event(uow, work, event_id, event_type, run_id=None):
             "content": f"{work['title']}: {event_type}",
             "summary": f"Work {work['work_id']}: {event_type}",
             "event_type": event_type,
+            "results": results,
         },
         work=work,
         source_event_id=event_id,

@@ -9,6 +9,9 @@ import { Surface } from "../shell/Surface";
 import { useTaskQuery } from "./useTaskQuery";
 import { taskCommand, useTaskOperations, retryTaskCommand } from "./taskOperations";
 import { validSnapshot } from "./taskActions";
+import { useWorkspace } from "../../store/workspace";
+import { WorkspaceDirectoryLoader } from "../workspace/SaveToWorkspaceDialog";
+import { nodePath } from "../workspace/workspacePresentation";
 export function TaskEditor({ workId, onClose }: { workId?: string; onClose: () => void }) {
   const generation = useWorks((s) => s.generation);
   return (
@@ -107,6 +110,11 @@ function EditorForm({
   const [due, setDue] = useState(localValue(work?.requirement.timing.due_at, zone));
   const [time, setTime] = useState(work?.requirement.timing.local_time ?? "09:00");
   const [timingChanged, setTimingChanged] = useState(false);
+  const [saveDirectory, setSaveDirectory] = useState(
+    String(work?.requirement.deliverable_policy?.directory_id ?? ""),
+  );
+  const [saveChanged, setSaveChanged] = useState(false);
+  const tree = useWorkspace((s) => s.tree);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [dirty, setDirty] = useState(false);
@@ -152,6 +160,8 @@ function EditorForm({
             due,
             time,
             timingChanged,
+            saveDirectory,
+            saveChanged,
           });
           setError("");
           const body = baseline
@@ -249,6 +259,36 @@ function EditorForm({
               mode === "plan_and_execute") && <option value="plan_and_execute">计划后执行</option>}
           </select>
         </label>
+      )}
+      {capability !== "reminder" && (
+        <>
+          <WorkspaceDirectoryLoader />
+          <label>
+            成果保存目录
+            <select
+              value={saveDirectory}
+              onChange={(e) => {
+                setSaveDirectory(e.target.value);
+                setSaveChanged(true);
+              }}
+            >
+              <option value="">保留现有保存要求</option>
+              {saveDirectory && !tree?.nodes?.some((n) => n.node_id === saveDirectory) && (
+                <option value={saveDirectory}>当前目录（等待核实）</option>
+              )}
+              {tree?.nodes
+                ?.filter((n) => n.kind === "directory")
+                .map((n) => (
+                  <option key={n.node_id} value={n.node_id}>
+                    {nodePath(tree, n.node_id)}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <p>
+            选定目录会要求保存成果。创建或修订后，请在任务「使用资料」中授予此目录「创建子项」权限；目录选择本身不授权。已有执行将按修订收敛，新授权下一轮生效。
+          </p>
+        </>
       )}
       {!supportedZone && <p>现有时区 {zone} 的计划只读，提交会保留其原始时间。</p>}
       <label>

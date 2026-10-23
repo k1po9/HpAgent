@@ -157,7 +157,7 @@ class RunLifecycleService:
             # version UPDATE privilege; completed results stay immutable.
             uow.execute(
                 "UPDATE artifact_versions SET status='failed',html=NULL,failure_code=%s,"
-                "failure_message=%s,completed_at=GREATEST(now(),created_at,started_at),updated_at=now() "
+                "failure_message=%s,completed_at=GREATEST(now(),created_at,started_at),updated_at=GREATEST(now(),created_at,updated_at) "
                 "WHERE account_id=%s AND producing_run_id=%s AND status='running'",
                 ('artifact_cancelled' if status == 'cancelled' else failure_code or 'artifact_execution_failed',
                  '构建已取消。' if status == 'cancelled' else (failure_message or '构建未能完成。')[:1000],

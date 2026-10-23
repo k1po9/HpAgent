@@ -201,6 +201,53 @@ def test_claim_rejects_unknown_cross_run_and_cross_tenant_evidence(
 
 
 @pytest.mark.asyncio
+async def test_multiple_exact_spans_persist_per_source_and_replay(
+    database_url, worker_database_url, account_id, db
+):
+    commands = WorkCommandService(database_url, budget_mode="enforce")
+    task = accept_research(commands, account_id, str(uuid7()), "Research", "Compare `AlphaGroup` and `BetaQueue`")
+    triggered = advance_work(commands, account_id, UUID(task.body["work"]["work_id"]), str(uuid7()))
+    run_id = triggered.body["run"]["run_id"]
+    text = "AlphaGroup waits for all children.\n\n" + "neutral facts " * 300 + "\n\nBetaQueue returns ordered entries."
+
+    class Discovery:
+        async def discover(self, query, *, strategy, limit):
+            return [SourceCandidate("https://example.com/spans", provider="searxng")]
+
+    class Content:
+        async def fetch(self, candidate):
+            return SourceContent(canonical_uri=candidate.uri, title="Reference", text=text,
+                                 content_hash=content_sha256(text), mime_type="text/html")
+
+    class Canonicalizer:
+        def canonicalize(self, uri):
+            return uri
+
+    activities = ResearchActivities(worker_database_url, Discovery(), Content(), Canonicalizer(), object())
+    request = ResearchWorkflowInput(1, run_id)
+    iteration = ResearchIterationInput(1, run_id, 1)
+    await activities.prepare_research_activity(request)
+    await activities.create_research_plan_activity(request)
+    await activities.discover_research_sources_activity(iteration)
+    await activities.rank_research_sources_activity(iteration)
+    await activities.fetch_research_sources_activity(iteration)
+    await activities.normalize_research_sources_activity(iteration)
+    first = await activities.extract_research_evidence_activity(iteration)
+    second = await activities.extract_research_evidence_activity(iteration)
+    assert first == second
+    with UnitOfWork(database_url) as uow:
+        rows = uow.execute("SELECT evidence_id,source_id,excerpt,source_locator FROM evidence_items WHERE run_id=%s ORDER BY evidence_id", (run_id,)).fetchall()
+    assert 2 <= len(rows) <= 6
+    assert len({row["source_id"] for row in rows}) == 1
+    assert len({row["evidence_id"] for row in rows}) == len(rows)
+    assert sum(len(row["excerpt"].encode()) for row in rows) <= 7200
+    for row in rows:
+        span = row["source_locator"]["text_span"]
+        assert text[span["start"]:span["end"]] == row["excerpt"]
+    assert all(any(concept in row["excerpt"] for row in rows) for concept in ("AlphaGroup", "BetaQueue"))
+
+
+@pytest.mark.asyncio
 async def test_research_activities_persist_deduplicated_source_and_evidence(
     database_url, worker_database_url, account_id, db
 ):
@@ -254,6 +301,10 @@ async def test_research_activities_persist_deduplicated_source_and_evidence(
         Synthesis(),
         max_sources=30,
         max_fetches=20,
+        # This fixture deliberately deduplicates both URLs to one source;
+        # missing-source sufficiency is covered separately by capability tests.
+        min_evidence=1,
+        min_distinct_sources=1,
     )
     request = ResearchWorkflowInput(1, run_id)
     iteration = ResearchIterationInput(1, run_id, 1)

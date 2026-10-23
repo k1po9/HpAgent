@@ -62,6 +62,7 @@ class ResearchStageRef(TypedDict):
     item_count: int
     sufficient: NotRequired[bool]
     cancelled: NotRequired[bool]
+    stop_reason: NotRequired[str]
     invocation_id: NotRequired[str]
 
 
@@ -117,7 +118,7 @@ class ResearchCapabilityWorkflow:
                     ("extract_research_evidence_activity", 120),
                     ("assess_research_corroboration_activity", 30),
                 ):
-                    await workflow.execute_activity(
+                    stage = await workflow.execute_activity(
                         activity_name,
                         iteration_request,
                         task_queue=WEB_LIFECYCLE_TASK_QUEUE,
@@ -129,6 +130,10 @@ class ResearchCapabilityWorkflow:
                     )
                     if workflow.cancellation_reason() is not None:
                         raise asyncio.CancelledError
+                    if stage.get("stop_reason"):
+                        break
+                if stage.get("stop_reason"):
+                    break
                 gap = await workflow.execute_activity(
                     "analyze_research_gaps_activity",
                     iteration_request,

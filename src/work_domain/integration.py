@@ -15,6 +15,30 @@ from work_domain.models import continuation
 from work_domain.persistence import WorkRepository, dto
 
 
+def completed_outputs(uow, work):
+    """Exact accepted refs, retained by immutable evidence/result/file relationships.
+
+    Expose authenticated product URLs, never storage keys or bearer grants.
+    """
+    rows = uow.execute(
+        "SELECT DISTINCT f.ref_id,f.type,f.file_id,f.artifact_id,f.artifact_version_id,f.sha256,"
+        "r.run_id,r.requirement_revision,s.original_name AS name,s.content_type,s.size_bytes "
+        "FROM works w JOIN runs r ON r.account_id=w.account_id "
+        "AND r.run_id=(w.completion_receipt->>'run_id')::uuid "
+        "CROSS JOIN LATERAL jsonb_array_elements(w.completion_receipt->'evidence') item "
+        "JOIN capability_acceptance_evidence e ON e.account_id=r.account_id AND e.run_id=r.run_id "
+        "AND e.evidence_id::text=item->>'ref' AND e.criterion_id=item->>'criterion_id' "
+        "AND e.predicate->>'kind'=item->>'type' "
+        "JOIN capability_result_refs f ON f.account_id=e.account_id AND f.ref_id=e.subject_ref "
+        "LEFT JOIN stored_files s ON s.account_id=f.account_id AND s.file_id=f.file_id AND s.status='ready' "
+        "WHERE w.account_id=%s AND w.work_id=%s AND w.status='completed' "
+        "ORDER BY f.ref_id LIMIT 100",
+        (work["account_id"], work["work_id"]),
+    ).fetchall()
+    return [{**dict(row), "content_url": f"/api/v1/files/{row['file_id']}/content" if row["file_id"] else None}
+            for row in rows]
+
+
 def projections(uow, account, work):
     budget = uow.execute(
         "SELECT limits,used,reserved,version FROM work_budgets WHERE account_id=%s AND work_id=%s",
@@ -37,8 +61,25 @@ def projections(uow, account, work):
         "SELECT run_id,requirement_revision,state,operation_id,entry_id,expected_revision,failure_code FROM research_run_save_intents WHERE account_id=%s AND work_id=%s ORDER BY run_id DESC LIMIT 100",
         (account, work),
     ).fetchall()
+    # Generic parents save through the shared Workspace commands rather than
+    # Research save intents. Project only committed operations; generation and
+    # completion evidence alone never imply that a file was saved.
+    parent_saves = uow.execute(
+        "SELECT r.run_id,r.requirement_revision,'succeeded' AS state,o.operation_id,"
+        "o.node_id AS entry_id,NULL::integer AS expected_revision,NULL::text AS failure_code "
+        "FROM workspace_save_operations o JOIN runs r ON r.account_id=o.account_id "
+        "AND r.run_id=o.source_run_id WHERE r.account_id=%s AND r.work_id=%s "
+        "AND r.executor_key='work_agent' AND o.source_kind='work_auto' "
+        "UNION ALL SELECT r.run_id,r.requirement_revision,'succeeded',o.operation_id,"
+        "o.node_id,o.revision,NULL::text FROM workspace_version_operations o "
+        "JOIN runs r ON r.account_id=o.account_id AND r.run_id=o.source_run_id "
+        "WHERE r.account_id=%s AND r.work_id=%s AND r.executor_key='work_agent' "
+        "AND o.source_kind='work_auto' ORDER BY run_id DESC,operation_id LIMIT 100",
+        (account, work, account, work),
+    ).fetchall()
     return {
-        "workspace_saves": list(saves),
+        "workspace_saves": list(saves) + list(parent_saves),
+        "results": completed_outputs(uow, {"account_id": account, "work_id": work}),
         "budget": dict(budget) if budget else None,
         "artifacts": list(artifacts),
         "deliveries": list(deliveries),

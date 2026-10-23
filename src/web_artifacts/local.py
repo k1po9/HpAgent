@@ -173,7 +173,9 @@ class HtmlActivities:
                     error={
                         "code": exc.code,
                         "safe_message": exc.safe_message,
-                        "retry_class": "transient" if exc.retryable else "requires_input",
+                        "retry_class": "transient"
+                        if exc.retryable or exc.code in {"artifact_invalid_html", "artifact_html_too_large"}
+                        else "requires_input",
                     },
                 ),
             )

@@ -230,6 +230,8 @@ async def test_artifact_build_has_new_work_run_provenance(
             return "<html><body>Result</body></html>"
 
     if mode == "retry":
+        # A monotonic failure transition must survive a database clock rollback.
+        db.execute("UPDATE artifact_versions SET created_at=GREATEST(created_at,now()+interval '2 seconds'),updated_at=GREATEST(updated_at,now()+interval '2 seconds') WHERE artifact_version_id=%s", (UUID(version),))
 
         class FailedGenerator:
             async def generate(self, **kwargs):
@@ -364,7 +366,7 @@ async def test_artifact_build_has_new_work_run_provenance(
         reuse = service.integration(account_id, UUID(reuse["work_id"]), str(uuid4()), reuse["row_version"], "input", {"file_id": source_file, "purpose": "Explicit result reuse"}).body["work"]
         reuse_run = advance(service, reuse, worker_database_url)
         assert reuse_run["input_snapshot"]["artifact_refs"] == [
-            {"artifact_version_id": version, "role": "evidence"}
+            {"artifact_version_id": version, "role": "evidence", "result_ref_id": str(source_ref)}
         ]
 
         from run_domain.acceptance import ResultAdoptionService

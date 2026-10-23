@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { StrictMode, useEffect, useState } from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { Surface } from "./Surface";
@@ -261,4 +261,33 @@ it("ordinary motion is opt-in and does not add Elevate to Inspector", () => {
     </Surface>,
   );
   expect(animate).not.toHaveBeenCalled();
+});
+
+it("keeps the original nested opener through StrictMode effect replay", async () => {
+  function Editor() {
+    const [saving, setSaving] = useState(false);
+    return (
+      <>
+        <Surface title="成果" onClose={vi.fn()}>
+          <button onClick={() => setSaving(true)}>保存成果</button>
+        </Surface>
+        {saving && (
+          <Surface title="保存成果" onClose={() => setSaving(false)}>
+            保存选项
+          </Surface>
+        )}
+      </>
+    );
+  }
+  render(
+    <StrictMode>
+      <Editor />
+    </StrictMode>,
+  );
+  const opener = screen.getByRole("button", { name: "保存成果" });
+  opener.focus();
+  fireEvent.click(opener);
+  fireEvent.click(screen.getByRole("button", { name: "关闭保存成果" }));
+  await act(async () => {});
+  expect(opener).toHaveFocus();
 });

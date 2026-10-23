@@ -5,10 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from typing import Any, Callable
 from uuid import UUID
 
+from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 from psycopg.types.json import Jsonb
 from temporalio import activity
@@ -25,7 +27,11 @@ from agent_workflows.capability_contracts import (
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ToolExecutionResult
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.capabilities import CapabilityFacts
-from run_domain.capability_contracts import CapabilityObservation, CapabilityRegistry
+from run_domain.capability_contracts import (
+    CapabilityObservation,
+    CapabilityRegistry,
+    normalize_inputs,
+)
 from run_domain.execution import (
     StaleFencingToken,
     TranscriptVersionConflict,
@@ -38,6 +44,50 @@ from run_domain.results import ResultReceiptService, complete_operation
 from workspace.resources import ResourceDenied
 
 from .fencing import fenced_activity
+
+
+def input_validation_error(error: ValidationError) -> str:
+    """Explain the trusted schema rule without echoing supplied values."""
+    path = '/' + '/'.join(str(item) for item in error.absolute_schema_path)
+    detail = f"capability input schema validation failed at schema {path[:160]}: {error.validator}"
+    schema = error.schema if isinstance(error.schema, dict) else {}
+    if error.validator in {'maxLength', 'minLength', 'type', 'required', 'format'}:
+        detail += ' expected ' + json.dumps(error.validator_value, ensure_ascii=False)
+    if schema.get('properties'):
+        detail += '; allowed fields: ' + ', '.join(schema['properties'])
+    if error.validator == 'oneOf':
+        choices = [item.get('required', []) for item in schema.get('oneOf', [])]
+        detail += '; choose exactly one input form: ' + json.dumps(choices)
+        if isinstance(error.instance, dict):
+            for form in schema.get('oneOf', []):
+                kind = form.get('properties', {}).get('kind', {}).get('const')
+                if kind is None or error.instance.get('kind') != kind:
+                    continue
+                missing = [name for name in form.get('required', []) if name not in error.instance]
+                forbidden = [name for rule in form.get('not', {}).get('anyOf', [])
+                             for name in rule.get('required', []) if name in error.instance]
+                detail += '; ' + kind + ' missing fields: ' + ', '.join(missing)
+                detail += '; set inapplicable fields to null: ' + ', '.join(forbidden)
+                break
+    return detail[:700]
+
+
+def parent_input_schema(definition, *, model_facing=False):
+    """The model-facing HTML tool requires an explicit delegated objective.
+
+    Fixed/programmatic v1 callers keep their optional instruction contract.
+    Parent agents must carry the requested behavior across the isolated boundary.
+    """
+    schema = deepcopy(definition['input_schema'])
+    if definition['key'] == 'html':
+        schema['required'] = list(dict.fromkeys([*schema.get('required', []), 'instruction']))
+        schema['properties']['instruction']['minLength'] = 1
+        if model_facing:
+            schema.pop('oneOf', None)
+            schema['required'] = list(schema['properties'])
+            for name in ('text', 'source_ref', 'previous_ref'):
+                schema['properties'][name]['type'] = ['string', 'null']
+    return schema
 
 
 def empty_scope(inputs):
@@ -83,8 +133,8 @@ class CapabilityActivities:
                 "type": "function",
                 "function": {
                     "name": name,
-                    "description": d["description"],
-                    "parameters": d["input_schema"],
+                    "description": d["description"] + (" Include every declared input field, using null for text/source_ref/previous_ref when not applicable." if b.key == "html" else ""),
+                    "parameters": parent_input_schema(d, model_facing=True),
                 },
             }
             for name, b in self.bindings.items()
@@ -126,8 +176,8 @@ class CapabilityActivities:
             raise ApplicationError("capability caller has unresolved effect", non_retryable=True)
         try:
             return await asyncio.to_thread(self._prepare, request)
-        except ValidationError:
-            return CapabilityPrepared(error="capability input schema validation failed")
+        except ValidationError as exc:
+            return CapabilityPrepared(error=input_validation_error(exc))
         except (ValueError, PermissionError, ResourceDenied) as exc:
             # An immutable identity conflict must never overwrite the in-flight invocation.
             with UnitOfWork(self.store.database_url) as uow:
@@ -152,10 +202,32 @@ class CapabilityActivities:
             request.tool.tool_call.arguments_ref, request.tool.tool_call.tool_call_id
         )
         definition = self.facts.registry.get(binding.key, binding.contract_version)
+        inputs = normalize_inputs(inputs, definition["input_schema"])
         with UnitOfWork(self.store.database_url) as uow:
             run, parent = self.facts._context(uow)
             if str(parent["execution_id"]) != request.tool.execution_id:
                 raise ResourceDenied("caller identity mismatch")
+            existing = uow.execute("SELECT 1 FROM capability_invocations WHERE invocation_id=%s", (request.operation_id,)).fetchone()
+            if not existing:
+                Draft202012Validator(parent_input_schema(definition)).validate(inputs)
+            if not existing and binding.key == "research":
+                budget = uow.execute("SELECT limits,used,reserved FROM run_budgets WHERE run_id=%s", (run["run_id"],)).fetchone()
+                used = budget["used"].get("research_iterations", 0)
+                limit = budget["limits"].get("research_iterations", 0)
+                remaining = max(0, limit - used - budget["reserved"].get("research_iterations", 0))
+                if not remaining:
+                    queries = uow.execute("SELECT DISTINCT query FROM research_iterations WHERE run_id=%s LIMIT 12", (run["run_id"],)).fetchall()
+                    raise ValueError(f"Research stopped: this Run used {used}/{limit} research rounds; remaining=0. No search started. Do not call Research again or create a Run to bypass the limit. Queries: " + json.dumps([row["query"] for row in queries], ensure_ascii=False)[:250])
+                from research_adapters.web import discovery_query
+                from research_domain.models import SourceStrategy
+                strategy = SourceStrategy.from_dict(inputs.get("source_strategy"))
+                query = discovery_query(inputs["objective"], strategy)
+                if uow.execute(
+                    "SELECT 1 FROM research_iterations i JOIN research_plans p USING(research_id) "
+                    "WHERE i.run_id=%s AND i.query=%s AND p.plan->'source_strategy'=%s::jsonb LIMIT 1",
+                    (run["run_id"], query, json.dumps(strategy.to_dict())),
+                ).fetchone():
+                    raise ValueError("Research stopped: no new effective query or source strategy. Reuse the prior result and report its gaps; do not repeat Research in this Run.")
             self.admit_in_uow(uow, run, parent, definition, request.operation_id)
             invocation = self.facts.create(
                 uow,

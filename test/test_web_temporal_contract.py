@@ -18,6 +18,7 @@ from agent_workflows.delegation import WorkDelegationWorkflow
 from agent_workflows.html import HtmlCapabilityWorkflow
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
+from agent_workflows.text import TextCapabilityWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from application.conversation import normalize_qq_message
 from common.types import ChannelType, UnifiedMessage
@@ -101,6 +102,7 @@ def test_worker_composition_uses_two_web_task_queues(monkeypatch):
         CapabilityInvocationWorkflow,
         ResearchCapabilityWorkflow,
         HtmlCapabilityWorkflow,
+        TextCapabilityWorkflow,
     ]
 
 

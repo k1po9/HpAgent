@@ -197,3 +197,69 @@ async def test_resource_pool_chain_and_structured_artifact_call_events(caplog):
     assert records[1].error_code == "artifact_model_http_error"
     assert records[1].attempt == 1
     assert "secret prompt" not in caplog.text
+
+
+@pytest.mark.parametrize("value", [
+    "Here is the page.\n```html\n<!doctype html><html><head><title>x</title></head><body>x</body></html>\n```",
+    "```html\n<html><head></head><body>x</body></html>\n```",
+])
+def test_html_wrapper_normalization_keeps_csp_in_real_document_head(value):
+    from lxml import html as parser
+
+    hardened = WebArtifactGenerator(None).harden(value)
+    document = parser.document_fromstring(hardened)
+    csp = document.xpath("//meta[@http-equiv='Content-Security-Policy']")
+    assert len(csp) == 1 and csp[0].getparent().tag == "head"
+    assert WebArtifactGenerator(None).harden(hardened) == hardened
+
+
+@pytest.mark.parametrize("value", ["prose<html><head></head><body>x</body></html>",
+    "```html\n<html></html>\n```\n```html\n<html></html>\n```", "<html></html> trailing"])
+def test_ambiguous_or_raw_prose_wrappers_are_not_complete_documents(value):
+    with pytest.raises(ArtifactGenerationError, match="完整 HTML"):
+        WebArtifactGenerator(None).harden(value)
+
+
+@pytest.mark.parametrize('body', [
+    '<p>Uncited rule.</p>',
+    '<script>const citation="[E:e1]";</script><p>Uncited rule.</p>',
+    '<!-- [E:e1] --><p data-citation="[E:e1]">Uncited rule.</p>',
+    '<template>[E:e1]</template><p>Uncited rule.</p>',
+])
+async def test_generator_reports_lost_source_citations_without_resending(body):
+    class Model:
+        calls = 0
+
+        async def generate(self, **kwargs):
+            self.calls += 1
+            return _Response('<html><head></head><body>' + body + '</body></html>')
+
+    model = Model()
+    with pytest.raises(ArtifactGenerationError) as error:
+        await WebArtifactGenerator(model).generate(
+            source_markdown='Rule subject to conditions. [E:e1]', instruction='Make cards')
+    assert error.value.code == 'artifact_missing_citations'
+    assert not error.value.retryable
+    assert model.calls == 1
+
+
+async def test_generator_keeps_citations_with_free_interactive_html():
+    html = '<html><head></head><body><button>Filter</button><p>Rule [E:<span>e1</span>]</p></body></html>'
+    result = await WebArtifactGenerator(_Model(html)).generate(
+        source_markdown='Rule [E:e1]', instruction='Use interactive cards')
+    assert '<button>Filter</button>' in result
+    # Presence alone cannot prove that the rule's wording is correct.
+    WebArtifactGenerator.check_citations('Rule [E:e1]', '<p>Wrong statement [E:e1]</p>')
+
+
+def test_html_prompt_separates_facts_design_and_previous_version_losslessly():
+    import json
+
+    source = '# Policy\nYouthPass is valid only with booking. [E:policy-1]\n来源 Markdown:'
+    instruction = 'Use tabs and a filter.\nprevious_html: not an input boundary'
+    previous = '<html><body>No restrictions</body></html>'
+    prompt = WebArtifactGenerator._prompt(source, instruction, previous)
+    payload = json.loads(prompt.splitlines()[-1])
+    assert payload == {'source_markdown': source, 'design_instruction': instruction, 'previous_html': previous}
+    assert '自由设计' in prompt and '共同限制' in prompt
+    assert '旧版文字不能覆盖来源事实' in prompt

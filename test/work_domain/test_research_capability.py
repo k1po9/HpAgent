@@ -94,7 +94,7 @@ def admit(caps, urls, account_id, run_id, suffix):
                 operation_id=operation,
                 capability_key="research",
                 contract_version=1,
-                inputs={"objective": "Find evidence"},
+                inputs={"objective": "Find evidence " + suffix},
                 scope=scope(),
                 invocation_limits=research_definition().limits,
             )
@@ -283,7 +283,7 @@ async def test_no_evidence_keeps_draft_without_synthesis_or_fake_citations(
         with UnitOfWork(urls[2]) as uow:
             result = caps.facts.read_result(uow, request.invocation_id)
     assert result["outcome"] == "insufficient"
-    assert result["gaps"][0]["code"] == "invalid_structure"
+    assert {gap["code"] for gap in result["gaps"]} >= {"missing_evidence", "invalid_structure"}
     report = ResearchQueryService(urls[1]).report(account_id, run_id, request.invocation_id)[
         "report"
     ]
@@ -399,3 +399,224 @@ async def test_fixed_parent_keeps_existing_explicit_artifact_acceptance(
         },
     )
     assert accepted.body["work"]["status"] == "completed"
+
+
+async def test_research_plan_cannot_fall_back_to_parent_requirement(urls, account_id, tmp_path):
+    from workspace.resources import ResourceDenied
+
+    run = chat(urls, account_id)
+    research, _ = setup(urls, tmp_path)
+    with execution(urls, account_id, run):
+        with pytest.raises(ResourceDenied, match="admitted capability identity"):
+            research._create_plan(run)
+
+
+async def close_test_capability(caps, request):
+    from agent_workflows.capability_contracts import CapabilityClose, CapabilityExecutionInput
+
+    child = CapabilityExecutionInput(
+        request.account_id, request.run_id, request.execution_id, request.invocation_id,
+        "ResearchCapabilityWorkflow", 3600, 4, request.invocation_id + ":produce",
+    )
+    await caps.close(CapabilityClose(child, "failed"))
+
+
+@pytest.mark.parametrize("failure", [None, "missing_citation", "unknown_evidence", "invalid_json", "invalid_fields"])
+async def test_synthesis_response_commit_survives_reentry_without_second_request(
+    urls, owner, account_id, tmp_path, monkeypatch, failure
+):
+    import json
+    from types import SimpleNamespace
+
+    from research_adapters.synthesis import ResourcePoolResearchSynthesizer
+
+    calls = []
+    class Pool:
+        async def generate(self, **kwargs):
+            calls.append(kwargs)
+            evidence = json.loads(kwargs['messages'][1]['content'])['evidence']
+            ids = [] if failure == 'missing_citation' else ['unknown'] if failure == 'unknown_evidence' else [evidence[0]['evidence_id']]
+            payload = {'title': 'R', 'report_markdown': '# R\n\nA fact.',
+                       'claims': [{'statement': 'A fact.', 'evidence_ids': ids}]}
+            if failure == 'invalid_fields':
+                payload['claims'] = {}
+            return SimpleNamespace(content='{"title":' if failure == 'invalid_json' else json.dumps(payload),
+                                   usage={'total_tokens': 10, 'usage_source': 'provider'}, snapshot_id='snapshot')
+
+    research, caps = setup(urls, tmp_path)
+    research.synthesis = ResourcePoolResearchSynthesizer(Pool())
+    run_id = chat(urls, account_id)
+    request = admit(caps, urls, account_id, run_id, 'receipt-recovery')
+    original = research._save_stage_result
+    interrupted = []
+    def commit_then_lose_reply(operation, run, stage, result):
+        original(operation, run, stage, result)
+        if stage == 'SynthesisResponse' and not interrupted:
+            interrupted.append(True)
+            raise RuntimeError('lost activity response after receipt commit')
+    monkeypatch.setattr(research, '_save_stage_result', commit_then_lose_reply)
+    with pytest.raises(RuntimeError, match='lost activity response'):
+        await produce(research, request)
+    await produce(research, request)
+    assert len(calls) == 1
+    await close_test_capability(caps, request)
+    with UnitOfWork(urls[2]) as uow:
+        result = uow.execute('SELECT payload FROM capability_results WHERE invocation_id=%s', (request.invocation_id,)).fetchone()['payload']
+        stages = uow.execute('SELECT stage,result FROM research_stage_results WHERE invocation_id=%s', (request.invocation_id,)).fetchall()
+    assert result['outcome'] == ('insufficient' if failure else 'succeeded')
+    assert any(s['stage'] == 'SynthesisResponse' and s['result']['content'] for s in stages)
+    validation = next(s['result'] for s in stages if s['stage'] == 'SynthesisValidation')
+    assert validation['status'] == ('invalid' if failure else 'valid')
+    if failure:
+        assert validation['gaps'][0]['code'] == failure
+
+
+async def test_synthesis_unknown_response_is_not_resent(urls, owner, account_id, tmp_path):
+    from temporalio.exceptions import ApplicationError
+
+    from research_adapters.synthesis import ResourcePoolResearchSynthesizer
+
+    calls = []
+    class Pool:
+        async def generate(self, **kwargs):
+            calls.append(kwargs)
+            raise TimeoutError('provider receipt unknown')
+    research, caps = setup(urls, tmp_path)
+    research.synthesis = ResourcePoolResearchSynthesizer(Pool())
+    run_id = chat(urls, account_id)
+    request = admit(caps, urls, account_id, run_id, 'unknown')
+    with pytest.raises(TimeoutError):
+        await produce(research, request)
+    with pytest.raises(ApplicationError) as error:
+        await produce(research, request)
+    assert error.value.type == 'research_synthesis_uncertain'
+    assert error.value.non_retryable
+    assert len(calls) == 1
+    await close_test_capability(caps, request)
+
+
+async def test_many_spans_do_not_hide_missing_distinct_source(urls, owner, account_id, tmp_path):
+    research, caps = setup(urls, tmp_path)
+    research.min_distinct_sources = 2
+    run_id = chat(urls, account_id)
+    request = admit(caps, urls, account_id, run_id, 'missing-source')
+    await produce(research, request)
+    assert research.synthesis.calls == 0
+    with UnitOfWork(urls[2]) as uow:
+        result = uow.execute('SELECT payload FROM capability_results WHERE invocation_id=%s', (request.invocation_id,)).fetchone()['payload']
+    assert result['outcome'] == 'insufficient'
+    assert 'missing_sources' in {g['code'] for g in result['gaps']}
+    await close_test_capability(caps, request)
+
+
+async def test_round_admission_precedes_network_retry_and_zero_remaining_stops_search(urls, owner, account_id, tmp_path):
+    from agent_workflows.capability_contracts import CapabilityClose, CapabilityExecutionInput
+    run_id = chat(urls, account_id)
+    owner.execute("UPDATE run_budgets SET mode='enforce',limits=jsonb_set(limits,'{research_iterations}','1') WHERE run_id=%s", (run_id,))
+    research, caps = setup(urls, tmp_path)
+    calls = []
+    class ObservedDiscovery:
+        async def discover(self, query, *, strategy, limit):
+            budget = owner.execute('SELECT used,reserved FROM run_budgets WHERE run_id=%s', (run_id,)).fetchone()
+            assert budget['used']['research_iterations'] == 1
+            assert budget['reserved']['research_iterations'] == 0
+            calls.append(query)
+            return []
+    research.discovery = ObservedDiscovery()
+    first = admit(caps, urls, account_id, run_id, 'first')
+    await research.prepare_research_activity(first)
+    await research.create_research_plan_activity(first)
+    iteration = ResearchIterationInput(1, str(run_id), 1, first.invocation_id, first.account_id, first.execution_id)
+    await research.discover_research_sources_activity(iteration)
+    await research.discover_research_sources_activity(iteration)
+    await research.analyze_research_gaps_activity(iteration)
+    assert len(calls) == 1
+    assert owner.execute("SELECT count(*) AS n FROM run_usage_ledger WHERE run_id=%s AND dimension='research_iterations'", (run_id,)).fetchone()['n'] == 1
+    child = CapabilityExecutionInput(first.account_id, first.run_id, first.execution_id, first.invocation_id,
+        'ResearchCapabilityWorkflow', 3600, 4, first.invocation_id + ':produce')
+    await caps.close(CapabilityClose(child, 'failed'))
+    second = admit(caps, urls, account_id, run_id, 'different_query')
+    await research.prepare_research_activity(second)
+    await research.create_research_plan_activity(second)
+    result = await research.discover_research_sources_activity(ResearchIterationInput(
+        1, str(run_id), 1, second.invocation_id, second.account_id, second.execution_id))
+    assert result['stop_reason'] == 'research_iterations_exhausted'
+    assert len(calls) == 1
+
+
+async def test_gap_query_duplicate_stops_without_spending_another_round(urls, owner, account_id, tmp_path):
+    run_id = chat(urls, account_id)
+    research, caps = setup(urls, tmp_path)
+    calls = []
+    class Empty:
+        async def discover(self, query, **kwargs):
+            calls.append(query)
+            return []
+    research.discovery = Empty()
+    request = admit(caps, urls, account_id, run_id, 'duplicate')
+    await research.prepare_research_activity(request)
+    await research.create_research_plan_activity(request)
+    def iteration(n):
+        return ResearchIterationInput(1, str(run_id), n, request.invocation_id, request.account_id, request.execution_id)
+    await research.discover_research_sources_activity(iteration(1))
+    # No new gap information => the same effective query must not be sent twice.
+    result = await research.discover_research_sources_activity(iteration(2))
+    assert result['stop_reason'] == 'no_new_query'
+    assert len(calls) == 1
+    budget = owner.execute('SELECT used FROM run_budgets WHERE run_id=%s', (run_id,)).fetchone()
+    assert budget['used']['research_iterations'] == 1
+
+
+async def test_shared_retrieval_uses_child_fence_budget_and_persisted_stage_replay(
+    urls, owner, account_id, tmp_path
+):
+    import httpx
+
+    from research_adapters.deepseek import DeepSeekWebProvider
+    from research_adapters.discovery import CompositeSourceDiscoveryProvider
+    from web_retrieval.adapters import ResearchRetrievalAdapter
+    from web_retrieval.budget import paid_before_request
+    from web_retrieval.safety import SafeLocalFetcher
+    from web_retrieval.service import WebRetrievalService
+
+    run_id = chat(urls, account_id)
+    research, caps = setup(urls, tmp_path)
+    request = admit(caps, urls, account_id, run_id, 'shared-retrieval')
+    sends = []
+    source_text = 'Primary evidence for the requested research objective. ' * 20
+
+    def cloud_response(wire):
+        sends.append(wire)
+        return httpx.Response(200, json={'results': [{
+            'url': 'https://source.example/facts', 'title': 'Facts', 'snippet': 'Primary evidence',
+        }]})
+
+    async def resolver(host, port):
+        return '93.184.216.34'
+
+    local = SafeLocalFetcher(Canonicalizer(), resolver=resolver,
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, text=source_text)),
+        extractor=lambda html, uri: html)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(cloud_response)) as client:
+        cloud = DeepSeekWebProvider('test-only', client=client, before_request=paid_before_request)
+        service = WebRetrievalService(
+            {'deepseek': CompositeSourceDiscoveryProvider([cloud])}, {'local': local},
+            default_search='deepseek')
+        adapter = ResearchRetrievalAdapter(service)
+        research.discovery = research.content = adapter
+        await produce(research, request)
+        await research.discover_research_sources_activity(ResearchIterationInput(
+            1, request.run_id, 1, request.invocation_id, request.account_id, request.execution_id))
+    assert len(sends) == 1
+    with UnitOfWork(urls[2]) as uow:
+        usage = uow.execute(
+            "SELECT state,actual_amount,execution_id FROM run_usage_ledger WHERE run_id=%s "
+            "AND operation_id LIKE '%%:paid:search:v1'", (run_id,)).fetchall()
+        source = uow.execute(
+            'SELECT c.content_text,s.metadata FROM source_contents c '
+            'JOIN source_records s USING(source_id) WHERE s.run_id=%s', (run_id,)).fetchone()
+    assert len(usage) == 1
+    assert usage[0]['state'] == 'settled' and usage[0]['actual_amount'] == 1
+    assert str(usage[0]['execution_id']) == request.execution_id
+    assert source['content_text'] == source_text
+    assert source['metadata']['final_url_verified'] is True

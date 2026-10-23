@@ -1,6 +1,76 @@
 import { expect, test } from "@playwright/test";
 import { createConversation, E2E_PASSWORD, expectReply, login, sendMessage } from "./helpers";
 
+test("natural language revision preserves the original and saves both source copies", async ({
+  page,
+}) => {
+  await login(page);
+  await createConversation(page);
+  await sendMessage(page, "为研究内容生成交互页面");
+  await expectReply(page);
+  const createdResponse = page.waitForResponse(
+    (r) =>
+      r.request().method() === "POST" &&
+      /\/messages\/[^/]+\/artifacts$/.test(new URL(r.url()).pathname),
+  );
+  await page.getByRole("button", { name: "生成 HTML", exact: true }).click();
+  const created = await (await createdResponse).json();
+  const panel = page.locator(".hp-artifact-inspector");
+  const frame = page.getByTitle("Artifact 预览");
+  await expect(frame).toBeVisible();
+  const original = await frame.getAttribute("srcdoc");
+  const saveCopy = async (name: string) => {
+    await panel.getByRole("button", { name: "保存源码副本到空间", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "保存到长期文件" });
+    await dialog.getByLabel("保存名称").fill(name);
+    await dialog.getByRole("button", { name: "确认保存" }).click();
+    await expect(dialog).not.toBeVisible();
+  };
+  const suffix = Date.now();
+  await saveCopy(`research-original-${suffix}.html.txt`);
+  await panel.getByLabel("修改指令").fill("仅调整展示配色，保留研究正文、引用和交互");
+  await panel.getByRole("button", { name: "生成新版本", exact: true }).click();
+  await expect(panel.getByText(/v2 · 生成完成/)).toBeVisible();
+  await panel.getByRole("button", { name: "查看 v2", exact: true }).click();
+  await expect(panel.getByText("HTML · 正在查看 v2 · 生成完成")).toBeVisible();
+  await frame.contentFrame().getByRole("button", { name: "切换状态" }).click();
+  await expect(frame.contentFrame().getByText("开启")).toBeVisible();
+  await saveCopy(`research-revised-${suffix}.html.txt`);
+  await panel.getByRole("tab", { name: "版本历史" }).click();
+  await panel.getByRole("button", { name: "查看 v1", exact: true }).click();
+  await panel.getByRole("tab", { name: "预览", exact: true }).click();
+  await expect(frame).toHaveAttribute("srcdoc", original!);
+  await page.reload();
+  await expect(page.locator(".hp-entry-destination")).not.toHaveAttribute("inert");
+  // The original message retains discovery of this Artifact and its new version.
+  await page
+    .locator(`[data-message-id="${created.artifact.source_message_id}"]`)
+    .scrollIntoViewIfNeeded();
+  await page.getByRole("button", { name: /HTML · v2 生成完成/ }).click();
+  await expect(page.getByTitle("Artifact 预览")).toBeVisible();
+  await page.getByRole("button", { name: "关闭HTML 成果" }).click();
+  // Save the published immutable HTML through the existing message attachment
+  // action as well as the explicitly separate text source copies above.
+  const message = page.locator('.hp-msg[data-role="assistant"]').last();
+  await message.scrollIntoViewIfNeeded();
+  await message.getByRole("button", { name: "保存到 Workspace", exact: true }).first().click();
+  const publishedSave = page.getByRole("dialog", { name: "保存到长期文件" });
+  await publishedSave.getByLabel("保存名称").fill(`interactive-${suffix}.html`);
+  await publishedSave.getByRole("button", { name: "确认保存" }).click();
+  await expect(publishedSave).not.toBeVisible();
+  await page.getByRole("button", { name: "空间", exact: true }).click();
+  await expect(
+    page.getByText(`research-original-${suffix}.html.txt`, { exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByText(`research-revised-${suffix}.html.txt`, { exact: true }).first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: `interactive-${suffix}.html`, exact: true }).click();
+  await page.getByRole("button", { name: "打开交互成果 v2", exact: true }).click();
+  await expect(page.getByTitle("Artifact 预览")).toBeVisible();
+  await expect(page.locator(".hp-artifact-heading")).toContainText("正在查看 v2");
+});
+
 test("builds, interacts with, isolates and restores an Artifact", async ({ page }) => {
   await login(page);
   await createConversation(page);
@@ -14,6 +84,8 @@ test("builds, interacts with, isolates and restores an Artifact", async ({ page 
   );
   await page.getByRole("button", { name: "生成 HTML", exact: true }).click();
   const created = await (await createdResponse).json();
+  const sourceMessageId = created.artifact.source_message_id;
+  const sourceMessage = page.locator(`.hp-msg[data-message-id="${sourceMessageId}"]`);
   const artifactId = created.artifact.artifact_id;
   const versionId = created.version.artifact_version_id;
   expect(artifactId).toBeTruthy();
@@ -57,9 +129,12 @@ test("builds, interacts with, isolates and restores an Artifact", async ({ page 
   const restored = page.waitForResponse(
     (r) =>
       r.request().method() === "GET" &&
-      /\/messages\/[^/]+\/artifacts$/.test(new URL(r.url()).pathname),
+      new URL(r.url()).pathname === `/api/v1/messages/${sourceMessageId}/artifacts`,
   );
   await page.reload();
+  // Wait for restored reading to settle before scrolling to the historical source.
+  await expect(page.locator(".hp-entry-destination")).not.toHaveAttribute("inert");
+  await sourceMessage.scrollIntoViewIfNeeded();
   const summaries = await (await restored).json();
   expect(summaries.items).toEqual(
     expect.arrayContaining([
@@ -80,7 +155,6 @@ test("builds, interacts with, isolates and restores an Artifact", async ({ page 
   await page.getByRole("button", { name: "关闭HTML 成果" }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  const sourceMessageId = created.artifact.source_message_id;
   await page.route("**/api/v1/conversations/*/messages?*", async (route) => {
     const response = await route.fetch();
     const body = await response.json();
@@ -106,8 +180,13 @@ test("builds, interacts with, isolates and restores an Artifact", async ({ page 
     delivered++;
   });
   await page.reload();
+  // Wait for restored reading to settle before scrolling to the historical source.
+  await expect(page.locator(".hp-entry-destination")).not.toHaveAttribute("inert");
+  await sourceMessage.scrollIntoViewIfNeeded();
   await expect.poll(() => discoveries).toBe(1);
-  await expect(page.getByRole("button", { name: "生成 HTML", exact: true })).toBeDisabled();
+  await expect(
+    sourceMessage.getByRole("button", { name: "生成 HTML", exact: true }),
+  ).toBeDisabled();
   release();
   await expect(page.locator(`#artifact-open-${artifactId}`)).toHaveAccessibleName(
     /HTML · v1 生成完成/,
@@ -118,6 +197,9 @@ test("builds, interacts with, isolates and restores an Artifact", async ({ page 
   // A response dispatched for Alice must not populate Bob's fresh account state.
   await page.getByRole("button", { name: "关闭HTML 成果" }).click();
   await page.reload();
+  // Wait for restored reading to settle before scrolling to the historical source.
+  await expect(page.locator(".hp-entry-destination")).not.toHaveAttribute("inert");
+  await sourceMessage.scrollIntoViewIfNeeded();
   await expect.poll(() => discoveries).toBe(2);
   await page.getByRole("button", { name: "账户设置", exact: true }).click();
   await page.getByRole("button", { name: "退出登录", exact: true }).click();

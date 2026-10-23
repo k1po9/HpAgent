@@ -56,7 +56,7 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
       <h4>自动保存到空间</h4>
       {!work.workspace_saves.length && <p>暂无自动保存记录。手动保存结果在保存表单中显示。</p>}
       {work.workspace_saves.map((s) => (
-        <p key={s.run_id}>
+        <p key={`${s.run_id}:${s.operation_id}`}>
           r{s.requirement_revision} ·{" "}
           {s.state === "succeeded"
             ? "已保存"
@@ -65,7 +65,7 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
               : "等待保存"}
           {s.state === "succeeded" && s.entry_id && (
             <button
-              id={`task-file-${work.work_id}-${s.run_id}`}
+              id={`task-file-${work.work_id}-${s.run_id}-${s.operation_id}`}
               onClick={() =>
                 useShell.getState().openInspector(
                   {
@@ -75,7 +75,7 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
                       workId: work.work_id,
                       runId: s.run_id,
                       sourceRequirementRevision: s.requirement_revision,
-                      triggerId: `task-file-${work.work_id}-${s.run_id}`,
+                      triggerId: `task-file-${work.work_id}-${s.run_id}-${s.operation_id}`,
                     },
                   },
                   true,

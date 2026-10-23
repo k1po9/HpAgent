@@ -18,6 +18,7 @@ from agent_workflows.delegation import WorkDelegationWorkflow
 from agent_workflows.html import HtmlCapabilityWorkflow
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
+from agent_workflows.text import TextCapabilityWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.document_workflow import NormalizeDocumentWorkflow
@@ -101,6 +102,7 @@ def test_canonical_registry_excludes_legacy_execution(monkeypatch):
         CapabilityInvocationWorkflow,
         ResearchCapabilityWorkflow,
         HtmlCapabilityWorkflow,
+        TextCapabilityWorkflow,
     ]
 
 
@@ -113,7 +115,7 @@ async def test_registered_workflows_validate_in_temporal_sandbox():
     for workflow_type in (
         AgentLifecycleWorkflow, NormalizeDocumentWorkflow, AgentRunWorkflow,
         ReactAgentWorkflow, PlanAndExecuteWorkflow, AgentStepWorkflow,
-        ToolExecutionWorkflow, WorkDelegationWorkflow, CapabilityInvocationWorkflow, ResearchCapabilityWorkflow, HtmlCapabilityWorkflow,
+        ToolExecutionWorkflow, WorkDelegationWorkflow, CapabilityInvocationWorkflow, ResearchCapabilityWorkflow, HtmlCapabilityWorkflow, TextCapabilityWorkflow,
     ):
         runner.prepare_workflow(workflow._Definition.must_from_class(workflow_type))
 

@@ -9,9 +9,10 @@ import { WorkInputs } from "./TaskInputs";
 import { useWorkspaceQuery } from "../workspace/useWorkspaceQuery";
 import { listGrants, type Subject } from "../workspace/workspaceOperations";
 export function TaskResources({ work }: { work: HpWork }) {
-  const [nodeId, setNodeId] = useState("");
+  const destination = String(work.requirement.deliverable_policy?.directory_id ?? "");
+  const [nodeId, setNodeId] = useState(destination);
   const tree = useWorkspace((s) => s.tree);
-  const node = tree?.nodes.find((n) => n.node_id === nodeId);
+  const node = tree?.nodes?.find((n) => n.node_id === nodeId);
   const subject: Subject = { kind: "work", id: work.work_id, title: work.title };
   const grants = useWorkspaceQuery(`work-grants:${work.work_id}`, () => listGrants(subject));
   const metadata = useWorkspaceQuery(node?.file_id ? `file:${node.file_id}` : null, () =>
@@ -24,6 +25,15 @@ export function TaskResources({ work }: { work: HpWork }) {
   return (
     <div className="hp-operation-form">
       <WorkspaceDirectoryLoader />
+      <h4>成果保存权限</h4>
+      <p>
+        {destination
+          ? `要求保存到：${nodePath(tree, destination)}`
+          : "尚未指定成果保存目录，可在概览的「修改要求」中选择。"}
+      </p>
+      <p>
+        选择保存目录，在「高级写入权限」中勾选「创建子项」并确认授权。新增授权下一轮生效，已有执行不会获得新权限。若任务正在等待补充，请在概览「修改要求」中确认要求后提交修订；暂停中的任务还需恢复。
+      </p>
       <h4>已授权资料</h4>
       {grants.error && (
         <p role="alert">
@@ -51,7 +61,7 @@ export function TaskResources({ work }: { work: HpWork }) {
           }}
         >
           <option value="">请选择</option>
-          {tree?.nodes.map((n) => (
+          {tree?.nodes?.map((n) => (
             <option key={n.node_id} value={n.node_id}>
               {nodePath(tree, n.node_id)}
             </option>

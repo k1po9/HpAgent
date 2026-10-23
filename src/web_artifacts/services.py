@@ -102,7 +102,7 @@ class ArtifactService:
                 (account_id, artifact_id),
             ).fetchone()
             parent = uow.execute(
-                "SELECT artifact_version_id FROM artifact_versions WHERE account_id=%s "
+                "SELECT artifact_version_id,source_markdown FROM artifact_versions WHERE account_id=%s "
                 "AND artifact_id=%s AND status='completed' ORDER BY version DESC LIMIT 1",
                 (account_id, artifact_id),
             ).fetchone()
@@ -112,7 +112,8 @@ class ArtifactService:
                 "INSERT INTO artifact_versions(artifact_version_id,artifact_id,account_id,"
                 "version,parent_version_id,instruction,source_markdown) VALUES (%s,%s,%s,%s,%s,%s,%s)",
                 (version_id, artifact_id, account_id, number,
-                 parent["artifact_version_id"] if parent else None, instruction, latest["source_markdown"] if latest else None),
+                 parent["artifact_version_id"] if parent else None, instruction,
+                 parent["source_markdown"] if parent else latest["source_markdown"] if latest else None),
             )
             self._enqueue(
                 uow, event_id, account_id, artifact["conversation_id"], artifact_id, version_id, 'create_artifact_version', key

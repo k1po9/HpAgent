@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 from uuid import UUID
 
 from application.execution_contracts import ExecutionRequest
@@ -49,7 +50,7 @@ class WorkContextProvider:
             # Filter metadata through current grants as well as the frozen candidate set.
             candidates = ResourcePolicy(self.database).candidates_in_uow(uow, run["account_id"], run_id, limit=20)
             budget = uow.execute(
-                "SELECT limits FROM run_budgets WHERE run_id=%s", (run_id,)
+                "SELECT limits,used,reserved FROM run_budgets WHERE run_id=%s", (run_id,)
             ).fetchone()
             from persistence.repositories import FileRepository
             files = FileRepository().list_ready_for_run(uow, run["account_id"], run_id)
@@ -83,9 +84,17 @@ class WorkContextProvider:
             (
                 {
                     "role": "system",
-                    "content": "Execute this fixed Work brief within authorized resources. "
+                    "content": "你正在执行持久 Work，不是在聊天中展示代码。文字、HTML 代码块或口头成功都不是已发布成果、版本或保存回执。"
+                    "普通文字成果使用 capability__text__v1 发布完整正文，再以返回的 ResultRef 调用 result__evidence 登记 output_exists 条件。轻量搜索和阅读直接使用 web_search/web_fetch；只有需求明确要求专业研究时再调用 Research，避免为同一个轻量查询同时启动搜索和 Research。工具观察是后续决策依据。除非任务明确要求，不需要 Research、HTML、Workspace 长期保存或专业检查。"
+                    "交付需要可保存的不可变引用与检查时，应选择提供这些结果的已注册能力；不要在最终文字中手工替代它的输出。"
+                    "已有成功来源结果应复用准确引用；局部格式不足可以改变行动修正，不需要为此重复成功的研究。"
+                    "子能力只接收显式 inputs，不继承本任务要求。调用时必须把与该能力相关的用户行为、结构、控件和修改要求传入对应 instruction 等字段；不能只传来源引用而丢失目标。"
+                    "只在确实缺少用户资料或权限时等待输入。按照要求使用父侧保存及证据工具，最后只返回符合结果契约的 JSON 对象，不要代码围栏。"
+                    "Research 的剩余额度见 budget 的 research_iterations（limits-used-reserved）。每次调用结果也返回实际用量和停止原因；剩余为零或没有新查询策略时停止调用 Research，明确报告尝试和缺口，沿现有恢复入口等待处理，不能新建 Run 绕过限制。"
+                    "Execute this fixed Work brief within authorized resources. "
                     "For bound inputs read the run_files logical names or use list_files to discover more. "
                     "For file resources use list_run_candidates, select_run_candidate, then read_file by returned logical name. "
+                    "Selected artifact_refs include exact result_ref_id metadata when available; explicitly adopt the selected old result before revising it. Metadata alone grants no file access. "
                     "Save progress or state missing input. A narrative answer cannot complete the mandate. "
                     "Do not create or manage other Work. No implicit channel or resource permission is granted. "
                     "For independent investigation directions, delegate_work is available once with up to three bounded briefs. "
@@ -147,14 +156,30 @@ class RunExecutionBindings:
             raise ValueError("context identity mismatch")
 
 
+def _generic_result_object(content):
+    """Accept one explicit JSON result; prose alone never supplies a result."""
+    if not isinstance(content, str):
+        return None
+    try:
+        return json.loads(content)
+    except ValueError:
+        # Providers can wrap the explicit final object despite the raw-JSON
+        # instruction. Exactly one final JSON fence is unambiguous; do not scan
+        # arbitrary prose/braces or choose among multiple candidate blocks.
+        blocks = list(re.finditer(r"(?m)^```json[ \t]*\r?\n([\s\S]*?)^```[ \t]*$", content))
+        if len(blocks) != 1 or content[blocks[0].end():].strip() or content.count("```") != 2:
+            return None
+        try:
+            return json.loads(blocks[0].group(1))
+        except ValueError:
+            return None
+
+
 def generic_result(uow, run, work, content, result_ref):
     """An Agent recommends a typed result; persisted facts determine acceptance."""
     from work_domain.models import bounded, continuation
 
-    try:
-        result = json.loads(content)
-    except (ValueError, TypeError):
-        result = None
+    result = _generic_result_object(content)
     if not isinstance(result, dict) or result.get("schema_version") != 1 or "kind" not in result:
         # Narrative is retained as a candidate, never interpreted as completion evidence.
         result = {

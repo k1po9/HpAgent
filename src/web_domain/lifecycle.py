@@ -107,6 +107,22 @@ class WebRunLifecycleService:
             run = RunLifecycleService.lock(uow, account_id, run_id)
             if run["status"] not in {"cancelling", "cancelled", "succeeded", "failed"}:
                 if run['source_kind'] == 'chat':
+                    # A rejected Main parameter set cannot become a verbal handoff.
+                    # Recoveries with a committed mandate retain the normal response.
+                    rejected = uow.execute(
+                        "SELECT 1 FROM agent_transcripts t JOIN agent_transcript_events e USING(transcript_id) "
+                        "WHERE t.account_id=%s AND t.run_id=%s AND e.event_type='tool_result' "
+                        "AND e.payload->'message'->>'name'='accept_work' "
+                        "AND position('委托未建立：' in (e.payload->'message'->>'content'))>0 LIMIT 1",
+                        (account_id, run_id),
+                    ).fetchone()
+                    accepted = uow.execute(
+                        "SELECT 1 FROM idempotency_commands WHERE account_id=%s AND operation='accept_work' "
+                        "AND status='completed' AND idempotency_key LIKE %s LIMIT 1",
+                        (account_id, f"main-accept:{run['trigger_message_id']}:%"),
+                    ).fetchone() if rejected else None
+                    if rejected and not accepted:
+                        content = "委托未建立，请根据参数错误补充或修正要求。\n\n" + content
                     RunLifecycleService(self.database_url).finish_in_uow(uow, run, 'succeeded', content=content)
                 else:
                     work = RunLifecycleService.check_work(uow, run)

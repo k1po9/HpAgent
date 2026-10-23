@@ -161,6 +161,10 @@ class ModelClient:
             _payload_digest=hashlib.sha256(canonical_request_json(frozen)).digest(),
         )
 
+    async def before_dispatch(self, prepared: PreparedModelRequest) -> None:
+        """Optional composition guard after reservation, before dispatch is recorded."""
+        prepared.verify_immutable()
+
     async def send_prepared(
         self,
         prepared: PreparedModelRequest,

@@ -30,6 +30,7 @@ def test_search_retention_and_run_authority(db, account_id, database_url):
     assert discovery.retention(account_id, file_id)["references"]["active_entries"] == 2
     assert discovery.space(account_id)["bytes_with_active_entry"] == 7
     assert discovery.trace(account_id, entry)["saves"][0]["operation_id"] == "p5-save"
+    assert discovery.trace(account_id, entry)["artifact"] is None
     run_id = UUID(CommandService(database_url).send_message(
         account_id, conversation, str(uuid4()), "read")['run_id'])
     assert discovery.search(account_id, run_id=run_id)["items"] == []
@@ -58,4 +59,7 @@ def test_search_retention_and_run_authority(db, account_id, database_url):
     other = uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (other,))
     assert discovery.search(other)["items"] == []
+    from web_domain.errors import ResourceNotFound
+    with pytest.raises(ResourceNotFound):
+        discovery.trace(other, entry)
     assert discovery.search(account_id, run_id=next_run, name="secret")["items"] == []

@@ -240,3 +240,35 @@ def test_front_doors_are_ordered_by_priority_then_deterministic_ties():
             front_door_family=family, front_door_priority=priority,
         ))
     assert CandidatePolicy.select_front_doors(registry.list_registered()) == ["alpha", "beta", "low"]
+
+
+async def test_action_selection_preserves_main_and_file_reserved_tools_with_defaults(tmp_path):
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    from actions.runtime import ActionRuntime
+    from orchestration.config import ToolRagConfig
+    from sandbox.sandbox_manager import SandboxManager
+
+    manager = SandboxManager(native_tools_enabled=False, file_tools_enabled=True,
+                             work_commands=SimpleNamespace(), nsjail_enabled=False, data_root=tmp_path)
+    scope = SimpleNamespace(inputs=(), outputs=())
+    manager.bind_run_file_scope('resource', 'resource', scope)
+    sandbox_id = manager.create_execution_sandbox('resource', str(tmp_path), session_context={
+        'account_id': str(uuid4()), 'conversation_id': str(uuid4()),
+        'trigger_message_id': str(uuid4()), 'source_kind': 'chat', 'channel_type': 'web',
+    })
+    try:
+        runtime = ActionRuntime(sandbox_manager=manager, tool_rag_top_k=ToolRagConfig().top_k)
+        tools = await runtime.select_tools(resource_key='resource', execution_id='execution',
+                                           user_content='Continue research and make a page in background')
+        names = {t['function']['name'] for t in tools}
+        assert {'accept_work', 'get_work', 'control_work', 'list_run_candidates'} <= names
+        assert 'Bash' not in names
+        too_small = ActionRuntime(sandbox_manager=manager, tool_rag_top_k=1)
+        with pytest.raises(ToolRoutingConfigurationError, match='reserved tools'):
+            await too_small.select_tools(resource_key='resource', execution_id='execution')
+    finally:
+        manager.destroy_sandbox(sandbox_id)
+        manager.unbind_run_file_scope('resource')
+        manager.close()
