@@ -67,13 +67,7 @@ def compose_durable_runtime(
     )
     from research_activities import ResearchActivities
     from research_adapters import (
-        CompositeSourceDiscoveryProvider,
-        GitHubDiscoveryProvider,
-        PlaywrightBrowserFetchProvider,
         ResourcePoolResearchSynthesizer,
-        RSSDiscoveryProvider,
-        SearXNGDiscoveryProvider,
-        StaticWebContentProvider,
         W3libSourceCanonicalizer,
     )
     from resources.run_budget import RunBudgetService
@@ -141,26 +135,13 @@ def compose_durable_runtime(
         event_factory,
     )
     canonicalizer = W3libSourceCanonicalizer()
+    from web_retrieval.composition import compose_retrieval
+
+    retrieval = compose_retrieval(config.research, canonicalizer)
     research_activities = ResearchActivities(
         worker_database_url,
-        CompositeSourceDiscoveryProvider(
-            [
-                SearXNGDiscoveryProvider(
-                    config.research.searxng_url,
-                    timeout_seconds=config.research.search_timeout_seconds,
-                ),
-                GitHubDiscoveryProvider(),
-                RSSDiscoveryProvider(timeout_seconds=config.research.search_timeout_seconds),
-            ]
-        ),
-        StaticWebContentProvider(
-            canonicalizer,
-            browser=PlaywrightBrowserFetchProvider(
-                timeout_seconds=config.research.browser_timeout_seconds
-            ),
-            timeout_seconds=config.research.fetch_timeout_seconds,
-            min_content_chars=config.research.min_content_chars,
-        ),
+        retrieval,
+        retrieval,
         canonicalizer,
         ResourcePoolResearchSynthesizer(infrastructure.resource_pool),
         max_sources=config.research.max_sources,
@@ -202,7 +183,10 @@ def compose_durable_runtime(
     artifact_build.capabilities = capability_activities
     artifact_build.publisher = infrastructure.file_output_publisher
     html_activities = HtmlActivities(capability_activities, artifact_build.generator, infrastructure.file_output_publisher)
+    from agent_activities.web_tools import WebTools
+
     durable_activities.capabilities = capability_activities
+    durable_activities.web_tools = WebTools(retrieval.service, durable_activities.run_budget)
     segment_activities = SegmentActivities(durable_activities.store)
     from agent_activities.delegation import DelegationActivities
 

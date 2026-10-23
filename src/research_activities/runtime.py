@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 from collections.abc import Callable
 from contextlib import suppress
@@ -421,12 +422,28 @@ class ResearchActivities:
         with UnitOfWork(self.database) as uow:
             assert_execution_fence(uow)
             row = self.repository.load_plan(uow, run_id)
+            previous = uow.execute(
+                "SELECT gap_analysis FROM research_iterations WHERE research_id=%s AND iteration<%s ORDER BY iteration DESC LIMIT 1",
+                (research_key(run_id), iteration),
+            ).fetchone()
         plan = row["plan"]
         if isinstance(plan, str):
             plan = json.loads(plan)
-        suffix = {1: "", 2: " official primary sources", 3: " independent corroboration"}[iteration]
+        from research_adapters.web import discovery_query
+
+        strategy = SourceStrategy.from_dict(dict(plan["source_strategy"]))
         query = str(plan["questions"][0]["question"])
-        return f"{query}{suffix}", SourceStrategy.from_dict(dict(plan["source_strategy"]))
+        missing = (previous["gap_analysis"] or {}).get("missing_concepts", []) if previous else []
+        if missing:
+            sites = re.findall(r"site:[a-zA-Z0-9.-]+", discovery_query(query, strategy))
+            query = " ".join(missing)
+            if strategy.preferred_domains:
+                sites = ["site:" + domain for domain in strategy.preferred_domains[:2]]
+            if sites:
+                query = "(" + " OR ".join(sites) + ") " + query
+        service = getattr(self.discovery, "service", None)
+        max_chars = 128 if getattr(service, "default_search", None) == "deepseek" else 240
+        return discovery_query(query, strategy, max_chars=max_chars), strategy
 
     @retryable_transaction
     def _start_iteration(self, run_id: UUID, iteration: int, query: str) -> None:
@@ -505,7 +522,10 @@ class ResearchActivities:
             operation_id,
             {"sources_discovered": reserved_sources},
         )
-        candidates = await self.discovery.discover(query, strategy=strategy, limit=remaining)
+        from web_retrieval.budget import retrieval_budget_scope
+
+        with retrieval_budget_scope(self.budget, run_id, operation_id):
+            candidates = await self.discovery.discover(query, strategy=strategy, limit=remaining)
         with UnitOfWork(self.database) as uow:
             assert_execution_fence(uow)
             source_ids = self.repository.add_candidates(
@@ -560,6 +580,7 @@ class ResearchActivities:
         )
 
     async def _fetch(self, run_id: UUID, iteration: int) -> int:
+        _, strategy = self._iteration_context(run_id, iteration)
         with UnitOfWork(self.database) as uow:
             assert_execution_fence(uow)
             fetched_total = int(
@@ -593,7 +614,16 @@ class ResearchActivities:
                 metadata=dict(row["metadata"]),
             )
             try:
-                fetch_task = asyncio.create_task(self.content.fetch(candidate))
+                from web_retrieval.budget import retrieval_budget_scope
+                from web_retrieval.context import source_scope
+
+                scope_token = source_scope.set(strategy)
+                try:
+                    with retrieval_budget_scope(self.budget, run_id,
+                            f"research:{research_identity(run_id)}:source:{row['source_id']}"):
+                        fetch_task = asyncio.create_task(self.content.fetch(candidate))
+                finally:
+                    source_scope.reset(scope_token)
                 try:
                     while True:
                         done, _pending = await asyncio.wait(
@@ -612,6 +642,8 @@ class ResearchActivities:
                 with UnitOfWork(self.database) as uow:
                     assert_execution_fence(uow)
                     self.repository.store_content(uow, UUID(str(row["source_id"])), content)
+            except RunBudgetExhausted:
+                raise
             except Exception as exc:
                 with UnitOfWork(self.database) as uow:
                     assert_execution_fence(uow)

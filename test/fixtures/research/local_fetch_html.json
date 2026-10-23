@@ -1,0 +1,79 @@
+[
+  {
+    "name": "css-flexbox",
+    "provenance": "Synthetic HTML shaped after the six comparison topics; not a downloaded official snapshot.",
+    "html": "<html><body><nav>ExcludedGlobalNavigation<pre>ExcludedCode</pre></nav><main><h1>CSS Flexbox</h1><p>This synthetic technical fixture exercises extraction and preservation of definitions, restrictions and examples in their original order.</p><h2>Axes and wrapping</h2><p>Flexbox lays out items in one dimension at a time. The cross axis is perpendicular to the main axis.</p><p>Each wrapped line distributes space independently of the other lines.</p><pre><code class=\"language-html\">&lt;div class=\"box\"&gt;One&lt;/div&gt;\n</code></pre><pre><code class=\"language-css\">.box {\n    display: flex;\n    flex-wrap: wrap;\n}\n</code></pre><nav>ExcludedBodyNavigation</nav><aside><table><tr><td>ExcludedTable</td></tr></table></aside><p>For additional background, see <a href=\"https://example.org/reference\">the reference</a>.</p></main><footer>ExcludedFooter</footer></body></html>",
+    "facts": [
+      "one dimension",
+      "independently"
+    ],
+    "code": [
+      ".box {\n    display: flex;\n    flex-wrap: wrap;\n}\n",
+      "<div class=\"box\">One</div>\n"
+    ]
+  },
+  {
+    "name": "css-grid",
+    "provenance": "Synthetic HTML shaped after the six comparison topics; not a downloaded official snapshot.",
+    "html": "<html><body><nav>ExcludedGlobalNavigation<pre>ExcludedCode</pre></nav><main><h1>CSS Grid</h1><p>This synthetic technical fixture exercises extraction and preservation of definitions, restrictions and examples in their original order.</p><h2>Flexible tracks</h2><p>Grid controls rows and columns together. Unlike independent flex lines, items align in both dimensions.</p><pre><code class=\"language-css\">.wrapper {\n    display: grid;\n    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n}\n</code></pre><p>The minimum track width is 200px, and remaining space is shared.</p><nav>ExcludedBodyNavigation</nav><aside><table><tr><td>ExcludedTable</td></tr></table></aside><p>For additional background, see <a href=\"https://example.org/reference\">the reference</a>.</p></main><footer>ExcludedFooter</footer></body></html>",
+    "facts": [
+      "rows and columns",
+      "minimum track width"
+    ],
+    "code": [
+      "grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));"
+    ]
+  },
+  {
+    "name": "cache-control",
+    "provenance": "Synthetic HTML shaped after the six comparison topics; not a downloaded official snapshot.",
+    "html": "<html><body><nav>ExcludedGlobalNavigation<pre>ExcludedCode</pre></nav><main><h1>HTTP Cache-Control</h1><p>This synthetic technical fixture exercises extraction and preservation of definitions, restrictions and examples in their original order.</p><h2>Directives</h2><p>no-cache allows storage but requires validation before reuse. no-store prevents storage by all caches.</p><p>private restricts storage to private caches. max-age starts when the response was generated, not when received.</p><table><thead><tr><th>Request</th><th>Response</th></tr></thead><tbody><tr><td>max-age</td><td>s-maxage</td></tr><tr><td>no-cache</td><td>private</td></tr></tbody></table><pre><code class=\"language-http\">Cache-Control: max-age=604800\nAge: 100\n</code></pre><nav>ExcludedBodyNavigation</nav><aside><table><tr><td>ExcludedTable</td></tr></table></aside><p>For additional background, see <a href=\"https://example.org/reference\">the reference</a>.</p></main><footer>ExcludedFooter</footer></body></html>",
+    "facts": [
+      "requires validation",
+      "prevents storage",
+      "not when received"
+    ],
+    "code": [
+      "Cache-Control: max-age=604800\nAge: 100\n"
+    ]
+  },
+  {
+    "name": "http-caching",
+    "provenance": "Synthetic HTML shaped after the six comparison topics; not a downloaded official snapshot.",
+    "html": "<html><body><nav>ExcludedGlobalNavigation<pre>ExcludedCode</pre></nav><main><h1>HTTP caching</h1><p>This synthetic technical fixture exercises extraction and preservation of definitions, restrictions and examples in their original order.</p><h2>Conditional requests</h2><p>If-Modified-Since and If-None-Match validate cached responses. If-None-Match takes precedence when both are present.</p><pre><code class=\"language-http\">GET /index.html HTTP/1.1\nIf-Modified-Since: Tue, 22 Feb 2022 22:00:00 GMT\nIf-None-Match: \"33a64df5\"\n</code></pre><pre><code class=\"language-http\">HTTP/1.1 304 Not Modified\nCache-Control: max-age=3600\n</code></pre><h2>Force reload</h2><p>A normal reload validates; force reload bypasses the cached response.</p><pre><code class=\"language-javascript\">fetch(\"/\", { cache: \"reload\" });\n</code></pre><nav>ExcludedBodyNavigation</nav><aside><table><tr><td>ExcludedTable</td></tr></table></aside><p>For additional background, see <a href=\"https://example.org/reference\">the reference</a>.</p></main><footer>ExcludedFooter</footer></body></html>",
+    "facts": [
+      "takes precedence",
+      "force reload"
+    ],
+    "code": [
+      "HTTP/1.1 304 Not Modified\nCache-Control: max-age=3600\n",
+      "fetch(\"/\", { cache: \"reload\" });\n"
+    ]
+  },
+  {
+    "name": "asyncio-task",
+    "provenance": "Synthetic HTML shaped after the six comparison topics; not a downloaded official snapshot.",
+    "html": "<html><body><nav>ExcludedGlobalNavigation<pre>ExcludedCode</pre></nav><main><h1>TaskGroup gather</h1><p>This synthetic technical fixture exercises extraction and preservation of definitions, restrictions and examples in their original order.</p><h2>Task groups</h2><dl><dt>class <code>asyncio.TaskGroup</code></dt><dd><p>All tasks are awaited when the context manager exits. The first non-cancellation failure cancels remaining tasks.</p><pre><code class=\"language-python\">async def main():\n    async with asyncio.TaskGroup() as tg:\n        task1 = tg.create_task(some_coro())\n    print(task1.result())\n</code></pre></dd><dt><code>asyncio.gather(*aws, return_exceptions=False)</code></dt><dd><p>The first exception is propagated by default. Other awaitables are not cancelled and continue to run.</p></dd></dl><nav>ExcludedBodyNavigation</nav><aside><table><tr><td>ExcludedTable</td></tr></table></aside><p>For additional background, see <a href=\"https://example.org/reference\">the reference</a>.</p></main><footer>ExcludedFooter</footer></body></html>",
+    "facts": [
+      "All tasks are awaited",
+      "cancels remaining tasks",
+      "Other awaitables"
+    ],
+    "code": [
+      "async def main():\n    async with asyncio.TaskGroup() as tg:\n        task1 = tg.create_task(some_coro())\n    print(task1.result())\n"
+    ]
+  },
+  {
+    "name": "asyncio-sync",
+    "provenance": "Synthetic HTML shaped after the six comparison topics; not a downloaded official snapshot.",
+    "html": "<html><body><nav>ExcludedGlobalNavigation<pre>ExcludedCode</pre></nav><main><h1>Lock</h1><p>This synthetic technical fixture exercises extraction and preservation of definitions, restrictions and examples in their original order.</p><h2>Synchronization primitives</h2><p>These primitives are not thread-safe. Methods do not accept timeout; use asyncio.wait_for for timeouts.</p><dl><dt>class <code>asyncio.Lock</code></dt><dd><p>Implements a mutex lock. Acquiring a lock is fair: the first coroutine that started waiting on the lock proceeds first.</p><pre><code class=\"language-python\">lock = asyncio.Lock()\nawait lock.acquire()\ntry:\n    await use_resource()\nfinally:\n    lock.release()\n</code></pre><p>Releasing an unlocked lock raises RuntimeError.</p></dd></dl><nav>ExcludedBodyNavigation</nav><aside><table><tr><td>ExcludedTable</td></tr></table></aside><p>For additional background, see <a href=\"https://example.org/reference\">the reference</a>.</p></main><footer>ExcludedFooter</footer></body></html>",
+    "facts": [
+      "not thread-safe",
+      "Acquiring a lock is fair",
+      "RuntimeError"
+    ],
+    "code": [
+      "try:\n    await use_resource()\nfinally:\n    lock.release()\n"
+    ]
+  }
+]

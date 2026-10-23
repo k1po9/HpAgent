@@ -93,3 +93,7 @@ Main/UI 组合契约由 `test/work_domain/test_main_ui.py`、能力结果持久�
 执行查询回归从任务高级详情进入：窄屏关闭所属 Inspector 后、桌面所属 Inspector 仍挂载时，迟到响应均不得覆盖新前景。Model Input 回归从 Trace 节点的 snapshot_id 查询；无 Trace 不发输入查询，账号可见范围拒绝须清除已有正文，并拒绝在途正文回灌。用例见 [执行查询与前景](../../web/e2e/ui-7-self-review.spec.ts) 与 [执行详情和输入权限](../../web/e2e/ui-3-execution.spec.ts)。
 
 有界推进用例在 `test/work_domain/test_progress.py`：跨 Run 与同 Run 保护、样本重放、内容/摘要身份、固定 daily 基线、失败不推进、预算实际增额、旧生产者及暂停/停止。浏览器 `web/e2e/entry/entry.spec.ts` 的 progress protection 用例使用 API 路由夹具，在桌面/窄屏核对原因和干预入口，不证明真实 Provider 决策或 QQ 投递。基础设施集合使用独立资源；同一 PostgreSQL cluster 上新建多个测试库时，完整迁移需串行执行，旧链包含 cluster 级角色配置。
+
+Web Retriever v1 的模块边界见[设计总结](../architecture/capabilities.md#web-retriever-v1-设计总结)。离线回归入口为 `test/test_web_retrieval.py`、`test/test_deepseek_retrieval.py`、`test/test_local_fetch_markdown.py` 与 `test/test_main_web_tools.py`，覆盖 Provider 选择、来源范围、网络安全、格式/大小、身份、预算和恢复。`test/fixtures/research/local_fetch_html.json` 是可执行格式夹具，继续保留。
+
+持久化预算回归为 `test/web_persistence/test_web_retrieval_budget.py`；Main Command → Temporal → 工具 → 回复的隔离回归为 `test/web_persistence/test_main_web_tools.py`，需要显式专用 PG/Temporal。模型及供应商夹具只验证调用契约；Research 的证据选择、合成和报告质量按其自身流程测试，与 Retriever 模块冻结分别处理。

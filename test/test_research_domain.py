@@ -146,10 +146,11 @@ async def test_composite_discovery_fails_when_every_provider_fails():
         async def discover(self, query, *, strategy, limit):
             raise TimeoutError
 
-    with pytest.raises(RuntimeError, match="all source discovery providers failed"):
-        await CompositeSourceDiscoveryProvider([FailedProvider(), FailedProvider()]).discover(
-            "topic", strategy=SourceStrategy(), limit=5
-        )
+    results = await CompositeSourceDiscoveryProvider([FailedProvider(), FailedProvider()]).discover(
+        "topic", strategy=SourceStrategy(), limit=5
+    )
+    assert results == []
+    assert results.diagnostics["status"] == "all_unavailable"
 
 
 @pytest.mark.asyncio
@@ -382,3 +383,108 @@ async def test_static_timeout_retries_before_browser_fallback():
     assert attempts == 2
     assert browser.calls == 1
     assert content.metadata["fetch_mode"] == "playwright"
+
+
+def test_semantic_main_keeps_definition_names_and_excludes_navigation():
+    html = '''<html><body><nav>ExcludedNavigation</nav><main>
+    <h1>Primitives</h1><dl><dt><code>example.</code><strong>Mailbox</strong></dt>
+    <dd><p>Delivers messages in order.</p></dd></dl>
+    <aside>ExcludedSidebar</aside><script>ExcludedScript</script>
+    </main></body></html>'''
+    text = StaticWebContentProvider._extract(html, 'https://docs.example/primitives')
+    assert 'example.Mailbox' in text
+    assert 'Delivers messages in order.' in text
+    assert 'Excluded' not in text
+
+
+
+def test_long_discovery_brief_becomes_bounded_search_without_changing_objective():
+    from research_adapters.web import discovery_query
+    original = 'Research CSS Flexbox and Grid using developer.mozilla.org. ' + 'Only use official documentation and preserve all conditions. ' * 20
+    result = discovery_query(original, SourceStrategy())
+    assert len(result) <= 240
+    assert 'site:developer.mozilla.org' in result
+    assert 'flexbox' in result and 'grid' in result
+    assert 'preserve' not in result
+    assert original.endswith('conditions. ')
+    assert discovery_query('Museum admission policy', SourceStrategy()) == 'Museum admission policy'
+
+
+
+def test_long_discovery_can_use_other_subjects_and_explicit_domain_preferences():
+    from research_adapters.web import discovery_query
+    result = discovery_query('Compare `admission` and `membership`. ' + 'Please explain all requirements. ' * 20,
+                             SourceStrategy(preferred_domains=('museum.example',)))
+    assert 'site:museum.example' in result and 'admission' in result and 'membership' in result
+    assert len(result) <= 240
+
+
+
+async def test_discovery_prioritizes_explicit_site_hints_in_long_objectives():
+    brief = 'Research `admission` policy on docs.museum.example. ' + 'Preserve the relevant qualifications. ' * 20
+    def handler(request):
+        assert 'site:docs.museum.example' in request.url.params['q']
+        return httpx.Response(200, json={'results': [
+            {'url': 'https://other.example/irrelevant'},
+            {'url': 'https://docs.museum.example/admission'},
+            {'url': 'https://docs.museum.example/membership'},
+        ]})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        results = await SearXNGDiscoveryProvider('http://search', client=client).discover(brief, strategy=SourceStrategy(), limit=2)
+    assert all(r.uri.startswith('https://docs.museum.example/') for r in results)
+    assert all(r.metadata['preferred_domain'] for r in results)
+
+
+
+@pytest.mark.parametrize('days,time_range', [(None, None), (0, None), (7, 'month'), (1, 'day'), (90, 'year')])
+async def test_search_freshness_default_and_frozen_policy(days, time_range):
+    strategy = SourceStrategy.from_dict({} if days is None else {'freshness_days': days})
+    def handler(request):
+        assert request.url.params.get('time_range') == time_range
+        return httpx.Response(200, json={'results': [], 'unresponsive_engines': [['google', 'access denied']]})
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        results = await SearXNGDiscoveryProvider('http://search', client=client).discover('specific query', strategy=strategy, limit=3)
+    assert results.diagnostics['query'] == 'specific query'
+    assert results.diagnostics['freshness_days'] == (days or 0)
+    assert results.diagnostics['upstream_errors'][0]['engine'] == 'google'
+
+
+
+def test_explicit_freshness_never_treats_unknown_or_old_dates_as_current():
+    from datetime import UTC, datetime, timedelta
+
+    from research_adapters.web import freshness_status, source_date
+    strategy = SourceStrategy(freshness_days=7)
+    assert freshness_status(SourceCandidate('https://example.org'), strategy) == 'date_unknown'
+    assert freshness_status(SourceCandidate('https://example.org', published_at=datetime.now(UTC)-timedelta(days=8)), strategy) == 'outside_interval'
+    assert freshness_status(SourceCandidate('https://example.org', published_at=datetime.now(UTC)-timedelta(days=2)), strategy) == 'confirmed'
+    assert source_date('not a date') is None
+    assert SourceStrategy.from_dict({'freshness_days': 7}).freshness_days == 7
+
+
+
+async def test_search_diagnostics_distinguish_empty_partial_and_all_unavailable():
+    from research_adapters.web import DiscoveryCandidates
+    class Provider:
+        def __init__(self, status):
+            self.status = status
+        async def discover(self, *args, **kwargs):
+            return DiscoveryCandidates([], diagnostics={'status': self.status})
+    for statuses, expected in [(['ok'], 'ok'), (['ok', 'all_unavailable'], 'partial_unavailable'), (['all_unavailable'], 'all_unavailable')]:
+        result = await CompositeSourceDiscoveryProvider([Provider(s) for s in statuses]).discover('query', strategy=SourceStrategy(), limit=3)
+        assert result.diagnostics['status'] == expected
+
+
+
+def test_long_query_retains_lowercase_compound_directives():
+    from research_adapters.web import discovery_query
+    query = discovery_query('Compare HTTP Cache-Control no-cache no-store max-age. ' + 'Preserve all documented conditions and restrictions. ' * 15, SourceStrategy(preferred_domains=('developer.mozilla.org',)))
+    assert all(term in query for term in ('no-cache', 'no-store', 'max-age', 'cache-control'))
+    assert len(query) <= 240
+
+
+
+@pytest.mark.parametrize('value', [True, 7.5, '7', None])
+def test_source_strategy_requires_an_integer_freshness(value):
+    with pytest.raises(ValueError, match='freshness_days'):
+        SourceStrategy.from_dict({'freshness_days': value})

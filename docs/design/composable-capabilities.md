@@ -2,6 +2,8 @@
 
 可组合能力、Main/Work/UI 接口及有界推进的现行契约已归入[能力边界](../architecture/capabilities.md)、[执行与恢复](../architecture/execution.md)、[Work](../architecture/work.md)、[Workspace](../architecture/workspace.md)和[Web 契约](../architecture/web-ui.md)。本文只保留 S7 尚需确认的验收输入；接口存在、脚本决策通过均不代表真实模型或渠道已通过验收。
 
+Web Retriever v1 已冻结，模块设计见[设计总结](../architecture/capabilities.md#web-retriever-v1-设计总结)。本文的 Research/HTML 流程与验收事项不构成继续扩展或重新验收 Retriever 的开发任务。
+
 ## S7 — 全链验收与冗余路径收敛
 
 范围：验证组合、反馈、恢复、权限和产品控制；收敛已被替代且无独立价值的生成/完成路径。不新增运行时、预算账本、调用状态机、Work 调度平台或生成应用托管能力。
@@ -51,7 +53,7 @@
 - **真实产品链路**：浏览器 → 正式 HTTP 命令 → Main → Work → 真实 Agent 决策 → Research/HTML → 父保存/typed evidence → 权威查询。Main、父 Agent、Research synthesis 和 HTML generation 均使用获准真实 Provider；来源使用批准的公开站点，不能用固定模型响应或直接指定工具调用序列代替。
 - **真实模型加受控故障**：保留相同生产链和真实决策，只在预声明的 Activity/Adapter 边界制造一次局部不足、丢失响应或进程终止。此类结果证明模型对该受控观察的响应，不证明 Provider 会自然产生同一故障。
 
-现有 [确定性组合测试](../../test/work_domain/test_composable_chain.py) 手写父模型决策并使用来源/模型夹具，继续承担离线回归；不将它改名后充当真实模型证据。[策略 benchmark](../../scripts/benchmarks/agent_strategy/README.md) 有独立代码工作区和接口假设，模型连通性及 release smoke 也不覆盖本方案，均不直接作为 S7-1 入口。
+现有 确定性组合测试 手写父模型决策并使用来源/模型夹具，继续承担离线回归；不将它改名后充当真实模型证据。[策略 benchmark](../../scripts/benchmarks/agent_strategy/README.md) 有独立代码工作区和接口假设，模型连通性及 release smoke 也不覆盖本方案，均不直接作为 S7-1 入口。
 
 ### 冻结输入与隔离环境
 

@@ -80,7 +80,9 @@ class Requirement:
             from research_domain.models import SourceStrategy
 
             raw = self.spec.get('source_strategy', {})
-            if not isinstance(raw, dict) or set(raw) - set(SourceStrategy().to_dict()):
+            if not isinstance(raw, dict) or set(raw) - (
+                set(SourceStrategy().to_dict()) | {'allowed_domains', 'excluded_domains'}
+            ):
                 raise ValueError('invalid source strategy')
             SourceStrategy.from_dict(raw)
         timing = self.timing or {'schema_version': 1, 'kind': 'immediate', 'timezone': 'UTC'}

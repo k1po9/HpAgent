@@ -21,13 +21,22 @@ class SourceStrategy:
     github: bool = True
     rss: bool = True
     uploaded_files: bool = False
-    freshness_days: int = 7
+    freshness_days: int = 0
     preferred_domains: tuple[str, ...] = ()
     rss_feeds: tuple[str, ...] = ()
+    allowed_domains: tuple[str, ...] = ()
+    excluded_domains: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        if self.freshness_days < 0:
+        if type(self.freshness_days) is not int or self.freshness_days < 0:
             raise ValueError("freshness_days must be non-negative")
+        for name in ('allowed_domains', 'excluded_domains'):
+            values = tuple(str(d).lower().rstrip('.').encode('idna').decode()
+                           for d in getattr(self, name))
+            if any(not re.fullmatch(r'[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?', d)
+                   or '.' not in d or '..' in d for d in values):
+                raise ValueError('invalid_source_domain')
+            object.__setattr__(self, name, values)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -39,6 +48,8 @@ class SourceStrategy:
             "freshness_days": self.freshness_days,
             "preferred_domains": list(self.preferred_domains),
             "rss_feeds": list(self.rss_feeds),
+            **({"allowed_domains": list(self.allowed_domains)} if self.allowed_domains else {}),
+            **({"excluded_domains": list(self.excluded_domains)} if self.excluded_domains else {}),
         }
 
     @classmethod
@@ -50,9 +61,11 @@ class SourceStrategy:
             github=bool(value.get("github", True)),
             rss=bool(value.get("rss", True)),
             uploaded_files=bool(value.get("uploaded_files", False)),
-            freshness_days=int(value.get("freshness_days", 7)),
+            freshness_days=value.get("freshness_days", 0),
             preferred_domains=tuple(str(item) for item in value.get("preferred_domains", ())),
             rss_feeds=tuple(str(item) for item in value.get("rss_feeds", ())),
+            allowed_domains=tuple(value.get("allowed_domains", ())),
+            excluded_domains=tuple(value.get("excluded_domains", ())),
         )
 
 

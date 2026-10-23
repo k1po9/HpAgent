@@ -96,7 +96,9 @@ class RunBudgetService:
         amounts: Mapping[str, int],
         *,
         final_response: bool = False,
+        enforce_limits: bool = False,
     ) -> BudgetMutation:
+        # Trusted metered tools may require strict caps without rewriting snapshot mode.
         exhaustion: RunBudgetExhausted | None = None
         with UnitOfWork(self.database) as uow:
             result = self.reserve_in_uow(
@@ -105,6 +107,7 @@ class RunBudgetService:
                 operation_id,
                 amounts,
                 final_response=final_response,
+                enforce_limits=enforce_limits,
                 _defer_exhaustion=True,
             )
             if isinstance(result, RunBudgetExhausted):
@@ -121,6 +124,7 @@ class RunBudgetService:
         amounts: Mapping[str, int],
         *,
         final_response: bool = False,
+        enforce_limits: bool = False,
         _defer_exhaustion: bool = False,
     ) -> BudgetMutation | RunBudgetExhausted:
         # Roll back any Work hold if Run validation rejects the reservation.
@@ -128,7 +132,8 @@ class RunBudgetService:
         try:
             with uow.connection.transaction():
                 return self._reserve_in_uow(
-                    uow, run_id, operation_id, amounts, final_response=final_response
+                    uow, run_id, operation_id, amounts, final_response=final_response,
+                    enforce_limits=enforce_limits,
                 )
         except psycopg.errors.RaiseException as error:
             if error.diag.message_primary == "capability invocation call limit exceeded":
@@ -147,7 +152,7 @@ class RunBudgetService:
             raise
 
     def _reserve_in_uow(
-        self, uow, run_id, operation_id, amounts, *, final_response=False
+        self, uow, run_id, operation_id, amounts, *, final_response=False, enforce_limits=False
     ) -> BudgetMutation:
         from run_domain.execution import StaleFencingToken, assert_execution_fence
         from run_domain.execution_context import execution_fence
@@ -207,7 +212,7 @@ class RunBudgetService:
                 0, limit - protected
             ):
                 exceeded.append(dimension)
-        enforced_exhaustion = bool(exceeded and budget["mode"] == "enforce")
+        enforced_exhaustion = bool(exceeded and (budget["mode"] == "enforce" or enforce_limits))
         if enforced_exhaustion:
             raise RunBudgetExhausted("Run budget exhausted for: " + ", ".join(sorted(exceeded)))
         for dimension, amount in requested.items():

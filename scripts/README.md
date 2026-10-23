@@ -46,3 +46,11 @@
 - `web/scripts/*.mjs` 是专项浏览器工具，可能要求特定路由、HTML和隔离夹具，不能作为当前通用门禁。浏览器路径可覆盖，`--help`不启动浏览器；实际运行要求`HPAGENT_REVIEW_ISOLATED=1`和`--isolated`。保留其中尚未证明等价的断言，运行前核对脚本输入；默认验证使用上表正式入口。
 
 当前开发/测试环境见[开发指南](../docs/development/setup.md)和[测试指南](../docs/development/testing.md)。发布、日志、备份恢复分别以现有operations文档为准，不在脚本中维护第二套部署流程。
+
+## Web 检索供应商对照工具
+
+`PYTHONPATH=src python scripts/experiments/web_retrieval_compare.py --execute --output /absolute/new/result-dir`
+
+对照 legacy/DeepSeek Search 和固定官方 URL 的 Local/DeepSeek Fetch，不访问业务库或模型，不启动服务。`--searxng-url` 指定搜索入口，默认 `http://127.0.0.1:8085`；结果写仓库外新目录。模块设计见[Web Retriever v1](../docs/architecture/capabilities.md#web-retriever-v1-设计总结)。
+
+**会产生检索费用**：每轮最多 9 次 DeepSeek 尝试，无自动重试；仅使用既有 `DEEPSEEK_API_SEARCH_FETCH`。脚本内 `LEDGER` 指定的累计账本必须已存在且有效，每次尝试发送前加锁落盘，失败/未知也永久占额，累计上限 1,000；不得删除、重置或替换历史来恢复名额。401/402/403 停止后续 DeepSeek 请求。实验账本不替代产品 Run/Work 预算；脚本完成不代表 Research 报告通过。

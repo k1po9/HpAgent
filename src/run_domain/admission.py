@@ -142,6 +142,7 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
             "model_output_tokens": 20000,
             "model_total_tokens": 100000,
             "model_calls": 20,
+            "tool_calls": 40,
             "wall_time_ms": 1800000,
         }
         if research

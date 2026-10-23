@@ -81,6 +81,7 @@ class DurableAgentActivities:
         lifecycle: Any,
         run_budget: Any = None,
         capabilities: Any = None,
+        web_tools: Any = None,
         reconciler: ToolSideEffectReconciler | None = None,
         fault_injector: FaultInjector | None = None,
         approval_service: Any = None,
@@ -96,6 +97,7 @@ class DurableAgentActivities:
         self.lifecycle = lifecycle
         self.run_budget = run_budget
         self.capabilities = capabilities
+        self.web_tools = web_tools
         self.reconciler = reconciler or UnsupportedToolSideEffectReconciler()
         self.fault_injector = fault_injector or NoopFaultInjector()
         self.approval_service = approval_service
@@ -542,6 +544,12 @@ class DurableAgentActivities:
                             tools = [*tools, DELEGATE_MANIFEST]
                         if not is_child and self.capabilities is not None:
                             tools = [*tools, *self.capabilities.discover(request.source.source_kind)]
+                        if not is_child and self.web_tools is not None:
+                            from agent_activities.web_tools import NAMES as WEB_TOOLS
+                            from agent_activities.web_tools import discover as web_manifests
+
+                            tools = [tool for tool in tools if tool_name(tool) not in WEB_TOOLS]
+                            tools.extend(web_manifests())
                         decision = await self.brain.generate_chat_decision(
                             messages=model_messages,
                             tools=tools or None,
@@ -771,8 +779,14 @@ class DurableAgentActivities:
                     self._tool_heartbeat_loop(request)
                 )
                 from agent_activities.result_tools import NAMES as RESULT_TOOLS
+                from agent_activities.web_tools import NAMES as WEB_TOOLS
+
+                web_tool = self.web_tools is not None and request.tool_call.name in WEB_TOOLS
+                if web_tool and execution['role'] != 'root':
+                    raise ApplicationError('Web tools require the root Execution',
+                                           type='delegation_scope_denied', non_retryable=True)
                 parent_result_tool = self.capabilities is not None and request.tool_call.name in RESULT_TOOLS
-                side_effect_class = "idempotent_write" if parent_result_tool else normalize_side_effect_class(str(
+                side_effect_class = "read_only" if web_tool else "idempotent_write" if parent_result_tool else normalize_side_effect_class(str(
                     self.actions.side_effect_class(self.context_bindings.resource_key(request), request.tool_call.name)
                 ))
                 if execution["role"] != "root" and side_effect_class != "read_only":
@@ -864,7 +878,7 @@ class DurableAgentActivities:
                         request.lease_token,
                     )
                     reservation = {"tool_calls": 1}
-                    if self.run_budget is not None and not parent_result_tool:
+                    if self.run_budget is not None and not parent_result_tool and not web_tool:
                         reservation = self.actions.budget_reservation(
                             self.context_bindings.resource_key(request), request.tool_call.name
                         )
@@ -897,7 +911,9 @@ class DurableAgentActivities:
                                 tool_dispatched = True
                                 if side_effect_class == 'non_idempotent_write':
                                     non_idempotent_may_have_executed = True
-                                if parent_result_tool:
+                                if web_tool:
+                                    result_value = await self.web_tools.execute(action, request)
+                                elif parent_result_tool:
                                     from agent_activities.result_tools import execute
                                     result_value = await asyncio.to_thread(execute, self.store.database_url, self.capabilities.facts, action, request.operation_id)
                                 else:
@@ -909,13 +925,13 @@ class DurableAgentActivities:
                                         idempotency_key=request.operation_id,
                                     )
                     except BaseException:
-                        if self.run_budget is not None:
+                        if self.run_budget is not None and not web_tool:
                             if tool_dispatched:
                                 await asyncio.to_thread(self.run_budget.settle,request.run_id,request.operation_id,reservation,'estimated')
                             else:
                                 await asyncio.to_thread(self.run_budget.release,request.run_id,request.operation_id)
                         raise
-                    if self.run_budget is not None:
+                    if self.run_budget is not None and not web_tool:
                         measured = {dimension: 0 for dimension in reservation}
                         measured["tool_calls"] = 1
                         raw_usage = (result_value.metadata or {}).get("budget_usage")

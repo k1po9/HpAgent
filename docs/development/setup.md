@@ -54,3 +54,9 @@ docker compose --profile qq up -d napcat
 开发时使用 `./scripts/operations/logs.sh` 查看日志；使用 `docker compose --profile web down` 停止服务。
 
 首次人工操作见[功能指南](../operations/web-workbench.md)。首次打开后通过注册创建带密码的Web账户；管理员bootstrap仅绑定身份，不创建密码。测试前另建隔离数据库并显式设置三个同库DSN与E2E隔离标记，详见[测试](testing.md)；不要让测试 fixture 清理已登录账户的业务环境。
+
+## Web Retriever 配置
+
+Web Retriever v1 已冻结，模块设计与边界见[设计总结](../architecture/capabilities.md#web-retriever-v1-设计总结)。Worker 读取 `WEB_RETRIEVAL_SEARCH_PROVIDER=legacy|deepseek`、`WEB_RETRIEVAL_FETCH_PROVIDER=local|deepseek` 和既有密钥 `DEEPSEEK_API_SEARCH_FETCH`；由入口/容器注入，底层不加载 dotenv。默认 legacy/local，新环境推荐 DeepSeek Search + Local Fetch；缺少所选供应商或密钥时启动失败，不隐式切换。
+
+Main 使用 web_search/web_fetch，provider=auto 读取配置，quick/standard 控制大小；本地默认 Text，进程内 `FetchRequest(format="markdown")` 可显式选择 Markdown v3。DeepSeek Fetch 仅支持 Markdown 且最终 URL 未知，严格来源 Research 保持 local。共享本地抓取需要公网直连，不提供代理或浏览器回退。配置修改与部署生效分别处理。

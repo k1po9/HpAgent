@@ -83,3 +83,38 @@ Heavy Document Normalization 是 File 能力中高开销的执行分支。独立
 Provider serializer v2 显式规范化 OpenAI / Anthropic transcript，并在快照和预留前校验工具调用结果配对。安全失败 code 贯通 Activity / Lifecycle / API，日志保留调用关联和受限 Provider 错误字段；Artifact 使用独立读取预算。详见[执行与恢复](execution.md)。
 
 统一 Notification / Delivery 面向 Web 私有 inbox 与经过绑定核验的 QQ 目标。渠道接受不是用户已读，未知发送结果不自动重发；Work 完成只采用要求明确指定的证据。
+
+## Web Retriever v1 设计总结
+
+Web Retriever v1 已冻结，现有联网搜索与正文获取能力作为共享功能模块保留。模块边界为取得有来源信息的候选和正文；Research 的 Evidence 选择、报告合成、事实覆盖与完成判定属于调用方流程，不作为重新打开本模块开发的条件。
+
+### 组合与调用
+
+| 入口 | 职责 |
+| --- | --- |
+| `src/web_retrieval/` | 进程内 Search/Fetch 契约、Provider 选择、来源范围、安全抓取与预算适配。 |
+| `src/research_adapters/` | legacy / DeepSeek Search、正文及 Markdown 转换 Adapter。 |
+| `src/agent_activities/web_tools.py` | Main 根 Execution 的可信 web_search / web_fetch 工具。 |
+| `src/bootstrap/durable_runtime.py` | 将同一个 WebRetrievalService 实例注入 Main 和 Research。 |
+
+Main 沿原 ToolExecutionWorkflow 与 fenced Activity 执行，不依赖 Tavily/MCP，也不因轻量检索创建 Research、Work 或额外 Run。Research 通过原 discovery/content 接口调用共享服务，继续使用原有 Evidence、报告与持久化流程。网络 I/O 留在 Activity/Adapter，不进入 Workflow；不新增独立 HTTP 服务或预算权威。
+
+### Provider 与格式
+
+搜索支持 legacy（SearXNG/GitHub/RSS）和 DeepSeek；GitHub/RSS 遵循来源策略开关。Fetch 支持 local 与 DeepSeek。请求的 auto 读取配置默认值，显式选择失败不自动换供应商。新环境推荐 DeepSeek Search + Local Fetch；代码默认仍为 legacy/local，配置见[开发环境](../development/setup.md#web-retriever-配置)。
+
+本地默认 Text，进程内可显式使用 `FetchRequest(format="markdown")` 选择 Markdown v3：按唯一 main、role=main、article 正文容器提取，以 BeautifulSoup + markdownify 保留标题、代码、链接和表格；相对链接按已验证最终 URL 解析，移除非 HTTP(S) 链接目标。正文容器缺失/歧义、空 Markdown 或转换异常时，复用已下载 HTML 降级为 Text，返回实际格式与有限的 fallback_reason。权限、下载及输出上限失败仍拒绝。SourceContent.text 是准确正文和 Unicode offset 基准，hash 定义不变，旧正文与 Evidence 不回填。
+
+DeepSeek Fetch 保留准确 Markdown，final_url 未知；要求最终来源可验证的 Research 或带硬来源范围的 Fetch 在发送前拒绝该路径。静态抓取不提供浏览器或代理回退，动态页面与无法直连的来源属于现有能力限制。
+
+### 来源与输出边界
+
+`allowed_domains` / `excluded_domains` 是硬范围，匹配主机及子域，排除优先；`preferred_domains` 仅影响排序。freshness_days 为 0 时不限日期，正数要求可确认的来源日期；未知、超期或未来日期不满足要求。共享服务过滤越界、重复 URL 和明确导航索引，Fetch 对每次重定向重新检查范围与全部 DNS 地址，连接已验证公网 IP，保留 Host、TLS SNI 和证书校验。本地下载总超时有界、上限 2 MB，禁用环境代理与自动重试。
+
+Main 工具仅允许根 Execution，身份由可信执行上下文注入，模型参数不能填写 account/run/execution/fence。Quick / Standard 只控制结果大小：搜索最多 3 / 8 条，正文最多 2,000 / 8,000 字符，下载最多 400 KB / 1 MB，JSON 最多 16 KB / 48 KB。输出包括来源 URL、可空最终 URL 及验证状态、全文 hash、接收时间、实际格式、截断和不可信来源标记。网页内容是资料，不是工具或权限指令。
+
+### 预算与恢复
+
+每次检索发送前通过原 RunBudgetService 占用一个 tool_calls，并按既有规则累计 Work 预算；不把候选数量或来源处理数当作请求数，不将检索伪装成 Account 模型 tokens。检索强制检查冻结上限，observe/off 也不能绕过；外层工具不重复扣占。新 Research 快照包含 tool_calls=40，research-web-v2 invocation 上限为 23；旧快照和 invocation 不自动加额。
+
+稳定操作 ID 随原 Tool Operation 或 invocation/iteration/source 生成，不随 Activity attempt 更换。已持久化结果按原路径重放；已有占额但缺结果或发送未知时返回 usage_unknown / 非重试 retrieval_usage_unknown，不自动重发。失败或未知请求不释放已占名额，401/402/403 停止当前 Provider 实例后续请求。

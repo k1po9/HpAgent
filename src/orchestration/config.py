@@ -410,6 +410,9 @@ class HindsightConfig:
 class ResearchConfig:
     """Research source, bounded iteration and evidence thresholds."""
     searxng_url: str = "http://searxng:8080"
+    search_provider: str = "legacy"
+    fetch_provider: str = "local"
+    deepseek_search_fetch_key: str = field(default="", repr=False)
     search_timeout_seconds: float = 15.0
     fetch_timeout_seconds: float = 20.0
     browser_timeout_seconds: float = 30.0
@@ -643,6 +646,12 @@ class AppConfig:
             self.hindsight.base_url = environ["HINDSIGHT_URL"]
         if environ.get("SEARXNG_URL"):
             self.research.searxng_url = environ["SEARXNG_URL"]
+        if environ.get("WEB_RETRIEVAL_SEARCH_PROVIDER"):
+            self.research.search_provider = environ["WEB_RETRIEVAL_SEARCH_PROVIDER"]
+        if environ.get("WEB_RETRIEVAL_FETCH_PROVIDER"):
+            self.research.fetch_provider = environ["WEB_RETRIEVAL_FETCH_PROVIDER"]
+        if environ.get("DEEPSEEK_API_SEARCH_FETCH"):
+            self.research.deepseek_search_fetch_key = environ["DEEPSEEK_API_SEARCH_FETCH"]
         if environ.get("WORKSPACE_ROOT"):
             self.workspace.root = environ["WORKSPACE_ROOT"]
         if environ.get("WORKSPACE_ISOLATION_MODE"):

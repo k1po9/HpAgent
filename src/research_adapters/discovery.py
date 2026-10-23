@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from research_adapters.web import DiscoveryCandidates, SearXNGDiscoveryProvider
 from research_domain.models import SourceCandidate, SourceStrategy
 from research_domain.providers import SourceDiscoveryProvider
 
@@ -42,22 +43,39 @@ class CompositeSourceDiscoveryProvider:
         self.providers = providers
 
     async def discover(
-        self, query: str, *, strategy: SourceStrategy, limit: int
+        self, query: str, *, strategy: SourceStrategy, limit: int,
+        original_question: str | None = None,
     ) -> list[SourceCandidate]:
         if limit <= 0:
             return []
+        providers = [p for p in self.providers if not (
+            isinstance(p, GitHubDiscoveryProvider) and not strategy.github
+            or isinstance(p, RSSDiscoveryProvider) and not (strategy.rss and strategy.rss_feeds)
+            or isinstance(p, SearXNGDiscoveryProvider) and not strategy.public_web
+        )]
+        from research_adapters.deepseek import DeepSeekError, DeepSeekWebProvider
+        from resources.run_budget import RunBudgetError
+        from web_retrieval.budget import RetrievalUsageUnknown
+
         results = await asyncio.gather(
             *(
-                provider.discover(query, strategy=strategy, limit=limit)
-                for provider in self.providers
+                provider.discover(query, strategy=strategy, limit=limit,
+                    **({'original_question': original_question}
+                       if isinstance(provider, DeepSeekWebProvider) else {}))
+                for provider in providers
             ),
             return_exceptions=True,
         )
         failures: list[BaseException] = []
+        diagnostics = []
         provider_results: list[list[SourceCandidate]] = []
-        for provider, result in zip(self.providers, results, strict=True):
+        for provider, result in zip(providers, results, strict=True):
+            if (isinstance(result, (RunBudgetError, RetrievalUsageUnknown, PermissionError))
+                    or isinstance(result, DeepSeekError) and result.code == "transport_error"):
+                raise result
             if isinstance(result, BaseException):
                 failures.append(result)
+                diagnostics.append({"provider": type(provider).__name__, "status": "all_unavailable", "error": type(result).__name__})
                 logger.warning(
                     "source discovery provider failed",
                     extra={
@@ -68,8 +86,12 @@ class CompositeSourceDiscoveryProvider:
                 provider_results.append([])
             else:
                 provider_results.append(result)
-        if failures and len(failures) == len(self.providers):
-            raise RuntimeError("all source discovery providers failed") from failures[0]
+                diagnostics.append(getattr(result, "diagnostics", {"provider": type(provider).__name__, "status": "ok", "candidate_count": len(result)}))
+        status = "ok"
+        if failures or any(d.get("status") != "ok" for d in diagnostics):
+            status = "all_unavailable" if all(d.get("status") == "all_unavailable" for d in diagnostics) else "partial_unavailable"
+        def result_list(items: list[SourceCandidate]) -> list[SourceCandidate]:
+            return DiscoveryCandidates(items, diagnostics={"status": status, "providers": diagnostics, "candidate_count": len(items)})
 
         merged: list[SourceCandidate] = []
         seen: set[str] = set()
@@ -86,11 +108,11 @@ class CompositeSourceDiscoveryProvider:
                 seen.add(candidate.uri)
                 merged.append(candidate)
                 if len(merged) == limit:
-                    return merged
+                    return result_list(merged)
             if not added:
                 break
             position += 1
-        return merged
+        return result_list(merged)
 
 
 class GitHubDiscoveryProvider:
@@ -151,7 +173,9 @@ class RSSDiscoveryProvider:
         *,
         client: httpx.AsyncClient | None = None,
         timeout_seconds: float = 15.0,
+        safe_network: bool = False,
     ) -> None:
+        self.safe_network = safe_network
         self.client = client
         self.timeout_seconds = timeout_seconds
 
@@ -169,7 +193,17 @@ class RSSDiscoveryProvider:
             headers={"User-Agent": "HpAgent-Research/1.0"},
         )
         try:
-            responses = await asyncio.gather(*(client.get(uri) for uri in strategy.rss_feeds))
+            if self.safe_network:
+                from web_retrieval.safety import SafeLocalFetcher
+
+                async def read_feed(uri):
+                    body, mime, final_url, _ = await SafeLocalFetcher().read_bytes(
+                        uri, strategy=strategy, timeout=self.timeout_seconds, max_bytes=2_000_000)
+                    return httpx.Response(200, content=body, headers={'content-type': mime},
+                                          request=httpx.Request('GET', final_url))
+                responses = await asyncio.gather(*(read_feed(uri) for uri in strategy.rss_feeds))
+            else:
+                responses = await asyncio.gather(*(client.get(uri) for uri in strategy.rss_feeds))
         finally:
             if own_client:
                 await client.aclose()
