@@ -34,6 +34,7 @@
 | `PYTHONPATH=src python scripts/benchmarks/temporal/temporal_recovery_benchmark.py --help` | 专用Temporal namespace、Worker进程harness；参数见帮助 | SIGKILL实验子进程，写SQLite/标记/逐条与汇总；默认`artifacts/benchmark-runs/temporal/workflow_worker`。不应接入业务namespace。 |
 | `PYTHONPATH=src python scripts/benchmarks/temporal/activity_worker_recovery_benchmark.py --help` | 同上，Activity故障边界 | 默认`artifacts/benchmark-runs/temporal/activity_worker`；只对专用实验环境运行，非通过结果仍保留。 |
 | `PYTHONPATH=src python scripts/benchmarks/outbox/outbox_recovery_benchmark.py --help` | 专用PG/Temporal、实验库名/namespace参数 | 创建/写实验库并杀实验Worker；结果默认`artifacts/benchmark-runs/outbox`。不得使用业务库。 |
+| `python3 scripts/acceptance/s7_1.py --help` | S7-1 已授权范围、Docker 及本地依赖镜像；`--output` 必须为仓库外新建绝对目录 | freeze/preflight 离线；MVP source-precheck 仅专用搜索/出口和产品来源 Adapter，不读模型凭据、不付费，检查正文及概念覆盖；prepare 精确读取获准的三个模型变量，创建本批专用 PG/Redis/Temporal/Worker/API/前端和受限出口；run 显式开启真实模型与故障允许列表，产生费用；verify 只读，cleanup 仅删除本批标签资源。保留跨批预算账本及证据，详见[测试指南](../docs/development/testing.md)。 |
 | `PYTHONPATH=src python scripts/acceptance/workspace_scale.py --help` | 显式三角色DSN、`FILE_STORE_ROOT/RUN_SCOPE_ROOT`；依赖以requirements为准 | 大规模写入PG与File Store，输出发现/物化规模指标；仅一次性专项隔离验收，不用于共享数据。 |
 
 ## 内部辅助与维护位置

@@ -20,7 +20,7 @@ Work 的需求 revision 不可变。修订、暂停、停止和推进是带幂�
 
 ## 统一有限执行链
 
-Main 的 `accept_work` 使用原始用户消息与稳定 mandate_slot 生成幂等键，重试前读取已提交委托回执。工具描述提供 Requirement 结构；组合目标使用 generic_work，有限即时 HTML 请求留在 Chat。普通问答不修改 Work，进度查询只读；明确修改走完整 Requirement 的 revise 命令，控制走 pause/resume/stop。已完成或停止的目标后续修改创建新委托。
+Main 对明确后台/离页后继续的请求先登记 Work 并返回提交身份，不以聊天中的 HTML 或口头承诺代替；保存权限可以在接受后通过正常资源命令授予。Main 接受必需保存的 Generic Work 时校验存在 required 的 `workspace_saved` 验收条件，缺失时在幂等命令认领前拒绝不可能满足的请求。轻量后台搜索与文字整理默认使用 `generic_work` / ReAct，以 required 的 `output_exists` 条件验收；来源与排除要求放在 objective/constraints，generic spec 只接受 schema_version/reasoning_mode。普通文字不默认要求 HTML、专业研究、长期保存或用户验收。Main 的 `accept_work` 使用原始用户消息与稳定 mandate_slot 生成幂等键，重试前读取已提交委托回执。工具描述提供 Requirement 结构；组合目标使用 generic_work，有限即时 HTML 请求留在 Chat。普通问答不修改 Work，进度查询只读；明确修改走完整 Requirement 的 revise 命令，控制走 pause/resume/stop。已完成或停止的目标后续修改创建新委托。
 
 Work 快照的 `sources` 保存 `{conversation_id, source_message_id}`，来自既有 work_conversations 的组合归属；无来源的关联返回 null 消息，不制造锚点。只提供 source_message_id 时，接受命令从账户内真实消息推导会话。来源投影不复制文件授权。Web 来源消息展示权威快照任务卡片，任务详情可返回准确消息；Chat 与任务控制互不替代。
 
@@ -97,6 +97,8 @@ Work 有显式 `work_input_refs`，权限以 `subject_kind=work` 管理；聊天
 
 Artifact Version 保存 producing Run / Execution / operation；Work adoption 记录精确版本和 requirement revision，不改写原生产者。生成版本、采用版本、Workspace 保存、用户验收和渠道接受分别记账。HTML 可在上下文 Artifact Inspector 下载；当前手工长期保存按文本源码上传，不扩大上传 MIME allowlist。
 
+通用文字结果沿 `capability_acceptance_evidence → capability_result_refs → stored_files` 保留准确字节，原 GC 引用检查阻止回收。完成回执固定当前 revision 的证据；Work 查询的 `results` 从这份回执解析准确 ResultRef、生产 Run/revision、文件摘要及认证 content_url，完成通知携带相同 `results`。这些产品查询不授予 Agent 跨 Run 读取权限。任务「成果与执行」已有已发布文件下载入口，使用本人认证读取正文；不需要先保存到 Workspace。
+
 `notifications / delivery_targets / deliveries / delivery_decisions` 替代旧 QQ delivery 与提醒 intent 模型。聊天通知引用已完成 Message；Work 通知引用生产事件/operation。Web 接受是进入私有 inbox，QQ 接受是 Adapter 收到发送回执，两者都不是已读。外部 sending lease 失效转 uncertain，不自动重发；显式 resolution 记录已接受、未发送或重复风险决定。QQ 群目标只接受摘要，Main 群聊工具观察值也裁剪账户私有信息。
 
 ## 有限 Subagent
@@ -108,3 +110,5 @@ Artifact Version 保存 producing Run / Execution / operation；Work adoption �
 迁移 054–058 建立上述边界；054 / 055 / 057 有开发期空业务存储检查，没有 Task / Work 双写或历史回填。旧库切换见[部署](../operations/deployment.md)，禁止修改已应用迁移 checksum 来绕过门禁。
 
 验证按[测试指南](../development/testing.md)选取领域、API、Temporal 与浏览器范围。真实模型完整工具往返、QQ 发信和持续压力需要独立验收；Research 阶段 lease 与恢复机制见[执行与恢复](execution.md)。
+
+Generic Work 最终回执优先解析原始 JSON 对象；兼容带说明文字、且末尾只有一个 `json` 代码块的显式对象。不会从普通叙述或多个代码块中猜测完成状态。提取后仍按原契约校验全部字段、criterion、当前 revision/fence 与持久化 typed evidence，围栏本身不构成验收证据。

@@ -4,7 +4,7 @@
 
 ## 启用范围与发布
 
-Web、NapCat、Research、长期记忆、上传和受控 Office→PDF 转换开启。图像链为空，没有发现现有图像生成工具或 Web 操作入口；不为此更改文件上传类型支持。DeepSeek 无启用 provider/模型引用，仅保留兼容变量入口；生产 Web Host Shell 关闭。
+Web、NapCat、Research、长期记忆、上传和受控 Office→PDF 转换开启。图像链为空，没有发现现有图像生成工具或 Web 操作入口；不为此更改文件上传类型支持。DeepSeek 模型链未默认启用；共享检索可独立选择 DeepSeek Search，使用单独的检索 Key，不要求启用 DeepSeek 模型；生产 Web Host Shell 关闭。
 
 当前源码选择 SiliconFlow 文本链：fast 引用 SILICONFLOW_HIGHSPEED_MODEL，chat 引用 SILICONFLOW_STANDARD_MODEL，reasoning 引用 SILICONFLOW_FLAGSHIP_MODEL，保持现有超时和重试；reasoning 不自动被业务选用。Hindsight 的 LLM 仍独立使用 MiniMax 配置。完整映射与安全检查见[模型分工表](../reference/model-routing.md)。SiliconFlow 同时供 Embedding、Rerank 及 Hindsight 检索使用，必须提供相应凭据。原生请求参数的配置语义和校验边界见[模型分工](../reference/model-routing.md)，不视为已完成真实兼容性验证。Alibaba 无其他启用引用，未启用配置。Hindsight LLM 的 provider/base URL/model/key 仍须单独填写。
 
@@ -30,7 +30,8 @@ Beta overlay 固定 `production`、`https://hpagent.cloud`、Secure Cookie、Hos
 | --- | --- |
 | 单文件 / 每消息 | `FILE_MAX_BYTES=33554432` / `FILE_MAX_COUNT_PER_MESSAGE=5` |
 | 普通直读 / 清理轮询 | `FILE_DIRECT_READ_MAX_BYTES=1048576` / `FILE_CLEANUP_INTERVAL_SECONDS=300` |
-| 文件开关 | upload=true、transform=true、shell=false、预算 enforce |
+| 文件开关 | upload=true、transform=true、shell=false、预算 enforce；普通 Markdown 只需 upload/publisher |
+| Web Retriever | 默认 legacy/local；后台搜索验收组合显式设 Search=deepseek、Fetch=local，并填写 DEEPSEEK_API_SEARCH_FETCH。与模型 Key 分开，详见[配置参考](../reference/configuration.md#web-retriever-与-research) |
 | Work 活跃 Run | 账户3 / 全局16，API、Worker均透传 |
 | model、tool、fetch | 每种分别 GLOBAL=8 / INTERACTIVE_RESERVED=3 / ACCOUNT=2 |
 | Lease / 成果读取超时 | 沿用900秒 / 90秒 |
@@ -105,5 +106,7 @@ proxy_send_timeout 3600s;
 仍需填写：Beta绝对目录与上线时段；WSL/Docker总CPU/内存和各服务预算、磁盘空闲；网关绑定与Tailscale地址归属/ACL；独立密码与签名材料的保管/注入状态；MiniMax/SiliconFlow/Hindsight实际模型ID及凭据；NapCat账号/连接与已验证固定镜像tag/digest；远程MCP/Skills白名单（暂全关）；B/C/D Prompt可见性和D模型访问tier；项目外及异机备份路径、加密材料保管位置、独立告警渠道。不要填写设备ID/产品ID或在本文粘贴密钥。
 
 ## 验收边界
+
+自然语言建立 Generic Work、后台真实检索、Markdown 发布、Work 完成、Web inbox 接受及认证读取的后端路径已在独立环境验证；该结论不证明当前 Beta 容器已更新，也不包含浏览器旅程、QQ 外发或专业研究质量。目标目录仍须执行[浏览器全链路验收](../development/testing.md#真实浏览器全链路)。
 
 发布时在实际网络与配置下检查 HTTPS注册/登录/退出/CSRF、32MiB及超限上传、5个附件、Run/Work SSE更新与断线恢复、Research/记忆/受控转换、QQ绑定及收发、取消与默认配置故障恢复、容量与卷权限、日志增长、完整备份隔离恢复。静态与隔离测试不能证明这些路径可用；未演练前不标记 RPO/RTO 达成。

@@ -36,7 +36,7 @@ Run succeeded 只说明有限执行成功；Work completed 需要当前 revision
 
 Chat Context 使用对话历史、记忆与授权资料；Work Context 使用冻结需求、checkpoint、输入和候选，不加载关联聊天全文。Generic Work root 可一次委派最多三个只读子 Execution，费用仍属同 Run/Work；串行 plan steps 沿用当前 Execution，不等同并行 Subagent。
 
-复杂调用持久事实使用迁移 060：`capability_invocations` 是不可变描述，caller Operation 是调用生命周期权威，capability Execution 是生产者生命周期权威，`capability_results` 保存专业语义 outcome。三者不互相推断终态。`capability_observations` 关联 caller transcript 与生产 Operation；结果已提交而观察缺失时可查询结果，具体恢复编排尚未接入。capability 与只读 subagent 使用不同角色；两类子执行均受长期资源写入保护，Run 取消/终态会收敛活动子执行并使其 fence 失效。
+复杂调用持久事实使用迁移 060：`capability_invocations` 是不可变描述，caller Operation 是调用生命周期权威，capability Execution 是生产者生命周期权威，`capability_results` 保存专业语义 outcome。三者不互相推断终态。`capability_observations` 关联 caller transcript 与生产 Operation；结果已提交而观察缺失时，CapabilityInvocationWorkflow 复用原有子 Execution，补关闭后重新取得父 segment，并在同一事务中完成 caller Operation、配对 tool_result 与观察关联。capability 与只读 subagent 使用不同角色；两类子执行均受长期资源写入保护，Run 取消/终态会收敛活动子执行并使其 fence 失效。
 
 ## 进程与调度
 
@@ -54,9 +54,9 @@ Document Workflow 在生命周期队列编排，重型规范化 Activity 在独�
 
 ## 模型请求与费用
 
-请求顺序：entitlement/tier → Provider serializer 校验 transcript 与 tool-call/result 配对 → 冻结 Model Input Snapshot → 单独事务原子预留 Account/day、Work（若有）、Run → 分发冻结请求体 → 结算/释放。Anthropic 的独立 system 也计费；工具结果以明确 observation 进入下一轮。快照存在不等于已发送，查询时按当前 entitlement 投影可见字段。
+请求顺序：entitlement/tier → Provider serializer 校验 transcript 与 tool-call/result 配对 → 冻结 Model Input Snapshot → 单独事务原子预留 Account/day、Work（若有）、Run → composition 发送前检查 → 记录 dispatch 并分发冻结请求体 → 结算/释放。Anthropic 的独立 system 也计费；工具结果以明确 observation 进入下一轮。快照存在不等于已发送，查询时按当前 entitlement 投影可见字段。
 
-发送前失败或取消释放预留；已发送但结果未知按估算结算，避免无主 hold。Snapshot、Trace 与账本各有用途，不能互相代替用量事实。
+发送前检查可读取包含完整工具 schema 和上下文的冻结请求；拒绝时不登记 dispatch、不开始 HTTP，释放业务预留。发送前失败或取消释放预留；已发送但结果未知按估算结算，避免无主 hold。Snapshot、Trace 与账本各有用途，不能互相代替用量事实。
 
 model_request_invalid、model_response_invalid、model_access_denied、model_request_rejected、model_rate_limited 当前不可自动重试；model_connection_failed、model_read_timeout、model_http_error、model_unavailable 当前可重试。HTTP 429 当前不可自动重试。分类贯穿 Activity、Lifecycle、Run DTO 和重试命令；普通模型故障不归为外部写入结果不确定。独立 Artifact 请求默认 read 90 秒、connect 最多 5 秒；常规聊天依 endpoint timeout。
 
@@ -65,7 +65,7 @@ model_request_invalid、model_response_invalid、model_access_denied、model_req
 - 状态与分发意图同事务提交；Dispatcher lease 允许接管。command key、稳定 Workflow ID、operation/effect key 和生产回执约束重复副作用。未知响应恢复原意图，不换键冒充新请求。
 - Work 协调权、Execution attempt/segment lease 与 fencing、显式资源锁、跨进程 capacity_queue/capacity_turns 是四项独立约束。新 token 拒绝旧写入，账户并非全执行独占。
 - operation attempt 记录原生产者；旧 attempt/revision 的迟到回执可保留事实，但不得追加当前 transcript、写新 Workspace 结果或完成新需求。
-- Approval/wait 持久化后等待 Signal，segment 释放租约；恢复重新获 attempt/fence。Work revise/pause/stop 提交 control epoch 与取消意图，Run 取消和 Work 控制分别收敛。
+- Approval/wait 持久化后等待 Signal，segment 释放租约；恢复重新获 attempt/fence。Worker 缓存淘汰只销毁内存协程，不在 Workflow 循环外提交结束等待命令；重放恢复仍读取原持久 wait。正常完成、到期与取消继续提交结束等待 Activity。Work revise/pause/stop 提交 control epoch 与取消意图，Run 取消和 Work 控制分别收敛。
 - sending lease 失效的外部投递转 uncertain，显式 resolution 后再决定接受/重发。未知外部写入保留 pausing/stopping blocker，不能提前报告停止。
 - Run 固定候选不提供永久授权；select/read/save 仍核对当前 grant、revision 与 fence。attempt scratch 隔离，旧清理不能删除新目录。
 - PostgreSQL 持久 wait、ready wakeup、once catch-up/daily latest 与容量续租不依赖进程内 timer；SSE/Redis 仅通知恢复，不裁定完成。

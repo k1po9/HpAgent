@@ -52,6 +52,10 @@ Compose 把 `scripts/operations/start-hindsight.sh` 挂载为 Hindsight 启动�
 
 ## 发布与健康验证
 
+更新到包含通用文字交付的版本时，保留已有私有 `.env`，按[配置参考](../reference/configuration.md#web-retriever-与-research)补齐检索供应商和独立 Key；不要用模板覆盖原凭据。API 与 Worker 使用同一版本的完整迁移链（包括 071 的多片段 Evidence 约束）和 File Store，先运行 migration，再更新应用。API/Worker 的版本校验与生产者契约必须一致，避免只更新其中一个服务；普通文字发布本身不新增数据库表。
+
+下列命令只供操作员在明确选定的目标目录执行，不代表当前开发目录已部署。后端独立验收通过后，目标目录仍需验证浏览器提交、离页、返回、inbox 和成果下载，见[测试指南](../development/testing.md#真实浏览器全链路)。
+
 宿主机源码挂载变化需要对应 API / Worker 重载；镜像或 environment 变化使用 Compose recreate / build，`restart` 不读取新的容器环境。
 
 ```bash

@@ -24,11 +24,11 @@ Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 
 
 检查记录固定 verifier key/version、subject_ref、verdict（passed / failed / not_checked）和 evidence_ref；证据必须引用同一结果的 check_evidence 输出。检查由可信实现提供，基础服务只验证登记与关联，不执行专业检查。AcceptancePredicate 固定 output_exists / check_passed / workspace_saved / user_accepted / delivery_accepted 的字段；`check_passed` 固定 verifier key/version；`workspace_saved` 的 target_id 为 Workspace node_id，operation_id 固定保存/版本操作，target_revision 可固定 destination revision；user/delivery 的 target_id 指向各自可信回执。Generic Work 已接入前三类准确成果谓词，用户/渠道仍通过各自可信回执验收；固定专业父适配器保留原有专用证据。
 
-`CapabilityObservation` 固定 schema_version / invocation_id / producing_operation_id / producer_result_ref，放在父 Operation result_payload 和 tool_result 事件 payload 的 `capability_observation` 字段。子生产引用为 `capability-result:{invocation_id}`，父 Operation 使用自己的唯一引用（例如 `capability-observation:{invocation_id}`）；不能复用生产引用。`record_observation` 要求父事件及 caller Operation 已在同一 UoW 中写入，且两处指针与精确 producer 一致。Harness 的持久调用边界见下节；Research 与 HTML 已注册局部能力。专业快捷入口和通用调用的边界见下文。
+`CapabilityObservation` 固定 schema_version / invocation_id / producing_operation_id / producer_result_ref，放在父 Operation result_payload 和 tool_result 事件 payload 的 `capability_observation` 字段。子生产引用为 `capability-result:{invocation_id}`，父 Operation 使用自己的唯一引用（例如 `capability-observation:{invocation_id}`）；不能复用生产引用。`record_observation` 要求父事件及 caller Operation 已在同一 UoW 中写入，且两处指针与精确 producer 一致。Harness 的持久调用边界见下节；Research、HTML 与文字发布已注册局部能力。专业快捷入口和通用调用的边界见下文。
 
 ## 通用持久调用与 Harness
 
-[CapabilityInvocationWorkflow](../../src/agent_workflows/capability.py) 接入共享 ToolExecutionWorkflow。服务端 [CapabilityBinding](../../src/agent_activities/capabilities.py) 将准确契约版本绑定到固定 Workflow 和输入资源范围解析器；`capability__` 前缀保留给复杂能力。模型只填写有类型的业务参数，不提供 Execution、fence、资源上限或 Workflow 名称。生产组合注册 `research` v1（`capability__research__v1`），固定到 ResearchCapabilityWorkflow；确定性能力仅位于测试支持代码。`delegate_work` 仍走独立的只读分支边界。
+[CapabilityInvocationWorkflow](../../src/agent_workflows/capability.py) 接入共享 ToolExecutionWorkflow。服务端 [CapabilityBinding](../../src/agent_activities/capabilities.py) 将准确契约版本绑定到固定 Workflow 和输入资源范围解析器；`capability__` 前缀保留给复杂能力。模型只填写有类型的业务参数，不提供 Execution、fence、资源上限或 Workflow 名称。可选字符串的 null 及要求非空/UUID 字段的空串在作用域解析、校验和冻结前规范化为缺省；必填字段和两个非空互斥来源仍严格拒绝。生产 [compose_capabilities](../../src/agent_activities/composition.py) 是 Harness、固定专业入口和隔离 Fake 执行器共用的目录，注册 `research` v1（`capability__research__v1`）与 `html` v1（`capability__html__v1`），另有 Work 专用 `text` v1（`capability__text__v1`），分别固定到 ResearchCapabilityWorkflow / HtmlCapabilityWorkflow / TextCapabilityWorkflow；服务可用性显式传入，重试与时限读取同一能力定义。确定性扩展能力仅位于测试支持代码。`delegate_work` 仍走独立的只读分支边界。
 
 发现按 surface 与服务依赖筛选，仅 root 获得复杂能力工具。执行时再次检查当前账号、Run、Work revision/control epoch、父 Execution、输入 schema、冻结定义和显式资源范围。输入读取适配器使用 `invocation_context` 检查当前子 fence、定义实现版本和资源权限；专业实现每次使用资源和发出模型请求仍须重验，不可把登记视为永久授权。
 
@@ -42,7 +42,7 @@ Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 
 
 ## Actions、Tools、MCP 与 Sandbox
 
-Actions 通过统一调用契约暴露本地工具和已配置的 MCP Server。Tool Retrieval 选择数量受限的相关工具。Side-effect Metadata、稳定 Operation ID、Budget 和 Reconciliation 共同保护可重试执行。Shell 类操作可在 Sandbox 和账号级 Workspace Isolation 中运行。
+Actions 通过统一调用契约暴露本地工具和已配置的 MCP Server。Tool Retrieval 选择数量受限的相关工具，默认上限为 12（关闭语义检索后仍生效）。Main 管理工具与文件 front door 属于保留入口；配置上限容不下保留入口时，工具选择必须抛出配置错误并阻止模型分发，不能静默降为无工具请求。Side-effect Metadata、稳定 Operation ID、Budget 和 Reconciliation 共同保护可重试执行。Shell 类操作可在 Sandbox 和账号级 Workspace Isolation 中运行。
 
 ## Memory
 
@@ -54,9 +54,13 @@ File 能力负责上传、校验、不可变对象、Run 绑定和生成输出�
 
 ## Research
 
-`research` v1 是固定局部能力：[定义](../../src/research_domain/capability.py)、[实现](../../src/research_activities/runtime.py)、[编排](../../src/orchestration/research_workflow.py)。输入固定 objective 与 source_strategy；不获得长期写入或通知权限，不支持从 uploaded_files 隐式读取资料。每次调用以父 tool Operation 的 invocation_id 为研究实例，拥有独立 capability Execution；plan、阶段、iteration、source/evidence、claim/citation、报告和历史基线均按实例隔离。Run 只提供归属、现有预算和查询关联，同 Run 可顺序研究多次。迁移 062–064 保留旧行的 Run 查询键，新执行必须带已登记的 invocation 身份。
+`research` v1 是固定局部能力：[定义](../../src/research_domain/capability.py)、[实现](../../src/research_activities/runtime.py)、[编排](../../src/orchestration/research_workflow.py)。规划仅从已登记 invocation 的不可变输入读取 objective 与 source_strategy，不回退读取父 Work 的目标；不获得长期写入或通知权限，不支持从 uploaded_files 隐式读取资料。每次调用以父 tool Operation 的 invocation_id 为研究实例，拥有独立 capability Execution；plan、阶段、iteration、source/evidence、claim/citation、报告和历史基线均按实例隔离。Run 只提供归属、现有预算和查询关联，同 Run 可顺序研究多次。迁移 062–064 保留旧行的 Run 查询键，新执行必须带已登记的 invocation 身份。
 
-局部输出为不可变 Markdown 文件和检查证据 JSON，各自建立 ResultRef 与 GC 引用。`research.basic` v1 检查标题/非空正文/结构化 claims、每个 claim 的引用身份及来源精确定位、必需输出；引用缺失或无效返回 `insufficient`，保留草稿和 gaps。弱来源仅警告；检查不证明所有事实正确，也不包含浏览器功能验证。Markdown 是独立可读取的结果，不要求存在 HTML。
+具有显式 main 区域和定义列表的网页保留主文档及 API 签名，过滤脚本和导航；其他网页继续使用通用正文提取，避免只留下定义说明却丢失被说明的名称。
+
+每个来源最多保留六个不重叠、去重的精确文本区间，每个区间不超过 1,200 字符、单来源不超过 7,200 UTF-8 字节；研究实例累计最多 24 个区间、24,000 字节。确定性提取优先保留完整段落、定义项和句子，以具名/代码概念、定义章节及限定措辞排序，并为临近目标定义之前的共同限制保留有界前言。超长段落按句子切分；无法在字符或剩余字节上限内完整容纳的单句/代码块跳过，不截断为事实片段。段落尾空白不再吞并后续章节；剩余预算只容纳完整单元。定位保留原文 Unicode 字符偏移、source locator 和由来源、内容引用及区间派生的稳定证据身份，提取器版本为 `research-passages-v2`。具名/代码概念缺口会阻止充分判定；词语命中仅是覆盖启发式，不证明事实正确，也不是完整语义检索。局部输出为不可变 Markdown 文件和检查证据 JSON，各自建立 ResultRef 与 GC 引用。`research.basic` v1 检查标题/非空正文/结构化 claims、每个 claim 的引用身份及来源精确定位、必需输出；引用缺失或无效返回 `insufficient`，保留草稿和 gaps。弱来源仅警告；检查不证明所有事实正确，也不包含浏览器功能验证。Markdown 是独立可读取的结果，不要求存在 HTML。
+
+真实 ResourcePool 合成器把已收到的响应正文、模型关联与用量作为现有 `research_stage_results` / Operation 回执提交，再做结构及引用校验；同 Operation 重入复用该回执，不再次请求模型。已开始而没有可读取响应的 Operation 保持 `research_synthesis_uncertain`，不自动换 ID 重发。JSON、字段形状、无 claims、空引用、未知证据分别记录稳定原因，整个无效报告转为带 gaps 的不足草稿，不筛掉坏 claim 后保留原正文作为成功报告；原始响应保留在受限存储中。每个 invocation 仍只有一次合成调用，父 Agent 可根据不足结果另行决策。合成提示要求每条 claim 聚焦同一对象的一条连贯规则，保留条件、结果、例外及属性/方法等对象类型，不以无关 API 罗列充当覆盖；交付 Markdown 仍逐字使用登记 claim 并附引用，不采用模型的自由叙述。该约束是生成指导，不是语义裁判。
 
 顶层 `research_report` 由 [ResearchParentActivities](../../src/research_activities/parent.py) 薄适配：共用登记容量/预算准入和同一子 Workflow，之后执行父侧 Workspace 保存与验收。确定性阅读视图是可选父侧展示，失败不否定已提交研究。必需保存失败保留报告，父 Run/Work 不得成功；Research 子能力本身不完成 Run/Work、不长期保存、不发送通知。Research 的旧 evidence_types 验收增加精确 Markdown 与成功基础检查事实，通用 typed predicate 与跨 Run 采用使用下述父侧成果服务。已有用户验收命令仍以 Artifact Version 为目标；阅读视图存在时保留该兼容证据，Markdown 可通过准确 ResultRef 采用；产品中的选择与展示入口见[Web 契约](web-ui.md)。
 
@@ -64,11 +68,15 @@ File 能力负责上传、校验、不可变对象、Run 绑定和生成输出�
 
 ## HTML 与父侧成果采用
 
-`html` v1 使用 [HtmlCapabilityWorkflow](../../src/agent_workflows/html.py) 与 [HtmlActivities](../../src/web_artifacts/local.py)。输入二选一：有界 `text` 或准确 `source_ref`；修改可带 `previous_ref` 和 instruction。ResultRef 必须由父侧当前可读，并显式列入子调用 scope；旧版本不追随最新。输出是新的 Artifact Version 和检查证据 JSON，生产 invocation / Execution / Operation 保持独立；同 Run 可多次调用。已有不可变 HTML 文件或完整结果可恢复，避免响应丢失后重复生成；局部失败返回 insufficient，父可发起新的 HTML 调用，不重做 Research。
+`html` v1 使用 [HtmlCapabilityWorkflow](../../src/agent_workflows/html.py) 与 [HtmlActivities](../../src/web_artifacts/local.py)。输入二选一：有界 `text` 或准确 `source_ref`；修改可带 `previous_ref` 和 instruction。ResultRef 必须由父侧当前可读，并显式列入子调用 scope；旧版本不追随最新。输出是新的 Artifact Version 和检查证据 JSON，生产 invocation / Execution / Operation 保持独立；同 Run 可多次调用。已有不可变 HTML 文件或完整结果可恢复，避免响应丢失后重复生成；局部失败返回 insufficient；形状不完整或输出过大属于可修正的 transient 反馈，不伪装为缺少用户输入，也不会在同一生产 Operation 中自动重发模型。父可自行决定是否用已有来源发起新的 HTML 调用，不重做成功的 Research。
+
+HTML 模型输入以 JSON 区分事实来源 Markdown、展示要求和旧版 HTML；旧版仅供复用设计，来源事实优先。自由 HTML/CSS/JavaScript 设计不受固定模板约束。真实生成器额外检查来源 `[E:…]` 引用标记在 HTML 文本中是否仍存在，忽略脚本、样式、模板、head、注释及属性；缺失返回 `artifact_missing_citations`，沿原错误路径反馈，不在生成器内重发。标记存在不证明可见性、引用位置、链接、条件完整性或语义蕴含，也不能发现带同一标记的错误断言；无此格式的普通 Markdown 不增加该检查。
 
 `html.basic` v1 只承诺完整 HTML、字节大小和受限预览策略；证据标注浏览器交互未检查。生成器和 publisher 由直接 Chat、Generic Work 和显式 Artifact 命令共用。HTML 使用原模型预算协调器，输出字节使用 Run/Work 现有预算；不另建调用账本。子能力只创建候选，不保存 Workspace、不完成父 Run/Work。
 
-[ResultAdoptionService](../../src/run_domain/acceptance.py) 在当前 root fence 下执行采用、保存和证据求值。Harness 的 `result__adopt`、`result__save`、`result__evidence` 不依赖 native/MCP 工具模式。采用记录绑定当前 Run/Execution、Work revision/epoch，引用固定版本，原生产者不改写；账户所有权本身不授予 Agent 读取权，跨 Run 每次读取、模型输入和保存仍检查现有授权。Workspace 新建和 CAS 更新共用原保存内核，不复制正文或给兄弟能力扩大输入集合。
+[ResultAdoptionService](../../src/run_domain/acceptance.py) 在当前 root fence 下执行采用、保存和证据求值。Harness 的 `result__adopt`、`result__save`、`result__evidence` 不依赖 native/MCP 工具模式。显式选定的旧 Artifact 输入在 Run admission 固定 `result_ref_id` 元数据，便于父模型发现准确旧结果；该元数据既不代替显式采用，也不授予文件读取权限。采用记录绑定当前 Run/Execution、Work revision/epoch，引用固定版本，原生产者不改写；账户所有权本身不授予 Agent 读取权，跨 Run 每次读取、模型输入和保存仍检查现有授权。Workspace 新建和 CAS 更新共用原保存内核，不复制正文或给兄弟能力扩大输入集合。保存回执返回准确 subject_ref、node_id、保存/版本 operation_id 和 workspace_saved_predicate；该谓词只是父侧后续求值输入，不自动创建验收证据，使用时仍重新核对当前权限、fence、criterion 和持久保存事实。
+
+文字发布由 [TextActivities](../../src/agent_activities/text_result.py) 接收有界 title/body，经原 OutputPublisher 发布不可变 Markdown，按稳定 invocation/operation 重放，原子提交 CapabilityResult / ResultRef 与字节预算结算。不调用模型、不要求 HTML、专业检查或 Workspace 长期保存。父 Agent 再以准确 ResultRef 对所需的 output_exists 条件调用 result__evidence；发布本身不完成 Work。轻量后台查询由 Agent 自主使用共享 web_search/web_fetch，观察进入后续模型决策；只有明确的专业研究需求才选择 Research。
 
 Generic Work 的 evidence 只接受 `output_exists`、`check_passed`、`workspace_saved`，ref 指向服务器登记的 capability_acceptance_evidence。谓词沿用 AcceptancePredicate v1：检查必须匹配同一 subject_ref 与准确 verifier/version；保存必须匹配同一不可变文件、目标和操作，必需保存另核对 deliverable_policy。成功工具回执不能代替这些条件。用户验收、渠道接受仍走既有独立可信回执，不由模型生成；固定 Research/Artifact 父适配器保留原专用验收接口。
 
@@ -83,6 +91,22 @@ Heavy Document Normalization 是 File 能力中高开销的执行分支。独立
 Provider serializer v2 显式规范化 OpenAI / Anthropic transcript，并在快照和预留前校验工具调用结果配对。安全失败 code 贯通 Activity / Lifecycle / API，日志保留调用关联和受限 Provider 错误字段；Artifact 使用独立读取预算。详见[执行与恢复](execution.md)。
 
 统一 Notification / Delivery 面向 Web 私有 inbox 与经过绑定核验的 QQ 目标。渠道接受不是用户已读，未知发送结果不自动重发；Work 完成只采用要求明确指定的证据。
+
+HTML 的 `source_ref` 只传递准确来源正文，不会把父 Work brief 或聊天要求隐式带入子能力。父 Agent 需在 `instruction` 中显式转交用户的布局、交互、可访问名称和版本修改约束；引用、基础形状检查和保存事实都不证明这些行为已实现，仍需独立浏览器验收。
+
+父侧 `result__save` 区分新建目录入口与 CAS 更新：新建使用 directory_id/name；更新使用 entry_id/expected_revision/expected_sha256。新建保存的 `workspace_saved` 判据必须省略 target_revision，版本更新才可携带准确 revision；不自动删除用户提交的版本条件。错误会指出应复用保存回执中的准确判据。HTML 硬化先移除唯一、末尾完整的 HTML 代码围栏（可有说明前缀），再要求完整文档；有歧义的多块或原始文档外说明不能通过。
+
+父 Agent 的 HTML 工具 schema 要求非空 `instruction`，缺失时在创建 invocation 和付费子请求之前返回输入不足；这是模型适配边界，不改变固定调用者 v1 的可选 instruction 契约。已创建 invocation 的恢复沿原输入继续，不能因新模型工具要求而破坏重放。
+
+生产 ResourcePool Research 合成的交付 Markdown 由已登记且引用已知 EvidenceItem 的 claims 渲染，保留准确来源链接；供应商自由正文只保存在原响应回执，不进入交付。claims 还需覆盖请求中显式命名的概念，缺失返回稳定的 missing_coverage，不从未登记正文补足。引用 ID 和名称覆盖只证明结构一致，事实及条件是否被正确理解仍须独立质量复核。HTML 转换同样应保留来源的条件、例外和适用范围，禁止添加来源之外的 API 行为。
+
+父结果工具同时校验模型面对的参数 schema：`workspace_saved` 必须有 target_id/operation_id；`check_passed` 必须有 verifier_key/verifier_version；`output_exists` 不接收保存和 verifier 字段。可省略的空字符串或 null 在校验前规范化，确实缺少必填字段则在执行服务和副作用前返回字段形状错误，不推断目标或替模型生成证据。
+
+面向模型的 HTML／父结果工具使用完整、平坦的属性表；不适用字段使用显式 null，避免模型工具 schema 的组合条件合并差异。此 wire schema 不替代内部契约：入口规范化可省略空值后，仍按互斥保存形式、判据必填字段及精确持久化事实校验；任何实际字段缺失或矛盾都必须拒绝。
+
+受单次合成 4,096 输出 tokens 约束，生产合成允许最多 16 条完整、已引用 claims，覆盖多主题比较的事实清单；超过上限返回 insufficient，不截断或丢弃事实后宣称成功。该条数边界不放宽引用、覆盖和独立质量要求。
+
+当前限制：`research.basic` 与 `html.basic` 不能证明事实蕴含、完整性或转换忠实性。即使来源 claims 已登记、HTML 已通过结构检查并保存，模型仍可能在 HTML 中新增错误限定或遗漏原定事实；独立事实复核失败必须阻止验收退出，不能以 typed evidence、Work completed 或交互通过替代。现有实现没有通用的 HTML 事实保持验证器。
 
 ## Web Retriever v1 设计总结
 
@@ -118,3 +142,11 @@ Main 工具仅允许根 Execution，身份由可信执行上下文注入，模�
 每次检索发送前通过原 RunBudgetService 占用一个 tool_calls，并按既有规则累计 Work 预算；不把候选数量或来源处理数当作请求数，不将检索伪装成 Account 模型 tokens。检索强制检查冻结上限，observe/off 也不能绕过；外层工具不重复扣占。新 Research 快照包含 tool_calls=40，research-web-v2 invocation 上限为 23；旧快照和 invocation 不自动加额。
 
 稳定操作 ID 随原 Tool Operation 或 invocation/iteration/source 生成，不随 Activity attempt 更换。已持久化结果按原路径重放；已有占额但缺结果或发送未知时返回 usage_unknown / 非重试 retrieval_usage_unknown，不自动重发。失败或未知请求不释放已占名额，401/402/403 停止当前 Provider 实例后续请求。
+
+## Research 查询与迭代
+
+Research 将长目标转换为供应商长度范围内的查询（legacy 240、DeepSeek 128 Unicode 字符）；直接传给共享服务的超长 DeepSeek 查询拒绝发送。完整目标、查询规划、证据选择、缺口判断和报告正确性由 Research 自身负责。搜索成功、正文获取、Evidence 有效和最终报告正确分别判断。
+
+最终检索查询保存在现有 research_iterations 和阶段结果中，完整目标仍用于缺口和合成。长查询保留复合标识符（如 no-cache），后续优先使用已有概念缺口并保留站点范围；同 Run、相同有效查询与策略不重复搜索。搜索阶段保留实际查询、日期过滤、候选数、上游异常与时效排除数量，Fetch 阶段保留获取状态计数。正常空结果、部分上游不可用和全部请求失败分别反馈；部分上游失败不丢弃健康上游的候选。候选可抓取不等于主题相关或证据充分。
+
+每轮 SourceDiscovery 之前使用 invocation/iteration 稳定操作标识原子预留 research_iterations；提交轮次开始时结算一次，后续网络失败仍计入该已开始轮次，未提交开始的预留沿现有释放机制处理。GapAnalysis 不再扣占轮次。Activity 重试重放原扣占，最多三轮不变。父侧可从 Work brief 的 limits/used/reserved 及 Research 结果 summary 读取已用、上限、剩余、停止原因、尝试查询、主要缺口和搜索/抓取摘要；预算为零或查询策略重复时父准入直接返回明确错误，不创建子执行或搜索。实际轮次仍由原预算服务预留决定，不能通过新建 Run 绕过限制。

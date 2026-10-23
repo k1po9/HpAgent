@@ -3,7 +3,7 @@
 | Task Queue | 所有者 | 当前 Workflow / Activity |
 | --- | --- | --- |
 | `hpagent-web-lifecycle` | 主 Worker | `AgentLifecycleWorkflow`、`NormalizeDocumentWorkflow` 与 Lifecycle Activity；reminder、research_report、artifact_html 由有限 Run 入口调度。 |
-| `hpagent-web-agent` | 主 Worker | `AgentRunWorkflow`、`ReactAgentWorkflow`、`PlanAndExecuteWorkflow`、`AgentStepWorkflow`、`ToolExecutionWorkflow`、`WorkDelegationWorkflow`、`CapabilityInvocationWorkflow`、`ResearchCapabilityWorkflow`、`HtmlCapabilityWorkflow` 与 Agent / delegation / capability Activity。 |
+| `hpagent-web-agent` | 主 Worker | `AgentRunWorkflow`、`ReactAgentWorkflow`、`PlanAndExecuteWorkflow`、`AgentStepWorkflow`、`ToolExecutionWorkflow`、`WorkDelegationWorkflow`、`CapabilityInvocationWorkflow`、`ResearchCapabilityWorkflow`、`HtmlCapabilityWorkflow`、`TextCapabilityWorkflow` 与 Agent / delegation / capability Activity。 |
 | `hpagent-task-queue` | 主 Worker | `ReflectWorkflow`、`MetricsReportWorkflow` 与对应 Activity。 |
 | `hpagent-document` | Document Worker | Heavy Document Normalization Activity，Workflow 编排仍在生命周期队列。 |
 
@@ -28,3 +28,5 @@ docker compose exec -T hpagent python -m orchestration.worker_health
 UI 位于 <http://127.0.0.1:8088>。主 Worker ready 要求 schema 验证、Temporal 连接、Lifecycle / Agent Worker 及 Dispatcher 已启动。API ready 不能替代 Worker 健康。恢复限制见[可靠性](../architecture/execution.md)。
 
 HTML 局部调用注册 `HtmlCapabilityWorkflow` 与 `produce_html_activity`；固定 Artifact 父适配器使用 prepare/complete 短 Activity，中间等待子 Workflow 时不保留父 segment。HTML 结果提交后的丢失响应按 invocation 恢复；HTML 完成不是父 Run 或 Work 完成。
+
+普通文字发布注册 `TextCapabilityWorkflow` 与 `produce_text_activity`，复用共享 capability segment、稳定 invocation 和 OutputPublisher。Activity 发布不可变 Markdown 并提交 ResultRef，不调用模型或直接完成 Work；父 Agent 经 result__evidence 登记准确成果条件。Worker 中断后的恢复与父观察沿同一内核重放。

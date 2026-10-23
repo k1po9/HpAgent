@@ -27,7 +27,10 @@
 | `MINIMAX_API_BASE_URL` | 取决于模型配置 | 无 | Model | MiniMax OpenAI-compatible Endpoint。 |
 | `MINIMAX_FLAGSHIP_MODEL` / `MINIMAX_STANDARD_MODEL` / `MINIMAX_HIGHSPEED_MODEL` | 取决于启用链 | 无 | Model | MiniMax模型目录；当前Worker未选用，Hindsight默认引用STANDARD；详见模型分工表。 |
 | `SILICONFLOW_FLAGSHIP_MODEL` / `SILICONFLOW_STANDARD_MODEL` / `SILICONFLOW_HIGHSPEED_MODEL` | 可选 | 空 | Model | 当前分别用于reasoning / chat / fast，不自动回退。 |
-| `DEEPSEEK_*` | 可选 | 见 `.env.example` | Model/Check | DeepSeek Endpoint、Key 和 Model Name。 |
+| `DEEPSEEK_API_KEY` / `DEEPSEEK_API_BASE_URL` / `DEEPSEEK_*_MODEL` | 可选 | 见 `.env.example` | Model/Check | DeepSeek 模型 Endpoint、Key 和 Model Name，与检索凭据独立。 |
+| `WEB_RETRIEVAL_SEARCH_PROVIDER` | 否 | `legacy` | Worker | Main / Work 共享搜索供应商：legacy（SearXNG 等）或 deepseek；选择 deepseek 时必须配置检索 Key。 |
+| `WEB_RETRIEVAL_FETCH_PROVIDER` | 否 | `local` | Worker | 正文供应商：local 或 deepseek；本地默认 Text，云端 Markdown 的最终 URL 不可验证。 |
+| `DEEPSEEK_API_SEARCH_FETCH` | 使用 DeepSeek 检索时必需 | 空 | Worker | Search/Fetch 专用凭据；不是模型 DEEPSEEK_API_KEY，不写入源码、日志或模型输入。 |
 | `HPAGENT_MODELS_PATH` | 否 | `/app/config/models.yaml` | Worker | 替代 Model Config 路径。 |
 | `WEB_PUBLIC_ORIGIN` | 对外服务时必需 | Compose 中为 `https://localhost` | API | 允许的浏览器 Origin。 |
 | `WEB_COOKIE_SECURE` | 生产必需 | `false` | API | Secure Cookie 开关。 |
@@ -42,8 +45,8 @@
 | `WORKSPACE_ROOT` | 否 | `.data/workspace` | Worker | Git 代码工作区根；不是长期文件目录。 |
 | `WORKSPACE_ISOLATION_MODE` | 否 | `single_process_account_lock` | Worker | 可选 Git 工作区并发模式；通用 Execution scratch 不依赖 Account Git 锁。 |
 | `AGENT_EXECUTION_LEASE_TTL_SECONDS` | 否 | `900` | Worker | 主执行路径的 Execution attempt Lease 配置；Research stage 默认租约另见恢复限制。 |
-| `WEB_FILE_UPLOAD_ENABLED` | 否 | `true` | API/Worker | Upload 能力开关。 |
-| `WEB_FILE_TRANSFORM_ENABLED` | 否 | `false` | API/Worker | Transform/Output 能力开关。 |
+| `WEB_FILE_UPLOAD_ENABLED` | 否 | `true` | API/Worker | Upload 与不可变成果 publisher 开关；Research/HTML/普通 Markdown 交付都需要 publisher。 |
+| `WEB_FILE_TRANSFORM_ENABLED` | 否 | `false` | API/Worker | 文件格式转换开关；普通 Markdown 发布不要求开启转换。 |
 | `WEB_FILE_SHELL_ENABLED` | 否 | `false` | API/Worker | File Shell 能力开关。 |
 | `FILE_STORE_ROOT` / `FILE_RUN_ROOT` / `DOCUMENT_RUN_ROOT` | Compose 管理 | Volume 路径 | File/Document | 长期文件字节与隔离执行目录；目录/授权/修订在 PostgreSQL。 |
 | `FILE_MAX_BYTES` | 否 | `134217728` | File | 单文件大小上限。 |
@@ -78,7 +81,19 @@
 
 `config/mcp/servers.yaml` 声明 MCP Process/Endpoint 与环境变量引用。使用 `python scripts/check/mcp-health.py` 验证语法和初始化。
 
-## Research
+## Web Retriever 与 Research
+
+在独立目录的私有 `.env` 中显式选择已验证的后端组合：
+
+```dotenv
+WEB_RETRIEVAL_SEARCH_PROVIDER=deepseek
+WEB_RETRIEVAL_FETCH_PROVIDER=local
+DEEPSEEK_API_SEARCH_FETCH=填写检索专用密钥
+```
+
+检索 Key 独立于模型 Provider 配置。Compose 已将这三个变量传给主 Worker；API 不执行检索。旧 `.env` 不会因更新 `.env.example` 自动补齐，默认仍为 legacy/local。只修改私有配置时保留旧值和其他凭据，配置完成后在目标目录 recreate 对应 Worker；单纯 restart 不加载新环境。宿主进程需由启动入口显式导出所需变量，底层检索模块不读取 dotenv。
+
+本地 Fetch 校验公网 DNS/IP 与逐跳重定向，禁用环境代理及浏览器回退；目标网络必须能直连来源网站。DeepSeek 显式失败不暗中切其他公共搜索供应商，缺 Key 或选项不可用时启动拒绝。账号/Work/Run 冻结预算继续有效，不能用配置切换扩大已有预算。
 
 `config/searxng/settings.yml` 是模板，`config/searxng/entrypoint.sh` 使用 `SEARXNG_SECRET` 和部署 Proxy 设置生成实际配置。`SEARXNG_URL` 告诉 HpAgent 查询地址。
 

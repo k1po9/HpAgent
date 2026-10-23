@@ -9,6 +9,7 @@
 | 文件授权、版本、发布/保存、保留 | [Workspace](architecture/workspace.md) |
 | 模型、工具、记忆与研究 | [能力边界](architecture/capabilities.md) |
 | 前端导航、账户世代、交互与诊断 | [Web 契约](architecture/web-ui.md)、[前端指南](../web/AGENTS.md) |
+| 独立环境中的真实浏览器闭环 | [浏览器验收步骤](development/testing.md#真实浏览器全链路)、[检索配置与 .env](reference/configuration.md#web-retriever-与-research) |
 | 开发环境、测试与扩展 | [搭建](development/setup.md)、[验证](development/testing.md)、[扩展](development/extending.md)、[脚本入口](../scripts/README.md) |
 | API、配置与编排 | [HTTP API](reference/api.md)、[配置](reference/configuration.md)、[模型分工](reference/model-routing.md)、[Temporal](reference/temporal.md) |
 | 产品操作与账号管理 | [工作台](operations/web-workbench.md)、[账户治理](operations/account-governance.md) |

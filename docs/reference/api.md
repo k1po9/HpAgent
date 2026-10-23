@@ -39,9 +39,11 @@ Compose 中 FastAPI 监听 `127.0.0.1:8080`。`GET /health/live`、`GET /health/
 | `GET/PUT /api/v1/works/{work_id}/notification-targets` | 查询 / 从已验证来源选取目标及内容范围。 |
 | `DELETE /api/v1/works/{work_id}/notification-targets/{target_id}` | 禁用目标。 |
 | `POST /api/v1/works/{work_id}/deliveries/{delivery_id}/resolve` | accepted、not_sent 或 retry_accepting_duplicate_risk，显式解决未知投递。 |
-| `GET /api/v1/notifications` | 已进入账户私有 Web inbox 的通知，before 分页。 |
+| `GET /api/v1/notifications` | 已进入账户私有 Web inbox 的通知，before 分页；完成通知 payload.results 携带与 Work 完成回执一致的准确成果引用。 |
 
 Work 创建和写命令使用 `Idempotency-Key`；已存在 Work 的写命令还要求 `If-Match: "work-{work_id}-v{row_version}"`，缺少为 428，格式/版本不匹配为 409。预算命令同时检查 budget_version。修订只发送 requirement 可编辑字段，不能直接回传包含审计字段的 GET 对象。冲突时刷新核对版本；响应不确定时对同一意图重用键。输入 Schema 见 [`models.py`](../../src/web_api/models.py) 和 [`Requirement`](../../src/work_domain/models.py)。
+
+Work 快照的 `results` 数组从当前完成回执的 typed evidence 解析，包含准确 ref_id/type/file_id/sha256、生产 run_id/requirement_revision、name/content_type/size_bytes 和认证 content_url。未完成或没有对应 typed 引用时为空，不把全部候选输出当成已接受成果。`GET /api/v1/files/{file_id}/content` 仍按当前登录账户鉴权，通知里的 URL 不授予其他账户访问；它也不授予 Agent 跨 Run 使用权限。任务的已发布文件查询可用于下载普通 Markdown，不要求先建立 Workspace 长期入口。
 
 Work 快照另含可空 `progress`：policy_version、failure_limit、no_progress_limit、consecutive_failures、no_progress_count、blocked_reason（no_progress / repeated_failure / null）；可空 `daily_baseline` 为 run_id、previous_run_id、changed。它们来自当前 revision 的权威事实；daily Run admission 另冻结 input_snapshot.daily_baseline_run_id。无变化轮次正常成功，SSE 仍可观察事件，但不产生逐轮通知。预算解除要求 limits 至少一项实际增加；同值命令不会解除 budget_exhausted。具体恢复规则见 [Work](../architecture/work.md#有界推进与静默通知)。
 

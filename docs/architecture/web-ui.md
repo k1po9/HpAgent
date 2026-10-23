@@ -16,13 +16,15 @@
 
 `store/shell.ts` 是路由与显示权威：集中 parse/serialize、push/replace、对象 origin、最多五层内部返回栈和导航 token。旧 `#chat` / `#files` / `#works` / `#research` 规范化到三个入口；旧成果和诊断地址缺少明确对象时返回 AI。URL 仅保存标识和允许的枚举，表单内容和凭据不写入 URL。
 
-`Surface` 统一侧栏、sheet 与 dialog 的 Esc、inert、Tab 圈定和焦点返回；上层局部弹窗暂挂父层。Inspector 的身份在断点变化时保持，iframe、草稿与请求不因布局切换重复创建。桌面宽度 ≥1280px 使用非模态侧栏；960～1279px 使用右侧 sheet，600～959px 接近全屏，<600px 全屏。Sidebar 还根据实际 Canvas / Inspector 所需宽度折叠。`styles.css` 的显式导入顺序是样式层叠入口；语义色、字号、间距、焦点与动效参数集中到 tokens，支持 reduced-motion。
+`Surface` 统一侧栏、sheet 与 dialog 的 Esc、inert、Tab 圈定和焦点返回；上层局部弹窗暂挂父层，关闭后返回首次打开它的触发元素；StrictMode effect 重放和断点切换不改写该元素。Inspector 的身份在断点变化时保持，iframe、草稿与请求不因布局切换重复创建。桌面宽度 ≥1280px 使用非模态侧栏；960～1279px 使用右侧 sheet，600～959px 接近全屏，<600px 全屏。Sidebar 还根据实际 Canvas / Inspector 所需宽度折叠。`styles.css` 的显式导入顺序是样式层叠入口；语义色、字号、间距、焦点与动效参数集中到 tokens，支持 reduced-motion。
 
 ## UI 状态与领域状态
 
 AI 页面与任务页面共用 Work 查询控制器；可见时定期刷新权威快照，至多订阅两个相关活动 Work，离页/隐藏/退出清理本地监控而不取消服务端执行。来源消息旁的任务卡片只匹配 `sources` 中的准确会话和消息，不改写 assistant 正文。任务详情的“定位来源消息”使用 `#/ai/{conversationId}?message={messageId}&fromWork={workId}`，按需向前加载历史（自动最多 20 页），找不到时保留当前对话、提示与“返回来源任务”入口；关联但无来源消息只打开会话。
 
 Run 概览与任务执行输出可按需读取能力成果，独立展示 outcome、summary、checks 与 gaps；Research 报告按 invocation_id 读取，HTML 打开 ResultRef 的准确版本。此查询只面向账户所有者，不是模型执行授权或 Work 验收回执；不把局部 succeeded 推断为 Work completed，也不宣称基础检查包含浏览器验证。
+
+通用文字交付可在任务「成果与执行」展开输出文件，通过认证下载 Markdown 正文。Work 查询的 `results` 和完成通知 payload.results 固定同一完成回执的 ResultRef/file_id、生产 Run/revision 与 content_url；inbox 的「查看任务」可返回该任务成果入口。文件读取继续按当前账户过滤，通知引用不是 bearer 授权。
 
 | 模块 | 责任 |
 | --- | --- |
@@ -56,6 +58,8 @@ Run SSE Gateway 先订阅并缓冲，再读取快照；snapshot 始终为第一�
 
 保存、授权、输入引用是独立操作。所有者看到文件不等于 Agent 已授权，关联对话也不自动授权 Work。`GrantEditor` 复用 Conversation 与 Work adapter；目录递归必须显式选择，继承规则从源规则撤销。新增文件/权限在下一 Run 生效；撤权阻断冻结资源的后续访问，并立即清除受影响 Model Input 缓存，即使后续授权读回失败。
 
+任务要求表单可从空间目录选择成果保存位置；选择目录设置必需保存要求，Generic Work 同时保留独立的 `workspace_saved` 验收条件。Main 的目录尚未解析时，可先用必需的 `workspace_saved` 条件记录委托，暂不绑定 deliverable_policy 目录，再引导用户从任务表单选择，不要求复制内部 ID；这只是提示与命令契约，不证明模型实际遵循。选择本身不授予权限，仍需在任务「使用资料」中显式授予「创建子项」。等待补充的任务通过提交要求修订进入下一轮，暂停任务还需恢复；不扩展当前 Run 的冻结授权。未选择新目录时保留原有保存策略与验收条件。
+
 `UploadToWorkspaceDialog` / `SaveToWorkspaceDialog` 固定一次意图与目标，分别恢复上传、ready、保存和授权。保存成功而授权失败只补授权；ready 内容遇到同名保存冲突保留内容并以新名称继续。版本操作意图保存在账户内存，关闭重开仍可用原 key 确认未知结果。impact 绑定对象、参数及 tree revision；过期重新预览与确认。版本写入仍执行 revision/hash CAS，冲突保留输入并允许另存。
 
 ## 任务四桶与动作
@@ -82,9 +86,13 @@ Works 串行追完所有页后才给出精确计数，未完成时明确已加�
 
 具体 Delivery 使用 accepted / not_sent / retry_accepting_duplicate_risk；确认未发送可能触发重发，重复风险须独立确认，accepted 不表示已读。通用未决 operation 仅提供核查/诊断，未新增通用人工对账。Research 保留报告、证据、已发布文件和 required 保存状态；收件箱不伪造服务端未读计数，最近执行最多 100 次。
 
+任务保存列表同时展示 Research 保存意图和 Generic Work 父侧已提交的 Workspace 新入口/CAS 保存操作。后者仅表示实际保存事实，不等于 typed evidence 已登记或 Work 已完成。空间文件的账户隔离 trace 按当前不可变 file_id 查找完成的 Artifact Version，可直接打开准确版本的交互预览；不会按任务最新版本替换文件来源，也不会在普通文件预览中执行 HTML。
+
 ## HTML Artifact
 
 `ArtifactMessageItems` / Task 成果打开上下文 Inspector，`ArtifactInspector` 提供预览、详情、版本历史，`ArtifactComposer` 修改最近成功版本。Task origin 保存原交付版本和 requirement revision；手工新版不会自动替换原任务验收证据。
+
+显式 Artifact 展示修改继承最近成功版本的来源正文及准确旧 HTML，不重新调用 Research。最新候选失败或排队时，其来源正文不替换成功基准；旧版本字节与生产者保持不变。源码副本仍是独立文本文件，交互成果可从原对话消息或任务成果重新打开。
 
 版本列表、消息摘要和逐版 GET 按版本 ID 与请求发出序号合并；已完成内容不被旧 running 覆盖，同 Run 的合法 failed→running 重试仍接受。每版一个 poller，最多四个单版本 GET 并发；仅消息行也能接管后台生成恢复。默认版本绑定本次成功加载，明确手选、关闭、切账户及 A→B→A 不被迟到初始化抢占。
 
@@ -117,3 +125,5 @@ Run 序号来自账号及真实 Conversation/Work 来源内按 created_at/run_id
 用量聚合以 run_budgets 为准；请求尝试以 run_usage_ledger 的 settled/inflight/released 事实计数，可能包含重试/fallback 与发送前释放。Snapshot/Trace 数量不是调用数；单次调用只按真实 model_call_id 关联。Trace 可能只保留最终响应，缺少的用量、关联或耗时明确显示未知，不猜 token 拆分、供应商延迟或任意 90% 告警线。最终结算、当前预留与预算强制边界分别解释。
 
 Trace 节点选择与折叠独立，刷新/调宽保留状态；多根/深树按真实层级截断，详情仍可读完整节点。只有 snapshot_id 可打开 Model Input，不另发输入列表查询。执行中才有运行装饰，终态与减动静止。总跨度用起止差，不累加可能重叠的节点耗时。实现见 `components/run`、`components/trace`、`store/runInspector.ts` 及相邻测试。
+
+Main 的 accept_work/revise_work 向模型公开嵌套 requirement 字段，schema_version 位于 spec、timing、deliverable_policy 和 resource_requests 项内，不能放在 requirement 顶层；required 保存必须绑定有效目录 UUID 并保留必需 workspace_saved 验收条件。业务仍严格校验，参数失败返回精确反馈。当前对话已选且有效授权的目录元数据单独进入 Main 上下文，不因文件候选只列文件而遗漏；这些元数据不把对话权限复制给 Work。只有文字路径时沿现有目录选择和授权入口补充。Main 参数失败且没有已提交委托回执时，最终消息明确显示「委托未建立」；修正成功后显示正常回复，任务入口仍只来自已提交 Work 的查询投影。
