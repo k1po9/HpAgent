@@ -10,6 +10,10 @@ Account 是模型访问的主体。`account_entitlements` 保存账号自己的 
 
 Agent 能力由 Context Assembly、Brain/Model 决策循环和持久化策略 Workflow 组成。ReAct 与 Plan-and-Execute 共享同一套 Lifecycle、Actions、Memory、Workspace 和结果提交路径。
 
+模型角色与阶段提示词集中在 [agents.yaml](../../config/prompts/agents.yaml)：`main` 面向交互，`worker` 执行 Generic Work，`subagent` 负责只读调查分支；`planning`、`evaluation`、`step_execution` 为规划执行阶段，`research` 与 `html` 是专业生成能力，`handoff` 是委托提交后的交接提示。Research/HTML 不是额外的 Work 管理 agent；文档转换等确定性工具没有模型角色提示词。
+
+这些提示词均用中文表述，工具名、JSON 字段和枚举值保留协议拼写。可以直接编辑配置；进程首次读取后缓存，修改后需重启相关应用进程，已有持久化上下文与模型输入快照不回写。角色配置从仓库/应用根目录下 `config/prompts/agents.yaml` 读取，缺失、无效或缺少所需键时报错，不静默使用 Python 内置角色文本。渠道身份、工具纪律、环境、记忆及工具摘要仍分别维护在同目录已有 YAML 中；工具参数 schema 与权限、预算、验收校验仍由代码控制。
+
 ## Work 与执行策略
 
 Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 continuation。提醒、研究、通用工作和成果构建通过服务端 StrategyRegistry 选择注册 executor；不支持的能力直接拒绝。Main 使用 Work 管理工具，Work Agent 不获得这些工具；工作上下文不加载关联聊天全文。Generic Work root 可一次委派最多三个只读分支，共用 Run / Work 预算。完成由持久证据与 WorkCompletionPolicy 判断。详见 [Work](work.md)。

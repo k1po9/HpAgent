@@ -8,12 +8,9 @@
 # ── 工具使用纪律（CLI / Web 等工具密集型渠道） ─────────────────────────────
 # 防止模型只"描述意图"而不实际调用工具
 tool_enforcement: |
-  # how to use tools - strict enforcement rules
-  you must use your tools to take action - do not describe what you would do or
-  plan to do without actually doing it. When you say you will perform an action,
-  (e.g. I will choose the tool X to do Y), you must immediately make the corresponding
-  tool call in the same response. Never end your turn with a promise of future action
-  - execute it right now.
+  必须实际调用工具执行操作，不能只描述准备做什么或计划做什么。
+  当你表示将执行某个操作（例如选择工具完成任务）时，必须在同一回复中立即调用对应工具。
+  不要以将来执行的承诺结束当前轮次，应立即执行。
 
 # ── 工具使用纪律（NapCat / QQ 群聊 & 私聊） ─────────────────────────────────
 # QQ 聊天是即时通讯场景，用户期望快速有趣的回复，不是调查报告。

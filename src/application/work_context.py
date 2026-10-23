@@ -6,6 +6,7 @@ import re
 from uuid import UUID
 
 from application.execution_contracts import ExecutionRequest
+from application.prompt_catalog import agent_prompt
 from persistence.uow import UnitOfWork
 from run_domain.execution import assert_execution_fence, lock_execution
 from run_domain.lifecycle import RunLifecycleService
@@ -30,9 +31,7 @@ class WorkContextProvider:
                 return ExecutionRequest(
                     str(execution["execution_id"]), str(execution["account_id"]), None, None,
                     brief["objective"], (
-                        {"role": "system", "content": "Investigate only this branch brief. Use only its authorized read tools and resources. "
-                         "Return a concise summary, exact evidence references, and explicit gaps matching the output contract. "
-                         "No Work management, delegation, long-term writes, or user delivery is authorized."},
+                        {"role": "system", "content": agent_prompt("subagent")},
                         {"role": "user", "content": json.dumps(brief, ensure_ascii=False)},
                     ), metadata={"run_id": str(run_id), "surface": "work",
                         "parent_execution_id": str(execution["parent_execution_id"])},
@@ -84,26 +83,7 @@ class WorkContextProvider:
             (
                 {
                     "role": "system",
-                    "content": "你正在执行持久 Work，不是在聊天中展示代码。文字、HTML 代码块或口头成功都不是已发布成果、版本或保存回执。"
-                    "普通文字成果使用 capability__text__v1 发布完整正文，再以返回的 ResultRef 调用 result__evidence 登记 output_exists 条件。轻量搜索和阅读直接使用 web_search/web_fetch；只有需求明确要求专业研究时再调用 Research，避免为同一个轻量查询同时启动搜索和 Research。工具观察是后续决策依据。除非任务明确要求，不需要 Research、HTML、Workspace 长期保存或专业检查。"
-                    "交付需要可保存的不可变引用与检查时，应选择提供这些结果的已注册能力；不要在最终文字中手工替代它的输出。"
-                    "已有成功来源结果应复用准确引用；局部格式不足可以改变行动修正，不需要为此重复成功的研究。"
-                    "子能力只接收显式 inputs，不继承本任务要求。调用时必须把与该能力相关的用户行为、结构、控件和修改要求传入对应 instruction 等字段；不能只传来源引用而丢失目标。"
-                    "只在确实缺少用户资料或权限时等待输入。按照要求使用父侧保存及证据工具，最后只返回符合结果契约的 JSON 对象，不要代码围栏。"
-                    "Research 的剩余额度见 budget 的 research_iterations（limits-used-reserved）。每次调用结果也返回实际用量和停止原因；剩余为零或没有新查询策略时停止调用 Research，明确报告尝试和缺口，沿现有恢复入口等待处理，不能新建 Run 绕过限制。"
-                    "Execute this fixed Work brief within authorized resources. "
-                    "For bound inputs read the run_files logical names or use list_files to discover more. "
-                    "For file resources use list_run_candidates, select_run_candidate, then read_file by returned logical name. "
-                    "Selected artifact_refs include exact result_ref_id metadata when available; explicitly adopt the selected old result before revising it. Metadata alone grants no file access. "
-                    "Save progress or state missing input. A narrative answer cannot complete the mandate. "
-                    "Do not create or manage other Work. No implicit channel or resource permission is granted. "
-                    "For independent investigation directions, delegate_work is available once with up to three bounded briefs. "
-                    "Declare required branches honestly and verify each result; missing required branches forbid completion. "
-                    "Finish with a JSON result: schema_version=1; kind=deliverable_ready/progress_saved/waiting_input/waiting_due; "
-                    "evidence=[{criterion_id,type:output_exists/check_passed/workspace_saved,ref:exact_evidence_id}]; "
-                    "continuation={schema_version:1,kind:ready/at_time/awaiting_input/blocked,reason,due_at?}. "
-                    "Use parent result evidence with an exact subject and registered verifier for required criteria. Missing input or evidence saves progress; "
-                    "request completion only when all acceptance criteria are met. Do not claim user acceptance.",
+                    "content": agent_prompt("worker"),
                 },
                 {"role": "user", "content": text},
             ),

@@ -35,6 +35,7 @@ from agent_workflows.contracts import (
     ToolExecutionResult,
 )
 from application.execution_contracts import StableExecutionFailure
+from application.prompt_catalog import agent_prompt
 from brain.contracts import BrainCapability
 from common.logging import log_event
 from resources.model_budget_context import model_budget_scope
@@ -494,7 +495,7 @@ class DurableAgentActivities:
             if request.objective:
                 objective_message = {
                     "role": "system",
-                    "content": f"当前只执行此目标；完成后直接给出该步骤结果：{request.objective}",
+                    "content": agent_prompt("step_execution") + request.objective,
                 }
                 position = 1 if model_messages and model_messages[0].get("role") == "system" else 0
                 model_messages.insert(position, objective_message)
@@ -1195,10 +1196,8 @@ class DurableAgentActivities:
             planning_instruction = {
                 "role": "system",
                 "content": (
-                    "把用户目标拆成 1 到 8 个可执行步骤。只返回 JSON："
-                    '{"steps":[{"title":"短标题","objective":"具体目标"}]}。'
-                    "不要重复已经完成且仍有效的步骤，必须利用 completed step results。"
-                    f" previous_plan_ref={request.previous_plan_ref!r};"
+                    agent_prompt("planning")
+                    + f" previous_plan_ref={request.previous_plan_ref!r};"
                     f" previous_plan_version={request.previous_plan_version!r};"
                     f" completed_step_refs={list(request.completed_step_refs)!r};"
                     f" trigger_step_id={request.trigger_step_id!r};"
@@ -1356,9 +1355,8 @@ class DurableAgentActivities:
         instruction = {
             "role": "system",
             "content": (
-                "评估刚完成的计划步骤。只返回 JSON："
-                '{"decision":"continue|replan|complete|fail","reason":"简短原因"}。'
-                f"当前是第 {request.step_index}/{request.step_count} 步。"
+                agent_prompt("evaluation")
+                + f"当前是第 {request.step_index}/{request.step_count} 步。"
             ),
         }
         position = (
