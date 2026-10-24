@@ -14,6 +14,10 @@ Agent 能力由 Context Assembly、Brain/Model 决策循环和持久化策略 Wo
 
 这些提示词均用中文表述，工具名、JSON 字段和枚举值保留协议拼写。可以直接编辑配置；进程首次读取后缓存，修改后需重启相关应用进程，已有持久化上下文与模型输入快照不回写。角色配置从仓库/应用根目录下 `config/prompts/agents.yaml` 读取，缺失、无效或缺少所需键时报错，不静默使用 Python 内置角色文本。渠道身份、工具纪律、环境、记忆及工具摘要仍分别维护在同目录已有 YAML 中；工具参数 schema 与权限、预算、验收校验仍由代码控制。
 
+新建 Main Chat Run 在不可变 `input_snapshot.main_protocol=tool_first_v1` 中冻结协议。每轮决策必须产生一个实际结构化工具动作；普通回答通过 `respond_directly(answer, command_refs?)` 结束，其他动作执行后继续 ReAct。Provider 请求在预算预留与快照之前冻结 required tool choice 与单动作限制，服务端再次校验；无工具、伪工具文本或并行批次不执行动作、不作为最终回复，按原轮次预算修正，强制最终轮只提供收尾工具，违规失败。历史 Run 未冻结该协议时保留原行为，避免改变旧 History。
+
+`respond_directly` 使用原 Execution operation、transcript CAS、fence 与预算持久化收尾回执并支持响应丢失重放。`response_terminated` 只证明交互结束。业务成功事实必须来自本 Run 已观察、同账户、已提交且成功的 `idempotency_commands`；`command_refs` 不能引用未观察或其他 Run 的命令。服务端生成独立的已核验命令事实，口头承诺、回答动作及模型编造 ID 均不建立 Work。真正委托仍只能经 `accept_work`，查询或普通回答不强制创建 Work。
+
 ## Work 与执行策略
 
 Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 continuation。提醒、研究、通用工作和成果构建通过服务端 StrategyRegistry 选择注册 executor；不支持的能力直接拒绝。Main 使用 Work 管理工具，Work Agent 不获得这些工具；工作上下文不加载关联聊天全文。Generic Work root 可一次委派最多三个只读分支，共用 Run / Work 预算。完成由持久证据与 WorkCompletionPolicy 判断。详见 [Work](work.md)。
@@ -45,6 +49,12 @@ Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 
 父观察取得新的 segment，按当前授权读取结果，在同一事务内登记父新 attempt、完成 caller Operation、追加配对 tool_result 和 CapabilityObservation。transcript CAS 冲突整笔回滚；响应丢失重读同一 Operation。取消等待 Child Workflow 确认后关闭子 Execution；父暂停、修订、停止或终结后，结果只能留在原生产者，不能推进新 revision。专业实现必须在取消清理完成后确认结束，不能丢弃未知外部副作用。
 
 ## Actions、Tools、MCP 与 Sandbox
+
+模型工具分组和角色分配由 [agent_tools.yaml](../../config/agent_tools.yaml) 驱动，与 [角色提示词](../../config/prompts/agents.yaml) 配套维护。Main / Generic Work Worker 在注册本地、文件、MCP、Skill 工具时按角色过滤；根执行追加的联网、Research、HTML、文字发布、结果管理和委派工具也读取同一分配。未分配的工具不能通过手工构造调用绕过：普通工具不进入执行注册表，专用工具在执行或创建能力实例前重新检查。配置不会启用原本关闭的工具、补齐缺失服务或扩大资源授权。
+
+只读子 agent 的 `grant=parent_read_only_subset` 是执行约束：父侧从当轮已登记且本角色允许的只读工具中选择 `branches[].tool_names`，服务器检查父侧清单并固定到子 Execution 的 `resource_scope`；子注册表在检索前再取父侧名单、子角色工具组和可信只读元数据的交集。工具执行仍检查分支范围与当前资源权限。共享 `web_search/web_fetch` 当前只支持根执行，不在可委派清单中；Research/HTML/规划/评估模型没有自主工具列表，不能通过修改配置赋予工具循环。
+
+本轮模型输入附带服务器计算的实际工具名与 `delegatable_tools`，后者仅在提供 `delegate_work` 时展示。角色提示词中的工具指导不代表本轮可用；工具描述和参数 schema 仍来自可信注册定义，不从 YAML 接受任意实现或 Workflow 名称。配置操作与生效边界见[配置参考](../reference/configuration.md#agent-工具分配)。
 
 Actions 通过统一调用契约暴露本地工具和已配置的 MCP Server。Tool Retrieval 选择数量受限的相关工具，默认上限为 12（关闭语义检索后仍生效）。Main 管理工具与文件 front door 属于保留入口；配置上限容不下保留入口时，工具选择必须抛出配置错误并阻止模型分发，不能静默降为无工具请求。Side-effect Metadata、稳定 Operation ID、Budget 和 Reconciliation 共同保护可重试执行。Shell 类操作可在 Sandbox 和账号级 Workspace Isolation 中运行。
 
@@ -80,7 +90,11 @@ HTML 模型输入以 JSON 区分事实来源 Markdown、展示要求和旧版 HT
 
 [ResultAdoptionService](../../src/run_domain/acceptance.py) 在当前 root fence 下执行采用、保存和证据求值。Harness 的 `result__adopt`、`result__save`、`result__evidence` 不依赖 native/MCP 工具模式。显式选定的旧 Artifact 输入在 Run admission 固定 `result_ref_id` 元数据，便于父模型发现准确旧结果；该元数据既不代替显式采用，也不授予文件读取权限。采用记录绑定当前 Run/Execution、Work revision/epoch，引用固定版本，原生产者不改写；账户所有权本身不授予 Agent 读取权，跨 Run 每次读取、模型输入和保存仍检查现有授权。Workspace 新建和 CAS 更新共用原保存内核，不复制正文或给兄弟能力扩大输入集合。保存回执返回准确 subject_ref、node_id、保存/版本 operation_id 和 workspace_saved_predicate；该谓词只是父侧后续求值输入，不自动创建验收证据，使用时仍重新核对当前权限、fence、criterion 和持久保存事实。
 
-文字发布由 [TextActivities](../../src/agent_activities/text_result.py) 接收有界 title/body，经原 OutputPublisher 发布不可变 Markdown，按稳定 invocation/operation 重放，原子提交 CapabilityResult / ResultRef 与字节预算结算。不调用模型、不要求 HTML、专业检查或 Workspace 长期保存。父 Agent 再以准确 ResultRef 对所需的 output_exists 条件调用 result__evidence；发布本身不完成 Work。轻量后台查询由 Agent 自主使用共享 web_search/web_fetch，观察进入后续模型决策；只有明确的专业研究需求才选择 Research。
+文字发布由 [TextActivities](../../src/agent_activities/text_result.py) 接收有界 title/body 和可选 format（默认 markdown，可选 docx），经原 OutputPublisher 发布不可变文件，按稳定 invocation/operation 重放，原子提交 CapabilityResult / ResultRef 与字节预算结算。不调用模型、不要求 HTML 或 Workspace 长期保存。格式能力保留；原生 DOCX 工具也未禁用，任意工具生成文件并不等于满足交付格式。
+
+有结构化交付目标时，发布后读取已持久化的准确字节，检查 SHA256、MIME、文件名与 UTF-8 Markdown 或 OOXML DOCX 结构，发布不可变 check_evidence，登记 `file.format.markdown` / `file.format.docx` v1 Check，subject_ref 固定该成果。Markdown 没有唯一语法签名，因此格式检查只承诺可读 UTF-8 文本及正确元数据，不证明内容质量。格式失败不抹去文件存在事实；父侧仍可登记 output_exists，不能登记通过格式证据。结果、检查、观察和证据分别沿原幂等及恢复路径提交；父侧观察与 evidence 原子提交。旧的未限定格式 Markdown 保留原发布和自动存在性登记，不增加额外格式门槛。仅允许已审查的 text/v1 增量格式升级恢复旧冻结描述，其余实现、限制与资源定义变化仍拒绝。
+
+轻量后台查询由 Agent 自主使用共享 web_search/web_fetch，观察进入后续模型决策；只有明确的专业研究需求才选择 Research。
 
 Generic Work 的 evidence 只接受 `output_exists`、`check_passed`、`workspace_saved`，ref 指向服务器登记的 capability_acceptance_evidence。谓词沿用 AcceptancePredicate v1：检查必须匹配同一 subject_ref 与准确 verifier/version；保存必须匹配同一不可变文件、目标和操作，必需保存另核对 deliverable_policy。成功工具回执不能代替这些条件。用户验收、渠道接受仍走既有独立可信回执，不由模型生成；固定 Research/Artifact 父适配器保留原专用验收接口。
 

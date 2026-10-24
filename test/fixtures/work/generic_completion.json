@@ -1,0 +1,30 @@
+{
+  "result_evidence_types": ["check_passed", "output_exists", "workspace_saved"],
+  "new_requirement": {
+    "objective": "发布文字成果",
+    "capability_key": "generic_work",
+    "spec": { "schema_version": 1, "reasoning_mode": "react" },
+    "constraints": [],
+    "acceptance_criteria": [
+      { "id": "result", "required": true, "evidence_types": ["output_exists"] }
+    ],
+    "completion_mode": "deliverable",
+    "timing": { "schema_version": 1, "kind": "immediate", "timezone": "UTC" },
+    "resource_requests": [],
+    "deliverable_policy": { "schema_version": 1, "required": false }
+  },
+  "legacy_criteria": [
+    { "id": "result", "required": true, "evidence_types": ["operation_receipt"] },
+    { "id": "checked", "required": true, "evidence_types": ["check_passed"] },
+    {
+      "id": "optional",
+      "required": false,
+      "evidence_types": ["output_exists", "operation_receipt", "workspace_saved"]
+    }
+  ],
+  "upgraded_criteria": [
+    { "id": "result", "required": true, "evidence_types": ["output_exists"] },
+    { "id": "checked", "required": true, "evidence_types": ["check_passed"] },
+    { "id": "optional", "required": false, "evidence_types": ["output_exists", "workspace_saved"] }
+  ]
+}

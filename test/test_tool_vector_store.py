@@ -143,3 +143,20 @@ def test_embedding_model_change_rebuilds_collection(tmp_path):
     assert len(second_embedding.calls) == 1
     assert store.collection.metadata["embedding_model"] == "model-b"
     assert "definition_hash" in _stored_metadata(store)
+
+
+def test_main_requirement_dict_schema_is_indexed_and_retrieved(tmp_path):
+    from types import SimpleNamespace
+    from uuid import uuid4
+
+    from application.main_agent import create_main_work_tools
+
+    tools = create_main_work_tools({'account_id': str(uuid4()), 'conversation_id': str(uuid4()),
+                                   'trigger_message_id': str(uuid4())}, SimpleNamespace())
+    accept = next(tool for tool in tools if tool.name == 'accept_work')
+    assert isinstance(accept.args_schema, dict)
+    store = ToolVectorStore(str(tmp_path))
+    store.index_tools([accept], FakeEmbeddingClient())
+    result = store._collection.get(ids=['accept_work'], include=['documents'])
+    assert result['ids'] == ['accept_work']
+    assert 'requirement' in result['documents'][0]

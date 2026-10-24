@@ -12,6 +12,7 @@ from typing import List, Optional
 import chromadb
 from chromadb.config import Settings
 from langchain_core.tools import BaseTool
+
 from sandbox.tools.routing.models import ScoredCandidate, SemanticRetrievalResult
 
 logger = logging.getLogger("HpAgent.ToolRAG")
@@ -66,8 +67,11 @@ class ToolVectorStore:
         for tool in tools:
             doc = f"{tool.name}: {tool.description}"
             if tool.args_schema:
-                for field_name, field_info in tool.args_schema.model_fields.items():
-                    desc = (field_info.description or "") if hasattr(field_info, "description") else ""
+                fields = (tool.args_schema.get('properties', {}) if isinstance(tool.args_schema, dict)
+                          else tool.args_schema.model_fields)
+                for field_name, field_info in fields.items():
+                    desc = (field_info.get('description', '') if isinstance(field_info, dict)
+                            else (field_info.description or '') if hasattr(field_info, 'description') else '')
                     doc += f" {field_name}: {desc}"
 
             docs.append(doc)

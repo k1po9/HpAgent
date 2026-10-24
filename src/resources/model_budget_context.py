@@ -34,6 +34,7 @@ class ModelCallContext:
     failure_logged: bool = False
     snapshot_id: str | None = None
     read_timeout_seconds: float | None = None
+    tool_choice_required: bool = False
 
     def begin_logical_call(self) -> tuple[int, UUID]:
         self.call_ordinal += 1

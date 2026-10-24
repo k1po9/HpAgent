@@ -90,7 +90,9 @@ make e2e-canonical
 
 正式 Fake Executor 只完成 chat/artifact，不执行所有提醒/研究 Work。Artifact 复用局部 HTML 能力与有限 Chat Run，受同 Conversation 单 active 槽约束；排队 Work 不占此槽。完整确认使用新建隔离 PG/Redis/API/File Store，不延长超时或放宽业务容量掩盖限制。独立 auth-transition 实验室的 CPU/Flip/资源释放断言不能仅凭正式 UI 套件通过宣称已等价覆盖。
 
-通用文字闭环由 `test/work_domain/test_text_closure.py` 验证：首 Run 的 checkpoint/ready 经调度与 Outbox 自动接续，第二 Run 通过生产文字能力发布、登记 typed evidence、完成 Work、投递 inbox，引用与 GC 保留一致；专用子进程在结果已提交、父观察未提交时 SIGKILL，恢复复用同一 operation/字节且仅一次父观察。`test/work_domain/test_text_publish.py` 另覆盖文件已发布、typed result 提交前的响应丢失重放，以及暂停后的旧子执行拒绝。此处模型是确定性夹具，不证明真实模型决策。Work 领域 fixture 会保留其他用例的 queued/running 事实；组合验证应使用独立测试库并避免与会 TRUNCATE 的 API/持久化 fixture 共库并发，保持生产容量默认值。
+通用文字闭环由 `test/work_domain/test_text_closure.py` 验证：首 Run 的 checkpoint/ready 经调度与 Outbox 自动接续，第二 Run 通过生产文字能力发布、登记 typed evidence、完成 Work、投递 inbox，引用与 GC 保留一致。覆盖显式验收、模型漏调用验收工具、最终 JSON 漏列证据及多次发布后强制最终轮次输出伪工具文本；专用子进程分别在父观察提交前、观察及证据已提交但响应未返回时 SIGKILL，恢复复用同一 operation/字节且仅一次观察和证据。`test/work_domain/test_output_evidence.py` 覆盖观察与证据原子回滚/重放、终态重放、旧 revision/fence、其他必需条件、显式等待、文件可用性复查，以及普通文件或未观察成果不能自动补证。`test/work_domain/test_text_publish.py` 另覆盖文件已发布、typed result 提交前的响应丢失重放，以及暂停后的旧子执行拒绝。此处模型是确定性夹具，不证明真实模型决策。Work 领域 fixture 会保留其他用例的 queued/running 事实；组合验证应使用独立测试库并避免与会 TRUNCATE 的 API/持久化 fixture 共库并发；调度闭环用例的 due loop 同样不得与其他领域用例共库并发，保持生产容量默认值。
+
+Workspace 保存前置条件由 `test/test_workspace_save_policy.py`、`test/work_domain/test_save_admission.py` 和 `test/web_api/test_work_save_admission.py` 覆盖：Main 普通交付默认不请求保存、显式待补目录、真实目录/Work 授权、无效或跨账户目录、撤权后准入、旧命令重放/显式修订、累计预算保留与旧 fence 拒绝。隔离 PG 用例通过生产文字 publisher 和 typed evidence 分别完成普通发布与授权保存，不调用真实模型/检索；这些用例不能证明真实模型会正确识别用户的保存意图。真实浏览器复验应分别提交仅下载 Markdown 与明确保存到 Workspace 的请求，后者检查未选目录/未授权时没有后台 Run，正常修订及显式授权后才执行。
 
 Main/UI 组合契约由 `test/work_domain/test_main_ui.py`、能力结果持久化查询用例和 `test/web_api/test_work_foundation.py` 验证消息来源、接受重放、revision 与账户隔离；群聊裁剪沿用 durable review 用例。`web/e2e/composable-main.spec.ts` 使用隔离 Fake API 验证离页/刷新找回、准确来源消息和普通聊天独立；它只证明后台协调 Run 的持久身份不丢失，实际持续执行与新 fence 恢复由 `test/work_domain/test_continuation_temporal.py` 验证。自然语言工具描述和脚本调用测试不证明真实模型决策，真实 Provider / QQ 外发仍需单独授权。
 
@@ -128,3 +130,5 @@ Main/UI 组合契约由 `test/work_domain/test_main_ui.py`、能力结果持久�
 Web Retriever v1 的模块边界见[设计总结](../architecture/capabilities.md#web-retriever-v1-设计总结)。离线回归入口为 `test/test_web_retrieval.py`、`test/test_deepseek_retrieval.py`、`test/test_local_fetch_markdown.py` 与 `test/test_main_web_tools.py`，覆盖 Provider 选择、来源范围、网络安全、格式/大小、身份、预算和恢复。`test/fixtures/research/local_fetch_html.json` 是可执行格式夹具，继续保留。
 
 持久化预算回归为 `test/web_persistence/test_web_retrieval_budget.py`；Main Command → Temporal → 工具 → 回复的隔离回归为 `test/web_persistence/test_main_web_tools.py`，需要显式专用 PG/Temporal。模型及供应商夹具只验证调用契约；Research 的证据选择、合成和报告质量按其自身流程测试，与 Retriever 模块冻结分别处理。
+
+Main Tool-first 与交付格式的隔离验证入口：`test/test_delivery_contract_unit.py` 覆盖格式字节、约束 schema、Provider 冻结和旧 text 定义兼容；`test/work_domain/test_main_tool_first.py` 用确定性 Brain 与真实 PG 检查多轮修正、伪调用、终止/命令回执分离、响应丢失幂等与强制收尾；`test/work_domain/test_delivery_format.py` 覆盖 Markdown/DOCX/双格式、无显式验收工具、同 ResultRef 配对、重复发布、发布后崩溃、检查失败、旧 revision/fence、保存和其他必需条件。`test_text_closure.py` 的专用 SIGKILL Worker 同时覆盖旧契约与格式契约；Web 任务编辑器测试检查格式修订保留独立条件。Main Temporal 确定性模型使用真实 respond_directly 动作，历史 History 仍通过 Replayer 校验。以上均不新增真实 Provider 请求；运行时使用独立数据库、namespace 和 File Store。

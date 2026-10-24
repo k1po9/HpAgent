@@ -84,6 +84,9 @@ class PlanAndExecuteWorkflow:
                     task_queue=AGENT_TASK_QUEUE,
                 )
                 transcript_version = result.transcript_version
+                if result.result_ref.startswith('main-response:'):
+                    return AgentResult(AGENT_SCHEMA_VERSION, request.run_id, result.result_ref,
+                        context.transcript_id, transcript_version, tool_turns + result.tool_turns)
                 tool_turns += result.tool_turns
                 completed_step_refs.append(result.result_ref)
                 workflow.logger.info(

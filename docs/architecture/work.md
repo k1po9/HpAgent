@@ -18,11 +18,51 @@ Work 生命周期为 `active / pausing / paused / stopping / stopped / completed
 
 Work 的需求 revision 不可变。修订、暂停、停止和推进是带幂等键、版本检查与审计的命令。关联 Conversation 不导入聊天全文、附件或文件权限；后台执行不占聊天 admission，也不伪造 user / assistant Message。
 
+Generic Work 可在 Requirement 中设置 `deliverables={schema_version:1,items:[{id,format,required,output_criterion_id,format_criterion_id}]}`。format 为 markdown/docx；每个目标绑定独立的纯 output_exists 与 check_passed criterion，required 必须一致，最多十个目标。未指定时保留旧契约。格式从 Main 的工具 schema、需求持久化、Run 冻结简报传到 Worker，工具执行检查所选格式，最终验收校验准确证据。Web「修改要求」可选择 Markdown、Word 或同时交付；未修改格式时保留完整原目标与其他条件，修改产生正常 revision 并使旧执行失效。
+
+数据库迁移 072 仅为历史需求增加可空 deliverables，不回写历史记录或 hash；新增冻结输入校验、交付目标校验与完成提交约束。每个必需目标的存在性和指定 verifier/version 的格式通过证据必须指向同一 ResultRef；不同目标不能共用该引用，不能拿 A 文件存在与 B 文件格式合并验收。Python completion policy 与数据库提交均执行配对检查，其他必需条件和原完成触发器继续独立生效。
+
+当前限制：Main 的 `accept_work` 工具 schema 只将 objective、capability_key、spec 列为 Requirement 必填项，仍可能接受 `acceptance_criteria=[]`、`deliverables=null` 的 Generic Work。提示词要求不能替代创建前的正式约束；真实模型即使看到了格式 schema，也可能省略这两个字段。此时文件发布可以成功，但没有可绑定的 criterion，服务端不会凭空登记 output_exists 或格式证据，也不会完成 Work。Tool-first 的真实委托成功与完整交付验收仍需分别核对；收紧该创建契约是尚未完成的后续工作，不能用放宽证据或完成策略替代。
+
 ## 统一有限执行链
 
 Main 对明确后台/离页后继续的请求先登记 Work 并返回提交身份，不以聊天中的 HTML 或口头承诺代替；保存权限可以在接受后通过正常资源命令授予。Main 接受必需保存的 Generic Work 时校验存在 required 的 `workspace_saved` 验收条件，缺失时在幂等命令认领前拒绝不可能满足的请求。轻量后台搜索与文字整理默认使用 `generic_work` / ReAct，以 required 的 `output_exists` 条件验收；来源与排除要求放在 objective/constraints，generic spec 只接受 schema_version/reasoning_mode。普通文字不默认要求 HTML、专业研究、长期保存或用户验收。Main 的 `accept_work` 使用原始用户消息与稳定 mandate_slot 生成幂等键，重试前读取已提交委托回执。工具描述提供 Requirement 结构；组合目标使用 generic_work，有限即时 HTML 请求留在 Chat。普通问答不修改 Work，进度查询只读；明确修改走完整 Requirement 的 revise 命令，控制走 pause/resume/stop。已完成或停止的目标后续修改创建新委托。
 
 Work 快照的 `sources` 保存 `{conversation_id, source_message_id}`，来自既有 work_conversations 的组合归属；无来源的关联返回 null 消息，不制造锚点。只提供 source_message_id 时，接受命令从账户内真实消息推导会话。来源投影不复制文件授权。Web 来源消息展示权威快照任务卡片，任务详情可返回准确消息；Chat 与任务控制互不替代。
+
+### Generic 成果发布与 Workspace 保存
+
+普通 Markdown 的生成、发布、下载以 `output_exists` 验收，不默认要求保存到 Workspace。Main 的 `accept_work / revise_work` 使用默认 false 的 `workspace_save_requested`：只有用户明确要求保存，或明确保留已有保存约束时才设为 true。false 却带必需保存条件的新命令被拒绝；该标志只是 Main 写入校验，不是授权，不扩展持久 Requirement schema。直接 API/任务编辑器的完整 Requirement 仍代表显式要求。
+
+明确要求保存但未选目录时，保留必需的 `workspace_saved`，设置 `deliverable_policy.required=false` 并省略目标 ID；这表示等待补充，不表示取消保存条件。新建/修订 Generic 拒绝全零 UUID 占位目标及缺少必需保存验收项的必需保存策略，HTTP 为不可重试的 `422 workspace_save_invalid`；检查位于已提交幂等回执重放之后。
+
+接受、修订、继续和 Run admission 检查当前账户内真实目录/文件目标及 Work 自己的 `create_child`（更新已有入口为 `update_content`）授权。未确定、不可用或缺少权限时为 `awaiting_input`，reason 分别为 `workspace_save_destination_required / workspace_save_destination_unavailable / workspace_save_permission_required`；旧要求缺少必需保存验收项时为 `workspace_save_criteria_required`。不创建 Run、Execution、执行租约或模型预算预留。单个 criterion 的 evidence_types 是备选关系，混合 `output_exists / workspace_saved` 不会凭空变成强制保存。
+
+选择/修正目标通过正常 If-Match 修订创建新 revision；授予目录权限必须走显式 Work 资源命令，聊天授权与目录元数据均不复制为 Work 授权。授权命令仅重新评估这类保存前置条件等待；满足后按原计划创建去重 wakeup，暂停、其他输入等待、预算/进展保护和未决副作用不会借此解除。直接资源授权后也可显式 advance，准入再次检查。资源冻结不代替实际保存时的当前 grant、revision、lease/fence 校验；权限可能在运行中撤销，原保存与完成校验保持不变。
+
+旧 Requirement、失败 Run、完成回执和账本不改写。旧的空/占位/失效目标在下一次准入进入等待，而不是继续产生付费执行；已运行 attempt 不被此准入检查回溯取消，仍受原 fence 和当前权限约束。错误的历史保存要求须由用户审阅后通过新 revision 明确修正；不自动删除验收项、不自动重跑或提额。原命令重放仍返回原回执，等待变化通过权威查询读取。
+
+### Generic 旧验收条件的显式升级
+
+网页新建 `generic_work` 使用必需的 `output_exists` 条件；Generic 最终回执只接受 `output_exists / check_passed / workspace_saved` 的服务器证据。成功工具调用的 `operation_receipt` 不证明已发布成果。新建和修订命令拒绝写入带此旧类型的 Generic 要求，HTTP 返回不可重试的 `422 generic_acceptance_revision_required`。验证放在原命令幂等对账之后：历史已提交请求重放仍返回原回执，不悄悄转换 payload。
+
+已有要求与完成回执保持不可变，不批量改写、不重置账本、不把旧成功操作视为新成果。旧任务可继续读取；在任务编辑器中逐项审阅条件后，明确确认将 `operation_receipt` 改为 `output_exists`，再提交带原 If-Match / 幂等键的新 revision。转换保留 criterion ID、required 标记及其他类型，混合列表去重。确认绑定到当前编辑基线，新基线需要重新确认。修订仍走正常取消/收敛、revision/epoch、权限与验收链；暂停状态保留，失败 Run 与历史要求保留，completed/stopped 不提供此修订入口。完成仍须新 revision 的准确成果证据，必需保存与检查不会被删除。
+
+运维可在明确选定的业务库中以只读事务审计当前受影响的要求（只输出按状态汇总的数量，不输出目标正文）：
+
+```sql
+BEGIN READ ONLY;
+SELECT w.status, count(DISTINCT w.work_id) AS affected_works
+FROM hpagent.works w JOIN hpagent.work_requirements q
+  ON q.account_id=w.account_id AND q.work_id=w.work_id
+  AND q.revision=w.current_requirement_revision
+CROSS JOIN LATERAL jsonb_array_elements(q.acceptance_criteria) c
+WHERE q.capability_key='generic_work' AND c->'evidence_types' ? 'operation_receipt'
+GROUP BY w.status;
+COMMIT;
+```
+
+不直接 UPDATE 旧 requirement/status，也不通过 advance 或新 Run 绕过旧条件。账户所有者通过上述显式修订恢复可执行契约；已完成/停止任务保留历史，后续工作另建委托。此修复不新增 Schema Migration。共享契约夹具为 `test/fixtures/work/generic_completion.json`，由网页 builder、后端命令/HTTP 回归和生产文字闭环测试共同使用。
 
 ```mermaid
 flowchart TD
@@ -99,6 +139,10 @@ Artifact Version 保存 producing Run / Execution / operation；Work adoption �
 
 通用文字结果沿 `capability_acceptance_evidence → capability_result_refs → stored_files` 保留准确字节，原 GC 引用检查阻止回收。完成回执固定当前 revision 的证据；Work 查询的 `results` 从这份回执解析准确 ResultRef、生产 Run/revision、文件摘要及认证 content_url，完成通知携带相同 `results`。这些产品查询不授予 Agent 跨 Run 读取权限。任务「成果与执行」已有已发布文件下载入口，使用本人认证读取正文；不需要先保存到 Workspace。
 
+Generic Work root 观察成功的 `text/v1` 发布时，若该调用只有一个 Markdown ResultRef，且当前冻结需求只有一个必需的纯 `output_exists` 条件，父侧复用原验收服务确定性登记该条件的证据，与观察及调用回执同事务提交。有 deliverables 时，可信格式 Check 将发布唯一映射到对应目标，复用原证据服务登记存在性与通过的格式证据；同格式多个目标有歧义时不猜测映射，需显式选择准确证据。未限定格式且多个输出条件有歧义时不自动映射；普通文件、其他能力、跨 Run 结果和未观察的发布不走此自动登记。多次发布保留各自不可变证据，最终按 criterion 补入最近可信观察的证据；模型已显式选择的同条件证据不覆盖。
+
+最终结果漏列上述证据时可从可信观察记录补入。最终仅有叙述或伪工具调用文本时，只有持久证据满足全部必需条件、且没有必需保存策略，才提出 `deliverable_ready`，仍由原 completion policy 校验分支、进展保护、副作用、权限、revision 与终态事务。明确的 `progress_saved`、等待输入和等待时间不提升为完成；检查、Workspace 保存、用户验收和投递事实不由发布推断。
+
 `notifications / delivery_targets / deliveries / delivery_decisions` 替代旧 QQ delivery 与提醒 intent 模型。聊天通知引用已完成 Message；Work 通知引用生产事件/operation。Web 接受是进入私有 inbox，QQ 接受是 Adapter 收到发送回执，两者都不是已读。外部 sending lease 失效转 uncertain，不自动重发；显式 resolution 记录已接受、未发送或重复风险决定。QQ 群目标只接受摘要，Main 群聊工具观察值也裁剪账户私有信息。
 
 ## 有限 Subagent
@@ -111,4 +155,4 @@ Artifact Version 保存 producing Run / Execution / operation；Work adoption �
 
 验证按[测试指南](../development/testing.md)选取领域、API、Temporal 与浏览器范围。真实模型完整工具往返、QQ 发信和持续压力需要独立验收；Research 阶段 lease 与恢复机制见[执行与恢复](execution.md)。
 
-Generic Work 最终回执优先解析原始 JSON 对象；兼容带说明文字、且末尾只有一个 `json` 代码块的显式对象。不会从普通叙述或多个代码块中猜测完成状态。提取后仍按原契约校验全部字段、criterion、当前 revision/fence 与持久化 typed evidence，围栏本身不构成验收证据。
+Generic Work 最终回执优先解析原始 JSON 对象；兼容带说明文字、且末尾只有一个 `json` 代码块的显式对象。普通叙述、多个代码块和 DSML 伪工具调用均不提供验收证据；可信观察的补证规则见上文。提取后仍按原契约校验全部字段、criterion、当前 revision/fence 与持久化 typed evidence，围栏本身不构成验收证据。

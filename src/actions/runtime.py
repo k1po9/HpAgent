@@ -219,6 +219,12 @@ class ActionRuntime:
         except Exception:
             return "unknown"
 
+    def tool_category(self, resource_key: str, tool_name: str) -> str | None:
+        if self._sandbox is None:
+            return None
+        sandbox = self._sandbox.get_sandbox_for_execution(resource_key)
+        return sandbox.get_tool_category(tool_name)
+
     def budget_reservation(self, resource_key: str, tool_name: str) -> Dict[str, int]:
         """Return trusted per-tool reservation bounds from registry metadata."""
         if self._sandbox is None:

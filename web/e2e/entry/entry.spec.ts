@@ -1,4 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import contract from "../../../test/fixtures/work/generic_completion.json" with { type: "json" };
+import { workFixture } from "../../src/components/tasks/taskFixtures";
+const genericRequirement = { ...contract.new_requirement, completion_mode: "deliverable" as const };
 
 const me = {
   account: { account_id: "entry-fixture", status: "active", created_at: "2026-10-10T00:00:00Z" },
@@ -25,7 +28,7 @@ async function fixtures(
       });
       return;
     }
-    if (path === "/api/v1/workspace") {
+    if (path === "/api/v1/workspace" || path === "/api/v1/workspace/tree") {
       await route.fulfill({
         json: {
           workspace_id: "fixture",
@@ -46,6 +49,96 @@ async function settled(page: Page) {
   await expect(page.locator(".hp-entry-particles")).toHaveCount(0);
   await expect(page.locator(".hp-entry-origin")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "主导航" })).toBeVisible();
+}
+
+for (const width of [1536, 390]) {
+  test(`Generic editor creates a supported output contract at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await fixtures(page, async () => "ok");
+    let submitted: unknown;
+    await page.route(/\/api\/v1\/works(?:\/|\?|$)/, async (route) => {
+      if (route.request().method() === "POST") {
+        submitted = route.request().postDataJSON().requirement;
+        await route.fulfill({
+          status: 201,
+          json: { work: workFixture({ requirement: genericRequirement }) },
+        });
+      } else await route.fulfill({ json: { items: [], next_before: null } });
+    });
+    await page.goto("/#/tasks");
+    await settled(page);
+    await page.getByRole("button", { name: "新建任务", exact: true }).click();
+    await page.getByLabel("工作名称", { exact: true }).fill("文字成果");
+    await page
+      .getByRole("combobox", { name: "工作类型", exact: true })
+      .selectOption("generic_work");
+    await page
+      .getByLabel("目标 / 提醒内容", { exact: true })
+      .fill(contract.new_requirement.objective);
+    await page.getByRole("combobox", { name: "计划时区", exact: true }).selectOption("UTC");
+    await page.getByRole("button", { name: "创建工作", exact: true }).click();
+    await expect.poll(() => submitted).toEqual(contract.new_requirement);
+  });
+
+  test(`Generic legacy upgrade requires consent and sends only a revision at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    await fixtures(page, async () => "ok");
+    let work = workFixture({
+      status: "paused",
+      requirement: { ...genericRequirement, acceptance_criteria: contract.legacy_criteria },
+    });
+    const writes: Array<{ path: string; headers: Record<string, string>; body: unknown }> = [];
+    await page.route(/\/api\/v1\/works(?:\/|\?|$)/, async (route) => {
+      const request = route.request();
+      const path = new URL(request.url()).pathname;
+      if (request.method() === "POST") {
+        writes.push({ path, headers: request.headers(), body: request.postDataJSON() });
+        work = {
+          ...work,
+          row_version: 2,
+          current_requirement_revision: 3,
+          requirement: { ...work.requirement, acceptance_criteria: contract.upgraded_criteria },
+        };
+      }
+      await route.fulfill({
+        json:
+          path === `/api/v1/works/${work.work_id}` || path.endsWith("/revisions")
+            ? { work }
+            : path === "/api/v1/works"
+              ? { items: [work], next_before: null }
+              : { items: [] },
+      });
+    });
+    await page.goto(`/#/tasks?work=${work.work_id}`);
+    await settled(page);
+    await page
+      .locator(".hp-inspector")
+      .getByRole("button", { name: "修改要求", exact: true })
+      .click();
+    const consent = page.getByRole("checkbox", {
+      name: "我确认将操作回执条件升级为已发布成果条件",
+    });
+    await expect(consent).not.toBeChecked();
+    await page.getByLabel("修订原因", { exact: true }).fill("确认已发布成果验收");
+    await page.getByRole("button", { name: "提交修订", exact: true }).click();
+    await expect(page.getByText("请先确认将旧操作回执条件升级为已发布成果条件。")).toBeVisible();
+    expect(writes).toHaveLength(0);
+    await consent.check();
+    await page.getByRole("button", { name: "提交修订", exact: true }).click();
+    await expect.poll(() => writes.length).toBe(1);
+    expect(writes[0]).toMatchObject({
+      path: `/api/v1/works/${work.work_id}/revisions`,
+      headers: { "if-match": '"work-w1-v1"' },
+      body: {
+        change_reason: "确认已发布成果验收",
+        requirement: { acceptance_criteria: contract.upgraded_criteria },
+      },
+    });
+    expect(work.status).toBe("paused");
+    await expect(page.getByRole("checkbox", { name: /我确认将操作回执/ })).toHaveCount(0);
+  });
 }
 
 test("valid cookie: branded wait, actual particle pixels, stable shell and no navigation replay", async ({

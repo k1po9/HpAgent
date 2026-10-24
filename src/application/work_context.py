@@ -157,10 +157,11 @@ def _generic_result_object(content):
 
 def generic_result(uow, run, work, content, result_ref):
     """An Agent recommends a typed result; persisted facts determine acceptance."""
-    from work_domain.models import bounded, continuation
+    from work_domain.models import GENERIC_RESULT_EVIDENCE_TYPES, bounded, continuation
 
     result = _generic_result_object(content)
-    if not isinstance(result, dict) or result.get("schema_version") != 1 or "kind" not in result:
+    narrative = not isinstance(result, dict) or result.get("schema_version") != 1 or "kind" not in result
+    if narrative:
         # Narrative is retained as a candidate, never interpreted as completion evidence.
         result = {
             "schema_version": 1,
@@ -175,10 +176,36 @@ def generic_result(uow, run, work, content, result_ref):
     for evidence in evidence_items:
         if not isinstance(evidence, dict):
             raise ValueError("invalid Generic evidence")
-        if evidence.get("type") not in {"output_exists", "check_passed", "workspace_saved"}:
+        if evidence.get("type") not in GENERIC_RESULT_EVIDENCE_TYPES:
             raise ValueError("Generic completion needs typed result evidence, not arbitrary successful tools")
         from run_domain.acceptance import validate_typed_evidence
         validate_typed_evidence(uow, run, evidence)
+    from work_domain.output_evidence import observed_text_evidence
+
+    automatic = observed_text_evidence(uow, run)
+    for item in automatic:
+        if not any(e['criterion_id'] == item['criterion_id'] for e in evidence_items):
+            from run_domain.acceptance import validate_typed_evidence
+
+            validate_typed_evidence(uow, run, item)
+            evidence_items.append(item)
+    if len(evidence_items) > 40:
+        raise ValueError("invalid Generic evidence list")
+    result['evidence'] = evidence_items
+    if narrative and automatic:
+        from work_domain.integration import criteria_satisfied
+
+        requirement = run['input_snapshot']['requirement']
+        from work_domain.deliverables import validate_delivery_evidence
+        try:
+            validate_delivery_evidence(uow, run, requirement, evidence_items)
+            delivery_valid = True
+        except ValueError:
+            delivery_valid = False
+        if (delivery_valid and criteria_satisfied(requirement['acceptance_criteria'], evidence_items)
+                and not requirement['deliverable_policy'].get('required')):
+            result['kind'] = 'deliverable_ready'
+            result['continuation'] = continuation('ready', 'observed_output_evidence')
     from run_domain.delegation import required_branch_gaps
     gaps = required_branch_gaps(uow, run["account_id"], run["run_id"])
     if gaps and result["kind"] == "deliverable_ready":

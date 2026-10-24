@@ -769,3 +769,24 @@ async def test_trusted_web_tool_is_denied_to_branch_even_if_listed(monkeypatch):
     with pytest.raises(ApplicationError) as error:
         await activities(store, Actions('read_only'), web_tools=object()).tool_execution(item)
     assert error.value.type == 'delegation_scope_denied'
+
+
+@pytest.mark.parametrize('tool_name,group', [('web_search', 'web'), ('result__save', 'results')])
+async def test_disabled_root_tool_is_denied_before_external_action(monkeypatch, tool_name, group):
+    from application.tool_policy import ToolPolicy, tool_policy
+
+    configured = tool_policy().model_dump()
+    configured['roles']['main']['groups'] = tuple(
+        name for name in configured['roles']['main']['groups'] if name != group
+    )
+    policy = ToolPolicy.model_validate(configured)
+    monkeypatch.setattr('agent_activities.runtime.tool_policy', lambda: policy)
+    item = request()
+    item = replace(item, tool_call=replace(item.tool_call, name=tool_name))
+    store = Store(ToolOperationState('started', None))
+    native = Actions('read_only')
+    runtime = activities(store, native, web_tools=object(), capabilities=object())
+    with pytest.raises(ApplicationError) as error:
+        await runtime.tool_execution(item)
+    assert error.value.type == 'tool_policy_denied'
+    assert native.calls == 0 and store.completion is None

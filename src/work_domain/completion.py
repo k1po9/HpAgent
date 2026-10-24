@@ -35,6 +35,8 @@ class WorkCompletionPolicy:
                 and item.get('ref') for item in evidence
             ):
                 raise ValueError('required acceptance evidence missing')
+        from work_domain.deliverables import validate_delivery_evidence
+        validate_delivery_evidence(uow, run, requirement, evidence)
         if requirement['deliverable_policy'].get('required'):
             row = uow.execute(
                 'SELECT i.state, CASE WHEN i.operation=\'create_child\' THEN EXISTS('

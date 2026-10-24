@@ -50,3 +50,17 @@ def test_bad_catalog_fails_explicitly(tmp_path, monkeypatch, contents, error):
 def test_unknown_prompt_is_not_silently_ignored():
     with pytest.raises(KeyError):
         prompt_catalog.agent_prompt("unknown_role")
+
+
+@pytest.mark.parametrize("source_directory", ["src", ""])
+def test_catalog_resolves_checkout_and_flat_worker_layout(tmp_path, monkeypatch, source_directory):
+    module = tmp_path / source_directory / "application" / "prompt_catalog.py"
+    directory = tmp_path / "config" / "prompts"
+    directory.mkdir(parents=True)
+    (directory / "agents.yaml").write_text("main: deployed prompt", encoding="utf-8")
+    monkeypatch.setattr(prompt_catalog, "__file__", str(module))
+    prompt_catalog._catalog.cache_clear()
+    try:
+        assert prompt_catalog.agent_prompt("main") == "deployed prompt"
+    finally:
+        prompt_catalog._catalog.cache_clear()

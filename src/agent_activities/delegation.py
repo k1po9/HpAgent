@@ -29,6 +29,7 @@ from agent_workflows.delegation_contracts import (
     DelegationInput,
     DelegationPrepared,
 )
+from application.tool_policy import tool_policy
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.delegation import (
     DelegationDenied,
@@ -149,6 +150,7 @@ class DelegationActivities:
             parent = current_execution(uow)
             if parent["role"] != "root" or run["executor_key"] != "work_agent":
                 raise DelegationDenied("only Generic Work root may delegate")
+            tool_policy().require("worker", DELEGATE_TOOL)
             existing = uow.execute(
                 "SELECT * FROM execution_delegations WHERE execution_id=%s",
                 (parent["execution_id"],),

@@ -14,12 +14,58 @@ import { TaskBudgetDialog } from "./TaskBudgetDialog";
 import { TaskScreen } from "./TaskScreen";
 import { TaskSidebar } from "./TaskSidebar";
 import { resetTaskQueries } from "./useTaskQuery";
+import contract from "../../../../test/fixtures/work/generic_completion.json";
 afterEach(() => {
   cleanup();
   useWorks.getState().reset();
   resetTaskQueries();
   useShell.getState().reset();
   vi.restoreAllMocks();
+});
+it("requires explicit consent for a legacy revision and preserves paused status and its baseline", async () => {
+  const work = workFixture({
+    status: "paused",
+    requirement: {
+      ...workFixture().requirement,
+      acceptance_criteria: structuredClone(contract.legacy_criteria),
+    },
+  });
+  const close = vi.fn();
+  const spy = vi.spyOn(api, "request").mockImplementation(async ({ method }) => {
+    if (method === "GET") return { work } as never;
+    return {
+      work: {
+        ...work,
+        row_version: 2,
+        current_requirement_revision: 3,
+        requirement: { ...work.requirement, acceptance_criteria: contract.upgraded_criteria },
+      },
+    } as never;
+  });
+  render(<TaskEditor workId="w1" onClose={close} />);
+  const consent = await screen.findByRole("checkbox", {
+    name: "我确认将操作回执条件升级为已发布成果条件",
+  });
+  fireEvent.change(screen.getByLabelText("修订原因"), { target: { value: "升级成果验收" } });
+  fireEvent.click(screen.getByRole("button", { name: "提交修订" }));
+  await screen.findByText("请先确认将旧操作回执条件升级为已发布成果条件。");
+  expect(spy.mock.calls.filter(([r]) => r.method === "POST")).toHaveLength(0);
+  expect(consent).not.toBeChecked();
+  fireEvent.click(consent);
+  fireEvent.click(screen.getByRole("button", { name: "提交修订" }));
+  await waitFor(() => expect(close).toHaveBeenCalledOnce());
+  const writes = spy.mock.calls.filter(([r]) => r.method === "POST");
+  expect(writes).toHaveLength(1);
+  expect(writes[0]![0]).toMatchObject({
+    path: "/api/v1/works/w1/revisions",
+    headers: { "If-Match": '"work-w1-v1"' },
+    body: {
+      change_reason: "升级成果验收",
+      requirement: { acceptance_criteria: contract.upgraded_criteria },
+    },
+  });
+  expect(work.requirement.acceptance_criteria).toEqual(contract.legacy_criteria);
+  expect(useWorks.getState().items.find((w) => w.work_id === "w1")?.status).toBe("paused");
 });
 it("shows committed parent saves independently and opens the exact saved entry", async () => {
   const work = workFixture({

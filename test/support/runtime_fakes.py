@@ -41,6 +41,8 @@ def install_execution_uow(monkeypatch, *, role="root", tool_names=(), fence_erro
 
         def execute(self, sql, params):
             assert self.checked, "execution lookup must follow fencing"
+            if 'SELECT input_snapshot FROM runs' in sql:
+                return SimpleNamespace(fetchone=lambda: {'input_snapshot': {}})
             assert "FROM run_executions" in sql
             account, run, execution, _ = params
             fence = execution_fence.get()

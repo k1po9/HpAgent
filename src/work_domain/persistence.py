@@ -51,14 +51,14 @@ class WorkRepository:
         uow.execute(
             'INSERT INTO work_requirements(account_id,work_id,revision,objective,constraints,'
             'acceptance_criteria,completion_mode,capability_key,spec,timing,resource_requests,'
-            'deliverable_policy,created_by,source_message_id,command_id,change_reason,content_hash) '
+            'deliverable_policy,created_by,source_message_id,command_id,change_reason,content_hash,deliverables) '
             'VALUES (%s,%s,%s,%s,%s::jsonb,%s::jsonb,%s,%s,%s::jsonb,%s::jsonb,%s::jsonb,'
-            '%s::jsonb,%s,%s,%s,%s,%s)',
+            '%s::jsonb,%s,%s,%s,%s,%s,%s::jsonb)',
             (account_id, work_id, revision, value['objective'], json.dumps(value['constraints']),
              json.dumps(value['acceptance_criteria']), value['completion_mode'], value['capability_key'],
              json.dumps(value['spec']), json.dumps(value['timing']), json.dumps(value['resource_requests']),
              json.dumps(value['deliverable_policy']), 'account', source_message_id, command_id,
-             reason, digest(value)))
+             reason, digest(value), json.dumps(value['deliverables']) if value.get('deliverables') is not None else None))
 
     @staticmethod
     def event(uow: UnitOfWork, work: dict, event_type: str, *, command_id: UUID | None = None,

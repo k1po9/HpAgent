@@ -29,7 +29,7 @@ async def test_main_source_replay_chat_independence_and_revision(commands, accou
     work = accepted['work']
     assert accepted['handoff']['work_id'] == work['work_id']
     assert accepted['handoff']['execution_owner'] == 'background_work'
-    assert 'accepted does not mean completed' in accepted['handoff']['next_action']
+    assert '已接受不等于已完成' in accepted['handoff']['next_action']
     assert json.loads(await tools['accept_work'].ainvoke(payload))['work']['work_id'] == work['work_id']
     assert work['sources'] == [{'conversation_id': str(cid), 'source_message_id': str(source)}]
     count = owner.execute('SELECT count(*) AS n FROM messages WHERE conversation_id=%s', (cid,)).fetchone()['n']
@@ -144,6 +144,21 @@ async def test_main_rejected_handoff_feedback_uses_committed_receipt(urls, accou
             'conversation_id': str(cid), 'trigger_message_id': str(source)}, commands)}
         await tools['accept_work'].ainvoke({'title': 'Recovered', 'mandate_slot': 'goal',
             'requirement': Requirement('Continue safely', 'generic_work', {'schema_version': 1}).to_dict()})
-    lifecycle.complete(run_id, 'Current response')
+    from types import SimpleNamespace
+
+    from application.main_response import execute_response
+    with execution(urls, account_id, run_id) as (store, segment, _):
+        op = f'{run_id}:response'
+        store.begin_operation(op, str(run_id), 'model')
+        version = store.complete_operation_with_event(transcript_id=transcript_id, expected_version=2,
+            event_type='model_decision', operation_id=op,
+            event_payload={'message': {'role': 'assistant', 'content': '', 'tool_calls': [
+                {'id': 'answer', 'name': 'respond_directly', 'arguments': {'answer': 'Current response'}}]}},
+            result_ref=op, result_payload={})
+        terminal = execute_response(store, SimpleNamespace(operation_id=op, run_id=str(run_id),
+            account_id=str(account_id), execution_id=segment.execution_id, transcript_id=transcript_id,
+            schema_version=4), {'tool_calls': [{'tool_call_id': 'answer'}],
+                'tool_call_arguments': {'answer': {'answer': 'Current response'}}, 'transcript_version': version})
+    lifecycle.complete(run_id, 'Current response', terminal.decision_ref)
     message = owner.execute("SELECT content FROM messages WHERE produced_by_run_id=%s AND role='assistant'", (run_id,)).fetchone()['content']
     assert message.startswith('委托未建立') is (not recover)

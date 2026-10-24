@@ -13,6 +13,24 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 WORK_STATUSES = frozenset({'active', 'pausing', 'paused', 'stopping', 'stopped', 'completed'})
 CONTINUATIONS = frozenset({'ready', 'at_time', 'awaiting_input', 'awaiting_delivery',
                            'retry_after', 'blocked', 'none'})
+GENERIC_RESULT_EVIDENCE_TYPES = frozenset({'output_exists', 'check_passed', 'workspace_saved'})
+
+
+class LegacyGenericCriteria(ValueError):
+    """A new requirement write still requests the retired Generic receipt contract."""
+
+
+def validate_new_completion_criteria(requirement: dict[str, Any]) -> None:
+    """Validate new writes only; immutable legacy requirements and command replays stay readable."""
+    if requirement['capability_key'] == 'generic_work' and any(
+        'operation_receipt' in criterion['evidence_types']
+        for criterion in requirement['acceptance_criteria']
+    ):
+        raise LegacyGenericCriteria(
+            'generic_work no longer supports operation_receipt criteria; explicitly revise '
+            'the requirement to output_exists (published immutable output), check_passed or '
+            'workspace_saved. Existing requirements, results and budgets are not converted.'
+        )
 
 
 def bounded(value: dict[str, Any], allowed: set[str], limit: int = 16384) -> dict[str, Any]:
@@ -51,6 +69,7 @@ class Requirement:
     timing: dict[str, Any] | None = None
     resource_requests: tuple[dict[str, Any], ...] = ()
     deliverable_policy: dict[str, Any] | None = None
+    deliverables: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         if not isinstance(self.objective, str) or not self.objective.strip() or len(self.objective) > 20000:
@@ -158,6 +177,10 @@ class Requirement:
                  'acceptance_criteria': list(self.acceptance_criteria) or ([{'id':'channel_accepted','required':True,'evidence_types':['delivery_receipt']}] if self.capability_key == 'reminder' else []),
                  'completion_mode': self.completion_mode, 'timing': timing,
                  'resource_requests': list(self.resource_requests), 'deliverable_policy': policy}
+        from work_domain.deliverables import validate_deliverables
+        validate_deliverables(self.deliverables, value['acceptance_criteria'])
+        if self.deliverables is not None:
+            value['deliverables'] = self.deliverables
         if len(json.dumps(value, ensure_ascii=False, allow_nan=False).encode()) > 32768:
             raise ValueError('requirement exceeds size limit')
         return value

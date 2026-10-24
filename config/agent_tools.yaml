@@ -1,0 +1,102 @@
+# 实际工具分配配置；修改后重启相关进程生效。
+# 此处允许使用不代表每轮可见，服务依赖、资源权限和工具检索仍然生效。
+# exposure: existing 保留原入口/按需检索规则；always 始终提供；semantic 按需检索。
+schema_version: 1
+groups:
+  work_management:
+    description: 接受、查询和控制持续委托，仅面向 Main。
+    tools: [accept_work, list_works, get_work, revise_work, control_work, advance_work, link_work]
+    exposure: always
+  file_discovery:
+    description: 发现并选择当前授权的 Workspace 文件。
+    tools: [list_run_candidates, select_run_candidate]
+    exposure: existing
+  file_read:
+    description: 读取和分析当前 Run 的文件；仍检查当前文件范围。
+    tools: [read_file, inspect_pdf, read_pdf_pages, extract_pdf_tables, inspect_docx, read_docx_paragraphs, extract_docx_tables, inspect_workbook, read_sheet_range, inspect_presentation, read_slide, inspect_file, search_file, count_matches, text_stats]
+    exposure: existing
+  file_write:
+    description: 创建、修改和转换当前 Run 的文件，不代表长期保存。
+    tools: [create_docx, create_workbook, create_presentation, convert_file_to_pdf, replace_docx_text, append_docx_section, write_sheet_range, replace_slide]
+    exposure: existing
+  code_read:
+    description: 读取可选代码工作区，不用于寻找上传文件。
+    tools: [fs_read, Glob, Grep]
+    exposure: existing
+  code_write:
+    description: 修改可选代码工作区。
+    tools: [fs_write, fs_edit]
+    exposure: existing
+  shell:
+    description: 执行命令；还需显式启用 Bash 与原隔离约束。
+    tools: [Bash]
+    exposure: existing
+  mcp:
+    description: 动态注册的 MCP 工具；具体名称由已连接服务提供。
+    category: mcp
+    exposure: existing
+  skills:
+    description: 动态注册的 Skill 工具；具体名称由已启用技能提供。
+    category: skill
+    exposure: existing
+  web:
+    description: 根执行的轻量联网搜索和读取，不可授予只读子 agent。
+    tools: [web_search, web_fetch]
+    exposure: always
+  research:
+    description: 专业研究能力，需服务可用；子能力不继承父上下文。
+    tools: [capability__research__v1]
+    exposure: always
+  html:
+    description: HTML 生成能力，需显式传递来源与展示要求。
+    tools: [capability__html__v1]
+    exposure: always
+  text:
+    description: Work 的不可变文字成果发布能力。
+    tools: [capability__text__v1]
+    exposure: always
+  results:
+    description: 根执行的成果采用、长期保存与证据登记；仍检查真实授权和持久事实。
+    tools: [result__adopt, result__save, result__evidence]
+    exposure: always
+  delegation:
+    description: Generic Work root 一次委派最多三个只读调查分支。
+    tools: [delegate_work]
+    exposure: always
+roles:
+  main:
+    description: 交互主 agent；工具还受渠道、服务和检索结果限制。
+    groups: [work_management, file_discovery, file_read, file_write, code_read, code_write, shell, mcp, skills, web, research, html, results]
+    grant: configured
+  worker:
+    description: Generic Work 根 agent；不获得 Work 管理工具。
+    groups: [file_discovery, file_read, file_write, code_read, code_write, shell, mcp, skills, web, research, html, text, results, delegation]
+    grant: configured
+  subagent:
+    description: 父侧 branches[].tool_names 指定，取父侧已登记的只读工具、本角色允许组、当前可用工具的交集；不可再次委派。
+    groups: [file_discovery, file_read, code_read, mcp, skills]
+    grant: parent_read_only_subset
+  research:
+    description: 固定研究流程中的合成模型，不提供自主工具调用；检索由服务端流程执行。
+    groups: []
+    grant: none
+  html:
+    description: 固定 HTML 生成模型，不提供自主工具调用。
+    groups: []
+    grant: none
+  planning:
+    description: 规划模型只输出步骤，不提供工具调用。
+    groups: []
+    grant: none
+  evaluation:
+    description: 评估模型只输出进度决策，不提供工具调用。
+    groups: []
+    grant: none
+  tool_summary:
+    description: 工具输出摘要模型只生成摘要，提示词见 prompts/tool_summary.yaml，不提供工具调用。
+    groups: []
+    grant: none
+  memory_rewrite:
+    description: 记忆检索查询改写模型只生成检索文本，提示词见 prompts/system.yaml 的 hyde_rewrite，不提供工具调用。
+    groups: []
+    grant: none

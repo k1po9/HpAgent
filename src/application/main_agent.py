@@ -24,6 +24,14 @@ def main_requirement_schema():
         "required": ["objective", "capability_key", "spec"],
         "properties": {
             "objective": {"type": "string", "minLength": 1, "maxLength": 20000},
+            "deliverables": {"type": "object", "additionalProperties": False,
+                "required": ["schema_version", "items"], "properties": {
+                    "schema_version": version, "items": {"type": "array", "minItems": 1, "maxItems": 10,
+                        "items": {"type": "object", "additionalProperties": False,
+                            "required": ["id", "format", "required", "output_criterion_id", "format_criterion_id"],
+                            "properties": {"id": string, "format": {"enum": ["markdown", "docx"]},
+                                "required": {"type": "boolean"}, "output_criterion_id": string,
+                                "format_criterion_id": string}}}}},
             "capability_key": {"enum": ["generic_work", "research_report", "reminder"]},
             "spec": {"type": "object", "additionalProperties": False, "required": ["schema_version"],
                 "description": "generic_work: only schema_version and optional reasoning_mode=react/plan_and_execute. source_strategy/report_format belong only to research_report; content/target_ref only to reminder.",
@@ -42,7 +50,7 @@ def main_requirement_schema():
                 "required": ["schema_version", "node_id", "operations"], "properties": {"schema_version": version, "node_id": {"type": "string", "format": "uuid"},
                     "operations": {"type": "array", "minItems": 1, "items": {"enum": ["list_metadata", "read_content", "create_child", "update_content", "delete_entry"]}}, "recursive": {"type": "boolean"}}}},
             "deliverable_policy": {"type": "object", "additionalProperties": False,
-                "description": "required=true requires a nonempty directory_id UUID and a required workspace_saved criterion. Directory metadata never grants the Work access.",
+                "description": "Ordinary published/downloadable output needs no Workspace save: required=false, omit destinations and do not require workspace_saved. Only an explicit user Workspace save request needs a required workspace_saved criterion. If its destination is unresolved, required=false and omit directory_id/entry_id; the Work waits for input. Never use zero UUID placeholders. Directory metadata never grants access.",
                 "required": ["schema_version", "required"], "properties": {"schema_version": version, "required": {"type": "boolean"},
                     "directory_id": {"type": "string", "format": "uuid"}, "entry_id": {"type": "string", "format": "uuid"},
                     "operation": string, "notification_target_ref": string}},
@@ -63,19 +71,27 @@ def create_main_work_tools(context, commands):
                                              'current_requirement_revision')},
                 'continuation': {'kind': work['continuation']['kind']}}
 
-    def encode(value):
+    def encode(value, operation=None, key=None):
         value = value.body if hasattr(value, 'body') else value
+        if operation and getattr(commands, 'database', None) is not None:
+            from application.main_response import verified_command
+            from persistence.uow import UnitOfWork
+            with UnitOfWork(commands.database) as uow:
+                value = {**value, 'command_receipt': verified_command(uow, account, operation, key)}
         if public_audience:
+            receipt = value.get('command_receipt')
             if 'work' in value:
                 value = {'work': public_work(value['work'])}
             elif 'items' in value:
                 value = {'items': [public_work(item) for item in value['items']],
                          'next_before': value['next_before']}
+            if receipt:
+                value['command_receipt'] = receipt
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
 
     def parse_requirement(requirement):
         allowed = {'objective', 'capability_key', 'spec', 'completion_mode', 'constraints',
-                   'acceptance_criteria', 'timing', 'resource_requests', 'deliverable_policy'}
+                   'acceptance_criteria', 'timing', 'resource_requests', 'deliverable_policy', 'deliverables'}
         if isinstance(requirement, dict) and set(requirement) - allowed:
             raise ValueError('requirement has unknown top-level fields: ' +
                 ', '.join(sorted(set(requirement) - allowed))[:200] +
@@ -94,7 +110,8 @@ def create_main_work_tools(context, commands):
             raise ValueError('required Generic save needs a required workspace_saved acceptance criterion')
         return parsed
 
-    async def accept_work(title: str, requirement: dict, mandate_slot: str) -> str:
+    async def accept_work(title: str, requirement: dict, mandate_slot: str,
+                          workspace_save_requested: bool = False) -> str:
         """Accept an explicit continuing mandate, return committed identity immediately.
 
         requirement: {objective: string, capability_key: generic_work/research_report/reminder,
@@ -105,7 +122,12 @@ def create_main_work_tools(context, commands):
         deliverable_policy?: {schema_version: 1, required: bool, directory_id?: UUID}}.
         Reminder spec additionally requires content and optionally target_ref.
         Daily requires ongoing. A generic_work with required Workspace saving needs a required workspace_saved acceptance criterion. Resource references are requests, never grants.
-        If the save directory is unresolved, keep a required workspace_saved criterion with deliverable_policy.required=false until the user selects the destination in the task editor; never invent a directory UUID.
+        workspace_save_requested defaults to false. Published/downloadable Markdown is NOT a Workspace save:
+        use required output_exists, no required workspace_saved, required=false and no destination IDs.
+        Only set workspace_save_requested=true when the user explicitly asks for Workspace saving.
+        For that explicit save request only, if the directory is unresolved keep required workspace_saved,
+        set deliverable_policy.required=false and omit destination IDs. The server waits for a valid
+        destination and explicit Work grants; never invent a directory or zero UUID placeholder.
         Preserve the same mandate_slot and exact payload on retry of this user message.
         """
         if not re.fullmatch(r'[a-zA-Z0-9_-]{1,40}', mandate_slot):
@@ -116,13 +138,14 @@ def create_main_work_tools(context, commands):
             raise ValueError("委托未建立：" + str(exc)) from exc
         result = await asyncio.to_thread(commands.accept, account,
             f'main-accept:{source_message}:{mandate_slot}', title, parsed,
-            conversation_id=conversation, source_message_id=source_message)
+            conversation_id=conversation, source_message_id=source_message,
+            workspace_save_requested=workspace_save_requested)
         receipt = result.body if hasattr(result, 'body') else result
         return encode({**receipt, 'handoff': {
             'work_id': receipt['work']['work_id'],
             'execution_owner': 'background_work',
             'next_action': agent_prompt('handoff'),
-        }})
+        }}, 'accept_work', f'main-accept:{source_message}:{mandate_slot}')
 
     async def list_works() -> str:
         """List up to 50 account-owned Work candidates for explicit disambiguation."""
@@ -137,35 +160,39 @@ def create_main_work_tools(context, commands):
         result = await asyncio.to_thread(commands.get, account, UUID(work_id))
         return encode(result)
 
-    async def revise_work(work_id: str, row_version: int, requirement: dict, operation_id: str = '') -> str:
+    async def revise_work(work_id: str, row_version: int, requirement: dict, operation_id: str = '',
+                          workspace_save_requested: bool = False) -> str:
         """Explicitly replace objective/constraints with a complete requirement (same schema as accept_work).
 
         First get_work for the current requirement and row_version. Preserve unchanged fields.
         Creates a new revision and cancels the old coordinator; ordinary chat never calls this.
+        Set workspace_save_requested=true only to retain an already committed Workspace save
+        requirement or add one explicitly requested by the user. Downloadable output alone is not a save.
         """
         if not operation_id:
             raise ValueError('trusted operation identity required')
         return encode(await asyncio.to_thread(commands.revise, account, UUID(work_id), operation_id,
-                                               row_version, parse_requirement(requirement)))
+                                               row_version, parse_requirement(requirement),
+                                               workspace_save_requested=workspace_save_requested), 'revise_work', operation_id)
 
     async def control_work(work_id: str, row_version: int, action: str, operation_id: str = '') -> str:
         """Explicitly pause, resume or stop an exact Work, independently of stopping the chat."""
         if not operation_id:
             raise ValueError('trusted operation identity required')
         return encode(await asyncio.to_thread(commands.control, account, UUID(work_id), operation_id,
-                                               row_version, action))
+                                               row_version, action), f'{action}_work', operation_id)
 
     async def advance_work(work_id: str, row_version: int, operation_id: str = '') -> str:
         """Explicitly advance/retry an exact Work; admission uses the latest requirement."""
         if not operation_id:
             raise ValueError('trusted operation identity required')
-        return encode(await asyncio.to_thread(commands.advance, account, UUID(work_id), operation_id, row_version))
+        return encode(await asyncio.to_thread(commands.advance, account, UUID(work_id), operation_id, row_version), 'advance_work', operation_id)
 
     async def link_work(work_id: str, row_version: int, operation_id: str = '') -> str:
         """Link a resolved Work to this conversation without granting resources or subscribing channels."""
         if not operation_id:
             raise ValueError('trusted operation identity required')
-        return encode(await asyncio.to_thread(commands.link, account, UUID(work_id), conversation, operation_id, row_version))
+        return encode(await asyncio.to_thread(commands.link, account, UUID(work_id), conversation, operation_id, row_version), 'link_work', operation_id)
 
     tools = []
     for function in (accept_work, list_works, get_work, revise_work, control_work, advance_work, link_work):

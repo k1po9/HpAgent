@@ -36,6 +36,7 @@ from agent_workflows.contracts import (
 )
 from application.execution_contracts import StableExecutionFailure
 from application.prompt_catalog import agent_prompt
+from application.tool_policy import ToolPolicyError, agent_role, tool_policy
 from brain.contracts import BrainCapability
 from common.logging import log_event
 from resources.model_budget_context import model_budget_scope
@@ -469,6 +470,8 @@ class DurableAgentActivities:
         if previous is not None:
             log_event(model_logger, logging.INFO, "operation_deduplicated", "model", **fields, status="deduplicated", result_ref=previous.get("decision_ref"))
             result = self._decision_from_payload(previous)
+            if previous.get('response_action'):
+                result = await self._main_response(request, previous)
             await trace_end(
                 events,
                 model_node_id,
@@ -512,7 +515,13 @@ class DurableAgentActivities:
                 self.store._assert_fence(uow)
                 execution = current_execution(uow)
                 is_child = execution["role"] != "root"
+                row = uow.execute('SELECT input_snapshot FROM runs WHERE run_id=%s',
+                                  (UUID(request.run_id),)).fetchone()
+                tool_first = (not is_child and request.source.source_kind == 'chat'
+                    and (row.get('input_snapshot') or {}).get('main_protocol') == 'tool_first_v1')
             delegatable_tools = []
+            policy = tool_policy()
+            role = agent_role(request.source.source_kind, execution["role"])
             async with self._workspace(request):
                 await asyncio.to_thread(
                     self.store.validate_and_renew_lease, request.account_id, request.run_id, request.lease_token,
@@ -525,7 +534,7 @@ class DurableAgentActivities:
                     execution_attempt=request.execution_attempt,
                     final_response=request.final_only and not is_child,
                 ):
-                    if request.final_only:
+                    if request.final_only and not tool_first:
                         decision = await self.brain.generate_final_decision(messages=model_messages)
                     else:
                         tools = await self.actions.select_tools(
@@ -535,14 +544,18 @@ class DurableAgentActivities:
                         )
                         def tool_name(tool):
                             return tool.get("function", tool).get("name", "")
+                        category_for = getattr(self.actions, "tool_category", lambda *_: None)
                         delegatable_tools = [tool_name(tool) for tool in tools
-                            if self.actions.side_effect_class(self.context_bindings.resource_key(request), tool_name(tool)) == "read_only"]
+                            if self.actions.side_effect_class(self.context_bindings.resource_key(request), tool_name(tool)) == "read_only"
+                            and policy.allows("subagent", tool_name(tool), category_for(
+                                self.context_bindings.resource_key(request), tool_name(tool))) ]
                         if is_child:
                             allowed = execution["resource_scope"]["tool_names"]
                             tools = [tool for tool in tools if tool_name(tool) in allowed
                                 and tool_name(tool) in delegatable_tools and tool_name(tool) != DELEGATE_TOOL]
                         elif request.source.source_kind == "work":
-                            tools = [*tools, DELEGATE_MANIFEST]
+                            if policy.allows(role, DELEGATE_TOOL):
+                                tools = [*tools, DELEGATE_MANIFEST]
                         if not is_child and self.capabilities is not None:
                             tools = [*tools, *self.capabilities.discover(request.source.source_kind)]
                         if not is_child and self.web_tools is not None:
@@ -550,7 +563,26 @@ class DurableAgentActivities:
                             from agent_activities.web_tools import discover as web_manifests
 
                             tools = [tool for tool in tools if tool_name(tool) not in WEB_TOOLS]
-                            tools.extend(web_manifests())
+                            tools.extend(tool for tool in web_manifests() if policy.allows(role, tool_name(tool)))
+                        if tool_first:
+                            from application.main_response import MANIFEST
+                            from resources.model_budget_context import current_model_call
+                            tools = [MANIFEST] if request.final_only else [*tools, MANIFEST]
+                            current_model_call().tool_choice_required = True
+                            model_messages.insert(0, {'role': 'system', 'content':
+                                'Main 每轮必须调用且仅调用一个真实工具动作。普通回答和最终收尾用 respond_directly；'
+                                '其他动作执行后继续根据真实回执决策。操作成功必须引用本轮真实返回的 command_receipt.command_id。'
+                                '不得用普通文本或伪工具文本结束。respond_directly 的回执只证明回答结束，不证明任何业务操作成功。'})
+                        model_messages.insert(1 if model_messages and model_messages[0].get("role") == "system" else 0, {
+                            "role": "system",
+                            "content": agent_prompt("tool_availability") + "\n" + json.dumps({
+                                "role": role,
+                                "tools": [tool_name(tool) for tool in tools],
+                                "delegatable_tools": delegatable_tools if not is_child and any(
+                                    tool_name(tool) == DELEGATE_TOOL for tool in tools
+                                ) else [],
+                            }, ensure_ascii=False),
+                        })
                         decision = await self.brain.generate_chat_decision(
                             messages=model_messages,
                             tools=tools or None,
@@ -560,7 +592,18 @@ class DurableAgentActivities:
                 CompactToolCall(item.id, item.name, f"{result_ref}#{item.id}")
                 for item in decision.action_requests
             )
-            content = self._safe_final_content(decision.content) if not calls else decision.content
+            invalid_action = tool_first and (len(calls) != 1 or
+                calls[0].name not in {tool_name(t) for t in tools} or
+                (request.final_only and calls[0].name != 'respond_directly'))
+            if invalid_action:
+                if request.final_only:
+                    raise ApplicationError('Main did not select a terminal tool action',
+                        type='main_tool_protocol_invalid', non_retryable=True)
+                # Reject the whole invalid batch before effects; do not leave pending tool calls.
+                calls = ()
+                content = '本轮没有执行任何动作：Main 必须选择一个结构化工具；回答请调用 respond_directly。'
+            else:
+                content = self._safe_final_content(decision.content) if not calls else decision.content
             message: dict[str, Any] = {"role": "assistant", "content": content}
             if calls:
                 message["tool_calls"] = [
@@ -574,7 +617,7 @@ class DurableAgentActivities:
             payload = {
                 "schema_version": AGENT_SCHEMA_VERSION,
                 "operation_id": request.operation_id,
-                "decision_type": "tool_calls" if calls else "final",
+                "decision_type": "tool_calls" if calls or tool_first else "final",
                 "decision_ref": result_ref,
                 "tool_calls": [asdict(item) for item in calls],
                 "delegatable_tools": delegatable_tools,
@@ -587,6 +630,8 @@ class DurableAgentActivities:
                 "display_summary": content[:240],
                 "content": content,
             }
+            if tool_first and calls and calls[0].name == 'respond_directly':
+                payload['response_action'] = True
             version = await asyncio.to_thread(
                 self.store.complete_operation_with_event,
                 transcript_id=request.transcript_id,
@@ -599,6 +644,8 @@ class DurableAgentActivities:
             )
             payload["transcript_version"] = version
             result = self._decision_from_payload(payload)
+            if payload.get('response_action'):
+                result = await self._main_response(request, payload)
             input_context = getattr(decision, "input_context", None) or {}
             trace_status = "completed"
             trace_metadata = {
@@ -634,6 +681,10 @@ class DurableAgentActivities:
                 ) from exc
             if isinstance(exc, ApplicationError):
                 raise
+            if isinstance(exc, ToolPolicyError):
+                trace_metadata = {"error_code": "tool_policy_invalid"}
+                await asyncio.to_thread(self.store.fail_operation, request.operation_id, "tool_policy_invalid")
+                raise ApplicationError(str(exc), type="tool_policy_invalid", non_retryable=True) from exc
             from resources.model_failures import classify_model_failure
             failure = classify_model_failure(exc)
             trace_metadata = {"error_code": failure.code, "http_status": failure.http_status,
@@ -650,6 +701,19 @@ class DurableAgentActivities:
             await trace_end(events, model_node_id, trace_status, trace_metadata)
             await events.close()
         log_event(model_logger, logging.INFO, "model_decision_completed", "model", **fields, status="success", elapsed_ms=round((time.monotonic() - started) * 1000), stop_reason=result.stop_reason, tool_count=len(result.tool_calls), result_ref=result.decision_ref)
+        return result
+
+    async def _main_response(self, request, payload):
+        from application.main_response import execute_response
+        operation = request.operation_id + ':respond'
+        if self.run_budget is not None:
+            await asyncio.to_thread(self.run_budget.reserve, request.run_id, operation, {'tool_calls': 1})
+        result = await asyncio.to_thread(execute_response, self.store, request, payload)
+        if self.run_budget is not None:
+            await asyncio.to_thread(self.run_budget.settle, request.run_id, operation, {'tool_calls': 1}, 'measured')
+        if request.final_only and result.decision_type != 'final':
+            raise ApplicationError('Main terminal action was rejected',
+                type='main_tool_protocol_invalid', non_retryable=True)
         return result
 
     @activity.defn(name="tool_execution_activity")
@@ -786,6 +850,11 @@ class DurableAgentActivities:
                 if web_tool and execution['role'] != 'root':
                     raise ApplicationError('Web tools require the root Execution',
                                            type='delegation_scope_denied', non_retryable=True)
+                if request.tool_call.name in WEB_TOOLS | RESULT_TOOLS:
+                    try:
+                        tool_policy().require(agent_role(request.source.source_kind, execution["role"]), request.tool_call.name)
+                    except ToolPolicyError as exc:
+                        raise ApplicationError(str(exc), type="tool_policy_denied", non_retryable=True) from exc
                 parent_result_tool = self.capabilities is not None and request.tool_call.name in RESULT_TOOLS
                 side_effect_class = "read_only" if web_tool else "idempotent_write" if parent_result_tool else normalize_side_effect_class(str(
                     self.actions.side_effect_class(self.context_bindings.resource_key(request), request.tool_call.name)

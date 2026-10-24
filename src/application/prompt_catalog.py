@@ -8,7 +8,10 @@ import yaml
 
 @lru_cache(maxsize=1)
 def _catalog() -> dict[str, str]:
-    path = Path(__file__).resolve().parents[2] / "config" / "prompts" / "agents.yaml"
+    source_root = Path(__file__).resolve().parents[1]
+    # The checkout/API use <root>/src; the main Worker mounts src at /app.
+    project_root = source_root.parent if source_root.name == "src" else source_root
+    path = project_root / "config" / "prompts" / "agents.yaml"
     with path.open(encoding="utf-8") as stream:
         values = yaml.safe_load(stream)
     if not isinstance(values, dict) or any(

@@ -13,14 +13,16 @@ import logging
 import os
 import time
 import uuid
+from dataclasses import replace
 from pathlib import Path
 from threading import RLock
 from typing import Any, Dict, List, Optional
 
+from application.tool_policy import agent_role, tool_policy
 from common.errors import SandboxNotFoundError
 from sandbox.tools.local import LOCAL_TOOL_FACTORIES
 from sandbox.tools.registry import ToolRegistry
-from sandbox.tools.routing import ToolRouter, routing_for
+from sandbox.tools.routing import ToolExposure, ToolRouter, routing_for
 from sandbox.tools.routing.context import ToolSelectionContextBuilder
 
 from .nsjail import NsjailConfig, NsjailExecutor
@@ -147,13 +149,33 @@ class SandboxManager:
         registry = ToolRegistry()
 
         ctx = session_context or {"account_id": user_uuid, "channel_type": "work"}
+        policy = tool_policy()
+        role = agent_role(ctx.get("source_kind", "work"), ctx.get("execution_role", "root"))
+
+        def register(tool, category):
+            group_name = policy.group_for(tool.name, category)
+            if group_name is None or group_name not in policy.roles[role].groups:
+                return
+            if role == "subagent" and (
+                tool.name not in ctx.get("parent_tool_names", ())
+                or (getattr(tool, "metadata", {}) or {}).get("side_effect_class") != "read_only"
+            ):
+                return
+            routing = routing_for(tool, category)
+            group = policy.groups[group_name]
+            if group.exposure != "existing":
+                routing = replace(routing, exposure=(
+                    ToolExposure.ALWAYS if group.exposure == "always" else ToolExposure.SEMANTIC
+                ))
+            registry.register(tool, category=category, routing=routing)
+
         work_tool_names = ()
         if self._work_commands is not None and ctx.get("source_kind") == "chat":
             from application.main_agent import create_main_work_tools
             tools = create_main_work_tools(ctx, self._work_commands)
             work_tool_names = tuple(tool.name for tool in tools)
             for tool in tools:
-                registry.register(tool, category="native", routing=routing_for(tool, "native"))
+                register(tool, "native")
 
         if self._native_tools_enabled and not self._file_tools_enabled:
             for name, factory in LOCAL_TOOL_FACTORIES.items():
@@ -161,7 +183,7 @@ class SandboxManager:
                     continue
                 tool = factory(workspace_path)
                 _declare_local_side_effect(tool, name)
-                registry.register(tool, category="native", routing=routing_for(tool, "native"))
+                register(tool, "native")
             logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
         else:
             logger.debug("Session sandbox: native tools disabled")
@@ -182,7 +204,7 @@ class SandboxManager:
                     account_id_provider=lambda value=str(ctx.get("account_id", "")): value,
                 )
             ):
-                registry.register(tool, category="native", routing=routing_for(tool, "native"))
+                register(tool, "native")
             if self._file_output_publisher is not None:
                 for tool in create_file_write_tools(
                     scope_provider,
@@ -191,11 +213,11 @@ class SandboxManager:
                 ):
                     if tool.name == "convert_file_to_pdf" and self._file_conversion_provider is None:
                         continue
-                    registry.register(tool, category="native", routing=routing_for(tool, "native"))
+                    register(tool, "native")
 
         if self._mcp_manager and not self._file_tools_enabled:
             for tool in self._mcp_manager.get_cached_tools():
-                registry.register(tool, category="mcp", routing=routing_for(tool, "mcp"))
+                register(tool, "mcp")
             logger.debug("Session sandbox: %d MCP tools registered",
                          len(self._mcp_manager.get_cached_tools()))
 
@@ -203,7 +225,7 @@ class SandboxManager:
             from sandbox.tools.skills.engine import build_skill_tool_from_definition
             for skill_def in self._skill_definitions:
                 skill_tool = build_skill_tool_from_definition(skill_def, registry)
-                registry.register(skill_tool, category="skill", routing=routing_for(skill_tool, "skill"))
+                register(skill_tool, "skill")
             logger.debug("Session sandbox: %d skills registered", len(self._skill_definitions))
 
         registry.freeze()

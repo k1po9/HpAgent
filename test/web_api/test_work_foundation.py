@@ -2,11 +2,70 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from test_generic_completion_contract import CONTRACT
 
 pytestmark = pytest.mark.postgres
+
+
+def test_generic_create_rejects_retired_criteria_without_claiming_key(seed_identity, client_factory, db):
+    account = seed_identity('generic-contract-owner')
+    client = client_factory()
+    csrf = login(client, 'generic-contract-owner')
+    key = str(uuid4())
+    legacy = {**CONTRACT['new_requirement'], 'acceptance_criteria': CONTRACT['legacy_criteria']}
+    rejected = client.post('/api/v1/works', json={'title': 'Legacy', 'requirement': legacy},
+                           headers=headers(csrf, key))
+    assert rejected.status_code == 422, rejected.text
+    error = rejected.json()['error']
+    assert error['code'] == 'generic_acceptance_revision_required'
+    assert error['retryable'] is False
+    assert error['details']['supported_result_types'] == CONTRACT['result_evidence_types']
+    assert db.execute('SELECT count(*) FROM works WHERE account_id=%s', (account,)).fetchone()[0] == 0
+    assert db.execute('SELECT count(*) FROM idempotency_commands WHERE account_id=%s AND idempotency_key=%s',
+                      (account, key)).fetchone()[0] == 0
+    accepted = client.post('/api/v1/works', json={'title': 'Typed', 'requirement': CONTRACT['new_requirement']},
+                           headers=headers(csrf, key))
+    assert accepted.status_code == 201, accepted.text
+    assert accepted.json()['work']['requirement']['acceptance_criteria'] == CONTRACT['new_requirement']['acceptance_criteria']
+
+
+def test_legacy_generic_http_replay_read_and_explicit_revision_preserve_state(seed_identity, client_factory, db):
+    seed_identity('legacy-contract-owner')
+    client = client_factory()
+    csrf = login(client, 'legacy-contract-owner')
+    key = str(uuid4())
+    legacy = {**CONTRACT['new_requirement'], 'acceptance_criteria': CONTRACT['legacy_criteria']}
+    payload = {'title': 'Legacy', 'requirement': legacy}
+    with patch('work_domain.commands.validate_new_completion_criteria'):
+        accepted = client.post('/api/v1/works', json=payload, headers=headers(csrf, key))
+    assert accepted.status_code == 201, accepted.text
+    replay = client.post('/api/v1/works', json=payload, headers=headers(csrf, key))
+    assert replay.status_code == 201 and replay.headers['Idempotency-Replayed'] == 'true'
+    assert replay.json() == accepted.json()
+    work_id = accepted.json()['work']['work_id']
+    url = f'/api/v1/works/{work_id}'
+    assert client.get(url).json()['work']['requirement']['acceptance_criteria'] == CONTRACT['legacy_criteria']
+    paused = client.post(f'{url}/pause', json={}, headers=headers(csrf, str(uuid4()), accepted.headers['ETag']))
+    before = paused.json()['work']
+    revision_key = str(uuid4())
+    rejected = client.post(f'{url}/revisions', json={'requirement': legacy, 'change_reason': 'No conversion'},
+                           headers=headers(csrf, revision_key, paused.headers['ETag']))
+    assert rejected.status_code == 422, rejected.text
+    assert client.get(url).json()['work'] == before
+    upgraded = {**legacy, 'acceptance_criteria': CONTRACT['upgraded_criteria']}
+    revised = client.post(f'{url}/revisions', json={'requirement': upgraded, 'change_reason': 'Explicit output upgrade'},
+                          headers=headers(csrf, revision_key, paused.headers['ETag']))
+    assert revised.status_code == 200, revised.text
+    after = revised.json()['work']
+    assert after['status'] == before['status'] == 'paused'
+    assert after['budget'] == before['budget'] and after['completion_receipt'] is None
+    assert after['current_requirement_revision'] == 2
+    assert db.execute('SELECT acceptance_criteria FROM work_requirements WHERE work_id=%s AND revision=1',
+                      (work_id,)).fetchone()[0] == CONTRACT['legacy_criteria']
 
 
 def headers(csrf: str, key: str, etag: str | None = None) -> dict[str, str]:
@@ -143,3 +202,31 @@ def test_progress_projection_and_http_advance_gate(seed_identity, client_factory
     assert client.get(url + '/runs').json()['items'] == []
     login(client, 'progress-other')
     assert client.get(url).status_code == 404
+
+
+def test_delivery_format_http_revision_replay_and_rejected_binding(seed_identity, client_factory, db):
+    from test_delivery_contract_unit import requirement as delivery_requirement
+    seed_identity('format-contract-owner')
+    client = client_factory()
+    csrf = login(client, 'format-contract-owner')
+    original = delivery_requirement().to_dict()
+    key = str(uuid4())
+    payload = {'title': 'Markdown', 'requirement': original}
+    response = client.post('/api/v1/works', json=payload, headers=headers(csrf, key))
+    assert response.status_code == 201, response.text
+    assert response.json()['work']['requirement']['deliverables'] == original['deliverables']
+    replay = client.post('/api/v1/works', json=payload, headers=headers(csrf, key))
+    assert replay.status_code == 201 and replay.headers['Idempotency-Replayed'] == 'true'
+    assert replay.json() == response.json()
+    wid = response.json()['work']['work_id']
+    url = f'/api/v1/works/{wid}/revisions'
+    revised = delivery_requirement(('docx',)).to_dict()
+    bad = delivery_requirement().to_dict()
+    bad['deliverables']['items'][0]['format_criterion_id'] = 'output0'
+    denied = client.post(url, json={'requirement': bad}, headers=headers(csrf, str(uuid4()), response.headers['ETag']))
+    assert denied.status_code == 422, denied.text
+    accepted = client.post(url, json={'requirement': revised, 'change_reason': 'Word requested'},
+                          headers=headers(csrf, str(uuid4()), response.headers['ETag']))
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()['work']['requirement']['deliverables'] == revised['deliverables']
+    assert accepted.json()['work']['current_requirement_revision'] == 2

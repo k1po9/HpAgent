@@ -83,7 +83,7 @@ async def test_main_lightweight_web_keeps_one_chat_run_without_research(
                 return BrainDecision('', [ActionRequest('fetch-1', 'web_fetch', {'url': url})], 'tool_calls', {})
             assert observations[1]['requested_url'] == url and observations[1]['text']
             assert observations[1]['final_url_verified'] is (provider == 'legacy')
-            return BrainDecision('Source: ' + url, [], 'stop', {})
+            return BrainDecision('', [ActionRequest('answer', 'respond_directly', {'answer': 'Source: ' + url})], 'tool_calls', {})
 
     async def resolver(host, port):
         return '93.184.216.34'
@@ -131,7 +131,7 @@ async def test_main_lightweight_web_keeps_one_chat_run_without_research(
             await outbox.run_once()
         await Replayer(workflows=[AgentLifecycleWorkflow]).replay_workflow(history)
     assert len(sent) == 2 and decisions == [0, 1, 2]
-    assert db.execute('SELECT used FROM run_budgets WHERE run_id=%s', (run_id,)).fetchone()[0]['tool_calls'] == 2
+    assert db.execute('SELECT used FROM run_budgets WHERE run_id=%s', (run_id,)).fetchone()[0]['tool_calls'] == 3  # search, fetch, structured response
     assert db.execute('SELECT count(*) FROM works WHERE account_id=%s', (account_id,)).fetchone()[0] == 0
     assert db.execute('SELECT count(*) FROM capability_invocations WHERE account_id=%s', (account_id,)).fetchone()[0] == 0
     assert db.execute('SELECT count(*) FROM research_plans WHERE run_id=%s', (run_id,)).fetchone()[0] == 0

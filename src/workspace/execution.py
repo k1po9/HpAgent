@@ -62,6 +62,7 @@ class ExecutionResourceService:
     def _sandbox(self, account_id, run_id, execution_id, scratch, run):
         with UnitOfWork(self.database) as uow:
             assert_execution_fence(uow)
+            execution = lock_execution(uow, str(account_id), str(run_id))
             origin = uow.execute(
                 "SELECT origin FROM messages WHERE message_id=%s", (run["trigger_message_id"],)
             ).fetchone()
@@ -73,6 +74,8 @@ class ExecutionResourceService:
             session_context={
                 "account_id": str(account_id),
                 "source_kind": run["source_kind"],
+                "execution_role": execution["role"],
+                "parent_tool_names": execution["resource_scope"].get("tool_names", []) if execution["role"] == "subagent" else [],
                 "conversation_id": str(run["conversation_id"]) if run["conversation_id"] else None,
                 "trigger_message_id": str(run["trigger_message_id"]) if run["trigger_message_id"] else None,
                 "channel_type": message_origin.get("channel_type", "web"),

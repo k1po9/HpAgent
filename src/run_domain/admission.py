@@ -20,6 +20,9 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
     reason = blocked_reason(uow, work)
     if reason or work['continuation']['reason'] == 'budget_exhausted':
         return None
+    from work_domain.save_policy import defer_workspace_save
+    if defer_workspace_save(uow, work, requirement):
+        return None
     if not CapacityService.admission(uow, work):
         uow.execute(
             "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
@@ -67,6 +70,8 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
         "checkpoint": work["checkpoint"],
         "wakeup_id": str(wakeup_id),
     }
+    if requirement.get('deliverables') is not None:
+        snapshot['requirement']['deliverables'] = requirement['deliverables']
     if requirement['timing']['kind'] == 'daily':
         from work_domain.progress import previous_daily
         baseline = previous_daily(uow, work)

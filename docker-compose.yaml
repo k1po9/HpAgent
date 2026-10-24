@@ -733,6 +733,7 @@ services:
     volumes:
       # Python API 源码直接挂载
       - ./src:/app/src:ro
+      - ./config:/app/config:ro
 
       # verify_schema() 需要读取当前 checkout 的 migration SQL，与 hpagent-migrate 使用同一份 schema truth source。
       - ./persistence/migrations:/opt/hpagent/migrations:ro

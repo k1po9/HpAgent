@@ -1,4 +1,4 @@
-import { buildRequirement, localValue } from "./taskRequirement";
+import { buildRequirement, hasLegacyGenericCriteria, localValue } from "./taskRequirement";
 import { useEffect, useRef, useState } from "react";
 import type { HpWork } from "../../api/types";
 import { useWorks } from "../../store/works";
@@ -96,6 +96,7 @@ function EditorForm({
     };
   }, []);
   const [baseline, setBaseline] = useState(work);
+  const [legacyUpgradeBaseline, setLegacyUpgradeBaseline] = useState<number | null>(null);
   const [title, setTitle] = useState("");
   const [linkedConversation] = useState(useWorkbench.getState().activeConversationId);
   const [objective, setObjective] = useState(work?.requirement.objective ?? "");
@@ -114,6 +115,10 @@ function EditorForm({
     String(work?.requirement.deliverable_policy?.directory_id ?? ""),
   );
   const [saveChanged, setSaveChanged] = useState(false);
+  const [formats, setFormats] = useState(
+    work?.requirement.deliverables?.items.map((d) => d.format).join(",") ?? "",
+  );
+  const [formatsChanged, setFormatsChanged] = useState(false);
   const tree = useWorkspace((s) => s.tree);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -162,6 +167,9 @@ function EditorForm({
             timingChanged,
             saveDirectory,
             saveChanged,
+            formats,
+            formatsChanged,
+            upgradeLegacyCriteria: legacyUpgradeBaseline === baseline?.row_version,
           });
           setError("");
           const body = baseline
@@ -201,6 +209,24 @@ function EditorForm({
           当前基线 r{baseline.current_requirement_revision}
           。修订将取消或收敛当前执行；暂停任务不会自动恢复。
         </p>
+      )}
+      {capability === "generic_work" && hasLegacyGenericCriteria(baseline?.requirement) && (
+        <div role="alert">
+          <p>
+            此任务包含旧的操作回执验收条件。升级后，相关条件需要已发布的不可变成果及服务器登记的证据，成功工具调用不再满足要求。
+            条件编号、必需标记和其他条件保留；提交修订不会直接完成任务或重置预算，旧要求和执行记录保留。
+          </p>
+          <label>
+            <input
+              type="checkbox"
+              checked={legacyUpgradeBaseline === baseline?.row_version}
+              onChange={(e) =>
+                setLegacyUpgradeBaseline(e.target.checked ? baseline!.row_version : null)
+              }
+            />
+            我确认将操作回执条件升级为已发布成果条件
+          </label>
+        </div>
       )}
       {latest && baseline && latest.row_version !== baseline.row_version && (
         <div role="alert">
@@ -250,6 +276,26 @@ function EditorForm({
         约束（每行一条）
         <textarea value={constraints} onChange={(e) => setConstraints(e.target.value)} />
       </label>
+      {capability === "generic_work" && (
+        <label>
+          交付格式
+          <select
+            value={formats}
+            onChange={(e) => {
+              setFormats(e.target.value);
+              setFormatsChanged(true);
+            }}
+          >
+            <option value="">未限定（保留其他验收条件）</option>
+            <option value="markdown">Markdown</option>
+            <option value="docx">Word（DOCX）</option>
+            <option value="markdown,docx">Markdown 和 Word</option>
+            {formats && !["markdown", "docx", "markdown,docx"].includes(formats) && (
+              <option value={formats}>保留当前多个交付目标</option>
+            )}
+          </select>
+        </label>
+      )}
       {capability === "generic_work" && (
         <label>
           推理模式

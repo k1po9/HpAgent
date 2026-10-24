@@ -25,12 +25,14 @@ from agent_workflows.capability_contracts import (
     CapabilityPrepared,
 )
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ToolExecutionResult
+from application.tool_policy import ToolPolicy, agent_role, tool_policy
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.capabilities import CapabilityFacts
 from run_domain.capability_contracts import (
     CapabilityObservation,
     CapabilityRegistry,
     normalize_inputs,
+    resource_scope,
 )
 from run_domain.execution import (
     StaleFencingToken,
@@ -109,9 +111,10 @@ class CapabilityBinding:
 
 
 class CapabilityActivities:
-    def __init__(self, store, facts: CapabilityFacts, bindings: tuple[CapabilityBinding, ...] = ()):
+    def __init__(self, store, facts: CapabilityFacts, bindings: tuple[CapabilityBinding, ...] = (), *, policy: ToolPolicy | None = None):
         self.store = store
         self.facts = facts
+        self.tool_policy = policy if policy is not None else tool_policy()
         self.bindings = {b.tool_name: b for b in bindings}
         if len(self.bindings) != len(bindings):
             raise ValueError("duplicate capability tool")
@@ -123,12 +126,14 @@ class CapabilityActivities:
                 raise ValueError("capability tool name exceeds provider limit")
 
     def discover(self, surface):
+        if surface not in {"chat", "work"}:
+            return []
         available = {
             (d["key"], d["contract_version"]): d
             for d in self.facts.registry.discover(surface, set(self.facts.services))
         }
         from agent_activities.result_tools import discover
-        return [
+        manifests = [
             {
                 "type": "function",
                 "function": {
@@ -140,6 +145,8 @@ class CapabilityActivities:
             for name, b in self.bindings.items()
             if (d := available.get((b.key, b.contract_version))) is not None
         ] + (discover() if available else [])
+        role = agent_role(surface)
+        return [tool for tool in manifests if self.tool_policy.allows(role, tool["function"]["name"])]
 
     @activity.defn(name="prepare_capability_activity")
     @fenced_activity
@@ -202,14 +209,22 @@ class CapabilityActivities:
             request.tool.tool_call.arguments_ref, request.tool.tool_call.tool_call_id
         )
         definition = self.facts.registry.get(binding.key, binding.contract_version)
-        inputs = normalize_inputs(inputs, definition["input_schema"])
         with UnitOfWork(self.store.database_url) as uow:
             run, parent = self.facts._context(uow)
             if str(parent["execution_id"]) != request.tool.execution_id:
                 raise ResourceDenied("caller identity mismatch")
-            existing = uow.execute("SELECT 1 FROM capability_invocations WHERE invocation_id=%s", (request.operation_id,)).fetchone()
+            existing = uow.execute("SELECT * FROM capability_invocations WHERE invocation_id=%s", (request.operation_id,)).fetchone()
+            if existing:
+                definition = existing['descriptor']['definition']
+            inputs = normalize_inputs(inputs, definition['input_schema'])
             if not existing:
+                self.tool_policy.require(agent_role(run["source_kind"], parent["role"]), request.tool.tool_call.name)
                 Draft202012Validator(parent_input_schema(definition)).validate(inputs)
+                targets = (run.get('input_snapshot') or {}).get('requirement', {}).get('deliverables')
+                if binding.key == 'text' and targets:
+                    formats = {t['format'] for t in targets['items']}
+                    if inputs.get('format', 'markdown') not in formats:
+                        raise ValueError('output format does not match Requirement deliverables')
             if not existing and binding.key == "research":
                 budget = uow.execute("SELECT limits,used,reserved FROM run_budgets WHERE run_id=%s", (run["run_id"],)).fetchone()
                 used = budget["used"].get("research_iterations", 0)
@@ -229,15 +244,25 @@ class CapabilityActivities:
                 ).fetchone():
                     raise ValueError("Research stopped: no new effective query or source strategy. Reuse the prior result and report its gaps; do not repeat Research in this Run.")
             self.admit_in_uow(uow, run, parent, definition, request.operation_id)
-            invocation = self.facts.create(
-                uow,
-                operation_id=request.operation_id,
-                capability_key=binding.key,
-                contract_version=binding.contract_version,
-                inputs=inputs,
-                scope=binding.scope(inputs),
-                invocation_limits=definition["limits"],
-            )
+            if existing:
+                if (existing['account_id'] != run['account_id'] or existing['run_id'] != run['run_id']
+                        or existing['caller_execution_id'] != parent['execution_id']
+                        or existing['capability_key'] != binding.key
+                        or existing['contract_version'] != binding.contract_version
+                        or existing['descriptor']['inputs'] != inputs
+                        or existing['descriptor']['resource_scope'] != resource_scope(binding.scope(inputs))):
+                    raise ValueError('invocation identity input conflict')
+                invocation = existing
+            else:
+                invocation = self.facts.create(
+                    uow,
+                    operation_id=request.operation_id,
+                    capability_key=binding.key,
+                    contract_version=binding.contract_version,
+                    inputs=inputs,
+                    scope=binding.scope(inputs),
+                    invocation_limits=definition["limits"],
+                )
             committed = uow.execute(
                 "SELECT 1 FROM capability_results WHERE invocation_id=%s", (request.operation_id,)
             ).fetchone()
@@ -329,11 +354,11 @@ class CapabilityActivities:
             (run["account_id"], request.invocation_id),
         ).fetchone()
         descriptor = invocation["descriptor"]
-        if (
-            self.facts.registry.get(invocation["capability_key"], invocation["contract_version"])
-            != descriptor["definition"]
-        ):
-            raise ResourceDenied("registered capability implementation changed")
+        current = self.facts.registry.get(invocation['capability_key'], invocation['contract_version'])
+        if current != descriptor['definition']:
+            from agent_activities.text_result import compatible_text_definition
+            if not compatible_text_definition(descriptor['definition'], current):
+                raise ResourceDenied('registered capability implementation changed')
         self._authorize_scope(uow, run, descriptor)
         return descriptor
 
@@ -508,6 +533,14 @@ class CapabilityActivities:
             if pointer:
                 payload["capability_observation"] = pointer
                 event["capability_observation"] = pointer
+                from work_domain.output_evidence import register_text_output
+
+                evidence = register_text_output(uow, self.facts, request.operation_id, result)
+                if evidence:
+                    event["output_exists_evidence"] = evidence
+                    event["message"]["content"] = json.dumps(
+                        {**result, "acceptance_evidence": evidence}, ensure_ascii=False,
+                    )
             uow.execute(
                 "INSERT INTO agent_transcript_events(transcript_id,sequence,event_type,operation_id,payload) "
                 "VALUES (%s,%s,'tool_result',%s,%s)",

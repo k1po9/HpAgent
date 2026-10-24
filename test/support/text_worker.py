@@ -32,6 +32,8 @@ async def main():
     @activity.defn(name='observe_capability_activity')
     async def observe(request: CapabilityFinish):
         if not marker.exists():
+            if os.environ.get('HPAGENT_TEXT_TEST_CRASH_PHASE') == 'after_observation':
+                await caps.observe(request)
             marker.write_text(request.call.operation_id)
             # Child result is committed; simulate interruption before parent receipt.
             while True:

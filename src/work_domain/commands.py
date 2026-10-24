@@ -13,8 +13,13 @@ from persistence.repositories import AccountRepository, IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.execution import assert_execution_fence
 from web_domain.errors import DomainError, IdempotencyConflict, ResourceNotFound
-from work_domain.models import Requirement, continuation, digest
+from work_domain.models import Requirement, continuation, digest, validate_new_completion_criteria
 from work_domain.persistence import WorkRepository, dto
+from work_domain.save_policy import (
+    SAVE_WAIT_REASONS,
+    defer_workspace_save,
+    validate_new_save_policy,
+)
 
 
 class WorkConflict(DomainError):
@@ -113,7 +118,8 @@ class WorkCommandService:
 
     @retryable_transaction
     def accept(self, account_id: UUID, key: str, title: str, requirement: Requirement, *,
-               conversation_id: UUID | None = None, source_message_id: UUID | None = None):
+               conversation_id: UUID | None = None, source_message_id: UUID | None = None,
+               workspace_save_requested: bool | None = None):
         value = requirement.to_dict()
         title = title.strip()
         if not 1 <= len(title) <= 200:
@@ -124,6 +130,8 @@ class WorkCommandService:
             replay, command = self._claim(uow, account_id, 'accept_work', key, payload)
             if replay:
                 return replay
+            validate_new_completion_criteria(value)
+            validate_new_save_policy(value, workspace_save_requested=workspace_save_requested)
             if not AccountRepository().require_active(uow, account_id):
                 raise ResourceNotFound()
             source = uow.execute(
@@ -162,9 +170,11 @@ class WorkCommandService:
             self.repo.event(uow, work, 'accepted', command_id=command, status='active')
             from delivery.service import ensure_inbox
             ensure_inbox(uow, account_id, work_id)
+            waiting_for_save = defer_workspace_save(uow, work, value)
+            work = self.repo.get(uow, account_id, work_id)
             from work_domain.persistence import sync_schedule
             sync_schedule(uow, work, value)
-            if value['timing']['kind'] in {'immediate', 'once'}:
+            if not waiting_for_save and value['timing']['kind'] in {'immediate', 'once'}:
                 self.repo.wakeup(uow, work, f'accepted:{command}', 'accepted', 'accepted', next_step.get('due_at'))
             return self._complete(uow, account_id, 'accept_work', key, work_id, 201)
 
@@ -208,7 +218,8 @@ class WorkCommandService:
                     (work['work_id'],))
 
     @retryable_transaction
-    def revise(self, account_id, work_id, key, row_version, requirement: Requirement, reason='user_revision'):
+    def revise(self, account_id, work_id, key, row_version, requirement: Requirement, reason='user_revision', *,
+               workspace_save_requested: bool | None = None):
         value = requirement.to_dict()
         with UnitOfWork(self.database) as uow:
             replay, command = self._claim(uow, account_id, 'revise_work', key,
@@ -216,6 +227,8 @@ class WorkCommandService:
                                            'requirement': value, 'reason': reason})
             if replay:
                 return replay
+            validate_new_completion_criteria(value)
+            validate_new_save_policy(value, workspace_save_requested=workspace_save_requested)
             work = self._locked(uow, account_id, work_id, row_version)
             if work['status'] not in {'active','pausing','paused'}:
                 raise WorkConflict(work, 'work_not_revisable')
@@ -234,9 +247,13 @@ class WorkCommandService:
                                     'WHERE work_id=%s RETURNING *',
                                     (revision, json.dumps(checkpoint), json.dumps(next_step), work_id)).fetchone())
             self.repo.event(uow, work, 'revised', command_id=command, reason=reason)
+            if not work['continuation'].get('operation_ref') and work['continuation']['reason'] != 'budget_exhausted':
+                defer_workspace_save(uow, work, value)
+                work = self.repo.get(uow, account_id, work_id)
             from work_domain.persistence import sync_schedule
             sync_schedule(uow, work, value)
-            if work['status']=='active' and value['timing']['kind'] in {'immediate', 'once'}:
+            if (work['status']=='active' and work['continuation']['kind'] != 'awaiting_input'
+                    and value['timing']['kind'] in {'immediate', 'once'}):
                 self.repo.wakeup(uow, work, f'revision:{command}', 'revision', 'reevaluate_after_convergence', next_step.get('due_at'))
             return self._complete(uow, account_id, 'revise_work', key, work_id)
 
@@ -279,8 +296,11 @@ class WorkCommandService:
                 next_step = initial_continuation(requirement['timing'])
                 work = dict(uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) '
                                         'WHERE work_id=%s RETURNING *', (json.dumps(next_step), work_id)).fetchone())
+                defer_workspace_save(uow, work, requirement)
+                work = self.repo.get(uow, account_id, work_id)
             sync_schedule(uow, work, requirement)
-            if action=='resume' and requirement['timing']['kind'] in {'immediate', 'once'}:
+            if (action=='resume' and work['continuation']['kind'] != 'awaiting_input'
+                    and requirement['timing']['kind'] in {'immediate', 'once'}):
                 self.repo.wakeup(uow, work, f'resume:{command}', 'resume', 'explicit_resume', work['continuation'].get('due_at'))
             return self._complete(uow, account_id, operation, key, work_id)
 
@@ -320,7 +340,8 @@ class WorkCommandService:
             reason = blocked_reason(uow, work)
             if reason or work['continuation']['reason'] == 'budget_exhausted':
                 raise WorkConflict(work, reason or 'budget_exhausted')
-            if work['continuation']['kind'] in {'awaiting_input','awaiting_delivery'}:
+            if (work['continuation']['kind'] in {'awaiting_input','awaiting_delivery'}
+                    and work['continuation']['reason'] not in SAVE_WAIT_REASONS):
                 raise WorkConflict(work, 'work_awaiting_receipt')
             if work['continuation'].get('due_at') and datetime.fromisoformat(work['continuation']['due_at']) > datetime.now(UTC):
                 return self._complete(uow, account_id, 'advance_work', key, work_id, 202, reason='not_due')
@@ -335,7 +356,9 @@ class WorkCommandService:
                 self.repo.event(uow,self.repo.get(uow,account_id,work_id),'blocked',command_id=command,reason='budget_exhausted')
                 return self._complete(uow,account_id,'advance_work',key,work_id,202,reason='budget_exhausted')
             if run is None:
-                return self._complete(uow, account_id, 'advance_work', key, work_id, 202, reason='waiting_capacity')
+                current = self.repo.get(uow, account_id, work_id)
+                return self._complete(uow, account_id, 'advance_work', key, work_id, 202,
+                                      reason=current['continuation']['reason'])
             work = self.repo.get(uow, account_id, work_id)
             self.repo.event(uow, work, 'advanced', command_id=command, run_id=run['run_id'])
             return self._complete(uow, account_id, 'advance_work', key, work_id, 202, run=run)

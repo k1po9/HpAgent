@@ -14,8 +14,8 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from sandbox.tools.registry import ToolRegistry
-from sandbox.tools.types import ToolResult
 from sandbox.tools.routing.router import ToolRouter
+from sandbox.tools.types import ToolResult
 
 logger = logging.getLogger("HpAgent.Sandbox")
 
@@ -82,6 +82,9 @@ class Sandbox:
         return list(selected.tool_schemas), selected.audit
 
     # ── 工具执行 ──────────────────────────────────────────────────────────
+
+    def get_tool_category(self, tool_name: str) -> str | None:
+        return self._registry.get_category(tool_name)
 
     async def execute(
         self, tool_name: str, arguments: Dict[str, Any]

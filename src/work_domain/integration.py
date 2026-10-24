@@ -558,6 +558,32 @@ def integration_command(service, account, work_id, key, version, action, payload
                 (work_id,),
             )
         current = WorkRepository.get(uow, account, work_id)
+        # Only our prerequisite wait can be released by a new explicit grant.
+        # Other input, budget, progress and uncertain-effect gates stay intact.
+        from work_domain.save_policy import SAVE_WAIT_REASONS, defer_workspace_save
+        if (action == 'grant_resource' and current['status'] == 'active'
+                and current['active_coordinator_run_id'] is None
+                and not current['continuation'].get('operation_ref')
+                and current['continuation']['kind'] == 'awaiting_input'
+                and current['continuation']['reason'] in SAVE_WAIT_REASONS):
+            requirement = WorkRepository.requirement(uow, account, work_id, current['current_requirement_revision'])
+            if not defer_workspace_save(uow, current, requirement):
+                from work_domain.progress import blocked_reason
+                from work_domain.timing import initial_continuation
+                protection = blocked_reason(uow, current)
+                next_step = (continuation('blocked', protection) if protection else
+                             initial_continuation(requirement['timing']))
+                current = dict(uow.execute(
+                    "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,"
+                    "updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s RETURNING *",
+                    (json.dumps(next_step), work_id),
+                ).fetchone())
+                if not protection and requirement['timing']['kind'] in {'immediate', 'once'}:
+                    WorkRepository.wakeup(uow, current, f'save-ready:{command}', 'advance', 'workspace_save_ready',
+                                          next_step.get('due_at'))
+            from work_domain.persistence import sync_schedule
+            current = WorkRepository.get(uow, account, work_id)
+            sync_schedule(uow, current, requirement)
         WorkRepository.event(uow, current, action, command_id=command, **dto(payload))
         return service._complete(
             uow,

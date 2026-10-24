@@ -1,6 +1,45 @@
 import { expect, it } from "vitest";
 import { buildRequirement, localToInstant, localValue } from "./taskRequirement";
 import { workFixture } from "./taskFixtures";
+import contract from "../../../../test/fixtures/work/generic_completion.json";
+
+const genericValues = {
+  objective: contract.new_requirement.objective,
+  capability: "generic_work",
+  constraints: "",
+  mode: "react",
+  timing: "immediate",
+  zone: "UTC",
+  due: "",
+  time: "09:00",
+  timingChanged: false,
+};
+
+it("creates the same Generic completion contract accepted by the backend", () => {
+  const requirement = buildRequirement(undefined, genericValues);
+  expect(requirement).toEqual(contract.new_requirement);
+  for (const criterion of requirement.acceptance_criteria)
+    for (const type of criterion.evidence_types)
+      expect(contract.result_evidence_types).toContain(type);
+  for (const mode of ["react", "plan_and_execute"])
+    expect(buildRequirement(undefined, { ...genericValues, mode }).acceptance_criteria).toEqual(
+      requirement.acceptance_criteria,
+    );
+});
+
+it("requires explicit upgrade and preserves legacy criterion identity, checks and required flags", () => {
+  const legacy = {
+    ...workFixture().requirement,
+    acceptance_criteria: structuredClone(contract.legacy_criteria),
+  };
+  const original = structuredClone(legacy);
+  expect(() => buildRequirement(legacy, genericValues)).toThrow("请先确认");
+  const upgraded = buildRequirement(legacy, { ...genericValues, upgradeLegacyCriteria: true });
+  expect(upgraded.acceptance_criteria).toEqual(contract.upgraded_criteria);
+  expect(legacy).toEqual(original);
+  expect(upgraded.deliverable_policy).toEqual(legacy.deliverable_policy);
+  expect(upgraded.resource_requests).toEqual(legacy.resource_requests);
+});
 it("selects a save directory without granting access and keeps independent checks", () => {
   const base = {
     ...workFixture().requirement,
@@ -142,4 +181,66 @@ it("omits persisted Requirement row metadata from a revision command", () => {
       "timing",
     ].sort(),
   );
+});
+
+it("binds each requested format to independent existence and format criteria", () => {
+  const result = buildRequirement(undefined, {
+    ...genericValues,
+    formatsChanged: true,
+    formats: "markdown,docx",
+  });
+  expect(result.deliverables?.items.map((i) => i.format)).toEqual(["markdown", "docx"]);
+  const refs = result.deliverables!.items.flatMap((i) => [
+    i.output_criterion_id,
+    i.format_criterion_id,
+  ]);
+  expect(new Set(refs).size).toBe(4);
+  for (const item of result.deliverables!.items) {
+    expect(
+      result.acceptance_criteria.find((c) => c.id === item.output_criterion_id)?.evidence_types,
+    ).toEqual(["output_exists"]);
+    expect(
+      result.acceptance_criteria.find((c) => c.id === item.format_criterion_id)?.evidence_types,
+    ).toEqual(["check_passed"]);
+  }
+  expect(result.deliverable_policy.required).toBe(false);
+});
+
+it("preserves targets during ordinary revision and replaces only owned criteria when format changes", () => {
+  const base = buildRequirement(undefined, {
+    ...genericValues,
+    formatsChanged: true,
+    formats: "markdown",
+  });
+  base.acceptance_criteria.push({
+    id: "quality",
+    required: true,
+    evidence_types: ["check_passed"],
+  });
+  const unchanged = buildRequirement(base, { ...genericValues, objective: "revised" });
+  expect(unchanged.deliverables).toEqual(base.deliverables);
+  const revised = buildRequirement(base, {
+    ...genericValues,
+    formatsChanged: true,
+    formats: "docx",
+  });
+  expect(revised.deliverables?.items.map((i) => i.format)).toEqual(["docx"]);
+  expect(revised.acceptance_criteria).toContainEqual({
+    id: "quality",
+    required: true,
+    evidence_types: ["check_passed"],
+  });
+  expect(
+    revised.acceptance_criteria.some(
+      (c) => c.id === base.deliverables!.items[0]!.format_criterion_id,
+    ),
+  ).toBe(false);
+  const cleared = buildRequirement(base, { ...genericValues, formatsChanged: true, formats: "" });
+  expect(cleared.deliverables).toBeUndefined();
+  expect(
+    cleared.acceptance_criteria.some(
+      (c) => c.required && c.evidence_types.includes("output_exists"),
+    ),
+  ).toBe(true);
+  expect(base.deliverables?.items[0]!.format).toBe("markdown");
 });

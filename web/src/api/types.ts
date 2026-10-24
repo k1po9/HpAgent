@@ -405,6 +405,16 @@ export interface HpRequirement {
   };
   resource_requests: Array<Record<string, unknown>>;
   deliverable_policy: Record<string, unknown>;
+  deliverables?: {
+    schema_version: 1;
+    items: Array<{
+      id: string;
+      format: "markdown" | "docx";
+      required: boolean;
+      output_criterion_id: string;
+      format_criterion_id: string;
+    }>;
+  } | null;
 }
 export interface HpTaskRun {
   run_id: string;

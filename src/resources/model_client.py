@@ -350,6 +350,17 @@ class ModelClient:
             payload["stream"] = True
         if self._extra_body:
             payload.update(self._extra_body)
+        from resources.model_budget_context import current_model_call
+        context = current_model_call()
+        if context is not None and context.tool_choice_required:
+            if not tools:
+                from resources.model_failures import ModelRequestInvalid
+                raise ModelRequestInvalid('tool-first decision requires tools')
+            if self.api_format == 'openai':
+                payload['tool_choice'] = 'required'
+                payload['parallel_tool_calls'] = False
+            else:
+                payload['tool_choice'] = {'type': 'any', 'disable_parallel_tool_use': True}
         return payload
 
     # ═══════════════════════════════════════════════════════════════════════════

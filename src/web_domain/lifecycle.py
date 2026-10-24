@@ -107,6 +107,19 @@ class WebRunLifecycleService:
             run = RunLifecycleService.lock(uow, account_id, run_id)
             if run["status"] not in {"cancelling", "cancelled", "succeeded", "failed"}:
                 if run['source_kind'] == 'chat':
+                    if (run.get('input_snapshot') or {}).get('main_protocol') == 'tool_first_v1':
+                        terminal = uow.execute(
+                            "SELECT o.result_payload FROM execution_operations o JOIN execution_result_receipts rc "
+                            "ON rc.operation_id=o.operation_id WHERE o.account_id=%s AND o.run_id=%s "
+                            "AND o.result_ref=%s AND o.status='completed' AND rc.disposition='current' "
+                            "AND o.result_payload->'response_receipt'->>'kind'='response_terminated' "
+                            "AND o.execution_id=(SELECT execution_id FROM run_executions WHERE run_id=o.run_id AND role='root')",
+                            (account_id, run_id, result_ref),
+                        ).fetchone()
+                        if not terminal:
+                            raise ValueError('Main termination requires a genuine respond_directly receipt')
+                        # Never trust a caller-supplied replacement for the verified response.
+                        content = terminal['result_payload']['content']
                     # A rejected Main parameter set cannot become a verbal handoff.
                     # Recoveries with a committed mandate retain the normal response.
                     rejected = uow.execute(

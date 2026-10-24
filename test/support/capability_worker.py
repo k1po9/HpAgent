@@ -16,6 +16,7 @@ from agent_workflows.capability import CapabilityInvocationWorkflow
 from agent_workflows.capability_contracts import CapabilityExecutionInput
 from agent_workflows.contracts import AGENT_TASK_QUEUE
 from agent_workflows.tool_execution import ToolExecutionWorkflow
+from application.tool_policy import ToolPolicy, tool_policy
 from persistence.uow import UnitOfWork
 from resources.capacity import CapacityService
 from resources.run_budget import RunBudgetService
@@ -52,8 +53,16 @@ class ProbeActivities(CapabilityActivities):
 def activities(database):
     store = AgentDataStore(database, lease_ttl_seconds=15)
     facts = CapabilityFacts(CapabilityRegistry((definition(),)))
+    binding = CapabilityBinding("test.echo", 1, "DeterministicCapabilityWorkflow")
+    configured = tool_policy().model_dump()
+    configured["groups"]["test_echo"] = {
+        "description": "隔离测试专用能力", "tools": [binding.tool_name], "exposure": "always",
+    }
+    for role in ("main", "worker"):
+        configured["roles"][role]["groups"] += ("test_echo",)
+    policy = ToolPolicy.model_validate(configured)
     return ProbeActivities(
-        store, facts, (CapabilityBinding("test.echo", 1, "DeterministicCapabilityWorkflow"),)
+        store, facts, (binding,), policy=policy,
     )
 
 

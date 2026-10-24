@@ -154,7 +154,7 @@ def test_generic_completion_requires_verified_evidence_and_policy(commands, acco
     from run_domain.execution_context import fence_scope
 
     req = Requirement('Complete a verified action', 'generic_work', {'schema_version': 1},
-        acceptance_criteria=({'id': 'action', 'required': True, 'evidence_types': ['operation_receipt']},))
+        acceptance_criteria=({'id': 'action', 'required': True, 'evidence_types': ['output_exists']},))
     work_id, work = accept(commands, account_id, req)
     run_id = UUID(commands.advance(account_id, work_id, str(uuid4()), work['row_version']).body['run']['run_id'])
     lifecycle = WebRunLifecycleService(urls[2])

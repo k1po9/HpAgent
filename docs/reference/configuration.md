@@ -1,5 +1,17 @@
 # 配置参考
 
+## Agent 工具分配
+
+[config/agent_tools.yaml](../../config/agent_tools.yaml) 是实际执行的工具分配配置；[config/prompts/agents.yaml](../../config/prompts/agents.yaml) 保存对应中文角色与阶段提示词。两者均按仓库 `src/` 或主 Worker 平铺目录布局定位应用根目录，进程首次读取后缓存；修改后需重启相关 Worker，不热更新已有模型快照和上下文。
+
+- `groups` 定义工具用途、准确 `tools` 名称或动态 `category`（`mcp` / `skill`），每个工具或动态类别只属于一个组。所有原生工具须有归属；拼写错误、未知角色/工具/组、重复 YAML 键及不支持的授予方式直接报错，不回退到宽松策略。
+- `roles.<角色>.groups` 决定该角色允许的工具组。关闭某角色的研究能力，可从该角色列表移除 `research`，仍保留组定义供其他角色使用；关闭代码写入同理移除 `code_write`，Shell 需另外移除 `shell`。分配不会创建实现或跳过服务、渠道、文件范围、预算与审批检查。
+- `exposure=existing` 保留工具原有常驻、文件入口或按需检索规则；`always` 改为满足运行条件后常驻；`semantic` 改为按需检索。检索总上限仍生效，常驻/入口工具过多时报配置错误。复杂能力、联网、结果管理和委派属于根执行追加工具，只支持 `always`，通过移除角色的组来关闭。
+- Main 与 Worker 的 `grant=configured` 从配置组取工具，但不能越过服务端角色边界：Main 不获得后台分支委派或 Work 专用文字发布，Worker 不获得 Work 管理；只读子 agent 使用 `parent_read_only_subset`，不能改成自行授予全部工具。父侧填写的分支工具仍须通过服务器核验，文件/目录引用不等于授权。
+- Research 合成、HTML 生成、规划、评估、工具摘要和记忆查询改写模型固定为 `grant=none`、空工具组；它们使用固定服务端流程，不因配置存在而变成工具循环 agent。MCP/Skill 工具不能以原生或专用工具的同名名称跨类别取得分配。
+
+配置减少权限后，新的工具使用按当前分配检查；已提交的工具回执不会重新执行，已登记的复杂能力实例按原不可变契约恢复，不因配置变化重新发送模型请求。修改提示词时对照组用途和角色列表；真正发给模型的本轮工具清单还受服务和检索限制，不能把允许列表理解成始终可用。
+
 首次上线的取值决定集中在[配置确认表](../operations/first-release-configuration.md)，Compose 可插值的全部变量集中在[.env.example](../../.env.example)。本页维护各配置入口的语义。
 
 配置优先级为：环境变量覆盖 `config/config.yaml` 默认值。Compose 会注入 Container 内部服务地址和数据库 DSN。Model YAML 通过 `${NAME}` 引用环境变量，Secret 不写入 YAML。

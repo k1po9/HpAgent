@@ -13,6 +13,7 @@ from temporalio.client import Client, WorkflowFailureError
 from temporalio.exceptions import ApplicationError
 from temporalio.worker import Replayer
 
+from actions.contracts import ActionRequest
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
@@ -60,7 +61,7 @@ class Brain:
             )
         if self.outcome == "cancelled":
             await asyncio.Event().wait()
-        return BrainDecision("canonical reply", [], "stop", {})
+        return BrainDecision("", [ActionRequest("answer", "respond_directly", {"answer": "canonical reply"})], "tool_calls", {})
 
     async def generate_final_decision(self, *, messages):
         text = str(messages)

@@ -30,6 +30,8 @@ from web_domain.errors import (
     VersionConflict,
 )
 from work_domain.commands import WorkConflict
+from work_domain.models import GENERIC_RESULT_EVIDENCE_TYPES, LegacyGenericCriteria
+from work_domain.save_policy import InvalidWorkspaceSave
 from workspace.catalog import WorkspaceConflict, WorkspaceNotFound
 from workspace.resources import ResourceDenied, SnapshotLimitExceeded
 
@@ -37,6 +39,23 @@ logger = logging.getLogger("HpAgent.WebApi")
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(InvalidWorkspaceSave)
+    async def invalid_workspace_save(request: Request, exc: InvalidWorkspaceSave):
+        return error_response(
+            request, 422, "workspace_save_invalid",
+            "保存要求无效。普通成果无需保存到空间；明确要求保存时，请保留保存验收条件并选择真实目录，未确定时省略目录等待补充。",
+            details={"fields": ["requirement.acceptance_criteria", "requirement.deliverable_policy"]},
+        )
+
+    @app.exception_handler(LegacyGenericCriteria)
+    async def legacy_generic_criteria(request: Request, exc: LegacyGenericCriteria):
+        return error_response(
+            request, 422, "generic_acceptance_revision_required",
+            "通用任务不再支持操作回执验收。请在任务编辑器中确认升级为已发布成果条件，再提交修订。",
+            details={"fields": ["requirement.acceptance_criteria"],
+                     "supported_result_types": sorted(GENERIC_RESULT_EVIDENCE_TYPES)},
+        )
+
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
         if any(item.get("type") == "json_invalid" for item in exc.errors()):
