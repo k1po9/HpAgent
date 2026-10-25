@@ -38,6 +38,23 @@ Temporal验收还需显式设置`TEMPORAL_HOST`指向独立测试服务，设置
 
 静态检查范围：Ruff覆盖Conversation、Web、Work、Run、Application、Bootstrap、Agent Workflow/Activity、Orchestration、Research及全部test；mypy覆盖Conversation、Web、Persistence、Web API、Work、Run与Agent Workflow。其他通用能力/渠道适配包尚未全部纳入，不以这两个命令证明全仓库静态检查通过。
 
+记忆核心回归可定向执行 `test/web_persistence/test_memory_retention.py`、
+`test/web_persistence/test_memory_governance.py`、`test/web_persistence/test_memory_readiness.py`、
+`test/web_api/test_memory_governance.py`、`test/work_domain/test_memory_context.py`；仍使用上述三角色
+专用 DSN/Redis。`test/test_memory_readiness.py` 覆盖默认关闭/显式启用、分页、未知来源和在途阻断。
+目标服务契约另显式设置 `HINDSIGHT_CONTRACT_ISOLATED=1`、`HINDSIGHT_CONTRACT_URL`，
+运行 `test/test_hindsight_contract.py` 及上述持久化集合中的真实目标用例；这会写测试 Bank、维护事实、
+删除文档/Operation，并 SIGKILL 测试子进程。可复用 `test/fixtures/hindsight-contract.compose.yaml`
+以独立 project 启动 1.1.0、原生 mock LLM/确定性 embedding/rrf，禁止外联；不能连接业务 Bank。
+空库与专用合成夹具不证明真实旧库迁移/恢复或真实 Provider 语义质量。本轮选择空目标启用，
+旧数据迁移与副本验收不在交付范围；不要将未执行项写成通过。
+
+资源撤权记忆回归在 `test/web_persistence/test_memory_governance.py -k resource_revoke`：
+覆盖登记前、登记后发送前、Operation 查询期间的撤权，旧事件重放、重新授权后新 Run 的正向对照，
+以及已接受删除/丢失删除响应后的撤权和载荷清理。`test_memory_revocation_migration.py` 在同一专用
+PG 另建临时数据库，以完整 001–077 链构造旧夹具，再验证 078 与重复执行；不使用业务副本，
+不证明真实旧数据迁移或恢复。新增 Run 标记只能置 true，测试同时检查终态输入仍不可改写。
+
 内容链离线回归见 `test/test_research_excerpts.py`、`test/test_research_domain.py` 和 `test/test_web_artifacts.py`，公开来源片段 fixture 为 `test/fixtures/research/content_passages.json`，保留原文出处、版本 hash 与偏移。覆盖冻结的句子截断、共同限制、公平性及取消条件反例，另用合成的入馆政策覆盖不同主题；验证精确偏移、去重、字符/UTF-8 上限、claims→Markdown→HTML 的传递及引用标记丢失反馈。确定性模型夹具只证明传递与结构检查，不证明真实模型保持事实，旧失败批次不改判。
 
 模型协议测试使用MockTransport，不证明真实Provider。Research 发布/保存 SIGKILL harness 使用实际默认 30 秒 lease；配套 PG 用例让阶段跨越初始租约，验证续租与拒绝抢占。其余短 lease 用例只证明对应受控窗口，不能外推生产恢复速度；机制见[执行与恢复](../architecture/execution.md)。测试范围和排除项必须随结果记录。
@@ -132,3 +149,53 @@ Web Retriever v1 的模块边界见[设计总结](../architecture/capabilities.m
 持久化预算回归为 `test/web_persistence/test_web_retrieval_budget.py`；Main Command → Temporal → 工具 → 回复的隔离回归为 `test/web_persistence/test_main_web_tools.py`，需要显式专用 PG/Temporal。模型及供应商夹具只验证调用契约；Research 的证据选择、合成和报告质量按其自身流程测试，与 Retriever 模块冻结分别处理。
 
 Main Tool-first 与交付格式的隔离验证入口：`test/test_delivery_contract_unit.py` 覆盖格式字节、约束 schema、Provider 冻结和旧 text 定义兼容；`test/work_domain/test_main_tool_first.py` 用确定性 Brain 与真实 PG 检查多轮修正、伪调用、终止/命令回执分离、响应丢失幂等与强制收尾；`test/work_domain/test_delivery_format.py` 覆盖 Markdown/DOCX/双格式、无显式验收工具、同 ResultRef 配对、重复发布、发布后崩溃、检查失败、旧 revision/fence、保存和其他必需条件。`test_text_closure.py` 的专用 SIGKILL Worker 同时覆盖旧契约与格式契约；Web 任务编辑器测试检查格式修订保留独立条件。Main Temporal 确定性模型使用真实 respond_directly 动作，历史 History 仍通过 Replayer 校验。以上均不新增真实 Provider 请求；运行时使用独立数据库、namespace 和 File Store。
+
+## Hindsight 版本与隔离契约
+
+契约测试使用固定 Hindsight 1.1.0 镜像（Compose 中记录 index digest）及
+`hindsight-client==1.1.0`。`test/test_hindsight.py` 与
+`test/test_hindsight_retain_document.py` 通过本地 HTTP 夹具运行实际安装的 SDK，
+验证非空 strict scope、固定时间/metadata、来源证据和错误分类。
+
+真实服务契约使用独立 `test/fixtures/hindsight-contract.compose.yaml`：
+`docker compose -f test/fixtures/hindsight-contract.compose.yaml up -d`。
+该拓扑只有专用 PG、Hindsight 和确定性 embedding 夹具，网络禁止外联；LLM
+使用目标服务原生 mock，reranker 使用原生 rrf。健康后显式设置
+`HINDSIGHT_CONTRACT_ISOLATED=1 HINDSIGHT_CONTRACT_URL=http://127.0.0.1:18888`
+运行 `python3 -m pytest -q test/test_hindsight_contract.py`。Docker daemon 不在本机时，
+测试进程须加入该专用网络，URL 改用 `http://hindsight:8888`。测试新建随机账户 Bank，
+验证异步 Retain/Operation、facts/Observations/附带来源的私聊/双群/跨账户隔离、
+事实纠正/失效/恢复、Document scope PATCH/Delete 与终态 Operation 删除。
+Operation 不存在的原生契约是 HTTP 200 + `status=not_found`，Document/Fact 不存在为 404。
+
+结束运行 `docker compose -f test/fixtures/hindsight-contract.compose.yaml down -v`。
+这些结果只证明真实目标服务加模型夹具的接口和隔离行为，不证明真实 Provider 的提取、
+归纳或语义质量；禁止把测试 URL 指向业务服务。Recall 默认关闭；空目标业务切换与真实 Provider 质量另行验收，
+不以隔离测试证明旧数据迁移或生产可用。
+
+
+可靠来源链的隔离持久化入口为 `test/web_persistence/test_memory_retention.py`，使用上述
+三个专用 DSN 与完整迁移链（001–078），不连接业务 Hindsight。覆盖重复终态事件、请求冲突、
+固定 UUID/载荷、丢 ack、双 Worker、同名 Worker 旧投递 fence、generation 变更、超过原投递
+上限的正常轮询、永久 4xx、服务故障恢复、原生 retry、来源/Observation 读取限制及最小权限。
+其中 HTTP 夹具配合实际官方 SDK，子进程在接受后响应前被 SIGKILL，恢复仍使用相同请求。
+这是应用进程故障与接口夹具证明；真实 Hindsight 去重/隔离沿用上述 1.1.0 契约测试，
+不作为真实 Provider 语义质量或数据库断电恢复证明。QQ 可信来源组合另见
+`test/web_persistence/test_qq_canonical_ingress.py`；后台消费/恢复挂载见
+`test/test_web_background_tasks.py`。证据放忽略目录，结束清理本轮专用测试资源。
+
+治理闭环入口为 `test/web_persistence/test_memory_governance.py`、
+`test/web_api/test_memory_governance.py` 和 `test/work_domain/test_memory_context.py`。
+使用完整迁移链（001–078）、专用 API/Worker/Migration DSN；设置上述
+`HINDSIGHT_CONTRACT_ISOLATED` 和 `HINDSIGHT_CONTRACT_URL` 时，还会执行真实目标服务的
+应用组合场景及实际子进程 SIGKILL：纠错、失效/恢复、范围 PATCH、来源与已登记晋升副本
+删除、原事实/归档/旧 Observation 验证、Operation 载荷清理和队列重放。
+丢失发送资格证据的场景必须维持 uncertain 和去重记录，不能用 Document 404 改判完成。
+新建 source 的 Retain、正常轮询、restore 不增加失效序号；私聊/双群按实际 scope 判交集，
+未知范围或所需历史丢失时才扩大保护。
+
+`test/web_persistence/test_memory_governance_temporal.py` 需要显式专用 Temporal host 与
+一致的 `TEMPORAL_NAMESPACE/TEMPORAL_TEST_NAMESPACE`。实际 Workflow/Activity 先提交
+Snapshot/dispatch，再在请求在途期间撤回，验证旧响应不能推进工具或 fallback 成功提交。
+PG 集合另验证历史助手消息复用、旧 base 重绑定、Snapshot/fallback、final 与子执行继承。
+它们不接入 Work Recall/Retain，也不证明真实 Provider 语义质量、业务数据迁移或部署切换。

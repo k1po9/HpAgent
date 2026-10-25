@@ -4,7 +4,7 @@
 
 ## 启用范围与发布
 
-Web、NapCat、Research、长期记忆、上传和受控 Office→PDF 转换开启。图像链为空，没有发现现有图像生成工具或 Web 操作入口；不为此更改文件上传类型支持。DeepSeek 模型链未默认启用；共享检索可独立选择 DeepSeek Search，使用单独的检索 Key，不要求启用 DeepSeek 模型；生产 Web Host Shell 关闭。
+Web、NapCat、Research、上传和受控 Office→PDF 转换按当前配置启用。长期记忆写入及治理链路已实现，Recall 默认关闭，需完成空目标切换检查后显式开放。图像链为空，没有发现现有图像生成工具或 Web 操作入口；不为此更改文件上传类型支持。DeepSeek 模型链未默认启用；共享检索可独立选择 DeepSeek Search，使用单独的检索 Key，不要求启用 DeepSeek 模型；生产 Web Host Shell 关闭。
 
 当前源码选择 SiliconFlow 文本链：fast 引用 SILICONFLOW_HIGHSPEED_MODEL，chat 引用 SILICONFLOW_STANDARD_MODEL，reasoning 引用 SILICONFLOW_FLAGSHIP_MODEL，保持现有超时和重试；reasoning 不自动被业务选用。Hindsight 的 LLM 仍独立使用 MiniMax 配置。完整映射与安全检查见[模型分工表](../reference/model-routing.md)。SiliconFlow 同时供 Embedding、Rerank 及 Hindsight 检索使用，必须提供相应凭据。原生请求参数的配置语义和校验边界见[模型分工](../reference/model-routing.md)，不视为已完成真实兼容性验证。Alibaba 无其他启用引用，未启用配置。Hindsight LLM 的 provider/base URL/model/key 仍须单独填写。
 
@@ -99,7 +99,7 @@ proxy_send_timeout 3600s;
 ## 操作约定与待填写
 
 - 文件总10GiB/账户3GiB、Run/Document各3GiB、结束后24小时清理仅为人工容量目标；总量优先，满时先人工暂停接收文件。没有实现累计配额/24小时自动清理，不删除运行任务材料。
-- 记忆90天自动过期未实现；`memory_retention_worker` 是写入Outbox消费者。当前适配器没有用户记忆删除/注销清理API，也没有可承诺的敏感信息自动过滤。删除请求需维护者核实账户对应bank与上游Hindsight版本实际删除能力，暂停相关写入防止再写入，再受控处理并核验；不承诺一键删除。
+- 记忆90天自动过期和账户注销清理未实现；Memory Worker 消费可靠写入及治理动作。当前[治理 API](../reference/api.md#长期记忆治理)支持事实纠正、停止使用/恢复及指定来源长期记忆删除；202 只代表处理中，完成须查询 verified。删除覆盖指定来源及已登记晋升副本，不承诺所有独立同义来源的语义删除。确定性准入拒绝明确凭据/不记住请求，高影响内容等待证据，不承诺识别所有自然语言敏感信息。Recall 默认关闭，按[空库启用](deployment.md#记忆核心空库启用)另行切换。
 - 应用日志按日轮转保留14个历史文件，JSON文件跟随LOG_LEVEL；Docker日志补齐有界轮转。14天/总2GiB是人工预算，单日文件及总量硬限制、自动容量告警、独立备用通知尚未实现。使用现有日志/observability-viewer，人工检查磁盘与服务健康。
 - RPO48小时/RTO24小时、每日低峰完整备份、30天保留、云端15GiB为目标，需容量核实与隔离恢复演练；完整步骤见[备份恢复](backup-restore.md)。没有建立自动调度、加密异机同步或告警闭环。
 

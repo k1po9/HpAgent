@@ -60,7 +60,60 @@ Actions 通过统一调用契约暴露本地工具和已配置的 MCP Server。T
 
 ## Memory
 
-Context Assembly 在模型执行前从 Hindsight 召回长期记忆。完成的 Run 会异步保留，并附带 Account、Conversation、Run 和 Source 元数据。定时 Reflection 与 Metrics Workflow 复用相同 Memory 边界。
+Chat bootstrap 在查询改写后由 Context Assembly 从 Hindsight 召回长期记忆，不是每轮模型调用都重新召回。成功 Chat Run 会异步保留，并附带 Account、Conversation、Run 和 Source 元数据。Hindsight 1.1.0 与官方 Python SDK 1.1.0 固定使用；Compose 镜像锁定 digest。私聊使用 `scope:private`，群聊使用 `scope:group` + 当前路由 `group:<context_key>`，Recall 固定非空 `all_strict`，Retain 同时设置对应 `observation_scopes`。未知范围拒绝。来源时间取触发消息的固定 `created_at`，metadata 去除 null 并统一字符串值。Observation 只在完整来源事实均属于当前范围时注入。定时全 Bank Reflect 已停用，归纳由原生 Consolidation 完成；Metrics Workflow 保留。旧 Reflect Workflow/Activity 的无 I/O 处理仅用于已有 Temporal history 收尾，不重新启用全 Bank 推理。组合入口由默认关闭的 `hindsight.recall_enabled` 控制，空目标与切换检查后显式开放；未登记来源及含此类来源的 Observation 不注入，不以新 tags 自动授权旧数据。本轮采用空目标启用，不提供旧数据迁移/自动清空；完整应用 SQL 迁移链继续保留。治理命令通过现有 Memory Worker 推进，接口和范围见[API](../reference/api.md#长期记忆治理)。
+
+成功 Chat Run 的原 `retain_memory` 终态 Outbox 保持不变。消费者在同一事务中登记
+`memory_sources`、冻结 `memory_actions`（请求 hash、固定来源时间及 UUID operation_id）、
+创建仅引用 action_id 的 `memory_action` 事件并完成原事件。逻辑来源与 action_key 唯一；
+同 key 的不同 payload 拒绝。来源、动作及 Run/Work/ResultRef/parent 引用使用同账户组合外键；`accounts.memory_epoch`
+仅作为失效记录的递增索引；撤回范围保存在动作上，不能因账户序号变化直接拒绝全部执行。
+Worker 可读写两表；API 可写治理意图及必要的来源阻断字段，只能读取来源和动作审计列，无冻结请求正文读取权。
+
+准入位于 Retention Service：普通内容自动处理，明确不记住/凭据拒绝，高影响断言等待证据，
+分别登记 blocked/quarantined 来源且不上传正文；未知路由范围不提交。只使用触发用户消息与
+最终助手回复，并冻结角色说明，助手建议保持未确认归属。此规则是轻量确定性准入，
+不宣称覆盖任意自然语言秘密识别或真实模型事实判真。
+
+每次动作推进先查询原 Operation。不存在时仅使用已冻结的原 UUID/原请求异步提交；
+发送意图在 HTTP 前提交，丢 ack 标 uncertain 并先对账；原生 failed Operation 在有限故障预算内
+调用 retry，不替换身份。pending/processing 重排不计故障、不受 Outbox 投递次数限制。
+429/暂时不可用递增 failure_count、退避上限 60 秒并等待恢复；永久 4xx 停止自动处理。
+completed 后检查文档身份、Bank、tags 与 observation_scopes，验证动作及完成事件同事务提交。
+Outbox 当前投递序号同时作租约 fence；旧 lease 回执和旧 generation 不得使新来源可读。
+同来源 current_action_id 控制串行推进，manual_curation 禁止自动重写。
+
+Recall 还须用本地来源表验证当前账户、scope、active、generation 及已 verified 动作；
+未同步、阻断和未映射历史来源不注入。Observation 所有来源都须通过，否则只保留可验证 facts。
+原生 accepted 只表示提交，Retain verified 不表示全部归纳完成。治理 API、删除协调与上下文失效
+已实现；这不证明业务部署已切换。Recall 默认关闭，按[空目标启用步骤](../operations/deployment.md#记忆核心空库启用)单独开放。
+
+
+单 fact 纠错、失效与恢复调用原生 PATCH；验证目标属于本账户、来源文档及可信 scope，
+并检查旧 Observation 已移除。维护期间只暂停受影响 scope 的长期 Recall；人工维护后
+保留 `manual_curation`，自动 Retain/replace 不覆盖它。只有被本地已验证失效的 fact 可恢复；
+`forgotten` 来源不可恢复。内部来源映射修正从持久化 origin 推导新范围，通过 Document PATCH
+迁移范围，并在提交前记录旧、新 scope 的并集；来源历史不足时记录 account 保护。
+
+来源删除先同事务提交来源及已登记晋升副本的 tombstone、generation、失效范围及 Outbox。
+Worker 对账所有已登记 Retain 及子 Operation 的终态，在来源级发送锁排除活跃发送者后删除
+Document，核对原事实、归档事实和旧派生引用，再清理终态 Operation 载荷及本地冻结正文。
+清理进度先保存无正文的 ID，崩溃重放不重新建立已经清理的 Operation。
+发送超时、发送中崩溃或升级前旧发送者资格未证实时维持 uncertain 和去重记录；
+Operation completed 或 Document 404 都不能独立证明旧请求不会再到达。
+本期没有提供自动消除该不确定性的决议，也不承诺全局语义删除、聊天/文件/备份删除。切换前必须停止不带发送资格检查的旧写入进程并排空/对账，不能混跑旧 Worker；新迁移或新建动作本身不证明旧进程已经退出。
+
+Execution 保存实际读取的 scopes、文档引用和已检查序号，子 Execution 继承该标记；
+旧助手消息的依赖在历史复用前复验。Snapshot、dispatch、执行 fence 和最终成功提交分别检查
+后续失效记录，只有范围相交、account 标记或所需历史缺失才报 `memory_context_revoked`。
+已发送内容无法收回，但受影响的迟到响应不能继续工具、发布或 final/fallback。
+普通新 Retain、restore、只读查询及正常轮询/重试不递增失效序号。
+资源撤权沿现有资源策略复验，同事务将该主体已有 Run 的 `memory_retention_blocked` 单调置为 true，
+并记录已知来源的受影响 scope、隔离相关 Conversation 来源。尚未消费的 Retain 事件随后只能登记
+quarantined 来源，不能上传；登记和最终发送资格检查与撤权按账户锁排序，读取许可也检查 Run 标记。
+已取得发送资格的请求属于在途，其结果不能使已撤权来源重新可用。重新授权只允许新 Run，
+无资源依赖证明的旧来源不自动恢复。来源已为 forgotten 时，保留删除 tombstone、generation 和
+current_action_id，继续原删除动作的远端对账和载荷清理；原删除失效记录继续生效。不新增依赖图，
+不启用 Work 长期 Recall/Retain；完整管理 UI、旧数据迁移和全局语义删除均不属于当前交付。
 
 ## File 与 Workspace
 

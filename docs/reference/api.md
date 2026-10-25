@@ -84,3 +84,30 @@ full_safe 不在查询时再作 Secret 脱敏，不应把凭据放入输入。�
 HTML 手工修改以最近成功版本为 parent，不自动替换 Work 的原交付/验收证据。下载 `.html`，保存到空间为 `.html.txt` 文本源码副本，保存不自动授权。已领取版本的生产 Run failed/cancelled 时由 Worker 终态事务收敛 running 版本；取消使用 `failed` 与 `artifact_cancelled`，queued 版本也会关闭，不新增状态。API 对 artifact_versions 保持 SELECT/INSERT；067 仅开放核对终态 Run 的窄取消函数，Worker 保留生成发布所需权限。
 
 Account 入口为 `GET /api/v1/me`；QQ challenge 位于 `/api/v1/identity-bindings/qq/challenges`。账户、渠道和所有权检查不会因页面切换被绕过。操作流程见[功能指南](../operations/web-workbench.md)。
+
+## 长期记忆治理
+
+四个入口复用当前账户认证，写命令要求可信 Origin、CSRF 和规范 UUID `Idempotency-Key`：
+
+| 方法/路径 | 内容 |
+| --- | --- |
+| `GET /api/v1/memory/sources?limit=50&offset=0` | 当前账户、仍有授权的来源与 generation、scope、状态；上限 100，`next_offset` 接续 |
+| `GET /api/v1/memory/sources/{source_id}` | 来源、动作摘要、已登记晋升副本及事实（含失效事实）；服务不可用时明确 `facts_available=false`，不把空列表当远端事实 |
+| `POST /api/v1/memory/sources/{source_id}/actions` | `kind=correct/invalidate/restore/delete`、`generation`、`reason`；前三项要求 `memory_id`，correct 另要求 `text`；不接受 bank/tags/scope |
+| `GET /api/v1/memory/actions/{action_id}` | 权威动作状态、失效范围、无正文验证摘要及删除来源集合 |
+
+来源授权由持久化 Run/触发消息的账户、origin 与所属 Conversation 反查；Worker 维护前再次检查。
+目标 fact 必须属于该来源及 scope，Observation 不可直接编辑。跨账户资源返回 404；
+目标越界拒绝维护，generation 不匹配为 412；同幂等键不同载荷为 409。
+API 和动作摘要不返回冻结的纠正请求，幂等回执只保存 action/source 身份；短期回执清理后
+仍通过长期 action_key/request_hash 拒绝载荷漂移。
+
+命令返回 202、`action_id` 和状态查询 Location，不能解释为治理完成。
+动作 `verified` 才代表已完成相应验证；`failed/uncertain` 仍保持来源阻断。
+删除回执列出 `source_ids` 和 `descendant_actions`，完成摘要保留实际来源集合。
+`deletion_scope=specified_source_only`、`global_semantic_deletion=false` 始终明确范围；
+成功文案应为“指定来源的长期记忆已删除”，不得宣称某项信息已从全部记忆消失。
+没有完整管理 UI，也没有单 fact 硬删除或来源删除恢复接口。资源撤权隔离的来源不可通过纠错/恢复重新授权；重新授予文件权限也不清除旧 Run 的记忆禁用标记。无法证明旧发送请求已停止时保持 uncertain，不提供自动消除此不确定性的决议接口。
+
+API 的事实读取/目标预检使用 `HINDSIGHT_URL`、可选 `HINDSIGHT_API_KEY`；Worker 使用同一
+服务与认证配置。外部服务失联不影响本地 tombstone 提交；最终状态由 Worker 对账。

@@ -16,6 +16,10 @@ Run 创建时冻结有界候选 ID 与策略版本；超过 500 项或 512 KiB �
 
 Chat 初始上下文与 Work brief 提供授权候选总数、第一页最多 20 条元数据及分页指引，不直接装入全部正文。Work 显式输入以 `work_input_refs` 引用，Conversation 关联不自动导入附件。直接上传可另行授予当前对话发现/读取权限；保存与授权分两步，失败时补授权，不重复上传。仅保存和旧文件需要显式授权。
 
+撤权同时持久化主体已有 Run 的记忆保留禁用标记，覆盖已完成但尚未登记来源的延迟 Retain，
+并隔离已有来源。已接受的来源删除仍保留原 tombstone 和清理动作；撤权不能取消其删除责任。
+重新授权不恢复旧 Run 的记忆写入，详见[记忆边界](capabilities.md#memory)。
+
 ## 输出、版本与保留
 
 OutputPublisher 的发布是 Run 输出的不可变持久事实；WorkspaceCatalog 的保存/版本内核随后创建长期 Workspace entry 或向 destination 提交新 revision，Research/HTML 子能力只发布不可变候选与检查证据；父适配器和通用 ResultAdoptionService 调用该内核。两者使用独立 operation 身份，发布成功不等于长期保存成功。版本更新检查预期 revision/hash 与当前 `update_content`；CAS 冲突保留已发布输出供另存，不覆盖当前版本。Work 在创建 Run 时冻结 requirement revision、保存目标和 operation ID；required 保存成功后才能完成 Run。Research Work 的 Run、取消及终态不依赖 Conversation/Assistant Message；聊天专属 SSE 仅用于聊天 Run。

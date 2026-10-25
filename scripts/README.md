@@ -39,6 +39,15 @@
 
 ## 内部辅助与维护位置
 
+`PYTHONPATH=src python scripts/operations/memory-cutover-check.py --require-empty` 只读检查显式
+`WORKER_DATABASE_URL`、`HINDSIGHT_URL`（可选 `HINDSIGHT_API_KEY`）及
+`HPAGENT_MIGRATIONS_DIR` 指向的目标。核对完整应用 checksum、1.1.0 服务、所有 Bank 的文档、
+待对账 Operation、两表状态和记忆 Outbox；无正文 JSON 输出。返回 0 表示数据检查通过，2 表示
+存在待处理数据/任务，1 表示检查失败；缺参数由 argparse 返回 2。去掉 `--require-empty` 可检查
+新链路运行后的来源/范围与进度。未登记来源报告 isolated，依赖应用读取白名单拒绝，脚本不改远端 tags。
+不停止进程、不清空、不迁移、不推进队列、不开放 Recall；不能证明旧发送者已停发或同步请求已结束。
+实际切换见[部署](../docs/operations/deployment.md#记忆核心空库启用)。
+
 - `check/release_smoke.py` 是 Shell 发布入口的实现；`check/docs-links.py`、`check/ci-test-paths.py`、`check/temporal_registry.py` 分别负责当前文档链接与命令、CI显式测试路径及四类测试入口覆盖、Worker注册/沙箱门禁。后两者供CI使用，不发真实模型请求。
 - `operations/start-hindsight.sh` 是 Compose 挂载的容器启动入口，会启动Hindsight；不要在宿主机手动执行。
 - `benchmarks/outbox/outbox_benchmark_worker.py` 是受实验驱动的子进程；`agent_strategy_benchmark.py`为runner，`summarize_agent_strategy_benchmark.py`为汇总器，`agent_strategy_tasks.yaml`为输入。它们不是发布脚本，命令和统计口径见[Benchmark索引](benchmarks/README.md)。

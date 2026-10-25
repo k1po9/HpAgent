@@ -8,7 +8,7 @@
 | --- | --- |
 | PostgreSQL | Account/Identity/entitlement、Conversation/Message、Work/requirement/checkpoint/调度、Run/Execution/transcript/operation/receipt/lease/fence、预算/容量、文件元数据/授权/版本/保留、Research/Artifact、Trace、通知/投递/决议及 Outbox。必须一致的转换同事务提交。 |
 | Redis | 短期 Event Context、通知、工具与运行时缓存。丢失不改变已提交业务事实，订阅恢复依赖权威查询。 |
-| Hindsight | 长期语义 Memory Bank 与检索索引；应用 PG 保存 Account/Run 关联元数据，不复制语义索引。 |
+| Hindsight | 长期语义 Memory Bank 与检索索引；应用 PG 保存来源、治理动作、撤权与上下文失效事实，不复制语义索引。 |
 | TenantFileStore | 不可变文件字节；所有权、入口、版本、授权和 GC 引用仍在 PG。多个入口可引用同一 file_id。 |
 | Git | 明确代码任务的账号级代码资源；普通文件流程和执行身份不依赖 Git。 |
 
@@ -42,11 +42,11 @@ Chat Context 使用对话历史、记忆与授权资料；Work Context 使用冻
 
 [worker.py](../../src/orchestration/worker.py) 持有进程启动/关闭顺序：先构造共享依赖，再连接 Temporal、启动 Worker 与渠道监听；退出先停 ingress/producer，再退出 Worker，最后关闭共享资源。初始化失败也释放已取得资源。
 
-[worker_dependencies.py](../../src/bootstrap/worker_dependencies.py) 构造基础设施与共享/QQ 服务，并将 AsyncExitStack 所有权交给进程；[durable_runtime.py](../../src/bootstrap/durable_runtime.py) 只组装 Activity、Worker、Dispatcher、Reconciler 和可选 Memory Retention，不启动后台任务。[worker_tasks.py](../../src/orchestration/worker_tasks.py) 集中持有后台任务和 readiness；[memory_schedules.py](../../src/orchestration/memory_schedules.py) 仅配置反思与指标 Schedule。
+[worker_dependencies.py](../../src/bootstrap/worker_dependencies.py) 构造基础设施与共享/QQ 服务，并将 AsyncExitStack 所有权交给进程；[durable_runtime.py](../../src/bootstrap/durable_runtime.py) 只组装 Activity、Worker、Dispatcher、Reconciler 和可选 Memory Retention，不启动后台任务。[worker_tasks.py](../../src/orchestration/worker_tasks.py) 集中持有后台任务和 readiness；[memory_schedules.py](../../src/orchestration/memory_schedules.py) 移除旧 Reflect Schedule，仅配置指标 Schedule。
 
 执行上下文由 [execution_context.py](../../src/run_domain/execution_context.py) 传播，校验规则在 [execution.py](../../src/run_domain/execution.py)，分支事实在 [delegation.py](../../src/run_domain/delegation.py)，operation 完成与生产回执在 [results.py](../../src/run_domain/results.py)。这些规则不依赖 Temporal/Activity，接收调用方 UoW，不另开事务。Activity 仍负责心跳、取消和 Temporal 错误转换；Run 终态、Work 推进及通知继续由原事务统一提交。
 
-主 Worker 同时组装 Lifecycle/Agent Worker、Dispatcher 和 PostgreSQL Work due loop。due loop 维护 schedule desired/applied version、occurrence 与 wakeup；容量等待后重新校验。Memory reflection/metrics 使用 Temporal Schedule。
+主 Worker 同时组装 Lifecycle/Agent Worker、Dispatcher 和 PostgreSQL Work due loop。due loop 维护 schedule desired/applied version、occurrence 与 wakeup；容量等待后重新校验。Memory 指标使用 Temporal Schedule；旧全 Bank Reflect Schedule 在启动时移除，归纳由 Hindsight 原生 Consolidation 负责。
 
 Document Workflow 在生命周期队列编排，重型规范化 Activity 在独立 document Worker 执行；稳定 operation 保存结果，不创建另一套 Work/文件状态。队列和注册入口见 [Temporal](../reference/temporal.md)。
 
@@ -81,3 +81,10 @@ model_request_invalid、model_response_invalid、model_access_denied、model_req
 真实 Provider、生产 Worker、QQ 外发与恢复演练使用实际网络/配置分别验证；隔离或协议测试通过不能替代这些结论。诊断入口见[故障排查](../operations/troubleshooting.md)和[测试指南](../development/testing.md)。
 
 复杂能力通过 [CapabilityInvocationWorkflow](../../src/agent_workflows/capability.py) 在同 Run 的独立 Execution 内运行；父登记和父观察是分离的短 segment，中间等待不持父 lease。子结果、父观察和 Run/Work 终态是独立事实；固定身份恢复、调用上限与取消约束见[能力边界](capabilities.md#通用持久调用与-harness)。
+
+
+长期记忆上下文使用 `run_executions.memory_context` 和 Snapshot 上的无正文 manifest。
+失效提交与模型 dispatch 使用账户锁排序，但按实际读取 scope 的交集拒绝。
+执行 fence 和 Run 成功提交检查同一规则，迟到模型结果、工具、子执行及 final/fallback
+不能复用被撤回上下文；历史助手消息在组装时复验依赖。缺失旧 manifest 或所需失效历史时
+保守拒绝相应记忆上下文。原 Snapshot 保留审计，不能改写并重用旧请求。

@@ -53,6 +53,6 @@ Artifact 默认 read 90 秒、connect 最多 5 秒；常规聊天 read 沿用 en
 
 ## Memory / Research / Document
 
-Memory：检查 Hindsight health、Hindsight LLM、Embedding / Rerank 和日志；降级不改变 PG 业务权威。Research：查 SearXNG、SEARXNG_URL、Proxy、证据进度与 required Workspace save；报告生成不等于保存完成。
+Memory：先区分 Recall 默认关闭、无可读来源和服务故障。检查配置开关、来源 state、Run 的 memory_retention_blocked、当前动作 generation/status/error_code，再检查 Hindsight health、LLM、Embedding / Rerank。202 不代表完成；uncertain 不能通过清理去重记录、换 operation_id 或重放原文解决。memory_context_revoked 表示旧上下文已失效，应开始新的执行，不能修改旧 Snapshot 绕过。部署与恢复见[空目标启用](deployment.md#记忆核心空库启用)，状态与删除边界见[治理 API](../reference/api.md#长期记忆治理)。记忆故障不改变 Chat 成功终态或 PG 业务权威。Research：查 SearXNG、SEARXNG_URL、Proxy、证据进度与 required Workspace save；报告生成不等于保存完成。
 
 Document：确认 hpagent-document-worker / gotenberg / temporal、文件卷与 hpagent-document Poller。Research Worker 被杀后，检查阶段 lease 的到期时间、owner segment 和 fencing token。默认阶段 lease 为 30 秒，运行时每 5 秒续租；重试应等待正常到期后取得新 token。若仍不推进，再查 Temporal 活动重试与超时、队列 Poller 和 PG 可用性。不要清租约、未知费用或回执来伪造恢复成功。详细边界见[可靠性](../architecture/execution.md)。

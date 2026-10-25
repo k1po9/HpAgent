@@ -99,7 +99,7 @@ flowchart TD
 
 ## 调度、执行权与完成
 
-`work_schedules / work_schedule_occurrences / work_wakeups` 是 PostgreSQL 持久调度事实，由主 Worker 的 due loop 检查。Work 不创建 Temporal Schedule；`applied_version` 表示 PostgreSQL evaluator 已安装当前配置。Memory reflection / metrics 仍使用 Temporal Schedule。
+`work_schedules / work_schedule_occurrences / work_wakeups` 是 PostgreSQL 持久调度事实，由主 Worker 的 due loop 检查。Work 不创建 Temporal Schedule；`applied_version` 表示 PostgreSQL evaluator 已安装当前配置。Memory 指标继续使用 Temporal Schedule；旧全 Bank Reflect Schedule 已停用，归纳由 Hindsight 原生 Consolidation 完成，详见[记忆边界](capabilities.md#memory)。
 
 支持 immediate、带时区 offset 的 once 和 IANA 时区 daily。once 采用 catch-up；daily 历史漏触发合并为最新 occurrence，保留 `missed_from`。DST 重叠取 first fold，缺失本地时间跳过当日。旧 schedule version / requirement callback 记录跳过，不启动新 Run。
 

@@ -29,7 +29,7 @@
 | `REDIS_URL` | 否 | 配置或 Compose 值 | API/Worker | Redis Endpoint。 |
 | `TEMPORAL_HOST` | Durable Runtime 必需 | `localhost:7233` | Worker | Temporal Frontend 地址。 |
 | `TEMPORAL_TASK_QUEUE` | 否 | `hpagent-task-queue` | Worker | Scheduled Memory/默认 Queue Override。 |
-| `HINDSIGHT_URL` | 否 | `http://localhost:8001` | Worker | Hindsight API 地址。 |
+| `HINDSIGHT_URL` | 否 | Worker 配置；API 环境默认 `http://hindsight:8888` | API/Worker | 同一 Hindsight 目标；默认值及环境覆盖须与部署一致，详见下方治理连接。 |
 | `HINDSIGHT_API_LLM_*` | 启用 Hindsight LLM 时 | 无 | Hindsight | Provider、Base URL、Key 和 Model。 |
 | `SILICONFLOW_API_KEY` | 取决于模型配置 | 无 | Model/Hindsight | Embedding 与 Rerank 凭据。 |
 | `SILICONFLOW_BASE_URL` | 取决于模型配置 | 无 | Model/Hindsight | Provider Endpoint。 |
@@ -139,3 +139,13 @@ Provider serializer 标识为 `hpagent-provider-request-v2`，OpenAI tool calls 
 ## 工具参数与运行配置分界
 
 测试隔离标记、脚本备份输出、Benchmark输出与浏览器路径属于开发/运维入口参数，不是应用领域配置；其默认值、帮助及副作用统一维护在[脚本索引](../../scripts/README.md)。变更`.env`或Compose environment后，已有容器不会因`restart`自动获得新的环境，部署操作见[部署指南](../operations/deployment.md)。
+
+### 长期记忆治理连接
+
+`HINDSIGHT_URL` 指定 API 事实查看/预检及 Worker 的同一 Hindsight 目标，
+`HINDSIGHT_API_KEY` 可覆盖 Worker 的 `hindsight.api_key`，并供 API 使用。
+`hindsight.recall_enabled` 默认 `false`；`HINDSIGHT_RECALL_ENABLED=true/false`
+可覆盖它，其他值拒绝启动。关闭 Recall 不停发可靠异步 Retain，也不关闭治理 API。
+Compose 显式传入该环境变量，默认仍为 false；改环境后须重建对应应用容器。
+本期目标锁定 1.1.0。先按[部署步骤](../operations/deployment.md#记忆核心空库启用)
+核验空目标、停旧发送者和在途请求，再显式开放。配置开关不代替切换验收，也不迁移、删除或授权旧数据。
