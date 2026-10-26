@@ -42,6 +42,26 @@ curl --fail http://127.0.0.1:${WEB_GATEWAY_PORT:-80}/
 
 Compose 把 `scripts/operations/start-hindsight.sh` 挂载为 Hindsight 启动入口，并配置专用的 `hindsight-postgres` 与 `HINDSIGHT_API_DATABASE_URL`；当前部署不使用 embedded pg0。
 
+### Beta PGroonga 运行组合
+
+采用 PGroonga 的 Beta 使用以下完整组合，应用治理 API 与 Worker 均连接
+`http://hindsight-pgroonga:8888`，记忆数据库为
+`hindsight-pgroonga-postgres:5432/hindsight_110_pgroonga`。旧 native API 保持停止，旧卷保留。
+
+```bash
+export COMPOSE_PROJECT_NAME=hpagent-beta
+export COMPOSE_FILE=docker-compose.yaml:docker-compose.beta.yaml:docker-compose.pgroonga.yaml:docker-compose.pgroonga.enabled.yaml
+docker compose --env-file .env --profile web-prod ps -a
+```
+
+更新应用时显式指定 `hpagent hpagent-api hpagent-document-worker web-gateway`，
+使用 `--no-deps`，先核对版本与配置，不执行无服务列表的全项目 `up`：旧 native 服务仍在组合中，
+全项目启动会重新唤醒旧写入目标。只使用 base + beta 会把应用 URL 切回 native。
+准备组合不含 enabled 时 Recall 关闭、目标 API 不自动重启；完成观察后才恢复正常重启策略。
+正常组合不包含 recovery；只有停写、成对当前快照恢复到独立新卷时才加入 recovery 补丁。
+新 API 不发布宿主端口，旧 loopback 8001/9999 不代表新目标健康。
+冷备须使用完整组合，归档包含这三个 PGroonga 补丁；私有 `.env` 仍单独安全保管。
+
 ## 空库初始化
 
 本项目首次上线，不保留旧开发/测试业务数据，不执行旧库转换或历史数据回填。生产使用独立的空数据库/卷，不能把当前日常或测试卷当作生产输入。
@@ -117,3 +137,42 @@ API ready 不能证明 Worker 已校验 Workflow 或能执行 Run。连接模型
 它通过Compose模型逐项核对服务，通过容器健康与迁移退出确认就绪，再验证登录303、CSRF Origin、消息202、本次Run的`succeeded`及其已完成助手消息。Document Worker无独立healthcheck时只证明进程运行，poller和实际文档任务仍须独立验收。网关不代理`/health/ready`，API ready由API容器健康检查验证；不能把网关SPA的200当作API健康。
 
 `--no-start`用于已部署组合，仍有写入和真实请求；脚本不停止服务或删除测试记录。不能用不同Compose project名推断端口、宿主源码或数据卷已经隔离。当前配置仍挂载宿主源码，升级前需固定checkout与镜像版本，并按[备份恢复](backup-restore.md)取得匹配快照；回滚须核对代码/schema兼容，迁移没有自动down路径。
+
+
+## 记忆质量配置切换
+
+质量文件与参数语义见[配置参考](../reference/configuration.md#hindsight-110-质量参数)，命令与副作用见
+[脚本入口](../../scripts/README.md#记忆质量配置)。Compose、SDK 和实际目标服务必须一起匹配 1.1.0。
+旧版本目标需先按前文空目标切换流程处理，不能把本地 Compose 标签当作已运行版本。
+开发部署不保留旧记忆时，可在专用 Hindsight PostgreSQL 中新建空数据库，通过私有 `.env`
+的 `HINDSIGHT_DB_NAME` 选择它，再 recreate Hindsight；不需要迁移旧事实或向量。
+应用数据库仍使用完整 SQL 链更新，不能删除账户和其他业务数据来代替记忆库切换。
+`HINDSIGHT_API_WORKER_ID` 在 Compose 中固定，避免 recreate 后原生后台任务丢失恢复身份。
+
+1. 修改 hindsight.yaml / prompts/memory.yaml，运行 memory-config.py validate。模型路由变更还需
+   check/model-map.py 的脱敏检查；只验证配置不调用真实 Provider。
+2. 暂停新的记忆动作消费，排空既有 memory_actions 和原生提取/归纳任务；停止所有旧、新发送者。
+   retain_memory 尚未登记为动作的积压可留待恢复后冻结新 profile。uncertain 没有对账完成时不切换。
+3. 使用显式目标环境运行 plan，核对 effective/override/matches。确认目标和差异后运行 apply，
+   指定全新受限备份文件并声明 --senders-stopped。即使 YAML 已变，旧 Bank 也必须显式同步；
+   不等待只有历史记忆的账户未来再发一次 Retain。若首次 Bank 初始化中断，仅允许对尚未发送、
+   已冻结同一期望 profile 的动作修复该配置；不能据此切换旧动作语义或放过 unknown 发送者。
+4. 服务模型/向量/重排配置变更需在已授权部署目标重建对应 Hindsight 服务；Worker 配置或提示词
+   变更需重载同版本 Worker。SDK 依赖变化须重建 Worker/API 镜像，单纯重载源码不会升级依赖。
+   保留原启动器的等待、信号转发和健康检查。更换 Embedding 模型/维度
+   涉及历史向量和索引兼容，不能只改名称，须另做数据迁移方案。
+5. inspect 回读确认 Bank 行为配置后恢复发送者，用新 Run 验证。Retain verified 不等于归纳已完成。
+   失败时停发并保留原动作/UUID；restore 逐项恢复远端 override，再回退本地文件和对应服务模型环境。
+
+不提供 Bank/服务质量参数热切：异步 Hindsight 后台任务可能读取后来配置，本地快照/hash 不能证明
+远端按该版本执行；旧进程也可能覆盖新配置。配置更新不自动重提取历史事实或修复旧 Observation，
+不得批量把 experience 改成 world。按来源定位后另行使用治理和受控重提取流程，保留 generation、
+manual_curation、删除和撤权约束。真实 Provider 的中文语义质量另行评测，mock fixture 只证明结构与协议。
+
+### PGroonga 目标与检查
+
+`docker-compose.pgroonga.yaml` 为显式选择的独立 PG16 目标叠加文件，使用 `config/hindsight.pgroonga.yaml`，保留原 native 服务和数据卷。数据库镜像须具备锁定的 PGroonga/pgvector 扩展；修改 YAML 不会安装扩展或迁移已有列、索引和数据。`docker-compose.pgroonga.enabled.yaml` 只在目标、来源与治理检查完成后叠加，用于开启 Recall 和正常重启策略；不能将启动文件本身当作切换验收。
+
+切换前按前述流程停发、排空并核对准确数据库，使用 `memory-cutover-check.py` 的显式容器、数据库主机和库名参数核验实际版本、扩展、列、完整索引及 Bank。该工具只读，不负责停发、备份或切换。当前检查器会将拒绝上传的 opt-out `blocked` 来源计作 `registered_document_missing`；须结合来源、原始拒绝事实、已处理 Outbox 和远端不存在逐项解释，不能靠删除审计来源或忽略其他异常解除阻断。
+
+已接收 Retain 或治理增量的目标不得重复走空库切换，也不能直接回到旧空快照。日常验证优先使用只读检查和有授权的合成业务；更新宿主挂载的 Python 源码后，重载实际持有模块的 Worker/API，不能仅根据容器内文件 hash 判断运行进程已加载修复。

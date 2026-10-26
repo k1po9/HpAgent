@@ -27,7 +27,7 @@ def fenced_activity(function):
                 return await function(self, request)
             except Exception as exc:
                 if getattr(exc, "code", None) in {
-                    "stale_fencing_token", "no_progress", "repeated_failure",
+                    "stale_fencing_token", "memory_context_revoked", "no_progress", "repeated_failure",
                     "run_budget_exhausted", "work_budget_exhausted",
                     "capability_budget_exhausted", "account_daily_model_budget_exhausted",
                 }:

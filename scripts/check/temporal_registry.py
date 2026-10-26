@@ -129,6 +129,7 @@ async def capture_registries() -> tuple[list[dict[str, object]], dict[str, objec
         ),
         shared=SimpleNamespace(
             context_builder=Mock(),
+            prompt_loader=Mock(),
             hindsight_client=None,
             brain_engine=Mock(),
             action_runtime=Mock(),

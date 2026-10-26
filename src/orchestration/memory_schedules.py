@@ -4,69 +4,20 @@ from __future__ import annotations
 
 import logging
 
-from memory.workflows import MetricsReportWorkflow, ReflectWorkflow
+from memory.workflows import MetricsReportWorkflow
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
 
 
 async def setup_reflect_schedule(client, account_service, config) -> None:
-    """创建 Temporal Schedule，每 6 小时触发一次 ReflectWorkflow。
+    """Remove the obsolete whole-bank Reflect schedule; native Consolidation owns summaries."""
+    from temporalio.service import RPCError, RPCStatusCode
 
-    ReflectWorkflow 遍历所有已知账号，调用 reflect_activity
-    触发 Hindsight 深度推理（记忆关联、矛盾检测、知识抽象、经验总结）。
-    """
-    from datetime import timedelta
-
-    from temporalio.client import (
-        Schedule,
-        ScheduleActionStartWorkflow,
-        ScheduleIntervalSpec,
-        ScheduleOverlapPolicy,
-        SchedulePolicy,
-        ScheduleSpec,
-    )
-
-    schedule_id = "hpagent-reflect-schedule"
     try:
-        # 先清理旧 schedule 再创建（upsert 语义，消除重启时的 "Schedule already running" 警告）
-        try:
-            handle = client.get_schedule_handle(schedule_id)
-            await handle.delete()
-        except Exception:
-            pass
-
-        account_ids = account_service.list_all_ids()
-        if not account_ids:
-            logger.info("Reflect schedule skipped: no accounts registered")
-            return
-
-        await client.create_schedule(
-            schedule_id,
-            Schedule(
-                action=ScheduleActionStartWorkflow(
-                    ReflectWorkflow.run,
-                    args=[account_ids],
-                    id=f"hpagent-reflect-{len(account_ids)}",
-                    task_queue=config.temporal.task_queue,
-                ),
-                spec=ScheduleSpec(
-                    intervals=[
-                        ScheduleIntervalSpec(
-                            every=timedelta(hours=config.agent.reflect_interval_hours)
-                        )
-                    ]
-                ),
-                policy=SchedulePolicy(overlap=ScheduleOverlapPolicy.SKIP),
-            ),
-        )
-        logger.info(
-            "Reflect schedule created: id=%s every=%dh accounts=%d",
-            schedule_id,
-            config.agent.reflect_interval_hours,
-            len(account_ids),
-        )
-    except Exception as e:
-        logger.warning("Failed to create reflect schedule: %s", e)
+        await client.get_schedule_handle("hpagent-reflect-schedule").delete()
+    except RPCError as exc:
+        if exc.status != RPCStatusCode.NOT_FOUND:
+            raise
 
 
 async def setup_metrics_schedule(client, config) -> None:

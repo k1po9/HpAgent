@@ -8,9 +8,9 @@
 | --- | --- | --- |
 | API Key、接口地址、模型ID | 部署目录私有 `.env` | 不提交、不贴到聊天里；`.env.example` 只是模板 |
 | 对话、摘要、推理选择哪个供应商和模型 | `config/models.yaml` | 修改对应链的 provider 和 model；多条表示有序回退 |
-| 记忆提取和深度反思模型 | `.env` 的 `HINDSIGHT_API_LLM_*` | Hindsight独立运行，不读取Worker的models.yaml |
+| 记忆提取和长期归纳模型 | `config/hindsight.yaml` 的 service.llm / retain_llm / consolidation_llm | Hindsight 独立运行；Reflect 当前停用 |
 | 工具检索向量和重排 | `config/models.yaml` 的 embedding/rerank | 当前引用SiliconFlow对应变量 |
-| Hindsight向量和重排 | `docker-compose.yaml` 的 hindsight.environment | 当前共用SiliconFlow向量／重排变量，但调用独立 |
+| Hindsight向量和重排 | `config/hindsight.yaml` 的 service.embeddings / reranker | 当前共用SiliconFlow变量，由启动桥接器映射，但调用独立 |
 | Web/QQ输出长度、等待预算 | `config/models.yaml` 的 channel_overrides | 不负责选择模型；具体调用仍可能有自己的覆盖 |
 | HTML成果读取超时 | `.env` 的 `ARTIFACT_MODEL_READ_TIMEOUT_SECONDS` | 不会因此自动选择旗舰模型 |
 
@@ -29,8 +29,8 @@ Beta实际编辑路径为 `/home/hp/deploy/hpagent-beta/.env` 和 `/home/hp/depl
 | 显式推理链 | reasoning | siliconflow / SILICONFLOW_FLAGSHIP_MODEL | [Worker注册](../../src/orchestration/worker.py)；当前没有发现业务主动选择reasoning，不自动切换 |
 | 工具语义检索 | embedding | siliconflow / SILICONFLOW_EMBEDDING_MODEL | [Embedding客户端](../../src/resources/embedding.py) |
 | 工具候选重排 | rerank | siliconflow / SILICONFLOW_RERANK_MODEL | [Rerank客户端](../../src/resources/reranker.py) |
-| 长期记忆提取／反思的生成模型 | Hindsight独立配置 | HINDSIGHT_API_LLM_MODEL | [Compose](../../docker-compose.yaml)的hindsight服务；不走fast链 |
-| 长期记忆向量／重排 | Hindsight独立配置 | SILICONFLOW_EMBEDDING_MODEL / SILICONFLOW_RERANK_MODEL | Compose将同一组变量映射到Hindsight自己的参数 |
+| 长期记忆提取／归纳生成模型 | Hindsight独立配置 | service.llm 默认 MINIMAX_STANDARD_MODEL；两个子模型默认继承 | [质量配置](../../config/hindsight.yaml)；不走 fast 链 |
+| 长期记忆向量／重排 | Hindsight独立配置 | SILICONFLOW_EMBEDDING_MODEL / SILICONFLOW_RERANK_MODEL | 质量 YAML 和 Python 启动桥接器映射原生参数 |
 | 网页搜索、抓取、Office转PDF | 非生成模型服务本身 | SearXNG、HTTP抓取、Gotenberg等 | 研究中的报告生成仍用chat；PDF转换本身不选择LLM |
 | 图像生成 | image=[] | 关闭 | 不影响独立的图片上传 |
 
@@ -50,18 +50,15 @@ MINIMAX_FLAGSHIP_MODEL='你的旗舰模型ID'
 MINIMAX_STANDARD_MODEL='你的标准模型ID'
 MINIMAX_HIGHSPEED_MODEL='你的高速模型ID'
 
-# 放在被引用变量之后；别用单引号包住${...}
-HINDSIGHT_API_LLM_PROVIDER=openai
-HINDSIGHT_API_LLM_BASE_URL=${MINIMAX_API_BASE_URL}
-HINDSIGHT_API_LLM_API_KEY=${MINIMAX_API_KEY}
-HINDSIGHT_API_LLM_MODEL=${MINIMAX_STANDARD_MODEL}
 ```
 
 Compose中，普通值可以用英文单引号；引用表达式用不加引号或双引号。`'${MINIMAX_API_KEY}'`会保留成字面字符串，不能当真实Key使用。不要用`source .env`执行配置。
 
-`HINDSIGHT_API_LLM_PROVIDER=openai`表示使用OpenAI兼容适配器，不表示必须购买OpenAI模型。供应商模型ID、接口可达性、结构化输出支持及账号权限需要单独真实验收，静态检查不能证明这些成立。
+hindsight.yaml 的 `service.llm.provider=openai` 表示 OpenAI 兼容适配器，不表示必须购买 OpenAI 模型。供应商模型ID、接口可达性、结构化输出支持及账号权限需要单独真实验收，静态检查不能证明这些成立。
 
-Hindsight引用MiniMax变量不代表它会跟随chat链切换。当前chat已经使用SiliconFlow，记忆LLM仍按Hindsight四项配置使用MiniMax，需另行明确是否也切换。
+Hindsight引用MiniMax变量不代表它会跟随chat链切换。当前chat已经使用SiliconFlow，记忆 LLM 按 service.llm 使用 MiniMax；如需切换，应独立修改质量 YAML 并受控部署。
+
+已有 HINDSIGHT_API_LLM_* 环境覆盖仍优先；model-map 同时读取挂载的质量文件和 Compose 的显式环境，显示实际配置来源及 Retain/Consolidation 的继承关系。其输出是本地配置意图，不证明远端服务模型已切换，详见[配置](configuration.md#hindsight-110-质量参数)。
 
 ## 切换供应商示例
 

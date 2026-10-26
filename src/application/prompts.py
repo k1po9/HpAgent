@@ -49,6 +49,7 @@ class PromptLoader:
         self._guidance: Dict[str, str] = dict(cfg.guidance)
         self._environment: Dict[str, str] = dict(cfg.environment)
         self._system: Dict[str, str] = dict(cfg.system)
+        self._memory: Dict[str, str] = dict(cfg.memory)
         self._tool_summary: Dict[str, Any] = dict(cfg.tool_summary)
         self.bot_name: str = getattr(cfg, "bot_name", "bot")
 
@@ -108,11 +109,14 @@ class PromptLoader:
 
     # ── 系统级提示 ────────────────────────────────────────────────────────
 
+    def get_memory(self, key: str) -> str:
+        return self._memory.get(key, "")
+
     def get_system(self, key: str) -> str:
         """获取系统级提示文本。
 
         Args:
-            key: cross_channel / recall_instruction。
+            key: cross_channel / hyde_rewrite。
 
         Returns:
             对应文本，未找到返回空字符串。

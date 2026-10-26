@@ -126,6 +126,8 @@ class ResourcePolicy:
     def revoke(self, account_id: UUID, grant_id: UUID, commands: Any | None = None) -> list[UUID]:
         """Commit denial first. Returned Runs require control-plane cancellation."""
         with UnitOfWork(self.database) as uow:
+            from persistence.memory_context import account_epoch, record_revocation
+            account_epoch(uow, account_id)
             assert_execution_fence(uow)
             from run_domain.delegation import require_root_write
             require_root_write(uow)
@@ -144,6 +146,23 @@ class ResourcePolicy:
                 "AND subject_kind=%s AND subject_id=%s",
                 (account_id, grant["subject_kind"], grant["subject_id"]),
             )
+            # Chat memory has no file dependency graph. Record the known source
+            # scopes of this subject; Work has no long-term memory integration.
+            # Runs exist before memory_sources. This durable denial also covers
+            # delayed Retain registration and is never undone by a later grant.
+            uow.execute("UPDATE runs SET memory_retention_blocked=true WHERE account_id=%s "
+                        "AND ((%s='conversation' AND conversation_id=%s) "
+                        "OR (%s='work' AND work_id=%s))",
+                        (account_id, grant['subject_kind'], grant['subject_id'],
+                         grant['subject_kind'], grant['subject_id']))
+            sources = uow.execute('SELECT s.* FROM memory_sources s JOIN runs r '
+                'ON r.account_id=s.account_id AND r.run_id=s.origin_run_id WHERE s.account_id=%s '
+                "AND ((%s='conversation' AND r.conversation_id=%s) OR (%s='work' AND r.work_id=%s)) FOR UPDATE OF s",
+                (account_id, grant['subject_kind'], grant['subject_id'], grant['subject_kind'], grant['subject_id'])).fetchall()
+            if sources:
+                for source in sources:
+                    record_revocation(uow, account_id, source, 'resource_grant_revoked',
+                                      'account' if source['policy_version'] != 'chat-v2' else [source['scope']])
             affected: set[UUID] = set()
             rows = uow.execute(
                 "SELECT DISTINCT a.run_id,a.file_id FROM run_resource_access a "

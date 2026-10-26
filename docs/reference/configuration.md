@@ -30,7 +30,7 @@
 | `TEMPORAL_HOST` | Durable Runtime 必需 | `localhost:7233` | Worker | Temporal Frontend 地址。 |
 | `TEMPORAL_TASK_QUEUE` | 否 | `hpagent-task-queue` | Worker | Scheduled Memory/默认 Queue Override。 |
 | `HINDSIGHT_URL` | 否 | Worker 配置；API 环境默认 `http://hindsight:8888` | API/Worker | 同一 Hindsight 目标；默认值及环境覆盖须与部署一致，详见下方治理连接。 |
-| `HINDSIGHT_API_LLM_*` | 启用 Hindsight LLM 时 | 无 | Hindsight | Provider、Base URL、Key 和 Model。 |
+| `HINDSIGHT_API_LLM_*` | 否，兼容显式覆盖 | service YAML | Hindsight | 覆盖独立质量文件的 Provider、Base URL、Key 和 Model。 |
 | `SILICONFLOW_API_KEY` | 取决于模型配置 | 无 | Model/Hindsight | Embedding 与 Rerank 凭据。 |
 | `SILICONFLOW_BASE_URL` | 取决于模型配置 | 无 | Model/Hindsight | Provider Endpoint。 |
 | `SILICONFLOW_EMBEDDING_MODEL` | 取决于模型配置 | 无 | Model/Hindsight | Embedding Model。 |
@@ -149,3 +149,85 @@ Provider serializer 标识为 `hpagent-provider-request-v2`，OpenAI tool calls 
 Compose 显式传入该环境变量，默认仍为 false；改环境后须重建对应应用容器。
 本期目标锁定 1.1.0。先按[部署步骤](../operations/deployment.md#记忆核心空库启用)
 核验空目标、停旧发送者和在途请求，再显式开放。配置开关不代替切换验收，也不迁移、删除或授权旧数据。
+
+
+### Hindsight 1.1.0 质量参数
+
+连接/超时和 Recall 门控在 [config.yaml](../../config/config.yaml)；质量参数统一在
+[hindsight.yaml](../../config/hindsight.yaml)，提示词在 [memory.yaml](../../config/prompts/memory.yaml)。
+修改后需要对应 Worker 重载；没有文件监听热更新。目标镜像和 SDK 均固定 1.1.0，
+服务端模型不读取 HpAgent 的 models.yaml。
+
+| 配置 | 默认与作用 |
+| --- | --- |
+| bank.retain_extraction_mode | concise；另支持 verbose/custom/verbatim/chunks。custom 必须配置非空自定义提取文本。 |
+| bank.retain_chunk_size / retain_structured_chunk_size | 3000 字符 / null；后者继承原生 chunk_size，不是 token 上限。 |
+| bank.retain_max_attachments_per_chunk | 8；当前来源是纯文本聊天，没有内联附件。 |
+| bank.entity_labels / entities_allow_free_form | null / true；按 LabelGroup 结构校验，禁止 tag:true 改变现有可信标签范围。 |
+| bank.enable_observations / enable_auto_consolidation | true / true；关闭不会自动建立替代归纳调度。 |
+| bank.consolidation_llm_batch_size | 8；单次归纳事实批量。 |
+| bank.consolidation_source_facts_max_tokens / consolidation_source_facts_max_tokens_per_observation | 4096 / 256；归纳证据预算，可用 -1 表示无限，与 Recall 来源预算独立。 |
+| bank.enable_text_search / enable_temporal_retrieval / enable_graph_retrieval / enable_reranking | 均 true；分别控制 BM25、时间、关系和重排路径。 |
+| recall.types | world、experience、observation 三类。 |
+| recall.budget / max_tokens | mid / 4096；控制检索投入与原生返回文本容量。budget 可选 low/mid/high。 |
+| recall.top_n | 5；本地账户/来源许可复核后的最终注入上限。候选不足时允许少于 N，不循环远端请求凑满。 |
+| recall.prefer_observations | 显式 false；开启可能抑制 raw facts，随后 Observation 若被本地过滤，不会自动补回被远端抑制的事实。 |
+| recall.source_facts.max_tokens / max_tokens_per_observation | 4096 / -1；前者必须为正，后者可为 -1。Observation 来源证据始终请求，不能配置关闭。 |
+| recall.min_scores | semantic/keyword/reranker/final 均 null；分路阈值不等于结果交集，也不等于事实正确概率。 |
+| recall.include_entities / entities_max_tokens | true / 500；当前 Main 不消费 entity 附加正文，可按评测关闭。 |
+| query.mode | hyde；可设 original 跳过 fast 改写。Recall 门控关闭也跳过改写。 |
+| query.timestamp_source | trigger_message；来自持久化触发消息 created_at，重试不取新的当前时间。 |
+| diagnostics.trace | false；不把原始 trace、query 或记忆正文写日志。 |
+
+原生 RecallRequest 中没有 top_n；Adapter.recall_candidates 返回当前预算内候选，ContextAssembly
+先做账户/范围和 MemoryStore 来源许可检查，再按 top_n 选取。只有最终选中的新增文档绑定到
+memory_context，历史继承依赖不移除。日志记录远端/Adapter 候选数、来源不完整数、许可拒绝数
+和最终注入数；开启 trace 时只提取原生 summary 的六项数值统计（节点/入口/预算/时长/结果数），
+丢弃 query、候选正文和 phase details。MemoryItem.scores 保存原生分路分数，relevance 仍只是返回顺序标记。
+
+bank 未列出的键不接管；显式 null 清除该 Bank override、继承全局/租户值。
+未知字段、错类型、无效枚举或必要模板缺失拒绝加载；tags、all_strict、逐 item 的
+observation_scopes 仍由可信 MemoryScope 生成，不能通过质量文件改写。temporal_window 当前只允许 null，
+不提供永久全局日期过滤。旧 agent.recall_top_n 仅在 YAML 中明确出现时作为兼容回退；与新配置
+显式冲突时拒绝，0 不表示禁用，请使用 recall_enabled。
+
+PromptsConfig 显式加载 memory.yaml，PromptLoader.get_memory 提供文本：
+
+- retain_mission 指导原生事实提取。用户与第三方的偏好、经历和决定是外部事实 world；助手自身实际经历才是 experience。当前助手回复未经独立核实，不能作为执行完成证据。Retain 不生成 observation。
+- observations_mission 指导原生 Consolidation。它替换默认 Mission，系统处理规则和输出格式仍保留，冲突时 Mission 优先。一次性项目决定可以保存，但不自动推广为稳定偏好；重复提取同一来源不算独立证据。
+- recall_instruction 通过正式 ContextAssembly 格式化路径进入 Main 的 recalled_memories，说明历史证据的时效、归属和使用规则。无记忆时不追加该段。
+- reflect_mission 和 reference_only.reflect 仅记录 inactive；没有原生 Reflect 请求，不用它们驱动归纳。retain_custom_instructions 默认空，仅 custom 模式使用。
+
+旧 config.yaml 的 mission 字段不再接收，长文本不在 Python 中保留另一份默认副本。
+新 Bank 按受控 profile 初始化并回读；已有 Bank 不在首次 Retain 时自动覆盖。配置不匹配会使
+Recall 降级并阻止新的 Retain；不确定/暂时不可用等待对账，永久 4xx 沿既有规则失败，不能宣称该策略已经应用。同步与回退见
+[部署](../operations/deployment.md#记忆质量配置切换)，脚本入口见[脚本索引](../../scripts/README.md#记忆质量配置)。
+
+service.llm 定义全局生成模型，retain_llm/consolidation_llm 为 null 时继承它；embeddings 和
+reranker 分别定义向量与重排。当前生成/向量适配为 openai，重排适配为 siliconflow；新 Provider
+须扩展显式映射，不能透传未知参数。api_key_env 只保存环境变量名，模型名/地址使用 ${NAME} 引用。
+Compose 挂载同一文件，由 Python 桥接器展开到原生 HINDSIGHT_API_* 后 exec 原启动器，不生成
+含 Key 的 env 文件。显式已有 HINDSIGHT_API_LLM_* 仍优先，空值回退 YAML；.env.example 不再
+放一份重复默认路由。其他高级原生环境覆盖通过明确的 Compose override 注入，不能只改 .env
+就假定进入服务。当前 Compose 转发 MiniMax/SiliconFlow 三档模型目录；新增其他变量引用也须显式注入服务。retain_max_completion_tokens 默认 64000，按目标版本要求须大于有效
+retain_chunk_size；真实模型输出能力仍需验证。
+
+service.text_search.extension 仅支持 native/pgroonga，省略时为 native。
+native_language 仅用于 native，省略时为 english；值须为 PostgreSQL 配置标识符，
+pgroonga 配置须省略或设 null，不能用它选择中文分词。原 entrypoint 编译
+HINDSIGHT_API_TEXT_SEARCH_EXTENSION 及 native 的
+HINDSIGHT_API_TEXT_SEARCH_EXTENSION_NATIVE_LANGUAGE。关键词字段的环境值只接受与 YAML
+有效值一致的重复声明，冲突拒绝启动/本地快照生成；不继承模型路由的任意覆盖策略。
+该配置不安装扩展、不转换列/索引，也不证明目标已应用。
+
+质量快照保存在既有 memory_actions.request_payload JSON：冻结受控 Bank 参数、Prompt hash、
+服务配置 hash 和本地模型标识；不保存凭据或地址，service_remote_verified=false。
+后端、native 的有效语言、锁定 API 版本和 Hindsight 镜像身份也进入 config_hash/service_hash。
+新增身份会改变旧 profile hash；已有冻结动作不补填、不改写、不换 UUID 重发，
+不匹配在既有发送资格之前拒绝。运维关键词检查通过也不把快照的模型远端验证位改成 true。
+同一动作重投递复用原快照、hash、UUID；没有快照的历史动作不补填当前值。
+Bank 预检在取得来源发送资格前完成，配置读取/初始化失败不把未发送 Retain 标记为已发送未知。来源内容 hash 与质量
+profile 分开；发送前 profile 不匹配则保持待恢复，不用当前文件重编译旧动作。Main 的回答指令
+单独改变不会使提取 profile 失效。服务实际模型无法通过 Bank Config API 证实，本地文件和
+model-map 输出不等于远端模型已验证。Document 验证审计保留原生 memory_unit_count 和
+nodes_by_fact_type（有返回时），缺失表示未知，不将 Retain items_count 当成事实数量。

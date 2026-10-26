@@ -7,7 +7,7 @@ from .config import WebApiSettings
 from .error_handlers import register_exception_handlers
 from .lifespan import create_lifespan
 from .middleware import BodyLimitMiddleware, CommonHeadersMiddleware, ProtocolMiddleware
-from .routes import artifacts, auth, conversations, files, health, runs, works
+from .routes import artifacts, auth, conversations, files, health, memory, runs, works
 
 
 def create_app(
@@ -29,6 +29,7 @@ def create_app(
     register_exception_handlers(app)
     for router in (
         health.router,
+        memory.router,
         auth.router,
         conversations.router,
         works.router,

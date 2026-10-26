@@ -24,11 +24,14 @@ class BrainEngine:
     context into model responses or small brain-side rewrites used by recall.
     """
 
-    def __init__(self, *, resource_pool: Any = None, prompts: Any = None) -> None:
+    def __init__(self, *, resource_pool: Any = None, prompts: Any = None,
+                 recall_query_mode: str = "hyde", recall_enabled: bool = True) -> None:
         self._model = None
         if resource_pool is not None:
             self._model = getattr(resource_pool, "model", None) or resource_pool
         self._prompts = prompts
+        self._recall_query_mode = recall_query_mode
+        self._recall_enabled = recall_enabled
 
     async def rewrite_recall_query(
         self,
@@ -39,6 +42,8 @@ class BrainEngine:
     ) -> tuple[str, Optional[list[dict[str, str]]]]:
         """Rewrite a user turn for memory recall, returning the audit context."""
 
+        if not self._recall_enabled or self._recall_query_mode == "original":
+            return user_content, None
         prompt_template = ""
         if self._prompts is not None:
             try:

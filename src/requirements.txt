@@ -28,3 +28,6 @@ python-docx>=1.1,<2
 python-calamine>=0.3,<1
 openpyxl>=3.1,<4
 python-pptx>=1.0,<2
+
+# Main Worker uses the same wire contract as the API and pinned Hindsight service.
+hindsight-client==1.1.0

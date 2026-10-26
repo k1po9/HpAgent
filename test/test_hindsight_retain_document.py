@@ -1,132 +1,66 @@
-"""
-retain_document —— Phase F 统一 Retain API 单元测试（doc §21-27）。
+"""Retain source identity and fixed payload through the installed official SDK."""
 
-覆盖:
-  ④ retain_document 提交显式 document_id，且不随重复调用改变
-  ⑤ 同一 source 重复 retain 保持同一个 document_id（幂等核心）
-  - 空 content / 空 document_id → accepted=False，绝不发 HTTP
-  - legacy retain() 委托 retain_document 且仍返回 int（doc §26 契约不变）
-  - async_retain 透传 receipt.async_processing
-"""
-import asyncio
-import os
-import sys
+from uuid import uuid4
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+import pytest
+from test_hindsight import wire as wire
 
-from memory.hindsight_client import HindsightClient
+from memory.scope_policy import MemoryScopeError
 
 
-class _CapturingClient(HindsightClient):
-    """替换 _ensure_bank / _post，捕获 retain body 而不发起真实 HTTP。"""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.posts: list[tuple[str, dict]] = []
-        self.bank_checks: list[str] = []
-
-    async def _ensure_bank(self, bank_id: str) -> bool:
-        self.bank_checks.append(bank_id)
-        return True
-
-    async def _post(self, path, body, timeout=None, retry_on_5xx=True):
-        self.posts.append((path, body))
-        return {"items_count": 1, "operation_id": "op-1"}
-
-
-def test_retain_document_sends_explicit_document_id():
-    client = _CapturingClient()
-    receipt = asyncio.run(
-        client.retain_document(
-            [{"role": "user", "content": "hello"}],
-            "u1",
-            "web-run:123",
-        )
+async def test_async_retain_fixed_wire_payload(wire):
+    client, calls, reply = wire
+    operation = str(uuid4())
+    reply["body"] = dict(
+        success=True,
+        bank_id="hpagent-u-u",
+        items_count=1,
+        **{"async": True},
+        operation_id=operation,
     )
-    assert receipt.accepted is True
-    assert receipt.items_count == 1
-    assert receipt.operation_id == "op-1"
-    assert client.bank_checks == ["hpagent-u-u1"]
-    path, body = client.posts[0]
-    assert path == "/v1/default/banks/hpagent-u-u1/memories"
-    assert len(body["items"]) == 1
-    assert body["items"][0]["document_id"] == "web-run:123"
-    assert body["async"] is False
-
-
-def test_repeated_retain_keeps_the_same_document_id():
-    client = _CapturingClient()
-    for content in ("a", "b"):
-        asyncio.run(
-            client.retain_document(
-                [{"role": "user", "content": content}],
-                "u1",
-                "qq-execution:turn-1",
-            )
+    for _ in range(2):
+        receipt = await client.retain_document(
+            [{"role": "user", "content": "hello"}, {"role": "assistant", "content": "reply"}],
+            "u",
+            "chat-run:1",
+            scope="group",
+            group_id="route-hash",
+            async_retain=True,
+            operation_id=operation,
+            iso_timestamp="2026-10-25T01:02:03+00:00",
+            metadata={"missing": None, "number": 1, "run_id": "1"},
         )
-    asyncio.run(
-        client.retain_document(
-            [{"role": "user", "content": "c"}],
-            "u1",
-            "qq-execution:turn-2",
+        assert receipt.accepted and receipt.operation_id == operation
+    assert calls[0] == calls[1]
+    body = calls[0][2]
+    assert body["operation_id"] == operation and body["async"]
+    item = body["items"][0]
+    assert item["tags"] == ["scope:group", "group:route-hash"]
+    assert item["observation_scopes"] == [item["tags"]]
+    assert item["metadata"] == {"number": "1", "run_id": "1"}
+    assert item["timestamp"] == "2026-10-25T01:02:03+00:00"
+    assert item["content"] == "[user]: hello\n\n[assistant]: reply"
+
+
+@pytest.mark.parametrize("stamp", ["", "2026-10-25", "bad"])
+async def test_source_time_is_required_before_request(wire, stamp):
+    client, calls, _ = wire
+    with pytest.raises(MemoryScopeError):
+        await client.retain_document(
+            [{"content": "x"}], "u", "d", scope="private", iso_timestamp=stamp
         )
-    )
-    assert [body["items"][0]["document_id"] for _, body in client.posts] == [
-        "qq-execution:turn-1",
-        "qq-execution:turn-1",
-        "qq-execution:turn-2",
-    ]
+    assert calls == []
 
 
-def test_events_merge_into_single_document_item():
-    client = _CapturingClient()
-    asyncio.run(
-        client.retain_document(
-            [
-                {"role": "user", "content": "question"},
-                {"role": "assistant", "content": "answer"},
-            ],
-            "u1",
-            "web-run:1",
+async def test_async_identity_required_before_request(wire):
+    client, calls, _ = wire
+    with pytest.raises(MemoryScopeError):
+        await client.retain_document(
+            [{"content": "x"}],
+            "u",
+            "d",
             scope="private",
-            channel_type="web",
-        )
-    )
-    _, body = client.posts[0]
-    (item,) = body["items"]
-    assert item["content"] == "[user]: question\n\n[assistant]: answer"
-    assert "session:" not in [t for t in item["tags"]]
-    assert "channel:web" in item["tags"]
-    assert "scope:private" in item["tags"]
-
-
-def test_empty_content_is_rejected_without_post():
-    client = _CapturingClient()
-    receipt = asyncio.run(
-        client.retain_document([{"role": "user", "content": ""}], "u1", "doc-1")
-    )
-    assert receipt.accepted is False
-    assert client.posts == []
-
-
-def test_empty_document_id_is_rejected_without_post():
-    client = _CapturingClient()
-    receipt = asyncio.run(
-        client.retain_document([{"role": "user", "content": "hi"}], "u1", "")
-    )
-    assert receipt.accepted is False
-    assert client.posts == []
-
-
-def test_async_retain_is_surfaced_on_the_receipt():
-    client = _CapturingClient()
-    receipt = asyncio.run(
-        client.retain_document(
-            [{"role": "user", "content": "hi"}],
-            "u1",
-            "web-run:2",
+            iso_timestamp="2026-10-25T00:00:00Z",
             async_retain=True,
         )
-    )
-    assert receipt.async_processing is True
-    assert client.posts[0][1]["async"] is True
+    assert calls == []

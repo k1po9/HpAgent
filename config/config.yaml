@@ -50,12 +50,11 @@ workspace:
 #   宿主机调试：使用 http://localhost:8001（映射自 docker-compose ports: 8001:8888）
 hindsight:
   enabled: true
+  recall_enabled: false  # 完成切换检查后显式开启；不会自动迁移或清除旧数据。
   base_url: "http://localhost:8001"
   # api_key: ""
   # timeout: 30.0
-  # ── Bank 提取任务指令（可自定义以调优提取质量） ──
-  # retain_mission: "Extract factual information, user preferences, decisions, and personal details from conversations."
-  # reflect_mission: "Analyze conversation history for patterns, user preferences, and key insights about this user."
+  # 质量参数：hindsight.yaml；提取/归纳/回答指令：prompts/memory.yaml。
 
 # ── 会话存储 ────────────────────────────────────────────────────────────────
 session:
@@ -78,7 +77,7 @@ agent:
   max_history_turns: 10       # 上下文窗口最大历史轮次
   max_tool_turns: 5          # 单次 agentic loop 最大工具调用轮次
   idle_timeout_minutes: 10     # 会话空闲自动关闭时间（分钟），0 表示永不超时
-  # recall_top_n: 5           # 记忆召回数量
+  # 记忆最终数量在 hindsight.yaml 的 recall.top_n 设置。
   # event_fetch_limit: 100    # 每次从 Redis 加载的事件上限
   # activity_timeout: 120     # process_turn Activity 超时（秒）
   # archive_timeout: 10       # archive Activity 超时（秒）

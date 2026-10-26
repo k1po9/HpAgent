@@ -1,6 +1,7 @@
 """Read-only Chat Context assembly with strict Conversation boundaries."""
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
@@ -16,6 +17,8 @@ from application.interaction_profiles import (
 from common.logging import log_event
 from common.types import Event, EventType
 from memory.hindsight_client import MemoryItem
+from memory.scope_policy import chat_scope
+from persistence.memory import MemoryStore
 from persistence.repositories import FileRepository, MessageRepository, RunRepository
 from persistence.uow import UnitOfWork
 
@@ -27,8 +30,8 @@ class ContextIsolationError(RuntimeError):
 
 
 class LongTermRecall(Protocol):
-    async def recall(
-        self, query: str, user_id: str, session_id: str = "", top_n: int = 5, **kwargs: Any
+    async def recall_candidates(
+        self, query: str, user_id: str, session_id: str = "", **kwargs: Any
     ) -> Sequence[MemoryItem]: ...
 
 
@@ -52,7 +55,10 @@ class WebContextBase:
     trigger_message_id: UUID
     trigger_content: str
     short_term_events: tuple[Event, ...]
+    trigger_created_at: str = ""
     run_files: tuple[RunFileContext, ...] = ()
+    memory_epoch: int = 0
+    memory_context: dict | None = None
     interaction_profile: str = "web_chat"
     origin: dict = field(default_factory=dict)
     work_command_receipts: tuple[dict, ...] = ()
@@ -76,13 +82,17 @@ class ContextAssemblyService:
         hindsight: LongTermRecall | None = None,
         *,
         recall_top_n: int = 5,
+        recall_instruction: str = "",
         token_budget: int = 256_000,
         generation_headroom: int = 16_000,
     ) -> None:
         self._database_url = database_url
         self._builder = context_builder
         self._hindsight = hindsight
+        if type(recall_top_n) is not int or recall_top_n <= 0:
+            raise ValueError("memory_top_n_required")
         self._recall_top_n = recall_top_n
+        self._recall_instruction = recall_instruction
         self._token_budget = token_budget
         self._generation_headroom = generation_headroom
         self._messages = MessageRepository()
@@ -97,14 +107,52 @@ class ContextAssemblyService:
         composite ownership chain.
         """
         with UnitOfWork(self._database_url) as uow:
+            from persistence.memory_context import (
+                MemoryContextRevoked,
+                account_epoch,
+                check_manifest,
+            )
             subject = self._runs.context_subject(uow, account_id, run_id)
             if subject is None:
                 raise ContextIsolationError("run ownership chain is unavailable")
+            epoch = account_epoch(uow, account_id)
             if subject["trigger_role"] != "user" or subject["trigger_status"] != "accepted":
                 raise ContextIsolationError("run trigger message is not an accepted user message")
             rows = self._messages.context_messages(
                 uow, account_id, subject["conversation_id"], subject["context_message_seq"]
             )
+            inherited_scopes: list[list[str]] | None = []
+            inherited_documents: set[str] = set()
+            kept_rows = []
+            for row in rows:
+                if row['role'] == 'assistant':
+                    old = uow.execute("SELECT memory_context FROM run_executions WHERE account_id=%s AND run_id=%s AND role='root'",
+                                      (account_id, row['produced_by_run_id'])).fetchone()
+                    try:
+                        manifest = check_manifest(uow, account_id, old['memory_context'] if old else None, epoch=epoch)
+                    except MemoryContextRevoked:
+                        continue
+                    if manifest is None:
+                        inherited_scopes = None
+                    else:
+                        if inherited_scopes is not None:
+                            for scope in manifest['scopes'] or []:
+                                if scope not in inherited_scopes:
+                                    inherited_scopes.append(scope)
+                        inherited_documents.update(manifest['documents'])
+                kept_rows.append(row)
+            rows = kept_rows
+            existing = uow.execute('SELECT memory_context FROM run_executions WHERE account_id=%s AND execution_id=%s',
+                                   (account_id, subject['execution_id'])).fetchone()
+            if existing:
+                current = check_manifest(uow, account_id, existing['memory_context'], epoch=epoch)
+                if current is None or current['scopes'] is None:
+                    inherited_scopes = None
+                elif inherited_scopes is not None:
+                    for scope in current['scopes']:
+                        if scope not in inherited_scopes:
+                            inherited_scopes.append(scope)
+                inherited_documents.update(current['documents'] if current else [])
             file_rows = self._files.list_ready_for_run(uow, account_id, run_id)
             # Retry of the same user message sees committed mandate slots before reasoning.
             receipt_rows = uow.execute(
@@ -137,6 +185,8 @@ class ContextAssemblyService:
             for row in file_rows
         )
         return WebContextBase(
+            memory_epoch=epoch,
+            memory_context={'epoch': epoch, 'scopes': inherited_scopes, 'documents': sorted(inherited_documents)},
             run_id=subject["run_id"],
             account_id=subject["account_id"],
             conversation_id=subject["conversation_id"],
@@ -145,6 +195,7 @@ class ContextAssemblyService:
             context_message_seq=subject["context_message_seq"],
             trigger_message_id=subject["trigger_message_id"],
             trigger_content=subject["trigger_content"],
+            trigger_created_at=subject["trigger_created_at"].isoformat(),
             short_term_events=events,
             run_files=run_files,
             workspace_candidates=tuple(candidate_page["candidates"]),
@@ -162,6 +213,24 @@ class ContextAssemblyService:
                 subject.get("origin"), str(subject.get("agent_strategy") or "react")
             ),
         )
+
+    def bind_base(self, base: WebContextBase) -> None:
+        """Worker-side binding before query rewrite; load_base remains read-only."""
+        from persistence.memory_context import bind_context, check_execution
+        from run_domain.execution import assert_execution_fence
+        with UnitOfWork(self._database_url) as uow:
+            assert_execution_fence(uow)
+            current = check_execution(uow, base.account_id, base.run_id, base.execution_id)
+            manifest = base.memory_context
+            scopes = None if (manifest is None or current is None or
+                              manifest['scopes'] is None or current['scopes'] is None) else list(current['scopes'])
+            if scopes is not None and manifest is not None:
+                for scope in manifest['scopes']:
+                    if scope not in scopes:
+                        scopes.append(scope)
+            documents = set(manifest['documents'] if manifest else []) | set(current['documents'] if current else [])
+            bind_context(uow, base.account_id, base.execution_id, scopes, documents,
+                         min(base.memory_epoch, current['epoch'] if current else 0))
 
     async def recall_long_term(
         self, base: WebContextBase, recall_query: str
@@ -192,14 +261,15 @@ class ContextAssemblyService:
             status="started", **correlation,
         )
         try:
-            recalled = await self._hindsight.recall(
+            policy = chat_scope(str(base.account_id), base.origin)
+            recalled = await self._hindsight.recall_candidates(
                 recall_query,
                 user_id=str(base.account_id),
                 session_id=str(base.conversation_id),
-                top_n=self._recall_top_n,
-                scope="group" if base.origin.get("scope") in {"group", "guild"} else "private",
-                group_id=(base.origin.get("context_key", "")
-                          if base.origin.get("scope") in {"group", "guild"} else ""),
+                query_timestamp=base.trigger_created_at,
+                scope="group" if "scope:group" in policy.tags else "private",
+                group_id=policy.tags[1].removeprefix("group:") if len(policy.tags) == 2 else "",
+                tags_match="all_strict",
             )
         except Exception:
             logger.exception("Web Hindsight recall unavailable", extra={
@@ -213,11 +283,55 @@ class ContextAssemblyService:
         for item in recalled:
             self._validate_memory(item, base.account_id)
             validated.append(item)
+        def documents(item: MemoryItem) -> set[str]:
+            if item.memory_type == 'observation':
+                if not item.source_fact_ids or len(item.source_facts) != len(item.source_fact_ids):
+                    return set()
+                return {fact.get('document_id', '') for fact in item.source_facts}
+            return {item.source_session_id} if item.source_session_id else set()
+
+        try:
+            all_documents = set().union(*(documents(item) for item in validated))
+            readable = await asyncio.to_thread(
+                MemoryStore(self._database_url).readable_documents,
+                base.account_id, list(policy.tags), all_documents)
+        except Exception:
+            logger.warning("Memory source verification unavailable", extra={
+                'error_code': 'memory_source_check_unavailable'})
+            return ()
+        permitted = [item for item in validated if documents(item) and
+                     documents(item) <= readable and policy.contains(item.tags)]
+        candidate_count = len(recalled)
+        permitted_count = len(permitted)
+        validated = permitted[:self._recall_top_n]
         log_event(
             logger, logging.INFO, "memory_recall_completed", "memory",
             **correlation, status="success", result_count=len(validated),
+            candidate_count=candidate_count, permitted_count=permitted_count,
+            remote_candidate_count=getattr(recalled, 'remote_count', candidate_count),
+            incomplete_source_count=getattr(recalled, 'incomplete_sources', 0),
+            permission_rejected_count=candidate_count - permitted_count,
+            native_trace=getattr(recalled, 'trace_summary', {}),
+            selected_count=len(validated),
             elapsed_ms=round((time.monotonic() - started_at) * 1000),
         )
+        # Bind before returning any text to the caller. A concurrent withdrawal
+        # is checked against the epoch from before the remote recall.
+        if validated:
+            await asyncio.to_thread(self.bind_base, base)
+            from persistence.memory_context import bind_context, check_manifest
+            with UnitOfWork(self._database_url) as uow:
+                from run_domain.execution import assert_execution_fence
+                assert_execution_fence(uow)
+                current = uow.execute('SELECT memory_context FROM run_executions WHERE account_id=%s AND execution_id=%s',
+                                      (base.account_id, base.execution_id)).fetchone()['memory_context']
+                check_manifest(uow, base.account_id, current)
+                scopes = None if current is None or current['scopes'] is None else list(current['scopes'])
+                if scopes is not None and list(policy.tags) not in scopes:
+                    scopes.append(list(policy.tags))
+                bind_context(uow, base.account_id, base.execution_id, scopes,
+                             set(current['documents'] if current else []) | set().union(*(documents(i) for i in validated)),
+                             base.memory_epoch)
         return tuple(validated)
 
     def compose(
@@ -225,7 +339,7 @@ class ContextAssemblyService:
     ) -> list[dict[str, Any]]:
         """Compose model input with existing Harness token-budget behavior."""
         from application.main_agent import MAIN_ROLE_CONTEXT
-        messages = self._builder.build(
+        messages: list[dict[str, Any]] = self._builder.build(
             list(base.short_term_events),
             recalled_memories=self._format_memories(memories),
             interaction_profile=base.interaction_profile,
@@ -309,13 +423,13 @@ class ContextAssemblyService:
             content={"text": row["content"]},
         )
 
-    @staticmethod
-    def _format_memories(memories: Sequence[MemoryItem]) -> str:
+    def _format_memories(self, memories: Sequence[MemoryItem]) -> str:
         if not memories:
             return ""
-        return "# 相关记忆\n\n" + "\n".join(
+        text = "# 相关记忆\n\n" + "\n".join(
             f"- {item.content}" for item in memories if item.content
         )
+        return text + ("\n\n" + self._recall_instruction if self._recall_instruction else "")
 
     @staticmethod
     def _validate_memory(item: object, account_id: UUID) -> None:

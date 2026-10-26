@@ -1,0 +1,15 @@
+# Isolated rehearsal of a frozen, current snapshot restored to a fresh volume.
+services:
+  recovery-postgres:
+    extends:
+      file: preparation.compose.yaml
+      service: postgres
+    volumes:
+      - recoverydata:/var/lib/postgresql/data
+  hindsight:
+    environment:
+      HINDSIGHT_API_DATABASE_URL: postgresql://hindsight:fixture-only@recovery-postgres:5432/hindsight_110_pgroonga
+    depends_on:
+      recovery-postgres: {condition: service_healthy}
+volumes:
+  recoverydata:

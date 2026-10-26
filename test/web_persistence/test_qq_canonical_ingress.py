@@ -193,7 +193,7 @@ async def test_group_snapshot_context_and_memory_come_from_committed_pg(db, acco
     assert "group fact" in str(context.compose(base, ()))
     assert RunInputLoader(AgentDataStore(worker_database_url)).load(str(run_id)).context.surface == "napcat"
     class Memory:
-        async def recall(self, *args, **kwargs): self.recall_args = kwargs; return []
+        async def recall_candidates(self, *args, **kwargs): self.recall_args = kwargs; return []
         async def retain_document(self, events, **kwargs): self.events, self.args = events, kwargs; return RetainReceipt(accepted=True)
     memory = Memory()
     await ContextAssemblyService(worker_database_url, HarnessContextBuilder(), memory).recall_long_term(base, "query")
@@ -201,7 +201,18 @@ async def test_group_snapshot_context_and_memory_come_from_committed_pg(db, acco
     commands = CommandService(worker_database_url)
     commands.start_run(account_id, run_id)
     commands.complete_run(account_id, run_id, "persisted reply")
-    await MemoryRetentionService(worker_database_url, memory).retain_completed_run(run_id)
+    from web_domain.outbox import OutboxService
+    memory.get_operation = __import__('unittest.mock', fromlist=['AsyncMock']).AsyncMock(side_effect=lambda account, operation: {'operation_id': operation, 'status': 'not_found'})
+    async def retain(events, **kwargs):
+        memory.events, memory.args = events, kwargs
+        return RetainReceipt(True, 0, kwargs['operation_id'], True)
+    memory.retain_document = retain
+    retention = MemoryRetentionService(worker_database_url, memory)
+    outbox = OutboxService(worker_database_url)
+    for event in outbox.claim('qq-memory', {'retain_memory'}, 10):
+        await retention.process_event(event, 'qq-memory')
+    for event in outbox.claim('qq-memory', {'memory_action'}, 10):
+        await retention.process_event(event, 'qq-memory')
     assert memory.args["channel_type"] == "napcat" and memory.args["scope"] == "group"
     assert memory.args["user_id"] == str(account_id)
     assert memory.args["metadata"]["external_message_id"] == "trigger"

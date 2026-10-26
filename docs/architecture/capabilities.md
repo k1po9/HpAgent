@@ -18,6 +18,8 @@ Agent 能力由 Context Assembly、Brain/Model 决策循环和持久化策略 Wo
 
 `respond_directly` 使用原 Execution operation、transcript CAS、fence 与预算持久化收尾回执并支持响应丢失重放。`response_terminated` 只证明交互结束。业务成功事实必须来自本 Run 已观察、同账户、已提交且成功的 `idempotency_commands`；`command_refs` 不能引用未观察或其他 Run 的命令。服务端生成独立的已核验命令事实，口头承诺、回答动作及模型编造 ID 均不建立 Work。真正委托仍只能经 `accept_work`，查询或普通回答不强制创建 Work。
 
+回复中的显式业务成功声明按有限的对象、动作和状态规则识别，并要求真实回执支持该类操作；接受 Work 不证明文件已保存、消息已发送或任务已完成。普通记忆来源描述、否定、条件及转述不直接判作成功声明。未获支持的声明返回“无法核实”提示，先查询任务或文件状态再决定是否重发；这层文本检查不是完整语义证明，也不改变数据库业务状态。
+
 ## Work 与执行策略
 
 Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 continuation。提醒、研究、通用工作和成果构建通过服务端 StrategyRegistry 选择注册 executor；不支持的能力直接拒绝。Main 使用 Work 管理工具，Work Agent 不获得这些工具；工作上下文不加载关联聊天全文。Generic Work root 可一次委派最多三个只读分支，共用 Run / Work 预算。完成由持久证据与 WorkCompletionPolicy 判断。详见 [Work](work.md)。
@@ -61,6 +63,12 @@ Actions 通过统一调用契约暴露本地工具和已配置的 MCP Server。T
 ## Memory
 
 Chat bootstrap 在查询改写后由 Context Assembly 从 Hindsight 召回长期记忆，不是每轮模型调用都重新召回。成功 Chat Run 会异步保留，并附带 Account、Conversation、Run 和 Source 元数据。Hindsight 1.1.0 与官方 Python SDK 1.1.0 固定使用；Compose 镜像锁定 digest。私聊使用 `scope:private`，群聊使用 `scope:group` + 当前路由 `group:<context_key>`，Recall 固定非空 `all_strict`，Retain 同时设置对应 `observation_scopes`。未知范围拒绝。来源时间取触发消息的固定 `created_at`，metadata 去除 null 并统一字符串值。Observation 只在完整来源事实均属于当前范围时注入。定时全 Bank Reflect 已停用，归纳由原生 Consolidation 完成；Metrics Workflow 保留。旧 Reflect Workflow/Activity 的无 I/O 处理仅用于已有 Temporal history 收尾，不重新启用全 Bank 推理。组合入口由默认关闭的 `hindsight.recall_enabled` 控制，空目标与切换检查后显式开放；未登记来源及含此类来源的 Observation 不注入，不以新 tags 自动授权旧数据。本轮采用空目标启用，不提供旧数据迁移/自动清空；完整应用 SQL 迁移链继续保留。治理命令通过现有 Memory Worker 推进，接口和范围见[API](../reference/api.md#长期记忆治理)。
+
+质量配置由 `config/hindsight.yaml` 与 `config/prompts/memory.yaml` 加载。Adapter 返回原生响应预算内的
+候选，ContextAssembly 在本地来源授权后应用最终 top_n，并只绑定所选结果的新增文档依赖。
+提取、Consolidation、Main 使用记忆分别使用 retain_mission、observations_mission、recall_instruction；
+既有 Bank 的策略变化需要显式同步，不能靠下次 Retain 自动覆盖。详情和参数语义见
+[质量配置](../reference/configuration.md#hindsight-110-质量参数)。
 
 成功 Chat Run 的原 `retain_memory` 终态 Outbox 保持不变。消费者在同一事务中登记
 `memory_sources`、冻结 `memory_actions`（请求 hash、固定来源时间及 UUID operation_id）、

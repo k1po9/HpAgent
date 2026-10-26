@@ -20,6 +20,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from memory.quality_config import MemoryConfigError, MemoryQualityConfig, load_memory_prompts
+
 if TYPE_CHECKING:
     from resources.credentials import ModelEndpoint
 
@@ -370,40 +372,14 @@ class WorkspaceConfig:
 class HindsightConfig:
     """Hindsight 长期记忆服务配置。"""
     enabled: bool = True
+    recall_enabled: bool = False  # Explicitly opened after the cutover data check.
     base_url: str = "http://hindsight:8888"
     api_key: str = ""
     timeout: float = 30.0          # 默认超时（retain/recall 等轻量操作）
     retain_timeout: float = 30.0   # 记忆提取（异步提交，通常很快）
     recall_timeout: float = 3.0    # 语义检索（快速降级，锦上添花不阻塞）
-    reflect_timeout: float = 120.0 # 深度推理（LLM 多轮分析，耗时较长）
-    retain_mission: str = (
-        "Extract and preserve structured, reusable knowledge from multi-turn "
-        "conversations across QQ/NapCat, Console, and Web channels.\n\n"
-        "Extraction categories:\n"
-        "- world: Stable facts the user states (personal info, technical facts, domain knowledge)\n"
-        "- experience: The user's stated preferences, past events, decisions made\n"
-        "- observation: Behavioral patterns inferred from how the user interacts\n\n"
-        "Guidelines:\n"
-        "1. Preserve original context: use the provided context field (channel type, group name, sender) "
-        "to enrich extracted facts with provenance\n"
-        "2. Prefer specificity over generality: 'uses Python 3.12 with FastAPI for backend APIs' > 'uses Python'\n"
-        "3. Detect contradictions: when new information conflicts with existing memories, mark both and let reflect resolve\n"
-        "4. Respect tags: extracted memories inherit the document's tags (user, session, group, scope, channel) "
-        "for correct isolation boundaries\n"
-        "5. Timestamp-aware: use the provided timestamp for temporal reasoning (recency, trend detection)\n"
-        "6. Skip ephemera: ignore greetings, one-word replies, tool-call artifacts, and purely functional exchanges"
-    )
-    reflect_mission: str = (
-        "Periodically analyze accumulated memories for a given user to produce higher-level insights.\n\n"
-        "Analysis tasks:\n"
-        "1. Pattern discovery: identify recurring themes, preferences, and behavioral patterns across sessions\n"
-        "2. Contradiction resolution: detect conflicting memories and resolve based on recency, specificity, "
-        "and source reliability\n"
-        "3. Knowledge abstraction: distill multiple related observations into compact, reusable knowledge entries\n"
-        "4. Staleness detection: flag memories that are likely outdated (user stopped using a tool, changed role, etc.)\n"
-        "5. Cross-session linking: connect related facts from different sessions/channels that belong to the same user\n\n"
-        "Output: synthesized insights that improve future recall relevance and reduce noise."
-    )
+    reflect_timeout: float = 120.0 # 兼容字段；当前不发送原生 Reflect 请求
+
 
 
 @dataclass
@@ -430,7 +406,7 @@ class AgentConfig:
     max_history_turns: int = 10
     max_tool_turns: int = 20
     recall_top_n: int = 5
-    reflect_interval_hours: int = 6    # 记忆反思间隔（小时）
+    reflect_interval_hours: int = 6    # 兼容字段；全 Bank Reflect 调度已停用
 
     # 工具结果摘要（替代简单截断）
     tool_result_summary_enabled: bool = True            # 启用 LLM 摘要替代截断
@@ -445,15 +421,17 @@ class AgentConfig:
 class PromptsConfig:
     """所有 Agent prompt 模板的统一容器。
 
-    从 config/prompts/ 目录加载四个 YAML 文件：
+    从 config/prompts/ 目录加载具名 YAML 文件：
       - identities.yaml  → channel_map + 各渠道人设
       - guidance.yaml    → 风格引导 + 工具纪律
       - environment.yaml → 运行环境提示 (docker/wsl)
-      - system.yaml      → 系统级提示 (跨渠道/上下文文件/记忆/截断)
+      - system.yaml      → 系统级提示 (跨渠道/查询改写)
+      - memory.yaml      → 提取/归纳/记忆使用指令
     """
     identities: Dict[str, str] = field(default_factory=dict)
     guidance: Dict[str, str] = field(default_factory=dict)
     environment: Dict[str, str] = field(default_factory=dict)
+    memory: Dict[str, str] = field(default_factory=dict)
     system: Dict[str, str] = field(default_factory=dict)
     tool_summary: Dict[str, Any] = field(default_factory=dict)  # tool_summary.yaml (含嵌套 hints dict)
     bot_name: str = "bot"  # 机器人名称（群聊上下文发送者名 + @检测回退）
@@ -503,6 +481,7 @@ class PromptsConfig:
             guidance=_load("guidance.yaml"),
             environment=_load("environment.yaml"),
             system=_load("system.yaml"),
+            memory=load_memory_prompts(prompts_dir / "memory.yaml") if (prompts_dir / "memory.yaml").exists() else {},
             tool_summary=_load_raw("tool_summary.yaml"),
             bot_name=str(bot_name),
         )
@@ -516,7 +495,7 @@ class PromptsConfig:
 class AppConfig:
     """应用配置根结构。
 
-    从 config.yaml + models.yaml + prompts/*.yaml 一次性加载。
+    从 config.yaml + models.yaml + hindsight.yaml + prompts/*.yaml 一次性加载。
     所有配置统一存放在此 dataclass 中，Worker 通过属性访问。
     """
     models: ModelsConfig = field(default_factory=ModelsConfig)
@@ -525,6 +504,7 @@ class AppConfig:
     sandbox: SandboxConfig = field(default_factory=SandboxConfig)
     workspace: WorkspaceConfig = field(default_factory=WorkspaceConfig)
     hindsight: HindsightConfig = field(default_factory=HindsightConfig)
+    memory_quality: MemoryQualityConfig = field(default_factory=MemoryQualityConfig)
     research: ResearchConfig = field(default_factory=ResearchConfig)
     channels: ChannelsConfig = field(default_factory=ChannelsConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
@@ -573,6 +553,15 @@ class AppConfig:
         config = cls._from_dict(raw)
 
         config_dir = config_file.parent
+        quality_path = config_dir / "hindsight.yaml"
+        if quality_path.exists():
+            config.memory_quality = MemoryQualityConfig.from_yaml(
+                quality_path, legacy_top_n=(raw.get("agent") or {}).get("recall_top_n"))
+        else:
+            config.memory_quality = MemoryQualityConfig.model_validate(
+                {"recall": {"top_n": config.agent.recall_top_n}})
+        if set(raw.get("hindsight") or {}) & {"retain_mission", "reflect_mission", "observations_mission"}:
+            raise MemoryConfigError("hindsight missions moved to prompts/memory.yaml")
 
         # 加载模型配置
         if not models_path:
@@ -642,8 +631,15 @@ class AppConfig:
             self.temporal.web_outbox_recovery_interval_seconds = int(
                 environ["WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"]
             )
+        if environ.get("HINDSIGHT_API_KEY"):
+            self.hindsight.api_key = environ["HINDSIGHT_API_KEY"]
         if environ.get("HINDSIGHT_URL"):
             self.hindsight.base_url = environ["HINDSIGHT_URL"]
+        if "HINDSIGHT_RECALL_ENABLED" in environ:
+            value = environ["HINDSIGHT_RECALL_ENABLED"].strip().lower()
+            if value not in {"true", "false"}:
+                raise ValueError("HINDSIGHT_RECALL_ENABLED must be true or false")
+            self.hindsight.recall_enabled = value == "true"
         if environ.get("SEARXNG_URL"):
             self.research.searxng_url = environ["SEARXNG_URL"]
         if environ.get("WEB_RETRIEVAL_SEARCH_PROVIDER"):

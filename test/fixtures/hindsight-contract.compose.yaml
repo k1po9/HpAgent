@@ -1,0 +1,42 @@
+# Dedicated G1 resources only; no deployment environment or business volumes.
+name: hpagent-hindsight-contract
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: g1
+      POSTGRES_PASSWORD: g1-fixture-only
+      POSTGRES_DB: g1
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U g1 -d g1]
+      interval: 1s
+      retries: 30
+    networks: [contract]
+  embeddings:
+    image: ghcr.io/vectorize-io/hindsight:1.1.0@sha256:50311d02b4d5d2b7c5242bd336edf8735df8374eaad496a92f49c83b37d2aa06
+    entrypoint: [/app/api/.venv/bin/python, /fixture.py]
+    volumes: [./hindsight_embeddings.py:/fixture.py:ro]
+    networks: [contract]
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:1.1.0@sha256:50311d02b4d5d2b7c5242bd336edf8735df8374eaad496a92f49c83b37d2aa06
+    environment:
+      HINDSIGHT_ENABLE_CP: "false"
+      HINDSIGHT_API_DATABASE_URL: postgresql://g1:g1-fixture-only@postgres:5432/g1
+      HINDSIGHT_API_LLM_PROVIDER: mock
+      HINDSIGHT_API_LLM_MODEL: mock-model
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL: http://embeddings:8181/v1
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY: fixture-only
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: g1-fixture
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_DIMENSIONS: "384"
+      HINDSIGHT_API_RERANKER_PROVIDER: rrf
+      HINDSIGHT_API_SKIP_LLM_VERIFICATION: "true"
+      HINDSIGHT_API_CONSOLIDATION_RECONCILE_INTERVAL_SECONDS: "1"
+    depends_on:
+      postgres: {condition: service_healthy}
+      embeddings: {condition: service_started}
+    ports: [127.0.0.1:18888:8888]
+    networks: [contract]
+networks:
+  contract:
+    internal: true

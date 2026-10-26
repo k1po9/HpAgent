@@ -111,7 +111,9 @@ def compose_durable_runtime(
         TraceLifecycleObserver(trace_repository, event_factory.detach_run),
     )
     context = ContextAssemblyService(
-        worker_database_url, shared.context_builder, shared.hindsight_client
+        worker_database_url, shared.context_builder, shared.hindsight_client,
+        recall_top_n=config.memory_quality.recall.top_n,
+        recall_instruction=shared.prompt_loader.get_memory("recall_instruction"),
     )
     # Chat and QQ use independent Execution resources.
     resource_prep = ExecutionResourceService(

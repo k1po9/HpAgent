@@ -63,7 +63,11 @@ while IFS= read -r volume; do
 done < "$RUN_DIR/volumes.txt"
 # Includes private NapCat state and logs: protect/encrypt this entire backup set.
 tar czf "$RUN_DIR/data.tar.gz" .data
-tar czf "$RUN_DIR/configuration.tar.gz" config docker-compose.yaml docker-compose.beta.yaml
+configuration=(config docker-compose.yaml docker-compose.beta.yaml)
+for overlay in docker-compose.pgroonga.yaml docker-compose.pgroonga.enabled.yaml docker-compose.pgroonga.recovery.yaml; do
+  [[ ! -f "$overlay" ]] || configuration+=("$overlay")
+done
+tar czf "$RUN_DIR/configuration.tar.gz" "${configuration[@]}"
 # Secret file is managed separately; do not render Compose config (would expand secrets).
 git rev-parse HEAD > "$RUN_DIR/git-commit.txt"
 git status --porcelain > "$RUN_DIR/git-status.txt"

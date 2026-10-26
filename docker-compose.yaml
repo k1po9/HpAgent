@@ -242,7 +242,7 @@ services:
       TZ: Asia/Shanghai
       POSTGRES_USER: hindsight
       POSTGRES_PASSWORD: ${HINDSIGHT_DB_PASSWORD:?未配置Hindsight数据库密码}
-      POSTGRES_DB: hindsight
+      POSTGRES_DB: ${HINDSIGHT_DB_NAME:-hindsight}
 
     command: >
       -c shared_buffers=128MB
@@ -259,7 +259,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U hindsight -d hindsight"
+          "pg_isready -U hindsight -d ${HINDSIGHT_DB_NAME:-hindsight}"
         ]
       interval: 5s
       timeout: 3s
@@ -278,7 +278,7 @@ services:
 
   # ==================== Hindsight ====================
   hindsight:
-    image: ghcr.io/vectorize-io/hindsight:0.6.1
+    image: ghcr.io/vectorize-io/hindsight:1.1.0@sha256:50311d02b4d5d2b7c5242bd336edf8735df8374eaad496a92f49c83b37d2aa06
 
     logging:
       driver: json-file
@@ -296,33 +296,39 @@ services:
       - no_proxy=${NO_PROXY:-localhost,127.0.0.1,::1,searxng,app-postgres,redis,temporal,hindsight,hpagent,hpagent-api}
 
       # PostgreSQL
-      - HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:${HINDSIGHT_DB_PASSWORD:?未配置Hindsight数据库密码}@hindsight-postgres:5432/hindsight
+      - HINDSIGHT_API_DATABASE_URL=postgresql://hindsight:${HINDSIGHT_DB_PASSWORD:?未配置Hindsight数据库密码}@hindsight-postgres:5432/${HINDSIGHT_DB_NAME:-hindsight}
 
-      # LLM
-      - HINDSIGHT_API_LLM_PROVIDER=${HINDSIGHT_API_LLM_PROVIDER}
-      - HINDSIGHT_API_LLM_BASE_URL=${HINDSIGHT_API_LLM_BASE_URL}
-      - HINDSIGHT_API_LLM_API_KEY=${HINDSIGHT_API_LLM_API_KEY}
-      - HINDSIGHT_API_LLM_MODEL=${HINDSIGHT_API_LLM_MODEL}
+      # Quality/model routes are read by the entry point from hindsight.yaml.
+      - MINIMAX_API_BASE_URL=${MINIMAX_API_BASE_URL:-}
+      - MINIMAX_API_KEY=${MINIMAX_API_KEY:-}
+      - MINIMAX_STANDARD_MODEL=${MINIMAX_STANDARD_MODEL:-}
+      - MINIMAX_FLAGSHIP_MODEL=${MINIMAX_FLAGSHIP_MODEL:-}
+      - MINIMAX_HIGHSPEED_MODEL=${MINIMAX_HIGHSPEED_MODEL:-}
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY:-}
+      - SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL:-}
+      - SILICONFLOW_EMBEDDING_MODEL=${SILICONFLOW_EMBEDDING_MODEL:-}
+      - SILICONFLOW_RERANK_MODEL=${SILICONFLOW_RERANK_MODEL:-}
+      - SILICONFLOW_FLAGSHIP_MODEL=${SILICONFLOW_FLAGSHIP_MODEL:-}
+      - SILICONFLOW_STANDARD_MODEL=${SILICONFLOW_STANDARD_MODEL:-}
+      - SILICONFLOW_HIGHSPEED_MODEL=${SILICONFLOW_HIGHSPEED_MODEL:-}
+      # Explicit legacy overrides remain supported; unset/empty uses YAML.
+      - HINDSIGHT_API_LLM_PROVIDER=${HINDSIGHT_API_LLM_PROVIDER:-}
+      - HINDSIGHT_API_LLM_BASE_URL=${HINDSIGHT_API_LLM_BASE_URL:-}
+      - HINDSIGHT_API_LLM_API_KEY=${HINDSIGHT_API_LLM_API_KEY:-}
+      - HINDSIGHT_API_LLM_MODEL=${HINDSIGHT_API_LLM_MODEL:-}
 
-      # Embedding
-      - HINDSIGHT_API_EMBEDDINGS_PROVIDER=openai
-      - HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY=${SILICONFLOW_API_KEY}
-      - HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL=${SILICONFLOW_EMBEDDING_MODEL}
-      - HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL=${SILICONFLOW_BASE_URL}
-
-      # Reranker
-      - HINDSIGHT_API_RERANKER_PROVIDER=siliconflow
-      - HINDSIGHT_API_RERANKER_SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY}
-      - HINDSIGHT_API_RERANKER_SILICONFLOW_MODEL=${SILICONFLOW_RERANK_MODEL}
-      - HINDSIGHT_API_RERANKER_SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL}
-
+      - HINDSIGHT_API_WORKER_ID=hpagent-hindsight
       - HINDSIGHT_API_SKIP_LLM_VERIFICATION=true
 
     ports:
       - "127.0.0.1:8001:8888"
       - "127.0.0.1:9999:9999"
 
+    entrypoint: [python, /opt/hpagent-memory/hindsight-entrypoint.py]
     volumes:
+      - ./config/hindsight.yaml:/etc/hpagent/hindsight.yaml:ro
+      - ./src/memory/quality_config.py:/opt/hpagent-memory/quality_config.py:ro
+      - ./scripts/operations/hindsight-entrypoint.py:/opt/hpagent-memory/hindsight-entrypoint.py:ro
       - ./scripts/operations/start-hindsight.sh:/app/start-all.sh:ro
 
     depends_on:
@@ -338,9 +344,9 @@ services:
       test:
         [
           "CMD",
-          "curl",
-          "-f",
-          "http://localhost:8888/health"
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8888/health', timeout=4)"
         ]
       interval: 10s
       timeout: 5s
@@ -459,6 +465,7 @@ services:
       - TZ=Asia/Shanghai
       - TEMPORAL_HOST=temporal:7233
       - HINDSIGHT_URL=http://hindsight:8888
+      - HINDSIGHT_RECALL_ENABLED=${HINDSIGHT_RECALL_ENABLED:-false}
       - REDIS_URL=redis://redis:6379
       - SEARXNG_URL=${SEARXNG_URL:-http://searxng:8080}
       - WEB_RETRIEVAL_SEARCH_PROVIDER=${WEB_RETRIEVAL_SEARCH_PROVIDER:-legacy}

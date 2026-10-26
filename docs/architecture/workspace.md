@@ -20,6 +20,8 @@ Chat 初始上下文与 Work brief 提供授权候选总数、第一页最多 20
 并隔离已有来源。已接受的来源删除仍保留原 tombstone 和清理动作；撤权不能取消其删除责任。
 重新授权不恢复旧 Run 的记忆写入，详见[记忆边界](capabilities.md#memory)。
 
+Activity 重建临时文件作用域时恢复本 Run 已选的固定文件；恢复仍校验当前授权、Execution fence 与分支资源范围，文件读取继续检查当前权限。临时目录清理不删除数据库中的选择和输入绑定。
+
 ## 输出、版本与保留
 
 OutputPublisher 的发布是 Run 输出的不可变持久事实；WorkspaceCatalog 的保存/版本内核随后创建长期 Workspace entry 或向 destination 提交新 revision，Research/HTML 子能力只发布不可变候选与检查证据；父适配器和通用 ResultAdoptionService 调用该内核。两者使用独立 operation 身份，发布成功不等于长期保存成功。版本更新检查预期 revision/hash 与当前 `update_content`；CAS 冲突保留已发布输出供另存，不覆盖当前版本。Work 在创建 Run 时冻结 requirement revision、保存目标和 operation ID；required 保存成功后才能完成 Run。Research Work 的 Run、取消及终态不依赖 Conversation/Assistant Message；聊天专属 SSE 仅用于聊天 Run。

@@ -49,6 +49,68 @@ Temporal验收还需显式设置`TEMPORAL_HOST`指向独立测试服务，设置
 空库与专用合成夹具不证明真实旧库迁移/恢复或真实 Provider 语义质量。本轮选择空目标启用，
 旧数据迁移与副本验收不在交付范围；不要将未执行项写成通过。
 
+质量配置回归见 `test/test_memory_quality_config.py`、`test/scripts/test_memory_config.py` 和
+`test/test_hindsight_contract.py`：覆盖严格配置校验、显式服务环境覆盖、SDK Bank PATCH/回读/null reset、
+丢失配置 ack 后对账、正式组合的非默认 top_n、权限过滤后选取、所选来源依赖与实际提示词消费。
+专用目标 PG 用例还覆盖配置不匹配时不取得来源发送资格、同 profile 的未发送动作经 CLI 修复后
+复用原 UUID/payload/hash 完成，及 unknown/历史无快照/不同 profile 拒绝修复切换。
+Retention PG 集合还验证配置变化后重投递复用原 action snapshot/hash/UUID，历史动作不补填当前快照。
+契约 mock 不证明真实中文类型分类、稳定偏好归纳、重排阈值或实际服务模型可用性。真实 Provider
+评测应按同一中文样本分别比较提取归属、一次性决定与长期偏好、冲突时间及召回结果，不能用固定
+mock 的非空返回替代。部署模型与历史数据切换仍遵循[质量切换流程](../operations/deployment.md#记忆质量配置切换)。
+
+PG16 的 native/PGroonga 对照使用独立的
+`test/fixtures/hindsight-pgroonga.compose.yaml`，不改业务 Compose。先构建固定基础镜像和
+pgvector 包版本的数据库镜像，再显式传入本地构建的 digest：
+
+```bash
+docker build -f test/fixtures/hindsight-pgroonga/Dockerfile \
+  -t hpagent/hindsight-pgroonga:pg16-p1 test/fixtures/hindsight-pgroonga
+export PGROONGA_FIXTURE_IMAGE="$(docker image inspect hpagent/hindsight-pgroonga:pg16-p1 --format '{{index .RepoDigests 0}}')"
+PGROONGA_FIXTURE_BACKEND=native PGROONGA_FIXTURE_DB=pgroonga_native PGROONGA_FIXTURE_PORT=18889 \
+  docker compose --env-file /dev/null -p hpagent-pgroonga-native \
+  -f test/fixtures/hindsight-pgroonga.compose.yaml up -d --wait
+PGROONGA_FIXTURE_BACKEND=pgroonga PGROONGA_FIXTURE_DB=pgroonga_candidate PGROONGA_FIXTURE_PORT=18890 \
+  docker compose --env-file /dev/null -p hpagent-pgroonga-candidate \
+  -f test/fixtures/hindsight-pgroonga.compose.yaml up -d --wait
+```
+
+启动前检查这些端口、project、卷和网络未被占用。两组数据库镜像相同，网络为 internal，
+模型使用 mock/确定性 embedding/rrf；不能挂业务卷或导入业务环境文件。构建取包需要联网，
+运行时不连接真实 Provider。`test/fixtures/hindsight-pgroonga/checks.Dockerfile` 可基于本地
+`hpagent/hpagent:offline` 构建独立 Python 验证镜像，不向业务容器安装工具。
+在相应独立网络内，以 `HINDSIGHT_CONTRACT_ISOLATED=1` 和显式
+`HINDSIGHT_CONTRACT_URL=http://hindsight:8888` 运行 `test/test_hindsight_contract.py` 及
+`test/test_hindsight_pgroonga.py`；后者保留合成 Bank，供数据库/API 重启前后核对。
+治理与恢复另用 `test/fixtures/hindsight-pgroonga/recovery.compose.yaml`，显式指定独立 project
+和 `--env-file /dev/null`；其 Redis、Temporal/PG、两组恢复 PG 及应用恢复 PG 均无宿主端口、
+仅 internal 网络，不能连接业务卷。`restore-api` profile 额外启动固定 mock/embedding/rrf 的
+恢复 API。API/Worker/Migration 用三个原角色和完整迁移链；SIGKILL 子进程需要显式继承
+`PYTHONPATH=src:test`（容器中用对应绝对路径），不能只依赖 pytest 的进程内导入路径。
+`test/web_persistence/test_memory_pgroonga_route.py` 仅在 `P4_ROUTE_ISOLATED=1`、明确的
+`P4_NATIVE_URL/P4_CANDIDATE_URL` 及空恢复实例中演练初始化、配置回读、Adapter 选择与无写入回退。
+
+切换准备入口另用 `test/fixtures/hindsight-pgroonga/preparation.compose.yaml`，显式指定
+`--env-file /dev/null -p hpagent-pgroonga-p5`。它挂载实际配置编译入口，模型请求指向
+同一 internal 网络的本地 embedding/rerank fixture，所有聊天请求被拒绝。
+`test/web_persistence/test_memory_bank_initialization.py` 要求 `P5_PREPARATION_ISOLATED=1`
+以及专用三角色 DSN 和 `P5_MEMORY_DATABASE_URL`；验证活跃账户初始化、重复执行、
+禁用账户排除、已有配置冲突和非空目标拒绝。不得在业务库运行。
+
+`recovery_app.py` 在专用应用库和实际目标服务中构造/维护合成来源，`recovery_db.py` 添加固定
+Observation、mental_model 和图引用，并仅输出整行摘要/数量/schema/评分；不会输出正文/向量。
+备份字节只放仓库外权限受限目录，通过显式 pg_dump/pg_restore 恢复到独立目标；同时对账
+应用治理引用与记忆侧ID、向量、时间、tags、失效档案和已完成操作。切换后有写入时，夹具采用
+停止发送者后两系统完整一致快照恢复，不直接回到旧备份；这不证明任意业务旧库迁移或增量日志
+重放。`recovery_app.py context` 在恢复后的真实应用PG/SDK/ContextAssembly/执行lease中验证
+被删除与撤权来源排除、仍可读来源入选，测试不调用回答模型。
+
+隔离 Hindsight 内的 `/p1-fixture/verify.py` 提供 `schema`、`plans`、`snapshot` 检查，
+`guards` 仅在 native 组运行。它调用镜像自带的协调器与 SQL builder，在专用 schema
+验证空表转换、有数据拒绝及 mental_models 特例；查询计划在默认优化器设置下采集，
+包括只出现在 context/text_signals/name/content 的候选。小 Bank 可能选择其他索引或顺序扫描，
+此时 PGroonga 分数可为零；这些工程检查不证明中文语义质量或真实数据迁移通过。
+
 资源撤权记忆回归在 `test/web_persistence/test_memory_governance.py -k resource_revoke`：
 覆盖登记前、登记后发送前、Operation 查询期间的撤权，旧事件重放、重新授权后新 Run 的正向对照，
 以及已接受删除/丢失删除响应后的撤权和载荷清理。`test_memory_revocation_migration.py` 在同一专用
@@ -149,6 +211,10 @@ Web Retriever v1 的模块边界见[设计总结](../architecture/capabilities.m
 持久化预算回归为 `test/web_persistence/test_web_retrieval_budget.py`；Main Command → Temporal → 工具 → 回复的隔离回归为 `test/web_persistence/test_main_web_tools.py`，需要显式专用 PG/Temporal。模型及供应商夹具只验证调用契约；Research 的证据选择、合成和报告质量按其自身流程测试，与 Retriever 模块冻结分别处理。
 
 Main Tool-first 与交付格式的隔离验证入口：`test/test_delivery_contract_unit.py` 覆盖格式字节、约束 schema、Provider 冻结和旧 text 定义兼容；`test/work_domain/test_main_tool_first.py` 用确定性 Brain 与真实 PG 检查多轮修正、伪调用、终止/命令回执分离、响应丢失幂等与强制收尾；`test/work_domain/test_delivery_format.py` 覆盖 Markdown/DOCX/双格式、无显式验收工具、同 ResultRef 配对、重复发布、发布后崩溃、检查失败、旧 revision/fence、保存和其他必需条件。`test_text_closure.py` 的专用 SIGKILL Worker 同时覆盖旧契约与格式契约；Web 任务编辑器测试检查格式修订保留独立条件。Main Temporal 确定性模型使用真实 respond_directly 动作，历史 History 仍通过 Replayer 校验。以上均不新增真实 Provider 请求；运行时使用独立数据库、namespace 和 File Store。
+
+回复声明回归见 `test/work_domain/test_main_response.py`：普通记忆描述、否定、条件和引用不误判，显式业务声明须与具体回执动作/状态匹配；组合持久化与幂等行为仍由 `test_main_tool_first.py` 验证。Workspace 的 `test/web_persistence/test_workspace_v41_p2.py::test_activity_resources_restore_selected_input_and_recheck_revocation` 验证选择文件后销毁并重建 Activity，读取工具重新可用且固定输入可读，撤权后恢复拒绝。仅在一个临时 scope 内选择并读取，不能代替跨 Activity 回归。
+
+真实记忆验收使用专用账号和唯一合成事实，每次召回另开会话并明确 opt-out，分别核验 Run、Retain/治理终态、实际 Model Input 来源依赖及远端文档。纠错重放保留原幂等键和 payload；失效、恢复与指定来源删除逐项执行。文件撤权先证明授权后的真实正文读取，再撤销准确 grant，检查实际访问拒绝、旧 Run 保留禁用、来源隔离和新会话不再注入；所有者下载不代表 Agent 仍获授权。QQ、跨账号、在途取消与迟到响应按各自授权范围单独记录，不能从上述用例推定通过。
 
 ## Hindsight 版本与隔离契约
 

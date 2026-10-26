@@ -1,30 +1,58 @@
+"""Hindsight 1.1.0 adapter. Official SDK owns transport and wire models.
+
+No automatic write retries: operation identity/reconciliation belongs to the caller.
 """
-HindsightClient —— Hindsight 记忆服务 REST API 封装（v0.6.1）。
 
-核心操作:
-  1. retain(events, user_id, session_id)  → 从对话提取记忆存入 bank
-  2. recall(query, user_id, session_id)    → 语义检索相关记忆
-  3. reflect(user_id)                      → 深度记忆推理
-
-隔离策略: 每个用户（account_id）独立 bank，bank 级物理隔离。
-bank_id = hpagent-u-{user_id}，首次使用自动创建。
-
-降级策略: 所有方法在 Hindsight 不可用时返回安全默认值（空结果/0）。
-"""
 from __future__ import annotations
 
 import asyncio
-import logging
-import time as time_mod
+import math
+import time
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, List
 
-import httpx
+import aiohttp
+from hindsight_client import Hindsight
+from hindsight_client_api.exceptions import ApiException
+from hindsight_client_api.models.bank_config_update import BankConfigUpdate
+from hindsight_client_api.models.create_bank_request import CreateBankRequest
+from hindsight_client_api.models.recall_request import RecallRequest
+from hindsight_client_api.models.update_document_observation_scopes import (
+    UpdateDocumentObservationScopes,
+)
+from hindsight_client_api.models.update_document_request import UpdateDocumentRequest
+from hindsight_client_api.models.update_memory_request import UpdateMemoryRequest
+from pydantic import ValidationError
 
-logger = logging.getLogger("HpAgent.Memory")
+from memory.quality_config import MemoryQualityConfig, fingerprint
+from memory.scope_policy import MemoryScopeError, memory_scope
 
-# Hindsight v0.6.1 API 基础路径
-_API_PREFIX = "/v1/default/banks"
+
+class HindsightError(RuntimeError):
+    """Sanitized failure; never includes provider body or memory content."""
+
+    def __init__(self, code: str, status: int | None = None):
+        super().__init__(code)
+        self.code = code
+        self.status = status
+
+
+class HindsightUnavailable(HindsightError):
+    """Retryable read/service failure; writes require reconciliation."""
+
+
+class HindsightUncertain(HindsightError):
+    """Transport ended without proving the outcome of a write."""
+
+
+class HindsightRejected(HindsightError):
+    """Permanent request/auth/not-found/conflict rejection."""
+
+
+class HindsightContractError(HindsightError):
+    """Response cannot safely be used under the requested contract."""
 
 
 @dataclass
@@ -50,6 +78,7 @@ class HindsightMetrics:
 
     def snapshot(self) -> Dict[str, Any]:
         """返回当前指标快照（用于日志/监控导出）。"""
+
         def _avg(vals: List[float]) -> float:
             return sum(vals) / len(vals) if vals else 0.0
 
@@ -58,13 +87,23 @@ class HindsightMetrics:
                 "success": self.retain_success,
                 "failure": self.retain_failure,
                 "avg_latency_ms": round(_avg(self.retain_latency_ms), 1),
-                "p99_latency_ms": round(sorted(self.retain_latency_ms)[int(len(self.retain_latency_ms) * 0.99)] if len(self.retain_latency_ms) >= 100 else _avg(self.retain_latency_ms), 1),
+                "p99_latency_ms": round(
+                    sorted(self.retain_latency_ms)[int(len(self.retain_latency_ms) * 0.99)]
+                    if len(self.retain_latency_ms) >= 100
+                    else _avg(self.retain_latency_ms),
+                    1,
+                ),
             },
             "recall": {
                 "success": self.recall_success,
                 "failure": self.recall_failure,
                 "avg_latency_ms": round(_avg(self.recall_latency_ms), 1),
-                "p99_latency_ms": round(sorted(self.recall_latency_ms)[int(len(self.recall_latency_ms) * 0.99)] if len(self.recall_latency_ms) >= 100 else _avg(self.recall_latency_ms), 1),
+                "p99_latency_ms": round(
+                    sorted(self.recall_latency_ms)[int(len(self.recall_latency_ms) * 0.99)]
+                    if len(self.recall_latency_ms) >= 100
+                    else _avg(self.recall_latency_ms),
+                    1,
+                ),
             },
             "reflect": {
                 "success": self.reflect_success,
@@ -89,47 +128,67 @@ class HindsightMetrics:
             self.recall_latency_ms = self.recall_latency_ms[-1000:]
 
 
+@dataclass(frozen=True)
+class MemoryScores:
+    semantic: float | None = None
+    keyword: float | None = None
+    reranker: float | None = None
+    final: float | None = None
+
+
 @dataclass
 class MemoryItem:
-    """召回的单条记忆。"""
-
     content: str
-    relevance: float = 1.0
-    memory_type: str = ""          # world / experience / observation
-    source_session_id: str = ""
+    relevance: float = 1.0  # ordering only, not confidence
+    memory_type: str = ""
+    source_session_id: str = ""  # historical name: document ID
     created_at: str = ""
+    memory_id: str = ""
+    tags: tuple[str, ...] = ()
+    source_fact_ids: tuple[str, ...] = ()
+    source_facts: tuple[dict[str, Any], ...] = ()
+    metadata: dict[str, str] = field(default_factory=dict)
+    bank_id: str | None = None
+    scores: MemoryScores | None = None
 
     @classmethod
-    def from_recall_result(cls, data: Dict[str, Any]) -> "MemoryItem":
-        # Hindsight v0.6.1 RecallResult 不含任何评分字段（score/similarity/
-        # relevance/distance 均不存在），服务端按相关度降序返回。
-        # relevance 初始设为 0，由调用方根据列表序位计算合成分数。
+    def from_recall_result(cls, data: dict[str, Any]) -> MemoryItem:
         return cls(
             content=data.get("text", ""),
-            relevance=0.0,
             memory_type=data.get("type", ""),
-            source_session_id=data.get("document_id", ""),
-            created_at=data.get("mentioned_at", data.get("occurred_start", "")),
+            source_session_id=data.get("document_id") or "",
+            created_at=data.get("mentioned_at") or data.get("occurred_start") or "",
+            memory_id=data.get("id", ""),
+            tags=tuple(data.get("tags") or ()),
+            source_fact_ids=tuple(data.get("source_fact_ids") or ()),
+            metadata=data.get("metadata") or {},
+            scores=MemoryScores(**data["scores"]) if data.get("scores") else None,
         )
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MemoryItem":
-        return cls(
-            content=data.get("content", ""),
-            relevance=data.get("relevance", 1.0),
-            memory_type=data.get("memory_type", data.get("type", "")),
-            source_session_id=data.get("source_session_id", data.get("session_id", data.get("document_id", ""))),
-            created_at=data.get("created_at", ""),
+    def from_dict(cls, data: dict[str, Any]) -> MemoryItem:
+        item = cls.from_recall_result(data)
+        item.content = data.get("content", item.content)
+        item.memory_type = data.get("memory_type", item.memory_type)
+        item.source_session_id = data.get(
+            "source_session_id", data.get("session_id", item.source_session_id)
         )
+        item.relevance = data.get("relevance", 1.0)
+        item.created_at = data.get("created_at", item.created_at)
+        return item
+
+
+class RecallCandidates(list[MemoryItem]):
+    """Per-response counters; no shared last-call state across concurrent Chats."""
+    def __init__(self, items, *, remote_count, incomplete_sources, trace_summary=None):
+        super().__init__(items)
+        self.remote_count = remote_count
+        self.incomplete_sources = incomplete_sources
+        self.trace_summary = trace_summary or {}
 
 
 @dataclass(frozen=True)
 class RetainReceipt:
-    """retain_document 的结果 —— 让 Outbox Worker 区分成功/失败。
-
-    accepted=False → 重试；accepted=True → mark processed。
-    """
-
     accepted: bool
     items_count: int = 0
     operation_id: str | None = None
@@ -137,447 +196,461 @@ class RetainReceipt:
 
 
 class HindsightClient:
-    """Hindsight 记忆服务客户端（v0.6.1），per-user bank 隔离。
-
-    每个 user_id（即 account_id）对应一个独立 bank:
-      bank_id = "hpagent-u-{user_id}"
-
-    用法::
-
-        client = HindsightClient(base_url="http://localhost:8001")
-        memories = await client.recall("用户偏好", user_id="u1", session_id="s1")
-        receipt = await client.retain_document(
-            events, user_id="u1", document_id="qq-execution:execution-1"
-        )
-        insights = await client.reflect(user_id="u1")
-
-    Args:
-        base_url:  Hindsight 服务地址。
-        api_key:   API 密钥（可选）。
-        timeout:   请求超时秒数。
-        enabled:   是否启用；False 时所有方法返回默认值。
-    """
-
     def __init__(
         self,
-        base_url: str = "http://hindsight:8000",
-        api_key: str = "",
-        timeout: float = 30.0,
-        enabled: bool = True,
+        base_url="http://hindsight:8888",
+        api_key="",
+        timeout=30.0,
+        enabled=True,
         prompt_loader=None,
-        retain_mission: str = "",
-        reflect_mission: str = "",
-        retain_timeout: float = 30.0,
-        recall_timeout: float = 10.0,
-        reflect_timeout: float = 120.0,
+        retain_mission="",
+        reflect_mission="",
+        retain_timeout=30.0,
+        recall_timeout=10.0,
+        reflect_timeout=120.0,
+        recall_enabled=True,
+        quality_config: MemoryQualityConfig | None = None,
+        memory_prompts: dict[str, str] | None = None,
     ):
         self.base_url = base_url.rstrip("/")
-        self.api_key = api_key
-        self.timeout = timeout
-        self.enabled = enabled
+        self.api_key, self.timeout, self.enabled = api_key, timeout, enabled
+        self.recall_enabled = recall_enabled
         self._prompts = prompt_loader
-        self._ready_banks: set[str] = set()
-        self.metrics = HindsightMetrics()
-        self._retain_mission = retain_mission
-        self._reflect_mission = reflect_mission
-        self.retain_timeout = retain_timeout
-        self.recall_timeout = recall_timeout
+        self._retain_mission, self._reflect_mission = retain_mission, reflect_mission
+        self.retain_timeout, self.recall_timeout = retain_timeout, recall_timeout
         self.reflect_timeout = reflect_timeout
+        self.metrics = HindsightMetrics()
+        self._ready_banks: set[str] = set()
+        self.quality_config = quality_config
+        self._memory_prompts = dict(memory_prompts or {})
+        self._ready_configs: set[tuple[str, str]] = set()
+        self._version_checked = False
+        if quality_config is not None:
+            quality_config.bank_updates(self._memory_prompts)
 
-    # ── HTTP helpers ──────────────────────────────────────────────────────
-
-    def _headers(self) -> Dict[str, str]:
-        h = {"Content-Type": "application/json"}
-        if self.api_key:
-            h["Authorization"] = f"Bearer {self.api_key}"
-        return h
-
-    def _bank_id_for(self, user_id: str) -> str:
+    @staticmethod
+    def _bank_id_for(user_id: str) -> str:
+        if not user_id or user_id != user_id.strip():
+            raise MemoryScopeError("memory_account_required")
         return f"hpagent-u-{user_id}"
 
-    async def _request(
-        self, method: str, path: str, body: Optional[Dict[str, Any]] = None,
-        timeout: float | None = None,
-        retry_on_5xx: bool = True,
-    ) -> Optional[Dict[str, Any]]:
-        """发送 HTTP 请求，失败返回 None。
-
-        错误分类:
-          - 超时: 不重试（已占用时间），记录指标
-          - 429 限流: 指数退避重试（最多 2 次）
-          - 5xx 服务端错误: retry_on_5xx=True 时退避重试，False 时立即降级
-          - 4xx 客户端错误: 不重试（参数问题）
-          - 连接错误: 标记降级，返回 None
-        """
+    @asynccontextmanager
+    async def _sdk(self, *, write=False, timeout=None, metric=None):
         if not self.enabled:
-            return None
-        _timeout = timeout if timeout is not None else self.timeout
-        url = f"{self.base_url}{path}"
-        for attempt in range(3):
-            try:
-                async with httpx.AsyncClient(timeout=_timeout) as client:
-                    resp = await client.request(
-                        method, url, json=body, headers=self._headers()
-                    )
-                    resp.raise_for_status()
-                    return resp.json()
-            except httpx.TimeoutException:
-                logger.warning(
-                    "DEGRADATION: Hindsight timeout %s %s after %.1fs (no retry)",
-                    method,
-                    path,
-                    _timeout,
-                )
-                self.metrics.degraded += 1
-                return None  # 超时不重试，已占用时间
-            except httpx.HTTPStatusError as e:
-                status = e.response.status_code
-                if status == 429:
-                    if attempt < 2:
-                        wait = 2 ** attempt
-                        logger.warning("Hindsight rate-limited (429), retrying in %ds (attempt %d/3)", wait, attempt + 1)
-                        await asyncio.sleep(wait)
-                        continue
-                    logger.warning("DEGRADATION: Hindsight rate-limited (429), exhausted retries")
-                    self.metrics.degraded += 1
-                    return None
-                elif status >= 500:
-                    if retry_on_5xx and attempt < 2:
-                        wait = 2 ** attempt
-                        logger.warning("Hindsight server error %s, retrying in %ds (attempt %d/3)", status, wait, attempt + 1)
-                        await asyncio.sleep(wait)
-                        continue
-                    logger.warning("DEGRADATION: Hindsight server error %s, %s", status,
-                                   "exhausted retries" if retry_on_5xx else "no retry (fast-degrade)")
-                    self.metrics.degraded += 1
-                    return None
-                else:
-                    logger.warning("Hindsight client error %s %s: %s", method, path, status)
-                    return None  # 4xx 不重试
-            except asyncio.CancelledError:
-                logger.info("Hindsight API cancelled (activity timeout): %s %s", method, path)
-                raise
-            except Exception as e:
-                logger.warning("DEGRADATION: Hindsight unreachable %s %s: %s", method, path, e)
-                self.metrics.degraded += 1
-                return None
-        return None
-
-    async def _post(self, path: str, body: Dict[str, Any], timeout: float | None = None,
-                    retry_on_5xx: bool = True) -> Optional[Dict[str, Any]]:
-        return await self._request("POST", path, body, timeout=timeout, retry_on_5xx=retry_on_5xx)
-
-    async def _put(self, path: str, body: Dict[str, Any], timeout: float | None = None) -> Optional[Dict[str, Any]]:
-        return await self._request("PUT", path, body, timeout=timeout)
-
-    # ── Bank 管理 ─────────────────────────────────────────────────────────
-
-    async def _ensure_bank(self, bank_id: str) -> bool:
-        """确保 bank 存在（幂等 PUT），成功返回 True。
-
-        已就绪的 bank 记录在 _ready_banks 中，避免重复 HTTP 调用。
-        """
-        if bank_id in self._ready_banks:
-            return True
-        if not self.enabled:
-            return False
-        bank_body: Dict[str, str] = {}
-        if self._retain_mission:
-            bank_body["retain_mission"] = self._retain_mission
-        if self._reflect_mission:
-            bank_body["reflect_mission"] = self._reflect_mission
-        result = await self._put(
-            f"{_API_PREFIX}/{bank_id}",
-            bank_body,
+            raise HindsightRejected("memory_disabled")
+        sdk = Hindsight(
+            self.base_url,
+            api_key=self.api_key or None,
+            timeout=timeout or self.timeout,
+            max_attempts=1,
         )
-        if result is not None:
-            self._ready_banks.add(bank_id)
-            logger.debug("Hindsight bank ensured: %s", bank_id)
-        else:
-            logger.warning("Hindsight bank creation failed: %s", bank_id)
-        return bank_id in self._ready_banks
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # API 1: retain —— 从对话事件中提取并存储记忆
-    # ═══════════════════════════════════════════════════════════════════════════
+        started, failed = time.monotonic(), True
+        try:
+            yield sdk
+            failed = False
+        except ApiException as exc:
+            status = exc.status
+            error = (
+                (HindsightUncertain if write else HindsightUnavailable)
+                if status and status >= 500
+                else (HindsightUnavailable if status == 429 else HindsightRejected)
+            )
+            raise error("hindsight_http_error", status) from None
+        except (asyncio.TimeoutError, aiohttp.ClientError, OSError):
+            error = HindsightUncertain if write else HindsightUnavailable
+            raise error("hindsight_transport_error") from None
+        except (ValidationError, ValueError, TypeError) as exc:
+            if isinstance(exc, MemoryScopeError):
+                raise
+            raise HindsightContractError("hindsight_schema_error") from None
+        finally:
+            if metric:
+                samples = getattr(self.metrics, f"{metric}_latency_ms")
+                samples.append((time.monotonic() - started) * 1000)
+                del samples[:-1000]
+                if failed:
+                    name = f"{metric}_failure"
+                    setattr(self.metrics, name, getattr(self.metrics, name) + 1)
+                    self.metrics.degraded += 1
+            await sdk.aclose()
 
     async def retain_document(
         self,
-        events: List[Dict[str, Any]],
-        user_id: str,
-        document_id: str,
+        events,
+        user_id,
+        document_id,
         *,
-        async_retain: bool = False,
-        channel_type: str = "",
-        group_id: str = "",
-        sender_name: str = "",
-        iso_timestamp: str = "",
-        scope: str = "",
-        session_id: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> RetainReceipt:
-        """把一组事件作为单个幂等 document 提交到用户 bank。
+        async_retain=False,
+        operation_id=None,
+        channel_type="",
+        group_id="",
+        sender_name="",
+        iso_timestamp="",
+        scope="",
+        session_id="",
+        metadata=None,
+        source_context="",
+        quality_snapshot=None,
+    ):
+        policy = memory_scope(user_id, scope, group_id)
+        self.check_quality_snapshot(quality_snapshot)
+        try:
+            stamp = datetime.fromisoformat(iso_timestamp.replace("Z", "+00:00"))
+            if stamp.tzinfo is None:
+                raise ValueError
+        except ValueError:
+            raise MemoryScopeError("memory_source_timestamp_required") from None
+        if not document_id or not events:
+            raise MemoryScopeError("memory_source_required")
+        if async_retain:
+            from uuid import UUID
 
-        Phase F 统一 Retain API（doc §21-25）：
-          - ``user_id`` 决定 bank（hpagent-u-{user_id}）
-          - ``document_id`` 决定 memory source 的幂等身份
-            二者绝对不能混。
-
-        Web:    document_id = "web-run:{run_id}"    （async_retain=False）
-        QQ:     document_id = "qq-execution:{execution_id}"
-
-        Returns:
-            RetainReceipt。accepted=False 表示请求失败（Outbox 应重试）。
-        """
-        if not document_id:
-            return RetainReceipt(accepted=False, items_count=0)
-
-        bank_id = self._bank_id_for(user_id)
-        if not await self._ensure_bank(bank_id):
-            self.metrics.retain_failure += 1
-            return RetainReceipt(accepted=False, items_count=0)
-
-        context_str = self._build_context(channel_type, group_id, sender_name, scope)
-        item_tags_base = self._build_tags(session_id, channel_type, group_id, scope)
-
-        # 合并所有事件为单条 item。Hindsight 要求 batch 内 document_id 唯一，
-        # 单条全文提交能让 LLM 利用完整上下文做更准确的事实提取。
-        merged_content = "\n\n".join(
-            f"[{e.get('role', 'user')}]: {e['content']}"
-            for e in events
-            if e.get("content")
+            try:
+                UUID(operation_id or "")
+            except ValueError:
+                raise MemoryScopeError("memory_operation_uuid_required") from None
+        content = "\n\n".join(
+            f"[{e.get('role', 'user')}]: {e['content']}" for e in events if e.get("content")
         )
-        if not merged_content:
-            return RetainReceipt(accepted=False, items_count=0)
-
-        items = [{
-            "content": merged_content,
-            "context": context_str,
-            "document_id": document_id,
-            "timestamp": iso_timestamp,
-            "tags": list(item_tags_base),
-            "metadata": dict(metadata or {}),
-        }]
-
-        t0 = time_mod.monotonic()
-        result = await self._post(
-            f"{_API_PREFIX}/{bank_id}/memories",
-            {"items": items, "async": async_retain},
-            timeout=self.retain_timeout,
+        if not content:
+            raise MemoryScopeError("memory_content_required")
+        item = dict(
+            content=content,
+            document_id=document_id,
+            timestamp=stamp.isoformat(),
+            context=source_context or channel_type or "chat",
+            tags=list(policy.tags),
+            observation_scopes=policy.observation_scopes,
+            metadata={str(k): str(v) for k, v in (metadata or {}).items() if v is not None},
         )
-        elapsed_ms = (time_mod.monotonic() - t0) * 1000
-        self.metrics.retain_latency_ms.append(elapsed_ms)
-        if result is None:
-            self.metrics.retain_failure += 1
-            return RetainReceipt(
-                accepted=False, items_count=0, async_processing=async_retain
+        await self.prepare_retain(user_id, quality_snapshot)
+        async with self._sdk(write=True, timeout=self.retain_timeout, metric="retain") as sdk:
+            if self.quality_config is None and policy.bank_id not in self._ready_banks and (
+                self._retain_mission or self._reflect_mission
+            ):
+                await sdk.banks.create_or_update_bank(
+                    policy.bank_id,
+                    CreateBankRequest(
+                        retain_mission=self._retain_mission or None,
+                        reflect_mission=self._reflect_mission or None,
+                    ),
+                    _request_timeout=self.retain_timeout,
+                )
+                self._ready_banks.add(policy.bank_id)
+            result = await sdk.aretain_batch(
+                policy.bank_id, [item], retain_async=async_retain, operation_id=operation_id
             )
+        if result.bank_id != policy.bank_id or (
+            async_retain and result.operation_id != operation_id
+        ):
+            raise HindsightContractError("hindsight_retain_identity_mismatch")
         self.metrics.retain_success += 1
         return RetainReceipt(
-            accepted=True,
-            items_count=int(result.get("items_count", 0)),
-            operation_id=result.get("operation_id"),
-            async_processing=async_retain,
+            result.success, result.items_count, result.operation_id, result.var_async
         )
 
-    # ── retain helpers ────────────────────────────────────────────────────
-
-    @staticmethod
-    def _build_context(
-        channel_type: str,
-        group_id: str,
-        sender_name: str,
-        scope: str,
-    ) -> str:
-        """构建渠道感知的 context 描述，注入 LLM 提取 prompt 中。"""
-        if channel_type == "napcat":
-            if scope == "group" and group_id:
-                return f'QQ group chat in "{sender_name}" ({group_id})' if sender_name else f"QQ group chat ({group_id})"
-            if scope == "private":
-                return f"QQ private chat with {sender_name} ({sender_name})" if sender_name else "QQ private chat"
-            return "QQ napcat chat"
-        if channel_type == "console":
-            return "Console CLI chat"
-        if channel_type == "web":
-            return "Web chat"
-        return "chat"
-
-    @staticmethod
-    def _build_tags(
-        session_id: str,
-        channel_type: str,
-        group_id: str,
-        scope: str,
-    ) -> List[str]:
-        """构建标签列表。不含 user:{id}——bank 级隔离已保证用户间互斥。"""
-        tags: List[str] = []
-        if session_id:
-            tags.append(f"session:{session_id}")
-        if channel_type:
-            tags.append(f"channel:{channel_type}")
-        if scope:
-            tags.append(f"scope:{scope}")
-        if group_id:
-            tags.append(f"group:{group_id}")
-        return tags
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # API 2: recall —— 语义检索相关记忆
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    async def recall(
-        self,
-        query: str,
-        user_id: str,
-        session_id: str = "",
-        top_n: int = 5,
-        tags_match: str = "any_strict",
-        query_timestamp: str = "",
-        budget: str = "mid",
-        group_id: str = "",
-        scope: str = "",
-        channel_type: str = "",
-    ) -> List[MemoryItem]:
-        """检索与当前上下文最相关的历史记忆。
-
-        检索流程:
-          - 语义向量检索 (pgvector cosine)
-          - 关键词 BM25 检索
-          - 知识图谱关联
-          - 时序衰减
-        结果经 Reranker 精排后返回。
-
-        Args:
-            query:           检索查询（通常为当前用户消息）。
-            user_id:         用户 ID。
-            session_id:      会话 ID（用于时序相关性加权）。
-            top_n:           返回的最大记忆数。
-            tags_match:      标签匹配策略（"any_strict" / "any" / "all" / tag_groups）。
-            query_timestamp: ISO 8601 时间锚点，用于时序衰减。
-            budget:          检索预算（"low" / "mid" / "high"）。
-            group_id:        群 ID（群聊时传入，扩展召回范围）。
-            scope:           对话范围（"private" / "group"）。
-            channel_type:    渠道类型。
-
-        Returns:
-            MemoryItem 列表，失败或无关时返回空列表。
-        """
-        bank_id = self._bank_id_for(user_id)
-        if not await self._ensure_bank(bank_id):
-            self.metrics.recall_failure += 1
-            return []
-
-        recall_tags = self._build_recall_tags(group_id)
-
-        body: Dict[str, Any] = {
-            "query": query,
-            "tags": recall_tags,
-            "tags_match": tags_match,
-            "max_tokens": 4096,
-            "budget": budget,
-        }
-        if query_timestamp:
-            body["query_timestamp"] = query_timestamp
-
-        t0 = time_mod.monotonic()
-        result = await self._post(
-            f"{_API_PREFIX}/{bank_id}/memories/recall",
-            body,
-            timeout=self.recall_timeout,
-            retry_on_5xx=False,
-        )
-        elapsed_ms = (time_mod.monotonic() - t0) * 1000
-        self.metrics.recall_latency_ms.append(elapsed_ms)
-        if result is None:
-            self.metrics.recall_failure += 1
-            return []
-        raw_items = result.get("results", [])
-        if not raw_items:
-            return []
-        self.metrics.recall_success += 1
-        items = [MemoryItem.from_recall_result(m) for m in raw_items]
-        # Hindsight v0.6.1 不返回 per-item 评分，按序位计算合成相关度：
-        # 列表按相关度降序排列，第 1 条最相关 → relevance 趋近 1.0
-        total = len(items)
-        for i, item in enumerate(items):
-            item.relevance = round((total - i) / total, 4) if total > 1 else 1.0
+    async def recall(self, query, user_id, session_id="", top_n=5,
+                     tags_match="all_strict", query_timestamp="", budget=None,
+                     group_id="", scope="", channel_type=""):
+        """Compatibility helper; Chat uses candidates then local authorization."""
+        if type(top_n) is not int or top_n <= 0:
+            raise MemoryScopeError("memory_top_n_required")
+        items = await self.recall_candidates(
+            query, user_id, session_id, tags_match=tags_match,
+            query_timestamp=query_timestamp, budget=budget, group_id=group_id,
+            scope=scope, channel_type=channel_type)
         return items[:top_n]
 
-    @staticmethod
-    def _build_recall_tags(group_id: str) -> List[str]:
-        """构建 recall 时的标签过滤列表。不含 user:{id}——bank 级隔离已保证。
-
-        私聊: 空列表（bank 内所有记忆都属于该用户）
-        群聊: group:{id}（过滤该群的共享记忆）
-        """
-        return [f"group:{group_id}"] if group_id else []
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # API 3: reflect —— 深度记忆推理
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    async def reflect(self, user_id: str) -> int:
-        """触发深度记忆推理与知识抽象。
-
-        Hindsight 服务端执行:
-          - 记忆关联: 发现分散记忆之间的隐含联系
-          - 矛盾检测: 识别冲突的记忆并标记
-          - 知识抽象: 从碎片记忆提炼高层知识
-          - 经验总结: 从多次交互中归纳模式
-
-        Args:
-            user_id: 用户 ID。
-
-        Returns:
-            产生的洞察数量（当前以响应文本非空计为 1），失败返回 0。
-        """
-        bank_id = self._bank_id_for(user_id)
-        if not await self._ensure_bank(bank_id):
-            self.metrics.reflect_failure += 1
-            return 0
-
-        result = await self._post(
-            f"{_API_PREFIX}/{bank_id}/reflect",
-            {
-                "query": (
-                    f"Analyze all recent interactions for user {user_id}. "
-                    "Identify patterns, preferences, and generate insights."
-                ),
-                "tags": [],
-                "budget": "low",
-            },
-            timeout=self.reflect_timeout,
+    async def recall_candidates(
+        self,
+        query,
+        user_id,
+        session_id="",
+        tags_match="all_strict",
+        query_timestamp="",
+        budget=None,
+        group_id="",
+        scope="",
+        channel_type="",
+    ):
+        policy = memory_scope(user_id, scope, group_id)
+        if tags_match != "all_strict":
+            raise MemoryScopeError("memory_requires_all_strict")
+        if not self.recall_enabled or not self.enabled:
+            return []
+        body = dict(
+            query=query,
+            tags=list(policy.tags),
+            tags_match="all_strict",
+            budget=budget or "mid",
+            max_tokens=4096,
+            include={"source_facts": {"max_tokens": 4096}},
         )
-        if result is None:
-            self.metrics.reflect_failure += 1
-            return 0
-        text = result.get("text", "")
-        if text:
-            self.metrics.reflect_success += 1
-            return 1
-        self.metrics.reflect_failure += 1
+        if self.quality_config is not None:
+            await self.ensure_bank_config(user_id, create=False)
+            body.update(self.quality_config.recall.request_options())
+            body["trace"] = self.quality_config.diagnostics.trace
+            if budget is not None:
+                body["budget"] = budget
+        if query_timestamp:
+            stamp = datetime.fromisoformat(query_timestamp.replace("Z", "+00:00"))
+            if stamp.tzinfo is None:
+                raise MemoryScopeError("memory_query_timestamp_required")
+            body["query_timestamp"] = stamp.isoformat()
+        async with self._sdk(timeout=self.recall_timeout, metric="recall") as sdk:
+            response = await sdk.memory.recall_memories(
+                policy.bank_id, RecallRequest(**body), _request_timeout=self.recall_timeout
+            )
+        data = response.to_dict()
+        sources = data.get("source_facts") or {}
+        incomplete_sources = 0
+        items = []
+        for raw in data["results"]:
+            if not policy.contains(raw.get("tags") or ()):
+                raise HindsightContractError("hindsight_scope_mismatch")
+            item = MemoryItem.from_recall_result(raw)
+            item.bank_id = policy.bank_id
+            if item.memory_type == "observation":
+                if not item.source_fact_ids or any(i not in sources for i in item.source_fact_ids):
+                    incomplete_sources += 1
+                    continue  # incomplete evidence must never enter model context
+                facts = tuple(sources[i] for i in item.source_fact_ids)
+                if any(
+                    not policy.contains(f.get("tags") or ()) or not f.get("document_id")
+                    for f in facts
+                ):
+                    raise HindsightContractError("hindsight_source_scope_mismatch")
+                item.source_facts = facts
+            elif not item.source_session_id:
+                raise HindsightContractError("hindsight_source_missing")
+            items.append(item)
+        for i, item in enumerate(items):
+            item.relevance = (len(items) - i) / len(items)
+        self.metrics.recall_success += 1
+        trace = data.get('trace') or {}
+        summary = trace.get('summary', {}) if isinstance(trace, dict) else {}
+        safe_trace = {key: value for key, value in summary.items()
+                      if key in {'total_nodes_visited', 'entry_points_found', 'budget_used',
+                                 'budget_remaining', 'total_duration_seconds', 'results_returned'}
+                      and type(value) in (int, float) and math.isfinite(value)} if isinstance(summary, dict) else {}
+        return RecallCandidates(items, remote_count=len(data["results"]),
+                                incomplete_sources=incomplete_sources, trace_summary=safe_trace)
+
+    def quality_snapshot(self):
+        return (self.quality_config.snapshot(self._memory_prompts)
+                if self.quality_config is not None else None)
+
+    def check_quality_snapshot(self, snapshot):
+        if snapshot is not None:
+            current = self.quality_snapshot()
+            if current is None or snapshot.get('config_hash') != current['config_hash']:
+                raise HindsightUnavailable("memory_quality_snapshot_mismatch")
+
+    async def prepare_retain(self, user_id, snapshot=None):
+        """Configuration I/O precedes the durable source sending intent."""
+        self.check_quality_snapshot(snapshot)
+        await self.ensure_bank_config(user_id)
+
+    async def check_version(self):
+        if not self._version_checked:
+            async with self._sdk() as sdk:
+                version = await sdk.aget_version()
+            if version.api_version != "1.1.0":
+                raise HindsightContractError("memory_target_version_mismatch")
+            self._version_checked = True
+
+    async def get_bank_config(self, user_id):
+        await self.check_version()
+        bank = self._bank_id_for(user_id)
+        async with self._sdk() as sdk:
+            result = (await sdk.banks.get_bank_config(bank, _request_timeout=self.timeout)).to_dict()
+        if result["bank_id"] != bank:
+            raise HindsightContractError("memory_bank_config_identity_mismatch")
+        return result
+
+    @staticmethod
+    def config_matches(state, updates):
+        # Null resets only the bank override; the resolved parent need not be null.
+        return all((state["overrides"].get(k) is None if v is None
+                    else state["config"].get(k) == v) for k, v in updates.items())
+
+    async def update_bank_config(self, user_id, updates):
+        await self.check_version()
+        self._ready_configs.clear()
+        async with self._sdk(write=True) as sdk:
+            await sdk.banks.update_bank_config(
+                self._bank_id_for(user_id), BankConfigUpdate(updates=updates),
+                _request_timeout=self.timeout)
+        state = await self.get_bank_config(user_id)
+        if not self.config_matches(state, updates):
+            raise HindsightContractError("memory_bank_config_unverified")
+        return state
+
+    async def ensure_bank_config(self, user_id, *, create=True):
+        """Initialize new banks; existing bank changes require explicit operator apply."""
+        if self.quality_config is None:
+            return
+        updates = self.quality_config.bank_updates(self._memory_prompts)
+        key = (self._bank_id_for(user_id), fingerprint(updates))
+        if key in self._ready_configs:
+            return
+        try:
+            state = await self.get_bank_config(user_id)
+        except HindsightRejected as exc:
+            if exc.status != 404 or not create:
+                raise
+            # Provision supported fields, then verify the full managed profile
+            # through the config resource before admitting any Retain.
+            async with self._sdk(write=True) as sdk:
+                await sdk.banks.create_or_update_bank(
+                    key[0], CreateBankRequest(**{
+                        k: v for k, v in updates.items()
+                        if k in CreateBankRequest.model_fields and v is not None}),
+                    _request_timeout=self.timeout)
+            # Fields not exposed by CreateBankRequest still use the config resource.
+            state = await self.update_bank_config(user_id, updates)
+        if any(state["config"].get(k) for k in (
+            "retain_default_strategy", "retain_strategies", "consolidation_strategies")):
+            raise HindsightUnavailable("memory_bank_strategy_conflict")
+        if not self.config_matches(state, updates):
+            raise HindsightUnavailable("memory_bank_config_not_applied")
+        self._ready_configs.add(key)
+
+    async def get_operation(self, user_id, operation_id):
+        bank = self._bank_id_for(user_id)
+        async with self._sdk() as sdk:
+            return (
+                await sdk.operations.get_operation_status(
+                    bank, operation_id, _request_timeout=self.timeout
+                )
+            ).to_dict()
+
+    async def retry_operation(self, user_id, operation_id):
+        bank = self._bank_id_for(user_id)
+        async with self._sdk(write=True) as sdk:
+            return await sdk.operations.retry_operation(
+                bank, operation_id, _request_timeout=self.timeout
+            )
+
+    async def delete_operation(self, user_id, operation_id):
+        bank = self._bank_id_for(user_id)
+        async with self._sdk(write=True) as sdk:
+            return await sdk.operations.delete_operation(
+                bank, operation_id, _request_timeout=self.timeout
+            )
+
+    async def get_document(self, user_id, document_id):
+        bank = self._bank_id_for(user_id)
+        async with self._sdk() as sdk:
+            return await sdk.documents.get_document(
+                bank, document_id, _request_timeout=self.timeout
+            )
+
+    async def patch_document_scope(self, user_id, document_id, *, scope, group_id=""):
+        policy = memory_scope(user_id, scope, group_id)
+        body = UpdateDocumentRequest(
+            tags=list(policy.tags),
+            observation_scopes=UpdateDocumentObservationScopes(
+                actual_instance=policy.observation_scopes
+            ),
+        )
+        async with self._sdk(write=True) as sdk:
+            return await sdk.documents.update_document(
+                policy.bank_id, document_id, body, _request_timeout=self.timeout
+            )
+
+    async def delete_document(self, user_id, document_id):
+        bank = self._bank_id_for(user_id)
+        async with self._sdk(write=True) as sdk:
+            return await sdk.documents.delete_document(
+                bank, document_id, _request_timeout=self.timeout
+            )
+
+    async def get_fact(self, user_id, memory_id):
+        bank = self._bank_id_for(user_id)
+        async with self._sdk() as sdk:
+            return await sdk.memory.get_memory(bank, memory_id, _request_timeout=self.timeout)
+
+    async def patch_fact(self, user_id, memory_id, *, text=None, state=None, reason=None):
+        bank = self._bank_id_for(user_id)
+        if state not in {None, "valid", "invalidated"} or (text is None and state is None):
+            raise MemoryScopeError("memory_fact_patch_required")
+        body = UpdateMemoryRequest(
+            **{
+                k: v
+                for k, v in dict(text=text, state=state, reason=reason).items()
+                if v is not None
+            }
+        )
+        async with self._sdk(write=True) as sdk:
+            return await sdk.memory.update_memory(
+                bank, memory_id, body, _request_timeout=self.timeout
+            )
+
+    async def list_facts(self, user_id, *, document_id=None, scope=None, state=None, fact_type=None):
+        """Exhaustive public listing for governance verification, never Recall ranking."""
+        if state == 'all':
+            valid = await self.list_facts(user_id, document_id=document_id, scope=scope, state='valid', fact_type=fact_type)
+            archived = await self.list_facts(user_id, document_id=document_id, scope=scope, state='invalidated', fact_type=fact_type)
+            return valid + archived
+        bank = self._bank_id_for(user_id)
+        result, offset = [], 0
+        async with self._sdk() as sdk:
+            while True:
+                page = (await sdk.memory.list_memories(
+                    bank, document_id=document_id, tags=scope, tags_match='all_strict',
+                    state=state, type=fact_type, limit=100, offset=offset,
+                    _request_timeout=self.timeout)).to_dict()
+                result.extend(page['items'])
+                offset += len(page['items'])
+                if offset >= page['total']:
+                    return result
+                if not page['items']:
+                    raise HindsightContractError('hindsight_listing_incomplete')
+
+    async def maintenance_evidence(self, user_id, document_id, scope, memory_id=None):
+        facts = await self.list_facts(user_id, document_id=document_id, state='all')
+        ids = {memory_id} if memory_id else {f['id'] for f in facts}
+        observations = await self.list_facts(user_id, scope=scope, fact_type='observation')
+        return {'fact_ids': sorted(ids), 'observation_ids': [o['id'] for o in observations
+                if ids.intersection(o.get('source_memory_ids') or [])]}
+
+    async def verify_source_absent(self, user_id, document_id, scope, evidence=None):
+        if await self.list_facts(user_id, document_id=document_id, state='all'):
+            raise HindsightContractError('memory_source_facts_present')
+        ids = set((evidence or {}).get('fact_ids', []))
+        observations = await self.list_facts(user_id, scope=scope, fact_type='observation')
+        if any(ids.intersection(o.get('source_memory_ids') or []) for o in observations):
+            raise HindsightContractError('memory_source_observations_present')
+        for memory_id in (evidence or {}).get('fact_ids', []) + (evidence or {}).get('observation_ids', []):
+            try:
+                await self.get_fact(user_id, memory_id)
+            except HindsightRejected as exc:
+                if exc.status == 404:
+                    continue
+                raise
+            raise HindsightContractError('memory_source_reference_present')
+
+    async def verify_fact_maintenance(self, user_id, memory_id, scope, kind, evidence=None):
+        for observation in (evidence or {}).get('observation_ids', []):
+            try:
+                await self.get_fact(user_id, observation)
+            except HindsightRejected as exc:
+                if exc.status == 404:
+                    continue
+                raise
+            raise HindsightContractError('memory_old_observation_present')
+        if kind == 'invalidate':
+            live = await self.list_facts(user_id, scope=scope, state='valid')
+            if any(f['id'] == memory_id or memory_id in (f.get('source_memory_ids') or []) for f in live):
+                raise HindsightContractError('memory_invalidated_fact_visible')
+
+    async def reflect(self, user_id):
+        # Old scheduled workflows may still be in flight. They perform no I/O.
         return 0
 
-    # ═══════════════════════════════════════════════════════════════════════════
-    # 便捷方法
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    def get_metrics(self) -> Dict[str, Any]:
-        """返回当前指标快照。"""
+    def get_metrics(self):
         return self.metrics.snapshot()
-
-    def log_metrics(self) -> None:
-        """以结构化日志输出当前指标。"""
-        snap = self.metrics.snapshot()
-        logger.info(
-            "Hindsight metrics | retain: %s/%s (avg %sms) | recall: %s/%s (avg %sms) | reflect: %s/%s | degraded: %s",
-            snap["retain"]["success"], snap["retain"]["success"] + snap["retain"]["failure"],
-            snap["retain"]["avg_latency_ms"],
-            snap["recall"]["success"], snap["recall"]["success"] + snap["recall"]["failure"],
-            snap["recall"]["avg_latency_ms"],
-            snap["reflect"]["success"], snap["reflect"]["success"] + snap["reflect"]["failure"],
-            snap["degraded"],
-        )
 
     async def recall_formatted(
         self,
@@ -585,9 +658,9 @@ class HindsightClient:
         user_id: str = "",
         session_id: str = "",
         top_n: int = 5,
-        tags_match: str = "any_strict",
+        tags_match: str = "all_strict",
         query_timestamp: str = "",
-        budget: str = "mid",
+        budget: str | None = None,
         group_id: str = "",
         scope: str = "",
         channel_type: str = "",
@@ -604,7 +677,10 @@ class HindsightClient:
         """
         if items is None:
             items = await self.recall(
-                query, user_id, session_id, top_n,
+                query,
+                user_id,
+                session_id,
+                top_n,
                 tags_match=tags_match,
                 query_timestamp=query_timestamp,
                 budget=budget,
@@ -620,7 +696,7 @@ class HindsightClient:
             lines.append(f"- {type_tag}{item.content}")
         lines.append("")
         if self._prompts:
-            instruction = self._prompts.get_system("recall_instruction")
+            instruction = self._prompts.get_memory("recall_instruction")
             if instruction:
                 lines.append(instruction)
                 return "\n".join(lines)

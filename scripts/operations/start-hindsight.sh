@@ -5,6 +5,19 @@ set -e
 ENABLE_API="${HINDSIGHT_ENABLE_API:-true}"
 ENABLE_CP="${HINDSIGHT_ENABLE_CP:-true}"
 
+# The pinned 1.1.0 image has Python but no curl binary.
+check_http() {
+    python - "$1" <<'PYHTTP'
+import sys
+import urllib.request
+try:
+    with urllib.request.urlopen(sys.argv[1], timeout=4) as response:
+        sys.exit(0 if response.status == 200 else 1)
+except Exception:
+    sys.exit(1)
+PYHTTP
+}
+
 # =============================================================================
 # Dependency waiting (opt-in via HINDSIGHT_WAIT_FOR_DEPS=true)
 #
@@ -29,7 +42,7 @@ if [ "${HINDSIGHT_WAIT_FOR_DEPS:-false}" = "true" ]; then
     }
 
     check_llm() {
-        curl -sf "${LLM_BASE_URL}/models" --connect-timeout 5 &>/dev/null
+        check_http "${LLM_BASE_URL}/models"
     }
 
     echo "⏳ Waiting for dependencies to be ready..."
@@ -138,7 +151,7 @@ if [ "$ENABLE_API" = "true" ]; then
             wait "$API_PID"
             exit $?
         fi
-        if curl -sf "$API_HEALTH_URL" &>/dev/null; then
+        if check_http "$API_HEALTH_URL"; then
             api_ready=true
             break
         fi

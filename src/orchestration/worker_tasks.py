@@ -73,7 +73,7 @@ def start_durable_background_tasks(
         )
     )
     if web_memory_retention is not None:
-        # Phase F: retain_memory consumer + its own expired-lease sweep.  Both
+        # Chat source/action consumer + its own expired-lease sweep. Both
         # run independently of the start/cancel Dispatcher and never share its
         # lease ownership.
         from orchestration.memory_retention_worker import (
@@ -92,7 +92,7 @@ def start_durable_background_tasks(
                 web_dispatcher.outbox,
                 lease_timeout_seconds,
                 recovery_interval_seconds,
-                event_types={"retain_memory"},
+                event_types={"retain_memory", "memory_action"},
             )
         )
 

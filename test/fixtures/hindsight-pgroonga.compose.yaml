@@ -1,0 +1,57 @@
+# Synthetic-only native/PGroonga A/B fixture. Supply -p and --env-file /dev/null.
+services:
+  postgres:
+    image: ${PGROONGA_FIXTURE_IMAGE:?set the built database image at its digest}
+    pull_policy: never
+    environment:
+      POSTGRES_USER: pgroonga_fixture
+      POSTGRES_PASSWORD: pgroonga-fixture-only
+      POSTGRES_DB: ${PGROONGA_FIXTURE_DB:?set the dedicated fixture database}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./hindsight-pgroonga/init.sql:/docker-entrypoint-initdb.d/10-extensions.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U pgroonga_fixture -d "$${POSTGRES_DB}"']
+      interval: 1s
+      timeout: 3s
+      retries: 60
+    networks: [isolated]
+  embeddings:
+    image: ghcr.io/vectorize-io/hindsight:1.1.0@sha256:50311d02b4d5d2b7c5242bd336edf8735df8374eaad496a92f49c83b37d2aa06
+    entrypoint: [/app/api/.venv/bin/python, /fixture.py]
+    volumes: [./hindsight_embeddings.py:/fixture.py:ro]
+    networks: [isolated]
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:1.1.0@sha256:50311d02b4d5d2b7c5242bd336edf8735df8374eaad496a92f49c83b37d2aa06
+    environment:
+      HINDSIGHT_ENABLE_CP: "false"
+      HINDSIGHT_API_DATABASE_URL: postgresql://pgroonga_fixture:pgroonga-fixture-only@postgres:5432/${PGROONGA_FIXTURE_DB:?set the dedicated fixture database}
+      HINDSIGHT_API_TEXT_SEARCH_EXTENSION: ${PGROONGA_FIXTURE_BACKEND:?set native or pgroonga}
+      HINDSIGHT_API_TEXT_SEARCH_EXTENSION_NATIVE_LANGUAGE: english
+      HINDSIGHT_API_LLM_PROVIDER: mock
+      HINDSIGHT_API_LLM_MODEL: mock-model
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL: http://embeddings:8181/v1
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY: fixture-only
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: g1-fixture
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_DIMENSIONS: "384"
+      HINDSIGHT_API_RERANKER_PROVIDER: rrf
+      HINDSIGHT_API_SKIP_LLM_VERIFICATION: "true"
+      HINDSIGHT_API_CONSOLIDATION_RECONCILE_INTERVAL_SECONDS: "1"
+    volumes: [./hindsight-pgroonga:/p1-fixture:ro]
+    depends_on:
+      postgres: {condition: service_healthy}
+      embeddings: {condition: service_started}
+    ports: ['127.0.0.1:${PGROONGA_FIXTURE_PORT:?set dedicated port}:8888']
+    healthcheck:
+      test: [CMD, /app/api/.venv/bin/python, -c, 'import urllib.request; urllib.request.urlopen("http://localhost:8888/health", timeout=4)']
+      interval: 2s
+      timeout: 5s
+      start_period: 30s
+      retries: 90
+    networks: [isolated]
+volumes:
+  pgdata:
+networks:
+  isolated:
+    internal: true

@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -36,7 +37,7 @@ else: sys.exit(99)
 
 
 class ColdBackupTests(unittest.TestCase):
-    def run_fixture(self, **overrides):
+    def run_fixture(self, *, with_pgroonga=False, **overrides):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         root = Path(temp.name) / "repo"
@@ -48,6 +49,9 @@ class ColdBackupTests(unittest.TestCase):
         (root / "config").mkdir()
         for name in ("docker-compose.yaml", "docker-compose.beta.yaml"):
             (root / name).write_text("services: {}\n")
+        if with_pgroonga:
+            for suffix in ("", ".enabled", ".recovery"):
+                (root / f"docker-compose.pgroonga{suffix}.yaml").write_text("services: {}\n")
         fake = Path(temp.name) / "bin"
         fake.mkdir()
         (fake / "docker").write_text(FAKE_DOCKER)
@@ -86,6 +90,15 @@ class ColdBackupTests(unittest.TestCase):
         self.assertEqual(checked.returncode, 0, checked.stderr)
         self.assertNotIn('"stop"', calls)
         self.assertNotIn('"start"', calls)
+
+    def test_pgroonga_routing_and_recovery_overlays_are_restorable(self):
+        result, backup, _ = self.run_fixture(with_pgroonga=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        with tarfile.open(backup / 'configuration.tar.gz') as archive:
+            for suffix in ('', '.enabled', '.recovery'):
+                member = archive.extractfile(f'docker-compose.pgroonga{suffix}.yaml')
+                self.assertIsNotNone(member)
+                self.assertEqual(member.read(), b'services: {}\n')
 
 
 if __name__ == "__main__":

@@ -392,14 +392,18 @@ async def _init_dependencies(
 
     hindsight_client = None
     if config.hindsight.enabled:
+        if not config.prompts.memory:
+            raise ValueError("prompts.memory is required when Hindsight is enabled")
+        config.memory_quality.bank_updates(config.prompts.memory)
         try:
             hindsight_client = HindsightClient(
                 base_url=config.hindsight.base_url,
+                recall_enabled=config.hindsight.recall_enabled,
                 api_key=config.hindsight.api_key,
                 timeout=config.hindsight.timeout,
                 prompt_loader=prompt_loader,
-                retain_mission=config.hindsight.retain_mission,
-                reflect_mission=config.hindsight.reflect_mission,
+                quality_config=config.memory_quality,
+                memory_prompts=config.prompts.memory,
                 retain_timeout=config.hindsight.retain_timeout,
                 recall_timeout=config.hindsight.recall_timeout,
                 reflect_timeout=config.hindsight.reflect_timeout,

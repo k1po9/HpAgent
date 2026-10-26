@@ -1,0 +1,4300 @@
+{
+  "version": 1,
+  "synthetic": true,
+  "documents": [
+    {
+      "document_id": "zh-00-a",
+      "text": "顾客林0保存了紫砂茶壶配方，温度为30度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-00-b",
+      "text": "普通存档zh-00：紫砂茶壶的包装编号是 BOX0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-00-x",
+      "text": "顾客林0保存了紫砂茶壶配方，温度为30度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "zh-01-a",
+      "text": "顾客林1保存了桂花糕点配方，温度为31度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-01-b",
+      "text": "普通存档zh-01：桂花糕点的包装编号是 BOX1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-01-x",
+      "text": "顾客林1保存了桂花糕点配方，温度为31度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "zh-02-a",
+      "text": "顾客林2保存了低糖豆浆配方，温度为32度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-02-b",
+      "text": "普通存档zh-02：低糖豆浆的包装编号是 BOX2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-02-x",
+      "text": "顾客林2保存了低糖豆浆配方，温度为32度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "zh-03-a",
+      "text": "顾客林3保存了竹编书篮配方，温度为33度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-03-b",
+      "text": "普通存档zh-03：竹编书篮的包装编号是 BOX3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-03-x",
+      "text": "顾客林3保存了竹编书篮配方，温度为33度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "zh-04-a",
+      "text": "顾客林4保存了青瓷花瓶配方，温度为34度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-04-b",
+      "text": "普通存档zh-04：青瓷花瓶的包装编号是 BOX4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-04-x",
+      "text": "顾客林4保存了青瓷花瓶配方，温度为34度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "zh-05-a",
+      "text": "顾客林5保存了乌龙茶叶配方，温度为35度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-05-b",
+      "text": "普通存档zh-05：乌龙茶叶的包装编号是 BOX5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-05-x",
+      "text": "顾客林5保存了乌龙茶叶配方，温度为35度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "zh-06-a",
+      "text": "顾客林6保存了茉莉香包配方，温度为36度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-06-b",
+      "text": "普通存档zh-06：茉莉香包的包装编号是 BOX6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-06-x",
+      "text": "顾客林6保存了茉莉香包配方，温度为36度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "zh-07-a",
+      "text": "顾客林7保存了山楂果脯配方，温度为37度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-07-b",
+      "text": "普通存档zh-07：山楂果脯的包装编号是 BOX7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-07-x",
+      "text": "顾客林7保存了山楂果脯配方，温度为37度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "zh-08-a",
+      "text": "顾客林8保存了檀木书签配方，温度为38度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-08-b",
+      "text": "普通存档zh-08：檀木书签的包装编号是 BOX8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-08-x",
+      "text": "顾客林8保存了檀木书签配方，温度为38度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "zh-09-a",
+      "text": "顾客林9保存了红枣米粥配方，温度为39度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-09-b",
+      "text": "普通存档zh-09：红枣米粥的包装编号是 BOX9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "zh-09-x",
+      "text": "顾客林9保存了红枣米粥配方，温度为39度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-00-a",
+      "text": "Project Orchid0 uses Redis cache for 紫砂茶壶库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-00-b",
+      "text": "普通存档mixed-00：紫砂茶壶的包装编号是 BOX0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-00-x",
+      "text": "Project Orchid0 uses Redis cache for 紫砂茶壶库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-01-a",
+      "text": "Project Orchid1 uses Redis cache for 桂花糕点库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-01-b",
+      "text": "普通存档mixed-01：桂花糕点的包装编号是 BOX1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-01-x",
+      "text": "Project Orchid1 uses Redis cache for 桂花糕点库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-02-a",
+      "text": "Project Orchid2 uses Redis cache for 低糖豆浆库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-02-b",
+      "text": "普通存档mixed-02：低糖豆浆的包装编号是 BOX2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-02-x",
+      "text": "Project Orchid2 uses Redis cache for 低糖豆浆库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-03-a",
+      "text": "Project Orchid3 uses Redis cache for 竹编书篮库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-03-b",
+      "text": "普通存档mixed-03：竹编书篮的包装编号是 BOX3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-03-x",
+      "text": "Project Orchid3 uses Redis cache for 竹编书篮库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-04-a",
+      "text": "Project Orchid4 uses Redis cache for 青瓷花瓶库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-04-b",
+      "text": "普通存档mixed-04：青瓷花瓶的包装编号是 BOX4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-04-x",
+      "text": "Project Orchid4 uses Redis cache for 青瓷花瓶库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-05-a",
+      "text": "Project Orchid5 uses Redis cache for 乌龙茶叶库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-05-b",
+      "text": "普通存档mixed-05：乌龙茶叶的包装编号是 BOX5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-05-x",
+      "text": "Project Orchid5 uses Redis cache for 乌龙茶叶库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-06-a",
+      "text": "Project Orchid6 uses Redis cache for 茉莉香包库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-06-b",
+      "text": "普通存档mixed-06：茉莉香包的包装编号是 BOX6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-06-x",
+      "text": "Project Orchid6 uses Redis cache for 茉莉香包库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-07-a",
+      "text": "Project Orchid7 uses Redis cache for 山楂果脯库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-07-b",
+      "text": "普通存档mixed-07：山楂果脯的包装编号是 BOX7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-07-x",
+      "text": "Project Orchid7 uses Redis cache for 山楂果脯库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-08-a",
+      "text": "Project Orchid8 uses Redis cache for 檀木书签库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-08-b",
+      "text": "普通存档mixed-08：檀木书签的包装编号是 BOX8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-08-x",
+      "text": "Project Orchid8 uses Redis cache for 檀木书签库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "mixed-09-a",
+      "text": "Project Orchid9 uses Redis cache for 红枣米粥库存。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-09-b",
+      "text": "普通存档mixed-09：红枣米粥的包装编号是 BOX9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "mixed-09-x",
+      "text": "Project Orchid9 uses Redis cache for 红枣米粥库存。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-00-a",
+      "text": "配置标识 HPERR_730 位于 /srv/hpagent/config0.yaml，用于紫砂茶壶。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-00-b",
+      "text": "普通存档identifier-00：紫砂茶壶的包装编号是 BOX0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-00-x",
+      "text": "配置标识 HPERR_730 位于 /srv/hpagent/config0.yaml，用于紫砂茶壶。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-01-a",
+      "text": "配置标识 HPERR_731 位于 /srv/hpagent/config1.yaml，用于桂花糕点。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-01-b",
+      "text": "普通存档identifier-01：桂花糕点的包装编号是 BOX1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-01-x",
+      "text": "配置标识 HPERR_731 位于 /srv/hpagent/config1.yaml，用于桂花糕点。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-02-a",
+      "text": "配置标识 HPERR_732 位于 /srv/hpagent/config2.yaml，用于低糖豆浆。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-02-b",
+      "text": "普通存档identifier-02：低糖豆浆的包装编号是 BOX2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-02-x",
+      "text": "配置标识 HPERR_732 位于 /srv/hpagent/config2.yaml，用于低糖豆浆。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-03-a",
+      "text": "配置标识 HPERR_733 位于 /srv/hpagent/config3.yaml，用于竹编书篮。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-03-b",
+      "text": "普通存档identifier-03：竹编书篮的包装编号是 BOX3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-03-x",
+      "text": "配置标识 HPERR_733 位于 /srv/hpagent/config3.yaml，用于竹编书篮。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-04-a",
+      "text": "配置标识 HPERR_734 位于 /srv/hpagent/config4.yaml，用于青瓷花瓶。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-04-b",
+      "text": "普通存档identifier-04：青瓷花瓶的包装编号是 BOX4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-04-x",
+      "text": "配置标识 HPERR_734 位于 /srv/hpagent/config4.yaml，用于青瓷花瓶。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-05-a",
+      "text": "配置标识 HPERR_735 位于 /srv/hpagent/config5.yaml，用于乌龙茶叶。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-05-b",
+      "text": "普通存档identifier-05：乌龙茶叶的包装编号是 BOX5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-05-x",
+      "text": "配置标识 HPERR_735 位于 /srv/hpagent/config5.yaml，用于乌龙茶叶。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-06-a",
+      "text": "配置标识 HPERR_736 位于 /srv/hpagent/config6.yaml，用于茉莉香包。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-06-b",
+      "text": "普通存档identifier-06：茉莉香包的包装编号是 BOX6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-06-x",
+      "text": "配置标识 HPERR_736 位于 /srv/hpagent/config6.yaml，用于茉莉香包。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-07-a",
+      "text": "配置标识 HPERR_737 位于 /srv/hpagent/config7.yaml，用于山楂果脯。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-07-b",
+      "text": "普通存档identifier-07：山楂果脯的包装编号是 BOX7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-07-x",
+      "text": "配置标识 HPERR_737 位于 /srv/hpagent/config7.yaml，用于山楂果脯。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-08-a",
+      "text": "配置标识 HPERR_738 位于 /srv/hpagent/config8.yaml，用于檀木书签。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-08-b",
+      "text": "普通存档identifier-08：檀木书签的包装编号是 BOX8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-08-x",
+      "text": "配置标识 HPERR_738 位于 /srv/hpagent/config8.yaml，用于檀木书签。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "identifier-09-a",
+      "text": "配置标识 HPERR_739 位于 /srv/hpagent/config9.yaml，用于红枣米粥。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-09-b",
+      "text": "普通存档identifier-09：红枣米粥的包装编号是 BOX9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "identifier-09-x",
+      "text": "配置标识 HPERR_739 位于 /srv/hpagent/config9.yaml，用于红枣米粥。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "alias-00-a",
+      "text": "紫砂茶壶别名叫“香韵0号”，采购负责人是林0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-00-b",
+      "text": "普通存档alias-00：紫砂茶壶的包装编号是 BOX0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-00-x",
+      "text": "紫砂茶壶别名叫“香韵0号”，采购负责人是林0。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "alias-01-a",
+      "text": "桂花糕点别名叫“香韵1号”，采购负责人是林1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-01-b",
+      "text": "普通存档alias-01：桂花糕点的包装编号是 BOX1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-01-x",
+      "text": "桂花糕点别名叫“香韵1号”，采购负责人是林1。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "alias-02-a",
+      "text": "低糖豆浆别名叫“香韵2号”，采购负责人是林2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-02-b",
+      "text": "普通存档alias-02：低糖豆浆的包装编号是 BOX2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-02-x",
+      "text": "低糖豆浆别名叫“香韵2号”，采购负责人是林2。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "alias-03-a",
+      "text": "竹编书篮别名叫“香韵3号”，采购负责人是林3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-03-b",
+      "text": "普通存档alias-03：竹编书篮的包装编号是 BOX3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-03-x",
+      "text": "竹编书篮别名叫“香韵3号”，采购负责人是林3。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "alias-04-a",
+      "text": "青瓷花瓶别名叫“香韵4号”，采购负责人是林4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-04-b",
+      "text": "普通存档alias-04：青瓷花瓶的包装编号是 BOX4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-04-x",
+      "text": "青瓷花瓶别名叫“香韵4号”，采购负责人是林4。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "alias-05-a",
+      "text": "乌龙茶叶别名叫“香韵5号”，采购负责人是林5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-05-b",
+      "text": "普通存档alias-05：乌龙茶叶的包装编号是 BOX5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-05-x",
+      "text": "乌龙茶叶别名叫“香韵5号”，采购负责人是林5。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "alias-06-a",
+      "text": "茉莉香包别名叫“香韵6号”，采购负责人是林6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-06-b",
+      "text": "普通存档alias-06：茉莉香包的包装编号是 BOX6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-06-x",
+      "text": "茉莉香包别名叫“香韵6号”，采购负责人是林6。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "alias-07-a",
+      "text": "山楂果脯别名叫“香韵7号”，采购负责人是林7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-07-b",
+      "text": "普通存档alias-07：山楂果脯的包装编号是 BOX7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-07-x",
+      "text": "山楂果脯别名叫“香韵7号”，采购负责人是林7。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "alias-08-a",
+      "text": "檀木书签别名叫“香韵8号”，采购负责人是林8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-08-b",
+      "text": "普通存档alias-08：檀木书签的包装编号是 BOX8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-08-x",
+      "text": "檀木书签别名叫“香韵8号”，采购负责人是林8。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "alias-09-a",
+      "text": "红枣米粥别名叫“香韵9号”，采购负责人是林9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-09-b",
+      "text": "普通存档alias-09：红枣米粥的包装编号是 BOX9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "alias-09-x",
+      "text": "红枣米粥别名叫“香韵9号”，采购负责人是林9。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-00-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ0 的紫砂茶壶库存为20。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-00-b",
+      "text": "普通存档normalization-00：紫砂茶壶的包装编号是 BOX0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-00-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ0 的紫砂茶壶库存为20。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-01-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ1 的桂花糕点库存为21。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-01-b",
+      "text": "普通存档normalization-01：桂花糕点的包装编号是 BOX1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-01-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ1 的桂花糕点库存为21。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-02-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ2 的低糖豆浆库存为22。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-02-b",
+      "text": "普通存档normalization-02：低糖豆浆的包装编号是 BOX2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-02-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ2 的低糖豆浆库存为22。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-03-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ3 的竹编书篮库存为23。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-03-b",
+      "text": "普通存档normalization-03：竹编书篮的包装编号是 BOX3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-03-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ3 的竹编书篮库存为23。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-04-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ4 的青瓷花瓶库存为24。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-04-b",
+      "text": "普通存档normalization-04：青瓷花瓶的包装编号是 BOX4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-04-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ4 的青瓷花瓶库存为24。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-05-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ5 的乌龙茶叶库存为25。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-05-b",
+      "text": "普通存档normalization-05：乌龙茶叶的包装编号是 BOX5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-05-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ5 的乌龙茶叶库存为25。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-06-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ6 的茉莉香包库存为26。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-06-b",
+      "text": "普通存档normalization-06：茉莉香包的包装编号是 BOX6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-06-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ6 的茉莉香包库存为26。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-07-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ7 的山楂果脯库存为27。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-07-b",
+      "text": "普通存档normalization-07：山楂果脯的包装编号是 BOX7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-07-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ7 的山楂果脯库存为27。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-08-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ8 的檀木书签库存为28。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-08-b",
+      "text": "普通存档normalization-08：檀木书签的包装编号是 BOX8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-08-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ8 的檀木书签库存为28。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "normalization-09-a",
+      "text": "ＰＲＯＪＥＣＴ Ｋ9 的红枣米粥库存为29。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-09-b",
+      "text": "普通存档normalization-09：红枣米粥的包装编号是 BOX9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "normalization-09-x",
+      "text": "ＰＲＯＪＥＣＴ Ｋ9 的红枣米粥库存为29。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "long-00-a",
+      "text": "顾客林0保存了紫砂茶壶配方，温度为30度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-00-b",
+      "text": "普通存档long-00：紫砂茶壶的包装编号是 BOX0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-00-x",
+      "text": "顾客林0保存了紫砂茶壶配方，温度为30度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "long-01-a",
+      "text": "顾客林1保存了桂花糕点配方，温度为31度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-01-b",
+      "text": "普通存档long-01：桂花糕点的包装编号是 BOX1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-01-x",
+      "text": "顾客林1保存了桂花糕点配方，温度为31度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "long-02-a",
+      "text": "顾客林2保存了低糖豆浆配方，温度为32度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-02-b",
+      "text": "普通存档long-02：低糖豆浆的包装编号是 BOX2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-02-x",
+      "text": "顾客林2保存了低糖豆浆配方，温度为32度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "long-03-a",
+      "text": "顾客林3保存了竹编书篮配方，温度为33度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-03-b",
+      "text": "普通存档long-03：竹编书篮的包装编号是 BOX3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-03-x",
+      "text": "顾客林3保存了竹编书篮配方，温度为33度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "long-04-a",
+      "text": "顾客林4保存了青瓷花瓶配方，温度为34度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-04-b",
+      "text": "普通存档long-04：青瓷花瓶的包装编号是 BOX4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-04-x",
+      "text": "顾客林4保存了青瓷花瓶配方，温度为34度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "long-05-a",
+      "text": "顾客林5保存了乌龙茶叶配方，温度为35度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-05-b",
+      "text": "普通存档long-05：乌龙茶叶的包装编号是 BOX5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-05-x",
+      "text": "顾客林5保存了乌龙茶叶配方，温度为35度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "long-06-a",
+      "text": "顾客林6保存了茉莉香包配方，温度为36度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-06-b",
+      "text": "普通存档long-06：茉莉香包的包装编号是 BOX6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-06-x",
+      "text": "顾客林6保存了茉莉香包配方，温度为36度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "long-07-a",
+      "text": "顾客林7保存了山楂果脯配方，温度为37度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-07-b",
+      "text": "普通存档long-07：山楂果脯的包装编号是 BOX7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-07-x",
+      "text": "顾客林7保存了山楂果脯配方，温度为37度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "long-08-a",
+      "text": "顾客林8保存了檀木书签配方，温度为38度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-08-b",
+      "text": "普通存档long-08：檀木书签的包装编号是 BOX8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-08-x",
+      "text": "顾客林8保存了檀木书签配方，温度为38度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "long-09-a",
+      "text": "顾客林9保存了红枣米粥配方，温度为39度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-09-b",
+      "text": "普通存档long-09：红枣米粥的包装编号是 BOX9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "long-09-x",
+      "text": "顾客林9保存了红枣米粥配方，温度为39度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "similar-00-a",
+      "text": "紫砂茶壶需要冷藏，不能与桂花糕点混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-00-b",
+      "text": "普通存档similar-00：紫砂茶壶的包装编号是 BOX0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-00-x",
+      "text": "紫砂茶壶需要冷藏，不能与桂花糕点混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "similar-01-a",
+      "text": "桂花糕点需要冷藏，不能与低糖豆浆混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-01-b",
+      "text": "普通存档similar-01：桂花糕点的包装编号是 BOX1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-01-x",
+      "text": "桂花糕点需要冷藏，不能与低糖豆浆混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "similar-02-a",
+      "text": "低糖豆浆需要冷藏，不能与竹编书篮混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-02-b",
+      "text": "普通存档similar-02：低糖豆浆的包装编号是 BOX2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-02-x",
+      "text": "低糖豆浆需要冷藏，不能与竹编书篮混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "similar-03-a",
+      "text": "竹编书篮需要冷藏，不能与青瓷花瓶混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-03-b",
+      "text": "普通存档similar-03：竹编书篮的包装编号是 BOX3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-03-x",
+      "text": "竹编书篮需要冷藏，不能与青瓷花瓶混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "similar-04-a",
+      "text": "青瓷花瓶需要冷藏，不能与乌龙茶叶混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-04-b",
+      "text": "普通存档similar-04：青瓷花瓶的包装编号是 BOX4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-04-x",
+      "text": "青瓷花瓶需要冷藏，不能与乌龙茶叶混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "similar-05-a",
+      "text": "乌龙茶叶需要冷藏，不能与茉莉香包混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-05-b",
+      "text": "普通存档similar-05：乌龙茶叶的包装编号是 BOX5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-05-x",
+      "text": "乌龙茶叶需要冷藏，不能与茉莉香包混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "similar-06-a",
+      "text": "茉莉香包需要冷藏，不能与山楂果脯混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-06-b",
+      "text": "普通存档similar-06：茉莉香包的包装编号是 BOX6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-06-x",
+      "text": "茉莉香包需要冷藏，不能与山楂果脯混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "similar-07-a",
+      "text": "山楂果脯需要冷藏，不能与檀木书签混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-07-b",
+      "text": "普通存档similar-07：山楂果脯的包装编号是 BOX7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-07-x",
+      "text": "山楂果脯需要冷藏，不能与檀木书签混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "similar-08-a",
+      "text": "檀木书签需要冷藏，不能与红枣米粥混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-08-b",
+      "text": "普通存档similar-08：檀木书签的包装编号是 BOX8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-08-x",
+      "text": "檀木书签需要冷藏，不能与红枣米粥混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "similar-09-a",
+      "text": "红枣米粥需要冷藏，不能与紫砂茶壶混装。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-09-b",
+      "text": "普通存档similar-09：红枣米粥的包装编号是 BOX9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "similar-09-x",
+      "text": "红枣米粥需要冷藏，不能与紫砂茶壶混装。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-00-a",
+      "text": "顾客林0保存了紫砂茶壶配方，温度为30度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-00-b",
+      "text": "普通存档no_answer-00：紫砂茶壶的包装编号是 BOX0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-00-x",
+      "text": "顾客林0保存了紫砂茶壶配方，温度为30度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-01-a",
+      "text": "顾客林1保存了桂花糕点配方，温度为31度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-01-b",
+      "text": "普通存档no_answer-01：桂花糕点的包装编号是 BOX1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-01-x",
+      "text": "顾客林1保存了桂花糕点配方，温度为31度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-02-a",
+      "text": "顾客林2保存了低糖豆浆配方，温度为32度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-02-b",
+      "text": "普通存档no_answer-02：低糖豆浆的包装编号是 BOX2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-02-x",
+      "text": "顾客林2保存了低糖豆浆配方，温度为32度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-03-a",
+      "text": "顾客林3保存了竹编书篮配方，温度为33度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-03-b",
+      "text": "普通存档no_answer-03：竹编书篮的包装编号是 BOX3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-03-x",
+      "text": "顾客林3保存了竹编书篮配方，温度为33度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-04-a",
+      "text": "顾客林4保存了青瓷花瓶配方，温度为34度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-04-b",
+      "text": "普通存档no_answer-04：青瓷花瓶的包装编号是 BOX4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-04-x",
+      "text": "顾客林4保存了青瓷花瓶配方，温度为34度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-05-a",
+      "text": "顾客林5保存了乌龙茶叶配方，温度为35度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-05-b",
+      "text": "普通存档no_answer-05：乌龙茶叶的包装编号是 BOX5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-05-x",
+      "text": "顾客林5保存了乌龙茶叶配方，温度为35度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-06-a",
+      "text": "顾客林6保存了茉莉香包配方，温度为36度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-06-b",
+      "text": "普通存档no_answer-06：茉莉香包的包装编号是 BOX6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-06-x",
+      "text": "顾客林6保存了茉莉香包配方，温度为36度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-07-a",
+      "text": "顾客林7保存了山楂果脯配方，温度为37度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-07-b",
+      "text": "普通存档no_answer-07：山楂果脯的包装编号是 BOX7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-07-x",
+      "text": "顾客林7保存了山楂果脯配方，温度为37度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-08-a",
+      "text": "顾客林8保存了檀木书签配方，温度为38度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-08-b",
+      "text": "普通存档no_answer-08：檀木书签的包装编号是 BOX8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-08-x",
+      "text": "顾客林8保存了檀木书签配方，温度为38度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "no_answer-09-a",
+      "text": "顾客林9保存了红枣米粥配方，温度为39度。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-09-b",
+      "text": "普通存档no_answer-09：红枣米粥的包装编号是 BOX9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "no_answer-09-x",
+      "text": "顾客林9保存了红枣米粥配方，温度为39度。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-00-a",
+      "text": "2026年10月25日更新：紫砂茶壶最新采购负责人为林0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-00-b",
+      "text": "2025年旧记录：紫砂茶壶采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-00-x",
+      "text": "2026年10月25日更新：紫砂茶壶最新采购负责人为林0。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "time-01-a",
+      "text": "2026年10月25日更新：桂花糕点最新采购负责人为林1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-01-b",
+      "text": "2025年旧记录：桂花糕点采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-01-x",
+      "text": "2026年10月25日更新：桂花糕点最新采购负责人为林1。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-02-a",
+      "text": "2026年10月25日更新：低糖豆浆最新采购负责人为林2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-02-b",
+      "text": "2025年旧记录：低糖豆浆采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-02-x",
+      "text": "2026年10月25日更新：低糖豆浆最新采购负责人为林2。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "time-03-a",
+      "text": "2026年10月25日更新：竹编书篮最新采购负责人为林3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-03-b",
+      "text": "2025年旧记录：竹编书篮采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-03-x",
+      "text": "2026年10月25日更新：竹编书篮最新采购负责人为林3。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-04-a",
+      "text": "2026年10月25日更新：青瓷花瓶最新采购负责人为林4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-04-b",
+      "text": "2025年旧记录：青瓷花瓶采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-04-x",
+      "text": "2026年10月25日更新：青瓷花瓶最新采购负责人为林4。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "time-05-a",
+      "text": "2026年10月25日更新：乌龙茶叶最新采购负责人为林5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-05-b",
+      "text": "2025年旧记录：乌龙茶叶采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-05-x",
+      "text": "2026年10月25日更新：乌龙茶叶最新采购负责人为林5。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-06-a",
+      "text": "2026年10月25日更新：茉莉香包最新采购负责人为林6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-06-b",
+      "text": "2025年旧记录：茉莉香包采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-06-x",
+      "text": "2026年10月25日更新：茉莉香包最新采购负责人为林6。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "time-07-a",
+      "text": "2026年10月25日更新：山楂果脯最新采购负责人为林7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-07-b",
+      "text": "2025年旧记录：山楂果脯采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-07-x",
+      "text": "2026年10月25日更新：山楂果脯最新采购负责人为林7。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-08-a",
+      "text": "2026年10月25日更新：檀木书签最新采购负责人为林8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-08-b",
+      "text": "2025年旧记录：檀木书签采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-08-x",
+      "text": "2026年10月25日更新：檀木书签最新采购负责人为林8。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "time-09-a",
+      "text": "2026年10月25日更新：红枣米粥最新采购负责人为林9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "time-09-b",
+      "text": "2025年旧记录：红枣米粥采购负责人为旧联系人。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "time-09-x",
+      "text": "2026年10月25日更新：红枣米粥最新采购负责人为林9。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "scope-00-a",
+      "text": "紫砂茶壶的私人取货密码为 OWN0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-00-b",
+      "text": "普通存档scope-00：紫砂茶壶的包装编号是 BOX0。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-00-x",
+      "text": "紫砂茶壶的私人取货密码为 OWN0。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "scope-01-a",
+      "text": "桂花糕点的私人取货密码为 OWN1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-01-b",
+      "text": "普通存档scope-01：桂花糕点的包装编号是 BOX1。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-01-x",
+      "text": "桂花糕点的私人取货密码为 OWN1。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "scope-02-a",
+      "text": "低糖豆浆的私人取货密码为 OWN2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-02-b",
+      "text": "普通存档scope-02：低糖豆浆的包装编号是 BOX2。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-02-x",
+      "text": "低糖豆浆的私人取货密码为 OWN2。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "scope-03-a",
+      "text": "竹编书篮的私人取货密码为 OWN3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-03-b",
+      "text": "普通存档scope-03：竹编书篮的包装编号是 BOX3。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-03-x",
+      "text": "竹编书篮的私人取货密码为 OWN3。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "scope-04-a",
+      "text": "青瓷花瓶的私人取货密码为 OWN4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-04-b",
+      "text": "普通存档scope-04：青瓷花瓶的包装编号是 BOX4。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-04-x",
+      "text": "青瓷花瓶的私人取货密码为 OWN4。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "scope-05-a",
+      "text": "乌龙茶叶的私人取货密码为 OWN5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-05-b",
+      "text": "普通存档scope-05：乌龙茶叶的包装编号是 BOX5。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-05-x",
+      "text": "乌龙茶叶的私人取货密码为 OWN5。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "scope-06-a",
+      "text": "茉莉香包的私人取货密码为 OWN6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-06-b",
+      "text": "普通存档scope-06：茉莉香包的包装编号是 BOX6。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-06-x",
+      "text": "茉莉香包的私人取货密码为 OWN6。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "scope-07-a",
+      "text": "山楂果脯的私人取货密码为 OWN7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-07-b",
+      "text": "普通存档scope-07：山楂果脯的包装编号是 BOX7。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-07-x",
+      "text": "山楂果脯的私人取货密码为 OWN7。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    },
+    {
+      "document_id": "scope-08-a",
+      "text": "檀木书签的私人取货密码为 OWN8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-08-b",
+      "text": "普通存档scope-08：檀木书签的包装编号是 BOX8。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-08-x",
+      "text": "檀木书签的私人取货密码为 OWN8。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "other",
+      "readable": false
+    },
+    {
+      "document_id": "scope-09-a",
+      "text": "红枣米粥的私人取货密码为 OWN9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-09-b",
+      "text": "普通存档scope-09：红枣米粥的包装编号是 BOX9。",
+      "tags": [
+        "scope:private"
+      ],
+      "account": "main",
+      "readable": true
+    },
+    {
+      "document_id": "scope-09-x",
+      "text": "红枣米粥的私人取货密码为 OWN9。 此为群聊或另一账户的记录。",
+      "tags": [
+        "scope:group",
+        "group:fixture"
+      ],
+      "account": "main",
+      "readable": false
+    }
+  ],
+  "observations": [
+    {
+      "fact_id": "observation-0",
+      "text": "顾客林0保存了紫砂茶壶配方，温度为30度。",
+      "sources": [
+        "zh-00-a",
+        "zh-00-b"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    },
+    {
+      "fact_id": "observation-1",
+      "text": "顾客林1保存了桂花糕点配方，温度为31度。",
+      "sources": [
+        "zh-01-a",
+        "zh-01-b"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    },
+    {
+      "fact_id": "observation-2",
+      "text": "顾客林2保存了低糖豆浆配方，温度为32度。",
+      "sources": [
+        "zh-02-a",
+        "zh-02-b"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    },
+    {
+      "fact_id": "observation-3",
+      "text": "顾客林3保存了竹编书篮配方，温度为33度。",
+      "sources": [
+        "zh-03-a",
+        "zh-03-b"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    },
+    {
+      "fact_id": "observation-4",
+      "text": "顾客林4保存了青瓷花瓶配方，温度为34度。",
+      "sources": [
+        "zh-04-a",
+        "zh-04-b"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    },
+    {
+      "fact_id": "observation-5",
+      "text": "顾客林5保存了乌龙茶叶配方，温度为35度。",
+      "sources": [
+        "zh-05-a",
+        "missing-source"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    },
+    {
+      "fact_id": "observation-6",
+      "text": "顾客林6保存了茉莉香包配方，温度为36度。",
+      "sources": [
+        "zh-06-a",
+        "missing-source"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    },
+    {
+      "fact_id": "observation-7",
+      "text": "顾客林7保存了山楂果脯配方，温度为37度。",
+      "sources": [
+        "zh-07-a",
+        "missing-source"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    },
+    {
+      "fact_id": "observation-8",
+      "text": "顾客林8保存了檀木书签配方，温度为38度。",
+      "sources": [
+        "zh-08-a",
+        "missing-source"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    },
+    {
+      "fact_id": "observation-9",
+      "text": "顾客林9保存了红枣米粥配方，温度为39度。",
+      "sources": [
+        "zh-09-a",
+        "missing-source"
+      ],
+      "tags": [
+        "scope:private"
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "case_id": "zh-00",
+      "group": "zh",
+      "query": "紫砂茶壶配方",
+      "frozen_rewrite": "紫砂茶壶配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-00-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-0": [
+          "zh-00-a",
+          "zh-00-b"
+        ]
+      }
+    },
+    {
+      "case_id": "zh-01",
+      "group": "zh",
+      "query": "桂花糕点配方",
+      "frozen_rewrite": "桂花糕点配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-01-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-1": [
+          "zh-01-a",
+          "zh-01-b"
+        ]
+      }
+    },
+    {
+      "case_id": "zh-02",
+      "group": "zh",
+      "query": "低糖豆浆配方",
+      "frozen_rewrite": "低糖豆浆配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-02-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-2": [
+          "zh-02-a",
+          "zh-02-b"
+        ]
+      }
+    },
+    {
+      "case_id": "zh-03",
+      "group": "zh",
+      "query": "竹编书篮配方",
+      "frozen_rewrite": "竹编书篮配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-03-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-3": [
+          "zh-03-a",
+          "zh-03-b"
+        ]
+      }
+    },
+    {
+      "case_id": "zh-04",
+      "group": "zh",
+      "query": "青瓷花瓶配方",
+      "frozen_rewrite": "青瓷花瓶配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-04-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-4": [
+          "zh-04-a",
+          "zh-04-b"
+        ]
+      }
+    },
+    {
+      "case_id": "zh-05",
+      "group": "zh",
+      "query": "乌龙茶叶配方",
+      "frozen_rewrite": "乌龙茶叶配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-05-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-5": [
+          "zh-05-a",
+          "missing-source"
+        ]
+      }
+    },
+    {
+      "case_id": "zh-06",
+      "group": "zh",
+      "query": "茉莉香包配方",
+      "frozen_rewrite": "茉莉香包配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-06-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-6": [
+          "zh-06-a",
+          "missing-source"
+        ]
+      }
+    },
+    {
+      "case_id": "zh-07",
+      "group": "zh",
+      "query": "山楂果脯配方",
+      "frozen_rewrite": "山楂果脯配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-07-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-7": [
+          "zh-07-a",
+          "missing-source"
+        ]
+      }
+    },
+    {
+      "case_id": "zh-08",
+      "group": "zh",
+      "query": "檀木书签配方",
+      "frozen_rewrite": "檀木书签配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-08-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-8": [
+          "zh-08-a",
+          "missing-source"
+        ]
+      }
+    },
+    {
+      "case_id": "zh-09",
+      "group": "zh",
+      "query": "红枣米粥配方",
+      "frozen_rewrite": "红枣米粥配方",
+      "mode": "original_offline",
+      "relevance": {
+        "zh-09-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {
+        "observation-9": [
+          "zh-09-a",
+          "missing-source"
+        ]
+      }
+    },
+    {
+      "case_id": "mixed-00",
+      "group": "mixed",
+      "query": "Orchid0 Redis",
+      "frozen_rewrite": "Orchid0 Redis",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-00-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "mixed-01",
+      "group": "mixed",
+      "query": "Orchid1 Redis",
+      "frozen_rewrite": "Orchid1 Redis",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-01-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "mixed-02",
+      "group": "mixed",
+      "query": "Orchid2 Redis",
+      "frozen_rewrite": "Orchid2 Redis",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-02-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "mixed-03",
+      "group": "mixed",
+      "query": "Orchid3 Redis",
+      "frozen_rewrite": "Orchid3 Redis",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-03-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "mixed-04",
+      "group": "mixed",
+      "query": "Orchid4 Redis",
+      "frozen_rewrite": "Orchid4 Redis",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-04-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "mixed-05",
+      "group": "mixed",
+      "query": "Redis 乌龙茶叶",
+      "frozen_rewrite": "Redis 乌龙茶叶",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-05-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "mixed-06",
+      "group": "mixed",
+      "query": "Redis 茉莉香包",
+      "frozen_rewrite": "Redis 茉莉香包",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-06-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "mixed-07",
+      "group": "mixed",
+      "query": "Redis 山楂果脯",
+      "frozen_rewrite": "Redis 山楂果脯",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-07-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "mixed-08",
+      "group": "mixed",
+      "query": "Redis 檀木书签",
+      "frozen_rewrite": "Redis 檀木书签",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-08-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "mixed-09",
+      "group": "mixed",
+      "query": "Redis 红枣米粥",
+      "frozen_rewrite": "Redis 红枣米粥",
+      "mode": "original_offline",
+      "relevance": {
+        "mixed-09-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-00",
+      "group": "identifier",
+      "query": "HPERR_730 /srv/hpagent/config0.yaml",
+      "frozen_rewrite": "HPERR_730 /srv/hpagent/config0.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-00-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-01",
+      "group": "identifier",
+      "query": "HPERR_731 /srv/hpagent/config1.yaml",
+      "frozen_rewrite": "HPERR_731 /srv/hpagent/config1.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-01-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-02",
+      "group": "identifier",
+      "query": "HPERR_732 /srv/hpagent/config2.yaml",
+      "frozen_rewrite": "HPERR_732 /srv/hpagent/config2.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-02-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-03",
+      "group": "identifier",
+      "query": "HPERR_733 /srv/hpagent/config3.yaml",
+      "frozen_rewrite": "HPERR_733 /srv/hpagent/config3.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-03-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-04",
+      "group": "identifier",
+      "query": "HPERR_734 /srv/hpagent/config4.yaml",
+      "frozen_rewrite": "HPERR_734 /srv/hpagent/config4.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-04-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-05",
+      "group": "identifier",
+      "query": "HPERR_735 /srv/hpagent/config5.yaml",
+      "frozen_rewrite": "HPERR_735 /srv/hpagent/config5.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-05-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-06",
+      "group": "identifier",
+      "query": "HPERR_736 /srv/hpagent/config6.yaml",
+      "frozen_rewrite": "HPERR_736 /srv/hpagent/config6.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-06-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-07",
+      "group": "identifier",
+      "query": "HPERR_737 /srv/hpagent/config7.yaml",
+      "frozen_rewrite": "HPERR_737 /srv/hpagent/config7.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-07-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-08",
+      "group": "identifier",
+      "query": "HPERR_738 /srv/hpagent/config8.yaml",
+      "frozen_rewrite": "HPERR_738 /srv/hpagent/config8.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-08-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "identifier-09",
+      "group": "identifier",
+      "query": "HPERR_739 /srv/hpagent/config9.yaml",
+      "frozen_rewrite": "HPERR_739 /srv/hpagent/config9.yaml",
+      "mode": "original_offline",
+      "relevance": {
+        "identifier-09-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-00",
+      "group": "alias",
+      "query": "香韵0号",
+      "frozen_rewrite": "香韵0号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-00-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-01",
+      "group": "alias",
+      "query": "香韵1号",
+      "frozen_rewrite": "香韵1号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-01-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-02",
+      "group": "alias",
+      "query": "香韵2号",
+      "frozen_rewrite": "香韵2号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-02-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-03",
+      "group": "alias",
+      "query": "香韵3号",
+      "frozen_rewrite": "香韵3号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-03-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-04",
+      "group": "alias",
+      "query": "香韵4号",
+      "frozen_rewrite": "香韵4号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-04-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-05",
+      "group": "alias",
+      "query": "香韵5号",
+      "frozen_rewrite": "香韵5号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-05-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-06",
+      "group": "alias",
+      "query": "香韵6号",
+      "frozen_rewrite": "香韵6号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-06-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-07",
+      "group": "alias",
+      "query": "香韵7号",
+      "frozen_rewrite": "香韵7号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-07-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-08",
+      "group": "alias",
+      "query": "香韵8号",
+      "frozen_rewrite": "香韵8号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-08-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "alias-09",
+      "group": "alias",
+      "query": "香韵9号",
+      "frozen_rewrite": "香韵9号",
+      "mode": "original_offline",
+      "relevance": {
+        "alias-09-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-00",
+      "group": "normalization",
+      "query": "project k0",
+      "frozen_rewrite": "project k0",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-00-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-01",
+      "group": "normalization",
+      "query": "project k1",
+      "frozen_rewrite": "project k1",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-01-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-02",
+      "group": "normalization",
+      "query": "project k2",
+      "frozen_rewrite": "project k2",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-02-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-03",
+      "group": "normalization",
+      "query": "project k3",
+      "frozen_rewrite": "project k3",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-03-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-04",
+      "group": "normalization",
+      "query": "project k4",
+      "frozen_rewrite": "project k4",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-04-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-05",
+      "group": "normalization",
+      "query": "project k5",
+      "frozen_rewrite": "project k5",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-05-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-06",
+      "group": "normalization",
+      "query": "project k6",
+      "frozen_rewrite": "project k6",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-06-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-07",
+      "group": "normalization",
+      "query": "project k7",
+      "frozen_rewrite": "project k7",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-07-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-08",
+      "group": "normalization",
+      "query": "project k8",
+      "frozen_rewrite": "project k8",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-08-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "normalization-09",
+      "group": "normalization",
+      "query": "project k9",
+      "frozen_rewrite": "project k9",
+      "mode": "original_offline",
+      "relevance": {
+        "normalization-09-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-00",
+      "group": "long",
+      "query": "请查找此前记录中有关林0所保存的紫砂茶壶配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林0所保存的紫砂茶壶配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-00-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-01",
+      "group": "long",
+      "query": "请查找此前记录中有关林1所保存的桂花糕点配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林1所保存的桂花糕点配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-01-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-02",
+      "group": "long",
+      "query": "请查找此前记录中有关林2所保存的低糖豆浆配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林2所保存的低糖豆浆配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-02-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-03",
+      "group": "long",
+      "query": "请查找此前记录中有关林3所保存的竹编书篮配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林3所保存的竹编书篮配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-03-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-04",
+      "group": "long",
+      "query": "请查找此前记录中有关林4所保存的青瓷花瓶配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林4所保存的青瓷花瓶配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-04-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-05",
+      "group": "long",
+      "query": "请查找此前记录中有关林5所保存的乌龙茶叶配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林5所保存的乌龙茶叶配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-05-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-06",
+      "group": "long",
+      "query": "请查找此前记录中有关林6所保存的茉莉香包配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林6所保存的茉莉香包配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-06-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-07",
+      "group": "long",
+      "query": "请查找此前记录中有关林7所保存的山楂果脯配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林7所保存的山楂果脯配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-07-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-08",
+      "group": "long",
+      "query": "请查找此前记录中有关林8所保存的檀木书签配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林8所保存的檀木书签配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-08-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "long-09",
+      "group": "long",
+      "query": "请查找此前记录中有关林9所保存的红枣米粥配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "frozen_rewrite": "请查找此前记录中有关林9所保存的红枣米粥配方的信息，尤其是设定的温度，给出已有记录里确切的参数，不要推测。",
+      "mode": "original_offline",
+      "relevance": {
+        "long-09-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-00",
+      "group": "similar",
+      "query": "紫砂茶壶冷藏",
+      "frozen_rewrite": "紫砂茶壶冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-00-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-01",
+      "group": "similar",
+      "query": "桂花糕点冷藏",
+      "frozen_rewrite": "桂花糕点冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-01-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-02",
+      "group": "similar",
+      "query": "低糖豆浆冷藏",
+      "frozen_rewrite": "低糖豆浆冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-02-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-03",
+      "group": "similar",
+      "query": "竹编书篮冷藏",
+      "frozen_rewrite": "竹编书篮冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-03-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-04",
+      "group": "similar",
+      "query": "青瓷花瓶冷藏",
+      "frozen_rewrite": "青瓷花瓶冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-04-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-05",
+      "group": "similar",
+      "query": "乌龙茶叶冷藏",
+      "frozen_rewrite": "乌龙茶叶冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-05-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-06",
+      "group": "similar",
+      "query": "茉莉香包冷藏",
+      "frozen_rewrite": "茉莉香包冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-06-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-07",
+      "group": "similar",
+      "query": "山楂果脯冷藏",
+      "frozen_rewrite": "山楂果脯冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-07-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-08",
+      "group": "similar",
+      "query": "檀木书签冷藏",
+      "frozen_rewrite": "檀木书签冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-08-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "similar-09",
+      "group": "similar",
+      "query": "红枣米粥冷藏",
+      "frozen_rewrite": "红枣米粥冷藏",
+      "mode": "original_offline",
+      "relevance": {
+        "similar-09-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-00",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN0",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN0",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-01",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN1",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN1",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-02",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN2",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN2",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-03",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN3",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN3",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-04",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN4",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN4",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-05",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN5",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN5",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-06",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN6",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN6",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-07",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN7",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN7",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-08",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN8",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN8",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "no_answer-09",
+      "group": "no_answer",
+      "query": "不存在的火星航线编号 ZXUNKNOWN9",
+      "frozen_rewrite": "不存在的火星航线编号 ZXUNKNOWN9",
+      "mode": "original_offline",
+      "relevance": {},
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-00",
+      "group": "time",
+      "query": "紫砂茶壶最新采购负责人",
+      "frozen_rewrite": "紫砂茶壶最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-00-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-01",
+      "group": "time",
+      "query": "桂花糕点最新采购负责人",
+      "frozen_rewrite": "桂花糕点最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-01-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-02",
+      "group": "time",
+      "query": "低糖豆浆最新采购负责人",
+      "frozen_rewrite": "低糖豆浆最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-02-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-03",
+      "group": "time",
+      "query": "竹编书篮最新采购负责人",
+      "frozen_rewrite": "竹编书篮最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-03-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-04",
+      "group": "time",
+      "query": "青瓷花瓶最新采购负责人",
+      "frozen_rewrite": "青瓷花瓶最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-04-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-05",
+      "group": "time",
+      "query": "乌龙茶叶最新采购负责人",
+      "frozen_rewrite": "乌龙茶叶最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-05-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-06",
+      "group": "time",
+      "query": "茉莉香包最新采购负责人",
+      "frozen_rewrite": "茉莉香包最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-06-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-07",
+      "group": "time",
+      "query": "山楂果脯最新采购负责人",
+      "frozen_rewrite": "山楂果脯最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-07-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-08",
+      "group": "time",
+      "query": "檀木书签最新采购负责人",
+      "frozen_rewrite": "檀木书签最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-08-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "time-09",
+      "group": "time",
+      "query": "红枣米粥最新采购负责人",
+      "frozen_rewrite": "红枣米粥最新采购负责人",
+      "mode": "original_offline",
+      "relevance": {
+        "time-09-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-00",
+      "group": "scope",
+      "query": "紫砂茶壶取货密码",
+      "frozen_rewrite": "紫砂茶壶取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-00-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-01",
+      "group": "scope",
+      "query": "桂花糕点取货密码",
+      "frozen_rewrite": "桂花糕点取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-01-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-02",
+      "group": "scope",
+      "query": "低糖豆浆取货密码",
+      "frozen_rewrite": "低糖豆浆取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-02-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-03",
+      "group": "scope",
+      "query": "竹编书篮取货密码",
+      "frozen_rewrite": "竹编书篮取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-03-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-04",
+      "group": "scope",
+      "query": "青瓷花瓶取货密码",
+      "frozen_rewrite": "青瓷花瓶取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-04-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-05",
+      "group": "scope",
+      "query": "乌龙茶叶取货密码",
+      "frozen_rewrite": "乌龙茶叶取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-05-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-06",
+      "group": "scope",
+      "query": "茉莉香包取货密码",
+      "frozen_rewrite": "茉莉香包取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-06-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-07",
+      "group": "scope",
+      "query": "山楂果脯取货密码",
+      "frozen_rewrite": "山楂果脯取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-07-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-08",
+      "group": "scope",
+      "query": "檀木书签取货密码",
+      "frozen_rewrite": "檀木书签取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-08-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    },
+    {
+      "case_id": "scope-09",
+      "group": "scope",
+      "query": "红枣米粥取货密码",
+      "frozen_rewrite": "红枣米粥取货密码",
+      "mode": "original_offline",
+      "relevance": {
+        "scope-09-a": 2
+      },
+      "allowed_scope": [
+        "scope:private"
+      ],
+      "expected_observation_sources": {}
+    }
+  ]
+}

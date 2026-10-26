@@ -1552,6 +1552,9 @@ class DurableAgentActivities:
                 "failed",
                 {"error_code": getattr(exc, "type", None) or type(exc).__name__},
             )
+            governance = classify_model_governance_failure(exc)
+            if governance is not None:
+                raise ApplicationError(governance.safe_message, type=governance.code, non_retryable=True) from exc
             raise
         finally:
             await events.close()

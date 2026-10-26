@@ -8,8 +8,8 @@ import os
 import re
 import subprocess
 import sys
-from pathlib import Path
 from contextlib import contextmanager
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
@@ -33,9 +33,20 @@ def filled(value: object) -> bool:
 def secret_values(model: dict) -> list[str]:
     values = []
     for service in model.get("services", {}).values():
-        for name, value in (service.get("environment") or {}).items():
+        environment = service.get("environment") or {}
+        for name, value in environment.items():
             if re.search(r"(?:KEY|PASSWORD|SECRET|PEPPER|TOKEN)$", name) and value:
                 values.append(str(value))
+        quality_mount = next((v for v in service.get("volumes", [])
+                              if v.get("target") == "/etc/hpagent/hindsight.yaml"), None)
+        if quality_mount:
+            from memory.quality_config import MemoryQualityConfig
+            quality = MemoryQualityConfig.from_yaml(quality_mount["source"])
+            if quality.service:
+                for role in ('llm', 'retain_llm', 'consolidation_llm', 'embeddings', 'reranker'):
+                    connection = getattr(quality.service, role)
+                    if connection and environment.get(connection.api_key_env):
+                        values.append(str(environment[connection.api_key_env]))
     return sorted(set(values), key=len, reverse=True)
 
 
@@ -85,6 +96,7 @@ def worker_environment(values: dict):
 def summarize(model: dict) -> dict:
     # Imports the settings parser only, not Worker/clients; no network requests.
     import yaml
+
     from orchestration.config import ModelsConfig
 
     services = model.get("services", {})
@@ -114,17 +126,39 @@ def summarize(model: dict) -> dict:
                          "key_configured": key_ok, "url_configured": url_ok,
                          "used_by": USES[category]})
 
-    hindsight_env = services.get("hindsight", {}).get("environment", {})
+    hindsight_service = services.get("hindsight", {})
+    hindsight_env = dict(hindsight_service.get("environment", {}))
+    explicit_hindsight_env = dict(hindsight_env)
+    quality_mount = next((v for v in hindsight_service.get("volumes", [])
+                          if v.get("target") == "/etc/hpagent/hindsight.yaml"), None)
+    if quality_mount:
+        from memory.quality_config import MemoryQualityConfig
+        quality = MemoryQualityConfig.from_yaml(quality_mount["source"])
+        hindsight_env.update(quality.service_environment(hindsight_env))
     hindsight = []
     for role, prefix in (("llm", "HINDSIGHT_API_LLM"),
                          ("embedding", "HINDSIGHT_API_EMBEDDINGS_OPENAI"),
-                         ("rerank", "HINDSIGHT_API_RERANKER_SILICONFLOW")):
+                         ("rerank", "HINDSIGHT_API_RERANKER_SILICONFLOW"),
+                         ("retain", "HINDSIGHT_API_RETAIN_LLM"),
+                         ("consolidation", "HINDSIGHT_API_CONSOLIDATION_LLM")):
+        per_operation = role in {"retain", "consolidation"}
+        inherited = per_operation and not hindsight_env.get(prefix + "_MODEL")
+        if per_operation:
+            hindsight_env = {**hindsight_env, **{
+                prefix + suffix: hindsight_env.get(prefix + suffix) or hindsight_env.get("HINDSIGHT_API_LLM" + suffix, "")
+                for suffix in ("_PROVIDER", "_MODEL", "_API_KEY", "_BASE_URL")}}
         key_name = prefix + "_API_KEY"
         row = {"role": role, "model": hindsight_env.get(prefix + "_MODEL", ""),
                "key_configured": filled(hindsight_env.get(key_name)),
                "url_configured": filled(hindsight_env.get(prefix + "_BASE_URL"))}
-        if role == "llm":
-            row["adapter"] = hindsight_env.get("HINDSIGHT_API_LLM_PROVIDER", "")
+        if role in {"llm", "retain", "consolidation"}:
+            row["adapter"] = hindsight_env.get(prefix + "_PROVIDER", "")
+        if inherited:
+            row["inherited_from"] = "llm"
+        row["model_source"] = (
+            "llm" if inherited else "environment:" + prefix + "_MODEL"
+            if explicit_hindsight_env.get(prefix + "_MODEL") or not quality_mount
+            else "config/hindsight.yaml:service." + {"embedding": "embeddings", "rerank": "reranker", "retain": "retain_llm", "consolidation": "consolidation_llm"}.get(role, role) + ".model")
         if not (filled(row["model"]) and row["key_configured"] and row["url_configured"]):
             issues.append(f"hindsight.{role}模型名、地址或凭据缺失/未展开/占位")
         hindsight.append(row)

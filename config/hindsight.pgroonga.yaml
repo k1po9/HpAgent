@@ -1,0 +1,80 @@
+# Hindsight 1.1.0 质量参数。连接和 Recall 门控仍在 config.yaml。
+schema_version: 1
+target:
+  api_version: "1.1.0"
+  image_digest: "sha256:50311d02b4d5d2b7c5242bd336edf8735df8374eaad496a92f49c83b37d2aa06"
+
+bank:
+  retain_extraction_mode: concise
+  retain_chunk_size: 3000
+  retain_structured_chunk_size: null
+  retain_max_attachments_per_chunk: 8
+  entity_labels: null
+  entities_allow_free_form: true
+  enable_observations: true
+  enable_auto_consolidation: true
+  consolidation_llm_batch_size: 8
+  consolidation_source_facts_max_tokens: 4096
+  consolidation_source_facts_max_tokens_per_observation: 256
+  enable_text_search: true
+  enable_temporal_retrieval: true
+  enable_graph_retrieval: true
+  enable_reranking: true
+  # 三种 mission/custom 文本由 prompts/memory.yaml 编译，不在这里重复。
+  # default_observation_scopes 由逐 item 的可信作用域替代，不提供自由设置。
+
+query:
+  mode: hyde                    # original | hyde；沿用 models.yaml 的 fast
+  timestamp_source: trigger_message
+
+recall:
+  types: [world, experience, observation]
+  budget: mid
+  max_tokens: 4096
+  top_n: 5
+  prefer_observations: false
+  temporal_window: null
+  min_scores:
+    semantic: null
+    keyword: null
+    reranker: null
+    final: null
+  source_facts:
+    max_tokens: 4096
+    max_tokens_per_observation: -1
+  include_entities: true        # 先保持当前默认；对照评测后可关闭未消费数据
+  entities_max_tokens: 500
+
+diagnostics:
+  trace: false
+
+service:
+  text_search:
+    extension: pgroonga         # P5 prepared candidate; source native file is unchanged
+  llm:
+    provider: openai
+    base_url: "${MINIMAX_API_BASE_URL}"
+    api_key_env: MINIMAX_API_KEY
+    model: "${MINIMAX_STANDARD_MODEL}"
+  retain_llm: null              # null：沿用全局 LLM，不自动另选模型
+  consolidation_llm: null
+  embeddings:
+    provider: openai
+    base_url: "${SILICONFLOW_BASE_URL}"
+    api_key_env: SILICONFLOW_API_KEY
+    model: "${SILICONFLOW_EMBEDDING_MODEL}"
+    dimensions: null            # 沿用现有服务行为；变更需要专门迁移
+  reranker:
+    provider: siliconflow
+    base_url: "${SILICONFLOW_BASE_URL}"
+    api_key_env: SILICONFLOW_API_KEY
+    model: "${SILICONFLOW_RERANK_MODEL}"
+  # 原生输出容量会影响提取是否截断，附加纳入服务级配置。
+  retain_max_completion_tokens: 64000
+
+reference_only:
+  reflect:
+    status: inactive            # 不提供 enabled=true 路径
+    disposition_skepticism: 3
+    disposition_literalism: 3
+    disposition_empathy: 3

@@ -16,12 +16,12 @@ from memory.hindsight_client import MemoryItem
 
 
 class FailingRecall:
-    async def recall(self, *args, **kwargs):
+    async def recall_candidates(self, *args, **kwargs):
         raise OSError("temporarily unavailable")
 
 
 class CrossAccountRecall:
-    async def recall(self, *args, **kwargs):
+    async def recall_candidates(self, *args, **kwargs):
         item = MemoryItem(content="must not enter prompt")
         item.account_id = "other-account"
         return [item]
@@ -126,3 +126,35 @@ def test_source_profile_selector_preserves_all_profiles_and_legacy_rows(
     origin, strategy, expected
 ):
     assert select_interaction_profile(origin, strategy) == expected
+
+
+@pytest.mark.parametrize("origin,expected", [
+    ({}, ("private", "")),
+    ({"channel_type": "napcat", "scope": "group", "context_key": "route-A"}, ("group", "route-A")),
+    ({"channel_type": "napcat", "scope": "group"}, None),
+    ({"channel_type": "napcat"}, None),
+    ({"channel_type": "web", "scope": "unknown"}, None),
+])
+async def test_chat_assembly_uses_only_trusted_scope(origin, expected):
+    from uuid import uuid4
+
+    calls = []
+
+    class Recall:
+        async def recall_candidates(self, *args, **kwargs):
+            calls.append(kwargs)
+            return []
+
+    service = ContextAssemblyService("unused", HarnessContextBuilder(), Recall())
+    base = WebContextBase(
+        run_id=uuid4(), account_id=uuid4(), conversation_id=uuid4(), session_id=None,
+        execution_id=uuid4(), context_message_seq=1, trigger_message_id=uuid4(),
+        trigger_content="hello", short_term_events=(), origin=origin,
+    )
+    assert await service.recall_long_term(base, "q") == ()
+    if expected is None:
+        assert calls == []
+    else:
+        assert (calls[0]["scope"], calls[0]["group_id"]) == expected
+        assert calls[0]["tags_match"] == "all_strict"
+        assert calls[0]["user_id"] == str(base.account_id)

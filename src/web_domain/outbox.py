@@ -15,7 +15,7 @@ from persistence.uow import UnitOfWork, retryable_transaction
 from .errors import OutboxLeaseLost, ResourceNotFound
 
 OUTBOX_EVENT_TYPES = frozenset(
-    {"start_run", "cancel_run", "retain_memory", "publish_terminal_event",
+    {"start_run", "cancel_run", "retain_memory", "memory_action", "publish_terminal_event",
      "publish_work_event", "file_action_approval_decided"}
 )
 

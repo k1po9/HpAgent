@@ -68,8 +68,10 @@ def assert_execution_fence(uow):
     if fence is None:
         return
     account_id, run_id, execution_id, token = fence
+    from persistence.memory_context import check_execution
     try:
         require_active_run(uow, account_id, run_id)
+        check_execution(uow, account_id, run_id, execution_id)
         execution = lock_execution(uow, account_id, run_id, execution_id)
         if execution["status"] not in {"queued", "running"}:
             raise RunNotExecutable("Execution is terminal or fenced")

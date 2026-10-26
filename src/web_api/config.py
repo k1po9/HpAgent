@@ -21,6 +21,8 @@ class WebApiSettings:
     qq_binding_challenge_seconds: int = 300
     environment: str = "development"
     worker_database_url: str | None = None
+    hindsight_url: str | None = None
+    hindsight_api_key: str = ""
     session_absolute_seconds: int = 7 * 24 * 60 * 60
     session_idle_seconds: int = 24 * 60 * 60
     cursor_ttl_seconds: int = 24 * 60 * 60
@@ -114,6 +116,8 @@ class WebApiSettings:
         return cls(
             database_url=os.environ["APP_DATABASE_URL"],
             worker_database_url=os.getenv("WORKER_DATABASE_URL"),
+            hindsight_url=os.getenv("HINDSIGHT_URL", "http://hindsight:8888"),
+            hindsight_api_key=os.getenv("HINDSIGHT_API_KEY", ""),
             public_origin=raw_public_origin or "https://localhost",
             cursor_signing_keys={name: value.encode() for name, value in cursor_keys.items()},
             active_cursor_key_id=key_id,

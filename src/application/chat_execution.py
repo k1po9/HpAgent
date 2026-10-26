@@ -64,6 +64,7 @@ class PostgresWebRequestLoader:
         )
         try:
             base = await asyncio.to_thread(load_base)
+            await asyncio.to_thread(self._context.bind_base, base)
             correlation["surface"] = base.origin.get("channel_type", "web")
             # Long-term recall remains inside the execution loop, where a rewrite
             # query exists; this loader only provides the frozen short-term snapshot.

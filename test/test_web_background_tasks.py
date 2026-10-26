@@ -50,6 +50,7 @@ class _FakeOutbox:
         self._claimed = False
 
     def claim(self, worker_id, event_types, limit):
+        assert event_types == {'retain_memory', 'memory_action'}
         if self._claimed:
             return []
         self._claimed = True
@@ -76,20 +77,19 @@ class _FakeOutbox:
 
 
 class _FakeMemoryRetention:
-    def __init__(self):
+    def __init__(self, outbox):
         self.runs: list[str] = []
+        self.outbox = outbox
 
-    async def retain_completed_run(self, run_id):
-        from application.memory_retention import RetainOutcome
-
-        self.runs.append(str(run_id))
-        return RetainOutcome(accepted=True, document_id=f"web-run:{run_id}")
+    async def process_event(self, event, worker_id):
+        self.runs.append(str(event['run_id']))
+        self.outbox.mark_processed(event['outbox_event_id'], worker_id)
 
 
 @pytest.mark.asyncio
 async def test_background_tasks_wire_memory_retention_and_consume_outbox():
     outbox = _FakeOutbox()
-    retention = _FakeMemoryRetention()
+    retention = _FakeMemoryRetention(outbox)
     tasks = BackgroundTasks()
     start_durable_background_tasks(
         tasks=tasks,
@@ -117,6 +117,7 @@ async def test_background_tasks_wire_memory_retention_and_consume_outbox():
     assert outbox.processed, "retain_memory event must be marked processed"
     assert retention.runs == ["22222222-2222-4222-8222-222222222222"]
     assert outbox.recovered, "retain_memory recovery sweep must run"
+    assert any(args[1] == {'retain_memory', 'memory_action'} for args in outbox.recovered)
 
     await tasks.close()
 

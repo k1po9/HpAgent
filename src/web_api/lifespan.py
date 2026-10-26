@@ -54,6 +54,10 @@ def create_lifespan(
 
                 logging.getLogger("HpAgent.WebAPI").exception("API schema gate failed")
                 raise
+            from application.memory_governance import MemoryGovernanceService
+            from memory.hindsight_client import HindsightClient
+            memory_reader = HindsightClient(settings.hindsight_url, api_key=settings.hindsight_api_key) if settings.hindsight_url else None
+            app.state.memory_governance = MemoryGovernanceService(api_pool, memory_reader)
             app.state.api_pool = api_pool
             app.state.auth = AuthService(api_pool, settings)
             app.state.credentials = credential_adapter or PostgresPasswordCredentialAdapter(

@@ -1,0 +1,71 @@
+# Rendered target rehearsal only, never includes the business .env/network/volumes.
+services:
+  postgres:
+    image: hpagent/hindsight-pgroonga@sha256:a008bbd49808d2b3574fb7bae19855deeab10093c982ba4a3b53ec1fb95070fa
+    pull_policy: never
+    cpus: 0.5
+    mem_limit: 512m
+    environment:
+      POSTGRES_USER: hindsight
+      POSTGRES_PASSWORD: fixture-only
+      POSTGRES_DB: hindsight_110_pgroonga
+    command: [-c, shared_buffers=128MB, -c, work_mem=8MB, -c, maintenance_work_mem=64MB, -c, effective_cache_size=256MB, -c, wal_buffers=16MB, -c, max_wal_size=1GB]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../../../scripts/operations/hindsight-pgroonga-init.sql:/docker-entrypoint-initdb.d/10-extensions.sql:ro
+    healthcheck:
+      test: [CMD, pg_isready, -U, hindsight, -d, hindsight_110_pgroonga]
+      interval: 1s
+      retries: 45
+    networks: [isolated]
+  models:
+    image: ghcr.io/vectorize-io/hindsight:1.1.0@sha256:50311d02b4d5d2b7c5242bd336edf8735df8374eaad496a92f49c83b37d2aa06
+    entrypoint: [/app/api/.venv/bin/python, /fixtures/hindsight_pgroonga_models.py]
+    volumes: [..:/fixtures:ro]
+    networks: [isolated]
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:1.1.0@sha256:50311d02b4d5d2b7c5242bd336edf8735df8374eaad496a92f49c83b37d2aa06
+    cpus: 1
+    mem_limit: 1g
+    environment:
+      HINDSIGHT_API_DATABASE_URL: postgresql://hindsight:fixture-only@postgres:5432/hindsight_110_pgroonga
+      HINDSIGHT_API_SKIP_LLM_VERIFICATION: 'true'
+      HINDSIGHT_ENABLE_CP: 'false'
+      HINDSIGHT_API_CONSOLIDATION_RECONCILE_INTERVAL_SECONDS: '1'
+      MINIMAX_API_BASE_URL: http://models:8181/v1
+      MINIMAX_API_KEY: fixture-only
+      MINIMAX_STANDARD_MODEL: unused-no-chat-calls
+      SILICONFLOW_BASE_URL: http://models:8181/v1
+      SILICONFLOW_API_KEY: fixture-only
+      SILICONFLOW_EMBEDDING_MODEL: g1-fixture
+      SILICONFLOW_RERANK_MODEL: fixture-rerank
+    entrypoint: [python, /opt/hpagent-memory/hindsight-entrypoint.py]
+    volumes:
+      - ../../../config/hindsight.pgroonga.yaml:/etc/hpagent/hindsight.yaml:ro
+      - ../../../src/memory/quality_config.py:/opt/hpagent-memory/quality_config.py:ro
+      - ../../../scripts/operations/hindsight-entrypoint.py:/opt/hpagent-memory/hindsight-entrypoint.py:ro
+      - ../../../scripts/operations/start-hindsight.sh:/app/start-all.sh:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+      models: {condition: service_started}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request;urllib.request.urlopen('http://localhost:8888/health',timeout=3)"]
+      interval: 2s
+      retries: 60
+    networks: [isolated]
+  app-postgres:
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    environment:
+      POSTGRES_USER: hpagent_migration
+      POSTGRES_PASSWORD: fixture-only
+      POSTGRES_DB: hpagent_pgroonga_test
+    volumes:
+      - appdata:/var/lib/postgresql/data
+      - ./application-init.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    networks: [isolated]
+volumes:
+  pgdata:
+  appdata:
+networks:
+  isolated:
+    internal: true

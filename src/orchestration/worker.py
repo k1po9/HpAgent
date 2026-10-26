@@ -198,8 +198,7 @@ async def start_worker(config: AppConfig) -> None:
             await setup_metrics_schedule(client, config)
 
             logger.info(
-                "Periodic schedules configured: reflect=every-%dh metrics=every-30m",
-                config.agent.reflect_interval_hours,
+                "Periodic schedules configured: reflect=disabled metrics=every-30m",
             )
 
             try:

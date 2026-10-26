@@ -4,7 +4,7 @@
 # 三条文本链按维护者选择均使用enable_thinking=false；旧thinking块已移除，兼容性待真实验证。
 # 档位名称是供应商模型目录标签，不是账户 A/B/C 权益或 access_tier。
 # Research 和 HTML 成果目前共用 chat；reasoning 已注册，但无业务自动切换。
-# Hindsight 是独立服务，不读取本文件；使用 Compose 的 HINDSIGHT_API_*。
+# Hindsight 是独立服务，不读取本文件；模型与质量参数在 hindsight.yaml。
 
 # 1. 供应商连接。Secret 仅引用环境变量，禁止将真实 Key 写入本文件。
 providers:

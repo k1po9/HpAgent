@@ -39,6 +39,26 @@
 
 ## 内部辅助与维护位置
 
+`PYTHONPATH=src python scripts/operations/memory-bank-initialize.py --senders-stopped
+--config config/hindsight.pgroonga.yaml` 用显式 `WORKER_DATABASE_URL` / `HINDSIGHT_URL`
+在空目标中初始化当前活跃账户的受控 Bank。它先后检查空库和本地队列；重复运行验证同一配置，
+已有配置不一致或有语义数据时拒绝，不覆盖 Bank。停写参数只是操作者声明，需另核实进程。
+该入口只调用 Bank 管理 API，不调用模型。
+
+`psql -X -v ON_ERROR_STOP=1 -f scripts/operations/memory-cutover-inventory.sql`
+供停止 Hindsight API 后在显式活动记忆库中做只读空库检查。它拒绝任一语义/队列表非空、
+未完成请求或缺表；允许 Bank 配置和已完成请求日志。它不检查应用库，也不证明停写。
+
+`memory-cutover-digest.sql` 使用显式 `-v schema_name=hpagent` 或 `public` 在停写库中
+输出各表完整行计数/SHA256。数据正文只在数据库内聚合；用于
+成对当前快照恢复前后比较，不能以热态摘要代替冻结点，也不检查schema、表外角色权限或文件字节。
+
+`docker-compose.pgroonga.yaml` 是与 base + beta 显式组合的准备补丁：新 PG/API 使用独立卷，
+Worker Recall 关闭；`docker-compose.pgroonga.enabled.yaml` 仅在切换检查后开启 Recall。
+新 API 在维护阶段不自动重启，以免重复启动探测；启用补丁恢复正常重启策略。
+`docker-compose.pgroonga.recovery.yaml` 指向另一新卷，供停写后恢复当前成对快照。
+这些文件不会自行切换部署，不能单独 `up` 或以旧 native 快照覆盖已有增量。
+
 `PYTHONPATH=src python scripts/operations/memory-cutover-check.py --require-empty` 只读检查显式
 `WORKER_DATABASE_URL`、`HINDSIGHT_URL`（可选 `HINDSIGHT_API_KEY`）及
 `HPAGENT_MIGRATIONS_DIR` 指向的目标。核对完整应用 checksum、1.1.0 服务、所有 Bank 的文档、
@@ -48,8 +68,20 @@
 不停止进程、不清空、不迁移、不推进队列、不开放 Recall；不能证明旧发送者已停发或同步请求已结束。
 实际切换见[部署](../docs/operations/deployment.md#记忆核心空库启用)。
 
+同一入口的 `--service-only --service-container CONTAINER --memory-db-host HOST
+--memory-db-name DATABASE [--memory-db-port 5432] [--memory-db-schema public] [--config PATH]`
+独立核对关键词后端。该模式需要运维 Docker 权限，读取指定容器 API 进程的白名单字段，
+在容器内按其实际连接运行限时只读事务；不向 Chat/Worker 提供 Docker 或记忆库管理权限。
+数据库身份必须显式给出，不能从容器默认库推断。输出包含本地期望、进程有效后端、DB/schema、
+PG16/扩展版本、完整索引表达式和参数、有效性、Bank 开关及待协调操作计数，不含 DSN/正文。
+0 为该关键词检查通过，2 为拒绝，1 为检查失败；transport/权限/目标/列/索引/Bank 等有不同错误码。
+它仅证明所检查的关键词状态，不证明服务模型或中文质量。省略 `--service-only` 可同时执行原
+本地来源/Outbox 数据检查，此时必须给原有显式 DSN/URL；API URL 必须直接对应同 Docker 主机的
+容器地址或发布端口，无法关联的反向代理地址拒绝组合证明，可分别检查两项。省略所有服务参数
+仍是原有 data-only 检查，不证明后端。两项都不停止发送者、不改变 Recall 开关或部署路由。
+
 - `check/release_smoke.py` 是 Shell 发布入口的实现；`check/docs-links.py`、`check/ci-test-paths.py`、`check/temporal_registry.py` 分别负责当前文档链接与命令、CI显式测试路径及四类测试入口覆盖、Worker注册/沙箱门禁。后两者供CI使用，不发真实模型请求。
-- `operations/start-hindsight.sh` 是 Compose 挂载的容器启动入口，会启动Hindsight；不要在宿主机手动执行。
+- `operations/hindsight-entrypoint.py` 将质量 YAML 的服务模型配置展开到子进程环境，再 exec Compose 挂载的 `operations/start-hindsight.sh` 启动 Hindsight；不要在宿主机手动执行。
 - `benchmarks/outbox/outbox_benchmark_worker.py` 是受实验驱动的子进程；`agent_strategy_benchmark.py`为runner，`summarize_agent_strategy_benchmark.py`为汇总器，`agent_strategy_tasks.yaml`为输入。它们不是发布脚本，命令和统计口径见[Benchmark索引](benchmarks/README.md)。
 - `web/scripts/e2e-frontend.mjs` 统一源码服务、独立构建预览与独立生产构建；不复用已有前端服务。
 - `web/scripts/e2e-backend.sh` 是Playwright内部API启动器；其迁移、账户初始化和Fake配置只适用于显式隔离环境。
@@ -64,3 +96,70 @@
 对照 legacy/DeepSeek Search 和固定官方 URL 的 Local/DeepSeek Fetch，不访问业务库或模型，不启动服务。`--searxng-url` 指定搜索入口，默认 `http://127.0.0.1:8085`；结果写仓库外新目录。模块设计见[Web Retriever v1](../docs/architecture/capabilities.md#web-retriever-v1-设计总结)。
 
 **会产生检索费用**：每轮最多 9 次 DeepSeek 尝试，无自动重试；仅使用既有 `DEEPSEEK_API_SEARCH_FETCH`。脚本内 `LEDGER` 指定的累计账本必须已存在且有效，每次尝试发送前加锁落盘，失败/未知也永久占额，累计上限 1,000；不得删除、重置或替换历史来恢复名额。401/402/403 停止后续 DeepSeek 请求。实验账本不替代产品 Run/Work 预算；脚本完成不代表 Research 报告通过。
+
+
+## 记忆质量配置
+
+```bash
+PYTHONPATH=src python scripts/operations/memory-config.py validate
+PYTHONPATH=src python scripts/operations/memory-config.py plan
+PYTHONPATH=src python scripts/operations/memory-config.py inspect --account ACCOUNT_UUID
+PYTHONPATH=src python scripts/operations/memory-config.py apply --senders-stopped --backup /secure/new-memory-profile-backup.json
+PYTHONPATH=src python scripts/operations/memory-config.py restore --senders-stopped --backup /secure/new-memory-profile-backup.json
+```
+
+需要应用 Python 依赖。validate 只读本地 hindsight.yaml、prompts/memory.yaml，不需要服务/凭据，不做
+模型请求；可用 --config/--prompts 选文件。其他命令要求显式 WORKER_DATABASE_URL、HINDSIGHT_URL，
+可选 HINDSIGHT_API_KEY，以及完整迁移链的 HPAGENT_MIGRATIONS_DIR。账户从该业务库可信 active
+账户映射；重复 --account 可限定账户，缺省检查全部此类账户。不存在的 Bank 只报告，后续首次
+合法 Retain 初始化，不因 inspect/plan 创建。输出只含参数名、计数、标量和文本 hash，不含
+mission 原文、Key、记忆正文或 Provider 错误正文。退出 0 表示命令成功，2 表示失败；plan/inspect
+展示 matches 和 strategy_conflicts，命令成功不表示全部配置相同。
+
+validate 的 profile_hash 保持受控 Bank 参数口径，config_hash/service_hash 和 text_search
+另行报告包含关键词后端的本地冻结身份；它们不表示服务或模型已验证。
+
+apply/restore 写远端 Bank；必须先按[切换流程](../docs/operations/deployment.md#记忆质量配置切换)
+停所有记忆发送者，--senders-stopped 是操作员声明，不是自动停发证明。脚本再校验所选账户本地
+动作无在途状态、远端 pending/processing/failed Operation 与 pending/failed Consolidation 已排空。
+仅 apply 可修复 send_state=idle、尚未取得发送资格、冻结 profile 与期望完全一致的 queued/uncertain
+Retain；这不允许切换其配置。此时运维环境须与 Worker 使用相同的服务模型目录变量以核对 hash。
+历史无快照、sending/unknown 或不同 profile 仍拒绝；--senders-stopped 声明仍然必需。
+存在未接管的 Retain/Consolidation Strategy 时拒绝写，避免其他策略悄悄覆盖期望字段。
+apply 的 --backup 必须为尚不存在的文件且父目录已存在，以 0600 保存原受控 override；路径放
+仓库外或受限忽略目录。已有文件不覆盖。restore 按该文件逐项恢复，原无 override 的字段发 null，
+不 reset 整个 Bank；不依赖当前质量文件仍有效。备份含策略文本，按受限配置文件保存。
+多 Bank 写入不是跨 Bank 事务；中途失败先 inspect 对账，再决定继续或 restore。
+脚本不修改本地动作、部署、Provider 环境或 Recall 门控，也不迁移历史事实。
+
+
+## PGroonga 离线对照
+
+`python3 scripts/experiments/hindsight_pgroonga.py --help` 提供隔离 `collect` 与离线
+`summarize`。输入为 `test/fixtures/hindsight-pgroonga/evaluation/dataset.json` 的固定合成
+文档、Observation 来源和 gold；`seed.py` 在已有双后端夹具中按独立 session UUID 直接载入
+同一事实/向量，重复 session 拒绝，不通过两次 Retain 生成不同事实。`plans.py` 使用当前服务
+SQL builder 在自有 schema 检查 3/300/3000 条 Bank 的两表计划；不关闭 seqscan。
+
+先冻结协议（数据 hash、session、固定参数、阈值、重复顺序与资源上限），再在各自 internal
+网络的应用开发 runner 中执行 `collect --url http://hindsight:8888 --session SESSION
+--arm native --batch 0 --protocol /absolute/protocol.json`，candidate 和三轮分别运行，
+从仓库根目录读取输入。stdout 是白名单 JSONL，完整 trace 只在进程内；stderr 不应当作安全
+trace 导出。`summarize --results /absolute/results.jsonl --output /absolute/metrics.json`
+仅计算已有结果。结果、协议、命令与资源采样放忽略目录，不能覆盖失败批次。
+
+该工具运行真实 SDK/Adapter/ContextAssembly，但本地 readable 状态和上下文绑定使用夹具；
+不证明真实应用 PG 权限、lease/fence 或持久化。模型为 mock、384 维常量向量、原生 rrf，
+固定 original 查询替代未调用的 HyDE；只证明工程契约，不能据此判断真实中文语义质量。
+最终指标先截断到 k 个记忆结果，再按完整 Observation 来源计入 gold 文档；关键词指标
+单列 world 臂，避免合并不同 fact_type 的局部排名。标识符组的 Recall 即精确术语命中率。
+首次访问不等于冷缓存，三次重复不扩大独立质量样本数。无答案误注入表示上下文被选中，
+没有调用回答模型，因此不报告模型拒答率。真实 Provider 对照须另有明确模型、端点、
+数据范围及请求/费用上限；本工具没有真实 Provider 调用模式。
+
+
+PGroonga 治理恢复的合成辅助入口是
+`test/fixtures/hindsight-pgroonga/recovery_app.py --help`、`recovery_db.py` 与
+`recovery.compose.yaml`，实际资源和验证参数见[测试指南](../docs/development/testing.md#hindsight-版本与隔离契约)。
+这些辅助程序只接受显式隔离数据库/服务，不是业务迁移或切换工具；原始备份必须在仓库外受限位置。
+有切换后写入时，用已停止发送者的当前应用/记忆完整快照恢复，不丢弃纠错、删除和撤权增量。

@@ -2,18 +2,32 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
+from contextlib import asynccontextmanager
+from contextvars import Context
 from uuid import UUID, uuid4
 
 import pytest
 from support.work_fixtures import accept_research, advance_work
 
+from agent_activities.store import AgentDataStore
+from agent_workflows.lifecycle_contracts import LIFECYCLE_SCHEMA_VERSION, SegmentInput
 from conversation_domain.commands import CommandService
 from file_runtime import FileResourceResolver
+from run_domain.execution_context import fence_scope
+from sandbox.sandbox_manager import SandboxManager
+from sandbox.tools.local.file_read import create_file_read_tools
+from sandbox.tools.local.run_candidates import create_run_candidate_tools
+from sandbox.tools.routing.capability import CapabilityMatcher
+from sandbox.tools.routing.context import ToolSelectionContextBuilder
+from sandbox.tools.routing.contracts import NATIVE_ROUTING_SPECS
+from sandbox.tools.routing.models import RegisteredTool, ToolKind
 from storage.tenant_file_store import TenantFileStore
 from web_domain.errors import ResourceNotFound
 from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
+from workspace.execution import ExecutionResourceService
 from workspace.file_scope import RunFileScopeUnavailable, RunFileWorkspace
 from workspace.resources import ResourceDenied, ResourcePolicy, SnapshotLimitExceeded
 
@@ -177,6 +191,78 @@ def test_cross_conversation_candidate_and_file_id_are_run_scoped(
     with scope.prepare(account_id, run_c) as prepared:
         with pytest.raises(LookupError):
             FileResourceResolver(prepared).resolve(str(file_id))
+
+
+@pytest.mark.asyncio
+async def test_activity_resources_restore_selected_input_and_recheck_revocation(
+    db, account_id, database_url, worker_database_url, tmp_path,
+):
+    commands = CommandService(database_url)
+    catalog = WorkspaceCatalog(database_url)
+    policy = ResourcePolicy(database_url)
+    tree = catalog.initialize(account_id)
+    parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料"))
+    origin = _conversation(commands, account_id)
+    conversation = _conversation(commands, account_id)
+    store = TenantFileStore(tmp_path / "store", max_bytes=1024)
+    file_id = _file(db, store, account_id, origin, "paper.txt", b"selected input")
+    entry = catalog.save_file(account_id, parent, file_id, "paper.txt", "save:paper")
+    grants = policy.grant(account_id, "conversation", conversation, entry,
+                          ["list_metadata", "read_content"], False)
+    run_id = _run(commands, account_id, conversation)
+    CommandService(worker_database_url).start_run(account_id, run_id)
+    data = AgentDataStore(worker_database_url)
+    execution_id = data.run_identity(str(run_id))["execution_id"]
+    manager = SandboxManager(native_tools_enabled=False, nsjail_enabled=False)
+    workspace = RunFileWorkspace(worker_database_url, store, tmp_path / "execution")
+    resources = ExecutionResourceService(worker_database_url, manager, workspace)
+
+    @asynccontextmanager
+    async def activity_scope():
+        segment = SegmentInput(LIFECYCLE_SCHEMA_VERSION, str(run_id), str(account_id),
+                               str(uuid4()), execution_id=execution_id)
+        token = data.acquire_segment(segment)
+        try:
+            with fence_scope(str(account_id), str(run_id), token, execution_id):
+                async with resources.lease_for_run(account_id, run_id):
+                    yield manager.get_run_file_scope(f"{execution_id}:{token}")
+        finally:
+            data.release_segment(segment)
+
+    async with activity_scope() as first:
+        assert first.inputs == ()
+        tools = {tool.name: tool for tool in create_run_candidate_tools(lambda: first)}
+        chosen = json.loads(await tools["select_run_candidate"].ainvoke({"node_id": str(entry)}))
+        assert chosen["file_id"] == str(file_id)
+        first_root = first.inputs_root
+    assert not first_root.exists()
+
+    async with activity_scope() as restored:
+        assert restored.inputs_root != first_root
+        assert [item.file_id for item in restored.inputs] == [file_id]
+        read = next(tool for tool in create_file_read_tools(lambda: restored)
+                    if tool.name == "read_file")
+        runtime = ToolSelectionContextBuilder(
+            surface="web", workspace_path=str(restored.scratch_root),
+            run_scope_provider=lambda: restored,
+        ).snapshot()
+        decision = CapabilityMatcher().evaluate(
+            RegisteredTool(read, ToolKind.NATIVE, NATIVE_ROUTING_SPECS["read_file"]), runtime,
+        )
+        assert decision.eligible, decision.reason
+        result = json.loads(await read.ainvoke({"file": chosen["logical_name"]}))
+        assert result["file_id"] == str(file_id)
+        assert result["text"] == "selected input"
+
+        # Revoke from the user command context, outside the Activity's worker fence.
+        # Keep the Run active to exercise permission checks independently of cancellation.
+        assert Context().run(policy.revoke, account_id, UUID(grants[1])) == [run_id]
+        with pytest.raises(ResourceDenied):
+            await read.ainvoke({"file": chosen["logical_name"]})
+
+    with pytest.raises(RunFileScopeUnavailable, match="permission was revoked"):
+        async with activity_scope():
+            pytest.fail("revoked input was restored")
 
 
 def test_candidate_freeze_version_and_revocation_union(

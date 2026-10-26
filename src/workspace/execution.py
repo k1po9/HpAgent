@@ -34,7 +34,9 @@ class ExecutionResourceService:
         sandbox_id = None
         try:
             if self.run_file_workspace is not None:
-                with self.run_file_workspace.prepare(account_id, run_id) as scope:
+                with self.run_file_workspace.prepare(
+                    account_id, run_id, include_selected=True
+                ) as scope:
                     self.sandbox_manager.bind_run_file_scope(resource_key, resource_key, scope)
                     bound = True
                     sandbox_id = self._sandbox(

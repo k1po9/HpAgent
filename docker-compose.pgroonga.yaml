@@ -1,0 +1,79 @@
+# Explicit target overlay. Use with base + beta under an approved cutover procedure.
+# It retains the old native services/volume and introduces a separate empty target.
+services:
+  hindsight-pgroonga-postgres:
+    extends:
+      file: docker-compose.yaml
+      service: hindsight-postgres
+    image: hpagent/hindsight-pgroonga@sha256:a008bbd49808d2b3574fb7bae19855deeab10093c982ba4a3b53ec1fb95070fa
+    pull_policy: never
+    cpus: ${BETA_HINDSIGHT_POSTGRES_CPUS:?required target CPU budget}
+    mem_limit: ${BETA_HINDSIGHT_POSTGRES_MEMORY:?required target memory budget}
+    environment:
+      POSTGRES_DB: hindsight_110_pgroonga
+    volumes:
+      - hindsight-pgroonga-pgdata:/var/lib/postgresql/data
+      - ./scripts/operations/hindsight-pgroonga-init.sql:/docker-entrypoint-initdb.d/10-extensions.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U hindsight -d hindsight_110_pgroonga]
+    deploy:
+      resources:
+        limits:
+          cpus: ${BETA_HINDSIGHT_POSTGRES_CPUS:?required target CPU budget}
+          memory: ${BETA_HINDSIGHT_POSTGRES_MEMORY:?required target memory budget}
+  hindsight-pgroonga:
+    extends:
+      file: docker-compose.yaml
+      service: hindsight
+    pull_policy: never
+    # Maintenance startup must not repeat Provider probes in an automatic loop.
+    restart: 'no'
+    cpus: ${BETA_HINDSIGHT_CPUS:?required target CPU budget}
+    mem_limit: ${BETA_HINDSIGHT_MEMORY:?required target memory budget}
+    environment:
+      HINDSIGHT_API_DATABASE_URL: postgresql://hindsight:${HINDSIGHT_DB_PASSWORD:?required existing memory DB secret}@hindsight-pgroonga-postgres:5432/hindsight_110_pgroonga
+      HINDSIGHT_API_WORKER_ID: hpagent-pgroonga
+      HTTP_PROXY: ''
+      HTTPS_PROXY: ''
+      http_proxy: ''
+      https_proxy: ''
+      ALL_PROXY: ''
+      all_proxy: ''
+      NO_PROXY: localhost,127.0.0.1,::1,hindsight-pgroonga-postgres,hindsight-pgroonga
+      no_proxy: localhost,127.0.0.1,::1,hindsight-pgroonga-postgres,hindsight-pgroonga
+    ports: !reset []
+    volumes:
+      - ./config/hindsight.pgroonga.yaml:/etc/hpagent/hindsight.yaml:ro
+    depends_on: !override
+      hindsight-pgroonga-postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: ${BETA_HINDSIGHT_CPUS:?required target CPU budget}
+          memory: ${BETA_HINDSIGHT_MEMORY:?required target memory budget}
+  hpagent:
+    image: sha256:c37528fae6d3e6fb6c2e9487fa1e8533af910fead8ca49bfb50c8bdbf7d47e3e
+    pull_policy: never
+    environment:
+      HINDSIGHT_URL: http://hindsight-pgroonga:8888
+      HINDSIGHT_RECALL_ENABLED: 'false'
+    volumes:
+      - ./config/hindsight.pgroonga.yaml:/app/config/hindsight.yaml:ro
+    depends_on: !override
+      app-postgres: {condition: service_healthy}
+      hpagent-migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+      temporal: {condition: service_healthy}
+      hindsight-pgroonga: {condition: service_healthy}
+      searxng: {condition: service_healthy}
+      gotenberg: {condition: service_healthy}
+  hpagent-api:
+    image: sha256:90dac654c9b6530972d6d1e74cd2b265789a419782893cfbaa531d8bf1b07c93
+    pull_policy: never
+    environment:
+      HINDSIGHT_URL: http://hindsight-pgroonga:8888
+    volumes:
+      - ./config/hindsight.pgroonga.yaml:/app/config/hindsight.yaml:ro
+volumes:
+  hindsight-pgroonga-pgdata:

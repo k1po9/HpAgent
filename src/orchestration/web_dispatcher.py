@@ -58,7 +58,7 @@ async def run_web_outbox_recovery_loop(
     (worker shutdown) propagates so the caller can await the task.
 
     ``event_types`` defaults to the Web Dispatcher's own leases. The Memory
-    Retention worker passes ``{"retain_memory"}`` so its crashes are recovered
+    Retention worker passes ``{"retain_memory", "memory_action"}`` so its crashes are recovered
     by the same sweep on the same cadence without ever stealing start/cancel
     (or terminal) ``processing`` rows.
     """

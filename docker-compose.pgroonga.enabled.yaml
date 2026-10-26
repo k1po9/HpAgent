@@ -1,0 +1,7 @@
+# P6 only, after source/target and governance checks. Not used by preparation startup.
+services:
+  hindsight-pgroonga:
+    restart: unless-stopped
+  hpagent:
+    environment:
+      HINDSIGHT_RECALL_ENABLED: 'true'

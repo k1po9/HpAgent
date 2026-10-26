@@ -52,6 +52,28 @@ class ModelMapTests(unittest.TestCase):
         for secret in model_map.secret_values(self.fixture()):
             self.assertNotIn(secret, serialized)
 
+    def test_yaml_memory_routes_and_custom_secret_name_are_redacted(self):
+        import yaml
+
+        fixture = self.fixture()
+        environment = dict(fixture['services']['hpagent']['environment'])
+        environment['PRIVATE_CREDENTIAL'] = 'custom-secret-not-for-output'
+        raw = yaml.safe_load((ROOT / 'config/hindsight.yaml').read_text())
+        raw['service']['llm']['api_key_env'] = 'PRIVATE_CREDENTIAL'
+        raw['service']['llm']['model'] = '${PRIVATE_CREDENTIAL}'
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'hindsight.yaml'
+            path.write_text(yaml.safe_dump(raw))
+            fixture['services']['hindsight'] = {'environment': environment, 'volumes': [
+                {'type': 'bind', 'source': str(path), 'target': '/etc/hpagent/hindsight.yaml'}]}
+            report = model_map.summarize(fixture)
+            self.assertFalse(report['issues'])
+            self.assertEqual(report['hindsight'][0]['model_source'],
+                             'config/hindsight.yaml:service.llm.model')
+            self.assertEqual(report['hindsight'][3]['inherited_from'], 'llm')
+            safe = model_map.redact_report(report, model_map.secret_values(fixture))
+            self.assertNotIn(environment['PRIVATE_CREDENTIAL'], json.dumps(safe))
+
     def test_compose_alias_left_literal_is_reported_as_invalid(self):
         fixture = self.fixture()
         fixture["services"]["hindsight"]["environment"]["HINDSIGHT_API_LLM_API_KEY"] = "${MINIMAX_API_KEY}"

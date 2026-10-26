@@ -51,7 +51,9 @@ def build_shared_agent_services(
             prompt_loader=prompt_loader,
             enable_tool_guidance=True,
         ),
-        brain_engine=BrainEngine(resource_pool=resource_pool, prompts=prompt_loader),
+        brain_engine=BrainEngine(resource_pool=resource_pool, prompts=prompt_loader,
+                                 recall_query_mode=config.memory_quality.query.mode,
+                                 recall_enabled=config.hindsight.enabled and config.hindsight.recall_enabled),
         action_runtime=ActionRuntime(
             sandbox_manager=sandbox_manager,
             resource_pool=resource_pool,

@@ -18,6 +18,8 @@ class RunLifecycleService:
 
     @staticmethod
     def lock(uow, account_id, run_id):
+        from persistence.memory_context import account_epoch
+        account_epoch(uow, account_id)
         row = uow.execute('SELECT * FROM runs WHERE account_id=%s AND run_id=%s',
                           (account_id, run_id)).fetchone()
         if row is None:
@@ -84,6 +86,9 @@ class RunLifecycleService:
             if result is not None and run['result_json'] != result:
                 raise ValueError('terminal execution result cannot be changed')
             return run['status']==status
+        if status == 'succeeded':
+            from persistence.memory_context import check_execution
+            check_execution(uow, run['account_id'], run['run_id'], advance=False)
         if status=='succeeded' and run['status']!='running':
             raise ConversationBusy()
         if status=='failed' and run['status']=='cancelling':

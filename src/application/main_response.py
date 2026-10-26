@@ -1,5 +1,6 @@
 """Main's terminal action. Its receipt proves a response, never a business command."""
 import json
+import re
 from uuid import UUID
 
 from persistence.uow import UnitOfWork
@@ -13,6 +14,96 @@ MANIFEST = {'type': 'function', 'function': {
             'answer': {'type': 'string', 'minLength': 1, 'maxLength': 20000},
             'command_refs': {'type': 'array', 'maxItems': 10, 'uniqueItems': True,
                              'items': {'type': 'string', 'format': 'uuid'}}}}}}
+
+UNVERIFIED_BUSINESS_RESPONSE = (
+    '我目前无法核实这项业务操作是否已成功。请先检查对应任务或文件的实际状态，'
+    '再决定是否重新发起，以免重复操作。'
+)
+
+# Match bounded object/action/status combinations, not isolated past-tense words.
+# File publication/saving and delivery are separate facts from accepting a Work.
+_WORK = r'(?:后台任务|研究任务|任务|委托|工作项)'
+_FILE = r'(?:文件|报告|文档)'
+_CLAIM_ACTIONS = {
+    'accept_work': (_WORK, r'创建|建立|提交|委托', r'created|submitted', r'task|work'),
+    'revise_work': (_WORK, r'修改|更新|修订', r'updated|modified', r'task|work'),
+    'pause_work': (_WORK, r'暂停', r'paused', r'task|work'),
+    'resume_work': (_WORK, r'恢复', r'resumed', r'task|work'),
+    'stop_work': (_WORK, r'停止', r'stopped', r'task|work'),
+    'advance_work': (_WORK, r'推进|重试', r'advanced|retried', r'task|work'),
+    'link_work': (_WORK, r'关联', r'linked', r'task|work'),
+    'complete_work': (_WORK, r'完成', r'completed', r'task|work'),
+    'create_file': (_FILE, r'创建|生成', r'created|generated', r'file|report|document'),
+    'save_file': (_FILE, r'保存', r'saved', r'file|report|document'),
+    'upload_file': (_FILE, r'上传', r'uploaded', r'file|report|document'),
+    'update_file': (_FILE, r'修改|更新', r'updated|modified', r'file|report|document'),
+    'delete_file': (_FILE, r'删除', r'deleted', r'file|report|document'),
+    'publish_file': (_FILE, r'发布', r'published', r'file|report|document'),
+    'send_message': (r'(?:消息|通知|提醒)', r'发送', r'sent', r'message|notification|reminder'),
+}
+_SUCCESS = r'(?:已(?:经)?(?:成功)?|成功(?:地)?)'
+_BENEFICIARY = r'(?:(?:为|帮)(?:你|您))?'
+_DETERMINER = r'(?:(?:一|这|那)(?:个|项|份)|该)?'
+_CLAIM_PATTERNS = {
+    kind: re.compile(
+        rf'(?:{_SUCCESS}{_BENEFICIARY}(?:{actions})了?{_DETERMINER}{obj}'
+        rf'|{_SUCCESS}{_BENEFICIARY}(?:把|将)?{_DETERMINER}{obj}(?:被)?(?:{actions})了?'
+        rf'|{obj}(?:{_SUCCESS}(?:被)?(?:{actions})|(?:{actions})(?:操作)?成功)'
+        rf'|\b(?:{english_actions})\s+(?:the\s+|a\s+)?(?:{english_objects})\b'
+        rf'|\b(?:{english_objects})\s+(?:(?:has|have)\s+been\s+|was\s+|is\s+)(?:{english_actions})\b)',
+        re.I,
+    )
+    for kind, (obj, actions, english_actions, english_objects) in _CLAIM_ACTIONS.items()
+}
+_QUOTED = re.compile(r'“[^”]*”|‘[^’]*’|「[^」]*」|『[^』]*』|"[^"\n]*"|\x27[^\x27\n]*\x27|`[^`\n]*`')
+_REPORTING = re.compile(r'(?:用户|你|他|她|对方)(?:曾经|之前)?(?:提到|说|表示|声称)|(?:原文|示例|引用)(?:是|为|：|:)')
+_NON_ASSERTION = re.compile(r'^\s*(?:如果|假如|若|一旦|当|是否|请问|if\b|when\b)', re.I)
+_NEGATED = re.compile(
+    r'(?:没有|并未|尚未|未曾|未能|不能|无法|不确定|并非|不是|不代表)'
+    r'(?:已|经|能|够|确认|核实|证明|说明|说|真的|地|\s)*$|\b(?:not|never)\s*$', re.I,
+)
+
+
+def explicit_business_success_claims(answer: str) -> set[str]:
+    """Recognize a finite set of assertions; a category is not proof of success."""
+    # Mask attributed quotations only. Quoted object names in an assertion still
+    # participate, and a reported quote cannot hide an independent later claim.
+    def quote(match):
+        prefix = re.split(r'[。！？!?；;\n，,]', answer[:match.start()])[-1]
+        suffix = answer[match.end():]
+        content = match.group()[1:-1]
+        attributed = _REPORTING.search(prefix) or re.match(r'\s*(?:这句话|这几个字|字样)', suffix)
+        if attributed and any(pattern.search(content) for pattern in _CLAIM_PATTERNS.values()):
+            return '\0'
+        return content
+
+    text = _QUOTED.sub(quote, answer)
+    claims = set()
+    for clause in re.split(r'[。！？!?；;\n，,\0]|但是|但|不过|然而|同时|并且|而且', text):
+        if (_NON_ASSERTION.search(clause) or _REPORTING.search(clause)
+                or re.search(r'(?:吗|么)\s*$', clause)):
+            continue
+        for kind, pattern in _CLAIM_PATTERNS.items():
+            if any(not _NEGATED.search(clause[:m.start()]) for m in pattern.finditer(clause)):
+                claims.add(kind)
+    return claims
+
+
+def _supported_business_claims(operation, body):
+    # Main currently observes Work command receipts only. Neither their requested
+    # save policy nor accepting the mandate proves a file save or Work completion.
+    work = body.get('work', {})
+    if not work.get('work_id'):
+        return set()
+    if operation in {'accept_work', 'revise_work', 'link_work'}:
+        return {operation}
+    if operation == 'advance_work' and (body.get('run') or {}).get('run_id'):
+        return {operation}
+    if (operation in {'pause_work', 'resume_work', 'stop_work'}
+            and work.get('status') == {'pause_work': 'paused', 'resume_work': 'active',
+                                      'stop_work': 'stopped'}[operation]):
+        return {operation}
+    return set()
 
 
 def verified_command(uow, account, operation, key):
@@ -101,6 +192,7 @@ def _execute_response(store, request, decision):
             raise ValueError('operation claims require a command receipt returned in this Run')
         refs = sorted(allowed)
         business = []
+        supported_claims = set()
         for cid in refs:
             row = uow.execute(
                 "SELECT operation,response_body FROM idempotency_commands WHERE account_id=%s "
@@ -111,16 +203,15 @@ def _execute_response(store, request, decision):
                 raise ValueError('business command is not committed')
             body = row['response_body']
             work = body.get('work', {})
+            supported_claims.update(_supported_business_claims(row['operation'], body))
             business.append({'command_id': cid, 'operation': row['operation'],
                              'work_id': work.get('work_id'), 'status': work.get('status')})
     # Always separate server-verified action facts from model prose.
     answer = arguments['answer'].strip()
     if not answer:
         raise ValueError('answer must be nonempty')
-    if not business:
-        import re
-        if re.search(r'(已(?:经)?(?:成功)?(?:创建|建立|提交|委托|暂停|停止|修改|保存)|(?:任务|委托).{0,8}(?:已创建|已提交|已建立)|(?:created|submitted|saved|paused)\s+(?:the\s+)?(?:task|work|file))', answer, re.I):
-            answer = '没有已核验的业务操作成功回执，不能确认委托或修改已建立。\n\n请重试或查询任务的实际状态。'
+    if explicit_business_success_claims(answer) - supported_claims:
+        answer = UNVERIFIED_BUSINESS_RESPONSE
     elif business:
         facts = '\n'.join(f"已核验命令 {b['operation']}，任务 {b['work_id']}，提交时状态 {b['status']}。" for b in business)
         answer = facts + '\n\n' + answer

@@ -33,8 +33,14 @@ def test_source_strategy_and_sha256_are_domain_stable():
 
 def test_research_config_preserves_hindsight_missions():
     config = AppConfig()
-    assert config.hindsight.retain_mission
-    assert config.hindsight.reflect_mission
+    from pathlib import Path
+
+    from orchestration.config import PromptsConfig
+    prompts = PromptsConfig.from_dir(Path(__file__).resolve().parents[1] / "config/prompts")
+    assert prompts.memory["retain_mission"]
+    assert prompts.memory["observations_mission"]
+    assert prompts.memory["recall_instruction"]
+    assert not hasattr(config.hindsight, "reflect_mission")
     assert not hasattr(config.research, "retain_mission")
 
 

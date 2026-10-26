@@ -132,17 +132,19 @@ class SnapshotRepository:
                 raise LookupError("Run does not belong to model-call Account")
             from run_domain.execution_context import execution_fence
             fence = execution_fence.get()
+            from persistence.memory_context import check_execution
+            manifest = check_execution(uow, account_id, run_id, fence[2] if fence else None)
             row = uow.execute(
                 "INSERT INTO model_input_snapshots(snapshot_id,account_id,run_id,"
                 "model_call_id,operation_id,execution_attempt,call_ordinal,fallback_attempt,"
                 "phase,endpoint_id,provider,model,api_format,resolved_url,provider_request_body,"
-                "content_hash,serializer_version,entitlement_version,execution_id) VALUES "
-                "(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
+                "content_hash,serializer_version,entitlement_version,execution_id,memory_context) VALUES "
+                "(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) "
                 "ON CONFLICT(account_id,run_id,operation_id) DO NOTHING RETURNING *",
                 (uuid7(), account_id, run_id, model_call_id, operation_id,
                  execution_attempt, call_ordinal, fallback_attempt, phase,
                  endpoint_id, provider, model, api_format, resolved_url, Jsonb(dict(payload)), digest,
-                 serializer_version, entitlement_version, UUID(fence[2]) if fence else None),
+                 serializer_version, entitlement_version, UUID(fence[2]) if fence else None, Jsonb(manifest)),
             ).fetchone()
             if row is None:
                 row = uow.execute(
@@ -165,4 +167,11 @@ class SnapshotRepository:
 
     def mark_dispatched(self, account_id, snapshot_id):
         with UnitOfWork(self.database) as uow:
+            from persistence.memory_context import account_epoch, check_execution, check_manifest
+            account_epoch(uow, account_id)
+            snapshot = uow.execute('SELECT run_id,execution_id,memory_context FROM model_input_snapshots WHERE account_id=%s AND snapshot_id=%s', (account_id, snapshot_id)).fetchone()
+            if snapshot is None:
+                raise LookupError('snapshot missing')
+            check_execution(uow, account_id, snapshot['run_id'], snapshot['execution_id'])
+            check_manifest(uow, account_id, snapshot['memory_context'])
             uow.execute('INSERT INTO model_dispatches(account_id,snapshot_id) VALUES (%s,%s) ON CONFLICT DO NOTHING', (account_id,snapshot_id))
