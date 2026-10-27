@@ -54,7 +54,7 @@ class PostgresAccountService:
     def normalize_subject(channel_type: str, channel_user_id: str) -> tuple[str, str] | None:
         """返回 ``(provider, normalized_subject_id)``；未知渠道返回 None。
 
-        QQ: normalized = "{channel}:{subject}"（napcat / official_qq）
+        QQ: normalized = "{channel}:{subject}"（onebot11 / official_qq）
         Web: normalized = subject.strip().casefold()
              必须与 ``normalize_web_subject`` 完全一致。
         """

@@ -466,7 +466,7 @@ async def test_qq_reminder_target_is_explicit_and_work_control_is_model_free(
 
     bind(db, account_id)
     qq = qq_service(worker_database_url)
-    ingress = await qq.accept(qq_message("work-reminder", "Remind me here", scope=scope), "napcat")
+    ingress = await qq.accept(qq_message("work-reminder", "Remind me here", scope=scope), "onebot11")
     source = db.execute(
         "SELECT trigger_message_id FROM runs WHERE run_id=%s", (UUID(ingress["run_id"]),)
     ).fetchone()[0]
@@ -490,9 +490,10 @@ async def test_qq_reminder_target_is_explicit_and_work_control_is_model_free(
     class Router:
         sent = []
 
-        async def send(self, message):
+        async def send_with_receipt(self, message):
+            from common.channel_result import ChannelSendResult
             self.sent.append(message)
-            return True
+            return ChannelSendResult("accepted", provider_message_id="-8")
 
     router = Router()
     sender = DeliveryService(worker_database_url, QQDeliveryAdapter(router))
@@ -503,13 +504,13 @@ async def test_qq_reminder_target_is_explicit_and_work_control_is_model_free(
             break
     assert current["status"] == "completed" and len(router.sent) == 1
     if scope == "group":
-        assert "Time for a break" not in router.sent[0].content
-        assert work["work_id"] in router.sent[0].content
+        assert "Time for a break" not in router.sent[0].metadata["onebot_segments"][-1]["data"]["text"]
+        assert work["work_id"] in router.sent[0].metadata["onebot_segments"][-1]["data"]["text"]
     else:
-        assert "Time for a break" in router.sent[0].content
+        assert "Time for a break" in router.sent[0].metadata["onebot_segments"][-1]["data"]["text"]
     count = db.execute("SELECT count(*) FROM runs").fetchone()[0]
     status = await qq.accept(
-        qq_message("work-status", f"/work {work['work_id']} status", scope=scope), "napcat"
+        qq_message("work-status", f"/work {work['work_id']} status", scope=scope), "onebot11"
     )
     assert status["work_control"]["status"] == "completed"
     assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == count

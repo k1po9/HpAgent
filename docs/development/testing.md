@@ -36,7 +36,7 @@ Temporal验收还需显式设置`TEMPORAL_HOST`指向独立测试服务，设置
 
 使用完整迁移链和原checksum；旧业务库门禁见[部署](../operations/deployment.md)。`make db-up`只启动Compose所配置的数据库，不能据此认为它就是专用测试库。`make test`包括基础设施集合，运行前必须检查fixture要求。
 
-静态检查范围：Ruff覆盖Conversation、Web、Work、Run、Application、Bootstrap、Agent Workflow/Activity、Orchestration、Research及全部test；mypy覆盖Conversation、Web、Persistence、Web API、Work、Run与Agent Workflow。其他通用能力/渠道适配包尚未全部纳入，不以这两个命令证明全仓库静态检查通过。
+静态检查范围：Ruff覆盖Conversation、Web、Work、Run、Application、Bootstrap、Agent Workflow/Activity、Orchestration、Research及全部test；mypy覆盖Conversation、Web、Persistence、Web API、Work、Run与Agent Workflow。OneBot11、共享发送回执及 Delivery 已纳入 Ruff；其他通用能力/渠道适配包尚未全部纳入，不以这两个命令证明全仓库静态检查通过。
 
 记忆核心回归可定向执行 `test/web_persistence/test_memory_retention.py`、
 `test/web_persistence/test_memory_governance.py`、`test/web_persistence/test_memory_readiness.py`、
@@ -265,3 +265,25 @@ Operation 不存在的原生契约是 HTTP 200 + `status=not_found`，Document/F
 Snapshot/dispatch，再在请求在途期间撤回，验证旧响应不能推进工具或 fallback 成功提交。
 PG 集合另验证历史助手消息复用、旧 base 重绑定、Snapshot/fallback、final 与子执行继承。
 它们不接入 Work Recall/Retain，也不证明真实 Provider 语义质量、业务数据迁移或部署切换。
+
+
+OneBot11 专用拓扑见 `test/fixtures/onebot11.compose.yaml`，显式指定新的 project 和
+`ONEBOT_EVIDENCE_DIR`（仓库外），使用 `--env-file /dev/null`。它包含独立 PG 三角色、
+Redis、Temporal default namespace（专用服务）及 File Store 卷；无宿主端口、网络 internal。
+夹具应用 PG 关闭 fsync/synchronous_commit 以减少临时迁移回放成本；测试证明逻辑事务与应用进程恢复，
+不证明 PG 断电/存储故障持久性。
+`checks` 镜像需预先准备 pytest/ruff/mypy 与 requirements-dev，不借用运行中业务容器。
+在 checks 内运行 `make lint typecheck test-unit test-db test-api test-temporal`；
+`test_onebot11_transport.py` 用实际回环 WS 对端证明鉴权/ack/连接代次与失败分类，
+不连接 QQ、不调用真实模型。新增渠道需额外定向 Ruff；真实扫码、媒体、断线恢复和观察另验。
+
+`test/web_persistence/test_onebot11_receipts.py` 组合实际回环 WS 与 PG；
+`test/fixtures/onebot11_delivery_sender.py` 是专用 SIGKILL 输入，验证 provider ack 后、
+PG finish 前被杀的发送者只恢复为 uncertain，不自动重发。它不连接真实 QQ。
+
+真实 QQ 验收另用本人明确选择的私聊/测试群，并保持专用 PG、Temporal namespace 和 File Store。
+确定性 Brain/Sandbox 夹具可组合真实入站、命令、Outbox、Temporal 和逐片投递，不能据此宣称
+真实模型或 Sandbox 执行通过。图片读取单独检查实际来源；测试下载应限制公开 QQ CDN、
+禁用重定向并限制读取字节，只记录状态、媒体类型和文件头验证结果，不保存签名 URL 或图片正文。
+Worker 重启、反向 WS 网络中断与 QQ 客户端自身离线/重启分别验收；在途发送故障产生的
+uncertain 必须保留显式决议，不能为清理测试状态而重发或改写成 accepted。

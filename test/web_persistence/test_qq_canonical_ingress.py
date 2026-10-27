@@ -26,7 +26,7 @@ from web_domain.errors import ConversationBusy, IdempotencyConflict
 pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
 
 
-def bind(db, account_id, sender="123", channel="napcat"):
+def bind(db, account_id, sender="123", channel="onebot11"):
     db.execute(
         "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
         "normalized_subject_id,verified_at) VALUES (%s,%s,'qq',%s,%s,now())",
@@ -42,7 +42,7 @@ async def test_redelivery_uses_stable_provider_id_and_one_atomic_run(db, account
     bind(db, account_id)
     adapter = service(worker_database_url)
     # UnifiedMessage's random local ID differs; external provider ID remains stable.
-    one, two = await asyncio.gather(adapter.accept(qq_message(), "napcat"), adapter.accept(qq_message(), "napcat"))
+    one, two = await asyncio.gather(adapter.accept(qq_message(), "onebot11"), adapter.accept(qq_message(), "onebot11"))
     assert one["run_id"] == two["run_id"]
     assert one.replayed != two.replayed
     assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 1
@@ -50,9 +50,9 @@ async def test_redelivery_uses_stable_provider_id_and_one_atomic_run(db, account
     assert db.execute("SELECT count(*) FROM messages").fetchone()[0] == 2
     assert db.execute("SELECT event_type FROM outbox_events").fetchall() == [("start_run",)]
     with pytest.raises(IdempotencyConflict):
-        await adapter.accept(qq_message(content="changed"), "napcat")
+        await adapter.accept(qq_message(content="changed"), "onebot11")
     origin = db.execute("SELECT origin FROM messages WHERE role='user'").fetchone()[0]
-    assert origin["external_message_id"] == "1" and origin["channel_type"] == "napcat"
+    assert origin["external_message_id"] == "1" and origin["channel_type"] == "onebot11"
 
 
 async def test_restart_rebuilds_qq_state_from_postgres_authority(
@@ -60,20 +60,20 @@ async def test_restart_rebuilds_qq_state_from_postgres_authority(
 ):
     bind(db, account_id)
     original = qq_message("restart-stable", "before restart")
-    first = await service(worker_database_url).accept(original, "napcat")
+    first = await service(worker_database_url).accept(original, "onebot11")
 
     # A fresh surface/service instance has no in-memory SessionStore or WAL to
     # recover. Provider idempotency and the active Session come from PostgreSQL.
-    replayed = await service(worker_database_url).accept(original, "napcat")
+    replayed = await service(worker_database_url).accept(original, "onebot11")
     assert replayed.replayed
     assert replayed["run_id"] == first["run_id"]
     assert replayed["session_id"] == first["session_id"]
 
     await service(worker_database_url).accept(
-        qq_message("restart-cancel", "/cancel"), "napcat"
+        qq_message("restart-cancel", "/cancel"), "onebot11"
     )
     after = await service(worker_database_url).accept(
-        qq_message("restart-next", "after restart"), "napcat"
+        qq_message("restart-next", "after restart"), "onebot11"
     )
     assert after["session_id"] == first["session_id"]
     assert after["run_id"] != first["run_id"]
@@ -86,27 +86,27 @@ async def test_account_room_bot_thread_mapping_and_shared_session_rule(db, accou
     adapter = service(worker_database_url)
     messages = [qq_message(), qq_message(scope="group"), qq_message(scope="group", thread="t1"),
                 qq_message(scope="group", room="43"), qq_message(bot="other-bot")]
-    results = [await adapter.accept(message, "napcat") for message in messages]
+    results = [await adapter.accept(message, "onebot11") for message in messages]
     assert len({r["conversation_id"] for r in results}) == 5
     assert all(r["session_id"] is None for r in results)
     cid = UUID(results[0]["conversation_id"])
     commands = CommandService(worker_database_url)
     with pytest.raises(ConversationBusy):
         commands.send_message(account_id, cid, str(uuid4()), "Web shares this explicit Conversation")
-    await adapter.accept(qq_message("cancel", "/cancel"), "napcat")
-    next_result = await adapter.accept(qq_message("2"), "napcat")
+    await adapter.accept(qq_message("cancel", "/cancel"), "onebot11")
+    next_result = await adapter.accept(qq_message("2"), "onebot11")
     assert next_result["session_id"] is None
 
 
 async def test_busy_receipt_and_cancel_replays_never_target_a_later_run(db, account_id, worker_database_url):
     bind(db, account_id)
     adapter = service(worker_database_url)
-    first = await adapter.accept(qq_message(), "napcat")
-    busy = await adapter.accept(qq_message("2"), "napcat")
+    first = await adapter.accept(qq_message(), "onebot11")
+    busy = await adapter.accept(qq_message("2"), "onebot11")
     assert busy["code"] == "conversation_busy"
-    cancel = await adapter.accept(qq_message("c", "/cancel"), "napcat")
+    cancel = await adapter.accept(qq_message("c", "/cancel"), "onebot11")
     assert cancel["run_id"] == first["run_id"] and cancel["status"] == "cancelled"
-    second = await adapter.accept(qq_message("3"), "napcat")
+    second = await adapter.accept(qq_message("3"), "onebot11")
     assert second["session_id"] == first["session_id"]
     # Expired cache entries referenced by the command audit must be retained.
     db.execute("UPDATE idempotency_commands SET created_at=now()-interval '8 days',"
@@ -114,12 +114,12 @@ async def test_busy_receipt_and_cancel_replays_never_target_a_later_run(db, acco
     db.execute("DELETE FROM idempotency_commands c WHERE NOT EXISTS "
                "(SELECT 1 FROM execution_control_events e WHERE e.command_id=c.idempotency_command_id)")
     assert db.execute("SELECT count(*) FROM execution_control_events").fetchone()[0] > 0
-    repeated = await adapter.accept(qq_message("c", "/cancel"), "napcat")
+    repeated = await adapter.accept(qq_message("c", "/cancel"), "onebot11")
     assert repeated.replayed and repeated["run_id"] == first["run_id"]
-    assert (await adapter.accept(qq_message("2"), "napcat"))["code"] == "conversation_busy"
+    assert (await adapter.accept(qq_message("2"), "onebot11"))["code"] == "conversation_busy"
     assert db.execute("SELECT status FROM runs WHERE run_id=%s", (UUID(second["run_id"]),)).fetchone()[0] == "queued"
-    other = await adapter.accept(qq_message("4", scope="group"), "napcat")
-    refused = await adapter.accept(qq_message("x", f"/cancel {other['run_id']}"), "napcat")
+    other = await adapter.accept(qq_message("4", scope="group"), "onebot11")
+    refused = await adapter.accept(qq_message("x", f"/cancel {other['run_id']}"), "onebot11")
     assert refused["code"] == "no_matching_run"
     assert db.execute("SELECT count(*) FROM runs").fetchone()[0] == 3
 
@@ -127,13 +127,13 @@ async def test_busy_receipt_and_cancel_replays_never_target_a_later_run(db, acco
 async def test_unbound_and_revoked_identity_cannot_create_or_replay(db, account_id, worker_database_url):
     adapter = service(worker_database_url)
     with pytest.raises(UnboundIdentity):
-        await adapter.accept(qq_message(), "napcat")
+        await adapter.accept(qq_message(), "onebot11")
     assert db.execute("SELECT count(*) FROM conversations").fetchone()[0] == 0
     bind(db, account_id)
-    await adapter.accept(qq_message(), "napcat")
+    await adapter.accept(qq_message(), "onebot11")
     db.execute("UPDATE identity_bindings SET status='revoked',revoked_at=now()")
     with pytest.raises(UnboundIdentity):
-        await adapter.accept(qq_message(), "napcat")
+        await adapter.accept(qq_message(), "onebot11")
     assert db.execute("SELECT count(*) FROM accounts").fetchone()[0] == 1
 
 
@@ -146,10 +146,10 @@ async def test_pg_failure_rolls_back_binding_origin_message_run_outbox(db, accou
     with monkeypatch.context() as patch:
         patch.setattr(commands.outbox, "enqueue", fail)
         with pytest.raises(RuntimeError, match="write failed"):
-            await adapter.accept(qq_message(), "napcat")
+            await adapter.accept(qq_message(), "onebot11")
     for table in ("conversations", "conversation_bindings", "conversation_ingress_receipts", "messages", "runs", "outbox_events"):
         assert db.execute(f"SELECT count(*) FROM {table}").fetchone()[0] == 0
-    assert (await adapter.accept(qq_message(), "napcat"))["run_id"]
+    assert (await adapter.accept(qq_message(), "onebot11"))["run_id"]
 
 
 class Reply:
@@ -191,7 +191,7 @@ async def test_group_snapshot_context_and_memory_come_from_committed_pg(db, acco
     assert base.interaction_profile == "qq_group"
     assert "group fact" in base.origin["group_context"] and "qq:" in base.origin["group_context"]
     assert "group fact" in str(context.compose(base, ()))
-    assert RunInputLoader(AgentDataStore(worker_database_url)).load(str(run_id)).context.surface == "napcat"
+    assert RunInputLoader(AgentDataStore(worker_database_url)).load(str(run_id)).context.surface == "onebot11"
     class Memory:
         async def recall_candidates(self, *args, **kwargs): self.recall_args = kwargs; return []
         async def retain_document(self, events, **kwargs): self.events, self.args = events, kwargs; return RetainReceipt(accepted=True)
@@ -213,7 +213,7 @@ async def test_group_snapshot_context_and_memory_come_from_committed_pg(db, acco
         await retention.process_event(event, 'qq-memory')
     for event in outbox.claim('qq-memory', {'memory_action'}, 10):
         await retention.process_event(event, 'qq-memory')
-    assert memory.args["channel_type"] == "napcat" and memory.args["scope"] == "group"
+    assert memory.args["channel_type"] == "onebot11" and memory.args["scope"] == "group"
     assert memory.args["user_id"] == str(account_id)
     assert memory.args["metadata"]["external_message_id"] == "trigger"
     assert memory.args["group_id"] == base.origin["context_key"]
@@ -223,8 +223,8 @@ async def test_group_snapshot_context_and_memory_come_from_committed_pg(db, acco
 async def test_distinct_first_deliveries_share_binding_and_pg_admission(db, account_id, worker_database_url):
     bind(db, account_id)
     adapter = service(worker_database_url)
-    results = await asyncio.gather(adapter.accept(qq_message("a"), "napcat"),
-                                   adapter.accept(qq_message("b"), "napcat"))
+    results = await asyncio.gather(adapter.accept(qq_message("a"), "onebot11"),
+                                   adapter.accept(qq_message("b"), "onebot11"))
     assert len({r["conversation_id"] for r in results}) == 1
     assert sorted(r.response_status for r in results) == [202, 409]
     assert db.execute("SELECT count(*) FROM conversation_bindings").fetchone()[0] == 1
@@ -267,11 +267,11 @@ async def test_official_duplicate_reaches_pg_after_first_failure(
     assert db.execute("SELECT count(*) FROM outbox_events WHERE event_type='start_run'").fetchone()[0] == 1
 
 
-async def test_napcat_image_provenance_is_committed_to_pg(db, account_id, worker_database_url):
-    from channels.napcat import NapCatChannel
+async def test_onebot11_image_provenance_is_committed_to_pg(db, account_id, worker_database_url):
+    from channels.onebot11 import OneBot11Channel
 
     bind(db, account_id)
-    message = await NapCatChannel().normalize_message({
+    message = await OneBot11Channel().normalize_message({
         "post_type": "message", "message_type": "private", "self_id": 999,
         "message_id": 42, "sender": {"user_id": 123}, "message": [
             {"type": "image", "data": {"url": "https://example.invalid/image.png"}},
@@ -280,6 +280,5 @@ async def test_napcat_image_provenance_is_committed_to_pg(db, account_id, worker
     })
     await MessageIngressService(conversation_service=service(worker_database_url)).handle(message)
     origin = db.execute("SELECT origin FROM messages WHERE role='user'").fetchone()[0]
-    assert origin["metadata"]["image_urls"] == [
-        "https://example.invalid/image.png", "provider-image-reference",
-    ]
+    # An internal provider file name is provenance, not a Worker-downloadable URL.
+    assert origin["metadata"]["image_urls"] == ["https://example.invalid/image.png"]

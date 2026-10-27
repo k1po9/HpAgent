@@ -27,6 +27,9 @@ def urls():
 def owner(urls):
     with psycopg.connect(urls[0], autocommit=True, row_factory=dict_row) as connection:
         connection.execute('SET search_path TO hpagent, public')
+        # Every case owns a clean dedicated database. New accounts alone do not
+        # isolate global coordinator capacity or scheduler scans from prior cases.
+        connection.execute('TRUNCATE accounts CASCADE')
         yield connection
 
 

@@ -36,34 +36,34 @@ def _binding(db, account, provider: str, normalized: str, external: str | None =
 @pytest.mark.asyncio
 async def test_same_qq_binding_resolves_to_its_account(db, worker_database_url):
     account = _account(db)
-    _binding(db, account, "qq", "napcat:10001", external="10001")
+    _binding(db, account, "qq", "onebot11:10001", external="10001")
     service = PostgresAccountService(worker_database_url)
-    assert await service.resolve("napcat", "10001") == str(account)
+    assert await service.resolve("onebot11", "10001") == str(account)
 
 
 @pytest.mark.asyncio
 async def test_web_and_qq_bindings_point_to_same_account(db, worker_database_url):
     account = _account(db)
     _binding(db, account, "web", "user@example.com", external="user@example.com")
-    _binding(db, account, "qq", "napcat:10002", external="10002")
+    _binding(db, account, "qq", "onebot11:10002", external="10002")
     service = PostgresAccountService(worker_database_url)
     # Web identity 使用统一的 normalize_web_subject 规则：
     # subject.strip().casefold() → "user@example.com" 命中。
     web = await service.resolve("web", "User@Example.com")
-    qq = await service.resolve("napcat", "10002")
+    qq = await service.resolve("onebot11", "10002")
     assert web == qq == str(account)
 
 
 @pytest.mark.asyncio
 async def test_different_qq_subjects_map_to_different_accounts(db, worker_database_url):
     a, b = _account(db), _account(db)
-    _binding(db, a, "qq", "napcat:111", external="111")
-    _binding(db, b, "qq", "napcat:222", external="222")
+    _binding(db, a, "qq", "onebot11:111", external="111")
+    _binding(db, b, "qq", "onebot11:222", external="222")
     service = PostgresAccountService(worker_database_url)
-    assert await service.resolve("napcat", "111") == str(a)
-    assert await service.resolve("napcat", "222") == str(b)
+    assert await service.resolve("onebot11", "111") == str(a)
+    assert await service.resolve("onebot11", "222") == str(b)
     # 未知 subject → None。
-    assert await service.resolve("napcat", "333") is None
+    assert await service.resolve("onebot11", "333") is None
 
 
 @pytest.mark.asyncio
@@ -79,11 +79,11 @@ async def test_revoked_binding_is_not_resolved(db, worker_database_url):
     db.execute(
         "INSERT INTO identity_bindings(identity_binding_id, account_id, provider,"
         "external_subject_id, normalized_subject_id, status, verified_at, revoked_at) "
-        "VALUES (%s,%s,'qq','4000','napcat:4000','revoked',now(),now())",
+        "VALUES (%s,%s,'qq','4000','onebot11:4000','revoked',now(),now())",
         (uuid4(), account),
     )
     service = PostgresAccountService(worker_database_url)
-    assert await service.resolve("napcat", "4000") is None
+    assert await service.resolve("onebot11", "4000") is None
 
 
 @pytest.mark.asyncio
@@ -97,9 +97,9 @@ async def test_disabled_account_is_not_resolved(db, worker_database_url):
     db.execute(
         "INSERT INTO accounts(account_id, status) VALUES (%s,'disabled')", (account,)
     )
-    _binding(db, account, "qq", "napcat:5000", external="5000")
+    _binding(db, account, "qq", "onebot11:5000", external="5000")
     service = PostgresAccountService(worker_database_url)
-    assert await service.resolve("napcat", "5000") is None
+    assert await service.resolve("onebot11", "5000") is None
 
 
 def test_list_all_ids_returns_active_accounts(db, worker_database_url):

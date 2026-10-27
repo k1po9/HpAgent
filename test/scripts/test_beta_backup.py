@@ -16,7 +16,7 @@ import io,json,os,sys,tarfile
 args=sys.argv[1:]
 with open(os.environ['CALL_LOG'],'a') as log: log.write(json.dumps(args)+'\n')
 if args[0]=='compose':
-    if os.environ.get('MISSING_SERVICE') and args[-1]=='napcat': sys.exit(0)
+    if os.environ.get('MISSING_SERVICE') and args[-1]=='snowluma': sys.exit(0)
     print('fixture-container')
 elif args[0]=='inspect':
     fmt=args[2]

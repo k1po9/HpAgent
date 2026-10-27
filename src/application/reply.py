@@ -75,7 +75,7 @@ class ReplyService:
         if self._channel is None:
             return False
 
-        metadata = user_message.get("metadata", {})
+        metadata = dict(user_message.get("metadata", {}))
         content = await self._format_group_mention(content, user_message, metadata)
 
         ch_type = self._resolve_channel(user_message.get("channel_type", "console"))
@@ -121,6 +121,9 @@ class ReplyService:
                         "Smart @reply: group=%s subscribers=%d sender=%s",
                         group_id, subscribers, sender_id,
                     )
+                    if user_message.get("channel_type") == "onebot11":
+                        metadata["mention_sender"] = True
+                        return content
                     return f"[CQ:at,qq={sender_id}] {content}"
         except Exception:
             pass

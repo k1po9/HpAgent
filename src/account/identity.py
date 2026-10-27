@@ -1,7 +1,7 @@
 """Canonical normalization for channel identities."""
 from __future__ import annotations
 
-QQ_CHANNELS = frozenset({"napcat", "official_qq"})
+QQ_CHANNELS = frozenset({"onebot11", "official_qq"})
 
 
 def normalize_web_subject(subject: str) -> str:

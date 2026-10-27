@@ -8,7 +8,7 @@
 ./scripts/operations/logs.sh                         # 实时查看全部服务
 ./scripts/operations/logs.sh --api                   # FastAPI
 ./scripts/operations/logs.sh --worker                # 主 Worker + Document Worker
-./scripts/operations/logs.sh --qq                    # Worker + NapCat
+./scripts/operations/logs.sh --qq                    # Worker + SnowLuma
 ./scripts/operations/logs.sh --infra                 # 数据与持久化服务
 ./scripts/operations/logs.sh --api -n 100 --no-follow
 ./scripts/operations/logs.sh temporal redis -n 200

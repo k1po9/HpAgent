@@ -18,7 +18,7 @@ ChannelRouter —— 渠道路由器，按 channel_type 将传出消息分发到
 ============================================================================
 
   router = ChannelRouter()
-  router.register(ChannelType.NAPCAT, napcat_channel)
+  router.register(ChannelType.ONEBOT11, onebot11_channel)
   router.register(ChannelType.CONSOLE, console_channel)
 
   # 编排层调用
@@ -26,8 +26,9 @@ ChannelRouter —— 渠道路由器，按 channel_type 将传出消息分发到
 """
 from typing import Dict, Optional
 
-from common.types import ChannelType, UnifiedMessage
+from common.channel_result import ChannelSendResult
 from common.interfaces import IChannel
+from common.types import ChannelType, UnifiedMessage
 
 
 class ChannelRouter:
@@ -75,3 +76,14 @@ class ChannelRouter:
         if not channel:
             return False
         return await channel.send_message(message)
+
+    async def send_with_receipt(self, message: UnifiedMessage) -> ChannelSendResult:
+        channel = self._channels.get(message.channel_type)
+        if channel is None:
+            return ChannelSendResult('failed', error_code='channel_unavailable')
+        typed_send = getattr(channel, 'send_with_receipt', None)
+        if typed_send is not None:
+            return await typed_send(message)
+        accepted = await channel.send_message(message)
+        return ChannelSendResult('accepted' if accepted else 'failed',
+                                 receipt={'level': 'adapter_accepted'})

@@ -79,7 +79,7 @@ skills:
 # ── 渠道模型参数覆盖 ──────────────────────────────────────────────
 # 每个渠道可覆盖 max_tokens / timeout，缺省使用上方模型链的默认值
 channel_overrides:
-  napcat:
+  onebot11:
     max_tokens: 4096
     timeout: 30.0
     stream: false

@@ -5,7 +5,7 @@ Channels —— 渠道适配层，将不同消息平台的消息统一为 Unifie
 设计意图
 ============================================================================
 
-  不同消息平台（QQ/NapCat、Web、Console）有不同的消息格式和通信协议。
+  不同消息平台（QQ/OneBot11、Web、Console）有不同的消息格式和通信协议。
   渠道层负责:
     1. 接收原始消息 → normalize_message() → UnifiedMessage（标准化）
     2. 发送 UnifiedMessage → 转换为平台格式 → 发送到外部
@@ -18,7 +18,7 @@ Channels —— 渠道适配层，将不同消息平台的消息统一为 Unifie
 
   BaseChannel     — 渠道抽象基类（定义 normalize_message / send_message 接口）
   ConsoleChannel  — 控制台渠道（stdin/stdout 交互，开发调试用）
-  NapCatChannel   — NapCat QQ 渠道（WebSocket 连接 OneBot v11 协议）
+  OneBot11Channel   — OneBot11 QQ 渠道（WebSocket 连接 OneBot v11 协议）
   ChannelRouter   — 渠道路由器（按 ChannelType 分发消息到对应渠道）
 
 ============================================================================
@@ -32,8 +32,8 @@ Channels —— 渠道适配层，将不同消息平台的消息统一为 Unifie
 """
 from .base import BaseChannel
 from .console import ConsoleChannel
-from .napcat import NapCatChannel
+from .onebot11 import OneBot11Channel
 from .official_qq import OfficialQQChannel
 from .router import ChannelRouter
 
-__all__ = ["BaseChannel", "ConsoleChannel", "NapCatChannel", "OfficialQQChannel", "ChannelRouter"]
+__all__ = ["BaseChannel", "ConsoleChannel", "OneBot11Channel", "OfficialQQChannel", "ChannelRouter"]

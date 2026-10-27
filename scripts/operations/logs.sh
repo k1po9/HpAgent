@@ -18,7 +18,7 @@ Options:
   --all          all running services (default)
   --api          hpagent-api
   --worker       hpagent and hpagent-document-worker
-  --qq           hpagent and napcat
+  --qq           hpagent and snowluma
   --infra        PostgreSQL, Redis, Temporal, Hindsight, SearXNG, Gotenberg
   -n, --tail N   show the most recent N lines (default: 200)
   -f, --follow   follow log output (default)
@@ -38,7 +38,7 @@ while (($#)); do
     --all) services=() ;;
     --api) services+=(hpagent-api) ;;
     --worker) services+=(hpagent hpagent-document-worker) ;;
-    --qq) services+=(hpagent napcat) ;;
+    --qq) services+=(hpagent snowluma) ;;
     --infra)
       services+=(app-postgres redis temporal temporal-postgres hindsight hindsight-postgres searxng gotenberg)
       ;;

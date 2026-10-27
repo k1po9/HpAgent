@@ -17,8 +17,8 @@ from application.identity_commands import IdentityCommandService
 from application.ingress import MessageIngressService
 from bootstrap.durable_runtime import compose_durable_runtime
 from bootstrap.worker_dependencies import init_dependencies, load_worker_qq_binding_code_pepper
-from channels.napcat import NapCatChannel
 from channels.official_qq import OfficialQQChannel
+from channels.onebot11 import OneBot11Channel
 from common.types import ChannelType, UnifiedMessage
 from memory.activities import ScheduledMemoryActivities
 from memory.workflows import MetricsReportWorkflow, ReflectWorkflow
@@ -75,7 +75,7 @@ async def start_worker(config: AppConfig) -> None:
         web_memory_retention = composition.memory_retention
         # ── 渠道注册（按 config.yaml 的 channels.enabled 列表动态加载）──
         _channel_factories = {
-            ChannelType.NAPCAT: NapCatChannel,
+            ChannelType.ONEBOT11: lambda: OneBot11Channel(config.channels.onebot11),
             ChannelType.OFFICIAL_QQ: OfficialQQChannel,
         }
 
@@ -175,6 +175,9 @@ async def start_worker(config: AppConfig) -> None:
             for ch in active_channels:
                 await ch.start_monitor(handle_message)
 
+            from orchestration.qq_diagnostics import qq_diagnostics_loop
+
+            background_tasks.create(qq_diagnostics_loop(active_channels))
             from application.qq_delivery import QQDeliveryAdapter, QQDeliveryService
 
             background_tasks.create(

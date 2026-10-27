@@ -19,7 +19,7 @@ def conversation(commands, account_id):
 def test_surface_keys_replay_from_pg_across_command_instances(db, account_id, database_url):
     first, second = CommandService(database_url), CommandService(database_url)
     cid = conversation(first, account_id)
-    key = "qq:napcat:bot-1:group:42:thread:7:message:123"
+    key = "qq:onebot11:bot-1:group:42:thread:7:message:123"
     accepted = first.send_message(account_id, cid, key, "hello")
     replay = second.send_message(account_id, cid, key, "hello")
     assert replay.replayed and replay.body == accepted.body

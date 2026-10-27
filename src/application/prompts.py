@@ -3,7 +3,7 @@ PromptLoader —— 从 YAML 文件加载所有 Agent prompt，解除硬编码�
 
 目录结构:
   config/prompts/
-    ├── identities.yaml    # 渠道身份声明 + 行为风格 (napcat/console/web/default)
+    ├── identities.yaml    # 渠道身份声明 + 行为风格 (onebot11/console/web/default)
     ├── guidance.yaml      # 工具使用纪律
     ├── environment.yaml   # 运行环境提示 (docker/wsl)
     └── system.yaml        # 系统级提示 (跨渠道/记忆召回指令)
@@ -59,7 +59,7 @@ class PromptLoader:
         """获取指定渠道的身份声明 prompt（含行为风格，已合并至 identities.yaml）。
 
         Args:
-            channel: 渠道名 (napcat / console / web)。
+            channel: 渠道名 (onebot11 / console / web)。
             default: 若渠道未找到且 default 为空，返回内置 DEFAULT_IDENTITY。
 
         Returns:

@@ -26,7 +26,8 @@
 | 文件、授权、版本、发布/保存、GC | [workspace](../../src/workspace/)、[file_lifecycle.py](../../src/web_domain/file_lifecycle.py)、[file_runtime](../../src/file_runtime/) → [Workspace 契约](../architecture/workspace.md)。 |
 | 研究与成果生成 | [research_domain](../../src/research_domain/)、[research_activities](../../src/research_activities/) （局部运行时与 [父适配器](../../src/research_activities/parent.py)）→ [research_workflow.py](../../src/orchestration/research_workflow.py)、[artifact_activities.py](../../src/orchestration/artifact_activities.py)；[HTML 局部实现](../../src/web_artifacts/local.py) 通过 [HtmlCapabilityWorkflow](../../src/agent_workflows/html.py) 调用共享 generator/publisher；[文字发布](../../src/agent_activities/text_result.py) 经 [TextCapabilityWorkflow](../../src/agent_workflows/text.py) 复用不可变文件与 ResultRef 内核。 |
 | 共享 Web Search/Fetch | [web_retrieval](../../src/web_retrieval/) 提供供应商选择、安全抓取与预算边界；[web_tools.py](../../src/agent_activities/web_tools.py) 向 Main / Work root 注入工具，Research 沿共享 Adapter 使用同一服务。 |
-| 通知/投递/QQ | [delivery](../../src/delivery/)、[qq_delivery.py](../../src/application/qq_delivery.py) → 渠道 Adapter 与独立投递回执。 |
+| QQ 反向 WS、鉴权与协议 | [onebot11.py](../../src/channels/onebot11.py)、[onebot.py](../../src/common/onebot.py) → [ingress.py](../../src/application/ingress.py)、[conversation.py](../../src/application/conversation.py) → Conversation 命令；[qq_diagnostics.py](../../src/orchestration/qq_diagnostics.py) 单独报告 QQ readiness。 |
+| 通知/逐片投递/QQ 回执 | [delivery](../../src/delivery/)、[qq_delivery.py](../../src/application/qq_delivery.py) → [router.py](../../src/channels/router.py)、[channel_result.py](../../src/common/channel_result.py)；provider accepted/failed/uncertain 不代替 Run 或 Work 终态。 |
 | API、权限、快照、SSE、诊断 | [routes](../../src/web_api/routes/)、[dependencies.py](../../src/web_api/dependencies.py)、[middleware.py](../../src/web_api/middleware.py)、[error_handlers.py](../../src/web_api/error_handlers.py) → [web_domain](../../src/web_domain/)、[persistence](../../src/persistence/) → [API 测试](../../test/web_api/)。 |
 | schema/角色权限 | [migrations](../../persistence/migrations/) → [数据库测试](../development/testing.md)；新增有序迁移，不修改已应用文件。 |
 
@@ -48,3 +49,7 @@
 ## 配置与辅助代码
 
 [config](../../config/) 是运行时配置；[scripts](../../scripts/README.md) 按开发、检查、运维与实验划分；[prototypes](../../prototypes/) 是独立实验室，不属于产品构建。迁移与 [test/fixtures](../../test/fixtures/) 是可执行输入，不能作为历史材料删除。截图、日志、trace、benchmark 结果不纳入当前文档；运行输出位置及副作用见脚本索引。
+
+QQ 服务使用 [SnowLuma 启动校验](../../config/snowluma/verify.cjs)、
+[初始化脚本](../../scripts/operations/snowluma-config.py) 和 [OneBot11 隔离测试拓扑](../../test/fixtures/onebot11.compose.yaml)。
+镜像版本与运行中账号/协议版本分别核验；部署入口见 [SnowLuma / OneBot11](../operations/deployment.md#snowluma--onebot11)。

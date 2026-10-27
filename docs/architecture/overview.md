@@ -3,7 +3,7 @@
 HpAgent 通过统一 Account 和命令边界提供 Web / QQ 入口。Main Agent 面向交互，Work 保存持续委托，Run 是有限执行，Execution 是独立执行上下文；Surface Adapter 不拥有另一套 Agent Runtime。
 
 ```text
-Web Browser / QQ Provider
+Web Browser / QQ（SnowLuma → OneBot11 反向 WebSocket）
           ↓
 Application / Conversation commands / Work commands
           ↓
@@ -30,6 +30,22 @@ Web 查询与 SSE / notifications → deliveries → Web inbox / QQ
 - **Capability**：Model、Actions、MCP、Memory、Sandbox、Workspace、Research、Artifact 和 Document。
 
 主 Worker Composition Root 构造共享基础设施并注入 Activity；可变执行上下文按 Execution 隔离。API 接收命令和查询投影，QQ Ingress 复用命令，Delivery 只消费已提交通知。Heavy Document Worker 是独立资源进程边界，不形成另一套委托或文件系统。
+
+## QQ 接入与回执
+
+业务渠道名为 `onebot11`，SnowLuma 2.2.0 是 QQ 协议实现，作为可选 Compose 服务运行。
+SnowLuma 主动连接 Worker 的内部 `ws://hpagent:8082/onebot/v11`；Worker 校验 Bearer、
+唯一 bot 身份和 Universal role，再核验实际登录账号、协议版本及 online/good。
+端口不发布到宿主；管理页面只绑定宿主回环。QQ readiness 与 Worker/Web liveness 分开。
+
+接收循环独立处理动作应答，业务消息经有界队列进入规范化、身份绑定、群聊触发与
+Conversation 命令。稳定的 bot/会话路由和外部消息 ID 决定幂等键；单连接代次隔离旧连接事件与迟到应答。
+反向 WebSocket 不提供持久入站队列，断线期间不能承诺补发。
+
+出站由独立 Delivery 消费 PostgreSQL 已提交的通知，以消息段数组发送，并保存逐片真实 QQ
+message_id。控制回复也等待匹配连接的动作回执。外发后结果未知或发送者丢失时保留 `uncertain`，
+经显式决议恢复，不能重跑内容 Run 或盲重发。Run 成功、Work 完成、渠道 accepted 与用户验收分别记账。
+图片只记录可下载来源；来源可读取不等于视觉模型已理解图片。
 
 Conversation 保留同对话单 active chat Run；Work Run 不占聊天槽、不伪造 Message、不强制依赖 Session / Git。单 Work 协调权、Execution attempt lease、资源锁和跨进程容量票据是四项独立约束。
 

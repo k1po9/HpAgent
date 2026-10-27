@@ -59,7 +59,7 @@ async def test_ingress_execution_main_tools_preserve_audience(
         ingress = chat.send_message(account_id, cid, str(uuid4()), 'Inspect Work')
     else:
         bind(db, account_id)
-        ingress = await qq_service(worker_database_url).accept(qq_message(scope=scope), 'napcat')
+        ingress = await qq_service(worker_database_url).accept(qq_message(scope=scope), 'onebot11')
         cid = UUID(ingress['conversation_id'])
     run_id = UUID(ingress['run_id'])
     chat = CommandService(worker_database_url)

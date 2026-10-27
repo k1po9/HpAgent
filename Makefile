@@ -12,7 +12,8 @@ install:
 lint:
 	$(PYTHON) -m ruff check src/conversation_domain src/web_domain src/persistence src/web_api \
 		src/work_domain src/run_domain src/application src/bootstrap src/agent_workflows \
-		src/agent_activities src/orchestration src/research_domain src/research_activities test
+		src/agent_activities src/orchestration src/research_domain src/research_activities \
+		src/channels/onebot11.py src/common/channel_result.py src/common/onebot.py src/delivery test
 
 typecheck:
 	$(PYTHON) -m mypy

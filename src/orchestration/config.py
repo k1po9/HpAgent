@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from common.onebot import OneBot11Config
 from memory.quality_config import MemoryConfigError, MemoryQualityConfig, load_memory_prompts
 
 if TYPE_CHECKING:
@@ -86,6 +87,7 @@ class ChannelsConfig:
     不在列表中的渠道不会被初始化或连接。
     """
     enabled: List[str] = field(default_factory=lambda: ["console"])
+    onebot11: OneBot11Config = field(default_factory=OneBot11Config)
 
 
 @dataclass
@@ -615,6 +617,12 @@ class AppConfig:
 
     def _apply_env_overrides(self, environ: dict) -> None:
         """用环境变量覆盖 YAML 中的值（Docker Compose 传入）。"""
+        if "HPAGENT_CHANNELS" in environ:
+            self.channels.enabled = [v.strip() for v in environ["HPAGENT_CHANNELS"].split(",") if v.strip()]
+        if environ.get("ONEBOT_EXPECTED_SELF_ID"):
+            self.channels.onebot11.expected_self_id = environ["ONEBOT_EXPECTED_SELF_ID"]
+        if environ.get("ONEBOT_ACCESS_TOKEN_FILE"):
+            self.channels.onebot11.access_token_file = environ["ONEBOT_ACCESS_TOKEN_FILE"]
         if environ.get("TEMPORAL_HOST"):
             self.temporal.host = environ["TEMPORAL_HOST"]
         if environ.get("TEMPORAL_TASK_QUEUE"):

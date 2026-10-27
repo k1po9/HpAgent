@@ -111,7 +111,7 @@ clean_all_data() {
         rm -rf "$DATA_DIR"/workspace 2>/dev/null || true
         rm -rf "$DATA_DIR"/sessions 2>/dev/null || true
         rm -rf "$DATA_DIR"/logs 2>/dev/null || true
-        echo "[dev-reset]   All .data/ contents removed (napcat/ preserved)."
+        echo "[dev-reset]   All .data/ contents removed (snowluma/ and onebot-secrets/ preserved)."
     else
         echo "[dev-reset]   .data/ dir does not exist, skipping."
     fi
@@ -163,7 +163,7 @@ case "${1:-}" in
         kill_hpagent
         clean_all_data
         echo ""
-        echo "[dev-reset] .data/ cleaned (napcat/ preserved). Next start will re-init everything."
+        echo "[dev-reset] .data/ cleaned (snowluma/ and onebot-secrets/ preserved). Next start will re-init everything."
         ;;
     --full)
         kill_hpagent

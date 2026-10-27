@@ -41,14 +41,14 @@ def test_idempotent_double_run(db, migration_database_url):
     first = bootstrap_identity(
         migration_database_url,
         web_subject="user@example.com",
-        qq_channel="napcat",
+        qq_channel="onebot11",
         qq_subject="10001",
     )
     # 大小写不同的 web_subject 也必须归一化到同一绑定（casefold）。
     second = bootstrap_identity(
         migration_database_url,
         web_subject="User@Example.com",
-        qq_channel="napcat",
+        qq_channel="onebot11",
         qq_subject="10001",
     )
     assert first.status == "created"
@@ -65,12 +65,12 @@ def test_case_e_conflict_raises_without_merging(db, migration_database_url):
     a, b = uuid4(), uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s),(%s)", (a, b))
     _binding(db, a, "web", "user@example.com")
-    _binding(db, b, "qq", "napcat:10002")
+    _binding(db, b, "qq", "onebot11:10002")
     with pytest.raises(ValueError, match="does not merge Accounts"):
         bootstrap_identity(
             migration_database_url,
             web_subject="user@example.com",
-            qq_channel="napcat",
+            qq_channel="onebot11",
             qq_subject="10002",
         )
     # 冲突不产生任何新行（无 merge、无自动建号）。
@@ -81,11 +81,11 @@ def test_both_bound_to_same_account_is_noop(db, migration_database_url):
     account = uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (account,))
     _binding(db, account, "web", "user@example.com")
-    _binding(db, account, "qq", "napcat:10003")
+    _binding(db, account, "qq", "onebot11:10003")
     result = bootstrap_identity(
         migration_database_url,
         web_subject="user@example.com",
-        qq_channel="napcat",
+        qq_channel="onebot11",
         qq_subject="10003",
     )
     assert result.status == "noop"
@@ -96,11 +96,11 @@ def test_both_bound_to_same_account_is_noop(db, migration_database_url):
 def test_qq_only_creates_web_binding_on_same_account(db, migration_database_url):
     account = uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (account,))
-    _binding(db, account, "qq", "napcat:10004")
+    _binding(db, account, "qq", "onebot11:10004")
     result = bootstrap_identity(
         migration_database_url,
         web_subject="user@example.com",
-        qq_channel="napcat",
+        qq_channel="onebot11",
         qq_subject="10004",
     )
     assert result.status == "bound_web"
@@ -120,13 +120,13 @@ def test_invalid_channel_and_empty_subjects_raise(db, migration_database_url):
         bootstrap_identity(
             migration_database_url,
             web_subject="   ",
-            qq_channel="napcat",
+            qq_channel="onebot11",
             qq_subject="1",
         )
     with pytest.raises(ValueError, match="qq_subject"):
         bootstrap_identity(
             migration_database_url,
             web_subject="x",
-            qq_channel="napcat",
+            qq_channel="onebot11",
             qq_subject="",
         )

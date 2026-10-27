@@ -63,7 +63,7 @@ async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(monkeyp
     run_id, account_id, conversation_id, session_id = [str(uuid4()) for _ in range(4)]
     request = ModelDecisionInput(
         AGENT_SCHEMA_VERSION, run_id, account_id, RunSource("chat", conversation_id),
-        RunContext(chat=ChatContext(conversation_id, session_id, None), surface="napcat"),
+        RunContext(chat=ChatContext(conversation_id, session_id, None), surface="onebot11"),
         "react", "transcript", 1, 1, f"{run_id}:model:1", 1, final_only=final_only,
      execution_id=str(root_execution_id(run_id)))
     store = SimpleNamespace(

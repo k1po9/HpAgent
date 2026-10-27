@@ -9,7 +9,7 @@
     MIGRATION_DATABASE_URL=postgresql://hpagent_migrate:...@localhost:5434/hpagent \
     python scripts/operations/bootstrap-identity.py \
       --web-subject huangpei \
-      --qq-channel napcat \
+      --qq-channel onebot11 \
       --qq-subject 123456789
 
 正常用户绑定使用 API 的 QQ ownership challenge；此工具凭管理员数据库权限直接
@@ -35,7 +35,7 @@ def main() -> int:
     )
     parser.add_argument("--web-subject", required=True, help="Web username (e.g. huangpei)")
     parser.add_argument(
-        "--qq-channel", required=True, choices=("napcat", "official_qq"),
+        "--qq-channel", required=True, choices=("onebot11", "official_qq"),
         help="QQ channel type",
     )
     parser.add_argument("--qq-subject", required=True, help="QQ number or OpenID")

@@ -571,19 +571,27 @@ async def test_new_candidate_capability_uses_unchanged_tool_workflow(urls, accou
     from agent_workflows.capability import CapabilityInvocationWorkflow
     from agent_workflows.contracts import AGENT_TASK_QUEUE
     from agent_workflows.tool_execution import ToolExecutionWorkflow
+    from application.tool_policy import ToolPolicy, tool_policy
     from run_domain.capabilities import CapabilityFacts
     from run_domain.capability_contracts import CapabilityRegistry
 
     binding = CapabilityBinding("test.additional", 1, "DeterministicCapabilityWorkflow")
+    configured = tool_policy().model_dump()
+    configured['groups']['test_additional'] = {
+        'description': 'Isolated extension fixture', 'tools': [binding.tool_name], 'exposure': 'always',
+    }
+    for role in ('main', 'worker'):
+        configured['roles'][role]['groups'] += ('test_additional',)
     probe = ProbeActivities(
         AgentDataStore(urls[2]),
         CapabilityFacts(CapabilityRegistry((replace(definition(), key=binding.key),))),
         (binding,),
+        policy=ToolPolicy.model_validate(configured),
     )
     run = chat(urls, account_id)
     original = tool_input(urls, account_id, run, text="additional candidate")
     tool = replace(original, tool_call=replace(original.tool_call, name=binding.tool_name))
-    assert probe.discover("chat")[0]["function"]["name"] == binding.tool_name
+    assert binding.tool_name in {tool["function"]["name"] for tool in probe.discover("chat")}
     segments = SegmentActivities(probe.store)
     client = await Client.connect(
         os.environ["TEMPORAL_HOST"], namespace=os.environ["TEMPORAL_TEST_NAMESPACE"]

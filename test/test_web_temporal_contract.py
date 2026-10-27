@@ -313,12 +313,12 @@ async def test_temporal_start_temporarily_unavailable_is_retried_then_processed(
 
 def test_qq_ingress_key_is_derived_from_protocol_identity():
     message = UnifiedMessage(
-        message_id="random-local-id", sender_id="sender", channel_type=ChannelType.NAPCAT,
+        message_id="random-local-id", sender_id="sender", channel_type=ChannelType.ONEBOT11,
         content="hello", metadata={"detail_type": "private", "self_id": "bot", "message_id": "qq-message-1"},
     )
-    source = normalize_qq_message(message, "napcat")
+    source = normalize_qq_message(message, "onebot11")
     message.message_id = "another-random-local-id"
-    assert normalize_qq_message(message, "napcat").message_key == source.message_key
+    assert normalize_qq_message(message, "onebot11").message_key == source.message_key
     assert source.origin["external_message_id"] == "qq-message-1"
 
 

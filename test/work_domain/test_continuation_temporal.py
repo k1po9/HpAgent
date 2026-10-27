@@ -11,6 +11,7 @@ from temporalio.client import Client
 from temporalio.worker import Replayer, UnsandboxedWorkflowRunner, Worker
 from test_delegation_temporal import Actions, EventFactory, Resources
 
+from actions.contracts import ActionRequest
 from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
@@ -62,7 +63,8 @@ async def test_generic_two_runs_restore_checkpoint_and_allow_concurrent_chat(
         async def generate_chat_decision(self, *, messages, tools=None):
             user = next(m['content'] for m in messages if m['role'] == 'user')
             if 'Chat while investigating' in user:
-                return BrainDecision('Chat completed independently', [], 'stop', {})
+                return BrainDecision('', [ActionRequest('answer', 'respond_directly',
+                    {'answer': 'Chat completed independently'})], 'tool_calls', {})
             brief = json.loads(user)
             prior = brief['checkpoint']
             versions.append(prior['checkpoint_version'])

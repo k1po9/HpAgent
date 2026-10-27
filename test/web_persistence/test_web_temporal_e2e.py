@@ -106,8 +106,8 @@ class Sandbox:
         ("react", "cancelled", "web"),
         ("plan_and_execute", "failed", "web"),
         ("plan_and_execute", "cancelled", "web"),
-        ("react", "completed", "napcat"),
-        ("react", "cancelled", "napcat"),
+        ("react", "completed", "onebot11"),
+        ("react", "cancelled", "onebot11"),
     ],
 )
 async def test_web_canonical_lifecycle(
@@ -116,7 +116,7 @@ async def test_web_canonical_lifecycle(
     if not os.getenv("TEMPORAL_HOST"):
         pytest.skip("TEMPORAL_HOST required")
     command = CommandService(database_url)
-    if surface == "napcat":
+    if surface == "onebot11":
         from support.qq_messages import qq_message
 
         from application.conversation import ConversationService
@@ -124,7 +124,7 @@ async def test_web_canonical_lifecycle(
         from conversation_domain.surface_commands import SurfaceConversationCommands
         db.execute(
             "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
-            "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','napcat:123',now())",
+            "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','onebot11:123',now())",
             (uuid4(), account_id),
         )
         ingress = MessageIngressService(conversation_service=ConversationService(
@@ -210,7 +210,7 @@ async def test_web_canonical_lifecycle(
         handle = client.get_workflow_handle(f"hpagent-web-run-{run_id}")
         if outcome == "cancelled":
             await asyncio.wait_for(brain.entered.wait(), 30)
-            if surface == "napcat":
+            if surface == "onebot11":
                 cancelled = await ingress.handle(qq_message("cancel-1", "/cancel"))
                 assert cancelled["run_id"] == str(run_id)
             else:
@@ -227,16 +227,18 @@ async def test_web_canonical_lifecycle(
         assert (
             await adapter.start_web_run(handle.id, RunLifecycleInput(1, str(run_id))) == original_id
         )
-        if surface == "napcat" and outcome == "completed":
+        if surface == "onebot11" and outcome == "completed":
             from application.qq_delivery import QQDeliveryAdapter, QQDeliveryService
 
             class DeliveryRouter:
                 def __init__(self):
                     self.sent = []
 
-                async def send(self, message):
-                    self.sent.append(message.content)
-                    return len(self.sent) > 1
+                async def send_with_receipt(self, message):
+                    from common.channel_result import ChannelSendResult
+                    self.sent.append(message.metadata["onebot_segments"][-1]["data"]["text"])
+                    return ChannelSendResult("accepted" if len(self.sent) > 1 else "failed",
+                                             provider_message_id="-9" if len(self.sent) > 1 else None)
 
             router = DeliveryRouter()
             delivery = QQDeliveryService(worker_database_url, QQDeliveryAdapter(router))
@@ -248,7 +250,7 @@ async def test_web_canonical_lifecycle(
                 if router.sent:
                     break
             assert len(router.sent) == 1
-            failed_delivery = db.execute("SELECT d.delivery_id,d.state FROM deliveries d JOIN notifications n USING(account_id,notification_id) JOIN delivery_targets t USING(account_id,target_id) WHERE n.run_id=%s AND t.channel='napcat'", (run_id,)).fetchone()
+            failed_delivery = db.execute("SELECT d.delivery_id,d.state FROM deliveries d JOIN notifications n USING(account_id,notification_id) JOIN delivery_targets t USING(account_id,target_id) WHERE n.run_id=%s AND t.channel='onebot11'", (run_id,)).fetchone()
             assert failed_delivery[1] == "failed"
             assert delivery.retry_uncertain(account_id, failed_delivery[0])
             for _ in range(10):
@@ -259,8 +261,8 @@ async def test_web_canonical_lifecycle(
             assert router.sent[0] == router.sent[1]
             assert "canonical reply" in router.sent[1]
             assert brain.calls == calls_before_delivery
-            receipt = db.execute("SELECT d.state,d.provider_receipt FROM deliveries d JOIN notifications n USING(account_id,notification_id) JOIN delivery_targets t USING(account_id,target_id) WHERE n.run_id=%s AND t.channel='napcat'", (run_id,)).fetchone()
-            assert receipt[0] == "accepted" and receipt[1]["level"] == "adapter_accepted"
+            receipt = db.execute("SELECT d.state,d.provider_receipt FROM deliveries d JOIN notifications n USING(account_id,notification_id) JOIN delivery_targets t USING(account_id,target_id) WHERE n.run_id=%s AND t.channel='onebot11'", (run_id,)).fetchone()
+            assert receipt[0] == "accepted" and receipt[1]["level"] == "provider_accepted"
             assert db.execute("SELECT outcome FROM delivery_decisions WHERE delivery_id=%s", (failed_delivery[0],)).fetchall() == [("retry_accepting_duplicate_risk",)]
         before = brain.calls
         db.execute(

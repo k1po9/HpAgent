@@ -6,18 +6,18 @@ from support.qq_messages import qq_message
 
 from application.conversation import InvalidQQMessage, normalize_qq_message
 from application.ingress import MessageIngressService
-from channels.napcat import NapCatChannel
 from channels.official_qq import OfficialQQChannel
+from channels.onebot11 import OneBot11Channel
 
 
 @pytest.mark.asyncio
-async def test_napcat_raw_id_and_bot_are_preserved_across_normalization():
-    channel = NapCatChannel()
+async def test_onebot11_raw_id_and_bot_are_preserved_across_normalization():
+    channel = OneBot11Channel()
     raw = {"post_type": "message", "message_type": "private", "self_id": 999,
            "message_id": -123, "sender": {"user_id": 123}, "message": "hi"}
     first, second = await channel.normalize_message(raw), await channel.normalize_message(raw)
     assert first.message_id == "-123" and first.metadata["self_id"] == "999"
-    assert normalize_qq_message(first, "napcat").message_key == normalize_qq_message(second, "napcat").message_key
+    assert normalize_qq_message(first, "onebot11").message_key == normalize_qq_message(second, "onebot11").message_key
 
 
 @pytest.mark.asyncio
@@ -44,7 +44,7 @@ def test_missing_provider_identity_does_not_use_generated_uuid(field):
     message = qq_message()
     del message.metadata[field]
     with pytest.raises(InvalidQQMessage):
-        normalize_qq_message(message, "napcat")
+        normalize_qq_message(message, "onebot11")
 
 
 @pytest.mark.asyncio

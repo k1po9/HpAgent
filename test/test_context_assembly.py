@@ -101,14 +101,14 @@ def test_context_event_projects_profile_into_metadata_only():
         "role": "user",
         "content": "hello",
         "origin": {
-            "channel_type": "napcat",
+            "channel_type": "onebot11",
             "scope": "group",
             "interaction_profile": "qq_group",
         },
     })
     assert event.content == {"content": "hello"}
     assert event.metadata["interaction_profile"] == "qq_group"
-    assert event.metadata["interaction_source"] == "napcat"
+    assert event.metadata["interaction_source"] == "onebot11"
 
 
 @pytest.mark.parametrize(
@@ -119,7 +119,7 @@ def test_context_event_projects_profile_into_metadata_only():
         ({"interaction_profile": "qq_private"}, "react", "qq_private"),
         ({"interaction_profile": "qq_group"}, "react", "qq_group"),
         ({"channel_type": "official_qq", "scope": "private"}, "react", "qq_private"),
-        ({"channel_type": "napcat", "scope": "group"}, "react", "qq_group"),
+        ({"channel_type": "onebot11", "scope": "group"}, "react", "qq_group"),
     ],
 )
 def test_source_profile_selector_preserves_all_profiles_and_legacy_rows(
@@ -130,9 +130,9 @@ def test_source_profile_selector_preserves_all_profiles_and_legacy_rows(
 
 @pytest.mark.parametrize("origin,expected", [
     ({}, ("private", "")),
-    ({"channel_type": "napcat", "scope": "group", "context_key": "route-A"}, ("group", "route-A")),
-    ({"channel_type": "napcat", "scope": "group"}, None),
-    ({"channel_type": "napcat"}, None),
+    ({"channel_type": "onebot11", "scope": "group", "context_key": "route-A"}, ("group", "route-A")),
+    ({"channel_type": "onebot11", "scope": "group"}, None),
+    ({"channel_type": "onebot11"}, None),
     ({"channel_type": "web", "scope": "unknown"}, None),
 ])
 async def test_chat_assembly_uses_only_trusted_scope(origin, expected):

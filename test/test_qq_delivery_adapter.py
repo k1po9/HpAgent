@@ -1,10 +1,8 @@
-import asyncio
 from uuid import uuid4
 
 import pytest
 
 from application.qq_delivery import QQDeliveryAdapter
-from channels.napcat import NapCatChannel
 from common.types import ChannelType, UnifiedMessage
 
 
@@ -16,7 +14,7 @@ def test_qq_parts_quote_mention_and_protected_attachment_references():
         },
         "content_scope": "content",
         "route": {
-                "channel_type": "napcat",
+                "channel_type": "onebot11",
                 "scope": "group",
                 "sender_id": "123",
                 "external_message_id": "42",
@@ -24,40 +22,12 @@ def test_qq_parts_quote_mention_and_protected_attachment_references():
     }
     parts = QQDeliveryAdapter(None).parts(row)
     assert len(parts) == 2
-    assert parts[0].startswith("[CQ:at,qq=123] [CQ:reply,id=42]")
-    assert "&#91;CQ:at" in parts[0]
-    assert "/api/v1/files/file-id/content" in parts[1]
-
-
-@pytest.mark.asyncio
-async def test_napcat_delivery_waits_for_ack_and_selects_bot():
-    channel = NapCatChannel.__new__(NapCatChannel)
-    channel._delivery_acks = {}
-    sent = []
-
-    class Socket:
-        async def send(self, payload):
-            sent.append(payload)
-            await asyncio.sleep(0)
-            next(iter(channel._delivery_acks.values())).set_result(True)
-
-    chosen, other = Socket(), Socket()
-    channel._connected_clients = {chosen, other}
-    channel._client_bots = {chosen: "bot", other: "other"}
-    message = UnifiedMessage(
-        sender_id="123",
-        channel_type=ChannelType.NAPCAT,
-        content="answer",
-        metadata={
-            "detail_type": "private",
-            "self_id": "bot",
-            "delivery_id": str(uuid4()),
-            "msg_seq": 1,
-        },
-    )
-    assert await channel.send_message(message)
-    assert len(sent) == 1
-    assert not channel._delivery_acks
+    assert [s["type"] for s in parts[0]] == ["at", "reply", "text"]
+    assert parts[0][0]["data"] == {"qq": "123"}
+    assert parts[0][1]["data"] == {"id": "42"}
+    assert parts[0][2]["data"]["text"].startswith("[CQ:at,qq=everyone]")
+    assert [s["type"] for s in parts[1]] == ["text"]
+    assert "/api/v1/files/file-id/content" in parts[1][0]["data"]["text"]
 
 
 @pytest.mark.asyncio

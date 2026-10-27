@@ -9,7 +9,7 @@ def enqueue_qq_result(uow, run_id):
         "WHERE mf.message_id=a.message_id),'[]'::jsonb) AS files FROM runs r "
         "JOIN messages t ON t.message_id=r.trigger_message_id JOIN messages a ON a.produced_by_run_id=r.run_id "
         "WHERE r.run_id=%s AND r.status='succeeded' AND a.status='completed' "
-        "AND t.origin->>'channel_type' IN ('napcat','official_qq')",
+        "AND t.origin->>'channel_type' IN ('onebot11','official_qq')",
         (run_id,),
     ).fetchone()
     if row:

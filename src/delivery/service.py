@@ -8,6 +8,7 @@ import os
 from uuid import uuid4, uuid5
 
 from account.identity import normalize_channel_subject
+from common.channel_result import ChannelSendResult
 from persistence.uow import UnitOfWork
 from work_domain.models import continuation
 from work_domain.persistence import WorkRepository
@@ -459,17 +460,30 @@ class DeliveryService:
             return True
         state, receipt = "uncertain", None
         try:
-            accepted = await asyncio.wait_for(self.adapter.send(row, part), timeout=60)
-            if accepted:
+            result = await asyncio.wait_for(self.adapter.send(row, part), timeout=60)
+            # Non-QQ adapters retain their existing acceptance contract.
+            if not isinstance(result, ChannelSendResult):
+                result = ChannelSendResult('accepted' if result else 'failed',
+                                           receipt={'level': 'adapter_accepted'})
+            state = result.state
+            receipt = dict(row.get('provider_receipt') or {})
+            if result.accepted:
                 part += 1
-                receipt = {
-                    "level": "adapter_accepted",
+                part_receipt = {
+                    **result.receipt,
+                    "level": "provider_accepted" if result.provider_message_id is not None else "adapter_accepted",
                     "part": part,
-                    "delivery_id": str(row["delivery_id"]),
+                    "provider_message_id": result.provider_message_id,
+                    "status": result.status, "retcode": result.retcode,
                 }
+                receipt = {**receipt, **part_receipt,
+                           "delivery_id": str(row["delivery_id"]),
+                           "parts": [*receipt.get("parts", []), part_receipt]}
                 state = "accepted" if part == len(self.adapter.parts(row)) else "pending"
             else:
-                state = "failed"
+                receipt['last_attempt'] = {**result.receipt, 'state': result.state,
+                                           'error_code': result.error_code,
+                                           'status': result.status, 'retcode': result.retcode}
         except Exception:
             pass
         await asyncio.to_thread(

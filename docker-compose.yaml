@@ -451,9 +451,6 @@ services:
       retries: 3
       start_period: 60s
 
-    ports:
-      - "127.0.0.1:8082:8082"
-
     logging:
       driver: json-file
       options:
@@ -463,6 +460,10 @@ services:
     environment:
       # 基础设施
       - TZ=Asia/Shanghai
+      # Empty disables optional QQ; --profile qq alone does not enable ingress.
+      - HPAGENT_CHANNELS=${HPAGENT_CHANNELS:-}
+      - ONEBOT_EXPECTED_SELF_ID=${ONEBOT_EXPECTED_SELF_ID:-}
+      - ONEBOT_ACCESS_TOKEN_FILE=/run/secrets/onebot_access_token
       - TEMPORAL_HOST=temporal:7233
       - HINDSIGHT_URL=http://hindsight:8888
       - HINDSIGHT_RECALL_ENABLED=${HINDSIGHT_RECALL_ENABLED:-false}
@@ -560,6 +561,7 @@ services:
       # 改 Python 源码以后只需要 restart，
       # 不需要重新 docker build。
       # --------------------------------------------------------
+      - ./.data/onebot-secrets:/run/secrets:ro
       - ./src:/app
       - ./persistence/migrations:/opt/hpagent/migrations:ro
 
@@ -895,49 +897,45 @@ services:
     restart: unless-stopped
 
 
-  # ============================================================
-  # NapCat QQ
-  #
-  # 只保留直连模式。
-  #
-  # 启动：
-  #
-  #   docker compose --profile qq up -d napcat
-  #
-  # ============================================================
-
-  napcat:
-    profiles:
-      - qq
-
-    image: ${NAPCAT_IMAGE:-mlikiowa/napcat-docker:latest}
-
+  # SnowLuma 2.2.0: authenticated reverse WS on app-network.
+  # Initialize config with scripts/operations/snowluma-config.py before enabling QQ.
+  snowluma:
+    profiles: [qq]
+    image: ${SNOWLUMA_IMAGE:-motricseven7/snowluma@sha256:34b4ec03738a698231cbad39c5650747330f5a96d953494fb6c12e1273974c0b}
+    platform: linux/amd64
+    entrypoint: [/bin/sh, /opt/hpagent-snowluma/entrypoint.sh]
+    restart: unless-stopped
+    networks: [app-network]
+    shm_size: 1gb
+    cap_add: [SYS_PTRACE]
+    security_opt: [seccomp=unconfined]
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 1048576
+    environment:
+      TZ: Asia/Shanghai
+      ONEBOT_EXPECTED_SELF_ID: ${ONEBOT_EXPECTED_SELF_ID:-}
+      SNOWLUMA_UID: ${SNOWLUMA_UID:-1000}
+      SNOWLUMA_GID: ${SNOWLUMA_GID:-1000}
+      SNOWLUMA_WEBUI_PORT: "5099"
+      SNOWLUMA_HOOK_AUTOLOAD: "1"
+      SNOWLUMA_LOG_LEVEL: info
+      SNOWLUMA_QQ_FLAGS: "--disable-gpu --disable-software-rasterizer --disable-gpu-compositing"
+    ports:
+      - "127.0.0.1:${SNOWLUMA_NOVNC_PORT:-6081}:6081"
+      - "127.0.0.1:${SNOWLUMA_WEBUI_HOST_PORT:-5099}:5099"
+    volumes:
+      - ./config/snowluma:/opt/hpagent-snowluma:ro
+      - ./.data/onebot-secrets:/run/secrets:ro
+      - ./.data/snowluma/data:/app/data
+      - ./.data/snowluma/qq-config:/app/.config
+      - ./.data/snowluma/qq-share:/app/.local/share
     logging:
       driver: json-file
       options:
         max-size: "20m"
         max-file: "3"
-
-    network_mode: host
-
-    environment:
-      - NAPCAT_UID=2000
-      - NAPCAT_GID=2000
-      - TZ=Asia/Shanghai
-
-      - ACCOUNT=${NAPCAT_ACCOUNT}
-      - NAPCAT_QUICK_PASSWORD=${NAPCAT_QUICK_PASSWORD}
-
-      - ENABLE_VNC=false
-      - ELECTRON_DISABLE_GPU=1
-
-    volumes:
-      - ./.data/napcat/QQ:/app/.config/QQ
-      - ./.data/napcat/data:/app/.napcat
-      - ./.data/napcat/cache:/app/data/cache
-      - ./.data/napcat/config:/app/napcat/config
-
-    restart: unless-stopped
 
 
   # ============================================================

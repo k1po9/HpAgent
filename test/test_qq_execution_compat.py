@@ -11,7 +11,7 @@ def _group_message():
         "session_id": "session",
         "account_id": "account",
         "sender_id": "sender",
-        "channel_type": "napcat",
+        "channel_type": "onebot11",
         "content": "question",
         "metadata": {
             "detail_type": "group",
@@ -56,12 +56,14 @@ async def test_ae_012_013_qq_final_and_progress_preserve_router_behavior():
     await reply.send_final("answer", message)
 
     assert [item.content for item in sent] == [
-        "[CQ:at,qq=sender] 正在搜索",
-        "[CQ:at,qq=sender] answer",
+        "正在搜索",
+        "answer",
     ]
+    assert all(item.metadata["mention_sender"] for item in sent)
+    assert "mention_sender" not in message["metadata"]
     assert [item["content"] for item in appended] == [
-        "[CQ:at,qq=sender] 正在搜索",
-        "[CQ:at,qq=sender] answer",
+        "正在搜索",
+        "answer",
     ]
 
 

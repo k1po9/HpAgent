@@ -1,0 +1,72 @@
+# Synthetic tests only. New project, no business ports/volumes/network/provider.
+services:
+  postgres:
+    # Logical/worker recovery tests only; no PostgreSQL power-loss claim.
+    command: [postgres, -c, fsync=off, -c, synchronous_commit=off]
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    environment:
+      POSTGRES_USER: hpagent_migration
+      POSTGRES_PASSWORD: fixture-only
+      POSTGRES_DB: hpagent_onebot_test
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./onebot11-init.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    healthcheck:
+      test: [CMD, pg_isready, -U, hpagent_migration, -d, hpagent_onebot_test]
+      interval: 1s
+      retries: 45
+    networks: [isolated]
+  redis:
+    image: redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    networks: [isolated]
+  temporal-postgres:
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: fixture-only
+    networks: [isolated]
+    healthcheck:
+      test: [CMD, pg_isready, -U, temporal]
+      interval: 1s
+      retries: 45
+  temporal:
+    image: temporalio/auto-setup@sha256:e9245820522233ec6a59ad69c6512ae4450705ee02bf6894fc61ba13b238c1c0
+    environment:
+      DB: postgres12
+      DB_PORT: '5432'
+      POSTGRES_SEEDS: temporal-postgres
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: fixture-only
+    depends_on:
+      temporal-postgres: {condition: service_healthy}
+    networks: [isolated]
+  checks:
+    image: hpagent/pgroonga-checks:p1
+    pull_policy: never
+    entrypoint: [sh, -c]
+    command: ["sleep infinity"]
+    environment:
+      MIGRATION_DATABASE_URL: postgresql://hpagent_migration:fixture-only@postgres:5432/hpagent_onebot_test
+      APP_DATABASE_URL: postgresql://hpagent_api:fixture-only@postgres:5432/hpagent_onebot_test
+      WORKER_DATABASE_URL: postgresql://hpagent_worker:fixture-only@postgres:5432/hpagent_onebot_test
+      REDIS_URL: redis://redis:6379/0
+      TEMPORAL_HOST: temporal:7233
+      TEMPORAL_NAMESPACE: default
+      TEMPORAL_TEST_NAMESPACE: default
+      HPAGENT_MIGRATIONS_DIR: /repo/persistence/migrations
+      PYTHONPATH: /repo/src:/repo/test
+      FILE_STORE_ROOT: /isolated/file-store
+      FILE_RUN_ROOT: /isolated/file-runs
+      DOCUMENT_RUN_ROOT: /isolated/document-runs
+    volumes:
+      - ../..:/repo
+      - ${ONEBOT_EVIDENCE_DIR:?Set an external isolated evidence directory}:/evidence
+      - test-files:/isolated
+    working_dir: /repo
+    networks: [isolated]
+networks:
+  isolated:
+    internal: true
+volumes:
+  pgdata:
+  test-files:

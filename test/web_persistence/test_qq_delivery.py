@@ -4,6 +4,7 @@ import pytest
 from support.qq_messages import qq_message
 
 from application.qq_delivery import QQDeliveryAdapter, QQDeliveryService
+from common.channel_result import ChannelSendResult
 from conversation_domain.commands import CommandService
 from web_persistence.test_qq_canonical_ingress import bind, service
 
@@ -15,16 +16,16 @@ class Router:
         self.sent = []
         self.ok = False
 
-    async def send(self, message):
+    async def send_with_receipt(self, message):
         self.sent.append(message)
-        return self.ok
+        return ChannelSendResult("accepted" if self.ok else "failed", provider_message_id="-7" if self.ok else None)
 
 
 async def test_delivery_failure_retries_committed_result_without_execution(
     db, account_id, worker_database_url
 ):
     bind(db, account_id)
-    result = await service(worker_database_url).accept(qq_message(), "napcat")
+    result = await service(worker_database_url).accept(qq_message(), "onebot11")
     run_id = UUID(result["run_id"])
     commands = CommandService(worker_database_url)
     assert db.execute("SELECT count(*) FROM deliveries").fetchone()[0] == 0
@@ -41,7 +42,7 @@ async def test_delivery_failure_retries_committed_result_without_execution(
     router.ok = True
     await QQDeliveryService(worker_database_url, QQDeliveryAdapter(router)).deliver_once()
     assert router.sent[0].content == router.sent[1].content
-    assert "committed answer" in router.sent[1].content
+    assert "committed answer" in router.sent[1].metadata["onebot_segments"][-1]["data"]["text"]
     assert db.execute("SELECT state FROM deliveries").fetchone()[0] == "accepted"
     assert db.execute("SELECT status FROM runs").fetchall() == [("succeeded",)]
     assert (
@@ -55,7 +56,7 @@ async def test_partial_chunks_resume_and_lost_sender_is_uncertain(
     db, account_id, worker_database_url
 ):
     bind(db, account_id)
-    result = await service(worker_database_url).accept(qq_message(), "napcat")
+    result = await service(worker_database_url).accept(qq_message(), "onebot11")
     run_id = UUID(result["run_id"])
     commands = CommandService(worker_database_url)
     commands.start_run(account_id, run_id)
@@ -83,7 +84,7 @@ async def test_partial_chunks_resume_and_lost_sender_is_uncertain(
     assert sender.retry_uncertain(account_id, row["delivery_id"])
     await sender.deliver_once()
     assert len(router.sent) == 2
-    assert router.sent[1].content == "a" * 100
+    assert router.sent[1].metadata["onebot_segments"] == [{"type": "text", "data": {"text": "a" * 100}}]
     assert db.execute("SELECT state FROM deliveries").fetchone()[0] == "accepted"
 
 
@@ -91,7 +92,7 @@ async def test_long_chat_result_is_referenced_without_copying_it_into_notificati
     db, account_id, worker_database_url
 ):
     bind(db, account_id)
-    result = await service(worker_database_url).accept(qq_message(), "napcat")
+    result = await service(worker_database_url).accept(qq_message(), "onebot11")
     run_id = UUID(result["run_id"])
     commands = CommandService(worker_database_url)
     commands.start_run(account_id, run_id)
@@ -106,4 +107,4 @@ async def test_long_chat_result_is_referenced_without_copying_it_into_notificati
     router = Router()
     sender = QQDeliveryService(worker_database_url, QQDeliveryAdapter(router))
     await sender.deliver_once()
-    assert router.sent[0].content.endswith(content[:1500])
+    assert router.sent[0].metadata["onebot_segments"][-1]["data"]["text"] == content[:1500]

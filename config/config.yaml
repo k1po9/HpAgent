@@ -63,13 +63,26 @@ session:
 
 # ── 渠道启停 ────────────────────────────────────────────────────────────────
 # 在此管理渠道的启用/禁用，列表中的渠道才会启动（名称对应 ChannelType 枚举值）
-# 禁用 NapCat：注释或删除 napcat 即可，不会连接 QQ 网关也不会启动 WebSocket 服务
+# 禁用 OneBot11：注释或删除 onebot11 即可，不会连接 QQ 网关也不会启动 WebSocket 服务
 channels:
   enabled:
     # - official_qq
     # - web
-    - napcat   
+    - onebot11
     # - console
+  onebot11:
+    host: 0.0.0.0
+    port: 8082
+    path: /onebot/v11
+    access_token_file: /run/secrets/onebot_access_token
+    # ONEBOT_EXPECTED_SELF_ID is supplied to the Worker via Compose.
+    expected_self_id: ""
+    ack_timeout_seconds: 30
+    status_interval_seconds: 30
+    status_stale_seconds: 90
+    max_frame_bytes: 1048576
+    ingress_queue_size: 256
+    send_interval_seconds: 2
 
 # ── Agent 行为参数 ──────────────────────────────────────────────────────────
 agent:

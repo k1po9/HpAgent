@@ -43,7 +43,7 @@ class _Reply:
 def test_identity_normalization_is_shared_and_channel_scoped():
     assert normalize_web_subject(" HuangPei ") == "huangpei"
     assert normalize_channel_subject("web", " HUANGPEI ") == ("web", "huangpei")
-    assert normalize_qq_subject("napcat", " 123456 ") == "napcat:123456"
+    assert normalize_qq_subject("onebot11", " 123456 ") == "onebot11:123456"
     assert normalize_qq_subject("official_qq", "openid") == "official_qq:openid"
     assert normalize_qq_subject("web", "123") is None
 
@@ -66,13 +66,13 @@ async def test_binding_command_is_consumed_before_conversation_or_agent_path():
     message = UnifiedMessage(
         sender_id="123456",
         content="绑定 hp-483921",
-        channel_type=ChannelType.NAPCAT,
+        channel_type=ChannelType.ONEBOT11,
         metadata={"detail_type": "private", "self_id": "bot", "message_id": "1"},
     )
 
     await ingress.handle(message)
 
-    assert bindings.calls == [("HP-483921", "napcat", "123456")]
+    assert bindings.calls == [("HP-483921", "onebot11", "123456")]
     assert conversation.calls == []
     assert reply.calls[0][0] == "QQ 绑定成功。"
 
@@ -86,7 +86,7 @@ async def test_non_binding_message_keeps_existing_ingress_path():
         identity_command_service=IdentityCommandService(bindings),
     )
     message = UnifiedMessage(
-        sender_id="123456", content="你好", channel_type=ChannelType.NAPCAT,
+        sender_id="123456", content="你好", channel_type=ChannelType.ONEBOT11,
         metadata={"detail_type": "private", "self_id": "bot", "message_id": "2"}
     )
 

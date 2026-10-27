@@ -20,14 +20,14 @@ Profile：
 - `web`：API、Worker、Migration、依赖和 Vite。
 - `web-prod`：API、Worker、Migration、依赖和生产 Gateway。
 - `agent`：不含 Web API/前端的 Worker、Migration 和依赖。
-- `qq`：可选 NapCat 服务及依赖。
+- `qq`：可选 SnowLuma 服务及依赖。
 - `tools`：可选 Temporal UI 及依赖。
 
 ## 启动
 
 ```bash
 cp -n .env.example .env
-# 先按配置入口补齐全部凭据、预算、绑定地址和NapCat版本
+# 先按配置入口补齐全部凭据、预算、绑定地址和SnowLuma版本
 export COMPOSE_PROJECT_NAME=hpagent-beta
 export COMPOSE_FILE=docker-compose.yaml:docker-compose.beta.yaml
 docker compose --profile web-prod up -d --build
@@ -176,3 +176,45 @@ manual_curation、删除和撤权约束。真实 Provider 的中文语义质量�
 切换前按前述流程停发、排空并核对准确数据库，使用 `memory-cutover-check.py` 的显式容器、数据库主机和库名参数核验实际版本、扩展、列、完整索引及 Bank。该工具只读，不负责停发、备份或切换。当前检查器会将拒绝上传的 opt-out `blocked` 来源计作 `registered_document_missing`；须结合来源、原始拒绝事实、已处理 Outbox 和远端不存在逐项解释，不能靠删除审计来源或忽略其他异常解除阻断。
 
 已接收 Retain 或治理增量的目标不得重复走空库切换，也不能直接回到旧空快照。日常验证优先使用只读检查和有授权的合成业务；更新宿主挂载的 Python 源码后，重载实际持有模块的 Worker/API，不能仅根据容器内文件 hash 判断运行进程已加载修复。
+
+
+## SnowLuma / OneBot11
+
+使用 SnowLuma 2.2.0 的已验证 amd64 digest（见 `.env.example`）；无旧渠道别名或登录态迁移。
+`qq` profile 只启动 SnowLuma，Worker 的 `HPAGENT_CHANNELS` 默认为空。
+在本地配置 `ONEBOT_EXPECTED_SELF_ID`，只指定本人账号/测试群验收，不在日志或文档粘贴令牌。
+将选定 bot 号导出为终端环境变量 `ONEBOT_EXPECTED_SELF_ID`（脚本不自动读取 `.env`），
+并在 Compose `.env` 中填写相同值。以下操作先保持 bot 停止；初始化不覆盖已有冲突配置、不重置登录密码：
+
+```bash
+python3 scripts/check/snowluma-version.py
+python3 scripts/operations/snowluma-config.py --bot-id "$ONEBOT_EXPECTED_SELF_ID"
+python3 scripts/operations/snowluma-config.py --bot-id "$ONEBOT_EXPECTED_SELF_ID" --check
+# .env 设置 HPAGENT_CHANNELS=onebot11、ONEBOT_EXPECTED_SELF_ID；只运行一个 QQ Worker。
+docker compose --profile qq up -d snowluma
+# 本人在回环 noVNC 6081 / WebUI 5099 完成发行包协议确认与扫码。
+# 完整迁移检查通过后，再重建相关 Worker，不能仅 restart 来更新环境变量。
+docker compose up -d hpagent
+```
+
+令牌位于 `.data/onebot-secrets/onebot_access_token`；全局和唯一账号 snapshot 位于
+`.data/snowluma/data/config/onebot*.json`，仅启用 Universal 反向 WS；HTTP/正向 WS、
+自主状态回复、历史同步与主动通知关闭。WebUI 编辑后须停 bot 并重新 `--check`。
+三个登录/配置挂载分别为 `.data/snowluma/data`、`qq-config`、`qq-share`；备份整个 `.data`。
+挂载保留不等于重启后账号自动在线；重启或重建后仍须检查 login/version/status 与 QQ readiness。
+若客户端回到扫码页，由本人重新登录，不能以容器存活或管理页面可打开判定恢复成功。
+无 host 网络，8082/3000/3001 不发布；管理端口只回环，远程操作使用隧道。
+
+Worker `/tmp/hpagent-qq-ready.json` 是脱敏诊断（可用 `scripts/check/onebot-status.py --path`
+检查同进程命名空间中的文件）；它与 Web Worker health 分开，QQ 离线不代表 Web 应重启。
+诊断区分监听、连接、版本、online/good、队列与 unknown/uncertain 计数。
+OneBot 非持久入站队列，离线/溢出可能丢事件，不承诺补发。
+控制回复只发匹配 bot 并等待 ack；持久通知保存每片实际 message_id。
+accepted 仅代表供应商动作接受；超时/断线或模糊错误进入 uncertain，需要原有显式投递决议，
+不得重跑 Run 或盲重发。旧连接/lease 的迟到 ack 不推进新发送。
+
+渠道 CHECK 允许 `web`、`onebot11` 和 `official_qq`；完整迁移链与已应用 checksum 必须保留。
+部署前检查迁移与当前目标类型一致；不能清空 Web/Work/文件数据或绕过不可变约束。
+测试环境按独立 Compose project、资源标签和精确目录清理，保留当前 QQ 登录目录；
+不能用业务 Compose 的 down -v 或全局 prune 清理测试资源。
+尚未完成扫码、真实 QQ 收发、重建登录和 24 小时观察时，不得声称替换已验收上线。

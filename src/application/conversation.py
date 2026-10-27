@@ -45,13 +45,15 @@ def normalize_qq_message(message: UnifiedMessage, channel: str) -> QQEnvelope:
     scope = str(metadata.get("detail_type") or "")
     bot = str(metadata.get("bot_id") or metadata.get("self_id") or "")
     # Never fall back to UnifiedMessage's generated UUID for a provider message.
-    external_id = metadata.get("message_id") if channel == "napcat" else metadata.get("msg_id")
-    if not identity or channel not in {"napcat", "official_qq"} or not bot or external_id in (None, ""):
+    external_id = metadata.get("message_id") if channel == "onebot11" else metadata.get("msg_id")
+    if not identity or channel not in {"onebot11", "official_qq"} or not bot or external_id in (None, ""):
         raise InvalidQQMessage("missing QQ identity, bot or external message ID")
-    if channel == "napcat" and metadata.get("post_type", "message") != "message":
+    if channel == "onebot11" and metadata.get("post_type", "message") != "message":
         raise InvalidQQMessage("not a QQ message event")
     if scope == "private":
         room = message.sender_id
+        if channel == "onebot11" and metadata.get("group_id"):
+            room += "/temporary/" + str(metadata["group_id"])
     elif scope == "group":
         room = str(metadata.get("group_id") or metadata.get("group_openid") or "")
     elif scope == "guild":

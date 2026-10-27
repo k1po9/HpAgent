@@ -163,3 +163,10 @@ PGroonga 治理恢复的合成辅助入口是
 `recovery.compose.yaml`，实际资源和验证参数见[测试指南](../docs/development/testing.md#hindsight-版本与隔离契约)。
 这些辅助程序只接受显式隔离数据库/服务，不是业务迁移或切换工具；原始备份必须在仓库外受限位置。
 有切换后写入时，用已停止发送者的当前应用/记忆完整快照恢复，不丢弃纠错、删除和撤权增量。
+
+
+QQ / OneBot11：`operations/snowluma-config.py --bot-id ...` 在 bot 停止时初始化新目录和
+secret（默认 UID/GID 1000），`--check` 只回读有效 snapshot；冲突/多账号/符号链接拒绝。
+`check/snowluma-version.py` 在 network=none 的临时容器检查固定 digest 内 SnowLuma/Node/QQ，
+不启动登录；`check/onebot-status.py --path ...` 读取 Worker 脱敏 QQ readiness，不发送动作。
+具体启用、扫码与持久投递恢复见[部署](../docs/operations/deployment.md)。

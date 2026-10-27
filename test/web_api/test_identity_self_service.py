@@ -106,7 +106,7 @@ def test_qq_challenge_updates_me_without_entering_agent(
     IdentityBindingService(
         worker_database_url, b"development-qq-binding-code-pepper"
     ).consume_qq_challenge(
-        body["code"], "napcat", "123456789"
+        body["code"], "onebot11", "123456789"
     )
     status = client.get(
         f"/api/v1/identity-bindings/qq/challenges/{body['challenge_id']}"
@@ -115,7 +115,7 @@ def test_qq_challenge_updates_me_without_entering_agent(
     me = client.get("/api/v1/me").json()
     assert me["identities"]["qq"] == {
         "bound": True,
-        "channel_type": "napcat",
+        "channel_type": "onebot11",
         "display_subject": "123***789",
     }
 
@@ -128,8 +128,8 @@ def test_existing_qq_account_becomes_web_session_account(
     db.execute(
         "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,"
         "external_subject_id,normalized_subject_id,verified_at,metadata) "
-        "VALUES (%s,%s,'qq','123456','napcat:123456',now(),"
-        "'{\"channel_type\":\"napcat\"}'::jsonb)",
+        "VALUES (%s,%s,'qq','123456','onebot11:123456',now(),"
+        "'{\"channel_type\":\"onebot11\"}'::jsonb)",
         (qq_binding, qq_account),
     )
     client = client_factory(postgres_credentials=True)
@@ -146,7 +146,7 @@ def test_existing_qq_account_becomes_web_session_account(
     result = IdentityBindingService(
         worker_database_url, b"development-qq-binding-code-pepper"
     ).consume_qq_challenge(
-        challenge["code"], "napcat", "123456"
+        challenge["code"], "onebot11", "123456"
     )
     assert result.consolidated is True
     me = client.get("/api/v1/me")

@@ -53,7 +53,10 @@
 | `QQ_BINDING_CHALLENGE_SECONDS` | 否 | `300` | API/Worker | Binding Challenge TTL。 |
 | `QQ_OFFICIAL_APP_ID` / `QQ_OFFICIAL_CLIENT_SECRET` | Official QQ 时 | 空 | QQ Adapter | Official Bot 凭据。 |
 | `QQ_OFFICIAL_SANDBOX` | 否 | `false` | QQ Adapter | Official QQ Sandbox Endpoint 开关。 |
-| `NAPCAT_ACCOUNT` / `NAPCAT_QUICK_PASSWORD` | NapCat 时 | 空 | NapCat | NapCat 登录信息。 |
+| `ONEBOT_EXPECTED_SELF_ID` / `HPAGENT_CHANNELS` | QQ 时 | 空（关闭） | Worker | 唯一 bot QQ 号；启用值 `onebot11`，无别名。 |
+| `SNOWLUMA_IMAGE` | Beta 时 | 示例固定 digest | SnowLuma | amd64、2.2.0；先用版本检查脚本验证镜像内版本，不能填 latest。 |
+| `SNOWLUMA_UID` / `SNOWLUMA_GID` | QQ 时 | 1000 | SnowLuma | 与初始化目录属主一致。 |
+| `SNOWLUMA_NOVNC_PORT` / `SNOWLUMA_WEBUI_HOST_PORT` | QQ 时 | 6081 / 5099 | Compose | 只绑定宿主回环。 |
 | `WORKSPACE_ROOT` | 否 | `.data/workspace` | Worker | Git 代码工作区根；不是长期文件目录。 |
 | `WORKSPACE_ISOLATION_MODE` | 否 | `single_process_account_lock` | Worker | 可选 Git 工作区并发模式；通用 Execution scratch 不依赖 Account Git 锁。 |
 | `AGENT_EXECUTION_LEASE_TTL_SECONDS` | 否 | `900` | Worker | 主执行路径的 Execution attempt Lease 配置；Research stage 默认租约另见恢复限制。 |
@@ -231,3 +234,17 @@ profile 分开；发送前 profile 不匹配则保持待恢复，不用当前文
 单独改变不会使提取 profile 失效。服务实际模型无法通过 Bank Config API 证实，本地文件和
 model-map 输出不等于远端模型已验证。Document 验证审计保留原生 memory_unit_count 和
 nodes_by_fact_type（有返回时），缺失表示未知，不将 Retain items_count 当成事实数量。
+
+
+### OneBot11 接入
+
+`channels.onebot11` 包含 host/port/path、access_token_file、expected_self_id、ack/status 超时、
+帧/入站队列上限与发送间隔。唯一 bot 使用反向 WS `ws://hpagent:8082/onebot/v11`；
+握手校验 Bearer、X-Self-ID、Universal role，再核验 login/version/status。
+令牌只从文件读取，不在 YAML 内展开；由初始化脚本生成全局与每账号 snapshot。
+Compose 的 `HPAGENT_CHANNELS` 默认空；启用 QQ 时设为 `onebot11` 并填 bot ID，
+Web/计算 Worker 可保持空。当前仅支持一个拥有 QQ 连接和投递消费的 Worker。
+
+图片段仅保留可下载的 HTTP(S) 来源到消息 origin 的 `metadata.image_urls`，
+本地文件名或宿主路径不会成为下载地址。图片消息入站、来源可读取和视觉模型理解是三个独立检查；
+固定回复不能证明已识别图片内容。签名图片 URL 可能过期，不应写入诊断日志或验收记录。

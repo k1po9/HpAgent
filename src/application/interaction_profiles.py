@@ -14,8 +14,8 @@ INTERACTION_PROFILES = frozenset({WEB_CHAT, WEB_PLAN, QQ_PRIVATE, QQ_GROUP, CONS
 _IDENTITY_KEYS = {
     WEB_CHAT: "web",
     WEB_PLAN: "web",
-    QQ_PRIVATE: "napcat",
-    QQ_GROUP: "napcat",
+    QQ_PRIVATE: "qq",
+    QQ_GROUP: "qq",
     CONSOLE: "console",
 }
 
@@ -44,7 +44,7 @@ def select_interaction_profile(
     explicit = str(source.get("interaction_profile") or "")
     if explicit:
         return validate_interaction_profile(explicit)
-    if source.get("channel_type") in {"napcat", "official_qq"}:
+    if source.get("channel_type") in {"onebot11", "official_qq"}:
         return QQ_GROUP if source.get("scope") in {"group", "guild"} else QQ_PRIVATE
     return WEB_PLAN if agent_strategy == "plan_and_execute" else WEB_CHAT
 

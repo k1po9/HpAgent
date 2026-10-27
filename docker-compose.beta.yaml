@@ -90,7 +90,7 @@ services:
   web-gateway:
     cpus: ${BETA_WEB_GATEWAY_CPUS:?请填写web-gateway CPU预算}
     mem_limit: ${BETA_WEB_GATEWAY_MEMORY:?请填写web-gateway内存预算}
-  napcat:
-    cpus: ${BETA_NAPCAT_CPUS:?请填写napcat CPU预算}
-    mem_limit: ${BETA_NAPCAT_MEMORY:?请填写napcat内存预算}
-    image: ${NAPCAT_IMAGE:?请填写已核实的NapCat版本或digest}
+  snowluma:
+    cpus: ${BETA_SNOWLUMA_CPUS:?请填写snowluma CPU预算}
+    mem_limit: ${BETA_SNOWLUMA_MEMORY:?请填写snowluma内存预算}
+    image: ${SNOWLUMA_IMAGE:?请填写已核实的SnowLuma digest}

@@ -53,7 +53,8 @@ Vite 监听 <http://127.0.0.1:5173>，并根据 `web/vite.config.ts` 代理 API�
 
 ```bash
 docker compose --profile tools up -d temporal-web  # http://127.0.0.1:8088
-docker compose --profile qq up -d napcat
+# 先按部署文档生成配置，选择 bot，核验镜像；启动后由本人完成协议确认/扫码。
+docker compose --profile qq up -d snowluma
 ./scripts/dev/mcp.sh
 ```
 

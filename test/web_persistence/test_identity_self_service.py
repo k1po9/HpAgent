@@ -39,7 +39,7 @@ def _register(database_url, migration_database_url, username="alice", password="
     )
 
 
-def _qq_account(db, channel="napcat", subject="123456"):
+def _qq_account(db, channel="onebot11", subject="123456"):
     account_id, binding_id = uuid4(), uuid4()
     db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (account_id,))
     db.execute(
@@ -107,13 +107,13 @@ def test_binding_unbound_qq_and_single_use(db, database_url, worker_database_url
     service = IdentityBindingService(worker_database_url, b"test-pepper", 300)
     challenge = api_service.create_qq_challenge(web.account_id)
 
-    result = service.consume_qq_challenge(challenge.code, "napcat", "123456")
-    replay = service.consume_qq_challenge(challenge.code, "napcat", "123456")
+    result = service.consume_qq_challenge(challenge.code, "onebot11", "123456")
+    replay = service.consume_qq_challenge(challenge.code, "onebot11", "123456")
 
     assert result.account_id == web.account_id
     assert replay.status == "completed"
     assert db.execute(
-        "SELECT account_id FROM identity_bindings WHERE normalized_subject_id='napcat:123456'"
+        "SELECT account_id FROM identity_bindings WHERE normalized_subject_id='onebot11:123456'"
     ).fetchone()[0] == web.account_id
 
 
@@ -128,7 +128,7 @@ def test_concurrent_challenge_consume_is_idempotent(
     def consume():
         return IdentityBindingService(
             worker_database_url, b"test-pepper", 300
-        ).consume_qq_challenge(challenge.code, "napcat", "123456")
+        ).consume_qq_challenge(challenge.code, "onebot11", "123456")
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(lambda _: consume(), range(2)))
@@ -136,7 +136,7 @@ def test_concurrent_challenge_consume_is_idempotent(
     assert [result.status for result in results] == ["completed", "completed"]
     assert db.execute(
         "SELECT count(*) FROM identity_bindings "
-        "WHERE provider='qq' AND normalized_subject_id='napcat:123456'"
+        "WHERE provider='qq' AND normalized_subject_id='onebot11:123456'"
     ).fetchone()[0] == 1
 
 
@@ -160,7 +160,7 @@ def test_challenge_rotation_expiry_and_invalid_code(
         (current.challenge_id,),
     )
     with pytest.raises(ChallengeExpired):
-        worker_service.consume_qq_challenge(current.code, "napcat", "123456")
+        worker_service.consume_qq_challenge(current.code, "onebot11", "123456")
     persisted = db.execute(
         "SELECT status,cancelled_at FROM identity_binding_challenges "
         "WHERE challenge_id=%s",
@@ -169,7 +169,7 @@ def test_challenge_rotation_expiry_and_invalid_code(
     assert persisted[0] == "cancelled"
     assert persisted[1] is not None
     with pytest.raises(ChallengeNotFound):
-        worker_service.consume_qq_challenge("HP-000001", "napcat", "123456")
+        worker_service.consume_qq_challenge("HP-000001", "onebot11", "123456")
 
 
 def test_empty_web_account_consolidates_into_existing_qq_account(
@@ -181,7 +181,7 @@ def test_empty_web_account_consolidates_into_existing_qq_account(
     service = IdentityBindingService(worker_database_url, b"test-pepper", 300)
     challenge = api_service.create_qq_challenge(web.account_id)
 
-    result = service.consume_qq_challenge(challenge.code, "napcat", "123456")
+    result = service.consume_qq_challenge(challenge.code, "onebot11", "123456")
 
     assert result.consolidated is True
     assert result.account_id == qq_account
@@ -208,7 +208,7 @@ def test_web_account_with_business_data_is_not_auto_consolidated(
     challenge = api_service.create_qq_challenge(web.account_id)
 
     with pytest.raises(IdentityConflict):
-        service.consume_qq_challenge(challenge.code, "napcat", "123456")
+        service.consume_qq_challenge(challenge.code, "onebot11", "123456")
 
     assert db.execute(
         "SELECT account_id FROM identity_bindings WHERE provider='web'"

@@ -4,7 +4,7 @@
 设计意图：
   每一层对外暴露一个抽象接口，具体实现可以自由替换：
     - IResources: 资源管理层 —— 模型 API 凭据 + 退避链路
-    - IChannel: 渠道通信层 —— NapCat / Web / Console 三种渠道
+    - IChannel: 渠道通信层 —— OneBot11 / Web / Console 三种渠道
 
 上层代码只依赖这些接口，不依赖具体实现类。
 """
@@ -63,7 +63,7 @@ class IResources(ABC):
 class IChannel(ABC):
     """渠道接口 —— 消息的入口（接收）和出口（发送）。
 
-    每种渠道（NapCat/QQ、Web、Console）实现此接口，
+    每种渠道（OneBot11/QQ、Web、Console）实现此接口，
     由 ChannelRouter 根据 UnifiedMessage.channel_type 路由。
 
     生命周期：
@@ -76,7 +76,7 @@ class IChannel(ABC):
         """将渠道原生消息格式标准化为 UnifiedMessage。
 
         Args:
-            raw_message: 渠道原生消息（NapCat 收到 OneBot JSON，Console 收到字符串，Web 收到 dict）。
+            raw_message: 渠道原生消息（OneBot11 收到 OneBot JSON，Console 收到字符串，Web 收到 dict）。
 
         Returns:
             统一的 UnifiedMessage 对象。

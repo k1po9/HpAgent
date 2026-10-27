@@ -6,15 +6,15 @@ RPO48小时/RTO24小时是目标，未演练前不视为达成。每日低峰一
 
 只在安排好的维护窗口执行，不在测试中对真实服务执行以下命令。使用与部署相同的独立Beta目录、COMPOSE_FILE、COMPOSE_PROJECT_NAME及私有.env；不要换project误备份开发环境。
 
-1. 通知用户暂停使用；云端维护页/入口阻断新请求，暂停NapCat接入。等可完成的任务结束；不确定外发状态保留回执供核对。
-2. `docker compose --profile web-prod --profile qq stop` 停止本project全部容器，包括API、主/Document Worker、NapCat、Hindsight、Temporal、三套PostgreSQL、Redis、搜索与转换。只停应用不保证记忆/执行历史停止写入。核实同project没有其他运行实例，也没有宿主进程或另一project共享这些可写卷/目录。禁止用 `down -v`。
+1. 通知用户暂停使用；云端维护页/入口阻断新请求，暂停SnowLuma接入。等可完成的任务结束；不确定外发状态保留回执供核对。
+2. `docker compose --profile web-prod --profile qq stop` 停止本project全部容器，包括API、主/Document Worker、SnowLuma、Hindsight、Temporal、三套PostgreSQL、Redis、搜索与转换。只停应用不保证记忆/执行历史停止写入。核实同project没有其他运行实例，也没有宿主进程或另一project共享这些可写卷/目录。禁止用 `down -v`。
 3. 运行 `BACKUP_DIR=/已确认的项目外私有目录 scripts/operations/backup.sh`。脚本不停止/启动服务，发现容器未exited、缺少必要服务或持久卷时失败。源卷只读挂载到本地已有postgres:16-alpine辅助容器，禁用网络、禁止拉镜像；不启动数据库、不执行迁移、不连接外部服务。
-4. 备份包含所有部署容器实际挂载的命名卷（三套PG物理数据、Redis、File Store、Run、Document执行卷等）、整个`.data`（含Git workspace、NapCat登录/配置及日志）、config和Compose文件、卷/挂载清单、Git提交与脏状态、实际镜像ID、SHA256校验。数据库schema事实在物理备份内；不要仅备份workspace而遗漏账户文件字节。
+4. 备份包含所有部署容器实际挂载的命名卷（三套PG物理数据、Redis、File Store、Run、Document执行卷等）、整个`.data`（含Git workspace、SnowLuma登录/配置及日志）、config和Compose文件、卷/挂载清单、Git提交与脏状态、实际镜像ID、SHA256校验。数据库schema事实在物理备份内；不要仅备份workspace而遗漏账户文件字节。
 5. `cd /本次备份目录 && sha256sum -c SHA256SUMS`。`.incomplete`存在或任一命令失败均不得认作有效备份。记录数据库版本、发布配置版本和干净Git提交；私有.env及签名/密码材料从密码管理器独立安全恢复，备份中不展开Compose配置。确保同一Git提交可取得、镜像可取得（离线场景另存镜像包）。
 6. 将整批备份加密后经Tailscale同步到已确认异机路径，加密材料分离保管；校验异机副本，记录时间/批次/位置/大小。只有完整且已异机校验的副本才能更新最近有效备份时间。15GiB不足时先调整保留/容量，不能删除唯一有效副本。
 7. 恢复原服务组合、确认健康与登录后再开放入口。不要仅运行无profile的up，遗漏应用。脚本不自动重启，失败也由维护者决定恢复服务或继续排查。
 
-脚本输出目录权限受umask077保护，但归档包含用户数据、NapCat凭据与可能的日志敏感信息，**未自动加密**。归档成功只证明文件归档流程结束，不证明PG恢复、业务一致性或RPO/RTO。备份前停止与禁止其他共享写入者是维护者责任，脚本无法静态证明宿主全部写入者均已停止。
+脚本输出目录权限受umask077保护，但归档包含用户数据、SnowLuma凭据与可能的日志敏感信息，**未自动加密**。归档成功只证明文件归档流程结束，不证明PG恢复、业务一致性或RPO/RTO。备份前停止与禁止其他共享写入者是维护者责任，脚本无法静态证明宿主全部写入者均已停止。
 
 ## 隔离恢复
 

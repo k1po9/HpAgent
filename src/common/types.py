@@ -9,7 +9,7 @@
 
 枚举类型：
   - EventType: 事件类型（USER_MESSAGE / MODEL_MESSAGE / TOOL_CALL / TOOL_RESULT / ...）
-  - ChannelType: 渠道类型（NAPCAT / WEB / CONSOLE）
+  - ChannelType: 渠道类型（ONEBOT11 / WEB / CONSOLE）
   - StopReason: 模型停止生成原因（END_TURN / TOOL_USE / MAX_TOKENS / REFUSAL / ERROR）
   - ErrorSeverity: 错误严重级别（RECOVERABLE / FATAL）
 
@@ -67,7 +67,7 @@ class ChannelType(str, Enum):
     每个渠道在 ContextBuilder 中有独立的身份声明和风格引导。
     ChannelRouter 根据此枚举值将响应路由到正确的渠道实现。
     """
-    NAPCAT = "napcat"       # NapCat/OneBot v11 协议 → QQ 聊天
+    ONEBOT11 = "onebot11"       # OneBot11/OneBot v11 协议 → QQ 聊天
     OFFICIAL_QQ = "official_qq"  # 官方 QQ 机器人 API v2 → QQ 聊天
     WEB = "web"             # Web 页面 → 浏览器端
     CONSOLE = "console"     # 控制台终端 → CLI
@@ -160,7 +160,7 @@ class UnifiedMessage:
     """统一消息格式 —— 将不同渠道的消息标准化为统一结构。
 
     这是所有渠道消息进入系统后的"通用语"(lingua franca)。
-    无论来自 QQ (NapCat)、Web 还是 CLI，经过 normalize_message()
+    无论来自 QQ (OneBot11)、Web 还是 CLI，经过 normalize_message()
     后都变成 UnifiedMessage，后续流程不再关心原始渠道格式。
 
     Attributes:

@@ -21,37 +21,30 @@ class QQDeliveryAdapter:
                 f"/api/v1/files/{fid}/content" for fid in payload["files"]
             )
         parts = [text[i : i + 1500] for i in range(0, len(text), 1500)]
-        if origin["channel_type"] == "napcat":
-
-            def escape(value):
-                return (
-                    str(value)
-                    .replace("&", "&amp;")
-                    .replace("[", "&#91;")
-                    .replace("]", "&#93;")
-                    .replace(",", "&#44;")
-                )
-
-            parts = [escape(part) for part in parts]
+        if origin["channel_type"] == "onebot11":
+            segments = [[{"type": "text", "data": {"text": part}}] for part in parts]
             if origin.get("external_message_id"):
-                parts[0] = f"[CQ:reply,id={escape(origin['external_message_id'])}]" + parts[0]
+                segments[0].insert(0, {"type": "reply", "data": {"id": origin["external_message_id"]}})
             if origin["scope"] == "group":
-                parts[0] = f"[CQ:at,qq={escape(origin['sender_id'])}] " + parts[0]
+                segments[0].insert(0, {"type": "at", "data": {"qq": origin["sender_id"]}})
+            return segments
         return parts
 
     async def send(self, row, part):
         origin = row["route"]
-        return await self.router.send(
+        return await self.router.send_with_receipt(
             UnifiedMessage(
                 account_id=str(row["account_id"]),
                 session_id=str(row.get("run_id") or row["notification_id"]),
                 sender_id=origin["sender_id"],
                 channel_type=ChannelType(origin["channel_type"]),
-                content=self.parts(row)[part],
+                content="" if origin["channel_type"] == "onebot11" else self.parts(row)[part],
                 metadata={
                     **origin["metadata"],
                     "delivery_id": str(row["delivery_id"]),
                     "msg_seq": part + 1,
+                    "lease_token": str(row["lease_token"]),
+                    **({"onebot_segments": self.parts(row)[part]} if origin["channel_type"] == "onebot11" else {}),
                 },
             )
         )

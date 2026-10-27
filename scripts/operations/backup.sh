@@ -39,7 +39,7 @@ mapfile -t CONTAINERS < <(docker compose --profile web-prod --profile qq ps -aq)
 for id in "${CONTAINERS[@]}"; do
   [[ "$(docker inspect --format '{{.State.Status}}' "$id")" == exited ]] || { echo '所有部署容器必须已停止（exited）' >&2; exit 2; }
 done
-for service in app-postgres temporal-postgres hindsight-postgres redis hpagent hpagent-api hpagent-document-worker web-gateway napcat; do
+for service in app-postgres temporal-postgres hindsight-postgres redis hpagent hpagent-api hpagent-document-worker web-gateway snowluma; do
   [[ -n "$(docker compose --profile web-prod --profile qq ps -aq "$service")" ]] || { echo "缺少部署容器：$service" >&2; exit 2; }
 done
 for id in "${CONTAINERS[@]}"; do
@@ -61,7 +61,7 @@ while IFS= read -r volume; do
     --mount "type=volume,src=$volume,dst=/source,readonly" \
     postgres:16-alpine -C /source -czf - . > "$RUN_DIR/volume-$volume.tar.gz"
 done < "$RUN_DIR/volumes.txt"
-# Includes private NapCat state and logs: protect/encrypt this entire backup set.
+# Includes private SnowLuma state and logs: protect/encrypt this entire backup set.
 tar czf "$RUN_DIR/data.tar.gz" .data
 configuration=(config docker-compose.yaml docker-compose.beta.yaml)
 for overlay in docker-compose.pgroonga.yaml docker-compose.pgroonga.enabled.yaml docker-compose.pgroonga.recovery.yaml; do

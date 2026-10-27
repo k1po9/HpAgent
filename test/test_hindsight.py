@@ -55,10 +55,10 @@ async def test_missing_scope_never_sends(wire, scope, group):
 def test_trusted_scope_mapping():
     assert chat_scope("u", {}).tags == ("scope:private",)
     assert chat_scope(
-        "u", {"channel_type": "napcat", "scope": "guild", "context_key": "hash"}
+        "u", {"channel_type": "onebot11", "scope": "guild", "context_key": "hash"}
     ).observation_scopes == [["scope:group", "group:hash"]]
     with pytest.raises(MemoryScopeError):
-        chat_scope("u", {"channel_type": "napcat"})
+        chat_scope("u", {"channel_type": "onebot11"})
     with pytest.raises(MemoryScopeError):
         memory_scope("", "private")
 

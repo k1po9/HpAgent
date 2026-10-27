@@ -27,15 +27,15 @@ class Commands:
 
 
 def _message(sender_id="sender", content="hello"):
-    return UnifiedMessage(sender_id=sender_id, channel_type=ChannelType.NAPCAT, content=content,
+    return UnifiedMessage(sender_id=sender_id, channel_type=ChannelType.ONEBOT11, content=content,
                           metadata={"detail_type": "private", "self_id": "bot", "message_id": "1"})
 
 
 @pytest.mark.asyncio
 async def test_conversation_service_maps_canonical_unbound_identity():
     with pytest.raises(UnboundIdentity) as error:
-        await ConversationService(Commands()).accept(_message(), "napcat")
-    assert error.value.channel_type == "napcat" and error.value.sender_id == "sender"
+        await ConversationService(Commands()).accept(_message(), "onebot11")
+    assert error.value.channel_type == "onebot11" and error.value.sender_id == "sender"
 
 
 class _RaisingConversation:
@@ -69,7 +69,7 @@ async def test_ingress_sends_fixed_unbound_reply_and_logs_structured_warning(cap
         await ingress.handle(_message(sender_id="qq-user"))
 
     assert "qq_identity_unbound" in caplog.text
-    assert "channel_type=napcat" in caplog.text
+    assert "channel_type=onebot11" in caplog.text
     assert "sender_id=qq-user" in caplog.text
 
     # 拒绝路径只调用一次 accept。
@@ -78,7 +78,7 @@ async def test_ingress_sends_fixed_unbound_reply_and_logs_structured_warning(cap
     content, user_message = reply.sent[0]
     assert content == UNBOUND_REPLY
     assert user_message["sender_id"] == "qq-user"
-    assert user_message["channel_type"] == "napcat"
+    assert user_message["channel_type"] == "onebot11"
     assert user_message["session_id"] == ""
     assert user_message["account_id"] == ""
 
@@ -129,15 +129,15 @@ async def test_postgres_service_raises_unavailable_not_none_on_db_failure():
     """
     service = PostgresAccountService("postgresql://nobody@127.0.0.1:1/hpagent")
     with pytest.raises(IdentityResolutionUnavailable) as excinfo:
-        await service.resolve("napcat", "10001")
+        await service.resolve("onebot11", "10001")
     assert excinfo.value.provider == "qq"
-    assert excinfo.value.normalized_subject == "napcat:10001"
+    assert excinfo.value.normalized_subject == "onebot11:10001"
 
 
 @pytest.mark.asyncio
 async def test_bound_identity_returns_canonical_command_result():
     class BoundCommands:
         def execute(self, **kwargs):
-            assert kwargs["provider"] == "qq" and kwargs["subject"] == "napcat:sender"
+            assert kwargs["provider"] == "qq" and kwargs["subject"] == "onebot11:sender"
             return "accepted"
-    assert await ConversationService(BoundCommands()).accept(_message(), "napcat") == "accepted"
+    assert await ConversationService(BoundCommands()).accept(_message(), "onebot11") == "accepted"

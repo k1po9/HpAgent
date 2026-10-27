@@ -5,6 +5,7 @@ import threading
 from uuid import uuid4
 
 import pytest
+from support.main_response import respond_directly_receipt
 
 from run_domain.lifecycle import RunLifecycleService
 from web_domain.errors import RunNotCancellable
@@ -68,6 +69,7 @@ async def test_running_completion_and_cancel_lock_order(
     commands, _, run_id = _conversation_and_run(database_url, account_id)
     lifecycle = WebRunLifecycleService(worker_database_url)
     lifecycle.prepare(run_id)
+    result_ref = await respond_directly_receipt(worker_database_url, run_id, account_id, "winner reply")
     entered, release = threading.Event(), threading.Event()
     context = threading.local()
     original_lock = RunLifecycleService.lock
@@ -82,7 +84,7 @@ async def test_running_completion_and_cancel_lock_order(
     def complete():
         context.completing = True
         try:
-            return lifecycle.complete(run_id, "winner reply")
+            return lifecycle.complete(run_id, "caller replacement", result_ref)
         finally:
             context.completing = False
 

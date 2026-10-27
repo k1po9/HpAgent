@@ -23,11 +23,11 @@ async def test_same_account_web_private_group_context_rotation_cancel_retry(
     cid = UUID(web.create_conversation(account_id, str(uuid4()))['conversation_id'])
     w = web.send_message(account_id, cid, str(uuid4()), 'web-only-secret')
     private_message = qq_message('private', 'private-only-secret')
-    p = await qq.accept(private_message, 'napcat')
-    g = await qq.accept(qq_message('group', 'group-only-text', scope='group'), 'napcat')
+    p = await qq.accept(private_message, 'onebot11')
+    g = await qq.accept(qq_message('group', 'group-only-text', scope='group'), 'onebot11')
     assert len({str(cid), p['conversation_id'], g['conversation_id']}) == 3
     assert w['session_id'] is p['session_id'] is g['session_id'] is None
-    assert (await qq.accept(private_message, 'napcat'))['run_id'] == p['run_id']
+    assert (await qq.accept(private_message, 'onebot11'))['run_id'] == p['run_id']
     context = ContextAssemblyService(worker_database_url, HarnessContextBuilder())
     for result, own, excluded in (
         (w, 'web-only-secret', ('private-only-secret', 'group-only-text')),
@@ -40,9 +40,9 @@ async def test_same_account_web_private_group_context_rotation_cancel_retry(
     pcid = UUID(p['conversation_id'])
     with pytest.raises(ConversationBusy):
         web.send_message(account_id, pcid, str(uuid4()), 'explicit Web view of QQ conversation')
-    cancelled = await qq.accept(qq_message('cancel', '/cancel'), 'napcat')
+    cancelled = await qq.accept(qq_message('cancel', '/cancel'), 'onebot11')
     assert cancelled['run_id'] == p['run_id']
-    failed = await qq.accept(qq_message('failure', 'retryable QQ request'), 'napcat')
+    failed = await qq.accept(qq_message('failure', 'retryable QQ request'), 'onebot11')
     assert failed['session_id'] is None
     worker.fail_run(account_id, UUID(failed['run_id']), 'test_failure')
     retried = web.retry_run(account_id, UUID(failed['run_id']), str(uuid4()))
