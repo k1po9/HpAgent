@@ -36,6 +36,7 @@ from agent_workflows.contracts import (
 )
 from application.execution_contracts import StableExecutionFailure
 from application.prompt_catalog import agent_prompt
+from application.time_context import format_time_context
 from application.tool_policy import ToolPolicyError, agent_role, tool_policy
 from brain.contracts import BrainCapability
 from common.logging import log_event
@@ -88,8 +89,13 @@ class DurableAgentActivities:
         fault_injector: FaultInjector | None = None,
         approval_service: Any = None,
         context_bindings: ExecutionContextBindings,
+        default_timezone: str = "Asia/Shanghai",
     ) -> None:
         self.context_bindings = context_bindings
+        from zoneinfo import ZoneInfo
+
+        ZoneInfo(default_timezone)
+        self.default_timezone = default_timezone
         self.store = store
         self.loader = loader
         self.brain = brain
@@ -377,6 +383,14 @@ class DurableAgentActivities:
                 await trace_end(
                     events, memory_node_id, "completed", {"memory_count": 0}
                 )
+            started_at = await asyncio.to_thread(self.store.context_started_at, request.operation_id)
+            time_context = format_time_context(
+                started_at, self.default_timezone, (loaded.metadata or {}).get("trigger_created_at", "")
+            )
+            if messages and messages[0].get("role") == "system":
+                messages[0] = {**messages[0], "content": messages[0]["content"] + "\n\n" + time_context}
+            else:
+                messages.insert(0, {"role": "system", "content": time_context})
             transcript_id = f"agent-transcript:{request.execution_id}"
             version = await asyncio.to_thread(
                 self.store.create_transcript,

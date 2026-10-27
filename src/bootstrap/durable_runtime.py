@@ -158,6 +158,7 @@ def compose_durable_runtime(
         ),
     )
     durable_activities = DurableAgentActivities(
+        default_timezone=config.agent.default_timezone,
         context_bindings=RunExecutionBindings(),
         store=agent_store,
         loader=loader,

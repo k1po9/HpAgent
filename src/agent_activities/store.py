@@ -7,6 +7,7 @@ workspace call is made while a database transaction is open.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
@@ -243,6 +244,19 @@ class AgentDataStore:
             )
             ResultReceiptService.register_attempt(uow, operation_id, execution_fence.get())
         return None
+
+    def context_started_at(self, operation_id: str) -> datetime:
+        """Use the persisted first start, including after a failed Activity attempt."""
+        with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
+            self._owned_record(uow, "execution_operations", "operation_id", operation_id)
+            row = uow.execute(
+                "SELECT started_at FROM execution_operations WHERE operation_id=%s "
+                "AND operation_type='context'", (operation_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError("context operation not found")
+            return row["started_at"]
 
     @retryable_transaction
     def begin_tool_operation(self, operation_id: str, run_id: str) -> ToolOperationState:

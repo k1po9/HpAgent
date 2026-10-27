@@ -405,6 +405,7 @@ class ResearchConfig:
 @dataclass
 class AgentConfig:
     """Agent 行为参数。"""
+    default_timezone: str = "Asia/Shanghai"
     max_history_turns: int = 10
     max_tool_turns: int = 20
     recall_top_n: int = 5
@@ -414,6 +415,11 @@ class AgentConfig:
     tool_result_summary_enabled: bool = True            # 启用 LLM 摘要替代截断
     tool_result_summary_threshold: int = 4000           # 超过此字符数触发摘要
     tool_result_summary_max_chars: int = 1000           # 摘要最大字符数（注入 LLM 的）
+
+    def __post_init__(self):
+        from zoneinfo import ZoneInfo
+
+        ZoneInfo(self.default_timezone)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Prompt 配置 —— 从 config/prompts/*.yaml 加载

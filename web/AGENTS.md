@@ -25,6 +25,7 @@
 在根目录运行
 `make ci-web`：lint、src/E2E/harness/config 类型检查、单元和生产构建。已有服务使用 web/dist 时，进入 web 后用
 `npm run build -- --outDir /tmp/hpagent-web-check` 写独立目录。
+生产构建使用 `tsconfig.build.json`，只检查产品源码；测试源码及仓库共享 fixture 的类型检查由 `npm run typecheck` 保留，不能以生产构建代替完整检查。
 
 浏览器按[测试指南](../docs/development/testing.md)选择合同夹具或独立 API 环境。Playwright `--list`
 只证明用例可发现；不能当作执行通过。保持对迟到响应、账户切换、幂等意图、dirty

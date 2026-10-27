@@ -2,6 +2,15 @@
 
 ## Agent 工具分配
 
+`config/config.yaml` 的 `agent.default_timezone` 指定 Agent 时间上下文的默认 IANA 时区，默认
+`Asia/Shanghai`，非法时区在配置加载时拒绝，不依赖容器本地时区。用户明确指定的时区优先。
+Main（Web / QQ）、Generic Work 和子执行在共享 Context Activity 中注入本地时间、偏移、星期和
+默认时区；时间基准取 PostgreSQL 保存的 context operation 首次 `started_at`，失败重试不刷新。
+聊天另外携带原始触发消息时间，用于解释“明天”“几分钟后”等相对时间，跨午夜重试不改变原意。
+后台执行没有原始聊天时间时使用自身执行基准，已确定的 Requirement 时间保持原值。
+该时间块随 transcript 和模型输入快照保存，是本次执行的固定基准，不是每轮请求的实时时钟；
+新执行重新建立基准，历史 transcript 不补写。修改配置后需重启相关 Worker 才会用于新上下文。
+
 [config/agent_tools.yaml](../../config/agent_tools.yaml) 是实际执行的工具分配配置；[config/prompts/agents.yaml](../../config/prompts/agents.yaml) 保存对应中文角色与阶段提示词。两者均按仓库 `src/` 或主 Worker 平铺目录布局定位应用根目录，进程首次读取后缓存；修改后需重启相关 Worker，不热更新已有模型快照和上下文。
 
 - `groups` 定义工具用途、准确 `tools` 名称或动态 `category`（`mcp` / `skill`），每个工具或动态类别只属于一个组。所有原生工具须有归属；拼写错误、未知角色/工具/组、重复 YAML 键及不支持的授予方式直接报错，不回退到宽松策略。

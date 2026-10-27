@@ -103,6 +103,14 @@ flowchart TD
 
 支持 immediate、带时区 offset 的 once 和 IANA 时区 daily。once 采用 catch-up；daily 历史漏触发合并为最新 occurrence，保留 `missed_from`。DST 重叠取 first fold，缺失本地时间跳过当日。旧 schedule version / requirement callback 记录跳过，不启动新 Run。
 
+接受新 Work 或修改其 timing 时，命令边界要求 once 的 `due_at` 严格晚于服务端当前时间。
+过去或恰好当前的时间返回 `work_time_in_past`，HTTP 422，包含 `due_at` 和 `server_now`；
+事务回滚，不创建 Work、唤醒或占用幂等键，收到明确拒绝后可修正参数重新提交。响应未知时仍须
+复用原幂等键和 payload 查询事实。已提交命令优先幂等回放，不因重试时过期而拒绝；只改内容、
+保留原 timing 的修订不重新校验过去时间，已接受任务的恢复、恢复控制和漏触发仍沿 catch-up。
+模型按注入的消息时间、执行基准和默认时区解释自然语言；明确过去日期须先询问是否现在执行，
+不得擅自加一年或变成立即执行。动态时间校验不放在不可变 Requirement 的反序列化校验中。
+
 Work 协调权由 `active_coordinator_run_id + requirement_revision + control_epoch` 决定；它与 Execution attempt lease、显式 Git 资源锁和跨进程容量票据分别校验。迟到旧 attempt 回执保留原来源，不得写当前 transcript、Workspace 或完成新 revision。暂停/停止有未知外部结果时保持收敛中，不能提前宣告停止。
 
 显式重试沿同Work、同requirement revision下最新失败/取消Run建立父链；尝试先后按单调递增的control epoch判断，避免数据库时钟回拨改变父链。成功后的继续执行与新调度occurrence建立新的执行链。

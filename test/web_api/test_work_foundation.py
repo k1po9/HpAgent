@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -9,6 +10,24 @@ import pytest
 from test_generic_completion_contract import CONTRACT
 
 pytestmark = pytest.mark.postgres
+
+
+def test_past_once_returns_structured_error_without_creating_work(seed_identity, client_factory, db):
+    account = seed_identity('past-time-owner')
+    client = client_factory()
+    csrf = login(client, 'past-time-owner')
+    req = {**requirement('Meeting'), 'timing': {
+        'schema_version': 1, 'kind': 'once', 'timezone': 'Asia/Shanghai',
+        'due_at': (datetime.now(UTC) - timedelta(days=365)).isoformat(),
+    }}
+    response = client.post('/api/v1/works', json={'title': 'Meeting', 'requirement': req},
+                           headers=headers(csrf, str(uuid4())))
+    assert response.status_code == 422, response.text
+    error = response.json()['error']
+    assert error['code'] == 'work_time_in_past' and error['retryable'] is False
+    assert error['details']['due_at'] == req['timing']['due_at']
+    assert datetime.fromisoformat(error['details']['server_now']) > datetime.fromisoformat(req['timing']['due_at'])
+    assert db.execute('SELECT count(*) FROM works WHERE account_id=%s', (account,)).fetchone()[0] == 0
 
 
 def test_generic_create_rejects_retired_criteria_without_claiming_key(seed_identity, client_factory, db):

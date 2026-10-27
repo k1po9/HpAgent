@@ -20,6 +20,7 @@ from work_domain.save_policy import (
     defer_workspace_save,
     validate_new_save_policy,
 )
+from work_domain.time_policy import validate_new_timing
 
 
 class WorkConflict(DomainError):
@@ -134,6 +135,7 @@ class WorkCommandService:
             validate_new_save_policy(value, workspace_save_requested=workspace_save_requested)
             if not AccountRepository().require_active(uow, account_id):
                 raise ResourceNotFound()
+            validate_new_timing(value['timing'])
             source = uow.execute(
                 'SELECT conversation_id FROM messages WHERE account_id=%s AND message_id=%s '
                 'AND (%s::uuid IS NULL OR conversation_id=%s)',
@@ -232,6 +234,9 @@ class WorkCommandService:
             work = self._locked(uow, account_id, work_id, row_version)
             if work['status'] not in {'active','pausing','paused'}:
                 raise WorkConflict(work, 'work_not_revisable')
+            previous = self.repo.requirement(uow, account_id, work_id, work['current_requirement_revision'])
+            if value['timing'] != previous['timing']:
+                validate_new_timing(value['timing'])
             revision = work['current_requirement_revision'] + 1
             self.repo.insert_requirement(uow, account_id, work_id, revision, value, command, reason)
             self._cancel_coordinator(uow, work, command, "revise")

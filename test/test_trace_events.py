@@ -331,7 +331,9 @@ def test_terminal_observer_creates_and_closes_the_stable_root():
 
 
 @pytest.mark.asyncio
-async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypatch):
+@pytest.mark.parametrize("with_memory", [True, False])
+@pytest.mark.parametrize("with_system", [True, False])
+async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypatch, with_memory, with_system):
     async def in_process(function, *args, **kwargs):
         return function(*args, **kwargs)
 
@@ -353,6 +355,10 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
             recorded.append(("close",))
 
     events = Events()
+    initial_messages = tuple(
+        ([{'role': 'system', 'content': 'Agent identity'}] if with_system else [])
+        + [{'role': 'user', 'content': 'hello'}]
+    )
 
     class EventFactory:
         def for_run(self, _run_id):
@@ -365,7 +371,21 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
         def begin_operation(self, *_args):
             return None
 
+        def context_started_at(self, *_args):
+            return datetime(2026, 12, 31, 16, 0, 1, tzinfo=UTC)
+
         def create_transcript(self, **_kwargs):
+            messages = _kwargs['messages']
+            assert messages[0]['role'] == 'system'
+            assert '2027-01-01T00:00:01+08:00' in messages[0]['content']
+            if with_memory:
+                assert '2026-12-31T23:59:59+08:00' in messages[0]['content']
+            else:
+                assert '未提供原始消息时间' in messages[0]['content']
+            if with_system:
+                assert messages[0]['content'].startswith('Agent identity\n\n')
+            assert messages[-1] == {'role': 'user', 'content': 'hello'}
+            assert initial_messages[-1] == messages[-1]
             return 1
 
         def fail_operation(self, *_args):
@@ -378,7 +398,7 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
 
         def compose(self, memories):
             assert memories == ("memory",)
-            return ({"role": "user", "content": "hello"},)
+            return initial_messages
 
     request = ContextBootstrapInput(
         schema_version=AGENT_SCHEMA_VERSION,
@@ -398,8 +418,9 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
                 conversation_id,
                 session_id,
                 "hello",
-                ({"role": "user", "content": "hello"},),
-                context_provider=Memory(),
+                initial_messages,
+                context_provider=Memory() if with_memory else None,
+                metadata={'trigger_created_at': '2026-12-31T15:59:59+00:00'} if with_memory else None,
             )
 
     class Brain:
@@ -419,15 +440,15 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
     result = await activities.context_bootstrap(request)
 
     assert result.transcript_version == 1
-    assert [item[3] for item in recorded if item[0] == "start"] == [
+    assert [item[3] for item in recorded if item[0] == "start"] == ([
         "AgentExecution",
         "ContextAssembly",
         "MemoryQueryRewrite",
         "MemoryRecall",
-    ]
+    ] if with_memory else ['AgentExecution', 'ContextAssembly', 'MemoryRecall'])
     completed = [item for item in recorded if item[0] == "end"]
-    assert [item[2] for item in completed] == ["completed", "completed", "completed"]
-    assert completed[1][3]["memory_count"] == 1
+    assert [item[2] for item in completed] == ["completed"] * (3 if with_memory else 2)
+    assert completed[1 if with_memory else 0][3]["memory_count"] == (1 if with_memory else 0)
 
 
 @pytest.mark.asyncio

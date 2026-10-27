@@ -102,6 +102,6 @@ class PostgresWebRequestLoader:
             trigger_message_id=str(base.trigger_message_id),
             interaction_profile=base.interaction_profile,
             metadata={"run_id": run_id, "surface": base.origin.get("channel_type", "web"),
-                      "origin": base.origin},
+                      "origin": base.origin, "trigger_created_at": base.trigger_created_at},
             context_provider=WebExecutionContextProvider(self._context, base),
         )

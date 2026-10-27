@@ -35,10 +35,11 @@ def once(due):
 
 @pytest.mark.asyncio
 async def test_reminder_due_replay_enqueues_once_and_never_completes_delivery(commands, account_id, urls, owner):
-    due = datetime.now(UTC) - timedelta(minutes=1)
+    due = datetime.now(UTC) + timedelta(minutes=1)
     work_id, work = accept(commands, account_id, reminder(once(due)))
     schedules = WorkScheduleService(urls[2])
-    assert schedules.run_once() >= 1
+    # Accepted while future; service resumes after the due time.
+    assert schedules.run_once(now=due + timedelta(minutes=1)) >= 1
     current = commands.get(account_id, work_id)['work']
     run_id = UUID(current['active_coordinator_run_id'])
     WebRunLifecycleService(urls[2]).prepare(run_id)
@@ -50,7 +51,8 @@ async def test_reminder_due_replay_enqueues_once_and_never_completes_delivery(co
     assert (await executor.execute(request))['status'] == 'succeeded'
     schedules.run_once()
     schedule = owner.execute('SELECT * FROM work_schedules WHERE work_id=%s', (work_id,)).fetchone()
-    schedules.occurrence(account_id, work_id, schedule['schedule_version'], due)
+    schedules.occurrence(account_id, work_id, schedule['schedule_version'], due,
+                         now=due + timedelta(minutes=1))
     assert owner.execute('SELECT count(*) AS n FROM runs WHERE work_id=%s', (work_id,)).fetchone()['n'] == 1
     assert owner.execute('SELECT count(*) AS n FROM notifications WHERE purpose=\'fulfillment\' AND work_id=%s', (work_id,)).fetchone()['n'] == 1
     assert owner.execute('SELECT count(*) AS n FROM execution_result_receipts WHERE run_id=%s', (run_id,)).fetchone()['n'] == 1
@@ -89,7 +91,7 @@ def test_daily_recovery_coalesces_history_and_preserves_schedule_version(command
 
 def test_new_timing_revision_waits_until_new_due(commands, account_id, urls, owner):
     now = datetime.now(UTC)
-    work_id, work = accept(commands, account_id, reminder(once(now-timedelta(minutes=1))))
+    work_id, work = accept(commands, account_id, reminder(once(now+timedelta(minutes=1))))
     commands.revise(account_id, work_id, str(uuid4()), work['row_version'], reminder(once(now+timedelta(days=1))))
     WorkScheduleService(urls[2]).run_once()
     assert commands.get(account_id, work_id)['work']['active_coordinator_run_id'] is None

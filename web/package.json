@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b tsconfig.build.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --project tsconfig.e2e.json --noEmit",
     "lint": "eslint . && prettier --check .",

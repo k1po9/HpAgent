@@ -32,6 +32,7 @@ from web_domain.errors import (
 from work_domain.commands import WorkConflict
 from work_domain.models import GENERIC_RESULT_EVIDENCE_TYPES, LegacyGenericCriteria
 from work_domain.save_policy import InvalidWorkspaceSave
+from work_domain.time_policy import WorkTimeInPast
 from workspace.catalog import WorkspaceConflict, WorkspaceNotFound
 from workspace.resources import ResourceDenied, SnapshotLimitExceeded
 
@@ -116,6 +117,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             ),
             VersionConflict: (412, "version_conflict", "对话版本已经变化。", True),
             WorkConflict: (409, "work_conflict", "Work 状态或版本冲突。", True),
+            WorkTimeInPast: (422, "work_time_in_past", "一次性定时时间已过，请核对日期和时区。", False),
             ApprovalNotPending: (409, "approval_not_pending", "审批请求已处理或已过期。", False),
         }
         status, code, message, retryable = mapping.get(
@@ -137,6 +139,8 @@ def register_exception_handlers(app: FastAPI) -> None:
             }.get(exc.reason, message)
         if isinstance(exc, WorkConflict):
             details = {"current": exc.current, "reason": exc.reason}
+        if isinstance(exc, WorkTimeInPast):
+            details = {"due_at": exc.due_at, "server_now": exc.server_now}
         if isinstance(exc, RunRetryNotSafe):
             details = {
                 "failure_code": exc.failure_code,

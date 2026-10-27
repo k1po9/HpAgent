@@ -915,6 +915,7 @@ services:
         hard: 1048576
     environment:
       TZ: Asia/Shanghai
+      VNC_PASSWD: ${VNC_PASSWD}
       ONEBOT_EXPECTED_SELF_ID: ${ONEBOT_EXPECTED_SELF_ID:-}
       SNOWLUMA_UID: ${SNOWLUMA_UID:-1000}
       SNOWLUMA_GID: ${SNOWLUMA_GID:-1000}

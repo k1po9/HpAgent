@@ -49,6 +49,11 @@ Work 快照另含可空 `progress`：policy_version、failure_limit、no_progres
 
 Requirement 核心字段为 objective、capability_key、spec；另有 constraints、acceptance_criteria、completion_mode、timing、resource_requests、deliverable_policy。能力是 reminder / research_report / generic_work / artifact_build；Generic Work 的验收 evidence_types 为 output_exists / check_passed / workspace_saved，并使用服务器求值的准确成果证据；input 命令可显式选取已有不可变能力输出。注册 executor 决策由服务端完成。daily 要求 ongoing；once 带 offset。旧 `/api/v1/tasks` 及 Task schedule / resources 入口已退休，没有兼容双写层。
 
+创建或修改 timing 时，once 的 `due_at` 必须严格晚于服务端当前时间，否则返回 HTTP 422
+`work_time_in_past`（`retryable=false`），`error.details` 含 `due_at` 和 `server_now`。
+拒绝不占用幂等键，明确收到此错误后可修正参数；已提交请求仍优先幂等回放。保留原 timing 的
+内容修订、已接受任务的恢复和补执行不受此新请求校验影响。
+
 ## Conversation、Run 与模型诊断
 
 Conversation 支持创建、列表、读取、改名、消息列表及发送；消息请求包含 content、agent_strategy、file_ids。同一 Conversation 仅一个 active chat Run，不排斥后台 Work。
