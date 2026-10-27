@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from application.prompt_catalog import agent_prompt
+from application.prompt_clock import current_time_line
 from research_domain.models import ClaimDraft, ResearchReport
 
 
@@ -42,7 +43,7 @@ class ResourcePoolResearchSynthesizer:
             messages=[
                 {
                     "role": "system",
-                    "content": agent_prompt("research"),
+                    "content": current_time_line() + "\n\n" + agent_prompt("research"),
                 },
                 {
                     "role": "user",

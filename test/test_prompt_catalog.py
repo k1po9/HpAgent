@@ -1,7 +1,12 @@
+from datetime import datetime
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
 import pytest
 import yaml
 
 from application import prompt_catalog
+from application.prompt_clock import current_time_line
 from web_artifacts.generator import WebArtifactGenerator
 
 
@@ -12,7 +17,24 @@ def test_all_agent_roles_and_stages_are_configured():
     ):
         assert prompt_catalog.agent_prompt(name)
     assert "workspace_save_requested=false" in prompt_catalog.agent_prompt("main")
+    assert "对用户的直接回答用当前身份的口气" in prompt_catalog.agent_prompt("main")
     assert "最多 16 条" in prompt_catalog.agent_prompt("research")
+
+
+def test_web_butler_and_qq_cat_stay_on_their_own_channels():
+    path = Path(__file__).resolve().parents[1] / "config" / "prompts" / "identities.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    assert "official_qq" not in data
+    assert data["channel_map"]["official_qq"] == "qq"
+    assert data["web"].startswith("你是管家")
+    assert data["default"].startswith("你是管家")
+    assert data["qq"].startswith("你是 nono")
+    assert "偶尔打错字" not in data["qq"]
+
+
+def test_clock_line_uses_shanghai_minutes():
+    line = current_time_line(datetime(2026, 10, 27, 7, 28, 59, tzinfo=ZoneInfo("UTC")))
+    assert line == "当前时间：2026-10-27 15:28（Asia/Shanghai）"
 
 
 def test_html_inputs_remain_separate_untrusted_json():
