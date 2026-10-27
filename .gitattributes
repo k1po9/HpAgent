@@ -1,0 +1,5 @@
+# Keep Linux startup scripts and shared configuration stable across editors.
+*.sh text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.cjs text eol=lf
