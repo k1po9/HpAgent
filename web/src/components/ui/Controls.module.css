@@ -1,0 +1,111 @@
+.button {
+  box-sizing: border-box;
+  min-height: var(--hp-control);
+  max-width: 100%;
+  height: auto;
+  flex-shrink: 0;
+  padding: 7px 11px;
+  border-radius: var(--hp-radius);
+  font: inherit;
+  font-size: var(--hp-body);
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.button:focus-visible,
+.field:focus-visible,
+.checkbox:focus-visible {
+  outline: 2px solid var(--hp-focus);
+  outline-offset: 3px;
+}
+.icon {
+  min-width: var(--hp-touch);
+  min-height: var(--hp-touch);
+  padding: 8px;
+}
+.field {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--hp-control);
+  border: 1px solid var(--hp-control-border);
+  border-radius: var(--hp-radius);
+  padding: 8px 10px;
+  color: var(--hp-text);
+  background: var(--hp-surface);
+  font: inherit;
+  line-height: 1.5;
+}
+.field:disabled {
+  color: var(--hp-muted);
+  background: var(--hp-subtle);
+}
+.textarea {
+  width: 100%;
+  min-height: 5rem;
+  resize: vertical;
+}
+.checkbox {
+  accent-color: var(--hp-accent);
+  flex-shrink: 0;
+}
+.label {
+  min-width: 0;
+  display: grid;
+  gap: var(--hp-space-2);
+}
+.label:has(.checkbox) {
+  display: flex;
+  align-items: center;
+  min-height: var(--hp-touch);
+}
+.description {
+  color: var(--hp-muted);
+}
+.error {
+  color: var(--hp-danger);
+}
+.notice {
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+  color: var(--hp-muted);
+}
+.notice[role="alert"] {
+  color: var(--hp-danger);
+}
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--hp-space-2);
+  min-width: 0;
+}
+@media (max-width: 959px) {
+  .button,
+  .field {
+    min-height: var(--hp-touch);
+  }
+  .button {
+    min-width: var(--hp-touch);
+  }
+}
+@media (max-width: 599px) {
+  .field {
+    font-size: 16px;
+  }
+}
+
+.menu {
+  max-width: min(320px, calc(100vw - 24px));
+  max-height: var(--radix-dropdown-menu-content-available-height);
+}
+.menuItem {
+  min-height: var(--hp-touch);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

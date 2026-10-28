@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { Folder, FileText } from "lucide-react";
 import type { HpWorkspaceNode, HpWorkspaceSearchItem } from "../../api/types";
 import { useShell } from "../../store/shell";
@@ -51,7 +52,8 @@ export function FileList({
               data-selected={selected?.kind === "file" && selected.objectId === row.node_id}
             >
               <td>
-                <button
+                <Button
+                  type="button"
                   id={`workspace-node-${row.node_id}`}
                   className="hp-file-name"
                   onClick={open}
@@ -62,7 +64,7 @@ export function FileList({
                     <FileText size={20} aria-hidden="true" />
                   )}
                   {row.name}
-                </button>
+                </Button>
                 {search && <small>{node ? nodePath(tree, row.node_id) : "位置待同步"}</small>}
               </td>
               <td>
@@ -79,7 +81,8 @@ export function FileList({
               </td>
               <td>{purpose === "output" ? "AI 输出" : purpose === "input" ? "上传" : "—"}</td>
               <td>
-                <button
+                <Button
+                  type="button"
                   id={`workspace-details-${row.node_id}`}
                   aria-label={`查看${row.name}详情`}
                   onClick={() =>
@@ -94,7 +97,7 @@ export function FileList({
                   }
                 >
                   详情
-                </button>
+                </Button>
               </td>
             </tr>
           );

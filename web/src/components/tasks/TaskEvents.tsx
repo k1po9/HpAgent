@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type { HpWorkEvent } from "../../api/types";
@@ -63,7 +64,9 @@ export function TaskEvents({ workId }: { workId: string }) {
       {error && (
         <p role="alert">
           {error}
-          <button onClick={() => setRetry((v) => v + 1)}>继续加载事件</button>
+          <Button type="button" onClick={() => setRetry((v) => v + 1)}>
+            继续加载事件
+          </Button>
         </p>
       )}
     </section>

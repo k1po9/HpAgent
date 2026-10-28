@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { useWorks } from "../../store/works";
 import type { HpWork } from "../../api/types";
 import { useShell } from "../../store/shell";
@@ -32,7 +33,8 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
         {taskTime(work) ? ` · ${taskTime(work)}` : ""}
       </p>
       <div className="hp-task-row-heading">
-        <button
+        <Button
+          type="button"
           id={`task-${work.work_id}`}
           className="hp-task-title"
           onClick={() =>
@@ -48,7 +50,7 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
           }
         >
           {work.title}
-        </button>
+        </Button>
       </div>
       <p className="hp-task-objective">{work.requirement.objective}</p>
       <span className="hp-task-status">{p.label}</span>

@@ -18,30 +18,6 @@
   text-transform: uppercase;
   color: #677e8f !important;
 }
-.hp-inspector-tabs {
-  border-bottom: 1px solid #dce6ec;
-  padding-bottom: 2px;
-}
-.hp-inspector-tabs button {
-  border-radius: 9px 9px 0 0 !important;
-  font-size: 12px !important;
-  color: #6f8493;
-}
-.hp-inspector-tabs button[aria-selected="true"] {
-  color: #a94a33;
-  font-weight: 700;
-  background: #fceee8a6 !important;
-}
-.hp-inspector-tab-indicator {
-  height: 2px;
-  background: #eb6044;
-  border-radius: 3px;
-}
-.hp-inspector :is(button, [role="tab"]):focus-visible,
-.hp-shell button:focus-visible {
-  outline: 2px solid #b94025;
-  outline-offset: 2px;
-}
 .hp-inspector .hp-run-sync {
   color: #507389 !important;
 }

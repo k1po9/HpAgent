@@ -66,33 +66,8 @@
   margin: 8px 0 0;
   line-height: 1.6;
 }
-.hp-auth-card label {
-  display: grid;
-  gap: 7px;
-}
-.hp-auth-card .rt-TextFieldRoot {
-  height: 44px;
-  background: var(--hp-subtle);
-  box-shadow: inset 0 0 0 1px var(--hp-control-border);
-  border-radius: 8px;
-}
-.hp-auth-card .rt-TextFieldRoot:focus-within {
-  box-shadow:
-    inset 0 0 0 1px var(--hp-focus),
-    0 0 0 3px var(--hp-focus-halo);
-}
-.hp-auth-card input {
-  font-family: inherit;
-  font-size: 15px;
-}
 .hp-auth-card .hp-auth-submit {
-  min-height: 44px;
   margin-top: 8px;
-  background: var(--hp-primary);
-  border-radius: 8px;
-}
-.hp-auth-card .rt-Button:disabled {
-  cursor: default;
 }
 .hp-auth-card [role="alert"] {
   line-height: 1.6;
@@ -102,19 +77,6 @@
   background-image:
     radial-gradient(ellipse 100% 75% at 100% 0%, var(--hp-canvas-warmth), transparent 80%),
     linear-gradient(180deg, transparent, rgb(237 241 245 / 65%));
-}
-
-.hp-surface-header button {
-  border: 0;
-  background: transparent;
-  color: var(--hp-muted);
-}
-.hp-inspector-tabs {
-  gap: 0;
-  margin-block: 20px;
-}
-.hp-inspector-tabs button {
-  padding: 10px 12px;
 }
 .hp-file-inspector h3 {
   font-size: 19px;
@@ -154,13 +116,8 @@
 .hp-workspace-sidebar > button {
   width: 100%;
   text-align: left;
-  background: var(--hp-selection);
-  border-color: transparent;
-  color: var(--hp-reading-accent);
 }
 .hp-tree-row button {
-  border-color: transparent;
-  background: transparent;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -179,22 +136,11 @@
 .hp-breadcrumbs {
   margin-bottom: 20px;
 }
-.hp-breadcrumbs button {
-  border: 0;
-  color: var(--hp-muted);
-  padding: 4px 8px;
-}
 .hp-workspace-search {
   padding: 16px;
   border: 1px solid var(--hp-border);
   border-radius: 10px;
   background: var(--hp-surface);
-}
-.hp-workspace-toolbar button:first-child:not(:disabled),
-.hp-task-toolbar .hp-primary {
-  background: var(--hp-primary);
-  color: var(--hp-on-primary);
-  border-color: var(--hp-primary);
 }
 .hp-file-table th {
   background: var(--hp-subtle);
@@ -255,17 +201,6 @@
   margin: 0;
   flex-shrink: 0;
 }
-.hp-operation-form input:not([type="checkbox"]),
-.hp-operation-form textarea,
-.hp-operation-form select {
-  min-height: 40px;
-  border: 1px solid var(--hp-control-border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--hp-surface);
-  color: var(--hp-text);
-  font: inherit;
-}
 .hp-surface .hp-operation-form {
   border: 0;
   padding: 0;
@@ -275,18 +210,10 @@
   padding: 16px;
 }
 .hp-task-sidebar button {
-  border-color: transparent;
-  background: transparent;
   margin: 6px 0;
-  padding: 12px;
   grid-template-columns: 20px 1fr auto;
   gap: 8px;
   align-items: center;
-}
-.hp-task-sidebar button[aria-current="page"] {
-  background: var(--hp-selection);
-  border-color: transparent;
-  color: var(--hp-reading-accent);
 }
 .hp-task-sidebar button strong {
   font-size: 12px;
@@ -341,20 +268,8 @@
 .hp-task-inspector dt {
   color: var(--hp-muted);
 }
-
-.hp-shell button,
-.hp-surface button {
-  transition:
-    background-color var(--hp-morph),
-    border-color var(--hp-morph),
-    color var(--hp-morph);
-}
 .hp-conv:hover {
   background: var(--hp-selection);
-}
-.hp-shell button:disabled,
-.hp-surface button:disabled {
-  cursor: default;
 }
 @media (max-width: 959px) {
   .hp-auth-surface > .hp-auth-layout {
@@ -407,9 +322,6 @@
   }
   .hp-task-row {
     padding: 16px;
-  }
-  .hp-task-sidebar button {
-    min-height: 44px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -464,10 +376,6 @@
 }
 .hp-workspace-search > label input {
   width: 100%;
-  min-height: 40px;
-  background: var(--hp-surface);
-  font: inherit;
-  font-size: 14px;
 }
 .hp-workspace-search > details {
   flex-basis: auto;
@@ -481,9 +389,6 @@
   border: 1px solid var(--hp-border);
   border-radius: 8px;
   background: var(--hp-surface);
-}
-.hp-file-table th:first-child {
-  width: 40%;
 }
 .hp-file-table td {
   padding-block: 10px;
@@ -524,13 +429,4 @@
 }
 .hp-auth-brand {
   min-width: 0;
-}
-.hp-inspector-tabs button {
-  border-radius: 0;
-}
-.hp-task-toolbar .hp-primary:hover:not(:disabled),
-.hp-workspace-toolbar button:first-child:hover:not(:disabled) {
-  background: var(--hp-primary-hover);
-  border-color: var(--hp-primary-hover);
-  color: var(--hp-on-primary);
 }

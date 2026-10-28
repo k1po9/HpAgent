@@ -1,3 +1,4 @@
+import { Field, TextField, Button } from "../ui";
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import { useWorks } from "../../store/works";
@@ -6,6 +7,7 @@ export function TaskLookup() {
   const generation = useWorks((s) => s.generation);
   const [runs, setRuns] = useState<Array<{ run_id: string; status: string }>>([]),
     [error, setError] = useState("");
+  const [workError, setWorkError] = useState("");
   const [query, setQuery] = useState<{ workId: string; revision: number } | null>(null);
   useEffect(() => {
     if (!query) return;
@@ -38,22 +40,26 @@ export function TaskLookup() {
           const value = new FormData(e.currentTarget).get("work");
           const workId = typeof value === "string" ? value.trim() : "";
           if (!workId) {
-            setError("请输入工作编号。");
+            setWorkError("请输入工作编号。");
+            setError("");
             return;
           }
+          setWorkError("");
           setError("");
           setRuns([]);
           setQuery((old) => ({ workId, revision: (old?.revision ?? 0) + 1 }));
         }}
       >
-        <label>
-          工作编号
-          <input name="work" required />
-        </label>
-        <button>读取执行记录</button>
+        <Field label="工作编号" error={workError}>
+          <TextField name="work" required onChange={() => setWorkError("")} />
+        </Field>
+        <Button variant="solid" type="submit">
+          读取执行记录
+        </Button>
       </form>
       {runs.map((run) => (
-        <button
+        <Button
+          type="button"
           key={run.run_id}
           onClick={() =>
             useShell.getState().openInspector({
@@ -64,7 +70,7 @@ export function TaskLookup() {
           }
         >
           {run.status} · {run.run_id}
-        </button>
+        </Button>
       ))}
       <form
         onSubmit={(e) => {
@@ -74,11 +80,13 @@ export function TaskLookup() {
             useShell.getState().openInspector({ kind: "run", objectId: value.trim() });
         }}
       >
-        <label>
+        <Field>
           执行编号
-          <input name="run" required />
-        </label>
-        <button>查询执行</button>
+          <TextField name="run" required />
+        </Field>
+        <Button variant="solid" type="submit">
+          查询执行
+        </Button>
       </form>
       {error && <p role="alert">{error}</p>}
     </details>

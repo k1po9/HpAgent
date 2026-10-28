@@ -1,3 +1,4 @@
+import { Field, Checkbox, Button } from "../ui";
 import { useRef, useState } from "react";
 import type { HpWorkspaceNode } from "../../api/types";
 import { workspaceApi, useWorkspace } from "../../store/workspace";
@@ -35,15 +36,15 @@ export function UseInConversationDialog({
       }}
     >
       <p>为目标对话授权发现与读取「{node.name}」。授权后进入对话，不自动发送消息。</p>
-      <label>
-        <input
+      <Field>
+        <Checkbox
           type="checkbox"
           disabled={busy || locked}
           checked={createNew}
           onChange={(e) => setCreateNew(e.target.checked)}
         />
         创建新对话
-      </label>
+      </Field>
       {!createNew && (
         <SubjectPicker
           conversationsOnly
@@ -53,18 +54,19 @@ export function UseInConversationDialog({
         />
       )}
       {node.kind === "directory" && (
-        <label>
-          <input
+        <Field>
+          <Checkbox
             type="checkbox"
             disabled={busy || locked}
             checked={recursive}
             onChange={(e) => setRecursive(e.target.checked)}
           />
           包含此目录的所有后代
-        </label>
+        </Field>
       )}
       {createNew && subject && <p>已创建对话「{subject.title}」，失败重试仅补授权。</p>}
-      <button
+      <Button
+        type="button"
         disabled={busy || (!createNew && !subject)}
         onClick={() => {
           setBusy(true);
@@ -137,7 +139,7 @@ export function UseInConversationDialog({
         }}
       >
         {busy ? "授权中…" : "确认读取授权并进入对话"}
-      </button>
+      </Button>
       {error && <p role="alert">{error}</p>}
     </Surface>
   );

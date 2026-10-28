@@ -1,6 +1,6 @@
+import { Button } from "../ui";
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Markdown } from "../ui/Markdown";
 import { useShell } from "../../store/shell";
 import { useTaskQuery } from "../tasks/useTaskQuery";
 
@@ -36,9 +36,13 @@ export function RunCapabilityResults({
   return (
     <section aria-label="能力成果">
       <h4>能力成果</h4>
-      <button disabled={query.loading} onClick={() => (opened ? query.retry() : setOpened(true))}>
+      <Button
+        type="button"
+        disabled={query.loading}
+        onClick={() => (opened ? query.retry() : setOpened(true))}
+      >
         {opened ? "刷新能力成果" : "读取能力成果"}
-      </button>
+      </Button>
       {query.error && <p role="alert">能力成果暂不可用。</p>}
       {query.data?.items.map((item) => (
         <CapabilityOutput key={item.invocation_id} item={item} runId={runId} />
@@ -73,7 +77,8 @@ function CapabilityOutput({ item, runId }: { item: CapabilityResult; runId: stri
       {item.payload.outputs
         .filter((ref) => ref.type === "artifact_version")
         .map((ref) => (
-          <button
+          <Button
+            type="button"
             key={ref.ref_id}
             onClick={() =>
               useShell.getState().openInspector(
@@ -88,21 +93,22 @@ function CapabilityOutput({ item, runId }: { item: CapabilityResult; runId: stri
             }
           >
             查看 HTML 成果版本
-          </button>
+          </Button>
         ))}
       {item.capability_key === "research" && (
-        <button onClick={() => setRead(true)}>读取此研究报告</button>
+        <Button type="button" onClick={() => setRead(true)}>
+          读取此研究报告
+        </Button>
       )}
       {report.error && (
         <p role="alert">
-          报告暂不可用。<button onClick={report.retry}>重试报告</button>
+          报告暂不可用。
+          <Button type="button" onClick={report.retry}>
+            重试报告
+          </Button>
         </p>
       )}
-      {report.data && (
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {report.data.report.report_markdown}
-        </ReactMarkdown>
-      )}
+      {report.data && <Markdown>{report.data.report.report_markdown}</Markdown>}
     </article>
   );
 }

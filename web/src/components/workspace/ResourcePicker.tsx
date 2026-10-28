@@ -1,3 +1,4 @@
+import { Field, Checkbox, Button } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { workspaceApi as resourcesApi, useWorkspace } from "../../store/workspace";
 import { useAuth } from "../../store/auth";
@@ -60,8 +61,8 @@ export function ResourcePicker({
       <div className="hp-resource-picker-list">
         {nodes?.map((node) => (
           <div key={node.node_id}>
-            <label>
-              <input
+            <Field>
+              <Checkbox
                 type="checkbox"
                 checked={node.node_id in selection}
                 disabled={busy}
@@ -75,10 +76,10 @@ export function ResourcePicker({
                 }
               />
               {node.name} · {node.kind === "directory" ? "目录" : "文件"}
-            </label>
+            </Field>
             {node.kind === "directory" && node.node_id in selection && (
-              <label>
-                <input
+              <Field>
+                <Checkbox
                   type="checkbox"
                   checked={selection[node.node_id]}
                   disabled={busy}
@@ -87,7 +88,7 @@ export function ResourcePicker({
                   }
                 />
                 包含子目录与文件
-              </label>
+              </Field>
             )}
           </div>
         ))}
@@ -95,12 +96,12 @@ export function ResourcePicker({
       {error && (
         <p role="alert">
           {error}{" "}
-          <button type="button" disabled={busy} onClick={() => setRevision((v) => v + 1)}>
+          <Button type="button" disabled={busy} onClick={() => setRevision((v) => v + 1)}>
             重新加载资料
-          </button>
+          </Button>
         </p>
       )}
-      <button
+      <Button
         type="button"
         disabled={busy || !Object.keys(selection).length}
         onClick={() => {
@@ -155,7 +156,7 @@ export function ResourcePicker({
         }}
       >
         {busy ? "授权中…" : "确认读取授权"}
-      </button>
+      </Button>
     </Surface>
   );
 }

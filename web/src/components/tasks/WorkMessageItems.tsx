@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { useWorks } from "../../store/works";
 import { useShell } from "../../store/shell";
 import { presentTask } from "./taskPresentation";
@@ -18,7 +19,8 @@ export function WorkMessageItems({ messageId }: { messageId: string }) {
   return (
     <div aria-label="来源消息的后台任务" className="hp-task-actions">
       {works.map((work) => (
-        <button
+        <Button
+          type="button"
           key={work.work_id}
           onClick={() =>
             useShell.getState().openInspector({
@@ -29,7 +31,7 @@ export function WorkMessageItems({ messageId }: { messageId: string }) {
           }
         >
           {work.title} · {error ? "状态待同步" : presentTask(work, now).label}
-        </button>
+        </Button>
       ))}
     </div>
   );

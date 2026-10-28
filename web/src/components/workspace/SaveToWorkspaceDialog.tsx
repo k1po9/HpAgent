@@ -1,3 +1,4 @@
+import { Button, Field, Select, TextField } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../../store/workspace";
 import { Surface } from "../shell/Surface";
@@ -76,8 +77,12 @@ function SaveView({
       {abandon && (
         <Surface title="放弃未提交的保存选择？" motion="elevate" onClose={() => setAbandon(false)}>
           <p>尚未提交的文件、目录或名称选择将丢弃；已提交的操作记录保留。</p>
-          <button onClick={() => setAbandon(false)}>继续编辑</button>
-          <button onClick={onClose}>放弃选择并关闭</button>
+          <Button type="button" onClick={() => setAbandon(false)}>
+            继续编辑
+          </Button>
+          <Button type="button" onClick={onClose}>
+            放弃选择并关闭
+          </Button>
         </Surface>
       )}
       <form
@@ -116,9 +121,9 @@ function SaveView({
           </p>
         )}
         <p>保存不会自动授权 AI 使用。</p>
-        <label>
+        <Field>
           保存目录
-          <select
+          <Select
             disabled={Boolean(id && !operation?.canChangeSave)}
             value={target}
             onChange={(e) => setDirectory(e.target.value)}
@@ -130,17 +135,17 @@ function SaveView({
                   {nodePath(tree, n.node_id)}
                 </option>
               ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field>
           保存名称
-          <input
+          <TextField
             required
             disabled={Boolean(id && !operation?.canChangeSave)}
             value={operation?.canChangeSave ? name : (operation?.name ?? name)}
             onChange={(e) => setName(e.target.value)}
           />
-        </label>
+        </Field>
         {operation && (
           <p role="status">
             {operation.phase}
@@ -152,13 +157,17 @@ function SaveView({
           <p>原保存请求被拒绝；可修改目录或名称，保留已就绪内容另存。</p>
         )}
         {!operation?.completed && (
-          <button disabled={!target || !name.trim() || operation?.busy}>
+          <Button
+            variant="solid"
+            type="submit"
+            disabled={!target || !name.trim() || operation?.busy}
+          >
             {operation?.busy ? "保存中…" : id ? "继续原保存" : "确认保存"}
-          </button>
+          </Button>
         )}
-        <button type="button" onClick={close}>
+        <Button type="button" onClick={close}>
           {operation?.completed ? "完成" : "关闭"}
-        </button>
+        </Button>
       </form>
     </Surface>
   );
@@ -174,7 +183,8 @@ export function WorkspaceDirectoryLoader() {
   return error ? (
     <p role="alert">
       {error}
-      <button
+      <Button
+        type="button"
         onClick={() =>
           void useWorkspace
             .getState()
@@ -183,7 +193,7 @@ export function WorkspaceDirectoryLoader() {
         }
       >
         重试目录
-      </button>
+      </Button>
     </p>
   ) : null;
 }

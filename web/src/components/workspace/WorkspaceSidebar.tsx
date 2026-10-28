@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { Folder, Files } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useWorkspace } from "../../store/workspace";
@@ -32,7 +33,8 @@ export function WorkspaceSidebar() {
       <li key={node.node_id}>
         <div className="hp-tree-row">
           {children.length > 0 && (
-            <button
+            <Button
+              type="button"
               aria-label={`${open ? "收起" : "展开"}${node.name || "根目录"}`}
               aria-expanded={open}
               onClick={() =>
@@ -40,9 +42,10 @@ export function WorkspaceSidebar() {
               }
             >
               {open ? "−" : "+"}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            type="button"
             aria-current={
               !allFiles && (route.directoryId ?? tree?.root_id) === node.node_id
                 ? "location"
@@ -52,7 +55,7 @@ export function WorkspaceSidebar() {
           >
             <Folder size={16} aria-hidden="true" />
             {node.parent_id === null ? "根目录" : node.name}
-          </button>
+          </Button>
         </div>
         {open && children.length > 0 && <ul>{children.map((n) => directory(n, next))}</ul>}
       </li>
@@ -61,7 +64,8 @@ export function WorkspaceSidebar() {
   return (
     <nav className="hp-workspace-sidebar" aria-label="空间目录">
       <h2>空间</h2>
-      <button
+      <Button
+        type="button"
         aria-pressed={allFiles}
         onClick={() => {
           useShell.getState().requestResourceChange(() => {
@@ -71,7 +75,7 @@ export function WorkspaceSidebar() {
         }}
       >
         <Files size={16} aria-hidden="true" /> 全部文件
-      </button>
+      </Button>
       {!tree && !error && <p role="status">正在加载目录…</p>}
       {tree && index?.nodes.get(tree.root_id) && (
         <ul>{directory(index.nodes.get(tree.root_id)!, new Set())}</ul>
@@ -79,7 +83,8 @@ export function WorkspaceSidebar() {
       {error && (
         <p role="alert">
           {error}
-          <button
+          <Button
+            type="button"
             onClick={() =>
               void useWorkspace
                 .getState()
@@ -88,7 +93,7 @@ export function WorkspaceSidebar() {
             }
           >
             重试
-          </button>
+          </Button>
         </p>
       )}
     </nav>

@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { useEffect, useState } from "react";
 
 export function RecoveryStatus({
@@ -31,7 +32,9 @@ export function RecoveryStatus({
         {state === "error" ? (
           <>
             <p>请检查连接后重试，你的工作内容不会因此丢失。</p>
-            <button onClick={onRetry}>重试</button>
+            <Button type="button" onClick={onRetry}>
+              重试
+            </Button>
           </>
         ) : (
           <p>

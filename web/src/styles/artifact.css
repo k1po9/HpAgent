@@ -11,27 +11,9 @@
 .hp-artifact-message-items button,
 .hp-artifact-inspector button,
 .hp-artifact-empty button {
-  font: inherit;
-  font-size: 14px;
-  min-height: 40px;
   max-width: 100%;
-  padding: 8px 12px;
-  color: var(--hp-text);
-  background: var(--hp-surface);
-  border: 1px solid var(--hp-control-border);
-  border-radius: 7px;
   white-space: normal;
   overflow-wrap: anywhere;
-}
-.hp-artifact-message-items button:hover:not(:disabled),
-.hp-artifact-inspector button:hover:not(:disabled),
-.hp-artifact-empty button:hover:not(:disabled) {
-  background: var(--hp-subtle);
-}
-.hp-artifact-message-items button:disabled,
-.hp-artifact-inspector button:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 .hp-artifact-message-items p {
   margin: 0;
@@ -151,25 +133,6 @@
 .hp-artifact-heading[data-status="failed"] p {
   color: var(--hp-danger);
 }
-.hp-artifact-inspector .hp-inspector-tabs {
-  flex: none;
-  gap: 0;
-  margin: 0;
-  padding: 0 20px;
-}
-.hp-artifact-inspector .hp-inspector-tabs button {
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  color: var(--hp-muted);
-}
-.hp-artifact-inspector .hp-inspector-tabs button[aria-selected="true"] {
-  border-bottom-color: var(--hp-accent);
-  color: var(--hp-accent);
-}
 .hp-artifact-content {
   flex: 1;
   min-height: 0;
@@ -216,20 +179,12 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 44px;
 }
 .hp-artifact-toolbar button svg {
   flex: none;
 }
 .hp-artifact-toolbar .hp-artifact-save {
   flex: 1;
-  background: var(--hp-primary);
-  border-color: var(--hp-primary);
-  color: var(--hp-on-primary);
-}
-.hp-artifact-toolbar .hp-artifact-save:hover:not(:disabled) {
-  background: var(--hp-primary-hover);
-  border-color: var(--hp-primary-hover);
 }
 .hp-artifact-history {
   display: grid;
@@ -243,11 +198,6 @@
   border: 1px solid var(--hp-border);
   border-radius: 8px;
   background: var(--hp-surface);
-}
-.hp-artifact-history button[aria-current="true"] {
-  background: var(--hp-selection);
-  color: var(--hp-accent);
-  border-color: var(--hp-control-border);
 }
 .hp-artifact-history p {
   margin: 8px 0 0;
@@ -284,20 +234,9 @@
   margin: 0;
 }
 .hp-artifact-composer textarea {
-  min-height: 100px;
   width: 100%;
   resize: vertical;
   box-sizing: border-box;
-  font: inherit;
-  font-size: 14px;
-  line-height: 1.7;
-  padding: 12px;
-  border: 1px solid var(--hp-control-border);
-  border-radius: 8px;
-  background: var(--hp-surface);
-}
-.hp-artifact-composer > button {
-  background: var(--hp-subtle);
 }
 .hp-artifact-preview {
   position: relative;
@@ -361,20 +300,7 @@
   .hp-artifact-content {
     padding-inline: 16px;
   }
-  .hp-artifact-inspector .hp-inspector-tabs {
-    padding-inline: 16px;
-  }
   .hp-artifact-toolbar {
     padding-inline: 16px;
-  }
-  .hp-artifact-toolbar button {
-    font-size: 13px;
-  }
-  .hp-artifact-inspector button,
-  .hp-artifact-message-items button {
-    min-height: 44px;
-  }
-  .hp-artifact-composer textarea {
-    font-size: 16px;
   }
 }

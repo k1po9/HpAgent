@@ -1,3 +1,4 @@
+import { Button, Select } from "./ui";
 import { useCallback, useEffect } from "react";
 import { Box, Flex, Spinner, Text } from "@radix-ui/themes";
 import { Files } from "lucide-react";
@@ -176,7 +177,7 @@ export function ChatPane({
         </Flex>
       )}
       {pendingSend && !sending && (
-        <button
+        <Button
           type="button"
           onClick={() => {
             const pendingHandoff = handoffSnapshot()?.ticket;
@@ -211,10 +212,10 @@ export function ChatPane({
           }}
         >
           用原提交确认上次发送
-        </button>
+        </Button>
       )}
       {error ? (
-        <button
+        <Button
           id="hp-conversation-error"
           type="button"
           className="hp-error"
@@ -223,17 +224,18 @@ export function ChatPane({
           <Text size="2" color="red">
             {error}（点击关闭）
           </Text>
-        </button>
+        </Button>
       ) : null}
       <Box style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         {route.sourceWorkId && route.messageId && (
-          <button
+          <Button
+            type="button"
             onClick={() =>
               useShell.getState().openInspector({ kind: "task", objectId: route.sourceWorkId! })
             }
           >
             返回来源任务
-          </button>
+          </Button>
         )}
         <HpThread
           conversationKey={conversationKey}
@@ -289,12 +291,14 @@ export function ChatPane({
                     {candidatesError && (
                       <p role="alert">
                         {candidatesError}
-                        <button onClick={() => void loadFileCandidates()}>重试</button>
+                        <Button type="button" onClick={() => void loadFileCandidates()}>
+                          重试
+                        </Button>
                       </p>
                     )}
                     <div style={{ maxHeight: 160, overflowY: "auto" }}>
                       {fileCandidates.map((file) => (
-                        <button
+                        <Button
                           key={file.file_id}
                           type="button"
                           disabled={
@@ -305,16 +309,16 @@ export function ChatPane({
                           onClick={() => selectExistingFile(file)}
                         >
                           {file.file_name} · {file.purpose === "output" ? "已发布输出" : "历史附件"}
-                        </button>
+                        </Button>
                       ))}
                       {fileCandidatesNext ? (
-                        <button
+                        <Button
                           type="button"
                           disabled={loadingCandidates}
                           onClick={() => void loadFileCandidates(true)}
                         >
                           更多文件
-                        </button>
+                        </Button>
                       ) : null}
                     </div>
                   </div>
@@ -323,7 +327,7 @@ export function ChatPane({
             </>
           }
           composerMode={
-            <select
+            <Select
               className="hp-mode-select"
               data-mode={displayedStrategy}
               aria-label="执行模式"
@@ -342,7 +346,7 @@ export function ChatPane({
               (strategyLocked && displayedStrategy === "plan_and_execute") ? (
                 <option value="plan_and_execute">深度</option>
               ) : null}
-            </select>
+            </Select>
           }
           error={error}
           loadingHistory={loadingMessages}

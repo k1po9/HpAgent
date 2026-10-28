@@ -98,6 +98,12 @@ test("default, wide, minimum, narrow and mobile remain readable", async ({ page 
     expect(await panel.evaluate((el) => el.scrollWidth)).toBeLessThanOrEqual(
       await panel.evaluate((el) => el.clientWidth),
     );
+    if (width < 960) {
+      for (const control of await page
+        .locator(".hp-trace-tree__node:visible, .hp-trace-tree__expand:visible")
+        .all())
+        expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
     const duration = page.locator(".hp-trace-tree__duration").last();
     await duration.scrollIntoViewIfNeeded();
     const box = await duration.boundingBox();

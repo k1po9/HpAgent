@@ -1,3 +1,4 @@
+import { Button, Field, TextField, Select, Checkbox } from "../ui";
 import { useRef, useState } from "react";
 import { useShell } from "../../store/shell";
 import { useAuth } from "../../store/auth";
@@ -41,8 +42,12 @@ export function UploadToWorkspaceDialog({
       {abandon && (
         <Surface title="放弃未提交的上传选择？" motion="elevate" onClose={() => setAbandon(false)}>
           <p>尚未提交的文件、目录或名称选择将丢弃；已提交的操作记录保留。</p>
-          <button onClick={() => setAbandon(false)}>继续编辑</button>
-          <button onClick={onClose}>放弃选择并关闭</button>
+          <Button type="button" onClick={() => setAbandon(false)}>
+            继续编辑
+          </Button>
+          <Button type="button" onClick={onClose}>
+            放弃选择并关闭
+          </Button>
         </Surface>
       )}
       <form
@@ -64,9 +69,9 @@ export function UploadToWorkspaceDialog({
         }}
       >
         <p>支持文本、Markdown、PDF、DOCX、XLSX、PPTX。默认仅保存到空间。</p>
-        <label>
+        <Field>
           上传长期文件
-          <input
+          <TextField
             aria-label="上传长期文件"
             type="file"
             disabled={!canUpload || Boolean(id)}
@@ -77,10 +82,10 @@ export function UploadToWorkspaceDialog({
               setName(selected?.name ?? "");
             }}
           />
-        </label>
-        <label>
+        </Field>
+        <Field>
           上传目录
-          <select
+          <Select
             disabled={Boolean(id && !operation?.canChangeSave)}
             value={operation?.canChangeSave ? parent : (operation?.parentId ?? parent)}
             onChange={(e) => setParent(e.target.value)}
@@ -92,25 +97,25 @@ export function UploadToWorkspaceDialog({
                   {nodePath(tree, n.node_id)}
                 </option>
               ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </Field>
+        <Field>
           上传后的名称
-          <input
+          <TextField
             disabled={Boolean(id && !operation?.canChangeSave)}
             value={operation?.canChangeSave ? name : (operation?.name ?? name)}
             onChange={(e) => setName(e.target.value)}
           />
-        </label>
-        <label>
-          <input
+        </Field>
+        <Field>
+          <Checkbox
             type="checkbox"
             disabled={Boolean(id)}
             checked={useForConversation}
             onChange={(e) => setUseForConversation(e.target.checked)}
           />
           上传后用于当前对话（显式选择目标）
-        </label>
+        </Field>
         {useForConversation && (
           <SubjectPicker
             conversationsOnly
@@ -127,7 +132,9 @@ export function UploadToWorkspaceDialog({
         )}
         {operation?.error && <p role="alert">{operation.error}</p>}
         {!operation?.completed && (
-          <button
+          <Button
+            variant="solid"
+            type="submit"
             disabled={
               !canUpload ||
               (!file && !id) ||
@@ -137,10 +144,10 @@ export function UploadToWorkspaceDialog({
             }
           >
             {operation?.busy ? "处理中…" : id ? "继续原操作" : "上传并保存到 Workspace"}
-          </button>
+          </Button>
         )}
         {operation?.completed && (
-          <button
+          <Button
             type="button"
             onClick={() => {
               operationRef.current = null;
@@ -152,7 +159,7 @@ export function UploadToWorkspaceDialog({
             }}
           >
             上传另一个文件
-          </button>
+          </Button>
         )}
       </form>
       <details>
@@ -170,7 +177,8 @@ export function UploadToWorkspaceDialog({
               </p>
             )}
             {op.nodeId && (
-              <button
+              <Button
+                type="button"
                 onClick={() => {
                   onClose();
                   useShell.getState().navigate({
@@ -181,10 +189,11 @@ export function UploadToWorkspaceDialog({
                 }}
               >
                 打开空间
-              </button>
+              </Button>
             )}
             {!op.busy && !op.completed && (
-              <button
+              <Button
+                type="button"
                 onClick={() => {
                   operationRef.current = op.id;
                   setId(op.id);
@@ -196,7 +205,7 @@ export function UploadToWorkspaceDialog({
                 }}
               >
                 继续此操作
-              </button>
+              </Button>
             )}
           </div>
         ))}

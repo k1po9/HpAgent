@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import type { CSSProperties } from "react";
 import { RunInspectorResize } from "./RunInspectorResize";
 import { RunRefresh } from "../run/RunRefresh";
@@ -171,7 +172,8 @@ function InspectorContent({
         (inspector.kind === "run" ? (
           <RunRefresh key={inspector.objectId} inspector={inspector} />
         ) : (
-          <button
+          <Button
+            type="button"
             className="hp-inspector-expand"
             aria-pressed={expanded}
             onClick={() => useShell.setState({ expanded: !expanded })}
@@ -182,7 +184,7 @@ function InspectorContent({
               <Maximize2 size={16} aria-hidden="true" />
             )}
             {expanded ? "恢复宽度" : "扩大阅读"}
-          </button>
+          </Button>
         ))
       }
       onClose={() => useShell.getState().closeInspector()}

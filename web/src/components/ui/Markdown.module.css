@@ -1,0 +1,13 @@
+.table {
+  border-collapse: collapse;
+  max-width: 100%;
+}
+.cell {
+  border: 1px solid var(--hp-border);
+  padding: 6px 8px;
+  text-align: left;
+}
+.image {
+  max-width: 100%;
+  height: auto;
+}

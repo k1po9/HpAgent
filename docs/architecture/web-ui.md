@@ -40,7 +40,11 @@ Run 概览与任务执行输出可按需读取能力成果，独立展示 outcom
 
 `store/workbench.ts` 保持对外 API，内部 `store/workbench/` 分为对话、附件、发送意图、Run 动作与监控。`context.ts` 共享账户/对象/查询世代及冻结意图；门面负责统一 reset，`runMonitor.ts` 集中释放 SSE、预算定时器和轮询等待，不在各模块重复维护生命周期。
 
-`styles/presentation/` 按调色、Shell、对话、Run、Surface、Composer、响应式和 Inspector 动效组织最终表现规则；导入顺序由 `styles.css` 固定。移动规则时保留层叠顺序。
+普通按钮、图标按钮、字段、选择框、勾选框、通知和动作行从 `components/ui/` 接入；Button/IconButton 复用 Radix Themes，表单字段保留原生 DOM、ref 和事件语义。按钮显式指定提交类型，主操作使用 `variant="solid"`，基础控件不读取领域 store 或触发请求。基础控件的默认外观与 InspectorTabs 页签由 CSS Modules 和 `--hp-*` tokens 持有；全局焦点样式以低优先级回退，不覆盖模块焦点环。紧凑页签使用内收焦点环，普通字段使用外侧焦点环。Field 支持显式 `label`、`description`、`error`，以稳定生成的 ID 连接原生控件，合并调用方的 `aria-describedby`；显式输入 ID 通过 `htmlFor` 对齐。说明和错误不进入字段名称，字段错误设置 `aria-invalid`，API/表单级错误独立展示。原有隐式包裹 label 仍可使用。InspectorTabs 自己持有页签样式与测量指示器，Surface、Composer、导航和 Mercury 保留专用职责。
+
+`ActionMenu` 用于任务的更多动作；Radix Portal 挂在触发器所属原生 dialog 内，页面菜单挂 body，使用现有 Theme。菜单不创建第二个模态边界，Esc 先关闭菜单并返回触发器，再由 Surface 处理下一层；从菜单导航的 origin 保留常驻触发器身份。
+
+`styles/presentation/` 保留 Shell、对话、Run、Surface、Composer 和 Inspector 动效的领域表现，`styles.css` 固定全局导入顺序。新基础样式放组件模块；迁移调用方时同步删除旧通用规则。领域 CSS 仍负责宽度、排列、对象状态，以及 Composer、Inspector 扩宽、标题编辑、入口确认态等具名专用交互。hidden/inert、接收门控、减动及拖宽期间的行为保护保留，不以清零 important 或合并所有样式文件为目标。`components/shell/layout.ts` 共享 Shell 实测宽度、token 尺寸与 Run 宽度边界；侧栏容纳计算、拖宽 ARIA 和实际 CSS 使用同一最大值。视口控制 Shell 模式，空间文件表和任务看板按实际容器宽度排布；文件表在容器 ≤700px 时收起类型与来源列。≤959px 普通控件命中高度至少44px，输入在手机上使用16px字号。
 
 ## AI 对话与执行
 

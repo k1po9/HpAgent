@@ -1,3 +1,5 @@
+import { Button, Field, Checkbox } from "../ui";
+import { runInspectorWidth, runWidthBounds, shellModes } from "./layout";
 import { revealConversationReading } from "../mercury/useConversationTransit";
 import { AgentIcon, WorkspaceIcon, TasksIcon } from "../spatial/ReviewIcons";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
@@ -44,7 +46,7 @@ export function AppShell() {
 
   const layout = useShellWidth(shellRef);
   const { width } = layout;
-  const flow = useInspectorFlow(width < 1280);
+  const flow = useInspectorFlow(width < shellModes.inspector);
   const expanded = flow.expanded;
   const runWidth = useShell((s) => s.runInspectorWidth);
   const route = useShell((s) => s.route);
@@ -170,17 +172,14 @@ export function AppShell() {
       <TaskSidebar />
     );
   const collapsed =
-    width < 960 ||
+    width < shellModes.sidebar ||
     width <
       layout.rail +
         layout.sidebar +
         layout.canvasMin +
-        (flow.occupies && width >= 1280
+        (flow.occupies && width >= shellModes.inspector
           ? flow.kind === "run"
-            ? Math.min(
-                runWidth,
-                Math.max(360, width - layout.rail - layout.canvasMin - layout.layoutGap),
-              )
+            ? runInspectorWidth(layout, runWidth)
             : expanded
               ? layout.inspectorExpanded
               : layout.inspector
@@ -189,7 +188,12 @@ export function AppShell() {
   return (
     <div
       ref={shellRef}
-      style={{ "--hp-run-inspector-width": `${runWidth}px` } as CSSProperties}
+      style={
+        {
+          "--hp-run-inspector-width": `${runInspectorWidth(layout, runWidth)}px`,
+          "--hp-run-max-width": `${runWidthBounds(layout).max}px`,
+        } as CSSProperties
+      }
       data-spatial-motion={motion ? "enabled" : "reduced"}
       className={`hp-shell ${flow.occupies ? "hp-shell--inspecting" : ""} ${collapsed ? "hp-shell--sidebar-collapsed" : ""}`}
     >
@@ -240,14 +244,15 @@ export function AppShell() {
       </Surface>
       <main className="hp-main-canvas">
         <header className="hp-canvas-header">
-          <button
+          <Button
+            type="button"
             className="hp-sidebar-toggle"
             title="打开侧栏"
             aria-label="打开侧栏"
             onClick={() => useShell.setState({ sidebarOpen: true })}
           >
             <Menu aria-hidden="true" />
-          </button>
+          </Button>
           <div className="hp-canvas-heading">
             <span className="hp-page-context">
               {route.screen === "ai"
@@ -280,7 +285,8 @@ export function AppShell() {
           <p role="status">
             {notice}{" "}
             {savedNode && (
-              <button
+              <Button
+                type="button"
                 onClick={() =>
                   navigate({
                     screen: "workspace",
@@ -290,7 +296,7 @@ export function AppShell() {
                 }
               >
                 打开空间
-              </button>
+              </Button>
             )}
           </p>
         )}
@@ -298,14 +304,17 @@ export function AppShell() {
           {route.screen === "ai" && route.conversationId && !conversationId && !loading ? (
             <div role="alert">
               <p>{useWorkbench.getState().error ?? "对象不可用。"}</p>
-              <button
+              <Button
+                type="button"
                 onClick={() =>
                   void useWorkbench.getState().selectConversation(route.conversationId!)
                 }
               >
                 重试对话
-              </button>
-              <button onClick={() => navigate({ screen: "ai" })}>返回新对话</button>
+              </Button>
+              <Button type="button" onClick={() => navigate({ screen: "ai" })}>
+                返回新对话
+              </Button>
             </div>
           ) : (
             <ChatPane
@@ -332,7 +341,7 @@ export function AppShell() {
       </main>
       <InspectorHost
         flow={flow}
-        compact={width < 1280}
+        compact={width < shellModes.inspector}
         onSaveFile={saveFile}
         onSaveHtml={setSaveSource}
       />
@@ -345,12 +354,14 @@ export function AppShell() {
           onClose={() => useShell.setState({ pendingRoute: null, pendingDirectoryChange: null })}
         >
           <p>目录名称尚未保存。已提交的创建请求仍会继续处理。</p>
-          <button
+          <Button
+            type="button"
             onClick={() => useShell.setState({ pendingRoute: null, pendingDirectoryChange: null })}
           >
             继续编辑
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
             onClick={() => {
               const discard = useShell.getState().dirtyDirectoryEditor;
               useShell.setState({
@@ -364,7 +375,7 @@ export function AppShell() {
             }}
           >
             放弃目录名称并继续
-          </button>
+          </Button>
         </Surface>
       )}
       {pendingRoute && pendingReason === "tasks" && (
@@ -375,15 +386,18 @@ export function AppShell() {
           onClose={() => useShell.setState({ pendingRoute: null })}
         >
           <p>草稿尚未提交，切换将丢弃修改。</p>
-          <button onClick={() => useShell.setState({ pendingRoute: null })}>继续编辑</button>
-          <button
+          <Button type="button" onClick={() => useShell.setState({ pendingRoute: null })}>
+            继续编辑
+          </Button>
+          <Button
+            type="button"
             onClick={() => {
               useShell.setState({ dirtyTaskEditor: null });
               useShell.getState().navigate(pendingRoute);
             }}
           >
             放弃草稿并继续
-          </button>
+          </Button>
         </Surface>
       )}
       {((pendingRoute && pendingReason === "resources") || pendingResourceChange) && (
@@ -394,12 +408,14 @@ export function AppShell() {
           onClose={() => useShell.setState({ pendingRoute: null, pendingResourceChange: null })}
         >
           <p>尚未提交的权限选择会丢弃，已生效授权不受影响。</p>
-          <button
+          <Button
+            type="button"
             onClick={() => useShell.setState({ pendingRoute: null, pendingResourceChange: null })}
           >
             继续编辑
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
             onClick={() => {
               useShell.setState({
                 dirtyResourceEditor: null,
@@ -411,7 +427,7 @@ export function AppShell() {
             }}
           >
             放弃编辑并继续
-          </button>
+          </Button>
         </Surface>
       )}
       {pendingRoute && pendingReason === "attachments" && (
@@ -421,8 +437,11 @@ export function AppShell() {
           onClose={() => useShell.setState({ pendingRoute: null })}
         >
           <p>切换对话将放弃本轮待发送附件。已有文件只取消选择。</p>
-          <button onClick={() => useShell.setState({ pendingRoute: null })}>继续当前对话</button>
-          <button
+          <Button type="button" onClick={() => useShell.setState({ pendingRoute: null })}>
+            继续当前对话
+          </Button>
+          <Button
+            type="button"
             onClick={() => {
               const state = useWorkbench.getState();
               const target = pendingRoute;
@@ -435,7 +454,7 @@ export function AppShell() {
             }}
           >
             放弃本轮附件并切换
-          </button>
+          </Button>
         </Surface>
       )}
       {modal === "account" && (
@@ -459,17 +478,18 @@ export function AppShell() {
             onCompleted={() => check()}
             startRequested={startBinding}
           />
-          <label className="hp-motion-setting">
-            <input
+          <Field className="hp-motion-setting">
+            <Checkbox
               type="checkbox"
               checked={motionPreference === "reduce"}
               onChange={(e) => setMotionPreference(e.target.checked ? "reduce" : "system")}
             />
             减少动态效果
             <small>系统减动设置始终优先</small>
-          </label>
+          </Field>
           <footer className="hp-account-footer">
-            <button
+            <Button
+              type="button"
               className="hp-account-signout"
               onClick={() => {
                 void useAuth
@@ -482,7 +502,7 @@ export function AppShell() {
             >
               <LogOut size={16} aria-hidden="true" />
               退出登录
-            </button>
+            </Button>
           </footer>
         </Surface>
       )}

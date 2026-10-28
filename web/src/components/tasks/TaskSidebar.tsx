@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { Inbox, LoaderCircle, Clock, CircleCheck } from "lucide-react";
 import { useWorks } from "../../store/works";
 import { useShell } from "../../store/shell";
@@ -24,7 +25,8 @@ export function TaskSidebar() {
       {(Object.entries(bucketLabels) as Array<[TaskBucket, string]>).map(([id, label]) => {
         const Icon = icons[id];
         return (
-          <button
+          <Button
+            type="button"
             key={id}
             aria-current={(route.bucket ?? "attention") === id ? "page" : undefined}
             onClick={() => useShell.getState().navigate({ ...route, bucket: id }, true)}
@@ -36,7 +38,7 @@ export function TaskSidebar() {
               projected.some((w) => w.bucket === id && w.attentionReasons.length > 0) && (
                 <small>含需要确认的操作</small>
               )}
-          </button>
+          </Button>
         );
       })}
     </nav>

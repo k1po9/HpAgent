@@ -85,7 +85,6 @@ body,
   gap: 4px;
 }
 
-.hp-trace-header__actions button,
 .hp-trace-tree__expand,
 .hp-trace-tree__node {
   border: 0;
@@ -97,13 +96,7 @@ body,
 .hp-trace-header__actions button {
   display: grid;
   width: 30px;
-  height: 30px;
   place-items: center;
-  border-radius: 6px;
-}
-
-.hp-trace-header__actions button:hover:not(:disabled) {
-  background: var(--hp-subtle);
 }
 
 .hp-trace-summary {
@@ -379,8 +372,8 @@ body,
   max-width: 1000px;
 }
 
-.hp-operation-form > label {
-  display: block;
+.hp-operation-form > label,
+.hp-operation-form > div:has(> label) {
   margin: 0.75rem 0;
 }
 
@@ -391,17 +384,10 @@ body,
   width: 100%;
   max-width: 700px;
   box-sizing: border-box;
-  margin-top: 0.25rem;
-}
-
-.hp-operation-form textarea {
-  min-height: 5rem;
 }
 
 .hp-operation-form button {
-  min-height: 32px;
   margin: 0.25rem;
-  padding: 0.3rem 0.75rem;
 }
 
 .hp-operation-form pre {
@@ -422,11 +408,6 @@ input[type="checkbox"],
 input[type="radio"] {
   accent-color: var(--hp-primary);
 }
-input::placeholder,
-textarea::placeholder {
-  color: var(--hp-muted);
-  opacity: 1;
-}
 .hp-shell [role="alert"],
 .hp-surface [role="alert"] {
   color: var(--hp-danger);
@@ -442,4 +423,12 @@ textarea::placeholder {
 .hp-surface a:hover,
 .hp-auth-surface a:hover {
   color: var(--hp-primary-hover);
+}
+
+/* Trace keeps its tree buttons; their touch area belongs to that control. */
+@media (max-width: 959px) {
+  .hp-trace-tree__expand,
+  .hp-trace-tree__node {
+    min-height: var(--hp-touch);
+  }
 }

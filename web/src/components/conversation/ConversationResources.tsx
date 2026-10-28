@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { Folder } from "lucide-react";
 import { HpApi } from "../../api/resources";
@@ -147,18 +148,18 @@ export function ConversationResources({
             {rules[0]!.name} ·{" "}
             {rules.some((g) => g.operation === "read_content") ? "可读取" : "其他权限"} ·{" "}
             {rules.some((g) => g.recursive) ? "含子目录" : "仅此项"}
-            <button
+            <Button
               type="button"
               title="撤销授权"
               aria-label={`撤销 ${rules[0]!.name} 的授权`}
               onClick={() => setRemoving(rules)}
             >
               ×
-            </button>
+            </Button>
           </span>
         ))}
       </div>
-      <button
+      <Button
         className="hp-resource-use"
         type="button"
         disabled={busy}
@@ -169,20 +170,20 @@ export function ConversationResources({
       >
         <Folder size={16} aria-hidden="true" />
         使用资料
-      </button>
+      </Button>
       {id && (
-        <button
+        <Button
           className="hp-resource-manage"
           type="button"
           onClick={() => useShell.setState({ modal: "resources" })}
         >
           高级资料管理
-        </button>
+        </Button>
       )}
       {error && (
         <p className="hp-resource-feedback" role="alert">
           {error}{" "}
-          <button
+          <Button
             type="button"
             disabled={loading}
             onClick={() => {
@@ -191,7 +192,7 @@ export function ConversationResources({
             }}
           >
             重试资料查询
-          </button>
+          </Button>
         </p>
       )}
       {notice && (
@@ -227,7 +228,7 @@ export function ConversationResources({
               </li>
             ))}
           </ul>
-          <button
+          <Button
             type="button"
             disabled={busy}
             onClick={() => {
@@ -305,7 +306,7 @@ export function ConversationResources({
             }}
           >
             确认撤销
-          </button>
+          </Button>
         </Surface>
       )}
     </div>

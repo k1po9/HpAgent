@@ -317,7 +317,12 @@ describe("UI1-R02 work Run lookup submissions", () => {
     const input = await openLookup();
     lookup(input, "   ");
     expect(screen.getByText("请输入工作编号。")).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription("请输入工作编号。");
     expect(api.lookupCalls).toEqual([]);
+    fireEvent.change(input, { target: { value: "w1" } });
+    expect(input).not.toHaveAttribute("aria-invalid", "true");
+    expect(input).not.toHaveAttribute("aria-describedby");
   });
 
   it("does not restore lookup results or an Inspector after expiry overtakes the response", async () => {

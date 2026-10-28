@@ -1,3 +1,4 @@
+import { Field, TextField, Button } from "../ui";
 import { useEffect, useId, useRef, useState } from "react";
 import { runApi } from "../../store/runInspector";
 import { useShell } from "../../store/shell";
@@ -93,8 +94,8 @@ export function RunLookup() {
             });
         }}
       >
-        <label htmlFor={id}>执行编号</label>
-        <input
+        <Field htmlFor={id}>执行编号</Field>
+        <TextField
           id={id}
           required
           value={value}
@@ -107,7 +108,9 @@ export function RunLookup() {
             setValue(e.target.value);
           }}
         />
-        <button disabled={busy}>{busy ? "查询中…" : "查询"}</button>
+        <Button variant="solid" type="submit" disabled={busy}>
+          {busy ? "查询中…" : "查询"}
+        </Button>
         {error && (
           <p id={`${id}-error`} role="alert">
             {error}

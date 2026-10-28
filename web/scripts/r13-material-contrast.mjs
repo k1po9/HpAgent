@@ -89,7 +89,7 @@ export async function auditContrast(page) {
       ".hp-conversation-filter",
       ".hp-composer",
       ".hp-workspace-search input",
-      ".hp-auth-card .rt-TextFieldRoot",
+      ".hp-auth-card input",
     ]) {
       const el = document.querySelector(selector);
       if (!el || !el.getBoundingClientRect().width) continue;

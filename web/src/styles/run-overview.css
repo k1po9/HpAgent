@@ -266,24 +266,11 @@
   align-self: stretch;
   order: initial;
   gap: 10px;
-  min-height: 44px;
-  padding: 10px 14px;
   margin: 0;
-  border: 1px solid #dce6ed;
-  border-radius: 11px;
-  background: #f3f6f8;
   text-decoration: none;
-  color: #344d5e;
-  font-weight: 500;
-  font-size: 13px;
 }
 .hp-run-approvals-action > svg:last-child {
   margin-left: auto;
-}
-.hp-run-inspector #run-panel-overview .hp-run-approvals-action:hover {
-  background: #edf2f5;
-  border-color: #b9c9d3;
-  color: var(--hp-accent);
 }
 .hp-run-overview .hp-runstrip {
   margin: -4px 0 0;

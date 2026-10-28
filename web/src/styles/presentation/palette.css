@@ -3,14 +3,8 @@
 }
 
 :root {
-  --r42-ink: #202a34;
-  --r42-muted: #5d6f7b;
-  --r42-border: #d6dfe7;
   --r42-ice: #f5f8fb;
-  --r42-white: #fff;
   --r42-silver: #a5b7c4;
-  --r42-ember: #eb6044;
-  --r42-ember-dark: #b94025;
   --r42-signal: #2879bf;
   --r42-ease: cubic-bezier(0.22, 0.8, 0.2, 1);
 }

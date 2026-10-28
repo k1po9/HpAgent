@@ -1,3 +1,4 @@
+import { Theme } from "@radix-ui/themes";
 import { StrictMode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -299,7 +300,9 @@ it("filters counts by business type and keeps a focused task in place when it mo
   render(
     <StrictMode>
       <TaskSidebar />
-      <TaskScreen />
+      <Theme>
+        <TaskScreen />
+      </Theme>
     </StrictMode>,
   );
   const title = screen.getByRole("button", { name: "测试任务" });
@@ -340,7 +343,11 @@ it("keeps the focused board card DOM and lane stable until focus leaves after a 
   const work = workFixture();
   useShell.setState({ route: { screen: "tasks", bucket: "waiting", type: "all" } });
   useWorks.setState({ items: [work], loadState: "complete" });
-  render(<TaskScreen />);
+  render(
+    <Theme>
+      <TaskScreen />
+    </Theme>,
+  );
   const title = screen.getByRole("button", { name: work.title });
   fireEvent.focus(title);
   act(() => useWorks.getState().upsert({ ...work, status: "completed", row_version: 2 }));
@@ -372,7 +379,11 @@ it("shows all four genuine projections and filters each lane by the existing bus
   ];
   useShell.setState({ route: { screen: "tasks", bucket: "attention", type: "all" } });
   useWorks.setState({ items: rows, loadState: "complete" });
-  render(<TaskScreen />);
+  render(
+    <Theme>
+      <TaskScreen />
+    </Theme>,
+  );
   expect(screen.getAllByRole("article")).toHaveLength(4);
   for (const work of rows)
     expect(
@@ -381,4 +392,26 @@ it("shows all four genuine projections and filters each lane by the existing bus
   fireEvent.change(screen.getByLabelText("任务类型"), { target: { value: "reminder" } });
   expect(screen.getAllByRole("article")).toHaveLength(1);
   expect(screen.getByRole("article", { name: "计划提醒" })).toBeVisible();
+});
+
+it("associates budget errors only with invalid dimensions and preserves help on correction", async () => {
+  const work = workFixture();
+  const request = vi.spyOn(api, "request").mockResolvedValue({ work } as never);
+  render(<TaskBudgetDialog work={work} onClose={vi.fn()} />);
+  const tokens = screen.getByRole("spinbutton", { name: /模型 Token 上限/ });
+  const tools = screen.getByRole("spinbutton", { name: /tool_calls/ });
+  fireEvent.submit(tokens.closest("form")!);
+  expect(screen.getByRole("alert")).toHaveTextContent("请至少提高一个预算维度");
+  expect(tokens).not.toHaveAttribute("aria-invalid", "true");
+  fireEvent.change(tokens, { target: { value: "9007199254740992" } });
+  fireEvent.change(tools, { target: { value: "20" } });
+  fireEvent.submit(tokens.closest("form")!);
+  expect(tokens).toHaveAttribute("aria-invalid", "true");
+  expect(tokens).toHaveAccessibleDescription(/请输入严格高于旧值的整数限额/);
+  expect(tools).not.toHaveAttribute("aria-invalid", "true");
+  expect(tools).toHaveAccessibleDescription("新值 20 · 增加 10");
+  expect(request).not.toHaveBeenCalled();
+  fireEvent.change(tokens, { target: { value: "2000" } });
+  expect(tokens).not.toHaveAttribute("aria-invalid", "true");
+  expect(tokens).toHaveAccessibleDescription("新值 2000 · 增加 1000");
 });

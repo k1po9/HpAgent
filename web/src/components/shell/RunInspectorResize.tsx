@@ -1,35 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useShell } from "../../store/shell";
 
-/** Keep a readable canvas beside the Run; compact dialogs retain their existing sizing. */
-function runWidthBounds(shell: HTMLElement | null) {
-  const style = getComputedStyle(shell ?? document.documentElement);
-  const token = (name: string, fallback: number) =>
-    Number.parseFloat(style.getPropertyValue(name)) || fallback;
-  const width = shell?.getBoundingClientRect().width || window.innerWidth;
-  return {
-    min: 360,
-    max: Math.max(
-      360,
-      Math.min(
-        880,
-        width -
-          token("--hp-rail", 72) -
-          token("--hp-canvas-min", 480) -
-          token("--hp-layout-gap", 0),
-      ),
-    ),
-  };
-}
+import { measureShell, runWidthBounds } from "./layout";
 export function RunInspectorResize() {
   const width = useShell((s) => s.runInspectorWidth);
   const ref = useRef<HTMLDivElement>(null);
   const drag = useRef<{ id: number; x: number; width: number } | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [bounds, setBounds] = useState(() => runWidthBounds(null));
+  const [bounds, setBounds] = useState(() => runWidthBounds(measureShell(null)));
   useEffect(() => {
     const shell = document.querySelector<HTMLElement>(".hp-shell");
-    const update = () => setBounds(runWidthBounds(shell));
+    const update = () => setBounds(runWidthBounds(measureShell(shell)));
     update();
     const observer = new ResizeObserver(update);
     if (shell) observer.observe(shell);

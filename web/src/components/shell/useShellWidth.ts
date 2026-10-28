@@ -1,18 +1,6 @@
 import { useEffect, useState, type RefObject } from "react";
 
-function measureShell(node: HTMLElement | null) {
-  const style = getComputedStyle(node ?? document.documentElement);
-  const dimension = (name: string) => Number.parseFloat(style.getPropertyValue(name)) || 0;
-  return {
-    width: node?.getBoundingClientRect().width || window.innerWidth,
-    rail: dimension("--hp-rail"),
-    sidebar: dimension("--hp-sidebar"),
-    canvasMin: dimension("--hp-canvas-min"),
-    inspector: dimension("--hp-inspector"),
-    inspectorExpanded: dimension("--hp-inspector-expanded"),
-    layoutGap: dimension("--hp-layout-gap"),
-  };
-}
+import { measureShell } from "./layout";
 
 /** CSS tokens are the shared source for widths and the sidebar's fit calculation. */
 export function useShellWidth(ref: RefObject<HTMLElement | null>) {

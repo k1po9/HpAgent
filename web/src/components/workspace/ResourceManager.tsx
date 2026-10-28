@@ -1,3 +1,4 @@
+import { Field, Select, Button } from "../ui";
 import { useState } from "react";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useWorkbench } from "../../store/workbench";
@@ -23,9 +24,9 @@ export function ResourceManager({ initialSubject }: { initialSubject?: Subject }
     <section className="hp-operation-form">
       <WorkspaceDirectoryLoader />
       <SubjectPicker value={subject} onChange={setSubject} />
-      <label>
+      <Field>
         选择长期目录或文件
-        <select
+        <Select
           value={nodeId}
           onChange={(e) => {
             const next = e.target.value;
@@ -38,8 +39,8 @@ export function ResourceManager({ initialSubject }: { initialSubject?: Subject }
               {nodePath(tree, n.node_id)}（{n.kind === "file" ? "文件" : "目录"}）
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Field>
       {!subject && <p>选择对话或任务查看其权限。</p>}
       {subject && node && <GrantEditor node={node} subject={subject} />}
       {subject?.kind === "conversation" && (
@@ -64,18 +65,22 @@ function ConversationAttachments({ subject }: { subject: Subject }) {
         .map((f) => (
           <p key={f.file_id}>
             {f.name}
-            <button disabled={busy} onClick={() => setFileId(f.file_id)}>
+            <Button type="button" disabled={busy} onClick={() => setFileId(f.file_id)}>
               撤销附件可用性
-            </button>
+            </Button>
           </p>
         ))}
       {result.error && (
         <p role="alert">
-          附件查询失败。<button onClick={result.retry}>重试附件</button>
+          附件查询失败。
+          <Button type="button" onClick={result.retry}>
+            重试附件
+          </Button>
         </p>
       )}
       {run && (
-        <button
+        <Button
+          type="button"
           onClick={() =>
             useShell
               .getState()
@@ -83,7 +88,7 @@ function ConversationAttachments({ subject }: { subject: Subject }) {
           }
         >
           查看本次运行的候选、固定与读取资料
-        </button>
+        </Button>
       )}
       {fileId && (
         <Surface
@@ -94,7 +99,8 @@ function ConversationAttachments({ subject }: { subject: Subject }) {
           }}
         >
           <p>可能停止读取该附件的执行。</p>
-          <button
+          <Button
+            type="button"
             disabled={busy}
             onClick={() => {
               setBusy(true);
@@ -116,7 +122,7 @@ function ConversationAttachments({ subject }: { subject: Subject }) {
             }}
           >
             确认撤销附件
-          </button>
+          </Button>
         </Surface>
       )}
       {error && <p role="alert">{error}</p>}

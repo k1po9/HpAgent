@@ -1,3 +1,4 @@
+import { Button, Field, TextField } from "../ui";
 import { InspectorTabs } from "../shell/InspectorTabs";
 import { RunLookup } from "../run/RunLookup";
 import { useEffect, useState, type ReactNode } from "react";
@@ -54,7 +55,8 @@ export function TaskInspector({
       <div>
         <p role={error ? "alert" : "status"}>{error ?? "正在加载任务…"}</p>
         {error && (
-          <button
+          <Button
+            type="button"
             onClick={() =>
               void useWorks
                 .getState()
@@ -63,7 +65,7 @@ export function TaskInspector({
             }
           >
             重新验证任务
-          </button>
+          </Button>
         )}
       </div>
     );
@@ -79,7 +81,8 @@ export function TaskInspector({
       {!valid && (
         <p role="alert">
           状态待核实，当前仅可查看与刷新。
-          <button
+          <Button
+            type="button"
             onClick={() =>
               void useWorks
                 .getState()
@@ -88,13 +91,14 @@ export function TaskInspector({
             }
           >
             刷新状态
-          </button>
+          </Button>
         </p>
       )}
       {error && (
         <p role="alert">
           {error}
-          <button
+          <Button
+            type="button"
             onClick={() =>
               void useWorks
                 .getState()
@@ -103,7 +107,7 @@ export function TaskInspector({
             }
           >
             刷新状态
-          </button>
+          </Button>
         </p>
       )}
       <InspectorTabs prefix="task" label="任务信息" tabs={tabs} selected={tab} />
@@ -147,7 +151,8 @@ export function TaskInspector({
           )}
           <TaskActions work={work} />
           {work.active_coordinator_run_id && (
-            <button
+            <Button
+              type="button"
               onClick={() =>
                 useShell.getState().openInspector(
                   {
@@ -160,7 +165,7 @@ export function TaskInspector({
               }
             >
               查看当前执行
-            </button>
+            </Button>
           )}
           {work.continuation?.operation_ref && (
             <p>外部操作结果未决，请查看执行详情核查。没有通用人工解除接口。</p>
@@ -173,17 +178,19 @@ export function TaskInspector({
               </p>
             )}
           {work.conversation_ids.map((id) => (
-            <button
+            <Button
+              type="button"
               key={id}
               onClick={() => useShell.getState().navigate({ screen: "ai", conversationId: id })}
             >
               打开关联对话
-            </button>
+            </Button>
           ))}
           {work.sources
             ?.filter((s) => s.source_message_id)
             .map((source) => (
-              <button
+              <Button
+                type="button"
                 key={source.conversation_id}
                 onClick={() =>
                   useShell.getState().navigate({
@@ -195,7 +202,7 @@ export function TaskInspector({
                 }
               >
                 定位来源消息
-              </button>
+              </Button>
             ))}
         </section>
       </TaskPanel>
@@ -244,11 +251,13 @@ function Advanced({ work }: { work: HpWork }) {
               );
         }}
       >
-        <label>
+        <Field>
           执行编号
-          <input name="run" required />
-        </label>
-        <button>查询执行与诊断</button>
+          <TextField name="run" required />
+        </Field>
+        <Button variant="solid" type="submit">
+          查询执行与诊断
+        </Button>
       </form>
       <details>
         <summary>当前完整要求</summary>

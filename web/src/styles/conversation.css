@@ -129,13 +129,6 @@
 
 .hp-conversation-header input {
   flex: 1;
-  min-width: 100px;
-  min-height: 36px;
-  border: 1px solid var(--hp-control-border);
-  border-radius: 6px;
-  padding: 6px 10px;
-  color: inherit;
-  font: inherit;
 }
 
 .hp-canvas-header .hp-conversation-title-edit {
@@ -323,16 +316,11 @@
 }
 .hp-text-part table {
   display: block;
-  max-width: 100%;
   margin: 0.75em 0;
   overflow-x: auto;
-  border-collapse: collapse;
 }
 .hp-text-part th,
 .hp-text-part td {
-  padding: 6px 10px;
-  border: 1px solid var(--hp-border);
-  text-align: left;
   white-space: nowrap;
 }
 .hp-text-part th {
@@ -520,8 +508,7 @@
   font-size: 12px;
   cursor: pointer;
 }
-.hp-composer button:disabled,
-.hp-conversation-header button:disabled {
+.hp-composer button:disabled {
   opacity: 0.55;
   cursor: default;
 }

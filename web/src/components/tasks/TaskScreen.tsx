@@ -1,3 +1,5 @@
+import { FormActions } from "../ui";
+import { Field, Select, Button } from "../ui";
 import { TaskLookup } from "./TaskLookup";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -106,10 +108,10 @@ export function TaskScreen() {
       }}
     >
       <div className="hp-task-toolbar">
-        <label>
+        <Field>
           <SlidersHorizontal size={16} aria-hidden="true" />
           任务类型
-          <select
+          <Select
             value={type}
             onChange={(e) => useShell.getState().navigate({ ...route, type: e.target.value }, true)}
           >
@@ -117,32 +119,36 @@ export function TaskScreen() {
             <option value="reminder">提醒</option>
             <option value="research">研究</option>
             <option value="general">通用任务</option>
-          </select>
-        </label>
-        <div className="hp-task-toolbar-actions">
-          <button
+          </Select>
+        </Field>
+        <FormActions className="hp-task-toolbar-actions">
+          <Button
+            type="button"
             className="hp-task-refresh"
             disabled={state === "scanning"}
             onClick={() => void useWorks.getState().load()}
           >
             <RefreshCw size={16} aria-hidden="true" />
             刷新任务
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
             className="hp-task-inbox-button"
             onClick={() => useShell.setState({ modal: "task-inbox" })}
           >
             <Inbox size={16} aria-hidden="true" />
             收件箱
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            variant="solid"
             className="hp-primary"
             onClick={() => useShell.setState({ modal: "task-create" })}
           >
             <Plus size={16} aria-hidden="true" />
             新建任务
-          </button>
-        </div>
+          </Button>
+        </FormActions>
       </div>
       <p role="status" className="hp-task-sync">
         已加载 {items.length} 项 ·{" "}
@@ -163,18 +169,23 @@ export function TaskScreen() {
       {error && (
         <p role="alert">
           {error}
-          <button
+          <Button
+            type="button"
             onClick={() => void useWorks.getState().load(Boolean(useWorks.getState().nextBefore))}
           >
             继续同步
-          </button>
+          </Button>
         </p>
       )}
       {state === "scanning" && (
-        <button onClick={() => useWorks.getState().cancelScan(true)}>暂停扫描</button>
+        <Button type="button" onClick={() => useWorks.getState().cancelScan(true)}>
+          暂停扫描
+        </Button>
       )}
       {paused && !error && (
-        <button onClick={() => void useWorks.getState().load(true)}>继续扫描</button>
+        <Button type="button" onClick={() => void useWorks.getState().load(true)}>
+          继续扫描
+        </Button>
       )}
       <div ref={board} className="hp-task-board" aria-label="任务状态分区">
         {(Object.keys(bucketLabels) as TaskBucket[]).map((lane) => {

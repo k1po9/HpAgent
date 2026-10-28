@@ -1,3 +1,4 @@
+import { Button, Field, TextArea } from "../ui";
 import { useRef } from "react";
 import { useArtifacts, building, latestSuccess } from "../../store/artifacts";
 import { useArtifactUi } from "../../store/artifactUi";
@@ -37,9 +38,9 @@ export function ArtifactComposer({
       <p>
         {parent ? `基于最近成功版本 v${parent.version} 修改` : "尚无成功版本可继承，将重新生成。"}{" "}
         {parent && (
-          <button type="button" onClick={() => onSelect(parent.artifact_version_id)}>
+          <Button type="button" onClick={() => onSelect(parent.artifact_version_id)}>
             查看修改基准
-          </button>
+          </Button>
         )}
       </p>
       {parent && (
@@ -47,8 +48,8 @@ export function ArtifactComposer({
           展示修改复用原研究内容与最近成功版本，生成独立新版；旧成功版本保留。生成完成后可查看、下载或保存源码副本。
         </p>
       )}
-      <label htmlFor={`artifact-instruction-${artifactId}`}>修改指令</label>
-      <textarea
+      <Field htmlFor={`artifact-instruction-${artifactId}`}>修改指令</Field>
+      <TextArea
         id={`artifact-instruction-${artifactId}`}
         value={text}
         onChange={(e) => useArtifactUi.getState().edit(artifactId, e.target.value)}
@@ -70,13 +71,15 @@ export function ArtifactComposer({
         <p role="status">已提交 v{intent.result.version?.version}，可在版本历史查看。</p>
       )}
       {intent?.uncertain && <p>提交结果尚未确认；恢复会使用原指令和同一请求标识。</p>}
-      <button
+      <Button
+        variant="solid"
+        type="submit"
         disabled={
           intent?.busy || (!intent?.uncertain && (Boolean(running) || !count || count > 4000))
         }
       >
         {intent?.busy ? "提交中…" : intent?.uncertain ? "恢复原修改" : "生成新版本"}
-      </button>
+      </Button>
     </form>
   );
 }

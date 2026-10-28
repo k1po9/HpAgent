@@ -1,3 +1,4 @@
+import styles from "./InspectorTabs.module.css";
 import { useLayoutEffect, useRef } from "react";
 import { useMotionAllowed } from "../motion/preference";
 import type { Inspector } from "../../store/shell";
@@ -38,13 +39,20 @@ export function InspectorTabs({
       ref={root}
       role="tablist"
       aria-label={label}
-      className="hp-inspector-tabs"
+      className={`hp-inspector-tabs ${styles.tabs}`}
+      data-tab-kind={prefix}
       data-tab-motion={motion ? "enabled" : "reduced"}
     >
-      <span ref={indicator} className="hp-inspector-tab-indicator" aria-hidden="true" />
+      <span
+        ref={indicator}
+        className={`hp-inspector-tab-indicator ${styles.indicator}`}
+        aria-hidden="true"
+      />
       {tabs.map((tab, index) => (
         <button
           key={tab.id}
+          type="button"
+          className={styles.tab}
           role="tab"
           id={`${prefix}-tab-${tab.id}`}
           aria-selected={selected === tab.id}

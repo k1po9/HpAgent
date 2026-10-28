@@ -1,6 +1,6 @@
+import { Button } from "../ui";
 import { useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Markdown } from "../ui/Markdown";
 import type { HpFile } from "../../api/types";
 import { workspaceApi } from "../../store/workspace";
 import { canPreview } from "./workspacePresentation";
@@ -37,12 +37,14 @@ export function FilePreview({ file }: { file: HpFile }) {
     return (
       <p role="alert">
         {result.error}
-        <button onClick={() => setAttempt((v) => v + 1)}>重试正文</button>
+        <Button type="button" onClick={() => setAttempt((v) => v + 1)}>
+          重试正文
+        </Button>
       </p>
     );
   return file.content_type === "text/markdown" ? (
     <div className="hp-file-preview">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{result.text ?? ""}</ReactMarkdown>
+      <Markdown>{result.text ?? ""}</Markdown>
     </div>
   ) : (
     <pre className="hp-file-preview">{result.text}</pre>

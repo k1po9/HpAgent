@@ -1,5 +1,6 @@
+import { Field, Button, TextField } from "./ui";
 import { useRef, useState } from "react";
-import { Box, Button, Flex, Heading, Text, TextField } from "@radix-ui/themes";
+import { Box, Flex, Heading, Text } from "@radix-ui/themes";
 import { MessageSquare, Folder, Activity, ArrowRight, Check } from "lucide-react";
 import { api } from "../api/client";
 import { useAuth } from "../store/auth";
@@ -17,6 +18,7 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
   const [confirmation, setConfirmation] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [confirmationError, setConfirmationError] = useState("");
   const submission = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [registeredPendingLogin, setRegisteredPendingLogin] = useState(false);
@@ -30,10 +32,12 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
     submission.current = true;
     setSubmitting(true);
     setError(null);
+    setConfirmationError("");
     try {
       if (mode === "register") {
         if (password !== confirmation) {
-          throw new Error("两次输入的密码不一致。");
+          setConfirmationError("两次输入的密码不一致。");
+          return;
         }
         const sessionEstablished = await api.register(username, password, inviteCode);
         if (!sessionEstablished) {
@@ -106,60 +110,63 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
                 {mode === "login" ? "登录你的 HpAgent 账户" : "加入 HpAgent，开启你的 AI 工作空间"}
               </Text>
             </div>
-            <label>
+            <Field>
               <Text as="span" size="2" color="gray">
                 用户名
               </Text>
-              <TextField.Root
+              <TextField
                 disabled={submitting || confirmed}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
                 required
               />
-            </label>
-            <label>
+            </Field>
+            <Field>
               <Text as="span" size="2" color="gray">
                 密码
               </Text>
-              <TextField.Root
+              <TextField
                 disabled={submitting || confirmed}
                 type="password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setConfirmationError("");
+                }}
                 autoComplete={mode === "register" ? "new-password" : "current-password"}
                 minLength={mode === "register" ? 8 : undefined}
                 required
               />
-            </label>
+            </Field>
             {mode === "register" ? (
               <>
-                <label>
-                  <Text as="span" size="2" color="gray">
-                    确认密码
-                  </Text>
-                  <TextField.Root
+                <Field label="确认密码" error={confirmationError}>
+                  <TextField
                     disabled={submitting || confirmed}
                     type="password"
                     value={confirmation}
-                    onChange={(e) => setConfirmation(e.target.value)}
+                    onChange={(e) => {
+                      setConfirmation(e.target.value);
+                      setConfirmationError("");
+                    }}
                     autoComplete="new-password"
                     minLength={8}
                     required
                   />
-                </label>
-                <label>
+                </Field>
+                <Field>
                   <Text as="span" size="2" color="gray">
                     邀请码（可选）
                   </Text>
-                  <TextField.Root
+                  <TextField
                     disabled={submitting || confirmed}
                     type="password"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
                     autoComplete="off"
                   />
-                </label>
+                </Field>
               </>
             ) : null}
             {error ? (
@@ -168,6 +175,7 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
               </Text>
             ) : null}
             <Button
+              variant="solid"
               className="hp-auth-submit"
               type="submit"
               disabled={submitting || confirmed}
@@ -198,6 +206,7 @@ export function LoginForm({ confirmed = false }: { confirmed?: boolean }) {
                 setMode(mode === "login" ? "register" : "login");
                 setRegisteredPendingLogin(false);
                 setError(null);
+                setConfirmationError("");
                 setConfirmation("");
               }}
             >

@@ -1,3 +1,4 @@
+import { Button } from "../../components/ui";
 /**
  * assistant-ui chat surface (contract §14.1).
  *
@@ -22,10 +23,9 @@ import { useConversationTransit } from "../../components/mercury/useConversation
 import { ReadingPresentation } from "../../components/mercury/readingPresentation";
 import { MercuryLayer } from "../../components/mercury/MercuryLayer";
 import { emptyConversationUi, useConversationUi } from "../../store/conversationUi";
-import { Button, Flex, Spinner, Text } from "@radix-ui/themes";
+import { Flex, Spinner, Text } from "@radix-ui/themes";
 import { Bot, FileText, Paperclip, Send, Sparkles, Square, UserRound, X } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Markdown } from "../../components/ui/Markdown";
 import type { HpFile, HpMessage, HpRun } from "../../api/types";
 import { ExecutionBlock } from "../../components/run/ExecutionBlock";
 import { WorkMessageItems } from "../../components/tasks/WorkMessageItems";
@@ -75,7 +75,7 @@ export interface HpThreadProps {
 function HpTextPart({ text }: { text: string }) {
   return (
     <div className="hp-text-part">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+      <Markdown>{text}</Markdown>
     </div>
   );
 }

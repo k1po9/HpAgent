@@ -1,3 +1,4 @@
+import { Field, Select, Button, TextField } from "../ui";
 import { useEffect, useState } from "react";
 import { useWorkbench } from "../../store/workbench";
 import { useWorks } from "../../store/works";
@@ -31,9 +32,9 @@ export function SubjectPicker({
   return (
     <div className="hp-subject-picker">
       {!conversationsOnly && (
-        <label>
+        <Field>
           授权主体
-          <select
+          <Select
             disabled={disabled || checking}
             value={kind}
             onChange={(e) => {
@@ -46,12 +47,12 @@ export function SubjectPicker({
           >
             <option value="conversation">对话</option>
             <option value="work">任务</option>
-          </select>
-        </label>
+          </Select>
+        </Field>
       )}
-      <label>
+      <Field>
         {kind === "conversation" ? "目标对话" : "已加载任务"}
-        <select
+        <Select
           disabled={disabled || checking}
           value={value?.kind === kind ? value.id : ""}
           onChange={(e) => {
@@ -83,29 +84,29 @@ export function SubjectPicker({
               : works.some((w) => w.work_id === value.id)) && (
               <option value={value.id}>{value.title}</option>
             )}
-        </select>
-      </label>
+        </Select>
+      </Field>
       {kind === "conversation" && hasMore && (
-        <button
+        <Button
           type="button"
           disabled={disabled || loadingMore}
           onClick={() => void useWorkbench.getState().loadMoreConversations()}
         >
           加载更多对话
-        </button>
+        </Button>
       )}
       {kind === "work" && (
         <>
           <p>此列表仅为已加载任务，可用编号验证其他任务。</p>
-          <label>
+          <Field>
             任务编号
-            <input
+            <TextField
               disabled={disabled || checking}
               value={workId}
               onChange={(e) => setWorkId(e.target.value)}
             />
-          </label>
-          <button
+          </Field>
+          <Button
             type="button"
             disabled={disabled || checking || !workId.trim()}
             onClick={() => {
@@ -139,7 +140,7 @@ export function SubjectPicker({
             }}
           >
             验证任务
-          </button>
+          </Button>
         </>
       )}
       {error && <p role="alert">{error}</p>}

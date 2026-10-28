@@ -1,3 +1,5 @@
+import { ActionMenu } from "../ui/ActionMenu";
+import { Button, Field, Select } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import type { HpWork } from "../../api/types";
 import { useWorks } from "../../store/works";
@@ -36,7 +38,7 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
     if (document.activeElement === document.body) primaryButton.current?.focus();
     restorePrimaryFocus.current = false;
   }, [intent?.busy, primary]);
-  function act(action: TaskAction) {
+  function act(action: TaskAction, triggerId?: string) {
     if (["view", "outputs", "resources"].includes(action)) {
       const current = useShell.getState().route.inspector;
       useShell.getState().openInspector({
@@ -46,7 +48,9 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
           current?.kind === "task" && current.objectId === work.work_id
             ? current.origin
             : {
-                triggerId: `task-action-${compact ? "row" : "inspector"}-${work.work_id}-${action}`,
+                triggerId:
+                  triggerId ??
+                  `task-action-${compact ? "row" : "inspector"}-${work.work_id}-${action}`,
                 workId: work.work_id,
                 sourceRequirementRevision: work.current_requirement_revision,
               },
@@ -56,11 +60,14 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
     else void useWorks.getState().control(work, action as "pause" | "resume" | "advance");
   }
   const button = (action: TaskAction) => (
-    <button
+    <Button
+      type="button"
       key={compact && action === primary ? "primary" : action}
       ref={compact && action === primary ? primaryButton : undefined}
       className={compact && action === primary ? "hp-task-primary-action" : undefined}
       id={`task-action-${compact ? "row" : "inspector"}-${work.work_id}-${action}`}
+      variant={action === "advance" || action === "resume" ? "solid" : "outline"}
+      color={action === "stop" ? "red" : undefined}
       data-action={action}
       disabled={
         intent?.busy || (intent?.uncertain && !["view", "outputs", "resources"].includes(action))
@@ -73,40 +80,52 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
       }}
     >
       {actionLabels[action]}
-    </button>
+    </Button>
   );
   return (
     <div className="hp-task-actions">
       {compact ? (
         <>
           {button(primary)}
-          <details>
-            <summary>更多</summary>
-            <div>
-              {all.filter((a) => a !== primary).map(button)}
-              <button
-                disabled={intent?.busy || intent?.uncertain || !validSnapshot(work)}
-                onClick={() => setDialog("link")}
-              >
-                关联对话
-              </button>
-            </div>
-          </details>
+          <ActionMenu
+            id={`task-more-${work.work_id}`}
+            items={[
+              ...all
+                .filter((a) => a !== primary)
+                .map((action) => ({
+                  id: `task-action-row-${work.work_id}-${action}`,
+                  label: actionLabels[action],
+                  disabled: Boolean(
+                    intent?.busy ||
+                    (intent?.uncertain && !["view", "outputs", "resources"].includes(action)),
+                  ),
+                  onSelect: () => act(action, `task-more-${work.work_id}`),
+                })),
+              {
+                id: `task-link-${work.work_id}`,
+                label: "关联对话",
+                disabled: Boolean(intent?.busy || intent?.uncertain || !validSnapshot(work)),
+                onSelect: () => setDialog("link"),
+              },
+            ]}
+          />
         </>
       ) : (
         <>
           {all.map(button)}
-          <button
+          <Button
+            type="button"
             disabled={intent?.busy || intent?.uncertain || !validSnapshot(work)}
             onClick={() => setDialog("link")}
           >
             关联对话
-          </button>
+          </Button>
         </>
       )}
       {intent?.error && <p role="alert">{intent.error}</p>}
       {intent?.uncertain && (
-        <button
+        <Button
+          type="button"
           disabled={intent.busy}
           onClick={() =>
             void retryTaskCommand(work.work_id, async (snapshot) => {
@@ -116,7 +135,7 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
           }
         >
           重试原操作
-        </button>
+        </Button>
       )}
       {intent?.notice && <p role="status">{intent.notice}</p>}
       {dialog === "budget" && work.budget && (
@@ -133,7 +152,8 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
           <p>
             停止「{work.title}」后不再按原计划继续。未决外部操作仍需核查，任务可能暂时显示正在停止。
           </p>
-          <button
+          <Button
+            type="button"
             disabled={intent?.busy}
             onClick={() =>
               void useWorks
@@ -145,7 +165,7 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
             }
           >
             确认停止任务
-          </button>
+          </Button>
           {intent?.error && <p role="alert">{intent.error}</p>}
         </Surface>
       )}
@@ -157,9 +177,9 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
           onClose={() => setDialog(null)}
         >
           <p>只关联任务，不复制权限或发送消息。</p>
-          <label>
+          <Field>
             目标对话
-            <select value={conversation} onChange={(e) => setConversation(e.target.value)}>
+            <Select value={conversation} onChange={(e) => setConversation(e.target.value)}>
               <option value="">请选择</option>
               {conversations
                 .filter((c) => !work.conversation_ids.includes(c.conversation_id))
@@ -168,17 +188,19 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
                     {c.title}
                   </option>
                 ))}
-            </select>
-          </label>
+            </Select>
+          </Field>
           {more && (
-            <button
+            <Button
+              type="button"
               disabled={loading}
               onClick={() => void useWorkbench.getState().loadMoreConversations()}
             >
               加载更多对话
-            </button>
+            </Button>
           )}
-          <button
+          <Button
+            type="button"
             disabled={!conversation || intent?.busy}
             onClick={() =>
               void useWorks
@@ -190,7 +212,7 @@ export function TaskActions({ work, compact = false }: { work: HpWork; compact?:
             }
           >
             确认关联
-          </button>
+          </Button>
           {intent?.error && <p role="alert">{intent.error}</p>}
         </Surface>
       )}

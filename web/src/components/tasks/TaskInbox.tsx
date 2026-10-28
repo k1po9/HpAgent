@@ -1,3 +1,4 @@
+import { Button } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type { HpNotification } from "../../api/types";
@@ -78,7 +79,8 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
   }, [generation]);
   return (
     <Surface motion="elevate" title="账户收件箱" onClose={onClose}>
-      <button
+      <Button
+        type="button"
         disabled={busy}
         onClick={() => {
           cursors.current.clear();
@@ -86,17 +88,18 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
         }}
       >
         刷新收件箱
-      </button>
+      </Button>
       {busy && <p role="status">正在加载通知…</p>}
       {error && (
         <p role="alert">
           {error}
-          <button
+          <Button
+            type="button"
             disabled={busy}
             onClick={() => void load(more ? items.at(-1)?.notification_id : undefined)}
           >
             重试通知
-          </button>
+          </Button>
         </p>
       )}
       {loaded && !items.length && !error && <p>暂无已存入收件箱的通知。</p>}
@@ -107,7 +110,8 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
             {new Date(item.created_at).toLocaleString()} · 已存入账户收件箱，不代表已读
           </p>
           {item.work_id && (
-            <button
+            <Button
+              type="button"
               id={`task-notification-${item.notification_id}`}
               onClick={() => {
                 onClose();
@@ -123,10 +127,11 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
               }}
             >
               查看任务
-            </button>
+            </Button>
           )}
           {item.run_id && (
-            <button
+            <Button
+              type="button"
               onClick={() => {
                 onClose();
                 useShell.getState().openInspector({
@@ -137,7 +142,7 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
               }}
             >
               查看执行
-            </button>
+            </Button>
           )}
           <details>
             <summary>通知详情</summary>
@@ -146,9 +151,13 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
         </article>
       ))}
       {more && (
-        <button disabled={busy} onClick={() => void load(items.at(-1)?.notification_id)}>
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => void load(items.at(-1)?.notification_id)}
+        >
           加载更多通知
-        </button>
+        </Button>
       )}
     </Surface>
   );

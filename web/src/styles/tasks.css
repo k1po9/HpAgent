@@ -18,37 +18,11 @@
   margin-bottom: 1.25rem;
 }
 
-.hp-task-toolbar label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .hp-task-screen button,
 .hp-task-inspector button,
 .hp-task-sidebar button,
 .hp-task-screen select {
-  min-height: 36px;
-  border: 1px solid var(--hp-control-border);
-  border-radius: 8px;
-  padding: 0.4rem 0.7rem;
-  background: var(--hp-surface);
-  color: var(--hp-text);
-  cursor: pointer;
-  font: inherit;
   max-width: 100%;
-}
-
-.hp-task-screen button:hover:not(:disabled),
-.hp-task-inspector button:hover:not(:disabled),
-.hp-task-sidebar button:hover:not(:disabled) {
-  background: var(--hp-subtle);
-}
-
-.hp-task-screen button:disabled,
-.hp-task-inspector button:disabled {
-  opacity: 0.6;
-  cursor: default;
 }
 
 .hp-task-sidebar {
@@ -65,11 +39,6 @@
   text-align: left;
   width: 100%;
   margin: 0.3rem 0;
-}
-
-.hp-task-sidebar button[aria-current="page"] {
-  background: var(--hp-subtle);
-  border-color: var(--hp-accent);
 }
 
 .hp-task-sidebar small {
@@ -134,24 +103,6 @@
   margin: 0.3rem 0;
 }
 
-.hp-task-actions details {
-  position: relative;
-}
-
-.hp-task-actions summary {
-  cursor: pointer;
-  padding: 0.5rem;
-}
-
-.hp-task-actions details > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid var(--hp-border);
-  border-radius: 8px;
-}
-
 .hp-task-delivery,
 .hp-task-run,
 .hp-task-artifact,
@@ -165,20 +116,6 @@
   background: var(--hp-surface);
   border-radius: 8px;
   overflow: auto;
-}
-
-.hp-task-report table {
-  border-collapse: collapse;
-}
-
-.hp-task-report th,
-.hp-task-report td {
-  border: 1px solid var(--hp-border);
-  padding: 0.4rem;
-}
-
-.hp-task-report img {
-  max-width: 100%;
 }
 
 .hp-task-report pre,
@@ -203,11 +140,6 @@
 
   .hp-task-toolbar label {
     flex-basis: 100%;
-  }
-
-  .hp-task-screen button,
-  .hp-task-inspector button {
-    min-height: 44px;
   }
 }
 
@@ -236,11 +168,6 @@
   color: var(--hp-muted);
   font-size: 12px;
 }
-.hp-task-screen .hp-task-toolbar select {
-  background: transparent;
-  border: 0;
-  font-size: 12px;
-}
 .hp-task-toolbar-actions {
   display: flex;
   gap: 6px;
@@ -251,17 +178,6 @@
   gap: 8px;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--hp-muted);
-  border-radius: 10px;
-}
-.hp-task-screen .hp-task-toolbar-actions .hp-primary {
-  background: var(--hp-primary);
-  color: var(--hp-on-primary);
-  border-color: var(--hp-primary);
-  padding-inline: 14px;
 }
 .hp-task-board {
   display: grid;
@@ -368,37 +284,11 @@
   align-items: start;
 }
 .hp-task-board .hp-task-actions > button {
-  font-size: 12px;
-  line-height: 18px;
-  padding: 7px 8px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--hp-muted);
   text-align: left;
 }
 .hp-task-board .hp-task-row[data-bucket="attention"] .hp-task-primary-action {
   color: var(--hp-reading-accent);
   background: var(--hp-selection);
-}
-.hp-task-board .hp-task-actions details {
-  flex: 1;
-  min-width: 0;
-}
-.hp-task-board .hp-task-actions summary {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--hp-muted);
-  min-height: 36px;
-  padding: 8px;
-}
-.hp-task-board .hp-task-actions details > div {
-  background: var(--hp-surface);
-  padding: 8px;
-  gap: 6px;
-}
-.hp-task-board .hp-task-actions details button {
-  font-size: 12px;
-  border: 1px solid var(--hp-border);
 }
 .hp-task-row > p:not([class]) {
   font-size: 11px;
@@ -433,19 +323,10 @@
   margin-block: 16px;
 }
 .hp-task-lookup label {
-  display: grid;
-  gap: 6px;
   flex: 1 1 220px;
 }
 .hp-task-lookup input {
   width: 100%;
-  min-height: 38px;
-  border: 1px solid var(--hp-control-border);
-  border-radius: 8px;
-  padding: 8px 10px;
-  background: var(--hp-surface);
-  color: var(--hp-text);
-  font: inherit;
 }
 @container taskboard (max-width: 1040px) {
   .hp-task-board {
@@ -470,13 +351,5 @@
   .hp-task-toolbar-actions {
     width: 100%;
     justify-content: space-between;
-  }
-  .hp-task-board .hp-task-actions > button,
-  .hp-task-board .hp-task-actions summary {
-    min-height: 44px;
-  }
-  .hp-task-screen .hp-task-toolbar select,
-  .hp-task-lookup input {
-    font-size: 16px;
   }
 }

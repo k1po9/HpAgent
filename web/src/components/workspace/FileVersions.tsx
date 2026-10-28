@@ -1,3 +1,4 @@
+import { Button, Field, TextField, Select } from "../ui";
 import { useState } from "react";
 import type { HpWorkspaceNode } from "../../api/types";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
@@ -44,11 +45,14 @@ export function FileVersions({ node }: { node: HpWorkspaceNode }) {
       {query.error && (
         <p role="alert">
           {query.error}
-          <button onClick={query.retry}>重试版本历史</button>
+          <Button type="button" onClick={query.retry}>
+            重试版本历史
+          </Button>
         </p>
       )}
       {query.data && !current?.destination_id && (
-        <button
+        <Button
+          type="button"
           disabled={locked}
           onClick={() => {
             setUpgrading(true);
@@ -67,7 +71,7 @@ export function FileVersions({ node }: { node: HpWorkspaceNode }) {
           }}
         >
           启用版本历史
-        </button>
+        </Button>
       )}
       {query.data?.revisions.map((version) => (
         <p key={version.revision}>
@@ -80,9 +84,9 @@ export function FileVersions({ node }: { node: HpWorkspaceNode }) {
       ))}
       {current?.destination_id && (
         <>
-          <label>
+          <Field>
             产生新版本的执行编号
-            <input
+            <TextField
               aria-label="编辑 Run ID"
               disabled={locked}
               value={runId}
@@ -93,8 +97,9 @@ export function FileVersions({ node }: { node: HpWorkspaceNode }) {
                 clearRejectedVersionUpdate(node.node_id);
               }}
             />
-          </label>
-          <button
+          </Field>
+          <Button
+            type="button"
             disabled={locked || !runId.trim()}
             onClick={() => {
               setAppliedRun(runId.trim());
@@ -102,18 +107,20 @@ export function FileVersions({ node }: { node: HpWorkspaceNode }) {
             }}
           >
             选择 Run 已发布输出
-          </button>
+          </Button>
           {published.loading && <p role="status">正在加载执行输出…</p>}
           {published.error && (
             <p role="alert">
               {published.error}
-              <button onClick={published.retry}>重试输出查询</button>
+              <Button type="button" onClick={published.retry}>
+                重试输出查询
+              </Button>
             </p>
           )}
           {published.data && (
-            <label>
+            <Field>
               Run 已发布输出
-              <select
+              <Select
                 aria-label="Run 已发布输出"
                 disabled={locked}
                 value={fileId}
@@ -128,11 +135,12 @@ export function FileVersions({ node }: { node: HpWorkspaceNode }) {
                     {f.name}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           )}
           {published.data?.files.length === 0 && <p>此执行暂无已发布输出。</p>}
-          <button
+          <Button
+            type="button"
             disabled={locked || query.loading || !selected || current.revision === null || conflict}
             onClick={() => {
               if (!selected || current.revision === null) return;
@@ -147,19 +155,22 @@ export function FileVersions({ node }: { node: HpWorkspaceNode }) {
             }}
           >
             提交新版本
-          </button>
+          </Button>
           {conflict && (
             <>
               <p role="alert">版本已变化，所选输出保留，可另存为新入口。</p>
-              <button onClick={() => setSave(true)}>将所选输出另存到空间</button>
-              <button
+              <Button type="button" onClick={() => setSave(true)}>
+                将所选输出另存到空间
+              </Button>
+              <Button
+                type="button"
                 onClick={() => {
                   clearRejectedVersionUpdate(node.node_id);
                   query.retry();
                 }}
               >
                 读回当前版本并重新确认
-              </button>
+              </Button>
             </>
           )}
         </>
@@ -177,9 +188,13 @@ export function FileVersions({ node }: { node: HpWorkspaceNode }) {
         </p>
       )}
       {unresolved && (
-        <button disabled={busy} onClick={() => void resumeVersionUpdate(node.node_id)}>
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() => void resumeVersionUpdate(node.node_id)}
+        >
           继续原版本提交
-        </button>
+        </Button>
       )}
       {(operation?.error || error) && <p role="alert">{operation?.error || error}</p>}
       {save && selected && (

@@ -1,3 +1,4 @@
+import { Button, IconButton } from "../ui";
 import { animateSpatial, useMotionAllowed } from "../motion/preference";
 import { clearSurfaceRetreat, prepareSurfaceRetreat } from "../motion/surfaceFeedback";
 import { X } from "lucide-react";
@@ -257,9 +258,9 @@ export function Surface({
       {edgeControl}
       <header className={`hp-surface-header${titleDecoration ? " hp-file-title-reception" : ""}`}>
         {onBack && (
-          <button onClick={onBack} title="返回上一对象">
+          <Button variant="ghost" type="button" onClick={onBack} title="返回上一对象">
             返回
-          </button>
+          </Button>
         )}
         <h2
           ref={titleRef}
@@ -270,9 +271,9 @@ export function Surface({
         </h2>
         {titleDecoration}
         {headerActions && <div className="hp-surface-header-actions">{headerActions}</div>}
-        <button onClick={onClose} aria-label={`关闭${title}`} title="关闭">
+        <IconButton type="button" onClick={onClose} aria-label={`关闭${title}`} title="关闭">
           <X size={20} aria-hidden="true" />
-        </button>
+        </IconButton>
       </header>
       <div className="hp-surface-body">{children}</div>
     </dialog>

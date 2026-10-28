@@ -1,3 +1,4 @@
+import { Button, Field, Checkbox } from "../ui";
 import { useWorks } from "../../store/works";
 import { validSnapshot } from "../tasks/taskActions";
 import { useEffect, useId, useRef, useState } from "react";
@@ -92,7 +93,10 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
       {query.loading && <p role="status">正在读取权限…</p>}
       {query.error && (
         <p role="alert">
-          权限状态待确认。<button onClick={query.retry}>重新查询授权</button>
+          权限状态待确认。
+          <Button type="button" onClick={query.retry}>
+            重新查询授权
+          </Button>
         </p>
       )}
       {query.data && applicable.length === 0 && <p>所选主体暂无适用规则。</p>}
@@ -101,41 +105,41 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
           {labels[g.operation]} ·{" "}
           {g.node_id === node.node_id ? "直接授权" : `继承自目录 ${nodePath(tree, g.node_id)}`} ·{" "}
           {g.recursive ? "包含后代" : "仅此项"}
-          <button disabled={busy} onClick={() => setRemoving([g])}>
+          <Button type="button" disabled={busy} onClick={() => setRemoving([g])}>
             撤销规则
-          </button>
+          </Button>
         </p>
       ))}
       <fieldset disabled={busy || !canGrant}>
         <legend>新增权限</legend>
         {(["list_metadata", "read_content"] as const).map((op) => (
-          <label key={op}>
-            <input
+          <Field key={op}>
+            <Checkbox
               type="checkbox"
               checked={operations.includes(op)}
               onChange={(e) => toggle(op, e.target.checked)}
             />
             {labels[op]}
-          </label>
+          </Field>
         ))}
         <details>
           <summary>高级写入权限</summary>
           {(["create_child", "update_content", "delete_entry"] as const)
             .filter((op) => op !== "create_child" || node.kind === "directory")
             .map((op) => (
-              <label key={op}>
-                <input
+              <Field key={op}>
+                <Checkbox
                   type="checkbox"
                   checked={operations.includes(op)}
                   onChange={(e) => toggle(op, e.target.checked)}
                 />
                 {labels[op]}
-              </label>
+              </Field>
             ))}
         </details>
         {node.kind === "directory" && (
-          <label>
-            <input
+          <Field>
+            <Checkbox
               type="checkbox"
               checked={recursive}
               onChange={(e) => {
@@ -144,10 +148,11 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
               }}
             />
             包含此目录的所有子目录与文件
-          </label>
+          </Field>
         )}
       </fieldset>
-      <button
+      <Button
+        type="button"
         disabled={busy || !canGrant || !query.data || !operations.length}
         onClick={() => {
           setBusy(true);
@@ -174,7 +179,7 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
         }}
       >
         确认授予所选权限
-      </button>
+      </Button>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {Object.entries(states).map(([id, state]) => (
@@ -197,7 +202,8 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
               {nodePath(tree, g.node_id)} · {labels[g.operation]}
             </p>
           ))}
-          <button
+          <Button
+            type="button"
             disabled={busy}
             onClick={() => {
               setBusy(true);
@@ -222,7 +228,7 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
             }}
           >
             确认撤销
-          </button>
+          </Button>
         </Surface>
       )}
     </section>

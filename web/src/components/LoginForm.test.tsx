@@ -107,3 +107,26 @@ it("deduplicates same-turn credential submissions while preserving failure retry
   expect(screen.getByRole("button", { name: "登录" })).toBeEnabled();
   login.mockRestore();
 });
+
+it("associates a password mismatch with confirmation and keeps API failure at form level", async () => {
+  const user = userEvent.setup();
+  render(<LoginForm />);
+  await user.click(screen.getByRole("button", { name: "没有账号？注册" }));
+  const password = screen.getByLabelText("密码", { selector: "input" });
+  const confirmation = screen.getByLabelText("确认密码");
+  fireEvent.change(password, { target: { value: "password-a" } });
+  fireEvent.change(confirmation, { target: { value: "password-b" } });
+  fireEvent.submit(confirmation.closest("form")!);
+  expect(confirmation).toHaveAttribute("aria-invalid", "true");
+  expect(confirmation).toHaveAccessibleDescription("两次输入的密码不一致。");
+  expect(password).not.toHaveAttribute("aria-invalid", "true");
+  fireEvent.change(confirmation, { target: { value: "password-a" } });
+  expect(confirmation).not.toHaveAttribute("aria-invalid", "true");
+  const register = vi.spyOn(api, "register").mockRejectedValue(new Error("邀请码不可用"));
+  await act(async () => fireEvent.submit(confirmation.closest("form")!));
+  expect(screen.getByRole("alert")).toHaveTextContent("邀请码不可用");
+  expect(confirmation.closest("form")).toHaveAccessibleDescription("邀请码不可用");
+  expect(confirmation).not.toHaveAttribute("aria-invalid", "true");
+  expect(password).not.toHaveAttribute("aria-invalid", "true");
+  register.mockRestore();
+});

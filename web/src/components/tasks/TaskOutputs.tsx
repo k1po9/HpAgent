@@ -1,6 +1,6 @@
+import { Button } from "../ui";
 import { useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Markdown } from "../ui/Markdown";
 import type { HpWork, HpTaskRun, HpRunSnapshot } from "../../api/types";
 import { useWorks } from "../../store/works";
 import { useShell } from "../../store/shell";
@@ -34,7 +34,10 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
       <p>仅查询最近最多 100 次执行；Run 成功不等于任务已结束。</p>
       {runs.error && (
         <p role="alert">
-          执行记录暂不可用。<button onClick={runs.retry}>重试执行记录</button>
+          执行记录暂不可用。
+          <Button type="button" onClick={runs.retry}>
+            重试执行记录
+          </Button>
         </p>
       )}
       {runs.loading && <p role="status">正在加载执行记录…</p>}
@@ -64,7 +67,8 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
               ? `保存失败：${s.failure_code ?? "原因待同步"}`
               : "等待保存"}
           {s.state === "succeeded" && s.entry_id && (
-            <button
+            <Button
+              type="button"
               id={`task-file-${work.work_id}-${s.run_id}-${s.operation_id}`}
               onClick={() =>
                 useShell.getState().openInspector(
@@ -83,7 +87,7 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
               }
             >
               查看空间入口
-            </button>
+            </Button>
           )}
         </p>
       ))}
@@ -130,7 +134,8 @@ function ArtifactResult({
             ? "历史接受"
             : "未接受"}
       </p>
-      <button
+      <Button
+        type="button"
         id={`task-artifact-${a.artifact_version_id}`}
         onClick={() =>
           useShell.getState().openInspector(
@@ -150,11 +155,15 @@ function ArtifactResult({
         }
       >
         查看原引用版本
-      </button>
+      </Button>
       {eligible ? (
-        <button disabled={intent?.busy || intent?.uncertain} onClick={() => setConfirm(true)}>
+        <Button
+          type="button"
+          disabled={intent?.busy || intent?.uncertain}
+          onClick={() => setConfirm(true)}
+        >
           接受这份成果
-        </button>
+        </Button>
       ) : (
         a.role === "deliverable" &&
         a.accepted_for_revision !== work.current_requirement_revision && (
@@ -165,7 +174,10 @@ function ArtifactResult({
       )}
       {evidence.error && (
         <p role="alert">
-          验收证据未能核实。<button onClick={evidence.retry}>重新核实证据</button>
+          验收证据未能核实。
+          <Button type="button" onClick={evidence.retry}>
+            重新核实证据
+          </Button>
         </p>
       )}
       {confirm && (
@@ -179,7 +191,8 @@ function ArtifactResult({
             将接受任务 r{work.current_requirement_revision} 的原交付版本 {a.artifact_version_id}
             。此操作独立于查看或保存。
           </p>
-          <button
+          <Button
+            type="button"
             disabled={!eligible || intent?.busy}
             onClick={() =>
               void useWorks
@@ -191,7 +204,7 @@ function ArtifactResult({
             }
           >
             确认接受此版本
-          </button>
+          </Button>
           {intent?.error && <p role="alert">{intent.error}</p>}
         </Surface>
       )}
@@ -222,7 +235,8 @@ function RunOutput({
           } as Record<string, string>
         )[run.status] ?? "执行状态待核实"}
       </p>
-      <button
+      <Button
+        type="button"
         onClick={() =>
           useShell
             .getState()
@@ -233,8 +247,10 @@ function RunOutput({
         }
       >
         查看执行详情与诊断
-      </button>
-      <button onClick={() => setOpen((v) => !v)}>{open ? "收起输出" : "读取报告与输出文件"}</button>
+      </Button>
+      <Button type="button" onClick={() => setOpen((v) => !v)}>
+        {open ? "收起输出" : "读取报告与输出文件"}
+      </Button>
       {run.failure_code && <p>失败原因：{run.failure_code}</p>}
       {open && <PublishedOutput work={work} run={run} onSaveFile={onSaveFile} />}
     </article>
@@ -264,32 +280,36 @@ function PublishedOutput({
     <div>
       <RunCapabilityResults runId={run.run_id} revision={run.status} />
       <div className="hp-task-actions">
-        <button disabled={files.loading} onClick={files.retry}>
+        <Button type="button" disabled={files.loading} onClick={files.retry}>
           刷新输出文件
-        </button>
+        </Button>
         {research && (
-          <button disabled={report.loading} onClick={report.retry}>
+          <Button type="button" disabled={report.loading} onClick={report.retry}>
             刷新报告
-          </button>
+          </Button>
         )}
       </div>
       {report.loading && <p role="status">正在读取报告…</p>}
       {report.error && (
         <p role="alert">
-          报告暂不可用。<button onClick={report.retry}>重试报告</button>
+          报告暂不可用。
+          <Button type="button" onClick={report.retry}>
+            重试报告
+          </Button>
         </p>
       )}
       {report.data && (
         <div className="hp-task-report">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {report.data.report.report_markdown}
-          </ReactMarkdown>
+          <Markdown>{report.data.report.report_markdown}</Markdown>
         </div>
       )}
       {files.loading && <p role="status">正在读取输出文件…</p>}
       {files.error && (
         <p role="alert">
-          输出文件暂不可用。<button onClick={files.retry}>重试输出文件</button>
+          输出文件暂不可用。
+          <Button type="button" onClick={files.retry}>
+            重试输出文件
+          </Button>
         </p>
       )}
       {files.data?.files.map((f) => (
@@ -297,9 +317,12 @@ function PublishedOutput({
           <a href={`/api/v1/files/${encodeURIComponent(f.file_id)}/content`} download>
             {f.name}
           </a>{" "}
-          <button onClick={() => onSaveFile({ file_id: f.file_id, file_name: f.name })}>
+          <Button
+            type="button"
+            onClick={() => onSaveFile({ file_id: f.file_id, file_name: f.name })}
+          >
             保存到空间
-          </button>
+          </Button>
         </p>
       ))}
       {files.data?.files.length === 0 && <p>暂无已发布文件。</p>}

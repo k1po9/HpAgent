@@ -1,3 +1,5 @@
+import { Notice } from "../ui";
+import { Button, Field, TextField, Select, Toolbar } from "../ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useShell } from "../../store/shell";
@@ -79,15 +81,18 @@ export function WorkspaceScreen() {
   return (
     <div className="hp-workspace-screen">
       {state.notice && (
-        <p role="status">
+        <Notice role="status">
           {state.notice}
-          <button onClick={() => useWorkspace.setState({ notice: "" })}>知道了</button>
-        </p>
+          <Button type="button" onClick={() => useWorkspace.setState({ notice: "" })}>
+            知道了
+          </Button>
+        </Notice>
       )}
       <nav aria-label="空间路径" className="hp-breadcrumbs">
         {tree &&
           ancestors(tree, directoryId).map((n) => (
-            <button
+            <Button
+              type="button"
               key={n.node_id}
               onClick={() => {
                 useShell.getState().requestResourceChange(() => {
@@ -98,24 +103,30 @@ export function WorkspaceScreen() {
               }}
             >
               {n.parent_id === null ? "根目录" : n.name}
-            </button>
+            </Button>
           ))}
         {state.allFiles && <span>全部文件</span>}
       </nav>
-      <div className="hp-workspace-toolbar">
-        <button disabled={!canUpload || !tree} onClick={() => setUpload(true)}>
+      <Toolbar className="hp-workspace-toolbar">
+        <Button
+          variant="solid"
+          type="button"
+          disabled={!canUpload || !tree}
+          onClick={() => setUpload(true)}
+        >
           上传文件
-        </button>
+        </Button>
         {!canUpload && <span>当前账户未启用文件上传</span>}
-        <button
+        <Button
+          type="button"
           onClick={() => {
             state.invalidate();
             setNotice("已请求刷新空间。");
           }}
         >
           刷新空间
-        </button>
-      </div>
+        </Button>
+      </Toolbar>
       <form
         aria-label="长期文件搜索"
         className="hp-workspace-search"
@@ -125,20 +136,22 @@ export function WorkspaceScreen() {
           void state.searchFiles(filters);
         }}
       >
-        <label>
+        <Field>
           全空间文件名称
-          <input
+          <TextField
             aria-label="长期文件名称"
             placeholder="搜索全空间文件"
             value={filters.name ?? ""}
             onChange={(e) => setFilters({ ...filters, name: e.target.value })}
           />
-        </label>
-        <button disabled={state.searching}>搜索</button>
+        </Field>
+        <Button variant="solid" type="submit" disabled={state.searching}>
+          搜索
+        </Button>
         {searchMode && (
-          <button type="button" onClick={() => setSearchMode(false)}>
+          <Button type="button" onClick={() => setSearchMode(false)}>
             返回目录
-          </button>
+          </Button>
         )}
         <details>
           <summary>高级搜索</summary>
@@ -152,66 +165,72 @@ export function WorkspaceScreen() {
               ["to_date", "结束创建日期"],
             ] as const
           ).map(([key, label]) => (
-            <label key={key}>
+            <Field key={key}>
               {label}
-              <input
+              <TextField
                 aria-label={label}
                 type={key.endsWith("date") ? "date" : "text"}
                 value={filters[key] ?? ""}
                 onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
               />
-            </label>
+            </Field>
           ))}
-          <label>
+          <Field>
             来源
-            <select
+            <Select
               value={filters.purpose ?? ""}
               onChange={(e) => setFilters({ ...filters, purpose: e.target.value })}
             >
               <option value="">全部</option>
               <option value="input">上传</option>
               <option value="output">AI 输出</option>
-            </select>
-          </label>
+            </Select>
+          </Field>
         </details>
       </form>
       {state.error && (
-        <p role="alert">
+        <Notice role="alert">
           {state.error}
-          <button onClick={() => void state.loadTree(true).catch(() => {})}>重试空间</button>
-        </p>
+          <Button type="button" onClick={() => void state.loadTree(true).catch(() => {})}>
+            重试空间
+          </Button>
+        </Notice>
       )}
-      {!tree && !state.error && <p role="status">正在加载空间…</p>}
+      {!tree && !state.error && <Notice role="status">正在加载空间…</Notice>}
       {searchMode ? (
         <section aria-label="长期文件搜索结果">
-          {state.searching && <p role="status">正在搜索全空间文件…</p>}
+          {state.searching && <Notice role="status">正在搜索全空间文件…</Notice>}
           {state.searchError && (
-            <p role="alert">
+            <Notice role="alert">
               {state.searchError}
-              <button
+              <Button
+                type="button"
                 onClick={() =>
                   void state.searchFiles(state.filters, Boolean(state.search?.next_after))
                 }
               >
                 重试搜索
-              </button>
-            </p>
+              </Button>
+            </Notice>
           )}
           {state.searchStale && (
-            <p role="status">
+            <Notice role="status">
               结果已变化，请刷新。
-              <button onClick={() => void state.searchFiles(state.filters)}>刷新搜索</button>
-            </p>
+              <Button type="button" onClick={() => void state.searchFiles(state.filters)}>
+                刷新搜索
+              </Button>
+            </Notice>
           )}
           {state.search && <FileList nodes={[]} search={state.search.items} />}
           {state.search?.items.length === 0 && <p>没有匹配文件。</p>}
           {state.search?.next_after && (
-            <button
+            <Button
+              type="button"
               disabled={state.searching || state.searchStale}
               onClick={() => void state.searchFiles(undefined, true)}
             >
               加载更多搜索结果
-            </button>
+            </Button>
           )}
         </section>
       ) : (
@@ -220,6 +239,7 @@ export function WorkspaceScreen() {
           {tree && nodes.length === 0 && <p>此处暂无文件或目录。</p>}
           <form
             aria-label="新建子目录"
+            aria-describedby={error ? "workspace-directory-error" : undefined}
             className="hp-operation-form"
             onSubmit={(e) => {
               e.preventDefault();
@@ -250,23 +270,27 @@ export function WorkspaceScreen() {
                 });
             }}
           >
-            <label>
+            <Field>
               新目录名称
-              <input
+              <TextField
                 aria-label="新目录名称"
                 value={folder}
                 onChange={(e) => setFolder(e.target.value)}
                 disabled={busy}
               />
-            </label>
-            <button disabled={busy || !folder.trim() || !directoryId}>
+            </Field>
+            <Button variant="solid" type="submit" disabled={busy || !folder.trim() || !directoryId}>
               {busy ? "正在创建目录…" : "新建目录"}
-            </button>
+            </Button>
           </form>
         </>
       )}
-      {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
+      {error && (
+        <Notice id="workspace-directory-error" role="alert">
+          {error}
+        </Notice>
+      )}
+      {notice && <Notice role="status">{notice}</Notice>}
       {space.data && (
         <p className="hp-muted">
           物理文件 {space.data.physical_files} 个 · {space.data.physical_bytes}{" "}
@@ -274,9 +298,12 @@ export function WorkspaceScreen() {
         </p>
       )}
       {space.error && (
-        <p role="status">
-          空间统计暂不可用。<button onClick={space.retry}>重试统计</button>
-        </p>
+        <Notice role="status">
+          空间统计暂不可用。
+          <Button type="button" onClick={space.retry}>
+            重试统计
+          </Button>
+        </Notice>
       )}
       {upload && (
         <UploadToWorkspaceDialog directoryId={directoryId} onClose={() => setUpload(false)} />
