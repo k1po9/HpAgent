@@ -1,4 +1,5 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { render } from "../../test/renderWithLobe";
+import { act, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { HpWorkspaceNode } from "../../api/types";
 import { useWorkspace, workspaceApi } from "../../store/workspace";

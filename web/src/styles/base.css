@@ -85,7 +85,7 @@ body,
   gap: 4px;
 }
 
-.hp-trace-header__actions button,
+.hp-trace-header__actions button:where(:not([class*="lobe-"])),
 .hp-trace-tree__expand,
 .hp-trace-tree__node {
   border: 0;
@@ -94,7 +94,7 @@ body,
   cursor: pointer;
 }
 
-.hp-trace-header__actions button {
+.hp-trace-header__actions button:where(:not([class*="lobe-"])) {
   display: grid;
   width: 30px;
   height: 30px;
@@ -102,7 +102,7 @@ body,
   border-radius: 6px;
 }
 
-.hp-trace-header__actions button:hover:not(:disabled) {
+.hp-trace-header__actions button:where(:not([class*="lobe-"])):hover:not(:disabled) {
   background: var(--hp-subtle);
 }
 
@@ -324,7 +324,7 @@ body,
   gap: 8px;
 }
 
-.hp-trace-detail__model-input button {
+.hp-trace-detail__model-input button:where(:not([class*="lobe-"])) {
   margin-top: 8px;
 }
 
@@ -384,9 +384,9 @@ body,
   margin: 0.75rem 0;
 }
 
-.hp-operation-form > label > input:not([type="checkbox"]),
-.hp-operation-form select,
-.hp-operation-form textarea {
+.hp-operation-form > label > input:where(:not([class*="lobe-"])):not([type="checkbox"]),
+.hp-operation-form select:where(:not([class*="lobe-"])),
+.hp-operation-form textarea:where(:not([class*="lobe-"])) {
   display: block;
   width: 100%;
   max-width: 700px;
@@ -394,11 +394,11 @@ body,
   margin-top: 0.25rem;
 }
 
-.hp-operation-form textarea {
+.hp-operation-form textarea:where(:not([class*="lobe-"])) {
   min-height: 5rem;
 }
 
-.hp-operation-form button {
+.hp-operation-form button:where(:not([class*="lobe-"])) {
   min-height: 32px;
   margin: 0.25rem;
   padding: 0.3rem 0.75rem;
@@ -414,16 +414,23 @@ body {
   color: var(--hp-text);
   background: var(--hp-app);
 }
-:where(button, input, textarea, select, summary, a):focus-visible {
+:where(
+  button:where(:not([class*="lobe-"])),
+  input:where(:not([class*="lobe-"])),
+  textarea:where(:not([class*="lobe-"])),
+  select:where(:not([class*="lobe-"])),
+  summary,
+  a
+):focus-visible {
   outline: 2px solid var(--hp-focus);
   outline-offset: 3px;
 }
-input[type="checkbox"],
-input[type="radio"] {
+input:where(:not([class*="lobe-"]))[type="checkbox"],
+input:where(:not([class*="lobe-"]))[type="radio"] {
   accent-color: var(--hp-primary);
 }
-input::placeholder,
-textarea::placeholder {
+input:where(:not([class*="lobe-"]))::placeholder,
+textarea:where(:not([class*="lobe-"]))::placeholder {
   color: var(--hp-muted);
   opacity: 1;
 }

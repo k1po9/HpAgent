@@ -1,10 +1,11 @@
+import { render } from "../../test/renderWithLobe";
 import { StrictMode } from "react";
 import { api } from "../../api/client";
 import { listGrants } from "./workspaceOperations";
 import { GrantEditor } from "./GrantEditor";
 import { useVersionOperations } from "./versionOperations";
 import { HpCommandError } from "../../api/types";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useShell } from "../../store/shell";

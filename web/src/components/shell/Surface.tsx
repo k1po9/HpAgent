@@ -14,6 +14,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Theme } from "@radix-ui/themes";
+import { LobeBoundary } from "../ui/LobeBoundary";
 import { advanceForegroundRevision } from "./foreground";
 import { tabOrder } from "./tabOrder";
 import { EntryPendingContext } from "../entry/EntryPendingContext";
@@ -274,7 +275,9 @@ export function Surface({
           <X size={20} aria-hidden="true" />
         </button>
       </header>
-      <div className="hp-surface-body">{children}</div>
+      <div className="hp-surface-body">
+        <LobeBoundary>{children}</LobeBoundary>
+      </div>
     </dialog>
   );
   return (

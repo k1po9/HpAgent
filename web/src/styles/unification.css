@@ -60,14 +60,14 @@
   min-width: 0;
 }
 
-.hp-surface-header button {
+.hp-surface-header button:where(:not([class*="lobe-"])) {
   flex-shrink: 0;
   min-width: var(--hp-touch);
   min-height: var(--hp-touch);
 }
 
-.hp-shell button,
-.hp-surface button {
+.hp-shell button:where(:not([class*="lobe-"])),
+.hp-surface button:where(:not([class*="lobe-"])) {
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -91,8 +91,8 @@
   overflow-x: auto;
 }
 
-.hp-surface-body input,
-.hp-surface-body select {
+.hp-surface-body input:where(:not([class*="lobe-"])),
+.hp-surface-body select:where(:not([class*="lobe-"])) {
   min-width: 0;
 }
 
@@ -104,7 +104,7 @@
   margin-block: var(--hp-space-3);
 }
 
-.hp-inspector-tabs button {
+.hp-inspector-tabs button:where(:not([class*="lobe-"])) {
   min-height: var(--hp-control);
   padding: 8px 12px;
   border: 0;
@@ -114,7 +114,7 @@
   font: inherit;
 }
 
-.hp-inspector-tabs button[aria-selected="true"] {
+.hp-inspector-tabs button:where(:not([class*="lobe-"]))[aria-selected="true"] {
   border-bottom-color: var(--hp-accent);
   color: var(--hp-accent);
   font-weight: 600;
@@ -146,7 +146,7 @@
   flex-basis: 100%;
 }
 
-.hp-run-lookup input {
+.hp-run-lookup input:where(:not([class*="lobe-"])) {
   min-width: 0;
   max-width: 100%;
   flex: 1;
@@ -182,14 +182,14 @@
     display: flex;
   }
 
-  .hp-shell button,
-  .hp-surface button,
+  .hp-shell button:where(:not([class*="lobe-"])),
+  .hp-surface button:where(:not([class*="lobe-"])),
   .hp-run-lookup summary {
     min-height: var(--hp-touch);
     min-width: var(--hp-touch);
   }
 
-  .hp-tree-row > button:first-child {
+  .hp-tree-row > button:where(:not([class*="lobe-"])):first-child {
     min-width: var(--hp-touch);
   }
 }
@@ -212,7 +212,7 @@
     gap: 0;
   }
 
-  .hp-rail nav button {
+  .hp-rail nav button:where(:not([class*="lobe-"])) {
     min-width: 44px;
   }
 }
@@ -225,7 +225,7 @@
   }
 }
 
-.hp-operation-form label:has(input[type="checkbox"]) {
+.hp-operation-form label:has(input:where(:not([class*="lobe-"]))[type="checkbox"]) {
   min-height: var(--hp-touch);
   display: flex;
   align-items: center;

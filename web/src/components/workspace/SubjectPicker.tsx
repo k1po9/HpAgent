@@ -1,3 +1,4 @@
+import { WorkspaceSelectField } from "./WorkspaceControls";
 import { useEffect, useState } from "react";
 import { useWorkbench } from "../../store/workbench";
 import { useWorks } from "../../store/works";
@@ -11,11 +12,13 @@ export function SubjectPicker({
   onChange,
   conversationsOnly = false,
   disabled = false,
+  workspaceUi = false,
 }: {
   value?: Subject;
   onChange: (s: Subject | undefined) => void;
   conversationsOnly?: boolean;
   disabled?: boolean;
+  workspaceUi?: boolean;
 }) {
   const conversations = useWorkbench((s) => s.conversations);
   const hasMore = useWorkbench((s) => s.hasMoreConversations);
@@ -28,6 +31,16 @@ export function SubjectPicker({
   useEffect(() => {
     void useWorkbench.getState().loadConversations();
   }, []);
+  const options =
+    kind === "conversation"
+      ? conversations.map((item) => ({ value: item.conversation_id, label: item.title }))
+      : works.map((item) => ({ value: item.work_id, label: item.title }));
+  if (value?.kind === kind && !options.some((option) => option.value === value.id))
+    options.push({ value: value.id, label: value.title });
+  const selectSubject = (id: string) => {
+    const title = options.find((option) => option.value === id)?.label ?? id;
+    useShell.getState().requestResourceChange(() => onChange(id ? { kind, id, title } : undefined));
+  };
   return (
     <div className="hp-subject-picker">
       {!conversationsOnly && (
@@ -49,42 +62,31 @@ export function SubjectPicker({
           </select>
         </label>
       )}
-      <label>
-        {kind === "conversation" ? "目标对话" : "已加载任务"}
-        <select
+      {workspaceUi ? (
+        <WorkspaceSelectField
+          label={kind === "conversation" ? "目标对话" : "已加载任务"}
           disabled={disabled || checking}
           value={value?.kind === kind ? value.id : ""}
-          onChange={(e) => {
-            const id = e.target.value;
-            const title =
-              kind === "conversation"
-                ? conversations.find((c) => c.conversation_id === id)?.title
-                : works.find((w) => w.work_id === id)?.title;
-            useShell
-              .getState()
-              .requestResourceChange(() =>
-                onChange(id ? { kind, id, title: title ?? id } : undefined),
-              );
-          }}
-        >
-          <option value="">请选择</option>
-          {(kind === "conversation"
-            ? conversations.map((c) => ({ id: c.conversation_id, title: c.title }))
-            : works.map((w) => ({ id: w.work_id, title: w.title }))
-          ).map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.title}
-            </option>
-          ))}
-          {value &&
-            value.kind === kind &&
-            !(kind === "conversation"
-              ? conversations.some((c) => c.conversation_id === value.id)
-              : works.some((w) => w.work_id === value.id)) && (
-              <option value={value.id}>{value.title}</option>
-            )}
-        </select>
-      </label>
+          options={[{ value: "", label: "请选择" }, ...options]}
+          onChange={selectSubject}
+        />
+      ) : (
+        <label>
+          {kind === "conversation" ? "目标对话" : "已加载任务"}
+          <select
+            disabled={disabled || checking}
+            value={value?.kind === kind ? value.id : ""}
+            onChange={(event) => selectSubject(event.target.value)}
+          >
+            <option value="">请选择</option>
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {kind === "conversation" && hasMore && (
         <button
           type="button"
