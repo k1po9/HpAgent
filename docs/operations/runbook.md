@@ -42,6 +42,8 @@ python scripts/check/mcp-health.py --help
 
 `scripts/operations/observability-viewer.py` 可在本机只读查看结构化 JSONL 日志与 PostgreSQL 执行状态；它是排障辅助工具，不是运行时服务。
 
+`python scripts/operations/admin-console.py` 在本机按需打开管理页，默认 `http://127.0.0.1:8092`，仅允许 `127.0.0.1` 或 `localhost` 监听。它可以新建邀请码、查看用户、读取当前 Compose 的 Docker 日志，并对应用库、Temporal、Hindsight 执行 SQL。数据库密码来自 `.env`。每次启动生成随机请求令牌，由首页传给同源 API；校验 Host、Origin 和浏览器请求来源，禁止页面被嵌入。无需另建产品登录账号；信任范围仍是本机操作者，持有本机访问权限的进程可读取首页及其令牌。创建邀请码或执行 SQL 连接中断时，先核对状态，不能据此认定未提交并直接重试。它不是产品 API，不要通过代理公开到公网。
+
 ## 管理员身份预置与恢复
 
 正常 Web 用户绑定 QQ 使用 `POST /api/v1/identity-bindings/qq/challenges` 和 QQ ownership challenge。`scripts/operations/bootstrap-identity.py` 是使用 `MIGRATION_DATABASE_URL` 的管理员预置/恢复工具，仅用于已核实 Web 与 QQ 身份的场景；它直接写入绑定，不验证 QQ 所有权。两端身份均不存在时会建立带 `owner` entitlement 的 Account，但不会创建 Web 登录密码。已分属不同 Account 的绑定会报冲突，不由此工具合并。运行前查看 `python scripts/operations/bootstrap-identity.py --help`。

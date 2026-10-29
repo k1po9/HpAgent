@@ -41,4 +41,4 @@ A/B/C仅为套餐名，额度分别5000/50000/100000，模型tier都为standard�
 
 ## 当前管理边界
 
-仓库已有正式的邀请码创建脚本和底层 Account Entitlement、Daily Budget 模型。当前没有正式的 Account admin API、已有账号 entitlement 的 list/update CLI、邀请码 update/revoke CLI 或 Account 日额度管理 UI。Work 累计预算已有独立的增额 API 和持续工作页入口。排查可使用只读数据库查询、Run/Model Input API 和日志；对已有账号权限的变更尚未形成完整 Admin API / CLI，不能将创建新邀请码当成修改既有账号权限的方式。
+仓库已有正式的邀请码创建脚本和底层 Account Entitlement、Daily Budget 模型。本机按需脚本 `scripts/operations/admin-console.py` 可以新建邀请码、查看用户、读取 Docker 日志，并用 SQL 修改数据库；仅监听回环地址，通过随机请求令牌和同源校验限制浏览器访问，信任本机操作者。产品仍没有 Account admin API，也没有邀请码撤销或已有账号额度的专用命令。修改已有账号权限要直接写库；新建邀请码不会追改已注册账号。Work 累计预算已有独立的增额 API 和持续工作页入口。排查仍可使用只读数据库查询、Run/Model Input API 和日志。
