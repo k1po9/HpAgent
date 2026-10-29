@@ -23,7 +23,7 @@ import { ReadingPresentation } from "../../components/mercury/readingPresentatio
 import { MercuryLayer } from "../../components/mercury/MercuryLayer";
 import { emptyConversationUi, useConversationUi } from "../../store/conversationUi";
 import { Button, Flex, Spinner, Text } from "@radix-ui/themes";
-import { Bot, FileText, Paperclip, Send, Sparkles, Square, UserRound, X } from "lucide-react";
+import { FileText, Paperclip, Send, Sparkles, Square, UserRound, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { HpFile, HpMessage, HpRun } from "../../api/types";
@@ -553,11 +553,8 @@ export function HpThread({
             >
               <ThreadPrimitive.Empty>
                 <div className="hp-thread-empty">
-                  <span className="hp-thread-empty-icon" aria-hidden="true">
-                    <Bot size={30} />
-                  </span>
                   <Text as="p" size="5" weight="bold">
-                    开始新的对话吧
+                    把想法，推进一步。
                   </Text>
                   <p>
                     {fileUploadEnabled
