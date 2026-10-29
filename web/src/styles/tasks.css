@@ -24,10 +24,10 @@
   gap: 0.5rem;
 }
 
-.hp-task-screen button,
-.hp-task-inspector button,
-.hp-task-sidebar button,
-.hp-task-screen select {
+.hp-task-screen button:where(:not([class*="lobe-"])),
+.hp-task-inspector button:where(:not([class*="lobe-"])),
+.hp-task-sidebar button:where(:not([class*="lobe-"])),
+.hp-task-screen select:where(:not([class*="lobe-"])) {
   min-height: 36px;
   border: 1px solid var(--hp-control-border);
   border-radius: 8px;
@@ -39,14 +39,14 @@
   max-width: 100%;
 }
 
-.hp-task-screen button:hover:not(:disabled),
-.hp-task-inspector button:hover:not(:disabled),
-.hp-task-sidebar button:hover:not(:disabled) {
+.hp-task-screen button:where(:not([class*="lobe-"])):hover:not(:disabled),
+.hp-task-inspector button:where(:not([class*="lobe-"])):hover:not(:disabled),
+.hp-task-sidebar button:where(:not([class*="lobe-"])):hover:not(:disabled) {
   background: var(--hp-subtle);
 }
 
-.hp-task-screen button:disabled,
-.hp-task-inspector button:disabled {
+.hp-task-screen button:where(:not([class*="lobe-"])):disabled,
+.hp-task-inspector button:where(:not([class*="lobe-"])):disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -59,7 +59,7 @@
   font-size: 1.1rem;
 }
 
-.hp-task-sidebar button {
+.hp-task-sidebar button:where(:not([class*="lobe-"])) {
   display: grid;
   grid-template-columns: 1fr auto;
   text-align: left;
@@ -67,7 +67,7 @@
   margin: 0.3rem 0;
 }
 
-.hp-task-sidebar button[aria-current="page"] {
+.hp-task-sidebar button:where(:not([class*="lobe-"]))[aria-current="page"] {
   background: var(--hp-subtle);
   border-color: var(--hp-accent);
 }
@@ -205,8 +205,8 @@
     flex-basis: 100%;
   }
 
-  .hp-task-screen button,
-  .hp-task-inspector button {
+  .hp-task-screen button:where(:not([class*="lobe-"])),
+  .hp-task-inspector button:where(:not([class*="lobe-"])) {
     min-height: 44px;
   }
 }
@@ -236,7 +236,7 @@
   color: var(--hp-muted);
   font-size: 12px;
 }
-.hp-task-screen .hp-task-toolbar select {
+.hp-task-screen .hp-task-toolbar select:where(:not([class*="lobe-"])) {
   background: transparent;
   border: 0;
   font-size: 12px;
@@ -246,7 +246,7 @@
   gap: 6px;
   flex-wrap: wrap;
 }
-.hp-task-screen .hp-task-toolbar-actions button {
+.hp-task-screen .hp-task-toolbar-actions button:where(:not([class*="lobe-"])) {
   display: inline-flex;
   gap: 8px;
   align-items: center;
@@ -367,7 +367,7 @@
   gap: 4px;
   align-items: start;
 }
-.hp-task-board .hp-task-actions > button {
+.hp-task-board .hp-task-actions > button:where(:not([class*="lobe-"])) {
   font-size: 12px;
   line-height: 18px;
   padding: 7px 8px;
@@ -396,7 +396,7 @@
   padding: 8px;
   gap: 6px;
 }
-.hp-task-board .hp-task-actions details button {
+.hp-task-board .hp-task-actions details button:where(:not([class*="lobe-"])) {
   font-size: 12px;
   border: 1px solid var(--hp-border);
 }
@@ -437,7 +437,7 @@
   gap: 6px;
   flex: 1 1 220px;
 }
-.hp-task-lookup input {
+.hp-task-lookup input:where(:not([class*="lobe-"])) {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--hp-control-border);
@@ -471,12 +471,12 @@
     width: 100%;
     justify-content: space-between;
   }
-  .hp-task-board .hp-task-actions > button,
+  .hp-task-board .hp-task-actions > button:where(:not([class*="lobe-"])),
   .hp-task-board .hp-task-actions summary {
     min-height: 44px;
   }
-  .hp-task-screen .hp-task-toolbar select,
-  .hp-task-lookup input {
+  .hp-task-screen .hp-task-toolbar select:where(:not([class*="lobe-"])),
+  .hp-task-lookup input:where(:not([class*="lobe-"])) {
     font-size: 16px;
   }
 }

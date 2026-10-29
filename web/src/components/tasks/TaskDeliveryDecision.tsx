@@ -1,3 +1,4 @@
+import { TaskButton } from "../ui/TaskControls";
 import { useState } from "react";
 import type { HpWork } from "../../api/types";
 import { useWorks } from "../../store/works";
@@ -51,31 +52,31 @@ export function TaskDeliveryDecision({
       {delivery.last_error && <p>失败原因：{delivery.last_error}</p>}
       {mutable && (
         <div className="hp-task-actions">
-          <button
+          <TaskButton
             disabled={intent?.busy || intent?.uncertain}
             onClick={() => setOutcome("accepted")}
           >
             确认已送达
-          </button>
-          <button
+          </TaskButton>
+          <TaskButton
             disabled={intent?.busy || intent?.uncertain}
             onClick={() => setOutcome("not_sent")}
           >
             确认未发送
-          </button>
+          </TaskButton>
           {canRetryDelivery(work, delivery) && (
-            <button
+            <TaskButton
               disabled={intent?.busy || intent?.uncertain}
               onClick={() => setOutcome("retry_accepting_duplicate_risk")}
             >
               接受重复风险并重试投递
-            </button>
+            </TaskButton>
           )}
         </div>
       )}
       {outcome && (
         <Surface
-          className="hp-object-operation"
+          className="hp-object-operation hp-task-operation hp-lobe-scope"
           motion="elevate"
           title="确认投递决策"
           onClose={() => setOutcome(null)}
@@ -90,7 +91,7 @@ export function TaskDeliveryDecision({
                 ? "当前有效投递可能回到等待发送并重新尝试；历史或失效投递会撤销。实际后果以服务器返回状态为准。"
                 : "重新发送可能造成重复通知。仅在你接受重复发送风险时确认，渠道授权和执行版本由服务器再次核验。"}
           </p>
-          <button
+          <TaskButton
             disabled={
               intent?.busy ||
               !mutable ||
@@ -108,7 +109,7 @@ export function TaskDeliveryDecision({
             {outcome === "retry_accepting_duplicate_risk"
               ? "确认承担重复风险并重试"
               : "确认此投递决策"}
-          </button>
+          </TaskButton>
           {intent?.error && <p role="alert">{intent.error}</p>}
         </Surface>
       )}

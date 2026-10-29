@@ -1,3 +1,5 @@
+import { Empty } from "@lobehub/ui";
+import { TaskButton } from "../ui/TaskControls";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type { HpWorkEvent } from "../../api/types";
@@ -58,12 +60,12 @@ export function TaskEvents({ workId }: { workId: string }) {
           </p>
         ))}
       {!loading && !items.some((e) => e.event_type === "revised") && !error && (
-        <p>暂无修订事件。</p>
+        <Empty className="hp-task-empty" title="暂无修订事件。" />
       )}
       {error && (
         <p role="alert">
           {error}
-          <button onClick={() => setRetry((v) => v + 1)}>继续加载事件</button>
+          <TaskButton onClick={() => setRetry((v) => v + 1)}>继续加载事件</TaskButton>
         </p>
       )}
     </section>

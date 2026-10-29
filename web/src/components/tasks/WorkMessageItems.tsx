@@ -1,3 +1,4 @@
+import { TaskButton } from "../ui/TaskControls";
 import { useWorks } from "../../store/works";
 import { useShell } from "../../store/shell";
 import { presentTask } from "./taskPresentation";
@@ -16,9 +17,9 @@ export function WorkMessageItems({ messageId }: { messageId: string }) {
   );
   if (!works.length) return null;
   return (
-    <div aria-label="来源消息的后台任务" className="hp-task-actions">
+    <div aria-label="来源消息的后台任务" className="hp-task-actions hp-lobe-scope">
       {works.map((work) => (
-        <button
+        <TaskButton
           key={work.work_id}
           onClick={() =>
             useShell.getState().openInspector({
@@ -29,7 +30,7 @@ export function WorkMessageItems({ messageId }: { messageId: string }) {
           }
         >
           {work.title} · {error ? "状态待同步" : presentTask(work, now).label}
-        </button>
+        </TaskButton>
       ))}
     </div>
   );

@@ -6,11 +6,11 @@
 
 身份恢复由 `App` / `LoginForm` 处理；checking、error 和 signedOut 阶段不挂载业务内容。认证后 `AppShell` 固定为 AppRail、ContextSidebar、MainCanvas、可选 Inspector 四区。
 
-| 一级入口 | 路由与上下文 | 主要能力 |
-| --- | --- | --- |
-| AI | `#/ai`、`#/ai/{conversationId}` | 对话、消息、附件、快速/深度策略、执行块、资料授权和 HTML 生成。 |
-| 空间 | `#/workspace?dir={nodeId}` | 目录、搜索、上传、文件详情、版本、来源及明确主体授权。 |
-| 任务 | `#/tasks?bucket=attention&type=all&work={workId}` | Work 四桶、提醒/研究/通用类型、计划、预算、投递、成果和局部收件箱。 |
+| 一级入口 | 路由与上下文                                      | 主要能力                                                            |
+| -------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| AI       | `#/ai`、`#/ai/{conversationId}`                   | 对话、消息、附件、快速/深度策略、执行块、资料授权和 HTML 生成。     |
+| 空间     | `#/workspace?dir={nodeId}`                        | 目录、搜索、上传、文件详情、版本、来源及明确主体授权。              |
+| 任务     | `#/tasks?bucket=attention&type=all&work={workId}` | Work 四桶、提醒/研究/通用类型、计划、预算、投递、成果和局部收件箱。 |
 
 账户设置与 QQ 绑定从头像打开。Artifact、Trace、Model Input 和 Research 内容在对象上下文中打开。`inspect=run:{id}` / `artifact:{id}` / `file:{id}` / `task:{id}` 指定唯一 Inspector，版本和页签使用 `version` / `tab` 参数；打开对象仍须服务端核实账户权限。
 
@@ -26,13 +26,13 @@ Run 概览与任务执行输出可按需读取能力成果，独立展示 outcom
 
 通用文字交付可在任务「成果与执行」展开输出文件，通过认证下载 Markdown 正文。Work 查询的 `results` 和完成通知 payload.results 固定同一完成回执的 ResultRef/file_id、生产 Run/revision 与 content_url；inbox 的「查看任务」可返回该任务成果入口。文件读取继续按当前账户过滤，通知引用不是 bearer 授权。
 
-| 模块 | 责任 |
-| --- | --- |
-| `store/auth.ts` / `sessionLifecycle.ts` / `api/client.ts` | 身份检查、请求取消与账户世代隔离；普通 401 失效；CSRF 同意图重试。 |
-| `store/shell.ts` / `conversationUi.ts` / `artifactUi.ts` | 导航、对象选择、对话草稿/模式/阅读锚点、Artifact 修改草稿等账户内存状态。 |
-| `store/workbench.ts` / `works.ts` / `workspace.ts` / `artifacts.ts` | 权威快照、分页、命令意图、领域缓存与后台同步。 |
-| `store/runInspector.ts` / `components/trace/traceStore.ts` | 所选历史 Run、按需诊断、Model Input 可见范围与请求世代。 |
-| `sse/runFeed.ts` / `workFeed.ts` | Chat 与 Work 的独立订阅、退化恢复和集中 dispose。 |
+| 模块                                                                | 责任                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `store/auth.ts` / `sessionLifecycle.ts` / `api/client.ts`           | 身份检查、请求取消与账户世代隔离；普通 401 失效；CSRF 同意图重试。        |
+| `store/shell.ts` / `conversationUi.ts` / `artifactUi.ts`            | 导航、对象选择、对话草稿/模式/阅读锚点、Artifact 修改草稿等账户内存状态。 |
+| `store/workbench.ts` / `works.ts` / `workspace.ts` / `artifacts.ts` | 权威快照、分页、命令意图、领域缓存与后台同步。                            |
+| `store/runInspector.ts` / `components/trace/traceStore.ts`          | 所选历史 Run、按需诊断、Model Input 可见范围与请求世代。                  |
+| `sse/runFeed.ts` / `workFeed.ts`                                    | Chat 与 Work 的独立订阅、退化恢复和集中 dispose。                         |
 
 退出或切账户时同步失效 API 请求、Chat/Work feed、轮询、查询、下载 Blob、对话/HTML 草稿及 Shell；迟到响应必须同时通过账户、对象和查询世代检查。首次认证保留深链，离开旧账户后清除旧对象路由。退出清理前端监控，不等于取消服务端 Run / Work。
 
@@ -68,17 +68,23 @@ Run SSE Gateway 先订阅并缓冲，再读取快照；snapshot 始终为第一�
 
 `TaskScreen` / `TaskInspector` 使用 [`taskPresentation.ts`](../../web/src/components/tasks/taskPresentation.ts) 的同一纯投影，分类和 [`taskActions.ts`](../../web/src/components/tasks/taskActions.ts) 的动作资格分别判断。类型仅为提醒、研究、通用；`artifact_build` 归通用，展示 HTML 生成/修改。Inspector 页签为概览、成果与执行、使用资料、高级详情。
 
+任务控件使用 Lobe UI 6，经 [`TaskControls.tsx`](../../web/src/components/ui/TaskControls.tsx) 适配值、标签、原生提交与草稿标记；共享资料授权和保存表单仅在任务入口启用。页签导航使用 Lobe Tabs，已访问正文仍由 TaskPanel 保留，未访问页签不发请求。选择和勾选不会隐式提交；权限草稿离开保护、busy/uncertain、If-Match 与原幂等意图仍由原有 Shell/Store 管理。
+
+任务主页面的分类使用受路由控制的 Lobe List，卡片使用 Block，状态和数量使用 Tag / Badge；空态、同步错误与初始占位使用 Empty / Alert / Skeleton。分类选中态随 Shell 路由更新，卡片选中态随当前任务 Inspector 更新；点击、键盘焦点、菜单展开、busy 和 disabled 保留各自反馈，任务执行状态仍来自权威快照。刷新保留已加载卡片，任务动作完成时保留正在操作的卡片位置和主按钮身份。
+
+Shell、原生 Surface 与 Inspector 身份保持现有所有权。每个 Surface 内的 LobeBoundary 将下拉弹出层留在对应原生 dialog 内；菜单 Escape 不继续关闭 Inspector，菜单完全收起后才打开操作确认框。主题沿用 Paper Flame，任务样式在 `task-lobe.css` 中局部覆盖；原生控件规则排除 Lobe 控件，避免两套控件规则叠加。日期和每天时间仍保留原有时区转换，不改为浏览器本地时区解释。
+
 四桶为 `attention`（需要我处理）、`active`（进行中）、`waiting`（等待或已计划）、`ended`（已结束）。先保留 completed/stopped 终态；非终态异常结构显示状态待核实，仅允许查看/刷新；其余按以下优先级命中一次。
 
-| 优先级 | 条件 | 桶与标签 |
-| --- | --- | --- |
-| T01～T02 | completed / stopped | 已结束：已完成 / 已停止。 |
-| T03～T04 | pausing / stopping | 进行中：正在暂停 / 正在停止；保留并列投递决议和未决原因。 |
-| T05～T07 | 当前 revision 的 uncertain 投递、未解除 operation、failed 投递 | 需要我处理：发送结果待确认 / 外部操作结果待确认 / 发送失败。 |
-| T08～T11 | user_acceptance_required、budget_exhausted、awaiting_input、非系统等待 blocked | 需要我处理：成果确认 / 额度 / 补充 / 执行受阻。 |
-| T12 | 有 active coordinator | 进行中：正在执行。 |
-| T13～T17 | paused、at_time、retry_after、正常 awaiting_delivery、waiting_capacity | 等待或已计划：已暂停 / 已计划 / 自动重试 / 回执 / 执行资源。 |
-| T18～T19 | ready 无 coordinator，其他合法非终态 | 等待或已计划：准备继续 / 等待继续。 |
+| 优先级   | 条件                                                                           | 桶与标签                                                     |
+| -------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| T01～T02 | completed / stopped                                                            | 已结束：已完成 / 已停止。                                    |
+| T03～T04 | pausing / stopping                                                             | 进行中：正在暂停 / 正在停止；保留并列投递决议和未决原因。    |
+| T05～T07 | 当前 revision 的 uncertain 投递、未解除 operation、failed 投递                 | 需要我处理：发送结果待确认 / 外部操作结果待确认 / 发送失败。 |
+| T08～T11 | user_acceptance_required、budget_exhausted、awaiting_input、非系统等待 blocked | 需要我处理：成果确认 / 额度 / 补充 / 执行受阻。              |
+| T12      | 有 active coordinator                                                          | 进行中：正在执行。                                           |
+| T13～T17 | paused、at_time、retry_after、正常 awaiting_delivery、waiting_capacity         | 等待或已计划：已暂停 / 已计划 / 自动重试 / 回执 / 执行资源。 |
+| T18～T19 | ready 无 coordinator，其他合法非终态                                           | 等待或已计划：准备继续 / 等待继续。                          |
 
 任务为 blocked/no_progress 或 blocked/repeated_failure 时展示具体保护原因，并隐藏直接“继续执行”；恢复通过修改要求，或明确暂停后继续。budget_exhausted 的暂停/继续仍保留预算阻塞，须显式增额。progress 和 daily_baseline 为服务器查询投影，不能从界面事件数推算。
 

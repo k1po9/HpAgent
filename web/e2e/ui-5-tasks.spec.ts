@@ -6,13 +6,32 @@ import { resolve } from "node:path";
 import { login } from "./helpers";
 const evidence = resolve(process.env.HPAGENT_UI5_EVIDENCE_DIR ?? "./test-results/evidence/ui-5");
 const inspector = (page: Page) => page.locator(".hp-inspector");
+async function selectTask(
+  page: Page,
+  owner: import("@playwright/test").Locator | Page,
+  field: string,
+  option: string,
+) {
+  await owner.getByLabel(field, { exact: true }).click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+}
 async function create(page: Page, title: string, kind = "reminder") {
   await page.getByRole("button", { name: "新建任务", exact: true }).click();
   const form = page.getByRole("dialog", { name: "新建任务", exact: true });
   await form.getByLabel("工作名称").fill(title);
   await form.getByLabel("目标 / 提醒内容").fill("核实任务计划与资料");
-  await form.getByLabel("工作类型").selectOption(kind);
-  await form.getByLabel("执行时间").selectOption("once");
+  await selectTask(
+    page,
+    form,
+    "工作类型",
+    (
+      { reminder: "提醒", research_report: "研究报告", generic_work: "通用任务" } as Record<
+        string,
+        string
+      >
+    )[kind]!,
+  );
+  await selectTask(page, form, "执行时间", "指定时间");
   await form.getByLabel("日期时间").fill("2027-01-01T09:00");
   const result = page.waitForResponse(
     (r) => new URL(r.url()).pathname === "/api/v1/works" && r.request().method() === "POST",
@@ -32,11 +51,11 @@ test("selects a delivery folder and explicitly grants Work write access without 
   await page.getByRole("button", { name: "新建任务", exact: true }).click();
   const form = page.getByRole("dialog", { name: "新建任务", exact: true });
   await form.getByLabel("工作名称").fill(`保存研究页面-${Date.now()}`);
-  await form.getByLabel("工作类型").selectOption("generic_work");
+  await selectTask(page, form, "工作类型", "通用任务");
   await form.getByLabel("目标 / 提醒内容").fill("整理公开资料，生成交互 HTML 并保存");
-  await form.getByLabel("执行时间").selectOption("once");
+  await selectTask(page, form, "执行时间", "指定时间");
   await form.getByLabel("日期时间").fill("2027-01-01T09:00");
-  await form.getByLabel("成果保存目录").selectOption({ label: "/资料" });
+  await selectTask(page, form, "成果保存目录", "/资料");
   const accepted = page.waitForResponse(
     (r) => r.request().method() === "POST" && new URL(r.url()).pathname === "/api/v1/works",
   );
@@ -87,7 +106,7 @@ test("creates, revises, controls, increases one limit and returns from inspector
   await inspector(page).getByRole("button", { name: "提高预算" }).click();
   const budget = page.getByRole("dialog", { name: "提高任务预算" });
   const old = work.budget.limits.model_total_tokens;
-  await budget.getByRole("spinbutton", { name: /模型 Token 上限/ }).fill(String(old + 1000));
+  await budget.getByRole("textbox", { name: /模型 Token 上限/ }).fill(String(old + 1000));
   await budget.getByRole("button", { name: "确认提高预算" }).click();
   await expect(budget).toHaveCount(0);
   const current = (await (await page.request.get(`/api/v1/works/${work.work_id}`)).json()).work;
@@ -101,7 +120,7 @@ test("creates, revises, controls, increases one limit and returns from inspector
     .getByRole("dialog", { name: "停止任务", exact: true })
     .getByRole("button", { name: "确认停止任务" })
     .click();
-  await expect(inspector(page).getByText("已结束 · 已停止", { exact: true })).toBeVisible();
+  await expect(inspector(page).getByText("已停止", { exact: true })).toBeVisible();
   await expect(inspector(page).getByRole("button", { name: "修改要求" })).toHaveCount(0);
   await inspector(page).getByRole("button", { name: "关闭任务详情" }).click();
   await page
@@ -137,7 +156,7 @@ test("lost create response retries identical intention and does not duplicate a 
   const title = `lost-create-${Date.now()}`;
   await form.getByLabel("工作名称").fill(title);
   await form.getByLabel("目标 / 提醒内容").fill("响应丢失保留草稿");
-  await form.getByLabel("执行时间").selectOption("once");
+  await selectTask(page, form, "执行时间", "指定时间");
   await form.getByLabel("日期时间").fill("2027-01-01T09:00");
   await form.getByRole("button", { name: "创建工作", exact: true }).click();
   await expect(form.getByRole("alert")).toContainText("响应未知");
@@ -337,7 +356,7 @@ test("network fixtures: four buckets, pausing decision, failure scope and empty 
     await page.screenshot({ path: resolve(evidence, `fixture-pausing-decision-${width}.png`) });
     await page.getByRole("button", { name: "关闭确认投递决策" }).click();
     await inspector(page).getByRole("button", { name: "关闭任务详情" }).click();
-    await page.getByLabel("任务类型").selectOption("reminder");
+    await selectTask(page, page, "任务类型", "提醒");
     await expect(
       page.locator('[data-task-lane="active"]').getByText("当前筛选没有任务。", { exact: true }),
     ).toBeVisible();

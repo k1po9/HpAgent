@@ -66,14 +66,18 @@
   background: #eef3f6;
   border-color: #a9bdc9;
 }
-.hp-inspector > .hp-surface-header > button:not(.hp-inspector-expand) {
+.hp-inspector
+  > .hp-surface-header
+  > button:where(:not([class*="lobe-"])):not(.hp-inspector-expand) {
   border-radius: 9px;
   color: #5d7180;
   transition:
     background-color 0.16s,
     color 0.16s;
 }
-.hp-inspector > .hp-surface-header > button:not(.hp-inspector-expand):hover:not(:disabled) {
+.hp-inspector
+  > .hp-surface-header
+  > button:where(:not([class*="lobe-"])):not(.hp-inspector-expand):hover:not(:disabled) {
   background: #e9eff3;
   color: var(--pi-ink);
 }
@@ -121,7 +125,7 @@
   margin: 10px 0 12px;
   padding-bottom: 0;
 }
-.hp-inspector .hp-inspector-tabs button[role="tab"] {
+.hp-inspector .hp-inspector-tabs button:where(:not([class*="lobe-"]))[role="tab"] {
   flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
@@ -142,11 +146,15 @@
     background-color 0.18s,
     color 0.18s;
 }
-.hp-inspector .hp-inspector-tabs button[role="tab"]:hover:not(:disabled) {
+.hp-inspector
+  .hp-inspector-tabs
+  button:where(:not([class*="lobe-"]))[role="tab"]:hover:not(:disabled) {
   color: var(--pi-ink);
   background: #eaf0f3;
 }
-.hp-inspector .hp-inspector-tabs button[role="tab"][aria-selected="true"] {
+.hp-inspector
+  .hp-inspector-tabs
+  button:where(:not([class*="lobe-"]))[role="tab"][aria-selected="true"] {
   background: rgba(253, 237, 232, 0.68);
   color: var(--pi-accent);
   font-weight: 720;
@@ -160,7 +168,7 @@
 /* Quiet controls: the meaningful primary CTA remains the single warm action. */
 .hp-inspector
   :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector, .hp-artifact-inspector)
-  button:not([role="tab"]):not(.hp-artifact-save):not(.hp-run-detail),
+  button:where(:not([class*="lobe-"])):not([role="tab"]):not(.hp-artifact-save):not(.hp-run-detail),
 .hp-inspector .hp-run-origin-action {
   border-radius: 9px;
   border-color: #d4e0e7;
@@ -178,23 +186,42 @@
 }
 .hp-inspector
   :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector, .hp-artifact-inspector)
-  button:not([role="tab"]):not(.hp-artifact-save):hover:not(:disabled) {
+  button:where(:not([class*="lobe-"])):not([role="tab"]):not(.hp-artifact-save):hover:not(
+    :disabled
+  ) {
   background: #f0f4f7;
   border-color: #b9c9d3;
   color: var(--pi-ink);
 }
 .hp-inspector
   :is(.hp-run-inspector, .hp-file-inspector, .hp-task-inspector, .hp-artifact-inspector)
-  button:disabled {
+  button:where(:not([class*="lobe-"])):disabled {
   cursor: not-allowed;
   box-shadow: none;
   opacity: 0.58;
 }
-.hp-inspector :is(button, [role="tab"], input, select, textarea, summary, a):focus-visible,
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
-    .hp-operation-form
-  )
-  :is(button, input, select, textarea, summary, a):focus-visible {
+.hp-inspector
+  :is(
+    button:where(:not([class*="lobe-"])),
+    [role="tab"],
+    input:where(:not([class*="lobe-"])),
+    select:where(:not([class*="lobe-"])),
+    textarea:where(:not([class*="lobe-"])),
+    summary,
+    a
+  ):focus-visible,
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):has(.hp-operation-form)
+  :is(
+    button:where(:not([class*="lobe-"])),
+    input:where(:not([class*="lobe-"])),
+    select:where(:not([class*="lobe-"])),
+    textarea:where(:not([class*="lobe-"])),
+    summary,
+    a
+  ):focus-visible {
   outline: 2px solid var(--pi-action, #b94025);
   outline-offset: 3px;
 }
@@ -202,7 +229,12 @@
   color: #a83e29;
   text-underline-offset: 3px;
 }
-.hp-inspector :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+.hp-inspector
+  :is(
+    input:where(:not([class*="lobe-"])):not([type="checkbox"]):not([type="radio"]),
+    select:where(:not([class*="lobe-"])),
+    textarea:where(:not([class*="lobe-"]))
+  ) {
   background: #fff;
   color: var(--pi-ink);
   border: 1px solid #c9d7e0;
@@ -212,7 +244,12 @@
   font-size: 13px;
   max-width: 100%;
 }
-.hp-inspector :is(input, select, textarea):focus-visible {
+.hp-inspector
+  :is(
+    input:where(:not([class*="lobe-"])),
+    select:where(:not([class*="lobe-"])),
+    textarea:where(:not([class*="lobe-"]))
+  ):focus-visible {
   border-color: var(--pi-accent);
 }
 .hp-inspector :is(label, fieldset) {
@@ -253,7 +290,7 @@
   color: var(--pi-bad);
   font-weight: 520;
 }
-.hp-inspector [role="alert"]:not(button),
+.hp-inspector [role="alert"]:not(button:where(:not([class*="lobe-"]))),
 .hp-inspector .hp-trace-warning {
   border-left: 3px solid #bb4c3e;
   background: #fff3f0;
@@ -501,7 +538,7 @@
   padding: 11px 16px max(12px, env(safe-area-inset-bottom));
   gap: 7px;
 }
-.hp-inspector .hp-artifact-toolbar button {
+.hp-inspector .hp-artifact-toolbar button:where(:not([class*="lobe-"])) {
   min-height: 40px;
 }
 .hp-inspector .hp-artifact-toolbar .hp-artifact-save {
@@ -522,7 +559,7 @@
   padding: 14px 15px;
   border-color: #dbe5eb;
 }
-.hp-inspector .hp-artifact-history button[aria-current="true"] {
+.hp-inspector .hp-artifact-history button:where(:not([class*="lobe-"]))[aria-current="true"] {
   background: var(--pi-soft);
   border-color: #e8b7a8;
   color: var(--pi-accent);
@@ -546,7 +583,7 @@
   padding: 15px;
   gap: 10px;
 }
-.hp-inspector .hp-artifact-composer textarea {
+.hp-inspector .hp-artifact-composer textarea:where(:not([class*="lobe-"])) {
   background: #f9fbfc;
   border-color: #cbdce5;
 }
@@ -616,7 +653,7 @@
 .hp-inspector .hp-file-inspector section[aria-label] > :is(h3, h4) {
   color: #304c5b;
 }
-.hp-inspector .hp-file-inspector input[type="checkbox"] {
+.hp-inspector .hp-file-inspector input:where(:not([class*="lobe-"]))[type="checkbox"] {
   accent-color: #b94025;
 }
 /* TASK / clearer distinction between intent, evidence, and next actions. */
@@ -689,28 +726,39 @@
   font-weight: 550;
 }
 /* Real task control actions retain their data-action semantics. */
-.hp-inspector .hp-task-actions button[data-action="advance"]:not(:disabled),
-.hp-inspector .hp-task-actions button[data-action="resume"]:not(:disabled) {
+.hp-inspector
+  .hp-task-actions
+  button:where(:not([class*="lobe-"]))[data-action="advance"]:not(:disabled),
+.hp-inspector
+  .hp-task-actions
+  button:where(:not([class*="lobe-"]))[data-action="resume"]:not(:disabled) {
   background: #b94025;
   color: #fff;
   border-color: #b94025;
   font-weight: 680;
 }
-.hp-inspector .hp-task-actions button[data-action="advance"]:hover:not(:disabled),
-.hp-inspector .hp-task-actions button[data-action="resume"]:hover:not(:disabled) {
+.hp-inspector
+  .hp-task-actions
+  button:where(:not([class*="lobe-"]))[data-action="advance"]:hover:not(:disabled),
+.hp-inspector
+  .hp-task-actions
+  button:where(:not([class*="lobe-"]))[data-action="resume"]:hover:not(:disabled) {
   background: #a93620;
   border-color: #a93620;
   color: #fff;
 }
-.hp-inspector .hp-task-actions button[data-action="stop"]:not(:disabled) {
+.hp-inspector
+  .hp-task-actions
+  button:where(:not([class*="lobe-"]))[data-action="stop"]:not(:disabled) {
   color: #a42b21;
   border-color: #e8c3bb;
   background: #fff9f7;
 }
 /* Native Surface forms and nested controls related to Inspector. */
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
-    .hp-inspector
-  ):not(.hp-surface--region) {
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):not(.hp-inspector):not(.hp-surface--region) {
   --pi-action: #b94025;
   --pi-ink: #202a34;
   --pi-muted: #5d6f7b;
@@ -721,17 +769,19 @@
   background: #f8fafb;
   box-shadow: 0 22px 65px rgba(22, 33, 44, 0.2);
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
-    .hp-inspector
-  ):not(.hp-surface--region)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):not(.hp-inspector):not(.hp-surface--region)
   > .hp-surface-header {
   background: #fff;
   border-bottom: 1px solid rgba(47, 67, 81, 0.13);
   padding: 16px 19px;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
-    .hp-inspector
-  ):not(.hp-surface--region)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):not(.hp-inspector):not(.hp-surface--region)
   > .hp-surface-body {
   background: #f8fafb;
   color: #202a34;
@@ -739,11 +789,12 @@
   line-height: 1.7;
   font-size: 13px;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
-    .hp-inspector
-  ):not(.hp-surface--region)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):not(.hp-inspector):not(.hp-surface--region)
   > .hp-surface-body
-  > button {
+  > button:where(:not([class*="lobe-"])) {
   min-height: 38px;
   padding: 8px 12px;
   border-radius: 9px;
@@ -753,34 +804,46 @@
   font: inherit;
   font-weight: 560;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
-    .hp-inspector
-  ):not(.hp-surface--region)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):not(.hp-inspector):not(.hp-surface--region)
   > .hp-surface-body
-  > button:hover:not(:disabled) {
+  > button:where(:not([class*="lobe-"])):hover:not(:disabled) {
   background: #edf3f6;
   border-color: #aec2cd;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
-    .hp-inspector
-  ):not(.hp-surface--region)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):not(.hp-inspector):not(.hp-surface--region)
   > .hp-surface-body
   > label {
   display: grid;
   gap: 7px;
   color: #445c6b;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
-    .hp-inspector
-  ):not(.hp-surface--region)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):not(.hp-inspector):not(.hp-surface--region)
   > .hp-surface-body
-  > :is(input, select, textarea),
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):not(
-    .hp-inspector
-  ):not(.hp-surface--region)
+  > :is(
+    input:where(:not([class*="lobe-"])),
+    select:where(:not([class*="lobe-"])),
+    textarea:where(:not([class*="lobe-"]))
+  ),
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):not(.hp-inspector):not(.hp-surface--region)
   > .hp-surface-body
   > label
-  :is(input, select, textarea) {
+  :is(
+    input:where(:not([class*="lobe-"])),
+    select:where(:not([class*="lobe-"])),
+    textarea:where(:not([class*="lobe-"]))
+  ) {
   max-width: 100%;
   min-height: 38px;
   padding: 8px 11px;
@@ -790,9 +853,10 @@
   color: #202a34;
 }
 
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
-  .hp-operation-form
-) {
+:is(
+  .hp-inspector,
+  body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+):has(.hp-operation-form) {
   --pi-action: #b94025;
   --pi-line: rgba(47, 67, 81, 0.13);
   --pi-ink: #202a34;
@@ -804,30 +868,42 @@
   border-radius: 17px;
   box-shadow: 0 20px 58px rgba(22, 33, 44, 0.18);
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
-    .hp-operation-form
-  )
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):has(.hp-operation-form)
   > .hp-surface-header {
   background: #fff;
   padding: 17px 19px;
   border-bottom: 1px solid var(--pi-line);
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
-    .hp-operation-form
-  )
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):has(.hp-operation-form)
   > .hp-surface-body {
   background: #f8fafb;
   padding: 17px 19px 20px;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  )
   .hp-operation-form {
   color: var(--pi-ink);
   font-size: 13px;
   line-height: 1.7;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  )
   .hp-operation-form
-  :is(input:not([type="checkbox"]), select, textarea) {
+  :is(
+    input:where(:not([class*="lobe-"])):not([type="checkbox"]),
+    select:where(:not([class*="lobe-"])),
+    textarea:where(:not([class*="lobe-"]))
+  ) {
   color: var(--pi-ink);
   background: #fff;
   border: 1px solid #cbd9e2;
@@ -836,14 +912,20 @@
   min-height: 38px;
   max-width: 100%;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  )
   .hp-operation-form
   :is(fieldset, section) {
   min-width: 0;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  )
   .hp-operation-form
-  button {
+  button:where(:not([class*="lobe-"])) {
   background: #fff;
   color: #304758;
   border-color: #cddbe3;
@@ -852,34 +934,49 @@
   font-size: 13px;
   font-weight: 550;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  )
   .hp-operation-form
-  button:hover:not(:disabled) {
+  button:where(:not([class*="lobe-"])):hover:not(:disabled) {
   background: #eef3f6;
   border-color: #a9beca;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  )
   .hp-operation-form
-  button:disabled {
+  button:where(:not([class*="lobe-"])):disabled {
   opacity: 0.58;
   cursor: not-allowed;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  )
   .hp-operation-form
-  > button:not([type="button"]):not(:disabled) {
+  > button:where(:not([class*="lobe-"])):not([type="button"]):not(:disabled) {
   background: #b94025;
   border-color: #b94025;
   color: #fff;
   font-weight: 660;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  )
   .hp-operation-form
-  > button:not([type="button"]):hover:not(:disabled) {
+  > button:where(:not([class*="lobe-"])):not([type="button"]):hover:not(:disabled) {
   background: #a93620;
   border-color: #a93620;
   color: #fff;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation)
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  )
   .hp-operation-form
   [role="alert"] {
   border-left: 3px solid #b42318;
@@ -893,7 +990,7 @@
   .hp-inspector > .hp-surface-body {
     overscroll-behavior: contain;
   }
-  .hp-inspector .hp-inspector-tabs button[role="tab"] {
+  .hp-inspector .hp-inspector-tabs button:where(:not([class*="lobe-"]))[role="tab"] {
     min-height: 44px;
   }
 }
@@ -901,7 +998,7 @@
   .hp-inspector .hp-inspector-tabs {
     gap: 1px;
   }
-  .hp-inspector .hp-inspector-tabs button[role="tab"] {
+  .hp-inspector .hp-inspector-tabs button:where(:not([class*="lobe-"]))[role="tab"] {
     padding-inline: 6px;
     font-size: 11.5px;
   }
@@ -914,12 +1011,14 @@
   .hp-inspector .hp-artifact-toolbar {
     padding-inline: 13px;
   }
-  .hp-inspector :is(.hp-file-inspector, .hp-task-inspector) button:not([role="tab"]) {
+  .hp-inspector
+    :is(.hp-file-inspector, .hp-task-inspector)
+    button:where(:not([class*="lobe-"])):not([role="tab"]) {
     min-height: 44px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hp-inspector :is(button, [role="tab"], .hp-trace-tree__row) {
+  .hp-inspector :is(button:where(:not([class*="lobe-"])), [role="tab"], .hp-trace-tree__row) {
     transition-duration: 0s;
   }
 }
@@ -1056,7 +1155,7 @@
 .hp-inspector .hp-inspector-tabs {
   scrollbar-width: thin;
 }
-.hp-inspector .hp-inspector-tabs button[role="tab"]:focus-visible {
+.hp-inspector .hp-inspector-tabs button:where(:not([class*="lobe-"]))[role="tab"]:focus-visible {
   outline: 2px solid var(--hiv2-focus);
   outline-offset: -3px;
 }
@@ -1221,14 +1320,17 @@
   box-shadow: 0 0 0 3px #f4f6f8;
   pointer-events: none;
 }
-.hp-inspector #artifact-panel-versions .hp-artifact-history li:has(button[aria-current="true"]) {
+.hp-inspector
+  #artifact-panel-versions
+  .hp-artifact-history
+  li:has(button:where(:not([class*="lobe-"]))[aria-current="true"]) {
   border-color: #e2bbae;
   background: #fff9f6;
 }
 .hp-inspector
   #artifact-panel-versions
   .hp-artifact-history
-  li:has(button[aria-current="true"])::before {
+  li:has(button:where(:not([class*="lobe-"]))[aria-current="true"])::before {
   background: #cf482d;
   border-color: #cf482d;
 }
@@ -1274,27 +1376,35 @@
   border-bottom: 0;
 }
 /* Layered surface: strengthen intent-based hierarchy without remapping commands. */
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
-    .hp-operation-form
-  )
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):has(.hp-operation-form)
   .hp-operation-form
   :is(label, legend) {
   color: #405666;
   font-weight: 620;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
-    .hp-operation-form
-  )
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):has(.hp-operation-form)
   .hp-operation-form
   :is([role="alert"], [role="status"]) {
   overflow-wrap: anywhere;
   line-height: 1.7;
 }
-:is(.hp-inspector, body:has(.hp-inspector) dialog.hp-surface.hp-object-operation):has(
-    .hp-operation-form
-  )
+:is(
+    .hp-inspector,
+    body:has(.hp-inspector) dialog.hp-surface.hp-object-operation:where(:not(.hp-task-operation))
+  ):has(.hp-operation-form)
   .hp-operation-form
-  :is(button, input, select, textarea):focus-visible {
+  :is(
+    button:where(:not([class*="lobe-"])),
+    input:where(:not([class*="lobe-"])),
+    select:where(:not([class*="lobe-"])),
+    textarea:where(:not([class*="lobe-"]))
+  ):focus-visible {
   outline: 2px solid #b94025;
   outline-offset: 3px;
 }
@@ -1332,7 +1442,7 @@ body:has(.hp-inspector) dialog.hp-object-operation [hidden] {
   display: none !important;
 }
 /* A keyboard user can distinguish disabled controls without hover reviving them. */
-.hp-inspector button:disabled,
-body:has(.hp-inspector) dialog.hp-object-operation button:disabled {
+.hp-inspector button:where(:not([class*="lobe-"])):disabled,
+body:has(.hp-inspector) dialog.hp-object-operation button:where(:not([class*="lobe-"])):disabled {
   cursor: not-allowed;
 }

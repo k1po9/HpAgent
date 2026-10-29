@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { TaskControlContext } from "../ui/taskControlContext";
+import { TaskControlScope } from "../ui/TaskControls";
+import { TaskButton, TaskInput, TaskSelect, TaskLabel, TaskForm } from "../ui/TaskControls";
+import { useContext, useEffect, useRef, useState } from "react";
 import { useWorkspace } from "../../store/workspace";
 import { Surface } from "../shell/Surface";
 import { nodePath } from "./workspacePresentation";
@@ -14,13 +17,19 @@ export function SaveToWorkspaceDialog({
   file,
   onClose,
   onSaved,
+  taskUi = false,
 }: {
+  taskUi?: boolean;
   file: SaveSource;
   onClose: () => void;
   onSaved: (operation: SaveOperation) => void;
 }) {
   // A new source gets a new operation and view owner, including identical names.
-  return <SaveView key={JSON.stringify(file)} file={file} onClose={onClose} onSaved={onSaved} />;
+  return (
+    <TaskControlScope active={taskUi}>
+      <SaveView key={JSON.stringify(file)} file={file} onClose={onClose} onSaved={onSaved} />
+    </TaskControlScope>
+  );
 }
 function SaveView({
   file,
@@ -31,6 +40,7 @@ function SaveView({
   onClose: () => void;
   onSaved: (operation: SaveOperation) => void;
 }) {
+  const taskUi = useContext(TaskControlContext);
   const [abandon, setAbandon] = useState(false);
   const [dirtyChoice, setDirtyChoice] = useState(false);
   const tree = useWorkspace((s) => s.tree);
@@ -67,7 +77,9 @@ function SaveView({
   };
   return (
     <Surface
-      className="hp-object-operation"
+      className={
+        taskUi ? "hp-object-operation hp-task-operation hp-lobe-scope" : "hp-object-operation"
+      }
       motion="elevate"
       title="保存到长期文件"
       onClose={close}
@@ -76,13 +88,13 @@ function SaveView({
       {abandon && (
         <Surface title="放弃未提交的保存选择？" motion="elevate" onClose={() => setAbandon(false)}>
           <p>尚未提交的文件、目录或名称选择将丢弃；已提交的操作记录保留。</p>
-          <button onClick={() => setAbandon(false)}>继续编辑</button>
-          <button onClick={onClose}>放弃选择并关闭</button>
+          <TaskButton onClick={() => setAbandon(false)}>继续编辑</TaskButton>
+          <TaskButton onClick={onClose}>放弃选择并关闭</TaskButton>
         </Surface>
       )}
-      <form
+      <TaskForm
         className="hp-operation-form"
-        onChange={() => setDirtyChoice(true)}
+        onDirty={() => setDirtyChoice(true)}
         onSubmit={(e) => {
           e.preventDefault();
           const previous = operationRef.current;
@@ -116,9 +128,9 @@ function SaveView({
           </p>
         )}
         <p>保存不会自动授权 AI 使用。</p>
-        <label>
+        <TaskLabel>
           保存目录
-          <select
+          <TaskSelect
             disabled={Boolean(id && !operation?.canChangeSave)}
             value={target}
             onChange={(e) => setDirectory(e.target.value)}
@@ -130,17 +142,17 @@ function SaveView({
                   {nodePath(tree, n.node_id)}
                 </option>
               ))}
-          </select>
-        </label>
-        <label>
+          </TaskSelect>
+        </TaskLabel>
+        <TaskLabel>
           保存名称
-          <input
+          <TaskInput
             required
             disabled={Boolean(id && !operation?.canChangeSave)}
             value={operation?.canChangeSave ? name : (operation?.name ?? name)}
             onChange={(e) => setName(e.target.value)}
           />
-        </label>
+        </TaskLabel>
         {operation && (
           <p role="status">
             {operation.phase}
@@ -152,14 +164,14 @@ function SaveView({
           <p>原保存请求被拒绝；可修改目录或名称，保留已就绪内容另存。</p>
         )}
         {!operation?.completed && (
-          <button disabled={!target || !name.trim() || operation?.busy}>
+          <TaskButton disabled={!target || !name.trim() || operation?.busy}>
             {operation?.busy ? "保存中…" : id ? "继续原保存" : "确认保存"}
-          </button>
+          </TaskButton>
         )}
-        <button type="button" onClick={close}>
+        <TaskButton type="button" onClick={close}>
           {operation?.completed ? "完成" : "关闭"}
-        </button>
-      </form>
+        </TaskButton>
+      </TaskForm>
     </Surface>
   );
 }
@@ -174,7 +186,7 @@ export function WorkspaceDirectoryLoader() {
   return error ? (
     <p role="alert">
       {error}
-      <button
+      <TaskButton
         onClick={() =>
           void useWorkspace
             .getState()
@@ -183,7 +195,7 @@ export function WorkspaceDirectoryLoader() {
         }
       >
         重试目录
-      </button>
+      </TaskButton>
     </p>
   ) : null;
 }

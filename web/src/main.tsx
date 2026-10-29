@@ -5,6 +5,7 @@ import "@radix-ui/themes/styles.css";
 import "./styles.css";
 import "@lobehub/ui/theme.css";
 import "@lobehub/ui/style.css";
+import "./styles/task-lobe.css";
 import "./styles/workspace-lobe.css";
 import { LobeBoundary } from "./components/ui/LobeBoundary";
 import { App } from "./App";

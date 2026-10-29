@@ -1,3 +1,4 @@
+import { selectTaskOption } from "../../test/selectTaskOption";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { HpCommandError, type HpWork } from "../../api/types";
@@ -263,7 +264,7 @@ it("R3 preserves every edited field through failed and successful retries and re
   fireEvent.change(screen.getByLabelText("约束（每行一条）"), {
     target: { value: "keep constraint" },
   });
-  fireEvent.change(screen.getByLabelText("执行时间"), { target: { value: "once" } });
+  await selectTaskOption("执行时间", "指定时间");
   fireEvent.change(screen.getByLabelText("日期时间"), { target: { value: "2027-02-01T13:00" } });
   fireEvent.change(screen.getByLabelText("修订原因"), { target: { value: "draft reason" } });
   let finish!: () => void;

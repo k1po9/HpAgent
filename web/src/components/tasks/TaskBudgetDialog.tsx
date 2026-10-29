@@ -1,3 +1,4 @@
+import { TaskButton, TaskInput, TaskLabel, TaskForm } from "../ui/TaskControls";
 import { useEffect, useRef, useState } from "react";
 import type { HpWork } from "../../api/types";
 import { useWorks } from "../../store/works";
@@ -19,12 +20,12 @@ export function TaskBudgetDialog({ work, onClose }: { work: HpWork; onClose: () 
   const budget = baseline.budget!;
   return (
     <Surface
-      className="hp-object-operation"
+      className="hp-object-operation hp-task-operation hp-lobe-scope"
       motion="elevate"
       title="提高任务预算"
       onClose={onClose}
     >
-      <form
+      <TaskForm
         className="hp-operation-form"
         onSubmit={(e) => {
           e.preventDefault();
@@ -55,16 +56,16 @@ export function TaskBudgetDialog({ work, onClose }: { work: HpWork; onClose: () 
         {latest && latest.row_version !== baseline.row_version && (
           <p role="alert">
             任务预算或状态已更新，输入仍保留。
-            <button type="button" onClick={() => setBaseline(latest)}>
+            <TaskButton type="button" onClick={() => setBaseline(latest)}>
               已审阅新预算，采用新基线
-            </button>
+            </TaskButton>
           </p>
         )}
         {Object.entries(budget.limits).map(([key, old]) => (
-          <label key={key}>
+          <TaskLabel key={key}>
             {key === "model_total_tokens" ? "模型 Token 上限" : key} · 旧值 {old} · 已用{" "}
             {budget.used[key] ?? 0} · 已预留 {budget.reserved[key] ?? 0}
-            <input
+            <TaskInput
               type="number"
               min={old + 1}
               step="1"
@@ -77,12 +78,12 @@ export function TaskBudgetDialog({ work, onClose }: { work: HpWork; onClose: () 
                 新值 {values[key]} · 增加 {Number(values[key]) - old}
               </small>
             )}
-          </label>
+          </TaskLabel>
         ))}
         {error && <p role="alert">{error}</p>}
         {intent?.error && <p role="alert">{intent.error}</p>}
-        <button disabled={intent?.busy}>确认提高预算</button>
-      </form>
+        <TaskButton disabled={intent?.busy}>确认提高预算</TaskButton>
+      </TaskForm>
     </Surface>
   );
 }

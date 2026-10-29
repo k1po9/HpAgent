@@ -1,3 +1,4 @@
+import { TaskButton, TaskInput, TaskDetails, TaskLabel, TaskForm } from "../ui/TaskControls";
 import { useEffect, useState } from "react";
 import { api } from "../../api/client";
 import { useWorks } from "../../store/works";
@@ -29,10 +30,10 @@ export function TaskLookup() {
     };
   }, [query, generation]);
   return (
-    <details className="hp-task-lookup">
+    <TaskDetails className="hp-task-lookup">
       <summary>执行记录与诊断</summary>
       <p>高级查询：仅展示最近最多 100 次执行。任务详情中的成果与执行也提供此入口。</p>
-      <form
+      <TaskForm
         onSubmit={(e) => {
           e.preventDefault();
           const value = new FormData(e.currentTarget).get("work");
@@ -46,14 +47,14 @@ export function TaskLookup() {
           setQuery((old) => ({ workId, revision: (old?.revision ?? 0) + 1 }));
         }}
       >
-        <label>
+        <TaskLabel>
           工作编号
-          <input name="work" required />
-        </label>
-        <button>读取执行记录</button>
-      </form>
+          <TaskInput name="work" required />
+        </TaskLabel>
+        <TaskButton>读取执行记录</TaskButton>
+      </TaskForm>
       {runs.map((run) => (
-        <button
+        <TaskButton
           key={run.run_id}
           onClick={() =>
             useShell.getState().openInspector({
@@ -64,9 +65,9 @@ export function TaskLookup() {
           }
         >
           {run.status} · {run.run_id}
-        </button>
+        </TaskButton>
       ))}
-      <form
+      <TaskForm
         onSubmit={(e) => {
           e.preventDefault();
           const value = new FormData(e.currentTarget).get("run");
@@ -74,13 +75,13 @@ export function TaskLookup() {
             useShell.getState().openInspector({ kind: "run", objectId: value.trim() });
         }}
       >
-        <label>
+        <TaskLabel>
           执行编号
-          <input name="run" required />
-        </label>
-        <button>查询执行</button>
-      </form>
+          <TaskInput name="run" required />
+        </TaskLabel>
+        <TaskButton>查询执行</TaskButton>
+      </TaskForm>
       {error && <p role="alert">{error}</p>}
-    </details>
+    </TaskDetails>
   );
 }

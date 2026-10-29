@@ -1,3 +1,4 @@
+import { TaskControlScope, TaskButton, TaskDetails, TaskCode } from "../ui/TaskControls";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -23,7 +24,9 @@ type CapabilityResult = {
 export function RunCapabilityResults({
   runId,
   revision,
+  taskUi = false,
 }: {
+  taskUi?: boolean;
   runId: string;
   revision?: string | number;
 }) {
@@ -34,17 +37,22 @@ export function RunCapabilityResults({
     revision,
   );
   return (
-    <section aria-label="能力成果">
-      <h4>能力成果</h4>
-      <button disabled={query.loading} onClick={() => (opened ? query.retry() : setOpened(true))}>
-        {opened ? "刷新能力成果" : "读取能力成果"}
-      </button>
-      {query.error && <p role="alert">能力成果暂不可用。</p>}
-      {query.data?.items.map((item) => (
-        <CapabilityOutput key={item.invocation_id} item={item} runId={runId} />
-      ))}
-      {query.data?.truncated && <p>仅展示最近 100 次能力结果。</p>}
-    </section>
+    <TaskControlScope active={taskUi}>
+      <section aria-label="能力成果">
+        <h4>能力成果</h4>
+        <TaskButton
+          disabled={query.loading}
+          onClick={() => (opened ? query.retry() : setOpened(true))}
+        >
+          {opened ? "刷新能力成果" : "读取能力成果"}
+        </TaskButton>
+        {query.error && <p role="alert">能力成果暂不可用。</p>}
+        {query.data?.items.map((item) => (
+          <CapabilityOutput key={item.invocation_id} item={item} runId={runId} />
+        ))}
+        {query.data?.truncated && <p>仅展示最近 100 次能力结果。</p>}
+      </section>
+    </TaskControlScope>
   );
 }
 function CapabilityOutput({ item, runId }: { item: CapabilityResult; runId: string }) {
@@ -65,15 +73,15 @@ function CapabilityOutput({ item, runId }: { item: CapabilityResult; runId: stri
         </p>
       ))}
       {item.payload.gaps.length > 0 && (
-        <details>
+        <TaskDetails>
           <summary>已知缺口</summary>
-          <pre>{JSON.stringify(item.payload.gaps, null, 2)}</pre>
-        </details>
+          <TaskCode>{JSON.stringify(item.payload.gaps, null, 2)}</TaskCode>
+        </TaskDetails>
       )}
       {item.payload.outputs
         .filter((ref) => ref.type === "artifact_version")
         .map((ref) => (
-          <button
+          <TaskButton
             key={ref.ref_id}
             onClick={() =>
               useShell.getState().openInspector(
@@ -88,14 +96,14 @@ function CapabilityOutput({ item, runId }: { item: CapabilityResult; runId: stri
             }
           >
             查看 HTML 成果版本
-          </button>
+          </TaskButton>
         ))}
       {item.capability_key === "research" && (
-        <button onClick={() => setRead(true)}>读取此研究报告</button>
+        <TaskButton onClick={() => setRead(true)}>读取此研究报告</TaskButton>
       )}
       {report.error && (
         <p role="alert">
-          报告暂不可用。<button onClick={report.retry}>重试报告</button>
+          报告暂不可用。<TaskButton onClick={report.retry}>重试报告</TaskButton>
         </p>
       )}
       {report.data && (

@@ -135,7 +135,7 @@ afterEach(() => {
 async function openLookup() {
   window.history.replaceState(null, "", "#/tasks");
   render(<App />);
-  const summary = await screen.findByText("执行记录与诊断", { selector: "summary" });
+  const summary = await screen.findByRole("button", { name: "执行记录与诊断" });
   fireEvent.click(summary);
   return screen.getByRole("textbox", { name: "工作编号" });
 }

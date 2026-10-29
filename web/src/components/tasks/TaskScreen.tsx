@@ -1,3 +1,5 @@
+import { TaskButton, TaskSelect, TaskLabel } from "../ui/TaskControls";
+import { Alert, Badge, Empty, Skeleton } from "@lobehub/ui";
 import { TaskLookup } from "./TaskLookup";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -85,7 +87,7 @@ export function TaskScreen() {
   return (
     <div
       ref={screen}
-      className="hp-task-screen"
+      className="hp-task-screen hp-lobe-scope"
       onFocusCapture={(e) => {
         const row = (e.target as HTMLElement).closest<HTMLElement>("[data-work-id]");
         const id = row?.dataset.workId;
@@ -106,10 +108,10 @@ export function TaskScreen() {
       }}
     >
       <div className="hp-task-toolbar">
-        <label>
+        <TaskLabel>
           <SlidersHorizontal size={16} aria-hidden="true" />
           任务类型
-          <select
+          <TaskSelect
             value={type}
             onChange={(e) => useShell.getState().navigate({ ...route, type: e.target.value }, true)}
           >
@@ -117,31 +119,32 @@ export function TaskScreen() {
             <option value="reminder">提醒</option>
             <option value="research">研究</option>
             <option value="general">通用任务</option>
-          </select>
-        </label>
+          </TaskSelect>
+        </TaskLabel>
         <div className="hp-task-toolbar-actions">
-          <button
+          <TaskButton
             className="hp-task-refresh"
             disabled={state === "scanning"}
+            loading={state === "scanning"}
             onClick={() => void useWorks.getState().load()}
           >
             <RefreshCw size={16} aria-hidden="true" />
             刷新任务
-          </button>
-          <button
+          </TaskButton>
+          <TaskButton
             className="hp-task-inbox-button"
             onClick={() => useShell.setState({ modal: "task-inbox" })}
           >
             <Inbox size={16} aria-hidden="true" />
             收件箱
-          </button>
-          <button
+          </TaskButton>
+          <TaskButton
             className="hp-primary"
             onClick={() => useShell.setState({ modal: "task-create" })}
           >
             <Plus size={16} aria-hidden="true" />
             新建任务
-          </button>
+          </TaskButton>
         </div>
       </div>
       <p role="status" className="hp-task-sync">
@@ -161,20 +164,25 @@ export function TaskScreen() {
             : "同步未完成"}
       </p>
       {error && (
-        <p role="alert">
-          {error}
-          <button
-            onClick={() => void useWorks.getState().load(Boolean(useWorks.getState().nextBefore))}
-          >
-            继续同步
-          </button>
-        </p>
+        <Alert
+          className="hp-task-sync-error"
+          role="alert"
+          type="error"
+          title={error}
+          action={
+            <TaskButton
+              onClick={() => void useWorks.getState().load(Boolean(useWorks.getState().nextBefore))}
+            >
+              继续同步
+            </TaskButton>
+          }
+        />
       )}
       {state === "scanning" && (
-        <button onClick={() => useWorks.getState().cancelScan(true)}>暂停扫描</button>
+        <TaskButton onClick={() => useWorks.getState().cancelScan(true)}>暂停扫描</TaskButton>
       )}
       {paused && !error && (
-        <button onClick={() => void useWorks.getState().load(true)}>继续扫描</button>
+        <TaskButton onClick={() => void useWorks.getState().load(true)}>继续扫描</TaskButton>
       )}
       <div ref={board} className="hp-task-board" aria-label="任务状态分区">
         {(Object.keys(bucketLabels) as TaskBucket[]).map((lane) => {
@@ -193,7 +201,12 @@ export function TaskScreen() {
               <header className="hp-task-lane-heading">
                 <Icon size={17} aria-hidden="true" />
                 <h2 id={`task-lane-${lane}`}>{bucketLabels[lane]}</h2>
-                <span aria-label={`${count} 项`}>{count}</span>
+                <Badge
+                  className="hp-task-count"
+                  aria-label={`${count} 项`}
+                  count={String(count)}
+                  size="small"
+                />
               </header>
               {laneRows.map((work) => {
                 const actual = presentTask(work, now).bucket;
@@ -209,20 +222,25 @@ export function TaskScreen() {
                   </div>
                 );
               })}
-              {!laneRows.length && (
-                <div className="hp-task-lane-empty">
-                  <Icon size={26} aria-hidden="true" />
-                  <p>
-                    {state === "initial" || state === "scanning"
-                      ? "正在同步任务…"
-                      : state === "complete"
+              {!laneRows.length &&
+                (state === "initial" || state === "scanning" ? (
+                  <div className="hp-task-lane-loading" role="status" aria-label="正在同步任务…">
+                    <Skeleton width="100%" height={150} />
+                  </div>
+                ) : (
+                  <Empty
+                    className="hp-task-lane-empty"
+                    titleProps={{ className: "hp-task-empty-title" }}
+                    icon={Icon}
+                    title={
+                      state === "complete"
                         ? items.length
                           ? "当前筛选没有任务。"
                           : "暂无任务，可新建提醒、研究或通用任务。"
-                        : "已加载范围内没有匹配任务，请完成同步后查看。"}
-                  </p>
-                </div>
-              )}
+                        : "已加载范围内没有匹配任务，请完成同步后查看。"
+                    }
+                  />
+                ))}
             </section>
           );
         })}

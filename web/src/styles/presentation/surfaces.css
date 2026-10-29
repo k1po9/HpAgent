@@ -22,12 +22,12 @@
   border-bottom: 1px solid #dce6ec;
   padding-bottom: 2px;
 }
-.hp-inspector-tabs button {
+.hp-inspector-tabs button:where(:not([class*="lobe-"])) {
   border-radius: 9px 9px 0 0 !important;
   font-size: 12px !important;
   color: #6f8493;
 }
-.hp-inspector-tabs button[aria-selected="true"] {
+.hp-inspector-tabs button:where(:not([class*="lobe-"]))[aria-selected="true"] {
   color: #a94a33;
   font-weight: 700;
   background: #fceee8a6 !important;
@@ -37,8 +37,8 @@
   background: #eb6044;
   border-radius: 3px;
 }
-.hp-inspector :is(button, [role="tab"]):focus-visible,
-.hp-shell button:focus-visible {
+.hp-inspector :is(button:where(:not([class*="lobe-"])), [role="tab"]):focus-visible,
+.hp-shell button:where(:not([class*="lobe-"])):focus-visible {
   outline: 2px solid #b94025;
   outline-offset: 2px;
 }

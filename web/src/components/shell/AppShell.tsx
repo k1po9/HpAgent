@@ -15,6 +15,7 @@ import { TaskScreen } from "../tasks/TaskScreen";
 import { TaskSidebar } from "../tasks/TaskSidebar";
 import { TaskEditor } from "../tasks/TaskEditor";
 import { TaskInbox } from "../tasks/TaskInbox";
+import { TaskButton } from "../ui/TaskControls";
 import { useTaskController } from "../tasks/useTaskController";
 import { QQBindingPanel } from "../QQBindingPanel";
 import { RegistrationQqGate } from "../RegistrationQqGate";
@@ -369,21 +370,24 @@ export function AppShell() {
       )}
       {pendingRoute && pendingReason === "tasks" && (
         <Surface
-          className="hp-object-operation"
+          className="hp-object-operation hp-task-operation hp-lobe-scope"
           motion="elevate"
           title="放弃未提交的任务草稿？"
           onClose={() => useShell.setState({ pendingRoute: null })}
         >
           <p>草稿尚未提交，切换将丢弃修改。</p>
-          <button onClick={() => useShell.setState({ pendingRoute: null })}>继续编辑</button>
-          <button
+          <TaskButton onClick={() => useShell.setState({ pendingRoute: null })}>
+            继续编辑
+          </TaskButton>
+          <TaskButton
+            danger
             onClick={() => {
               useShell.setState({ dirtyTaskEditor: null });
               useShell.getState().navigate(pendingRoute);
             }}
           >
             放弃草稿并继续
-          </button>
+          </TaskButton>
         </Surface>
       )}
       {((pendingRoute && pendingReason === "resources") || pendingResourceChange) && (
@@ -534,6 +538,7 @@ export function AppShell() {
       />
       {saveSource && (
         <SaveWorkspaceDialog
+          taskUi={route.screen === "tasks"}
           file={saveSource}
           onClose={() => setSaveSource(null)}
           onSaved={(operation) => {

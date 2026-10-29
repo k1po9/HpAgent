@@ -1,3 +1,4 @@
+import { TaskButton, TaskSelect, TaskLabel } from "../ui/TaskControls";
 import { useState } from "react";
 import type { HpWork } from "../../api/types";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
@@ -37,23 +38,23 @@ export function TaskResources({ work }: { work: HpWork }) {
       <h4>已授权资料</h4>
       {grants.error && (
         <p role="alert">
-          权限查询失败。<button onClick={grants.retry}>重试权限</button>
+          权限查询失败。<TaskButton onClick={grants.retry}>重试权限</TaskButton>
         </p>
       )}
       {grants.data?.grants.length === 0 && <p>此任务暂无长期资料授权。</p>}
       {grants.data?.grants.map((g) => (
         <p key={g.grant_id}>
           {g.name} · {g.operation} · {g.recursive ? "包含子项" : "仅此项"}
-          <button
+          <TaskButton
             onClick={() => useShell.getState().requestResourceChange(() => setNodeId(g.node_id))}
           >
             查看与管理
-          </button>
+          </TaskButton>
         </p>
       ))}
-      <label>
+      <TaskLabel>
         选择长期目录或文件
-        <select
+        <TaskSelect
           value={nodeId}
           onChange={(e) => {
             const next = e.target.value;
@@ -66,9 +67,9 @@ export function TaskResources({ work }: { work: HpWork }) {
               {nodePath(tree, n.node_id)}
             </option>
           ))}
-        </select>
-      </label>
-      {node && <GrantEditor node={node} subject={subject} />}
+        </TaskSelect>
+      </TaskLabel>
+      {node && <GrantEditor taskUi node={node} subject={subject} />}
       {node?.file_id && !inputFile && (
         <p>
           只有元数据已核实为 ready 且 purpose=input
