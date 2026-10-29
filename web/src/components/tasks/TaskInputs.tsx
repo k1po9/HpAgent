@@ -1,4 +1,4 @@
-import { Button } from "../ui";
+import { TaskButton } from "../ui/TaskControls";
 import { useState } from "react";
 import { api } from "../../api/client";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
@@ -51,31 +51,26 @@ export function WorkInputs({ subject, fileId }: { subject: Subject; fileId: stri
     <section>
       <h3>输入文件引用</h3>
       <p>输入引用与目录授权分别管理。</p>
-      <Button
-        type="button"
+      <TaskButton
         disabled={busy || !fileId || !canAdd}
         onClick={() => submit("inputs", { file_id: fileId, purpose: "input" })}
       >
         作为工作输入文件
-      </Button>
+      </TaskButton>
       {result.data?.items.map((ref) => (
         <p key={ref.ref_id}>
           {ref.file_id}
-          <Button
-            type="button"
+          <TaskButton
             disabled={busy}
             onClick={() => submit(`inputs/${encodeURIComponent(ref.ref_id)}`, undefined, "DELETE")}
           >
             撤销输入
-          </Button>
+          </TaskButton>
         </p>
       ))}
       {result.error && (
         <p role="alert">
-          输入查询失败。
-          <Button type="button" onClick={result.retry}>
-            重试输入
-          </Button>
+          输入查询失败。<TaskButton onClick={result.retry}>重试输入</TaskButton>
         </p>
       )}
       {error && <p role="alert">{error}</p>}

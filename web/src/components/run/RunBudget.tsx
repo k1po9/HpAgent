@@ -1,4 +1,3 @@
-import { Button } from "../ui";
 import { Cpu, ArrowDownLeft, ArrowUpRight, ChevronRight } from "lucide-react";
 import type { HpRunBudget, HpUsageCounter } from "../../api/types";
 import { useTraceStore } from "../trace/traceStore";
@@ -106,7 +105,7 @@ function ModelCalls() {
                   ? "耗时未记录"
                   : `${(node.durationMs / 1000).toFixed(2)} s`}
               </span>
-              <Button
+              <button
                 type="button"
                 onClick={() => {
                   selected(node.id);
@@ -114,7 +113,7 @@ function ModelCalls() {
                 }}
               >
                 查看节点 <ArrowUpRight size={13} />
-              </Button>
+              </button>
             </article>
           );
         })

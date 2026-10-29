@@ -78,7 +78,7 @@ test("lost PUT response resumes from ready metadata and does not reupload or res
   page.on("request", (r) => {
     if (new URL(r.url()).pathname === "/api/v1/workspace/files" && r.method() === "POST") saves++;
   });
-  await dialog.getByLabel("上传长期文件").setInputFiles({
+  await dialog.locator('input[type="file"]').setInputFiles({
     name,
     mimeType: "text/plain",
     buffer: Buffer.from("content arrived before response was lost"),
@@ -114,7 +114,7 @@ test("saved upload survives a failed grant, closes, reopens and retries authoriz
   });
   const dialog = page.getByRole("dialog", { name: "上传到空间" });
   const name = `grant-recovery-${Date.now()}.txt`;
-  await dialog.getByLabel("上传长期文件").setInputFiles({
+  await dialog.locator('input[type="file"]').setInputFiles({
     name,
     mimeType: "text/plain",
     buffer: Buffer.from("saved before grant failure"),

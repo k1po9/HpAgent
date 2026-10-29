@@ -1,4 +1,3 @@
-import { Button } from "../ui";
 import { Check, ShieldCheck, ShieldQuestion, ShieldAlert, ArrowUpRight } from "lucide-react";
 import { RunTimeline } from "./RunTimeline";
 import { RunRefresh } from "./RunRefresh";
@@ -135,18 +134,14 @@ export function RunInspector({
     return (
       <div>
         <p role="alert">对象不可用。</p>
-        <Button type="button" onClick={() => useShell.getState().closeInspector()}>
-          回到所属页面
-        </Button>
+        <button onClick={() => useShell.getState().closeInspector()}>回到所属页面</button>
       </div>
     );
   if (!snapshot)
     return (
       <div>
         <p role="status">{state.error ?? "正在加载执行…"}</p>
-        <Button type="button" onClick={() => void state.load()}>
-          重试
-        </Button>
+        <button onClick={() => void state.load()}>重试</button>
       </div>
     );
   const run = snapshot.run;
@@ -267,14 +262,13 @@ export function RunInspector({
                   任务 {snapshot.run.work_id} · 要求版本 {snapshot.run.requirement_revision}
                 </p>
                 <p>本次执行状态独立于所属任务状态。</p>
-                <Button
-                  type="button"
+                <button
                   onClick={() => {
                     useShell.getState().navigate({ screen: "tasks", workId: snapshot.run.work_id });
                   }}
                 >
                   查看所属任务
-                </Button>
+                </button>
                 {snapshot.run.failure_message && <p role="alert">{snapshot.run.failure_message}</p>}
                 {snapshot.run.failure_code?.includes("uncertain") && (
                   <p>操作结果待确认，请核查所属任务及实际操作记录。</p>
@@ -292,15 +286,11 @@ export function RunInspector({
             )}
             <RunTimeline key={id} run={run} />
             <RunCapabilityResults key={`results:${id}`} runId={id} revision={run.version} />
-            <Button
-              type="button"
-              className="hp-run-approvals-action"
-              onClick={() => changeTab("resources")}
-            >
+            <button className="hp-run-approvals-action" onClick={() => changeTab("resources")}>
               <ShieldQuestion size={20} aria-hidden="true" />
               <span>查看操作审批</span>
               <ArrowUpRight size={18} aria-hidden="true" />
-            </Button>
+            </button>
           </section>
         )}
         {tab === "resources" && (

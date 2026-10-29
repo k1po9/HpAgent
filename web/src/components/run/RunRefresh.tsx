@@ -1,4 +1,3 @@
-import { IconButton } from "../ui";
 import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRunInspector } from "../../store/runInspector";
@@ -15,7 +14,7 @@ export function RunRefresh({ inspector }: { inspector: Inspector }) {
   const description = `${scope}；资料、输出和审批请在各自区域刷新`;
   return (
     <span className="hp-run-refresh" data-feedback={error || feedback ? "true" : undefined}>
-      <IconButton
+      <button
         type="button"
         className="hp-run-refresh-button"
         aria-label={scope}
@@ -46,7 +45,7 @@ export function RunRefresh({ inspector }: { inspector: Inspector }) {
         }}
       >
         <RefreshCw size={17} aria-hidden="true" />
-      </IconButton>
+      </button>
       <span id="run-refresh-hint" className="hp-run-refresh-hint" role="status">
         {pending ? "正在刷新…" : error ? "执行状态刷新失败，请重试" : feedback || description}
       </span>

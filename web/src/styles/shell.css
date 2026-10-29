@@ -30,6 +30,11 @@
   display: none !important;
 }
 
+.hp-shell button:where(:not([class*="lobe-"])),
+.hp-surface button:where(:not([class*="lobe-"])) {
+  cursor: pointer;
+}
+
 .hp-rail {
   width: var(--hp-rail);
   flex: 0 0 var(--hp-rail);
@@ -63,7 +68,7 @@
   width: 100%;
 }
 
-.hp-rail button {
+.hp-rail button:where(:not([class*="lobe-"])) {
   border: 0;
   background: transparent;
   color: var(--hp-rail-muted);
@@ -78,19 +83,19 @@
   font-size: 0.75rem;
 }
 
-.hp-rail button svg {
+.hp-rail button:where(:not([class*="lobe-"])) svg {
   width: 26px;
   height: 26px;
 }
 
-.hp-rail nav button {
+.hp-rail nav button:where(:not([class*="lobe-"])) {
   min-height: 80px;
   gap: 9px;
   font-size: 14px;
   position: relative;
 }
 
-.hp-rail nav button[aria-current="page"]::before {
+.hp-rail nav button:where(:not([class*="lobe-"]))[aria-current="page"]::before {
   content: "";
   position: absolute;
   left: -10px;
@@ -100,7 +105,7 @@
   background: var(--hp-brand);
 }
 
-.hp-rail button[aria-current="page"] {
+.hp-rail button:where(:not([class*="lobe-"]))[aria-current="page"] {
   background: var(--hp-rail-selection);
   color: var(--hp-rail-active);
   font-weight: 700;
@@ -174,8 +179,23 @@
   white-space: nowrap;
 }
 
-.hp-canvas-header > button,
-.hp-canvas-actions > button {
+.hp-canvas-header button:where(:not([class*="lobe-"])),
+.hp-surface-header button:where(:not([class*="lobe-"])) {
+  border: 1px solid var(--hp-control-border);
+  background: var(--hp-surface);
+  border-radius: 6px;
+  min-height: 40px;
+  padding: 5px 10px;
+}
+
+.hp-canvas-header button:where(:not([class*="lobe-"])) {
+  font: inherit;
+  font-size: 13px;
+  color: var(--hp-muted);
+}
+
+.hp-canvas-header > button:where(:not([class*="lobe-"])),
+.hp-canvas-actions > button:where(:not([class*="lobe-"])) {
   flex-shrink: 0;
 }
 
@@ -301,9 +321,9 @@
   color: var(--hp-reading-accent);
 }
 
-.hp-surface-body input,
-.hp-surface-body select,
-.hp-surface-body textarea {
+.hp-surface-body input:where(:not([class*="lobe-"])),
+.hp-surface-body select:where(:not([class*="lobe-"])),
+.hp-surface-body textarea:where(:not([class*="lobe-"])) {
   max-width: 100%;
 }
 
@@ -330,7 +350,8 @@
   min-height: 160px;
 }
 
-:where(.hp-shell :focus-visible, .hp-surface :focus-visible) {
+.hp-shell :focus-visible,
+.hp-surface :focus-visible {
   outline: 2px solid var(--hp-focus);
   outline-offset: 3px;
 }
@@ -361,18 +382,18 @@
     display: none;
   }
 
-  .hp-rail nav button {
+  .hp-rail nav button:where(:not([class*="lobe-"])) {
     min-height: 58px;
     gap: 7px;
     font-size: 12px;
   }
 
-  .hp-rail button svg {
+  .hp-rail button:where(:not([class*="lobe-"])) svg {
     width: 22px;
     height: 22px;
   }
 
-  .hp-rail nav button[aria-current="page"]::before {
+  .hp-rail nav button:where(:not([class*="lobe-"]))[aria-current="page"]::before {
     left: -6px;
   }
 
@@ -419,13 +440,13 @@
     gap: 0;
   }
 
-  .hp-rail nav button {
+  .hp-rail nav button:where(:not([class*="lobe-"])) {
     flex: 1;
     min-height: 48px;
     gap: 3px;
   }
 
-  .hp-rail nav button[aria-current="page"]::before {
+  .hp-rail nav button:where(:not([class*="lobe-"]))[aria-current="page"]::before {
     display: none;
   }
 
@@ -440,6 +461,10 @@
 
   .hp-canvas-header h1 {
     font-size: 18px;
+  }
+
+  .hp-canvas-header button:where(:not([class*="lobe-"])) {
+    font-size: 12px;
   }
 
   .hp-canvas-actions {
@@ -510,7 +535,7 @@
 .hp-rail nav {
   position: relative;
 }
-.hp-rail nav button[aria-current="page"]::before {
+.hp-rail nav button:where(:not([class*="lobe-"]))[aria-current="page"]::before {
   content: none;
 }
 .hp-rail-track {
@@ -741,6 +766,26 @@
   .hp-inspector-exit {
     animation: none;
   }
+}
+.hp-inspector .hp-inspector-tabs {
+  position: relative;
+}
+.hp-inspector .hp-inspector-tabs button:where(:not([class*="lobe-"]))[aria-selected="true"] {
+  border-bottom-color: transparent;
+}
+.hp-inspector-tab-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 2px;
+  background: var(--hp-accent);
+  pointer-events: none;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    width 180ms ease-out;
+}
+[data-tab-motion="reduced"] .hp-inspector-tab-indicator {
+  transition: none;
 }
 
 .hp-run-reception {

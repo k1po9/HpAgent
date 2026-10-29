@@ -1,4 +1,3 @@
-import { Theme } from "@radix-ui/themes";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { InspectorHost } from "./InspectorHost";
@@ -221,11 +220,7 @@ it("Back restores parent tab and origin without a new flight", async () => {
 });
 it("binds the real TaskRow title source and restores it on close", async () => {
   const a = work("a");
-  render(
-    <Theme>
-      <TaskRow work={a} />
-    </Theme>,
-  );
+  render(<TaskRow work={a} />);
   setup();
   const trigger = screen.getByRole("button", { name: "Task a" });
   fireEvent.click(trigger);

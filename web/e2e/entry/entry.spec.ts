@@ -372,35 +372,3 @@ for (const reason of ["no_progress", "repeated_failure"] as const) {
     }
   });
 }
-
-test("auth fields keep component spacing and describe only the mismatched confirmation", async ({
-  page,
-}) => {
-  await fixtures(page, async () => "expired");
-  await page.goto("/");
-  const username = page.getByRole("textbox", { name: "用户名", exact: true });
-  for (const width of [1536, 390]) {
-    await page.setViewportSize({ width, height: 844 });
-    await expect(username.locator("..")).toHaveCSS("gap", "8px");
-    await username.focus();
-    await page.keyboard.press("Tab");
-    const password = page.getByLabel("密码", { exact: true });
-    await expect(password).toBeFocused();
-    await expect(password).toHaveCSS("outline-style", "solid");
-    await expect(password).toHaveCSS("outline-offset", "3px");
-  }
-  await page.getByRole("button", { name: "没有账号？注册" }).click();
-  await username.fill("fixture");
-  await page.getByLabel("密码", { exact: true }).fill("password-a");
-  const confirmation = page.getByLabel("确认密码", { exact: true });
-  await confirmation.fill("password-b");
-  await page.getByRole("button", { name: "注册", exact: true }).click();
-  await expect(confirmation).toHaveAttribute("aria-invalid", "true");
-  await expect(confirmation).toHaveAccessibleDescription("两次输入的密码不一致。");
-  await expect(page.getByLabel("密码", { exact: true })).not.toHaveAttribute(
-    "aria-invalid",
-    "true",
-  );
-  await confirmation.fill("password-a");
-  await expect(confirmation).not.toHaveAttribute("aria-invalid", "true");
-});

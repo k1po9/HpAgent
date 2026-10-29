@@ -1,4 +1,3 @@
-import { Button } from "../ui";
 import { useReadingPresentation } from "../mercury/readingPresentation";
 import { FileCode, ChevronRight } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -82,7 +81,7 @@ export function ArtifactMessageItems({
   return (
     <div ref={root} className="hp-artifact-message-items" aria-label="消息 HTML 成果">
       {items?.map((item) => (
-        <Button
+        <button
           type="button"
           key={item.artifact.artifact_id}
           className="hp-artifact-message-card"
@@ -117,20 +116,20 @@ export function ArtifactMessageItems({
             <span>打开</span>
             <ChevronRight size={16} />
           </span>
-        </Button>
+        </button>
       ))}
       {query?.error ? (
         <p role="alert">
           {query.error}{" "}
-          <Button
+          <button
             type="button"
             onClick={() => useArtifacts.getState().loadForMessage(messageId, true)}
           >
             重试成果查询
-          </Button>
+          </button>
         </p>
       ) : (
-        <Button
+        <button
           id={`artifact-create-${messageId}`}
           type="button"
           disabled={!items || query?.loading || intent?.busy}
@@ -143,7 +142,7 @@ export function ArtifactMessageItems({
               : items?.length
                 ? "再生成一个 HTML"
                 : "生成 HTML"}
-        </Button>
+        </button>
       )}
       {intent?.result?.error && <p role="alert">{intent.result.error}</p>}
       {intent?.uncertain && <p>结果尚未确认，恢复会重放同一个生成请求。</p>}

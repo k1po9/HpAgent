@@ -1,5 +1,5 @@
-import { Notice } from "../ui";
-import { Button, Field, TextField, Select, Toolbar } from "../ui";
+import { Alert, Breadcrumb, Button, Input, SearchBar } from "@lobehub/ui";
+import { WorkspaceDisclosure, WorkspaceSelectField } from "./WorkspaceControls";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useShell } from "../../store/shell";
@@ -79,46 +79,43 @@ export function WorkspaceScreen() {
       : (index?.children.get(directoryId) ?? [])
     : [];
   return (
-    <div className="hp-workspace-screen">
+    <div className="hp-workspace-screen hp-workspace-screen--lobe hp-lobe-scope">
       {state.notice && (
-        <Notice role="status">
+        <p role="status">
           {state.notice}
-          <Button type="button" onClick={() => useWorkspace.setState({ notice: "" })}>
-            知道了
-          </Button>
-        </Notice>
+          <Button onClick={() => useWorkspace.setState({ notice: "" })}>知道了</Button>
+        </p>
       )}
-      <nav aria-label="空间路径" className="hp-breadcrumbs">
-        {tree &&
-          ancestors(tree, directoryId).map((n) => (
-            <Button
-              type="button"
-              key={n.node_id}
-              onClick={() => {
-                useShell.getState().requestResourceChange(() => {
-                  useShell.getState().navigate({ screen: "workspace", directoryId: n.node_id });
-                  if (!useShell.getState().pendingRoute)
-                    useWorkspace.setState({ allFiles: false, searchMode: false, notice: "" });
-                });
-              }}
-            >
-              {n.parent_id === null ? "根目录" : n.name}
-            </Button>
-          ))}
-        {state.allFiles && <span>全部文件</span>}
-      </nav>
-      <Toolbar className="hp-workspace-toolbar">
-        <Button
-          variant="solid"
-          type="button"
-          disabled={!canUpload || !tree}
-          onClick={() => setUpload(true)}
-        >
+      <Breadcrumb
+        aria-label="空间路径"
+        className="hp-breadcrumbs"
+        items={
+          tree
+            ? [
+                ...ancestors(tree, directoryId).map((node) => ({
+                  key: node.node_id,
+                  title: node.parent_id === null ? "根目录" : node.name,
+                  onClick: () =>
+                    useShell.getState().requestResourceChange(() => {
+                      if (
+                        useShell
+                          .getState()
+                          .navigate({ screen: "workspace", directoryId: node.node_id })
+                      )
+                        useWorkspace.setState({ allFiles: false, searchMode: false, notice: "" });
+                    }),
+                })),
+                ...(state.allFiles ? [{ key: "all-files", title: "全部文件" }] : []),
+              ]
+            : []
+        }
+      />
+      <div className="hp-workspace-toolbar">
+        <Button type="primary" disabled={!canUpload || !tree} onClick={() => setUpload(true)}>
           上传文件
         </Button>
         {!canUpload && <span>当前账户未启用文件上传</span>}
         <Button
-          type="button"
           onClick={() => {
             state.invalidate();
             setNotice("已请求刷新空间。");
@@ -126,7 +123,7 @@ export function WorkspaceScreen() {
         >
           刷新空间
         </Button>
-      </Toolbar>
+      </div>
       <form
         aria-label="长期文件搜索"
         className="hp-workspace-search"
@@ -136,96 +133,92 @@ export function WorkspaceScreen() {
           void state.searchFiles(filters);
         }}
       >
-        <Field>
+        <label>
           全空间文件名称
-          <TextField
+          <SearchBar
             aria-label="长期文件名称"
+            enableShortKey={false}
+            loading={state.searching}
             placeholder="搜索全空间文件"
             value={filters.name ?? ""}
             onChange={(e) => setFilters({ ...filters, name: e.target.value })}
           />
-        </Field>
-        <Button variant="solid" type="submit" disabled={state.searching}>
+        </label>
+        <Button htmlType="submit" loading={state.searching} disabled={state.searching}>
           搜索
         </Button>
         {searchMode && (
-          <Button type="button" onClick={() => setSearchMode(false)}>
+          <Button htmlType="button" onClick={() => setSearchMode(false)}>
             返回目录
           </Button>
         )}
-        <details>
-          <summary>高级搜索</summary>
-          {(
-            [
-              ["summary", "摘要关键词"],
-              ["content_type", "内容类型"],
-              ["work_id", "来源 Work ID"],
-              ["source_run_id", "来源 Run ID"],
-              ["from_date", "开始创建日期"],
-              ["to_date", "结束创建日期"],
-            ] as const
-          ).map(([key, label]) => (
-            <Field key={key}>
-              {label}
-              <TextField
-                aria-label={label}
-                type={key.endsWith("date") ? "date" : "text"}
-                value={filters[key] ?? ""}
-                onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
-              />
-            </Field>
-          ))}
-          <Field>
-            来源
-            <Select
+        <WorkspaceDisclosure title="高级搜索" className="hp-workspace-filters">
+          <div className="hp-workspace-filter-grid">
+            {(
+              [
+                ["summary", "摘要关键词"],
+                ["content_type", "内容类型"],
+                ["work_id", "来源 Work ID"],
+                ["source_run_id", "来源 Run ID"],
+                ["from_date", "开始创建日期"],
+                ["to_date", "结束创建日期"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key}>
+                {label}
+                <Input
+                  aria-label={label}
+                  type={key.endsWith("date") ? "date" : "text"}
+                  value={filters[key] ?? ""}
+                  onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
+                />
+              </label>
+            ))}
+            <WorkspaceSelectField
+              label="来源"
               value={filters.purpose ?? ""}
-              onChange={(e) => setFilters({ ...filters, purpose: e.target.value })}
-            >
-              <option value="">全部</option>
-              <option value="input">上传</option>
-              <option value="output">AI 输出</option>
-            </Select>
-          </Field>
-        </details>
+              options={[
+                { value: "", label: "全部" },
+                { value: "input", label: "上传" },
+                { value: "output", label: "AI 输出" },
+              ]}
+              onChange={(value) => setFilters({ ...filters, purpose: value })}
+            />
+          </div>
+        </WorkspaceDisclosure>
       </form>
       {state.error && (
-        <Notice role="alert">
+        <p role="alert">
           {state.error}
-          <Button type="button" onClick={() => void state.loadTree(true).catch(() => {})}>
-            重试空间
-          </Button>
-        </Notice>
+          <Button onClick={() => void state.loadTree(true).catch(() => {})}>重试空间</Button>
+        </p>
       )}
-      {!tree && !state.error && <Notice role="status">正在加载空间…</Notice>}
+      {!tree && !state.error && <p role="status">正在加载空间…</p>}
       {searchMode ? (
         <section aria-label="长期文件搜索结果">
-          {state.searching && <Notice role="status">正在搜索全空间文件…</Notice>}
+          {state.searching && <p role="status">正在搜索全空间文件…</p>}
           {state.searchError && (
-            <Notice role="alert">
+            <p role="alert">
               {state.searchError}
               <Button
-                type="button"
                 onClick={() =>
                   void state.searchFiles(state.filters, Boolean(state.search?.next_after))
                 }
               >
                 重试搜索
               </Button>
-            </Notice>
+            </p>
           )}
           {state.searchStale && (
-            <Notice role="status">
+            <p role="status">
               结果已变化，请刷新。
-              <Button type="button" onClick={() => void state.searchFiles(state.filters)}>
-                刷新搜索
-              </Button>
-            </Notice>
+              <Button onClick={() => void state.searchFiles(state.filters)}>刷新搜索</Button>
+            </p>
           )}
           {state.search && <FileList nodes={[]} search={state.search.items} />}
-          {state.search?.items.length === 0 && <p>没有匹配文件。</p>}
+
           {state.search?.next_after && (
             <Button
-              type="button"
               disabled={state.searching || state.searchStale}
               onClick={() => void state.searchFiles(undefined, true)}
             >
@@ -236,10 +229,9 @@ export function WorkspaceScreen() {
       ) : (
         <>
           {tree && <FileList nodes={nodes} />}
-          {tree && nodes.length === 0 && <p>此处暂无文件或目录。</p>}
+
           <form
             aria-label="新建子目录"
-            aria-describedby={error ? "workspace-directory-error" : undefined}
             className="hp-operation-form"
             onSubmit={(e) => {
               e.preventDefault();
@@ -270,27 +262,27 @@ export function WorkspaceScreen() {
                 });
             }}
           >
-            <Field>
+            <label>
               新目录名称
-              <TextField
+              <Input
                 aria-label="新目录名称"
                 value={folder}
                 onChange={(e) => setFolder(e.target.value)}
                 disabled={busy}
               />
-            </Field>
-            <Button variant="solid" type="submit" disabled={busy || !folder.trim() || !directoryId}>
+            </label>
+            <Button
+              htmlType="submit"
+              loading={busy}
+              disabled={busy || !folder.trim() || !directoryId}
+            >
               {busy ? "正在创建目录…" : "新建目录"}
             </Button>
           </form>
         </>
       )}
-      {error && (
-        <Notice id="workspace-directory-error" role="alert">
-          {error}
-        </Notice>
-      )}
-      {notice && <Notice role="status">{notice}</Notice>}
+      {error && <Alert type="error" title={error} />}
+      {notice && <Alert type="info" role="status" title={notice} />}
       {space.data && (
         <p className="hp-muted">
           物理文件 {space.data.physical_files} 个 · {space.data.physical_bytes}{" "}
@@ -298,12 +290,9 @@ export function WorkspaceScreen() {
         </p>
       )}
       {space.error && (
-        <Notice role="status">
-          空间统计暂不可用。
-          <Button type="button" onClick={space.retry}>
-            重试统计
-          </Button>
-        </Notice>
+        <p role="status">
+          空间统计暂不可用。<Button onClick={space.retry}>重试统计</Button>
+        </p>
       )}
       {upload && (
         <UploadToWorkspaceDialog directoryId={directoryId} onClose={() => setUpload(false)} />

@@ -1,6 +1,5 @@
-import { Button } from "./ui";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Box, Text } from "@radix-ui/themes";
+import { Box, Button, Text } from "@radix-ui/themes";
 import { MessageSquare, Link2 } from "lucide-react";
 import { api, type MeResponse, type QqBindingChallenge } from "../api/client";
 

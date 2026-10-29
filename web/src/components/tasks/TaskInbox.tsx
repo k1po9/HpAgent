@@ -1,4 +1,5 @@
-import { Button } from "../ui";
+import { Empty } from "@lobehub/ui";
+import { TaskButton, TaskDetails, TaskCode } from "../ui/TaskControls";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../api/client";
 import type { HpNotification } from "../../api/types";
@@ -78,9 +79,13 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [generation]);
   return (
-    <Surface motion="elevate" title="账户收件箱" onClose={onClose}>
-      <Button
-        type="button"
+    <Surface
+      className="hp-task-inbox hp-lobe-scope"
+      motion="elevate"
+      title="账户收件箱"
+      onClose={onClose}
+    >
+      <TaskButton
         disabled={busy}
         onClick={() => {
           cursors.current.clear();
@@ -88,21 +93,22 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
         }}
       >
         刷新收件箱
-      </Button>
+      </TaskButton>
       {busy && <p role="status">正在加载通知…</p>}
       {error && (
         <p role="alert">
           {error}
-          <Button
-            type="button"
+          <TaskButton
             disabled={busy}
             onClick={() => void load(more ? items.at(-1)?.notification_id : undefined)}
           >
             重试通知
-          </Button>
+          </TaskButton>
         </p>
       )}
-      {loaded && !items.length && !error && <p>暂无已存入收件箱的通知。</p>}
+      {loaded && !items.length && !error && (
+        <Empty className="hp-task-empty" title="暂无已存入收件箱的通知。" />
+      )}
       {items.map((item) => (
         <article className="hp-task-notification" key={item.notification_id}>
           <p>{summary(item.payload)}</p>
@@ -110,8 +116,7 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
             {new Date(item.created_at).toLocaleString()} · 已存入账户收件箱，不代表已读
           </p>
           {item.work_id && (
-            <Button
-              type="button"
+            <TaskButton
               id={`task-notification-${item.notification_id}`}
               onClick={() => {
                 onClose();
@@ -127,11 +132,10 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
               }}
             >
               查看任务
-            </Button>
+            </TaskButton>
           )}
           {item.run_id && (
-            <Button
-              type="button"
+            <TaskButton
               onClick={() => {
                 onClose();
                 useShell.getState().openInspector({
@@ -142,22 +146,18 @@ export function TaskInbox({ onClose }: { onClose: () => void }) {
               }}
             >
               查看执行
-            </Button>
+            </TaskButton>
           )}
-          <details>
+          <TaskDetails>
             <summary>通知详情</summary>
-            <pre>{JSON.stringify(item.payload, null, 2)}</pre>
-          </details>
+            <TaskCode>{JSON.stringify(item.payload, null, 2)}</TaskCode>
+          </TaskDetails>
         </article>
       ))}
       {more && (
-        <Button
-          type="button"
-          disabled={busy}
-          onClick={() => void load(items.at(-1)?.notification_id)}
-        >
+        <TaskButton disabled={busy} onClick={() => void load(items.at(-1)?.notification_id)}>
           加载更多通知
-        </Button>
+        </TaskButton>
       )}
     </Surface>
   );

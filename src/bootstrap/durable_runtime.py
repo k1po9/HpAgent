@@ -109,6 +109,7 @@ def compose_durable_runtime(
     lifecycle = WebRunLifecycleService(
         worker_database_url,
         TraceLifecycleObserver(trace_repository, event_factory.detach_run),
+        qq_timeout_reply=shared.prompt_loader.get_system("qq_model_timeout_reply"),
     )
     context = ContextAssemblyService(
         worker_database_url, shared.context_builder, shared.hindsight_client,

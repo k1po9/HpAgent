@@ -23,11 +23,24 @@
   align-items: center;
   justify-content: center;
   width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #586875;
 }
 .hp-inspector--run > .hp-surface-body {
   padding: 0 22px 24px;
   background: #f0f2f4;
   scrollbar-gutter: stable;
+}
+.hp-inspector--run .hp-run-inspector > .hp-inspector-tabs {
+  margin: 0 0 20px;
+  padding-top: 2px;
+  gap: 6px;
+  border-bottom-color: #cfd5db;
 }
 .hp-run-refresh {
   position: relative;
@@ -54,6 +67,9 @@
 }
 .hp-run-refresh:is(:hover, :focus-within) .hp-run-refresh-hint {
   opacity: 1;
+}
+.hp-run-refresh[data-feedback="true"] .hp-run-refresh-button {
+  color: #a7422d;
 }
 .hp-run-refresh-button[aria-busy="true"] svg {
   animation: hp-run-refresh-turn 1s linear infinite;
@@ -101,8 +117,16 @@ body.hp-run-resizing * {
 @media (min-width: 1280px) {
   .hp-inspector--run {
     position: relative;
-    flex-basis: clamp(360px, var(--hp-run-inspector-width, 460px), var(--hp-run-max-width, 880px));
-    width: clamp(360px, var(--hp-run-inspector-width, 460px), var(--hp-run-max-width, 880px));
+    flex-basis: clamp(
+      360px,
+      var(--hp-run-inspector-width, 460px),
+      min(880px, calc(100vw - var(--hp-rail) - var(--hp-canvas-min) - var(--hp-layout-gap)))
+    );
+    width: clamp(
+      360px,
+      var(--hp-run-inspector-width, 460px),
+      min(880px, calc(100vw - var(--hp-rail) - var(--hp-canvas-min) - var(--hp-layout-gap)))
+    );
     transition: none;
   }
 }
@@ -112,6 +136,10 @@ body.hp-run-resizing * {
   }
   .hp-inspector--run > .hp-surface-body {
     padding: 0 14px 20px;
+  }
+  .hp-inspector--run .hp-run-inspector > .hp-inspector-tabs {
+    gap: 0;
+    margin-bottom: 16px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -139,8 +167,16 @@ body.hp-run-resizing * {
 }
 @media (min-width: 1280px) {
   .hp-inspector-exit--run {
-    flex-basis: clamp(360px, var(--hp-run-inspector-width, 460px), var(--hp-run-max-width, 880px));
-    width: clamp(360px, var(--hp-run-inspector-width, 460px), var(--hp-run-max-width, 880px));
+    flex-basis: clamp(
+      360px,
+      var(--hp-run-inspector-width, 460px),
+      min(880px, calc(100vw - var(--hp-rail) - var(--hp-canvas-min) - var(--hp-layout-gap)))
+    );
+    width: clamp(
+      360px,
+      var(--hp-run-inspector-width, 460px),
+      min(880px, calc(100vw - var(--hp-rail) - var(--hp-canvas-min) - var(--hp-layout-gap)))
+    );
   }
 }
 

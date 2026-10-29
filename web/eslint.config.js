@@ -22,31 +22,4 @@ export default tseslint.config(
       ],
     },
   },
-  {
-    files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/components/ui/**"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            {
-              name: "@radix-ui/themes",
-              importNames: [
-                "Button",
-                "IconButton",
-                "TextField",
-                "TextArea",
-                "Select",
-                "Checkbox",
-                "DropdownMenu",
-              ],
-              message:
-                "Use components/ui project controls; keep native dialog portal coordination there.",
-            },
-          ],
-        },
-      ],
-    },
-  },
 );

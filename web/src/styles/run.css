@@ -82,6 +82,12 @@
   text-align: left;
   cursor: pointer;
 }
+.hp-execution-block > button.hp-run-detail {
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--hp-muted);
+}
 .hp-run-actions .rt-Button {
   min-height: 36px;
 }
@@ -107,6 +113,18 @@
   overflow-wrap: anywhere;
 }
 
+.hp-run-inspector [role="tablist"] {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-block: 12px;
+}
+
+.hp-run-inspector [role="tab"][aria-selected="true"] {
+  background: transparent;
+  border-color: var(--hp-accent);
+}
+
 .hp-run-inspector pre {
   max-width: 100%;
   white-space: pre-wrap;
@@ -121,6 +139,35 @@
 .hp-run-inspector article {
   padding-block: 12px;
   border-bottom: 1px solid var(--hp-border);
+}
+
+.hp-run-inspector button,
+.hp-execution-block > button,
+.hp-inspector > .hp-surface-body > button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--hp-control-border);
+  border-radius: 8px;
+  background: var(--hp-surface);
+  color: var(--hp-text);
+  font: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.hp-run-inspector button:hover:not(:disabled),
+.hp-execution-block > button:hover:not(.hp-run-detail) {
+  background: var(--hp-subtle);
+}
+
+.hp-run-inspector button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.hp-run-inspector [role="tab"][aria-selected="true"] {
+  background: transparent;
+  border-color: var(--hp-accent);
 }
 
 .hp-run-inspector .hp-trace-tree-wrap,

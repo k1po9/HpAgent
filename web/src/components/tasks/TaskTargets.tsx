@@ -1,4 +1,4 @@
-import { Button, Field, TextField } from "../ui";
+import { TaskButton, TaskInput, TaskLabel, TaskForm } from "../ui/TaskControls";
 import { validSnapshot } from "./taskActions";
 import { useState } from "react";
 import type { HpWork } from "../../api/types";
@@ -29,10 +29,7 @@ export function TaskTargets({ work }: { work: HpWork }) {
       <h4>通知目标</h4>
       {query.error && (
         <p role="alert">
-          通知目标查询失败。
-          <Button type="button" onClick={query.retry}>
-            重试目标
-          </Button>
+          通知目标查询失败。<TaskButton onClick={query.retry}>重试目标</TaskButton>
         </p>
       )}
       {query.data?.items.map((t) => (
@@ -40,20 +37,18 @@ export function TaskTargets({ work }: { work: HpWork }) {
           {t.channel === "web" ? "账户收件箱" : t.channel === "qq" ? "QQ" : "未知渠道"} ·{" "}
           {t.audience} · {t.enabled ? "已启用" : "已停用"} · v{t.target_version}
           {t.enabled && ["web", "qq"].includes(t.channel) && (
-            <Button
-              type="button"
+            <TaskButton
               disabled={intent?.busy || intent?.uncertain}
               onClick={() => setTarget(t.target_id)}
             >
               停用此通知目标
-            </Button>
+            </TaskButton>
           )}
         </p>
       ))}
       {active && (
         <>
-          <Button
-            type="button"
+          <TaskButton
             disabled={intent?.busy || intent?.uncertain}
             onClick={() =>
               void useWorks.getState().command(work, {
@@ -64,8 +59,8 @@ export function TaskTargets({ work }: { work: HpWork }) {
             }
           >
             启用账户收件箱目标
-          </Button>
-          <form
+          </TaskButton>
+          <TaskForm
             onSubmit={(e) => {
               e.preventDefault();
               void useWorks.getState().command(work, {
@@ -75,28 +70,27 @@ export function TaskTargets({ work }: { work: HpWork }) {
               });
             }}
           >
-            <Field>
+            <TaskLabel>
               已验证来源消息编号
-              <TextField required value={source} onChange={(e) => setSource(e.target.value)} />
-            </Field>
+              <TaskInput required value={source} onChange={(e) => setSource(e.target.value)} />
+            </TaskLabel>
             <p>渠道目标从有权访问的消息来源解析；群聊只发送摘要。</p>
-            <Button variant="solid" type="submit" disabled={intent?.busy || intent?.uncertain}>
+            <TaskButton disabled={intent?.busy || intent?.uncertain}>
               从来源消息设置通知目标
-            </Button>
-          </form>
+            </TaskButton>
+          </TaskForm>
         </>
       )}
       {intent?.error && <p role="alert">{intent.error}</p>}
       {target && (
         <Surface
-          className="hp-object-operation"
+          className="hp-object-operation hp-task-operation hp-lobe-scope"
           motion="elevate"
           title="停用通知目标"
           onClose={() => setTarget(null)}
         >
           <p>将停止向此目标投递，待发送或失败的通知会撤销。已经发送或结果未决的通知仍需核查。</p>
-          <Button
-            type="button"
+          <TaskButton
             disabled={intent?.busy}
             onClick={() =>
               void useWorks
@@ -111,7 +105,7 @@ export function TaskTargets({ work }: { work: HpWork }) {
             }
           >
             确认停用此目标
-          </Button>
+          </TaskButton>
           {intent?.error && <p role="alert">{intent.error}</p>}
         </Surface>
       )}

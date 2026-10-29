@@ -14,6 +14,10 @@ from work_domain.models import continuation
 from work_domain.persistence import WorkRepository
 
 
+class DeliveryTargetUnavailable(ValueError):
+    """The current account or binding no longer permits this notification."""
+
+
 def ensure_inbox(uow, account_id, work_id=None):
     latest = uow.execute(
         "SELECT * FROM delivery_targets WHERE account_id=%s AND work_id IS NOT DISTINCT FROM %s "
@@ -97,7 +101,7 @@ def enqueue(
         or target["work_id"] != (work["work_id"] if work else None)
         or not target_authorized(uow, target)
     ):
-        raise ValueError("notification target unavailable")
+        raise DeliveryTargetUnavailable("notification target unavailable")
     delivery = uuid5(notification, str(target_id))
     uow.execute(
         "INSERT INTO deliveries(delivery_id,account_id,notification_id,target_id,target_version) "
@@ -524,7 +528,7 @@ def target_from_origin(
         "identity_subject": identity[1],
     }
     if not target_authorized(uow, target):
-        raise ValueError("target binding unavailable")
+        raise DeliveryTargetUnavailable("target binding unavailable")
     target_id = uuid4()
     uow.execute(
         "INSERT INTO delivery_targets(target_id,account_id,work_id,channel,identity_provider,identity_subject,"

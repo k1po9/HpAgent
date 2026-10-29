@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { render } from "../../test/renderWithLobe";
+import { act, fireEvent, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useShell } from "../../store/shell";
@@ -38,7 +39,7 @@ beforeEach(() => {
 });
 it("keeps directory filters until sidebar navigation is approved", async () => {
   render(<WorkspaceSidebar />);
-  fireEvent.click(screen.getByRole("button", { name: "资料" }));
+  fireEvent.click(screen.getByRole("treeitem", { name: "资料" }));
   expect(useWorkspace.getState().allFiles).toBe(true);
   expect(useWorkspace.getState().searchMode).toBe(true);
   expect(useShell.getState().route.directoryId).toBe("root");
@@ -105,9 +106,10 @@ it("protects a selected upload before any operation is submitted", async () => {
   useAuth.setState({ capabilities: { file_upload: true } });
   const close = vi.fn();
   render(<UploadToWorkspaceDialog directoryId="root" onClose={close} />);
-  fireEvent.change(screen.getByLabelText("上传长期文件"), {
+  fireEvent.change(document.querySelector('input[type="file"]')!, {
     target: { files: [new File(["draft"], "draft.txt", { type: "text/plain" })] },
   });
+  await screen.findByDisplayValue("draft.txt");
   fireEvent.click(screen.getByRole("button", { name: "关闭上传到空间" }));
   expect(close).not.toHaveBeenCalled();
   expect(await screen.findByRole("dialog", { name: "放弃未提交的上传选择？" })).toBeInTheDocument();
@@ -126,4 +128,34 @@ it("protects changed save choices before submission", async () => {
   fireEvent.click(screen.getByRole("button", { name: "关闭保存到长期文件" }));
   expect(close).not.toHaveBeenCalled();
   expect(await screen.findByRole("dialog", { name: "放弃未提交的保存选择？" })).toBeInTheDocument();
+});
+
+it("keeps the all-files selection unchanged until a dirty directory draft is discarded", () => {
+  const discard = vi.fn();
+  useWorkspace.setState({ allFiles: false, searchMode: true });
+  useShell.setState({ dirtyResourceEditor: null, dirtyDirectoryEditor: discard });
+  render(<WorkspaceSidebar />);
+  const allFiles = screen.getByRole("button", { name: "全部文件" });
+  expect(allFiles).not.toHaveAttribute("aria-current");
+  expect(screen.getByRole("treeitem", { name: "根目录" })).toHaveAttribute("aria-selected", "true");
+  fireEvent.click(allFiles);
+  expect(useWorkspace.getState().allFiles).toBe(false);
+  expect(useWorkspace.getState().searchMode).toBe(true);
+  expect(allFiles).not.toHaveAttribute("aria-current");
+  const resume = useShell.getState().pendingDirectoryChange;
+  expect(resume).toBeTypeOf("function");
+  act(() => {
+    useShell.setState({ dirtyDirectoryEditor: null, pendingDirectoryChange: null });
+    discard();
+    resume?.();
+  });
+  expect(allFiles).toHaveAttribute("aria-current", "true");
+  expect(screen.getByRole("treeitem", { name: "根目录" })).toHaveAttribute(
+    "aria-selected",
+    "false",
+  );
+  expect(useWorkspace.getState().searchMode).toBe(false);
+  fireEvent.click(screen.getByRole("treeitem", { name: "资料" }));
+  expect(useShell.getState().route.directoryId).toBe("docs");
+  expect(allFiles).not.toHaveAttribute("aria-current");
 });

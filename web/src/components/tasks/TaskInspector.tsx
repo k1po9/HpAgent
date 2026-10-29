@@ -1,5 +1,14 @@
-import { Button, Field, TextField } from "../ui";
-import { InspectorTabs } from "../shell/InspectorTabs";
+import { Descriptions, Tag } from "@lobehub/ui";
+import {
+  TaskButton,
+  TaskInput,
+  TaskDetails,
+  TaskDescriptions,
+  TaskCode,
+  TaskLabel,
+  TaskForm,
+} from "../ui/TaskControls";
+import { TaskInspectorTabs } from "./TaskInspectorTabs";
 import { RunLookup } from "../run/RunLookup";
 import { useEffect, useState, type ReactNode } from "react";
 import type { HpWork } from "../../api/types";
@@ -55,8 +64,7 @@ export function TaskInspector({
       <div>
         <p role={error ? "alert" : "status"}>{error ?? "正在加载任务…"}</p>
         {error && (
-          <Button
-            type="button"
+          <TaskButton
             onClick={() =>
               void useWorks
                 .getState()
@@ -65,7 +73,7 @@ export function TaskInspector({
             }
           >
             重新验证任务
-          </Button>
+          </TaskButton>
         )}
       </div>
     );
@@ -73,16 +81,23 @@ export function TaskInspector({
     tab = tabs.some((t) => t.id === inspector.tab) ? inspector.tab : "overview";
   const valid = validSnapshot(work);
   return (
-    <div className="hp-task-inspector" data-status={work.status} data-bucket={p.bucket}>
+    <div
+      className="hp-task-inspector hp-lobe-scope"
+      data-status={work.status}
+      data-bucket={p.bucket}
+    >
       <h3>{work.title}</h3>
       <p>
-        {bucketLabels[p.bucket]} · {p.label}
+        <span className="hp-sr-only">{bucketLabels[p.bucket]} · </span>
+        <Tag color="orange" variant="borderless">
+          {p.label}
+        </Tag>{" "}
+        <Tag variant="borderless">{typeLabel(work)}</Tag>
       </p>
       {!valid && (
         <p role="alert">
           状态待核实，当前仅可查看与刷新。
-          <Button
-            type="button"
+          <TaskButton
             onClick={() =>
               void useWorks
                 .getState()
@@ -91,14 +106,13 @@ export function TaskInspector({
             }
           >
             刷新状态
-          </Button>
+          </TaskButton>
         </p>
       )}
       {error && (
         <p role="alert">
           {error}
-          <Button
-            type="button"
+          <TaskButton
             onClick={() =>
               void useWorks
                 .getState()
@@ -107,38 +121,66 @@ export function TaskInspector({
             }
           >
             刷新状态
-          </Button>
+          </TaskButton>
         </p>
       )}
-      <InspectorTabs prefix="task" label="任务信息" tabs={tabs} selected={tab} />
+      <TaskInspectorTabs tabs={tabs} selected={tab} />
       <TaskPanel id="overview" active={tab === "overview"}>
         <section className="hp-inspector-card" aria-label="任务概览">
-          <p>{work.requirement.objective}</p>
-          <p>{typeLabel(work)}</p>
+          <p className="hp-task-objective-detail">{work.requirement.objective}</p>
+
           <p>{p.attentionReasons.join("；")}</p>
           {p.dataWarnings.map((w) => (
             <p key={w}>{w}</p>
           ))}
-          <p>
-            计划：
-            {({ immediate: "立即", once: "指定时间", daily: "每天" } as Record<string, string>)[
-              work.requirement.timing?.kind
-            ] ?? "计划待核实"}{" "}
-            · {work.requirement.timing?.timezone}
-            {work.requirement.timing?.due_at
-              ? ` · ${formatTaskTime(work.requirement.timing.due_at, work.requirement.timing.timezone)}`
-              : work.requirement.timing?.local_time
-                ? ` · ${work.requirement.timing.local_time}`
-                : ""}
-          </p>
+          <Descriptions
+            className="hp-task-summary-meta hp-task-descriptions"
+            colon={false}
+            items={[
+              {
+                key: "schedule",
+                label: "执行计划",
+                children: (
+                  <>
+                    {(
+                      { immediate: "立即", once: "指定时间", daily: "每天" } as Record<
+                        string,
+                        string
+                      >
+                    )[work.requirement.timing?.kind] ?? "计划待核实"}{" "}
+                    {work.requirement.timing?.due_at
+                      ? formatTaskTime(
+                          work.requirement.timing.due_at,
+                          work.requirement.timing.timezone,
+                        )
+                      : (work.requirement.timing?.local_time ?? "")}
+                  </>
+                ),
+              },
+              {
+                key: "zone",
+                label: "计划时区",
+                children: work.requirement.timing?.timezone ?? "待核实",
+              },
+              ...(work.budget
+                ? [
+                    {
+                      key: "budget",
+                      label: "模型预算",
+                      children: `${(work.budget.used.model_total_tokens ?? 0).toLocaleString()} / ${work.budget.limits.model_total_tokens?.toLocaleString() ?? "未知"}`,
+                    },
+                    {
+                      key: "reserved",
+                      label: "已预留",
+                      children: (work.budget.reserved.model_total_tokens ?? 0).toLocaleString(),
+                    },
+                  ]
+                : []),
+            ]}
+          />
           {work.budget && (
             <>
-              <p>
-                模型预算已用 {work.budget.used.model_total_tokens ?? 0} /{" "}
-                {work.budget.limits.model_total_tokens} · 已预留{" "}
-                {work.budget.reserved.model_total_tokens ?? 0}
-              </p>
-              <details>
+              <TaskDetails>
                 <summary>其他预算维度</summary>
                 {Object.entries(work.budget.limits).map(([k, v]) => (
                   <p key={k}>
@@ -146,13 +188,12 @@ export function TaskInspector({
                     {work.budget!.reserved[k] ?? 0}
                   </p>
                 ))}
-              </details>
+              </TaskDetails>
             </>
           )}
           <TaskActions work={work} />
           {work.active_coordinator_run_id && (
-            <Button
-              type="button"
+            <TaskButton
               onClick={() =>
                 useShell.getState().openInspector(
                   {
@@ -165,7 +206,7 @@ export function TaskInspector({
               }
             >
               查看当前执行
-            </Button>
+            </TaskButton>
           )}
           {work.continuation?.operation_ref && (
             <p>外部操作结果未决，请查看执行详情核查。没有通用人工解除接口。</p>
@@ -178,19 +219,17 @@ export function TaskInspector({
               </p>
             )}
           {work.conversation_ids.map((id) => (
-            <Button
-              type="button"
+            <TaskButton
               key={id}
               onClick={() => useShell.getState().navigate({ screen: "ai", conversationId: id })}
             >
               打开关联对话
-            </Button>
+            </TaskButton>
           ))}
           {work.sources
             ?.filter((s) => s.source_message_id)
             .map((source) => (
-              <Button
-                type="button"
+              <TaskButton
                 key={source.conversation_id}
                 onClick={() =>
                   useShell.getState().navigate({
@@ -202,7 +241,7 @@ export function TaskInspector({
                 }
               >
                 定位来源消息
-              </Button>
+              </TaskButton>
             ))}
         </section>
       </TaskPanel>
@@ -213,7 +252,7 @@ export function TaskInspector({
         {valid ? <TaskResources work={work} /> : <p>任务状态待核实，资料管理暂不可用。</p>}
       </TaskPanel>
       <TaskPanel id="advanced" active={tab === "advanced"}>
-        <RunLookup />
+        <RunLookup taskUi />
         <Advanced work={work} />
       </TaskPanel>
     </div>
@@ -222,7 +261,7 @@ export function TaskInspector({
 function Advanced({ work }: { work: HpWork }) {
   return (
     <>
-      <dl>
+      <TaskDescriptions>
         <dt>任务编号</dt>
         <dd>{work.work_id}</dd>
         <dt>要求修订号 / 控制版本</dt>
@@ -235,10 +274,10 @@ function Advanced({ work }: { work: HpWork }) {
         </dd>
         <dt>未决外部操作</dt>
         <dd>{work.continuation?.operation_ref ?? "无"}</dd>
-      </dl>
+      </TaskDescriptions>
       <TaskEvents workId={work.work_id} />
       {validSnapshot(work) && <TaskTargets work={work} />}
-      <form
+      <TaskForm
         onSubmit={(e) => {
           e.preventDefault();
           const value = new FormData(e.currentTarget).get("run");
@@ -251,18 +290,16 @@ function Advanced({ work }: { work: HpWork }) {
               );
         }}
       >
-        <Field>
+        <TaskLabel>
           执行编号
-          <TextField name="run" required />
-        </Field>
-        <Button variant="solid" type="submit">
-          查询执行与诊断
-        </Button>
-      </form>
-      <details>
+          <TaskInput name="run" required />
+        </TaskLabel>
+        <TaskButton>查询执行与诊断</TaskButton>
+      </TaskForm>
+      <TaskDetails>
         <summary>当前完整要求</summary>
-        <pre>{JSON.stringify(work.requirement, null, 2)}</pre>
-      </details>
+        <TaskCode>{JSON.stringify(work.requirement, null, 2)}</TaskCode>
+      </TaskDetails>
     </>
   );
 }

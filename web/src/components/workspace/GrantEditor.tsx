@@ -1,4 +1,5 @@
-import { Button, Field, Checkbox } from "../ui";
+import { TaskControlScope } from "../ui/TaskControls";
+import { TaskButton, TaskInput, TaskDetails, TaskLabel } from "../ui/TaskControls";
 import { useWorks } from "../../store/works";
 import { validSnapshot } from "../tasks/taskActions";
 import { useEffect, useId, useRef, useState } from "react";
@@ -25,9 +26,19 @@ const labels: Record<Permission, string> = {
   update_content: "修改内容",
   delete_entry: "移除入口",
 };
-export function GrantEditor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) {
+export function GrantEditor({
+  node,
+  subject,
+  taskUi = false,
+}: {
+  node: HpWorkspaceNode;
+  subject: Subject;
+  taskUi?: boolean;
+}) {
   return (
-    <Editor key={`${subject.kind}:${subject.id}:${node.node_id}`} node={node} subject={subject} />
+    <TaskControlScope active={taskUi}>
+      <Editor key={`${subject.kind}:${subject.id}:${node.node_id}`} node={node} subject={subject} />
+    </TaskControlScope>
   );
 }
 function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) {
@@ -93,10 +104,7 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
       {query.loading && <p role="status">正在读取权限…</p>}
       {query.error && (
         <p role="alert">
-          权限状态待确认。
-          <Button type="button" onClick={query.retry}>
-            重新查询授权
-          </Button>
+          权限状态待确认。<TaskButton onClick={query.retry}>重新查询授权</TaskButton>
         </p>
       )}
       {query.data && applicable.length === 0 && <p>所选主体暂无适用规则。</p>}
@@ -105,42 +113,45 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
           {labels[g.operation]} ·{" "}
           {g.node_id === node.node_id ? "直接授权" : `继承自目录 ${nodePath(tree, g.node_id)}`} ·{" "}
           {g.recursive ? "包含后代" : "仅此项"}
-          <Button type="button" disabled={busy} onClick={() => setRemoving([g])}>
+          <TaskButton disabled={busy} onClick={() => setRemoving([g])}>
             撤销规则
-          </Button>
+          </TaskButton>
         </p>
       ))}
       <fieldset disabled={busy || !canGrant}>
         <legend>新增权限</legend>
         {(["list_metadata", "read_content"] as const).map((op) => (
-          <Field key={op}>
-            <Checkbox
+          <TaskLabel key={op}>
+            <TaskInput
               type="checkbox"
+              disabled={busy || !canGrant}
               checked={operations.includes(op)}
               onChange={(e) => toggle(op, e.target.checked)}
             />
             {labels[op]}
-          </Field>
+          </TaskLabel>
         ))}
-        <details>
+        <TaskDetails>
           <summary>高级写入权限</summary>
           {(["create_child", "update_content", "delete_entry"] as const)
             .filter((op) => op !== "create_child" || node.kind === "directory")
             .map((op) => (
-              <Field key={op}>
-                <Checkbox
+              <TaskLabel key={op}>
+                <TaskInput
                   type="checkbox"
+                  disabled={busy || !canGrant}
                   checked={operations.includes(op)}
                   onChange={(e) => toggle(op, e.target.checked)}
                 />
                 {labels[op]}
-              </Field>
+              </TaskLabel>
             ))}
-        </details>
+        </TaskDetails>
         {node.kind === "directory" && (
-          <Field>
-            <Checkbox
+          <TaskLabel>
+            <TaskInput
               type="checkbox"
+              disabled={busy || !canGrant}
               checked={recursive}
               onChange={(e) => {
                 markDirty();
@@ -148,11 +159,10 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
               }}
             />
             包含此目录的所有子目录与文件
-          </Field>
+          </TaskLabel>
         )}
       </fieldset>
-      <Button
-        type="button"
+      <TaskButton
         disabled={busy || !canGrant || !query.data || !operations.length}
         onClick={() => {
           setBusy(true);
@@ -179,7 +189,7 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
         }}
       >
         确认授予所选权限
-      </Button>
+      </TaskButton>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {Object.entries(states).map(([id, state]) => (
@@ -202,8 +212,7 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
               {nodePath(tree, g.node_id)} · {labels[g.operation]}
             </p>
           ))}
-          <Button
-            type="button"
+          <TaskButton
             disabled={busy}
             onClick={() => {
               setBusy(true);
@@ -228,7 +237,7 @@ function Editor({ node, subject }: { node: HpWorkspaceNode; subject: Subject }) 
             }}
           >
             确认撤销
-          </Button>
+          </TaskButton>
         </Surface>
       )}
     </section>

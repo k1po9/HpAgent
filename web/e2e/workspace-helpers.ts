@@ -13,7 +13,7 @@ export async function uploadWorkspace(
   const panel = await workspace(page);
   await panel.getByRole("button", { name: "上传文件", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "上传到空间" });
-  await dialog.getByLabel("上传长期文件").setInputFiles({
+  await dialog.locator('input[type="file"]').setInputFiles({
     name,
     mimeType: name.endsWith(".md") ? "text/markdown" : "text/plain",
     buffer: Buffer.from(body),

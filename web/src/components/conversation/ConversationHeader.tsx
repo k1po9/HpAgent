@@ -1,4 +1,3 @@
-import { TextField, Button } from "../ui";
 import { useEffect, useId, useRef, useState } from "react";
 import { Check, X } from "lucide-react";
 import { useWorkbench } from "../../store/workbench";
@@ -75,7 +74,7 @@ function TitleEditor({ title, active }: { title: string; active: boolean }) {
               .finally(() => setBusy(false));
           }}
         >
-          <TextField
+          <input
             aria-label="对话标题"
             aria-describedby={hintId}
             autoFocus
@@ -89,15 +88,15 @@ function TitleEditor({ title, active }: { title: string; active: boolean }) {
             }}
             onChange={(event) => setValue(event.target.value)}
           />
-          <Button
+          <button
             type="submit"
             aria-label="保存标题"
             title={busy ? "保存中…" : "保存标题（Enter）"}
             disabled={busy || !value.trim()}
           >
             <Check size={18} aria-hidden="true" />
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
             aria-label="取消"
             title="取消（Esc）"
@@ -105,11 +104,11 @@ function TitleEditor({ title, active }: { title: string; active: boolean }) {
             onClick={() => setEditing(false)}
           >
             <X size={18} aria-hidden="true" />
-          </Button>
+          </button>
         </form>
       ) : (
         <h1 id={active ? "canvas-title" : undefined} tabIndex={-1}>
-          <Button
+          <button
             ref={trigger}
             type="button"
             className="hp-title-trigger"
@@ -131,7 +130,7 @@ function TitleEditor({ title, active }: { title: string; active: boolean }) {
             }}
           >
             {title}
-          </Button>
+          </button>
         </h1>
       )}
       <span id={hintId} className="hp-title-edit-hint">

@@ -1,4 +1,3 @@
-import { Button } from "../ui";
 import type { ModelInputState, TraceNode } from "./traceStore";
 
 interface TokenUsage {
@@ -163,16 +162,14 @@ export function TraceDetail({
             </code>
           </div>
           {!modelInputs[snapshotId] ? (
-            <Button type="button" onClick={() => void onOpenModelInput(snapshotId)}>
+            <button type="button" onClick={() => void onOpenModelInput(snapshotId)}>
               查看 Model Input
-            </Button>
+            </button>
           ) : (
             <>
               <ModelInputView state={modelInputs[snapshotId]} />
               {modelInputs[snapshotId]?.status === "error" && (
-                <Button type="button" onClick={() => void onOpenModelInput(snapshotId)}>
-                  重试 Model Input
-                </Button>
+                <button onClick={() => void onOpenModelInput(snapshotId)}>重试 Model Input</button>
               )}
             </>
           )}

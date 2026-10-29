@@ -4,6 +4,7 @@ import process from "node:process";
 
 type Environment = Record<string, string | undefined>;
 const fixtureSpecs = [
+  "task-lobe.spec.ts",
   "run-frame.spec.ts",
   "run-overview.spec.ts",
   "run-diagnostics.spec.ts",

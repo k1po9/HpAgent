@@ -1,4 +1,3 @@
-import { Button, Field, Select, TextField } from "../ui";
 import { useState } from "react";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useShell } from "../../store/shell";
@@ -55,19 +54,15 @@ export function WorkspaceMutationDialog({
       {abandon && (
         <Surface title="放弃未提交的空间修改？" motion="elevate" onClose={() => setAbandon(false)}>
           <p>名称、目标目录和操作选择尚未提交。</p>
-          <Button type="button" onClick={() => setAbandon(false)}>
-            继续编辑
-          </Button>
-          <Button type="button" onClick={onClose}>
-            放弃修改并关闭
-          </Button>
+          <button onClick={() => setAbandon(false)}>继续编辑</button>
+          <button onClick={onClose}>放弃修改并关闭</button>
         </Surface>
       )}
       <div className="hp-operation-form">
         <p>{nodePath(tree, node.node_id)}</p>
-        <Field>
+        <label>
           操作
-          <Select
+          <select
             disabled={busy}
             value={action}
             onChange={(e) => {
@@ -77,13 +72,13 @@ export function WorkspaceMutationDialog({
           >
             <option value="move">改名或移动</option>
             <option value="remove">移除入口</option>
-          </Select>
-        </Field>
+          </select>
+        </label>
         {action === "move" && (
           <>
-            <Field>
+            <label>
               名称
-              <TextField
+              <input
                 disabled={busy}
                 aria-label="Workspace 名称"
                 value={name}
@@ -92,10 +87,10 @@ export function WorkspaceMutationDialog({
                   setPreview(null);
                 }}
               />
-            </Field>
-            <Field>
+            </label>
+            <label>
               目标目录
-              <Select
+              <select
                 disabled={busy}
                 aria-label="Workspace 目标目录"
                 value={parentId}
@@ -117,8 +112,8 @@ export function WorkspaceMutationDialog({
                       {nodePath(tree, n.node_id)}
                     </option>
                   ))}
-              </Select>
-            </Field>
+              </select>
+            </label>
           </>
         )}
         <p>移除的是空间入口，不等于物理文件立即回收。非空目录和绑定的输出目录由服务器检查。</p>
@@ -127,8 +122,7 @@ export function WorkspaceMutationDialog({
         )}
         {error && <p role="alert">{error}</p>}
         {!unknown && (
-          <Button
-            type="button"
+          <button
             disabled={
               busy || node.parent_id === null || (action === "move" && (!name.trim() || !parentId))
             }
@@ -155,14 +149,13 @@ export function WorkspaceMutationDialog({
             }}
           >
             预览{action === "move" ? "改名或移动" : "移除"}影响
-          </Button>
+          </button>
         )}
         {confirmed && !unknown && (
           <>
             <p>可能影响 {confirmed.runs.length} 个活动执行。改变参数后须重新预览。</p>
             {confirmed.runs.map((id) => (
-              <Button
-                type="button"
+              <button
                 disabled={busy}
                 key={id}
                 onClick={() => {
@@ -171,10 +164,9 @@ export function WorkspaceMutationDialog({
                 }}
               >
                 查看执行 {id}
-              </Button>
+              </button>
             ))}
-            <Button
-              type="button"
+            <button
               disabled={busy}
               onClick={() => {
                 setBusy(true);
@@ -208,12 +200,11 @@ export function WorkspaceMutationDialog({
               }}
             >
               确认{action === "move" ? "改名或移动" : "移除"}
-            </Button>
+            </button>
           </>
         )}
         {unknown && (
-          <Button
-            type="button"
+          <button
             disabled={busy}
             onClick={() => {
               useWorkspace.getState().invalidate();
@@ -221,7 +212,7 @@ export function WorkspaceMutationDialog({
             }}
           >
             刷新空间并核实
-          </Button>
+          </button>
         )}
       </div>
     </Surface>

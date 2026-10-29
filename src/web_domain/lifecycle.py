@@ -37,9 +37,12 @@ class WebRunLifecycleService:
         self,
         database_url: object,
         terminal_observer: RunLifecycleObserver | None = None,
+        *,
+        qq_timeout_reply: str = "",
     ):
         self.database_url = database_url
         self._terminal_observer = terminal_observer
+        self._qq_timeout_reply = qq_timeout_reply
 
     @retryable_transaction
     def prepare(
@@ -89,7 +92,7 @@ class WebRunLifecycleService:
 
     def finalize_failed(self, run_id: UUID, error_code: str, error_message: str) -> LifecycleAuthority:
         account_id = self._account_for(run_id)
-        RunLifecycleService(self.database_url).finish(account_id, run_id, "failed",
+        RunLifecycleService(self.database_url, qq_timeout_reply=self._qq_timeout_reply).finish(account_id, run_id, "failed",
                                                      failure_code=error_code, failure_message=error_message)
         authority = cast(LifecycleAuthority, self._authority(run_id))
         self._observe_terminal(run_id, authority.status, {"error_code": error_code})

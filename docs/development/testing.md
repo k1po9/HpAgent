@@ -131,6 +131,8 @@ make web-build
 
 `web-typecheck`同时检查src、E2E、测试harness和全部Playwright配置；类型通过不代表浏览器用例已执行。
 
+任务 Lobe UI 的源码 HTTP 夹具回归为 `cd web && npm run test:e2e:fixtures -- task-lobe.spec.ts`。它通过真实 App 验证选择后草稿保护、菜单与确认框的 Escape/焦点、页签及宽度切换保留、显式授权、预算冲突和未知响应原意图重试；不连接后端、模型或真实账户。原生 Select 迁移后的用例应点击 combobox/listbox 选项，不继续对按钮调用 `selectOption`。预算 InputNumber 的输入是带格式化显示的 textbox，业务限额仍按数值断言。
+
 若已有服务使用`web/dist`，验证构建应写独立目录，避免影响现有预览：
 
 ```bash

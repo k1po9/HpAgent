@@ -4,25 +4,16 @@ import { createRoot } from "react-dom/client";
 import { Theme } from "@radix-ui/themes";
 import "@radix-ui/themes/styles.css";
 import "../src/styles.css";
-import { ActionMenu } from "../src/components/ui/ActionMenu";
 import { Surface } from "../src/components/shell/Surface";
 import { RunLookup } from "../src/components/run/RunLookup";
 export function Harness() {
   const [open, setOpen] = useState(false),
     [child, setChild] = useState(false);
   const modal = !new URLSearchParams(location.search).has("desktop");
-  const menus = new URLSearchParams(location.search).has("menus");
   return (
     <Theme>
       <button onClick={() => setOpen(true)}>打开父层</button>
       <button>背景操作</button>
-      {menus && (
-        <ActionMenu
-          id="page-menu"
-          label="页面菜单"
-          items={[{ id: "page-item", label: "页面动作", onSelect: () => setOpen(true) }]}
-        />
-      )}
       {open && (
         <Surface title="原生焦点回归" modal={modal} onClose={() => setOpen(false)}>
           <details>
@@ -57,13 +48,6 @@ export function Harness() {
           {child && (
             <Surface title="子操作" onClose={() => setChild(false)}>
               <input aria-label="子操作草稿" />
-              {menus && (
-                <ActionMenu
-                  id="child-menu"
-                  label="子层菜单"
-                  items={[{ id: "child-item", label: "菜单动作", onSelect: () => {} }]}
-                />
-              )}
             </Surface>
           )}
         </Surface>

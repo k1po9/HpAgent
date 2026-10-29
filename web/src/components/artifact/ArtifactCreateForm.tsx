@@ -1,4 +1,3 @@
-import { Field, Select, TextArea, Button } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { useWorkbench } from "../../store/workbench";
 import { useArtifacts } from "../../store/artifacts";
@@ -67,9 +66,9 @@ export function ArtifactCreateForm() {
         }}
       >
         <p>选择已完成的回复，生成可迭代的 HTML 成果。</p>
-        <Field>
+        <label>
           来源消息
-          <Select
+          <select
             aria-describedby={intent?.result?.error ? "artifact-create-error" : undefined}
             aria-invalid={Boolean(intent?.result?.error)}
             required
@@ -86,23 +85,23 @@ export function ArtifactCreateForm() {
                 {m.sequence} · {m.content?.slice(0, 80)}
               </option>
             ))}
-          </Select>
-        </Field>
-        <Field>
+          </select>
+        </label>
+        <label>
           生成要求
-          <TextArea value={instruction} onChange={(e) => setInstruction(e.target.value)} />
-        </Field>
-        <Button variant="solid" type="submit" disabled={busy || !selected}>
+          <textarea value={instruction} onChange={(e) => setInstruction(e.target.value)} />
+        </label>
+        <button disabled={busy || !selected}>
           {busy ? "创建中…" : intent?.uncertain ? "恢复原 HTML 生成" : "创建成果"}
-        </Button>
+        </button>
         {(byMessage[selected] ?? []).map((a) => (
-          <Button
+          <button
             type="button"
             key={a.artifact.artifact_id}
             onClick={() => void open(a.artifact.artifact_id)}
           >
             {a.artifact.title}
-          </Button>
+          </button>
         ))}
         {intent?.result?.error && (
           <p id="artifact-create-error" role="alert">

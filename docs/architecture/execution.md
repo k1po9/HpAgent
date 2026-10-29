@@ -2,6 +2,10 @@
 
 本文维护跨领域的状态权威和执行约束；具体委托与文件规则见 [Work](work.md) 和 [Workspace](workspace.md)，能力实现见[能力边界](capabilities.md)。
 
+QQ 聊天 Run 在模型重试耗尽、最终以 `model_read_timeout` 失败时，同一终态事务入队固定超时通知；通知通过原渠道路由和现有 Delivery 回执流程发送，以 Run ID 去重。Run 与聊天 Message 仍保持失败，不生成成功答案或保留成功回复记忆。文案来自 `config/prompts/system.yaml` 的 `qq_model_timeout_reply`，Worker 启动时加载，留空关闭；入队后文案冻结，不随配置变化。Web、Work 和其他失败码不触发该通知。
+
+超时通知不阻断失败事实：入队时原 QQ 绑定失效，仅回滚通知的保存点，Run、失败 Message 和终态 Outbox 仍正常提交；其他数据库或数据完整性错误继续报错，不被吞掉。入队后撤销绑定，Delivery 仍在发送前检查当前授权并取消投递。
+
 ## 状态权威
 
 | 存储 | 负责什么 |

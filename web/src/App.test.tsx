@@ -1,3 +1,4 @@
+import { render } from "./test/renderWithLobe";
 /**
  * Workbench render smoke test.
  *
@@ -5,7 +6,7 @@
  * one conversation, and an empty message page. Verifies the assistant-ui chat
  * surface renders (sidebar + composer) without runtime errors.
  */
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";

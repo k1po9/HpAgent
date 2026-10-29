@@ -6,11 +6,11 @@
 
 身份恢复由 `App` / `LoginForm` 处理；checking、error 和 signedOut 阶段不挂载业务内容。认证后 `AppShell` 固定为 AppRail、ContextSidebar、MainCanvas、可选 Inspector 四区。
 
-| 一级入口 | 路由与上下文 | 主要能力 |
-| --- | --- | --- |
-| AI | `#/ai`、`#/ai/{conversationId}` | 对话、消息、附件、快速/深度策略、执行块、资料授权和 HTML 生成。 |
-| 空间 | `#/workspace?dir={nodeId}` | 目录、搜索、上传、文件详情、版本、来源及明确主体授权。 |
-| 任务 | `#/tasks?bucket=attention&type=all&work={workId}` | Work 四桶、提醒/研究/通用类型、计划、预算、投递、成果和局部收件箱。 |
+| 一级入口 | 路由与上下文                                      | 主要能力                                                            |
+| -------- | ------------------------------------------------- | ------------------------------------------------------------------- |
+| AI       | `#/ai`、`#/ai/{conversationId}`                   | 对话、消息、附件、快速/深度策略、执行块、资料授权和 HTML 生成。     |
+| 空间     | `#/workspace?dir={nodeId}`                        | 目录、搜索、上传、文件详情、版本、来源及明确主体授权。              |
+| 任务     | `#/tasks?bucket=attention&type=all&work={workId}` | Work 四桶、提醒/研究/通用类型、计划、预算、投递、成果和局部收件箱。 |
 
 账户设置与 QQ 绑定从头像打开。Artifact、Trace、Model Input 和 Research 内容在对象上下文中打开。`inspect=run:{id}` / `artifact:{id}` / `file:{id}` / `task:{id}` 指定唯一 Inspector，版本和页签使用 `version` / `tab` 参数；打开对象仍须服务端核实账户权限。
 
@@ -26,13 +26,13 @@ Run 概览与任务执行输出可按需读取能力成果，独立展示 outcom
 
 通用文字交付可在任务「成果与执行」展开输出文件，通过认证下载 Markdown 正文。Work 查询的 `results` 和完成通知 payload.results 固定同一完成回执的 ResultRef/file_id、生产 Run/revision 与 content_url；inbox 的「查看任务」可返回该任务成果入口。文件读取继续按当前账户过滤，通知引用不是 bearer 授权。
 
-| 模块 | 责任 |
-| --- | --- |
-| `store/auth.ts` / `sessionLifecycle.ts` / `api/client.ts` | 身份检查、请求取消与账户世代隔离；普通 401 失效；CSRF 同意图重试。 |
-| `store/shell.ts` / `conversationUi.ts` / `artifactUi.ts` | 导航、对象选择、对话草稿/模式/阅读锚点、Artifact 修改草稿等账户内存状态。 |
-| `store/workbench.ts` / `works.ts` / `workspace.ts` / `artifacts.ts` | 权威快照、分页、命令意图、领域缓存与后台同步。 |
-| `store/runInspector.ts` / `components/trace/traceStore.ts` | 所选历史 Run、按需诊断、Model Input 可见范围与请求世代。 |
-| `sse/runFeed.ts` / `workFeed.ts` | Chat 与 Work 的独立订阅、退化恢复和集中 dispose。 |
+| 模块                                                                | 责任                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `store/auth.ts` / `sessionLifecycle.ts` / `api/client.ts`           | 身份检查、请求取消与账户世代隔离；普通 401 失效；CSRF 同意图重试。        |
+| `store/shell.ts` / `conversationUi.ts` / `artifactUi.ts`            | 导航、对象选择、对话草稿/模式/阅读锚点、Artifact 修改草稿等账户内存状态。 |
+| `store/workbench.ts` / `works.ts` / `workspace.ts` / `artifacts.ts` | 权威快照、分页、命令意图、领域缓存与后台同步。                            |
+| `store/runInspector.ts` / `components/trace/traceStore.ts`          | 所选历史 Run、按需诊断、Model Input 可见范围与请求世代。                  |
+| `sse/runFeed.ts` / `workFeed.ts`                                    | Chat 与 Work 的独立订阅、退化恢复和集中 dispose。                         |
 
 退出或切账户时同步失效 API 请求、Chat/Work feed、轮询、查询、下载 Blob、对话/HTML 草稿及 Shell；迟到响应必须同时通过账户、对象和查询世代检查。首次认证保留深链，离开旧账户后清除旧对象路由。退出清理前端监控，不等于取消服务端 Run / Work。
 
@@ -40,11 +40,7 @@ Run 概览与任务执行输出可按需读取能力成果，独立展示 outcom
 
 `store/workbench.ts` 保持对外 API，内部 `store/workbench/` 分为对话、附件、发送意图、Run 动作与监控。`context.ts` 共享账户/对象/查询世代及冻结意图；门面负责统一 reset，`runMonitor.ts` 集中释放 SSE、预算定时器和轮询等待，不在各模块重复维护生命周期。
 
-普通按钮、图标按钮、字段、选择框、勾选框、通知和动作行从 `components/ui/` 接入；Button/IconButton 复用 Radix Themes，表单字段保留原生 DOM、ref 和事件语义。按钮显式指定提交类型，主操作使用 `variant="solid"`，基础控件不读取领域 store 或触发请求。基础控件的默认外观与 InspectorTabs 页签由 CSS Modules 和 `--hp-*` tokens 持有；全局焦点样式以低优先级回退，不覆盖模块焦点环。紧凑页签使用内收焦点环，普通字段使用外侧焦点环。Field 支持显式 `label`、`description`、`error`，以稳定生成的 ID 连接原生控件，合并调用方的 `aria-describedby`；显式输入 ID 通过 `htmlFor` 对齐。说明和错误不进入字段名称，字段错误设置 `aria-invalid`，API/表单级错误独立展示。原有隐式包裹 label 仍可使用。InspectorTabs 自己持有页签样式与测量指示器，Surface、Composer、导航和 Mercury 保留专用职责。
-
-`ActionMenu` 用于任务的更多动作；Radix Portal 挂在触发器所属原生 dialog 内，页面菜单挂 body，使用现有 Theme。菜单不创建第二个模态边界，Esc 先关闭菜单并返回触发器，再由 Surface 处理下一层；从菜单导航的 origin 保留常驻触发器身份。
-
-`styles/presentation/` 保留 Shell、对话、Run、Surface、Composer 和 Inspector 动效的领域表现，`styles.css` 固定全局导入顺序。新基础样式放组件模块；迁移调用方时同步删除旧通用规则。领域 CSS 仍负责宽度、排列、对象状态，以及 Composer、Inspector 扩宽、标题编辑、入口确认态等具名专用交互。hidden/inert、接收门控、减动及拖宽期间的行为保护保留，不以清零 important 或合并所有样式文件为目标。`components/shell/layout.ts` 共享 Shell 实测宽度、token 尺寸与 Run 宽度边界；侧栏容纳计算、拖宽 ARIA 和实际 CSS 使用同一最大值。视口控制 Shell 模式，空间文件表和任务看板按实际容器宽度排布；文件表在容器 ≤700px 时收起类型与来源列。≤959px 普通控件命中高度至少44px，输入在手机上使用16px字号。
+`styles/presentation/` 按调色、Shell、对话、Run、Surface、Composer、响应式和 Inspector 动效组织最终表现规则；导入顺序由 `styles.css` 固定。移动规则时保留层叠顺序。
 
 ## AI 对话与执行
 
@@ -60,6 +56,8 @@ Run SSE Gateway 先订阅并缓冲，再读取快照；snapshot 始终为第一�
 
 `WorkspaceScreen` / `WorkspaceSidebar` 展示树、直接子项和搜索分页；`FileInspector` 有预览、详情、版本历史、AI 使用范围。查询按账户和 key 共享去重，订阅者拥有独立视图资格，切主体或目录后拒绝旧响应。
 
+空间主页面使用 Lobe UI 的目录树、文件表格、路径导航、搜索和折叠筛选；「全部文件」显示当前空间文件数量，并与目录选中态互斥。两种导航均通过 Shell 的草稿保护后才切换，搜索继续使用服务端游标分页。上传弹窗保留原生 Surface；Lobe Upload 只接收选取或拖入的文件，上传、ready、保存、授权及恢复仍由原操作状态机推进。
+
 保存、授权、输入引用是独立操作。所有者看到文件不等于 Agent 已授权，关联对话也不自动授权 Work。`GrantEditor` 复用 Conversation 与 Work adapter；目录递归必须显式选择，继承规则从源规则撤销。新增文件/权限在下一 Run 生效；撤权阻断冻结资源的后续访问，并立即清除受影响 Model Input 缓存，即使后续授权读回失败。
 
 任务要求表单可从空间目录选择成果保存位置；选择目录设置必需保存要求，Generic Work 同时保留独立的 `workspace_saved` 验收条件。Main 的目录尚未解析时，可先用必需的 `workspace_saved` 条件记录委托，暂不绑定 deliverable_policy 目录，再引导用户从任务表单选择，不要求复制内部 ID；这只是提示与命令契约，不证明模型实际遵循。选择本身不授予权限，仍需在任务「使用资料」中显式授予「创建子项」。等待补充的任务通过提交要求修订进入下一轮，暂停任务还需恢复；不扩展当前 Run 的冻结授权。未选择新目录时保留原有保存策略与验收条件。
@@ -70,17 +68,23 @@ Run SSE Gateway 先订阅并缓冲，再读取快照；snapshot 始终为第一�
 
 `TaskScreen` / `TaskInspector` 使用 [`taskPresentation.ts`](../../web/src/components/tasks/taskPresentation.ts) 的同一纯投影，分类和 [`taskActions.ts`](../../web/src/components/tasks/taskActions.ts) 的动作资格分别判断。类型仅为提醒、研究、通用；`artifact_build` 归通用，展示 HTML 生成/修改。Inspector 页签为概览、成果与执行、使用资料、高级详情。
 
+任务控件使用 Lobe UI 6，经 [`TaskControls.tsx`](../../web/src/components/ui/TaskControls.tsx) 适配值、标签、原生提交与草稿标记；共享资料授权和保存表单仅在任务入口启用。页签导航使用 Lobe Tabs，已访问正文仍由 TaskPanel 保留，未访问页签不发请求。选择和勾选不会隐式提交；权限草稿离开保护、busy/uncertain、If-Match 与原幂等意图仍由原有 Shell/Store 管理。
+
+任务主页面的分类使用受路由控制的 Lobe List，卡片使用 Block，状态和数量使用 Tag / Badge；空态、同步错误与初始占位使用 Empty / Alert / Skeleton。分类选中态随 Shell 路由更新，卡片选中态随当前任务 Inspector 更新；点击、键盘焦点、菜单展开、busy 和 disabled 保留各自反馈，任务执行状态仍来自权威快照。刷新保留已加载卡片，任务动作完成时保留正在操作的卡片位置和主按钮身份。
+
+Shell、原生 Surface 与 Inspector 身份保持现有所有权。每个 Surface 内的 LobeBoundary 将下拉弹出层留在对应原生 dialog 内；菜单 Escape 不继续关闭 Inspector，菜单完全收起后才打开操作确认框。主题沿用 Paper Flame，任务样式在 `task-lobe.css` 中局部覆盖；原生控件规则排除 Lobe 控件，避免两套控件规则叠加。日期和每天时间仍保留原有时区转换，不改为浏览器本地时区解释。
+
 四桶为 `attention`（需要我处理）、`active`（进行中）、`waiting`（等待或已计划）、`ended`（已结束）。先保留 completed/stopped 终态；非终态异常结构显示状态待核实，仅允许查看/刷新；其余按以下优先级命中一次。
 
-| 优先级 | 条件 | 桶与标签 |
-| --- | --- | --- |
-| T01～T02 | completed / stopped | 已结束：已完成 / 已停止。 |
-| T03～T04 | pausing / stopping | 进行中：正在暂停 / 正在停止；保留并列投递决议和未决原因。 |
-| T05～T07 | 当前 revision 的 uncertain 投递、未解除 operation、failed 投递 | 需要我处理：发送结果待确认 / 外部操作结果待确认 / 发送失败。 |
-| T08～T11 | user_acceptance_required、budget_exhausted、awaiting_input、非系统等待 blocked | 需要我处理：成果确认 / 额度 / 补充 / 执行受阻。 |
-| T12 | 有 active coordinator | 进行中：正在执行。 |
-| T13～T17 | paused、at_time、retry_after、正常 awaiting_delivery、waiting_capacity | 等待或已计划：已暂停 / 已计划 / 自动重试 / 回执 / 执行资源。 |
-| T18～T19 | ready 无 coordinator，其他合法非终态 | 等待或已计划：准备继续 / 等待继续。 |
+| 优先级   | 条件                                                                           | 桶与标签                                                     |
+| -------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| T01～T02 | completed / stopped                                                            | 已结束：已完成 / 已停止。                                    |
+| T03～T04 | pausing / stopping                                                             | 进行中：正在暂停 / 正在停止；保留并列投递决议和未决原因。    |
+| T05～T07 | 当前 revision 的 uncertain 投递、未解除 operation、failed 投递                 | 需要我处理：发送结果待确认 / 外部操作结果待确认 / 发送失败。 |
+| T08～T11 | user_acceptance_required、budget_exhausted、awaiting_input、非系统等待 blocked | 需要我处理：成果确认 / 额度 / 补充 / 执行受阻。              |
+| T12      | 有 active coordinator                                                          | 进行中：正在执行。                                           |
+| T13～T17 | paused、at_time、retry_after、正常 awaiting_delivery、waiting_capacity         | 等待或已计划：已暂停 / 已计划 / 自动重试 / 回执 / 执行资源。 |
+| T18～T19 | ready 无 coordinator，其他合法非终态                                           | 等待或已计划：准备继续 / 等待继续。                          |
 
 任务为 blocked/no_progress 或 blocked/repeated_failure 时展示具体保护原因，并隐藏直接“继续执行”；恢复通过修改要求，或明确暂停后继续。budget_exhausted 的暂停/继续仍保留预算阻塞，须显式增额。progress 和 daily_baseline 为服务器查询投影，不能从界面事件数推算。
 

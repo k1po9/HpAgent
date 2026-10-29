@@ -1,4 +1,3 @@
-import { Button, IconButton } from "../ui";
 import { animateSpatial, useMotionAllowed } from "../motion/preference";
 import { clearSurfaceRetreat, prepareSurfaceRetreat } from "../motion/surfaceFeedback";
 import { X } from "lucide-react";
@@ -15,6 +14,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Theme } from "@radix-ui/themes";
+import { LobeBoundary } from "../ui/LobeBoundary";
 import { advanceForegroundRevision } from "./foreground";
 import { tabOrder } from "./tabOrder";
 import { EntryPendingContext } from "../entry/EntryPendingContext";
@@ -258,9 +258,9 @@ export function Surface({
       {edgeControl}
       <header className={`hp-surface-header${titleDecoration ? " hp-file-title-reception" : ""}`}>
         {onBack && (
-          <Button variant="ghost" type="button" onClick={onBack} title="返回上一对象">
+          <button onClick={onBack} title="返回上一对象">
             返回
-          </Button>
+          </button>
         )}
         <h2
           ref={titleRef}
@@ -271,11 +271,13 @@ export function Surface({
         </h2>
         {titleDecoration}
         {headerActions && <div className="hp-surface-header-actions">{headerActions}</div>}
-        <IconButton type="button" onClick={onClose} aria-label={`关闭${title}`} title="关闭">
+        <button onClick={onClose} aria-label={`关闭${title}`} title="关闭">
           <X size={20} aria-hidden="true" />
-        </IconButton>
+        </button>
       </header>
-      <div className="hp-surface-body">{children}</div>
+      <div className="hp-surface-body">
+        <LobeBoundary>{children}</LobeBoundary>
+      </div>
     </dialog>
   );
   return (

@@ -1,4 +1,3 @@
-import { Button } from "../ui";
 import { useEffect, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import type { HpRunSnapshot } from "../../api/types";
@@ -36,7 +35,7 @@ export function RunDiagnosticIdentity({ snapshot }: { snapshot: HpRunSnapshot })
           {ordinal && ordinal > 0 ? ` · 第 ${ordinal} 次执行` : " · 本次执行"}
         </h3>
       </div>
-      <Button
+      <button
         type="button"
         className="hp-diagnostic-copy"
         aria-label="复制完整执行标识"
@@ -55,7 +54,7 @@ export function RunDiagnosticIdentity({ snapshot }: { snapshot: HpRunSnapshot })
         }}
       >
         {feedback === "执行标识已复制" ? <Check size={15} /> : <Copy size={15} />}
-      </Button>
+      </button>
       <span className="hp-diagnostic-copy-feedback" role="status">
         {feedback}
       </span>

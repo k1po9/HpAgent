@@ -66,8 +66,33 @@
   margin: 8px 0 0;
   line-height: 1.6;
 }
+.hp-auth-card label {
+  display: grid;
+  gap: 7px;
+}
+.hp-auth-card .rt-TextFieldRoot {
+  height: 44px;
+  background: var(--hp-subtle);
+  box-shadow: inset 0 0 0 1px var(--hp-control-border);
+  border-radius: 8px;
+}
+.hp-auth-card .rt-TextFieldRoot:focus-within {
+  box-shadow:
+    inset 0 0 0 1px var(--hp-focus),
+    0 0 0 3px var(--hp-focus-halo);
+}
+.hp-auth-card input:where(:not([class*="lobe-"])) {
+  font-family: inherit;
+  font-size: 15px;
+}
 .hp-auth-card .hp-auth-submit {
+  min-height: 44px;
   margin-top: 8px;
+  background: var(--hp-primary);
+  border-radius: 8px;
+}
+.hp-auth-card .rt-Button:disabled {
+  cursor: default;
 }
 .hp-auth-card [role="alert"] {
   line-height: 1.6;
@@ -77,6 +102,19 @@
   background-image:
     radial-gradient(ellipse 100% 75% at 100% 0%, var(--hp-canvas-warmth), transparent 80%),
     linear-gradient(180deg, transparent, rgb(237 241 245 / 65%));
+}
+
+.hp-surface-header button:where(:not([class*="lobe-"])) {
+  border: 0;
+  background: transparent;
+  color: var(--hp-muted);
+}
+.hp-inspector-tabs {
+  gap: 0;
+  margin-block: 20px;
+}
+.hp-inspector-tabs button:where(:not([class*="lobe-"])) {
+  padding: 10px 12px;
 }
 .hp-file-inspector h3 {
   font-size: 19px;
@@ -113,16 +151,21 @@
   font-size: 18px;
   margin: 8px 0 24px;
 }
-.hp-workspace-sidebar > button {
+.hp-workspace-sidebar > button:where(:not([class*="lobe-"])) {
   width: 100%;
   text-align: left;
+  background: var(--hp-selection);
+  border-color: transparent;
+  color: var(--hp-reading-accent);
 }
-.hp-tree-row button {
+.hp-tree-row button:where(:not([class*="lobe-"])) {
+  border-color: transparent;
+  background: transparent;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.hp-tree-row button:last-child {
+.hp-tree-row button:where(:not([class*="lobe-"])):last-child {
   flex: 1;
 }
 .hp-tree-row svg {
@@ -136,11 +179,22 @@
 .hp-breadcrumbs {
   margin-bottom: 20px;
 }
+.hp-breadcrumbs button:where(:not([class*="lobe-"])) {
+  border: 0;
+  color: var(--hp-muted);
+  padding: 4px 8px;
+}
 .hp-workspace-search {
   padding: 16px;
   border: 1px solid var(--hp-border);
   border-radius: 10px;
   background: var(--hp-surface);
+}
+.hp-workspace-toolbar button:where(:not([class*="lobe-"])):first-child:not(:disabled),
+.hp-task-toolbar .hp-primary {
+  background: var(--hp-primary);
+  color: var(--hp-on-primary);
+  border-color: var(--hp-primary);
 }
 .hp-file-table th {
   background: var(--hp-subtle);
@@ -197,9 +251,20 @@
   color: var(--hp-muted);
   font-size: 13px;
 }
-.hp-workspace-screen > .hp-operation-form button {
+.hp-workspace-screen > .hp-operation-form button:where(:not([class*="lobe-"])) {
   margin: 0;
   flex-shrink: 0;
+}
+.hp-operation-form input:where(:not([class*="lobe-"])):not([type="checkbox"]),
+.hp-operation-form textarea:where(:not([class*="lobe-"])),
+.hp-operation-form select:where(:not([class*="lobe-"])) {
+  min-height: 40px;
+  border: 1px solid var(--hp-control-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--hp-surface);
+  color: var(--hp-text);
+  font: inherit;
 }
 .hp-surface .hp-operation-form {
   border: 0;
@@ -209,17 +274,25 @@
 .hp-task-sidebar {
   padding: 16px;
 }
-.hp-task-sidebar button {
+.hp-task-sidebar button:where(:not([class*="lobe-"])) {
+  border-color: transparent;
+  background: transparent;
   margin: 6px 0;
+  padding: 12px;
   grid-template-columns: 20px 1fr auto;
   gap: 8px;
   align-items: center;
 }
-.hp-task-sidebar button strong {
+.hp-task-sidebar button:where(:not([class*="lobe-"]))[aria-current="page"] {
+  background: var(--hp-selection);
+  border-color: transparent;
+  color: var(--hp-reading-accent);
+}
+.hp-task-sidebar button:where(:not([class*="lobe-"])) strong {
   font-size: 12px;
   font-weight: 500;
 }
-.hp-task-sidebar button svg {
+.hp-task-sidebar button:where(:not([class*="lobe-"])) svg {
   width: 18px;
   height: 18px;
 }
@@ -268,8 +341,20 @@
 .hp-task-inspector dt {
   color: var(--hp-muted);
 }
+
+.hp-shell button:where(:not([class*="lobe-"])),
+.hp-surface button:where(:not([class*="lobe-"])) {
+  transition:
+    background-color var(--hp-morph),
+    border-color var(--hp-morph),
+    color var(--hp-morph);
+}
 .hp-conv:hover {
   background: var(--hp-selection);
+}
+.hp-shell button:where(:not([class*="lobe-"])):disabled,
+.hp-surface button:where(:not([class*="lobe-"])):disabled {
+  cursor: default;
 }
 @media (max-width: 959px) {
   .hp-auth-surface > .hp-auth-layout {
@@ -323,6 +408,9 @@
   .hp-task-row {
     padding: 16px;
   }
+  .hp-task-sidebar button:where(:not([class*="lobe-"])) {
+    min-height: 44px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .hp-shell *,
@@ -374,8 +462,12 @@
   color: var(--hp-muted);
   font-size: 12px;
 }
-.hp-workspace-search > label input {
+.hp-workspace-search > label input:where(:not([class*="lobe-"])) {
   width: 100%;
+  min-height: 40px;
+  background: var(--hp-surface);
+  font: inherit;
+  font-size: 14px;
 }
 .hp-workspace-search > details {
   flex-basis: auto;
@@ -389,6 +481,9 @@
   border: 1px solid var(--hp-border);
   border-radius: 8px;
   background: var(--hp-surface);
+}
+.hp-file-table th:first-child {
+  width: 40%;
 }
 .hp-file-table td {
   padding-block: 10px;
@@ -405,7 +500,7 @@
   grid-column: 2 / -1;
 }
 
-.hp-rail button:hover:not([aria-current="page"]) {
+.hp-rail button:where(:not([class*="lobe-"])):hover:not([aria-current="page"]) {
   background: var(--hp-rail-hover);
 }
 @media (max-width: 599px) {
@@ -422,11 +517,20 @@
     flex-basis: 100%;
   }
 }
-.hp-surface-header button {
+.hp-surface-header button:where(:not([class*="lobe-"])) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 .hp-auth-brand {
   min-width: 0;
+}
+.hp-inspector-tabs button:where(:not([class*="lobe-"])) {
+  border-radius: 0;
+}
+.hp-task-toolbar .hp-primary:hover:not(:disabled),
+.hp-workspace-toolbar button:where(:not([class*="lobe-"])):first-child:hover:not(:disabled) {
+  background: var(--hp-primary-hover);
+  border-color: var(--hp-primary-hover);
+  color: var(--hp-on-primary);
 }

@@ -1,4 +1,3 @@
-import { Button } from "../ui";
 import { useReadingPresentation } from "../mercury/readingPresentation";
 import { useWorkbench } from "../../store/workbench";
 import { useShell } from "../../store/shell";
@@ -30,7 +29,7 @@ export function ExecutionBlock({ runId, messageId }: { runId: string; messageId?
       ? Date.parse(record.finished_at) - Date.parse(record.started_at)
       : NaN;
   const details = (
-    <Button
+    <button
       className="hp-run-detail"
       aria-label="查看执行详情"
       title={`Run · ${runId}`}
@@ -95,7 +94,7 @@ export function ExecutionBlock({ runId, messageId }: { runId: string; messageId?
           </span>
         </>
       )}
-    </Button>
+    </button>
   );
   return (
     <section ref={cardRef} className="hp-execution-block" aria-label="消息执行状态">

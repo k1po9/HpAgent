@@ -36,7 +36,7 @@ test("success preserves raw reply, truthful cross-day timing and approval naviga
   await expect(page.getByText("执行 1分 29秒", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "查看操作审批" })).toHaveCSS(
     "background-color",
-    "rgba(0, 0, 0, 0)",
+    "rgb(243, 246, 248)",
   );
   await page.screenshot({ path: `${evidence}/after-desktop.png` });
   const edge = page.getByRole("separator", { name: "调整执行详情宽度" });

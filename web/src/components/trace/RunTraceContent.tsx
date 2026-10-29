@@ -1,4 +1,3 @@
-import { Button } from "../ui";
 import { useEffect } from "react";
 import { Activity, RefreshCw, CircleCheck } from "lucide-react";
 import { useTraceStore } from "./traceStore";
@@ -61,7 +60,7 @@ export function RunTraceContent() {
             )}
           </div>
           <div className="hp-trace-header__actions">
-            <Button
+            <button
               type="button"
               aria-label="刷新执行轨迹"
               title="仅刷新执行轨迹"
@@ -70,7 +69,7 @@ export function RunTraceContent() {
               onClick={() => void loadTrace()}
             >
               <RefreshCw aria-hidden="true" />
-            </Button>
+            </button>
           </div>
         </header>
         <div className="hp-trace-tree-wrap" aria-busy={loading}>

@@ -1,4 +1,3 @@
-import { Button } from "../ui";
 import type { CSSProperties } from "react";
 import { RunInspectorResize } from "./RunInspectorResize";
 import { RunRefresh } from "../run/RunRefresh";
@@ -15,6 +14,7 @@ import { Surface } from "./Surface";
 import { useMotionAllowed } from "../motion/preference";
 import { flashReception } from "../spatial/receptionFeedback";
 import { Maximize2, Minimize2 } from "lucide-react";
+import { TaskButton } from "../ui/TaskControls";
 
 import { useWorkspace } from "../../store/workspace";
 import { FileInspector } from "../workspace/FileInspector";
@@ -171,8 +171,8 @@ function InspectorContent({
         flow.detailsReveal &&
         (inspector.kind === "run" ? (
           <RunRefresh key={inspector.objectId} inspector={inspector} />
-        ) : (
-          <Button
+        ) : inspector.kind === "task" ? (
+          <TaskButton
             type="button"
             className="hp-inspector-expand"
             aria-pressed={expanded}
@@ -183,8 +183,21 @@ function InspectorContent({
             ) : (
               <Maximize2 size={16} aria-hidden="true" />
             )}
+            <span>{expanded ? "恢复宽度" : "扩大阅读"}</span>
+          </TaskButton>
+        ) : (
+          <button
+            className="hp-inspector-expand"
+            aria-pressed={expanded}
+            onClick={() => useShell.setState({ expanded: !expanded })}
+          >
+            {expanded ? (
+              <Minimize2 size={16} aria-hidden="true" />
+            ) : (
+              <Maximize2 size={16} aria-hidden="true" />
+            )}
             {expanded ? "恢复宽度" : "扩大阅读"}
-          </Button>
+          </button>
         ))
       }
       onClose={() => useShell.getState().closeInspector()}

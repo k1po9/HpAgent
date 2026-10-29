@@ -1,4 +1,5 @@
-import { Button } from "../ui";
+import { TaskButton } from "../ui/TaskControls";
+import { Block, Tag } from "@lobehub/ui";
 import { useWorks } from "../../store/works";
 import type { HpWork } from "../../api/types";
 import { useShell } from "../../store/shell";
@@ -18,12 +19,15 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
   const used = budget?.used.model_total_tokens ?? 0,
     limit = budget?.limits.model_total_tokens;
   return (
-    <article
+    <Block
+      as="article"
+      variant="outlined"
       aria-label={work.title}
       data-status={work.status}
       data-bucket={p.bucket}
       data-work-id={work.work_id}
-      className={`hp-task-row ${selected ? "hp-task-row--selected" : ""}`}
+      data-selected={Boolean(selected)}
+      className={`hp-lobe-scope hp-task-row ${selected ? "hp-task-row--selected" : ""}`}
     >
       <div className="hp-task-card-symbol">
         <Icon size={19} aria-hidden="true" />
@@ -33,10 +37,11 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
         {taskTime(work) ? ` · ${taskTime(work)}` : ""}
       </p>
       <div className="hp-task-row-heading">
-        <Button
-          type="button"
+        <TaskButton
           id={`task-${work.work_id}`}
           className="hp-task-title"
+          appearance="text"
+          aria-expanded={Boolean(selected)}
           onClick={() =>
             useShell.getState().openInspector({
               kind: "task",
@@ -50,10 +55,12 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
           }
         >
           {work.title}
-        </Button>
+        </TaskButton>
       </div>
       <p className="hp-task-objective">{work.requirement.objective}</p>
-      <span className="hp-task-status">{p.label}</span>
+      <Tag className="hp-task-status" size="small" variant="filled">
+        {p.label}
+      </Tag>
       {p.attentionReasons.length > 0 && p.bucket !== "ended" && (
         <p className="hp-task-attention">{p.attentionReasons.join("；")}</p>
       )}
@@ -68,6 +75,6 @@ export function TaskRow({ work, selected }: { work: HpWork; selected?: boolean }
         </p>
       )}
       <TaskActions work={work} compact />
-    </article>
+    </Block>
   );
 }

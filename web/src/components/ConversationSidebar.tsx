@@ -1,6 +1,5 @@
-import { TextField, Button } from "./ui";
 import { useEffect, useState, useRef } from "react";
-import { Box, Flex, Heading, Spinner, Text } from "@radix-ui/themes";
+import { Box, Button, Flex, Heading, Spinner, Text } from "@radix-ui/themes";
 import { useSpatialFeedback } from "./motion/useSpatialFeedback";
 import { conversationDateGroup } from "./conversation/dateGroup";
 import { Plus, MessageSquare, Search } from "lucide-react";
@@ -86,7 +85,7 @@ export function ConversationSidebar({
 
         <div className="hp-conversation-search">
           <Search size={16} aria-hidden="true" />
-          <TextField
+          <input
             className="hp-conversation-filter"
             aria-label="筛选已加载对话"
             placeholder="筛选已加载对话"
@@ -98,9 +97,7 @@ export function ConversationSidebar({
           {error && (
             <div role="alert">
               <p>{error}</p>
-              <Button type="button" onClick={onRefresh}>
-                从首批刷新
-              </Button>
+              <button onClick={onRefresh}>从首批刷新</button>
             </div>
           )}
           {filter && !filtered.length && <p>已加载对话中没有匹配标题，仍可加载更多。</p>}
@@ -127,7 +124,7 @@ export function ConversationSidebar({
               {filtered
                 .filter((c) => conversationDateGroup(c.updated_at, today) === group)
                 .map((conversation) => (
-                  <Button
+                  <button
                     key={conversation.conversation_id}
                     title={conversation.title}
                     data-conversation-id={conversation.conversation_id}
@@ -149,14 +146,14 @@ export function ConversationSidebar({
                     >
                       {updatedLabel(conversation.updated_at, today)}
                     </time>
-                  </Button>
+                  </button>
                 ))}
             </div>
           ))}
           {hasMore && (
-            <Button type="button" disabled={loadingMore || loading} onClick={onLoadMore}>
+            <button disabled={loadingMore || loading} onClick={onLoadMore}>
               {loadingMore ? "加载中…" : "加载更多对话"}
-            </Button>
+            </button>
           )}
         </Flex>
         {selected && (

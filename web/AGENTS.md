@@ -20,17 +20,6 @@
 - 视觉使用语义 tokens 与现有 Mercury 时间轴；减动、窄屏、隐藏、失联、长帧与异常要收敛并清理资源，空闲不维持 RAF。
 - Run 诊断仅展示可证实的调用、用量、耗时与来源；缺失/异常标未知，不从 Trace 数量推算请求数、不猜 token 拆分或供应商延迟。
 
-## 控件与布局
-
-- 普通控件使用 `components/ui/`；Radix 的基础控件导入限于该目录，由现有 ESLint 约束。Button 明确
-  `type`，主操作用显式 variant，原生表单事件、ref/id/aria/data 属性透传。
-- 基础控件和 InspectorTabs 的样式归 CSS Modules，使用 `--hp-*`
-  语义 tokens；Field 的 label/description/error 与生成 ID 关联到内部原生控件，已有 aria-describedby 追加保留。有说明或字段错误时使用显式 label，固定输入 id 时以 htmlFor 对齐；API/表单级错误留在表单层，不能据此给全部字段设置 aria-invalid。领域 CSS 保留宽度、排列、对象状态与具名专用交互（如 Composer、Inspector 扩宽、标题编辑和入口确认态）；全局低优先级焦点规则仅作回退，页签使用内收焦点环以适应紧凑布局。迁移时删旧通用外观规则，不叠加全局 button/input 覆盖。hidden/inert、接收门控、减动和拖宽期间的行为保护继续保留。
-- Shell 尺寸计算复用
-  `components/shell/layout.ts`；视口决定模式，页面内部按容器排布。保留现有任务看板与聊天容器查询。
-- 第三方浮层通过项目接口适配 Surface。Portal 在所属原生 dialog 内，Esc 只关闭前景，保持主题、inert 和焦点返回；不能用 z-index 绕过 top
-  layer。
-
 ## 检查
 
 在根目录运行

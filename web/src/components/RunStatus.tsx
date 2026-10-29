@@ -1,5 +1,4 @@
-import { Button } from "./ui";
-import { Box, Flex, Text } from "@radix-ui/themes";
+import { Box, Button, Flex, Text } from "@radix-ui/themes";
 import { useEffect, useState, type ReactNode } from "react";
 import type { HpRun } from "../api/types";
 import type { RunProgress } from "../sse/runFeed";

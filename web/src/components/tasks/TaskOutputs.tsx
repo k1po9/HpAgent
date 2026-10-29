@@ -1,6 +1,8 @@
-import { Button } from "../ui";
+import { Empty } from "@lobehub/ui";
+import { TaskButton } from "../ui/TaskControls";
 import { useState } from "react";
-import { Markdown } from "../ui/Markdown";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import type { HpWork, HpTaskRun, HpRunSnapshot } from "../../api/types";
 import { useWorks } from "../../store/works";
 import { useShell } from "../../store/shell";
@@ -21,7 +23,7 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
     <div className="hp-task-outputs">
       <h4>任务交付引用</h4>
       <p>查看、保存或生成新版本均不等于接受任务成果。后续手工版本不会替代此处原交付。</p>
-      {!work.artifacts.length && <p>暂无 HTML 交付引用。</p>}
+      {!work.artifacts.length && <Empty className="hp-task-empty" title="暂无 HTML 交付引用。" />}
       {work.artifacts.map((a, i) => (
         <ArtifactResult
           key={a.reference_id ?? `${a.artifact_version_id}:${a.role}:${i}`}
@@ -34,19 +36,16 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
       <p>仅查询最近最多 100 次执行；Run 成功不等于任务已结束。</p>
       {runs.error && (
         <p role="alert">
-          执行记录暂不可用。
-          <Button type="button" onClick={runs.retry}>
-            重试执行记录
-          </Button>
+          执行记录暂不可用。<TaskButton onClick={runs.retry}>重试执行记录</TaskButton>
         </p>
       )}
       {runs.loading && <p role="status">正在加载执行记录…</p>}
-      {runs.data?.items.length === 0 && <p>暂无执行记录。</p>}
+      {runs.data?.items.length === 0 && <Empty className="hp-task-empty" title="暂无执行记录。" />}
       {runs.data?.items.map((run) => (
         <RunOutput key={run.run_id} work={work} run={run} onSaveFile={onSaveFile} />
       ))}
       <h4>投递记录</h4>
-      {work.deliveries.length === 0 && <p>暂无投递记录。</p>}
+      {work.deliveries.length === 0 && <Empty className="hp-task-empty" title="暂无投递记录。" />}
       {work.deliveries.map((d) => (
         <TaskDeliveryDecision key={d.delivery_id} work={work} delivery={d} />
       ))}
@@ -57,7 +56,9 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
         </p>
       )}
       <h4>自动保存到空间</h4>
-      {!work.workspace_saves.length && <p>暂无自动保存记录。手动保存结果在保存表单中显示。</p>}
+      {!work.workspace_saves.length && (
+        <Empty className="hp-task-empty" title="暂无自动保存记录。手动保存结果在保存表单中显示。" />
+      )}
       {work.workspace_saves.map((s) => (
         <p key={`${s.run_id}:${s.operation_id}`}>
           r{s.requirement_revision} ·{" "}
@@ -67,8 +68,7 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
               ? `保存失败：${s.failure_code ?? "原因待同步"}`
               : "等待保存"}
           {s.state === "succeeded" && s.entry_id && (
-            <Button
-              type="button"
+            <TaskButton
               id={`task-file-${work.work_id}-${s.run_id}-${s.operation_id}`}
               onClick={() =>
                 useShell.getState().openInspector(
@@ -87,7 +87,7 @@ export function TaskOutputs({ work, onSaveFile }: { work: HpWork; onSaveFile: Sa
               }
             >
               查看空间入口
-            </Button>
+            </TaskButton>
           )}
         </p>
       ))}
@@ -134,8 +134,7 @@ function ArtifactResult({
             ? "历史接受"
             : "未接受"}
       </p>
-      <Button
-        type="button"
+      <TaskButton
         id={`task-artifact-${a.artifact_version_id}`}
         onClick={() =>
           useShell.getState().openInspector(
@@ -155,15 +154,11 @@ function ArtifactResult({
         }
       >
         查看原引用版本
-      </Button>
+      </TaskButton>
       {eligible ? (
-        <Button
-          type="button"
-          disabled={intent?.busy || intent?.uncertain}
-          onClick={() => setConfirm(true)}
-        >
+        <TaskButton disabled={intent?.busy || intent?.uncertain} onClick={() => setConfirm(true)}>
           接受这份成果
-        </Button>
+        </TaskButton>
       ) : (
         a.role === "deliverable" &&
         a.accepted_for_revision !== work.current_requirement_revision && (
@@ -174,15 +169,12 @@ function ArtifactResult({
       )}
       {evidence.error && (
         <p role="alert">
-          验收证据未能核实。
-          <Button type="button" onClick={evidence.retry}>
-            重新核实证据
-          </Button>
+          验收证据未能核实。<TaskButton onClick={evidence.retry}>重新核实证据</TaskButton>
         </p>
       )}
       {confirm && (
         <Surface
-          className="hp-object-operation"
+          className="hp-object-operation hp-task-operation hp-lobe-scope"
           motion="elevate"
           title="接受指定成果版本"
           onClose={() => setConfirm(false)}
@@ -191,8 +183,7 @@ function ArtifactResult({
             将接受任务 r{work.current_requirement_revision} 的原交付版本 {a.artifact_version_id}
             。此操作独立于查看或保存。
           </p>
-          <Button
-            type="button"
+          <TaskButton
             disabled={!eligible || intent?.busy}
             onClick={() =>
               void useWorks
@@ -204,7 +195,7 @@ function ArtifactResult({
             }
           >
             确认接受此版本
-          </Button>
+          </TaskButton>
           {intent?.error && <p role="alert">{intent.error}</p>}
         </Surface>
       )}
@@ -235,8 +226,7 @@ function RunOutput({
           } as Record<string, string>
         )[run.status] ?? "执行状态待核实"}
       </p>
-      <Button
-        type="button"
+      <TaskButton
         onClick={() =>
           useShell
             .getState()
@@ -247,10 +237,10 @@ function RunOutput({
         }
       >
         查看执行详情与诊断
-      </Button>
-      <Button type="button" onClick={() => setOpen((v) => !v)}>
+      </TaskButton>
+      <TaskButton onClick={() => setOpen((v) => !v)}>
         {open ? "收起输出" : "读取报告与输出文件"}
-      </Button>
+      </TaskButton>
       {run.failure_code && <p>失败原因：{run.failure_code}</p>}
       {open && <PublishedOutput work={work} run={run} onSaveFile={onSaveFile} />}
     </article>
@@ -278,38 +268,34 @@ function PublishedOutput({
   );
   return (
     <div>
-      <RunCapabilityResults runId={run.run_id} revision={run.status} />
+      <RunCapabilityResults taskUi runId={run.run_id} revision={run.status} />
       <div className="hp-task-actions">
-        <Button type="button" disabled={files.loading} onClick={files.retry}>
+        <TaskButton disabled={files.loading} onClick={files.retry}>
           刷新输出文件
-        </Button>
+        </TaskButton>
         {research && (
-          <Button type="button" disabled={report.loading} onClick={report.retry}>
+          <TaskButton disabled={report.loading} onClick={report.retry}>
             刷新报告
-          </Button>
+          </TaskButton>
         )}
       </div>
       {report.loading && <p role="status">正在读取报告…</p>}
       {report.error && (
         <p role="alert">
-          报告暂不可用。
-          <Button type="button" onClick={report.retry}>
-            重试报告
-          </Button>
+          报告暂不可用。<TaskButton onClick={report.retry}>重试报告</TaskButton>
         </p>
       )}
       {report.data && (
         <div className="hp-task-report">
-          <Markdown>{report.data.report.report_markdown}</Markdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {report.data.report.report_markdown}
+          </ReactMarkdown>
         </div>
       )}
       {files.loading && <p role="status">正在读取输出文件…</p>}
       {files.error && (
         <p role="alert">
-          输出文件暂不可用。
-          <Button type="button" onClick={files.retry}>
-            重试输出文件
-          </Button>
+          输出文件暂不可用。<TaskButton onClick={files.retry}>重试输出文件</TaskButton>
         </p>
       )}
       {files.data?.files.map((f) => (
@@ -317,15 +303,14 @@ function PublishedOutput({
           <a href={`/api/v1/files/${encodeURIComponent(f.file_id)}/content`} download>
             {f.name}
           </a>{" "}
-          <Button
-            type="button"
-            onClick={() => onSaveFile({ file_id: f.file_id, file_name: f.name })}
-          >
+          <TaskButton onClick={() => onSaveFile({ file_id: f.file_id, file_name: f.name })}>
             保存到空间
-          </Button>
+          </TaskButton>
         </p>
       ))}
-      {files.data?.files.length === 0 && <p>暂无已发布文件。</p>}
+      {files.data?.files.length === 0 && (
+        <Empty className="hp-task-empty" title="暂无已发布文件。" />
+      )}
     </div>
   );
 }

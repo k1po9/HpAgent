@@ -1,4 +1,3 @@
-import { Button } from "./ui";
 import { useEffect, useRef, useState } from "react";
 
 export function ArtifactPreview({ html }: { html: string }) {
@@ -25,7 +24,7 @@ function PreviewFrame({ html }: { html: string }) {
       {runtimeError ? (
         <div className="hp-artifact-runtime-error" role="alert">
           预览内脚本出错：{runtimeError}
-          <Button
+          <button
             type="button"
             onClick={() => {
               setRuntimeError(null);
@@ -33,7 +32,7 @@ function PreviewFrame({ html }: { html: string }) {
             }}
           >
             重新加载
-          </Button>
+          </button>
         </div>
       ) : null}
       <iframe

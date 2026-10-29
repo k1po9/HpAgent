@@ -1,5 +1,3 @@
-import { Button, Field, Checkbox } from "../ui";
-import { runInspectorWidth, runWidthBounds, shellModes } from "./layout";
 import { revealConversationReading } from "../mercury/useConversationTransit";
 import { AgentIcon, WorkspaceIcon, TasksIcon } from "../spatial/ReviewIcons";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
@@ -17,6 +15,7 @@ import { TaskScreen } from "../tasks/TaskScreen";
 import { TaskSidebar } from "../tasks/TaskSidebar";
 import { TaskEditor } from "../tasks/TaskEditor";
 import { TaskInbox } from "../tasks/TaskInbox";
+import { TaskButton } from "../ui/TaskControls";
 import { useTaskController } from "../tasks/useTaskController";
 import { QQBindingPanel } from "../QQBindingPanel";
 import { RegistrationQqGate } from "../RegistrationQqGate";
@@ -46,7 +45,7 @@ export function AppShell() {
 
   const layout = useShellWidth(shellRef);
   const { width } = layout;
-  const flow = useInspectorFlow(width < shellModes.inspector);
+  const flow = useInspectorFlow(width < 1280);
   const expanded = flow.expanded;
   const runWidth = useShell((s) => s.runInspectorWidth);
   const route = useShell((s) => s.route);
@@ -172,14 +171,17 @@ export function AppShell() {
       <TaskSidebar />
     );
   const collapsed =
-    width < shellModes.sidebar ||
+    width < 960 ||
     width <
       layout.rail +
         layout.sidebar +
         layout.canvasMin +
-        (flow.occupies && width >= shellModes.inspector
+        (flow.occupies && width >= 1280
           ? flow.kind === "run"
-            ? runInspectorWidth(layout, runWidth)
+            ? Math.min(
+                runWidth,
+                Math.max(360, width - layout.rail - layout.canvasMin - layout.layoutGap),
+              )
             : expanded
               ? layout.inspectorExpanded
               : layout.inspector
@@ -188,12 +190,7 @@ export function AppShell() {
   return (
     <div
       ref={shellRef}
-      style={
-        {
-          "--hp-run-inspector-width": `${runInspectorWidth(layout, runWidth)}px`,
-          "--hp-run-max-width": `${runWidthBounds(layout).max}px`,
-        } as CSSProperties
-      }
+      style={{ "--hp-run-inspector-width": `${runWidth}px` } as CSSProperties}
       data-spatial-motion={motion ? "enabled" : "reduced"}
       className={`hp-shell ${flow.occupies ? "hp-shell--inspecting" : ""} ${collapsed ? "hp-shell--sidebar-collapsed" : ""}`}
     >
@@ -244,15 +241,14 @@ export function AppShell() {
       </Surface>
       <main className="hp-main-canvas">
         <header className="hp-canvas-header">
-          <Button
-            type="button"
+          <button
             className="hp-sidebar-toggle"
             title="打开侧栏"
             aria-label="打开侧栏"
             onClick={() => useShell.setState({ sidebarOpen: true })}
           >
             <Menu aria-hidden="true" />
-          </Button>
+          </button>
           <div className="hp-canvas-heading">
             <span className="hp-page-context">
               {route.screen === "ai"
@@ -285,8 +281,7 @@ export function AppShell() {
           <p role="status">
             {notice}{" "}
             {savedNode && (
-              <Button
-                type="button"
+              <button
                 onClick={() =>
                   navigate({
                     screen: "workspace",
@@ -296,7 +291,7 @@ export function AppShell() {
                 }
               >
                 打开空间
-              </Button>
+              </button>
             )}
           </p>
         )}
@@ -304,17 +299,14 @@ export function AppShell() {
           {route.screen === "ai" && route.conversationId && !conversationId && !loading ? (
             <div role="alert">
               <p>{useWorkbench.getState().error ?? "对象不可用。"}</p>
-              <Button
-                type="button"
+              <button
                 onClick={() =>
                   void useWorkbench.getState().selectConversation(route.conversationId!)
                 }
               >
                 重试对话
-              </Button>
-              <Button type="button" onClick={() => navigate({ screen: "ai" })}>
-                返回新对话
-              </Button>
+              </button>
+              <button onClick={() => navigate({ screen: "ai" })}>返回新对话</button>
             </div>
           ) : (
             <ChatPane
@@ -341,7 +333,7 @@ export function AppShell() {
       </main>
       <InspectorHost
         flow={flow}
-        compact={width < shellModes.inspector}
+        compact={width < 1280}
         onSaveFile={saveFile}
         onSaveHtml={setSaveSource}
       />
@@ -354,14 +346,12 @@ export function AppShell() {
           onClose={() => useShell.setState({ pendingRoute: null, pendingDirectoryChange: null })}
         >
           <p>目录名称尚未保存。已提交的创建请求仍会继续处理。</p>
-          <Button
-            type="button"
+          <button
             onClick={() => useShell.setState({ pendingRoute: null, pendingDirectoryChange: null })}
           >
             继续编辑
-          </Button>
-          <Button
-            type="button"
+          </button>
+          <button
             onClick={() => {
               const discard = useShell.getState().dirtyDirectoryEditor;
               useShell.setState({
@@ -375,29 +365,29 @@ export function AppShell() {
             }}
           >
             放弃目录名称并继续
-          </Button>
+          </button>
         </Surface>
       )}
       {pendingRoute && pendingReason === "tasks" && (
         <Surface
-          className="hp-object-operation"
+          className="hp-object-operation hp-task-operation hp-lobe-scope"
           motion="elevate"
           title="放弃未提交的任务草稿？"
           onClose={() => useShell.setState({ pendingRoute: null })}
         >
           <p>草稿尚未提交，切换将丢弃修改。</p>
-          <Button type="button" onClick={() => useShell.setState({ pendingRoute: null })}>
+          <TaskButton onClick={() => useShell.setState({ pendingRoute: null })}>
             继续编辑
-          </Button>
-          <Button
-            type="button"
+          </TaskButton>
+          <TaskButton
+            danger
             onClick={() => {
               useShell.setState({ dirtyTaskEditor: null });
               useShell.getState().navigate(pendingRoute);
             }}
           >
             放弃草稿并继续
-          </Button>
+          </TaskButton>
         </Surface>
       )}
       {((pendingRoute && pendingReason === "resources") || pendingResourceChange) && (
@@ -408,14 +398,12 @@ export function AppShell() {
           onClose={() => useShell.setState({ pendingRoute: null, pendingResourceChange: null })}
         >
           <p>尚未提交的权限选择会丢弃，已生效授权不受影响。</p>
-          <Button
-            type="button"
+          <button
             onClick={() => useShell.setState({ pendingRoute: null, pendingResourceChange: null })}
           >
             继续编辑
-          </Button>
-          <Button
-            type="button"
+          </button>
+          <button
             onClick={() => {
               useShell.setState({
                 dirtyResourceEditor: null,
@@ -427,7 +415,7 @@ export function AppShell() {
             }}
           >
             放弃编辑并继续
-          </Button>
+          </button>
         </Surface>
       )}
       {pendingRoute && pendingReason === "attachments" && (
@@ -437,11 +425,8 @@ export function AppShell() {
           onClose={() => useShell.setState({ pendingRoute: null })}
         >
           <p>切换对话将放弃本轮待发送附件。已有文件只取消选择。</p>
-          <Button type="button" onClick={() => useShell.setState({ pendingRoute: null })}>
-            继续当前对话
-          </Button>
-          <Button
-            type="button"
+          <button onClick={() => useShell.setState({ pendingRoute: null })}>继续当前对话</button>
+          <button
             onClick={() => {
               const state = useWorkbench.getState();
               const target = pendingRoute;
@@ -454,7 +439,7 @@ export function AppShell() {
             }}
           >
             放弃本轮附件并切换
-          </Button>
+          </button>
         </Surface>
       )}
       {modal === "account" && (
@@ -478,18 +463,17 @@ export function AppShell() {
             onCompleted={() => check()}
             startRequested={startBinding}
           />
-          <Field className="hp-motion-setting">
-            <Checkbox
+          <label className="hp-motion-setting">
+            <input
               type="checkbox"
               checked={motionPreference === "reduce"}
               onChange={(e) => setMotionPreference(e.target.checked ? "reduce" : "system")}
             />
             减少动态效果
             <small>系统减动设置始终优先</small>
-          </Field>
+          </label>
           <footer className="hp-account-footer">
-            <Button
-              type="button"
+            <button
               className="hp-account-signout"
               onClick={() => {
                 void useAuth
@@ -502,7 +486,7 @@ export function AppShell() {
             >
               <LogOut size={16} aria-hidden="true" />
               退出登录
-            </Button>
+            </button>
           </footer>
         </Surface>
       )}
@@ -554,6 +538,7 @@ export function AppShell() {
       />
       {saveSource && (
         <SaveWorkspaceDialog
+          taskUi={route.screen === "tasks"}
           file={saveSource}
           onClose={() => setSaveSource(null)}
           onSaved={(operation) => {

@@ -1,5 +1,3 @@
-import { Notice } from "../ui";
-import { Button } from "../ui";
 import { useEffect, useRef, useState } from "react";
 import { HpCommandError, type HpFile } from "../../api/types";
 import { useWorkspace } from "../../store/workspace";
@@ -114,25 +112,24 @@ export function RunResources({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, terminal]);
   return (
-    <section className="hp-run-resources" aria-label="使用资料与输出">
+    <section aria-label="使用资料与输出">
       <h3>候选资料</h3>
       {terminal && <p>当前接口不提供完整历史候选回放。</p>}
       {terminal && candidates && <p>先前候选快照，当前未验证。</p>}
-      {error && <Notice role="status">{error}</Notice>}
-      <Button
-        type="button"
+      {error && <p role="status">{error}</p>}
+      <button
         disabled={busy || ["cancelling", "cancelled"].includes(runStatus ?? "")}
         onClick={() => void load()}
       >
         刷新资料
-      </Button>
-      {busy && <Notice role="status">正在同步候选资料…</Notice>}
+      </button>
+      {busy && <p role="status">正在同步候选资料…</p>}
       {candidates && !busy && !candidates.candidates.length && (
         <p>当前没有可展示的候选资料；不代表没有历史读取。</p>
       )}
       {candidates?.candidates.map((c) => (
         <p key={c.node_id}>
-          <Button
+          <button
             type="button"
             id={`run-file-${runId}-${c.node_id}`}
             onClick={() =>
@@ -151,30 +148,26 @@ export function RunResources({
             }
           >
             {c.logical_name || c.name}
-          </Button>{" "}
+          </button>{" "}
           · {c.content_type ?? "类型未知"}
           {c.size_bytes != null ? ` · ${c.size_bytes} 字节` : ""} · {c.fixed ? "固定资料" : "候选"}{" "}
           · {c.read ? "已读取" : "未确认读取"}
         </p>
       ))}
       {candidates?.next && (
-        <Button type="button" disabled={busy} onClick={() => void load(true)}>
+        <button disabled={busy} onClick={() => void load(true)}>
           加载更多资料
-        </Button>
+        </button>
       )}
       <h3>已发布输出</h3>
-      <Button type="button" onClick={() => void outputs()}>
-        刷新输出
-      </Button>
+      <button onClick={() => void outputs()}>刷新输出</button>
       {outputError && (
-        <Notice role="alert">
+        <p role="alert">
           {outputError}
-          <Button type="button" onClick={() => void outputs()}>
-            重试输出
-          </Button>
-        </Notice>
+          <button onClick={() => void outputs()}>重试输出</button>
+        </p>
       )}
-      {outputLoading && <Notice role="status">正在加载输出…</Notice>}
+      {outputLoading && <p role="status">正在加载输出…</p>}
       {!outputLoading && !files.length && !outputError && <p>暂无已发布输出。</p>}
       {files.map((f) => (
         <div key={f.file_id}>
@@ -182,8 +175,7 @@ export function RunResources({
             {f.name}
           </a>
           {onSaveFile && (
-            <Button
-              type="button"
+            <button
               onClick={() => {
                 const selected = runId;
                 void runApi
@@ -198,7 +190,7 @@ export function RunResources({
               }}
             >
               保存到空间
-            </Button>
+            </button>
           )}
         </div>
       ))}
@@ -245,13 +237,11 @@ export function RunApprovals({ terminal }: { terminal: boolean }) {
     consumed: "授权已使用，请查看执行结果",
   };
   return (
-    <section className="hp-run-approvals" aria-label="文件操作审批">
+    <section aria-label="文件操作审批">
       <h3>文件操作审批</h3>
-      <Button type="button" onClick={() => void load()}>
-        同步审批
-      </Button>
-      {state.approvalError && <Notice role="status">{state.approvalError}</Notice>}
-      {state.approvalLoading && <Notice role="status">正在同步审批…</Notice>}
+      <button onClick={() => void load()}>同步审批</button>
+      {state.approvalError && <p role="status">{state.approvalError}</p>}
+      {state.approvalLoading && <p role="status">正在同步审批…</p>}
       {state.approvalLoaded && !state.approvals.length && !state.approvalError && (
         <p>暂无操作审批。</p>
       )}
@@ -267,25 +257,21 @@ export function RunApprovals({ terminal }: { terminal: boolean }) {
               <summary>操作详情</summary>
               {a.tool_name} · {a.operation_id}
             </details>
-            {intent?.message && <Notice role="alert">{intent.message}</Notice>}
+            {intent?.message && <p role="alert">{intent.message}</p>}
             {a.status === "pending" &&
               (expired ? (
                 <p>审批已到期，请重新同步。</p>
               ) : intent ? (
                 intent.state === "unknown" &&
                 intent.canReplay && (
-                  <Button type="button" onClick={() => void state.decide(a, intent.decision, true)}>
+                  <button onClick={() => void state.decide(a, intent.decision, true)}>
                     确认原{intent.decision === "approve" ? "允许" : "拒绝"}决策
-                  </Button>
+                  </button>
                 )
               ) : (
                 <>
-                  <Button type="button" onClick={() => void state.decide(a, "approve")}>
-                    允许
-                  </Button>
-                  <Button type="button" onClick={() => void state.decide(a, "reject")}>
-                    拒绝
-                  </Button>
+                  <button onClick={() => void state.decide(a, "approve")}>允许</button>
+                  <button onClick={() => void state.decide(a, "reject")}>拒绝</button>
                 </>
               ))}
           </article>

@@ -1,5 +1,3 @@
-import { FormActions } from "../ui";
-import { Button } from "../ui";
 import { InspectorTabs } from "../shell/InspectorTabs";
 import { useEffect, useState, type ReactNode } from "react";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
@@ -36,8 +34,7 @@ export function FileInspector({ inspector }: { inspector: Inspector }) {
       <p role={error ? "alert" : "status"}>
         {error || "正在加载对象…"}
         {error && (
-          <Button
-            type="button"
+          <button
             onClick={() =>
               void useWorkspace
                 .getState()
@@ -46,7 +43,7 @@ export function FileInspector({ inspector }: { inspector: Inspector }) {
             }
           >
             重试对象
-          </Button>
+          </button>
         )}
       </p>
     );
@@ -54,8 +51,7 @@ export function FileInspector({ inspector }: { inspector: Inspector }) {
     return (
       <div role="alert">
         <p>对象不可用。</p>
-        <Button
-          type="button"
+        <button
           disabled={loading}
           onClick={() =>
             void useWorkspace
@@ -65,10 +61,10 @@ export function FileInspector({ inspector }: { inspector: Inspector }) {
           }
         >
           重新验证对象
-        </Button>
-        <Button type="button" onClick={() => useShell.getState().navigate({ screen: "workspace" })}>
+        </button>
+        <button onClick={() => useShell.getState().navigate({ screen: "workspace" })}>
           返回空间
-        </Button>
+        </button>
       </div>
     );
   return <FileBody key={node.node_id} node={node} inspector={inspector} />;
@@ -111,10 +107,7 @@ function FileBody({ node, inspector }: { node: HpWorkspaceNode; inspector: Inspe
   if (metadata.error)
     return (
       <p role="alert">
-        文件信息不可用。
-        <Button type="button" onClick={metadata.retry}>
-          重试文件信息
-        </Button>
+        文件信息不可用。<button onClick={metadata.retry}>重试文件信息</button>
       </p>
     );
   return (
@@ -123,29 +116,24 @@ function FileBody({ node, inspector }: { node: HpWorkspaceNode; inspector: Inspe
         {node.kind === "directory" ? "目录" : "文件"}：{node.name || "根目录"}
       </h3>
       <p className="hp-object-path">{nodePath(tree, node.node_id)}</p>
-      <FormActions className="hp-file-actions">
+      <div className="hp-file-actions">
         {metadata.data?.file.status === "ready" && (
           <a href={`/api/v1/files/${encodeURIComponent(node.file_id!)}/content`} download>
             下载
           </a>
         )}
-        <Button
-          type="button"
-          disabled={node.kind === "file" && !metadata.data}
-          onClick={() => setUsing(true)}
-        >
+        <button disabled={node.kind === "file" && !metadata.data} onClick={() => setUsing(true)}>
           在对话中使用
-        </Button>
+        </button>
         {node.parent_id !== null && (
-          <Button
-            type="button"
+          <button
             disabled={node.kind === "file" && !metadata.data}
             onClick={() => setMutation(true)}
           >
             改名、移动或移除入口
-          </Button>
+          </button>
         )}
-      </FormActions>
+      </div>
       {node.kind === "file" && <FileArtifactLink node={node} />}
       <InspectorTabs
         prefix="file"
@@ -219,8 +207,7 @@ function FileArtifactLink({ node }: { node: HpWorkspaceNode }) {
       {artifact && (
         <>
           <p>空间保留文件字节；交互预览与自然语言修改在 HTML 成果中打开。</p>
-          <Button
-            type="button"
+          <button
             id={`file-artifact-${node.node_id}`}
             onClick={() =>
               useShell.getState().openInspector(
@@ -239,15 +226,12 @@ function FileArtifactLink({ node }: { node: HpWorkspaceNode }) {
             }
           >
             打开交互成果 v{artifact.version}
-          </Button>
+          </button>
         </>
       )}
       {trace.error && (
         <p role="alert">
-          交互成果来源暂不可用。
-          <Button type="button" onClick={trace.retry}>
-            重试成果来源
-          </Button>
+          交互成果来源暂不可用。<button onClick={trace.retry}>重试成果来源</button>
         </p>
       )}
     </div>
@@ -285,15 +269,11 @@ function FileDetails({ node }: { node: HpWorkspaceNode }) {
       )}
       {retention.error && (
         <p role="alert">
-          保留信息加载失败。
-          <Button type="button" onClick={retention.retry}>
-            重试保留信息
-          </Button>
+          保留信息加载失败。<button onClick={retention.retry}>重试保留信息</button>
         </p>
       )}
       {trace.data?.source_run_id && (
-        <Button
-          type="button"
+        <button
           onClick={() =>
             useShell
               .getState()
@@ -301,11 +281,10 @@ function FileDetails({ node }: { node: HpWorkspaceNode }) {
           }
         >
           查看来源执行
-        </Button>
+        </button>
       )}
       {trace.data?.source_work_id && (
-        <Button
-          type="button"
+        <button
           id={`file-source-task-${node.node_id}`}
           onClick={() =>
             useShell.getState().openInspector(
@@ -323,28 +302,22 @@ function FileDetails({ node }: { node: HpWorkspaceNode }) {
           }
         >
           查看来源任务
-        </Button>
+        </button>
       )}
       {trace.error && (
         <p role="alert">
-          来源查询失败。
-          <Button type="button" onClick={trace.retry}>
-            重试来源
-          </Button>
+          来源查询失败。<button onClick={trace.retry}>重试来源</button>
         </p>
       )}
-      <Button type="button" onClick={() => setLineageOpen((v) => !v)}>
+      <button onClick={() => setLineageOpen((v) => !v)}>
         {lineageOpen ? "收起来源链" : "查看来源链"}
-      </Button>
+      </button>
       {lineageOpen && (
         <>
           {lineage.loading && <p>正在加载来源链…</p>}
           {lineage.error && (
             <p role="alert">
-              来源链不可用。
-              <Button type="button" onClick={lineage.retry}>
-                重试来源链
-              </Button>
+              来源链不可用。<button onClick={lineage.retry}>重试来源链</button>
             </p>
           )}
           {lineage.data?.files.map((f) => (
@@ -367,24 +340,20 @@ function FileUsage({ node }: { node: HpWorkspaceNode }) {
       {trace.loading && <p>正在读取历史…</p>}
       {trace.error && (
         <p role="alert">
-          使用记录暂不可用。
-          <Button type="button" onClick={trace.retry}>
-            重试历史
-          </Button>
+          使用记录暂不可用。<button onClick={trace.retry}>重试历史</button>
         </p>
       )}
       {trace.data?.run_usage_truncated && <p>仅展示部分历史，接口未提供更多页。</p>}
       {trace.data?.run_usage.length === 0 && <p>暂无可展示的历史记录；不代表没有当前授权。</p>}
       {trace.data?.run_usage.map((r) => (
         <p key={r.run_id}>
-          <Button
-            type="button"
+          <button
             onClick={() =>
               useShell.getState().openInspector({ kind: "run", objectId: r.run_id }, true)
             }
           >
             查看执行 {r.run_id}
-          </Button>{" "}
+          </button>{" "}
           · {r.fixed_at ? "已固定" : "候选"} · {r.materialized_at ? "已物化" : "未确认物化"} ·{" "}
           {r.first_read_at ? `首次读取 ${r.first_read_at}` : "未确认读取"}
         </p>

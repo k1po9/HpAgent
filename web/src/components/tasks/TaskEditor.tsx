@@ -1,4 +1,13 @@
-import { Button, Field, Checkbox, TextField, Select, TextArea } from "../ui";
+import {
+  TaskButton,
+  TaskInput,
+  TaskTextArea,
+  TaskSelect,
+  TaskDetails,
+  TaskCode,
+  TaskLabel,
+  TaskForm,
+} from "../ui/TaskControls";
 import { buildRequirement, hasLegacyGenericCriteria, localValue } from "./taskRequirement";
 import { useEffect, useRef, useState } from "react";
 import type { HpWork } from "../../api/types";
@@ -41,7 +50,7 @@ function BoundTaskEditor({ workId, onClose }: { workId?: string; onClose: () => 
   };
   return (
     <Surface
-      className="hp-object-operation"
+      className="hp-object-operation hp-task-operation hp-lobe-scope"
       motion="elevate"
       title={workId ? "修改任务要求" : "新建任务"}
       onClose={close}
@@ -49,9 +58,7 @@ function BoundTaskEditor({ workId, onClose }: { workId?: string; onClose: () => 
       {workId && query.error && (
         <p role="alert">
           {query.error}
-          <Button type="button" onClick={query.retry}>
-            重试要求
-          </Button>
+          <TaskButton onClick={query.retry}>重试要求</TaskButton>
         </p>
       )}
       {workId && query.loading && <p role="status">正在核实当前要求…</p>}
@@ -67,18 +74,14 @@ function BoundTaskEditor({ workId, onClose }: { workId?: string; onClose: () => 
       )}
       {abandon && (
         <Surface
-          className="hp-object-operation"
+          className="hp-object-operation hp-task-operation hp-lobe-scope"
           motion="elevate"
           title="放弃未提交的任务草稿？"
           onClose={() => setAbandon(false)}
         >
           <p>尚未提交的要求会丢弃。</p>
-          <Button type="button" onClick={() => setAbandon(false)}>
-            继续编辑
-          </Button>
-          <Button type="button" onClick={onClose}>
-            放弃草稿并关闭
-          </Button>
+          <TaskButton onClick={() => setAbandon(false)}>继续编辑</TaskButton>
+          <TaskButton onClick={onClose}>放弃草稿并关闭</TaskButton>
         </Surface>
       )}
     </Surface>
@@ -152,9 +155,9 @@ function EditorForm({
   )
     return <p>此任务不可通过普通要求表单修改。</p>;
   return (
-    <form
+    <TaskForm
       className="hp-operation-form"
-      onChange={() => {
+      onDirty={() => {
         setDirty(true);
         markDirty();
       }}
@@ -223,8 +226,8 @@ function EditorForm({
             此任务包含旧的操作回执验收条件。升级后，相关条件需要已发布的不可变成果及服务器登记的证据，成功工具调用不再满足要求。
             条件编号、必需标记和其他条件保留；提交修订不会直接完成任务或重置预算，旧要求和执行记录保留。
           </p>
-          <Field>
-            <Checkbox
+          <TaskLabel>
+            <TaskInput
               type="checkbox"
               checked={legacyUpgradeBaseline === baseline?.row_version}
               onChange={(e) =>
@@ -232,35 +235,36 @@ function EditorForm({
               }
             />
             我确认将操作回执条件升级为已发布成果条件
-          </Field>
+          </TaskLabel>
         </div>
       )}
       {latest && baseline && latest.row_version !== baseline.row_version && (
         <div role="alert">
           服务器已更新到 r{latest.current_requirement_revision}，草稿仍保留。
-          <Button type="button" onClick={() => setBaseline(latest)}>
+          <TaskButton type="button" onClick={() => setBaseline(latest)}>
             已审阅最新要求，采用新基线提交
-          </Button>
-          <details>
+          </TaskButton>
+          <TaskDetails>
             <summary>查看最新要求</summary>
-            <pre>{JSON.stringify(latest.requirement, null, 2)}</pre>
-          </details>
+            <TaskCode>{JSON.stringify(latest.requirement, null, 2)}</TaskCode>
+          </TaskDetails>
         </div>
       )}
       {!baseline && (
-        <Field>
+        <TaskLabel>
           工作名称
-          <TextField
+          <TaskInput
             required
             maxLength={200}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
-        </Field>
+        </TaskLabel>
       )}
-      <Field>
+      <h4>任务要求</h4>
+      <TaskLabel>
         工作类型
-        <Select
+        <TaskSelect
           value={capability}
           disabled={Boolean(baseline)}
           onChange={(e) => setCapability(e.target.value)}
@@ -268,25 +272,25 @@ function EditorForm({
           <option value="reminder">提醒</option>
           <option value="research_report">研究报告</option>
           <option value="generic_work">通用任务</option>
-        </Select>
-      </Field>
-      <Field>
+        </TaskSelect>
+      </TaskLabel>
+      <TaskLabel>
         目标 / 提醒内容
-        <TextArea
+        <TaskTextArea
           required
           maxLength={capability === "reminder" ? 12000 : 20000}
           value={objective}
           onChange={(e) => setObjective(e.target.value)}
         />
-      </Field>
-      <Field>
+      </TaskLabel>
+      <TaskLabel>
         约束（每行一条）
-        <TextArea value={constraints} onChange={(e) => setConstraints(e.target.value)} />
-      </Field>
+        <TaskTextArea value={constraints} onChange={(e) => setConstraints(e.target.value)} />
+      </TaskLabel>
       {capability === "generic_work" && (
-        <Field>
+        <TaskLabel>
           交付格式
-          <Select
+          <TaskSelect
             value={formats}
             onChange={(e) => {
               setFormats(e.target.value);
@@ -300,25 +304,25 @@ function EditorForm({
             {formats && !["markdown", "docx", "markdown,docx"].includes(formats) && (
               <option value={formats}>保留当前多个交付目标</option>
             )}
-          </Select>
-        </Field>
+          </TaskSelect>
+        </TaskLabel>
       )}
       {capability === "generic_work" && (
-        <Field>
+        <TaskLabel>
           推理模式
-          <Select value={mode} onChange={(e) => setMode(e.target.value)}>
+          <TaskSelect value={mode} onChange={(e) => setMode(e.target.value)}>
             <option value="react">ReAct</option>
             {(capabilities.agent_strategies?.includes("plan_and_execute") ||
               mode === "plan_and_execute") && <option value="plan_and_execute">计划后执行</option>}
-          </Select>
-        </Field>
+          </TaskSelect>
+        </TaskLabel>
       )}
       {capability !== "reminder" && (
         <>
           <WorkspaceDirectoryLoader />
-          <Field>
+          <TaskLabel>
             成果保存目录
-            <Select
+            <TaskSelect
               value={saveDirectory}
               onChange={(e) => {
                 setSaveDirectory(e.target.value);
@@ -336,17 +340,18 @@ function EditorForm({
                     {nodePath(tree, n.node_id)}
                   </option>
                 ))}
-            </Select>
-          </Field>
+            </TaskSelect>
+          </TaskLabel>
           <p>
             选定目录会要求保存成果。创建或修订后，请在任务「使用资料」中授予此目录「创建子项」权限；目录选择本身不授权。已有执行将按修订收敛，新授权下一轮生效。
           </p>
         </>
       )}
       {!supportedZone && <p>现有时区 {zone} 的计划只读，提交会保留其原始时间。</p>}
-      <Field>
+      <h4>执行计划</h4>
+      <TaskLabel>
         执行时间
-        <Select
+        <TaskSelect
           disabled={!supportedZone}
           value={timing}
           onChange={(e) => {
@@ -357,11 +362,11 @@ function EditorForm({
           <option value="immediate">立即</option>
           <option value="once">指定时间</option>
           <option value="daily">每天</option>
-        </Select>
-      </Field>
-      <Field>
+        </TaskSelect>
+      </TaskLabel>
+      <TaskLabel>
         计划时区
-        <Select
+        <TaskSelect
           disabled={!supportedZone}
           value={zone}
           onChange={(e) => {
@@ -372,12 +377,12 @@ function EditorForm({
           <option value="Asia/Shanghai">Asia/Shanghai（UTC+8）</option>
           <option value="UTC">UTC</option>
           {!supportedZone && <option value={zone}>{zone}</option>}
-        </Select>
-      </Field>
+        </TaskSelect>
+      </TaskLabel>
       {timing === "once" && (
-        <Field>
+        <TaskLabel>
           日期时间
-          <TextField
+          <TaskInput
             type="datetime-local"
             required
             disabled={!supportedZone}
@@ -387,12 +392,12 @@ function EditorForm({
               setTimingChanged(true);
             }}
           />
-        </Field>
+        </TaskLabel>
       )}
       {timing === "daily" && (
-        <Field>
+        <TaskLabel>
           每天时间
-          <TextField
+          <TaskInput
             type="time"
             required
             disabled={!supportedZone}
@@ -402,20 +407,20 @@ function EditorForm({
               setTimingChanged(true);
             }}
           />
-        </Field>
+        </TaskLabel>
       )}
       {baseline && (
-        <Field>
+        <TaskLabel>
           修订原因
-          <TextArea required value={reason} onChange={(e) => setReason(e.target.value)} />
-        </Field>
+          <TaskTextArea required value={reason} onChange={(e) => setReason(e.target.value)} />
+        </TaskLabel>
       )}
       {error && <p role="alert">{error}</p>}
       {intent?.error && <p role="alert">{intent.error}</p>}
       {intent?.uncertain && (
         <>
           <p>上次操作结果未知；重试会保留原要求、版本与幂等标识。</p>
-          <Button
+          <TaskButton
             type="button"
             disabled={intent.busy}
             onClick={() =>
@@ -434,16 +439,16 @@ function EditorForm({
             }
           >
             重试原操作
-          </Button>
-          <details>
+          </TaskButton>
+          <TaskDetails>
             <summary>查看原操作要求</summary>
-            <pre>{JSON.stringify(intent.request.body, null, 2)}</pre>
-          </details>
+            <TaskCode>{JSON.stringify(intent.request.body, null, 2)}</TaskCode>
+          </TaskDetails>
         </>
       )}
-      <Button variant="solid" type="submit" disabled={intent?.busy || verifying}>
+      <TaskButton disabled={intent?.busy || verifying}>
         {baseline ? "提交修订" : "创建工作"}
-      </Button>
-    </form>
+      </TaskButton>
+    </TaskForm>
   );
 }

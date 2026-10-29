@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render } from "../../test/renderWithLobe";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { useWorkspace, workspaceApi } from "../../store/workspace";
 import { useWorkbench } from "../../store/workbench";

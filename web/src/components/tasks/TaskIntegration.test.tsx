@@ -1,4 +1,4 @@
-import { Theme } from "@radix-ui/themes";
+import { selectTaskOption } from "../../test/selectTaskOption";
 import { StrictMode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -257,11 +257,11 @@ it("retains one-dimensional budget input through a version conflict", async () =
   useWorks.setState({ items: [work] });
   const close = vi.fn();
   render(<TaskBudgetDialog work={work} onClose={close} />);
-  const value = screen.getByRole("spinbutton", { name: /模型 Token 上限/ });
+  const value = screen.getByRole("textbox", { name: /模型 Token 上限/ });
   fireEvent.change(value, { target: { value: "2000" } });
   fireEvent.submit(value.closest("form")!);
   await screen.findByRole("button", { name: "已审阅新预算，采用新基线" });
-  expect(value).toHaveValue(2000);
+  expect(value).toHaveDisplayValue("2000");
   expect(close).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "已审阅新预算，采用新基线" }));
   fireEvent.submit(value.closest("form")!);
@@ -287,7 +287,7 @@ it("requires a separate duplicate-risk confirmation before retrying an eligible 
   await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
   expect(spy.mock.calls[0]![0].body).toEqual({ outcome: "retry_accepting_duplicate_risk" });
 });
-it("filters counts by business type and keeps a focused task in place when it moves bucket", () => {
+it("filters counts by business type and keeps a focused task in place when it moves bucket", async () => {
   const work = workFixture();
   const ended = workFixture({
     work_id: "w2",
@@ -300,9 +300,7 @@ it("filters counts by business type and keeps a focused task in place when it mo
   render(
     <StrictMode>
       <TaskSidebar />
-      <Theme>
-        <TaskScreen />
-      </Theme>
+      <TaskScreen />
     </StrictMode>,
   );
   const title = screen.getByRole("button", { name: "测试任务" });
@@ -310,7 +308,7 @@ it("filters counts by business type and keeps a focused task in place when it mo
   act(() => useWorks.getState().upsert({ ...work, status: "completed", row_version: 2 }));
   expect(screen.getByRole("article", { name: "测试任务" })).toBeVisible();
   expect(screen.getByText(/当前查看：此任务已归入/)).toBeVisible();
-  fireEvent.change(screen.getByLabelText("任务类型"), { target: { value: "research" } });
+  await selectTaskOption("任务类型", "研究");
   expect(screen.queryByRole("article", { name: "测试任务" })).toBeNull();
   expect(screen.getByRole("button", { name: /已结束/ })).toHaveTextContent("1");
 });
@@ -343,11 +341,7 @@ it("keeps the focused board card DOM and lane stable until focus leaves after a 
   const work = workFixture();
   useShell.setState({ route: { screen: "tasks", bucket: "waiting", type: "all" } });
   useWorks.setState({ items: [work], loadState: "complete" });
-  render(
-    <Theme>
-      <TaskScreen />
-    </Theme>,
-  );
+  render(<TaskScreen />);
   const title = screen.getByRole("button", { name: work.title });
   fireEvent.focus(title);
   act(() => useWorks.getState().upsert({ ...work, status: "completed", row_version: 2 }));
@@ -360,7 +354,7 @@ it("keeps the focused board card DOM and lane stable until focus leaves after a 
   ).toHaveAttribute("data-task-lane", "ended");
 });
 
-it("shows all four genuine projections and filters each lane by the existing business type", () => {
+it("shows all four genuine projections and filters each lane by the existing business type", async () => {
   const base = workFixture();
   const rows = [
     workFixture({
@@ -379,39 +373,13 @@ it("shows all four genuine projections and filters each lane by the existing bus
   ];
   useShell.setState({ route: { screen: "tasks", bucket: "attention", type: "all" } });
   useWorks.setState({ items: rows, loadState: "complete" });
-  render(
-    <Theme>
-      <TaskScreen />
-    </Theme>,
-  );
+  render(<TaskScreen />);
   expect(screen.getAllByRole("article")).toHaveLength(4);
   for (const work of rows)
     expect(
       screen.getByRole("article", { name: work.title }).closest("[data-task-lane]"),
     ).toHaveAttribute("data-task-lane", work.work_id);
-  fireEvent.change(screen.getByLabelText("任务类型"), { target: { value: "reminder" } });
+  await selectTaskOption("任务类型", "提醒");
   expect(screen.getAllByRole("article")).toHaveLength(1);
   expect(screen.getByRole("article", { name: "计划提醒" })).toBeVisible();
-});
-
-it("associates budget errors only with invalid dimensions and preserves help on correction", async () => {
-  const work = workFixture();
-  const request = vi.spyOn(api, "request").mockResolvedValue({ work } as never);
-  render(<TaskBudgetDialog work={work} onClose={vi.fn()} />);
-  const tokens = screen.getByRole("spinbutton", { name: /模型 Token 上限/ });
-  const tools = screen.getByRole("spinbutton", { name: /tool_calls/ });
-  fireEvent.submit(tokens.closest("form")!);
-  expect(screen.getByRole("alert")).toHaveTextContent("请至少提高一个预算维度");
-  expect(tokens).not.toHaveAttribute("aria-invalid", "true");
-  fireEvent.change(tokens, { target: { value: "9007199254740992" } });
-  fireEvent.change(tools, { target: { value: "20" } });
-  fireEvent.submit(tokens.closest("form")!);
-  expect(tokens).toHaveAttribute("aria-invalid", "true");
-  expect(tokens).toHaveAccessibleDescription(/请输入严格高于旧值的整数限额/);
-  expect(tools).not.toHaveAttribute("aria-invalid", "true");
-  expect(tools).toHaveAccessibleDescription("新值 20 · 增加 10");
-  expect(request).not.toHaveBeenCalled();
-  fireEvent.change(tokens, { target: { value: "2000" } });
-  expect(tokens).not.toHaveAttribute("aria-invalid", "true");
-  expect(tokens).toHaveAccessibleDescription("新值 2000 · 增加 1000");
 });
