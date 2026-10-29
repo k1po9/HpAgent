@@ -9,7 +9,7 @@ from uuid6 import uuid7
 from persistence.repositories import MessageRepository, OutboxRepository
 
 
-def project_terminal(uow, run, status, content=None):
+def project_terminal(uow, run, status, content=None, *, qq_timeout_reply=""):
     run_id = run['run_id']
     MessageRepository().set_terminal(uow, run_id,
                                      {'succeeded':'completed','failed':'failed','cancelled':'aborted'}[status], content)
@@ -26,6 +26,10 @@ def project_terminal(uow, run, status, content=None):
         OutboxRepository().enqueue(uow, uuid7(), run['account_id'], 'retain_memory',
                                    f'retain-memory:{run_id}', run['conversation_id'], run_id,
                                    json.dumps({'run_id':str(run_id),'version':1}))
+    if status == "failed" and run.get("failure_code") == "model_read_timeout" and qq_timeout_reply.strip():
+        from conversation_domain.delivery import enqueue_qq_timeout
+
+        enqueue_qq_timeout(uow, run_id, qq_timeout_reply.strip())
     event_id = uuid7()
     OutboxRepository().enqueue(uow, event_id, run['account_id'], 'publish_terminal_event',
                                f'terminal:{run_id}:{status}', run['conversation_id'], run_id,

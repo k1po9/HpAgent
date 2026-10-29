@@ -13,8 +13,9 @@ from work_domain.persistence import WorkRepository
 
 
 class RunLifecycleService:
-    def __init__(self, database):
+    def __init__(self, database, *, qq_timeout_reply=""):
         self.database = database
+        self.qq_timeout_reply = qq_timeout_reply
 
     @staticmethod
     def lock(uow, account_id, run_id):
@@ -193,7 +194,7 @@ class RunLifecycleService:
         if work is None:
             from conversation_domain.run_projection import project_terminal
 
-            project_terminal(uow, run, status, content)
+            project_terminal(uow, run, status, content, qq_timeout_reply=self.qq_timeout_reply)
             return True
         budget_failure = failure_code in {
             'work_budget_exhausted', 'run_budget_exhausted', 'account_daily_model_budget_exhausted',
