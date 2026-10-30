@@ -8,6 +8,13 @@ from workspace.file_capability_config import FileCapabilityConfig
 from workspace.file_scope import RunFileScopeUnavailable
 
 
+def test_file_maximum_parse_error_does_not_expose_input_or_exception_chain(tmp_path):
+    with pytest.raises(RunFileScopeUnavailable, match="FILE_MAX_BYTES") as error:
+        FileCapabilityConfig.from_environment(tmp_path, None, {"FILE_MAX_BYTES": "secret-invalid"})
+    assert "secret-invalid" not in str(error.value)
+    assert error.value.__cause__ is None
+
+
 def test_file_capability_defaults_closed(tmp_path: Path) -> None:
     config = FileCapabilityConfig.from_environment(tmp_path, None, {})
     assert config.upload_enabled is False

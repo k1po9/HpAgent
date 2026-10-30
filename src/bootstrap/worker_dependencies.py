@@ -14,6 +14,18 @@ from application.prompts import PromptLoader
 from bootstrap.qq import QQSurfaceServices, build_qq_surface_services
 from bootstrap.shared_runtime import SharedAgentServices, build_shared_agent_services
 from channels.router import ChannelRouter
+from common.agent_policy import AgentPolicy
+from common.config_validation import environment_name
+from common.runtime_config import (
+    DEVELOPMENT_QQ_BINDING_CODE_PEPPER as _DEVELOPMENT_QQ_BINDING_CODE_PEPPER,
+)
+from common.runtime_config import (
+    ArtifactRuntimeConfig,
+    CapacityConfig,
+    FileRuntimeConfig,
+    binding_challenge_seconds,
+    run_budget_mode,
+)
 from orchestration.config import AppConfig, SandboxConfig
 from resources.credentials import CredentialManager, ModelEndpoint
 from resources.model_budget_coordinator import ModelBudgetCoordinator
@@ -29,12 +41,9 @@ from workspace.isolation import WorkspaceIsolationRuntime
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
 
-_DEVELOPMENT_QQ_BINDING_CODE_PEPPER = b"development-qq-binding-code-pepper"
-
-
 def load_worker_qq_binding_code_pepper() -> bytes:
     """Load the shared challenge pepper; production must configure it safely."""
-    environment = os.getenv("HPAGENT_ENV", "development").strip().casefold()
+    environment = environment_name(os.getenv("HPAGENT_ENV", "development"))
     configured = os.getenv("QQ_BINDING_CODE_PEPPER")
     if environment == "production" and not configured:
         raise RuntimeError(
@@ -181,6 +190,14 @@ def _build_nsjail_config(sandbox: SandboxConfig) -> NsjailConfig:
 
 
 async def init_dependencies(config: AppConfig) -> WorkerDependencies:
+    CapacityConfig.from_environment()
+    FileRuntimeConfig.from_environment()
+    ArtifactRuntimeConfig.from_environment()
+    binding_challenge_seconds()
+    run_budget_mode(default="enforce")
+    FileCapabilityConfig.from_environment(
+        config.workspace.root, os.getenv("WORKER_DATABASE_URL")
+    )
     resource_stack = AsyncExitStack()
     await resource_stack.__aenter__()
     try:
@@ -379,7 +396,8 @@ async def _init_dependencies(
         file_output_publisher=file_output_publisher,
         file_conversion_provider=file_conversion_provider,
         work_commands=WorkCommandService(
-            worker_database_url, budget_mode=os.getenv("RUN_BUDGET_MODE", "enforce")
+            worker_database_url, budget_mode=run_budget_mode(default="enforce"),
+            agent_policy=AgentPolicy.from_config(config.agent)
         ),
     )
     resource_stack.callback(sandbox_manager.close)

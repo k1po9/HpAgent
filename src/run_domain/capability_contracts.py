@@ -60,6 +60,7 @@ class CapabilityDefinition:
     retry_policy: dict[str, Any]
     cancellation_policy: str
     verifier_keys: tuple[str, ...]
+    execution_policy: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         # Definition validation runs at server registration, never in Workflow imports.
@@ -110,7 +111,12 @@ class CapabilityDefinition:
             or not 1 <= self.retry_policy["max_attempts"] <= 10
         ):
             raise ValueError("invalid retry policy")
-        return canonical(asdict(self))
+        definition = asdict(self)
+        if self.execution_policy is None:
+            del definition["execution_policy"]
+        elif not isinstance(self.execution_policy, dict):
+            raise ValueError("execution_policy: expected an object")
+        return canonical(definition)
 
 
 class CapabilityRegistry:
@@ -132,6 +138,10 @@ class CapabilityRegistry:
             return dict(json.loads(self._definitions[(capability_key, contract_version)]))
         except KeyError as exc:
             raise ValueError("unregistered capability contract") from exc
+
+    def definitions(self) -> list[dict[str, Any]]:
+        """Return detached snapshots, including currently unavailable contracts."""
+        return [dict(json.loads(raw)) for raw in self._definitions.values()]
 
     def discover(self, surface: str, services: set[str]) -> list[dict[str, Any]]:
         return [

@@ -1,9 +1,33 @@
-"""Collection guards must reject missing services before fixtures can mutate data."""
+"""Collection guards and public test commands keep execution prerequisites explicit."""
+import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 pytest_plugins = ["pytester"]
+
+
+@pytest.mark.parametrize('previous', [None, '/test-existing-imports'])
+def test_make_test_entrypoint_exports_source_paths_for_child_workers(tmp_path, previous):
+    root = Path(__file__).resolve().parents[1]
+    probe = tmp_path / 'python-probe'
+    probe.write_text(f'#!{sys.executable}\nimport json, os\nprint(json.dumps(os.environ.get("PYTHONPATH", "").split(os.pathsep)))\n')
+    probe.chmod(0o700)
+    environment = dict(os.environ)
+    environment.pop('PYTHONPATH', None)
+    if previous is not None:
+        environment['PYTHONPATH'] = previous
+    completed = subprocess.run(
+        ['make', '--no-print-directory', '-s', 'test-unit', f'PYTHON={probe}'],
+        cwd=root, env=environment, check=True, text=True, capture_output=True,
+    )
+    paths = json.loads(completed.stdout)
+    assert paths[:3] == [str(root), str(root / 'src'), str(root / 'test')]
+    if previous is not None:
+        assert paths[3:] == [previous]
 
 
 @pytest.fixture

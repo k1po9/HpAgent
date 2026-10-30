@@ -178,6 +178,10 @@ class SearXNGDiscoveryProvider:
         })
 
     async def _get(self, client: httpx.AsyncClient, uri: str, **kwargs) -> httpx.Response:
+        from research_domain.context import research_policy
+        policy = research_policy.get()
+        if policy is not None:
+            kwargs["timeout"] = policy.search_timeout_seconds
         last_error: Exception | None = None
         for attempt in range(self.max_attempts):
             try:

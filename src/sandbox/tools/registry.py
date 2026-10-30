@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Optional
 
 from langchain_core.tools import BaseTool
 
-from sandbox.tools.types import ToolResult
 from sandbox.tools.routing.models import RegisteredTool, ToolKind, ToolRoutingSpec
+from sandbox.tools.types import ToolResult
 
 logger = logging.getLogger("HpAgent.ToolRegistry")
 
@@ -29,6 +29,8 @@ class ToolRegistry:
     def register(self, tool: BaseTool, category: str = "native", *, routing: ToolRoutingSpec | None = None) -> None:
         with self._lock:
             self._ensure_mutable()
+            if tool.name.startswith(("capability__", "result__")):
+                raise ValueError(f"reserved Harness tool name: {tool.name}")
             if tool.name in self._tools:
                 raise ValueError(f"duplicate tool name: {tool.name}")
             if routing is None:

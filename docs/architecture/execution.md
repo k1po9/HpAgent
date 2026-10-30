@@ -36,6 +36,12 @@ Run succeeded 只说明有限执行成功；Work completed 需要当前 revision
 4. Activity 提交 operation/receipt、输出和通用 Run 终态 succeeded/failed/cancelled。聊天投影、WorkCompletionPolicy 与通知分别依据持久事实推进。
 5. Work 成功后的 ready continuation 在终态事务去重创建下一 wakeup；等待、blocked、暂停、停止和完成不忙循环。投递独立处理已提交通知，不因渠道失败重新执行 Agent。
 
+新 Agent Run 在创建事务的 `input_snapshot.agent_policy` 固定轮次、时区与工具摘要参数，
+状态、root Execution 与 Outbox 仍同事务提交。相同 Run 的 Activity retry/接管复用原策略；
+显式 retry 或 Work advance 创建新 Run 时按新 admission 冻结。历史缺失策略保持旧路径，
+不补写、不改 History，非法或未知快照不回退当前配置。当前账号、授权、revision 和 fence
+仍实时检查。策略来源及旧版本限制见[配置参考](../reference/configuration.md#持久策略来源与生效规则)。
+
 所有非确定性 I/O，包括间接导入引出的数据库/模型/工具/文件/网络访问，都放 Activity/Adapter。Workflow 只编排、等待和调用 Activity/Child Workflow。Composition Root 拥有共享 Resource Pool、Sandbox、Brain、Action Runtime、Redis、MCP、Hindsight；可变上下文按 Execution 隔离。
 
 Chat Context 使用对话历史、记忆与授权资料；Work Context 使用冻结需求、checkpoint、输入和候选，不加载关联聊天全文。Generic Work root 可一次委派最多三个只读子 Execution，费用仍属同 Run/Work；串行 plan steps 沿用当前 Execution，不等同并行 Subagent。
@@ -50,6 +56,8 @@ Chat Context 使用对话历史、记忆与授权资料；Work Context 使用冻
 
 执行上下文由 [execution_context.py](../../src/run_domain/execution_context.py) 传播，校验规则在 [execution.py](../../src/run_domain/execution.py)，分支事实在 [delegation.py](../../src/run_domain/delegation.py)，operation 完成与生产回执在 [results.py](../../src/run_domain/results.py)。这些规则不依赖 Temporal/Activity，接收调用方 UoW，不另开事务。Activity 仍负责心跳、取消和 Temporal 错误转换；Run 终态、Work 推进及通知继续由原事务统一提交。
 
+普通调用和工具调用共用 `results.begin_operation`；同一 Operation 在同一 fence 内重入复用注册的生产 attempt，换 fence 才登记新 attempt。普通入口遇到 `intent_recorded/uncertain` 拒绝执行，工具入口保留原 payload 交给既有副作用对账。`complete_operation` 自行复验当前 fence 与已有回执 digest/disposition，冲突不能静默跳过；专业 Activity 不应复制这套进入、回执和提交逻辑。迟到接收同时检查 Execution 状态、注册 attempt 与 Work 协调资格；过期结果只保留原生产事实，不能成为当前推进证据。
+
 主 Worker 同时组装 Lifecycle/Agent Worker、Dispatcher 和 PostgreSQL Work due loop。due loop 维护 schedule desired/applied version、occurrence 与 wakeup；容量等待后重新校验。Memory 指标使用 Temporal Schedule；旧全 Bank Reflect Schedule 在启动时移除，归纳由 Hindsight 原生 Consolidation 负责。
 
 Document Workflow 在生命周期队列编排，重型规范化 Activity 在独立 document Worker 执行；稳定 operation 保存结果，不创建另一套 Work/文件状态。队列和注册入口见 [Temporal](../reference/temporal.md)。
@@ -61,6 +69,24 @@ Document Workflow 在生命周期队列编排，重型规范化 Activity 在独�
 请求顺序：entitlement/tier → Provider serializer 校验 transcript 与 tool-call/result 配对 → 冻结 Model Input Snapshot → 单独事务原子预留 Account/day、Work（若有）、Run → composition 发送前检查 → 记录 dispatch 并分发冻结请求体 → 结算/释放。Anthropic 的独立 system 也计费；工具结果以明确 observation 进入下一轮。快照存在不等于已发送，查询时按当前 entitlement 投影可见字段。
 
 发送前检查可读取包含完整工具 schema 和上下文的冻结请求；拒绝时不登记 dispatch、不开始 HTTP，释放业务预留。发送前失败或取消释放预留；已发送但结果未知按估算结算，避免无主 hold。Snapshot、Trace 与账本各有用途，不能互相代替用量事实。
+
+dispatch 登记事务重新校验 Execution fence、Snapshot 的账号/Run/Execution 归属及当前 entitlement 版本，异步预检之后的撤权或版本变化也须拒绝。同一 Snapshot 只能取得一次发送资格；重复登记拒绝发送，也不能释放原生产者仍持有的预算。`settled/released` 预留不再授权另一条 HTTP 请求；正常模型重试仍使用既有 execution_attempt/fallback 身份并单独计费，不能把此冲突改判外部写入成功。
+
+模型预留先取得既有账号/Work/Run 权威锁，再取得 Account/day 与预算锁，与终态恢复保持同一锁序。发送登记和发送前释放在同一 Account/day 账本锁下复验预留与 dispatch：先释放则不得发送，先取得发送资格则不得释放。尚未取得发送资格的重复调用者失败或取消，不清理原生产者的 hold。历史未填 execution_id 的 Snapshot 只按同 Run 的 root 映射核对，不改写原冻结记录，也不允许映射到子 Execution。
+
+绑定同一 Snapshot 的预留跨 UTC 午夜重试时仍复用原 quota_date，不在新日期再占 Account 额度。当前 entitlement/tier 仍重新校验；原快照、Run/Work 预算和已经结算的用量不改写。独立的新模型 attempt 继续按其自己的请求日期占额。
+
+Run 终态事务通过 `ModelBudgetCoordinator.recover_terminal_in_uow` 处理绑定该 Run Snapshot 的遗留模型预留：无 dispatch 释放，有 dispatch 按原预留估算结算，Account UTC 原日期、Work 与 Run 同事务收敛。dispatch 仅证明请求可能已发送，不证明有响应；原 measured/provider 结算不改写。终态重入可补收敛旧 hold，重复执行不再计费；结算失败则终态事务一同回滚。该处理不决议工具或渠道的未知外部副作用。
+
+随后 `RunBudgetService.recover_terminal_in_uow` 沿原 Work/Run 账本，把仍无可靠实测结算的工具、专业阶段等预留按原量记为 estimated。已结算或释放的不变；预算结算既不完成 Operation，也不决议未知外部效果。因此费用可收敛而 Work 仍保持 pausing/stopping，直到原回执或显式决议足以解除 blocker。
+
+终态估算结算后，重复相同金额和 usage_source 的结算只作幂等重放；迟到的不同实测金额或
+measured/provider 来源不能覆盖已结算记录，返回预算冲突。当前没有自动补差或账目重开机制。
+
+普通工具在预留预算前读取本 Run 的冻结 Agent 策略；读取失败或取消时不派发工具，
+不为尚未执行的调用遗留预留或估算用量。派发后的未知结果仍按既有结算与副作用对账边界处理。
+
+这些收敛不更改 Workflow 命令图、输入 schema、稳定 Operation ID 或冻结描述，也不修改已应用迁移。旧 History 沿已记录 Activity 结果重放；恢复中的 Activity 仍须满足当前授权与 fence。历史回执不重编号、不改写，旧冻结请求不追随当前配置。
 
 model_request_invalid、model_response_invalid、model_access_denied、model_request_rejected、model_rate_limited 当前不可自动重试；model_connection_failed、model_read_timeout、model_http_error、model_unavailable 当前可重试。HTTP 429 当前不可自动重试。分类贯穿 Activity、Lifecycle、Run DTO 和重试命令；普通模型故障不归为外部写入结果不确定。独立 Artifact 请求默认 read 90 秒、connect 最多 5 秒；常规聊天依 endpoint timeout。
 

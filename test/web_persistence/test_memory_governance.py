@@ -355,7 +355,7 @@ async def test_actual_snapshot_dispatch_late_tool_and_final_are_rejected(db, dat
     from run_domain.execution import assert_execution_fence
     from run_domain.execution_context import fence_scope
 
-    from .test_model_input_snapshot import _prepared
+    from .test_model_input_snapshot import _prepared, _reserve_snapshot
 
     _, _, remote, source, _ = await verified(db, database_url, worker_database_url, account_id)
     _, _, run = _conversation_and_run(database_url, account_id)
@@ -376,6 +376,7 @@ async def test_actual_snapshot_dispatch_late_tool_and_final_are_rejected(db, dat
     values = dict(account_id=account_id, run_id=run, model_call_id=uuid4(), operation_id='g3-snapshot',
                   execution_attempt=1, call_ordinal=1, fallback_attempt=1, phase='decision', entitlement_version=1)
     ref = snapshot.create(**values, prepared=_prepared())
+    _reserve_snapshot(db, account_id, run, worker_database_url, snapshot, ref)
     snapshot.mark_dispatched(account_id, ref.snapshot_id)
     store = AgentDataStore(worker_database_url)
     lease = store.acquire_lease(str(account_id), str(run), str(execution))

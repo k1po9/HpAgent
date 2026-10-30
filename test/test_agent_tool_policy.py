@@ -7,9 +7,9 @@ import yaml
 from langchain_core.tools import StructuredTool
 
 from application.tool_policy import (
-    HARNESS_TOOLS,
     ToolPolicyError,
     agent_role,
+    harness_tool_names,
     load_tool_policy,
     tool_policy,
 )
@@ -42,7 +42,7 @@ def test_default_roles_preserve_coordinator_boundaries():
     assert policy.allows("subagent", "remote_read", "mcp")
     assert not policy.allows("main", "fs_read", "mcp")
     for role in ("research", "html", "planning", "evaluation", "tool_summary", "memory_rewrite"):
-        assert not any(policy.allows(role, name) for name in HARNESS_TOOLS)
+        assert not any(policy.allows(role, name) for name in harness_tool_names())
 
 
 @pytest.mark.parametrize("change", [
@@ -169,7 +169,7 @@ def test_special_tool_catalog_tracks_production_registration():
 
     capabilities = compose_capabilities(None, services=frozenset({"research", "html", "text"}))
     names = {tool["function"]["name"] for tool in capabilities.discover("work")}
-    assert names | NAMES | {DELEGATE_TOOL} == HARNESS_TOOLS
+    assert names | NAMES | {DELEGATE_TOOL} == harness_tool_names()
 
 
 def test_capability_discovery_applies_role_configuration_and_service_availability(configuration, tmp_path):

@@ -58,7 +58,8 @@ class _Budget:
         return SimpleNamespace(
             account=SimpleNamespace(
                 quota_date=date(2026, 9, 18), replayed=False, state="reserved"
-            )
+            ),
+            run=SimpleNamespace(replayed=False, state="reserved"),
         )
 
     def settle(self, *args, **kwargs):

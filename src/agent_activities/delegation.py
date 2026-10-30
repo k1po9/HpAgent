@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 from dataclasses import asdict
 from uuid import NAMESPACE_URL, UUID, uuid5
@@ -30,6 +29,7 @@ from agent_workflows.delegation_contracts import (
     DelegationPrepared,
 )
 from application.tool_policy import tool_policy
+from common.runtime_config import CapacityConfig
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.delegation import (
     DelegationDenied,
@@ -231,8 +231,9 @@ class DelegationActivities:
                     "FROM run_executions WHERE role='subagent' AND status IN ('queued','running','cancelling')",
                     (run["account_id"],),
                 ).fetchone()
-                if counts["total"] + new_count > int(os.getenv("WORK_GLOBAL_SUBAGENTS", "48")) or (
-                    counts["account"] + new_count > int(os.getenv("WORK_ACCOUNT_SUBAGENTS", "6"))
+                limits = CapacityConfig.from_environment()
+                if counts["total"] + new_count > limits.work_global_subagents or (
+                    counts["account"] + new_count > limits.work_account_subagents
                 ):
                     raise DelegationDenied("branch admission capacity exhausted")
                 for table, key, value in (

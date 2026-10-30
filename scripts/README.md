@@ -7,6 +7,7 @@
 | 入口与典型命令 | 前置条件、参数/环境 | 副作用、输出与适用环境 |
 | --- | --- | --- |
 | `make help` / `make docs-check` / `make scripts-test` | Python ≥3.11与项目依赖；后两者分别校验当前文档、运行隔离脚本测试 | 只读文档；脚本测试仅用独立文件与本地隔离HTTP服务，不连接业务库/模型。错误非零。 |
+| `make architecture-check` | Python ≥3.11、requirements-dev；`PYTHON` / `PYTEST_ARGS` 可覆盖 | 扩展现有 temporal_registry 检查与接入契约测试；只组装惰性协作者，不连接服务、不读私有 `.env`、不调用 Provider。JSON 报告来源/配置/能力/Worker/sandbox 边界，随后 pytest；失败非零，已知 strict xfail 见[测试指南](../docs/development/testing.md)。 |
 | `make ci-web` | Node ≥22、`make web-install`（npm ci） | lint/typecheck/unit/build；默认构建写 `web/dist`，运行预览占用它时应指定其他 outDir，见测试指南。 |
 | `make test-unit` / `make test-db` / `make test-api` / `make test-temporal` | Python ≥3.11与开发依赖；基础设施入口按选中用例要求显式专用DSN、Temporal及Redis | 本地与CI使用相同选择；PG包含Work，Temporal按标记覆盖全部目录。缺配置在fixture前失败。测试范围与副作用见[测试指南](../docs/development/testing.md)。 |
 | `make e2e` / `make e2e-canonical` | 三角色专用同库DSN、`REDIS_URL`、`FILE_STORE_ROOT`、`E2E_ISOLATED=1`；`WEB_API_PORT=8180`、`WEB_DEV_PORT=5273` 可覆盖 | 启动自己的API/Vite、迁移测试库、注册alice/bob并写业务夹具，启用Fake执行器；不用真实模型。输出 `web/test-results`。仅隔离测试环境；已有服务不会被复用。canonical选择正式源用例并构建独立生产产物。 |
@@ -81,7 +82,7 @@ PG16/扩展版本、完整索引表达式和参数、有效性、Bank 开关及�
 容器地址或发布端口，无法关联的反向代理地址拒绝组合证明，可分别检查两项。省略所有服务参数
 仍是原有 data-only 检查，不证明后端。两项都不停止发送者、不改变 Recall 开关或部署路由。
 
-- `check/release_smoke.py` 是 Shell 发布入口的实现；`check/docs-links.py`、`check/ci-test-paths.py`、`check/temporal_registry.py` 分别负责当前文档链接与命令、CI显式测试路径及四类测试入口覆盖、Worker注册/沙箱门禁。后两者供CI使用，不发真实模型请求。
+- `check/release_smoke.py` 是 Shell 发布入口的实现；`check/docs-links.py`、`check/ci-test-paths.py`、`check/temporal_registry.py` 分别负责当前文档链接与命令、CI显式测试路径、架构门禁及四类测试入口覆盖、Worker注册/沙箱门禁。后两者供CI使用，不发真实模型请求；temporal_registry 也由 `make architecture-check` 统一暴露，检查实际队列/重复注册与全部捕获 Workflow 的 sandbox。
 - `operations/hindsight-entrypoint.py` 将质量 YAML 的服务模型配置展开到子进程环境，再 exec Compose 挂载的 `operations/start-hindsight.sh` 启动 Hindsight；不要在宿主机手动执行。
 - `benchmarks/outbox/outbox_benchmark_worker.py` 是受实验驱动的子进程；`agent_strategy_benchmark.py`为runner，`summarize_agent_strategy_benchmark.py`为汇总器，`agent_strategy_tasks.yaml`为输入。它们不是发布脚本，命令和统计口径见[Benchmark索引](benchmarks/README.md)。
 - `web/scripts/e2e-frontend.mjs` 统一源码服务、独立构建预览与独立生产构建；不复用已有前端服务。

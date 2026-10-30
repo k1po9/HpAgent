@@ -302,9 +302,9 @@ async def test_report_to_html_cross_run_adoption_revocation_and_gc(
 async def test_work_html_typed_checks_and_parent_save(urls, owner, account_id, tmp_path, review):
     import json
 
-    from application.work_context import generic_result
     from run_domain.lifecycle import RunLifecycleService
     from work_domain.commands import WorkCommandService
+    from work_domain.execution_result import generic_result
     from work_domain.models import Requirement
     from work_domain.persistence import WorkRepository
     from workspace.catalog import WorkspaceCatalog

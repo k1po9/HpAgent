@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from typing import Any, Callable
@@ -26,6 +25,7 @@ from agent_workflows.capability_contracts import (
 )
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ToolExecutionResult
 from application.tool_policy import ToolPolicy, agent_role, tool_policy
+from common.runtime_config import CapacityConfig
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.capabilities import CapabilityFacts
 from run_domain.capability_contracts import (
@@ -75,21 +75,16 @@ def input_validation_error(error: ValidationError) -> str:
 
 
 def parent_input_schema(definition, *, model_facing=False):
-    """The model-facing HTML tool requires an explicit delegated objective.
+    """Default parent adapter preserves the frozen business input schema."""
+    return deepcopy(definition['input_schema'])
 
-    Fixed/programmatic v1 callers keep their optional instruction contract.
-    Parent agents must carry the requested behavior across the isolated boundary.
-    """
-    schema = deepcopy(definition['input_schema'])
-    if definition['key'] == 'html':
-        schema['required'] = list(dict.fromkeys([*schema.get('required', []), 'instruction']))
-        schema['properties']['instruction']['minLength'] = 1
-        if model_facing:
-            schema.pop('oneOf', None)
-            schema['required'] = list(schema['properties'])
-            for name in ('text', 'source_ref', 'previous_ref'):
-                schema['properties'][name]['type'] = ['string', 'null']
-    return schema
+
+def admit_inputs(uow, run, inputs):
+    """Default adapters add no domain-specific admission checks."""
+
+
+def exact_definition(frozen, current):
+    return frozen == current
 
 
 def empty_scope(inputs):
@@ -102,6 +97,10 @@ class CapabilityBinding:
     contract_version: int
     workflow_name: str
     scope: Callable[[dict[str, Any]], dict[str, Any]] = empty_scope
+    input_schema: Callable[..., dict[str, Any]] = parent_input_schema
+    admit: Callable[..., None] = admit_inputs
+    compatible_definition: Callable[[dict, dict], bool] = exact_definition
+    description_suffix: str = ""
 
     @property
     def tool_name(self):
@@ -118,12 +117,35 @@ class CapabilityActivities:
         self.bindings = {b.tool_name: b for b in bindings}
         if len(self.bindings) != len(bindings):
             raise ValueError("duplicate capability tool")
+        required = {
+            (d['key'], d['contract_version']) for d in facts.registry.definitions()
+            if d['execution_mode'] == 'isolated_execution'
+        }
+        if required != {(b.key, b.contract_version) for b in bindings}:
+            raise ValueError("isolated capability definitions require exactly one binding")
         for binding in bindings:
             definition = facts.registry.get(binding.key, binding.contract_version)
             if definition["execution_mode"] != "isolated_execution" or not binding.workflow_name:
                 raise ValueError("capability binding requires an isolated Workflow")
             if len(binding.tool_name) > 64:
                 raise ValueError("capability tool name exceeds provider limit")
+
+    def binding_for(self, key, contract_version):
+        for binding in self.bindings.values():
+            if (binding.key, binding.contract_version) == (key, contract_version):
+                return binding
+        raise ValueError('unregistered capability binding')
+
+    def child_input(self, invocation):
+        """Shared fixed/Harness adapter; execution limits come from frozen facts."""
+        definition = invocation['descriptor']['definition']
+        binding = self.binding_for(invocation['capability_key'], invocation['contract_version'])
+        return CapabilityExecutionInput(
+            str(invocation['account_id']), str(invocation['run_id']),
+            str(invocation['child_execution_id']), invocation['invocation_id'],
+            binding.workflow_name, invocation['descriptor']['limits']['max_duration_seconds'],
+            definition['retry_policy']['max_attempts'], invocation['invocation_id'] + ':produce',
+        )
 
     def discover(self, surface):
         if surface not in {"chat", "work"}:
@@ -138,8 +160,8 @@ class CapabilityActivities:
                 "type": "function",
                 "function": {
                     "name": name,
-                    "description": d["description"] + (" Include every declared input field, using null for text/source_ref/previous_ref when not applicable." if b.key == "html" else ""),
-                    "parameters": parent_input_schema(d, model_facing=True),
+                    "description": d["description"] + b.description_suffix,
+                    "parameters": b.input_schema(d, model_facing=True),
                 },
             }
             for name, b in self.bindings.items()
@@ -219,30 +241,8 @@ class CapabilityActivities:
             inputs = normalize_inputs(inputs, definition['input_schema'])
             if not existing:
                 self.tool_policy.require(agent_role(run["source_kind"], parent["role"]), request.tool.tool_call.name)
-                Draft202012Validator(parent_input_schema(definition)).validate(inputs)
-                targets = (run.get('input_snapshot') or {}).get('requirement', {}).get('deliverables')
-                if binding.key == 'text' and targets:
-                    formats = {t['format'] for t in targets['items']}
-                    if inputs.get('format', 'markdown') not in formats:
-                        raise ValueError('output format does not match Requirement deliverables')
-            if not existing and binding.key == "research":
-                budget = uow.execute("SELECT limits,used,reserved FROM run_budgets WHERE run_id=%s", (run["run_id"],)).fetchone()
-                used = budget["used"].get("research_iterations", 0)
-                limit = budget["limits"].get("research_iterations", 0)
-                remaining = max(0, limit - used - budget["reserved"].get("research_iterations", 0))
-                if not remaining:
-                    queries = uow.execute("SELECT DISTINCT query FROM research_iterations WHERE run_id=%s LIMIT 12", (run["run_id"],)).fetchall()
-                    raise ValueError(f"Research stopped: this Run used {used}/{limit} research rounds; remaining=0. No search started. Do not call Research again or create a Run to bypass the limit. Queries: " + json.dumps([row["query"] for row in queries], ensure_ascii=False)[:250])
-                from research_adapters.web import discovery_query
-                from research_domain.models import SourceStrategy
-                strategy = SourceStrategy.from_dict(inputs.get("source_strategy"))
-                query = discovery_query(inputs["objective"], strategy)
-                if uow.execute(
-                    "SELECT 1 FROM research_iterations i JOIN research_plans p USING(research_id) "
-                    "WHERE i.run_id=%s AND i.query=%s AND p.plan->'source_strategy'=%s::jsonb LIMIT 1",
-                    (run["run_id"], query, json.dumps(strategy.to_dict())),
-                ).fetchone():
-                    raise ValueError("Research stopped: no new effective query or source strategy. Reuse the prior result and report its gaps; do not repeat Research in this Run.")
+                Draft202012Validator(binding.input_schema(definition)).validate(inputs)
+                binding.admit(uow, run, inputs)
             self.admit_in_uow(uow, run, parent, definition, request.operation_id)
             if existing:
                 if (existing['account_id'] != run['account_id'] or existing['run_id'] != run['run_id']
@@ -266,16 +266,7 @@ class CapabilityActivities:
             committed = uow.execute(
                 "SELECT 1 FROM capability_results WHERE invocation_id=%s", (request.operation_id,)
             ).fetchone()
-            child = CapabilityExecutionInput(
-                request.account_id,
-                request.run_id,
-                str(invocation["child_execution_id"]),
-                request.operation_id,
-                binding.workflow_name,
-                definition["limits"]["max_duration_seconds"],
-                definition["retry_policy"]["max_attempts"],
-                f"{request.operation_id}:produce",
-            )
+            child = self.child_input(invocation)
             return CapabilityPrepared(child=child, result_committed=bool(committed))
 
     def admit_in_uow(self, uow, run, parent, definition, operation_id):
@@ -299,10 +290,11 @@ class CapabilityActivities:
                 "WHERE role='capability' AND status IN ('queued','running','cancelling')",
                 (run["account_id"], parent["execution_id"]),
             ).fetchone()
+            limits = CapacityConfig.from_environment()
             if (
                 counts["parent"]
-                or counts["total"] >= int(os.getenv("CAPABILITY_GLOBAL_EXECUTIONS", "32"))
-                or counts["account"] >= int(os.getenv("CAPABILITY_ACCOUNT_EXECUTIONS", "4"))
+                or counts["total"] >= limits.capability_global_executions
+                or counts["account"] >= limits.capability_account_executions
             ):
                 raise ResourceDenied("capability capacity exhausted")
             # Admission is only a headroom check. Implementations still reserve every real
@@ -356,8 +348,8 @@ class CapabilityActivities:
         descriptor = invocation["descriptor"]
         current = self.facts.registry.get(invocation['capability_key'], invocation['contract_version'])
         if current != descriptor['definition']:
-            from agent_activities.text_result import compatible_text_definition
-            if not compatible_text_definition(descriptor['definition'], current):
+            binding = self.binding_for(invocation['capability_key'], invocation['contract_version'])
+            if not binding.compatible_definition(descriptor['definition'], current):
                 raise ResourceDenied('registered capability implementation changed')
         self._authorize_scope(uow, run, descriptor)
         return descriptor

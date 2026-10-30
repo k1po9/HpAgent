@@ -86,6 +86,11 @@ class RunLifecycleService:
         if run['status'] in TERMINAL:
             if result is not None and run['result_json'] != result:
                 raise ValueError('terminal execution result cannot be changed')
+            from resources.model_budget_coordinator import ModelBudgetCoordinator
+            from resources.run_budget import RunBudgetService
+
+            ModelBudgetCoordinator(self.database).recover_terminal_in_uow(uow, run)
+            RunBudgetService(self.database).recover_terminal_in_uow(uow, run['run_id'])
             return run['status']==status
         if status == 'succeeded':
             from persistence.memory_context import check_execution
@@ -189,6 +194,11 @@ class RunLifecycleService:
                     'version=version+1,updated_at=now() WHERE run_id=%s',
                     (status, failure_code, failure_message, json.dumps(result) if result else None, run['run_id']))
         run = dict(uow.execute('SELECT * FROM runs WHERE run_id=%s', (run['run_id'],)).fetchone())
+        from resources.model_budget_coordinator import ModelBudgetCoordinator
+        from resources.run_budget import RunBudgetService
+
+        ModelBudgetCoordinator(self.database).recover_terminal_in_uow(uow, run)
+        RunBudgetService(self.database).recover_terminal_in_uow(uow, run['run_id'])
         if run['executor_key'] == 'artifact_html' and status in {'failed','cancelled'}:
             uow.execute('SELECT close_pending_html(%s,%s)', (run['account_id'], run['run_id']))
         if work is None:

@@ -15,6 +15,7 @@ from psycopg.types.json import Jsonb
 
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION
 from agent_workflows.lifecycle_contracts import FinishWaitInput, SegmentInput, WaitInput
+from common.agent_policy import AgentPolicy, policy_from_run
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.execution import (
     LeaseConflict,
@@ -28,7 +29,7 @@ from run_domain.execution import (
     require_owned_record,
 )
 from run_domain.execution_context import execution_fence
-from run_domain.results import ResultReceiptService, complete_operation
+from run_domain.results import ResultReceiptService, begin_operation, complete_operation
 
 
 @dataclass(frozen=True)
@@ -177,6 +178,20 @@ class AgentDataStore:
         return {key: str(value) if isinstance(value, UUID) else value for key, value in row.items()}
 
 
+    def agent_policy(self, run_id: str) -> AgentPolicy | None:
+        with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
+            fence = execution_fence.get()
+            if fence is None or fence[1] != run_id:
+                raise StaleFencingToken("policy requires the current Run fence")
+            row = uow.execute(
+                "SELECT input_snapshot FROM runs WHERE account_id=%s AND run_id=%s",
+                (UUID(fence[0]), UUID(run_id)),
+            ).fetchone()
+            if row is None:
+                raise RunNotExecutable("Run policy unavailable")
+            return policy_from_run(row["input_snapshot"])
+
     def operation_result(self, operation_id: str) -> dict[str, Any] | None:
         with UnitOfWork(self.database_url) as uow:
             self._assert_fence(uow)
@@ -212,38 +227,10 @@ class AgentDataStore:
     def begin_operation(
         self, operation_id: str, run_id: str, operation_type: str
     ) -> dict[str, Any] | None:
-        """Return the prior compact result when completed, else mark an attempt."""
+        """Return the prior compact result; unresolved effects require reconciliation."""
         with UnitOfWork(self.database_url) as uow:
-            self._assert_fence(uow)
-            fence = execution_fence.get()
-            if fence is not None and fence[1] != run_id:
-                raise StaleFencingToken("operation is outside the Execution context")
-            inserted = uow.execute(
-                "INSERT INTO execution_operations(operation_id,run_id,operation_type,execution_id) "
-                "VALUES (%s,%s,%s,%s) ON CONFLICT (operation_id) DO NOTHING "
-                "RETURNING operation_id",
-                (operation_id, UUID(run_id), operation_type, UUID(fence[2]) if fence else None),
-            ).fetchone()
-            if inserted is not None:
-                ResultReceiptService.register_attempt(uow, operation_id, execution_fence.get())
-                return None
-            self._owned_record(uow, "execution_operations", "operation_id", operation_id)
-            row = uow.execute(
-                "SELECT run_id,operation_type,status,result_payload FROM execution_operations "
-                "WHERE operation_id=%s FOR UPDATE",
-                (operation_id,),
-            ).fetchone()
-            if str(row["run_id"]) != run_id or row["operation_type"] != operation_type:
-                raise ValueError("operation_id identity mismatch")
-            if row["status"] == "completed":
-                return dict(row["result_payload"])
-            uow.execute(
-                "UPDATE execution_operations SET status='started',error_code=NULL,"
-                "attempt_count=attempt_count+1,updated_at=now() WHERE operation_id=%s",
-                (operation_id,),
-            )
-            ResultReceiptService.register_attempt(uow, operation_id, execution_fence.get())
-        return None
+            status, payload = begin_operation(uow, operation_id, run_id, operation_type)
+            return payload if status == "completed" else None
 
     def context_started_at(self, operation_id: str) -> datetime:
         """Use the persisted first start, including after a failed Activity attempt."""
@@ -262,47 +249,10 @@ class AgentDataStore:
     def begin_tool_operation(self, operation_id: str, run_id: str) -> ToolOperationState:
         """Start a tool attempt without erasing an unacknowledged intent."""
         with UnitOfWork(self.database_url) as uow:
-            self._assert_fence(uow)
-            fence = execution_fence.get()
-            if fence is not None and fence[1] != run_id:
-                raise StaleFencingToken("operation is outside the Execution context")
-            inserted = uow.execute(
-                "INSERT INTO execution_operations(operation_id,run_id,operation_type,execution_id) "
-                "VALUES (%s,%s,'tool',%s) ON CONFLICT (operation_id) DO NOTHING "
-                "RETURNING operation_id",
-                (operation_id, UUID(run_id), UUID(fence[2]) if fence else None),
-            ).fetchone()
-            if inserted is not None:
-                ResultReceiptService.register_attempt(uow, operation_id, execution_fence.get())
-                return ToolOperationState("started", None)
-            self._owned_record(uow, "execution_operations", "operation_id", operation_id)
-            row = uow.execute(
-                "SELECT run_id,operation_type,status,result_payload FROM execution_operations "
-                "WHERE operation_id=%s FOR UPDATE",
-                (operation_id,),
-            ).fetchone()
-            if str(row["run_id"]) != run_id or row["operation_type"] != "tool":
-                raise ValueError("operation_id identity mismatch")
-            status = str(row["status"])
-            payload = dict(row["result_payload"]) if row["result_payload"] else None
-            if status == "completed":
-                return ToolOperationState(status, payload)
-            if status in {"intent_recorded", "uncertain"}:
-                uow.execute(
-                    "UPDATE execution_operations SET attempt_count=attempt_count+1,"
-                    "updated_at=now() WHERE operation_id=%s",
-                    (operation_id,),
-                )
-                ResultReceiptService.register_attempt(uow, operation_id, execution_fence.get())
-                return ToolOperationState(status, payload)
-            uow.execute(
-                "UPDATE execution_operations SET status='started',error_code=NULL,"
-                "result_payload=NULL,attempt_count=attempt_count+1,updated_at=now() "
-                "WHERE operation_id=%s",
-                (operation_id,),
+            status, payload = begin_operation(
+                uow, operation_id, run_id, "tool", allow_unresolved=True
             )
-            ResultReceiptService.register_attempt(uow, operation_id, execution_fence.get())
-            return ToolOperationState("started", None)
+            return ToolOperationState(status, payload)
 
     @retryable_transaction
     def fail_operation(self, operation_id: str, error_code: str) -> None:

@@ -77,6 +77,7 @@ def create_grep_tool(workspace_root: str):
         return json.dumps(out)
 
     return StructuredTool.from_function(
+        metadata={"side_effect_class": "read_only"},
         name="Grep",
         description="Search file contents in the persistent Git workspace for a literal string or regex. This does not search files uploaded with the current Web Run. Returns at most 50 matching lines.",
         args_schema=GrepInput,

@@ -7,6 +7,7 @@ import logging
 import os
 
 from bootstrap.worker_dependencies import WorkerDependencies
+from common.runtime_config import ArtifactRuntimeConfig
 from orchestration.config import AppConfig
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
@@ -171,6 +172,7 @@ def compose_durable_runtime(
         run_budget=RunBudgetService(worker_database_url),
         approval_service=FileActionApprovalService(worker_database_url),
     )
+    from agent_activities.composition import capability_worker_activities
     from agent_activities.text_result import TextActivities
     from research_activities.composition import compose_research
     from web_artifacts.local import HtmlActivities
@@ -180,12 +182,13 @@ def compose_durable_runtime(
         durable_activities.store,
         html_available=infrastructure.file_output_publisher is not None,
     )
+    artifact_config = ArtifactRuntimeConfig.from_environment()
     artifact_build = ArtifactBuildService(
         worker_database_url,
         WebArtifactGenerator(
             infrastructure.resource_pool,
-            max_bytes=int(os.getenv("ARTIFACT_HTML_MAX_BYTES", str(1024 * 1024))),
-            read_timeout_seconds=float(os.getenv("ARTIFACT_MODEL_READ_TIMEOUT_SECONDS", "90")),
+            max_bytes=artifact_config.artifact_html_max_bytes,
+            read_timeout_seconds=artifact_config.artifact_model_read_timeout_seconds,
         ),
         capabilities=capability_activities,
         publisher=infrastructure.file_output_publisher,
@@ -204,6 +207,10 @@ def compose_durable_runtime(
     delegation_activities = DelegationActivities(
         durable_activities.store, durable_activities.run_budget
     )
+    capability_implementations = capability_worker_activities(
+        research_activities, html_activities,
+        TextActivities(capability_activities, infrastructure.file_output_publisher),
+    )
     workers = build_web_temporal_workers(
         client,
         lifecycle_activities=[
@@ -217,27 +224,14 @@ def compose_durable_runtime(
             artifact_activities.prepare,
             artifact_activities.complete,
             research_parent.prepare_research_parent_activity,
-            research_activities.prepare_research_activity,
-            research_activities.commit_research_result_activity,
-            research_activities.create_research_plan_activity,
-            research_activities.discover_research_sources_activity,
-            research_activities.rank_research_sources_activity,
-            research_activities.fetch_research_sources_activity,
-            research_activities.normalize_research_sources_activity,
-            research_activities.extract_research_evidence_activity,
-            research_activities.assess_research_corroboration_activity,
-            research_activities.analyze_research_gaps_activity,
-            research_activities.synthesize_research_report_activity,
-            research_activities.verify_research_citations_activity,
-            research_activities.compare_previous_research_activity,
+            *capability_implementations[config.temporal.web_lifecycle_task_queue],
             research_parent.publish_research_artifact_activity,
             research_parent.save_research_workspace_activity,
             research_parent.complete_research_activity,
             research_parent.fail_research_activity,
         ],
         agent_activities=[
-            html_activities.produce,
-            TextActivities(capability_activities, infrastructure.file_output_publisher).produce,
+            *capability_implementations[config.temporal.web_agent_task_queue],
             capability_activities.prepare,
             capability_activities.observe,
             capability_activities.close,

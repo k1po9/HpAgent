@@ -22,6 +22,7 @@ jobs:
       - name: Validate explicit CI test paths
         run: python scripts/check/ci-test-paths.py
       - run: make docs-check scripts-test
+      - run: make architecture-check
       - run: make lint typecheck
 
   existing-unit-tests:

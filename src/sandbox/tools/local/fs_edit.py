@@ -1,5 +1,5 @@
-import os
 import json
+import os
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
@@ -54,6 +54,7 @@ def create_fs_edit_tool(workspace_root: str):
         return json.dumps({"replacements": 1})
 
     return StructuredTool.from_function(
+        metadata={"side_effect_class": "non_idempotent_write"},
         name="fs_edit",
         description="Replace exactly one occurrence of old_string with new_string in a file. old_string must match exactly once — whitespace matters. Use empty old_string to append to end.",
         args_schema=FsEditInput,

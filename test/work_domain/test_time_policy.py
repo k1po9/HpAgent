@@ -72,6 +72,14 @@ def test_context_clock_survives_failed_attempt(commands, account_id, urls, owner
         second = f'{lease.execution_id}:second-context'
         store.begin_operation(second, run['run_id'], 'context')
         assert store.context_started_at(second) > started
+    # A real replacement attempt gets a new fence; in-segment reentry keeps
+    # the existing producer and must not create an unregistered attempt count.
+    store.release_lease(str(account_id), run['run_id'], lease.fencing_token, lease.execution_id)
+    replacement = store.acquire_lease(str(account_id), run['run_id'])
+    assert replacement.fencing_token > lease.fencing_token
+    with fence_scope(str(account_id), run['run_id'], replacement.fencing_token, lease.execution_id):
+        store.begin_operation(operation, run['run_id'], 'context')
+        assert store.context_started_at(operation) == started
     row = owner.execute('SELECT attempt_count FROM execution_operations WHERE operation_id=%s',
                          (operation,)).fetchone()
     assert row['attempt_count'] == 2

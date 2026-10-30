@@ -179,9 +179,13 @@ async def test_activity_worker_sigkill_redelivers_intent_without_repeating_side_
         assert after == (
             "uncertain",
             "tool_side_effect_uncertain",
-            2,
+            1,  # Legacy Activity redelivery keeps the same producing fence.
             "non_idempotent_write",
         )
+        assert db.execute(
+            "SELECT attempt_no,fencing_token FROM execution_operation_attempts WHERE operation_id=%s",
+            (operation_id,),
+        ).fetchall() == [(1, lease.fencing_token)]
         with sqlite3.connect(tmp_path / "external.sqlite") as connection:
             side_effect_count = connection.execute(
                 "SELECT count FROM side_effect_counter WHERE operation_id=?",

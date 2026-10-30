@@ -47,6 +47,7 @@ def create_glob_tool(workspace_root: str):
         return json.dumps(out)
 
     return StructuredTool.from_function(
+        metadata={"side_effect_class": "read_only"},
         name="Glob",
         description="Find files matching a pattern in the persistent Git workspace. This does not list files uploaded with the current Web Run. Returns at most 200 relative paths.",
         args_schema=GlobInput,

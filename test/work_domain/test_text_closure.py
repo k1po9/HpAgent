@@ -122,7 +122,10 @@ async def test_ready_auto_continuation_publishes_completes_and_delivers(commands
         segments.acquire, segments.release, segments.begin_wait, segments.finish_wait])
     dispatcher = WebOutboxDispatcher(OutboxService(urls[2]), TemporalOutboxDispatcher(
         PostgresWorkflowExecutionStore(urls[2]), TemporalClientAdapter(client)), 'text-closure')
-    scheduler, delivery = WorkScheduleService(urls[2]), DeliveryService(urls[2])
+    from common.agent_policy import AgentPolicy
+
+    scheduler = WorkScheduleService(urls[2], agent_policy=AgentPolicy(max_tool_turns=5))
+    delivery = DeliveryService(urls[2])
 
     async def background():
         while True:
@@ -151,20 +154,25 @@ async def test_ready_auto_continuation_publishes_completes_and_delivers(commands
     assert versions == [initial, initial + 1]
     runs = owner.execute('SELECT * FROM runs WHERE work_id=%s ORDER BY created_at', (wid,)).fetchall()
     assert len(runs) == 2 and all(r['status'] == 'succeeded' and r['requirement_revision'] == 1 for r in runs)
+    assert all(r['input_snapshot']['agent_policy']['max_tool_turns'] == 5 for r in runs)
+    # The completion receipt identifies the adopted Run; DB transaction start
+    # times are not an execution order (a waiting admission may start earlier).
+    completed = next(r for r in runs if str(r['run_id']) == current['completion_receipt']['run_id'])
+    assert completed['work_control_epoch'] == max(r['work_control_epoch'] for r in runs)
     outputs = current['results']
     assert len(outputs) == 1 and outputs[0]['content_url'].endswith('/content')
     evidence = owner.execute('SELECT * FROM capability_acceptance_evidence WHERE run_id=%s',
-                             (runs[-1]['run_id'],)).fetchall()
+                             (completed['run_id'],)).fetchall()
     assert len(evidence) == (5 if completion == 'forced_fake' else 1)
     assert all(e['criterion_id'] == criterion_id for e in evidence)
     if completion != 'explicit':
         assert owner.execute("SELECT count(*) n FROM agent_transcript_events e "
             "JOIN agent_transcripts t USING(transcript_id) WHERE t.run_id=%s "
             "AND e.event_type='tool_result' AND e.payload->'message'->>'name'='result__evidence'",
-            (runs[-1]['run_id'],)).fetchone()['n'] == 0
+            (completed['run_id'],)).fetchone()['n'] == 0
     latest = owner.execute("SELECT f.file_id FROM capability_observations o "
         "JOIN capability_result_refs f USING(account_id,invocation_id) WHERE o.run_id=%s "
-        "ORDER BY o.sequence DESC LIMIT 1", (runs[-1]['run_id'],)).fetchone()
+        "ORDER BY o.sequence DESC LIMIT 1", (completed['run_id'],)).fetchone()
     assert str(latest['file_id']) == str(outputs[0]['file_id'])
     file = owner.execute('SELECT storage_key FROM stored_files WHERE file_id=%s', (outputs[0]['file_id'],)).fetchone()
     with publisher.store.open(file['storage_key']) as stream:

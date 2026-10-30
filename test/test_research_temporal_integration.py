@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from uuid import uuid4
 
@@ -7,7 +8,7 @@ import pytest
 from google.protobuf.duration_pb2 import Duration
 from temporalio import activity
 from temporalio.api.workflowservice.v1 import RegisterNamespaceRequest
-from temporalio.client import Client
+from temporalio.client import Client, WorkflowFailureError
 from temporalio.exceptions import ApplicationError
 from temporalio.service import RPCError, RPCStatusCode
 from temporalio.worker import Replayer, Worker
@@ -28,6 +29,37 @@ stages: list[str] = []
 sufficient_after = 1
 save_attempts = 0
 view_failure = False
+
+
+@pytest.mark.parametrize('attempt_limit', [1, 2])
+async def test_research_child_enforces_frozen_activity_retry_limit(attempt_limit):
+    host = os.getenv('TEMPORAL_HOST')
+    if not host:
+        pytest.skip('TEMPORAL_HOST is required')
+    client = await Client.connect(host, namespace=os.getenv('TEMPORAL_TEST_NAMESPACE', 'default'))
+    attempts = []
+
+    @activity.defn(name='prepare_research_activity')
+    async def fail_prepare(request: ResearchWorkflowInput):
+        attempts.append(activity.info().attempt)
+        raise RuntimeError('synthetic transient failure')
+
+    run_id = str(uuid4())
+    request = CapabilityExecutionInput(run_id, run_id, run_id, f'{run_id}:research',
+        'ResearchCapabilityWorkflow', 60, attempt_limit, f'{run_id}:produce')
+    async with Worker(client, task_queue=WEB_LIFECYCLE_TASK_QUEUE,
+                      workflows=[ResearchCapabilityWorkflow], activities=[fail_prepare]):
+        handle = await client.start_workflow(ResearchCapabilityWorkflow.run, request,
+            id=f'research-retry-{run_id}', task_queue=WEB_LIFECYCLE_TASK_QUEUE)
+        with pytest.raises(WorkflowFailureError):
+            await asyncio.wait_for(handle.result(), 15)
+        history = await handle.fetch_history()
+    assert attempts == list(range(1, attempt_limit + 1))
+    scheduled = [event.activity_task_scheduled_event_attributes for event in history.events
+                 if event.HasField('activity_task_scheduled_event_attributes')]
+    assert len(scheduled) == 1
+    assert scheduled[0].retry_policy.maximum_attempts == attempt_limit
+    await Replayer(workflows=[ResearchCapabilityWorkflow]).replay_workflow(history)
 
 
 def _result(request, stage: str, count: int = 1, *, sufficient: bool | None = None):
@@ -212,8 +244,10 @@ async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_af
         )
         result = await handle.result()
         history = await handle.fetch_history()
-    replay = await Replayer(workflows=[ResearchReportWorkflow, ResearchCapabilityWorkflow]).replay_workflow(history)
-    assert replay.replay_failure is None
+        child_history = await client.get_workflow_handle(f"hpagent-capability-{run_id}").fetch_history()
+    for recorded_history in (history, child_history):
+        replay = await Replayer(workflows=[ResearchReportWorkflow, ResearchCapabilityWorkflow]).replay_workflow(recorded_history)
+        assert replay.replay_failure is None
     assert result == {"schema_version": 1, "run_id": run_id, "outcome": "report_ready"}
     expected = [
         "Planning",

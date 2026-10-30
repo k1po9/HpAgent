@@ -5,6 +5,7 @@
 | 层 | 入口 | 范围与副作用 |
 | --- | --- | --- |
 | 文档/脚本隔离测试 | `make docs-check scripts-test` | 不访问业务库或模型；脚本测试使用独立文件和本机隔离HTTP服务。 |
+| 架构/接入离线门禁 | `make architecture-check` | 捕获真实 Worker 组装，校验目录/绑定/工具配置/队列/重复注册、全部注册 Workflow sandbox 与共用接入契约；不连接 PG、Redis、Temporal 或 Provider。报告含具体边界，非零表示拒绝。 |
 | Python静态/单元 | `make lint typecheck test-unit` | 先安装requirements-dev；单元集排除postgres与temporal标记，`test-existing`是兼容入口。 |
 | PG领域契约 | `make test-db` | 收集全部postgres且非temporal测试，排除web_api；包括Work、Conversation、持久化与权限。fixture可能TRUNCATE，必须专用可丢弃库。 |
 | API契约 | `make test-api` | web_api中postgres且非temporal测试；需要专用PG，部分用例还需Redis。 |
@@ -31,6 +32,11 @@ make test-db test-api
 ```
 
 四个入口与CI共用同一选择规则；支持`PYTEST_ARGS='-x --junitxml=/tmp/results.xml'`追加pytest参数。基础设施入口使用`--require-test-services`，在任何fixture执行前检查被选中测试所需的三个DSN、Temporal地址/namespace与Redis配置，缺失时失败。使用数据库fixture的测试必须标记postgres，真实Temporal测试必须标记temporal。收集用例可以直接执行`python3 -m pytest --collect-only -m temporal test`，不会运行fixture或要求服务在线。
+
+Makefile 向测试及其子进程导出当前仓库、`src` 与 `test` 的绝对导入路径，已有
+`PYTHONPATH` 保留在其后；直接调用 pytest 执行 SIGKILL 用例时仍须自行设置这些路径。
+Artifact 持久化测试通过显式 `file_store_root` fixture 使用每例临时目录，不依赖业务
+`FILE_STORE_ROOT` 或共享文件存储。
 
 Temporal验收还需显式设置`TEMPORAL_HOST`指向独立测试服务，设置`TEMPORAL_NAMESPACE`与`TEMPORAL_TEST_NAMESPACE`为该服务上已创建的同一测试namespace（独立自动初始化服务可使用default），再运行`make test-temporal`。该入口包含会启动并终止测试Worker的用例，子进程须能访问同一专用PG/Redis。缺少服务配置不算测试跳过或通过。
 
@@ -289,3 +295,55 @@ PG finish 前被杀的发送者只恢复为 uncertain，不自动重发。它不
 禁用重定向并限制读取字节，只记录状态、媒体类型和文件头验证结果，不保存签名 URL 或图片正文。
 Worker 重启、反向 WS 网络中断与 QQ 客户端自身离线/重启分别验收；在途发送故障产生的
 uncertain 必须保留显式决议，不能为清理测试状态而重发或改写成 accepted。
+
+能力接入一致性离线回归：`test/test_capability_composition.py` 验证定义/绑定一一对应、
+新增条目派生工具/Workflow、服务与角色筛选独立、真实专业 Workflow 的 Activity 名称和队列
+与推导注册一致，以及漏实现和重名冲突启动拒绝；`test/test_tool_registration_contract.py`
+验证所有原生路由均有真实工厂、schema 合法、工厂直接声明副作用及普通注册不能占 Harness 前缀。专业适配不改变固定 v1 输入与历史
+恢复边界，沿 `test/test_capability_contracts.py`、`test/test_delivery_contract_unit.py` 和
+`test/work_domain/test_capability_harness.py` 等复验。标准接入步骤见
+[能力接入](../architecture/capabilities.md#能力接入步骤与登记责任)。
+
+共享执行内核的失败回归见 `test/work_domain/test_execution_receipts.py` 和
+`test/web_persistence/test_model_input_snapshot.py`：同 fence 重入、旧 attempt、
+关闭子执行的迟到回执、冲突回执、未决工具意图绕行、dispatch 前失效/取消、发送资格响应丢失，
+以及 Run 终态的遗留模型预留释放/估算结算。`test/test_model_governance.py` 另验证
+已关闭预留不能再发送、重复发送资格不能释放原预留、取消前后释放/结算分界。
+发送与释放的两种获胜次序、跨 UTC 午夜重放复用原 hold，以及终态预算结算失败整笔回滚均有回归。
+数据库用例只允许显式专用三角色 DSN；模型传输采用离线夹具，不能替代真实 Provider 验收。
+旧 History 与 sandbox 继续使用 `test/test_agent_segment_replay.py`、
+`test/test_durable_agent_contract.py` 和现有 Temporal 恢复测试复验。
+
+
+架构门禁使用既有 `scripts/check/temporal_registry.py`，JSON 包含禁止入口/导入、实际注册、
+按目录派生的缺失或重复注册、sandbox 失败和配置检查边界。来源扫描支持绝对/相对导入、
+from-import 与字面量动态导入；计算生成的模块名不做静态求值。关键依赖方向继续由
+`test/test_execution_boundaries.py` 的独立进程 import guard 验证真实传递导入，
+Agent Workflow 包的全部现有/新增模块与 Lifecycle、Research、Memory Workflow 另用同一设施
+在独立进程禁止传递到运行时 Adapter；Document 等其他边界由实际注册的 sandbox 准备验证。
+不机械禁止当前跨领域调用，也不代表任意未来模块都已形成分层。
+`make architecture-check` 已进入 CI 与 `make ci`；参数 `PYTEST_ARGS` 可输出 JUnit 到忽略目录或仓库外。
+
+新增专业能力自动加入 `test/test_capability_composition.py` 按目录参数化的身份、schema、
+冻结限制、服务/surface/角色发现、队列、限时/有限重试、失败和取消契约；
+`test/support/capability_contract.py` 只替换 Activity 边界，不替代业务状态或权限判断。
+共享调用 Workflow 另验证失败/取消必须关闭准确 child、成功后才观察。
+权限、预算、取消后禁止观察、重放、迟到回执与响应丢失仍使用现有
+`test/work_domain/test_capability_facts.py`、`test_capability_harness.py` 和
+`test_execution_receipts.py` 的真实 PG/Temporal 用例，离线 gate 不声称证明事务或恢复。
+
+Research 的 `ResearchCapabilityWorkflow` 各阶段遵守冻结 `child.max_attempts`，
+与其他专业能力共用重试上限契约，不设置 xfail。原 4 次尝试的退避参数保持不变；
+Research 父 Workflow 的准入、关闭与保存重试仍使用自己的既有策略。
+子执行总时限来自本次 descriptor.limits，不用能力定义的较大上限覆盖它。
+通用错误的任意异常消息仍不在本次已分类控制错误的安全保证内；不得将底层 traceback 当作脱敏报告。
+
+只读执行诊断见 `GET /api/v1/runs/{run_id}/diagnostics`。
+`test/work_domain/test_run_diagnostics.py` 用 API 角色验证历史 attempt、fence、能力冻结版本、
+旧回执与当前错误分离、未知配置版本、截断和最小列权限；
+`test/web_api/test_run_diagnostics_http.py` 验证 401/跨账户 404、模型快照关联与不泄漏输入。
+这两组分别由 `make test-db` / `make test-api` 收集，要求专用三角色同库 DSN；
+新增迁移 080 只授予 attempt 身份列的 SELECT，不改原迁移 checksum，不授予写权限。
+所有诊断列表最多 100 行并报告 truncated，不是完整导出。模型快照不证明已发送，
+历史 current 回执不证明现在仍有推进权；真实 Provider、取消传播时延、Worker kill/replay、
+权限撤回竞态和外部副作用仍需对应隔离集成或另获授权的真实链路验证。

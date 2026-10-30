@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from uuid import uuid4, uuid5
 
 from account.identity import normalize_channel_subject
 from common.channel_result import ChannelSendResult
+from common.runtime_config import CapacityConfig
 from persistence.uow import UnitOfWork
 from work_domain.models import continuation
 from work_domain.persistence import WorkRepository
@@ -294,7 +294,8 @@ class DeliveryService:
             held = uow.execute(
                 "SELECT count(*) AS n FROM deliveries WHERE state='sending'"
             ).fetchone()["n"]
-            if held >= int(os.getenv("DELIVERY_GLOBAL_CAPACITY", "32")):
+            limits = CapacityConfig.from_environment()
+            if held >= limits.delivery_global_capacity:
                 return None
             row = uow.execute(
                 "SELECT d.delivery_id,n.work_id,n.account_id FROM deliveries d JOIN notifications n "
@@ -302,7 +303,7 @@ class DeliveryService:
                 "AND t.resource='delivery' AND t.lane='background' WHERE d.state='pending' AND d.available_at<=now() "
                 "AND (SELECT count(*) FROM deliveries held WHERE held.account_id=d.account_id AND held.state='sending')<%s "
                 "ORDER BY COALESCE(t.last_admitted_at,'-infinity'::timestamptz),d.available_at,d.delivery_id LIMIT 1",
-                (int(os.getenv("DELIVERY_ACCOUNT_CAPACITY", "4")),),
+                (limits.delivery_account_capacity,),
             ).fetchone()
             if not row:
                 return None

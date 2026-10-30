@@ -9,6 +9,13 @@ import pytest
 from persistence.migrate import migrate
 
 
+@pytest.fixture
+def file_store_root(tmp_path, monkeypatch):
+    root = tmp_path / 'file-store'
+    monkeypatch.setenv('FILE_STORE_ROOT', str(root))
+    return root
+
+
 @pytest.fixture(scope="session")
 def database_url() -> str:
     migration_url = os.getenv("MIGRATION_DATABASE_URL") or os.getenv("APP_DATABASE_URL")

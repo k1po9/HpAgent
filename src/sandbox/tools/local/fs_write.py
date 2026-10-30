@@ -1,5 +1,5 @@
-import os
 import json
+import os
 
 from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
@@ -21,6 +21,7 @@ def create_fs_write_tool(workspace_root: str):
         return json.dumps({"bytes_written": written})
 
     return StructuredTool.from_function(
+        metadata={"side_effect_class": "idempotent_write"},
         name="fs_write",
         description="Create or completely overwrite a file. Creates intermediate directories automatically. Use fs_edit for targeted changes.",
         args_schema=FsWriteInput,

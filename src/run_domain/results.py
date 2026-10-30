@@ -15,12 +15,66 @@ from psycopg.types.json import Jsonb
 
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.execution import (
+    StaleFencingToken,
     assert_execution_fence,
     lock_execution,
     require_active_run,
     require_owned_record,
 )
 from run_domain.execution_context import execution_fence
+
+
+class OperationUncertain(RuntimeError):
+    code = "tool_side_effect_uncertain"
+
+
+def begin_operation(uow, operation_id, run_id, operation_type, *, allow_unresolved=False):
+    """Enter an Operation in the caller's transaction, preserving its producing attempt.
+
+    An unresolved intent may only enter the tool reconciliation path. Reentry in
+    the same fence does not invent an attempt with no registered producer.
+    """
+    assert_execution_fence(uow)
+    fence = execution_fence.get()
+    if fence is not None and fence[1] != run_id:
+        raise StaleFencingToken("operation is outside the Execution context")
+    inserted = uow.execute(
+        "INSERT INTO execution_operations(operation_id,run_id,operation_type,execution_id) "
+        "VALUES (%s,%s,%s,%s) ON CONFLICT (operation_id) DO NOTHING RETURNING operation_id",
+        (operation_id, UUID(run_id), operation_type, UUID(fence[2]) if fence else None),
+    ).fetchone()
+    if inserted is not None:
+        ResultReceiptService.register_attempt(uow, operation_id, fence)
+        return "started", None
+    require_owned_record(uow, "execution_operations", "operation_id", operation_id)
+    row = uow.execute(
+        "SELECT run_id,operation_type,status,result_payload FROM execution_operations "
+        "WHERE operation_id=%s FOR UPDATE", (operation_id,),
+    ).fetchone()
+    if str(row["run_id"]) != run_id or row["operation_type"] != operation_type:
+        raise ValueError("operation_id identity mismatch")
+    status = row["status"]
+    payload = dict(row["result_payload"]) if row["result_payload"] is not None else None
+    if status == "completed":
+        return status, payload
+    unresolved = status in {"intent_recorded", "uncertain"}
+    if unresolved and not allow_unresolved:
+        raise OperationUncertain("reconcile the original tool intent before executing again")
+    registered = fence is not None and uow.execute(
+        "SELECT 1 FROM execution_operation_attempts WHERE operation_id=%s AND fencing_token=%s",
+        (operation_id, fence[3]),
+    ).fetchone()
+    uow.execute(
+        "UPDATE execution_operations SET attempt_count=attempt_count+%s,updated_at=now() "
+        "WHERE operation_id=%s", (0 if registered else 1, operation_id),
+    )
+    if not unresolved:
+        uow.execute(
+            "UPDATE execution_operations SET status='started',error_code=NULL,"
+            "result_payload=NULL WHERE operation_id=%s", (operation_id,),
+        )
+    ResultReceiptService.register_attempt(uow, operation_id, fence)
+    return (status, payload) if unresolved else ("started", None)
 
 
 def result_digest(payload):
@@ -62,6 +116,7 @@ class ResultReceiptService:
 
         with UnitOfWork(self.database) as uow:
             run = RunLifecycleService.lock(uow, UUID(account_id), UUID(run_id))
+            execution = lock_execution(uow, account_id, run_id, execution_id)
             attempt = uow.execute(
                 "SELECT a.*,o.requirement_revision,o.attempt_count,o.status AS operation_status "
                 "FROM execution_operation_attempts a JOIN execution_operations o USING(operation_id) "
@@ -87,7 +142,11 @@ class ResultReceiptService:
                     disposition = "cancelled"
                 elif work["control_epoch"] != run["work_control_epoch"]:
                     disposition = "stale"
+                elif work["active_coordinator_run_id"] != run["run_id"]:
+                    disposition = "stale"
             if disposition == "current" and run["status"] in {"cancelling", "cancelled"}:
+                disposition = "cancelled"
+            if disposition == "current" and execution["status"] in {"cancelling", "cancelled"}:
                 disposition = "cancelled"
             lease = uow.execute(
                 "SELECT 1 FROM execution_attempt_leases WHERE execution_id=%s AND fencing_token=%s "
@@ -96,6 +155,7 @@ class ResultReceiptService:
             ).fetchone()
             if disposition == "current" and (
                 lease is None or run["status"] not in {"queued", "running"}
+                or execution["status"] not in {"queued", "running"}
             ):
                 disposition = "stale"
             digest = result_digest(payload)
@@ -124,8 +184,6 @@ class ResultReceiptService:
             )
             # Retain a late result in its original operation only when a replacement
             # attempt has not already taken it over. Otherwise retain digest/provenance.
-            execution = uow.execute("SELECT status FROM run_executions WHERE account_id=%s AND run_id=%s AND execution_id=%s",
-                (UUID(account_id), UUID(run_id), UUID(execution_id))).fetchone()
             if (
                 disposition != "current"
                 and (run["status"] in {"cancelling", "cancelled", "failed", "succeeded"}
@@ -202,6 +260,7 @@ class EffectService:
 def complete_operation(
     uow: UnitOfWork, operation_id: str, result_ref: str, result_payload: dict[str, Any]
 ) -> None:
+    assert_execution_fence(uow)
     require_owned_record(uow, "execution_operations", "operation_id", operation_id)
     prior = uow.execute(
         "SELECT status,result_ref,result_payload FROM execution_operations "
@@ -224,18 +283,29 @@ def complete_operation(
         ).fetchone()
         if attempt is None:
             raise ValueError("result attempt was not registered")
-        uow.execute(
-            "INSERT INTO execution_result_receipts(account_id,run_id,execution_id,operation_id,"
-            "attempt_no,requirement_revision,result_ref,digest,disposition) "
-            "SELECT account_id,run_id,execution_id,operation_id,%s,requirement_revision,%s,%s,'current' "
-            "FROM execution_operations WHERE operation_id=%s ON CONFLICT DO NOTHING",
-            (
-                attempt["attempt_no"],
-                attempt["receipt_ref"],
-                result_digest(result_payload),
-                operation_id,
-            ),
-        )
+        receipt = uow.execute(
+            "SELECT digest,disposition FROM execution_result_receipts "
+            "WHERE operation_id=%s AND attempt_no=%s",
+            (operation_id, attempt["attempt_no"]),
+        ).fetchone()
+        if receipt is not None:
+            if bytes(receipt["digest"]) != result_digest(result_payload):
+                raise ValueError("receipt payload conflict")
+            if receipt["disposition"] != "current":
+                raise StaleFencingToken("a late receipt cannot become current execution evidence")
+        else:
+            uow.execute(
+                "INSERT INTO execution_result_receipts(account_id,run_id,execution_id,operation_id,"
+                "attempt_no,requirement_revision,result_ref,digest,disposition) "
+                "SELECT account_id,run_id,execution_id,operation_id,%s,requirement_revision,%s,%s,'current' "
+                "FROM execution_operations WHERE operation_id=%s",
+                (
+                    attempt["attempt_no"],
+                    attempt["receipt_ref"],
+                    result_digest(result_payload),
+                    operation_id,
+                ),
+            )
     uow.execute(
         "UPDATE execution_operations SET status='completed' ,result_ref=%s,result_payload=%s,"
         "error_code=NULL,completed_at=now(),updated_at=now() WHERE operation_id=%s",

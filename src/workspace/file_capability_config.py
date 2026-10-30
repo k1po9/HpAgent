@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from common.config_validation import environment_name
+from common.runtime_config import FileRuntimeConfig, run_budget_mode
 from workspace.file_scope import RunFileScopeUnavailable
 
 
@@ -43,21 +45,25 @@ class FileCapabilityConfig:
             raise RunFileScopeUnavailable("file transforms require file uploads")
         if shell and not upload:
             raise RunFileScopeUnavailable("Web file shell requires file uploads")
-        deployment = values.get("HPAGENT_ENV", "development").strip().casefold()
+        try:
+            deployment = environment_name(values.get("HPAGENT_ENV", "development"))
+        except ValueError as exc:
+            raise RunFileScopeUnavailable(str(exc)) from None
         if deployment == "production" and shell:
             raise RunFileScopeUnavailable("host Bash is forbidden for production Web runs")
         if deployment == "production" and upload:
-            if values.get("RUN_BUDGET_MODE", "observe").strip().casefold() != "enforce":
+            try:
+                mode = run_budget_mode(values, default="observe")
+            except ValueError as exc:
+                raise RunFileScopeUnavailable(str(exc)) from None
+            if mode != "enforce":
                 raise RunFileScopeUnavailable(
                     "production file capability requires RUN_BUDGET_MODE=enforce"
                 )
-        maximum_text = values.get("FILE_MAX_BYTES", str(128 * 1024 * 1024))
         try:
-            maximum = int(maximum_text)
+            maximum = FileRuntimeConfig.from_environment(values).file_max_bytes
         except ValueError as exc:
-            raise RunFileScopeUnavailable("FILE_MAX_BYTES must be an integer") from exc
-        if maximum < 1 or maximum > 1024 * 1024 * 1024:
-            raise RunFileScopeUnavailable("FILE_MAX_BYTES must be between 1 byte and 1 GiB")
+            raise RunFileScopeUnavailable(str(exc)) from None
         if not upload:
             return cls(False, transform, shell, None, None, maximum)
         store_text = values.get("FILE_STORE_ROOT")

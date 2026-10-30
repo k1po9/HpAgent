@@ -135,3 +135,25 @@ Run 序号来自账号及真实 Conversation/Work 来源内按 created_at/run_id
 Trace 节点选择与折叠独立，刷新/调宽保留状态；多根/深树按真实层级截断，详情仍可读完整节点。只有 snapshot_id 可打开 Model Input，不另发输入列表查询。执行中才有运行装饰，终态与减动静止。总跨度用起止差，不累加可能重叠的节点耗时。实现见 `components/run`、`components/trace`、`store/runInspector.ts` 及相邻测试。
 
 Main 的 accept_work/revise_work 向模型公开嵌套 requirement 字段，schema_version 位于 spec、timing、deliverable_policy 和 resource_requests 项内，不能放在 requirement 顶层；required 保存必须绑定有效目录 UUID 并保留必需 workspace_saved 验收条件。业务仍严格校验，参数失败返回精确反馈。当前对话已选且有效授权的目录元数据单独进入 Main 上下文，不因文件候选只列文件而遗漏；这些元数据不把对话权限复制给 Work。只有文字路径时沿现有目录选择和授权入口补充。Main 参数失败且没有已提交委托回执时，最终消息明确显示「委托未建立」；修正成功后显示正常回复，任务入口仍只来自已提交 Work 的查询投影。
+
+
+执行诊断的只读 API 是 `GET /api/v1/runs/{run_id}/diagnostics`，复用登录账户过滤；
+无登录返回 401，非本人或不存在的 Run 返回 404。响应 schema_version=1，包含 Run、
+executions、operations 和 model_attempts；每个列表独立限制 100 行并报告 truncated。
+这不改变现有 Inspector 的展示与状态判定。
+
+Run 的 failure_code 只返回规范错误代码，不返回失败正文。
+Operation 行携带 run_id/execution_id/operation_id、登记的 attempt_no/fencing_token、
+历史 receipt_disposition、当前 operation_status 与能力 invocation/key/契约/实现版本及 descriptor_digest。
+operation_error_code 仅附在最新登记 attempt（或无 attempt 的 Operation），非规范错误代码归为
+unclassified_error；它不是历史每次失败的完整记录。phase 明确来自 operation_type，不能据此推断
+未保存的 Activity 阶段；已分类 Activity 控制错误的 Temporal ApplicationError details 则携带真实函数阶段、
+执行身份、execution_attempt 和 fence，不包含底层异常正文/原因链。executions.recorded_attempt_no 明确来自 run_executions.attempt_no：当前实现于获取 lease 时写入 fence，
+queued 默认值并不证明已获取 lease。它不能当作 Activity 的 execution_attempt 重试序号；
+Operation attempt_no、fencing_token 和模型 fallback_attempt 也各自独立。
+
+config_versions 只展示已冻结的策略/预算版本；尚未按 Run 冻结的 agent_tools/models 版本为 null，
+不使用当前配置推断历史版本。model_attempts 只给模型快照身份、Operation 关联、阶段、attempt、
+content_hash、serializer_version、entitlement_version 与 dispatched_at；不返回模型输入、URL、
+凭据、记忆或敏感配置。诊断不读取 descriptor/result payload 或输入快照正文，不写业务状态。
+历史回执、快照和诊断均不能替代当前权限/fence 检查、预算账本或 Run/Work 完成判定。

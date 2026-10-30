@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from contextlib import asynccontextmanager, suppress
 from uuid import uuid4
 
+from common.runtime_config import CapacityConfig
 from persistence.uow import UnitOfWork
 
 
@@ -22,7 +22,8 @@ class CapacityService:
     def admission(uow, work):
         # A short global lock serializes counts, never held during external execution.
         uow.execute("SELECT pg_advisory_xact_lock(4830020401)")
-        limit = int(os.getenv("WORK_ACCOUNT_COORDINATORS", "4"))
+        limits = CapacityConfig.from_environment()
+        limit = limits.work_account_coordinators
         active = uow.execute(
             "SELECT count(*) AS n FROM runs WHERE account_id=%s AND source_kind='work' "
             "AND status IN ('queued','running','cancelling')",
@@ -31,7 +32,7 @@ class CapacityService:
         global_active = uow.execute(
             "SELECT count(*) AS n FROM runs WHERE source_kind='work' AND status IN ('queued','running','cancelling')"
         ).fetchone()["n"]
-        return active < limit and global_active < int(os.getenv("WORK_GLOBAL_COORDINATORS", "32"))
+        return active < limit and global_active < limits.work_global_coordinators
 
     def acquire(self, run_id, resource, ticket_id):
         with UnitOfWork(self.database) as uow:
@@ -65,9 +66,7 @@ class CapacityService:
                 "INSERT INTO capacity_turns(resource,lane,account_id) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING",
                 (resource, lane, run["account_id"]),
             )
-            total = int(os.getenv(f"CAPACITY_{resource.upper()}_GLOBAL", "12"))
-            interactive = int(os.getenv(f"CAPACITY_{resource.upper()}_INTERACTIVE_RESERVED", "4"))
-            per_account = int(os.getenv(f"CAPACITY_{resource.upper()}_ACCOUNT", "3"))
+            total, interactive, per_account = CapacityConfig.from_environment().resource_limits(resource)
             counts = uow.execute(
                 "SELECT count(*) AS total,count(*) FILTER(WHERE lane='background') AS background,"
                 "count(*) FILTER(WHERE account_id=%s) AS account,"

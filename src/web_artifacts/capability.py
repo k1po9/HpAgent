@@ -1,5 +1,7 @@
 """HTML candidates use the shared invocation contract, independently of their caller."""
 
+from copy import deepcopy
+
 from run_domain.capability_contracts import CapabilityDefinition
 
 
@@ -67,3 +69,20 @@ def html_scope(inputs):
         tool_names=[],
         result_ids=[inputs[k] for k in ("source_ref", "previous_ref") if k in inputs],
     )
+
+
+def html_parent_input_schema(definition, *, model_facing=False):
+    """The model-facing HTML tool requires an explicit delegated objective.
+
+    Fixed/programmatic v1 callers keep their optional instruction contract.
+    Parent agents must carry the requested behavior across the isolated boundary.
+    """
+    schema = deepcopy(definition['input_schema'])
+    schema['required'] = list(dict.fromkeys([*schema.get('required', []), 'instruction']))
+    schema['properties']['instruction']['minLength'] = 1
+    if model_facing:
+        schema.pop('oneOf', None)
+        schema['required'] = list(schema['properties'])
+        for name in ('text', 'source_ref', 'previous_ref'):
+            schema['properties'][name]['type'] = ['string', 'null']
+    return schema

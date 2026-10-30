@@ -211,13 +211,12 @@ def test_save_receipt_supplies_exact_evaluator_input_without_creating_evidence()
 def test_parent_html_tool_requires_explicit_instruction_without_changing_fixed_v1_callers():
     from jsonschema import Draft202012Validator
 
-    from agent_activities.capabilities import parent_input_schema
-    from web_artifacts.capability import html_definition
+    from web_artifacts.capability import html_definition, html_parent_input_schema
 
     definition = html_definition().to_dict()
     source = {"source_ref": str(uuid4())}
     Draft202012Validator(definition["input_schema"]).validate(source)
-    validator = Draft202012Validator(parent_input_schema(definition))
+    validator = Draft202012Validator(html_parent_input_schema(definition))
     for missing in (source, {**source, "instruction": ""}):
         with pytest.raises(Exception):
             validator.validate(missing)
@@ -261,9 +260,8 @@ def test_parent_result_save_normalizes_absent_version_fields_before_side_effect(
 def test_model_wire_schemas_declare_complete_nullable_fields_and_internal_forms_stay_strict():
     from jsonschema import Draft202012Validator
 
-    from agent_activities.capabilities import parent_input_schema
     from agent_activities.result_tools import discover
-    from web_artifacts.capability import html_definition
+    from web_artifacts.capability import html_definition, html_parent_input_schema
 
     specs = {item["function"]["name"]: item["function"]["parameters"] for item in discover()}
     predicate = specs["result__evidence"]["properties"]["predicate"]
@@ -272,7 +270,7 @@ def test_model_wire_schemas_declare_complete_nullable_fields_and_internal_forms_
     value = {key: None for key in predicate["properties"]}
     value.update(schema_version=1, kind="output_exists", subject_ref=str(uuid4()))
     Draft202012Validator(specs["result__evidence"]).validate({"criterion_id": "output", "predicate": value})
-    wire = parent_input_schema(html_definition().to_dict(), model_facing=True)
+    wire = html_parent_input_schema(html_definition().to_dict(), model_facing=True)
     Draft202012Validator(wire).validate({"text": None, "source_ref": str(uuid4()), "previous_ref": None, "instruction": "Follow the requested behavior."})
     assert "oneOf" not in wire
     internal = {item["function"]["name"]: item["function"]["parameters"] for item in discover(model_facing=False)}

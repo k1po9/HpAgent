@@ -84,3 +84,21 @@ class RunDiagnosticProjectionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_operation_diagnostic_drops_sensitive_unknowns_and_distinguishes_no_attempt():
+    from run_domain.diagnostics import operation_diagnostic
+
+    row = dict(
+        run_id='run', execution_id='execution', operation_id='operation', operation_type='model',
+        operation_status='failed', attempt_no=None, latest_attempt_no=None, fencing_token=None,
+        receipt_disposition=None, requirement_revision=None, capability_key=None,
+        error_code='Provider error: sensitive-input', result_payload={'api_key': 'sensitive-key'},
+        provider_request_body={'messages': ['sensitive-memory']},
+    )
+    result = operation_diagnostic(row)
+    assert result['is_latest_registered_attempt'] is False
+    assert result['operation_error_code'] == 'unclassified_error'
+    assert result['capability'] is None
+    assert result['phase'] == 'model' and result['phase_source'] == 'operation_type'
+    assert 'sensitive' not in str(result)

@@ -111,11 +111,13 @@ async def test_registered_workflows_validate_in_temporal_sandbox():
     from temporalio import workflow
     from temporalio.worker.workflow_sandbox import SandboxedWorkflowRunner
 
+    from agent_activities.composition import capability_workflows
+
     runner = SandboxedWorkflowRunner()
     for workflow_type in (
         AgentLifecycleWorkflow, NormalizeDocumentWorkflow, AgentRunWorkflow,
         ReactAgentWorkflow, PlanAndExecuteWorkflow, AgentStepWorkflow,
-        ToolExecutionWorkflow, WorkDelegationWorkflow, CapabilityInvocationWorkflow, ResearchCapabilityWorkflow, HtmlCapabilityWorkflow, TextCapabilityWorkflow,
+        ToolExecutionWorkflow, WorkDelegationWorkflow, CapabilityInvocationWorkflow, *capability_workflows(),
     ):
         runner.prepare_workflow(workflow._Definition.must_from_class(workflow_type))
 

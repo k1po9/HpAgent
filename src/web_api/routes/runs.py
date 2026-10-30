@@ -42,6 +42,13 @@ def get_run(run_id: UUID, request: Request, context: AuthContext = Depends(auth_
     return request.app.state.queries.get_run(context.account_id, run_id)
 
 
+@router.get("/api/v1/runs/{run_id}/diagnostics")
+def get_run_diagnostics(run_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
+    from run_domain.diagnostics import run_diagnostics
+
+    return run_diagnostics(request.app.state.api_pool, context.account_id, run_id)
+
+
 @router.get("/api/v1/runs/{run_id}/trace")
 def get_run_trace(
     run_id: UUID,

@@ -12,6 +12,7 @@ from uuid import UUID, uuid5
 from uuid6 import uuid7
 
 from agent_workflows.ids import tool_execution_workflow_id
+from common.agent_policy import AgentPolicy
 from common.logging import log_event
 from persistence.command_result import CommandResult
 from persistence.repositories import (
@@ -77,7 +78,9 @@ class CommandService:
         budget_limits: Mapping[str, int] | None = None,
         final_response_reserve_tokens: int = 1024,
         admission_policy: AdmissionPolicy | None = None,
+        agent_policy: AgentPolicy | None = None,
     ):
+        self.agent_policy = agent_policy or AgentPolicy()
         self.database_url = database_url
         self.accounts = AccountRepository()
         self.conversations = ConversationRepository()
@@ -208,7 +211,7 @@ class CommandService:
         )
         self.runs.insert(
             uow, run_id, account_id, conversation_id, session_id, user_message_id,
-            workflow_id, allocated - 1, agent_strategy=agent_strategy, fixed_html=fixed_html
+            workflow_id, allocated - 1, agent_strategy=agent_strategy, fixed_html=fixed_html, agent_policy=self.agent_policy.to_snapshot()
         )
         self.messages.insert_assistant(
             uow, assistant_message_id, account_id, conversation_id, allocated, run_id
@@ -403,6 +406,7 @@ class CommandService:
                     source["context_message_seq"], source_run_id,
                     str(source.get("agent_strategy") or "react"),
                     fixed_html=source["input_snapshot"] if source["executor_key"] == "artifact_html" else None,
+                    agent_policy=self.agent_policy.to_snapshot(),
                 )
                 self.messages.insert_assistant(
                     uow, assistant_message_id, account_id, source["conversation_id"],

@@ -240,13 +240,51 @@ def fingerprint(value: Any) -> str:
                                     separators=(",", ":")).encode()).hexdigest()
 
 
-def read_yaml(path: str | Path) -> Any:
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """Reject explicit duplicate keys without changing YAML merge precedence."""
+
+    section = "memory_config_file"
+
+    def get_single_data(self):
+        node = self.get_single_node()
+        if node is None:
+            return None
+        self._check(node, self.section, set())
+        return self.construct_document(node)
+
+    def _check(self, node, path, active):
+        if id(node) in active:
+            raise MemoryConfigError(f"{path}: recursive YAML alias")
+        active = active | {id(node)}
+        if isinstance(node, yaml.MappingNode):
+            seen = set()
+            for key, value in node.value:
+                if not isinstance(key, yaml.ScalarNode) or key.tag not in {
+                    "tag:yaml.org,2002:str", "tag:yaml.org,2002:merge",
+                }:
+                    raise MemoryConfigError(f"{path}: expected text keys")
+                field = f"{path}.{key.value}"
+                if key.value in seen:
+                    raise MemoryConfigError(f"{field}: duplicate YAML key")
+                seen.add(key.value)
+                self._check(value, field, active)
+        elif isinstance(node, yaml.SequenceNode):
+            for index, value in enumerate(node.value):
+                self._check(value, f"{path}.{index}", active)
+
+
+def read_yaml(path: str | Path, *, section: str = "memory_config_file") -> Any:
     try:
         with Path(path).open(encoding="utf-8") as stream:
-            value = yaml.safe_load(stream)
+            loader = _UniqueKeyLoader(stream)
+            loader.section = section
+            try:
+                value = loader.get_single_data()
+            finally:
+                loader.dispose()
             return {} if value is None else value
-    except (OSError, yaml.YAMLError):
-        raise MemoryConfigError("memory_config_file") from None
+    except (OSError, UnicodeError, yaml.YAMLError):
+        raise MemoryConfigError(f"{section}: invalid YAML configuration") from None
 
 
 def load_memory_prompts(path: str | Path) -> dict[str, str]:

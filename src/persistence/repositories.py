@@ -170,6 +170,7 @@ class RunRepository:
         context_message_seq: int, retry_of_run_id: UUID | None = None,
         agent_strategy: str = "react",
         fixed_html: dict[str, Any] | None = None,
+        agent_policy: dict[str, Any] | None = None,
     ) -> None:
         uow.execute(
             "INSERT INTO runs(run_id,account_id,conversation_id,session_id,trigger_message_id,"
@@ -179,7 +180,8 @@ class RunRepository:
              retry_of_run_id, workflow_id, context_message_seq, None if fixed_html else agent_strategy,
              "fixed_workflow" if fixed_html else "generic_agent",
              "artifact_html" if fixed_html else "chat_agent",
-             json.dumps(fixed_html or {"schema_version": 1, "main_protocol": "tool_first_v1"})),
+             json.dumps(fixed_html or {"schema_version": 1, "main_protocol": "tool_first_v1",
+                 **({"agent_policy": agent_policy} if agent_policy is not None else {})})),
         )
 
     def set_cancelling(self, uow: UnitOfWork, run_id: UUID) -> None:

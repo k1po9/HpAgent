@@ -558,34 +558,37 @@ async def test_input_revocation_blocks_result_summary_delivery(urls, account_id,
 
 
 @pytest.mark.temporal
-async def test_new_candidate_capability_uses_unchanged_tool_workflow(urls, account_id):
+async def test_new_candidate_capability_uses_unchanged_tool_workflow(urls, account_id, monkeypatch):
     """Extension requires only definition/binding/implementation, never a core loop branch."""
     from support.capability_worker import ProbeActivities
     from support.capability_workflow import DeterministicCapabilityWorkflow
     from temporalio.worker import Worker
     from test_capability_contracts import definition
 
-    from agent_activities.capabilities import CapabilityBinding
+    from agent_activities import composition
+    from agent_activities.composition import CapabilityRegistration
     from agent_activities.segments import SegmentActivities
     from agent_activities.store import AgentDataStore
     from agent_workflows.capability import CapabilityInvocationWorkflow
     from agent_workflows.contracts import AGENT_TASK_QUEUE
     from agent_workflows.tool_execution import ToolExecutionWorkflow
     from application.tool_policy import ToolPolicy, tool_policy
-    from run_domain.capabilities import CapabilityFacts
-    from run_domain.capability_contracts import CapabilityRegistry
 
-    binding = CapabilityBinding("test.additional", 1, "DeterministicCapabilityWorkflow")
     configured = tool_policy().model_dump()
+    registration = CapabilityRegistration(
+        replace(definition(), key='test.additional'), DeterministicCapabilityWorkflow,
+        ProbeActivities, AGENT_TASK_QUEUE,
+    )
+    monkeypatch.setattr(composition, 'capability_registrations', lambda **_: (registration,))
+    binding = registration.binding
     configured['groups']['test_additional'] = {
         'description': 'Isolated extension fixture', 'tools': [binding.tool_name], 'exposure': 'always',
     }
     for role in ('main', 'worker'):
         configured['roles'][role]['groups'] += ('test_additional',)
+    catalog = composition.compose_capabilities(AgentDataStore(urls[2]), services=frozenset())
     probe = ProbeActivities(
-        AgentDataStore(urls[2]),
-        CapabilityFacts(CapabilityRegistry((replace(definition(), key=binding.key),))),
-        (binding,),
+        catalog.store, catalog.facts, tuple(catalog.bindings.values()),
         policy=ToolPolicy.model_validate(configured),
     )
     run = chat(urls, account_id)
@@ -602,13 +605,10 @@ async def test_new_candidate_capability_uses_unchanged_tool_workflow(urls, accou
         workflows=[
             ToolExecutionWorkflow,
             CapabilityInvocationWorkflow,
-            DeterministicCapabilityWorkflow,
+            *composition.capability_workflows(),
         ],
         activities=[
-            probe.prepare,
-            probe.observe,
-            probe.close,
-            probe.publish,
+            *composition.capability_worker_activities(probe)[AGENT_TASK_QUEUE],
             segments.acquire,
             segments.release,
             segments.begin_wait,

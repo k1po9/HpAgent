@@ -92,25 +92,26 @@ class ResearchParentActivities:
         )
 
     def _child(self, invocation):
-        from agent_workflows.capability_contracts import CapabilityExecutionInput
-
-        definition = invocation["descriptor"]["definition"]
-        return CapabilityExecutionInput(
-            str(invocation["account_id"]),
-            str(invocation["run_id"]),
-            str(invocation["child_execution_id"]),
-            invocation["invocation_id"],
-            "ResearchCapabilityWorkflow",
-            definition["limits"]["max_duration_seconds"],
-            definition["retry_policy"]["max_attempts"],
-            invocation["invocation_id"] + ":produce",
-        )
+        return self.capabilities.child_input(invocation)
 
     def _admit(self, request):
         operation_id = f"research:{request.run_id}:invoke:v1"
         self.research.store.begin_operation(operation_id, request.run_id, "tool")
         with UnitOfWork(self.database) as uow:
             run, caller = self.capabilities.facts._context(uow)
+            prior = uow.execute(
+                "SELECT * FROM capability_invocations WHERE account_id=%s AND run_id=%s AND invocation_id=%s",
+                (run["account_id"], run["run_id"], operation_id),
+            ).fetchone()
+            if prior:
+                from research_domain.capability import compatible_research_definition
+                current = self.capabilities.facts.registry.get("research", 1)
+                if (prior["caller_execution_id"] != caller["execution_id"]
+                        or not compatible_research_definition(prior["descriptor"]["definition"], current)):
+                    raise ValueError("Research invocation recovery conflict")
+                self.capabilities._authorize_scope(uow, run, prior["descriptor"])
+                return self._child(prior)
+
             task = uow.execute(
                 "SELECT objective,spec FROM work_requirements WHERE account_id=%s "
                 "AND work_id=%s AND revision=%s",

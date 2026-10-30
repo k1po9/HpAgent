@@ -168,10 +168,52 @@ class SnapshotRepository:
     def mark_dispatched(self, account_id, snapshot_id):
         with UnitOfWork(self.database) as uow:
             from persistence.memory_context import account_epoch, check_execution, check_manifest
+            from run_domain.execution import (
+                StaleFencingToken,
+                assert_execution_fence,
+                require_active_run,
+            )
+            from run_domain.execution_context import execution_fence
             account_epoch(uow, account_id)
-            snapshot = uow.execute('SELECT run_id,execution_id,memory_context FROM model_input_snapshots WHERE account_id=%s AND snapshot_id=%s', (account_id, snapshot_id)).fetchone()
+            assert_execution_fence(uow)
+            snapshot = uow.execute('SELECT run_id,execution_id,memory_context,operation_id,entitlement_version FROM model_input_snapshots WHERE account_id=%s AND snapshot_id=%s', (account_id, snapshot_id)).fetchone()
             if snapshot is None:
                 raise LookupError('snapshot missing')
+            require_active_run(uow, str(account_id), str(snapshot['run_id']))
+            fence = execution_fence.get()
+            snapshot_execution = snapshot['execution_id']
+            if snapshot_execution is None:
+                snapshot_execution = uow.execute(
+                    "SELECT execution_id FROM run_executions WHERE account_id=%s AND run_id=%s "
+                    "AND role='root'", (account_id, snapshot['run_id']),
+                ).fetchone()['execution_id']
+            if fence is not None and (
+                str(account_id) != fence[0] or str(snapshot['run_id']) != fence[1]
+                or str(snapshot_execution) != fence[2]
+            ):
+                raise StaleFencingToken('snapshot is outside the Execution context')
             check_execution(uow, account_id, snapshot['run_id'], snapshot['execution_id'])
             check_manifest(uow, account_id, snapshot['memory_context'])
-            uow.execute('INSERT INTO model_dispatches(account_id,snapshot_id) VALUES (%s,%s) ON CONFLICT DO NOTHING', (account_id,snapshot_id))
+            from account.entitlement_service import EntitlementState
+            from resources.account_daily_budget import (
+                AccountDailyBudgetConflict,
+                AccountDailyBudgetService,
+                AccountModelEntitlementUnavailable,
+            )
+
+            budget = AccountDailyBudgetService(self.database)
+            lookup = budget.entitlements.get_in_uow(uow, account_id)
+            if (lookup.state is not EntitlementState.VALID or lookup.entitlement is None
+                    or lookup.entitlement.version != snapshot['entitlement_version']):
+                raise AccountModelEntitlementUnavailable('model entitlement changed before dispatch')
+            _, ledger = budget._locked_ledger(
+                uow, account_id, snapshot['operation_id'], None,
+            )
+            if ledger['state'] != 'reserved':
+                raise AccountDailyBudgetConflict('model dispatch requires its original reservation')
+            inserted = uow.execute(
+                'INSERT INTO model_dispatches(account_id,snapshot_id) VALUES (%s,%s) '
+                'ON CONFLICT DO NOTHING RETURNING snapshot_id', (account_id,snapshot_id),
+            ).fetchone()
+            if inserted is None:
+                raise AccountDailyBudgetConflict('model request already dispatched; recover its original Operation')

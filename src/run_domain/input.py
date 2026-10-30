@@ -1,5 +1,7 @@
 """Load durable Agent identity from the Run and its root Execution."""
 
+import logging
+
 from temporalio.exceptions import ApplicationError
 
 from agent_workflows.contracts import (
@@ -9,10 +11,11 @@ from agent_workflows.contracts import (
     RunContext,
     RunSource,
 )
+from common.agent_policy import AgentPolicy, policy_from_run
 
 
 class RunInputLoader:
-    def __init__(self, store, *, max_turns: int = 20, surface: str = "web"):
+    def __init__(self, store, *, max_turns: int = AgentPolicy.max_tool_turns, surface: str = "web"):
         if max_turns < 1:
             raise ValueError("max_turns must be positive")
         self.store = store
@@ -27,6 +30,9 @@ class RunInputLoader:
             )
         if identity["strategy_kind"] != "generic_agent":
             raise ApplicationError("Run does not use the Agent executor", non_retryable=True)
+        policy = policy_from_run(identity.get("input_snapshot") or {})
+        if policy is None:
+            logging.getLogger(__name__).warning("legacy Agent Run has no admission policy")
         chat = None
         if identity["source_kind"] == "chat":
             if not identity["conversation_id"] or not identity["trigger_message_id"]:
@@ -40,7 +46,7 @@ class RunInputLoader:
             execution_id=identity["execution_id"],
             account_id=identity["account_id"],
             strategy=identity["agent_strategy"] or "react",
-            max_turns=self.max_turns,
+            max_turns=policy.max_tool_turns if policy else self.max_turns,
             source=RunSource(
                 identity["source_kind"], identity["conversation_id"] or identity["work_id"]
             ),

@@ -21,7 +21,10 @@ from common.interfaces import IResources
 from common.logging import log_event
 from common.model_usage import canonical_model_usage
 from common.token_counter import estimate_messages_tokens, estimate_tokens
-from resources.account_daily_budget import AccountModelEntitlementUnavailable
+from resources.account_daily_budget import (
+    AccountDailyBudgetConflict,
+    AccountModelEntitlementUnavailable,
+)
 from resources.model_budget_context import current_model_call
 from resources.model_failures import ModelRequestInvalid
 from resources.model_governance_errors import ModelAccessTierDenied
@@ -272,10 +275,11 @@ class ResourcePool(IResources):
                     endpoint_access_tier=endpoint_tier,
                 )
                 quota_date = mutation.account.quota_date
-                should_settle = not (
-                    getattr(mutation.account, "replayed", False)
-                    and getattr(mutation.account, "state", "") in {"settled", "released"}
-                )
+                if mutation.account.state != "reserved" or mutation.run.state != "reserved":
+                    raise AccountDailyBudgetConflict(
+                        "closed model reservation cannot authorize another provider request"
+                    )
+                should_settle = not mutation.account.replayed
             if call_context is not None and call_context.artifact_version_id:
                 log_event(logger, logging.INFO, "artifact_model_call_started", "artifact", **event_fields)
             try:
@@ -298,7 +302,14 @@ class ResourcePool(IResources):
                         guard = getattr(client, "before_dispatch", None)
                         if guard is not None:
                             await guard(prepared)
-                        await asyncio.to_thread(self._snapshots.mark_dispatched, call_context.account_id, snapshot.snapshot_id)
+                        try:
+                            await asyncio.to_thread(self._snapshots.mark_dispatched, call_context.account_id, snapshot.snapshot_id)
+                        except AccountDailyBudgetConflict:
+                            # This caller did not acquire dispatch ownership. The original
+                            # producer (or terminal recovery) owns its existing reservation.
+                            should_settle = False
+                            raise
+                        should_settle = True
                     if call_context is not None:
                         call_context.snapshot_id = str(snapshot.snapshot_id) if snapshot else None
                     provider_dispatched = True
@@ -384,11 +395,14 @@ class ResourcePool(IResources):
                             quota_date=quota_date,
                         )
                     elif governed:
-                        await asyncio.to_thread(
-                            self._budget.release, call_context.account_id,
-                            call_context.run_id, budget_operation_id,
-                            quota_date=quota_date,
-                        )
+                        try:
+                            await asyncio.to_thread(
+                                self._budget.release, call_context.account_id,
+                                call_context.run_id, budget_operation_id,
+                                quota_date=quota_date,
+                            )
+                        except AccountDailyBudgetConflict:
+                            pass  # Another producer already acquired this dispatch.
                     should_settle = False
                 elapsed = (time.monotonic() - t0) * 1000
                 chain_elapsed = (time.monotonic() - chain_start) * 1000
@@ -410,7 +424,10 @@ class ResourcePool(IResources):
             except BaseException:
                 if should_settle and reservation is not None:
                     if governed and not provider_dispatched:
-                        await asyncio.to_thread(self._budget.release, call_context.account_id, call_context.run_id, budget_operation_id, quota_date=quota_date)
+                        try:
+                            await asyncio.to_thread(self._budget.release, call_context.account_id, call_context.run_id, budget_operation_id, quota_date=quota_date)
+                        except AccountDailyBudgetConflict:
+                            pass  # Preserve both the producer's hold and the original failure.
                     elif governed:
                         await asyncio.to_thread(
                             self._budget.settle, call_context.account_id,

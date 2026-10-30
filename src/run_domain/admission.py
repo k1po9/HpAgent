@@ -6,12 +6,13 @@ import json
 
 from uuid6 import uuid7
 
+from common.agent_policy import AgentPolicy
 from persistence.repositories import OutboxRepository, RunBudgetRepository
 from work_domain.models import continuation
 from workspace.resources import ResourceDenied, ResourcePolicy
 
 
-def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
+def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode, agent_policy=None):
     account_id, work_id = work["account_id"], work["work_id"]
     from resources.capacity import CapacityService
     from resources.work_budget import WorkBudgetExhausted
@@ -70,6 +71,8 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode):
         "checkpoint": work["checkpoint"],
         "wakeup_id": str(wakeup_id),
     }
+    if strategy == "generic_agent":
+        snapshot["agent_policy"] = (agent_policy or AgentPolicy()).to_snapshot()
     if requirement.get('deliverables') is not None:
         snapshot['requirement']['deliverables'] = requirement['deliverables']
     if requirement['timing']['kind'] == 'daily':
