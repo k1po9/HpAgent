@@ -92,19 +92,7 @@ class ResearchParentActivities:
         )
 
     def _child(self, invocation):
-        from agent_workflows.capability_contracts import CapabilityExecutionInput
-
-        definition = invocation["descriptor"]["definition"]
-        return CapabilityExecutionInput(
-            str(invocation["account_id"]),
-            str(invocation["run_id"]),
-            str(invocation["child_execution_id"]),
-            invocation["invocation_id"],
-            "ResearchCapabilityWorkflow",
-            definition["limits"]["max_duration_seconds"],
-            definition["retry_policy"]["max_attempts"],
-            invocation["invocation_id"] + ":produce",
-        )
+        return self.capabilities.child_input(invocation)
 
     def _admit(self, request):
         operation_id = f"research:{request.run_id}:invoke:v1"

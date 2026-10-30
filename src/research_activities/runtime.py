@@ -1008,7 +1008,7 @@ class ResearchActivities:
 
         run_id = UUID(request.run_id)
         with UnitOfWork(self.database) as uow:
-            self.capabilities.invocation_context(uow, request)
+            descriptor = self.capabilities.invocation_context(uow, request)
             if uow.execute(
                 "SELECT 1 FROM capability_results WHERE invocation_id=%s", (request.invocation_id,)
             ).fetchone():
@@ -1033,14 +1033,16 @@ class ResearchActivities:
         )
         operation_id = f"research:{research_identity(run_id)}:Result:v1"
         self.store.begin_operation(operation_id, request.run_id, "tool")
+        definition = descriptor['definition']
+        binding = self.capabilities.binding_for(definition['key'], definition['contract_version'])
         producer = CapabilityExecutionInput(
             request.account_id,
             request.run_id,
             request.execution_id,
             request.invocation_id,
-            "ResearchCapabilityWorkflow",
-            3600,
-            4,
+            binding.workflow_name,
+            definition['limits']['max_duration_seconds'],
+            definition['retry_policy']['max_attempts'],
             operation_id,
         )
         producer = replace(producer, lease_token=execution_fence.get()[3])

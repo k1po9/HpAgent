@@ -289,3 +289,11 @@ PG finish 前被杀的发送者只恢复为 uncertain，不自动重发。它不
 禁用重定向并限制读取字节，只记录状态、媒体类型和文件头验证结果，不保存签名 URL 或图片正文。
 Worker 重启、反向 WS 网络中断与 QQ 客户端自身离线/重启分别验收；在途发送故障产生的
 uncertain 必须保留显式决议，不能为清理测试状态而重发或改写成 accepted。
+
+能力接入一致性离线回归：`test/test_capability_composition.py` 验证定义/绑定一一对应、
+新增条目派生工具/Workflow、服务与角色筛选独立、真实专业 Workflow 的 Activity 名称和队列
+与推导注册一致，以及漏实现和重名冲突启动拒绝；`test/test_tool_registration_contract.py`
+验证工厂直接声明副作用及普通注册不能占 Harness 前缀。专业适配不改变固定 v1 输入与历史
+恢复边界，沿 `test/test_capability_contracts.py`、`test/test_delivery_contract_unit.py` 和
+`test/work_domain/test_capability_harness.py` 等复验。标准接入步骤见
+[能力接入](../architecture/capabilities.md#能力接入步骤与登记责任)。

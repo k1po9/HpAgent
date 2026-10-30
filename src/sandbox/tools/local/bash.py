@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 import re
 
 from langchain_core.tools import StructuredTool
@@ -23,8 +22,8 @@ def create_bash_tool(workspace_root: str):
 
         if _DANGEROUS_RM.search(cmd):
             raise ValueError(
-                f"Blocked: potentially destructive rm command. "
-                f"Use targeted fs_edit or individual file removal with 'rm <file>'."
+                "Blocked: potentially destructive rm command. "
+                "Use targeted fs_edit or individual file removal with 'rm <file>'."
             )
 
         timeout = min(timeout, 300)
@@ -63,6 +62,7 @@ def create_bash_tool(workspace_root: str):
         })
 
     return StructuredTool.from_function(
+        metadata={"side_effect_class": "non_idempotent_write"},
         name="Bash",
         description="Execute a shell command inside the workspace. cwd is relative to workspace root. stdout capped at 50KB. Default timeout 120s. Use for: mkdir, rm, mv, cp, git, npm, pip, etc.",
         args_schema=BashInput,

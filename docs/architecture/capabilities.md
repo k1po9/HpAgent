@@ -60,6 +60,78 @@ Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 
 
 Actions 通过统一调用契约暴露本地工具和已配置的 MCP Server。Tool Retrieval 选择数量受限的相关工具，默认上限为 12（关闭语义检索后仍生效）。Main 管理工具与文件 front door 属于保留入口；配置上限容不下保留入口时，工具选择必须抛出配置错误并阻止模型分发，不能静默降为无工具请求。Side-effect Metadata、稳定 Operation ID、Budget 和 Reconciliation 共同保护可重试执行。Shell 类操作可在 Sandbox 和账号级 Workspace Isolation 中运行。
 
+## 能力接入步骤与登记责任
+
+### 先选择执行边界
+
+| 类型 | 适用场景 | 结果与完成边界 |
+| --- | --- | --- |
+| 普通工具 | 一次有界本地操作、MCP 调用、轻量搜索/读取；没有独立持久专业阶段图。 | 返回 `ToolResult` / `ActionResult`，由原 Tool Operation 与 transcript 提交观察；工具生成文件不自动构成 typed 成果或验收。 |
+| 可组合专业能力 | 多阶段专业流程、独立恢复/取消边界、需要不可变候选和专业检查；可被 Chat / Generic Work 父执行多次组合。 | `CapabilityResult` / `ResultRef` 经共享 Harness 提交；子能力不完成父 Run/Work、不长期保存或外发。确定性文字发布也可因 typed 交付需要使用此边界，不要求调用模型。 |
+| 顶层 Work 策略 | 整个有限 Run 的控制方式不同，例如确定性提醒、固定研究父流程、通用 Agent。 | StrategyRegistry 固定版本化 executor，父流程另行提交 Run 终态及 Work 验收。普通工具或可复用子 Workflow 不应逐个成为策略。 |
+
+### 注册表与组合入口
+
+| 入口 | 唯一负责的事实 | 可以推导 / 不可推导的关联 |
+| --- | --- | --- |
+| `ToolRegistry` | 当前 Execution 可执行的普通工具实例、类型和可信 `ToolRoutingSpec`。 | 模型参数 schema 来自实例的 Pydantic 定义；路由与角色、资源适用性分别检查。拒绝 `capability__` / `result__` 保留前缀，避免普通工具遮蔽 Harness 协议。 |
+| `CapabilityRegistry` | `(key, contract_version)` 的不可变定义快照。 | 服务依赖与 surface 筛选可从定义推导；发现不授予授权，也不证明依赖服务健康。 |
+| `CapabilityBinding` | 可信 Workflow 名称、输入 scope 解析、父模型 schema、专业准入、明确的旧定义兼容规则。 | Binding 的身份及工具名由定义推导；不得从模型或 YAML 接收实现名称。默认仅接受完全相同的冻结定义，text/v1 的既有增量兼容是显式例外。 |
+| [composition.py](../../src/agent_activities/composition.py) | 内置 `CapabilityRegistration` 静态组合条目：定义、Workflow 类、Activity 实现类、队列及可选适配。 | `compose_capabilities` 推导 Registry 与 Binding；`capability_workflows` 推导去重的 Worker Workflow；`capability_worker_activities` 从显式注入实现的 `@activity.defn` 方法推导 Activity 列表。不是动态插件加载器。 |
+| `StrategyRegistry` | Requirement 能力键与顶层策略快照的映射及恢复校验。 | 不从所有 CapabilityDefinition 自动生成策略；顶层父流程、权限、保存与验收要明确设计。 |
+| Worker composition | 真实服务实例、队列和依赖生命周期。 | [durable_runtime.py](../../src/bootstrap/durable_runtime.py) 注入专业实现，按目录声明放入两个既有队列；缺少或重复实现、同队列重名但不同的 Activity 均报错。服务暂不可用仍注册 Workflow/Activity，保留旧 History 的实现入口。 |
+
+`CapabilityActivities` 要求每个 isolated definition 恰有一个 binding；不能用漏绑模拟关闭服务。
+角色工具配置的已知专业工具集合及 surface 上限也从同一目录推导，新增专业能力无需再改
+`application/tool_policy.py` 的名称白名单。`config/agent_tools.yaml` 仍须人工决定归属组及
+Main / Worker 分配；不配置则不对模型开放。服务集合只表示组合方声明的依赖可用性，
+不能代替调用时的账号、fence、当前授权、revision、预算与容量检查。
+
+### 新增普通工具
+
+1. 在对应工具工厂/Adapter 实现有界操作及输入 Pydantic schema。工厂直接声明可信 `side_effect_class`（read_only / idempotent_write / non_idempotent_write）；未知副作用仍由持久执行入口拒绝。只有真实支持稳定操作键和对账的写工具才能声明可恢复写语义。本地六个代码工具已移除 SandboxManager 的名称补写表。
+2. 原生工具在 `sandbox/tools/routing/contracts.py` 的 `NATIVE_ROUTING_SPECS` 声明 capability、exposure、资源类型/方向、Workspace/Run scope 和服务依赖；在相应工厂集合接入。MCP / Skill 通过原 Adapter 实例与动态类别接入，不另登记成顶层 Work 策略。
+3. 在 `config/agent_tools.yaml` 分配原生工具组及角色；MCP/Skill 使用各自动格式类别。子 agent 仍取父已登记工具、角色组和可信只读元数据的交集。注入真实依赖；服务缺失不由角色配置补齐。
+4. 使用原 `ActionRuntime` 的预算声明：默认至少一个 `tool_calls`，额外预留使用工具 metadata 的 `budget_reservation`，实测结算使用已有 `budget_usage` / JSON 映射；资源和外部副作用必须由实现及现有执行入口检查。工具结果可以是字符串或 ToolResult，普通工具目前没有统一强制的版本化输出 JSON Schema；结构化输出应在 Adapter 校验。需要 typed 成果时选择专业能力边界。
+5. 测试工厂元数据、真实注册/路由/调用、拒绝参数、缺服务、当前资源授权及适用的重放/对账。无需修改 ToolExecutionWorkflow、Lifecycle、StrategyRegistry；新增外部副作用需要独立安全和恢复判断。
+
+普通路径示例：`create_fs_read_tool` → `LOCAL_TOOL_FACTORIES` → SandboxManager 角色过滤与
+`routing_for` → `ToolRegistry.register` → `ToolRouter.select` / schema projector →
+`ActionRuntime.select_tools` → `ToolExecutionWorkflow` / `tool_execution_activity` →
+`ActionRuntime.execute_request` / Sandbox / Registry → 工具读取 → 原 Operation 回执与
+`tool_result` transcript CAS 提交。`fs_read` 的路径限制、输入 schema 和只读声明来自工厂，
+预算、attempt 和观察仍由既有执行内核管理。
+
+### 新增可组合专业能力
+
+1. 在能力所属模块定义完整 `CapabilityDefinition`：契约/实现版本、封闭自包含输入/输出 schema、surface、required_services、resource_operations、副作用、时限/模型/工具调用上限、重试/取消策略及 verifier keys。输出还必须满足共享 CapabilityResult/ResultRef/Check 的关联约束；目前内置输出 schema 的通用 envelope 字段由共享值对象继续校验，不据此声称已完成专业语义校验。
+2. 实现只含编排的 Workflow 与注入依赖的 Activity 类。Activity 使用 `invocation_context` 读取被冻结输入并重验当前 scope/fence，按原账本预留实际用量、发布不可变字节，调用 `commit_result`；检查证据必须引用准确输出。等待与取消复用原 segment / DurableWait，不持父 lease，不另建账本、Operation 或结果提交系统。
+3. 在 `capability_registrations()` 增加一个静态条目，指定 definition、Workflow 类、Activity 类和既有队列。必要时显式提供 scope、父侧输入 schema、事务内专业准入和兼容规则；这些钩子只来自可信代码，准入不得发网络请求或绕过共享准入。HTML 的父模型输入要求、Research 的剩余轮次/重复查询检查、Text 的交付格式约束分别放在自身适配器中，Harness 不再按能力名分支。
+4. 在 Worker composition 构造实现并传入 `capability_worker_activities`；显式注入服务实例及可用服务集合。真实健康/配置/凭据失败仍按原 Adapter 处理，不能悄悄换实现。定义/绑定的 key/version、`capability__...__vN` 名称、已知工具集合、Worker Workflow 与 Activity 名单均由既有目录推导。
+5. 在 `config/agent_tools.yaml` 决定模型角色分配；若需要模型，再沿既有 ResourcePool / ModelBudgetCoordinator 选择专业角色与提示词。不因有新工具就新增 agent 角色，也不给固定合成模型自动增加工具循环。
+6. 补接入契约、缺依赖/禁角色、输入与输出校验、准确 ResultRef、预算/权限拒绝、旧定义/旧 attempt、重复调用及响应丢失恢复测试。若使用新队列/进程，则需另行明确 Worker 拓扑与 sandbox 验证；当前目录只接受两个既有专业执行队列。契约升级保留旧定义与实现直至旧 History 收尾，不能覆盖同版本的冻结语义。
+
+专业路径示例：HTML definition → 静态条目推导 Binding / Worker → Registry 按 surface/服务发现，
+角色策略进一步筛选 → 父模型发 `capability__html__v1` → 原 ToolExecutionWorkflow 转入
+CapabilityInvocationWorkflow → prepare 规范化、父 schema/授权/预算准入并冻结 invocation →
+按子 Execution ID 启动 HtmlCapabilityWorkflow → `produce_html_activity` 使用原 generator/publisher →
+`commit_result` / CapabilityFacts.publish_result → close 核对已提交结果 → observe 在父事务提交
+Operation、tool_result 与 CapabilityObservation。父保存和 Work 验收仍走独立的 result 工具与可信事实。
+
+### 新增顶层策略
+
+1. 先证明整个 Run 确有不同控制方式；若只增加专业处理步骤，优先在 Generic Work 下组合能力。
+2. 在 `work_domain/models.py` 的 Requirement 键、spec 与验收验证中定义真实业务契约；同步需要的命令/API/前端及文档，不只添加注册表字符串。
+3. 在 `orchestration/execution_strategy.py` 登记版本化 StrategySnapshot，由原 planner 冻结到 Run；未知键和未知版本必须拒绝。明确历史快照的恢复支持范围。
+4. 在原 AgentLifecycleWorkflow 显式接入 executor/父适配器，并在 Worker composition 注入依赖、注册所需 Workflow/Activity；顶层父侧承担原 Run 终态、保存/验收事实。这里有意需要修改顶层分发，不能从专业目录自动猜出父业务语义，也不能依赖当前固定研究分支的默认路径。
+5. 补 Requirement、策略选择/版本拒绝、Worker 注册/sandbox、真实隔离执行与父完成测试。不得把 Workflow 返回、候选发布或渠道 accepted 当成 Work 完成。
+
+接入回归入口：`test/test_tool_registration_contract.py`、`test/test_capability_composition.py`、
+`test/test_agent_tool_policy.py` 与 `test/test_durable_agent_contract.py`；持久化和恢复沿
+[测试指南](../development/testing.md)中的 capability harness、Research/HTML/Text 和组合链用例。
+服务可用性如何判断、最小资源范围、模型角色、实现兼容性、预算估计、外部副作用是否可重试、
+专业检查能证明什么及顶层完成条件仍必须人工审查，不能仅靠注册推导。
+
 ## Memory
 
 Chat bootstrap 在查询改写后由 Context Assembly 从 Hindsight 召回长期记忆，不是每轮模型调用都重新召回。成功 Chat Run 会异步保留，并附带 Account、Conversation、Run 和 Source 元数据。Hindsight 1.1.0 与官方 Python SDK 1.1.0 固定使用；Compose 镜像锁定 digest。私聊使用 `scope:private`，群聊使用 `scope:group` + 当前路由 `group:<context_key>`，Recall 固定非空 `all_strict`，Retain 同时设置对应 `observation_scopes`。未知范围拒绝。来源时间取触发消息的固定 `created_at`，metadata 去除 null 并统一字符串值。Observation 只在完整来源事实均属于当前范围时注入。定时全 Bank Reflect 已停用，归纳由原生 Consolidation 完成；Metrics Workflow 保留。旧 Reflect Workflow/Activity 的无 I/O 处理仅用于已有 Temporal history 收尾，不重新启用全 Bank 推理。组合入口由默认关闭的 `hindsight.recall_enabled` 控制，空目标与切换检查后显式开放；未登记来源及含此类来源的 Observation 不注入，不以新 tags 自动授权旧数据。本轮采用空目标启用，不提供旧数据迁移/自动清空；完整应用 SQL 迁移链继续保留。治理命令通过现有 Memory Worker 推进，接口和范围见[API](../reference/api.md#长期记忆治理)。

@@ -61,6 +61,7 @@ def create_fs_read_tool(workspace_root: str):
         return result
 
     return StructuredTool.from_function(
+        metadata={"side_effect_class": "read_only"},
         name="fs_read",
         description="Read a text file from the persistent Git workspace with line numbers. This tool does not read files uploaded with the current Web Run; use a dedicated Current Run File tool for those files. Each line is prefixed with 'lineno\\t'.",
         args_schema=FsReadInput,

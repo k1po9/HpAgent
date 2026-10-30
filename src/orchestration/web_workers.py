@@ -1,8 +1,8 @@
 """Composition helpers for the isolated Web Temporal workers.
 
-The caller supplies Activity implementations so the lifecycle worker never
-imports or constructs Agent/Sandbox dependencies as a side effect of this
-module.  QQ continues to be composed by ``orchestration.worker`` unchanged.
+The caller supplies Activity instances and the trusted capability catalog supplies
+Workflow types. Importing this module loads implementation classes but never
+constructs dependencies or starts workers. QQ uses the same composition root.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from temporalio.client import Client
 from temporalio.worker import Worker
 
 from account.validation import validate_unified_account_backend
+from agent_activities.composition import capability_workflows
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.agent_step import AgentStepWorkflow
 from agent_workflows.capability import CapabilityInvocationWorkflow
@@ -23,15 +24,12 @@ from agent_workflows.contracts import (
     DURABLE_TOOL_ACTIVITY_START_TO_CLOSE_SECONDS,
 )
 from agent_workflows.delegation import WorkDelegationWorkflow
-from agent_workflows.html import HtmlCapabilityWorkflow
 from agent_workflows.plan_execute import PlanAndExecuteWorkflow
 from agent_workflows.react import ReactAgentWorkflow
-from agent_workflows.text import TextCapabilityWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
 
 from .agent_lifecycle_workflow import AgentLifecycleWorkflow
 from .document_workflow import NormalizeDocumentWorkflow
-from .research_workflow import ResearchCapabilityWorkflow
 from .run_lifecycle_contracts import (
     WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
     WEB_AGENT_TASK_QUEUE,
@@ -142,9 +140,7 @@ def build_web_temporal_workers(
                 ToolExecutionWorkflow,
                 WorkDelegationWorkflow,
                 CapabilityInvocationWorkflow,
-                ResearchCapabilityWorkflow,
-                HtmlCapabilityWorkflow,
-                TextCapabilityWorkflow,
+                *capability_workflows(),
             ],
             activities=list(agent_activities),
             # Temporal otherwise throttles heartbeat RPCs to most of the

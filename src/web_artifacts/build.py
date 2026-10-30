@@ -7,7 +7,7 @@ from dataclasses import replace
 from uuid import UUID, uuid4
 
 from agent_activities.store import AgentDataStore
-from agent_workflows.capability_contracts import CapabilityClose, CapabilityExecutionInput
+from agent_workflows.capability_contracts import CapabilityClose
 from agent_workflows.lifecycle_contracts import SegmentInput
 from persistence.uow import UnitOfWork
 from run_domain.execution_context import fence_scope
@@ -100,16 +100,7 @@ class ArtifactBuildService:
                     scope=html_scope(inputs),
                     invocation_limits=definition["limits"],
                 )
-                return CapabilityExecutionInput(
-                    identity["account_id"],
-                    str(run_id),
-                    str(invocation["child_execution_id"]),
-                    operation,
-                    "HtmlCapabilityWorkflow",
-                    definition["limits"]["max_duration_seconds"],
-                    definition["retry_policy"]["max_attempts"],
-                    operation + ":produce",
-                )
+                return self.capabilities.child_input(invocation)
 
         return self._root(run_id, f"html:{run_id}:admit", admit)
 

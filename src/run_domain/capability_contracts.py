@@ -133,6 +133,10 @@ class CapabilityRegistry:
         except KeyError as exc:
             raise ValueError("unregistered capability contract") from exc
 
+    def definitions(self) -> list[dict[str, Any]]:
+        """Return detached snapshots, including currently unavailable contracts."""
+        return [dict(json.loads(raw)) for raw in self._definitions.values()]
+
     def discover(self, surface: str, services: set[str]) -> list[dict[str, Any]]:
         return [
             value

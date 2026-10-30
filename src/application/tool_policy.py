@@ -7,11 +7,18 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-HARNESS_TOOLS = frozenset({
-    "web_search", "web_fetch", "delegate_work", "capability__research__v1",
-    "capability__html__v1", "capability__text__v1",
-    "result__adopt", "result__save", "result__evidence",
-})
+
+def harness_tool_names() -> frozenset[str]:
+    # Import only when loading policy, after Activity composition modules exist.
+    # Capability identities and versions come from the trusted catalog once.
+    from agent_activities.composition import capability_registrations
+
+    return frozenset({
+        "web_search", "web_fetch", "delegate_work",
+        "result__adopt", "result__save", "result__evidence",
+        *(entry.binding.tool_name for entry in capability_registrations()),
+    })
+
 
 
 class ToolPolicyError(ValueError):
@@ -40,7 +47,7 @@ class ToolGroup(BaseModel):
             raise ValueError("工具组必须指定不重复的工具名列表或一个动态类别")
         if any(not name.strip() for name in self.tools):
             raise ValueError("工具名不能为空")
-        if set(self.tools) & HARNESS_TOOLS and self.exposure != "always":
+        if set(self.tools) & harness_tool_names() and self.exposure != "always":
             raise ValueError("根执行追加的专用工具只支持 always；可通过角色工具组关闭")
         return self
 
@@ -104,6 +111,7 @@ def agent_role(source_kind: str, execution_role: str = "root") -> str:
 
 
 def load_tool_policy(path: Path) -> ToolPolicy:
+    from agent_activities.composition import capability_registrations
     from sandbox.tools.routing.contracts import NATIVE_ROUTING_SPECS
 
     with path.open(encoding="utf-8") as stream:
@@ -112,7 +120,7 @@ def load_tool_policy(path: Path) -> ToolPolicy:
         raise ToolPolicyError("工具配置必须包含整数 schema_version")
     policy = ToolPolicy.model_validate(data)
     declared = {name for group in policy.groups.values() for name in group.tools}
-    unknown = declared - NATIVE_ROUTING_SPECS.keys() - HARNESS_TOOLS
+    unknown = declared - NATIVE_ROUTING_SPECS.keys() - harness_tool_names()
     if unknown:
         raise ToolPolicyError("配置包含未注册工具：" + ", ".join(sorted(unknown)))
     missing = NATIVE_ROUTING_SPECS.keys() - declared
@@ -120,9 +128,15 @@ def load_tool_policy(path: Path) -> ToolPolicy:
         raise ToolPolicyError("原生工具缺少归属组：" + ", ".join(sorted(missing)))
     work_tools = {name for name, spec in NATIVE_ROUTING_SPECS.items() if spec.capability.startswith("work.")}
     forbidden = {
-        "main": {"delegate_work", "capability__text__v1"},
-        "worker": work_tools,
-        "subagent": work_tools | HARNESS_TOOLS,
+        "main": {"delegate_work"} | {
+            entry.binding.tool_name for entry in capability_registrations()
+            if "chat" not in entry.definition.allowed_surfaces
+        },
+        "worker": work_tools | {
+            entry.binding.tool_name for entry in capability_registrations()
+            if "work" not in entry.definition.allowed_surfaces
+        },
+        "subagent": work_tools | harness_tool_names(),
     }
     for role, names in forbidden.items():
         if any(policy.allows(role, name) for name in names):

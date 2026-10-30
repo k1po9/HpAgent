@@ -19,6 +19,12 @@ from run_domain.capability_contracts import CapabilityDefinition, CapabilityResu
 from workspace.file_scope import RunFileScope
 
 
+def admit_text(uow, run, inputs):
+    targets = (run.get('input_snapshot') or {}).get('requirement', {}).get('deliverables')
+    if targets and inputs.get('format', 'markdown') not in {t['format'] for t in targets['items']}:
+        raise ValueError('output format does not match Requirement deliverables')
+
+
 def compatible_text_definition(frozen, current):
     """Only the reviewed, additive text/v1 upgrade can resume old descriptors."""
     if frozen.get('key') != 'text' or frozen.get('contract_version') != 1:

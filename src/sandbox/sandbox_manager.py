@@ -30,24 +30,6 @@ from .sandbox import Sandbox
 
 logger = logging.getLogger("HpAgent.SandboxManager")
 
-_LOCAL_SIDE_EFFECT_CLASS = {
-    "fs_read": "read_only",
-    "Glob": "read_only",
-    "Grep": "read_only",
-    "fs_write": "idempotent_write",
-    "fs_edit": "non_idempotent_write",
-    "Bash": "non_idempotent_write",
-}
-
-
-def _declare_local_side_effect(tool: Any, name: str) -> None:
-    metadata = dict(getattr(tool, "metadata", {}) or {})
-    metadata["side_effect_class"] = _LOCAL_SIDE_EFFECT_CLASS.get(
-        name, "unknown"
-    )
-    tool.metadata = metadata
-
-
 class SandboxManager:
     """沙箱池管理器 —— 按会话创建 / 查询 / 销毁。
 
@@ -182,7 +164,6 @@ class SandboxManager:
                 if name == "Bash" and not self._host_bash_enabled:
                     continue
                 tool = factory(workspace_path)
-                _declare_local_side_effect(tool, name)
                 register(tool, "native")
             logger.debug("Session sandbox: %d local tools registered", len(LOCAL_TOOL_FACTORIES))
         else:

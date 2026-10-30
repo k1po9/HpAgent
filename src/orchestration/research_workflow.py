@@ -201,7 +201,7 @@ class ResearchReportWorkflow:
         status = "failed"
         try:
             handle = await workflow.start_child_workflow(
-                ResearchCapabilityWorkflow.run,
+                child.workflow_name,
                 child,
                 id=f"hpagent-capability-{child.execution_id}",
                 task_queue=AGENT_TASK_QUEUE,
