@@ -129,6 +129,15 @@ File 能力负责上传、校验、不可变对象、Run 绑定和生成输出�
 
 ## Research
 
+标准组合的新调用使用 `research-web-v3`，将阶段阈值、检索选择/等待策略、合成 prompt/hash
+及生成参数固定在现有 `descriptor.definition.execution_policy`；业务 policy 可与当前配置不同，
+实现模板与版本须明确受支持。`research-web-v2` 的准确旧定义仍可恢复，不补填缺失策略，
+阶段参数保留旧实例读取语义。公开 v1 输入/输出 schema 与工具名保持不变。
+固定父入口与 Harness 恢复均复用原调用描述和子 Execution，不按当前候选重建 scope；
+每次使用和模型请求仍复验当前权限与 fence。流程图、提取/历史/检查版本固定，仍最多三轮，
+不将原诊断 max_iterations 变成新轮数开关。详见[持久策略配置](../reference/configuration.md#持久策略来源与生效规则)。
+
+
 `research` v1 是固定局部能力：[定义](../../src/research_domain/capability.py)、[实现](../../src/research_activities/runtime.py)、[编排](../../src/orchestration/research_workflow.py)。规划仅从已登记 invocation 的不可变输入读取 objective 与 source_strategy，不回退读取父 Work 的目标；不获得长期写入或通知权限，不支持从 uploaded_files 隐式读取资料。每次调用以父 tool Operation 的 invocation_id 为研究实例，拥有独立 capability Execution；plan、阶段、iteration、source/evidence、claim/citation、报告和历史基线均按实例隔离。Run 只提供归属、现有预算和查询关联，同 Run 可顺序研究多次。迁移 062–064 保留旧行的 Run 查询键，新执行必须带已登记的 invocation 身份。
 
 具有显式 main 区域和定义列表的网页保留主文档及 API 签名，过滤脚本和导航；其他网页继续使用通用正文提取，避免只留下定义说明却丢失被说明的名称。

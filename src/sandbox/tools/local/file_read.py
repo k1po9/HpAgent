@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Callable
 from typing import Any
 
@@ -124,9 +123,9 @@ def create_file_read_tools(
     document_router: Any | None = None,
     account_id_provider: Callable[[], str] | None = None,
 ) -> list[StructuredTool]:
-    direct_read_max_bytes = int(os.getenv("FILE_DIRECT_READ_MAX_BYTES", str(1024 * 1024)))
-    if direct_read_max_bytes < 1:
-        raise ValueError("FILE_DIRECT_READ_MAX_BYTES must be positive")
+    from common.runtime_config import FileRuntimeConfig
+
+    direct_read_max_bytes = FileRuntimeConfig.from_environment().file_direct_read_max_bytes
     adapters = registry or default_file_adapter_registry()
 
     def resolve(file: str, capability: str) -> tuple[FileResource, Any]:

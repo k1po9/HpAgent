@@ -6,6 +6,7 @@ They are internal composition contracts, not model tools or HTTP endpoints.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 from uuid import UUID, uuid5
 
@@ -108,8 +109,13 @@ class CapabilityFacts:
                 "inputs": inputs,
                 "resource_scope": scope,
                 "limits": invocation_limits,
-            }
+            },
+            limit=65536 if "execution_policy" in definition else 32768,
         )
+        if "execution_policy" in definition and len(json.dumps(
+            descriptor, ensure_ascii=False, separators=(", ", ": "), allow_nan=False,
+        ).encode()) > 65536:
+            raise ValueError("capability.descriptor: exceeds 65536 byte storage limit")
         prior = uow.execute(
             "SELECT * FROM capability_invocations WHERE invocation_id=%s", (operation_id,)
         ).fetchone()

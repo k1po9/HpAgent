@@ -33,6 +33,9 @@ async def test_startup_failure_releases_shared_resources(monkeypatch, failure):
 async def test_init_failure_unwinds_resources_registered_during_construction(monkeypatch):
     from bootstrap import worker_dependencies as worker
 
+    # This test reaches acquisition with valid, closed file capabilities.
+    for name in ('WEB_FILE_UPLOAD_ENABLED', 'WEB_FILE_TRANSFORM_ENABLED', 'WEB_FILE_SHELL_ENABLED'):
+        monkeypatch.setenv(name, 'false')
     closed = AsyncMock()
 
     async def fail_after_acquisition(_config, stack):

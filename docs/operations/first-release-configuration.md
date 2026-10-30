@@ -26,6 +26,11 @@ docker compose --profile web-prod --profile qq config --quiet
 
 Beta overlay 固定 `production`、`https://hpagent.cloud`、Secure Cookie、Host Shell=false、外部服务直连；API 保持 Fake=false。私有 `.env` 会覆盖基础 Compose 默认值，部署前要按下表逐项核实。
 
+下表维护部署预设，不等于 Python 进程省略环境变量时的缺省值。旧停用字段已从标准 YAML
+移除；旧私有文件仍可兼容读取并告警，其他未知字段会拒绝加载。迁移路径及各来源优先级见
+[配置契约](../reference/configuration.md#配置来源缺省与兼容)。更新模板不会修改已有私有 `.env`，
+也不会使正在运行的容器自动加载新值。
+
 | 项目 | Beta 值/处理 |
 | --- | --- |
 | 单文件 / 每消息 | `FILE_MAX_BYTES=33554432` / `FILE_MAX_COUNT_PER_MESSAGE=5` |

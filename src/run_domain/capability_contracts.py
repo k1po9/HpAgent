@@ -60,6 +60,7 @@ class CapabilityDefinition:
     retry_policy: dict[str, Any]
     cancellation_policy: str
     verifier_keys: tuple[str, ...]
+    execution_policy: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         # Definition validation runs at server registration, never in Workflow imports.
@@ -110,7 +111,12 @@ class CapabilityDefinition:
             or not 1 <= self.retry_policy["max_attempts"] <= 10
         ):
             raise ValueError("invalid retry policy")
-        return canonical(asdict(self))
+        definition = asdict(self)
+        if self.execution_policy is None:
+            del definition["execution_policy"]
+        elif not isinstance(self.execution_policy, dict):
+            raise ValueError("execution_policy: expected an object")
+        return canonical(definition)
 
 
 class CapabilityRegistry:

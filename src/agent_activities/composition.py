@@ -12,11 +12,11 @@ from run_domain.capability_contracts import CapabilityRegistry
 from web_artifacts.capability import html_definition, html_scope
 
 
-def compose_capabilities(store, *, services: frozenset[str]) -> CapabilityActivities:
+def compose_capabilities(store, *, services: frozenset[str], research_policy=None) -> CapabilityActivities:
     return CapabilityActivities(
         store,
         CapabilityFacts(
-            CapabilityRegistry((research_definition(), html_definition(), text_definition())), services=services
+            CapabilityRegistry((research_definition(research_policy), html_definition(), text_definition())), services=services
         ),
         (
             CapabilityBinding("text", 1, "TextCapabilityWorkflow"),

@@ -7,6 +7,7 @@ from typing import Any
 
 from application.prompt_catalog import agent_prompt
 from research_domain.models import ClaimDraft, ResearchReport
+from research_domain.policy import ResearchPolicy
 
 
 class SynthesisValidationError(ValueError):
@@ -37,12 +38,12 @@ class ResourcePoolResearchSynthesizer:
                 return payload
         raise SynthesisValidationError("invalid_json", "research synthesis did not return a complete JSON object")
 
-    async def request(self, objective: str, evidence: list[dict[str, object]]) -> dict[str, Any]:
+    async def request(self, objective: str, evidence: list[dict[str, object]], *, policy: ResearchPolicy | None = None) -> dict[str, Any]:
         response = await self.resource_pool.generate(
             messages=[
                 {
                     "role": "system",
-                    "content": agent_prompt("research"),
+                    "content": policy.synthesis_prompt if policy is not None else agent_prompt("research"),
                 },
                 {
                     "role": "user",
@@ -56,8 +57,8 @@ class ResourcePoolResearchSynthesizer:
                     ),
                 },
             ],
-            model_selector=self.model_selector,
-            max_tokens=4096,
+            model_selector=policy.model_selector if policy is not None else self.model_selector,
+            max_tokens=policy.max_tokens if policy is not None else ResearchPolicy.max_tokens,
         )
         return {
             "content": str(getattr(response, "content", "") or ""),

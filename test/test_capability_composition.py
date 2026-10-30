@@ -6,6 +6,7 @@ import pytest
 
 from agent_activities.composition import compose_capabilities
 from research_activities.composition import compose_research
+from research_domain.policy import ResearchPolicy
 from web_artifacts.build import ArtifactBuildService
 
 
@@ -34,6 +35,7 @@ def test_fixed_and_harness_adapters_use_the_same_catalog(monkeypatch):
         markdown_publisher=object(),
         _ref=None,
         _root_event_id=None,
+        registration_policy=lambda: ResearchPolicy(synthesis_prompt="fixture research"),
     )
     harness, _ = compose_research(research, html_available=True)
     assert fixed.capabilities.bindings == harness.bindings

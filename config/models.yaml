@@ -55,7 +55,6 @@ rerank:
   provider: siliconflow
   model: "${SILICONFLOW_RERANK_MODEL}"
   timeout: 10.0
-  top_n: 10
 
 # 4. Beta 不提供图像生成；文件/图片上传不受此链关闭影响。
 image: []
@@ -76,26 +75,5 @@ skills:
   config_path: "tools/skills/"
   enabled: false  # 白名单未确认前不加载 Skills
 
-# ── 渠道模型参数覆盖 ──────────────────────────────────────────────
-# 每个渠道可覆盖 max_tokens / timeout，缺省使用上方模型链的默认值
-channel_overrides:
-  onebot11:
-    max_tokens: 4096
-    timeout: 30.0
-    stream: false
-  official_qq:
-    max_tokens: 4096
-    timeout: 30.0
-    stream: false
-  console:
-    max_tokens: 2048
-    timeout: 60.0
-    stream: false
-  web:
-    max_tokens: 1024
-    timeout: 30.0
-    stream: false
-  default:
-    max_tokens: 1024
-    timeout: 30.0
-    stream: false
+# 正式 Agent 调用使用模型链参数；旧 channel_overrides / rerank.top_n 不参与调用。
+# 工具最终检索上限由 tool_rag.top_k 控制，包含动态重排请求的 top_n。

@@ -23,7 +23,116 @@ Main（Web / QQ）、Generic Work 和子执行在共享 Context Activity 中注�
 
 首次上线的取值决定集中在[配置确认表](../operations/first-release-configuration.md)，Compose 可插值的全部变量集中在[.env.example](../../.env.example)。本页维护各配置入口的语义。
 
-配置优先级为：环境变量覆盖 `config/config.yaml` 默认值。Compose 会注入 Container 内部服务地址和数据库 DSN。Model YAML 通过 `${NAME}` 引用环境变量，Secret 不写入 YAML。
+Worker 的已支持环境覆盖在 `config/config.yaml` 之后应用；并非任意环境变量都会覆盖同名 YAML。
+主 Worker 入口读取项目 `.env`，已有进程环境优先；API 和 Document Worker 直接读取进程环境。
+Compose 的 `.env` 用于插值，只有服务显式声明的变量才进入容器。Model YAML 通过 `${NAME}`
+引用环境变量，Secret 不写入 YAML。
+
+### 配置输入安全与当前生效边界
+
+`HPAGENT_ENV` 支持 `development`、`test`、`production`，统一去除两端空白并忽略大小写；
+未知值、空值拒绝启动，不能因 `Production` 或拼写错误绕过生产检查。API 的直接 Settings
+构造同样执行生产安全检查。API 布尔环境变量只接受大小写不敏感的 `true` / `false`，
+不接受两端空白、`1`、`yes` 或拼写错误；Worker 文件能力保留原有去除空白规则。
+
+主配置、模型配置、通用提示词及记忆质量配置拒绝重复 YAML 键、非文本映射键和递归别名；
+合法 YAML merge 保持原有覆盖顺序。已有配置中的错误结构、已声明字段的错误类型、
+非有限数值与无效数量/超时在加载时拒绝；Worker 支持的环境覆盖后再次校验。
+API 的 SSE 容量和周期必须为正，测试执行器延迟允许零、不允许负数；Cursor Key Ring
+必须为不含重复键的文本值对象。错误只报告字段与约束，不回显输入值或原始 YAML 行。
+提示词文件存在但无效时直接失败，不再静默使用空提示词；缺失文件仍按各原有入口处理。
+
+主配置和模型配置的已加载 section 拒绝未知字段，错误指向完整字段路径；先将旧文件中的
+拼写错误与下表中的已知兼容项分开处理。Provider 的 `extra_body` 仍是开放扩展映射，
+通用提示词的具名模板仍按原入口读取，记忆质量与工具分配沿各自既有 schema 校验。
+已知停用字段继续读取并记录不含值的 `ignored` 告警，不因保留旧字段而增加执行行为。
+当前须区分：
+
+| 配置类别 | 来源与生效边界 |
+| --- | --- |
+| 部署配置 | 地址、凭据、目录、容量等由各进程读取；改环境须重建对应容器，改文件须重启消费进程。它们不是 Run 策略快照。 |
+| 新执行策略 | Agent 的轮次、时区与三项工具摘要参数在新 Run admission 写入 input_snapshot.agent_policy；上下文、记忆及模型输入继续沿各自原有冻结边界。历史缺少策略的 Run 保留旧读取路径，不补填。 |
+| 持久能力策略 | Research 新调用使用 research-web-v3，将局部执行策略写入既有 Definition/Invocation；阶段重试读取原快照。research-web-v2 保留已知原定义与旧读取语义，不追溯补填。Execution、预算及阶段事实继续沿原身份恢复。 |
+| 当前安全约束 | 账号状态、授权撤销、revision、fence、幂等与事务约束按使用和提交边界实时复验；不随业务策略冻结，也不能通过配置关闭。 |
+
+Agent 与 Research 复用既有不可变事实，不新增策略表或覆盖历史模型输入；细则如下。
+
+### 持久策略来源与生效规则
+
+API 与 QQ/Worker 从同一 `config/config.yaml` 的 `agent` section 初始化强类型策略。
+API 只读该 section，不加载模型凭据或启动 Worker；Worker 使用已加载的同一字段。
+代码缺省 `max_tool_turns=20`，标准 YAML 显式值为 `5`；显式值优先。
+`default_timezone`、`tool_result_summary_enabled`、`tool_result_summary_threshold`、
+`tool_result_summary_max_chars` 的代码缺省分别为 `Asia/Shanghai`、`true`、`4000`、`1000`。
+修改文件后须重启对应命令进程，影响随后新建的 Agent Run；执行端按 Run 快照消费，
+不以自己启动时的默认值覆盖。固定专业 Run 不增加无消费者的 Agent 策略。
+
+同一 Run 的 Activity retry、等待后恢复和 Worker 接管使用同一策略；Subagent 沿用所属
+Run 的时区和摘要参数，轮数仍为代码定义的 6。显式 `retry_run`、Work retry/advance 创建的
+新 Run 是新 admission，冻结当次配置；同幂等键重投只返回原已创建 Run。
+旧 Run 没有 `agent_policy` 时保留原路径并告警，不推断或回填过去配置；已有 Workflow 输入
+中的轮数仍按 History 恢复。策略字段存在但形状、类型或版本错误时拒绝，不回退当前配置。
+
+Research 标准组合的新调用冻结当前阶段阈值（30 个来源、20 次抓取、3 的缺口诊断阈值、
+3 个证据和 2 个独立来源）、显式搜索/抓取 provider、15/20 秒等待策略，以及准确的合成
+prompt/hash、`chat` 用途和 4096 输出 token 参数。实际流程图仍最多三轮；`max_iterations`
+不新增控制 Workflow 轮数的行为。提取、历史、检查与流程图由已知实现版本约束，不逐常量配置化。
+现有时限/模型调用/工具调用/重试值保持 3600/1/23/4，既有预算不会增加。
+
+冻结的检索 provider 不跟随当前默认切换；当前服务/Key 不可用时明确失败。内层 HTTP 超时
+也使用冻结值；GitHub 自身固定等待边界保持原专业实现。DeepSeek fetch 仍受最终 URL
+可验证性约束，不因接线而开放。服务地址和凭据继续使用当前部署值，不写入业务策略。
+底层模型 endpoint 在每个请求准备边界选择，沿原 Model Input Snapshot 冻结；这不承诺跨
+不同模型调用固定底层 Provider。当前 entitlement/tier、grant、记忆撤回、revision 和 fence
+始终重新校验，快照不提供永久授权。
+
+对外 `research` v1 schema 与工具名不变。旧 `research-web-v2` 无策略快照，保留其已知原定义
+和旧实例参数语义；新 `research-web-v3` 从原 descriptor 读取，不要求与当前策略值相等。
+未知实现、越权定义或损坏 policy/hash 拒绝执行。父登记恢复复用原 Invocation/Execution、
+scope 与 Operation，不重算候选或重做已提交阶段；响应未知时不换键重发。
+
+没有策略的 CapabilityDefinition 序列化仍省略新增字段，旧 JSON/digest 不变。带策略的新
+描述在原 PG 65536 字节上限内校验，不截断 prompt/inputs；合成 prompt 上限 16384 UTF-8
+字节，超限在冻结前拒绝。原输入 schema、资源范围与预算不放宽。
+
+未来发布前须保证所有执行端已支持新描述，避免混用不识别它的旧 Worker；回退旧二进制
+不能剥除策略或降级持久事实，应先停止新写入并处理/保留新版本执行。此约束不触发自动部署。
+本批保持现有 Workflow 输入 schema、队列、ID 与命令图；HTML 大小策略、全部记忆/工具检索
+策略和跨模型调用的路由固定仍不属于本批 admission 冻结范围。
+
+### 配置来源、缺省与兼容
+
+Python 配置类型是常规缺省来源；`config/config.yaml` 保存显式部署选择，
+`config/models.yaml` 保存模型路由与参数覆盖。加载器直接构造相应类型，不重复写入相同缺省值。
+`.env.example` 和 Compose 的数值是部署预设，不能将它们当作宿主 Python 进程的默认值。
+例如仓库 `agent.max_tool_turns=5` 明确覆盖代码缺省 20，仍保持原执行轮次。
+
+| 入口 | 来源与优先关系 |
+| --- | --- |
+| Worker 主配置 | dataclass 缺省 → `config/config.yaml` 显式值 → 已支持的环境覆盖。相对 YAML 数据路径锚定配置目录的父目录；随后覆盖的相对环境路径仍沿旧规则解释，建议使用绝对路径。 |
+| 模型文件 | `from_yaml(..., models_path=...)` 显式参数 → `HPAGENT_MODELS_PATH` → 主配置同目录的 `models.yaml`。`${NAME}` 从进程环境展开，不另读 dotenv。模型级 `extra_body` 递归覆盖 Provider 层。 |
+| 模型链格式 | 支持顶层 `chat` / `fast` 等链，以及旧 `models: {chat: ...}` 包装；混用时旧包装优先并告警，不合并两套链。 |
+| API | `WebApiSettings` 声明的常规缺省 → 进程环境；生产 Origin、签名材料等仍有显式配置门禁。直接构造 Settings 不读取环境。API 的 Hindsight 直构默认不连接，环境入口保留 `http://hindsight:8888` 的既有连接预设。 |
+| 固定 Workflow 参数 | `run_lifecycle_contracts.py` 是队列与生命周期窗口的值来源；配置声明引用这些常量，启动门禁拒绝不同值，不作为普通调优参数。 |
+
+工具数量仍有一项保留的兼容分歧：直接构造 `ToolRagConfig` 缺省为 12，加载模型 YAML
+而省略 `tool_rag.top_k` 时沿历史规则为 8；标准模型 YAML 显式选择 12。
+统一为任一数字都会改变一类入口的合法行为，因此尚未统一。需要稳定数量时显式设置
+`tool_rag.top_k`；该值经过现有组合进入工具检索，重排 `top_n` 由检索请求的 limit 决定。
+
+| 旧字段或 section | 当前处理与迁移方向 |
+| --- | --- |
+| `scheduler`、`session` | 主 YAML 兼容忽略并告警；Work 调度及 Conversation 状态由 PostgreSQL 持有。 |
+| `agent.mode`、`idle_timeout_minutes`、`event_fetch_limit`、`activity_timeout`、`archive_timeout`、`multi_agent` | 兼容忽略并告警；执行策略来自 Run，超时/委派遵循现有版本契约，不恢复旧 Session 或多 Agent 开关。 |
+| `agent.max_history_turns` | 不控制当前上下文；历史选取由现有 ContextAssembly token 预算决定。 |
+| `agent.reflect_interval_hours`、`hindsight.reflect_timeout` | 不启动全 Bank Reflect 调度或原生 Reflect 请求。 |
+| `workspace.db_path`、`sandbox.result_ttl` | 当前执行链不消费；Workspace 元数据仍使用 PostgreSQL。 |
+| 模型文件的 `channel_overrides`、`rerank.top_n` | 从标准 YAML 删除，旧文件仍兼容读取并告警；不向 Brain 或重排调用新增接线。正式对话输出长度/等待预算修改对应模型链参数。 |
+| 主 YAML 内的 `models`、`prompts`、`memory_quality` | 兼容忽略并告警；分别使用独立模型文件、提示词目录、记忆质量文件。 |
+| 主 YAML 内的 `research` | 当前不加载该 section，兼容忽略并告警；只有已有环境覆盖和代码缺省生效。增加接线前须区分连接参数与持久研究策略，不能直接使旧执行读取新阈值。 |
+
+`agent.recall_top_n` 是仍被消费的兼容入口，与上述停用项不同；明确提供时沿既有冲突校验
+映射到记忆质量 `recall.top_n`，不能通过字段清理将其静默丢弃。
 
 ## 环境变量
 
@@ -52,9 +161,9 @@ Main（Web / QQ）、Generic Work 和子执行在共享 Context Activity 中注�
 | `WEB_RETRIEVAL_SEARCH_PROVIDER` | 否 | `legacy` | Worker | Main / Work 共享搜索供应商：legacy（SearXNG 等）或 deepseek；选择 deepseek 时必须配置检索 Key。 |
 | `WEB_RETRIEVAL_FETCH_PROVIDER` | 否 | `local` | Worker | 正文供应商：local 或 deepseek；本地默认 Text，云端 Markdown 的最终 URL 不可验证。 |
 | `DEEPSEEK_API_SEARCH_FETCH` | 使用 DeepSeek 检索时必需 | 空 | Worker | Search/Fetch 专用凭据；不是模型 DEEPSEEK_API_KEY，不写入源码、日志或模型输入。 |
-| `HPAGENT_MODELS_PATH` | 否 | `/app/config/models.yaml` | Worker | 替代 Model Config 路径。 |
+| `HPAGENT_MODELS_PATH` | 否 | 宿主省略时同目录；Compose 为 `/app/config/models.yaml` | Worker | 替代 Model Config 路径；模板中的容器路径不能直接当作宿主路径使用。 |
 | `WEB_PUBLIC_ORIGIN` | 对外服务时必需 | Compose 中为 `https://localhost` | API | 允许的浏览器 Origin。 |
-| `WEB_COOKIE_SECURE` | 生产必需 | `false` | API | Secure Cookie 开关。 |
+| `WEB_COOKIE_SECURE` | 生产必需 | Python `true`；基础 Compose `false`；Beta `true` | API | Secure Cookie 开关。 |
 | `WEB_CURSOR_SECRET` / `WEB_CURSOR_KEYS_JSON` | 部署必需 | 开发值 | API | Cursor 签名 Key 或 Key Ring。 |
 | `WEB_SESSION_TOKEN_PEPPER` | 部署必需 | 开发值 | API | Session Token Pepper。 |
 | `WEB_CSRF_SIGNING_KEY` | 部署必需 | 开发值 | API | CSRF 签名 Key。 |
@@ -69,19 +178,20 @@ Main（Web / QQ）、Generic Work 和子执行在共享 Context Activity 中注�
 | `WORKSPACE_ROOT` | 否 | `.data/workspace` | Worker | Git 代码工作区根；不是长期文件目录。 |
 | `WORKSPACE_ISOLATION_MODE` | 否 | `single_process_account_lock` | Worker | 可选 Git 工作区并发模式；通用 Execution scratch 不依赖 Account Git 锁。 |
 | `AGENT_EXECUTION_LEASE_TTL_SECONDS` | 否 | `900` | Worker | 主执行路径的 Execution attempt Lease 配置；Research stage 默认租约另见恢复限制。 |
-| `WEB_FILE_UPLOAD_ENABLED` | 否 | `true` | API/Worker | Upload 与不可变成果 publisher 开关；Research/HTML/普通 Markdown 交付都需要 publisher。 |
-| `WEB_FILE_TRANSFORM_ENABLED` | 否 | `false` | API/Worker | 文件格式转换开关；普通 Markdown 发布不要求开启转换。 |
+| `WEB_FILE_UPLOAD_ENABLED` | 否 | Python `false`；Compose `true` | API/Worker | Upload 与不可变成果 publisher 开关；Research/HTML/普通 Markdown 交付都需要 publisher。 |
+| `WEB_FILE_TRANSFORM_ENABLED` | 否 | Python `false`；Compose `true` | API/Worker | 文件格式转换开关；普通 Markdown 发布不要求开启转换。 |
 | `WEB_FILE_SHELL_ENABLED` | 否 | `false` | API/Worker | File Shell 能力开关。 |
 | `FILE_STORE_ROOT` / `FILE_RUN_ROOT` / `DOCUMENT_RUN_ROOT` | Compose 管理 | Volume 路径 | File/Document | 长期文件字节与隔离执行目录；目录/授权/修订在 PostgreSQL。 |
-| `FILE_MAX_BYTES` | 否 | `134217728` | File | 单文件大小上限。 |
+| `FILE_MAX_BYTES` | 否 | Python `134217728`；Compose `33554432` | File | 单文件大小上限。 |
 | `FILE_DIRECT_READ_MAX_BYTES` | 否 | `1048576` | File | Direct Read 阈值。 |
-| `FILE_MAX_COUNT_PER_MESSAGE` | 否 | `10` | API | 每条消息上传数量上限。 |
+| `FILE_MAX_COUNT_PER_MESSAGE` | 否 | Python `10`；Compose `5` | API | 每条消息上传数量上限。 |
+| `FILE_CLEANUP_INTERVAL_SECONDS` | 否 | `300` | Worker | 文件清理轮询周期，必须为正；不会改变授权或 GC 引用检查。 |
 | `GOTENBERG_URL` | 否 | Compose 中为 `http://gotenberg:3000` | File | 转换服务 Endpoint。 |
 | `SEARXNG_URL` | 否 | Compose 中为 `http://searxng:8080` | Research | 搜索 Endpoint。 |
 | `SEARXNG_SECRET` | 部署必需 | 开发值 | SearXNG | 搜索服务 Secret。 |
 | `ARTIFACT_MODEL_READ_TIMEOUT_SECONDS` | 否 | `90` | Worker | HTML 成果生成独立读取预算，合法范围 5–300 秒；连接预算最多 5 秒。 |
 | `HPAGENT_MIGRATIONS_DIR` | 宿主机/CI 建议显式设置 | 部署挂载路径 | API/Worker/Migrate/Test | 指向完整 `persistence/migrations`；Compose 使用 `/opt/hpagent/migrations`，CI 使用仓库绝对路径。 |
-| `RUN_BUDGET_MODE` | 否 | `enforce` | Worker/API | Run Budget 执行模式。 |
+| `RUN_BUDGET_MODE` | 否 | 按入口；Compose `enforce` | Worker/API | 入口差异见下方费用说明，不能用省略变量假定所有进程相同。 |
 | `LOG_LEVEL` | 否 | `INFO` | Python Service | Console Log Threshold。 |
 | `LOG_DIR` | 否 | `.data/logs` | Python Service | Structured Log 目录。 |
 | `WEB_GATEWAY_PORT` | 否 | `80` | Gateway | 对外 Host Port。 |
@@ -89,13 +199,50 @@ Main（Web / QQ）、Generic Work 和子执行在共享 Context Activity 中注�
 
 `.env.example` 是部署模板。Source Settings 还提供 SSE Buffer、Outbox Recovery、Cleanup Interval 和 Budget Policy 等调优变量；没有运维证据时应保留代码默认值。
 
+### 运行时参数的实际消费者
+
+部署容量、文件限制与既有 HTML 运行限制定义在
+[`common/runtime_config.py`](../../src/common/runtime_config.py)，由小型强类型对象读取。
+Worker 在取得依赖与工作区锁前检查这些输入；API 检查自身 Settings 与容量输入后才连接数据库。
+配置对象不缓存环境，不创建另一套策略账本；消费者保留原有读取时机。
+
+| 参数 | 消费者与生效边界 |
+| --- | --- |
+| Work 接受量、协调数、子分支/能力/投递容量 | 现有命令准入、Execution 准入、资源票据和 Delivery claim 读取当前进程环境；已持有票据、已提交结果和预算事实不回写。 |
+| `FILE_MAX_BYTES` / `FILE_MAX_COUNT_PER_MESSAGE` | 前者进入 API 上传与 Worker publisher，后者是 API 消息附件数量检查；不成为 Agent 生成成果数量上限。 |
+| `FILE_DIRECT_READ_MAX_BYTES` | 创建 Worker 文件读取工具时取值；默认整文件直读超阈值时拒绝，提示改用有界读取，不扩大文件授权。 |
+| `FILE_CLEANUP_INTERVAL_SECONDS` | 启动 Worker 文件清理循环时取值；改环境须重建消费容器。 |
+| `ARTIFACT_MODEL_READ_TIMEOUT_SECONDS` | Worker 组装既有 HTML generator 时取值，沿原 model call scope 控制读取等待；Workflow 窗口和重试契约不变。 |
+| `ARTIFACT_HTML_MAX_BYTES` | 保留既有裸进程或显式 Compose override 的环境读取，并校验正整数；标准 Compose 不透传。它影响持久成果生成，扩大调整入口须先有完整冻结兼容方案。 |
+| `QQ_BINDING_CHALLENGE_SECONDS` | API/Worker 共用缺省与正整数校验，建立新绑定挑战时使用；既有挑战的过期事实不回写。 |
+| `RUN_BUDGET_MODE` | 各入口明确保留自己的缺省；新预算沿原 admission 冻结，已有预算及权限规则不因当前配置重写。 |
+
+新增可选 Compose 透传如下，未设置的变量保持未设置，Python 继续使用原缺省。
+Compose 静态 JSON 可将这些未设置项表示为 `null`，不等于向容器写入字符串 `"None"` 或空值。
+
+| 消费进程 | 可选变量 |
+| --- | --- |
+| API、主 Worker | `HINDSIGHT_API_KEY`、`WORK_ACCOUNT_ACCEPT_LIMIT`；`HINDSIGHT_URL` 共同覆盖时仍沿已有目标切换流程，默认保持内部服务地址。 |
+| 主 Worker | `TEMPORAL_TASK_QUEUE`、`WEB_OUTBOX_LEASE_TIMEOUT_SECONDS`、`WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS`、`WORK_ACCOUNT_SUBAGENTS`、`WORK_GLOBAL_SUBAGENTS`、`CAPABILITY_ACCOUNT_EXECUTIONS`、`CAPABILITY_GLOBAL_EXECUTIONS`、`DELIVERY_ACCOUNT_CAPACITY`、`DELIVERY_GLOBAL_CAPACITY`。`TEMPORAL_TASK_QUEUE` 只影响既有 Memory 指标队列，不改变固定 Agent 队列。 |
+| API | `WEB_CURSOR_KEYS_JSON`（配合 `WEB_CURSOR_ACTIVE_KEY_ID`）、`WEB_SSE_HANDSHAKE_BUFFER_EVENTS`、`WEB_SSE_HANDSHAKE_BUFFER_BYTES`、`WEB_SSE_KEEPALIVE_SECONDS`、`WEB_SSE_MAX_CONNECTIONS`、`WEB_TERMINAL_PUBLISHER_POLL_SECONDS`、`LOG_LEVEL`。 |
+
+API 不再透传无人消费的文件直读/清理变量；Document Worker 使用只读 TenantFileReader，
+不再透传无人消费的 `FILE_MAX_BYTES`。这不增加文档执行、上传或成果发布权限。
+上述接线只改变显式配置能否到达消费者；已有私有 `.env` 若包含此前无效的显式值，新部署后
+可能开始生效，需核对实际目标配置，不能把合成默认基线当作线上验证结果。
+
 ## 模型配置
 
 完整的用途、供应商、变量、调用位置和脱敏检查见[模型分工表](model-routing.md)。Research报告与HTML成果共用chat，长期记忆是独立的Hindsight配置，reasoning不自动被业务选用。
 
-`config/models.yaml` 定义 Provider，以及 `fast`、`chat`、`embedding`、`image`、`reasoning` 的有序 Model Chain 和一个 Reranker。Provider Entry 包含 API Format 和环境变量引用，凭据只保存在 `.env`。同一文件还声明 Tool Retrieval、MCP Config Path、Skill Path 和各 Surface 的 Token/Timeout Override。
+`config/models.yaml` 定义 Provider，以及 `fast`、`chat`、`embedding`、`image`、`reasoning` 的有序 Model Chain 和一个 Reranker。Provider Entry 包含 API Format 和环境变量引用，凭据只保存在 `.env`。同一文件还声明 Tool Retrieval、MCP Config Path 和 Skill Path；旧 Surface Override 不参与正式调用。
 
-每个 `ModelEntry.access_tier` 默认 `standard`；当前 `config/models.yaml` 未显式设置时采用该默认值。普通 Account 的 `account_entitlements.model_access_tier` 必须与端点 tier 相同，`owner` 可以访问所有 tier。邀请码 `--profile` 只设置新账号的 tier，不会自动创建对应模型端点。
+模型 YAML 条目接受非空文本 `access_tier`，省略时仍为 `standard`；该字段进入已有
+ModelEndpoint / CredentialManager / ResourcePool 权限校验，不放入供应商 `extra_body`。
+普通 Account 的 `account_entitlements.model_access_tier` 必须与端点 tier 精确匹配，
+`owner` 可以访问所有 tier。配置端点 tier 不授予账号权益，邀请码 `--profile` 也不会
+自动创建端点。账号与端点访问资格属于当前安全检查，新请求和重试仍检查当前权威权益；
+原模型快照与回执不回写，不承诺变更 tier 后旧执行仍有访问资格。
 
 ## Prompt 配置
 
@@ -127,18 +274,31 @@ Work schedule 由 PostgreSQL evaluator 维护，不使用 Temporal Schedule 配�
 
 高级容量参数由使用它的 Python 进程直接读取环境：
 
-| 变量 | 默认值 | 用途 |
-| --- | --- | --- |
-| `WORK_ACCOUNT_ACCEPT_LIMIT` | `100` | 账户接受的非停止/完成委托上限，具体计数以 WorkCommandService 为准。 |
-| `WORK_REPEATED_FAILURE_LIMIT` / `WORK_NO_PROGRESS_LIMIT` | 各 `3` | policy v1 在 Work/revision 首次计数时冻结；范围 1–100，不追改已有窗口。 |
-| `WORK_ACCOUNT_COORDINATORS` / `WORK_GLOBAL_COORDINATORS` | `4` / `32` | 有限后台 Run admission。 |
-| `CAPACITY_{MODEL,TOOL,FETCH}_GLOBAL` | 各 `12` | 资源票据的全局上限。 |
-| `CAPACITY_{MODEL,TOOL,FETCH}_ACCOUNT` | 各 `3` | 每账户资源票据上限。 |
-| `CAPACITY_{MODEL,TOOL,FETCH}_INTERACTIVE_RESERVED` | 各 `4` | 全局交互预留；有预留时后台每账户也保留一个槽位。 |
-| `WORK_ACCOUNT_SUBAGENTS` / `WORK_GLOBAL_SUBAGENTS` | `6` / `48` | 活跃子分支上限；每次 root 委派仍最多三个。 |
-| `DELIVERY_ACCOUNT_CAPACITY` / `DELIVERY_GLOBAL_CAPACITY` | `4` / `32` | 投递发送租约容量，与生产 Run 容量分开。 |
+| 变量 | Python 缺省 | Compose 部署预设 | 用途 |
+| --- | --- | --- | --- |
+| `WORK_ACCOUNT_ACCEPT_LIMIT` | `100` | 可选透传 API/Worker | 账户接受的非停止/完成委托上限，具体计数以 WorkCommandService 为准。 |
+| `WORK_REPEATED_FAILURE_LIMIT` / `WORK_NO_PROGRESS_LIMIT` | 各 `3` | 未透传 | policy v1 在 Work/revision 首次计数时冻结；范围 1–100，不追改已有窗口。 |
+| `WORK_ACCOUNT_COORDINATORS` / `WORK_GLOBAL_COORDINATORS` | `4` / `32` | `3` / `16` | 有限后台 Run admission。 |
+| `CAPACITY_{MODEL,TOOL,FETCH}_GLOBAL` | 各 `12` | 各 `8` | 资源票据的全局上限。 |
+| `CAPACITY_{MODEL,TOOL,FETCH}_ACCOUNT` | 各 `3` | 各 `2` | 每账户资源票据上限。 |
+| `CAPACITY_{MODEL,TOOL,FETCH}_INTERACTIVE_RESERVED` | 各 `4` | 各 `3` | 全局交互预留；有预留时后台每账户也保留一个槽位。 |
+| `WORK_ACCOUNT_SUBAGENTS` / `WORK_GLOBAL_SUBAGENTS` | `6` / `48` | 可选透传 Worker | 活跃子分支上限；每次 root 委派仍最多三个。 |
+| `CAPABILITY_ACCOUNT_EXECUTIONS` / `CAPABILITY_GLOBAL_EXECUTIONS` | `4` / `32` | 可选透传 Worker | 独立能力执行容量，与子分支、Work 协调和资源票据分别检查。 |
+| `DELIVERY_ACCOUNT_CAPACITY` / `DELIVERY_GLOBAL_CAPACITY` | `4` / `32` | 可选透传 Worker | 投递发送租约容量，与生产 Run 容量分开。 |
 
-以上高级变量目前未全部列入 `.env.example` 或 Compose environment；只写到项目 `.env` 不保证进入容器。若调优，需通过明确的 Compose environment override 传给所有使用进程，并重建对应容器。不要改变环境后只 restart 并假设新值已应用。
+表中容量参数通过纯配置模块 `common/runtime_config.py` 的 `CapacityConfig` 读取，
+API/Worker 在基础设施 I/O 前校验；消费者仍在原准入/资源申请边界读取，不缓存到 Run。
+参数允许非负整数：零保留原有停止相关准入的语义，不取消已有执行或撤销已持有票据。
+交互预留继续沿原算法扣减，预留超过全局容量时后台容量为零，不新增另一套容量或锁规则。
+
+“可选透传”没有 Compose 数字 fallback，省略时使用 Python 缺省；显式设置后须重建消费容器。
+旧私有 `.env` 若已写入此前未透传的变量，新部署后这些值会开始生效，发布前需离线核对；
+不能用未改动模板推断私有配置仍等于缺省。`WORK_REPEATED_FAILURE_LIMIT`、
+`WORK_NO_PROGRESS_LIMIT` 及预算 policy version 未通过标准 Compose 透传，仍须按持久策略契约处理。
+
+`RUN_BUDGET_MODE` 的裸进程缺省仍按既有入口区分：API Settings 与 QQ Conversation
+命令入口使用 `observe`，共享 Worker ResourcePool 和 Work due loop 使用 `enforce`；
+Compose 对主 Worker/API 显式传入 `enforce`。这里保持原行为，不将一个入口的缺省套用到其他入口。
 
 新 Work 的有限预算默认值定义在 [`work_budget.py`](../../src/resources/work_budget.py)，Run 默认值来自 admission。已有预算不能通过改默认配置追改；使用带 Work / budget version、幂等和审计的 budget 命令。模型额度锁顺序为 Account/day → Work → Run，三个账本一次事务预留。RUN_BUDGET_MODE 不能当作提升 Account entitlement 的开关。
 

@@ -27,6 +27,7 @@ from research_domain.context import (
     local_research_activity,
     research_identity,
     research_key,
+    research_policy,
     research_request,
 )
 from research_domain.history import authorized_history, freeze_history
@@ -38,6 +39,7 @@ from research_domain.models import (
     SourceStrategy,
 )
 from research_domain.persistence import ResearchRepository
+from research_domain.policy import ResearchPolicy
 from research_domain.providers import (
     ResearchSynthesisProvider,
     SourceCanonicalizer,
@@ -71,11 +73,11 @@ class ResearchActivities:
         canonicalizer: SourceCanonicalizer,
         synthesis: ResearchSynthesisProvider,
         *,
-        max_sources: int = 30,
-        max_fetches: int = 20,
-        max_iterations: int = 3,
-        min_evidence: int = 3,
-        min_distinct_sources: int = 2,
+        max_sources: int = ResearchPolicy.max_sources,
+        max_fetches: int = ResearchPolicy.max_fetches,
+        max_iterations: int = ResearchPolicy.max_iterations,
+        min_evidence: int = ResearchPolicy.min_evidence,
+        min_distinct_sources: int = ResearchPolicy.min_distinct_sources,
         markdown_publisher: Any | None = None,
     ) -> None:
         self.database, self.discovery, self.content = database, discovery, content
@@ -89,6 +91,37 @@ class ResearchActivities:
         self.repository = ResearchRepository()
         self.budget = RunBudgetService(database)
         self.trace = PostgresTraceRepository(database)
+
+    def registration_policy(self) -> ResearchPolicy:
+        from application.prompt_catalog import agent_prompt
+        service = getattr(self.discovery, "service", None)
+        return ResearchPolicy(
+            synthesis_prompt=agent_prompt("research"),
+            model_selector=getattr(self.synthesis, "model_selector", ResearchPolicy.model_selector),
+            **{name: getattr(self, name) for name in (
+                "max_sources", "max_fetches", "max_iterations", "min_evidence", "min_distinct_sources")},
+            search_provider=getattr(service, "default_search", ResearchPolicy.search_provider),
+            fetch_provider=getattr(service, "default_fetch", ResearchPolicy.fetch_provider),
+            search_timeout_seconds=getattr(self.discovery, "search_timeout", ResearchPolicy.search_timeout_seconds),
+            fetch_timeout_seconds=getattr(self.content, "fetch_timeout", ResearchPolicy.fetch_timeout_seconds),
+        )
+
+    def _execution_policy(self):
+        request = research_request.get()
+        if request is None or not request.execution_id:
+            return None
+        with UnitOfWork(self.database) as uow:
+            descriptor = self.capabilities.invocation_context(uow, request)
+            definition = descriptor["definition"]
+            if definition["implementation_version"] == "research-web-v3":
+                return ResearchPolicy.from_snapshot(definition.get("execution_policy"))
+            if definition["implementation_version"] != "research-web-v2":
+                raise ValueError("research_policy: unsupported implementation version")
+            return None
+
+    def _limit(self, name):
+        policy = research_policy.get()
+        return getattr(policy, name) if policy is not None else getattr(self, name)
 
     @staticmethod
     def _attempt() -> int:
@@ -223,7 +256,11 @@ class ResearchActivities:
                     await asyncio.sleep(1)
             with fence_scope(identity["account_id"], str(run_id), token, identity["execution_id"]):
                 pulse = asyncio.create_task(self._maintain_stage_lease(segment, token, stage))
-                work = asyncio.create_task(self._run_stage_in_execution(run_id, stage, action))
+                policy_token = research_policy.set(await asyncio.to_thread(self._execution_policy))
+                try:
+                    work = asyncio.create_task(self._run_stage_in_execution(run_id, stage, action))
+                finally:
+                    research_policy.reset(policy_token)
                 done, _ = await asyncio.wait((pulse, work), return_when=asyncio.FIRST_COMPLETED)
                 if pulse in done:
                     await pulse
@@ -458,7 +495,9 @@ class ResearchActivities:
             if sites:
                 query = "(" + " OR ".join(sites) + ") " + query
         service = getattr(self.discovery, "service", None)
-        max_chars = 128 if getattr(service, "default_search", None) == "deepseek" else 240
+        policy = research_policy.get()
+        provider = policy.search_provider if policy is not None else getattr(service, "default_search", None)
+        max_chars = 128 if provider == "deepseek" else 240
         return discovery_query(query, strategy, max_chars=max_chars), strategy
 
     @retryable_transaction
@@ -531,7 +570,7 @@ class ResearchActivities:
                     "measured",
                 )
             return {"item_count": existing}
-        remaining = max(0, self.max_sources - total)
+        remaining = max(0, self._limit("max_sources") - total)
         if ledger_entry is None:
             with UnitOfWork(self.database) as uow:
                 assert_execution_fence(uow)
@@ -644,7 +683,7 @@ class ResearchActivities:
                 ).fetchone()["count"]
             )
             rows = self.repository.fetch_candidates(
-                uow, run_id, max(0, self.max_fetches - fetched_total), iteration=iteration
+                uow, run_id, max(0, self._limit("max_fetches") - fetched_total), iteration=iteration
             )
         operation_id = f"research:{research_identity(run_id)}:Fetch:{iteration}:budget:v1"
         ledger_entry = await asyncio.to_thread(
@@ -855,7 +894,7 @@ class ResearchActivities:
             ).fetchone()
             evidence_count, source_count = int(row["evidence_count"]), int(row["source_count"])
             meets_threshold = (
-                evidence_count >= self.min_evidence and source_count >= self.min_distinct_sources
+                evidence_count >= self._limit("min_evidence") and source_count >= self._limit("min_distinct_sources")
             )
             from research_domain.excerpts import missing_concepts
 
@@ -867,9 +906,9 @@ class ResearchActivities:
                 "missing_concepts": missing,
                 "evidence_count": evidence_count,
                 "source_count": source_count,
-                "missing_evidence": max(0, self.min_evidence - evidence_count),
-                "missing_sources": max(0, self.min_distinct_sources - source_count),
-                "stopped_at_iteration_limit": iteration >= self.max_iterations
+                "missing_evidence": max(0, self._limit("min_evidence") - evidence_count),
+                "missing_sources": max(0, self._limit("min_distinct_sources") - source_count),
+                "stopped_at_iteration_limit": iteration >= self._limit("max_iterations")
                 and not meets_threshold,
             }
             self.repository.save_gap_analysis(uow, run_id, iteration, value, sufficient=sufficient)
@@ -905,9 +944,9 @@ class ResearchActivities:
 
         missing = missing_concepts(str(plan["objective"]), [str(row["excerpt"]) for row in evidence])
         gaps = [{"code": "missing_concept", "message": f"No source excerpt covers {term}."} for term in missing]
-        if len(evidence) < self.min_evidence:
+        if len(evidence) < self._limit("min_evidence"):
             gaps.append({"code": "missing_evidence", "message": "Too few usable evidence spans."})
-        if len({str(row["source_id"]) for row in evidence}) < self.min_distinct_sources:
+        if len({str(row["source_id"]) for row in evidence}) < self._limit("min_distinct_sources"):
             gaps.append({"code": "missing_sources", "message": "Too few distinct usable sources."})
         if gaps:
             with UnitOfWork(self.database) as uow:
@@ -939,7 +978,8 @@ class ResearchActivities:
                         self.store.begin_operation(operation_id, str(run_id), "research_stage")
                         self.store.begin_operation(operation_id + ":dispatch", str(run_id), "research_stage")
                         self._save_stage_result(operation_id + ":dispatch", run_id, "SynthesisDispatch", {"operation_id": operation_id})
-                        receipt = await self.synthesis.request(objective, [dict(row) for row in evidence])
+                        receipt = await self.synthesis.request(objective, [dict(row) for row in evidence],
+                                                               policy=research_policy.get())
                         self._save_stage_result(operation_id, run_id, "SynthesisResponse", receipt)
                     report = self.synthesis.parse(receipt, objective, [dict(row) for row in evidence])
                     self.store.begin_operation(operation_id + ":validation", str(run_id), "research_stage")

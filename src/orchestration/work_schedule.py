@@ -6,6 +6,7 @@ import json
 import logging
 from datetime import UTC, datetime
 
+from common.agent_policy import AgentPolicy
 from persistence.uow import UnitOfWork, retryable_transaction
 from resources.run_budget import RunBudgetExhausted
 from run_domain.admission import admit_work_run
@@ -21,9 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 class WorkScheduleService:
-    def __init__(self, database, *, budget_mode='enforce'):
+    def __init__(self, database, *, budget_mode='enforce', agent_policy: AgentPolicy | None = None):
         self.database = database
         self.budget_mode = budget_mode
+        self.agent_policy = agent_policy or AgentPolicy()
 
     @retryable_transaction
     def occurrence(self, account_id, work_id, version, scheduled_for, *, now=None):
@@ -134,7 +136,7 @@ class WorkScheduleService:
                 # Keep failures local to one Work; other tenants' wakeups still progress.
                 try:
                     with uow.connection.transaction():
-                        run = admit_work_run(uow, work, requirement, wake['wakeup_id'], self.database, self.budget_mode)
+                        run = admit_work_run(uow, work, requirement, wake['wakeup_id'], self.database, self.budget_mode, self.agent_policy)
                         if run is None:
                             continue
                         uow.execute("INSERT INTO capacity_turns(resource,lane,account_id,last_admitted_at) VALUES ('coordination','background',%s,now()) ON CONFLICT(resource,lane,account_id) DO UPDATE SET last_admitted_at=now()", (work['account_id'],))

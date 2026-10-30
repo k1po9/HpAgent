@@ -331,9 +331,11 @@ def test_terminal_observer_creates_and_closes_the_stable_root():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("frozen_timezone", [None, "UTC"])
 @pytest.mark.parametrize("with_memory", [True, False])
 @pytest.mark.parametrize("with_system", [True, False])
-async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypatch, with_memory, with_system):
+async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypatch, with_memory, with_system, frozen_timezone):
+    from common.agent_policy import AgentPolicy
     async def in_process(function, *args, **kwargs):
         return function(*args, **kwargs)
 
@@ -365,6 +367,9 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
             return events
 
     class Store:
+        def agent_policy(self, _run_id):
+            return AgentPolicy(default_timezone=frozen_timezone) if frozen_timezone else None
+
         def validate_and_renew_lease(self, *_args):
             return None
 
@@ -377,9 +382,11 @@ async def test_context_activity_emits_root_memory_llm_and_context_nodes(monkeypa
         def create_transcript(self, **_kwargs):
             messages = _kwargs['messages']
             assert messages[0]['role'] == 'system'
-            assert '2027-01-01T00:00:01+08:00' in messages[0]['content']
+            expected_start = '2026-12-31T16:00:01+00:00' if frozen_timezone else '2027-01-01T00:00:01+08:00'
+            assert expected_start in messages[0]['content']
             if with_memory:
-                assert '2026-12-31T23:59:59+08:00' in messages[0]['content']
+                expected_message = '2026-12-31T15:59:59+00:00' if frozen_timezone else '2026-12-31T23:59:59+08:00'
+                assert expected_message in messages[0]['content']
             else:
                 assert '未提供原始消息时间' in messages[0]['content']
             if with_system:

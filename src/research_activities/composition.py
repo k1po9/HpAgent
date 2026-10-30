@@ -10,6 +10,7 @@ def compose_research(research, store=None, *, html_available=False):
         ({"research"} if research.markdown_publisher is not None else set())
         | ({"html", "text"} if html_available else set())
     )
-    capabilities = compose_capabilities(store or research.store, services=services)
+    capabilities = compose_capabilities(store or research.store, services=services,
+                                        research_policy=research.registration_policy())
     research.capabilities = capabilities
     return capabilities, ResearchParentActivities(research, capabilities)

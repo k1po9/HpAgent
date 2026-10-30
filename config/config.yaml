@@ -1,49 +1,27 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # HpAgent 配置文件
-# 所有可配置项及其默认值均在此列出。
+# 本文件保存部署显式选择；省略项使用 Python 配置定义的默认值。
+# 来源、生效边界与旧字段迁移见 docs/reference/configuration.md。
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ── Temporal Server ──────────────────────────────────────────────────────────
 temporal:
   host: "localhost:7233"
-  # task_queue: "hpagent-task-queue"
 
 # ── Redis（可选，空 url 表示禁用） ──────────────────────────────────────────
 #   容器模式：Docker Compose 通过 REDIS_URL 环境变量覆盖为 redis://redis:6379
 #   宿主机调试：需改为 redis://localhost:6379（映射自 docker-compose ports）
 redis:
   url: "redis://localhost:6379"
-  default_ttl: 300         # 默认缓存 TTL（秒）
-  group_context_window: 80  # 群聊上下文滑动窗口消息数
-  group_context_ttl: 86400  # 群聊上下文 TTL（秒，默认 24h）
-  group_context_density_threshold: 2.0  # 群聊密度阈值（msg/min），低于此值允许发送进度提示
-
-# ── 定时调度器 ──────────────────────────────────────────────────────────────
-scheduler:
-  enabled: true
-  # data_dir: ".data/scheduler"
-  # poll_interval: 15.0
 
 # ── 沙箱（nsjail 隔离执行） ─────────────────────────────────────────────────
 sandbox:
   native_tools_enabled: true    # 本地函数工具（fs_read/write/edit/Glob/Grep/Bash）
   nsjail_enabled: false          # Nsjail OS 级隔离（仅对 Bash）
-  # runner_script: "/opt/nsjail-runner.py"  # 容器内独立路径，避免和 bind mount /work 冲突
-  # time_limit: 30              # 最大执行时间（秒）
-  # memory_limit_mb: 256        # 内存上限（MB）
-  # cpu_limit_seconds: 10       # CPU 时间上限（秒）
-  # max_processes: 32           # 最大进程数
-  # max_files: 64               # 最大文件句柄数
-  # disable_proc: true          # 禁止 /proc 访问
-  # disable_network: true       # 禁止网络访问
-  # readonly_root: true         # chroot 只读挂载
-  # max_idle_seconds: 300     # 空闲沙箱回收时间（秒）
-  # result_ttl: 3600          # 工具执行结果 Redis TTL（秒）
 
 # ── 工作区 ──────────────────────────────────────────────────────────────────
 workspace:
   root: ".data/workspace"
-  # db_path: ""               # SQLite 路径，空则使用 root/workspace.db
 
 # ── Hindsight 长期记忆（可选，enabled: false 禁用） ──────────────────────────
 #   容器模式：Docker Compose 通过 HINDSIGHT_URL 环境变量覆盖为 http://hindsight:8888
@@ -52,51 +30,23 @@ hindsight:
   enabled: true
   recall_enabled: false  # 完成切换检查后显式开启；不会自动迁移或清除旧数据。
   base_url: "http://localhost:8001"
-  # api_key: ""
-  # timeout: 30.0
   # 质量参数：hindsight.yaml；提取/归纳/回答指令：prompts/memory.yaml。
-
-# ── 会话存储 ────────────────────────────────────────────────────────────────
-session:
-  backup_dir: ".data/active-sessions"
-  # redis_ttl: 86400          # Redis 会话数据 TTL（秒，默认 24h）
 
 # ── 渠道启停 ────────────────────────────────────────────────────────────────
 # 在此管理渠道的启用/禁用，列表中的渠道才会启动（名称对应 ChannelType 枚举值）
-# 禁用 OneBot11：注释或删除 onebot11 即可，不会连接 QQ 网关也不会启动 WebSocket 服务
+# 禁用所有可选渠道请设 enabled: []；删除整个列表会使用 Python 默认渠道。
+# Compose 的 HPAGENT_CHANNELS（包括空值）优先于本列表。
 channels:
   enabled:
     # - official_qq
     # - web
     - onebot11
     # - console
-  onebot11:
-    host: 0.0.0.0
-    port: 8082
-    path: /onebot/v11
-    access_token_file: /run/secrets/onebot_access_token
-    # ONEBOT_EXPECTED_SELF_ID is supplied to the Worker via Compose.
-    expected_self_id: ""
-    ack_timeout_seconds: 30
-    status_interval_seconds: 30
-    status_stale_seconds: 90
-    max_frame_bytes: 1048576
-    ingress_queue_size: 256
-    send_interval_seconds: 2
+  # OneBot 监听与回执参数省略时使用 common.onebot.OneBot11Config 默认。
+  # bot 身份与 token 文件可通过 ONEBOT_EXPECTED_SELF_ID / ONEBOT_ACCESS_TOKEN_FILE 覆盖。
 
 # ── Agent 行为参数 ──────────────────────────────────────────────────────────
 agent:
   default_timezone: "Asia/Shanghai"  # IANA timezone for Agent temporal context
-  mode: "single"               # Agent 模式: "single" (单Agent ReAct) | "multi" (多Agent编排)
-  max_history_turns: 10       # 上下文窗口最大历史轮次
   max_tool_turns: 5          # 单次 agentic loop 最大工具调用轮次
-  idle_timeout_minutes: 10     # 会话空闲自动关闭时间（分钟），0 表示永不超时
   # 记忆最终数量在 hindsight.yaml 的 recall.top_n 设置。
-  # event_fetch_limit: 100    # 每次从 Redis 加载的事件上限
-  # activity_timeout: 120     # process_turn Activity 超时（秒）
-  # archive_timeout: 10       # archive Activity 超时（秒）
-  # ── 多Agent模式（mode=multi 时生效） ──
-  # multi_agent:
-  #   strategy: "supervisor"  # 编排策略: supervisor | council | workflow
-  #   max_review_rounds: 10   # 最大规划/审阅轮次
-  #   agents_config: "config/agents.yaml"  # Agent 定义文件

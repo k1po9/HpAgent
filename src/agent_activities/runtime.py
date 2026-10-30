@@ -39,6 +39,7 @@ from application.prompt_catalog import agent_prompt
 from application.time_context import format_time_context
 from application.tool_policy import ToolPolicyError, agent_role, tool_policy
 from brain.contracts import BrainCapability
+from common.agent_policy import AgentPolicy
 from common.logging import log_event
 from resources.model_budget_context import model_budget_scope
 from resources.model_governance_errors import classify_model_governance_failure
@@ -89,7 +90,7 @@ class DurableAgentActivities:
         fault_injector: FaultInjector | None = None,
         approval_service: Any = None,
         context_bindings: ExecutionContextBindings,
-        default_timezone: str = "Asia/Shanghai",
+        default_timezone: str = AgentPolicy.default_timezone,
     ) -> None:
         self.context_bindings = context_bindings
         from zoneinfo import ZoneInfo
@@ -308,6 +309,7 @@ class DurableAgentActivities:
             await events.close()
             return ContextBootstrapResult(**previous)
         try:
+            policy = await asyncio.to_thread(self.store.agent_policy, request.run_id)
             loaded = await self.loader.load(request.run_id)
             self.context_bindings.validate_loaded(request, loaded)
             messages = list(loaded.context)
@@ -385,7 +387,7 @@ class DurableAgentActivities:
                 )
             started_at = await asyncio.to_thread(self.store.context_started_at, request.operation_id)
             time_context = format_time_context(
-                started_at, self.default_timezone, (loaded.metadata or {}).get("trigger_created_at", "")
+                started_at, policy.default_timezone if policy else self.default_timezone, (loaded.metadata or {}).get("trigger_created_at", "")
             )
             if messages and messages[0].get("role") == "system":
                 messages[0] = {**messages[0], "content": messages[0]["content"] + "\n\n" + time_context}
@@ -981,6 +983,8 @@ class DurableAgentActivities:
                             ) from exc
                     if self.run_budget is not None and parent_result_tool:
                         await asyncio.to_thread(self.run_budget.reserve, request.run_id, request.operation_id, reservation)
+                    policy = (await asyncio.to_thread(self.store.agent_policy, request.run_id)
+                              if not web_tool and not parent_result_tool else None)
                     tool_dispatched = False
                     try:
                         with model_budget_scope(
@@ -1007,6 +1011,7 @@ class DurableAgentActivities:
                                         execution_id=request.execution_id,
                                         user_query="",
                                         idempotency_key=request.operation_id,
+                                        **({"agent_policy": policy} if policy is not None else {}),
                                     )
                     except BaseException:
                         if self.run_budget is not None and not web_tool:

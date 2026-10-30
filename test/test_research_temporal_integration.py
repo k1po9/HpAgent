@@ -212,8 +212,10 @@ async def test_real_temporal_research_workflow_replays_with_compact_refs(stop_af
         )
         result = await handle.result()
         history = await handle.fetch_history()
-    replay = await Replayer(workflows=[ResearchReportWorkflow, ResearchCapabilityWorkflow]).replay_workflow(history)
-    assert replay.replay_failure is None
+        child_history = await client.get_workflow_handle(f"hpagent-capability-{run_id}").fetch_history()
+    for recorded_history in (history, child_history):
+        replay = await Replayer(workflows=[ResearchReportWorkflow, ResearchCapabilityWorkflow]).replay_workflow(recorded_history)
+        assert replay.replay_failure is None
     assert result == {"schema_version": 1, "run_id": run_id, "outcome": "report_ready"}
     expected = [
         "Planning",

@@ -67,6 +67,9 @@ class DeepSeekWebProvider:
     async def _post(self, operation: str, payload: dict) -> dict:
         if self.disabled_status is not None:
             raise DeepSeekError("provider_stopped", self.disabled_status)
+        from research_domain.context import research_policy
+        policy = research_policy.get()
+        timeout = policy.search_timeout_seconds if policy is not None else self.timeout
         client = self.client or httpx.AsyncClient()
         try:
             if self.before_request:
@@ -76,7 +79,7 @@ class DeepSeekWebProvider:
             async with client.stream(
                 'POST', f'https://api.deepseek.com/v1/tools/{operation}',
                 json=payload, headers={'Authorization': f'Bearer {self._key}'},
-                timeout=self.timeout, follow_redirects=False,
+                timeout=timeout, follow_redirects=False,
             ) as response:
                 if response.status_code != 200:
                     if response.status_code in {401, 402, 403}:

@@ -15,6 +15,7 @@ from psycopg.types.json import Jsonb
 
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION
 from agent_workflows.lifecycle_contracts import FinishWaitInput, SegmentInput, WaitInput
+from common.agent_policy import AgentPolicy, policy_from_run
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.execution import (
     LeaseConflict,
@@ -176,6 +177,20 @@ class AgentDataStore:
             raise ValueError("run not found")
         return {key: str(value) if isinstance(value, UUID) else value for key, value in row.items()}
 
+
+    def agent_policy(self, run_id: str) -> AgentPolicy | None:
+        with UnitOfWork(self.database_url) as uow:
+            self._assert_fence(uow)
+            fence = execution_fence.get()
+            if fence is None or fence[1] != run_id:
+                raise StaleFencingToken("policy requires the current Run fence")
+            row = uow.execute(
+                "SELECT input_snapshot FROM runs WHERE account_id=%s AND run_id=%s",
+                (UUID(fence[0]), UUID(run_id)),
+            ).fetchone()
+            if row is None:
+                raise RunNotExecutable("Run policy unavailable")
+            return policy_from_run(row["input_snapshot"])
 
     def operation_result(self, operation_id: str) -> dict[str, Any] | None:
         with UnitOfWork(self.database_url) as uow:

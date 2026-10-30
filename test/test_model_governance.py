@@ -17,6 +17,38 @@ from resources.resource_pool import ResourcePool
 from tracing.metadata import sanitize_trace_metadata
 
 
+@pytest.mark.asyncio
+async def test_yaml_model_tier_reaches_existing_entitlement_gate_before_dispatch(tmp_path, monkeypatch):
+    from orchestration.config import ModelsConfig
+    from resources.credentials import CredentialManager
+
+    path = tmp_path / 'models.yaml'
+    path.write_text('''
+providers: {fixture: {base_url: 'https://models.invalid/v1', api_key: fixture-only, api_format: openai}}
+chat: [{provider: fixture, model: fixture, access_tier: premium}]
+''')
+    models = ModelsConfig.from_yaml(path)
+    credentials = CredentialManager()
+    endpoint = models.resolve_endpoint(models.chat[0], endpoint_id='tier-fixture')
+    assert endpoint.access_tier == 'premium'
+    credentials.register_model_chain([endpoint])
+    snapshots, budget = _Snapshots(), _Budget()
+    pool = ResourcePool(credentials, entitlement_service=_Entitlements('standard'),
+                        budget_coordinator=budget, snapshot_repository=snapshots)
+    await pool.initialize_models()
+    pool.configure_fallback_group('chat', ['tier-fixture'])
+
+    async def forbidden(*_, **__):
+        raise AssertionError('tier denial reached Provider dispatch')
+
+    monkeypatch.setattr(pool._model_clients['tier-fixture']['client'], 'send_prepared', forbidden)
+    with model_budget_scope(uuid4(), uuid4(), 'configured-tier'):
+        with pytest.raises(ModelAccessTierDenied):
+            await pool.generate([{'role': 'user', 'content': 'hello'}], 'chat')
+    assert snapshots.items == []
+    assert budget.calls == []
+
+
 def _client(endpoint: str = "primary", *, api_format: str = "openai") -> ModelClient:
     return ModelClient({
         "endpoint_id": endpoint, "provider": "provider", "api_key": "SECRET_SENTINEL",

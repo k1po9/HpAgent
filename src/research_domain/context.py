@@ -3,6 +3,8 @@
 from contextvars import ContextVar
 from functools import wraps
 
+research_policy: ContextVar = ContextVar("research_policy", default=None)
+
 research_request: ContextVar = ContextVar("research_request", default=None)
 
 

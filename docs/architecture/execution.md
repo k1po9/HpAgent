@@ -36,6 +36,12 @@ Run succeeded 只说明有限执行成功；Work completed 需要当前 revision
 4. Activity 提交 operation/receipt、输出和通用 Run 终态 succeeded/failed/cancelled。聊天投影、WorkCompletionPolicy 与通知分别依据持久事实推进。
 5. Work 成功后的 ready continuation 在终态事务去重创建下一 wakeup；等待、blocked、暂停、停止和完成不忙循环。投递独立处理已提交通知，不因渠道失败重新执行 Agent。
 
+新 Agent Run 在创建事务的 `input_snapshot.agent_policy` 固定轮次、时区与工具摘要参数，
+状态、root Execution 与 Outbox 仍同事务提交。相同 Run 的 Activity retry/接管复用原策略；
+显式 retry 或 Work advance 创建新 Run 时按新 admission 冻结。历史缺失策略保持旧路径，
+不补写、不改 History，非法或未知快照不回退当前配置。当前账号、授权、revision 和 fence
+仍实时检查。策略来源及旧版本限制见[配置参考](../reference/configuration.md#持久策略来源与生效规则)。
+
 所有非确定性 I/O，包括间接导入引出的数据库/模型/工具/文件/网络访问，都放 Activity/Adapter。Workflow 只编排、等待和调用 Activity/Child Workflow。Composition Root 拥有共享 Resource Pool、Sandbox、Brain、Action Runtime、Redis、MCP、Hindsight；可变上下文按 Execution 隔离。
 
 Chat Context 使用对话历史、记忆与授权资料；Work Context 使用冻结需求、checkpoint、输入和候选，不加载关联聊天全文。Generic Work root 可一次委派最多三个只读子 Execution，费用仍属同 Run/Work；串行 plan steps 沿用当前 Execution，不等同并行 Subagent。

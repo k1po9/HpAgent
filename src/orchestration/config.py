@@ -2,7 +2,8 @@
 AppConfig —— 应用配置的强类型层次结构。
 
 从 config.yaml 加载，每个模块一个子 dataclass。
-所有默认值在一处定义，Worker 通过属性访问而非 dict.get()。
+默认值由 dataclass 定义；历史 YAML 工具数量缺省保留显式兼容分支。
+Worker 通过属性访问配置。
 
 用法:
     config = AppConfig.from_yaml("config/config.yaml")
@@ -20,13 +21,97 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List
 
+from common.agent_policy import AgentPolicy
+from common.config_validation import environment_name, integer, typed_fields
 from common.onebot import OneBot11Config
-from memory.quality_config import MemoryConfigError, MemoryQualityConfig, load_memory_prompts
+from common.runtime_config import (
+    ArtifactRuntimeConfig,
+    CapacityConfig,
+    FileRuntimeConfig,
+    binding_challenge_seconds,
+    run_budget_mode,
+)
+from memory.quality_config import (
+    MemoryConfigError,
+    MemoryQualityConfig,
+    load_memory_prompts,
+    read_yaml,
+)
+from orchestration.run_lifecycle_contracts import (
+    WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS,
+    WEB_AGENT_TASK_QUEUE,
+    WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS,
+    WEB_FINALIZE_START_TO_CLOSE_SECONDS,
+    WEB_LIFECYCLE_TASK_QUEUE,
+    WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS,
+    WEB_PREPARE_START_TO_CLOSE_SECONDS,
+    WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
+)
+from research_domain.policy import ResearchPolicy
 
 if TYPE_CHECKING:
     from resources.credentials import ModelEndpoint
 
 logger = logging.getLogger("HpAgent.Config")
+
+_IGNORED_FIELDS = {
+    "config": {
+        "scheduler": "Work scheduling is owned by PostgreSQL",
+        "session": "conversation state is owned by PostgreSQL",
+        "models": "use the separate models.yaml file",
+        "prompts": "use the separate prompts directory",
+        "memory_quality": "use the separate hindsight.yaml file",
+        "research": "only existing environment overrides are loaded; YAML policy wiring is deferred",
+    },
+    "agent": {
+        "mode": "the Run chooses its durable strategy",
+        "idle_timeout_minutes": "legacy sessions have been retired",
+        "event_fetch_limit": "legacy sessions have been retired",
+        "activity_timeout": "use the versioned Workflow contract",
+        "archive_timeout": "legacy sessions have been retired",
+        "multi_agent": "delegation uses the existing capability contract",
+        "max_history_turns": "context assembly uses its existing token budget",
+        "reflect_interval_hours": "bank Reflect scheduling has been retired",
+    },
+    "workspace": {"db_path": "Workspace metadata is owned by PostgreSQL"},
+    "sandbox": {"result_ttl": "the current execution path does not consume this value"},
+    "hindsight": {"reflect_timeout": "native Reflect requests are not sent"},
+    "models": {"channel_overrides": "formal Agent calls use model-chain parameters"},
+    "models.rerank": {"top_n": "tool retrieval supplies its request limit from tool_rag.top_k"},
+}
+
+# Keep the existing YAML omission behavior until a numeric migration is approved.
+_LEGACY_YAML_TOOL_RAG_TOP_K = 8
+
+
+def _check_fields(source: dict, allowed: set[str], path: str) -> None:
+    ignored = _IGNORED_FIELDS.get(path, {})
+    unknown = source.keys() - allowed - ignored.keys()
+    if unknown:
+        name = sorted(unknown)[0]
+        raise ValueError(f"{path}.{name}: unknown configuration field")
+    for name, replacement in ignored.items():
+        if name in source:
+            logger.warning("%s.%s is ignored; %s", path, name, replacement)
+
+
+def _mapping(value: Any, path: str, *, optional: bool = True) -> dict:
+    if value is None and optional:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"{path}: expected a mapping")
+    return value
+
+
+def _validate_section(config_type: type, values: dict, path: str) -> None:
+    typed_fields(config_type, values, path)
+    nonnegative = {"port", "send_interval_seconds", "group_context_density_threshold"}
+    for name in {f.name for f in dataclasses.fields(config_type)} & values.keys():
+        value = values[name]
+        if type(value) in (int, float) and (
+            value < 0 if name in nonnegative else value <= 0
+        ):
+            raise ValueError(f"{path}.{name}: must be {'nonnegative' if name in nonnegative else 'positive'}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -92,7 +177,7 @@ class ChannelsConfig:
 
 @dataclass
 class ChannelOverrideConfig:
-    """单个渠道的模型参数覆盖。"""
+    """旧 YAML 兼容值；正式组合不消费，不向 BrainEngine 自动接线。"""
     max_tokens: int = 1024
     timeout: float = 30.0
     stream: bool = False
@@ -104,7 +189,7 @@ class RerankConfig:
     provider: str = ""
     model: str = "BAAI/bge-reranker-v2-m3"
     timeout: float = 10.0
-    top_n: int = 10
+    top_n: int = 10  # 旧 YAML 兼容值；检索器逐请求提供实际 top_n。
 
 
 @dataclass
@@ -193,109 +278,84 @@ class ModelsConfig:
         """
         import os as _os2
 
-        import yaml
-
         config_file = Path(path)
         if not config_file.exists():
             raise FileNotFoundError(f"Models config not found: {path}")
 
-        with open(config_file, "r", encoding="utf-8") as f:
-            raw: Dict[str, Any] = yaml.safe_load(f) or {}
+        raw = _mapping(read_yaml(config_file, section="models"), "models")
+        categories = {"fast", "chat", "embedding", "image", "reasoning"}
+        _check_fields(raw, {f.name for f in dataclasses.fields(cls)} | {"models"}, "models")
 
-        # 解析 providers（支持 ${ENV_VAR} 语法展开）
         providers: Dict[str, ProviderEntry] = {}
-        for key, val in (raw.get("providers") or {}).items():
-            if isinstance(val, dict):
-                extra_body = val.get("extra_body") or {}
-                if not isinstance(extra_body, dict):
-                    raise ValueError(
-                        f"providers.{key}.extra_body must be a mapping, "
-                        f"got {type(extra_body).__name__}"
-                    )
-                providers[key] = ProviderEntry(
-                    base_url=_os2.path.expandvars(val.get("base_url", "")),
-                    api_key=_os2.path.expandvars(val.get("api_key", "")),
-                    api_format=val.get("api_format", "anthropic"),
-                    extra_body=extra_body,
-                )
+        for key, val in _mapping(raw.get("providers"), "models.providers").items():
+            path = f"models.providers.{key}"
+            val = _mapping(val, path, optional=False)
+            _check_fields(val, {f.name for f in dataclasses.fields(ProviderEntry)}, path)
+            _validate_section(ProviderEntry, val, path)
+            provider = ProviderEntry(**val)
+            if provider.api_format not in {"anthropic", "openai"}:
+                raise ValueError(f"{path}.api_format: unsupported format")
+            provider.base_url = _os2.path.expandvars(provider.base_url)
+            provider.api_key = _os2.path.expandvars(provider.api_key)
+            providers[key] = provider
 
-        # 解析 models 各分类
-        models_raw = raw.get("models") or raw  # 兼容 models: 键或顶层直接写
+        # Preserve the legacy nested form, including its precedence over top-level chains.
+        models_raw = _mapping(raw["models"] if "models" in raw else raw, "models.models")
         if "models" in raw:
-            models_raw = raw["models"]
+            _check_fields(models_raw, categories, "models.models")
+            if categories & raw.keys():
+                logger.warning("models.models takes precedence over top-level model chains")
 
         def _parse_entries(category: str) -> List[ModelEntry]:
-            entries = models_raw.get(category, []) if isinstance(models_raw, dict) else []
+            entries = models_raw.get(category, [])
+            if entries is not None and not isinstance(entries, list):
+                raise ValueError(f"models.{category}: expected a list")
             result = []
-            for item in (entries or []):
-                if isinstance(item, dict):
-                    allowed_fields = {
-                        "provider", "model", "max_tokens", "timeout", "extra_body"
-                    }
-                    unknown_fields = sorted(set(item) - allowed_fields)
-                    if unknown_fields:
-                        raise ValueError(
-                            f"models.{category} contains unsupported fields "
-                            f"{unknown_fields}; provider-specific request fields "
-                            "must be nested under extra_body"
-                        )
-                    extra_body = item.get("extra_body") or {}
-                    if not isinstance(extra_body, dict):
-                        raise ValueError(
-                            f"models.{category}.extra_body must be a mapping, "
-                            f"got {type(extra_body).__name__}"
-                        )
-                    result.append(ModelEntry(
-                        provider=item.get("provider", ""),
-                        model=_os2.path.expandvars(item.get("model", "")),
-                        max_tokens=item.get("max_tokens", 2048),
-                        timeout=item.get("timeout", 30.0),
-                        extra_body=extra_body,
-                    ))
+            for index, item in enumerate(entries or []):
+                path = f"models.{category}.{index}"
+                item = _mapping(item, path, optional=False)
+                allowed_fields = {"provider", "model", "max_tokens", "timeout", "extra_body", "access_tier"}
+                unknown_fields = sorted(set(item) - allowed_fields)
+                if unknown_fields:
+                    raise ValueError(
+                        f"{path} contains unsupported fields {unknown_fields}; "
+                        "provider-specific request fields must be nested under extra_body"
+                    )
+                _validate_section(ModelEntry, item, path)
+                entry = ModelEntry(**item)
+                if not entry.access_tier.strip():
+                    raise ValueError(f"{path}.access_tier: must not be empty")
+                entry.model = _os2.path.expandvars(entry.model)
+                result.append(entry)
             return result
 
-        tool_rag_raw = raw.get("tool_rag") or {}
-        mcp_raw = raw.get("mcp") or {}
-        skills_raw = raw.get("skills") or {}
-        rerank_raw = raw.get("rerank") or {}
-        channel_overrides_raw = raw.get("channel_overrides") or {}
+        sections = {}
+        for name, config_type in (
+            ("tool_rag", ToolRagConfig), ("mcp", McpConfig),
+            ("skills", SkillsConfig), ("rerank", RerankConfig),
+        ):
+            values = _mapping(raw.get(name), f"models.{name}")
+            _check_fields(values, {f.name for f in dataclasses.fields(config_type)}, f"models.{name}")
+            _validate_section(config_type, values, f"models.{name}")
+            if name == "tool_rag" and "top_k" not in values:
+                values = {**values, "top_k": _LEGACY_YAML_TOOL_RAG_TOP_K}
+            sections[name] = config_type(**values)
+        sections["rerank"].model = _os2.path.expandvars(sections["rerank"].model)
 
         channel_overrides: Dict[str, ChannelOverrideConfig] = {}
-        for ch_name, ch_cfg in channel_overrides_raw.items():
-            if isinstance(ch_cfg, dict):
-                channel_overrides[ch_name] = ChannelOverrideConfig(
-                    max_tokens=ch_cfg.get("max_tokens", 1024),
-                    timeout=ch_cfg.get("timeout", 30.0),
-                    stream=ch_cfg.get("stream", False),
-                )
+        for name, values in _mapping(raw.get("channel_overrides"), "models.channel_overrides").items():
+            path = f"models.channel_overrides.{name}"
+            values = _mapping(values, path, optional=False)
+            _check_fields(values, {f.name for f in dataclasses.fields(ChannelOverrideConfig)}, path)
+            _validate_section(ChannelOverrideConfig, values, path)
+            channel_overrides[name] = ChannelOverrideConfig(**values)
 
         return cls(
             providers=providers,
-            fast=_parse_entries("fast"),
-            chat=_parse_entries("chat"),
-            embedding=_parse_entries("embedding"),
-            image=_parse_entries("image"),
-            reasoning=_parse_entries("reasoning"),
-            tool_rag=ToolRagConfig(
-                enabled=tool_rag_raw.get("enabled", True),
-                top_k=tool_rag_raw.get("top_k", 8),
-                persist_path=tool_rag_raw.get("persist_path", "tools/vectors"),
-            ),
-            mcp=McpConfig(
-                config_path=mcp_raw.get("config_path", "config/mcp/servers.yaml"),
-                auto_connect=mcp_raw.get("auto_connect", False),
-            ),
-            skills=SkillsConfig(
-                config_path=skills_raw.get("config_path", "tools/skills/"),
-                enabled=skills_raw.get("enabled", True),
-            ),
-            rerank=RerankConfig(
-                provider=rerank_raw.get("provider", ""),
-                model=_os2.path.expandvars(rerank_raw.get("model", "BAAI/bge-reranker-v2-m3")),
-                timeout=rerank_raw.get("timeout", 10.0),
-                top_n=rerank_raw.get("top_n", 10),
-            ),
-            channel_overrides=channel_overrides,
+            fast=_parse_entries("fast"), chat=_parse_entries("chat"),
+            embedding=_parse_entries("embedding"), image=_parse_entries("image"),
+            reasoning=_parse_entries("reasoning"), channel_overrides=channel_overrides,
+            **sections,
         )
 
 
@@ -305,14 +365,14 @@ class TemporalConfig:
     host: str = "localhost:7233"
     # Scheduled memory reflection/metrics queue; separate from canonical Agent queues.
     task_queue: str = "hpagent-task-queue"
-    web_lifecycle_task_queue: str = "hpagent-web-lifecycle"
-    web_agent_task_queue: str = "hpagent-web-agent"
-    web_workflow_execution_timeout_seconds: int = 3000
-    web_prepare_schedule_to_close_seconds: int = 120
-    web_prepare_start_to_close_seconds: int = 15
-    web_agent_heartbeat_interval_seconds: int = 15
-    web_finalize_schedule_to_close_seconds: int = 300
-    web_finalize_start_to_close_seconds: int = 20
+    web_lifecycle_task_queue: str = WEB_LIFECYCLE_TASK_QUEUE
+    web_agent_task_queue: str = WEB_AGENT_TASK_QUEUE
+    web_workflow_execution_timeout_seconds: int = WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS
+    web_prepare_schedule_to_close_seconds: int = WEB_PREPARE_SCHEDULE_TO_CLOSE_SECONDS
+    web_prepare_start_to_close_seconds: int = WEB_PREPARE_START_TO_CLOSE_SECONDS
+    web_agent_heartbeat_interval_seconds: int = WEB_AGENT_HEARTBEAT_INTERVAL_SECONDS
+    web_finalize_schedule_to_close_seconds: int = WEB_FINALIZE_SCHEDULE_TO_CLOSE_SECONDS
+    web_finalize_start_to_close_seconds: int = WEB_FINALIZE_START_TO_CLOSE_SECONDS
     # Outbox lease auto-recovery.  A claimed (processing) Outbox row whose lease
     # is older than web_outbox_lease_timeout_seconds is returned to pending by a
     # dedicated recovery loop that runs every web_outbox_recovery_interval_seconds.
@@ -357,7 +417,7 @@ class SandboxConfig:
     disable_network: bool = True
     readonly_root: bool = True
     max_idle_seconds: int = 300
-    result_ttl: int = 3600
+    result_ttl: int = 3600  # 旧配置兼容值；当前执行路径不消费。
 
 
 @dataclass
@@ -388,38 +448,36 @@ class HindsightConfig:
 class ResearchConfig:
     """Research source, bounded iteration and evidence thresholds."""
     searxng_url: str = "http://searxng:8080"
-    search_provider: str = "legacy"
-    fetch_provider: str = "local"
+    search_provider: str = ResearchPolicy.search_provider
+    fetch_provider: str = ResearchPolicy.fetch_provider
     deepseek_search_fetch_key: str = field(default="", repr=False)
-    search_timeout_seconds: float = 15.0
-    fetch_timeout_seconds: float = 20.0
+    search_timeout_seconds: float = ResearchPolicy.search_timeout_seconds
+    fetch_timeout_seconds: float = ResearchPolicy.fetch_timeout_seconds
     browser_timeout_seconds: float = 30.0
     min_content_chars: int = 240
-    max_sources: int = 30
-    max_fetches: int = 20
-    max_iterations: int = 3
-    min_evidence: int = 3
-    min_distinct_sources: int = 2
+    max_sources: int = ResearchPolicy.max_sources
+    max_fetches: int = ResearchPolicy.max_fetches
+    max_iterations: int = ResearchPolicy.max_iterations
+    min_evidence: int = ResearchPolicy.min_evidence
+    min_distinct_sources: int = ResearchPolicy.min_distinct_sources
 
 
 @dataclass
 class AgentConfig:
     """Agent 行为参数。"""
-    default_timezone: str = "Asia/Shanghai"
-    max_history_turns: int = 10
-    max_tool_turns: int = 20
+    default_timezone: str = AgentPolicy.default_timezone
+    max_history_turns: int = 10  # 旧配置兼容值；当前上下文使用 token 预算。
+    max_tool_turns: int = AgentPolicy.max_tool_turns
     recall_top_n: int = 5
     reflect_interval_hours: int = 6    # 兼容字段；全 Bank Reflect 调度已停用
 
     # 工具结果摘要（替代简单截断）
-    tool_result_summary_enabled: bool = True            # 启用 LLM 摘要替代截断
-    tool_result_summary_threshold: int = 4000           # 超过此字符数触发摘要
-    tool_result_summary_max_chars: int = 1000           # 摘要最大字符数（注入 LLM 的）
+    tool_result_summary_enabled: bool = AgentPolicy.tool_result_summary_enabled # 启用 LLM 摘要替代截断
+    tool_result_summary_threshold: int = AgentPolicy.tool_result_summary_threshold # 超过此字符数触发摘要
+    tool_result_summary_max_chars: int = AgentPolicy.tool_result_summary_max_chars # 摘要最大字符数（注入 LLM 的）
 
     def __post_init__(self):
-        from zoneinfo import ZoneInfo
-
-        ZoneInfo(self.default_timezone)
+        AgentPolicy.from_config(self)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Prompt 配置 —— 从 config/prompts/*.yaml 加载
@@ -454,17 +512,16 @@ class PromptsConfig:
         Returns:
             PromptsConfig，缺失文件时对应字段为空 dict。
         """
-        import yaml
-
         def _load(filename: str) -> Dict[str, str]:
             path = prompts_dir / filename
             if not path.exists():
                 logger.warning("Prompt file not found: %s", path)
                 return {}
             try:
-                with open(path, "r", encoding="utf-8") as f:
-                    data: dict = yaml.safe_load(f) or {}
+                data = _mapping(read_yaml(path, section=f"prompts.{path.stem}"), f"prompts.{path.stem}")
                 return {k: v.strip() for k, v in data.items() if isinstance(v, str)}
+            except ValueError:
+                raise
             except Exception as e:
                 logger.warning("Failed to load %s: %s", path, e)
                 return {}
@@ -476,8 +533,9 @@ class PromptsConfig:
                 logger.warning("Prompt file not found: %s", path)
                 return {}
             try:
-                with open(path, "r", encoding="utf-8") as f:
-                    return yaml.safe_load(f) or {}
+                return _mapping(read_yaml(path, section=f"prompts.{path.stem}"), f"prompts.{path.stem}")
+            except ValueError:
+                raise
             except Exception as e:
                 logger.warning("Failed to load %s: %s", path, e)
                 return {}
@@ -504,7 +562,8 @@ class AppConfig:
     """应用配置根结构。
 
     从 config.yaml + models.yaml + hindsight.yaml + prompts/*.yaml 一次性加载。
-    所有配置统一存放在此 dataclass 中，Worker 通过属性访问。
+    Worker 通过属性访问。主 YAML 只加载已接线的 section；models、prompts、memory_quality
+    使用独立文件，Research 主 YAML section 尚未接线，仅保留默认与既有环境覆盖。
     """
     models: ModelsConfig = field(default_factory=ModelsConfig)
     temporal: TemporalConfig = field(default_factory=TemporalConfig)
@@ -549,14 +608,18 @@ class AppConfig:
         """
         import os as _os
 
-        import yaml
-
         config_file = Path(path)
         if not config_file.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
 
-        with open(config_file, "r", encoding="utf-8") as f:
-            raw: Dict[str, Any] = yaml.safe_load(f) or {}
+        raw = _mapping(read_yaml(config_file, section="config"), "config")
+
+        hindsight_raw = raw.get("hindsight")
+        if isinstance(hindsight_raw, dict):
+            moved = set(hindsight_raw) & {"retain_mission", "reflect_mission", "observations_mission"}
+            if moved:
+                paths = ", ".join(f"hindsight.{name}" for name in sorted(moved))
+                raise MemoryConfigError(f"{paths}: moved to prompts/memory.yaml")
 
         config = cls._from_dict(raw)
 
@@ -568,8 +631,6 @@ class AppConfig:
         else:
             config.memory_quality = MemoryQualityConfig.model_validate(
                 {"recall": {"top_n": config.agent.recall_top_n}})
-        if set(raw.get("hindsight") or {}) & {"retain_mission", "reflect_mission", "observations_mission"}:
-            raise MemoryConfigError("hindsight missions moved to prompts/memory.yaml")
 
         # 加载模型配置
         if not models_path:
@@ -623,6 +684,7 @@ class AppConfig:
 
     def _apply_env_overrides(self, environ: dict) -> None:
         """用环境变量覆盖 YAML 中的值（Docker Compose 传入）。"""
+        environment_name(environ.get("HPAGENT_ENV", "development"))
         if "HPAGENT_CHANNELS" in environ:
             self.channels.enabled = [v.strip() for v in environ["HPAGENT_CHANNELS"].split(",") if v.strip()]
         if environ.get("ONEBOT_EXPECTED_SELF_ID"):
@@ -634,16 +696,16 @@ class AppConfig:
         if environ.get("TEMPORAL_TASK_QUEUE"):
             self.temporal.task_queue = environ["TEMPORAL_TASK_QUEUE"]
         if environ.get("AGENT_EXECUTION_LEASE_TTL_SECONDS"):
-            self.temporal.agent_execution_lease_ttl_seconds = int(
-                environ["AGENT_EXECUTION_LEASE_TTL_SECONDS"]
+            self.temporal.agent_execution_lease_ttl_seconds = integer(
+                environ["AGENT_EXECUTION_LEASE_TTL_SECONDS"], "AGENT_EXECUTION_LEASE_TTL_SECONDS"
             )
         if environ.get("WEB_OUTBOX_LEASE_TIMEOUT_SECONDS"):
-            self.temporal.web_outbox_lease_timeout_seconds = int(
-                environ["WEB_OUTBOX_LEASE_TIMEOUT_SECONDS"]
+            self.temporal.web_outbox_lease_timeout_seconds = integer(
+                environ["WEB_OUTBOX_LEASE_TIMEOUT_SECONDS"], "WEB_OUTBOX_LEASE_TIMEOUT_SECONDS"
             )
         if environ.get("WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"):
-            self.temporal.web_outbox_recovery_interval_seconds = int(
-                environ["WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"]
+            self.temporal.web_outbox_recovery_interval_seconds = integer(
+                environ["WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"], "WEB_OUTBOX_RECOVERY_INTERVAL_SECONDS"
             )
         if environ.get("HINDSIGHT_API_KEY"):
             self.hindsight.api_key = environ["HINDSIGHT_API_KEY"]
@@ -668,6 +730,14 @@ class AppConfig:
             self.workspace.workspace_isolation_mode = environ["WORKSPACE_ISOLATION_MODE"]
         if environ.get("REDIS_URL"):
             self.redis.url = environ["REDIS_URL"]
+        for section in ("temporal", "redis", "sandbox", "workspace", "hindsight", "agent"):
+            value = getattr(self, section)
+            _validate_section(type(value), dataclasses.asdict(value), section)
+        CapacityConfig.from_environment(environ)
+        FileRuntimeConfig.from_environment(environ)
+        ArtifactRuntimeConfig.from_environment(environ)
+        binding_challenge_seconds(environ)
+        run_budget_mode(environ, default="enforce")
 
     @classmethod
     def _from_dict(cls, raw: Dict[str, Any]) -> "AppConfig":
@@ -676,6 +746,9 @@ class AppConfig:
         每个顶层 section 对应一个子 dataclass，缺失的 section
         使用该 dataclass 的默认构造。
         """
+        raw = _mapping(raw, "config")
+        _check_fields(raw, {f.name for f in dataclasses.fields(cls)}, "config")
+
         def _populate(dataclass_type, source: dict | None, prefix: str):
             """用 source dict 中的 key → dataclass 字段映射填充实例。
 
@@ -691,8 +764,8 @@ class AppConfig:
                 else:
                     defaults[f.name] = None
 
-            if source is None:
-                source = {}
+            source = _mapping(source, prefix)
+            _check_fields(source, set(defaults), prefix)
             kwargs = {}
             for field_name, default_val in defaults.items():
                 if field_name in source:
@@ -706,14 +779,15 @@ class AppConfig:
                         kwargs[field_name] = raw_val
                 else:
                     kwargs[field_name] = default_val
-            # 对未知 key 发出警告
-            unknown = set(source.keys()) - set(defaults.keys())
-            if unknown:
-                logger.warning(
-                    "Unknown keys in config section [%s]: %s",
-                    prefix, ", ".join(sorted(unknown)),
-                )
-            return dataclass_type(**{k: v for k, v in kwargs.items() if k in defaults})
+            _validate_section(dataclass_type, kwargs, prefix)
+            from zoneinfo import ZoneInfoNotFoundError
+
+            try:
+                return dataclass_type(**{k: v for k, v in kwargs.items() if k in defaults})
+            except (ZoneInfoNotFoundError, ValueError):
+                if dataclass_type is AgentConfig:
+                    raise ValueError("agent.default_timezone: expected an IANA timezone") from None
+                raise
 
         return cls(
             temporal=_populate(TemporalConfig, raw.get("temporal"), "temporal"),

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from typing import Any, Callable
@@ -26,6 +25,7 @@ from agent_workflows.capability_contracts import (
 )
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ToolExecutionResult
 from application.tool_policy import ToolPolicy, agent_role, tool_policy
+from common.runtime_config import CapacityConfig
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.capabilities import CapabilityFacts
 from run_domain.capability_contracts import (
@@ -299,10 +299,11 @@ class CapabilityActivities:
                 "WHERE role='capability' AND status IN ('queued','running','cancelling')",
                 (run["account_id"], parent["execution_id"]),
             ).fetchone()
+            limits = CapacityConfig.from_environment()
             if (
                 counts["parent"]
-                or counts["total"] >= int(os.getenv("CAPABILITY_GLOBAL_EXECUTIONS", "32"))
-                or counts["account"] >= int(os.getenv("CAPABILITY_ACCOUNT_EXECUTIONS", "4"))
+                or counts["total"] >= limits.capability_global_executions
+                or counts["account"] >= limits.capability_account_executions
             ):
                 raise ResourceDenied("capability capacity exhausted")
             # Admission is only a headroom check. Implementations still reserve every real
@@ -357,7 +358,9 @@ class CapabilityActivities:
         current = self.facts.registry.get(invocation['capability_key'], invocation['contract_version'])
         if current != descriptor['definition']:
             from agent_activities.text_result import compatible_text_definition
-            if not compatible_text_definition(descriptor['definition'], current):
+            from research_domain.capability import compatible_research_definition
+            if not (compatible_text_definition(descriptor['definition'], current)
+                    or compatible_research_definition(descriptor['definition'], current)):
                 raise ResourceDenied('registered capability implementation changed')
         self._authorize_scope(uow, run, descriptor)
         return descriptor
