@@ -153,7 +153,7 @@ class WebRunLifecycleService:
                         raise ValueError('Generic Work result needs a registered current operation receipt')
                     uow.execute("UPDATE run_executions SET result_ref=%s WHERE run_id=%s AND role='root'",
                                 (receipt['result_ref'], run_id))
-                    from application.work_context import generic_result
+                    from work_domain.execution_result import generic_result
                     result, suggest_completion = generic_result(uow, run, work, content, receipt['result_ref'])
                     RunLifecycleService(self.database_url).finish_in_uow(
                         uow, run, 'succeeded', result=result, accept_result=suggest_completion,

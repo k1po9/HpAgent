@@ -20,7 +20,6 @@ from agent_workflows.contracts import (
     RunSource,
     ToolExecutionInput,
 )
-from application.work_context import generic_result
 from file_runtime.output import OutputPublisher
 from persistence.uow import UnitOfWork
 from run_domain.acceptance import ResultAdoptionService
@@ -30,6 +29,7 @@ from run_domain.lifecycle import RunLifecycleService
 from run_domain.results import complete_operation
 from storage.tenant_file_store import TenantFileStore
 from web_domain.lifecycle import WebRunLifecycleService
+from work_domain.execution_result import generic_result
 from work_domain.models import Requirement
 
 pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]

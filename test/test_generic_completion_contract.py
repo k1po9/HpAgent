@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from application.work_context import generic_result
 from work_domain.commands import WorkCommandService
+from work_domain.execution_result import generic_result
 from work_domain.models import (
     GENERIC_RESULT_EVIDENCE_TYPES,
     LegacyGenericCriteria,

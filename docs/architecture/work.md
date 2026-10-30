@@ -164,3 +164,5 @@ Generic Work root 观察成功的 `text/v1` 发布时，若该调用只有一个
 验证按[测试指南](../development/testing.md)选取领域、API、Temporal 与浏览器范围。真实模型完整工具往返、QQ 发信和持续压力需要独立验收；Research 阶段 lease 与恢复机制见[执行与恢复](execution.md)。
 
 Generic Work 最终回执优先解析原始 JSON 对象；兼容带说明文字、且末尾只有一个 `json` 代码块的显式对象。普通叙述、多个代码块和 DSML 伪工具调用均不提供验收证据；可信观察的补证规则见上文。提取后仍按原契约校验全部字段、criterion、当前 revision/fence 与持久化 typed evidence，围栏本身不构成验收证据。
+
+最终结果解释由 `work_domain.execution_result` 持有：`parse_generic_result` 只做纯解析、候选降级和大小/列表边界校验；`generic_result` 在调用方已有事务中核验 typed evidence、合并可信观察并提出完成建议。`WebRunLifecycleService.complete` 在原锁和当前操作回执校验后直接调用该领域函数，再以同一 UnitOfWork 推进 Run 与完成策略；结果解释不自行开事务或写入终态。`application.work_context` 只承担输入加载、来源路由与身份绑定，不参与结果验收。相关离线规则用例见 `test/test_work_execution_result.py`；真实事务与权限组合继续由 `test/work_domain/test_output_evidence.py` 等覆盖。
