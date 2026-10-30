@@ -303,3 +303,9 @@ Research 将长目标转换为供应商长度范围内的查询（legacy 240、D
 最终检索查询保存在现有 research_iterations 和阶段结果中，完整目标仍用于缺口和合成。长查询保留复合标识符（如 no-cache），后续优先使用已有概念缺口并保留站点范围；同 Run、相同有效查询与策略不重复搜索。搜索阶段保留实际查询、日期过滤、候选数、上游异常与时效排除数量，Fetch 阶段保留获取状态计数。正常空结果、部分上游不可用和全部请求失败分别反馈；部分上游失败不丢弃健康上游的候选。候选可抓取不等于主题相关或证据充分。
 
 每轮 SourceDiscovery 之前使用 invocation/iteration 稳定操作标识原子预留 research_iterations；提交轮次开始时结算一次，后续网络失败仍计入该已开始轮次，未提交开始的预留沿现有释放机制处理。GapAnalysis 不再扣占轮次。Activity 重试重放原扣占，最多三轮不变。父侧可从 Work brief 的 limits/used/reserved 及 Research 结果 summary 读取已用、上限、剩余、停止原因、尝试查询、主要缺口和搜索/抓取摘要；预算为零或查询策略重复时父准入直接返回明确错误，不创建子执行或搜索。实际轮次仍由原预算服务预留决定，不能通过新建 Run 绕过限制。
+
+
+能力接入提交前运行 `make architecture-check`：沿既有目录、工具配置与真实 Worker 组装
+核验定义/绑定/实现、Activity 队列、重复注册、全部 Workflow sandbox 及共用失败/取消契约。
+事务权限、预算与迟到回执仍用显式隔离环境的 `make test-db test-api test-temporal` 验证；
+离线检查与诊断版本关联的范围、Research 冻结重试上限的已知缺口见[测试指南](../development/testing.md)。

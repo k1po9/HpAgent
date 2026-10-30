@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Check explicit CI paths and require the four shared backend test suites."""
+"""Check explicit CI paths and require architecture and the four shared backend test suites."""
 import re
 import sys
 from pathlib import Path
 
-REQUIRED_SUITES = {"test-unit", "test-db", "test-api", "test-temporal"}
+REQUIRED_SUITES = {"architecture-check", "test-unit", "test-db", "test-api", "test-temporal"}
 
 
 def missing_test_paths(workflow: Path, root: Path) -> list[str]:
@@ -30,7 +30,7 @@ def main() -> int:
         print("CI is missing shared test suites:\n" + "\n".join(suites), file=sys.stderr)
     if missing or suites:
         return 1
-    print("All explicit CI test paths exist; unit, PostgreSQL, API and Temporal suites are selected.")
+    print("All explicit CI test paths exist; architecture, unit, PostgreSQL, API and Temporal suites are selected.")
     return 0
 
 

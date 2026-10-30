@@ -56,3 +56,32 @@ def test_ordinary_registry_cannot_shadow_harness_protocol(name, category):
     tool = StructuredTool.from_function(lambda: 'unexpected', name=name, description='test')
     with pytest.raises(ValueError, match='reserved'):
         ToolRegistry().register(tool, category=category, routing=ToolRoutingSpec('test.shadow'))
+
+
+def test_all_native_contracts_have_real_factories_and_valid_schemas(tmp_path, monkeypatch):
+    from uuid import uuid4
+
+    from jsonschema import Draft202012Validator
+
+    from application.main_agent import create_main_work_tools
+    from sandbox.tools.local.file_analysis import create_file_analysis_tools
+    from sandbox.tools.local.file_read import create_file_read_tools
+    from sandbox.tools.local.file_write import create_file_write_tools
+    from sandbox.tools.local.run_candidates import create_run_candidate_tools
+    from sandbox.tools.routing.contracts import NATIVE_ROUTING_SPECS, routing_for
+
+    monkeypatch.delenv('FILE_DIRECT_READ_MAX_BYTES', raising=False)
+    # Creating real tool wrappers invokes no command, file operation or service.
+    context = {key: str(uuid4()) for key in ('account_id', 'conversation_id', 'trigger_message_id')}
+    tools = [factory(str(tmp_path)) for factory in LOCAL_TOOL_FACTORIES.values()]
+    tools += create_main_work_tools(context, object())
+    tools += create_run_candidate_tools(lambda: None) + create_file_analysis_tools(lambda: None)
+    tools += create_file_read_tools(lambda: None)
+    tools += create_file_write_tools(lambda: None, object(), object())
+    assert len({tool.name for tool in tools}) == len(tools)
+    assert {tool.name for tool in tools} == set(NATIVE_ROUTING_SPECS)
+    registry = ToolRegistry()
+    for tool in tools:
+        schema = tool.args_schema if isinstance(tool.args_schema, dict) else tool.args_schema.model_json_schema()
+        Draft202012Validator.check_schema(schema)
+        registry.register(tool, routing=routing_for(tool, 'native'))

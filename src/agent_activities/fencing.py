@@ -26,13 +26,28 @@ def fenced_activity(function):
             try:
                 return await function(self, request)
             except Exception as exc:
-                if getattr(exc, "code", None) in {
+                code = exc.type if isinstance(exc, ApplicationError) else getattr(exc, "code", None)
+                if code in {
                     "stale_fencing_token", "memory_context_revoked", "no_progress", "repeated_failure",
                     "run_budget_exhausted", "work_budget_exhausted",
                     "capability_budget_exhausted", "account_daily_model_budget_exhausted",
                     "tool_side_effect_uncertain",
                 }:
-                    raise ApplicationError(str(exc), type=exc.code, non_retryable=True) from exc
+                    # Stable codes and execution identity are diagnostic data;
+                    # exception text can contain tool input or provider secrets.
+                    raise ApplicationError(
+                        "Activity rejected: " + code,
+                        {
+                            "schema_version": 1, "boundary": "activity",
+                            "phase": function.__name__, "run_id": request.run_id,
+                            "execution_id": request.execution_id,
+                            "operation_id": request.operation_id,
+                            "fencing_token": request.lease_token,
+                            "execution_attempt": getattr(request, "execution_attempt", None),
+                        },
+                        type=code,
+                        non_retryable=exc.non_retryable if isinstance(exc, ApplicationError) else True,
+                    ) from None
                 raise
             finally:
                 heartbeat.cancel()

@@ -200,3 +200,166 @@ def test_fixed_and_harness_adapters_use_the_same_catalog(monkeypatch):
     assert research.capabilities is harness
     unavailable = ArtifactBuildService("unused", None)
     assert unavailable.capabilities.discover("chat") == []
+
+
+# Derive cases from the catalog so each new adapter inherits the contract gate.
+from agent_activities.composition import capability_registrations
+
+
+@pytest.mark.parametrize('entry', capability_registrations(), ids=lambda e: e.definition.key)
+async def test_every_capability_preserves_execution_identity_and_bounded_activity_policy(monkeypatch, entry):
+    from support.capability_contract import WorkflowProbe
+    from temporalio import activity
+
+    from agent_workflows.capability_contracts import CapabilityExecutionInput
+
+    probe = WorkflowProbe()
+    probe.install(monkeypatch, entry.workflow)
+    request = CapabilityExecutionInput(
+        'account', 'run', 'execution', 'invocation', entry.binding.workflow_name, 60, 3, 'operation',
+    )
+    await entry.workflow().run(request)
+    registered = {d.name for name in dir(entry.activity_type)
+                  if (d := activity._Definition.from_callable(getattr(entry.activity_type, name))) is not None}
+    assert probe.calls
+    for name, current, options in probe.calls:
+        assert name in registered
+        assert (current.account_id, current.run_id, current.execution_id, current.invocation_id) == (
+            request.account_id, request.run_id, request.execution_id, request.invocation_id,
+        )
+        assert options['task_queue'] == entry.activity_queue
+        assert options['start_to_close_timeout'].total_seconds() > 0
+        assert options['retry_policy'].maximum_attempts > 0
+
+
+@pytest.mark.parametrize('entry', capability_registrations(), ids=lambda e: e.definition.key)
+@pytest.mark.parametrize('cancelled', [False, True], ids=['failure', 'cancellation'])
+async def test_every_capability_propagates_failure_without_committing_success(monkeypatch, entry, cancelled):
+    import asyncio
+
+    from support.capability_contract import WorkflowProbe
+
+    from agent_workflows.capability_contracts import CapabilityExecutionInput
+
+    failure = asyncio.CancelledError() if cancelled else RuntimeError('injected Activity failure')
+    probe = WorkflowProbe(failure=failure)
+    probe.install(monkeypatch, entry.workflow)
+    request = CapabilityExecutionInput(
+        'account', 'run', 'execution', 'invocation', entry.binding.workflow_name, 60, 3, 'operation',
+    )
+    with pytest.raises(type(failure)):
+        await entry.workflow().run(request)
+    assert len(probe.calls) == 1  # no later publication/verification after failed first stage
+
+
+@pytest.mark.parametrize('entry', capability_registrations(), ids=lambda e: e.definition.key)
+def test_every_catalog_binding_uses_frozen_bounds_and_valid_parent_schemas(entry):
+    from copy import deepcopy
+
+    from jsonschema import Draft202012Validator
+
+    catalog = compose_capabilities(None, services=frozenset())
+    frozen = deepcopy(entry.definition.to_dict())
+    frozen['limits']['max_duration_seconds'] = 7
+    frozen['retry_policy']['max_attempts'] = 1
+    child = catalog.child_input({
+        'account_id': 'account', 'run_id': 'run', 'child_execution_id': 'child',
+        'invocation_id': 'invocation', 'capability_key': entry.definition.key,
+        'contract_version': entry.definition.contract_version, 'descriptor': {'definition': frozen},
+    })
+    assert (child.max_duration_seconds, child.max_attempts) == (7, 1)
+    for model_facing in (False, True):
+        Draft202012Validator.check_schema(entry.binding.input_schema(frozen, model_facing=model_facing))
+
+
+@pytest.mark.parametrize('outcome', ['failed', 'cancelled', 'succeeded'])
+async def test_common_invocation_closes_exact_child_and_only_observes_after_success(monkeypatch, outcome):
+    import asyncio
+
+    from temporalio import workflow
+
+    from agent_workflows import capability
+    from agent_workflows.capability_contracts import CapabilityExecutionInput, CapabilityPrepared
+    from agent_workflows.contracts import CompactToolCall, RunContext, RunSource, ToolExecutionInput
+
+    tool = ToolExecutionInput(
+        2, 'run', 'account', RunSource('work', 'work'), RunContext(), 'react', 'transcript',
+        1, 0, 'caller-operation', 0, CompactToolCall('call', 'tool', 'arguments'), execution_id='parent',
+    )
+    child = CapabilityExecutionInput('account', 'run', 'child', 'invocation', 'TrustedWorkflow', 60, 2, 'produce')
+    closed, phases = [], []
+    expected = object()
+
+    async def execute(name, request, **options):
+        phases.append(name)
+        if name == 'prepare_capability_activity':
+            return CapabilityPrepared(child=child)
+        assert name == 'observe_capability_activity'
+        assert request.call.execution_id == 'parent'
+        return expected
+
+    async def start(name, request, **options):
+        assert name == 'TrustedWorkflow' and request == child
+        assert options['cancellation_type'] == workflow.ChildWorkflowCancellationType.WAIT_CANCELLATION_COMPLETED
+
+        async def result():
+            if outcome == 'failed':
+                raise RuntimeError('child failed')
+            if outcome == 'cancelled':
+                raise asyncio.CancelledError
+        return asyncio.create_task(result())
+
+    async def close(name, request, **options):
+        assert name == 'close_capability_activity'
+        closed.append(request)
+
+    monkeypatch.setattr(capability, 'execute_segment', execute)
+    monkeypatch.setattr(workflow, 'start_child_workflow', start)
+    monkeypatch.setattr(workflow, 'execute_activity', close)
+    if outcome == 'succeeded':
+        assert await capability.CapabilityInvocationWorkflow().run(tool) is expected
+        assert phases[-1] == 'observe_capability_activity'
+    else:
+        with pytest.raises(asyncio.CancelledError if outcome == 'cancelled' else RuntimeError):
+            await capability.CapabilityInvocationWorkflow().run(tool)
+        assert phases == ['prepare_capability_activity']
+    assert len(closed) == 1 and closed[0].child == child and closed[0].status == outcome
+
+
+@pytest.mark.parametrize('entry', [
+    pytest.param(e, marks=pytest.mark.xfail(
+        strict=True, reason='Research orchestration uses fixed _RESEARCH_RETRY instead of frozen child.max_attempts',
+    )) if e.definition.key == 'research' else e
+    for e in capability_registrations()
+], ids=lambda e: e.definition.key)
+async def test_implementation_retry_does_not_exceed_frozen_child_bound(monkeypatch, entry):
+    from support.capability_contract import WorkflowProbe
+
+    from agent_workflows.capability_contracts import CapabilityExecutionInput
+
+    probe = WorkflowProbe()
+    probe.install(monkeypatch, entry.workflow)
+    request = CapabilityExecutionInput('account', 'run', 'execution', 'invocation', entry.binding.workflow_name, 60, 1, 'operation')
+    await entry.workflow().run(request)
+    assert all(options['retry_policy'].maximum_attempts <= request.max_attempts for _, _, options in probe.calls)
+
+
+@pytest.mark.parametrize('entry', capability_registrations(), ids=lambda e: e.definition.key)
+def test_each_capability_discovery_requires_services_surface_and_role_assignment(entry):
+    from agent_activities.capabilities import CapabilityActivities
+    from application.tool_policy import ToolPolicy
+
+    services = frozenset(entry.definition.required_services)
+    catalog = compose_capabilities(None, services=services)
+    for surface, role in (('chat', 'main'), ('work', 'worker')):
+        names = {tool['function']['name'] for tool in catalog.discover(surface)}
+        expected = surface in entry.definition.allowed_surfaces and catalog.tool_policy.allows(role, entry.binding.tool_name)
+        assert (entry.binding.tool_name in names) is expected
+        for missing in services:
+            unavailable = compose_capabilities(None, services=services - {missing})
+            assert entry.binding.tool_name not in {tool['function']['name'] for tool in unavailable.discover(surface)}
+    configured = catalog.tool_policy.model_dump()
+    for role in ('main', 'worker'):
+        configured['roles'][role]['groups'] = ()
+    denied = CapabilityActivities(None, catalog.facts, tuple(catalog.bindings.values()), policy=ToolPolicy.model_validate(configured))
+    assert denied.discover('chat') == denied.discover('work') == []

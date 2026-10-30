@@ -31,7 +31,14 @@ class CiSelectionTests(unittest.TestCase):
                 "  run: make test-unit PYTEST_ARGS=--collect-only\n"
                 "- run: make test-api\n"
             )
-            self.assertEqual(checks.missing_test_suites(workflow), ["test-db", "test-temporal"])
+            self.assertEqual(checks.missing_test_suites(workflow), ["architecture-check", "test-db", "test-temporal"])
+
+    def test_backend_suites_cannot_replace_architecture_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workflow = Path(directory) / "ci.yml"
+            workflow.write_text("\n".join("- run: make " + name for name in
+                                          ("test-unit", "test-db", "test-api", "test-temporal")))
+            self.assertEqual(checks.missing_test_suites(workflow), ["architecture-check"])
 
     def test_repository_ci_covers_every_suite_and_existing_explicit_path(self):
         workflow = ROOT / ".github/workflows/ci.yml"
