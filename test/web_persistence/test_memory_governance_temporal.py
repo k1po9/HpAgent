@@ -17,6 +17,7 @@ from agent_activities.store import AgentDataStore
 from conversation_domain.commands import CommandService
 from persistence.memory_context import MemoryContextRevoked, bind_context
 from persistence.uow import UnitOfWork
+from resources.model_budget_coordinator import ModelBudgetCoordinator
 from resources.model_input_snapshot import SnapshotRepository
 from run_domain.execution_context import fence_scope
 
@@ -37,6 +38,10 @@ async def memory_late_model() -> str:
         ref = await asyncio.to_thread(snapshot.create, account_id=s.account, run_id=s.run,
             model_call_id=uuid4(), operation_id='temporal-memory-model', execution_attempt=1,
             call_ordinal=1, fallback_attempt=1, phase='decision', entitlement_version=1, prepared=_prepared())
+        await asyncio.to_thread(ModelBudgetCoordinator(s.database).reserve,
+            s.account, s.run, 'temporal-memory-model', 8,
+            {'model_input_tokens': 3, 'model_output_tokens': 5, 'model_total_tokens': 8, 'model_calls': 1},
+            snapshot_id=ref.snapshot_id)
         await asyncio.to_thread(snapshot.mark_dispatched, s.account, ref.snapshot_id)
         s.sent.set()
         await s.response.wait()
@@ -72,6 +77,8 @@ async def test_temporal_late_model_cannot_tool_or_fallback(db, database_url, wor
     global STATE
     _, _, remote, source, _ = await verified(db, database_url, worker_database_url, account_id)
     _, _, run = _conversation_and_run(database_url, account_id)
+    db.execute("INSERT INTO account_entitlements(account_id,model_access_tier,prompt_visibility) "
+               "VALUES (%s,'standard','none') ON CONFLICT DO NOTHING", (account_id,))
     CommandService(worker_database_url).start_run(account_id, run)
     execution = db.execute('SELECT execution_id FROM run_executions WHERE run_id=%s', (run,)).fetchone()[0]
     with UnitOfWork(worker_database_url) as uow:

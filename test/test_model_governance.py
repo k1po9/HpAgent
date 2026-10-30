@@ -106,7 +106,7 @@ class _Budget:
             raise RuntimeError("quota denied")
         return SimpleNamespace(account=SimpleNamespace(
             quota_date=date(2026, 9, 18), replayed=False, state="reserved",
-        ))
+        ), run=SimpleNamespace(replayed=False, state="reserved"))
 
     def settle(self, *args, **kwargs):
         self.calls.append(("settle", args, kwargs))
@@ -249,3 +249,88 @@ async def test_composition_guard_rejects_before_dispatch_and_releases_business_b
     assert not snapshots.dispatched
     assert not transport.dispatched
     assert [kind for kind, _, _ in budget.calls] == ["reserve", "release"]
+
+
+@pytest.mark.parametrize("state", ["settled", "released"])
+async def test_closed_model_reservation_cannot_fund_another_dispatch(monkeypatch, state):
+    from resources.account_daily_budget import AccountDailyBudgetConflict
+
+    install_model_dispatch_guards(monkeypatch)
+
+    class ClosedBudget(_Budget):
+        def reserve(self, *args, **kwargs):
+            mutation = super().reserve(*args, **kwargs)
+            mutation.account.replayed = mutation.run.replayed = True
+            mutation.account.state = mutation.run.state = state
+            return mutation
+
+    transport = _Transport(_client(), ModelResponse(content="unmetered duplicate"))
+    pool, snapshots, budget = _pool({"primary": transport}, budget=ClosedBudget())
+    with model_budget_scope(uuid4(), uuid4(), "same-operation"):
+        with pytest.raises(AccountDailyBudgetConflict):
+            await pool.generate([{"role": "user", "content": "hello"}], "chat")
+    assert not transport.dispatched and not snapshots.dispatched
+    assert [kind for kind, _, _ in budget.calls] == ["reserve"]
+
+
+@pytest.mark.parametrize("after_dispatch", [False, True])
+async def test_model_cancellation_releases_or_settles_the_original_reservation(
+    monkeypatch, after_dispatch,
+):
+    import asyncio
+
+    install_model_dispatch_guards(monkeypatch)
+    transport = _Transport(_client(), ModelResponse(content="unreachable"))
+
+    async def cancel(_prepared):
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(transport, "send_prepared" if after_dispatch else "before_dispatch", cancel,
+                        raising=False)
+    pool, snapshots, budget = _pool({"primary": transport})
+    with model_budget_scope(uuid4(), uuid4(), "cancelled-operation"):
+        with pytest.raises(asyncio.CancelledError):
+            await pool.generate([{"role": "user", "content": "hello"}], "chat")
+    assert len(snapshots.dispatched) == int(after_dispatch)
+    assert [kind for kind, _, _ in budget.calls] == ["reserve", "settle" if after_dispatch else "release"]
+    assert budget.calls[0][1][2] == budget.calls[1][1][2]
+    if after_dispatch:
+        assert budget.calls[1][1][-1] == "estimated"
+
+
+async def test_duplicate_dispatch_does_not_release_the_original_producers_hold(monkeypatch):
+    from resources.account_daily_budget import AccountDailyBudgetConflict
+
+    install_model_dispatch_guards(monkeypatch)
+    transport = _Transport(_client(), ModelResponse(content="duplicate"))
+    pool, snapshots, budget = _pool({"primary": transport})
+
+    def already_sent(account_id, snapshot_id):
+        raise AccountDailyBudgetConflict("already dispatched")
+
+    monkeypatch.setattr(snapshots, "mark_dispatched", already_sent)
+    with model_budget_scope(uuid4(), uuid4(), "same-operation"):
+        with pytest.raises(AccountDailyBudgetConflict):
+            await pool.generate([{"role": "user", "content": "hello"}], "chat")
+    assert not transport.dispatched
+    assert [kind for kind, _, _ in budget.calls] == ["reserve"]
+
+
+async def test_replayed_hold_is_not_released_when_a_duplicate_fails_preflight(monkeypatch):
+    from workspace.resources import ResourceDenied
+
+    install_model_dispatch_guards(monkeypatch, dispatch_error=ResourceDenied("revoked"))
+
+    class ReplayedBudget(_Budget):
+        def reserve(self, *args, **kwargs):
+            mutation = super().reserve(*args, **kwargs)
+            mutation.account.replayed = mutation.run.replayed = True
+            return mutation
+
+    transport = _Transport(_client(), ModelResponse(content="duplicate"))
+    pool, _, budget = _pool({"primary": transport}, budget=ReplayedBudget())
+    with model_budget_scope(uuid4(), uuid4(), "same-operation"):
+        with pytest.raises(ResourceDenied):
+            await pool.generate([{"role": "user", "content": "hello"}], "chat")
+    assert not transport.dispatched
+    assert [kind for kind, _, _ in budget.calls] == ["reserve"]

@@ -254,6 +254,39 @@ class RunBudgetService:
         with UnitOfWork(self.database) as uow:
             return self.settle_in_uow(uow, run_id, operation_id, actual, source)
 
+    def recover_terminal_in_uow(self, uow: UnitOfWork, run_id: UUID) -> None:
+        """Settle remaining unknown tool/stage usage after coordinated model recovery.
+
+        A terminal Run cannot resume the original reservation. Charge its bounded
+        estimate without interpreting any Operation or external effect as resolved.
+        """
+        run = uow.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+        if run is None or run["status"] not in {"succeeded", "failed", "cancelled"}:
+            raise ValueError("usage recovery requires a terminal Run")
+        if uow.execute(
+            "SELECT 1 FROM run_usage_ledger WHERE run_id=%s AND state='reserved' LIMIT 1",
+            (run_id,),
+        ).fetchone() is None:
+            # Queued API cancellation has no producer usage and deliberately
+            # has no budget UPDATE privilege. Do not acquire a write lock.
+            return
+        # Match settle/release's Work-budget -> Run-budget order and read
+        # candidates only after a concurrent measured settlement has finished.
+        uow.execute(
+            "SELECT b.work_id FROM work_budgets b JOIN runs r USING(account_id,work_id) "
+            "WHERE r.run_id=%s FOR UPDATE OF b", (run_id,),
+        ).fetchall()
+        uow.execute("SELECT run_id FROM run_budgets WHERE run_id=%s FOR UPDATE", (run_id,)).fetchone()
+        operations: dict[str, dict[str, int]] = {}
+        for row in uow.execute(
+            "SELECT operation_id,dimension,reserved_amount FROM run_usage_ledger "
+            "WHERE run_id=%s AND state='reserved' ORDER BY operation_id,dimension",
+            (run_id,),
+        ).fetchall():
+            operations.setdefault(row["operation_id"], {})[row["dimension"]] = int(row["reserved_amount"])
+        for operation, amounts in operations.items():
+            self.settle_in_uow(uow, run_id, operation, amounts, "estimated")
+
     def settle_in_uow(
         self,
         uow: UnitOfWork,

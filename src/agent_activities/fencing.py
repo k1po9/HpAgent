@@ -30,6 +30,7 @@ def fenced_activity(function):
                     "stale_fencing_token", "memory_context_revoked", "no_progress", "repeated_failure",
                     "run_budget_exhausted", "work_budget_exhausted",
                     "capability_budget_exhausted", "account_daily_model_budget_exhausted",
+                    "tool_side_effect_uncertain",
                 }:
                     raise ApplicationError(str(exc), type=exc.code, non_retryable=True) from exc
                 raise

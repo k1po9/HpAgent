@@ -88,6 +88,7 @@ class AccountDailyBudgetService:
         snapshot_id: UUID | None = None,
         expected_entitlement_version: int | None = None,
         endpoint_access_tier: str | None = None,
+        quota_date: date | None = None,
     ) -> AccountBudgetMutation:
         requested = _tokens(tokens)
         operation_id = _operation(operation_id)
@@ -101,7 +102,7 @@ class AccountDailyBudgetService:
             tier = lookup.entitlement.model_access_tier
             if tier != "owner" and tier != endpoint_access_tier:
                 raise ModelAccessTierDenied("model endpoint access tier denied")
-        day = self.quota_date(at)
+        day = quota_date if quota_date is not None else self.quota_date(at)
         uow.execute(
             "INSERT INTO account_daily_model_budgets(account_id,quota_date) VALUES (%s,%s) "
             "ON CONFLICT(account_id,quota_date) DO NOTHING",

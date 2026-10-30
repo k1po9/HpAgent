@@ -118,6 +118,8 @@ CapabilityInvocationWorkflow → prepare 规范化、父 schema/授权/预算准
 `commit_result` / CapabilityFacts.publish_result → close 核对已提交结果 → observe 在父事务提交
 Operation、tool_result 与 CapabilityObservation。父保存和 Work 验收仍走独立的 result 工具与可信事实。
 
+可靠执行的公共进入与提交在 [run_domain.results](../../src/run_domain/results.py)：Activity 经原 store 进入稳定 Operation，并通过 `invocation_context` 复验当前输入权限，生产提交复用 `commit_result`。模型发送和费用继续走 ResourcePool / ModelBudgetCoordinator；终态遗留预留由 Lifecycle 事务统一恢复。专业模块只实现阶段图、领域输入、输出与检查，不能覆盖未决 intent、重新编号旧 attempt 或以预算结算替代结果/父观察/完成事实。完整约束见[执行与恢复](execution.md)。
+
 ### 新增顶层策略
 
 1. 先证明整个 Run 确有不同控制方式；若只增加专业处理步骤，优先在 Generic Work 下组合能力。

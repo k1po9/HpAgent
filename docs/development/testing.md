@@ -297,3 +297,13 @@ uncertain 必须保留显式决议，不能为清理测试状态而重发或改�
 恢复边界，沿 `test/test_capability_contracts.py`、`test/test_delivery_contract_unit.py` 和
 `test/work_domain/test_capability_harness.py` 等复验。标准接入步骤见
 [能力接入](../architecture/capabilities.md#能力接入步骤与登记责任)。
+
+共享执行内核的失败回归见 `test/work_domain/test_execution_receipts.py` 和
+`test/web_persistence/test_model_input_snapshot.py`：同 fence 重入、旧 attempt、
+关闭子执行的迟到回执、冲突回执、未决工具意图绕行、dispatch 前失效/取消、发送资格响应丢失，
+以及 Run 终态的遗留模型预留释放/估算结算。`test/test_model_governance.py` 另验证
+已关闭预留不能再发送、重复发送资格不能释放原预留、取消前后释放/结算分界。
+发送与释放的两种获胜次序、跨 UTC 午夜重放复用原 hold，以及终态预算结算失败整笔回滚均有回归。
+数据库用例只允许显式专用三角色 DSN；模型传输采用离线夹具，不能替代真实 Provider 验收。
+旧 History 与 sandbox 继续使用 `test/test_agent_segment_replay.py`、
+`test/test_durable_agent_contract.py` 和现有 Temporal 恢复测试复验。

@@ -83,3 +83,27 @@ assert not {'jsonschema', 'psycopg', 'temporalio', 'agent_activities'} & sys.mod
         check=True,
         env={**os.environ, "PYTHONPATH": str(root / "src")},
     )
+
+
+async def test_unresolved_operation_is_not_automatically_retried_by_an_activity():
+    from types import SimpleNamespace
+
+    import pytest
+    from temporalio.exceptions import ApplicationError
+
+    from agent_activities.fencing import fenced_activity
+    from run_domain.results import OperationUncertain
+
+    @fenced_activity
+    async def enter(_self, _request):
+        raise OperationUncertain("original external write is unresolved")
+
+    request = SimpleNamespace(
+        account_id=str(uuid4()), run_id=str(uuid4()), execution_id=str(uuid4()),
+        lease_token=1, operation_id="original-operation",
+    )
+    with pytest.raises(ApplicationError) as error:
+        await enter(None, request)
+    assert error.value.type == "tool_side_effect_uncertain"
+    assert error.value.non_retryable
+    assert execution_fence.get() is None
