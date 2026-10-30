@@ -5,6 +5,7 @@ NPM ?= npm
 PYTHON ?= python3
 PYTEST_ARGS ?=
 export MIGRATION_DATABASE_URL APP_DATABASE_URL WORKER_DATABASE_URL
+export PYTHONPATH := $(CURDIR):$(CURDIR)/src:$(CURDIR)/test$(if $(PYTHONPATH),:$(PYTHONPATH))
 
 install:
 	$(PYTHON) -m pip install -r requirements-dev.txt

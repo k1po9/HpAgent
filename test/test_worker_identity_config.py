@@ -23,3 +23,11 @@ def test_worker_development_qq_pepper_has_safe_default(monkeypatch):
     monkeypatch.setenv("HPAGENT_ENV", "development")
     monkeypatch.delenv("QQ_BINDING_CODE_PEPPER", raising=False)
     assert len(load_worker_qq_binding_code_pepper()) >= 32
+
+
+def test_worker_rejects_unknown_environment_before_development_fallback(monkeypatch):
+    monkeypatch.setenv("HPAGENT_ENV", "secret-production-typo")
+    monkeypatch.delenv("QQ_BINDING_CODE_PEPPER", raising=False)
+    with pytest.raises(ValueError, match="HPAGENT_ENV") as error:
+        load_worker_qq_binding_code_pepper()
+    assert "secret-production-typo" not in str(error.value)

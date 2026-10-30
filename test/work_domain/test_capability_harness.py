@@ -579,7 +579,7 @@ async def test_new_candidate_capability_uses_unchanged_tool_workflow(urls, accou
         replace(definition(), key='test.additional'), DeterministicCapabilityWorkflow,
         ProbeActivities, AGENT_TASK_QUEUE,
     )
-    monkeypatch.setattr(composition, 'capability_registrations', lambda: (registration,))
+    monkeypatch.setattr(composition, 'capability_registrations', lambda **_: (registration,))
     binding = registration.binding
     configured['groups']['test_additional'] = {
         'description': 'Isolated extension fixture', 'tools': [binding.tool_name], 'exposure': 'always',

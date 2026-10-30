@@ -19,6 +19,7 @@ from bootstrap.durable_runtime import compose_durable_runtime
 from bootstrap.worker_dependencies import init_dependencies, load_worker_qq_binding_code_pepper
 from channels.official_qq import OfficialQQChannel
 from channels.onebot11 import OneBot11Channel
+from common.runtime_config import FileRuntimeConfig, binding_challenge_seconds, run_budget_mode
 from common.types import ChannelType, UnifiedMessage
 from memory.activities import ScheduledMemoryActivities
 from memory.workflows import MetricsReportWorkflow, ReflectWorkflow
@@ -99,6 +100,7 @@ async def start_worker(config: AppConfig) -> None:
             active_channels.append(channel)
             logger.info("Channel registered: %s", ch_name)
 
+        from common.agent_policy import AgentPolicy
         from conversation_domain.commands import CommandService
         from conversation_domain.surface_commands import SurfaceConversationCommands
 
@@ -106,8 +108,9 @@ async def start_worker(config: AppConfig) -> None:
             SurfaceConversationCommands(
                 CommandService(
                     os.environ["WORKER_DATABASE_URL"],
-                    budget_mode=os.getenv("RUN_BUDGET_MODE", "observe"),
+                    budget_mode=run_budget_mode(default="observe"),
                     budget_policy_version=os.getenv("RUN_BUDGET_POLICY_VERSION", "file-p0-v1"),
+                    agent_policy=AgentPolicy.from_config(config.agent),
                 )
             )
         )
@@ -119,7 +122,7 @@ async def start_worker(config: AppConfig) -> None:
                 IdentityBindingService(
                     os.environ["WORKER_DATABASE_URL"],
                     load_worker_qq_binding_code_pepper(),
-                    int(os.getenv("QQ_BINDING_CHALLENGE_SECONDS", "300")),
+                    binding_challenge_seconds(),
                 )
             ),
         )
@@ -134,9 +137,7 @@ async def start_worker(config: AppConfig) -> None:
         if deps.infrastructure.run_file_workspace is not None:
             from web_domain.file_cleanup import FileCleanupService
 
-            cleanup_interval = int(os.getenv("FILE_CLEANUP_INTERVAL_SECONDS", "300"))
-            if cleanup_interval <= 0:
-                raise RuntimeError("FILE_CLEANUP_INTERVAL_SECONDS must be positive")
+            cleanup_interval = FileRuntimeConfig.from_environment().file_cleanup_interval_seconds
             background_tasks.create(
                 run_file_cleanup_loop(
                     FileCleanupService(
@@ -159,6 +160,7 @@ async def start_worker(config: AppConfig) -> None:
                 logger.info("Web agent worker registered: hpagent-web-agent")
                 start_durable_background_tasks(
                     tasks=background_tasks,
+                    agent_policy=AgentPolicy.from_config(config.agent),
                     web_dispatcher=web_dispatcher,
                     web_reconciler=web_reconciler,
                     web_memory_retention=web_memory_retention,

@@ -1,10 +1,13 @@
 """Trusted Research v1 definition. It creates candidates, never saves or notifies."""
 
+from dataclasses import replace
+
+from research_domain.policy import ResearchPolicy
 from run_domain.capability_contracts import CapabilityDefinition
 
 
-def research_definition():
-    return CapabilityDefinition(
+def research_definition(policy: ResearchPolicy | None = None):
+    definition = CapabilityDefinition(
         key="research",
         contract_version=1,
         implementation_version="research-web-v2",
@@ -71,3 +74,21 @@ def research_definition():
         cancellation_policy="cooperative_bounded",
         verifier_keys=("research.basic",),
     )
+
+    return (replace(definition, implementation_version="research-web-v3", execution_policy=policy.to_snapshot())
+            if policy is not None else definition)
+
+
+def compatible_research_definition(frozen, current):
+    """Only reviewed Research implementations; unrelated definition edits remain rejected."""
+    if frozen.get("key") != "research" or current.get("key") != "research":
+        return False
+    try:
+        if frozen.get("implementation_version") == "research-web-v2":
+            return frozen == research_definition().to_dict()
+        if frozen.get("implementation_version") == "research-web-v3":
+            policy = ResearchPolicy.from_snapshot(frozen.get("execution_policy"))
+            return frozen == research_definition(policy).to_dict()
+    except (TypeError, ValueError):
+        return False
+    return False

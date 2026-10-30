@@ -33,6 +33,11 @@ make test-db test-api
 
 四个入口与CI共用同一选择规则；支持`PYTEST_ARGS='-x --junitxml=/tmp/results.xml'`追加pytest参数。基础设施入口使用`--require-test-services`，在任何fixture执行前检查被选中测试所需的三个DSN、Temporal地址/namespace与Redis配置，缺失时失败。使用数据库fixture的测试必须标记postgres，真实Temporal测试必须标记temporal。收集用例可以直接执行`python3 -m pytest --collect-only -m temporal test`，不会运行fixture或要求服务在线。
 
+Makefile 向测试及其子进程导出当前仓库、`src` 与 `test` 的绝对导入路径，已有
+`PYTHONPATH` 保留在其后；直接调用 pytest 执行 SIGKILL 用例时仍须自行设置这些路径。
+Artifact 持久化测试通过显式 `file_store_root` fixture 使用每例临时目录，不依赖业务
+`FILE_STORE_ROOT` 或共享文件存储。
+
 Temporal验收还需显式设置`TEMPORAL_HOST`指向独立测试服务，设置`TEMPORAL_NAMESPACE`与`TEMPORAL_TEST_NAMESPACE`为该服务上已创建的同一测试namespace（独立自动初始化服务可使用default），再运行`make test-temporal`。该入口包含会启动并终止测试Worker的用例，子进程须能访问同一专用PG/Redis。缺少服务配置不算测试跳过或通过。
 
 使用完整迁移链和原checksum；旧业务库门禁见[部署](../operations/deployment.md)。`make db-up`只启动Compose所配置的数据库，不能据此认为它就是专用测试库。`make test`包括基础设施集合，运行前必须检查fixture要求。
@@ -327,10 +332,10 @@ Agent Workflow 包的全部现有/新增模块与 Lifecycle、Research、Memory 
 `test/work_domain/test_capability_facts.py`、`test_capability_harness.py` 和
 `test_execution_receipts.py` 的真实 PG/Temporal 用例，离线 gate 不声称证明事务或恢复。
 
-已知限制：Research 的 `ResearchCapabilityWorkflow` 各阶段固定使用 `_RESEARCH_RETRY`（4 次），
-未遵循更小的冻结 `child.max_attempts`。归属 Research 编排；
-`test_implementation_retry_does_not_exceed_frozen_child_bound[research]` 是 strict xfail，
-修复后必须移除该标记，否则 XPASS 会阻止门禁。其他专业能力同一契约正常执行。
+Research 的 `ResearchCapabilityWorkflow` 各阶段遵守冻结 `child.max_attempts`，
+与其他专业能力共用重试上限契约，不设置 xfail。原 4 次尝试的退避参数保持不变；
+Research 父 Workflow 的准入、关闭与保存重试仍使用自己的既有策略。
+子执行总时限来自本次 descriptor.limits，不用能力定义的较大上限覆盖它。
 通用错误的任意异常消息仍不在本次已分类控制错误的安全保证内；不得将底层 traceback 当作脱敏报告。
 
 只读执行诊断见 `GET /api/v1/runs/{run_id}/diagnostics`。

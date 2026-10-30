@@ -156,6 +156,74 @@ def test_production_rejects_short_secrets():
         _settings(environment="production", csrf_signing_key=b"short")
 
 
+@pytest.mark.parametrize("environment", ["Production", " production ", "PRODUCTION"])
+def test_production_environment_variants_cannot_bypass_origin_check(monkeypatch, environment):
+    with pytest.raises(ValueError, match="WEB_PUBLIC_ORIGIN"):
+        _env_settings(monkeypatch, HPAGENT_ENV=environment, WEB_PUBLIC_ORIGIN="http://unsafe.test")
+
+
+def test_direct_settings_cannot_bypass_production_fake_executor_gate():
+    with pytest.raises(ValueError, match="fake executor"):
+        _settings(environment=" Production ", fake_executor_enabled=True)
+
+
+@pytest.mark.parametrize("origin", ["http://unsafe.test", "https://localhost"])
+def test_direct_settings_apply_production_origin_gate(origin):
+    with pytest.raises(ValueError, match="WEB_PUBLIC_ORIGIN"):
+        _settings(environment=" Production ", public_origin=origin)
+
+
+def test_unknown_environment_is_rejected_without_echoing_it(monkeypatch):
+    with pytest.raises(ValueError, match="HPAGENT_ENV") as error:
+        _env_settings(monkeypatch, HPAGENT_ENV="secret-production-typo")
+    assert "secret-production-typo" not in str(error.value)
+
+
+@pytest.mark.parametrize("value", ["secret-invalid-boolean", " true "])
+@pytest.mark.parametrize("name", [
+    "WEB_COOKIE_SECURE", "WEB_FAKE_EXECUTOR_ENABLED", "WEB_FILE_UPLOAD_ENABLED",
+    "WEB_FILE_TRANSFORM_ENABLED", "WEB_FILE_SHELL_ENABLED",
+])
+def test_api_boolean_values_are_strict_and_value_safe(monkeypatch, name, value):
+    with pytest.raises(ValueError, match=name) as error:
+        _env_settings(monkeypatch, **{name: value})
+    assert "secret-invalid-boolean" not in str(error.value)
+
+
+@pytest.mark.parametrize(("name", "value"), [
+    ("WEB_SSE_KEEPALIVE_SECONDS", "-1"),
+    ("WEB_SSE_KEEPALIVE_SECONDS", "nan"),
+    ("WEB_SSE_KEEPALIVE_SECONDS", "inf"),
+    ("WEB_SSE_MAX_CONNECTIONS", "0"),
+    ("WEB_SSE_HANDSHAKE_BUFFER_EVENTS", "-1"),
+    ("WEB_SSE_HANDSHAKE_BUFFER_BYTES", "-1"),
+    ("WEB_TERMINAL_PUBLISHER_POLL_SECONDS", "0"),
+    ("WEB_FAKE_EXECUTOR_DELAY_SECONDS", "-1"),
+    ("FILE_MAX_BYTES", "secret-invalid-number"),
+    ("QQ_BINDING_CHALLENGE_SECONDS", "secret-invalid-number"),
+])
+def test_api_numeric_errors_identify_the_field_without_values(monkeypatch, name, value):
+    with pytest.raises(ValueError, match=name) as error:
+        _env_settings(monkeypatch, **{name: value})
+    assert "secret-invalid-number" not in str(error.value)
+    assert error.value.__cause__ is None
+
+
+@pytest.mark.parametrize("value", ['{"v1": "secret-broken-json"', '["secret-array"]',
+                                   '{"v1": 123}', '{"v1":"a", "v1":"b"}'])
+def test_cursor_key_ring_rejects_invalid_shape_or_duplicates_safely(monkeypatch, value):
+    with pytest.raises(ValueError, match="WEB_CURSOR_KEYS_JSON") as error:
+        _env_settings(monkeypatch, WEB_CURSOR_KEYS_JSON=value)
+    assert "secret-" not in str(error.value)
+
+
+def test_direct_settings_reject_wrong_numeric_and_boolean_types():
+    with pytest.raises(ValueError, match="sse_max_connections"):
+        _settings(sse_max_connections=True)
+    with pytest.raises(ValueError, match="cookie_secure"):
+        _settings(cookie_secure="false")
+
+
 def test_web_api_import_does_not_load_agent_runtime():
     code = """
 import asyncio

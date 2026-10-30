@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from psycopg import OperationalError
 from support.runtime_fakes import (
     ExecutionStoreBoundary,
     install_execution_uow,
@@ -227,6 +228,38 @@ async def test_tool_activity_reserves_and_settles_measured_usage_once():
             {"tool_calls": 1, "bytes_scanned": 17}, "measured",
         ),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', [OperationalError('policy read unavailable'), asyncio.CancelledError()])
+async def test_policy_read_failure_before_tool_dispatch_leaves_no_budget_hold(failure):
+    class PolicyStore(Store):
+        def agent_policy(self, run_id):
+            raise failure
+
+    class Budget:
+        def __init__(self):
+            self.reserved = {}
+            self.used = {}
+
+        def reserve(self, run_id, operation_id, amounts):
+            self.reserved.update(amounts)
+
+        def settle(self, run_id, operation_id, amounts, source):
+            self.used.update(amounts)
+            self.reserved.clear()
+
+        def release(self, run_id, operation_id):
+            self.reserved.clear()
+
+    budget = Budget()
+    store, actions = PolicyStore(ToolOperationState('started', None)), Actions('read_only')
+    expected = asyncio.CancelledError if isinstance(failure, asyncio.CancelledError) else ApplicationError
+    with pytest.raises(expected):
+        await activities(store, actions, run_budget=budget).tool_execution(request())
+    assert actions.calls == 0
+    assert not budget.reserved and not budget.used
+    assert not store.uncertain
 
 
 @pytest.mark.asyncio

@@ -186,9 +186,13 @@ class RSSDiscoveryProvider:
             return []
         import feedparser
 
+        from research_domain.context import research_policy
+        policy = research_policy.get()
+        timeout = policy.search_timeout_seconds if policy is not None else self.timeout_seconds
+
         own_client = self.client is None
         client = self.client or httpx.AsyncClient(
-            timeout=self.timeout_seconds,
+            timeout=timeout,
             follow_redirects=True,
             headers={"User-Agent": "HpAgent-Research/1.0"},
         )
@@ -198,12 +202,12 @@ class RSSDiscoveryProvider:
 
                 async def read_feed(uri):
                     body, mime, final_url, _ = await SafeLocalFetcher().read_bytes(
-                        uri, strategy=strategy, timeout=self.timeout_seconds, max_bytes=2_000_000)
+                        uri, strategy=strategy, timeout=timeout, max_bytes=2_000_000)
                     return httpx.Response(200, content=body, headers={'content-type': mime},
                                           request=httpx.Request('GET', final_url))
                 responses = await asyncio.gather(*(read_feed(uri) for uri in strategy.rss_feeds))
             else:
-                responses = await asyncio.gather(*(client.get(uri) for uri in strategy.rss_feeds))
+                responses = await asyncio.gather(*(client.get(uri, **({"timeout": timeout} if policy is not None else {})) for uri in strategy.rss_feeds))
         finally:
             if own_client:
                 await client.aclose()

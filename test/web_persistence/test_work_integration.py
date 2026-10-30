@@ -10,7 +10,7 @@ import pytest
 from delivery.service import DeliveryService
 from orchestration.run_dispatcher import ReminderActivities
 from persistence.uow import UnitOfWork
-from resources.run_budget import RunBudgetService
+from resources.run_budget import RunBudgetConflict, RunBudgetService
 from resources.work_budget import WorkBudgetExhausted
 from run_domain.lifecycle import RunLifecycleService
 from web_artifacts.generator import ArtifactGenerationError
@@ -71,11 +71,16 @@ def test_budget_parallel_reservation_retry_and_late_settlement(
     assert len(winners) == 1
     lifecycle = RunLifecycleService(worker_database_url)
     lifecycle.finish(account_id, UUID(run["run_id"]), "failed", failure_code="test_failure")
-    # Matching settlement is allowed after terminal state, once only.
+    # Terminal recovery charges the reservation estimate exactly once.
     op = f"parallel:{winners[0]}"
-    budget.settle(UUID(run["run_id"]), op, {"tool_calls": 2}, "measured")
-    budget.settle(UUID(run["run_id"]), op, {"tool_calls": 2}, "measured")
+    assert budget.settle(UUID(run["run_id"]), op, {"tool_calls": 2}, "estimated").replayed
+    assert budget.settle(UUID(run["run_id"]), op, {"tool_calls": 2}, "estimated").replayed
+    lifecycle.finish(account_id, UUID(run["run_id"]), "failed", failure_code="test_failure")
+    with pytest.raises(RunBudgetConflict):
+        budget.settle(UUID(run["run_id"]), op, {"tool_calls": 2}, "measured")
     work = service.get(account_id, UUID(work["work_id"]))["work"]
+    assert work['budget']['used']['tool_calls'] == 2
+    assert work['budget']['reserved']['tool_calls'] == 0
     retry = advance(service, work, worker_database_url)
     with pytest.raises(WorkBudgetExhausted):
         budget.reserve(UUID(retry["run_id"]), "new-run-does-not-reset", {"tool_calls": 2})
@@ -176,7 +181,7 @@ def test_revision_receipt_cannot_complete_new_requirements(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["ready", "retry", "user_and_delivery"])
 async def test_artifact_build_has_new_work_run_provenance(
-    db, database_url, worker_database_url, account_id, mode
+    db, database_url, worker_database_url, account_id, mode, file_store_root
 ):
     from conversation_domain.commands import CommandService
     from web_artifacts.build import ArtifactBuildService

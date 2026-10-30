@@ -16,7 +16,7 @@ from conversation_domain.commands import CommandService
 from orchestration.work_schedule import WorkScheduleService, run_work_schedule_loop
 from persistence.uow import UnitOfWork
 from resources.model_budget_coordinator import ModelBudgetCoordinator
-from resources.run_budget import RunBudgetExhausted, RunBudgetService
+from resources.run_budget import RunBudgetConflict, RunBudgetExhausted, RunBudgetService
 from run_domain.execution_context import fence_scope
 from run_domain.lifecycle import RunLifecycleService
 from sandbox.sandbox_manager import SandboxManager
@@ -297,11 +297,23 @@ def test_41st_tool_rejection_leaves_no_work_hold_but_preserves_unknown_usage(
         assert db.execute(f'SELECT count(*) FROM {table} WHERE run_id=%s AND operation_id=%s',
                           (rid, 'rejected')).fetchone() == (0,)
     RunLifecycleService(worker_database_url).finish(account_id, rid, 'failed', failure_code='controlled_failure')
+    terminal_budgets = []
     for table, key in (('work_budgets', 'work_id'), ('run_budgets', 'run_id')):
-        reserved = db.execute(f'SELECT reserved FROM {table} WHERE {key}=%s',
-                              (work['work_id'] if key == 'work_id' else rid,)).fetchone()[0]
-        assert reserved.get('tool_calls', 0) == 0 and reserved['bytes_scanned'] == 100
-    budget.settle(rid, 'unknown-call', {'bytes_scanned': 23}, 'measured')
+        row = db.execute(f'SELECT used,reserved FROM {table} WHERE {key}=%s',
+                         (work['work_id'] if key == 'work_id' else rid,)).fetchone()
+        assert row[1].get('tool_calls', 0) == 0 and row[1]['bytes_scanned'] == 0
+        assert row[0]['bytes_scanned'] == 100 and row[0]['tool_calls'] == 40
+        terminal_budgets.append(row)
+    for table in ('work_usage_ledger', 'run_usage_ledger'):
+        assert db.execute(f'SELECT state,actual_amount,usage_source FROM {table} '
+                          'WHERE run_id=%s AND operation_id=%s',
+                          (rid, 'unknown-call')).fetchone() == ('settled', 100, 'estimated')
+    RunLifecycleService(worker_database_url).finish(account_id, rid, 'failed', failure_code='controlled_failure')
+    with pytest.raises(RunBudgetConflict):
+        budget.settle(rid, 'unknown-call', {'bytes_scanned': 23}, 'measured')
+    for (table, key), expected in zip((('work_budgets', 'work_id'), ('run_budgets', 'run_id')), terminal_budgets):
+        assert db.execute(f'SELECT used,reserved FROM {table} WHERE {key}=%s',
+                          (work['work_id'] if key == 'work_id' else rid,)).fetchone() == expected
     assert commands.get(account_id, UUID(work['work_id']))['work']['budget']['reserved']['bytes_scanned'] == 0
 
 

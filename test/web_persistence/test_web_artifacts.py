@@ -40,7 +40,7 @@ def test_artifact_admission_replays_without_duplicate_mandates(database_url,acco
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["queued", "running"])
 async def test_artifact_run_cancel_preserves_provenance_and_rejects_late_publish(
-    db, account_id, database_url, worker_database_url, phase
+    db, account_id, database_url, worker_database_url, phase, file_store_root
 ):
     commands = CommandService(database_url)
     cid = UUID(commands.create_conversation(account_id, str(uuid4())).body["conversation"]["conversation_id"])

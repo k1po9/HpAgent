@@ -9,6 +9,8 @@ import os
 import time
 from pathlib import Path
 
+from common.runtime_config import run_budget_mode
+
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
 
 
@@ -40,6 +42,7 @@ def start_durable_background_tasks(
     web_memory_retention,
     lease_timeout_seconds: int,
     recovery_interval_seconds: float,
+    agent_policy=None,
 ) -> None:
     """把 Web 组合产物变成可取消的后台任务，供 ``start_worker`` 前台运行。
 
@@ -56,7 +59,8 @@ def start_durable_background_tasks(
         run_work_schedule_loop(
             WorkScheduleService(
                 web_dispatcher.outbox.database_url,
-                budget_mode=os.getenv("RUN_BUDGET_MODE", "enforce"),
+                budget_mode=run_budget_mode(default="enforce"),
+                agent_policy=agent_policy,
             )
         )
     )

@@ -8,6 +8,8 @@ from uuid import UUID
 
 from uuid6 import uuid7
 
+from common.agent_policy import AgentPolicy
+from common.runtime_config import CapacityConfig
 from persistence.command_result import CommandResult
 from persistence.repositories import AccountRepository, IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
@@ -31,9 +33,10 @@ class WorkConflict(DomainError):
 
 
 class WorkCommandService:
-    def __init__(self, database: object, *, budget_mode: str = 'enforce'):
+    def __init__(self, database: object, *, budget_mode: str = 'enforce', agent_policy: AgentPolicy | None = None):
         self.database = database
         self.budget_mode = budget_mode
+        self.agent_policy = agent_policy or AgentPolicy()
         self.repo = WorkRepository()
         self.idempotency = IdempotencyRepository()
 
@@ -146,9 +149,8 @@ class WorkCommandService:
             if source and conversation_id is None:
                 conversation_id = source['conversation_id']
             uow.execute('SELECT pg_advisory_xact_lock(hashtextextended(%s,0))', (str(account_id),))
-            import os
             count = uow.execute("SELECT count(*) AS n FROM works WHERE account_id=%s AND status NOT IN ('stopped','completed')", (account_id,)).fetchone()['n']
-            if count >= int(os.getenv('WORK_ACCOUNT_ACCEPT_LIMIT', '100')):
+            if count >= CapacityConfig.from_environment().work_account_accept_limit:
                 raise WorkConflict({}, 'work_accept_limit')
             work_id = uuid7()
             from work_domain.timing import initial_continuation
@@ -354,7 +356,7 @@ class WorkCommandService:
             from resources.work_budget import WorkBudgetExhausted
             from run_domain.admission import admit_work_run
             try:
-                run = admit_work_run(uow, work, requirement, wakeup, self.database, self.budget_mode)
+                run = admit_work_run(uow, work, requirement, wakeup, self.database, self.budget_mode, self.agent_policy)
             except WorkBudgetExhausted:
                 uow.execute('UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s',
                             (json.dumps(continuation('blocked','budget_exhausted')),work_id))

@@ -20,6 +20,7 @@ from agent_workflows.contracts import (
 )
 from agent_workflows.ids import root_execution_id
 from agent_workflows.lifecycle_contracts import SegmentInput, SegmentLease
+from persistence.uow import UnitOfWork
 from run_domain.execution import StaleFencingToken
 from run_domain.execution_context import fence_scope
 
@@ -280,7 +281,20 @@ class ExpiredResponse(SegmentActivities):
         result = await super().acquire(request)
         if result.acquired and not self.expired_once:
             self.expired_once = True
-            await asyncio.sleep(2.1)
+
+            def expired():
+                with UnitOfWork(self.store.database_url) as uow:
+                    return uow.execute(
+                        'SELECT lease_expires_at <= clock_timestamp() AS expired '
+                        'FROM execution_attempt_leases WHERE execution_id=%s AND fencing_token=%s',
+                        (request.execution_id, result.fencing_token),
+                    ).fetchone()['expired']
+
+            # Return an actually expired lease, independent of differences
+            # between asyncio's monotonic clock and PostgreSQL's wall clock.
+            async with asyncio.timeout(10):
+                while not await asyncio.to_thread(expired):
+                    await asyncio.sleep(0.05)
         return result
 
 

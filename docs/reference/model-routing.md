@@ -11,7 +11,7 @@
 | 记忆提取和长期归纳模型 | `config/hindsight.yaml` 的 service.llm / retain_llm / consolidation_llm | Hindsight 独立运行；Reflect 当前停用 |
 | 工具检索向量和重排 | `config/models.yaml` 的 embedding/rerank | 当前引用SiliconFlow对应变量 |
 | Hindsight向量和重排 | `config/hindsight.yaml` 的 service.embeddings / reranker | 当前共用SiliconFlow变量，由启动桥接器映射，但调用独立 |
-| Web/QQ输出长度、等待预算 | `config/models.yaml` 的 channel_overrides | 不负责选择模型；具体调用仍可能有自己的覆盖 |
+| Web/QQ输出长度、等待预算 | `config/models.yaml` 的 chat 链 max_tokens / timeout | 旧 channel_overrides 仅兼容读取并告警，不进入正式 Agent 调用；专业能力可有独立预算 |
 | HTML成果读取超时 | `.env` 的 `ARTIFACT_MODEL_READ_TIMEOUT_SECONDS` | 不会因此自动选择旗舰模型 |
 
 Beta实际编辑路径为 `/home/hp/deploy/hpagent-beta/.env` 和 `/home/hp/deploy/hpagent-beta/config/models.yaml`。开发源码在另一目录；修改后需保持发布版本与Beta一致，不能认为开发目录改动会自动同步。
@@ -36,7 +36,14 @@ Beta实际编辑路径为 `/home/hp/deploy/hpagent-beta/.env` 和 `/home/hp/depl
 
 `FLAGSHIP/STANDARD/HIGHSPEED`只是你给供应商模型目录起的标签，不是模型供应商认可的固定等级，也不等于账户A/B/C权限。三个变量可以填同一个模型ID，依然可按各链的超时、输出长度和请求参数分别运行。
 
+需要按端点设置账号访问档位时，在对应模型条目使用 `access_tier`，省略仍为 `standard`。
+该值进入现有账号 entitlement 检查，不是供应商请求参数，也不改变账号自己的权限。
+新请求和重试检查当前访问资格，旧模型快照不回写；规则见[配置参考](configuration.md#模型配置)。
+
 当前三条文本链均已显式选用SiliconFlow对应目录变量，Embedding／Rerank也使用SiliconFlow。MiniMax目录仍可保留，Hindsight LLM按独立配置使用MiniMax。没有增加跨供应商回退。Provider 与模型的 extra_body 以模型配置覆盖合并，序列化时放请求顶层；禁止覆盖 model/messages/tools/stream/max_tokens 等保留字段。当前只校验结构及保留字段，未按模型能力验证每个原生参数，真实兼容性须独立请求验证。
+
+工具数量调整使用 `tool_rag.top_k`；`rerank.top_n` 已从标准配置删除，旧文件中的值不会控制
+真实重排请求。省略参数、旧模型包装格式及停用字段的兼容规则见[配置参考](configuration.md#配置来源缺省与兼容)。
 
 ## .env规范写法
 

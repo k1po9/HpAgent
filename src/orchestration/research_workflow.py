@@ -7,7 +7,7 @@ source text, normalized records and evidence remain in PostgreSQL.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
 from typing import NotRequired, TypedDict
 
@@ -84,6 +84,7 @@ class ResearchCapabilityWorkflow:
             1, child.run_id, child.invocation_id, child.account_id, child.execution_id
         )
         request.validate()
+        retry_policy = replace(_RESEARCH_RETRY, maximum_attempts=child.max_attempts)
         try:
             for activity_name, timeout in (
                 ("prepare_research_activity", 30),
@@ -95,7 +96,7 @@ class ResearchCapabilityWorkflow:
                     task_queue=WEB_LIFECYCLE_TASK_QUEUE,
                     start_to_close_timeout=timedelta(seconds=timeout),
                     schedule_to_close_timeout=timedelta(seconds=timeout * 2),
-                    retry_policy=_RESEARCH_RETRY,
+                    retry_policy=retry_policy,
                     heartbeat_timeout=timedelta(seconds=15),
                     cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
@@ -125,7 +126,7 @@ class ResearchCapabilityWorkflow:
                         start_to_close_timeout=timedelta(seconds=timeout),
                         schedule_to_close_timeout=timedelta(seconds=timeout * 2),
                         heartbeat_timeout=timedelta(seconds=15),
-                        retry_policy=_RESEARCH_RETRY,
+                        retry_policy=retry_policy,
                         cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                     )
                     if workflow.cancellation_reason() is not None:
@@ -140,7 +141,7 @@ class ResearchCapabilityWorkflow:
                     task_queue=WEB_LIFECYCLE_TASK_QUEUE,
                     start_to_close_timeout=timedelta(seconds=30),
                     schedule_to_close_timeout=timedelta(seconds=60),
-                    retry_policy=_RESEARCH_RETRY,
+                    retry_policy=retry_policy,
                     heartbeat_timeout=timedelta(seconds=15),
                     cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )
@@ -160,7 +161,7 @@ class ResearchCapabilityWorkflow:
                     task_queue=WEB_LIFECYCLE_TASK_QUEUE,
                     start_to_close_timeout=timedelta(seconds=timeout),
                     schedule_to_close_timeout=timedelta(seconds=timeout * 2),
-                    retry_policy=_RESEARCH_RETRY,
+                    retry_policy=retry_policy,
                     heartbeat_timeout=timedelta(seconds=15),
                     cancellation_type=ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
                 )

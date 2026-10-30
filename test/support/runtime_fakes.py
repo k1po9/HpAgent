@@ -11,6 +11,9 @@ from run_domain.execution_context import execution_fence
 
 
 class ExecutionStoreBoundary:
+    def agent_policy(self, run_id):
+        return None
+
     database_url = object()
 
     @staticmethod

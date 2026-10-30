@@ -10,6 +10,7 @@ import logging
 from typing import Any, Dict, List, cast
 
 from actions.contracts import ActionRequest, ActionResult
+from common.agent_policy import AgentPolicy
 from common.token_counter import estimate_messages_tokens
 from sandbox.tools.routing.models import ToolRoutingConfigurationError
 
@@ -30,9 +31,9 @@ class ActionRuntime:
         resource_pool: Any = None,
         prompts: Any = None,
         tool_rag_top_k: int = 12,
-        tool_result_summary_enabled: bool = True,
-        tool_result_summary_threshold: int = 4000,
-        tool_result_summary_max_chars: int = 1000,
+        tool_result_summary_enabled: bool = AgentPolicy.tool_result_summary_enabled,
+        tool_result_summary_threshold: int = AgentPolicy.tool_result_summary_threshold,
+        tool_result_summary_max_chars: int = AgentPolicy.tool_result_summary_max_chars,
     ):
         self._sandbox = sandbox_manager
         self._model = resource_pool
@@ -118,6 +119,7 @@ class ActionRuntime:
         resource_key: str,
         execution_id: str,
         user_query: str = "",
+        agent_policy: AgentPolicy | None = None,
     ) -> Dict[str, Any]:
         """执行工具，并按配置对长输出做语义摘要。"""
         self._execution_cache_key(resource_key, execution_id)
@@ -138,9 +140,9 @@ class ActionRuntime:
             result_dict.setdefault("error", None)
             result_dict.setdefault("metadata", {})
 
-            if self._tool_result_summary_enabled:
+            if (agent_policy.tool_result_summary_enabled if agent_policy else self._tool_result_summary_enabled):
                 result_dict = await self._summarize_if_needed(
-                    result_dict, tool_name, user_query, resource_key,
+                    result_dict, tool_name, user_query, resource_key, agent_policy=agent_policy,
                 )
 
             return result_dict
@@ -161,6 +163,7 @@ class ActionRuntime:
         execution_id: str,
         user_query: str = "",
         idempotency_key: str = "",
+        agent_policy: AgentPolicy | None = None,
     ) -> ActionResult:
         self._execution_cache_key(resource_key, execution_id)
         executed_request = request
@@ -188,6 +191,7 @@ class ActionRuntime:
             resource_key=resource_key,
             execution_id=execution_id,
             user_query=user_query,
+            agent_policy=agent_policy,
         )
         metadata = dict(result.get("metadata") or {})
         metadata.setdefault(
@@ -267,14 +271,17 @@ class ActionRuntime:
         tool_name: str,
         user_query: str = "",
         session_id: str = "",
+        *, agent_policy: AgentPolicy | None = None,
     ) -> Dict[str, Any]:
+        threshold = agent_policy.tool_result_summary_threshold if agent_policy else self._tool_result_summary_threshold
+        max_chars = agent_policy.tool_result_summary_max_chars if agent_policy else self._tool_result_summary_max_chars
         output = result_dict.get("output")
         if not output or not isinstance(output, str):
             return result_dict
-        if len(output) <= self._tool_result_summary_threshold:
+        if len(output) <= threshold:
             return result_dict
         if self._model is None or self._prompts is None:
-            result_dict["output"] = output[:self._tool_result_summary_max_chars]
+            result_dict["output"] = output[:max_chars]
             return result_dict
 
         try:
@@ -282,15 +289,15 @@ class ActionRuntime:
             template = self._prompts.get_tool_summary_template()
             system_prompt = template.format(
                 tool_name=tool_name,
-                max_chars=self._tool_result_summary_max_chars,
+                max_chars=max_chars,
             )
             user_prompt = (
                 f"用户问题：{user_query}\n"
                 f"关注点：{hint}\n\n"
-                f"工具输出（{len(output)}字符）：\n{output[:self._tool_result_summary_threshold * 2]}"
+                f"工具输出（{len(output)}字符）：\n{output[:threshold * 2]}"
             ) if user_query else (
                 f"关注点：{hint}\n\n"
-                f"工具输出（{len(output)}字符）：\n{output[:self._tool_result_summary_threshold * 2]}"
+                f"工具输出（{len(output)}字符）：\n{output[:threshold * 2]}"
             )
 
             messages = [
@@ -313,13 +320,13 @@ class ActionRuntime:
                 result_dict["metadata"] = result_dict.get("metadata") or {}
                 result_dict["metadata"]["summarized"] = True
             else:
-                result_dict["output"] = output[:self._tool_result_summary_max_chars]
+                result_dict["output"] = output[:max_chars]
         except Exception as e:
             logger.warning(
                 "Tool summary failed for %s: %s, falling back to truncation",
                 tool_name, e,
             )
-            result_dict["output"] = output[:self._tool_result_summary_max_chars]
+            result_dict["output"] = output[:max_chars]
 
         return result_dict
 

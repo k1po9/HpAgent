@@ -122,7 +122,10 @@ async def test_ready_auto_continuation_publishes_completes_and_delivers(commands
         segments.acquire, segments.release, segments.begin_wait, segments.finish_wait])
     dispatcher = WebOutboxDispatcher(OutboxService(urls[2]), TemporalOutboxDispatcher(
         PostgresWorkflowExecutionStore(urls[2]), TemporalClientAdapter(client)), 'text-closure')
-    scheduler, delivery = WorkScheduleService(urls[2]), DeliveryService(urls[2])
+    from common.agent_policy import AgentPolicy
+
+    scheduler = WorkScheduleService(urls[2], agent_policy=AgentPolicy(max_tool_turns=5))
+    delivery = DeliveryService(urls[2])
 
     async def background():
         while True:
@@ -151,6 +154,7 @@ async def test_ready_auto_continuation_publishes_completes_and_delivers(commands
     assert versions == [initial, initial + 1]
     runs = owner.execute('SELECT * FROM runs WHERE work_id=%s ORDER BY created_at', (wid,)).fetchall()
     assert len(runs) == 2 and all(r['status'] == 'succeeded' and r['requirement_revision'] == 1 for r in runs)
+    assert all(r['input_snapshot']['agent_policy']['max_tool_turns'] == 5 for r in runs)
     # The completion receipt identifies the adopted Run; DB transaction start
     # times are not an execution order (a waiting admission may start earlier).
     completed = next(r for r in runs if str(r['run_id']) == current['completion_receipt']['run_id'])

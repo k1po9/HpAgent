@@ -181,7 +181,7 @@ async def test_explicit_wait_is_preserved_and_file_validity_is_rechecked(command
             'continuation': {'schema_version': 1, 'kind': 'awaiting_input', 'reason': 'needs_user_input'}})
         result, complete = generic_result(uow, r, w, value, 'candidate')
         assert not complete and result['kind'] == 'waiting_input' and len(result['evidence']) == 1
-    owner.execute("UPDATE stored_files SET status='deleted',deleted_at=now() WHERE file_id IN "
+    owner.execute("UPDATE stored_files SET status='deleted',deleted_at=GREATEST(now(),created_at,ready_at) WHERE file_id IN "
                   '(SELECT file_id FROM capability_result_refs WHERE invocation_id=%s)', (tool.operation_id,))
     with pytest.raises(ValueError, match='exact current facts'):
         finalize(urls, account_id, run, FAKE_CALL)

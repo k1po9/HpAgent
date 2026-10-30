@@ -38,11 +38,11 @@ Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 
 
 ## 通用持久调用与 Harness
 
-[CapabilityInvocationWorkflow](../../src/agent_workflows/capability.py) 接入共享 ToolExecutionWorkflow。服务端 [CapabilityBinding](../../src/agent_activities/capabilities.py) 将准确契约版本绑定到固定 Workflow 和输入资源范围解析器；`capability__` 前缀保留给复杂能力。模型只填写有类型的业务参数，不提供 Execution、fence、资源上限或 Workflow 名称。可选字符串的 null 及要求非空/UUID 字段的空串在作用域解析、校验和冻结前规范化为缺省；必填字段和两个非空互斥来源仍严格拒绝。生产 [compose_capabilities](../../src/agent_activities/composition.py) 是 Harness、固定专业入口和隔离 Fake 执行器共用的目录，注册 `research` v1（`capability__research__v1`）与 `html` v1（`capability__html__v1`），另有 Work 专用 `text` v1（`capability__text__v1`），分别固定到 ResearchCapabilityWorkflow / HtmlCapabilityWorkflow / TextCapabilityWorkflow；服务可用性显式传入，重试与时限读取同一能力定义。确定性扩展能力仅位于测试支持代码。`delegate_work` 仍走独立的只读分支边界。
+[CapabilityInvocationWorkflow](../../src/agent_workflows/capability.py) 接入共享 ToolExecutionWorkflow。服务端 [CapabilityBinding](../../src/agent_activities/capabilities.py) 将准确契约版本绑定到固定 Workflow 和输入资源范围解析器；`capability__` 前缀保留给复杂能力。模型只填写有类型的业务参数，不提供 Execution、fence、资源上限或 Workflow 名称。可选字符串的 null 及要求非空/UUID 字段的空串在作用域解析、校验和冻结前规范化为缺省；必填字段和两个非空互斥来源仍严格拒绝。生产 [compose_capabilities](../../src/agent_activities/composition.py) 是 Harness、固定专业入口和隔离 Fake 执行器共用的目录，注册 `research` v1（`capability__research__v1`）与 `html` v1（`capability__html__v1`），另有 Work 专用 `text` v1（`capability__text__v1`），分别固定到 ResearchCapabilityWorkflow / HtmlCapabilityWorkflow / TextCapabilityWorkflow；服务可用性显式传入，重试策略读取冻结能力定义，总时限读取本次冻结调用的 limits，不超过定义上限。确定性扩展能力仅位于测试支持代码。`delegate_work` 仍走独立的只读分支边界。
 
 发现按 surface 与服务依赖筛选，仅 root 获得复杂能力工具。执行时再次检查当前账号、Run、Work revision/control epoch、父 Execution、输入 schema、冻结定义和显式资源范围。输入读取适配器使用 `invocation_context` 检查当前子 fence、定义实现版本和资源权限；专业实现每次使用资源和发出模型请求仍须重验，不可把登记视为永久授权。
 
-父登记 segment 结束后，以子 Execution UUID 固定 Child Workflow 身份；等待不持父 lease、Workspace 锁或物理容量票据。专业 Workflow 自行将短 Activity 划分为独立 segment，重试次数与总时限来自冻结定义；持久审批/输入等待复用 DurableWait 与权威 probe，Signal 不代表批准。能力只允许 read_only / candidate_output，不因此获得长期修改、外发或审批权限；已有 Atomic Tool 的文件审批路径保持独立。
+父登记 segment 结束后，以子 Execution UUID 固定 Child Workflow 身份；等待不持父 lease、Workspace 锁或物理容量票据。专业 Workflow 自行将短 Activity 划分为独立 segment，重试次数来自冻结定义，总时限来自冻结调用限制；持久审批/输入等待复用 DurableWait 与权威 probe，Signal 不代表批准。能力只允许 read_only / candidate_output，不因此获得长期修改、外发或审批权限；已有 Atomic Tool 的文件审批路径保持独立。
 
 准入串行核对父侧单个活动复杂调用，以及账号/全局子 Execution 数量（`CAPABILITY_ACCOUNT_EXECUTIONS` 默认 4，`CAPABILITY_GLOBAL_EXECUTIONS` 默认 32）；容量不足产生持久失败观察。预算准入只检查 Run / Work 剩余余量，不预收整次能力费用。实际模型请求仍走 Snapshot 后 Account/day + Work + Run 原子预留，工具仍走既有账本和容量服务。迁移 061 从同一 `run_usage_ledger` 按 producing Execution 限制 model_calls / tool_calls；重试原 Operation 去重，不增加第二份费用账本。
 
@@ -203,6 +203,15 @@ File 能力负责上传、校验、不可变对象、Run 绑定和生成输出�
 
 ## Research
 
+标准组合的新调用使用 `research-web-v3`，将阶段阈值、检索选择/等待策略、合成 prompt/hash
+及生成参数固定在现有 `descriptor.definition.execution_policy`；业务 policy 可与当前配置不同，
+实现模板与版本须明确受支持。`research-web-v2` 的准确旧定义仍可恢复，不补填缺失策略，
+阶段参数保留旧实例读取语义。公开 v1 输入/输出 schema 与工具名保持不变。
+固定父入口与 Harness 恢复均复用原调用描述和子 Execution，不按当前候选重建 scope；
+每次使用和模型请求仍复验当前权限与 fence。流程图、提取/历史/检查版本固定，仍最多三轮，
+不将原诊断 max_iterations 变成新轮数开关。详见[持久策略配置](../reference/configuration.md#持久策略来源与生效规则)。
+
+
 `research` v1 是固定局部能力：[定义](../../src/research_domain/capability.py)、[实现](../../src/research_activities/runtime.py)、[编排](../../src/orchestration/research_workflow.py)。规划仅从已登记 invocation 的不可变输入读取 objective 与 source_strategy，不回退读取父 Work 的目标；不获得长期写入或通知权限，不支持从 uploaded_files 隐式读取资料。每次调用以父 tool Operation 的 invocation_id 为研究实例，拥有独立 capability Execution；plan、阶段、iteration、source/evidence、claim/citation、报告和历史基线均按实例隔离。Run 只提供归属、现有预算和查询关联，同 Run 可顺序研究多次。迁移 062–064 保留旧行的 Run 查询键，新执行必须带已登记的 invocation 身份。
 
 具有显式 main 区域和定义列表的网页保留主文档及 API 签名，过滤脚本和导航；其他网页继续使用通用正文提取，避免只留下定义说明却丢失被说明的名称。
@@ -308,4 +317,4 @@ Research 将长目标转换为供应商长度范围内的查询（legacy 240、D
 能力接入提交前运行 `make architecture-check`：沿既有目录、工具配置与真实 Worker 组装
 核验定义/绑定/实现、Activity 队列、重复注册、全部 Workflow sandbox 及共用失败/取消契约。
 事务权限、预算与迟到回执仍用显式隔离环境的 `make test-db test-api test-temporal` 验证；
-离线检查与诊断版本关联的范围、Research 冻结重试上限的已知缺口见[测试指南](../development/testing.md)。
+离线检查、冻结调用时限与重试上限契约、诊断版本关联的验证范围见[测试指南](../development/testing.md)。

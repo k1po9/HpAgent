@@ -11,6 +11,8 @@ from psycopg_pool import ConnectionPool
 from account.credentials import PostgresPasswordCredentialAdapter
 from account.identity_binding_service import IdentityBindingService
 from account.registration_service import RegistrationService
+from common.agent_policy import load_agent_policy
+from common.runtime_config import CapacityConfig
 from conversation_domain.commands import CommandService
 from file_domain.approvals import FileActionApprovalService
 from persistence.migrate import verify_schema
@@ -37,6 +39,8 @@ def create_lifespan(
 ) -> Callable[[FastAPI], AbstractAsyncContextManager[None]]:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        agent_policy = load_agent_policy()
+        CapacityConfig.from_environment()
         async with AsyncExitStack() as resources:
             api_pool = ConnectionPool(
                 settings.database_url,
@@ -73,8 +77,9 @@ def create_lifespan(
                 api_pool,
                 budget_mode=settings.run_budget_mode,
                 budget_policy_version=settings.run_budget_policy_version,
+                agent_policy=agent_policy,
             )
-            app.state.works = WorkCommandService(api_pool, budget_mode=settings.run_budget_mode)
+            app.state.works = WorkCommandService(api_pool, budget_mode=settings.run_budget_mode, agent_policy=agent_policy)
             app.state.file_approvals = FileActionApprovalService(api_pool)
             app.state.workspace = WorkspaceCatalog(api_pool, app.state.commands)
             app.state.resource_policy = ResourcePolicy(api_pool)

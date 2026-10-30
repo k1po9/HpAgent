@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from typing import Any, Callable
@@ -26,6 +25,7 @@ from agent_workflows.capability_contracts import (
 )
 from agent_workflows.contracts import AGENT_SCHEMA_VERSION, ToolExecutionResult
 from application.tool_policy import ToolPolicy, agent_role, tool_policy
+from common.runtime_config import CapacityConfig
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.capabilities import CapabilityFacts
 from run_domain.capability_contracts import (
@@ -143,7 +143,7 @@ class CapabilityActivities:
         return CapabilityExecutionInput(
             str(invocation['account_id']), str(invocation['run_id']),
             str(invocation['child_execution_id']), invocation['invocation_id'],
-            binding.workflow_name, definition['limits']['max_duration_seconds'],
+            binding.workflow_name, invocation['descriptor']['limits']['max_duration_seconds'],
             definition['retry_policy']['max_attempts'], invocation['invocation_id'] + ':produce',
         )
 
@@ -290,10 +290,11 @@ class CapabilityActivities:
                 "WHERE role='capability' AND status IN ('queued','running','cancelling')",
                 (run["account_id"], parent["execution_id"]),
             ).fetchone()
+            limits = CapacityConfig.from_environment()
             if (
                 counts["parent"]
-                or counts["total"] >= int(os.getenv("CAPABILITY_GLOBAL_EXECUTIONS", "32"))
-                or counts["account"] >= int(os.getenv("CAPABILITY_ACCOUNT_EXECUTIONS", "4"))
+                or counts["total"] >= limits.capability_global_executions
+                or counts["account"] >= limits.capability_account_executions
             ):
                 raise ResourceDenied("capability capacity exhausted")
             # Admission is only a headroom check. Implementations still reserve every real

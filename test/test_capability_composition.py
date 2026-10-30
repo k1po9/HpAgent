@@ -7,6 +7,7 @@ import pytest
 
 from agent_activities.composition import compose_capabilities
 from research_activities.composition import compose_research
+from research_domain.policy import ResearchPolicy
 from web_artifacts.build import ArtifactBuildService
 
 
@@ -22,7 +23,7 @@ def test_catalog_derives_binding_worker_and_policy_names(monkeypatch):
     extra = replace(registrations[1], definition=replace(
         registrations[1].definition, key="test.extra", contract_version=2,
     ))
-    monkeypatch.setattr(composition, "capability_registrations", lambda: (*registrations, extra))
+    monkeypatch.setattr(composition, "capability_registrations", lambda **_: (*registrations, extra))
     catalog = composition.compose_capabilities(None, services=frozenset())
     binding = catalog.bindings["capability__test_dextra__v2"]
     assert (binding.key, binding.contract_version) == ("test.extra", 2)
@@ -76,7 +77,7 @@ def test_fixed_and_harness_child_inputs_use_binding_and_frozen_limits():
     invocation = {
         'account_id': 'account', 'run_id': 'run', 'child_execution_id': 'child',
         'invocation_id': 'invocation', 'capability_key': 'research', 'contract_version': 1,
-        'descriptor': {'definition': frozen},
+        'descriptor': {'definition': frozen, 'limits': frozen['limits']},
     }
     child = catalog.child_input(invocation)
     assert child.workflow_name == catalog.binding_for('research', 1).workflow_name
@@ -161,7 +162,7 @@ def test_different_implementations_cannot_silently_share_an_activity_name(monkey
     entries = composition.capability_registrations()
     conflict = replace(entries[1], definition=replace(entries[1].definition, key='test.conflict'),
                        activity_type=ConflictingActivities)
-    monkeypatch.setattr(composition, 'capability_registrations', lambda: (*entries, conflict))
+    monkeypatch.setattr(composition, 'capability_registrations', lambda **_: (*entries, conflict))
     with pytest.raises(ValueError, match='duplicate'):
         composition.capability_worker_activities(
             *(object.__new__(e.activity_type) for e in entries), ConflictingActivities(),
@@ -183,6 +184,24 @@ def test_catalog_filters_services_without_changing_contracts(services):
     assert catalog.discover("unsupported") == []
 
 
+def test_research_policy_uses_catalog_binding_and_retains_frozen_compatibility():
+    from copy import deepcopy
+
+    from research_domain.capability import research_definition
+
+    policy = ResearchPolicy(max_sources=7, synthesis_prompt='frozen research prompt')
+    catalog = compose_capabilities(None, services=frozenset({'research'}), research_policy=policy)
+    current = catalog.facts.registry.get('research', 1)
+    binding = catalog.binding_for('research', 1)
+    assert current == research_definition(policy).to_dict()
+    assert binding.compatible_definition(research_definition().to_dict(), current)
+    previous = research_definition(replace(policy, max_sources=3)).to_dict()
+    assert binding.compatible_definition(previous, current)
+    corrupted = deepcopy(previous)
+    corrupted['retry_policy']['max_attempts'] = 9
+    assert not binding.compatible_definition(corrupted, current)
+
+
 def test_fixed_and_harness_adapters_use_the_same_catalog(monkeypatch):
     monkeypatch.delenv("FILE_STORE_ROOT", raising=False)
     fixed = ArtifactBuildService("unused", None, publisher=object())
@@ -193,6 +212,7 @@ def test_fixed_and_harness_adapters_use_the_same_catalog(monkeypatch):
         markdown_publisher=object(),
         _ref=None,
         _root_event_id=None,
+        registration_policy=lambda: ResearchPolicy(synthesis_prompt="fixture research"),
     )
     harness, _ = compose_research(research, html_available=True)
     assert fixed.capabilities.bindings == harness.bindings
@@ -260,12 +280,13 @@ def test_every_catalog_binding_uses_frozen_bounds_and_valid_parent_schemas(entry
 
     catalog = compose_capabilities(None, services=frozenset())
     frozen = deepcopy(entry.definition.to_dict())
-    frozen['limits']['max_duration_seconds'] = 7
     frozen['retry_policy']['max_attempts'] = 1
     child = catalog.child_input({
         'account_id': 'account', 'run_id': 'run', 'child_execution_id': 'child',
         'invocation_id': 'invocation', 'capability_key': entry.definition.key,
-        'contract_version': entry.definition.contract_version, 'descriptor': {'definition': frozen},
+        'contract_version': entry.definition.contract_version, 'descriptor': {
+            'definition': frozen, 'limits': {**frozen['limits'], 'max_duration_seconds': 7},
+        },
     })
     assert (child.max_duration_seconds, child.max_attempts) == (7, 1)
     for model_facing in (False, True):
@@ -326,12 +347,7 @@ async def test_common_invocation_closes_exact_child_and_only_observes_after_succ
     assert len(closed) == 1 and closed[0].child == child and closed[0].status == outcome
 
 
-@pytest.mark.parametrize('entry', [
-    pytest.param(e, marks=pytest.mark.xfail(
-        strict=True, reason='Research orchestration uses fixed _RESEARCH_RETRY instead of frozen child.max_attempts',
-    )) if e.definition.key == 'research' else e
-    for e in capability_registrations()
-], ids=lambda e: e.definition.key)
+@pytest.mark.parametrize('entry', capability_registrations(), ids=lambda e: e.definition.key)
 async def test_implementation_retry_does_not_exceed_frozen_child_bound(monkeypatch, entry):
     from support.capability_contract import WorkflowProbe
 
@@ -342,6 +358,21 @@ async def test_implementation_retry_does_not_exceed_frozen_child_bound(monkeypat
     request = CapabilityExecutionInput('account', 'run', 'execution', 'invocation', entry.binding.workflow_name, 60, 1, 'operation')
     await entry.workflow().run(request)
     assert all(options['retry_policy'].maximum_attempts <= request.max_attempts for _, _, options in probe.calls)
+
+
+async def test_research_legacy_child_preserves_stage_retry_options(monkeypatch):
+    from support.capability_contract import WorkflowProbe
+
+    from agent_workflows.capability_contracts import CapabilityExecutionInput
+    from orchestration.research_workflow import _RESEARCH_RETRY, ResearchCapabilityWorkflow
+
+    probe = WorkflowProbe()
+    probe.install(monkeypatch, ResearchCapabilityWorkflow)
+    child = CapabilityExecutionInput('account', 'run', 'execution', 'invocation',
+                                     'ResearchCapabilityWorkflow', 3600, 4, 'produce')
+    await ResearchCapabilityWorkflow().run(child)
+    assert len(probe.calls) == 13
+    assert all(options['retry_policy'] == _RESEARCH_RETRY for _, _, options in probe.calls)
 
 
 @pytest.mark.parametrize('entry', capability_registrations(), ids=lambda e: e.definition.key)

@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional, Protocol
 
+from common.agent_policy import AgentPolicy
+
 
 @dataclass(frozen=True)
 class ActionRequest:
@@ -98,6 +100,7 @@ class ActionCapability(Protocol):
         execution_id: str,
         user_query: str = "",
         idempotency_key: str = "",
+        agent_policy: AgentPolicy | None = None,
     ) -> ActionResult: ...
 
     def clear_execution(self, resource_key: str, execution_id: str) -> None: ...

@@ -7,6 +7,7 @@ import logging
 import os
 
 from bootstrap.worker_dependencies import WorkerDependencies
+from common.runtime_config import ArtifactRuntimeConfig
 from orchestration.config import AppConfig
 
 logger = logging.getLogger("HpAgent.OrchestrationWorker")
@@ -181,12 +182,13 @@ def compose_durable_runtime(
         durable_activities.store,
         html_available=infrastructure.file_output_publisher is not None,
     )
+    artifact_config = ArtifactRuntimeConfig.from_environment()
     artifact_build = ArtifactBuildService(
         worker_database_url,
         WebArtifactGenerator(
             infrastructure.resource_pool,
-            max_bytes=int(os.getenv("ARTIFACT_HTML_MAX_BYTES", str(1024 * 1024))),
-            read_timeout_seconds=float(os.getenv("ARTIFACT_MODEL_READ_TIMEOUT_SECONDS", "90")),
+            max_bytes=artifact_config.artifact_html_max_bytes,
+            read_timeout_seconds=artifact_config.artifact_model_read_timeout_seconds,
         ),
         capabilities=capability_activities,
         publisher=infrastructure.file_output_publisher,

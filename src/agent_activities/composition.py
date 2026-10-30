@@ -24,7 +24,8 @@ from orchestration.research_workflow import ResearchCapabilityWorkflow
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from research_activities import ResearchActivities
 from research_activities.admission import admit_research
-from research_domain.capability import research_definition
+from research_domain.capability import compatible_research_definition, research_definition
+from research_domain.policy import ResearchPolicy
 from run_domain.capabilities import CapabilityFacts
 from run_domain.capability_contracts import CapabilityDefinition, CapabilityRegistry
 from web_artifacts.capability import html_definition, html_parent_input_schema, html_scope
@@ -55,11 +56,11 @@ class CapabilityRegistration:
         )
 
 
-def capability_registrations() -> tuple[CapabilityRegistration, ...]:
+def capability_registrations(*, research_policy: ResearchPolicy | None = None) -> tuple[CapabilityRegistration, ...]:
     return (
-        CapabilityRegistration(research_definition(), ResearchCapabilityWorkflow,
+        CapabilityRegistration(research_definition(research_policy), ResearchCapabilityWorkflow,
                                ResearchActivities, WEB_LIFECYCLE_TASK_QUEUE, {
-            'admit': admit_research,
+            'admit': admit_research, 'compatible_definition': compatible_research_definition,
         }),
         CapabilityRegistration(html_definition(), HtmlCapabilityWorkflow,
                                HtmlActivities, AGENT_TASK_QUEUE, {
@@ -113,8 +114,8 @@ def capability_worker_activities(*implementations) -> dict[str, list[Any]]:
     return grouped
 
 
-def compose_capabilities(store, *, services: frozenset[str]) -> CapabilityActivities:
-    entries = capability_registrations()
+def compose_capabilities(store, *, services: frozenset[str], research_policy: ResearchPolicy | None = None) -> CapabilityActivities:
+    entries = capability_registrations(research_policy=research_policy)
     return CapabilityActivities(
         store,
         CapabilityFacts(

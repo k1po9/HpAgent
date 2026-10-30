@@ -1,0 +1,122 @@
+{
+  "allowed_surfaces": [
+    "chat",
+    "work"
+  ],
+  "cancellation_policy": "cooperative_bounded",
+  "contract_version": 1,
+  "description": "Research an objective and return immutable Markdown and scoped citation checks.",
+  "execution_mode": "isolated_execution",
+  "executor_kind": "fixed_workflow",
+  "implementation_version": "research-web-v2",
+  "input_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "objective": {
+        "maxLength": 20000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "source_strategy": {
+        "additionalProperties": false,
+        "properties": {
+          "allowed_domains": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "excluded_domains": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "freshness_days": {
+            "default": 0,
+            "description": "Omitted or 0 means no date restriction. Positive days require a confirmable source date within that interval; unknown dates cannot satisfy it.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "github": {
+            "type": "boolean"
+          },
+          "official_sources": {
+            "type": "boolean"
+          },
+          "preferred_domains": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "public_web": {
+            "type": "boolean"
+          },
+          "rss": {
+            "type": "boolean"
+          },
+          "rss_feeds": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "uploaded_files": {
+            "const": false
+          }
+        },
+        "type": "object"
+      }
+    },
+    "required": [
+      "objective"
+    ],
+    "type": "object"
+  },
+  "key": "research",
+  "limits": {
+    "max_duration_seconds": 3600,
+    "max_model_calls": 1,
+    "max_tool_calls": 23,
+    "schema_version": 1
+  },
+  "output_schema": {
+    "additionalProperties": false,
+    "properties": {
+      "checks": {},
+      "error": {},
+      "gaps": {},
+      "outcome": {},
+      "outputs": {},
+      "provenance": {},
+      "schema_version": {},
+      "summary": {}
+    },
+    "required": [
+      "schema_version",
+      "outcome",
+      "outputs",
+      "checks"
+    ],
+    "type": "object"
+  },
+  "required_services": [
+    "research"
+  ],
+  "resource_operations": [
+    "read_content"
+  ],
+  "retry_policy": {
+    "max_attempts": 4,
+    "schema_version": 1
+  },
+  "side_effect_policy": "candidate_output",
+  "verifier_keys": [
+    "research.basic"
+  ]
+}

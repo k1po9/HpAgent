@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -29,7 +29,7 @@ def test_work_without_message_has_explicit_execution_anchor():
 
 
 def test_invalid_timezone_and_naive_clock_are_rejected():
-    with pytest.raises(ZoneInfoNotFoundError):
+    with pytest.raises(ValueError, match="agent_policy.default_timezone"):
         AgentConfig(default_timezone="invalid/zone")
     with pytest.raises(ValueError, match="timezone"):
         format_time_context(datetime(2026, 1, 1), "UTC")
