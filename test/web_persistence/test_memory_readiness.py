@@ -1,8 +1,8 @@
 """Readiness uses real source/action/outbox facts, without changing them."""
 import pytest
+from test_memory_readiness import Remote as InventoryRemote
 
 from application.memory_readiness import inspect_memory
-from test.test_memory_readiness import Remote as InventoryRemote
 
 from .test_memory_retention import setup_action, tick
 

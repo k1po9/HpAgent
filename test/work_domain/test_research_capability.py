@@ -434,7 +434,10 @@ async def test_synthesis_response_commit_survives_reentry_without_second_request
     class Pool:
         async def generate(self, **kwargs):
             calls.append(kwargs)
-            evidence = json.loads(kwargs['messages'][1]['content'])['evidence']
+            user_message, = (
+                message for message in kwargs['messages'] if message['role'] == 'user'
+            )
+            evidence = json.loads(user_message['content'])['evidence']
             ids = [] if failure == 'missing_citation' else ['unknown'] if failure == 'unknown_evidence' else [evidence[0]['evidence_id']]
             payload = {'title': 'R', 'report_markdown': '# R\n\nA fact.',
                        'claims': [{'statement': 'A fact.', 'evidence_ids': ids}]}
