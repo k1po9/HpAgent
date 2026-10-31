@@ -1,7 +1,13 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
-import { login, createConversation, sendMessage, expectReply } from "./helpers";
+import {
+  login,
+  createConversation,
+  sendMessage,
+  expectReply,
+  expectWorkbenchReady,
+} from "./helpers";
 import type { HpArtifact, HpArtifactVersion } from "../src/api/types";
 
 const evidence = resolve(process.cwd(), "./test-results/evidence/ui-6/self-review/fix/screenshots");
@@ -112,8 +118,13 @@ test("network fixtures over a restored real message: its HTML row converges thro
       lists++;
   });
   await page.reload();
-  await expect(page.getByRole("button", { name: /HTML · v1 正在生成/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /HTML · v1 生成完成/ })).toBeVisible({
+  await expectWorkbenchReady(page);
+  // The HTML build appends its own chat reply. Reveal the original source so
+  // visible-history discovery, rather than latest-message discovery, owns it.
+  const source = page.locator(`.hp-msg[data-message-id="${artifact.source_message_id}"]`);
+  await source.scrollIntoViewIfNeeded();
+  await expect(source.getByRole("button", { name: /HTML · v1 正在生成/ })).toBeVisible();
+  await expect(source.getByRole("button", { name: /HTML · v1 生成完成/ })).toBeVisible({
     timeout: 15000,
   });
   expect(polls).toBe(2);

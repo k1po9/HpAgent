@@ -4,17 +4,9 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { login } from "./helpers";
+import { selectTask } from "./form-helpers";
 const evidence = resolve(process.env.HPAGENT_UI5_EVIDENCE_DIR ?? "./test-results/evidence/ui-5");
 const inspector = (page: Page) => page.locator(".hp-inspector");
-async function selectTask(
-  page: Page,
-  owner: import("@playwright/test").Locator | Page,
-  field: string,
-  option: string,
-) {
-  await owner.getByLabel(field, { exact: true }).click();
-  await page.getByRole("option", { name: option, exact: true }).click();
-}
 async function create(page: Page, title: string, kind = "reminder") {
   await page.getByRole("button", { name: "新建任务", exact: true }).click();
   const form = page.getByRole("dialog", { name: "新建任务", exact: true });
@@ -72,7 +64,9 @@ test("selects a delivery folder and explicitly grants Work write access without 
   await inspector(page).getByRole("tab", { name: "使用资料" }).click();
   await expect(inspector(page).getByText("要求保存到：/资料", { exact: true })).toBeVisible();
   await inspector(page).getByText("高级写入权限", { exact: true }).click();
-  await inspector(page).getByLabel("创建子项", { exact: true }).check();
+  const createChild = inspector(page).getByRole("checkbox", { name: "创建子项", exact: true });
+  await createChild.check();
+  await expect(createChild).toBeChecked();
   await inspector(page).getByRole("button", { name: "确认授予所选权限" }).click();
   await expect(
     inspector(page).getByText("授权已生效，下一轮可用。", { exact: true }),
@@ -115,7 +109,8 @@ test("creates, revises, controls, increases one limit and returns from inspector
     if (key !== "model_total_tokens") expect(current.budget.limits[key]).toBe(value);
   await inspector(page).getByRole("button", { name: "恢复任务" }).click();
   await expect(inspector(page).getByRole("button", { name: "暂停任务" })).toBeVisible();
-  await inspector(page).getByRole("button", { name: "停止任务" }).click();
+  await inspector(page).getByRole("button", { name: "更多操作", exact: true }).click();
+  await page.getByRole("menuitem", { name: "停止任务", exact: true }).click();
   await page
     .getByRole("dialog", { name: "停止任务", exact: true })
     .getByRole("button", { name: "确认停止任务" })

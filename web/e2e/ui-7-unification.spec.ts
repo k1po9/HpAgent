@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { login, createConversation, sendMessage, expectReply } from "./helpers";
 import { workFixture } from "../src/components/tasks/taskFixtures";
+import type { HpArtifact, HpArtifactVersion } from "../src/api/types";
 test.setTimeout(120_000);
 const evidence = resolve(process.cwd(), "./test-results/evidence/ui-7/screenshots");
 const sizes = [
@@ -239,30 +240,64 @@ test("all four Inspectors have keyboard tabs, URL replace, geometry and screensh
   }
 });
 
-test("formal Header creation keeps instruction and verified Run lookup handles denial", async ({
+test("message HTML creation keeps its source; version instructions and verified Run lookup handle denial", async ({
   page,
 }) => {
   await login(page);
   await createConversation(page);
   await sendMessage(page, "UI-7 创建与查询验收");
   await expectReply(page);
-  await page.getByRole("button", { name: "从回复生成 HTML" }).click();
-  await page.getByLabel("来源消息").selectOption({ index: 1 });
-  await page.getByLabel("生成要求").fill("用中文生成报告");
+  const messageId = await page
+    .locator('.hp-msg[data-role="assistant"]')
+    .getAttribute("data-message-id");
+  const source = page.locator(`.hp-msg[data-message-id="${messageId}"]`);
   const created = page.waitForResponse(
     (r) =>
       /\/messages\/[^/]+\/artifacts$/.test(new URL(r.url()).pathname) &&
       r.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "创建成果", exact: true }).click();
-  expect((await created).request().postDataJSON()).toEqual({ instruction: "用中文生成报告" });
+  await source.getByRole("button", { name: "生成 HTML", exact: true }).click();
+  const creation = await created;
+  expect(new URL(creation.url()).pathname).toBe(`/api/v1/messages/${messageId}/artifacts`);
+  expect(creation.request().postDataJSON()).toEqual({ instruction: null });
+  const result = (await creation.json()) as { artifact: HpArtifact; version: HpArtifactVersion };
+  expect(result.artifact.source_message_id).toBe(messageId);
   await expect(page.getByTitle("Artifact 预览")).toBeVisible({ timeout: 30000 });
+  await page.getByLabel("修改指令").fill("用中文生成报告");
+  const revised = page.waitForResponse(
+    (r) =>
+      new URL(r.url()).pathname === `/api/v1/artifacts/${result.artifact.artifact_id}/versions` &&
+      r.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "生成新版本", exact: true }).click();
+  const revision = await revised;
+  expect(revision.request().postDataJSON()).toEqual({ instruction: "用中文生成报告" });
+  const revisedResult = (await revision.json()) as {
+    artifact: HpArtifact;
+    version: HpArtifactVersion;
+  };
+  expect(revisedResult.artifact.source_message_id).toBe(messageId);
+  expect(revisedResult.version.parent_version_id).toBe(result.version.artifact_version_id);
+  expect(revisedResult.version.instruction).toBe("用中文生成报告");
   await page.getByRole("button", { name: "关闭HTML 成果" }).click();
-  await page.getByText("按执行编号查询", { exact: true }).click();
-  await page.getByLabel("执行编号").fill("00000000-0000-0000-0000-000000000007");
-  await page.getByRole("button", { name: "查询", exact: true }).click();
-  await expect(page.getByText("对象不可用。", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("执行编号")).toHaveValue("00000000-0000-0000-0000-000000000007");
+  await source.getByRole("button", { name: /HTML · v2/ }).click();
+  await page.getByRole("tab", { name: "版本历史", exact: true }).click();
+  await expect(page.locator(".hp-artifact-history")).toContainText("用中文生成报告");
+  await page.getByRole("tab", { name: "详情", exact: true }).click();
+  await expect(page.locator(".hp-artifact-details")).toContainText(
+    `对话 ${result.artifact.conversation_id}`,
+  );
+  await page.getByRole("button", { name: "关闭HTML 成果" }).click();
+  await fixtures(page);
+  await page.goto("/#/tasks?inspect=task:ui7-task&tab=advanced");
+  const inspector = page.locator(".hp-inspector");
+  await inspector.getByText("按执行编号查询", { exact: true }).click();
+  const lookup = inspector.getByRole("region", { name: "按执行编号查询", exact: true });
+  const runId = lookup.getByRole("textbox", { name: "执行编号", exact: true });
+  await runId.fill("00000000-0000-0000-0000-000000000007");
+  await lookup.getByRole("button", { name: "查询", exact: true }).click();
+  await expect(lookup.getByRole("alert")).toHaveText("对象不可用。");
+  await expect(runId).toHaveValue("00000000-0000-0000-0000-000000000007");
   await screenshot(page, "lookup-unavailable");
 });
 
@@ -348,15 +383,26 @@ test("nested Task abandonment and inbox keep the parent; keyboard and color pair
   const targets = await page
     .locator('.hp-inspector .hp-surface-header button, .hp-inspector [role="tab"]')
     .evaluateAll((buttons) =>
-      buttons.map((n) => ({
-        name: n.textContent,
-        width: n.getBoundingClientRect().width,
-        height: n.getBoundingClientRect().height,
-      })),
+      buttons.map((n) => {
+        const bounds = n.getBoundingClientRect();
+        const points = [
+          [bounds.left + 1, bounds.top + bounds.height / 2],
+          [bounds.right - 1, bounds.top + bounds.height / 2],
+          [bounds.left + bounds.width / 2, bounds.top + 1],
+          [bounds.left + bounds.width / 2, bounds.bottom - 1],
+        ];
+        return {
+          name: n.getAttribute("aria-label") ?? n.textContent,
+          width: bounds.width,
+          height: bounds.height,
+          reachable: points.every(([x, y]) => n.contains(document.elementFromPoint(x!, y!))),
+        };
+      }),
     );
   for (const target of targets) {
-    expect(target.width).toBeGreaterThanOrEqual(44);
-    expect(target.height).toBeGreaterThanOrEqual(44);
+    expect(target.width, `${target.name} touch width`).toBeGreaterThanOrEqual(44);
+    expect(target.height, `${target.name} touch height`).toBeGreaterThanOrEqual(44);
+    expect(target.reachable, `${target.name} touch area is unobstructed`).toBe(true);
   }
   await writeFile(
     resolve(evidence, "a11y-measurements.json"),
@@ -365,35 +411,47 @@ test("nested Task abandonment and inbox keep the parent; keyboard and color pair
   await screenshot(page, "task-keyboard-mobile");
 });
 
-test("explicit login assembles once; restore skips it and send/stop keep one fixed control", async ({
+test("explicit login enters once; restore uses recovery and send/stop keep one fixed control", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.addInitScript(() => {
-    const stats = { added: 0 };
-    Object.defineProperty(window, "__ui7Assembly", { value: stats });
+    const stats = { login: 0, restore: 0 };
+    Object.defineProperty(window, "__ui7Entry", { value: stats });
     new MutationObserver((records) => {
       for (const record of records)
         for (const node of record.addedNodes) {
-          if (node instanceof Element)
-            stats.added +=
-              Number(node.matches(".hp-assembly")) + node.querySelectorAll(".hp-assembly").length;
+          if (!(node instanceof Element)) continue;
+          const transitions = [
+            ...(node.matches(".hp-entry-particles") ? [node] : []),
+            ...node.querySelectorAll(".hp-entry-particles"),
+          ];
+          for (const transition of transitions) {
+            const source = transition.closest(".hp-entry")?.getAttribute("data-entry-source");
+            if (source === "login" || source === "restore") stats[source]++;
+          }
         }
     }).observe(document, { childList: true, subtree: true });
   });
   await login(page);
   expect(
     await page.evaluate(
-      () => (window as unknown as { __ui7Assembly: { added: number } }).__ui7Assembly.added,
+      () => (window as unknown as { __ui7Entry: { login: number; restore: number } }).__ui7Entry,
     ),
-  ).toBe(1);
-  await expect(page.locator(".hp-assembly")).toHaveCount(0);
+  ).toEqual({ login: 1, restore: 0 });
+  await expect(page.locator(".hp-entry")).toHaveAttribute("data-entering", "false");
+  await expect(page.locator(".hp-entry-particles")).toHaveCount(0);
+  await expect(page.locator(".hp-entry-origin")).toHaveCount(0);
   await page.reload();
   await expect(page.locator(".hp-shell")).toBeVisible();
+  await expect(page.locator(".hp-entry")).toHaveAttribute("data-entering", "false");
+  await expect(page.locator(".hp-entry")).toHaveAttribute("data-entry-source", "restore");
   expect(
     await page.evaluate(
-      () => (window as unknown as { __ui7Assembly: { added: number } }).__ui7Assembly.added,
+      () => (window as unknown as { __ui7Entry: { login: number; restore: number } }).__ui7Entry,
     ),
-  ).toBe(0);
+  ).toEqual({ login: 0, restore: 1 });
+  await expect(page.locator(".hp-entry-particles")).toHaveCount(0);
   await createConversation(page);
   const action = page.locator(".hp-composer__action");
   await action.evaluate((node) => node.setAttribute("data-sentinel", "same-action"));

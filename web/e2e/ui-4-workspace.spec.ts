@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { login, createConversation } from "./helpers";
-import { workspace, uploadWorkspace, fileInspector } from "./workspace-helpers";
+import { workspace, uploadWorkspace, fileInspector, nameConversation } from "./workspace-helpers";
+import { selectTask } from "./form-helpers";
 const evidence = resolve(process.cwd(), "./test-results/evidence/ui-4");
 
 test("directory deep links, direct children, all files, file preview and browser return", async ({
@@ -13,14 +14,14 @@ test("directory deep links, direct children, all files, file preview and browser
   const name = `nested-${Date.now()}`;
   await panel.getByLabel("新目录名称").fill(name);
   await panel.getByRole("button", { name: "新建目录" }).click();
-  await panel.getByRole("button", { name: `📁 ${name}`, exact: true }).click();
+  await panel.getByRole("button", { name, exact: true }).click();
   const hash = new URL(page.url()).hash;
   const filename = `child-${Date.now()}.txt`;
   await uploadWorkspace(page, filename, "verified preview");
   await page.reload();
   await expect(page.getByRole("table")).toBeVisible();
   expect(new URL(page.url()).hash).toBe(hash);
-  await panel.getByRole("button", { name: `📄 ${filename}`, exact: true }).click();
+  await panel.getByRole("button", { name: filename, exact: true }).click();
   await expect(fileInspector(page).getByText("verified preview", { exact: true })).toBeVisible();
   await expect(page.locator(".hp-inspector")).toHaveCount(1);
   await page.goBack();
@@ -29,7 +30,7 @@ test("directory deep links, direct children, all files, file preview and browser
     .getByRole("navigation", { name: "空间路径" })
     .getByRole("button", { name: "根目录", exact: true })
     .click();
-  await expect(panel.getByRole("button", { name: `📄 ${filename}`, exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: filename, exact: true })).toHaveCount(0);
   await expect(
     page.getByRole("status").filter({ hasText: "目录不存在或不可访问，已返回根目录。" }),
   ).toHaveCount(0);
@@ -37,7 +38,7 @@ test("directory deep links, direct children, all files, file preview and browser
     .getByRole("navigation", { name: "空间目录" })
     .getByRole("button", { name: "全部文件" })
     .click();
-  await expect(panel.getByRole("button", { name: `📄 ${filename}`, exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name: filename, exact: true })).toBeVisible();
   await page.goto("/#/workspace?dir=00000000-0000-0000-0000-000000000000");
   await expect(panel.getByRole("table")).toBeVisible();
   await expect(page).not.toHaveURL(/dir=00000000/);
@@ -97,6 +98,8 @@ test("saved upload survives a failed grant, closes, reopens and retries authoriz
   await login(page);
   await createConversation(page);
   const id = new URL(page.url()).hash.split("/")[2]!;
+  const conversationTitle = `授权恢复目标-${Date.now()}`;
+  await nameConversation(page, conversationTitle);
   const panel = await workspace(page);
   await panel.getByRole("button", { name: "上传文件", exact: true }).click();
   let fail = true,
@@ -119,13 +122,15 @@ test("saved upload survives a failed grant, closes, reopens and retries authoriz
     mimeType: "text/plain",
     buffer: Buffer.from("saved before grant failure"),
   });
-  await dialog.getByLabel(/上传后用于当前对话/).check();
-  await dialog.getByLabel("目标对话").selectOption(id);
+  const useForConversation = dialog.getByRole("checkbox", { name: /上传后用于当前对话/ });
+  await useForConversation.check();
+  await expect(useForConversation).toBeChecked();
+  await selectTask(page, dialog, "目标对话", conversationTitle);
   await dialog.getByRole("button", { name: "上传并保存到 Workspace" }).click();
   await expect(dialog.getByRole("status")).toContainText("资料已保存");
   await expect(dialog.getByRole("alert")).toBeVisible();
   await dialog.getByRole("button", { name: "关闭上传到空间" }).click();
-  await expect(panel.getByRole("button", { name: `📄 ${name}`, exact: true })).toBeVisible();
+  await expect(panel.getByRole("button", { name, exact: true })).toBeVisible();
   await panel.getByRole("button", { name: "上传文件", exact: true }).click();
   await dialog.getByText("本次会话上传与保存记录", { exact: true }).click();
   await dialog.getByRole("button", { name: "继续此操作", exact: true }).click();
@@ -142,7 +147,7 @@ test("new conversation usage creates once, restores failed authorization and sen
   await login(page);
   const name = `use-${Date.now()}.txt`;
   const panel = await uploadWorkspace(page, name, "long term");
-  await panel.getByRole("button", { name: `📄 ${name}`, exact: true }).click();
+  await panel.getByRole("button", { name, exact: true }).click();
   await fileInspector(page).getByRole("button", { name: "在对话中使用" }).click();
   const dialog = page.getByRole("dialog", { name: "在对话中使用资料" });
   let creations = 0,
@@ -162,7 +167,9 @@ test("new conversation usage creates once, restores failed authorization and sen
       await route.abort();
     } else await route.continue();
   });
-  await dialog.getByLabel("创建新对话").check();
+  const createNew = dialog.getByRole("checkbox", { name: "创建新对话", exact: true });
+  await createNew.check();
+  await expect(createNew).toBeChecked();
   await dialog.getByRole("button", { name: "确认读取授权并进入对话" }).click();
   await expect(dialog.getByRole("alert")).toBeVisible();
   await dialog.getByRole("button", { name: "确认读取授权并进入对话" }).click();
@@ -186,7 +193,7 @@ test("permission drafts, keyboard tabs, impact invalidation and responsive objec
     name,
     "# 文本预览\n\n正文与表格：\n\n| A | B |\n|---|---|\n| 1 | 2 |\n",
   );
-  await panel.getByRole("button", { name: `📄 ${name}`, exact: true }).click();
+  await panel.getByRole("button", { name, exact: true }).click();
   let inspector = fileInspector(page);
   await inspector.getByRole("tab", { name: "预览", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
@@ -198,16 +205,18 @@ test("permission drafts, keyboard tabs, impact invalidation and responsive objec
   await inspector.getByLabel("目标对话").selectOption(conversationId);
   await expect(inspector.getByText(/所选主体暂无适用规则/)).toBeVisible();
   await inspector.getByText("高级写入权限", { exact: true }).click();
-  await inspector.getByLabel("修改内容", { exact: true }).check();
+  const updateContent = inspector.getByRole("checkbox", { name: "修改内容", exact: true });
+  await updateContent.check();
+  await expect(updateContent).toBeChecked();
   await inspector.getByRole("button", { name: "关闭文件详情" }).click();
   const abandon = page.getByRole("dialog", { name: "放弃未提交的权限编辑？" });
   await expect(abandon).toBeVisible();
   await abandon.getByRole("button", { name: "继续编辑" }).click();
-  await expect(inspector.getByLabel("修改内容", { exact: true })).toBeChecked();
+  await expect(updateContent).toBeChecked();
   await inspector.getByRole("button", { name: "关闭文件详情" }).click();
   await abandon.getByRole("button", { name: "放弃编辑并继续" }).click();
   await expect(inspector).toHaveCount(0);
-  await panel.getByRole("button", { name: `📄 ${name}`, exact: true }).click();
+  await panel.getByRole("button", { name, exact: true }).click();
   await inspector.getByRole("button", { name: "改名、移动或移除入口" }).click();
   const mutation = page.getByRole("dialog", { name: "管理空间入口" });
   await mutation.getByRole("button", { name: "预览改名或移动影响" }).click();
@@ -215,6 +224,12 @@ test("permission drafts, keyboard tabs, impact invalidation and responsive objec
   await mutation.getByLabel("Workspace 名称").fill(`${name}.new`);
   await expect(mutation.getByRole("button", { name: "确认改名或移动" })).toHaveCount(0);
   await mutation.getByRole("button", { name: "关闭管理空间入口" }).click();
+  const abandonMutation = page.getByRole("dialog", { name: "放弃未提交的空间修改？", exact: true });
+  await expect(abandonMutation).toBeVisible();
+  await abandonMutation.getByRole("button", { name: "放弃修改并关闭", exact: true }).click();
+  await expect(abandonMutation).toHaveCount(0);
+  await expect(mutation).toHaveCount(0);
+  await expect(inspector).toBeVisible();
   for (const [width, height] of [
     [360, 800],
     [390, 844],
@@ -233,7 +248,7 @@ test("permission drafts, keyboard tabs, impact invalidation and responsive objec
     await page.screenshot({ path: resolve(evidence, `inspector-${width}x${height}.png`) });
     await inspector.getByRole("button", { name: "关闭文件详情" }).click();
     await page.screenshot({ path: resolve(evidence, `workspace-${width}x${height}.png`) });
-    await panel.getByRole("button", { name: `📄 ${name}`, exact: true }).click();
+    await panel.getByRole("button", { name, exact: true }).click();
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -254,7 +269,7 @@ test("empty and unavailable objects keep navigation and focus usable", async ({ 
   const name = `空目录-${Date.now()}`;
   await panel.getByLabel("新目录名称").fill(name);
   await panel.getByRole("button", { name: "新建目录" }).click();
-  await panel.getByRole("button", { name: `📁 ${name}`, exact: true }).click();
+  await panel.getByRole("button", { name, exact: true }).click();
   await expect(panel.getByText("此处暂无文件或目录。", { exact: true })).toBeVisible();
   await page.screenshot({ path: resolve(evidence, "workspace-empty-desktop.png") });
   const directoryHash = new URL(page.url()).hash;

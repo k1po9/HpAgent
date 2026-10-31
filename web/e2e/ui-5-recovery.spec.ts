@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { login } from "./helpers";
+import { selectTask } from "./form-helpers";
 import { workFixture, runFixture, deliveryFixture } from "../src/components/tasks/taskFixtures";
 const evidence = resolve(process.cwd(), "./test-results/evidence/ui-5/self-review/screenshots");
 const inspector = (page: Page) => page.locator(".hp-inspector");
@@ -128,7 +129,7 @@ test("real API: a failed requirement read and retry preserve the whole draft bef
   const form = page.getByRole("dialog", { name: "新建任务", exact: true });
   await form.getByLabel("工作名称").fill(`review-draft-${Date.now()}`);
   await form.getByLabel("目标 / 提醒内容").fill("原提醒内容");
-  await form.getByLabel("执行时间").selectOption("once");
+  await selectTask(page, form, "执行时间", "指定时间");
   await form.getByLabel("日期时间").fill("2027-01-01T09:00");
   const created = page.waitForResponse(
     (r) => new URL(r.url()).pathname === "/api/v1/works" && r.request().method() === "POST",

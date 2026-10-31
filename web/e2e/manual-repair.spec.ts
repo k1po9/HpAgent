@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createConversation, login } from "./helpers";
-import { uploadWorkspace } from "./workspace-helpers";
+import { nameConversation, uploadWorkspace } from "./workspace-helpers";
+import { selectTask } from "./form-helpers";
 
 test("creates a child in the selected directory and explains duplicate names", async ({ page }) => {
   await login(page);
@@ -30,12 +31,14 @@ test("uploads and authorizes the current conversation, and keeps chat drafts acr
   await login(page);
   await createConversation(page);
   const conversationId = new URL(page.url()).hash.split("/")[2];
+  const conversationTitle = `上传授权目标-${Date.now()}`;
+  await nameConversation(page, conversationTitle);
   await page.getByPlaceholder(/输入消息/).fill("切页后保留的草稿");
   await page.getByRole("button", { name: "空间", exact: true }).click();
   const panel = page.getByRole("region", { name: "空间页面" });
   const name = `visible-next-run-${Date.now()}.txt`;
   await panel.getByRole("button", { name: "资料", exact: true }).click();
-  await uploadWorkspace(page, name, "next run discovers this file", conversationId);
+  await uploadWorkspace(page, name, "next run discovers this file", conversationTitle);
   const rules = await (
     await page.request.get(`/api/v1/conversations/${conversationId}/resources`)
   ).json();
@@ -76,7 +79,12 @@ test("creates reminder and research directly from independent pages on narrow sc
   await expect(page.getByRole("article", { name: title })).toBeVisible();
   await page.getByRole("button", { name: "关闭任务详情" }).click();
   await page.getByRole("button", { name: "新建任务", exact: true }).click();
-  await page.getByLabel("工作类型").selectOption("research_report");
+  await selectTask(
+    page,
+    page.getByRole("dialog", { name: "新建任务", exact: true }),
+    "工作类型",
+    "研究报告",
+  );
   await page.getByLabel("工作名称").fill(`research-${Date.now()}`);
   await page.getByLabel("目标 / 提醒内容").fill("测试研究来源和输出");
   const research = page.waitForResponse(
@@ -97,7 +105,12 @@ test("revises a scheduled work and grants its own directory permissions", async 
   const title = `scheduled-${Date.now()}`;
   await page.getByLabel("工作名称").fill(title);
   await page.getByLabel("目标 / 提醒内容").fill("原始提醒要求");
-  await page.getByLabel("执行时间").selectOption("once");
+  await selectTask(
+    page,
+    page.getByRole("dialog", { name: "新建任务", exact: true }),
+    "执行时间",
+    "指定时间",
+  );
   await page.getByLabel("日期时间").fill("2027-01-01T09:00");
   const created = page.waitForResponse(
     (r) => r.url().endsWith("/api/v1/works") && r.request().method() === "POST",
@@ -114,8 +127,13 @@ test("revises a scheduled work and grants its own directory permissions", async 
     page.locator(".hp-inspector").getByText("已修订的提醒要求", { exact: true }),
   ).toBeVisible();
   await page.locator(".hp-inspector").getByRole("tab", { name: "使用资料" }).click();
-  await page.getByLabel("选择长期目录或文件").selectOption({ label: "/资料" });
-  await page.getByLabel("包含此目录的所有子目录与文件").check();
+  await selectTask(page, page.locator(".hp-inspector"), "选择长期目录或文件", "/资料");
+  const recursive = page.getByRole("checkbox", {
+    name: "包含此目录的所有子目录与文件",
+    exact: true,
+  });
+  await recursive.check();
+  await expect(recursive).toBeChecked();
   await page.getByRole("button", { name: "确认授予所选权限", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "授权已生效" })).toContainText(
     "授权已生效",

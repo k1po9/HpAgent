@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import contract from "../../../test/fixtures/work/generic_completion.json" with { type: "json" };
 import { workFixture } from "../../src/components/tasks/taskFixtures";
+import { selectTask } from "../form-helpers";
 const genericRequirement = { ...contract.new_requirement, completion_mode: "deliverable" as const };
 
 const me = {
@@ -68,14 +69,13 @@ for (const width of [1536, 390]) {
     await page.goto("/#/tasks");
     await settled(page);
     await page.getByRole("button", { name: "新建任务", exact: true }).click();
+    const form = page.getByRole("dialog", { name: "新建任务", exact: true });
     await page.getByLabel("工作名称", { exact: true }).fill("文字成果");
-    await page
-      .getByRole("combobox", { name: "工作类型", exact: true })
-      .selectOption("generic_work");
+    await selectTask(page, form, "工作类型", "通用任务");
     await page
       .getByLabel("目标 / 提醒内容", { exact: true })
       .fill(contract.new_requirement.objective);
-    await page.getByRole("combobox", { name: "计划时区", exact: true }).selectOption("UTC");
+    await selectTask(page, form, "计划时区", "UTC");
     await page.getByRole("button", { name: "创建工作", exact: true }).click();
     await expect.poll(() => submitted).toEqual(contract.new_requirement);
   });
