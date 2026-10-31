@@ -9,7 +9,9 @@ Main（Web / QQ）、Generic Work 和子执行在共享 Context Activity 中注�
 聊天另外携带原始触发消息时间，用于解释“明天”“几分钟后”等相对时间，跨午夜重试不改变原意。
 后台执行没有原始聊天时间时使用自身执行基准，已确定的 Requirement 时间保持原值。
 该时间块随 transcript 和模型输入快照保存，是本次执行的固定基准，不是每轮请求的实时时钟；
-新执行重新建立基准，历史 transcript 不补写。修改配置后需重启相关 Worker 才会用于新上下文。
+新执行重新建立基准，历史 transcript 不补写。决策模型每轮请求和 Research 汇总另带
+`Asia/Shanghai` 实时时钟，作为调用时刻信息，不替换解释相对时间的固定执行／消息基准；
+Research 的冻结提示词保持原值，时钟作为独立 system 消息发送。修改配置后需重启相关 Worker 才会用于新上下文。
 
 [config/agent_tools.yaml](../../config/agent_tools.yaml) 是实际执行的工具分配配置；[config/prompts/agents.yaml](../../config/prompts/agents.yaml) 保存对应中文角色与阶段提示词。两者均按仓库 `src/` 或主 Worker 平铺目录布局定位应用根目录，进程首次读取后缓存；修改后需重启相关 Worker，不热更新已有模型快照和上下文。
 

@@ -485,7 +485,7 @@ async def test_claims_to_html_retains_conditions_types_and_exceptions_for_anothe
         async def generate(self, **kwargs):
             self.calls += 1
             if self.calls == 1:
-                payload = json.loads(kwargs['messages'][1]['content'])
+                payload = json.loads(next(message['content'] for message in kwargs['messages'] if message['role'] == 'user'))
                 assert [item['excerpt'] for item in payload['evidence']] == statements
                 assert all('excerpt' not in item['source_locator'] for item in payload['evidence'])
                 return SimpleNamespace(content=json.dumps({'title': 'Admission policy', 'claims': [

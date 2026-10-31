@@ -50,6 +50,9 @@ async def test_synthesis_request_uses_frozen_prompt_and_limits():
     class Pool:
         async def generate(self, **kwargs):
             assert kwargs['messages'][0] == {'role': 'system', 'content': 'old instruction'}
+            assert kwargs['messages'][1]['role'] == 'system'
+            assert kwargs['messages'][1]['content'].startswith('当前时间：')
+            assert kwargs['messages'][1]['content'].endswith('（Asia/Shanghai）')
             assert kwargs['max_tokens'] == 4096
             assert kwargs['model_selector'] == 'chat'
             return type('Response', (), {'content': '{}'})()

@@ -6,6 +6,7 @@ import json
 from typing import Any
 
 from application.prompt_catalog import agent_prompt
+from application.prompt_clock import current_time_line
 from research_domain.models import ClaimDraft, ResearchReport
 from research_domain.policy import ResearchPolicy
 
@@ -44,6 +45,10 @@ class ResourcePoolResearchSynthesizer:
                 {
                     "role": "system",
                     "content": policy.synthesis_prompt if policy is not None else agent_prompt("research"),
+                },
+                {
+                    "role": "system",
+                    "content": current_time_line(),
                 },
                 {
                     "role": "user",

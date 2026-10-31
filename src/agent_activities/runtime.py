@@ -36,6 +36,7 @@ from agent_workflows.contracts import (
 )
 from application.execution_contracts import StableExecutionFailure
 from application.prompt_catalog import agent_prompt
+from application.prompt_clock import current_time_line
 from application.time_context import format_time_context
 from application.tool_policy import ToolPolicyError, agent_role, tool_policy
 from brain.contracts import BrainCapability
@@ -598,6 +599,9 @@ class DurableAgentActivities:
                                     tool_name(tool) == DELEGATE_TOOL for tool in tools
                                 ) else [],
                             }, ensure_ascii=False),
+                        })
+                        model_messages.insert(0, {
+                            "role": "system", "content": current_time_line(),
                         })
                         decision = await self.brain.generate_chat_decision(
                             messages=model_messages,
