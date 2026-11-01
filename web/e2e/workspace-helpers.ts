@@ -1,4 +1,17 @@
 import { expect, type Page } from "@playwright/test";
+import { selectTask } from "./form-helpers";
+
+/** Give the target a unique visible name before choosing it from the upload form. */
+export async function nameConversation(page: Page, title: string) {
+  await page.locator("#canvas-title").getByRole("button").dblclick();
+  await page.getByRole("textbox", { name: "对话标题", exact: true }).fill(title);
+  await page.getByRole("button", { name: "保存标题", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "对话标题", exact: true })).toHaveCount(0);
+  await expect(
+    page.locator("#canvas-title").getByRole("button", { name: title, exact: true }),
+  ).toBeVisible();
+}
+
 export async function workspace(page: Page) {
   await page.getByRole("button", { name: "空间", exact: true }).click();
   await expect(page.getByRole("table", { name: "空间文件" })).toBeVisible();
@@ -8,7 +21,7 @@ export async function uploadWorkspace(
   page: Page,
   name: string,
   body: string,
-  conversationId?: string,
+  conversationTitle?: string,
 ) {
   const panel = await workspace(page);
   await panel.getByRole("button", { name: "上传文件", exact: true }).click();
@@ -18,13 +31,15 @@ export async function uploadWorkspace(
     mimeType: name.endsWith(".md") ? "text/markdown" : "text/plain",
     buffer: Buffer.from(body),
   });
-  if (conversationId) {
-    await dialog.getByLabel(/上传后用于当前对话/).check();
-    await dialog.getByLabel("目标对话").selectOption(conversationId);
+  if (conversationTitle) {
+    const useForConversation = dialog.getByRole("checkbox", { name: /上传后用于当前对话/ });
+    await useForConversation.check();
+    await expect(useForConversation).toBeChecked();
+    await selectTask(page, dialog, "目标对话", conversationTitle);
   }
   await dialog.getByRole("button", { name: "上传并保存到 Workspace", exact: true }).click();
   await expect(dialog.getByRole("status")).toContainText(
-    conversationId ? "已保存并授权" : "未自动授权",
+    conversationTitle ? "已保存并授权" : "未自动授权",
   );
   await dialog.getByRole("button", { name: "关闭上传到空间" }).click();
   await expect(panel.getByRole("button", { name: `${name}`, exact: true })).toBeVisible();

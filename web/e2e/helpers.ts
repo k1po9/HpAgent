@@ -13,6 +13,13 @@ export const FAKE_REPLY = "这是由测试执行器生成的回复。";
 export const FAKE_CODE = "print('hello from hpagent')";
 export const COMPOSER_PLACEHOLDER = "输入消息，Enter 发送";
 
+/** A visible shell can still be inert while login/session restoration finishes. */
+export async function expectWorkbenchReady(page: Page): Promise<void> {
+  await expect(page.locator(".hp-shell")).toBeVisible();
+  await expect(page.locator(".hp-entry")).toHaveAttribute("data-entering", "false");
+  await expect(page.locator(".hp-entry-destination")).not.toHaveAttribute("inert", "");
+}
+
 /** Sign in through the real login form and wait for the workbench. */
 export async function login(page: Page, username = "alice"): Promise<void> {
   await diagnoseBrowser(page);
@@ -21,7 +28,7 @@ export async function login(page: Page, username = "alice"): Promise<void> {
   await page.getByLabel("用户名").fill(username);
   await page.getByLabel("密码").fill(E2E_PASSWORD);
   await page.getByRole("button", { name: "登录" }).click();
-  await expect(page.locator(".hp-shell")).toBeVisible();
+  await expectWorkbenchReady(page);
 }
 
 /** Create a fresh conversation; the composer becomes the active target. */

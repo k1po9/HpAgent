@@ -618,3 +618,21 @@ dialog.hp-task-operation .hp-operation-form > :is(label, .hp-task-field) > .lobe
     height: auto;
   }
 }
+
+/* Keep the actual Task header and Lobe tab targets usable on compact screens. */
+@media (max-width: 959px) {
+  .hp-inspector--task > .hp-surface-header .hp-inspector-expand,
+  .hp-inspector--task > .hp-surface-header > button:last-child {
+    height: var(--hp-touch);
+    min-height: var(--hp-touch);
+  }
+  .hp-inspector--task > .hp-surface-header > button:last-child {
+    flex-basis: var(--hp-touch);
+    width: var(--hp-touch);
+    min-width: var(--hp-touch);
+  }
+  .hp-task-inspector .hp-task-tabs [role="tab"] {
+    min-width: var(--hp-touch);
+    min-height: var(--hp-touch);
+  }
+}

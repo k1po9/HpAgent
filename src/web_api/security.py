@@ -5,7 +5,6 @@ import hashlib
 import hmac
 import json
 import time
-from dataclasses import dataclass
 from typing import Any, cast
 
 
@@ -29,9 +28,10 @@ def csrf_digest(token: str) -> bytes:
     return hashlib.sha256(token.encode()).digest()
 
 
-@dataclass(frozen=True)
 class CursorError(Exception):
-    code: str
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
 
 
 class CursorCodec:

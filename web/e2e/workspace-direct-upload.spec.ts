@@ -10,7 +10,7 @@ test("uploads directly to Workspace without creating or authorizing a conversati
   await login(page);
   const before = await (await page.request.get("/api/v1/conversations")).json();
   const panel = await uploadWorkspace(page, name, body);
-  await panel.getByRole("button", { name: `📄 ${name}`, exact: true }).click();
+  await panel.getByRole("button", { name, exact: true }).click();
   const inspector = fileInspector(page);
   await expect(inspector.getByText(body.trim(), { exact: true })).toBeVisible();
   const download = page.waitForEvent("download");
