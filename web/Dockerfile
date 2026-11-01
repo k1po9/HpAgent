@@ -15,6 +15,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+# AGPL §13 source offer; deployments serving other users must set this.
+ARG VITE_HPAGENT_SOURCE_URL=
+ENV VITE_HPAGENT_SOURCE_URL=$VITE_HPAGENT_SOURCE_URL
 RUN npm run build
 
 # ---- Stage 2: Nginx 运行时 ----

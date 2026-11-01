@@ -882,6 +882,8 @@ services:
 
     build:
       context: ./web
+      args:
+        VITE_HPAGENT_SOURCE_URL: ${VITE_HPAGENT_SOURCE_URL:-}
 
     image: ${WEB_GATEWAY_IMAGE:-hpagent/web-gateway:offline}
 

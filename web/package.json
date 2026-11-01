@@ -1,6 +1,7 @@
 {
   "name": "hpagent-web",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "version": "0.1.0",
   "type": "module",
   "engines": {
@@ -32,10 +33,13 @@
     "gsap": "^3.15.0",
     "lucide-react": "^1.30.0",
     "motion": "^13.5.1",
+    "n8ao": "^2.0.1",
+    "postprocessing": "^6.39.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "three": "^0.186.1",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
@@ -47,6 +51,7 @@
     "@types/node": "^26.1.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.0.5",
     "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.1.1",

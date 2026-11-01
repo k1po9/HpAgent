@@ -14,6 +14,7 @@ async function fixtures(
   page: Page,
   probe: (headers: Record<string, string>) => Promise<"ok" | "expired" | "error">,
 ) {
+  await page.route(/ipwho\.is|ipwhois\.io/, (route) => route.abort());
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/me") {
@@ -155,7 +156,8 @@ test("valid cookie: branded wait, actual particle pixels, stable shell and no na
     return "ok";
   });
   await page.goto("/");
-  await expect(page.locator(".hp-recovery-ring")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "HpAgent 会话恢复" })).toBeVisible();
+  await expect(page.getByLabel("密码", { exact: true })).toHaveCount(0);
   await expect(page.locator(".hp-shell")).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("recovery-wait.png") });
   release();
@@ -185,7 +187,7 @@ test("valid cookie: branded wait, actual particle pixels, stable shell and no na
   expect(errors).toEqual([]);
 });
 
-test("login keeps its card through authentication, then cookie reload uses the ring", async ({
+test("login keeps its card through authentication, then cookie reload restores the session", async ({
   page,
 }, testInfo) => {
   let release!: () => void;
@@ -224,6 +226,164 @@ test("login keeps its card through authentication, then cookie reload uses the r
   await settled(page);
 });
 
+async function signedOutFixtures(page: Page) {
+  await page.route(/ipwho\.is|ipwhois\.io/, (route) => route.abort());
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({ status: 401, json: { error: { code: "unauthorized" } } }),
+  );
+}
+
+test("identity terminal stays usable without WebGL, and rejection keeps the form", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      kind: string,
+      ...rest: unknown[]
+    ) {
+      if (kind.startsWith("webgl")) return null;
+      return (original as (...args: unknown[]) => unknown).call(this, kind, ...rest);
+    } as typeof original;
+  });
+  await signedOutFixtures(page);
+  await page.route("**/auth/login", (route) =>
+    route.fulfill({
+      status: 401,
+      json: {
+        error: {
+          code: "invalid_credentials",
+          message: "用户名或密码错误。",
+          retryable: false,
+          details: {},
+        },
+      },
+    }),
+  );
+  await page.goto("/");
+  await expect(page.locator(".hp-auth-layout")).toHaveAttribute("data-scene", "fallback");
+  await expect(page.locator("canvas")).toBeHidden();
+  const username = page.getByLabel("用户名", { exact: true });
+  await username.fill("fixture");
+  await page.getByLabel("密码", { exact: true }).fill("fixture-password");
+  await username.evaluate((el) => el.setAttribute("data-identity", "preserved"));
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveText("用户名或密码错误。");
+  await expect(page.locator(".hp-auth-layout")).toHaveAttribute("data-denied", "true");
+  await expect(username).toHaveAttribute("data-identity", "preserved");
+  await expect(username).toHaveValue("fixture");
+  await expect(page.locator(".hp-auth-layout")).not.toHaveAttribute("data-denied", "true");
+});
+
+test("registration keeps the file's size and the profile shows the lookup or its absence", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.route("https://ipwho.is/**", (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        ip: "203.0.113.9",
+        country: "中国",
+        region: "上海",
+        city: "上海",
+        country_code: "CN",
+        latitude: 31.23,
+        longitude: 121.47,
+        connection: { isp: "Example Net" },
+      },
+      headers: { "access-control-allow-origin": "*" },
+    }),
+  );
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({ status: 401, json: { error: { code: "unauthorized" } } }),
+  );
+  await page.goto("/");
+  const card = page.locator(".hp-auth-card");
+  await expect(card.locator(".profile")).toContainText("203.0.113.9");
+  await expect(card.locator(".profile")).toContainText("中国 上海");
+  await expect(card.locator(".profile dt")).toHaveText([
+    "MODE",
+    "OPENED AT",
+    "IP",
+    "REGION",
+    "ATTEMPT",
+  ]);
+  await expect(page.locator(".hp-identity-callouts")).toContainText("≈ 31.23°N 121.47°E");
+  const login = (await card.boundingBox())!.height;
+  await page.getByRole("button", { name: "没有账号？注册" }).click();
+  await expect(page.getByLabel("确认密码")).toBeVisible();
+  await expect.poll(async () => (await card.boundingBox())!.height).toBeCloseTo(login, 0);
+  await expect(page.getByRole("button", { name: "注册", exact: true })).toBeInViewport();
+  await page.getByLabel("用户名", { exact: true }).focus();
+  for (const label of ["密码", "确认密码", "邀请码（可选）"]) {
+    await page.keyboard.press("Tab");
+    await expect(page.getByLabel(label, { exact: true })).toBeFocused();
+  }
+});
+
+test("a rate-limited lookup leaves the profile unavailable and the form usable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 900 });
+  await page.route("https://ipwho.is/**", (route) => route.fulfill({ status: 429, body: "limit" }));
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({ status: 401, json: { error: { code: "unauthorized" } } }),
+  );
+  await page.goto("/");
+  await expect(page.locator(".hp-auth-card .profile")).toContainText("UNAVAILABLE");
+  await expect(page.getByRole("button", { name: "登录", exact: true })).toBeEnabled();
+  await expect(page.locator(".hp-identity-flag")).toHaveCount(0);
+});
+
+test("identity terminal holds no animation loop under reduced motion", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.addInitScript(() => {
+    const original = window.requestAnimationFrame.bind(window);
+    const counter = window as unknown as { rafCalls: number };
+    counter.rafCalls = 0;
+    window.requestAnimationFrame = (callback) => {
+      counter.rafCalls += 1;
+      return original(callback);
+    };
+  });
+  await signedOutFixtures(page);
+  await page.goto("/");
+  const layout = page.locator(".hp-auth-layout");
+  await expect(layout).toHaveAttribute("data-motion", "off");
+  await expect(layout).toHaveAttribute("data-scene", /ready|fallback/, { timeout: 30_000 });
+  await page.waitForTimeout(300);
+  const calls = () => page.evaluate(() => (window as unknown as { rafCalls: number }).rafCalls);
+  const before = await calls();
+  await page.waitForTimeout(600);
+  // A live 60Hz loop would add ~36 here; allow other components' one-off frames.
+  expect((await calls()) - before).toBeLessThan(5);
+});
+
+for (const [width, height] of [
+  [390, 844],
+  [390, 480],
+  [1280, 420],
+  [1099, 900],
+  [1100, 620],
+] as const) {
+  test(`registration reaches submit by scrolling at ${width}x${height}`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await signedOutFixtures(page);
+    await page.goto("/");
+    await page.getByRole("button", { name: "没有账号？注册" }).click();
+    const submit = page.getByRole("button", { name: "注册", exact: true });
+    await page
+      .locator(".hp-auth-surface")
+      .evaluate((surface) => surface.scrollTo(0, surface.scrollHeight));
+    await expect(submit).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  });
+}
+
 test("expired cookie and failed probe never play a success transition; retry recovers", async ({
   page,
 }) => {
@@ -243,6 +403,7 @@ test("expired cookie and failed probe never play a success transition; retry rec
 });
 
 test("reduced motion: static ring and no particle backing store", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("hpagent.entry-effect", "off"));
   await page.emulateMedia({ reducedMotion: "reduce" });
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
@@ -255,6 +416,41 @@ test("reduced motion: static ring and no particle backing store", async ({ page 
   release();
   await settled(page);
   await expect(page.locator("#canvas-title")).toBeFocused();
+});
+
+test("entry effect defaults on, persists off across reloads and can be re-enabled", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await fixtures(page, async () => "ok");
+  await page.goto("/#/tasks");
+  await expect(page.getByRole("heading", { name: "HpAgent 会话恢复" })).toBeVisible();
+  await expect(page.getByLabel("密码", { exact: true })).toHaveCount(0);
+  await settled(page);
+  const toggle = page.getByRole("button", { name: "每次打开显示登录特效" });
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".hp-entry-origin")).toHaveCount(0);
+
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/v1/me", async (route) => {
+    await gate;
+    await route.fulfill({ json: me });
+  });
+  await page.reload();
+  await expect(page.locator(".hp-recovery-ring")).toBeVisible();
+  await expect(page.locator(".hp-auth-layout")).toHaveCount(0);
+  release();
+  await settled(page);
+  await expect(page).toHaveURL(/#\/tasks/);
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "HpAgent 会话恢复" })).toBeVisible();
+  await settled(page);
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
 });
 
 test("mobile task deep link remains intact and resize settles safely", async ({ page }) => {
@@ -292,6 +488,7 @@ test("expiry during animation cancels the layer and cannot resurrect the workben
 test("slow verification stays in the ring; changing motion preference mid-flight settles", async ({
   page,
 }) => {
+  await page.addInitScript(() => localStorage.setItem("hpagent.entry-effect", "off"));
   let release!: () => void;
   const gate = new Promise<void>((resolve) => (release = resolve));
   await fixtures(page, async () => {

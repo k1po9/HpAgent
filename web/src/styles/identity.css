@@ -1,0 +1,1691 @@
+/* Identity Terminal, adapted from rhine-lock (see web/THIRD_PARTY_NOTICES.md).
+   Every token and rule here is scoped to the signed-out entry. */
+/* Basic Latin subsets: CJK text uses system fonts, so nothing else ever downloads. */
+@font-face {
+  font-family: "Identity Display";
+  src: url("/identity/fonts/Montserrat-Light.woff2") format("woff2");
+  font-weight: 300;
+  font-display: swap;
+  unicode-range: U+20-7E;
+}
+@font-face {
+  font-family: "Identity Display";
+  src: url("/identity/fonts/Montserrat-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+  unicode-range: U+20-7E;
+}
+@font-face {
+  font-family: "Identity Display";
+  src: url("/identity/fonts/Montserrat-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-display: swap;
+  unicode-range: U+20-7E;
+}
+@font-face {
+  font-family: "Identity Display";
+  src: url("/identity/fonts/Montserrat-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+20-7E;
+}
+@font-face {
+  font-family: "Identity Mono";
+  src: url("/identity/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  unicode-range: U+20-7E;
+}
+
+[data-theme="rhine"] {
+  --rhine-orange: #ff7b00;
+  --rhine-orange-deep: #e35d00;
+  --rhine-orange-text: #a84400;
+  --rhine-lime: #b9e432;
+  --rhine-paper: #ecead6;
+  --rhine-paper-center: #ecebe6;
+  --rhine-ink: #15161a;
+  --rhine-ink-soft: #46474d;
+  --rhine-display: "Identity Display", var(--default-font-family);
+  --rhine-mono: "Identity Mono", ui-monospace, monospace;
+
+  --hp-app: var(--rhine-paper-center);
+  --hp-subtle: var(--rhine-paper-center);
+  --hp-surface: #f8f7f2;
+  --hp-text: var(--rhine-ink);
+  --hp-muted: var(--rhine-ink-soft);
+  --hp-border: rgb(21 22 26 / 18%);
+  --hp-control-border: rgb(21 22 26 / 32%);
+  --hp-brand: var(--rhine-orange);
+  --hp-accent: var(--rhine-orange-text);
+  --hp-primary: var(--rhine-ink);
+  --hp-primary-hover: #000;
+  --hp-on-primary: #fff;
+  --hp-focus: var(--rhine-orange-deep);
+  --hp-focus-halo: rgb(255 123 0 / 28%);
+
+  --accent-a3: rgb(255 123 0 / 14%);
+  --accent-a4: rgb(255 123 0 / 20%);
+  --accent-a8: var(--rhine-orange-deep);
+  --accent-11: var(--rhine-orange-text);
+  --accent-a11: var(--rhine-orange-text);
+  --focus-8: var(--rhine-orange-deep);
+  --focus-a8: var(--rhine-orange-deep);
+  background: var(--rhine-paper-center);
+  color: var(--rhine-ink);
+}
+
+/* Scrolls itself so flowed layouts and soft keyboards can always reach the form. */
+.hp-auth-surface {
+  position: relative;
+  height: 100dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--rhine-paper-center);
+}
+.hp-auth-layout {
+  --denied: 0;
+  --pointer-x: 0;
+  --pointer-y: 0;
+  --centre-x: 1014px;
+  --centre-y: 572px;
+  --orange: #ff7b00;
+  --orange-deep: #e35d00;
+  --lime: #b9e432;
+  --paper: color-mix(in srgb, #ecebe6, #0b0b0c calc(var(--denied) * 100%));
+  --ink: color-mix(in srgb, #111214, #f2f0eb calc(var(--denied) * 100%));
+  --ink-inverse: color-mix(in srgb, #f2f0eb, #111214 calc(var(--denied) * 100%));
+  --mute: color-mix(in srgb, #66645f, #a5a39d calc(var(--denied) * 100%));
+  --faint: color-mix(in srgb, #c9c6c0, #2b2b2d calc(var(--denied) * 100%));
+  --card: color-mix(in srgb, #f6f5f2, #151618 calc(var(--denied) * 100%));
+  --tab: color-mix(in srgb, #e2e0dc, #1d1e20 calc(var(--denied) * 100%));
+  --accent: color-mix(in srgb, var(--lime), var(--orange) calc(var(--denied) * 100%));
+  --alert: color-mix(in srgb, #a84400, #ff9a3d calc(var(--denied) * 100%));
+  --display: var(--rhine-display);
+  --mono: var(--rhine-mono);
+  position: relative;
+  box-sizing: border-box;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--display);
+}
+.hp-auth-layout[data-layout="canvas"] {
+  height: 100%;
+  overflow: hidden;
+}
+.hp-identity-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 600ms ease;
+}
+.hp-auth-layout[data-scene="ready"] .hp-identity-canvas {
+  opacity: 1;
+}
+.hp-auth-layout[data-scene="fallback"] .hp-identity-canvas {
+  display: none;
+}
+.hp-identity-design {
+  position: relative;
+  z-index: 1;
+}
+.hp-auth-layout[data-layout="canvas"] .hp-identity-design {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.hp-auth-layout[data-layout="canvas"] .hp-identity-design > * {
+  position: absolute;
+}
+.hp-identity-chrome {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: hp-identity-in 600ms ease both;
+}
+.hp-identity-chrome > * {
+  position: absolute;
+}
+.hp-identity-flag {
+  flex: none;
+  display: inline-block;
+  width: auto;
+  height: 0.95em;
+  margin-right: 0.4em;
+  vertical-align: -0.1em;
+  box-shadow: 0 0 0 1px rgb(127 127 127 / 35%);
+}
+.hp-identity-tile .cap .hp-identity-flag {
+  margin-right: 0;
+}
+.hp-identity-mark {
+  display: block;
+  overflow: visible;
+}
+.hp-identity-mark text {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* ── header ── */
+.hp-auth-layout[data-layout="canvas"] .hp-auth-brand {
+  left: 60px;
+  top: 112px;
+}
+.hp-identity-header {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1;
+  color: var(--ink);
+}
+.hp-identity-header .l1 {
+  align-self: flex-start;
+  font-size: 46px;
+  font-weight: 700;
+  letter-spacing: 0.92px;
+}
+.hp-identity-header .l2 {
+  align-self: flex-start;
+  margin-top: 7px;
+  font-size: 17.6px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.hp-identity-header .l3 {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 0.42em;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+.hp-identity-header .l3 span {
+  font-weight: 300;
+}
+.hp-identity-header .l3 b {
+  font-weight: 700;
+}
+
+/* ── left rail ── */
+.hp-identity-rail {
+  left: 0;
+  top: 0;
+  width: 700px;
+  height: 100%;
+  color: var(--ink);
+}
+.hp-identity-rail > * {
+  position: absolute;
+}
+.hp-identity-rail .rule {
+  left: 429px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: color-mix(in srgb, var(--ink) 86%, transparent);
+}
+.hp-identity-rail .marker {
+  left: 411px;
+  width: 38px;
+  height: 22px;
+  background: var(--accent);
+  transition: top 260ms steps(3);
+}
+.hp-identity-rail .bar {
+  left: 0;
+  top: 408px;
+  width: 13px;
+  height: 292px;
+  background: var(--ink);
+}
+.hp-identity-rail .dash {
+  width: 14px;
+  height: 3px;
+  background: var(--ink);
+}
+.hp-identity-rail .hair {
+  left: 70px;
+  top: 863px;
+  width: 190px;
+  height: 1px;
+  background: color-mix(in srgb, var(--ink) 60%, transparent);
+}
+.hp-identity-rail .chip {
+  padding: 2px 6px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+.hp-identity-rail .micro {
+  left: 46px;
+  top: 426px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3px 10px;
+  width: 340px;
+  margin: 0;
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1.4;
+}
+.hp-identity-rail .micro dt {
+  color: var(--ink);
+}
+.hp-identity-rail .micro dd {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hp-identity-rail .log {
+  left: 46px;
+  top: 662px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  white-space: nowrap;
+}
+.hp-identity-rail .log div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hp-identity-rail .log i {
+  width: 2px;
+  height: 2px;
+  background: var(--ink);
+}
+.hp-identity-rail .hints {
+  left: 46px;
+  top: 880px;
+  display: flex;
+  gap: 14px;
+  color: var(--mute);
+  font-size: 8.5px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+}
+.hp-identity-rail .hints span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.hp-identity-rail .hints b {
+  padding: 1px 4px;
+  border: 1px solid var(--ink);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-weight: 700;
+}
+.hp-identity-rail .foot {
+  left: 0;
+  top: 955px;
+  width: 46px;
+  height: 14px;
+  background: var(--ink);
+}
+.hp-identity-rail .label {
+  left: 73px;
+  top: 950px;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+}
+
+/* ── sealed tile ── */
+.hp-identity-tile-at {
+  left: 300px;
+  top: 337px;
+}
+.hp-identity-tile {
+  position: relative;
+}
+.hp-identity-tile .tab {
+  position: absolute;
+  left: 14%;
+  bottom: calc(100% - 1px);
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 0.9em;
+  background: var(--tab);
+  color: color-mix(in srgb, #3c3c3c, #bdbdbd calc(var(--denied) * 100%));
+  font-size: 19px;
+  letter-spacing: 0.5px;
+}
+.hp-identity-tile .plate {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #101112;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / calc(var(--denied) * 0.22));
+}
+.hp-identity-tile .smoke {
+  position: absolute;
+  inset: -6%;
+  background: url("/identity/smoke.jpg") center / cover;
+  animation: hp-identity-drift 38s ease-in-out infinite alternate;
+}
+.hp-identity-tile .reg {
+  position: absolute;
+  right: 6.5%;
+  top: 12%;
+  width: 4.2%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #6c6c6c;
+  opacity: 0.85;
+}
+.hp-identity-tile .code {
+  position: relative;
+  margin-top: -4%;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1;
+}
+.hp-identity-tile .cap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 88%;
+  margin-top: 16px;
+  color: #d9d9d9;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* ── access feed ── */
+.hp-identity-feed-at {
+  left: 300px;
+  top: 640px;
+}
+.hp-identity-feed {
+  width: 376px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 10px 26px -10px color-mix(in srgb, #2c2418 30%, transparent);
+}
+.hp-identity-feed .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+.hp-identity-feed .head em {
+  flex: 1;
+  font-family: var(--mono);
+  font-style: normal;
+  font-weight: 400;
+  opacity: 0.7;
+}
+.hp-identity-feed .head i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lime);
+}
+.hp-identity-feed[data-live] .head i {
+  animation: hp-identity-pulse 1.6s ease-in-out infinite;
+}
+.hp-identity-feed .body {
+  display: flex;
+  gap: 14px;
+  padding: 12px;
+}
+.hp-identity-feed .art {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  background: #101112 url("/identity/smoke.jpg") center / cover;
+}
+.hp-identity-feed .meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hp-identity-feed .meta b {
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hp-identity-feed .meta span {
+  color: var(--mute);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+}
+.hp-identity-feed .state {
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 4px 8px;
+  border: 1px solid var(--ink);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+/* ── callouts ── */
+.hp-identity-callouts {
+  inset: 0;
+}
+.hp-identity-callouts svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+}
+.hp-identity-callouts line {
+  stroke: var(--ink);
+  stroke-width: 1.2;
+}
+.hp-identity-callouts circle {
+  fill: var(--ink);
+}
+.hp-identity-callouts .label {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--ink);
+}
+.hp-identity-callouts .label span {
+  align-self: flex-start;
+  padding: 1px 5px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+}
+.hp-identity-callouts .label b {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.hp-identity-callouts .label em {
+  display: flex;
+  align-items: center;
+  color: var(--mute);
+  font-size: 8.5px;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+}
+
+/* ── clock ── */
+.hp-identity-clock-at {
+  right: 64px;
+  top: 54px;
+}
+.hp-identity-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: var(--ink);
+}
+.hp-identity-clock .steps {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 12px;
+  margin-right: 4px;
+}
+.hp-identity-clock .node {
+  position: relative;
+  width: 7px;
+  height: 12px;
+  transition: width 320ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.hp-identity-clock .node[data-on] {
+  width: 34px;
+}
+.hp-identity-clock .dot {
+  position: absolute;
+  left: 0;
+  top: 2.5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--orange);
+}
+.hp-identity-clock .line {
+  position: absolute;
+  left: 7px;
+  right: 12px;
+  top: 5.25px;
+  height: 1.5px;
+  background: var(--orange);
+}
+.hp-identity-clock .ring {
+  position: absolute;
+  right: 0;
+  top: 0;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--orange);
+  border-radius: 50%;
+}
+.hp-identity-clock .time {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+}
+.hp-identity-clock .hm {
+  font-size: 92px;
+  font-weight: 300;
+  letter-spacing: -2px;
+  line-height: 1;
+}
+.hp-identity-clock .sec {
+  margin-top: 12px;
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 17px;
+}
+.hp-identity-clock .zone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 2px 0 0;
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.hp-identity-clock .zone i {
+  width: 6px;
+  height: 6px;
+  background: var(--ink);
+}
+.hp-identity-clock .date {
+  margin: 8px 2px 0 0;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 3.2px;
+  white-space: pre;
+}
+
+/* ── footer and subtitle ── */
+.hp-auth-layout[data-layout="canvas"] .hp-identity-footer {
+  right: 60px;
+  top: 936px;
+}
+.hp-identity-footer {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  color: var(--ink);
+}
+.hp-identity-footer .sig {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 17px;
+  letter-spacing: 0.4px;
+}
+.hp-identity-footer .sig b {
+  font-weight: 700;
+  letter-spacing: 1.2px;
+}
+.hp-identity-footer .sig i {
+  width: 24px;
+  height: 5px;
+  margin-left: 14px;
+  background: var(--ink);
+}
+.hp-license-notice {
+  margin: 0;
+  color: var(--hp-muted);
+  font-size: 12px;
+}
+.hp-identity-footer .hp-license-notice {
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+.hp-identity-footer .hp-license-notice a {
+  color: var(--alert);
+}
+[data-theme="rhine"] .hp-recovery .hp-license-notice {
+  margin-top: 12px;
+  font-family: var(--rhine-mono);
+  font-size: 11px;
+}
+.hp-identity-subtitle {
+  left: 0;
+  right: 120px;
+  top: 1000px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  animation: hp-identity-rise 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.hp-identity-subtitle .zh {
+  color: var(--ink);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: 1.5px;
+}
+.hp-identity-subtitle .en {
+  color: var(--mute);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 2.2px;
+}
+
+/* ── verification ring and warning, pinned to the band's crossing ── */
+.hp-identity-anchor {
+  left: var(--centre-x);
+  top: var(--centre-y);
+  width: 0;
+  height: 0;
+}
+.hp-identity-ring {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.92);
+  transition:
+    opacity 240ms ease,
+    transform 240ms ease;
+}
+.hp-identity-ring[data-active] {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+.hp-identity-ring .halo {
+  position: absolute;
+  inset: -30px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--paper) 90%, transparent) 45%,
+    transparent
+  );
+}
+.hp-identity-ring svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.hp-identity-ring path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.4;
+}
+.hp-identity-ring .thick {
+  stroke-width: 2.2;
+}
+.hp-identity-ring circle {
+  fill: var(--orange);
+}
+.hp-identity-ring g {
+  transform-origin: 200px 200px;
+  animation: hp-identity-spin 9s linear infinite;
+}
+.hp-identity-ring .r2 {
+  animation: hp-identity-spin 3.8s linear infinite reverse;
+}
+.hp-identity-ring .r3 {
+  animation: hp-identity-spin 2.6s linear infinite reverse;
+}
+.hp-identity-ring .o1 {
+  animation-duration: 7s;
+}
+.hp-identity-ring .o2 {
+  animation-duration: 4.2s;
+}
+.hp-identity-ring .label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  color: var(--ink);
+  font-size: 15px;
+  letter-spacing: 6px;
+  text-align: center;
+  transform: translateY(-50%);
+}
+.hp-identity-warning {
+  position: absolute;
+  width: 420px;
+  height: 260px;
+  transform: translate(-50%, -38%);
+}
+.hp-identity-warning .halo {
+  position: absolute;
+  inset: -150px -170px;
+  background: radial-gradient(closest-side, rgb(5 5 6 / 94%) 50%, transparent);
+}
+.hp-identity-warning .box {
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  top: -26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 250px;
+  padding-top: 26px;
+  border: 1px solid rgb(255 123 0 / 25%);
+  background: #060607;
+}
+.hp-identity-warning .tri {
+  fill: none;
+  animation: hp-identity-tri 860ms steps(1) infinite;
+}
+.hp-identity-warning .tri path {
+  stroke: var(--orange);
+  stroke-width: 2;
+}
+.hp-identity-warning .tri rect {
+  fill: var(--orange);
+}
+.hp-identity-warning .plate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 300px;
+  height: 46px;
+  margin-top: 15px;
+  border: 2px solid var(--orange);
+  color: var(--orange);
+  font-size: 30px;
+  letter-spacing: 3px;
+}
+.hp-identity-warning .plate i {
+  width: 9px;
+  height: 100%;
+  background: var(--orange);
+}
+.hp-identity-warning .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 300px;
+  margin-top: 7px;
+  color: #cfcdc8;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  opacity: 0;
+  animation: hp-identity-show 1ms forwards;
+}
+.hp-identity-warning .plate + .row {
+  margin-top: 14px;
+}
+.hp-identity-warning .row b {
+  width: 8px;
+  height: 8px;
+  border: 1px solid currentColor;
+}
+.hp-identity-warning .row[data-last] {
+  color: var(--orange);
+}
+.hp-identity-warning .row[data-last] b {
+  background: var(--orange);
+}
+.hp-auth-layout[data-motion="off"] .hp-identity-warning .row {
+  opacity: 1;
+}
+
+/* ── the personnel file ── */
+.hp-auth-layout[data-layout="canvas"] .hp-identity-wrap {
+  left: calc(100% - 744px);
+  top: 262px;
+  transform: rotateY(calc(-6deg - var(--pointer-x) * 2.2deg))
+    rotateX(calc(var(--pointer-y) * 1.4deg));
+  transform-origin: 0 318px;
+  transform-style: preserve-3d;
+}
+.hp-identity-panel {
+  position: relative;
+  width: 680px;
+}
+.hp-auth-card {
+  position: relative;
+  min-height: 636px;
+  color: var(--ink);
+}
+.hp-auth-card .rear {
+  position: absolute;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+  background: color-mix(in srgb, var(--card) 22%, transparent);
+  transform: translate(18px, -18px);
+}
+.hp-auth-card .glass {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-backdrop-filter: blur(26px) saturate(0.75) brightness(1.03);
+  backdrop-filter: blur(26px) saturate(0.75) brightness(1.03);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--card) 62%, transparent),
+    color-mix(in srgb, var(--card) 50%, transparent) 55%,
+    color-mix(in srgb, var(--card) 42%, transparent)
+  );
+  box-shadow: 10px 18px 46px
+    color-mix(in srgb, #3b3226 calc(22% - var(--denied) * 10%), transparent);
+}
+.hp-auth-card .hex {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 62%;
+  height: 55%;
+  background: url("/identity/hex.png");
+  opacity: calc(0.55 - var(--denied) * 0.35);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 70%);
+  mask-image: linear-gradient(90deg, transparent, #000 70%);
+}
+.hp-auth-card .ghost-name {
+  position: absolute;
+  left: 286px;
+  top: -26px;
+  color: color-mix(in srgb, var(--ink) 6%, transparent);
+  font-size: 112px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+.hp-auth-card .ghost-info {
+  position: absolute;
+  left: 22px;
+  top: 346px;
+  color: rgb(255 255 255 / calc(0.78 - var(--denied) * 0.7));
+  font-size: 86px;
+  font-weight: 700;
+  letter-spacing: 4px;
+}
+.hp-auth-card .bevel {
+  position: absolute;
+  display: block;
+}
+.hp-auth-card .bevel.t {
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: rgb(255 255 255 / calc(0.9 - var(--denied) * 0.75));
+}
+.hp-auth-card .bevel.l {
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgb(255 255 255 / calc(0.75 - var(--denied) * 0.6));
+}
+.hp-auth-card .bevel.b {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.hp-auth-card .bevel.r {
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.hp-auth-card .tags-r {
+  position: absolute;
+  right: 28px;
+  top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.hp-auth-card .llc {
+  padding: 3px 8px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.hp-auth-card .photo {
+  position: absolute;
+  left: 30px;
+  top: 70px;
+  width: 232px;
+  height: 282px;
+  border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  background: var(--card);
+  box-shadow: 0 10px 28px -6px color-mix(in srgb, #2c2418 28%, transparent);
+}
+.hp-auth-card .film {
+  position: absolute;
+  inset: 9px;
+  overflow: hidden;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, #ecebe7, #1b1c1e calc(var(--denied) * 100%)),
+    color-mix(in srgb, #d5d1c8, #0f1011 calc(var(--denied) * 100%))
+  );
+}
+.hp-auth-card .sil {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hp-auth-card .classified {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  padding: 3px 7px;
+  background: var(--orange);
+  color: #111214;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.hp-auth-card .scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--orange);
+  opacity: 0.85;
+  animation: hp-identity-scan 900ms ease-in-out infinite alternate;
+}
+.hp-auth-card .badge {
+  position: absolute;
+  left: -8px;
+  top: -8px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+}
+.hp-auth-card .tick {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+}
+.hp-auth-card .tick::before,
+.hp-auth-card .tick::after {
+  content: "";
+  position: absolute;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+}
+.hp-auth-card .tick::before {
+  left: 7.5px;
+  top: 0;
+  width: 1px;
+  height: 16px;
+}
+.hp-auth-card .tick::after {
+  top: 7.5px;
+  left: 0;
+  width: 16px;
+  height: 1px;
+}
+.hp-auth-card .identity {
+  position: absolute;
+  left: 286px;
+  right: 30px;
+  top: 58px;
+}
+.hp-auth-card .rank {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.hp-auth-card .state {
+  padding: 3px 6px;
+  border: 1px solid var(--faint);
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+.hp-auth-card .state[data-alert] {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+.hp-auth-card .name {
+  display: inline-flex;
+  align-items: center;
+  height: 78px;
+  width: 100%;
+  margin: 10px 0 0;
+  padding: 0 32px 0 24px;
+  box-sizing: border-box;
+  background: var(--ink);
+}
+.hp-auth-card .name span {
+  overflow: hidden;
+  color: var(--ink-inverse);
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  line-height: 78px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hp-auth-card .rings {
+  position: absolute;
+  left: 40px;
+  top: 446px;
+  display: flex;
+  gap: 16px;
+  transition: top 240ms ease;
+}
+.hp-auth-card .features {
+  position: absolute;
+  left: 286px;
+  right: 30px;
+  top: 372px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  transition: opacity 180ms ease;
+}
+.hp-auth-card .features div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
+  border-left: 3px solid var(--orange);
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+}
+.hp-auth-card .features b {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+}
+.hp-auth-card .features span {
+  color: var(--mute);
+  font-size: 13px;
+}
+.hp-auth-layout[data-mode="register"] .rings {
+  top: 368px;
+}
+.hp-auth-layout[data-mode="register"] .features,
+.hp-auth-layout[data-mode="register"] .ghost-info {
+  opacity: 0;
+  visibility: hidden;
+}
+/* The input-to-portrait parsing link. */
+.hp-identity-link {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+}
+.hp-identity-link .leader {
+  stroke: color-mix(in srgb, var(--accent) 70%, var(--ink));
+  stroke-width: 1.5;
+  opacity: 0.55;
+  transition: opacity 180ms ease;
+}
+.hp-identity-link[data-focused] .leader {
+  opacity: 1;
+  stroke: var(--orange);
+}
+.hp-identity-link .parse {
+  transform-origin: 146px 160px;
+  stroke: var(--orange);
+  stroke-width: 2;
+  opacity: 0.6;
+  animation: hp-identity-spin 7s linear infinite;
+}
+.hp-identity-link[data-focused] .parse {
+  opacity: 1;
+  animation-duration: 2.6s;
+}
+.hp-identity-link .closed {
+  stroke: var(--lime);
+  stroke-width: 2;
+  opacity: 0;
+}
+.hp-identity-link[data-settled] .parse {
+  opacity: 0;
+}
+.hp-identity-link[data-settled] .closed {
+  opacity: 1;
+}
+.hp-identity-link .start {
+  fill: var(--orange);
+  animation: hp-identity-pulse 1.6s ease-in-out infinite;
+}
+.hp-identity-link .traveller {
+  fill: var(--orange);
+  opacity: 0;
+  offset-rotate: 0deg;
+}
+.hp-identity-link[data-alert] .leader {
+  stroke: var(--orange);
+  opacity: 1;
+}
+.hp-identity-link-label {
+  position: absolute;
+  left: 146px;
+  top: 236px;
+  padding: 3px 8px;
+  background: #111214;
+  color: #f4f3f0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.6px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.hp-identity-link-label[data-alert] {
+  color: var(--orange);
+}
+.hp-auth-card .ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  color: var(--mute);
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.hp-auth-card .ring i {
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 3px solid var(--accent);
+  border-radius: 50%;
+  transition: background 160ms;
+}
+.hp-auth-card .ring i[data-on] {
+  background: var(--accent);
+}
+.hp-auth-card .ring i[data-warn] {
+  border-color: var(--orange);
+  background: var(--orange);
+}
+.hp-auth-card .profile {
+  position: absolute;
+  left: 286px;
+  right: 30px;
+  top: 192px;
+  height: 160px;
+  background: var(--card);
+  box-shadow: 0 6px 18px -6px color-mix(in srgb, #2c2418 16%, transparent);
+}
+.hp-auth-card .ph {
+  margin: 10px 10px 0;
+  padding: 3px 6px;
+  background: var(--ink);
+  color: var(--ink-inverse);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.hp-auth-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 8px 14px 0;
+  line-height: 1.2;
+}
+.hp-auth-card dt {
+  color: var(--mute);
+  font-size: 13px;
+  font-weight: 500;
+}
+.hp-auth-card dd {
+  overflow: hidden;
+  margin: 0;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ── authorization: real fields on the black slab ── */
+.hp-identity-auth {
+  position: relative;
+  padding: 506px 30px 8px;
+  transition: padding-top 240ms ease;
+}
+/* Registration takes the room above, so the file keeps its size. */
+.hp-auth-layout[data-mode="register"] .hp-identity-auth {
+  padding-top: 414px;
+}
+.hp-auth-layout[data-mode="register"] .hp-identity-field {
+  min-height: 76px;
+}
+.hp-identity-auth .authhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 3px;
+}
+
+.hp-restore-status p {
+  margin: 12px 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.hp-restore-status .hp-auth-submit {
+  width: 100%;
+  min-height: 44px;
+}
+.hp-identity-auth .authhead i {
+  display: inline-block;
+  width: 14px;
+  height: 4px;
+  margin-right: 10px;
+  background: var(--ink);
+  vertical-align: middle;
+}
+.hp-identity-slab {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 120px;
+  background: #111214;
+}
+.hp-auth-layout[data-denied] .hp-identity-slab {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--orange) 80%, transparent);
+}
+.hp-identity-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 60px;
+  padding: 7px 14px 5px 24px;
+  box-sizing: border-box;
+  box-shadow: inset -1px 0 0 #2a2b2e;
+}
+.hp-identity-field > span {
+  color: #a9a7a1;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+.hp-identity-field .rt-TextFieldRoot {
+  height: 28px;
+  background: transparent;
+  box-shadow: none;
+  --text-field-focus-color: transparent;
+  outline: none;
+}
+.hp-identity-field .rt-TextFieldRoot::before,
+.hp-identity-field .rt-TextFieldRoot::after {
+  display: none;
+}
+.hp-identity-field input {
+  padding: 0;
+  text-indent: 0;
+  color: #f4f3f0;
+  caret-color: var(--lime);
+  font-family: inherit;
+  font-size: 17px;
+  letter-spacing: 0.5px;
+  outline: none;
+}
+.hp-identity-field input:-webkit-autofill {
+  -webkit-text-fill-color: #f4f3f0;
+  -webkit-box-shadow: inset 0 0 0 40px #111214;
+  caret-color: var(--lime);
+}
+.hp-identity-field:focus-within {
+  box-shadow:
+    inset -1px 0 0 #2a2b2e,
+    inset 0 0 0 1px var(--lime);
+}
+.hp-identity-field:focus-within > span {
+  color: #f4f3f0;
+}
+.hp-auth-card .hp-auth-submit {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  justify-content: space-between;
+  width: auto;
+  height: auto;
+  min-height: 48px;
+  margin: 6px;
+  padding: 0 14px;
+  border-radius: 0;
+  background: #1d1e20;
+  box-shadow: none;
+  color: #f4f3f0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  outline-offset: -2px;
+}
+.hp-auth-card .hp-auth-submit svg {
+  color: var(--orange);
+}
+.hp-auth-card .hp-auth-submit:hover:not(:disabled),
+.hp-auth-card .hp-auth-submit:disabled {
+  background: var(--orange);
+  color: #111214;
+}
+.hp-auth-card .hp-auth-submit:hover:not(:disabled) svg,
+.hp-auth-card .hp-auth-submit:disabled svg {
+  color: #111214;
+}
+.hp-auth-card .hp-auth-submit[data-confirmed="true"] {
+  background: var(--lime);
+  color: #111214;
+  opacity: 1;
+}
+/* Registration's tall key is a file seal: upright type, charged by the required fields. */
+.hp-auth-card .hp-auth-submit[data-seal] {
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 0 10px;
+}
+.hp-auth-card .hp-auth-submit[data-seal] .hp-submit-text {
+  writing-mode: vertical-rl;
+  font-size: 22px;
+  letter-spacing: 0.28em;
+}
+.hp-auth-card .hp-auth-submit[data-seal][data-busy] .hp-submit-text,
+.hp-auth-card .hp-auth-submit[data-seal][data-confirmed] .hp-submit-text {
+  font-size: 15px;
+  letter-spacing: 0.08em;
+}
+.hp-auth-card .hp-auth-submit[data-seal] > svg {
+  transform: rotate(90deg);
+}
+.hp-seal-meter {
+  display: flex;
+  gap: 4px;
+}
+.hp-seal-meter i {
+  width: 18px;
+  height: 4px;
+  background: #3a3b3f;
+  transition: background 160ms ease;
+}
+.hp-seal-meter i[data-on] {
+  background: var(--orange);
+}
+.hp-auth-card .hp-auth-submit[data-charged] {
+  background: var(--orange);
+  color: #111214;
+}
+.hp-auth-card .hp-auth-submit[data-charged] svg {
+  color: #111214;
+}
+.hp-auth-card .hp-auth-submit[data-charged] .hp-seal-meter i,
+.hp-auth-card .hp-auth-submit[data-busy] .hp-seal-meter i {
+  background: #111214;
+}
+/* Open-ended: the cells run while waiting and claim no progress. */
+.hp-auth-card .hp-auth-submit[data-busy] .hp-seal-meter i {
+  animation: hp-identity-pulse 900ms ease-in-out infinite;
+}
+.hp-auth-card .hp-auth-submit[data-busy] .hp-seal-meter i:nth-child(2) {
+  animation-delay: 150ms;
+}
+.hp-auth-card .hp-auth-submit[data-busy] .hp-seal-meter i:nth-child(3) {
+  animation-delay: 300ms;
+}
+.hp-identity-slab .focusline {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0;
+  height: 3px;
+  background: var(--accent);
+  transition: width 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+}
+.hp-identity-slab:focus-within .focusline {
+  width: 100%;
+}
+.hp-identity-under {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 24px;
+  margin-top: 10px;
+}
+.hp-identity-under .msg {
+  flex: 1;
+  min-width: 0;
+}
+.hp-identity-under .msg p {
+  margin: 0;
+  color: var(--alert);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.hp-identity-under .hp-identity-switch {
+  flex: none;
+  margin: 0;
+  color: var(--alert);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.hp-identity-verifying {
+  display: block;
+  position: relative;
+  height: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--ink) 14%, transparent);
+}
+/* An open-ended indicator: nothing here claims measured progress. */
+.hp-identity-verifying::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 34%;
+  background: var(--orange);
+  animation: hp-identity-sweep 1.1s ease-in-out infinite alternate;
+}
+
+/* ── flowed layout: narrow or short viewports ── */
+.hp-auth-layout[data-layout="flow"] {
+  padding: 24px 20px;
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-design {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.hp-auth-layout[data-layout="flow"] .hp-auth-brand {
+  align-self: flex-start;
+}
+/* Leaves the sculpture a band of its own on tall screens. */
+@media (min-height: 760px) {
+  .hp-auth-layout[data-layout="flow"] .hp-identity-wrap {
+    margin-top: 14dvh;
+  }
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-header {
+  transform: scale(0.8);
+  transform-origin: 0 0;
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-wrap,
+.hp-auth-layout[data-layout="flow"] .hp-identity-panel {
+  width: min(100%, 560px);
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-panel {
+  width: 100%;
+}
+.hp-auth-layout[data-layout="flow"] .hp-auth-card {
+  min-height: 0;
+}
+.hp-auth-layout[data-layout="flow"] .rear,
+.hp-auth-layout[data-layout="flow"] .tags-r,
+.hp-auth-layout[data-layout="flow"] .photo,
+.hp-auth-layout[data-layout="flow"] .ghost-info,
+.hp-auth-layout[data-layout="flow"] .rank,
+.hp-auth-layout[data-layout="flow"] .features,
+.hp-auth-layout[data-layout="flow"] .rings,
+.hp-auth-layout[data-layout="flow"] .profile {
+  display: none;
+}
+.hp-auth-layout[data-layout="flow"] .identity {
+  position: relative;
+  left: auto;
+  top: auto;
+  padding: 22px 22px 0;
+}
+.hp-auth-layout[data-layout="flow"] .name {
+  display: flex;
+  height: 58px;
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+}
+.hp-auth-layout[data-layout="flow"] .name span {
+  font-size: 32px;
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-auth {
+  padding: 16px 22px 18px;
+}
+.hp-auth-layout[data-layout="flow"][data-mode="register"] .hp-identity-field {
+  min-height: 60px;
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-slab {
+  grid-template-columns: minmax(0, 1fr);
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-field {
+  box-shadow: inset 0 -1px 0 #2a2b2e;
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-field:focus-within {
+  box-shadow: inset 0 0 0 1px var(--lime);
+}
+.hp-auth-layout[data-layout="flow"] .hp-auth-card .hp-auth-submit {
+  grid-column: 1;
+  grid-row: auto;
+  min-height: 46px;
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-under {
+  flex-wrap: wrap;
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-footer {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 16px;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+}
+.hp-auth-layout[data-layout="flow"] .hp-identity-footer .sig {
+  display: none;
+}
+
+@keyframes hp-identity-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes hp-identity-rise {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+@keyframes hp-identity-drift {
+  from {
+    transform: translate(-2%, -1%) scale(1.04);
+  }
+  to {
+    transform: translate(2%, 1.5%) scale(1.08);
+  }
+}
+@keyframes hp-identity-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes hp-identity-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes hp-identity-scan {
+  from {
+    top: 0;
+  }
+  to {
+    top: calc(100% - 2px);
+  }
+}
+@keyframes hp-identity-tri {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  71%,
+  100% {
+    opacity: 0.25;
+  }
+}
+@keyframes hp-identity-show {
+  to {
+    opacity: 1;
+  }
+}
+@keyframes hp-identity-sweep {
+  to {
+    transform: translateX(195%);
+  }
+}
+
+/* The in-app preference has no media query, so it is carried on the layout. */
+.hp-auth-layout[data-motion="off"],
+.hp-auth-layout[data-motion="off"] * {
+  animation: none !important;
+  transition: none !important;
+}

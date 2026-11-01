@@ -21,6 +21,7 @@
 @import "./styles/presentation/composer.css";
 @import "./styles/presentation/responsive.css";
 @import "./styles/presentation/inspector-motion.css";
+@import "./styles/identity.css";
 
 @import "./styles/inspector-visual.css";
 

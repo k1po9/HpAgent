@@ -29,6 +29,8 @@ import { clearSurfaceRetreat } from "../motion/surfaceFeedback";
 import { RailTrack } from "./RailTrack";
 import { useSpatialFeedback } from "../motion/useSpatialFeedback";
 import { useMotionAllowed, useMotionPreference, setMotionPreference } from "../motion/preference";
+import { LicenseNotice } from "../identity/LicenseNotice";
+import { EntryEffectToggle } from "../entry/EntryEffectToggle";
 import { useShellWidth } from "./useShellWidth";
 
 const screens = [
@@ -219,14 +221,17 @@ export function AppShell() {
             </button>
           ))}
         </nav>
-        <button
-          className="hp-account-button"
-          title="账户设置"
-          aria-label="账户设置"
-          onClick={() => useShell.setState({ modal: "account", sidebarOpen: false })}
-        >
-          <UserRound aria-hidden="true" />
-        </button>
+        <div className="hp-rail-footer">
+          <EntryEffectToggle />
+          <button
+            className="hp-account-button"
+            title="账户设置"
+            aria-label="账户设置"
+            onClick={() => useShell.setState({ modal: "account", sidebarOpen: false })}
+          >
+            <UserRound aria-hidden="true" />
+          </button>
+        </div>
       </div>
       <Surface
         title="上下文导航"
@@ -472,6 +477,7 @@ export function AppShell() {
             减少动态效果
             <small>系统减动设置始终优先</small>
           </label>
+          <LicenseNotice />
           <footer className="hp-account-footer">
             <button
               className="hp-account-signout"

@@ -3,3 +3,6 @@
 *.yaml text eol=lf
 *.yml text eol=lf
 *.cjs text eol=lf
+
+# Radiance HDR textures contain binary pixel data despite their ASCII header.
+/web/public/identity/*.hdr binary

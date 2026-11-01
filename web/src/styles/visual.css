@@ -5,98 +5,6 @@
     "Noto Sans CJK SC", "WenQuanYi Zen Hei", sans-serif;
   font-family: var(--default-font-family);
 }
-.hp-auth-surface {
-  background: var(--hp-app);
-  padding: 48px 24px;
-}
-.hp-auth-surface > .hp-auth-layout {
-  width: min(100%, 960px);
-  display: grid;
-  grid-template-columns: 1fr 420px;
-  align-items: center;
-  gap: 96px;
-}
-.hp-auth-wordmark {
-  font-size: 48px;
-  font-weight: 750;
-  letter-spacing: -2px;
-  color: var(--hp-text);
-}
-.hp-auth-wordmark span {
-  color: var(--hp-brand);
-}
-.hp-auth-tagline {
-  margin: 8px 0 40px;
-  color: var(--hp-muted);
-  font-size: 19px;
-}
-.hp-auth-brand ul {
-  padding: 0;
-  margin: 0;
-  list-style: none;
-  display: grid;
-  gap: 24px;
-  color: var(--hp-muted);
-}
-.hp-auth-brand li {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  font-size: 15px;
-}
-.hp-auth-brand svg {
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-}
-.hp-auth-card {
-  padding: 32px;
-  border: 1px solid var(--hp-border);
-  border-radius: 14px;
-  background: var(--hp-surface);
-  box-shadow: var(--hp-shadow-raised);
-}
-.hp-auth-card-heading {
-  margin-bottom: 10px;
-}
-.hp-auth-card-heading h1 {
-  font-size: 23px;
-}
-.hp-auth-card-heading p {
-  margin: 8px 0 0;
-  line-height: 1.6;
-}
-.hp-auth-card label {
-  display: grid;
-  gap: 7px;
-}
-.hp-auth-card .rt-TextFieldRoot {
-  height: 44px;
-  background: var(--hp-subtle);
-  box-shadow: inset 0 0 0 1px var(--hp-control-border);
-  border-radius: 8px;
-}
-.hp-auth-card .rt-TextFieldRoot:focus-within {
-  box-shadow:
-    inset 0 0 0 1px var(--hp-focus),
-    0 0 0 3px var(--hp-focus-halo);
-}
-.hp-auth-card input:where(:not([class*="lobe-"])) {
-  font-family: inherit;
-  font-size: 15px;
-}
-.hp-auth-card .hp-auth-submit {
-  min-height: 44px;
-  margin-top: 8px;
-  background: var(--hp-primary);
-  border-radius: 8px;
-}
-.hp-auth-card .rt-Button:disabled {
-  cursor: default;
-}
-.hp-auth-card [role="alert"] {
-  line-height: 1.6;
-}
 .hp-main-canvas {
   background: var(--hp-canvas);
   background-image:
@@ -357,48 +265,11 @@
   cursor: default;
 }
 @media (max-width: 959px) {
-  .hp-auth-surface > .hp-auth-layout {
-    grid-template-columns: 1fr 380px;
-    gap: 32px;
-  }
-  .hp-auth-wordmark {
-    font-size: 40px;
-  }
-  .hp-auth-tagline {
-    font-size: 16px;
-  }
   .hp-workspace-screen {
     padding: 0;
   }
 }
 @media (max-width: 599px) {
-  .hp-auth-surface {
-    padding: 32px 20px;
-  }
-  .hp-auth-surface > .hp-auth-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 28px;
-  }
-  .hp-auth-brand {
-    text-align: center;
-  }
-  .hp-auth-wordmark {
-    font-size: 34px;
-  }
-  .hp-auth-tagline {
-    margin: 6px 0 0;
-    font-size: 14px;
-  }
-  .hp-auth-brand ul {
-    display: none;
-  }
-  .hp-auth-card {
-    padding: 24px;
-    width: 100%;
-    box-sizing: border-box;
-  }
-
   .hp-workspace-screen > .hp-operation-form {
     flex-wrap: wrap;
   }
@@ -421,9 +292,6 @@
   }
 }
 /* Second screenshot review: tighten tools, clarify object cards and mobile actions. */
-.hp-auth-card-heading h1 {
-  font-weight: 700;
-}
 .hp-shell .hp-sidebar,
 .hp-sidebar-drawer .hp-sidebar {
   background: var(--hp-context);
@@ -521,9 +389,6 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-.hp-auth-brand {
-  min-width: 0;
 }
 .hp-inspector-tabs button:where(:not([class*="lobe-"])) {
   border-radius: 0;

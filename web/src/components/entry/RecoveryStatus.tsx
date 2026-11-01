@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LicenseNotice } from "../identity/LicenseNotice";
 
 export function RecoveryStatus({
   state,
@@ -43,6 +44,7 @@ export function RecoveryStatus({
           </p>
         )}
       </div>
+      <LicenseNotice />
     </main>
   );
 }
