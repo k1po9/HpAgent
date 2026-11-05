@@ -2,7 +2,6 @@
 
 
 class WorkScheduleRepository:
-
     @staticmethod
     def upsert(
         uow,

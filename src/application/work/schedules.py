@@ -5,12 +5,13 @@ from datetime import UTC, datetime
 
 from uuid6 import uuid7
 
+from persistence.uow import UnitOfWork
 from persistence.work_schedules import WorkScheduleRepository
 from work_domain.scheduling import plan_schedule
 from work_domain.timing import next_daily
 
 
-def sync_schedule(uow, work, requirement):
+def sync_schedule(uow: UnitOfWork, work, requirement):
     timing = requirement["timing"]
     row = WorkScheduleRepository.lock_owned(uow, work["account_id"], work["work_id"])
     plan = plan_schedule(work, requirement, row)

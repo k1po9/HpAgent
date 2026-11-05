@@ -1,4 +1,4 @@
-"""Ownership-scoped repositories.  No method accepts a bare public resource ID."""
+"""Run row SQL; creation inputs arrive frozen by the application."""
 
 from __future__ import annotations
 
@@ -222,3 +222,6 @@ class RunRepository:
             "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),version=version+1,updated_at=now() WHERE run_id=%s AND status='queued'",
             (run_id,),
         )
+
+    def status_in_uow(self, uow: UnitOfWork, run_id: UUID):
+        return uow.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()

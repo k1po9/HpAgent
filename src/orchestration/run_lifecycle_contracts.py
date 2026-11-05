@@ -2,10 +2,13 @@
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Literal, TypedDict
+from typing import Literal, Protocol, TypedDict
+from uuid import UUID
 
 from temporalio.common import RetryPolicy
 from temporalio.exceptions import ApplicationError
+
+from agent_workflows.contracts import ApprovalDecisionSignal
 
 WEB_LIFECYCLE_TASK_QUEUE = "hpagent-web-lifecycle"
 WEB_AGENT_TASK_QUEUE = "hpagent-web-agent"
@@ -84,3 +87,59 @@ _STABLE_FAILURE_MESSAGES = {
     "run_timeout": "执行总时长超时。",
     "workspace_recovery_required": "工作区需要人工恢复。",
 }
+
+
+def web_workflow_id(run_id: UUID | str) -> str:
+    """The sole accepted Web Workflow ID derivation; never retry with a new ID."""
+    return f"hpagent-web-run-{run_id}"
+
+
+@dataclass(frozen=True)
+class StartDecision:
+    run_id: UUID
+    workflow_id: str
+    should_start: bool
+
+
+class WorkflowExecutionStore(Protocol):
+    def prepare_start(self, run_id: UUID) -> StartDecision: ...
+    def record_started(self, run_id: UUID, temporal_run_id: str) -> None: ...
+    def needs_cancel(self, run_id: UUID) -> bool: ...
+    def current_workflow_id(self, run_id: UUID) -> str | None: ...
+    def record_cancel_requested(self, run_id: UUID) -> None: ...
+
+
+class TemporalWebClient(Protocol):
+    async def start_web_run(self, workflow_id: str, request: RunLifecycleInput) -> str: ...
+    async def cancel_web_run(self, workflow_id: str) -> bool: ...
+    async def signal_tool_approval(
+        self, workflow_id: str, signal: ApprovalDecisionSignal
+    ) -> None: ...
+
+
+class CancellationFinalizer(Protocol):
+    def finalize_cancelled(self, run_id: UUID): ...
+
+
+@dataclass(frozen=True)
+class ReconcileCandidate:
+    run_id: str
+    run_status: str
+    workflow_id: str | None
+
+
+@dataclass(frozen=True)
+class TemporalFact:
+    status: str  # open/completed/failed/timed_out/cancelled/terminated/not_found
+
+
+class ReconcileStore(Protocol):
+    def candidates(self, limit: int) -> list[ReconcileCandidate]: ...
+    def finalize_failed(self, run_id: str, code: str, message: str) -> None: ...
+    def finalize_cancelled(self, run_id: str) -> None: ...
+    def record_temporal_fact(self, run_id: str, status: str) -> None: ...
+
+
+class TemporalInspector(Protocol):
+    async def describe(self, workflow_id: str) -> TemporalFact: ...
+    async def cancel(self, workflow_id: str) -> None: ...

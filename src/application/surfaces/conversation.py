@@ -176,7 +176,10 @@ class SurfaceConversationCommands:
                             SendMessageCommand(account_id, cid, message_key, content),
                         )
                         self.commands.messages.set_origin(
-                            uow, account_id, UUID(result["message_id"]), json.dumps(origin)
+                            uow,
+                            origin_json=json.dumps(origin),
+                            account_id=account_id,
+                            message_id=UUID(result["message_id"]),
                         )
                     else:
                         run = self.commands.runs.find_surface_run(uow, account_id, cid, target_run)

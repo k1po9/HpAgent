@@ -1,4 +1,4 @@
-"""Ownership-scoped repositories.  No method accepts a bare public resource ID."""
+"""Account state reads in the caller transaction."""
 
 from __future__ import annotations
 

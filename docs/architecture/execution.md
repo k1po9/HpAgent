@@ -36,7 +36,11 @@ Run succeeded 只说明有限执行成功；Work completed 需要当前 revision
 4. Activity 提交 operation/receipt、输出和通用 Run 终态 succeeded/failed/cancelled。聊天投影、WorkCompletionPolicy 与通知分别依据持久事实推进。
 5. Work 成功后的 ready continuation 在终态事务去重创建下一 wakeup；等待、blocked、暂停、停止和完成不忙循环。投递独立处理已提交通知，不因渠道失败重新执行 Agent。
 
-Chat 的 [SendMessage](../../src/application/chat/send_message.py) 和 [RetryChatRun](../../src/application/chat/retry_run.py) 持有独立入口的 UoW；[CancelRun](../../src/application/run/cancel_run.py) 同时支持 Chat/Work attempt。事务内入口不提交、不另开连接或重试外层命令。[QQ 外层命令](../../src/application/surfaces/conversation.py) 保留拒绝回执所需的 savepoint；[Artifact 写命令](../../src/application/artifacts/commands.py) 在自己的同一 UoW 写 Artifact/Version 并借用 SendMessage 创建 HTML Run。旧 Service 继续转发，仓储 SQL 和 root Execution trigger 的责任未迁移。
+Chat 的 [SendMessage](../../src/application/chat/send_message.py) 和 [RetryChatRun](../../src/application/chat/retry_run.py) 持有独立入口的 UoW；[CancelRun](../../src/application/run/cancel_run.py) 同时支持 Chat/Work attempt。事务内入口不提交、不另开连接或重试外层命令。[QQ 外层命令](../../src/application/surfaces/conversation.py) 保留拒绝回执所需的 savepoint；[Artifact 写命令](../../src/application/artifacts/commands.py) 在自己的同一 UoW 写 Artifact/Version 并借用 SendMessage 创建 HTML Run。应用先冻结 Chat/Work 创建记录，再分别调用 RunRepository.insert_chat/insert_work；root Execution 仍由数据库 trigger 唯一创建。
+
+Repository 始终借用调用方 UoW，不持有数据库入口或提交权。`UnitOfWork(outer_uow)` 仍复用连接及原 savepoint，内层退出不代表独立提交；QQ拒绝回执和调度逐Work失败隔离继续使用原边界。Work 事件由应用明确协调 append、通知和 Outbox，尾部失败会整组回滚。
+
+[OutboxService](../../src/web_domain/outbox.py) 和 [PostgresWorkflowExecutionStore](../../src/web_domain/workflow_execution.py) 保留原短事务所有权，SQL 分别委派 OutboxRepository 与 WorkflowExecutionRepository。准备 scheduled/current fact 提交后，Dispatcher 才调用 Temporal RPC；远端 terminal fact 不代替业务 Run 终态。StartDecision、Workflow ID 和分发/协调 Protocol 位于现有纯 [run_lifecycle_contracts.py](../../src/orchestration/run_lifecycle_contracts.py)，旧 dispatcher/reconciler 导出仍兼容，不改名称、队列或历史输入。
 
 新 Agent Run 在创建事务的 `input_snapshot.agent_policy` 固定轮次、时区与工具摘要参数，
 状态、root Execution 与 Outbox 仍同事务提交。相同 Run 的 Activity retry/接管复用原策略；

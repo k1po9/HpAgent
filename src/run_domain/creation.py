@@ -1,5 +1,9 @@
 """Pure input construction; SQL, authorization and budget checks stay with the caller."""
 
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
+
 from common.agent_policy import AgentPolicy
 
 
@@ -76,11 +80,6 @@ def build_work_budget_limits(strategy: str, executor: str) -> dict:
         limits.setdefault(dimension, amount)
     limits.setdefault("wall_time_ms", 600000)
     return limits
-
-
-from dataclasses import dataclass
-from typing import Any
-from uuid import UUID
 
 
 @dataclass(frozen=True, kw_only=True)

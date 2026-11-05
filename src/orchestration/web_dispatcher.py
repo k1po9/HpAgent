@@ -1,13 +1,12 @@
 """Outbox-to-Temporal dispatcher boundary for Web runs (D-03)."""
+
 from __future__ import annotations
 
 import asyncio
 import logging
 import time
 from collections.abc import Collection
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Protocol
 from uuid import UUID
 
 from temporalio.client import Client
@@ -24,17 +23,27 @@ from orchestration.run_lifecycle_contracts import (
     WEB_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
     RunLifecycleInput,
 )
+from orchestration.run_lifecycle_contracts import (
+    CancellationFinalizer as CancellationFinalizer,
+)
+from orchestration.run_lifecycle_contracts import (
+    StartDecision as StartDecision,
+)
+from orchestration.run_lifecycle_contracts import (
+    TemporalWebClient as TemporalWebClient,
+)
+from orchestration.run_lifecycle_contracts import (
+    WorkflowExecutionStore as WorkflowExecutionStore,
+)
+from orchestration.run_lifecycle_contracts import (
+    web_workflow_id as web_workflow_id,
+)
 from web_domain.outbox import (
     WEB_OUTBOX_RECOVERY_EVENT_TYPES,
     OutboxService,
 )
 
 logger = logging.getLogger("HpAgent.WebOutboxDispatcher")
-
-
-def web_workflow_id(run_id: UUID | str) -> str:
-    """The sole accepted Web Workflow ID derivation; never retry with a new ID."""
-    return f"hpagent-web-run-{run_id}"
 
 
 async def run_web_outbox_recovery_loop(
@@ -82,33 +91,6 @@ async def run_web_outbox_recovery_loop(
             logger.exception("Outbox lease recovery iteration failed")
 
 
-@dataclass(frozen=True)
-class StartDecision:
-    run_id: UUID
-    workflow_id: str
-    should_start: bool
-
-
-class WorkflowExecutionStore(Protocol):
-    def prepare_start(self, run_id: UUID) -> StartDecision: ...
-    def record_started(self, run_id: UUID, temporal_run_id: str) -> None: ...
-    def needs_cancel(self, run_id: UUID) -> bool: ...
-    def current_workflow_id(self, run_id: UUID) -> str | None: ...
-    def record_cancel_requested(self, run_id: UUID) -> None: ...
-
-
-class TemporalWebClient(Protocol):
-    async def start_web_run(self, workflow_id: str, request: RunLifecycleInput) -> str: ...
-    async def cancel_web_run(self, workflow_id: str) -> bool: ...
-    async def signal_tool_approval(
-        self, workflow_id: str, signal: ApprovalDecisionSignal
-    ) -> None: ...
-
-
-class CancellationFinalizer(Protocol):
-    def finalize_cancelled(self, run_id: UUID): ...
-
-
 class TemporalOutboxDispatcher:
     """Coordinates committed Outbox leases without holding a DB lock over RPC."""
 
@@ -129,15 +111,30 @@ class TemporalOutboxDispatcher:
         if not decision.should_start:
             return False
         started_at = time.monotonic()
-        log_event(logger, logging.INFO, "temporal_workflow_starting", "temporal", run_id=str(run_id),
-                  workflow_id=decision.workflow_id, status="started")
+        log_event(
+            logger,
+            logging.INFO,
+            "temporal_workflow_starting",
+            "temporal",
+            run_id=str(run_id),
+            workflow_id=decision.workflow_id,
+            status="started",
+        )
         temporal_run_id = await self.temporal.start_web_run(
             decision.workflow_id, RunLifecycleInput(1, str(run_id))
         )
         await asyncio.to_thread(self.store.record_started, run_id, temporal_run_id)
-        log_event(logger, logging.INFO, "temporal_workflow_started", "temporal", run_id=str(run_id),
-                  workflow_id=decision.workflow_id, temporal_run_id=temporal_run_id, status="success",
-                  elapsed_ms=round((time.monotonic() - started_at) * 1000))
+        log_event(
+            logger,
+            logging.INFO,
+            "temporal_workflow_started",
+            "temporal",
+            run_id=str(run_id),
+            workflow_id=decision.workflow_id,
+            temporal_run_id=temporal_run_id,
+            status="success",
+            elapsed_ms=round((time.monotonic() - started_at) * 1000),
+        )
         # The final check handles the unavoidable Start/Cancel narrow race.
         if await asyncio.to_thread(self.store.needs_cancel, run_id):
             if await self.temporal.cancel_web_run(decision.workflow_id):
@@ -215,13 +212,10 @@ class TemporalClientAdapter:
                 return False
             raise
 
-    async def signal_tool_approval(
-        self, workflow_id: str, signal: ApprovalDecisionSignal
-    ) -> None:
+    async def signal_tool_approval(self, workflow_id: str, signal: ApprovalDecisionSignal) -> None:
         await self.client.get_workflow_handle(workflow_id).signal(
             ToolExecutionWorkflow.approval_decision, signal
         )
-
 
 
 class WebOutboxDispatcher:
@@ -246,17 +240,25 @@ class WebOutboxDispatcher:
         events = await asyncio.to_thread(
             self.outbox.claim,
             self.worker_id,
-            {"start_run", "cancel_run",
-             "file_action_approval_decided"},
+            {"start_run", "cancel_run", "file_action_approval_decided"},
             limit,
         )
         for event in events:
             event_id = UUID(str(event["outbox_event_id"]))
             run_id = UUID(str(event["run_id"]))
-            log_event(logger, logging.INFO, "outbox_event_claimed", "dispatcher", run_id=str(run_id),
-                      execution_id=str(run_id), surface="web",
-                      outbox_event_id=str(event_id), event_type=event["event_type"],
-                      attempt_count=int(event["attempt_count"]), status="started")
+            log_event(
+                logger,
+                logging.INFO,
+                "outbox_event_claimed",
+                "dispatcher",
+                run_id=str(run_id),
+                execution_id=str(run_id),
+                surface="web",
+                outbox_event_id=str(event_id),
+                event_type=event["event_type"],
+                attempt_count=int(event["attempt_count"]),
+                status="started",
+            )
             try:
                 if event["event_type"] == "start_run":
                     await self.dispatcher.dispatch_start(run_id)
@@ -264,12 +266,19 @@ class WebOutboxDispatcher:
                     await self.dispatcher.dispatch_cancel(run_id)
                 else:
                     await self.dispatcher.dispatch_approval_decision(dict(event["payload"]))
-                await asyncio.to_thread(
-                    self.outbox.mark_processed, event_id, self.worker_id
+                await asyncio.to_thread(self.outbox.mark_processed, event_id, self.worker_id)
+                log_event(
+                    logger,
+                    logging.INFO,
+                    "outbox_event_processed",
+                    "dispatcher",
+                    run_id=str(run_id),
+                    execution_id=str(run_id),
+                    surface="web",
+                    outbox_event_id=str(event_id),
+                    event_type=event["event_type"],
+                    status="success",
                 )
-                log_event(logger, logging.INFO, "outbox_event_processed", "dispatcher", run_id=str(run_id),
-                          execution_id=str(run_id), surface="web",
-                          outbox_event_id=str(event_id), event_type=event["event_type"], status="success")
             except Exception as exc:
                 if int(event["attempt_count"]) >= self.max_attempts:
                     await asyncio.to_thread(
@@ -279,10 +288,20 @@ class WebOutboxDispatcher:
                         "temporal_dispatch_exhausted",
                         str(exc)[:1000],
                     )
-                    log_event(logger, logging.ERROR, "outbox_event_dead_letter", "dispatcher", run_id=str(run_id),
-                              execution_id=str(run_id), surface="web",
-                              outbox_event_id=str(event_id), event_type=event["event_type"], status="failed",
-                              attempt_count=int(event["attempt_count"]), error_code="temporal_dispatch_exhausted")
+                    log_event(
+                        logger,
+                        logging.ERROR,
+                        "outbox_event_dead_letter",
+                        "dispatcher",
+                        run_id=str(run_id),
+                        execution_id=str(run_id),
+                        surface="web",
+                        outbox_event_id=str(event_id),
+                        event_type=event["event_type"],
+                        status="failed",
+                        attempt_count=int(event["attempt_count"]),
+                        error_code="temporal_dispatch_exhausted",
+                    )
                 else:
                     await asyncio.to_thread(
                         self.outbox.mark_retryable_failure,
@@ -292,8 +311,18 @@ class WebOutboxDispatcher:
                         str(exc)[:1000],
                         datetime.now(UTC) + timedelta(seconds=5),
                     )
-                    log_event(logger, logging.WARNING, "outbox_event_retry", "dispatcher", run_id=str(run_id),
-                              execution_id=str(run_id), surface="web",
-                              outbox_event_id=str(event_id), event_type=event["event_type"], status="degraded",
-                              attempt_count=int(event["attempt_count"]), error_code="temporal_dispatch_failed")
+                    log_event(
+                        logger,
+                        logging.WARNING,
+                        "outbox_event_retry",
+                        "dispatcher",
+                        run_id=str(run_id),
+                        execution_id=str(run_id),
+                        surface="web",
+                        outbox_event_id=str(event_id),
+                        event_type=event["event_type"],
+                        status="degraded",
+                        attempt_count=int(event["attempt_count"]),
+                        error_code="temporal_dispatch_failed",
+                    )
         return len(events)

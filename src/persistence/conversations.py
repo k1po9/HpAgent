@@ -1,4 +1,4 @@
-"""Ownership-scoped repositories.  No method accepts a bare public resource ID."""
+"""Conversation rows and message-sequence SQL."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Ownership-scoped repositories.  No method accepts a bare public resource ID."""
+"""Chat Message rows and bound-file projection SQL."""
 
 from __future__ import annotations
 

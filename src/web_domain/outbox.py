@@ -4,10 +4,10 @@ from collections.abc import Collection
 from datetime import datetime
 from uuid import UUID
 
+from persistence.outbox import OutboxRepository
 from persistence.repositories import (
     ConversationRepository,
     MessageRepository,
-    OutboxRepository,
     RunRepository,
 )
 from persistence.uow import UnitOfWork, retryable_transaction

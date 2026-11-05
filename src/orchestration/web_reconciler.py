@@ -1,36 +1,24 @@
 """Reconcile domain Run truth with Temporal facts without holding DB locks over RPC."""
+
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-from typing import Protocol
 
 from temporalio.client import Client, WorkflowExecutionStatus
 from temporalio.service import RPCError, RPCStatusCode
 
-
-@dataclass(frozen=True)
-class ReconcileCandidate:
-    run_id: str
-    run_status: str
-    workflow_id: str | None
-
-
-@dataclass(frozen=True)
-class TemporalFact:
-    status: str  # open/completed/failed/timed_out/cancelled/terminated/not_found
-
-
-class ReconcileStore(Protocol):
-    def candidates(self, limit: int) -> list[ReconcileCandidate]: ...
-    def finalize_failed(self, run_id: str, code: str, message: str) -> None: ...
-    def finalize_cancelled(self, run_id: str) -> None: ...
-    def record_temporal_fact(self, run_id: str, status: str) -> None: ...
-
-
-class TemporalInspector(Protocol):
-    async def describe(self, workflow_id: str) -> TemporalFact: ...
-    async def cancel(self, workflow_id: str) -> None: ...
+from orchestration.run_lifecycle_contracts import (
+    ReconcileCandidate as ReconcileCandidate,
+)
+from orchestration.run_lifecycle_contracts import (
+    ReconcileStore as ReconcileStore,
+)
+from orchestration.run_lifecycle_contracts import (
+    TemporalFact as TemporalFact,
+)
+from orchestration.run_lifecycle_contracts import (
+    TemporalInspector as TemporalInspector,
+)
 
 
 class WebRunReconciler:
@@ -55,14 +43,12 @@ class WebRunReconciler:
                 continue
             fact = await self._temporal.describe(item.workflow_id)
             if fact.status not in ("open", "not_found"):
-                await asyncio.to_thread(
-                    self._store.record_temporal_fact, item.run_id, fact.status
-                )
+                await asyncio.to_thread(self._store.record_temporal_fact, item.run_id, fact.status)
             if item.run_status in ("succeeded", "failed", "cancelled"):
                 if fact.status == "open":
                     await self._temporal.cancel(item.workflow_id)
                 continue
-            if item.run_status == 'cancelling' and fact.status != 'open':
+            if item.run_status == "cancelling" and fact.status != "open":
                 await asyncio.to_thread(self._store.finalize_cancelled, item.run_id)
                 continue
             if fact.status in ("failed", "timed_out", "terminated"):
@@ -108,15 +94,17 @@ class TemporalInspectorAdapter:
             if exc.status == RPCStatusCode.NOT_FOUND:
                 return TemporalFact("not_found")
             raise
-        return TemporalFact({
-            WorkflowExecutionStatus.RUNNING: "open",
-            WorkflowExecutionStatus.COMPLETED: "completed",
-            WorkflowExecutionStatus.FAILED: "failed",
-            WorkflowExecutionStatus.CANCELED: "cancelled",
-            WorkflowExecutionStatus.TERMINATED: "terminated",
-            WorkflowExecutionStatus.TIMED_OUT: "timed_out",
-            WorkflowExecutionStatus.CONTINUED_AS_NEW: "open",
-        }[description.status])
+        return TemporalFact(
+            {
+                WorkflowExecutionStatus.RUNNING: "open",
+                WorkflowExecutionStatus.COMPLETED: "completed",
+                WorkflowExecutionStatus.FAILED: "failed",
+                WorkflowExecutionStatus.CANCELED: "cancelled",
+                WorkflowExecutionStatus.TERMINATED: "terminated",
+                WorkflowExecutionStatus.TIMED_OUT: "timed_out",
+                WorkflowExecutionStatus.CONTINUED_AS_NEW: "open",
+            }[description.status]
+        )
 
     async def cancel(self, workflow_id: str) -> None:
         await self._client.get_workflow_handle(workflow_id).cancel()

@@ -539,3 +539,101 @@ test/web_persistence/test_durable_review_regressions.py::test_success_does_not_a
 命令：使用Phase2最终节点选择的`run-pg.py p32-after <final-cases> -m 'not temporal'`：99 passed、1 deselected/77.14s（较上一阶段多该1项），失败0、skip0。包括来源/权限、revision/pointer、保存/预算、completion、调度/失败隔离及新尾部回滚。后续Run状态纯SQL移动后，`p32-verified`选提醒准确回执后完成、stop+uncertain责任、旧revision回执、resume不重发、终态Outbox稳定ID和尾部回滚六项：6 passed/5.21s。所有轮次80项迁移/checksum、资源清理通过。`make lint typecheck`：Ruff及110个文件mypy通过。最终合并回归在P3.3后执行。
 
 前链为用例→混合WorkRepository/direct SQL→隐藏事件副作用；后链为用例→指定行writer，事件在应用明确三步调用。新旧每步共享同一外层UoW/savepoint，累计预算、pending/occurrence和JSON/hash均不回填。最值得读application/work/events.py、persistence/works.py、work_domain/scheduling.py与尾部回滚断言。下一任务迁Outbox/Workflow SQL及纯分发contract，UoW实现仍不改；F2/F5不处理。
+
+### P3.3 UoW与技术事实仓储
+
+状态：实现及选定验证完成；P3.2 Commit为`1f8386d1`，本任务Hash在阶段末尾汇总。
+
+文件变化：`persistence/outbox.py`接收完整原队列Repository（含P3.2的Work入队）；`persistence/workflow_executions.py`接收原has_current及Workflow SQL。聚合repositories保留兼容导出和原File/Budget/Idempotency实现，不新建另一套SQL。`web_domain/outbox.py`继续持有原claim/recover/ack/dead-letter短事务并委派；`web_domain/workflow_execution.py`继续持有原prepare/record/reconcile短事务及Run锁/校验，仅委派事实SQL及Run读。应用events/schedules显式接收借用的UnitOfWork；**persistence/uow.py最终字节与阶段起点相同**。
+
+StartDecision、web_workflow_id、WorkflowExecutionStore/TemporalWebClient/CancellationFinalizer、ReconcileCandidate/TemporalFact及其Protocol移到现有run_lifecycle_contracts，旧dispatcher/reconciler保留同名兼容导出；Dispatcher/Reconciler执行类不改。Store不再为读取contract导入重型dispatcher/reconciler。Workflow输入、活动/Workflow名称、队列、固定ID、schema_version及SDK Start/AlreadyStarted行为不变。
+
+前：短事务Service/Store→聚合/内联SQL，Store读contract需导入Dispatcher；后：同一原UoW→指定技术仓储，contract直接来自纯模块，提交后RPC仍在原Dispatcher。旧attempt、lease owned types、claim排序/SKIP LOCKED、recover/ack owner谓词和失败分类保持原样。没有新增连接/commit/独立子事务/RPC或lease token；远端terminal fact仍不能推进业务Run succeeded。F2/F5未修。
+
+实际命令及结果：现有Web/Research/切换离线contract三文件`pytest -q ... -m 'not temporal'`：39 passed/0.77s。`run-pg.py p33-corrected <p33-cases.txt节点> -m 'not temporal'`：36 passed/13.63s、失败0、skip0；包括Outbox/Lifecycle文件、QQ canonical ingress、原UoW清理/序列化重试、过期owner/owned types/SKIP LOCKED/重试时序、坏Work隔离和Work dead-letter生命周期。UoW清理/重试两项使用原Fake连接，其余按现有业务夹具运行；不将整个集合都宣称为真实PG的提交可见性证明。
+
+早期本轮测试命令误写1个不存在的node，收集退出4且fixture未执行；runner后续checksum验证因未建Schema报错，根因是选测名称错误。已改用实际存在的test_dispatch_dead_letter_uses_work_lifecycle，完整重跑上述36项，不计为业务断言失败/skip/通过。迁移过程静态检查也捕获新仓储缺少UnitOfWork类型import，补回后项目lint/typecheck通过。命令错误与已有失败分别保留原输出，不隐去为通过。
+
+审查纠正：一次对整个persistence目录的格式化误改command_result/memory/memory_context/migrate/uow五个无关文件。逐个确认其AST无变化、起始hash等于HEAD、当前字节精确等于ruff-format(原文)后，只恢复这五个原文；不覆盖其他文件或原有变更。独立审查确认UoW恢复为原字节。另一处QQ set_origin调用的JSON编码/UUID构造顺序曾在SQL提取时对调；已用keyword求值顺序恢复原JSON→account→UUID，并复跑原QQ文件12 passed/10.63s，不新增镜像/调用次数测试。
+
+`make lint typecheck`最终Ruff及112文件通过；真实import身份检查15个新仓储/builder/scheduling/事件模块通过；registry/sandbox及177架构用例通过。独立审查对原Repository、保留File/Budget/Idempotency和Dispatcher/Reconciler执行类做AST等值核验，并检查参数映射、SQL、事件顺序、clock、savepoint和事务所有权；无Critical/Important，唯一顺序Minor已纠正，无未实施Minor建议。没有重建连接池测试，因为UoW实现和提交边界未变。
+
+最值得读persistence/outbox.py、workflow_executions.py及保留的PostgresWorkflowExecutionStore，顺着prepare_start提交→Dispatcher RPC追踪真实边界。旧Service和兼容导出尚在；下一阶段仅在用户审阅后做Phase4引用/目录收敛，本阶段不继续。
+
+### Phase 3 最终证据与阶段审阅
+
+核验时间：2026-11-06 07:02:10 CST。P3.1–P3.3实现完成，停止于Phase3，不进入Phase4。
+
+任务变化及边界：Chat/Work分别经冻结记录和insert_chat/insert_work创建，root继续由trigger产生；Work/Requirement/Wakeup/Schedule/Event、Outbox和Workflow fact分别有指定SQL owner；事件三步编排显式借用原UoW。原Statement谓词、参数、SQL返回/NULL/hash和预算值、原锁与提交/savepoint边界保持。Chat显式版本1列、恢复QQ参数求值顺序及纯规则位置变化已在各任务说明，不以“仅文件移动”掩盖实际接口调整。
+
+最终实际命令与结果（重复/重叠套件不相加为唯一用例数）：
+
+| 命令 | 结果 | 证据范围 |
+| --- | --- | --- |
+| `make lint typecheck PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python` | exit0；Ruff通过，mypy112文件无错误 | 项目既有静态范围 |
+| `MYPYPATH=src .venv/bin/python -m mypy --explicit-package-bases --follow-imports=silent src/persistence/accounts.py src/persistence/conversations.py src/persistence/messages.py src/persistence/runs.py src/persistence/works.py src/persistence/work_requirements.py src/persistence/work_events.py src/persistence/work_schedules.py src/persistence/wakeups.py src/persistence/outbox.py src/persistence/workflow_executions.py src/run_domain/creation.py src/work_domain/scheduling.py src/application/work/events.py src/application/work/schedules.py` | exit0，15文件无错误 | 实际import身份，不宣称旧模块全部严格类型通过 |
+| `make architecture-check PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python PYTEST_ARGS='--junitxml=/tmp/hpagent-phase3/architecture-final.xml'` | exit0，registry pass=true、无sandbox/注册违例；177 passed/5.09s | 离线真实注册/import/sandbox，非真实Temporal服务 |
+| `make test-unit PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python PYTEST_ARGS='-q --junitxml=/tmp/hpagent-phase3/unit-final.xml'` | exit2；1442 passed、1 failed、8 skipped、713 deselected，49.79s | 未宣称全绿；排除postgres/temporal集合 |
+| `.venv/bin/python -m pytest -q test/test_web_temporal_contract.py test/test_research_temporal_contract.py test/test_w1c_cutover_contract.py -m 'not temporal'` | exit0，39 passed/0.77s | 现有Fake store/client及契约，非真实Temporal |
+| `make docs-check scripts-test PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python` | exit0；36份Markdown、0错误；79项脚本通过/13.880s | 离线文档/脚本，不代替业务PG |
+| `git diff --check` | exit0 | 补丁检查 |
+
+最终相关PG/API及事务回归命令：将下列节点作为参数传给`.venv/bin/python /tmp/hpagent-phase3/run-pg.py phase3-final`，末尾`-m 'not temporal'`。runner显式设置专用三角色DSN、完整原迁移目录及PYTHONPATH，以绝对.venv解释器执行`-m pytest --require-test-services -vv <这些node> -m 'not temporal' --junitxml=/tmp/hpagent-phase3/phase3-final/chat-results.xml`。
+
+```text
+test/work_domain/test_foundation.py
+test/work_domain/test_time_policy.py
+test/web_api/test_work_foundation.py
+test/web_api/test_work_save_admission.py
+test/work_domain/test_completion_contract.py
+test/work_domain/test_save_admission.py
+test/work_domain/test_progress.py
+test/work_domain/test_execution_strategy.py
+test/work_domain/test_persistent_policy_pg.py
+test/web_persistence/test_durable_review_regressions.py::test_retry_chain_ends_at_success_and_new_occurrence
+test/web_persistence/test_durable_review_regressions.py::test_retry_chain_follows_control_epoch_when_database_clock_moves_backwards
+test/web_persistence/test_durable_review_regressions.py::test_admission_failure_is_local_and_pending_wakeup_recovers
+test/web_persistence/test_durable_review_regressions.py::test_schedule_loop_recovers_iteration_failure_and_propagates_cancel
+test/web_persistence/test_durable_review_regressions.py::test_ready_wakeup_is_deduplicated_and_obeys_latest_work
+test/web_persistence/test_durable_review_regressions.py::test_success_does_not_autorun_waiting_work
+test/web_persistence/test_command_service.py
+test/web_persistence/test_conversation_commands.py
+test/web_persistence/test_web_artifacts.py
+test/web_persistence/test_permissions.py
+test/web_persistence/test_outbox_and_lifecycle.py
+test/web_persistence/test_qq_canonical_ingress.py
+test/web_persistence/test_phase_a_hardening.py::test_uow_closes_on_success_business_error_and_commit_error
+test/web_persistence/test_phase_a_hardening.py::test_serialization_retry_closes_failed_connection
+test/web_persistence/test_phase_a_hardening.py::test_outbox_dead_letter_requires_current_lease
+test/web_persistence/test_phase_a_hardening.py::test_expired_outbox_owner_cannot_dead_letter_after_reclaim
+test/web_persistence/test_phase_a_hardening.py::test_outbox_claim_filters_owned_types_and_does_not_block
+test/web_persistence/test_phase_a_hardening.py::test_skip_locked_claim_never_returns_same_event_twice
+test/web_persistence/test_phase_a_hardening.py::test_retryable_outbox_failure_honors_owner_and_schedule
+test/work_domain/test_execution_decoupling.py::test_dispatch_dead_letter_uses_work_lifecycle
+test/web_persistence/test_work_integration.py::test_reminder_only_completes_after_exact_delivery_receipt
+test/web_persistence/test_work_integration.py::test_stop_and_uncertain_delivery_preserve_responsibility
+test/web_persistence/test_work_integration.py::test_revision_receipt_cannot_complete_new_requirements
+test/web_persistence/test_work_integration.py::test_resume_revalidates_accepted_reminder_without_resending
+```
+
+实际结果：**158 passed、1 deselected，111.53s，exit0；失败0、skip0、所选集合未执行0**。其中原UoW两个清理/序列化用例使用Fake连接；其余按原PG/API/循环夹具核验各自行为，不把所有通过都写成真实PG/Temporal证明。被选择规则排除的1项为原progress文件Temporal场景。最终QQ求值顺序纠正后另跑原QQ集合12 passed/10.63s。全量单元和架构门禁未因这个局部求值顺序纠正机械重跑；相关QQ业务断言单独补证，文件格式恢复均有AST等值依据。
+
+最终主轮专用容器`hpagent-phase3-1623777`、独立网络`hpagent-phase3-1623777-net`、回环端口`32796`；空库原80项迁移/checksum一致，pytest及容器/网络清理均exit0。各轮均用新建资源；无业务服务重启、部署、真实Provider/QQ连接。API是TestClient+PG，外部执行/渠道仍为原夹具；不把RPC契约、SIGKILL单个专用测试进程或数据库逻辑回滚外推为真实部署、Provider或PG断电验收。
+
+独立审查覆盖整个Phase3源码及未提交技术仓储：原迁移Repository除有意适配Run.insert外AST一致；保留File/Budget/Idempotency及Dispatcher/Reconciler执行类AST一致；SQL文本/参数、不同状态writer、事件顺序、条件clock、savepoint/提交边界及兼容导出核验通过，18个新进程导入通过。无Critical/Important，唯一QQ求值顺序Minor已纠正。审查未独立重跑PG套件；最终报告与证据由执行方核对。
+
+已有失败和检查过程问题分别记录：
+
+- 全量单元唯一失败仍为memory质量配置的`test_snapshot_tracks_model_selection_but_not_main_recall_instruction`；Phase1已在原基线用非敏感HINDSIGHT_API_LLM_MODEL覆盖复现。当前阶段未重跑该基线定位，不修改记忆配置/实现/测试，不将历史证据冒充本轮通过。此前已知额外严格类型检查的save_policy UUID|None问题也未夹带修复；本轮补充15文件检查范围明确。
+- 8项skip仍为5项缺独立Hindsight/opt-in及3项缺nsjail，713项是单元选择规则排除，不算通过或skip。
+- P3.2运行态writer生成时的重复方法命名、P3.3缺类型import及错误node收集均为本次开发/命令问题，已纠正后实际复验；不归为既有业务失败。误扩大格式化5个无关文件也已按原字节恢复，并再次验证UoW未变。原始失败输出保留仓库外。
+
+工作区保留：起始1443个文件中，只有本阶段列出的33个原文件变化，其余1410个原文件hash不变；新增15个文件均为本阶段仓储/纯规则/应用事件调度协作者，丢失0、范围外变化0。原AS-IS蓝图、code-analysis/、docs/learning/和日志历史前缀保留；uow/migrate/memory等文件与起点相同。当前事实更新在原overview/work/execution/代码地图，未新增重复阶段报告。
+
+未验证/未实施：未跑全量test-db/test-api、真实Temporal服务/replay/kill链路、前端/浏览器、真实Provider/QQ、负载/锁性能、非空历史库升级或PG断电恢复；UoW未改，不新增Pool/savepoint测试矩阵，现有Mock清理及QQ/Scheduler/尾部故障回归分别提供对应证据。技术事实Store未新增真实远端验收。独立权限/迁移历史结果只证明本地原三角色夹具，不证明现有运行环境配置。没有改Schema/迁移checksum、运行部署或F1–F5修复。
+
+仍保留的边界：兼容facade/导出及部分旧import留Phase4；外围查询/文件/预算/执行能力等不机械拆分。Conversation元数据改名仍在原QueryService，Workspace记忆撤权标记仍属原ResourcePolicy；本轮收拢创建/状态writer不宣称全仓库所有SQL均归一。研究保存与运行期能力/预算/资源事实继续各自负责，不并入万能RunRepository。
+
+审查暂不判断及执行方决议：真实Temporal/Provider/QQ/部署、生产性能、非空历史升级、F1–F5、既有memory环境敏感失败及后续Phase4依赖收敛均保持范围外；本轮未改这些行为，代价是不能用当前通过证据替代独立验收。无未实施Minor建议。
+
+下一阶段前置条件：用户审阅Phase3实际writer分工、原子集合、兼容层和已有失败/未验证范围后，才进入Phase4。Phase4按真实调用/注册/历史加载证据收敛import并更新当前文档，不为目录整齐新增抽象或删除未知消费者。回滚以职责Commit逆序revert，保留当前Schema、幂等、预算、pending wakeup和occurrence，不手工改业务事实或历史迁移。

@@ -4,7 +4,7 @@ import json
 
 from uuid6 import uuid7
 
-from persistence.repositories import OutboxRepository
+from persistence.outbox import OutboxRepository
 from persistence.uow import UnitOfWork
 from persistence.work_events import WorkEventRepository
 
