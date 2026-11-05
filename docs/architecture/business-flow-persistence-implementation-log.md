@@ -408,3 +408,19 @@ P1.3还恢复P1.2迁移时省略的原冗余Run读取，最终40项回归针对�
 命令：`.venv/bin/python -m pytest -q test/test_work_execution_strategy.py test/test_persistent_policy.py`：22 passed/0.26s。真实隔离PG的`run-pg.py p22-after test/work_domain/test_execution_strategy.py test/work_domain/test_persistent_policy_pg.py -m 'not temporal'`：14 passed/15.16s，失败0、跳过0，覆盖确定性提醒、daily恢复/合并、timing revision、冻结brief、策略/current policy及旧snapshot读取。新库80项迁移/checksum及清理均成功。改动文件Ruff通过；全阶段注册/sandbox门禁在最终结果统一记录。不新增测试，因为现有策略/冻结策略断言已观察本次移动。
 
 最值得读run_domain/strategy.py、creation.py和test_persistent_policy_pg.py。尚未实施Admit/Advance及PG调度；下一任务保持容量/预算/保存门禁的原读取顺序与显式/Scheduler错误映射。
+
+### P2.3 Admit与Advance
+
+状态：完成；P2.2 Commit为`8790214c`，本任务Hash在阶段末尾汇总。
+
+文件迁移：`application/work/admit_work_run.py`接收原原子admit完整写集，提供公开事务内端口及冻结WorkAdmissionContext/Result；`work_domain/admission.py`承载纯facts→decision及累计预算判断；`run_domain/admission.py`保留原签名/返回Run或None的兼容函数；`application/work/advance_work.py`接收原显式Advance主干，旧WorkCommandService.advance转发。`run_domain/creation.py`另接收原纯预算limits构造，数值/默认项不变。没有创建新Repository、修改UoW或迁移SQL。
+
+前：显式Advance/Scheduler→原admit_work_run；本任务后：显式Advance→AdmitWorkRun.execute_in_uow，旧Scheduler仍经兼容函数到同一端口。Core只有事务内接口，不提交、另开连接或重试调用者。原Run INSERT、Work pointer/epoch、wakeup consumed/superseded、Run预算、资源snapshot及research save intent、Outbox均原顺序同事务。Pure判断按原progress→save→capacity→budget的I/O顺序逐步接收facts，不提前读取后面的门禁，不将容量票据/三层模型预算与协调容量混合。Result.reason是内部门禁类别，外部202及错误原因仍由原调用方读取当前Work并映射。
+
+实际改变的接缝：Context.bind_in_uow会在原调用方已锁定的Work上重入FOR UPDATE，重读当前requirement，并锁内核验owner、revision、epoch、row_version/coordinator及pending wakeup。不能以传入dict声明持锁；不新增事务范围、全局容量锁或改变原容量计数顺序。新增读取不等同数据库writer收拢；现有两个入口仍分别检查account、continuation、due/unknown effect。progress保护路径仍允许旧兼容函数传None wakeup并返回None；真正写Run前必须有pending wakeup。
+
+最小补测：在现有foundation文件新增一个公开事务内业务用例，捕获旧Work/requirement后修订，尝试用旧context消费新revision的pending wakeup；断言Work不变、Run数0、wakeup仍pending且无Run，随后当前Advance能生成revision2的Run。先运行时因新公开入口尚不存在1 failed；实现后该用例随现有回归通过。未新增私有调用/目录/镜像测试，未创建逐SQL故障矩阵。
+
+实际命令：`run-pg.py p23-before test/work_domain/test_progress.py test/work_domain/test_save_admission.py test/web_persistence/test_durable_review_regressions.py::test_admission_failure_is_local_and_pending_wakeup_recovers -m 'not temporal'`：32 passed、1 deselected/44.81s。迁移后加foundation文件运行同选择：58 passed、1 deselected/46.79s，失败/跳过0；包括并发准入、pointer/owner、revision fence、保存权限重查、budget不能靠resume/advance重置、坏Work的真实PG错误savepoint隔离及pending恢复。新模块按真实import身份mypy8文件通过，Ruff通过。纯预算limits后移仍需最终统一回归验证，未把这次格式/位置调整表述为额外独立通过。
+
+学习入口：admit_work_run.py看事务写集和锁内绑定；work_domain/admission.py看无I/O判断；advance_work.py看显式门禁与202/冲突映射。外围revise/control仍在旧facade，SQL仍未收仓；下一步切Scheduler到同一公开事务内端口，保持批次savepoint。

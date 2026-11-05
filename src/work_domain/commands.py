@@ -3,23 +3,20 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
 
 from uuid6 import uuid7
 
 from application.work.accept_work import AcceptWork
-from application.work.commands import AcceptWorkCommand
+from application.work.advance_work import AdvanceWork
+from application.work.commands import AcceptWorkCommand, AdvanceWorkCommand
 from application.work.dependencies import WorkCommandDependencies
 from common.agent_policy import AgentPolicy
-from persistence.repositories import AccountRepository
 from persistence.uow import UnitOfWork, retryable_transaction
-from web_domain.errors import ResourceNotFound
 from work_domain.errors import WorkConflict as WorkConflict
 from work_domain.models import Requirement, continuation, validate_new_completion_criteria
 from work_domain.save_policy import (
-    SAVE_WAIT_REASONS,
     defer_workspace_save,
     validate_new_save_policy,
 )
@@ -38,6 +35,7 @@ class WorkCommandService:
             database, budget_mode=budget_mode, agent_policy=agent_policy
         )
         self.accept_work = AcceptWork(self.dependencies)
+        self.advance_work = AdvanceWork(self.dependencies)
 
     @property
     def database(self):
@@ -370,100 +368,10 @@ class WorkCommandService:
             )
             return self._complete(uow, account_id, "link_work", key, work_id)
 
-    @retryable_transaction
-    def advance(self, account_id, work_id, key, row_version):
-        with UnitOfWork(self.database) as uow:
-            replay, command = self._claim(
-                uow,
-                account_id,
-                "advance_work",
-                key,
-                {"work_id": str(work_id), "row_version": row_version},
-            )
-            if replay:
-                return replay
-            work = self._locked(uow, account_id, work_id, row_version)
-            if work["status"] != "active" or work["active_coordinator_run_id"]:
-                raise WorkConflict(
-                    work,
-                    "work_coordinator_busy"
-                    if work["active_coordinator_run_id"]
-                    else "work_not_active",
-                )
-            if not AccountRepository().require_active(uow, account_id):
-                raise ResourceNotFound()
-            requirement = self.repo.requirement(
-                uow, account_id, work_id, work["current_requirement_revision"]
-            )
-            from run_domain.lifecycle import RunLifecycleService
-
-            if work["continuation"].get("operation_ref") or RunLifecycleService.unresolved_effect(
-                uow, work
-            ):
-                raise WorkConflict(work, "work_effect_uncertain")
-            from work_domain.progress import blocked_reason
-
-            reason = blocked_reason(uow, work)
-            if reason or work["continuation"]["reason"] == "budget_exhausted":
-                raise WorkConflict(work, reason or "budget_exhausted")
-            if (
-                work["continuation"]["kind"] in {"awaiting_input", "awaiting_delivery"}
-                and work["continuation"]["reason"] not in SAVE_WAIT_REASONS
-            ):
-                raise WorkConflict(work, "work_awaiting_receipt")
-            if work["continuation"].get("due_at") and datetime.fromisoformat(
-                work["continuation"]["due_at"]
-            ) > datetime.now(UTC):
-                return self._complete(
-                    uow, account_id, "advance_work", key, work_id, 202, reason="not_due"
-                )
-            wakeup = self.repo.wakeup(
-                uow, work, f"advance:{command}", "advance", "explicit_advance"
-            )
-            from resources.work_budget import WorkBudgetExhausted
-            from run_domain.admission import admit_work_run
-
-            try:
-                run = admit_work_run(
-                    uow,
-                    work,
-                    requirement,
-                    wakeup,
-                    self.database,
-                    self.budget_mode,
-                    self.agent_policy,
-                )
-            except WorkBudgetExhausted:
-                uow.execute(
-                    "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
-                    (json.dumps(continuation("blocked", "budget_exhausted")), work_id),
-                )
-                self.repo.event(
-                    uow,
-                    self.repo.get(uow, account_id, work_id),
-                    "blocked",
-                    command_id=command,
-                    reason="budget_exhausted",
-                )
-                return self._complete(
-                    uow, account_id, "advance_work", key, work_id, 202, reason="budget_exhausted"
-                )
-            if run is None:
-                current = self.repo.get(uow, account_id, work_id)
-                return self._complete(
-                    uow,
-                    account_id,
-                    "advance_work",
-                    key,
-                    work_id,
-                    202,
-                    reason=current["continuation"]["reason"],
-                )
-            work = self.repo.get(uow, account_id, work_id)
-            self.repo.event(uow, work, "advanced", command_id=command, run_id=run["run_id"])
-            return self._complete(uow, account_id, "advance_work", key, work_id, 202, run=run)
-
     def integration(self, account_id, work_id, key, row_version, action, payload):
         from work_domain.integration import integration_command
 
         return integration_command(self, account_id, work_id, key, row_version, action, payload)
+
+    def advance(self, account_id, work_id, key, row_version):
+        return self.advance_work.execute(AdvanceWorkCommand(account_id, work_id, key, row_version))

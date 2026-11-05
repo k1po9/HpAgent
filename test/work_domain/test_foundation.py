@@ -317,3 +317,33 @@ def test_research_query_checks_capability_and_account(commands, account_id, urls
     _, other = advance(commands, account_id, accept(commands, account_id))
     with pytest.raises(ResourceNotFound):
         query.evidence(account_id, UUID(other['run_id']))
+
+
+def test_stale_admission_context_cannot_consume_current_wakeup(
+    commands, account_id, urls, owner,
+):
+    from application.work.admit_work_run import AdmitWorkRun, WorkAdmissionContext
+
+    accepted = accept(commands, account_id)
+    work_id = UUID(accepted['work_id'])
+    with UnitOfWork(urls[1]) as uow:
+        stale_work = WorkRepository.get(uow, account_id, work_id, lock=True)
+        stale_requirement = WorkRepository.requirement(uow, account_id, work_id, 1)
+    revised = commands.revise(
+        account_id, work_id, str(uuid4()), accepted['row_version'], requirement(),
+    ).body['work']
+    wakeup = owner.execute(
+        "SELECT wakeup_id FROM work_wakeups WHERE work_id=%s AND state='pending'",
+        (work_id,),
+    ).fetchone()['wakeup_id']
+    before = commands.get(account_id, work_id)
+    with pytest.raises(WorkConflict, match='work_admission_stale'), UnitOfWork(urls[1]) as uow:
+        AdmitWorkRun(urls[1], 'enforce').execute_in_uow(
+            uow, WorkAdmissionContext(stale_work, stale_requirement, wakeup, caller='explicit'),
+        )
+    assert commands.get(account_id, work_id) == before
+    assert owner.execute('SELECT count(*) n FROM runs WHERE work_id=%s', (work_id,)).fetchone()['n'] == 0
+    wake = owner.execute('SELECT state,run_id FROM work_wakeups WHERE wakeup_id=%s', (wakeup,)).fetchone()
+    assert wake['state'] == 'pending' and wake['run_id'] is None
+    advanced = commands.advance(account_id, work_id, str(uuid4()), revised['row_version']).body
+    assert advanced['run']['requirement_revision'] == 2
