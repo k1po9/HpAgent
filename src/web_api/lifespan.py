@@ -11,6 +11,7 @@ from psycopg_pool import ConnectionPool
 from account.credentials import PostgresPasswordCredentialAdapter
 from account.identity_binding_service import IdentityBindingService
 from account.registration_service import RegistrationService
+from application.artifacts.commands import legacy_artifact_sender
 from common.agent_policy import load_agent_policy
 from common.runtime_config import CapacityConfig
 from conversation_domain.commands import CommandService
@@ -95,7 +96,7 @@ def create_lifespan(
                     TenantFileStore(file_root, max_bytes=settings.file_max_bytes),
                     max_bytes=settings.file_max_bytes,
                 )
-            app.state.artifacts = ArtifactService(api_pool)
+            app.state.artifacts = ArtifactService(api_pool, sender=legacy_artifact_sender(api_pool))
             app.state.queries = QueryService(
                 api_pool,
                 CursorCodec(

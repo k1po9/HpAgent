@@ -36,6 +36,8 @@ Run succeeded 只说明有限执行成功；Work completed 需要当前 revision
 4. Activity 提交 operation/receipt、输出和通用 Run 终态 succeeded/failed/cancelled。聊天投影、WorkCompletionPolicy 与通知分别依据持久事实推进。
 5. Work 成功后的 ready continuation 在终态事务去重创建下一 wakeup；等待、blocked、暂停、停止和完成不忙循环。投递独立处理已提交通知，不因渠道失败重新执行 Agent。
 
+Chat 的 [SendMessage](../../src/application/chat/send_message.py) 和 [RetryChatRun](../../src/application/chat/retry_run.py) 持有独立入口的 UoW；[CancelRun](../../src/application/run/cancel_run.py) 同时支持 Chat/Work attempt。事务内入口不提交、不另开连接或重试外层命令。[QQ 外层命令](../../src/application/surfaces/conversation.py) 保留拒绝回执所需的 savepoint；[Artifact 写命令](../../src/application/artifacts/commands.py) 在自己的同一 UoW 写 Artifact/Version 并借用 SendMessage 创建 HTML Run。旧 Service 继续转发，仓储 SQL 和 root Execution trigger 的责任未迁移。
+
 新 Agent Run 在创建事务的 `input_snapshot.agent_policy` 固定轮次、时区与工具摘要参数，
 状态、root Execution 与 Outbox 仍同事务提交。相同 Run 的 Activity retry/接管复用原策略；
 显式 retry 或 Work advance 创建新 Run 时按新 admission 冻结。历史缺失策略保持旧路径，

@@ -52,7 +52,10 @@ class CancelRun:
             result.update({"run_id": str(run_id), "status": "cancelled"})
             response_status = 200
         elif run["status"] == "queued" and not self.dependencies.workflows.has_current(uow, run_id):
-            RunLifecycleService(self.dependencies.database_url).finish_in_uow(uow, run, "cancelled")
+            terminal_run = self.dependencies.runs.get_for_account(uow, account_id, run_id)
+            RunLifecycleService(self.dependencies.database_url).finish_in_uow(
+                uow, terminal_run, "cancelled"
+            )
             result = ChatProjection.snapshot_for_run(uow, run_id)
             result.update({"run_id": str(run_id), "status": "cancelled"})
             response_status = 200

@@ -51,4 +51,6 @@ Conversation 保留同对话单 active chat Run；Work Run 不占聊天槽、不
 
 当前目录存在跨领域调用，并未形成严格依赖隔离；新增改动要沿实际事务和调用链检查，不能根据目录名假定边界已经闭合。
 
+Chat 发送与重试主干位于 `application/chat`，共享 Chat/Work Run 取消位于 `application/run`；QQ 身份、路由及 receipt 外层事务位于 `application/surfaces`，显式 HTML 写入位于 `application/artifacts`。旧 Conversation/Artifact Service 保留兼容入口。独立用例拥有 UoW 和有限事务重试，`execute_in_uow` 只借用调用方事务；QQ savepoint、Artifact/Version 与 HTML Run 的原子提交保持原边界。Artifact 仍显式使用原 legacy 预算默认值，配置差异尚未修复。
+
 按任务找入口见[代码地图](../reference/repository-layout.md)。继续阅读：[执行、状态与恢复](execution.md)、[Work](work.md)、[Workspace](workspace.md)、[能力边界](capabilities.md)、[Web 契约](web-ui.md)。操作见[功能指南](../operations/web-workbench.md)。

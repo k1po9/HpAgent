@@ -274,3 +274,95 @@ make scripts-test PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python
 验证命令：`.venv/bin/python /tmp/hpagent-phase1/run-pg.py p12-before|p12-after <p12-cases.txt中逐项node>`；完整实际pytest命令及各项结果在对应run-summary.json/chat-tests.txt，选择列表位于仓库外p12-cases.txt。14个node为并发retry、queued取消、start/cancel并发收敛、取消审批、附件撤权后retry、当前policy冻结、Work attempt-only取消、HTTP policy重放及6项send/retry/cancel HTTP行为。前后分别14 passed/7.20s及14 passed/6.54s，失败0、跳过0。使用新建三角色空PG、80项原迁移，API通过实际TestClient/lifespan组合，不使用Temporal或真实Provider；两轮资源均已清理。`mypy src/application/chat src/application/run src/conversation_domain`：16个文件无错误，改动文件Ruff通过。
 
 未新增测试；尚缺HTML retry源snapshot的直接行为断言，留到P1.3的HTML入口检查一起补齐。最值得读retry_run.py、cancel_run.py及test_persistent_policy_pg.py的Chat policy用例。下一任务切换QQ与HTML的公开事务内端口，保持savepoint、receipt和Artifact默认预算，不修F1。
+
+### P1.3 接回QQ与Artifact
+
+状态：实施及相关回归完成；等待本阶段最终审查记录。本任务独立Commit在阶段末尾汇总。
+
+文件迁移及职责：
+
+| 文件 | 原职责 → 本轮职责 |
+| --- | --- |
+| `application/surfaces/{__init__,conversation}.py` | 新增；接收原surface identity/binding/receipt完整外层事务，直接调用SendMessage/CancelRun公开execute_in_uow |
+| `conversation_domain/surface_commands.py` | 原完整实现 → 保留SurfaceConversationCommands、IdentityNotBound、stable_key兼容导出 |
+| `application/artifacts/{__init__,commands}.py` | 新增；ArtifactCommands持有原create_artifact/create_version写编排，依赖注入SendMessage；legacy_artifact_sender显式保持原effective预算默认值 |
+| `web_artifacts/queries.py` | 新增；原Service中的只读查询、事务内查询及DTO投影原样迁入ArtifactQueries，仍在web_artifacts包，SQL责任未收拢 |
+| `web_artifacts/services.py` | 原写/读混合实现 → 查询兼容facade及两个原签名写命令转发 |
+| `web_artifacts/__init__.py` | eager ArtifactService导出 → 同名lazy兼容导出，解决新应用命令读取queries时的包初始化循环 |
+| `web_api/lifespan.py` | 原现场默认ArtifactService组装 → 显式注入legacy_artifact_sender；不使用Web Chat预算覆盖Artifact预算，不修F1 |
+| `test/web_persistence/test_web_artifacts.py` | 原业务测试 → 在原准入测试补legacy预算与busy外层全回滚断言，另加一个HTML retry冻结snapshot行为用例 |
+| `docs/architecture/{overview,execution}.md`、`docs/reference/repository-layout.md` | 原入口说明 → 反映现有Chat/Run/Surface/Artifact用例及兼容入口；原AS-IS蓝图不改 |
+
+本任务用ArtifactCommands两个明确公开方法承载原写用例，不额外套两层单方法类。只读代码在原web_artifacts包单列以复用原DTO，避免写用例反调旧Service私有入口；未新建Repository或Protocol。SendMessageCommand继续携带原fixed_html dict，避免先改变历史JSON协议；冻结dataclass不宣称深冻结dict。
+
+业务前后对照：
+
+- QQ前：Ingress→旧surface→外UoW+savepoint→CommandService私有send/cancel；后：Ingress→兼容导出→application.surfaces完整同一外UoW+savepoint→SendMessage/CancelRun.execute_in_uow。身份、路由幂等、origin、拒绝receipt及Work控制分支原样移动。
+- Artifact前：Service外UoW→Artifact/Version→_enqueue现场CommandService(None)→私有send；后：Service转发→ArtifactCommands外UoW→原Artifact/Version写集→注入SendMessage.execute_in_uow。parent不可变文件、当前撤销检查、UUID5的operation/account/key命名空间及fixed_html形状不变。
+- 这些步骤只有位置/调用端口变化。没有新增commit/连接、事务重试层或RPC；借用UoW的内层不独立提交。新Service仍保留旧公开读写方法。原代码只在新位置保留一份，无SQL双写、root创建仍由原trigger负责。
+- 原Workspace的三个_cancel_run_in_uow调用暂留兼容转发；不扩做Phase4导入收敛。Chat私有send兼容签名仍保留，但QQ/Artifact已无私有调用。
+
+测试取舍及实际结果：
+
+- 移动前QQ完整现有11项及Artifact原4项（含参数化）：15 passed/8.75s，失败0、跳过0。
+- 先补最小直接行为断言，在入口移动前运行原Artifact准入测试及新增HTML retry测试：2 passed/2.98s；这是已存在行为的基线，未人为引入RED或新增镜像/目录/私有调用测试。
+- 移动后同两文件：16 passed/8.73s，失败0、跳过0；新增1项，原准入测试增强不增加用例数量。
+- QQ关键实际断言：重投只生1个Run、重启重建PG事实、不同room/bot/thread归属、busy receipt可重放、取消重放不针对后来Run、撤权禁止重放、Outbox失败连binding/origin/Message/Run一起回滚、并发首次送达同一binding/单槽。
+- Artifact关键实际断言：重放/冲突、不创建Work/跨账号404、queued/running取消保留provenance并拒绝迟到publish；补充busy拒绝时Artifact/Version/Message/Run/预算/Outbox/幂等命令数量和消息序号均不变；legacy预算为observe/file-p0-v1、model_calls20、reserve1024；HTML retry在当前policy改变后仍保留source的fixed_workflow/artifact_html/NULL agent_strategy及完全相同input_snapshot。
+
+新增导入问题及修复：第一次make test-unit发现原包eager导出与新application→queries依赖形成循环，导致两个已有独立进程导入测试失败。按systematic-debugging追踪到web_artifacts.__init__→services→application.artifacts.commands→queries→包初始化；改为lazy同名导出后，原失败测试test_canonical_imports_do_not_load_retired_runtime_owners和test_web_api_import_does_not_load_agent_runtime均通过（2 passed/3.86s）。没有新增import镜像测试或删除兼容导出。
+
+学习路径：先读application/surfaces/conversation.py的外层savepoint，再读application/artifacts/commands.py的事务与sender注入，最后读增强的test_web_artifacts.py看实际业务结果。剩余Work用例与Repository/UoW收拢属于Phase2/3；本轮不开始。
+
+### Phase 1 最终验证与审查
+
+本阶段完成P1.1/P1.2/P1.3，停止于Phase 1，尚未进入Phase 2。独立审查员对完整基线差异和未提交P1.3文件做只读审查：无剩余Critical/Important/可操作Minor；另在7个新进程核验新Artifact命令、旧package/Service导出、SendMessage、CancelRun、Surface和lifespan均可导入。审查未替代集成测试。审查注意到queued取消曾省略一次冗余Run复读；为保持原SQL读取步骤，本轮最终仍恢复原get_for_account再finalize，之后重新运行40项相关回归及架构检查。
+
+实际命令与最终结果（均从仓库根，未把重复套件数字相加为唯一用例数）：
+
+| 命令 | 实际结果 | 证据边界 |
+| --- | --- | --- |
+| `make lint typecheck PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python` | exit0，Ruff通过；mypy95个文件无错误 | 项目既有静态范围 |
+| `.venv/bin/python -m ruff check src/web_artifacts src/application/chat src/application/run src/application/artifacts src/application/surfaces` | exit0 | 补检查Makefile未全覆盖的Artifact及新文件 |
+| `.venv/bin/python -m mypy src/application/chat src/application/run src/application/artifacts src/application/surfaces src/web_artifacts src/conversation_domain` | exit0，28个文件无错误 | 显式覆盖全部新增应用模块及Artifact |
+| `make test-unit PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python PYTEST_ARGS='-q --junitxml=/tmp/hpagent-phase1/unit-final.xml'` | exit2；1442 passed、1 failed、8 skipped、711 deselected，50.83s | 未宣称全绿；基础设施标记被排除，跳过不算通过 |
+| `make architecture-check PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python PYTEST_ARGS='--junitxml=/tmp/hpagent-phase1/architecture-final.xml'` | exit0，registry pass=true，无注册/sandbox违例；177 passed/6.55s | 离线注册/import/sandbox，不是真实Temporal服务执行 |
+| `make docs-check scripts-test PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python` | exit0；36份Markdown、0错误；79项脚本通过/12.785s | 离线文档及脚本，不代替PG/API |
+| `git diff --check` | exit0 | 补丁空白检查 |
+
+最终40项PG/API准确执行方式：先设置仓库外runner管理的专用三角色DSN、HPAGENT_MIGRATIONS_DIR和PYTHONPATH；runner本身创建全新PG16容器、回环随机端口、独立网络、tmpfs数据并检查库/角色，绝不复用已有应用服务；将以下选择项传给`.venv/bin/python /tmp/hpagent-phase1/run-pg.py phase1-final-preserved-read`。其内部使用绝对.venv解释器执行`-m pytest --require-test-services -vv <以下node> --junitxml=/tmp/hpagent-phase1/phase1-final-preserved-read/chat-results.xml`：
+
+```text
+test/web_persistence/test_command_service.py
+test/web_persistence/test_conversation_commands.py
+test/web_persistence/test_outbox_and_lifecycle.py::test_db_008_concurrent_retry_returns_one_child
+test/web_persistence/test_outbox_and_lifecycle.py::test_db_019_cancel_queued_before_start_is_terminal
+test/web_persistence/test_outbox_and_lifecycle.py::test_db_020_start_and_cancel_converge_without_duplicate_execution
+test/web_persistence/test_file_action_approvals.py::test_run_cancel_atomically_cancels_pending_approval_and_enqueues_wake
+test/web_persistence/test_workspace_v41_p2.py::test_explicit_attachment_revocation_blocks_read_and_failed_retry
+test/work_domain/test_persistent_policy_pg.py::test_chat_admission_replay_and_explicit_retry_freeze_new_policy
+test/work_domain/test_foundation.py::test_failed_run_retains_responsibility_and_cancel_is_attempt_only
+test/web_api/test_admission_policy_api.py
+test/web_api/test_phase_b_api.py::test_api_003_004_005_send_idempotency_and_busy
+test/web_api/test_phase_b_api.py::test_api_007_cancelled_run_cannot_be_retried
+test/web_api/test_phase_b_api.py::test_api_rejects_retry_while_run_is_running
+test/web_api/test_phase_b_api.py::test_api_rejects_retry_after_uncertain_side_effect
+test/web_api/test_phase_b_api.py::test_api_008_running_cancel_reaches_cancelled
+test/web_api/test_phase_b_api.py::test_b05_failure_then_retry
+test/web_persistence/test_qq_canonical_ingress.py
+test/web_persistence/test_web_artifacts.py
+```
+
+最后实际结果：**40 passed in19.38s，exit0；失败0、跳过0、选择集合未执行0**。两种独立新库最终轮（恢复冗余读前后）均通过；均应用原始80项迁移并通过verify_schema checksum核验，容器/网络cleanup均exit0。所有数据库fixture使用真实PG；API是TestClient加真实PG及既有Fake执行器，HTML生成/QQ入站使用已有离线夹具，不能表述为真实Provider/QQ或Temporal通过。
+
+已有失败核验：`test/test_memory_quality_config.py::test_snapshot_tracks_model_selection_but_not_main_recall_instruction`在全量单元中仍失败，修改MINIMAX_STANDARD_MODEL未改变hash。没有修改memory/config或该测试。在仓库外由git archive导出的原始基线9b3d159c中，独立默认环境运行该测试1 passed；设置非敏感合成覆盖`HINDSIGHT_API_LLM_MODEL=phase1-fixed-fixture`后同一断言1 failed（exit1）。旧实现model_identities本来优先该覆盖变量，当前私有环境文件也设置该变量（仅核存在，未输出值）；因此这是可在原代码复现的环境敏感失败。本轮不修改配置优先级、加载逻辑或测试以消除它，也不把全量单元报告为通过。
+
+8项跳过分别为5项需要独立Hindsight服务/显式opt-in的契约或就绪场景，以及3项缺少nsjail二进制的用例。711项是postgres/temporal标记等被单元命令排除的场景，不记成通过或skip。
+
+工作区保护：起始1416个文件逐项SHA-256核验，仅本阶段列出的10个原文件发生预期变化，其余1406个原文件未变，丢失0、无范围外修改；Phase0日志全文仍为原样前缀。原有未跟踪code-analysis/、docs/learning/及蓝图未修改或加入本阶段提交。新增文件仅为本阶段应用模块及Artifact查询文件。原始运行输出、历史基线导出和hash清单留仓库外，不提交。
+
+未验证/未实施：未跑全量test-db/test-api、真实Temporal/replay/kill、前端/浏览器、真实QQ/Provider、性能、数据库断电耐久性或非空历史库升级；没有部署、重启已有服务或执行F1–F5修复。Work接受/调度/准入及Repository/UoW收拢均尚未实施。现有兼容facade和Workspace私有取消转发保留，不因目录整齐删除；legacy Artifact预算差异仍存在。
+
+审查暂不评价的范围及执行方决议：F1–F5、部署配置、真实Provider/QQ、Schema历史升级、记忆模型配置行为及更广Work/Scheduler/Repository设计均保持本阶段范围外，因为本轮未修改对应行为；代价是不能将本阶段证据外推为这些能力已验收。没有遗留可操作Minor建议需要夹带实施。
+
+下一阶段前置条件：用户审阅Phase1实际分层、上述已有单元失败及测试边界后再进入Phase2；迁移Work时重新选择其相关PG/策略用例，按实际接缝判断最小补测，不预先扩测。原有公开facade仍可按同一Schema运行；必要回滚以本阶段单职责Commit逐个revert，不回填业务数据或修改历史迁移。

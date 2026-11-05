@@ -11,14 +11,14 @@ from run_domain.execution import StaleFencingToken
 from run_domain.lifecycle import RunLifecycleService
 from web_artifacts.build import ArtifactBuildService
 from web_artifacts.services import ArtifactService
-from web_domain.errors import IdempotencyConflict, ResourceNotFound
+from web_domain.errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
 from web_domain.lifecycle import WebRunLifecycleService
 from work_domain.commands import WorkCommandService
 
 pytestmark = pytest.mark.postgres
 
 
-def test_artifact_admission_replays_without_duplicate_mandates(database_url,account_id):
+def test_artifact_admission_replays_without_duplicate_mandates(db,database_url,account_id):
     chat=CommandService(database_url)
     cid=UUID(chat.create_conversation(account_id,str(uuid4())).body['conversation']['conversation_id'])
     run=UUID(chat.send_message(account_id,cid,str(uuid4()),'Source').body['run_id'])
@@ -35,6 +35,51 @@ def test_artifact_admission_replays_without_duplicate_mandates(database_url,acco
     assert len(WorkCommandService(database_url).list(account_id)['items'])==0
     with pytest.raises(ResourceNotFound):
         service.get_version(uuid4(),UUID(created.body['version']['artifact_version_id']))
+    budget = db.execute(
+        "SELECT mode,policy_version,limits,final_response_reserve_tokens "
+        "FROM run_budgets b JOIN runs r USING(run_id) WHERE r.executor_key='artifact_html'"
+    ).fetchone()
+    assert budget[0:2] == ("observe", "file-p0-v1")
+    assert budget[2]["model_calls"] == 20 and budget[3] == 1024
+    tables = ("artifacts", "artifact_versions", "messages", "runs", "run_budgets",
+              "outbox_events", "idempotency_commands")
+    before = [db.execute(f"SELECT count(*) FROM {table}").fetchone()[0] for table in tables]
+    sequence = db.execute("SELECT last_message_seq FROM conversations WHERE conversation_id=%s", (cid,)).fetchone()
+    with pytest.raises(ConversationBusy):
+        service.create_artifact(account_id, message, str(uuid4()))
+    assert [db.execute(f"SELECT count(*) FROM {table}").fetchone()[0] for table in tables] == before
+    assert db.execute("SELECT last_message_seq FROM conversations WHERE conversation_id=%s", (cid,)).fetchone() == sequence
+
+
+def test_html_retry_preserves_source_executor_and_frozen_snapshot(
+    db, account_id, database_url, worker_database_url,
+):
+    from common.agent_policy import AgentPolicy
+
+    chat = CommandService(database_url)
+    worker = CommandService(worker_database_url)
+    cid = UUID(chat.create_conversation(account_id, str(uuid4()))["conversation_id"])
+    source = UUID(chat.send_message(account_id, cid, str(uuid4()), "source")["run_id"])
+    worker.start_run(account_id, source)
+    worker.complete_run(account_id, source, "# HTML source")
+    message = db.execute("SELECT message_id FROM messages WHERE produced_by_run_id=%s", (source,)).fetchone()[0]
+    artifact = ArtifactService(database_url).create_artifact(account_id, message, str(uuid4()))
+    html_run = db.execute("SELECT run_id FROM runs WHERE executor_key='artifact_html'").fetchone()[0]
+    frozen = db.execute(
+        "SELECT strategy_kind,executor_key,agent_strategy,input_snapshot FROM runs WHERE run_id=%s",
+        (html_run,),
+    ).fetchone()
+    assert frozen == ("fixed_workflow", "artifact_html", None, {
+        "schema_version": 1, "artifact_version_id": artifact["version"]["artifact_version_id"],
+    })
+    worker.fail_run(account_id, html_run, "test_failure")
+    changed_policy = CommandService(database_url, agent_policy=AgentPolicy(max_tool_turns=17))
+    retried = changed_policy.retry_run(account_id, html_run, str(uuid4()))
+    assert retried.response_status == 202
+    assert db.execute(
+        "SELECT strategy_kind,executor_key,agent_strategy,input_snapshot FROM runs WHERE run_id=%s",
+        (UUID(retried["run_id"]),),
+    ).fetchone() == frozen
 
 
 @pytest.mark.asyncio
