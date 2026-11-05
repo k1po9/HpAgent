@@ -366,3 +366,13 @@ test/web_persistence/test_web_artifacts.py
 审查暂不评价的范围及执行方决议：F1–F5、部署配置、真实Provider/QQ、Schema历史升级、记忆模型配置行为及更广Work/Scheduler/Repository设计均保持本阶段范围外，因为本轮未修改对应行为；代价是不能将本阶段证据外推为这些能力已验收。没有遗留可操作Minor建议需要夹带实施。
 
 下一阶段前置条件：用户审阅Phase1实际分层、上述已有单元失败及测试边界后再进入Phase2；迁移Work时重新选择其相关PG/策略用例，按实际接缝判断最小补测，不预先扩测。原有公开facade仍可按同一Schema运行；必要回滚以本阶段单职责Commit逐个revert，不回填业务数据或修改历史迁移。
+
+### Phase 1 Commit与暂停记录
+
+| Task ID | Commit | 状态 |
+| --- | --- | --- |
+| P1.1 | `8041ec8667e8ab3e0e5a9e83254c4f27a29b3990` | 完成 |
+| P1.2 | `a529cb37c4e99d678825c4291aa89ef03b2e599e` | 完成 |
+| P1.3 | `d829c68a08c74ceb5ccc4bc2958ee4ae64a8197a` | 完成 |
+
+P1.3还恢复P1.2迁移时省略的原冗余Run读取，最终40项回归针对恢复后的版本。上述为本阶段实现Commit；本表本身的后续文档提交不改变业务实现。分支为 `codex/phase1-chat-usecases`，未合并、未推送。用户对Phase0的审阅已通过，Phase1报告待审阅，Phase2未执行。
