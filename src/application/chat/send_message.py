@@ -11,6 +11,7 @@ from uuid6 import uuid7
 from common.logging import log_event
 from persistence.command_result import CommandResult
 from persistence.uow import UnitOfWork, retryable_transaction
+from run_domain.creation import build_chat_run_insert
 from web_domain.errors import (
     FileAlreadyBound,
     FileNotReady,
@@ -107,18 +108,20 @@ class SendMessage:
         self.dependencies.messages.insert_user(
             uow, user_message_id, account_id, conversation_id, content, allocated - 1, request_id
         )
-        self.dependencies.runs.insert(
+        self.dependencies.runs.insert_chat(
             uow,
-            run_id,
-            account_id,
-            conversation_id,
-            session_id,
-            user_message_id,
-            workflow_id,
-            allocated - 1,
-            agent_strategy=agent_strategy,
-            fixed_html=fixed_html,
-            agent_policy=self.dependencies.agent_policy.to_snapshot(),
+            build_chat_run_insert(
+                run_id,
+                account_id,
+                conversation_id,
+                session_id,
+                user_message_id,
+                workflow_id,
+                allocated - 1,
+                agent_strategy=agent_strategy,
+                fixed_html=fixed_html,
+                agent_policy=self.dependencies.agent_policy.to_snapshot(),
+            ),
         )
         self.dependencies.messages.insert_assistant(
             uow, assistant_message_id, account_id, conversation_id, allocated, run_id

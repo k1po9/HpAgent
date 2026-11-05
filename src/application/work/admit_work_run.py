@@ -12,8 +12,9 @@ from uuid6 import uuid7
 
 from common.agent_policy import AgentPolicy
 from persistence.repositories import OutboxRepository, RunBudgetRepository
+from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork
-from run_domain.creation import build_work_budget_limits, build_work_input_snapshot
+from run_domain.creation import WorkRunInsert, build_work_budget_limits, build_work_input_snapshot
 from work_domain.admission import (
     WorkAdmissionFacts,
     cumulative_budget_exhausted,
@@ -174,26 +175,23 @@ class AdmitWorkRun:
             and previous["status"] in {"failed", "cancelled"}
             else None
         )
-        uow.execute(
-            "INSERT INTO runs(run_id,account_id,source_kind,work_id,requirement_revision,"
-            "work_control_epoch,wakeup_id,strategy_kind,executor_key,workflow_id,agent_strategy,retry_of_run_id,"
-            "executor_version,strategy_policy_version,input_snapshot) "
-            "VALUES (%s,%s,'work',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)",
-            (
-                run_id,
-                account_id,
-                work_id,
-                requirement["revision"],
-                epoch,
-                wakeup_id,
-                strategy,
-                executor,
-                workflow_id,
-                agent_strategy,
-                retry["run_id"] if retry else None,
-                strategy_decision.executor_version,
-                strategy_decision.strategy_policy_version,
-                json.dumps(dto(snapshot)),
+        RunRepository().insert_work(
+            uow,
+            WorkRunInsert(
+                run_id=run_id,
+                account_id=account_id,
+                work_id=work_id,
+                requirement_revision=requirement["revision"],
+                work_control_epoch=epoch,
+                wakeup_id=wakeup_id,
+                strategy_kind=strategy,
+                executor_key=executor,
+                workflow_id=workflow_id,
+                agent_strategy=agent_strategy,
+                retry_of_run_id=retry["run_id"] if retry else None,
+                executor_version=strategy_decision.executor_version,
+                strategy_policy_version=strategy_decision.strategy_policy_version,
+                input_snapshot=dto(snapshot),
             ),
         )
         uow.execute(

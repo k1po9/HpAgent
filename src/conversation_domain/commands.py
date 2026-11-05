@@ -142,10 +142,7 @@ class CommandService:
                 raise ResourceNotFound()
             conversation_id = _id()
             self.conversations.create(uow, conversation_id, account_id, title)
-            row = uow.execute(
-                "SELECT * FROM conversations WHERE account_id=%s AND conversation_id=%s",
-                (account_id, conversation_id),
-            ).fetchone()
+            row = self.conversations.get_for_account(uow, account_id, conversation_id)
             result = {
                 "conversation_id": str(conversation_id),
                 "conversation": ChatProjection.conversation_dto(row),

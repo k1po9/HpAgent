@@ -503,3 +503,21 @@ test/web_persistence/test_durable_review_regressions.py::test_success_does_not_a
 | P2.4 | `e273e72bf2385e656e87c24d03d26a37eadce4eb` | 完成 |
 
 上述为独立实现Commit；本表自身的文档提交不改变实现。分支`codex/phase2-work-usecases`，未合并、未推送、未部署。用户已确认进入并继续本阶段；Phase2最终报告待审阅，Phase3未执行。原AS-IS蓝图不修改，当前事实维护在现有架构/代码地图及本日志的TO-BE说明。
+
+## 2026-11-06 Phase 3：Repository与事务协作
+
+用户“进行下一阶段”确认进入Phase3。本阶段只实施P3.1–P3.3，完成后暂停。起始Commit `a7669455`，新分支`codex/phase3-persistence-boundaries`保留原工作区。采用executing-plans、verification-before-completion，并延续用户批准的现有业务断言优先取舍；纯移动不新增目录/镜像/私有调用测试。UoW实现、Schema、F1–F5及部署不改，专用空测试库仍仅回放原完整80项迁移及checksum。
+
+仓库外证据目录`/tmp/hpagent-phase3/`。每轮runner创建新PG16容器/独立网络/回环随机端口/tmpfs数据库、初始化原三角色，核验Schema历史并清理；不复用已有应用服务或输出凭据。原工作区的蓝图、code-analysis/、docs/learning/保留。
+
+### P3.1 Run及Chat SQL
+
+状态：完成；本任务独立Commit的精确Hash在阶段末尾汇总。
+
+文件迁移：新增`persistence/{accounts,conversations,messages,runs}.py`接收原对应Repository及本次Chat投影/Surface读写SQL；`persistence/repositories.py`保留兼容导出，外围File/Budget/Idempotency/Outbox/Workflow类暂留原位。`run_domain/creation.py`增加冻结ChatRunInsert/WorkRunInsert与Chat输入builder。应用SendMessage/RetryChatRun在调用前构造Chat记录，AdmitWorkRun构造Work记录后分别走insert_chat/insert_work，Run仓储只编码JSON/绑定字段，不决定准入、策略或Work需求。旧insert签名仅兼容调用纯builder后转发。projection、Conversation创建和QQ的Message origin/Conversation创建/Run查找使用相应窄仓储接口；文件授权与执行事实SQL不扩成万能Run仓储。
+
+前：Chat repo.insert内拼策略/snapshot，Work应用内INSERT runs；后：两条独立应用创建链→各自冻结记录→同一个RunRepository的两个明确写接口。Chat的executor_version/strategy_policy_version由原DB默认1改为显式绑定冻结值1；SQL列形状因此有意增加两列，有效行值和当前兼容四元组不变。Work INSERT列/顺序及编码不变。root仍由trigger创建，未新增root INSERT、commit、RPC或双写。所有仓储接受调用方UoW，原锁/写集/返回及权限过滤不变。旧位置删除的是已移动类/SQL，不删除公开模块或业务分支。
+
+命令：`run-pg.py p31-before test/web_persistence/test_command_service.py test/web_persistence/test_conversation_commands.py test/web_persistence/test_web_artifacts.py test/work_domain/test_foundation.py test/web_persistence/test_permissions.py test/web_persistence/test_outbox_and_lifecycle.py::test_db_008_concurrent_retry_returns_one_child`：47 passed/18.25s。迁移后同选择加QQ canonical ingress文件：59 passed/23.01s，失败0、跳过0。断言覆盖幂等/冲突、并发单槽、Outbox回滚、HTML snapshot/retry/外层回滚、Work pointer/owner/revision、并发retry唯一child及API/Worker角色隔离。原80项迁移/checksum及资源清理均成功。`make lint typecheck`通过，mypy103文件无错误。不新增测试或mock转发断言。
+
+最值得读run_domain/creation.py（不同owner形状）、persistence/runs.py（指定writer）、现有test_conversation_commands.py及foundation的行为断言。下一任务拆Work表writer与event→notification→Outbox同事务编排；UoW、事件和技术事实仓储尚未迁移。回滚以本职责Commit撤销，不改数据或迁移。

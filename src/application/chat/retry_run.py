@@ -11,6 +11,7 @@ from application.chat.projection import ChatProjection
 from common.logging import log_event
 from persistence.command_result import CommandResult
 from persistence.uow import UnitOfWork, retryable_transaction
+from run_domain.creation import build_chat_run_insert
 from web_domain.errors import (
     FileNotReady,
     ResourceNotFound,
@@ -87,21 +88,23 @@ class RetryChatRun:
                 )
                 run_id = uuid7()
                 assistant_message_id = uuid7()
-                self.dependencies.runs.insert(
+                self.dependencies.runs.insert_chat(
                     uow,
-                    run_id,
-                    account_id,
-                    source["conversation_id"],
-                    session_id,
-                    source["trigger_message_id"],
-                    f"hpagent-web-run-{run_id}",
-                    source["context_message_seq"],
-                    source_run_id,
-                    str(source.get("agent_strategy") or "react"),
-                    fixed_html=source["input_snapshot"]
-                    if source["executor_key"] == "artifact_html"
-                    else None,
-                    agent_policy=self.dependencies.agent_policy.to_snapshot(),
+                    build_chat_run_insert(
+                        run_id,
+                        account_id,
+                        source["conversation_id"],
+                        session_id,
+                        source["trigger_message_id"],
+                        f"hpagent-web-run-{run_id}",
+                        source["context_message_seq"],
+                        source_run_id,
+                        str(source.get("agent_strategy") or "react"),
+                        fixed_html=source["input_snapshot"]
+                        if source["executor_key"] == "artifact_html"
+                        else None,
+                        agent_policy=self.dependencies.agent_policy.to_snapshot(),
+                    ),
                 )
                 self.dependencies.messages.insert_assistant(
                     uow,

@@ -1,258 +1,115 @@
 """Ownership-scoped repositories.  No method accepts a bare public resource ID."""
+
 from __future__ import annotations
 
-import json
 from collections.abc import Collection
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
+from .accounts import AccountRepository as AccountRepository
+from .conversations import ConversationRepository as ConversationRepository
+from .messages import MessageRepository as MessageRepository
+from .runs import RunRepository as RunRepository
 from .uow import UnitOfWork
-
-
-class AccountRepository:
-    def is_active(self, uow: UnitOfWork, account_id: UUID) -> bool:
-        return uow.execute(
-            "SELECT 1 FROM accounts WHERE account_id=%s AND status='active'", (account_id,)
-        ).fetchone() is not None
-
-    def require_active(self, uow: UnitOfWork, account_id: UUID) -> bool:
-        return self.is_active(uow, account_id)
-
-
-class ConversationRepository:
-    def get_for_account(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, *, lock: bool = False) -> dict[str, Any] | None:
-        suffix = " FOR UPDATE" if lock else ""
-        return cast(dict[str, Any] | None, uow.execute(
-            "SELECT * FROM conversations WHERE account_id=%s AND conversation_id=%s" + suffix,
-            (account_id, conversation_id),
-        ).fetchone())
-
-    def lock_active(self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID):
-        return uow.execute(
-            "SELECT * FROM conversations WHERE account_id=%s AND conversation_id=%s "
-            "AND status='active' FOR UPDATE",
-            (account_id, conversation_id),
-        ).fetchone()
-
-    def allocate_messages(
-        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, count: int
-    ) -> int:
-        return int(uow.execute(
-            "UPDATE conversations SET last_message_seq=last_message_seq+%s,updated_at=now() "
-            "WHERE account_id=%s AND conversation_id=%s RETURNING last_message_seq",
-            (count, account_id, conversation_id),
-        ).fetchone()["last_message_seq"])
-
-    def create(
-        self, uow: UnitOfWork, conversation_id: UUID, account_id: UUID, title: str
-    ) -> None:
-        uow.execute(
-            "INSERT INTO conversations(conversation_id,account_id,title) VALUES (%s,%s,%s)",
-            (conversation_id, account_id, title),
-        )
-
-
-class MessageRepository:
-    def context_messages(
-        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID, watermark: int
-    ) -> list[dict[str, Any]]:
-        """Load the frozen, model-visible Web history for exactly one Conversation."""
-        return list(uow.execute(
-            "SELECT message_id,role,status,content,sequence,origin,produced_by_run_id FROM messages "
-            "WHERE account_id=%s AND conversation_id=%s AND sequence<=%s "
-            "AND ((role='user' AND status='accepted') OR "
-            "(role='assistant' AND status='completed')) ORDER BY sequence",
-            (account_id, conversation_id, watermark),
-        ).fetchall())
-
-    def find_initial_by_client_request(
-        self, uow: UnitOfWork, account_id: UUID, client_request_id: UUID
-    ):
-        return uow.execute(
-            "SELECT m.message_id,m.conversation_id,m.content,m.sequence AS user_sequence,"
-            "r.run_id,r.session_id,r.status AS run_status,r.trigger_message_id,"
-            "a.message_id AS assistant_message_id,a.sequence AS assistant_sequence,"
-            "a.status AS assistant_status "
-            "FROM messages m JOIN runs r ON r.trigger_message_id=m.message_id "
-            "AND r.retry_of_run_id IS NULL JOIN messages a ON a.produced_by_run_id=r.run_id "
-            "WHERE m.account_id=%s "
-            "AND m.client_request_id=%s",
-            (account_id, client_request_id),
-        ).fetchone()
-
-    def insert_user(
-        self, uow: UnitOfWork, message_id: UUID, account_id: UUID,
-        conversation_id: UUID, content: str, sequence: int, client_request_id: UUID
-    ) -> None:
-        uow.execute(
-            "INSERT INTO messages(message_id,account_id,conversation_id,role,status,content,"
-            "sequence,client_request_id) VALUES (%s,%s,%s,'user','accepted',%s,%s,%s)",
-            (message_id, account_id, conversation_id, content, sequence, client_request_id),
-        )
-
-    def insert_assistant(
-        self, uow: UnitOfWork, message_id: UUID, account_id: UUID,
-        conversation_id: UUID, sequence: int, run_id: UUID
-    ) -> None:
-        uow.execute(
-            "INSERT INTO messages(message_id,account_id,conversation_id,role,status,sequence,"
-            "produced_by_run_id) VALUES (%s,%s,%s,'assistant','pending',%s,%s)",
-            (message_id, account_id, conversation_id, sequence, run_id),
-        )
-
-    def set_terminal(
-        self, uow: UnitOfWork, run_id: UUID, status: str, content: str | None = None
-    ) -> None:
-        uow.execute(
-            "UPDATE messages SET status=%s,content=COALESCE(%s,content),"
-            "completed_at=GREATEST(now(),created_at) "
-            "WHERE produced_by_run_id=%s AND status='pending'",
-            (status, content, run_id),
-        )
-
-
-class RunRepository:
-    def get_for_account(self, uow: UnitOfWork, account_id: UUID, run_id: UUID, *, lock: bool = False) -> dict[str, Any] | None:
-        suffix = " FOR UPDATE" if lock else ""
-        return cast(dict[str, Any] | None, uow.execute(
-            "SELECT * FROM runs WHERE account_id=%s AND run_id=%s" + suffix,
-            (account_id, run_id),
-        ).fetchone())
-
-    def context_subject(
-        self, uow: UnitOfWork, account_id: UUID, run_id: UUID
-    ) -> dict[str, Any] | None:
-        """Load the owned chat Run/Execution/Conversation chain for Context assembly."""
-        return cast(dict[str, Any] | None, uow.execute(
-            "SELECT r.run_id,r.account_id,r.conversation_id,r.session_id,"
-            "r.trigger_message_id,r.context_message_seq,r.agent_strategy,r.status AS run_status,"
-            "e.execution_id,"
-            "t.role AS trigger_role,t.status AS trigger_status,t.content AS trigger_content,t.origin,"
-            "t.created_at AS trigger_created_at "
-            "FROM runs r JOIN conversations c ON c.account_id=r.account_id "
-            "AND c.conversation_id=r.conversation_id JOIN run_executions e "
-            "ON e.account_id=r.account_id AND e.run_id=r.run_id AND e.role='root' "
-            "JOIN messages t ON t.account_id=r.account_id "
-            "AND t.conversation_id=r.conversation_id AND t.message_id=r.trigger_message_id "
-            "WHERE r.account_id=%s AND r.run_id=%s",
-            (account_id, run_id),
-        ).fetchone())
-
-    def discover_conversation(
-        self, uow: UnitOfWork, account_id: UUID, run_id: UUID
-    ) -> UUID | None:
-        row = uow.execute(
-            "SELECT conversation_id FROM runs WHERE account_id=%s AND run_id=%s",
-            (account_id, run_id),
-        ).fetchone()
-        return cast(UUID | None, row["conversation_id"] if row else None)
-
-    def has_active(self, uow: UnitOfWork, conversation_id: UUID) -> bool:
-        return uow.execute(
-            "SELECT 1 FROM runs WHERE conversation_id=%s "
-            "AND status IN ('queued','running','cancelling')",
-            (conversation_id,),
-        ).fetchone() is not None
-
-    def direct_retry(self, uow: UnitOfWork, source_run_id: UUID):
-        return uow.execute(
-            "SELECT r.run_id,r.status,r.retry_of_run_id,m.message_id AS assistant_message_id,"
-            "m.sequence AS assistant_sequence,m.status AS assistant_status "
-            "FROM runs r JOIN messages m ON m.produced_by_run_id=r.run_id "
-            "WHERE r.retry_of_run_id=%s",
-            (source_run_id,),
-        ).fetchone()
-
-    def insert(
-        self, uow: UnitOfWork, run_id: UUID, account_id: UUID, conversation_id: UUID,
-        session_id: UUID | None, trigger_message_id: UUID, workflow_id: str,
-        context_message_seq: int, retry_of_run_id: UUID | None = None,
-        agent_strategy: str = "react",
-        fixed_html: dict[str, Any] | None = None,
-        agent_policy: dict[str, Any] | None = None,
-    ) -> None:
-        uow.execute(
-            "INSERT INTO runs(run_id,account_id,conversation_id,session_id,trigger_message_id,"
-            "retry_of_run_id,workflow_id,context_message_seq,agent_strategy,strategy_kind,executor_key,input_snapshot) "
-            "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb)",
-            (run_id, account_id, conversation_id, session_id, trigger_message_id,
-             retry_of_run_id, workflow_id, context_message_seq, None if fixed_html else agent_strategy,
-             "fixed_workflow" if fixed_html else "generic_agent",
-             "artifact_html" if fixed_html else "chat_agent",
-             json.dumps(fixed_html or {"schema_version": 1, "main_protocol": "tool_first_v1",
-                 **({"agent_policy": agent_policy} if agent_policy is not None else {})})),
-        )
-
-    def set_cancelling(self, uow: UnitOfWork, run_id: UUID) -> None:
-        uow.execute(
-            "UPDATE runs SET status='cancelling',version=version+1,updated_at=now() "
-            "WHERE run_id=%s AND status IN ('queued','running')",
-            (run_id,),
-        )
-
-    def set_terminal(
-        self, uow: UnitOfWork, run_id: UUID, status: str,
-        failure_code: str | None = None, failure_message: str | None = None
-    ) -> None:
-        uow.execute(
-            "UPDATE runs SET status=%s,failure_code=%s,failure_message=%s,"
-            "finished_at=GREATEST(now(),created_at,COALESCE(started_at,created_at)),"
-            "version=version+1,updated_at=now() WHERE run_id=%s",
-            (status, failure_code, failure_message, run_id),
-        )
 
 
 class FileRepository:
     def list_ready_for_run(
-        self, uow: UnitOfWork, account_id: UUID, run_id: UUID,
+        self,
+        uow: UnitOfWork,
+        account_id: UUID,
+        run_id: UUID,
     ) -> list[dict[str, Any]]:
         """Return the model-safe manifest for one account-owned Run."""
-        return list(uow.execute(
-            "SELECT rf.logical_name,rf.direction,sf.size_bytes,sf.encoding,sf.content_type "
-            "FROM run_files rf JOIN stored_files sf ON sf.account_id=rf.account_id "
-            "AND sf.file_id=rf.file_id "
-            "WHERE rf.account_id=%s AND rf.run_id=%s AND sf.status='ready' "
-            "ORDER BY rf.direction,rf.logical_name",
-            (account_id, run_id),
-        ).fetchall())
+        return list(
+            uow.execute(
+                "SELECT rf.logical_name,rf.direction,sf.size_bytes,sf.encoding,sf.content_type "
+                "FROM run_files rf JOIN stored_files sf ON sf.account_id=rf.account_id "
+                "AND sf.file_id=rf.file_id "
+                "WHERE rf.account_id=%s AND rf.run_id=%s AND sf.status='ready' "
+                "ORDER BY rf.direction,rf.logical_name",
+                (account_id, run_id),
+            ).fetchall()
+        )
 
     def insert_upload(
-        self, uow: UnitOfWork, file_id: UUID, account_id: UUID,
-        conversation_id: UUID | None, original_name: str, display_name: str,
-        declared_size: int, content_type: str, declared_sha256: str | None,
-        expires_at: datetime, *, source_workspace_id: UUID | None = None,
+        self,
+        uow: UnitOfWork,
+        file_id: UUID,
+        account_id: UUID,
+        conversation_id: UUID | None,
+        original_name: str,
+        display_name: str,
+        declared_size: int,
+        content_type: str,
+        declared_sha256: str | None,
+        expires_at: datetime,
+        *,
+        source_workspace_id: UUID | None = None,
     ) -> None:
         uow.execute(
             "INSERT INTO stored_files(file_id,account_id,conversation_id,source_workspace_id,purpose,status,"
             "original_name,display_name,content_type,size_bytes,declared_sha256,expires_at) "
             "VALUES (%s,%s,%s,%s,'input','uploading',%s,%s,%s,%s,%s,%s)",
-            (file_id, account_id, conversation_id, source_workspace_id, original_name, display_name,
-             content_type, declared_size, declared_sha256, expires_at),
+            (
+                file_id,
+                account_id,
+                conversation_id,
+                source_workspace_id,
+                original_name,
+                display_name,
+                content_type,
+                declared_size,
+                declared_sha256,
+                expires_at,
+            ),
         )
 
     def get_for_account(
-        self, uow: UnitOfWork, account_id: UUID, file_id: UUID, *, lock: bool = False,
+        self,
+        uow: UnitOfWork,
+        account_id: UUID,
+        file_id: UUID,
+        *,
+        lock: bool = False,
     ) -> dict[str, Any] | None:
         suffix = " FOR UPDATE" if lock else ""
-        return cast(dict[str, Any] | None, uow.execute(
-            "SELECT * FROM stored_files WHERE account_id=%s AND file_id=%s" + suffix,
-            (account_id, file_id),
-        ).fetchone())
+        return cast(
+            dict[str, Any] | None,
+            uow.execute(
+                "SELECT * FROM stored_files WHERE account_id=%s AND file_id=%s" + suffix,
+                (account_id, file_id),
+            ).fetchone(),
+        )
 
     def mark_ready(
-        self, uow: UnitOfWork, account_id: UUID, file_id: UUID, storage_key: str,
-        size_bytes: int, sha256: str, encoding: str, expires_at: datetime,
+        self,
+        uow: UnitOfWork,
+        account_id: UUID,
+        file_id: UUID,
+        storage_key: str,
+        size_bytes: int,
+        sha256: str,
+        encoding: str,
+        expires_at: datetime,
     ) -> bool:
-        return uow.execute(
-            "UPDATE stored_files SET status='ready',storage_key=%s,size_bytes=%s,sha256=%s,"
-            "encoding=%s,ready_at=now(),expires_at=%s "
-            "WHERE account_id=%s AND file_id=%s AND status='uploading' RETURNING file_id",
-            (storage_key, size_bytes, sha256, encoding, expires_at, account_id, file_id),
-        ).fetchone() is not None
+        return (
+            uow.execute(
+                "UPDATE stored_files SET status='ready',storage_key=%s,size_bytes=%s,sha256=%s,"
+                "encoding=%s,ready_at=now(),expires_at=%s "
+                "WHERE account_id=%s AND file_id=%s AND status='uploading' RETURNING file_id",
+                (storage_key, size_bytes, sha256, encoding, expires_at, account_id, file_id),
+            ).fetchone()
+            is not None
+        )
 
     def mark_rejected(
-        self, uow: UnitOfWork, account_id: UUID, file_id: UUID, failure_code: str,
+        self,
+        uow: UnitOfWork,
+        account_id: UUID,
+        file_id: UUID,
+        failure_code: str,
     ) -> None:
         uow.execute(
             "UPDATE stored_files SET status='rejected',failure_code=%s,storage_key=NULL,"
@@ -262,27 +119,41 @@ class FileRepository:
         )
 
     def mark_deleted_if_unbound(
-        self, uow: UnitOfWork, account_id: UUID, file_id: UUID,
+        self,
+        uow: UnitOfWork,
+        account_id: UUID,
+        file_id: UUID,
     ) -> str:
         from web_domain.file_lifecycle import claim_file_deletion
+
         return cast(str, claim_file_deletion(uow, account_id, file_id))
 
     def lock_ready_inputs(
-        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
+        self,
+        uow: UnitOfWork,
+        account_id: UUID,
+        conversation_id: UUID,
         file_ids: Collection[UUID],
     ) -> list[dict[str, Any]]:
         if not file_ids:
             return []
-        return list(uow.execute(
-            "SELECT * FROM stored_files WHERE account_id=%s "
-            "AND file_id=ANY(%s) AND status='ready' "
-            "ORDER BY created_at,file_id FOR UPDATE",
-            (account_id, list(file_ids)),
-        ).fetchall())
+        return list(
+            uow.execute(
+                "SELECT * FROM stored_files WHERE account_id=%s "
+                "AND file_id=ANY(%s) AND status='ready' "
+                "ORDER BY created_at,file_id FOR UPDATE",
+                (account_id, list(file_ids)),
+            ).fetchall()
+        )
 
     def bind_inputs(
-        self, uow: UnitOfWork, account_id: UUID, conversation_id: UUID,
-        message_id: UUID, run_id: UUID, files: list[dict[str, Any]],
+        self,
+        uow: UnitOfWork,
+        account_id: UUID,
+        conversation_id: UUID,
+        message_id: UUID,
+        run_id: UUID,
+        files: list[dict[str, Any]],
     ) -> None:
         used_names: set[str] = set()
         if files:
@@ -305,7 +176,10 @@ class FileRepository:
             )
 
     def copy_retry_inputs(
-        self, uow: UnitOfWork, source_run_id: UUID, target_run_id: UUID,
+        self,
+        uow: UnitOfWork,
+        source_run_id: UUID,
+        target_run_id: UUID,
     ) -> None:
         uow.execute(
             "INSERT INTO run_files(account_id,conversation_id,run_id,file_id,direction,logical_name) "
@@ -325,7 +199,7 @@ class FileRepository:
         counter = 2
         while candidate.casefold() in used:
             marker = f"-{counter}"
-            candidate = f"{base[:255-len(extension)-len(marker)]}{marker}{extension}"
+            candidate = f"{base[: 255 - len(extension) - len(marker)]}{marker}{extension}"
             counter += 1
         used.add(candidate.casefold())
         return candidate
@@ -333,30 +207,51 @@ class FileRepository:
 
 class RunBudgetRepository:
     def create_snapshot(
-        self, uow: UnitOfWork, run_id: UUID, account_id: UUID,
-        conversation_id: UUID | None, policy_version: str, mode: str,
-        limits: str, final_response_reserve_tokens: int,
+        self,
+        uow: UnitOfWork,
+        run_id: UUID,
+        account_id: UUID,
+        conversation_id: UUID | None,
+        policy_version: str,
+        mode: str,
+        limits: str,
+        final_response_reserve_tokens: int,
     ) -> None:
         uow.execute(
             "INSERT INTO run_budgets(run_id,account_id,conversation_id,policy_version,mode,"
             "limits,final_response_reserve_tokens) VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s)",
-            (run_id, account_id, conversation_id, policy_version, mode, limits,
-             final_response_reserve_tokens),
+            (
+                run_id,
+                account_id,
+                conversation_id,
+                policy_version,
+                mode,
+                limits,
+                final_response_reserve_tokens,
+            ),
         )
-
 
 
 class WorkflowExecutionRepository:
     def has_current(self, uow: UnitOfWork, run_id: UUID) -> bool:
-        return uow.execute(
-            "SELECT 1 FROM workflow_executions WHERE run_id=%s AND is_current", (run_id,)
-        ).fetchone() is not None
+        return (
+            uow.execute(
+                "SELECT 1 FROM workflow_executions WHERE run_id=%s AND is_current", (run_id,)
+            ).fetchone()
+            is not None
+        )
 
 
 class IdempotencyRepository:
     def claim(
-        self, uow: UnitOfWork, command_id: UUID, account_id: UUID, operation: str,
-        key: str, request_hash: bytes, expires_at: Any
+        self,
+        uow: UnitOfWork,
+        command_id: UUID,
+        account_id: UUID,
+        operation: str,
+        key: str,
+        request_hash: bytes,
+        expires_at: Any,
     ) -> dict[str, Any] | None:
         inserted = uow.execute(
             "INSERT INTO idempotency_commands(idempotency_command_id,account_id,operation,"
@@ -367,15 +262,23 @@ class IdempotencyRepository:
         ).fetchone()
         if inserted:
             return None
-        return cast(dict[str, Any] | None, uow.execute(
-            "SELECT * FROM idempotency_commands WHERE account_id=%s AND operation=%s "
-            "AND idempotency_key=%s FOR UPDATE",
-            (account_id, operation, key),
-        ).fetchone())
+        return cast(
+            dict[str, Any] | None,
+            uow.execute(
+                "SELECT * FROM idempotency_commands WHERE account_id=%s AND operation=%s "
+                "AND idempotency_key=%s FOR UPDATE",
+                (account_id, operation, key),
+            ).fetchone(),
+        )
 
     def complete(
-        self, uow: UnitOfWork, account_id: UUID, operation: str, key: str,
-        response_status: int, body: str
+        self,
+        uow: UnitOfWork,
+        account_id: UUID,
+        operation: str,
+        key: str,
+        response_status: int,
+        body: str,
     ) -> None:
         uow.execute(
             "UPDATE idempotency_commands SET status='completed',response_status=%s,"
@@ -387,8 +290,15 @@ class IdempotencyRepository:
 
 class OutboxRepository:
     def enqueue(
-        self, uow: UnitOfWork, event_id: UUID, account_id: UUID, event_type: str,
-        business_key: str, conversation_id: UUID | None, run_id: UUID, payload: str
+        self,
+        uow: UnitOfWork,
+        event_id: UUID,
+        account_id: UUID,
+        event_type: str,
+        business_key: str,
+        conversation_id: UUID | None,
+        run_id: UUID,
+        payload: str,
     ) -> None:
         uow.execute(
             "INSERT INTO outbox_events(outbox_event_id,account_id,event_type,business_key,"
@@ -398,8 +308,7 @@ class OutboxRepository:
         )
 
     def claim_batch(
-        self, uow: UnitOfWork, worker_id: str,
-        owned_event_types: Collection[str], limit: int = 10
+        self, uow: UnitOfWork, worker_id: str, owned_event_types: Collection[str], limit: int = 10
     ):
         return uow.execute(
             "WITH candidates AS (SELECT outbox_event_id FROM outbox_events "
@@ -428,12 +337,15 @@ class OutboxRepository:
         return int(cursor.rowcount)
 
     def mark_processed(self, uow: UnitOfWork, event_id: UUID, worker_id: str) -> bool:
-        return uow.execute(
-            "UPDATE outbox_events SET status='processed',processed_at=now(),locked_at=NULL,"
-            "locked_by=NULL,updated_at=now() WHERE outbox_event_id=%s AND status='processing' "
-            "AND locked_by=%s RETURNING outbox_event_id",
-            (event_id, worker_id),
-        ).fetchone() is not None
+        return (
+            uow.execute(
+                "UPDATE outbox_events SET status='processed',processed_at=now(),locked_at=NULL,"
+                "locked_by=NULL,updated_at=now() WHERE outbox_event_id=%s AND status='processing' "
+                "AND locked_by=%s RETURNING outbox_event_id",
+                (event_id, worker_id),
+            ).fetchone()
+            is not None
+        )
 
     def lock_owned_event(self, uow: UnitOfWork, event_id: UUID, worker_id: str):
         return uow.execute(
@@ -444,31 +356,40 @@ class OutboxRepository:
 
     def discover_context(self, uow: UnitOfWork, event_id: UUID):
         return uow.execute(
-            "SELECT account_id,conversation_id,run_id FROM outbox_events "
-            "WHERE outbox_event_id=%s",
+            "SELECT account_id,conversation_id,run_id FROM outbox_events WHERE outbox_event_id=%s",
             (event_id,),
         ).fetchone()
 
     def mark_retryable_failure(
-        self, uow: UnitOfWork, event_id: UUID, worker_id: str,
-        error_code: str, error_message: str, next_available_at: datetime
+        self,
+        uow: UnitOfWork,
+        event_id: UUID,
+        worker_id: str,
+        error_code: str,
+        error_message: str,
+        next_available_at: datetime,
     ) -> bool:
-        return uow.execute(
-            "UPDATE outbox_events SET status='pending',locked_at=NULL,locked_by=NULL,"
-            "available_at=%s,last_error_code=%s,last_error_message=%s,updated_at=now() "
-            "WHERE outbox_event_id=%s AND status='processing' AND locked_by=%s "
-            "RETURNING outbox_event_id",
-            (next_available_at, error_code, error_message, event_id, worker_id),
-        ).fetchone() is not None
+        return (
+            uow.execute(
+                "UPDATE outbox_events SET status='pending',locked_at=NULL,locked_by=NULL,"
+                "available_at=%s,last_error_code=%s,last_error_message=%s,updated_at=now() "
+                "WHERE outbox_event_id=%s AND status='processing' AND locked_by=%s "
+                "RETURNING outbox_event_id",
+                (next_available_at, error_code, error_message, event_id, worker_id),
+            ).fetchone()
+            is not None
+        )
 
     def mark_dead_letter(
-        self, uow: UnitOfWork, event_id: UUID, worker_id: str,
-        error_code: str, error_message: str
+        self, uow: UnitOfWork, event_id: UUID, worker_id: str, error_code: str, error_message: str
     ) -> bool:
-        return uow.execute(
-            "UPDATE outbox_events SET status='dead_letter',locked_at=NULL,locked_by=NULL,"
-            "last_error_code=%s,last_error_message=%s,updated_at=now() "
-            "WHERE outbox_event_id=%s AND status='processing' AND locked_by=%s "
-            "RETURNING outbox_event_id",
-            (error_code, error_message, event_id, worker_id),
-        ).fetchone() is not None
+        return (
+            uow.execute(
+                "UPDATE outbox_events SET status='dead_letter',locked_at=NULL,locked_by=NULL,"
+                "last_error_code=%s,last_error_message=%s,updated_at=now() "
+                "WHERE outbox_event_id=%s AND status='processing' AND locked_by=%s "
+                "RETURNING outbox_event_id",
+                (error_code, error_message, event_id, worker_id),
+            ).fetchone()
+            is not None
+        )

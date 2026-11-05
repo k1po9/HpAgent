@@ -109,15 +109,7 @@ class SurfaceConversationCommands:
                 # Independent first deliveries serialize through the existing
                 # Conversation row/unique constraint, not an in-memory registry.
                 cid = uuid5(account_id, "surface-conversation:" + binding_key)
-                uow.execute(
-                    "INSERT INTO conversations(account_id,conversation_id) VALUES (%s,%s) "
-                    # Both the UUID primary key and the composite ownership key
-                    # identify this deterministic row. Concurrent first ingress
-                    # may observe either constraint first, so accept either as
-                    # the same canonical Conversation.
-                    "ON CONFLICT DO NOTHING",
-                    (account_id, cid),
-                )
+                self.commands.conversations.ensure_surface(uow, account_id, cid)
                 uow.execute(
                     "INSERT INTO conversation_bindings(account_id,binding_key,conversation_id,route) "
                     "VALUES (%s,%s,%s,%s::jsonb) ON CONFLICT (account_id,binding_key) DO NOTHING",
@@ -183,20 +175,11 @@ class SurfaceConversationCommands:
                             uow,
                             SendMessageCommand(account_id, cid, message_key, content),
                         )
-                        uow.execute(
-                            "UPDATE messages SET origin=%s::jsonb WHERE account_id=%s AND message_id=%s",
-                            (json.dumps(origin), account_id, UUID(result["message_id"])),
+                        self.commands.messages.set_origin(
+                            uow, account_id, UUID(result["message_id"]), json.dumps(origin)
                         )
                     else:
-                        run = uow.execute(
-                            "SELECT run_id FROM runs WHERE account_id=%s AND conversation_id=%s "
-                            + (
-                                "AND run_id=%s"
-                                if target_run
-                                else "AND status IN ('queued','running','cancelling')"
-                            ),
-                            (account_id, cid, target_run) if target_run else (account_id, cid),
-                        ).fetchone()
+                        run = self.commands.runs.find_surface_run(uow, account_id, cid, target_run)
                         if not run:
                             result = CommandResult(409, {"code": "no_matching_run"})
                         else:

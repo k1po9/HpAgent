@@ -7,6 +7,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from persistence.messages import MessageRepository
+from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork
 from web_domain.failures import is_failure_retryable
 from web_domain.run_usage_projection import load_run_budget_projection
@@ -16,11 +18,7 @@ class ChatProjection:
     @classmethod
     def send_result(cls, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
         snapshot = cls.snapshot_for_run(uow, run_id)
-        user = uow.execute(
-            "SELECT m.* FROM messages m JOIN runs r ON r.trigger_message_id=m.message_id "
-            "WHERE r.run_id=%s",
-            (run_id,),
-        ).fetchone()
+        user = MessageRepository().user_for_run(uow, run_id)
         run = snapshot["run"]
         user_dto = cls._message_dto(user)
         user_dto["files"] = cls._message_file_dtos(uow, user["message_id"])
@@ -46,31 +44,20 @@ class ChatProjection:
 
     @classmethod
     def snapshot_for_run(cls, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
-        run = uow.execute("SELECT * FROM runs WHERE run_id=%s", (run_id,)).fetchone()
+        run = RunRepository().get_in_uow(uow, run_id)
         if run["source_kind"] == "work":
             from work_domain.persistence import dto
 
             value = dto(run)
             value["budget"] = load_run_budget_projection(uow, run_id)
-            value["execution_id"] = str(
-                uow.execute(
-                    "SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'",
-                    (run_id,),
-                ).fetchone()["execution_id"]
-            )
+            value["execution_id"] = str(RunRepository().root_execution_id(uow, run_id))
             return {"source_kind": "work", "run": value}
-        message = uow.execute(
-            "SELECT * FROM messages WHERE produced_by_run_id=%s", (run_id,)
-        ).fetchone()
+        message = MessageRepository().assistant_for_run(uow, run_id)
         run_dto = cls._run_dto(run)
         run_dto["budget"] = load_run_budget_projection(uow, run_id)
         message_dto = cls._message_dto(message)
         message_dto["files"] = cls._message_file_dtos(uow, message["message_id"])
-        run_dto["execution_id"] = str(
-            uow.execute(
-                "SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (run_id,)
-            ).fetchone()["execution_id"]
-        )
+        run_dto["execution_id"] = str(RunRepository().root_execution_id(uow, run_id))
         return {"source_kind": "chat", "run": run_dto, "assistant_message": message_dto}
 
     @staticmethod
@@ -140,12 +127,7 @@ class ChatProjection:
 
     @staticmethod
     def _message_file_dtos(uow: UnitOfWork, message_id: UUID) -> list[dict[str, Any]]:
-        rows = uow.execute(
-            "SELECT sf.* FROM message_files mf JOIN stored_files sf "
-            "ON sf.account_id=mf.account_id AND sf.file_id=mf.file_id "
-            "WHERE mf.message_id=%s ORDER BY mf.ordinal",
-            (message_id,),
-        ).fetchall()
+        rows = MessageRepository().bound_files(uow, message_id)
         return [
             {
                 "file_id": str(row["file_id"]),

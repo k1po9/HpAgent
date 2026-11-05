@@ -76,3 +76,79 @@ def build_work_budget_limits(strategy: str, executor: str) -> dict:
         limits.setdefault(dimension, amount)
     limits.setdefault("wall_time_ms", 600000)
     return limits
+
+
+from dataclasses import dataclass
+from typing import Any
+from uuid import UUID
+
+
+@dataclass(frozen=True, kw_only=True)
+class ChatRunInsert:
+    run_id: UUID
+    account_id: UUID
+    conversation_id: UUID
+    session_id: UUID | None
+    trigger_message_id: UUID
+    workflow_id: str
+    context_message_seq: int
+    retry_of_run_id: UUID | None
+    strategy_kind: str
+    executor_key: str
+    agent_strategy: str | None
+    input_snapshot: dict[str, Any]
+    executor_version: int = 1
+    strategy_policy_version: int = 1
+
+
+@dataclass(frozen=True, kw_only=True)
+class WorkRunInsert:
+    run_id: UUID
+    account_id: UUID
+    work_id: UUID
+    requirement_revision: int
+    work_control_epoch: int
+    wakeup_id: UUID
+    workflow_id: str
+    strategy_kind: str
+    executor_key: str
+    agent_strategy: str | None
+    retry_of_run_id: UUID | None
+    executor_version: int
+    strategy_policy_version: int
+    input_snapshot: dict[str, Any]
+
+
+def build_chat_run_insert(
+    run_id: UUID,
+    account_id: UUID,
+    conversation_id: UUID,
+    session_id: UUID | None,
+    trigger_message_id: UUID,
+    workflow_id: str,
+    context_message_seq: int,
+    retry_of_run_id: UUID | None = None,
+    agent_strategy: str = "react",
+    fixed_html: dict[str, Any] | None = None,
+    agent_policy: dict[str, Any] | None = None,
+) -> ChatRunInsert:
+    # Preserve legacy truthiness, NULL, defaults and exact snapshot shape.
+    return ChatRunInsert(
+        run_id=run_id,
+        account_id=account_id,
+        conversation_id=conversation_id,
+        session_id=session_id,
+        trigger_message_id=trigger_message_id,
+        workflow_id=workflow_id,
+        context_message_seq=context_message_seq,
+        retry_of_run_id=retry_of_run_id,
+        agent_strategy=None if fixed_html else agent_strategy,
+        strategy_kind="fixed_workflow" if fixed_html else "generic_agent",
+        executor_key="artifact_html" if fixed_html else "chat_agent",
+        input_snapshot=fixed_html
+        or {
+            "schema_version": 1,
+            "main_protocol": "tool_first_v1",
+            **({"agent_policy": agent_policy} if agent_policy is not None else {}),
+        },
+    )
