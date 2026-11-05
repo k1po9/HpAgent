@@ -492,3 +492,14 @@ test/web_persistence/test_durable_review_regressions.py::test_success_does_not_a
 审查不作判断的范围及执行方决议：真实Provider/QQ/部署、生产性能、Phase3仓储/UoW后续设计、F1–F5及既有memory环境敏感失败继续保持范围外；本轮未改这些行为，代价是不能用本阶段通过结果替代其独立验收。无待夹带实施的Minor项。
 
 下一阶段前置条件：用户审阅本Phase2分层、锁内核验新增读取、已有失败及证据边界后再进入Phase3。Phase3按实际被迁移SQL选择真实PG原子性/权限/lease/savepoint回归；不先扩成完整矩阵。本轮保留WorkCommandService外围方法、旧策略/admit导出和Schedule facade；事件→通知→Outbox副作用和Repository writer未收拢，UoW实现未改。回滚按本阶段职责Commit逆序revert，不修改业务预算、pending wakeup、occurrence或历史迁移。
+
+### Phase 2 Commit与暂停记录
+
+| Task ID | Commit | 状态 |
+| --- | --- | --- |
+| P2.1 | `a662c2933ba59e04822e7b4dc42c419fc809da21` | 完成 |
+| P2.2 | `8790214c215bc77f3ac2775c3fec51b749593b1a` | 完成 |
+| P2.3 | `70777785c93654187a42383ca2df20c242f5ce27` | 完成 |
+| P2.4 | `e273e72bf2385e656e87c24d03d26a37eadce4eb` | 完成 |
+
+上述为独立实现Commit；本表自身的文档提交不改变实现。分支`codex/phase2-work-usecases`，未合并、未推送、未部署。用户已确认进入并继续本阶段；Phase2最终报告待审阅，Phase3未执行。原AS-IS蓝图不修改，当前事实维护在现有架构/代码地图及本日志的TO-BE说明。
