@@ -396,3 +396,15 @@ P1.3还恢复P1.2迁移时省略的原冗余Run读取，最终40项回归针对�
 命令与结果：`.venv/bin/python /tmp/hpagent-phase2/run-pg.py p21-before test/work_domain/test_foundation.py test/work_domain/test_time_policy.py test/web_api/test_work_foundation.py`：35 passed/15.63s。首次迁移后同组34 passed/1 failed，原因是历史HTTP夹具仍patch旧校验器，实际新入口正确拒绝了旧criteria；不是已接受数据行为变化。更新注入点后，`p21-fixed`加上现有completion_contract/save_admission两文件：56 passed/32.07s，失败0、跳过0。既有离线generic_completion_contract/workspace_save_policy：14 passed/0.41s。Ruff及原路径mypy19文件通过；另用`MYPYPATH=src ... mypy --explicit-package-bases --follow-imports=silent src/application/work`核验真实导入身份，5个新模块通过。扩大到全部旧work_domain时暴露既有save_policy的UUID|None类型问题，未夹带修改；最终静态范围另记。
 
 最值得读accept_work.py、queries.py和增强的test_foundation.py。下一步迁纯策略及快照，再迁Admit/Advance；旧revise/control暂留facade，WorkRepository.event的通知/Outbox副作用未拆。没有业务数据回滚需求；必要时revert本任务Commit，不清除pending wakeup或预算。
+
+### P2.2 纯策略及快照构造
+
+状态：完成；P2.1 Commit为`a662c293`，本任务精确Hash在阶段末尾汇总。
+
+文件变化：`run_domain/strategy.py`接收原StrategySnapshot/StrategyRegistry/WorkExecutionPlanner的纯实现，`orchestration/execution_strategy.py`保留三符号兼容导出；`run_domain/creation.py`提取原Work基础input_snapshot组装，`run_domain/admission.py`改为调用上述纯入口。daily baseline、artifact_refs及当前授权等数据库读取仍在原事务中，不放入纯builder。
+
+前：admit→orchestration planner→内联snapshot；后：admit→run_domain纯planner/builder。策略选择、版本1、未知能力拒绝、generic-only agent_policy、deliverables缺省/NULL、wakeup字符串化、checkpoint及requirement字段和JSON序列化保持一致；Run SQL、epoch、trigger和预算均未改变。不修改历史snapshot，也不新增回填。
+
+命令：`.venv/bin/python -m pytest -q test/test_work_execution_strategy.py test/test_persistent_policy.py`：22 passed/0.26s。真实隔离PG的`run-pg.py p22-after test/work_domain/test_execution_strategy.py test/work_domain/test_persistent_policy_pg.py -m 'not temporal'`：14 passed/15.16s，失败0、跳过0，覆盖确定性提醒、daily恢复/合并、timing revision、冻结brief、策略/current policy及旧snapshot读取。新库80项迁移/checksum及清理均成功。改动文件Ruff通过；全阶段注册/sandbox门禁在最终结果统一记录。不新增测试，因为现有策略/冻结策略断言已观察本次移动。
+
+最值得读run_domain/strategy.py、creation.py和test_persistent_policy_pg.py。尚未实施Admit/Advance及PG调度；下一任务保持容量/预算/保存门禁的原读取顺序与显式/Scheduler错误映射。

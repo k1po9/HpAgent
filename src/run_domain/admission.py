@@ -6,8 +6,8 @@ import json
 
 from uuid6 import uuid7
 
-from common.agent_policy import AgentPolicy
 from persistence.repositories import OutboxRepository, RunBudgetRepository
+from run_domain.creation import build_work_input_snapshot
 from work_domain.models import continuation
 from workspace.resources import ResourceDenied, ResourcePolicy
 
@@ -17,11 +17,13 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode, age
     from resources.capacity import CapacityService
     from resources.work_budget import WorkBudgetExhausted
     from work_domain.progress import blocked_reason
+
     # Applies equally to scheduler and explicit advance; a new Run cannot reset protection.
     reason = blocked_reason(uow, work)
-    if reason or work['continuation']['reason'] == 'budget_exhausted':
+    if reason or work["continuation"]["reason"] == "budget_exhausted":
         return None
     from work_domain.save_policy import defer_workspace_save
+
     if defer_workspace_save(uow, work, requirement):
         return None
     if not CapacityService.admission(uow, work):
@@ -41,7 +43,7 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode, age
         raise WorkBudgetExhausted("Work cumulative budget exhausted")
     run_id = uuid7()
     epoch = work["control_epoch"] + 1
-    from orchestration.execution_strategy import WorkExecutionPlanner
+    from run_domain.strategy import WorkExecutionPlanner
     from work_domain.persistence import dto
 
     decision = WorkExecutionPlanner().plan(requirement)
@@ -51,34 +53,12 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode, age
     agent_strategy = (
         requirement["spec"].get("reasoning_mode", "react") if strategy == "generic_agent" else None
     )
-    snapshot = {
-        "schema_version": 1,
-        "requirement_revision": requirement["revision"],
-        "requirement": {
-            key: requirement[key]
-            for key in (
-                "objective",
-                "capability_key",
-                "spec",
-                "constraints",
-                "acceptance_criteria",
-                "completion_mode",
-                "timing",
-                "resource_requests",
-                "deliverable_policy",
-            )
-        },
-        "checkpoint": work["checkpoint"],
-        "wakeup_id": str(wakeup_id),
-    }
-    if strategy == "generic_agent":
-        snapshot["agent_policy"] = (agent_policy or AgentPolicy()).to_snapshot()
-    if requirement.get('deliverables') is not None:
-        snapshot['requirement']['deliverables'] = requirement['deliverables']
-    if requirement['timing']['kind'] == 'daily':
+    snapshot = build_work_input_snapshot(work, requirement, wakeup_id, strategy, agent_policy)
+    if requirement["timing"]["kind"] == "daily":
         from work_domain.progress import previous_daily
+
         baseline = previous_daily(uow, work)
-        snapshot['daily_baseline_run_id'] = str(baseline['run_id']) if baseline else None
+        snapshot["daily_baseline_run_id"] = str(baseline["run_id"]) if baseline else None
     selected_artifacts = uow.execute(
         "SELECT a.artifact_version_id,a.role,f.ref_id AS result_ref_id FROM work_artifacts a "
         "LEFT JOIN capability_result_refs f ON f.account_id=a.account_id "
@@ -89,10 +69,12 @@ def admit_work_run(uow, work, requirement, wakeup_id, database, budget_mode, age
     ).fetchall()
     # Exact result metadata makes an explicitly selected old version discoverable.
     # It neither adopts it nor replaces current file/resource authorization.
-    snapshot["artifact_refs"] = dto([
-        {key: value for key, value in row.items() if value is not None}
-        for row in selected_artifacts
-    ])
+    snapshot["artifact_refs"] = dto(
+        [
+            {key: value for key, value in row.items() if value is not None}
+            for row in selected_artifacts
+        ]
+    )
     wakeup = uow.execute(
         "SELECT kind FROM work_wakeups WHERE wakeup_id=%s", (wakeup_id,)
     ).fetchone()
