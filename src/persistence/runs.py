@@ -198,3 +198,27 @@ class RunRepository:
             ),
             (account_id, cid, target_run) if target_run else (account_id, cid),
         ).fetchone()
+
+    def request_coordinator_cancellation(self, uow, run_id):
+        uow.execute(
+            "UPDATE runs SET status='cancelling',version=version+1,updated_at=now() WHERE run_id=%s",
+            (run_id,),
+        )
+
+    def set_result_terminal(self, uow, status, failure_code, failure_message, result_json, run_id):
+        uow.execute(
+            "UPDATE runs SET status=%s,failure_code=%s,failure_message=%s,result_json=%s::jsonb,finished_at=GREATEST(now(),created_at,COALESCE(started_at,created_at)),version=version+1,updated_at=now() WHERE run_id=%s",
+            (status, failure_code, failure_message, result_json, run_id),
+        )
+
+    def mark_running_locked(self, uow, run_id):
+        uow.execute(
+            "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),version=version+1,updated_at=now() WHERE run_id=%s",
+            (run_id,),
+        )
+
+    def mark_running_queued(self, uow, run_id):
+        uow.execute(
+            "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),version=version+1,updated_at=now() WHERE run_id=%s AND status='queued'",
+            (run_id,),
+        )

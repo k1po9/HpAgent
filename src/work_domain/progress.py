@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 
+from application.work.events import record_work_event
 from work_domain.models import digest
 from work_domain.persistence import WorkRepository
 
@@ -279,4 +280,4 @@ def accept_daily_result(uow, work, run):
         (run["run_id"], run["account_id"], run["run_id"]),
     )
     if changed and work["continuation"]["kind"] != "awaiting_delivery":
-        WorkRepository.event(uow, work, "result_changed", run_id=run["run_id"])
+        record_work_event(uow, work, "result_changed", run_id=run["run_id"])

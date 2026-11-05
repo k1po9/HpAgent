@@ -10,6 +10,7 @@ from uuid6 import uuid7
 from common.agent_policy import AgentPolicy
 from persistence.command_result import CommandResult
 from persistence.repositories import IdempotencyRepository
+from persistence.works import WorkRepository as WorkRows
 from run_domain.execution import assert_execution_fence
 from web_domain.errors import IdempotencyConflict, ResourceNotFound
 from work_domain.errors import WorkConflict
@@ -76,11 +77,8 @@ class WorkCommandDependencies:
             (work["account_id"], conversation_id),
         ).fetchone():
             raise ResourceNotFound()
-        uow.execute(
-            "INSERT INTO work_conversations(account_id,work_id,conversation_id,"
-            "linked_by_command_id,source_message_id) VALUES (%s,%s,%s,%s,%s) "
-            "ON CONFLICT DO NOTHING",
-            (work["account_id"], work["work_id"], conversation_id, command, source_message_id),
+        WorkRows.link_conversation(
+            uow, work["account_id"], work["work_id"], conversation_id, command, source_message_id
         )
 
     def locked(self, uow, account_id, work_id, row_version):

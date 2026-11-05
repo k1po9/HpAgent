@@ -6,8 +6,12 @@ import json
 import logging
 from datetime import UTC, datetime
 
+from application.work.events import record_work_event
 from common.agent_policy import AgentPolicy
 from persistence.uow import UnitOfWork, retryable_transaction
+from persistence.wakeups import WakeupRepository
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository as WorkRows
 from resources.run_budget import RunBudgetExhausted
 from run_domain.lifecycle import RunLifecycleService
 from web_domain.errors import DomainError
@@ -30,16 +34,7 @@ class DispatchDueWork:
         now = now or datetime.now(UTC)
         count = 0
         with UnitOfWork(self.database) as uow:
-            rows = uow.execute(
-                "WITH eligible AS (SELECT w.work_id,w.account_id,row_number() OVER (PARTITION BY w.account_id ORDER BY w.work_id) AS tenant_position "
-                "FROM works w WHERE w.status='active' AND w.active_coordinator_run_id IS NULL AND EXISTS "
-                "(SELECT 1 FROM work_wakeups x WHERE x.work_id=w.work_id AND x.state='pending' AND x.due_at<=%s)) "
-                "SELECT w.* FROM eligible e JOIN works w USING(work_id,account_id) LEFT JOIN capacity_turns t "
-                "ON t.account_id=w.account_id AND t.resource='coordination' AND t.lane='background' "
-                "ORDER BY e.tenant_position,COALESCE(t.last_admitted_at,'-infinity'::timestamptz),w.work_id "
-                "LIMIT %s FOR UPDATE OF w SKIP LOCKED",
-                (now, limit),
-            ).fetchall()
+            rows = WorkRows.lock_dispatch_candidates(uow, now, limit)
             for work in rows:
                 kind = work["continuation"]["kind"]
                 due = work["continuation"].get("due_at")
@@ -55,14 +50,12 @@ class DispatchDueWork:
                     ).fetchone()
                 ):
                     continue
-                requirement = WorkRepository.requirement(
+                requirement = WorkRequirementRepository.get(
                     uow, work["account_id"], work["work_id"], work["current_requirement_revision"]
                 )
-                wake = uow.execute(
-                    "SELECT * FROM work_wakeups WHERE work_id=%s AND expected_revision=%s "
-                    "AND state='pending' AND due_at<=%s ORDER BY due_at DESC,created_at DESC,wakeup_id DESC LIMIT 1 FOR UPDATE",
-                    (work["work_id"], work["current_requirement_revision"], now),
-                ).fetchone()
+                wake = WakeupRepository.latest_due(
+                    uow, work["work_id"], work["current_requirement_revision"], now
+                )
                 if wake is None:
                     continue
                 # Keep failures local to one Work; other tenants' wakeups still progress.
@@ -89,26 +82,24 @@ class DispatchDueWork:
                             (work["account_id"],),
                         )
                         current = WorkRepository.get(uow, work["account_id"], work["work_id"])
-                        WorkRepository.event(uow, current, "advanced", run_id=run["run_id"])
+                        record_work_event(uow, current, "advanced", run_id=run["run_id"])
                     count += 1
                 except (ValueError, DomainError, RunBudgetExhausted) as exc:
                     logger.warning("Work admission blocked: %s", type(exc).__name__)
-                    uow.execute(
-                        "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1 WHERE work_id=%s",
-                        (
-                            json.dumps(
-                                continuation(
-                                    "blocked",
-                                    "budget_exhausted"
-                                    if isinstance(exc, RunBudgetExhausted)
-                                    else "admission_rejected",
-                                )
-                            ),
-                            work["work_id"],
+                    WorkRows.set_pending_continuation(
+                        uow,
+                        json.dumps(
+                            continuation(
+                                "blocked",
+                                "budget_exhausted"
+                                if isinstance(exc, RunBudgetExhausted)
+                                else "admission_rejected",
+                            )
                         ),
+                        work["work_id"],
                     )
                     current = WorkRepository.get(uow, work["account_id"], work["work_id"])
-                    WorkRepository.event(
+                    record_work_event(
                         uow, current, "blocked", reason=current["continuation"]["reason"]
                     )
                 except Exception:

@@ -521,3 +521,21 @@ test/web_persistence/test_durable_review_regressions.py::test_success_does_not_a
 命令：`run-pg.py p31-before test/web_persistence/test_command_service.py test/web_persistence/test_conversation_commands.py test/web_persistence/test_web_artifacts.py test/work_domain/test_foundation.py test/web_persistence/test_permissions.py test/web_persistence/test_outbox_and_lifecycle.py::test_db_008_concurrent_retry_returns_one_child`：47 passed/18.25s。迁移后同选择加QQ canonical ingress文件：59 passed/23.01s，失败0、跳过0。断言覆盖幂等/冲突、并发单槽、Outbox回滚、HTML snapshot/retry/外层回滚、Work pointer/owner/revision、并发retry唯一child及API/Worker角色隔离。原80项迁移/checksum及资源清理均成功。`make lint typecheck`通过，mypy103文件无错误。不新增测试或mock转发断言。
 
 最值得读run_domain/creation.py（不同owner形状）、persistence/runs.py（指定writer）、现有test_conversation_commands.py及foundation的行为断言。下一任务拆Work表writer与event→notification→Outbox同事务编排；UoW、事件和技术事实仓储尚未迁移。回滚以本职责Commit撤销，不改数据或迁移。
+
+### P3.2 Work writer与事件编排
+
+状态：完成；P3.1 Commit为`dea6239e`，本任务精确Hash在阶段末尾汇总。
+
+新增`persistence/{works,work_requirements,wakeups,work_schedules,work_events}.py`分别负责Work行/CAS/epoch/continuation、append-only需求及原hash、wakeup状态、schedule/occurrence事实和纯事件append。原`work_domain/persistence.py`仅兼容导出/转发；dto移纯`work_domain/serialization.py`，schedule状态计算移`work_domain/scheduling.py`。`application/work/schedules.py`借用原UoW协调lock→纯计划→原upsert，daily时钟仍只在原需要计算next_daily的位置读取，不改once/awaiting_delivery语义。
+
+`application/work/events.py`显式协调WorkEventRepository.append→delivery.enqueue_event→OutboxRepository.enqueue_work_event；原通知选择不变，accepted/advanced仍不新增通知。原Work命令、准入、调度、终态/完成、进度、integration、save-policy和Delivery的Work写入只把原SQL调用换成指定writer；原校验/分支/锁/事务/异常处理不移动。Work事件各调用点显式调用该应用函数；旧WorkRepository.event签名仅兼容。Outbox的Work入队SQL本任务加入原Outbox类，P3.3再整体迁技术队列仓储。
+
+关联Run状态SQL也按原谓词迁到RunRepository：锁内running与仅queued→running保持两个不同接口，coordinator取消及带result_json终态保持原SQL，不合并状态条件或重写Lifecycle编排。Workspace/记忆治理标记不属于本次状态writer，原文件及SQL保留，未扩成Run万能仓储。开发中Ruff发现生成的两个running接口同名，已明确区分locked/queued接口后再验证；不将该临时检查失败记成已有业务问题。
+
+24种原Work相关写SQL按原字段/参数/RETURNING分别收拢，保留GREATEST(now,..)、仅now及不更新timestamp三种不同写法，不顺手规范化。同步迁同表锁读/批量选择等必要接口；容量票据、资源、预算和能力事实继续由原能力接口负责。所有writer的第一个参数为原uow，没有创建连接、提交、RPC或额外锁；root trigger、同事务事件/通知/Outbox、原角色/FK不变。
+
+测试：在原foundation文件仅新增一个尾部故障业务用例，真实PG中暂停Work，在最后publish_work_event Outbox INSERT抛错，断言Work快照、events/notifications/deliveries/Outbox/幂等数量全部回滚，同key恢复后仅1个paused事件和1条通知。注入公共UoW.execute的单一故障点，不新增私有调用/目录测试。先在原实现运行1 passed/1.46s，再用于迁移后行为核验。
+
+命令：使用Phase2最终节点选择的`run-pg.py p32-after <final-cases> -m 'not temporal'`：99 passed、1 deselected/77.14s（较上一阶段多该1项），失败0、skip0。包括来源/权限、revision/pointer、保存/预算、completion、调度/失败隔离及新尾部回滚。后续Run状态纯SQL移动后，`p32-verified`选提醒准确回执后完成、stop+uncertain责任、旧revision回执、resume不重发、终态Outbox稳定ID和尾部回滚六项：6 passed/5.21s。所有轮次80项迁移/checksum、资源清理通过。`make lint typecheck`：Ruff及110个文件mypy通过。最终合并回归在P3.3后执行。
+
+前链为用例→混合WorkRepository/direct SQL→隐藏事件副作用；后链为用例→指定行writer，事件在应用明确三步调用。新旧每步共享同一外层UoW/savepoint，累计预算、pending/occurrence和JSON/hash均不回填。最值得读application/work/events.py、persistence/works.py、work_domain/scheduling.py与尾部回滚断言。下一任务迁Outbox/Workflow SQL及纯分发contract，UoW实现仍不改；F2/F5不处理。

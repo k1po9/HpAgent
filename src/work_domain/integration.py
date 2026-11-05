@@ -8,7 +8,9 @@ from uuid import UUID
 
 from uuid6 import uuid7
 
+from application.work.events import record_work_event
 from persistence.uow import UnitOfWork, retryable_transaction
+from persistence.works import WorkRepository as WorkRows
 from resources.run_budget import _amounts
 from web_domain.errors import ResourceNotFound
 from work_domain.models import continuation
@@ -295,10 +297,7 @@ def integration_command(service, account, work_id, key, version, action, payload
                 protection = blocked_reason(uow, work)
                 next_step = (continuation('blocked', protection) if protection else
                              continuation('ready', 'budget_increased'))
-                uow.execute(
-                    "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1 WHERE work_id=%s",
-                    (json.dumps(next_step), work_id),
-                )
+                WorkRows.set_pending_continuation(uow, json.dumps(next_step), work_id)
                 if not protection:
                     WorkRepository.wakeup(uow, work, f"budget:{command}", "advance", "budget_increased")
         elif action == "grant_resource":
@@ -474,17 +473,8 @@ def integration_command(service, account, work_id, key, version, action, payload
                 and not work["active_coordinator_run_id"]
                 and not RunLifecycleService.unresolved_effect(uow, work)
             ):
-                uow.execute(
-                    "UPDATE works SET status=%s,control_epoch=control_epoch+1,continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),"
-                    "stopped_at=CASE WHEN %s='stopped' THEN GREATEST(now(),created_at,updated_at) ELSE NULL END WHERE work_id=%s",
-                    (
-                        "paused" if work["status"] == "pausing" else "stopped",
-                        json.dumps(continuation("blocked", "delivery_resolved")),
-                        "paused" if work["status"] == "pausing" else "stopped",
-                        work_id,
-                    ),
-                )
-                WorkRepository.event(
+                WorkRows.resolve_control(uow, 'paused' if work['status'] == 'pausing' else 'stopped', json.dumps(continuation('blocked', 'delivery_resolved')), 'paused' if work['status'] == 'pausing' else 'stopped', work_id)
+                record_work_event(
                     uow,
                     WorkRepository.get(uow, account, work_id),
                     "paused" if work["status"] == "pausing" else "stopped",
@@ -544,19 +534,13 @@ def integration_command(service, account, work_id, key, version, action, payload
             if criteria_satisfied(requirement["acceptance_criteria"], evidence):
                 WorkCompletionPolicy.accept(uow, work, dict(run), user_evidence=evidence)
             else:
-                uow.execute(
-                    "UPDATE works SET row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
-                    (work_id,),
-                )
+                WorkRows.touch(uow, work_id)
         else:
             raise ValueError("unsupported integration command")
         if action != "accept_result" and WorkRepository.get(uow, account, work_id)[
             "status"
         ] not in {"stopped", "completed"}:
-            uow.execute(
-                "UPDATE works SET row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
-                (work_id,),
-            )
+            WorkRows.touch(uow, work_id)
         current = WorkRepository.get(uow, account, work_id)
         # Only our prerequisite wait can be released by a new explicit grant.
         # Other input, budget, progress and uncertain-effect gates stay intact.
@@ -573,18 +557,14 @@ def integration_command(service, account, work_id, key, version, action, payload
                 protection = blocked_reason(uow, current)
                 next_step = (continuation('blocked', protection) if protection else
                              initial_continuation(requirement['timing']))
-                current = dict(uow.execute(
-                    "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,"
-                    "updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s RETURNING *",
-                    (json.dumps(next_step), work_id),
-                ).fetchone())
+                current = dict(WorkRows.set_continuation_returning(uow, json.dumps(next_step), work_id))
                 if not protection and requirement['timing']['kind'] in {'immediate', 'once'}:
                     WorkRepository.wakeup(uow, current, f'save-ready:{command}', 'advance', 'workspace_save_ready',
                                           next_step.get('due_at'))
             from work_domain.persistence import sync_schedule
             current = WorkRepository.get(uow, account, work_id)
             sync_schedule(uow, current, requirement)
-        WorkRepository.event(uow, current, action, command_id=command, **dto(payload))
+        record_work_event(uow, current, action, command_id=command, **dto(payload))
         return service._complete(
             uow,
             account,

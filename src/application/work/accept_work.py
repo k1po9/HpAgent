@@ -7,10 +7,14 @@ from typing import cast
 
 from uuid6 import uuid7
 
+from application.work.events import record_work_event
 from common.runtime_config import CapacityConfig
 from persistence.command_result import CommandResult
 from persistence.repositories import AccountRepository
 from persistence.uow import UnitOfWork, retryable_transaction
+from persistence.wakeups import WakeupRepository
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository as WorkRows
 from web_domain.errors import ResourceNotFound
 from work_domain.errors import WorkConflict
 from work_domain.models import validate_new_completion_criteria
@@ -81,21 +85,15 @@ class AcceptWork:
             raise ResourceNotFound()
         if source and conversation_id is None:
             conversation_id = source["conversation_id"]
-        uow.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (str(account_id),))
-        count = uow.execute(
-            "SELECT count(*) AS n FROM works WHERE account_id=%s AND status NOT IN ('stopped','completed')",
-            (account_id,),
-        ).fetchone()["n"]
+        WorkRows.lock_accept_limit(uow, str(account_id))
+        count = WorkRows.count_accepted(uow, account_id)["n"]
         if count >= CapacityConfig.from_environment().work_account_accept_limit:
             raise WorkConflict({}, "work_accept_limit")
         work_id = uuid7()
         from work_domain.timing import initial_continuation
 
         next_step = initial_continuation(value["timing"])
-        uow.execute(
-            "INSERT INTO works(work_id,account_id,title,continuation) VALUES (%s,%s,%s,%s::jsonb)",
-            (work_id, account_id, title, json.dumps(next_step)),
-        )
+        WorkRows.insert(uow, work_id, account_id, title, json.dumps(next_step))
         from resources.work_budget import WorkBudgetService
 
         WorkBudgetService.create(uow, account_id, work_id)
@@ -120,23 +118,23 @@ class AcceptWork:
                 command_id=command_id,
             )
             value["spec"] = {**value["spec"], "target_ref": str(selected)}
-        self.dependencies.repo.insert_requirement(
+        WorkRequirementRepository.insert(
             uow, account_id, work_id, 1, value, command_id, "accepted", source_message_id
         )
         work = self.dependencies.repo.get(uow, account_id, work_id)
         if conversation_id:
             self.dependencies.link(uow, work, conversation_id, command_id, source_message_id)
-        self.dependencies.repo.event(uow, work, "accepted", command_id=command_id, status="active")
+        record_work_event(uow, work, "accepted", command_id=command_id, status="active")
         from delivery.service import ensure_inbox
 
         ensure_inbox(uow, account_id, work_id)
         waiting_for_save = defer_workspace_save(uow, work, value)
         work = self.dependencies.repo.get(uow, account_id, work_id)
-        from work_domain.persistence import sync_schedule
+        from application.work.schedules import sync_schedule
 
         sync_schedule(uow, work, value)
         if not waiting_for_save and value["timing"]["kind"] in {"immediate", "once"}:
-            self.dependencies.repo.wakeup(
+            WakeupRepository.enqueue(
                 uow, work, f"accepted:{command_id}", "accepted", "accepted", next_step.get("due_at")
             )
         return self.dependencies.complete(uow, account_id, "accept_work", key, work_id, 201)

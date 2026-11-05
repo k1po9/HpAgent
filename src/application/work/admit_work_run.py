@@ -14,6 +14,9 @@ from common.agent_policy import AgentPolicy
 from persistence.repositories import OutboxRepository, RunBudgetRepository
 from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork
+from persistence.wakeups import WakeupRepository
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository as WorkRows
 from run_domain.creation import WorkRunInsert, build_work_budget_limits, build_work_input_snapshot
 from work_domain.admission import (
     WorkAdmissionFacts,
@@ -51,14 +54,13 @@ class WorkAdmissionContext:
             self.requirement["revision"],
         ) != (work["account_id"], work["work_id"], work["current_requirement_revision"]):
             raise WorkConflict(work, "work_admission_stale")
-        requirement = WorkRepository.requirement(
+        requirement = WorkRequirementRepository.get(
             uow, work["account_id"], work["work_id"], work["current_requirement_revision"]
         )
         if self.wakeup_id is not None:
-            wake = uow.execute(
-                "SELECT * FROM work_wakeups WHERE account_id=%s AND work_id=%s AND wakeup_id=%s FOR UPDATE",
-                (work["account_id"], work["work_id"], self.wakeup_id),
-            ).fetchone()
+            wake = WakeupRepository.lock_owned(
+                uow, work["account_id"], work["work_id"], self.wakeup_id
+            )
             if (
                 not wake
                 or wake["state"] != "pending"
@@ -106,9 +108,8 @@ class AdmitWorkRun:
         facts = replace(facts, capacity_available=CapacityService.admission(uow, work))
         decision = decide_work_admission(facts)
         if decision.outcome == "defer":
-            uow.execute(
-                "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
-                (json.dumps(continuation("ready", "waiting_capacity")), work_id),
+            WorkRows.set_continuation(
+                uow, json.dumps(continuation("ready", "waiting_capacity")), work_id
             )
             return WorkAdmissionResult(None, decision.reason)
         budget = uow.execute(
@@ -156,9 +157,7 @@ class AdmitWorkRun:
                 for row in selected_artifacts
             ]
         )
-        wakeup = uow.execute(
-            "SELECT kind FROM work_wakeups WHERE wakeup_id=%s", (wakeup_id,)
-        ).fetchone()
+        wakeup = WakeupRepository.kind(uow, wakeup_id)
         previous = uow.execute(
             "SELECT run_id,status FROM runs WHERE account_id=%s AND work_id=%s "
             "AND requirement_revision=%s "
@@ -194,20 +193,11 @@ class AdmitWorkRun:
                 input_snapshot=dto(snapshot),
             ),
         )
-        uow.execute(
-            "UPDATE works SET active_coordinator_run_id=%s,control_epoch=%s,"
-            "row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),continuation=%s::jsonb WHERE work_id=%s",
-            (run_id, epoch, json.dumps(continuation("ready", "coordinator_admitted")), work_id),
+        WorkRows.assign_coordinator(
+            uow, run_id, epoch, json.dumps(continuation("ready", "coordinator_admitted")), work_id
         )
-        uow.execute(
-            "UPDATE work_wakeups SET state='consumed',run_id=%s WHERE wakeup_id=%s AND state='pending'",
-            (run_id, wakeup_id),
-        )
-        uow.execute(
-            "UPDATE work_wakeups SET state='superseded' WHERE work_id=%s AND "
-            "state='pending' AND expected_revision<=%s",
-            (work_id, requirement["revision"]),
-        )
+        WakeupRepository.consume(uow, run_id, wakeup_id)
+        WakeupRepository.supersede_revision(uow, work_id, requirement["revision"])
         limits = build_work_budget_limits(strategy, executor)
         RunBudgetRepository().create_snapshot(
             uow, run_id, account_id, None, "work-foundation-v1", budget_mode, json.dumps(limits), 0

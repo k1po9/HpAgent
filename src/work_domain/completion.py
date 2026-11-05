@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import json
 
+from application.work.events import record_work_event
+from persistence.wakeups import WakeupRepository
+from persistence.works import WorkRepository as WorkRows
 from work_domain.persistence import WorkRepository
 
 
@@ -52,22 +55,16 @@ class WorkCompletionPolicy:
             if (not row or row['state'] != 'succeeded' or not row['committed']) and not required_workspace_saved(uow, run, requirement['deliverable_policy'], evidence):
                 raise ValueError('required Workspace save has not committed')
         if requirement['completion_mode'] == 'ongoing':
-            event = WorkRepository.event(uow, work, 'result_accepted', run_id=run['run_id'], evidence=evidence)
+            event = record_work_event(uow, work, 'result_accepted', run_id=run['run_id'], evidence=evidence)
             from work_domain.integration import adopt_artifacts
             adopt_artifacts(uow, work, evidence, event)
             return False
         receipt = {'schema_version': 1, 'run_id': str(run['run_id']),
                    'requirement_revision': run['requirement_revision'], 'evidence': evidence,
                    'evaluator': 'authorized_user_acceptance_v1' if user_evidence is not None else 'delivery_receipt_policy_v1' if delivery_evidence is not None else 'work_completion_policy_v1'}
-        updated = uow.execute(
-            'UPDATE works SET status=\'completed\',completed_requirement_revision=%s,'
-            'completion_receipt=%s::jsonb,completed_at=GREATEST(now(),created_at,updated_at),row_version=row_version+1,'
-            'updated_at=GREATEST(now(),created_at,updated_at),continuation=\'{"schema_version":1,"kind":"none","reason":"criteria_satisfied"}\' '
-            'WHERE account_id=%s AND work_id=%s RETURNING *',
-            (run['requirement_revision'], json.dumps(receipt), work['account_id'], work['work_id'])).fetchone()
-        uow.execute('UPDATE work_wakeups SET state=\'superseded\' WHERE work_id=%s AND state=\'pending\'',
-                    (work['work_id'],))
-        event = WorkRepository.event(uow, dict(updated), 'completed', run_id=run['run_id'], evidence=evidence)
+        updated = WorkRows.complete(uow, run['requirement_revision'], json.dumps(receipt), work['account_id'], work['work_id'])
+        WakeupRepository.supersede_pending(uow, work['work_id'])
+        event = record_work_event(uow, dict(updated), 'completed', run_id=run['run_id'], evidence=evidence)
         from work_domain.integration import adopt_artifacts
         adopt_artifacts(uow, work, evidence, event)
         return True

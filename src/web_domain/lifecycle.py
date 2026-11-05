@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol, cast
 from uuid import UUID
 
+from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.lifecycle import RunLifecycleService
 
@@ -82,11 +83,7 @@ class WebRunLifecycleService:
                 if not AccountRepository().require_active(uow, run['account_id']):
                     raise ResourceNotFound()
             if run["status"] == "queued":
-                uow.execute(
-                    "UPDATE runs SET status='running',started_at=GREATEST(now(),created_at),"
-                    "version=version+1,updated_at=now() "
-                    "WHERE run_id=%s AND status='queued'", (run_id,)
-                )
+                RunRepository().mark_running_queued(uow, run_id)
                 return LifecycleAuthority(str(run_id), "running")
             return LifecycleAuthority(str(run_id), str(run["status"]))
 

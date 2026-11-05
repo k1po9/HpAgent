@@ -12,8 +12,12 @@ from application.work.accept_work import AcceptWork
 from application.work.advance_work import AdvanceWork
 from application.work.commands import AcceptWorkCommand, AdvanceWorkCommand
 from application.work.dependencies import WorkCommandDependencies
+from application.work.events import record_work_event
 from common.agent_policy import AgentPolicy
+from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork, retryable_transaction
+from persistence.wakeups import WakeupRepository
+from persistence.works import WorkRepository as WorkRows
 from work_domain.errors import WorkConflict as WorkConflict
 from work_domain.models import Requirement, continuation, validate_new_completion_criteria
 from work_domain.save_policy import (
@@ -128,11 +132,7 @@ class WorkCommandService:
                 (work["account_id"], run_id),
             ).fetchone()
             if run["status"] in {"queued", "running"}:
-                uow.execute(
-                    "UPDATE runs SET status='cancelling',version=version+1,updated_at=now() "
-                    "WHERE run_id=%s",
-                    (run_id,),
-                )
+                RunRepository().request_coordinator_cancellation(uow, run_id)
             from persistence.repositories import OutboxRepository
 
             OutboxRepository().enqueue(
@@ -145,10 +145,7 @@ class WorkCommandService:
                 run_id,
                 json.dumps({"run_id": str(run_id), "version": 1}),
             )
-        uow.execute(
-            "UPDATE work_wakeups SET state='superseded' WHERE work_id=%s AND state='pending'",
-            (work["work_id"],),
-        )
+        WakeupRepository.supersede_pending(uow, work['work_id'])
 
     @retryable_transaction
     def revise(
@@ -206,14 +203,9 @@ class WorkCommandService:
             ):
                 next_step = work["continuation"]
             work = dict(
-                uow.execute(
-                    "UPDATE works SET current_requirement_revision=%s,control_epoch=control_epoch+1,"
-                    "row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),checkpoint=%s::jsonb,continuation=%s::jsonb "
-                    "WHERE work_id=%s RETURNING *",
-                    (revision, json.dumps(checkpoint), json.dumps(next_step), work_id),
-                ).fetchone()
+                WorkRows.revise(uow, revision, json.dumps(checkpoint), json.dumps(next_step), work_id)
             )
-            self.repo.event(uow, work, "revised", command_id=command, reason=reason)
+            record_work_event(uow, work, "revised", command_id=command, reason=reason)
             if (
                 not work["continuation"].get("operation_ref")
                 and work["continuation"]["reason"] != "budget_exhausted"
@@ -280,13 +272,7 @@ class WorkCommandService:
             }[action]
             self._cancel_coordinator(uow, work, command, action if action != "resume" else None)
             work = dict(
-                uow.execute(
-                    "UPDATE works SET status=%s,control_epoch=control_epoch+1,"
-                    "row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),continuation=%s::jsonb,"
-                    "stopped_at=CASE WHEN %s='stopped' THEN GREATEST(now(),created_at,updated_at) ELSE NULL END "
-                    "WHERE work_id=%s RETURNING *",
-                    (status, json.dumps(work["continuation"]), status, work_id),
-                ).fetchone()
+                WorkRows.set_control_state(uow, status, json.dumps(work['continuation']), status, work_id)
             )
             event = {
                 "pausing": "pause_requested",
@@ -295,7 +281,7 @@ class WorkCommandService:
                 "stopped": "stopped",
                 "active": "resumed",
             }[status]
-            self.repo.event(uow, work, event, command_id=command, status=status)
+            record_work_event(uow, work, event, command_id=command, status=status)
             requirement = self.repo.requirement(
                 uow, account_id, work_id, work["current_requirement_revision"]
             )
@@ -313,11 +299,7 @@ class WorkCommandService:
 
                 next_step = initial_continuation(requirement["timing"])
                 work = dict(
-                    uow.execute(
-                        "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) "
-                        "WHERE work_id=%s RETURNING *",
-                        (json.dumps(next_step), work_id),
-                    ).fetchone()
+                    WorkRows.set_continuation_returning(uow, json.dumps(next_step), work_id)
                 )
                 defer_workspace_save(uow, work, requirement)
                 work = self.repo.get(uow, account_id, work_id)
@@ -357,13 +339,9 @@ class WorkCommandService:
             self._link(uow, work, conversation_id, command)
             if work["status"] not in {"stopped", "completed"}:
                 work = dict(
-                    uow.execute(
-                        "UPDATE works SET row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) "
-                        "WHERE work_id=%s RETURNING *",
-                        (work_id,),
-                    ).fetchone()
+                    WorkRows.touch_returning(uow, work_id)
                 )
-            self.repo.event(
+            record_work_event(
                 uow, work, "linked", command_id=command, conversation_id=conversation_id
             )
             return self._complete(uow, account_id, "link_work", key, work_id)

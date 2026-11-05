@@ -393,3 +393,11 @@ class OutboxRepository:
             ).fetchone()
             is not None
         )
+
+    def enqueue_work_event(self, uow, outbox_event_id, account_id, business_key, work_id, payload):
+        uow.execute(
+            "INSERT INTO outbox_events(outbox_event_id,account_id,event_type,business_key,"
+            "work_id,aggregate_type,aggregate_id,payload) VALUES (%s,%s,'publish_work_event',"
+            "%s,%s,'work',%s,%s::jsonb)",
+            (outbox_event_id, account_id, business_key, work_id, work_id, payload),
+        )

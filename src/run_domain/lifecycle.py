@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import json
 
+from application.work.events import record_work_event
 from persistence.repositories import AccountRepository
+from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork, retryable_transaction
+from persistence.works import WorkRepository as WorkRows
 from run_domain.models import TERMINAL
 from web_domain.errors import ConversationBusy, ResourceNotFound
 from work_domain.models import bounded, continuation
@@ -66,8 +69,7 @@ class RunLifecycleService:
             if run['source_kind']=='work':
                 self.check_work(uow, run)
             if run['status']=='queued':
-                uow.execute('UPDATE runs SET status=\'running\',started_at=GREATEST(now(),created_at),'
-                            'version=version+1,updated_at=now() WHERE run_id=%s', (run_id,))
+                RunRepository().mark_running_locked(uow, run_id)
             return True
 
     @retryable_transaction
@@ -189,10 +191,7 @@ class RunLifecycleService:
                         outcome='failed', outputs=[], checks=[], gaps=[],
                         error={'code': failure_code or 'attempt_failed', 'retry_class': 'transient'},
                     ))
-        uow.execute('UPDATE runs SET status=%s,failure_code=%s,failure_message=%s,'
-                    'result_json=%s::jsonb,finished_at=GREATEST(now(),created_at,COALESCE(started_at,created_at)),'
-                    'version=version+1,updated_at=now() WHERE run_id=%s',
-                    (status, failure_code, failure_message, json.dumps(result) if result else None, run['run_id']))
+        RunRepository().set_result_terminal(uow, status, failure_code, failure_message, json.dumps(result) if result else None, run['run_id'])
         run = dict(uow.execute('SELECT * FROM runs WHERE run_id=%s', (run['run_id'],)).fetchone())
         from resources.model_budget_coordinator import ModelBudgetCoordinator
         from resources.run_budget import RunBudgetService
@@ -251,20 +250,13 @@ class RunLifecycleService:
             target_status = {'pausing':'paused','stopping':'stopped'}[target_status]
         prior_block = work['continuation'] if work['continuation']['kind'] in {'blocked', 'awaiting_input'} else None
         checkpoint = result.get('checkpoint', work['checkpoint']) if status=='succeeded' else work['checkpoint']
-        work = dict(uow.execute('UPDATE works SET active_coordinator_run_id=NULL,status=%s,'
-                                'continuation=%s::jsonb,checkpoint=%s::jsonb,row_version=row_version+1,'
-                                'control_epoch=control_epoch+CASE WHEN %s IN (\'paused\',\'stopped\') THEN 1 ELSE 0 END,'
-                                'stopped_at=CASE WHEN %s=\'stopped\' THEN GREATEST(now(),created_at,updated_at) ELSE NULL END,'
-                                'updated_at=GREATEST(now(),created_at,updated_at) '
-                                'WHERE work_id=%s AND active_coordinator_run_id=%s RETURNING *',
-                                (target_status, json.dumps(next_step), json.dumps(checkpoint), target_status,
-                                 target_status, work['work_id'], run['run_id'])).fetchone())
-        WorkRepository.event(uow, work, f'run_{status}', run_id=run['run_id'], status=target_status)
+        work = dict(WorkRows.finish_coordinator(uow, target_status, json.dumps(next_step), json.dumps(checkpoint), target_status, target_status, work['work_id'], run['run_id']))
+        record_work_event(uow, work, f'run_{status}', run_id=run['run_id'], status=target_status)
         if target_status in {'paused', 'stopped'}:
-            WorkRepository.event(uow, work, target_status, run_id=run['run_id'], status=target_status)
+            record_work_event(uow, work, target_status, run_id=run['run_id'], status=target_status)
         if (work['status'] == 'active' and next_step['kind'] in {'blocked', 'awaiting_input'}
                 and next_step != prior_block):
-            WorkRepository.event(uow, work, 'blocked', run_id=run['run_id'], reason=next_step['reason'])
+            record_work_event(uow, work, 'blocked', run_id=run['run_id'], reason=next_step['reason'])
         if accept_result and status=='succeeded' and not protection:
             from work_domain.completion import WorkCompletionPolicy
 
@@ -303,10 +295,5 @@ class RunLifecycleService:
                                            (work['account_id'], work['work_id'], ref)).fetchone():
                     continue
                 status = 'paused' if work['status'] == 'pausing' else 'stopped'
-                work = dict(uow.execute("UPDATE works SET status=%s,control_epoch=control_epoch+1,"
-                                        "row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at),continuation=%s::jsonb,"
-                                        "stopped_at=CASE WHEN %s='stopped' THEN GREATEST(now(),created_at,updated_at) ELSE NULL END "
-                                        "WHERE work_id=%s RETURNING *",
-                                        (status, json.dumps(continuation('none', 'control_converged')),
-                                         status, work['work_id'])).fetchone())
-                WorkRepository.event(uow, work, status, status=status)
+                work = dict(WorkRows.set_control_state(uow, status, json.dumps(continuation('none', 'control_converged')), status, work['work_id']))
+                record_work_event(uow, work, status, status=status)

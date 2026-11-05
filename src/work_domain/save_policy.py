@@ -4,8 +4,9 @@ from __future__ import annotations
 import json
 from uuid import UUID
 
+from application.work.events import record_work_event
+from persistence.works import WorkRepository as WorkRows
 from work_domain.models import continuation
-from work_domain.persistence import WorkRepository
 from workspace.resources import ResourcePolicy
 
 SAVE_WAIT_REASONS = frozenset({
@@ -101,10 +102,6 @@ def defer_workspace_save(uow, work, requirement):
         return False
     next_step = continuation('awaiting_input', reason)
     if work['continuation'] != next_step:
-        current = dict(uow.execute(
-            "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,"
-            "updated_at=GREATEST(now(),created_at,updated_at) WHERE account_id=%s AND work_id=%s RETURNING *",
-            (json.dumps(next_step), work['account_id'], work['work_id']),
-        ).fetchone())
-        WorkRepository.event(uow, current, 'blocked', reason=reason)
+        current = dict(WorkRows.set_save_wait(uow, json.dumps(next_step), work['account_id'], work['work_id']))
+        record_work_event(uow, current, 'blocked', reason=reason)
     return True

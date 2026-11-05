@@ -3,8 +3,12 @@
 import json
 from datetime import UTC, datetime
 
+from application.work.events import record_work_event
 from persistence.repositories import AccountRepository
 from persistence.uow import UnitOfWork, retryable_transaction
+from persistence.wakeups import WakeupRepository
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository as WorkRows
 from web_domain.errors import ResourceNotFound
 from work_domain.errors import WorkConflict
 from work_domain.models import continuation
@@ -47,7 +51,7 @@ class AdvanceWork:
                 )
             if not AccountRepository().require_active(uow, account_id):
                 raise ResourceNotFound()
-            requirement = self.dependencies.repo.requirement(
+            requirement = WorkRequirementRepository.get(
                 uow, account_id, work_id, work["current_requirement_revision"]
             )
             from run_domain.lifecycle import RunLifecycleService
@@ -72,7 +76,7 @@ class AdvanceWork:
                 return self.dependencies.complete(
                     uow, account_id, "advance_work", key, work_id, 202, reason="not_due"
                 )
-            wakeup = self.dependencies.repo.wakeup(
+            wakeup = WakeupRepository.enqueue(
                 uow, work, f"advance:{command_id}", "advance", "explicit_advance"
             )
             from resources.work_budget import WorkBudgetExhausted
@@ -91,11 +95,10 @@ class AdvanceWork:
                     .run
                 )
             except WorkBudgetExhausted:
-                uow.execute(
-                    "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
-                    (json.dumps(continuation("blocked", "budget_exhausted")), work_id),
+                WorkRows.set_continuation(
+                    uow, json.dumps(continuation("blocked", "budget_exhausted")), work_id
                 )
-                self.dependencies.repo.event(
+                record_work_event(
                     uow,
                     self.dependencies.repo.get(uow, account_id, work_id),
                     "blocked",
@@ -117,9 +120,7 @@ class AdvanceWork:
                     reason=current["continuation"]["reason"],
                 )
             work = self.dependencies.repo.get(uow, account_id, work_id)
-            self.dependencies.repo.event(
-                uow, work, "advanced", command_id=command_id, run_id=run["run_id"]
-            )
+            record_work_event(uow, work, "advanced", command_id=command_id, run_id=run["run_id"])
             return self.dependencies.complete(
                 uow, account_id, "advance_work", key, work_id, 202, run=run
             )

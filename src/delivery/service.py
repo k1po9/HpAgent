@@ -7,9 +7,11 @@ import json
 from uuid import uuid4, uuid5
 
 from account.identity import normalize_channel_subject
+from application.work.events import record_work_event
 from common.channel_result import ChannelSendResult
 from common.runtime_config import CapacityConfig
 from persistence.uow import UnitOfWork
+from persistence.works import WorkRepository as WorkRows
 from work_domain.models import continuation
 from work_domain.persistence import WorkRepository
 
@@ -245,11 +247,8 @@ class DeliveryReceiptHandler:
                 "user_acceptance_required",
                 receipt_ref=str(notification["notification_id"]),
             )
-            uow.execute(
-                "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
-                (json.dumps(next_step), work["work_id"]),
-            )
-            WorkRepository.event(
+            WorkRows.set_continuation(uow, json.dumps(next_step), work['work_id'])
+            record_work_event(
                 uow,
                 WorkRepository.get(uow, work["account_id"], work["work_id"]),
                 "delivery_accepted",
@@ -274,10 +273,7 @@ class DeliveryReceiptHandler:
                 if timing["kind"] == "daily"
                 else continuation("ready", "delivery_accepted")
             )
-            uow.execute(
-                "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
-                (json.dumps(next_step), work["work_id"]),
-            )
+            WorkRows.set_continuation(uow, json.dumps(next_step), work['work_id'])
 
 
 class DeliveryService:
@@ -345,20 +341,8 @@ class DeliveryService:
                     and work["status"] == "active"
                     and work["continuation"].get("receipt_ref") == str(row["notification_id"])
                 ):
-                    uow.execute(
-                        "UPDATE works SET continuation=%s::jsonb,row_version=row_version+1,updated_at=GREATEST(now(),created_at,updated_at) WHERE work_id=%s",
-                        (
-                            json.dumps(
-                                continuation(
-                                    "blocked",
-                                    "notification_target_unavailable",
-                                    receipt_ref=str(row["notification_id"]),
-                                )
-                            ),
-                            work["work_id"],
-                        ),
-                    )
-                    WorkRepository.event(
+                    WorkRows.set_continuation(uow, json.dumps(continuation('blocked', 'notification_target_unavailable', receipt_ref=str(row['notification_id']))), work['work_id'])
+                    record_work_event(
                         uow,
                         WorkRepository.get(uow, work["account_id"], work["work_id"]),
                         "delivery_blocked",

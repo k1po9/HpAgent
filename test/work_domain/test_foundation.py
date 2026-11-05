@@ -347,3 +347,31 @@ def test_stale_admission_context_cannot_consume_current_wakeup(
     assert wake['state'] == 'pending' and wake['run_id'] is None
     advanced = commands.advance(account_id, work_id, str(uuid4()), revised['row_version']).body
     assert advanced['run']['requirement_revision'] == 2
+
+
+def test_work_event_tail_failure_rolls_back_state_notification_and_outbox(
+    commands, account_id, owner, monkeypatch,
+):
+    accepted = accept(commands, account_id)
+    work_id = UUID(accepted['work_id'])
+    before = commands.get(account_id, work_id)
+    tables = ('work_events', 'notifications', 'deliveries', 'outbox_events', 'idempotency_commands')
+    counts = [owner.execute(f'SELECT count(*) n FROM {table}').fetchone()['n'] for table in tables]
+    execute = UnitOfWork.execute
+
+    def fail_tail(uow, query, params=()):
+        if isinstance(query, str) and 'INSERT INTO outbox_events' in query and "'publish_work_event'" in query:
+            raise RuntimeError('work event publication unavailable')
+        return execute(uow, query, params)
+
+    key = str(uuid4())
+    with monkeypatch.context() as patch:
+        patch.setattr(UnitOfWork, 'execute', fail_tail)
+        with pytest.raises(RuntimeError, match='work event publication unavailable'):
+            commands.control(account_id, work_id, key, accepted['row_version'], 'pause')
+    assert commands.get(account_id, work_id) == before
+    assert [owner.execute(f'SELECT count(*) n FROM {table}').fetchone()['n'] for table in tables] == counts
+    paused = commands.control(account_id, work_id, key, accepted['row_version'], 'pause')
+    assert paused.body['work']['status'] == 'paused'
+    assert owner.execute("SELECT count(*) n FROM work_events WHERE work_id=%s AND event_type='paused'", (work_id,)).fetchone()['n'] == 1
+    assert owner.execute("SELECT count(*) n FROM notifications WHERE work_id=%s", (work_id,)).fetchone()['n'] == 1
