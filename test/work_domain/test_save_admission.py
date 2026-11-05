@@ -255,7 +255,7 @@ def test_legacy_zero_target_replay_and_explicit_revision_preserve_budget(command
     old['deliverable_policy']['directory_id'] = '00000000-0000-0000-0000-000000000000'
     req = Requirement.from_dict(old)
     # Emulate the historical writer; no immutable requirement is updated.
-    with patch('work_domain.commands.validate_new_save_policy'), patch('work_domain.commands.defer_workspace_save'):
+    with patch('application.work.accept_work.validate_new_save_policy'), patch('application.work.accept_work.defer_workspace_save'):
         receipt = commands.accept(account_id, 'old', 'Legacy', req)
     wid = UUID(receipt.body['work']['work_id'])
     assert commands.accept(account_id, 'old', 'Legacy', req).replayed

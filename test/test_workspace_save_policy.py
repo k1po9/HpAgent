@@ -68,9 +68,12 @@ def test_old_save_command_replay_precedes_new_intent_and_destination_checks(oper
     old = requirement(save=True)
     old['deliverable_policy']['directory_id'] = '00000000-0000-0000-0000-000000000000'
     commands, receipt = WorkCommandService('unused'), Mock()
-    with patch('work_domain.commands.UnitOfWork'), patch.object(
-        commands, '_claim', return_value=(receipt, None)
-    ), patch('work_domain.commands.validate_new_save_policy') as validate:
+    module = 'application.work.accept_work' if operation == 'accept' else 'work_domain.commands'
+    target = commands.dependencies if operation == 'accept' else commands
+    claim = 'claim' if operation == 'accept' else '_claim'
+    with patch(f'{module}.UnitOfWork'), patch.object(
+        target, claim, return_value=(receipt, None)
+    ), patch(f'{module}.validate_new_save_policy') as validate:
         if operation == 'accept':
             result = commands.accept('account', 'key', 'Title', Requirement.from_dict(old),
                                      workspace_save_requested=False)

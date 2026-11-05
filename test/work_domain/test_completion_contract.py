@@ -24,7 +24,7 @@ def test_explicit_upgrade_preserves_history_budget_and_task_status(
                                     'acceptance_criteria': CONTRACT['legacy_criteria']})
     key = str(uuid4())
     # Seed a historical command through the old writer, never rewrite immutable rows.
-    with patch('work_domain.commands.validate_new_completion_criteria'):
+    with patch('application.work.accept_work.validate_new_completion_criteria'):
         receipt = commands.accept(account_id, key, 'Legacy', legacy)
     work_id = UUID(receipt.body['work']['work_id'])
     replay = commands.accept(account_id, key, 'Legacy', legacy)

@@ -376,3 +376,23 @@ test/web_persistence/test_web_artifacts.py
 | P1.3 | `d829c68a08c74ceb5ccc4bc2958ee4ae64a8197a` | 完成 |
 
 P1.3还恢复P1.2迁移时省略的原冗余Run读取，最终40项回归针对恢复后的版本。上述为本阶段实现Commit；本表本身的后续文档提交不改变业务实现。分支为 `codex/phase1-chat-usecases`，未合并、未推送。用户对Phase0的审阅已通过，Phase1报告待审阅，Phase2未执行。
+
+## 2026-11-06 Phase 2：Work应用服务与准入
+
+用户“继续下阶段”确认进入Phase2。本阶段限P2.1–P2.4，完成后暂停。起始Commit `43819771`；分支`codex/phase2-work-usecases`从Phase1结果继续，保留原工作区。使用executing-plans及verification-before-completion；延续用户批准的已有行为断言优先取舍，纯移动以现有回归绿→绿验证，不增镜像测试或预建故障矩阵。专用数据库迁移/数据清理授权仍有效，只回放原始001–080链，不新建Schema变更或执行部署/F1–F5修复。
+
+证据及临时脚本放仓库外`/tmp/hpagent-phase2/`。每轮PG测试使用新容器、独立网络、回环随机端口、tmpfs空库及migration/API/worker三角色，确认空Schema后由原fixture迁移，核验80项checksum并清理本轮容器/网络。不连接已有应用库，不输出凭据。
+
+### P2.1 Accept与读模型
+
+状态：完成；本任务独立Commit在阶段末尾列出精确Hash。
+
+文件变化：新增`application/work/{__init__,commands,accept_work,queries,dependencies}.py`，分别提供包入口、冻结Accept/Advance输入、AcceptWork主干、原snapshot/get/list/records、具体仓储/配置及幂等/链接协作者。`work_domain/commands.py`保留原公开签名和外围revise/control/link/integration，通过兼容转发委派Accept及读模型；`work_domain/errors.py`接收原WorkConflict，旧模块同名导出保留，避免应用用例依赖旧命令facade。仓储SQL未独立收拢，仍留后续Phase3。
+
+前：WorkCommandService.accept→原UoW内claim/校验/SQL；后：旧facade→AcceptWork.execute→同一原UoW内完整主干。公开execute_in_uow借用外部事务，不另开连接、提交或重试。原title/Requirement准备仍在独立事务打开前；claim先于新写校验、来源归属、账号接受上限advisory锁、Work预算、提醒目标、requirement、link、accepted事件/通知/Outbox、inbox、保存门禁、schedule和条件wakeup顺序均保留。Accept不创建Run或聊天Message。查询投影字段、排序、分页、来源、schedule/progress/baseline/integration保持原形状。删除的是旧位置重复主干/查询/异常定义，新位置保留一份，没有删除业务分支或兼容模块。
+
+测试变化仅为已有业务测试：`test/work_domain/test_foundation.py`的原两种capability接受测试增加Run数0、Message数0断言；`test/web_api/test_work_foundation.py`、`test/work_domain/{test_completion_contract,test_save_admission}.py`的历史夹具校验器patch路径迁到新Accept实现；两个原离线legacy replay测试按accept/revise选择实际UoW/claim注入位置，原返回及未校验断言全部保留。没有新增私有调用测试。
+
+命令与结果：`.venv/bin/python /tmp/hpagent-phase2/run-pg.py p21-before test/work_domain/test_foundation.py test/work_domain/test_time_policy.py test/web_api/test_work_foundation.py`：35 passed/15.63s。首次迁移后同组34 passed/1 failed，原因是历史HTTP夹具仍patch旧校验器，实际新入口正确拒绝了旧criteria；不是已接受数据行为变化。更新注入点后，`p21-fixed`加上现有completion_contract/save_admission两文件：56 passed/32.07s，失败0、跳过0。既有离线generic_completion_contract/workspace_save_policy：14 passed/0.41s。Ruff及原路径mypy19文件通过；另用`MYPYPATH=src ... mypy --explicit-package-bases --follow-imports=silent src/application/work`核验真实导入身份，5个新模块通过。扩大到全部旧work_domain时暴露既有save_policy的UUID|None类型问题，未夹带修改；最终静态范围另记。
+
+最值得读accept_work.py、queries.py和增强的test_foundation.py。下一步迁纯策略及快照，再迁Admit/Advance；旧revise/control暂留facade，WorkRepository.event的通知/Outbox副作用未拆。没有业务数据回滚需求；必要时revert本任务Commit，不清除pending wakeup或预算。

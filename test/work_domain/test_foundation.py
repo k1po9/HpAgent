@@ -73,6 +73,8 @@ def test_accept_without_conversation_and_idempotency(commands, account_id, owner
     with pytest.raises(IdempotencyConflict):
         commands.accept(account_id, key, 'Different', requirement(capability))
     work_id = UUID(result.body['work']['work_id'])
+    assert owner.execute('SELECT count(*) AS n FROM runs WHERE work_id=%s', (work_id,)).fetchone()['n'] == 0
+    assert owner.execute('SELECT count(*) AS n FROM messages WHERE account_id=%s', (account_id,)).fetchone()['n'] == 0
     assert owner.execute('SELECT count(*) AS n FROM work_events WHERE work_id=%s', (work_id,)).fetchone()['n']==1
     event = owner.execute('SELECT * FROM outbox_events WHERE work_id=%s', (work_id,)).fetchone()
     assert event['run_id'] is None and event['aggregate_id']==work_id

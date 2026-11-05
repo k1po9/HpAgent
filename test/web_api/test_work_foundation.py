@@ -59,7 +59,7 @@ def test_legacy_generic_http_replay_read_and_explicit_revision_preserve_state(se
     key = str(uuid4())
     legacy = {**CONTRACT['new_requirement'], 'acceptance_criteria': CONTRACT['legacy_criteria']}
     payload = {'title': 'Legacy', 'requirement': legacy}
-    with patch('work_domain.commands.validate_new_completion_criteria'):
+    with patch('application.work.accept_work.validate_new_completion_criteria'):
         accepted = client.post('/api/v1/works', json=payload, headers=headers(csrf, key))
     assert accepted.status_code == 201, accepted.text
     replay = client.post('/api/v1/works', json=payload, headers=headers(csrf, key))
