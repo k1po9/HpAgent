@@ -637,3 +637,13 @@ test/web_persistence/test_work_integration.py::test_resume_revalidates_accepted_
 审查暂不判断及执行方决议：真实Temporal/Provider/QQ/部署、生产性能、非空历史升级、F1–F5、既有memory环境敏感失败及后续Phase4依赖收敛均保持范围外；本轮未改这些行为，代价是不能用当前通过证据替代独立验收。无未实施Minor建议。
 
 下一阶段前置条件：用户审阅Phase3实际writer分工、原子集合、兼容层和已有失败/未验证范围后，才进入Phase4。Phase4按真实调用/注册/历史加载证据收敛import并更新当前文档，不为目录整齐新增抽象或删除未知消费者。回滚以职责Commit逆序revert，保留当前Schema、幂等、预算、pending wakeup和occurrence，不手工改业务事实或历史迁移。
+
+### Phase 3 Commit与暂停记录
+
+| Task ID | Commit | 状态 |
+| --- | --- | --- |
+| P3.1 | `dea6239e89d2a20309994403597f3503d23316a2` | 完成 |
+| P3.2 | `1f8386d11b8fb81e17ed9a01d80fcfefe79f16dd` | 完成 |
+| P3.3 | `dee13baf404a8269d7bddb8b7d9106da903292d3` | 完成 |
+
+上述为独立实现Commit，本表本身的文档提交不改变实现。分支`codex/phase3-persistence-boundaries`，未合并、未推送、未部署。用户已通过前阶段并确认进入本阶段；Phase3报告待审阅，Phase4未执行。
