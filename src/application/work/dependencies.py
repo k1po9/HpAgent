@@ -62,7 +62,9 @@ class WorkCommandDependencies:
         ).fetchone()
         return None, row["idempotency_command_id"]
 
-    def complete(self, uow, account_id, operation, key, work_id, status=200, **extra) -> CommandResult:
+    def complete(
+        self, uow, account_id, operation, key, work_id, status=200, **extra
+    ) -> CommandResult:
         body = {"work": self.queries.snapshot_in_uow(uow, account_id, work_id), **dto(extra)}
         self.idempotency.complete(uow, account_id, operation, key, status, json.dumps(body))
         return CommandResult(status, body)

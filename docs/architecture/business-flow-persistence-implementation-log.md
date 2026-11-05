@@ -424,3 +424,71 @@ P1.3还恢复P1.2迁移时省略的原冗余Run读取，最终40项回归针对�
 实际命令：`run-pg.py p23-before test/work_domain/test_progress.py test/work_domain/test_save_admission.py test/web_persistence/test_durable_review_regressions.py::test_admission_failure_is_local_and_pending_wakeup_recovers -m 'not temporal'`：32 passed、1 deselected/44.81s。迁移后加foundation文件运行同选择：58 passed、1 deselected/46.79s，失败/跳过0；包括并发准入、pointer/owner、revision fence、保存权限重查、budget不能靠resume/advance重置、坏Work的真实PG错误savepoint隔离及pending恢复。新模块按真实import身份mypy8文件通过，Ruff通过。纯预算limits后移仍需最终统一回归验证，未把这次格式/位置调整表述为额外独立通过。
 
 学习入口：admit_work_run.py看事务写集和锁内绑定；work_domain/admission.py看无I/O判断；advance_work.py看显式门禁与202/冲突映射。外围revise/control仍在旧facade，SQL仍未收仓；下一步切Scheduler到同一公开事务内端口，保持批次savepoint。
+
+### P2.4 PG调度用例
+
+状态：实现及选定回归完成；独立Commit与最终审查结果在阶段末尾汇总。P2.3 Commit为`70777785`。
+
+新增`application/work/evaluate_schedule.py`与`dispatch_due_work.py`；原WorkScheduleService.run_once的评估/occurrence事务和提交后dispatch委派移入EvaluateSchedule，dispatch_due完整批次事务移入DispatchDueWork。`orchestration/work_schedule.py`保留旧run_once/dispatch_due/occurrence/_occurrence签名及原进程循环。Worker组合根仍注入同样database/budget_mode/agent_policy给兼容服务，不需另建运行时对象树。
+
+前：WorkScheduleService.run_once（原外层retry）→评估事务提交→dispatch_due（原内层retry）→批次事务/savepoint→admit函数；后：旧服务转发→EvaluateSchedule.execute（同一外层retry范围）→评估事务提交→DispatchDueWork.execute（同一内层retry）→同一批次事务/savepoint→AdmitWorkRun.execute_in_uow。没有在两个事务之外另套retry或合并事务，也没有改变原ready/at_time/retry_after、due、unknown effect、account检查位置。原SKIP LOCKED、tenant_position/last_admitted_at/work_id排序、最新revision/wakeup选择、capacity_turn、成功event、已知错误blocked映射及未知异常保留pending逻辑均原样移动。Occurrence的去重、daily newest coalesce、disabled/old-version skipped和next_due逻辑保留。
+
+原源码只在新位置保留一份，旧模块缩为兼容服务/循环；没有删除注册/历史输入。两个新用例继续用原logger名称，避免迁移顺带改变诊断类别。`test/web_persistence/test_durable_review_regressions.py`仅将已有savepoint故障注入从旧模块admit函数改到新AdmitWorkRun公开事务内端口，仍注入真实PG除零，原“健康Work推进、坏Work无coordinator、移除故障后pending恢复”断言全部保留。
+
+命令：`.venv/bin/python /tmp/hpagent-phase2/run-pg.py p24-after <p24-cases.txt节点> -m 'not temporal'`：20 passed/13.90s、失败0、跳过0。选择现有execution_strategy文件及durable_review_regressions中的retry-chain、倒退时钟epoch、单Work失败恢复、进程循环异常恢复、ready去重/最新Work和等待态不自动运行六项。全新隔离PG及原80项迁移/checksum/清理成功。新应用模块、纯准入规则及新run builder/strategy按实际import身份mypy12文件通过；项目lint/defaultmypy99文件通过；注册/sandbox及177个架构用例通过。
+
+没有新增调度测试：两事务分界和恢复路径未改，现有occurrence/coalesce/old-callback/失败恢复断言已覆盖此次移动。最值得读evaluate_schedule.py的提交分界、dispatch_due_work.py的逐Work savepoint和原durable_review_regressions.py的PG故障恢复结果。剩余SQL writer、事件通知编排、UoW责任收敛属于Phase3，本阶段不开始。
+
+### Phase 2 最终证据与阶段审阅
+
+完成核验时间：2026-11-06 06:33:32 CST。P2.1–P2.4实现完成，停止于Phase2，不进入Phase3。
+
+独立审查结论：无Critical/Important/可操作Minor。审查员对Phase1基线至本阶段全部源码（含未提交P2.4）做只读AST核查：外围revise/control/link/_cancel_coordinator/integration完全一致；读投影、claim/locked/link仅移动；Admit原15条SQL文本及执行顺序一致，Dispatch原5条SQL一致；occurrence/_occurrence完全一致；Evaluate保留原run_once外层retry及Dispatch内层retry的两个事务。审查未替代实际测试。新context bind是既有Work/wakeup行锁的同事务重入与权威重读，正常入口未改变锁顺序；增加的数据库读取开销未做性能测量，不宣称吞吐改善。
+
+最终实际命令与结果：
+
+| 命令 | 结果 | 环境/范围 |
+| --- | --- | --- |
+| `make lint typecheck PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python` | exit0；Ruff通过，mypy99文件无错误 | 仓库既有检查范围 |
+| `MYPYPATH=src .venv/bin/python -m mypy --explicit-package-bases --follow-imports=silent src/application/work src/work_domain/admission.py src/run_domain/creation.py src/run_domain/strategy.py` | exit0，12文件无错误 | 新模块真实import身份检查，不外推到全部旧模块 |
+| `make architecture-check PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python PYTEST_ARGS='--junitxml=/tmp/hpagent-phase2/architecture-final.xml'` | exit0；registry pass=true、无sandbox违例；177 passed/5.07s | 离线注册/import/sandbox，非真实Temporal |
+| `make test-unit PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python PYTEST_ARGS='-q --junitxml=/tmp/hpagent-phase2/unit-final.xml'` | exit2；1442 passed、1 failed、8 skipped、712 deselected，49.11s | 不宣称全绿；postgres/temporal被选择规则排除 |
+| `.venv/bin/python -m pytest -q test/test_work_execution_strategy.py test/test_persistent_policy.py` | exit0，22 passed/0.26s | 纯策略及冻结policy |
+| `make docs-check scripts-test PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python` | exit0；36份Markdown、0错误；79脚本通过/13.438s | 离线文档/脚本，不代替PG |
+| `git diff --check` | exit0 | 补丁检查 |
+
+最终PG/API命令：将以下节点作为参数传给`.venv/bin/python /tmp/hpagent-phase2/run-pg.py phase2-final`，末尾加`-m 'not temporal'`。runner显式设置同一专用空库三角色DSN、HPAGENT_MIGRATIONS_DIR、PYTHONPATH，用仓库绝对.venv解释器运行`-m pytest --require-test-services -vv <这些node> -m 'not temporal' --junitxml=/tmp/hpagent-phase2/phase2-final/chat-results.xml`。
+
+```text
+test/work_domain/test_foundation.py
+test/work_domain/test_time_policy.py
+test/web_api/test_work_foundation.py
+test/web_api/test_work_save_admission.py
+test/work_domain/test_completion_contract.py
+test/work_domain/test_save_admission.py
+test/work_domain/test_progress.py
+test/work_domain/test_execution_strategy.py
+test/work_domain/test_persistent_policy_pg.py
+test/web_persistence/test_durable_review_regressions.py::test_retry_chain_ends_at_success_and_new_occurrence
+test/web_persistence/test_durable_review_regressions.py::test_retry_chain_follows_control_epoch_when_database_clock_moves_backwards
+test/web_persistence/test_durable_review_regressions.py::test_admission_failure_is_local_and_pending_wakeup_recovers
+test/web_persistence/test_durable_review_regressions.py::test_schedule_loop_recovers_iteration_failure_and_propagates_cancel
+test/web_persistence/test_durable_review_regressions.py::test_ready_wakeup_is_deduplicated_and_obeys_latest_work
+test/web_persistence/test_durable_review_regressions.py::test_success_does_not_autorun_waiting_work
+```
+
+实际结果：**98 passed、1 deselected，74.25s，exit0；失败0、跳过0、选中集合未执行0**。1项deselected为原progress文件的Temporal用例，未执行真实Temporal。本轮最终容器`hpagent-phase2-1531285`、独立网络同名前缀、回环随机端口32788、tmpfs库hpagent_onebot_test。原始80项迁移/checksum验证通过；容器和网络cleanup均exit0。所有PG轮均使用本轮新建资源；未触及既有服务或数据库。API为真实TestClient/lifespan+PG，执行/模型/渠道使用原测试夹具；不表述为真实Provider、QQ或部署通过。
+
+已有失败/限制区分：
+
+- 全量单元唯一失败仍为`test_snapshot_tracks_model_selection_but_not_main_recall_instruction`，与Phase1相同。上阶段已在原始基线用非敏感HINDSIGHT_API_LLM_MODEL覆盖复现；本阶段未重复基线单测定位、未修改memory/config及该测试，不将旧证据计为新通过。8项skip仍为5项缺少独立Hindsight/opt-in条件及3项缺nsjail；712项是单元选择规则deselected，不算通过或skip。
+- P2.1首次迁移后的HTTP失败来自历史夹具仍patch旧校验器；注入点更新后原业务断言通过。新增stale-context用例实现前因公开入口缺失失败，实现后行为断言通过；均与既有业务失败分开记录。
+- 额外探索`--explicit-package-bases`下全部旧work_domain曾发现save_policy.py第92行UUID|None→UUID类型问题（普通项目mypy通过）。它未被本次修改；在仓库外原始基线导出中单独运行同样真实import身份检查，仍得到相同1项类型错误。保留报告，不夹带修复，也不把这项额外探索写成通过。新12模块补充检查通过的范围已明确。
+
+工作区保留：起始1430文件逐项SHA-256比对，只改本阶段列出的15个原文件，其余1415个原文件未变，丢失0、范围外改动0；13个新增文件均为本阶段应用/纯领域模块。原有code-analysis/、docs/learning/、蓝图及历史日志前缀均保留。所有原始输出、JUnit、hash清单和临时runner留`/tmp/hpagent-phase2/`，不提交Git，临时目录不保证跨机器保留。核心证据为各轮chat-tests.txt/run-summary.json、unit-final.txt、architecture-final.txt、docs-scripts.txt、workspace-preservation.json；额外类型问题的基线证据为save-policy-baseline-types.txt。
+
+未验证/未实施：全量test-db/test-api、真实Temporal/replay/kill、浏览器/前端、真实Provider/QQ、压力/公平性和数据库断电耐久性、非空历史库迁移均未执行。不新增Schema/历史回填，不执行部署、重启既有服务或F1–F5修复。SQL及事务不以Workflow/UI完成推断权威事实。
+
+审查不作判断的范围及执行方决议：真实Provider/QQ/部署、生产性能、Phase3仓储/UoW后续设计、F1–F5及既有memory环境敏感失败继续保持范围外；本轮未改这些行为，代价是不能用本阶段通过结果替代其独立验收。无待夹带实施的Minor项。
+
+下一阶段前置条件：用户审阅本Phase2分层、锁内核验新增读取、已有失败及证据边界后再进入Phase3。Phase3按实际被迁移SQL选择真实PG原子性/权限/lease/savepoint回归；不先扩成完整矩阵。本轮保留WorkCommandService外围方法、旧策略/admit导出和Schedule facade；事件→通知→Outbox副作用和Repository writer未收拢，UoW实现未改。回滚按本阶段职责Commit逆序revert，不修改业务预算、pending wakeup、occurrence或历史迁移。

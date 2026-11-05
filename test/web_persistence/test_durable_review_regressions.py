@@ -187,22 +187,22 @@ def test_retry_chain_follows_control_epoch_when_database_clock_moves_backwards(
 def test_admission_failure_is_local_and_pending_wakeup_recovers(
     db, account_id, database_url, worker_database_url, monkeypatch
 ):
-    import orchestration.work_schedule as module
+    from application.work.admit_work_run import AdmitWorkRun
 
     commands, broken = accept(database_url, account_id)
     other = uuid4()
     db.execute('INSERT INTO accounts(account_id) VALUES (%s)', (other,))
     _, healthy = accept(database_url, other)
-    original = module.admit_work_run
+    original = AdmitWorkRun.execute_in_uow
 
-    def admit(uow, work, *args):
-        if str(work['work_id']) == broken['work_id']:
+    def admit(service, uow, context):
+        if str(context.work['work_id']) == broken['work_id']:
             uow.execute('SELECT 1/0')  # A real PG failure aborts the savepoint.
-        return original(uow, work, *args)
+        return original(service, uow, context)
 
     scheduler = WorkScheduleService(worker_database_url)
     with monkeypatch.context() as patch:
-        patch.setattr(module, 'admit_work_run', admit)
+        patch.setattr(AdmitWorkRun, 'execute_in_uow', admit)
         assert scheduler.dispatch_due() == 1
     assert commands.get(other, UUID(healthy['work_id']))['work']['active_coordinator_run_id']
     assert commands.get(account_id, UUID(broken['work_id']))['work']['active_coordinator_run_id'] is None

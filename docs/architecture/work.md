@@ -2,6 +2,10 @@
 
 本文描述当前Work与执行契约；模块入口见[代码地图](../reference/repository-layout.md)，验证方式见[测试指南](../development/testing.md)。
 
+当前应用入口位于 `application/work`：AcceptWork 接受委托，WorkQueries 组装读模型，AdvanceWork 处理显式推进，AdmitWorkRun 在调用方事务内创建一次执行。WorkAdmissionContext 在同一 UoW 中锁定并核验当前 Work、requirement 和 pending wakeup；进度、保存、容量、预算仍按原顺序读取，纯决定在 `work_domain/admission.py`，策略和基础冻结输入构造在 `run_domain/strategy.py`、`creation.py`。旧 WorkCommandService 继续转发，并暂留 revise/control/link/integration。
+
+EvaluateSchedule 持有 schedule/occurrence 评估事务，提交后调用 DispatchDueWork 的独立批次事务；逐 Work savepoint、SKIP LOCKED、排序、原外层及 dispatch 有限重试均保留。`orchestration/work_schedule.py` 只保留兼容服务和进程循环。SQL 仍在现有应用/领域持久化接缝内，Repository writer 与事件副作用尚未收拢，不能据此认为已完成持久化分层。
+
 ## 主体与执行身份
 
 | 对象 | 职责与边界 |
