@@ -262,3 +262,15 @@ make scripts-test PYTHON=/home/hp/workspace/HpAgent/.venv/bin/python
 实际验证：迁移前和迁移后分别运行 `/tmp/hpagent-phase1/run-pg.py p11-before|p11-after test/web_persistence/test_command_service.py test/web_persistence/test_conversation_commands.py`（解释器为仓库.venv）。每轮为新空PG16、三角色、完整80项原迁移，checksum验证后清理资源。两轮分别10 passed/4.51s与10 passed/6.68s，失败0、跳过0，断言覆盖创建重放/冲突、输入绑定、跨实例持久幂等、并发单槽、账号边界、事务内准入及Outbox异常后的写集回滚。`python -m mypy src/application/chat src/conversation_domain`：12个文件无错误；本次改动文件Ruff通过。未新增测试。
 
 最值得读：send_message.py（用例主干）、projection.py（响应稳定性）、原test_conversation_commands.py（业务结果）。剩余旧模块为Retry/Cancel、QQ及Artifact；下一任务保留source锁、retry直接child、取消Chat/Work及外层UoW。最终项目级验证及精确命令见阶段末尾。
+
+### P1.2 提取Retry/Cancel
+
+状态：完成；P1.1 Commit为 `8041ec86`，本任务Hash在阶段末尾汇总。
+
+文件变化：`application/chat/commands.py`新增冻结RetryChatRunCommand；`application/chat/retry_run.py`接收原retry完整编排；`application/run/{__init__,commands,cancel_run}.py`新增共享CancelRun输入及独立/事务内用例；`conversation_domain/commands.py`移除原retry/cancel实现并转发。旧代码是移动而非重写；没有删除旧模块、SQL或业务分支。没有新Protocol或合并Chat/Work创建准入。
+
+前链：旧Service.retry_run/cancel_run直接编排；后链：旧签名→RetryChatRun.execute / CancelRun.execute；Workspace→旧_cancel_run_in_uow兼容签名→CancelRun.execute_in_uow。独立入口继续拥有同一UoW/有限重试，借用端口不提交。源Run锁、Conversation先锁顺序、唯一直接child、7天幂等、普通retry当前policy、HTML源snapshot、当前输入授权检查、取消审批及Outbox写集原样保留。Work Run取消仍是attempt控制，不排除Work，也不自动停止Work。
+
+验证命令：`.venv/bin/python /tmp/hpagent-phase1/run-pg.py p12-before|p12-after <p12-cases.txt中逐项node>`；完整实际pytest命令及各项结果在对应run-summary.json/chat-tests.txt，选择列表位于仓库外p12-cases.txt。14个node为并发retry、queued取消、start/cancel并发收敛、取消审批、附件撤权后retry、当前policy冻结、Work attempt-only取消、HTTP policy重放及6项send/retry/cancel HTTP行为。前后分别14 passed/7.20s及14 passed/6.54s，失败0、跳过0。使用新建三角色空PG、80项原迁移，API通过实际TestClient/lifespan组合，不使用Temporal或真实Provider；两轮资源均已清理。`mypy src/application/chat src/application/run src/conversation_domain`：16个文件无错误，改动文件Ruff通过。
+
+未新增测试；尚缺HTML retry源snapshot的直接行为断言，留到P1.3的HTML入口检查一起补齐。最值得读retry_run.py、cancel_run.py及test_persistent_policy_pg.py的Chat policy用例。下一任务切换QQ与HTML的公开事务内端口，保持savepoint、receipt和Artifact默认预算，不修F1。

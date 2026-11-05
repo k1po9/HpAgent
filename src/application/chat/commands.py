@@ -32,3 +32,10 @@ def message_request_id(key: str) -> UUID:
         return UUID(key)
     except ValueError:
         return uuid5(UUID("a8381adf-1d37-5d1b-9b21-3946f56bfd48"), key)
+
+
+@dataclass(frozen=True)
+class RetryChatRunCommand:
+    account_id: UUID
+    source_run_id: UUID
+    key: str
