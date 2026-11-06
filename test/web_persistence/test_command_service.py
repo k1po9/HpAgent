@@ -4,14 +4,14 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from web_domain.errors import ConversationBusy, IdempotencyConflict
 
 pytestmark = pytest.mark.postgres
 
 
 def test_db_025_create_conversation_replay(db, account_id, database_url):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     key = str(uuid4())
     one = service.create_conversation(account_id, key, "one")
     two = service.create_conversation(account_id, key, "one")
@@ -20,7 +20,7 @@ def test_db_025_create_conversation_replay(db, account_id, database_url):
 
 
 def test_db_006_key_with_different_body_conflicts(db, account_id, database_url):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     key = str(uuid4())
     service.create_conversation(account_id, key, "one")
     with pytest.raises(IdempotencyConflict):
@@ -28,7 +28,7 @@ def test_db_006_key_with_different_body_conflicts(db, account_id, database_url):
 
 
 def test_db_003_send_is_atomic_and_busy(db, account_id, database_url):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     conversation = UUID(service.create_conversation(account_id, str(uuid4()))["conversation_id"])
     service.send_message(account_id, conversation, str(uuid4()), "hello")
     assert db.execute(
@@ -43,7 +43,7 @@ def test_db_003_send_is_atomic_and_busy(db, account_id, database_url):
 def test_send_message_atomically_binds_ready_input_file_to_message_and_run(
     db, account_id, database_url
 ):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     conversation = UUID(service.create_conversation(account_id, str(uuid4()))["conversation_id"])
     file_id = uuid4()
     db.execute(

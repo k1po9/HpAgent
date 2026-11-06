@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from work_domain.commands import WorkCommandService
+from application.work.service import WorkCommandService
 from work_domain.execution_result import generic_result
 from work_domain.models import (
     GENERIC_RESULT_EVIDENCE_TYPES,
@@ -69,10 +69,8 @@ def test_original_legacy_command_replay_is_returned_before_new_write_validation(
     commands = WorkCommandService('unused')
     receipt = Mock()
     module = 'application.work.accept_work' if operation == 'accept' else 'application.work.service'
-    target = commands.dependencies if operation == 'accept' else commands
-    claim = 'claim' if operation == 'accept' else '_claim'
     with patch(f'{module}.UnitOfWork'), patch.object(
-        target, claim, return_value=(receipt, None)
+        commands.dependencies, "claim", return_value=(receipt, None)
     ), patch(f'{module}.validate_new_completion_criteria') as validate:
         if operation == 'accept':
             result = commands.accept('account', 'key', 'Title', legacy)

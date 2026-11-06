@@ -33,7 +33,7 @@ class RetryChatRun:
     def execute(self, command: RetryChatRunCommand) -> CommandResult:
         account_id, source_run_id, key = command.account_id, command.source_run_id, command.key
         payload = {"run_id": str(source_run_id)}
-        with UnitOfWork(self.dependencies.database_url) as uow:
+        with UnitOfWork(self.dependencies.database) as uow:
             existing = self.dependencies.claim(uow, account_id, "retry_run", key, payload)
             if existing:
                 return existing

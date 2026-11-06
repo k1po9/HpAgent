@@ -9,8 +9,8 @@ from web_persistence.test_memory_governance import GovernanceRemote
 from web_persistence.test_memory_retention import tick
 from web_persistence.test_phase_a_invariants import _conversation_and_run
 
+from application.chat.service import ChatCommandService
 from application.memory_retention import MemoryRetentionService
-from conversation_domain.commands import CommandService
 from web_domain.outbox import OutboxService
 
 pytestmark = pytest.mark.postgres
@@ -22,7 +22,7 @@ def test_memory_api_auth_csrf_generation_idempotency_and_status(
     owner = seed_identity('alice')
     seed_identity('bob')
     _, _, run = _conversation_and_run(database_url, owner)
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     worker.start_run(owner, run)
     worker.complete_run(owner, run, 'answer')
     remote = GovernanceRemote()

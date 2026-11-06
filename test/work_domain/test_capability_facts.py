@@ -10,7 +10,7 @@ from test_capability_contracts import definition, scope
 
 from agent_activities.store import AgentDataStore
 from agent_workflows.lifecycle_contracts import SegmentInput
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from persistence.uow import UnitOfWork
 from run_domain.capabilities import CapabilityFacts
 from run_domain.capability_contracts import (
@@ -56,7 +56,7 @@ def test_owner_projection_keeps_each_invocation_and_rejects_other_account(facts,
 
 
 def chat(urls, account_id):
-    commands = CommandService(urls[1])
+    commands = ChatCommandService(urls[1])
     cid = UUID(commands.create_conversation(account_id, str(uuid4())).body["conversation_id"])
     run = UUID(commands.send_message(account_id, cid, str(uuid4()), "test capability")["run_id"])
     RunLifecycleService(urls[2]).start(account_id, run)

@@ -11,9 +11,9 @@ from psycopg_pool import ConnectionPool
 from account.credentials import PostgresPasswordCredentialAdapter
 from account.identity_binding_service import IdentityBindingService
 from account.registration_service import RegistrationService
-from application.artifacts.commands import legacy_artifact_sender
+from application.artifacts.commands import create_artifact_chat_sender
 from application.artifacts.service import ArtifactService
-from application.chat.service import CommandService
+from application.chat.service import ChatCommandService
 from application.work.service import WorkCommandService
 from common.agent_policy import load_agent_policy
 from common.runtime_config import CapacityConfig
@@ -74,7 +74,7 @@ def create_lifespan(
                 settings.qq_binding_code_pepper,
                 settings.qq_binding_challenge_seconds,
             )
-            app.state.commands = CommandService(
+            app.state.commands = ChatCommandService(
                 api_pool,
                 budget_mode=settings.run_budget_mode,
                 budget_policy_version=settings.run_budget_policy_version,
@@ -96,7 +96,7 @@ def create_lifespan(
                     TenantFileStore(file_root, max_bytes=settings.file_max_bytes),
                     max_bytes=settings.file_max_bytes,
                 )
-            app.state.artifacts = ArtifactService(api_pool, sender=legacy_artifact_sender(api_pool))
+            app.state.artifacts = ArtifactService(api_pool, sender=create_artifact_chat_sender(api_pool))
             app.state.queries = QueryService(
                 api_pool,
                 CursorCodec(

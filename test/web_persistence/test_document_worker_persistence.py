@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from document_activities import DocumentActivities, NormalizeDocumentInput
 from file_domain.models import FileResource, NormalizedBlock, NormalizedDocument, SourceLocator
 from storage.tenant_file_store import TenantFileStore
@@ -16,7 +16,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.postgres]
 async def test_document_activity_persists_once_and_replays_compact_ref(
     tmp_path, db, account_id, database_url, worker_database_url
 ) -> None:
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation_id = UUID(
         commands.create_conversation(account_id, str(uuid4()))["conversation_id"]
     )

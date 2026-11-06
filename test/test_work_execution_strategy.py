@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from orchestration.execution_strategy import StrategyRegistry, WorkExecutionPlanner
+from run_domain.strategy import StrategyRegistry, WorkExecutionPlanner
 from work_domain.models import Requirement
 from work_domain.timing import initial_continuation, next_daily
 

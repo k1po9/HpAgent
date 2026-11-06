@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from workspace.catalog import WorkspaceCatalog
 from workspace.resources import ResourcePolicy
 
@@ -16,7 +16,7 @@ def test_direct_sql_rejects_cross_account_resource_ids(db, database_url):
     first, second = uuid4(), uuid4()
     for account in (first, second):
         db.execute("INSERT INTO accounts(account_id) VALUES (%s)", (account,))
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url)
     policy = ResourcePolicy(database_url)
     first_tree = catalog.initialize(first)

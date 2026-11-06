@@ -7,7 +7,7 @@ import psycopg
 import pytest
 from docx import Document
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from file_runtime import OutputPublisher
 from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
@@ -21,7 +21,7 @@ pytestmark = pytest.mark.postgres
 def test_database_versions_branch_lineage_and_api_returns_root_first(
     tmp_path, db, account_id, database_url, worker_database_url
 ):
-    api = CommandService(database_url)
+    api = ChatCommandService(database_url)
     conversation_id = UUID(api.create_conversation(account_id, str(uuid4()))["conversation_id"])
     root_id = uuid4()
     root_content = b"root"
@@ -38,7 +38,7 @@ def test_database_versions_branch_lineage_and_api_returns_root_first(
     run_id = UUID(api.send_message(
         account_id, conversation_id, str(uuid4()), "version it", file_ids=(root_id,)
     )["run_id"])
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     worker.start_run(account_id, run_id)
     outputs = tmp_path / "run" / "outputs"
     outputs.mkdir(parents=True)
@@ -71,7 +71,7 @@ def test_database_versions_branch_lineage_and_api_returns_root_first(
 def test_database_ignores_caller_supplied_child_version(
     tmp_path, db, account_id, database_url
 ):
-    api = CommandService(database_url)
+    api = ChatCommandService(database_url)
     conversation_id = UUID(api.create_conversation(account_id, str(uuid4()))["conversation_id"])
     run_id = UUID(api.send_message(
         account_id, conversation_id, str(uuid4()), "create a version"
@@ -104,7 +104,7 @@ def test_database_ignores_caller_supplied_child_version(
 async def test_docx_to_pdf_tool_records_source_lineage(
     tmp_path, db, account_id, database_url, worker_database_url
 ):
-    api = CommandService(database_url)
+    api = ChatCommandService(database_url)
     conversation_id = UUID(api.create_conversation(account_id, str(uuid4()))["conversation_id"])
     inputs = tmp_path / "inputs"
     outputs = tmp_path / "outputs"
@@ -130,7 +130,7 @@ async def test_docx_to_pdf_tool_records_source_lineage(
     run_id = UUID(api.send_message(
         account_id, conversation_id, str(uuid4()), "convert", file_ids=(source_id,)
     )["run_id"])
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     worker.start_run(account_id, run_id)
     scope = RunFileScope(
         run_id, inputs, scratch, outputs,

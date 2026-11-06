@@ -136,8 +136,8 @@ async def test_same_run_two_research_instances_have_independent_readable_results
     if surface == "chat":
         run_id = chat(urls, account_id)
     else:
+        from application.work.service import WorkCommandService
         from run_domain.lifecycle import RunLifecycleService
-        from work_domain.commands import WorkCommandService
         from work_domain.models import Requirement
 
         commands = WorkCommandService(urls[1])
@@ -235,8 +235,8 @@ async def test_invalid_locator_returns_insufficient_and_keeps_markdown(
 async def test_fixed_parent_completes_without_reading_view(urls, owner, account_id, tmp_path):
     from support.work_fixtures import accept_research, advance_work
 
+    from application.work.service import WorkCommandService
     from research_activities.parent import ResearchParentActivities
-    from work_domain.commands import WorkCommandService
 
     commands = WorkCommandService(urls[1])
     work = accept_research(commands, account_id, str(uuid4()), "Research", "Find evidence")
@@ -342,8 +342,8 @@ async def test_fixed_parent_keeps_existing_explicit_artifact_acceptance(
     from support.research_driver import ResearchDriver
     from support.work_fixtures import advance_work
 
+    from application.work.service import WorkCommandService
     from research_domain.models import SourceStrategy
-    from work_domain.commands import WorkCommandService
     from work_domain.models import Requirement
 
     commands = WorkCommandService(urls[1])

@@ -18,8 +18,8 @@ from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
-from persistence.works import WorkRepository as WorkRows
-from work_domain.errors import WorkConflict as WorkConflict
+from persistence.works import WorkRepository
+from work_domain.errors import WorkConflict
 from work_domain.models import Requirement, continuation, validate_new_completion_criteria
 from work_domain.save_policy import (
     defer_workspace_save,
@@ -46,26 +46,6 @@ class WorkCommandService:
     def database(self):
         return self.dependencies.database
 
-    @property
-    def budget_mode(self):
-        return self.dependencies.budget_mode
-
-    @property
-    def agent_policy(self):
-        return self.dependencies.agent_policy
-
-    @agent_policy.setter
-    def agent_policy(self, value: AgentPolicy) -> None:
-        self.dependencies.agent_policy = value
-
-    @property
-    def repo(self):
-        return self.dependencies.repo
-
-    @property
-    def idempotency(self):
-        return self.dependencies.idempotency
-
     def accept(
         self,
         account_id: UUID,
@@ -89,15 +69,6 @@ class WorkCommandService:
             )
         )
 
-    def _claim(self, uow, account_id, operation, key, payload):
-        return self.dependencies.claim(uow, account_id, operation, key, payload)
-
-    def _complete(self, uow, account_id, operation, key, work_id, status=200, **extra):
-        return self.dependencies.complete(uow, account_id, operation, key, work_id, status, **extra)
-
-    def _snapshot(self, uow, account_id, work_id):
-        return self.dependencies.queries.snapshot_in_uow(uow, account_id, work_id)
-
     def get(self, account_id: UUID, work_id: UUID) -> dict:
         return cast(dict, self.dependencies.queries.get(account_id, work_id))
 
@@ -106,13 +77,6 @@ class WorkCommandService:
 
     def records(self, account_id, work_id, kind, after=0):
         return self.dependencies.queries.records(account_id, work_id, kind, after)
-
-    @staticmethod
-    def _link(uow, work, conversation_id, command, source_message_id=None):
-        return WorkCommandDependencies.link(uow, work, conversation_id, command, source_message_id)
-
-    def _locked(self, uow, account_id, work_id, row_version):
-        return self.dependencies.locked(uow, account_id, work_id, row_version)
 
     @staticmethod
     def _cancel_coordinator(uow, work, command_id=None, action=None):
@@ -162,7 +126,7 @@ class WorkCommandService:
     ):
         value = requirement.to_dict()
         with UnitOfWork(self.database) as uow:
-            replay, command = self._claim(
+            replay, command = self.dependencies.claim(
                 uow,
                 account_id,
                 "revise_work",
@@ -178,7 +142,7 @@ class WorkCommandService:
                 return replay
             validate_new_completion_criteria(value)
             validate_new_save_policy(value, workspace_save_requested=workspace_save_requested)
-            work = self._locked(uow, account_id, work_id, row_version)
+            work = self.dependencies.locked(uow, account_id, work_id, row_version)
             if work["status"] not in {"active", "pausing", "paused"}:
                 raise WorkConflict(work, "work_not_revisable")
             previous = WorkRequirementRepository.get(
@@ -206,7 +170,7 @@ class WorkCommandService:
             ):
                 next_step = work["continuation"]
             work = dict(
-                WorkRows.revise(
+                WorkRepository.revise(
                     uow, revision, json.dumps(checkpoint), json.dumps(next_step), work_id
                 )
             )
@@ -216,7 +180,7 @@ class WorkCommandService:
                 and work["continuation"]["reason"] != "budget_exhausted"
             ):
                 defer_workspace_save(uow, work, value)
-                work = self.repo.get(uow, account_id, work_id)
+                work = self.dependencies.repo.get(uow, account_id, work_id)
             from application.work.schedules import sync_schedule
 
             sync_schedule(uow, work, value)
@@ -233,7 +197,7 @@ class WorkCommandService:
                     "reevaluate_after_convergence",
                     next_step.get("due_at"),
                 )
-            return self._complete(uow, account_id, "revise_work", key, work_id)
+            return self.dependencies.complete(uow, account_id, "revise_work", key, work_id)
 
     @retryable_transaction
     def control(self, account_id, work_id, key, row_version, action):
@@ -241,7 +205,7 @@ class WorkCommandService:
             raise ValueError("unsupported control")
         operation = f"{action}_work"
         with UnitOfWork(self.database) as uow:
-            replay, command = self._claim(
+            replay, command = self.dependencies.claim(
                 uow,
                 account_id,
                 operation,
@@ -250,7 +214,7 @@ class WorkCommandService:
             )
             if replay:
                 return replay
-            work = self._locked(uow, account_id, work_id, row_version)
+            work = self.dependencies.locked(uow, account_id, work_id, row_version)
             allowed = {
                 "pause": {"active"},
                 "resume": {"paused"},
@@ -277,7 +241,7 @@ class WorkCommandService:
             }[action]
             self._cancel_coordinator(uow, work, command, action if action != "resume" else None)
             work = dict(
-                WorkRows.set_control_state(
+                WorkRepository.set_control_state(
                     uow, status, json.dumps(work["continuation"]), status, work_id
                 )
             )
@@ -306,10 +270,10 @@ class WorkCommandService:
 
                 next_step = initial_continuation(requirement["timing"])
                 work = dict(
-                    WorkRows.set_continuation_returning(uow, json.dumps(next_step), work_id)
+                    WorkRepository.set_continuation_returning(uow, json.dumps(next_step), work_id)
                 )
                 defer_workspace_save(uow, work, requirement)
-                work = self.repo.get(uow, account_id, work_id)
+                work = self.dependencies.repo.get(uow, account_id, work_id)
             sync_schedule(uow, work, requirement)
             if (
                 action == "resume"
@@ -324,12 +288,12 @@ class WorkCommandService:
                     "explicit_resume",
                     work["continuation"].get("due_at"),
                 )
-            return self._complete(uow, account_id, operation, key, work_id)
+            return self.dependencies.complete(uow, account_id, operation, key, work_id)
 
     @retryable_transaction
     def link(self, account_id, work_id, conversation_id, key, row_version):
         with UnitOfWork(self.database) as uow:
-            replay, command = self._claim(
+            replay, command = self.dependencies.claim(
                 uow,
                 account_id,
                 "link_work",
@@ -342,14 +306,14 @@ class WorkCommandService:
             )
             if replay:
                 return replay
-            work = self._locked(uow, account_id, work_id, row_version)
-            self._link(uow, work, conversation_id, command)
+            work = self.dependencies.locked(uow, account_id, work_id, row_version)
+            self.dependencies.link(uow, work, conversation_id, command)
             if work["status"] not in {"stopped", "completed"}:
-                work = dict(WorkRows.touch_returning(uow, work_id))
+                work = dict(WorkRepository.touch_returning(uow, work_id))
             record_work_event(
                 uow, work, "linked", command_id=command, conversation_id=conversation_id
             )
-            return self._complete(uow, account_id, "link_work", key, work_id)
+            return self.dependencies.complete(uow, account_id, "link_work", key, work_id)
 
     def integration(self, account_id, work_id, key, row_version, action, payload):
         from work_domain.integration import integration_command

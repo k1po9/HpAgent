@@ -2,7 +2,7 @@
 
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound
-from work_domain.serialization import dto
+from work_domain.serialization import to_json_value
 
 
 def capability_results(database, account_id, run_id):
@@ -18,4 +18,4 @@ def capability_results(database, account_id, run_id):
             'ORDER BY r.created_at DESC,r.invocation_id DESC LIMIT 101',
             (account_id, run_id),
         ).fetchall()
-        return {'items': dto(rows[:100]), 'truncated': len(rows) > 100}
+        return {'items': to_json_value(rows[:100]), 'truncated': len(rows) > 100}

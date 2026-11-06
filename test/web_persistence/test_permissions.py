@@ -5,8 +5,8 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
-from conversation_domain.commands import CommandService
-from web_artifacts.services import ArtifactService
+from application.artifacts.service import ArtifactService
+from application.chat.service import ChatCommandService
 from web_domain.errors import ResourceNotFound
 
 pytestmark = pytest.mark.postgres
@@ -61,7 +61,7 @@ def test_worker_has_narrow_identity_control_plane_write(worker_database_url: str
 def test_artifact_runtime_permissions_are_split_by_responsibility(
     db, account_id, database_url: str, worker_database_url: str
 ) -> None:
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     cid = UUID(commands.create_conversation(account_id, str(uuid4())).body["conversation"]["conversation_id"])
     run = UUID(commands.send_message(account_id, cid, str(uuid4()), "source").body["run_id"])
     commands.start_run(account_id, run)

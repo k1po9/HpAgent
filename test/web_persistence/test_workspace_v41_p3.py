@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from file_runtime import OutputPublisher
 from storage.tenant_file_store import TenantFileStore
 from web_domain.file_services import FileService
@@ -22,7 +22,7 @@ def _setup(db, account_id, database_url, worker_database_url, tmp_path):
     catalog = WorkspaceCatalog(database_url)
     tree = catalog.initialize(account_id)
     parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料"))
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     source = UUID(commands.create_conversation(account_id, str(uuid4()))["conversation_id"])
     store = TenantFileStore(tmp_path / "store", max_bytes=1024)
     run = UUID(commands.send_message(account_id, source, str(uuid4()), "create")["run_id"])

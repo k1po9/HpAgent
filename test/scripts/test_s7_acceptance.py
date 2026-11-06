@@ -329,7 +329,7 @@ class AcceptanceTests(unittest.TestCase):
 
         from s7.composition import configure_governance
 
-        from persistence.repositories import RunBudgetRepository
+        from persistence.run_budgets import RunBudgetRepository
         from resources import work_budget
         captured = []
         def create(*args):

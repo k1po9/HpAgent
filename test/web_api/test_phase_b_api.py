@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from web_domain.outbox import OutboxService
 
 pytestmark = pytest.mark.postgres
@@ -294,7 +294,7 @@ def test_api_rejects_retry_after_uncertain_side_effect(logged_client, worker_dat
         headers=command_headers(csrf, str(uuid4())),
     ).json()
     run_id = sent["run"]["run_id"]
-    assert CommandService(worker_database_url).fail_run(
+    assert ChatCommandService(worker_database_url).fail_run(
         account_id,
         UUID(run_id),
         "tool_side_effect_uncertain",
@@ -472,7 +472,7 @@ def test_api_021_claimed_start_is_not_started_after_direct_cancel(
         headers=command_headers(csrf, str(uuid4())),
     )
     assert cancelled.status_code == 200
-    assert CommandService(worker_database_url).start_run(account_id, UUID(run_id)) is False
+    assert ChatCommandService(worker_database_url).start_run(account_id, UUID(run_id)) is False
 
 
 def test_sse_route_requires_auth_and_ownership(client_factory, seed_identity, logged_client):
@@ -495,7 +495,7 @@ def test_classified_model_failure_keeps_retry_policy_in_snapshot_and_command(log
     conversation_id = create_conversation(client, csrf).json()["conversation"]["conversation_id"]
     sent = client.post(f"/api/v1/conversations/{conversation_id}/messages", json={"content": "model protocol test"}, headers=command_headers(csrf, str(uuid4()))).json()
     run_id = sent["run"]["run_id"]
-    assert CommandService(worker_database_url).fail_run(account_id, UUID(run_id), code, "safe classified model failure")
+    assert ChatCommandService(worker_database_url).fail_run(account_id, UUID(run_id), code, "safe classified model failure")
     assert client.get(f"/api/v1/runs/{run_id}").json()["run"]["failure"]["retryable"] is retryable
     retried = client.post(f"/api/v1/runs/{run_id}/retry", json={}, headers=command_headers(csrf, str(uuid4())))
     if retryable:

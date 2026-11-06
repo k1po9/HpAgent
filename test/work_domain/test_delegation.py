@@ -229,7 +229,7 @@ async def test_three_branches_are_isolated_and_only_failed_branch_retries(
             )
         )
         assert json.loads(json.dumps(activities._aggregate(req)))["success"] is False
-        from work_domain.persistence import WorkRepository
+        from persistence.works import WorkRepository
 
         with UnitOfWork(urls[2]) as uow:
             fixed_run = dict(

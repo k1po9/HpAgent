@@ -6,10 +6,10 @@ import pytest
 from support.work_fixtures import accept_research, advance_work
 from uuid6 import uuid7
 
+from application.work.service import WorkCommandService
 from resources.run_budget import RunBudgetExhausted, RunBudgetService
 from resources.work_budget import WorkBudgetExhausted
 from web_retrieval.budget import RetrievalBudget, RetrievalUsageUnknown
-from work_domain.commands import WorkCommandService
 
 pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
 
@@ -70,9 +70,9 @@ async def test_unsettled_send_identity_is_never_reissued(
 
 async def test_paid_cap_is_strict_even_when_chat_snapshot_is_observe(
         db, database_url, worker_database_url, account_id):
-    from conversation_domain.commands import CommandService
+    from application.chat.service import ChatCommandService
 
-    commands = CommandService(database_url, budget_mode='observe', budget_limits={'tool_calls': 0})
+    commands = ChatCommandService(database_url, budget_mode='observe', budget_limits={'tool_calls': 0})
     conversation = UUID(commands.create_conversation(account_id, str(uuid7()))['conversation_id'])
     run_id = UUID(commands.send_message(account_id, conversation, str(uuid7()), 'Search docs')['run_id'])
     with pytest.raises(RunBudgetExhausted):

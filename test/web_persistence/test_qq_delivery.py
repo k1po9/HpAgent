@@ -3,9 +3,9 @@ from uuid import UUID
 import pytest
 from support.qq_messages import qq_message
 
+from application.chat.service import ChatCommandService
 from application.qq_delivery import QQDeliveryAdapter, QQDeliveryService
 from common.channel_result import ChannelSendResult
-from conversation_domain.commands import CommandService
 from web_persistence.test_qq_canonical_ingress import bind, service
 
 pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
@@ -27,7 +27,7 @@ async def test_delivery_failure_retries_committed_result_without_execution(
     bind(db, account_id)
     result = await service(worker_database_url).accept(qq_message(), "onebot11")
     run_id = UUID(result["run_id"])
-    commands = CommandService(worker_database_url)
+    commands = ChatCommandService(worker_database_url)
     assert db.execute("SELECT count(*) FROM deliveries").fetchone()[0] == 0
     commands.start_run(account_id, run_id)
     commands.complete_run(account_id, run_id, "committed answer")
@@ -58,7 +58,7 @@ async def test_partial_chunks_resume_and_lost_sender_is_uncertain(
     bind(db, account_id)
     result = await service(worker_database_url).accept(qq_message(), "onebot11")
     run_id = UUID(result["run_id"])
-    commands = CommandService(worker_database_url)
+    commands = ChatCommandService(worker_database_url)
     commands.start_run(account_id, run_id)
     commands.complete_run(account_id, run_id, "a" * 1600)
     router = Router()
@@ -94,7 +94,7 @@ async def test_long_chat_result_is_referenced_without_copying_it_into_notificati
     bind(db, account_id)
     result = await service(worker_database_url).accept(qq_message(), "onebot11")
     run_id = UUID(result["run_id"])
-    commands = CommandService(worker_database_url)
+    commands = ChatCommandService(worker_database_url)
     commands.start_run(account_id, run_id)
     content = "x" * 40000
     commands.complete_run(account_id, run_id, content)
@@ -119,7 +119,7 @@ async def test_timeout_notice_is_deduplicated_and_delivered_without_success_mess
     bind(db, account_id)
     result = await service(worker_database_url).accept(qq_message(scope=scope), "onebot11")
     run_id = UUID(result["run_id"])
-    CommandService(worker_database_url).start_run(account_id, run_id)
+    ChatCommandService(worker_database_url).start_run(account_id, run_id)
     lifecycle = WebRunLifecycleService(worker_database_url, qq_timeout_reply="configured timeout notice")
     lifecycle.finalize_failed(run_id, "model_read_timeout", "timeout")
     lifecycle.finalize_failed(run_id, "model_read_timeout", "timeout")
@@ -154,7 +154,7 @@ async def test_other_failure_or_disabled_prompt_does_not_notify(
     bind(db, account_id)
     result = await service(worker_database_url).accept(qq_message(), "onebot11")
     run_id = UUID(result["run_id"])
-    CommandService(worker_database_url).start_run(account_id, run_id)
+    ChatCommandService(worker_database_url).start_run(account_id, run_id)
     WebRunLifecycleService(worker_database_url, qq_timeout_reply=reply).finalize_failed(run_id, code, "failed")
     assert db.execute("SELECT count(*) FROM notifications WHERE run_id=%s", (run_id,)).fetchone()[0] == 0
 
@@ -169,7 +169,7 @@ async def test_revoked_binding_does_not_prevent_timeout_failure_commit(
     bind(db, account_id)
     result = await service(worker_database_url).accept(qq_message(), "onebot11")
     run_id = UUID(result["run_id"])
-    CommandService(worker_database_url).start_run(account_id, run_id)
+    ChatCommandService(worker_database_url).start_run(account_id, run_id)
     def revoke():
         db.execute("UPDATE identity_bindings SET status='revoked',revoked_at=now() WHERE account_id=%s", (account_id,))
 
@@ -208,7 +208,7 @@ async def test_timeout_notice_is_frozen_and_revocation_before_send_cancels_deliv
     bind(db, account_id)
     result = await service(worker_database_url).accept(qq_message(), "onebot11")
     run_id = UUID(result["run_id"])
-    CommandService(worker_database_url).start_run(account_id, run_id)
+    ChatCommandService(worker_database_url).start_run(account_id, run_id)
     WebRunLifecycleService(worker_database_url, qq_timeout_reply="original notice").finalize_failed(
         run_id, "model_read_timeout", "timeout",
     )

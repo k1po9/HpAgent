@@ -2,7 +2,7 @@
 
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound
-from work_domain.serialization import dto
+from work_domain.serialization import to_json_value
 
 
 class ResearchQueryService:
@@ -45,7 +45,7 @@ class ResearchQueryService:
                 "WHERE e.research_id=%s AND e.run_id=%s ORDER BY e.created_at,e.evidence_id",
                 (key, run_id),
             ).fetchall()
-            return {"evidence": dto(rows)}
+            return {"evidence": to_json_value(rows)}
 
     def report(self, account_id, run_id, invocation_id=None):
         with UnitOfWork(self.database) as uow:
@@ -60,6 +60,6 @@ class ResearchQueryService:
                 (account_id, run_id, row["invocation_id"]),
             ).fetchone()
             return {
-                "report": dto(row),
-                "capability_result": dto(result["payload"]) if result else None,
+                "report": to_json_value(row),
+                "capability_result": to_json_value(result["payload"]) if result else None,
             }

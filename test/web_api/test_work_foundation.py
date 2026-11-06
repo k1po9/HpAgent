@@ -114,8 +114,8 @@ def test_capability_query_is_owned_and_available_while_chat_runs(seed_identity, 
     seed_identity('s5-other')
     client = client_factory()
     csrf = login(client, 's5-owner')
-    from conversation_domain.commands import CommandService
-    commands = CommandService(client.app.state.api_pool)
+    from application.chat.service import ChatCommandService
+    commands = ChatCommandService(client.app.state.api_pool)
     cid = commands.create_conversation(account, str(uuid4())).body['conversation_id']
     from uuid import UUID
     sent = commands.send_message(account, UUID(cid), str(uuid4()), 'Hello')

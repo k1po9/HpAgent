@@ -6,23 +6,23 @@ import psycopg
 import pytest
 
 from agent_activities.store import AgentDataStore
+from application.chat.service import ChatCommandService
+from application.work.scheduler import WorkScheduleService
+from application.work.service import WorkCommandService
 from common.agent_policy import AgentPolicy
-from conversation_domain.commands import CommandService
-from orchestration.work_schedule import WorkScheduleService
 from run_domain.input import RunInputLoader
-from work_domain.commands import WorkCommandService
 from work_domain.models import Requirement
 
 pytestmark = pytest.mark.postgres
 
 
 def test_chat_admission_replay_and_explicit_retry_freeze_new_policy(urls, account_id, owner):
-    first = CommandService(urls[1], agent_policy=AgentPolicy(max_tool_turns=7))
+    first = ChatCommandService(urls[1], agent_policy=AgentPolicy(max_tool_turns=7))
     cid = UUID(first.create_conversation(account_id, str(uuid4()))['conversation_id'])
     key = str(uuid4())
     sent = first.send_message(account_id, cid, key, 'hello')
     run = UUID(sent['run_id'])
-    second = CommandService(urls[1], agent_policy=AgentPolicy(max_tool_turns=11))
+    second = ChatCommandService(urls[1], agent_policy=AgentPolicy(max_tool_turns=11))
     assert second.send_message(account_id, cid, key, 'hello')['run_id'] == str(run)
     loader = RunInputLoader(AgentDataStore(urls[2]), max_turns=99)
     assert loader.load(str(run)).max_turns == 7

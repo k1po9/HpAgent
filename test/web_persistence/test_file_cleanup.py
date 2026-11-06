@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from storage.tenant_file_store import TenantFileStore
 from web_domain.file_cleanup import FileCleanupService
 from web_domain.file_services import FileService
@@ -13,7 +13,7 @@ pytestmark = pytest.mark.postgres
 
 
 def _conversation(database_url: str, account_id: UUID) -> UUID:
-    return UUID(CommandService(database_url).create_conversation(
+    return UUID(ChatCommandService(database_url).create_conversation(
         account_id, str(uuid4())
     )["conversation_id"])
 
@@ -59,7 +59,7 @@ def test_expired_crashed_upload_removes_staging_and_canonical_orphan(
 async def test_bound_ready_file_is_never_claimed_by_ttl_cleanup(
     db, account_id, database_url, worker_database_url, tmp_path,
 ) -> None:
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation_id = _conversation(database_url, account_id)
     store = TenantFileStore(tmp_path / "objects", max_bytes=1024)
     files = FileService(database_url, store, max_bytes=1024)

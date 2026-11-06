@@ -13,7 +13,8 @@ from uuid6 import uuid7
 
 from persistence.command_result import CommandResult
 from persistence.conversations import ConversationRepository
-from persistence.repositories import FileRepository, IdempotencyRepository
+from persistence.files import FileRepository
+from persistence.idempotency import IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from storage.tenant_file_store import (
     FileEncodingUnsupported as StoreEncodingUnsupported,

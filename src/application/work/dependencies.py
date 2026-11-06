@@ -9,14 +9,13 @@ from uuid6 import uuid7
 
 from common.agent_policy import AgentPolicy
 from persistence.command_result import CommandResult
-from persistence.repositories import IdempotencyRepository
-from persistence.works import WorkRepository as WorkRows
+from persistence.idempotency import IdempotencyRepository
+from persistence.works import WorkRepository
 from run_domain.execution import assert_execution_fence
 from web_domain.errors import IdempotencyConflict, ResourceNotFound
 from work_domain.errors import WorkConflict
 from work_domain.models import digest
-from work_domain.persistence import WorkRepository as CompatibilityWorkRepository
-from work_domain.serialization import dto
+from work_domain.serialization import to_json_value
 
 from .queries import WorkQueries
 
@@ -32,8 +31,7 @@ class WorkCommandDependencies:
         self.database = database
         self.budget_mode = budget_mode
         self.agent_policy = agent_policy or AgentPolicy()
-        # Preserve the existing public collaborator for unknown external extensions.
-        self.repo = CompatibilityWorkRepository()
+        self.repo = WorkRepository()
         self.idempotency = IdempotencyRepository()
 
         self.queries = WorkQueries(database, self.repo)
@@ -68,7 +66,7 @@ class WorkCommandDependencies:
     def complete(
         self, uow, account_id, operation, key, work_id, status=200, **extra
     ) -> CommandResult:
-        body = {"work": self.queries.snapshot_in_uow(uow, account_id, work_id), **dto(extra)}
+        body = {"work": self.queries.snapshot_in_uow(uow, account_id, work_id), **to_json_value(extra)}
         self.idempotency.complete(uow, account_id, operation, key, status, json.dumps(body))
         return CommandResult(status, body)
 
@@ -79,7 +77,7 @@ class WorkCommandDependencies:
             (work["account_id"], conversation_id),
         ).fetchone():
             raise ResourceNotFound()
-        WorkRows.link_conversation(
+        WorkRepository.link_conversation(
             uow, work["account_id"], work["work_id"], conversation_id, command, source_message_id
         )
 

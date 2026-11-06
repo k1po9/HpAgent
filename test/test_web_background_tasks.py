@@ -21,7 +21,7 @@ from orchestration.worker_tasks import BackgroundTasks, start_durable_background
 
 @pytest.fixture(autouse=True)
 def inert_work_schedule(monkeypatch):
-    monkeypatch.setattr("orchestration.work_schedule.WorkScheduleService.run_once",lambda self: 0)
+    monkeypatch.setattr("application.work.scheduler.WorkScheduleService.run_once",lambda self: 0)
 
 
 class _FakeDispatcher:

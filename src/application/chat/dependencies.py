@@ -16,9 +16,11 @@ from conversation_domain.admission import AdmissionPolicy, SingleActiveRunAdmiss
 from persistence.accounts import AccountRepository
 from persistence.command_result import CommandResult
 from persistence.conversations import ConversationRepository
+from persistence.files import FileRepository
+from persistence.idempotency import IdempotencyRepository
 from persistence.messages import MessageRepository
 from persistence.outbox import OutboxRepository
-from persistence.repositories import FileRepository, IdempotencyRepository, RunBudgetRepository
+from persistence.run_budgets import RunBudgetRepository
 from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork
 from persistence.workflow_executions import WorkflowExecutionRepository
@@ -43,7 +45,7 @@ def _digest(value: object) -> bytes:
 class ChatCommandDependencies:
     def __init__(
         self,
-        database_url: object,
+        database: object,
         *,
         budget_mode: str = "observe",
         budget_policy_version: str = "file-p0-v1",
@@ -53,13 +55,13 @@ class ChatCommandDependencies:
         agent_policy: AgentPolicy | None = None,
     ):
         self.agent_policy = agent_policy or AgentPolicy()
-        self.database_url = database_url
+        self.database = database
         self.accounts = AccountRepository()
         self.conversations = ConversationRepository()
         self.messages = MessageRepository()
         self.runs = RunRepository()
         self.files = FileRepository()
-        self.resource_policy = ResourcePolicy(database_url)
+        self.resource_policy = ResourcePolicy(database)
         self.budgets = RunBudgetRepository()
         self.admission_policy = admission_policy or SingleActiveRunAdmission()
         self.workflows = WorkflowExecutionRepository()

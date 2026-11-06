@@ -13,7 +13,8 @@ from support.work_fixtures import accept_research, advance_work
 
 from agent_activities.store import AgentDataStore
 from agent_workflows.lifecycle_contracts import LIFECYCLE_SCHEMA_VERSION, SegmentInput
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
+from application.work.service import WorkCommandService
 from file_runtime import FileResourceResolver
 from run_domain.execution_context import fence_scope
 from sandbox.sandbox_manager import SandboxManager
@@ -25,7 +26,6 @@ from sandbox.tools.routing.contracts import NATIVE_ROUTING_SPECS
 from sandbox.tools.routing.models import RegisteredTool, ToolKind
 from storage.tenant_file_store import TenantFileStore
 from web_domain.errors import ResourceNotFound
-from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
 from workspace.execution import ExecutionResourceService
 from workspace.file_scope import RunFileScopeUnavailable, RunFileWorkspace
@@ -60,7 +60,7 @@ def _run(commands, account, conversation):
 def test_independent_task_last_input_revoke_persists_cancellation(
     db, account_id, database_url, tmp_path,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url, commands)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -95,7 +95,7 @@ def test_independent_task_last_input_revoke_persists_cancellation(
 def test_revoking_either_grant_order_rechecks_all_selected_authority(
     db, account_id, database_url, tmp_path, directory_first,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url, commands)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -130,7 +130,7 @@ def test_revoking_either_grant_order_rechecks_all_selected_authority(
 def test_revoked_metadata_disappears_from_frozen_candidates_before_select(
     db, account_id, database_url, tmp_path,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url, commands)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -156,7 +156,7 @@ def test_revoked_metadata_disappears_from_frozen_candidates_before_select(
 def test_cross_conversation_candidate_and_file_id_are_run_scoped(
     db, account_id, database_url, worker_database_url, tmp_path,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -197,7 +197,7 @@ def test_cross_conversation_candidate_and_file_id_are_run_scoped(
 async def test_activity_resources_restore_selected_input_and_recheck_revocation(
     db, account_id, database_url, worker_database_url, tmp_path,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -210,7 +210,7 @@ async def test_activity_resources_restore_selected_input_and_recheck_revocation(
     grants = policy.grant(account_id, "conversation", conversation, entry,
                           ["list_metadata", "read_content"], False)
     run_id = _run(commands, account_id, conversation)
-    CommandService(worker_database_url).start_run(account_id, run_id)
+    ChatCommandService(worker_database_url).start_run(account_id, run_id)
     data = AgentDataStore(worker_database_url)
     execution_id = data.run_identity(str(run_id))["execution_id"]
     manager = SandboxManager(native_tools_enabled=False, nsjail_enabled=False)
@@ -268,7 +268,7 @@ async def test_activity_resources_restore_selected_input_and_recheck_revocation(
 def test_candidate_freeze_version_and_revocation_union(
     db, account_id, database_url, worker_database_url, tmp_path,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url, commands)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -349,7 +349,7 @@ def test_candidate_freeze_version_and_revocation_union(
 def test_snapshot_does_not_expand_and_limit_is_explicit(
     db, account_id, database_url, tmp_path,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -387,7 +387,7 @@ def test_snapshot_does_not_expand_and_limit_is_explicit(
 def test_explicit_attachment_revocation_blocks_read_and_failed_retry(
     db, account_id, database_url, worker_database_url, tmp_path,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     policy = ResourcePolicy(database_url)
     a = _conversation(commands, account_id)
     store = TenantFileStore(tmp_path / "store", max_bytes=1024)
@@ -395,7 +395,7 @@ def test_explicit_attachment_revocation_blocks_read_and_failed_retry(
     failed = UUID(commands.send_message(
         account_id, a, str(uuid4()), "first", file_ids=(file_id,)
     )["run_id"])
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     worker.start_run(account_id, failed)
     worker.fail_run(account_id, failed, "model_error")
     run_id = UUID(commands.send_message(
@@ -423,7 +423,7 @@ def test_run_output_commit_rechecks_create_permission(
     from file_runtime import OutputPublisher
     from workspace.file_scope import RunFileScope
 
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url, commands)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -453,7 +453,7 @@ def test_move_preview_rejects_changed_topology_or_policy(
 ):
     from workspace.catalog import WorkspaceConflict
 
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url, commands)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -480,7 +480,7 @@ async def test_active_read_tool_waits_for_adapter_exit_and_rejects_reentry(
     from file_runtime import FileAdapterRegistry
     from sandbox.tools.local.file_read import create_file_read_tools
 
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url, commands)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)

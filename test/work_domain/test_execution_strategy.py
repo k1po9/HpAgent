@@ -6,12 +6,12 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
+from application.chat.service import ChatCommandService
 from application.main_agent import create_main_work_tools
+from application.work.scheduler import WorkScheduleService
 from application.work_context import WorkContextProvider
-from conversation_domain.commands import CommandService
 from orchestration.run_dispatcher import ReminderActivities, RunStrategyActivities
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
-from orchestration.work_schedule import WorkScheduleService
 from run_domain.lifecycle import RunLifecycleService
 from web_domain.lifecycle import WebRunLifecycleService
 from work_domain.models import Requirement
@@ -130,7 +130,7 @@ async def test_generic_frozen_brief_and_progress_do_not_use_chat(commands, accou
 
 @pytest.mark.asyncio
 async def test_main_mandate_slot_replays_across_chat_retry(commands, account_id, urls, owner):
-    chat = CommandService(urls[1])
+    chat = ChatCommandService(urls[1])
     cid = UUID(chat.create_conversation(account_id, str(uuid4())).body['conversation_id'])
     message = chat.send_message(account_id, cid, str(uuid4()), 'Accept two ongoing mandates')
     source = owner.execute('SELECT trigger_message_id FROM runs WHERE run_id=%s', (message['run_id'],)).fetchone()['trigger_message_id']

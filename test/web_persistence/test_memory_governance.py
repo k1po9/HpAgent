@@ -261,8 +261,8 @@ async def test_scoped_context_snapshot_dispatch_final_history(db, database_url, 
 async def test_real_hindsight_governance_with_pg(db, database_url, worker_database_url, account_id):
     import os
 
+    from application.chat.service import ChatCommandService
     from application.memory_retention import MemoryRetentionService
-    from conversation_domain.commands import CommandService
     from memory.hindsight_client import HindsightClient
     from web_domain.outbox import OutboxService
 
@@ -271,7 +271,7 @@ async def test_real_hindsight_governance_with_pg(db, database_url, worker_databa
         pytest.skip('requires explicit dedicated target Hindsight')
     _, _, run = _conversation_and_run(database_url, account_id)
     db.execute("UPDATE messages SET content='Member0 prefers violet notebooks and morning tea.' WHERE role='user'")
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     worker.start_run(account_id, run)
     worker.complete_run(account_id, run, 'User has stated their preferences.')
     remote = HindsightClient(url)
@@ -350,7 +350,7 @@ async def test_real_hindsight_governance_with_pg(db, database_url, worker_databa
 
 async def test_actual_snapshot_dispatch_late_tool_and_final_are_rejected(db, database_url, worker_database_url, account_id):
     from agent_activities.store import AgentDataStore
-    from conversation_domain.commands import CommandService
+    from application.chat.service import ChatCommandService
     from resources.model_input_snapshot import SnapshotRepository
     from run_domain.execution import assert_execution_fence
     from run_domain.execution_context import fence_scope
@@ -359,7 +359,7 @@ async def test_actual_snapshot_dispatch_late_tool_and_final_are_rejected(db, dat
 
     _, _, remote, source, _ = await verified(db, database_url, worker_database_url, account_id)
     _, _, run = _conversation_and_run(database_url, account_id)
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     worker.start_run(account_id, run)
     execution = db.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (run,)).fetchone()[0]
     with UnitOfWork(worker_database_url) as uow:
@@ -398,16 +398,16 @@ async def test_actual_snapshot_dispatch_late_tool_and_final_are_rejected(db, dat
 
 
 async def test_history_reuse_filters_revoked_assistant_and_rejects_stale_base(db, database_url, worker_database_url, account_id):
+    from application.chat.service import ChatCommandService
     from application.context_assembly import ContextAssemblyService
     from application.context_builder import HarnessContextBuilder
-    from conversation_domain.commands import CommandService
 
     _, _, remote, source, old_run = await verified(db, database_url, worker_database_url, account_id)
     old_execution = db.execute("SELECT execution_id FROM run_executions WHERE run_id=%s", (old_run,)).fetchone()[0]
     with UnitOfWork(worker_database_url) as uow:
         bind_context(uow, account_id, old_execution, [['scope:private']], {'old'}, 0)
     conv = db.execute('SELECT conversation_id FROM runs WHERE run_id=%s', (old_run,)).fetchone()[0]
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     new_run = service.send_message(account_id, conv, str(uuid4()), 'next')['run_id']
     assembly = ContextAssemblyService(worker_database_url, HarnessContextBuilder())
     before = assembly.load_base(account_id, new_run)
@@ -523,15 +523,15 @@ asyncio.run(main())
 async def test_context_invalidation_intersects_only_maintained_scope(db, database_url, worker_database_url, account_id, scope):
     from psycopg.types.json import Jsonb
 
+    from application.chat.service import ChatCommandService
     from application.memory_retention import MemoryRetentionService
-    from conversation_domain.commands import CommandService
     from web_domain.outbox import OutboxService
 
     _, _, run = _conversation_and_run(database_url, account_id)
     if len(scope) == 2:
         origin = {'channel_type': 'qq', 'scope': 'group', 'context_key': scope[1].removeprefix('group:')}
         db.execute('UPDATE messages SET origin=%s WHERE role=\'user\'', (Jsonb(origin),))
-    commands = CommandService(worker_database_url)
+    commands = ChatCommandService(worker_database_url)
     commands.start_run(account_id, run)
     commands.complete_run(account_id, run, 'answer')
     remote = GovernanceRemote()
@@ -592,13 +592,13 @@ async def test_governance_api_role_cannot_read_payload_or_change_scope(db, datab
 async def test_related_resource_revoke_records_only_source_scope_once(db, database_url, worker_database_url, account_id):
     from uuid import UUID
 
-    from conversation_domain.commands import CommandService
+    from application.chat.service import ChatCommandService
     from workspace.catalog import WorkspaceCatalog
     from workspace.resources import ResourcePolicy
 
     _, _, remote, source, run = await verified(db, database_url, worker_database_url, account_id)
     conversation = db.execute('SELECT conversation_id FROM runs WHERE run_id=%s', (run,)).fetchone()[0]
-    catalog = WorkspaceCatalog(database_url, CommandService(database_url))
+    catalog = WorkspaceCatalog(database_url, ChatCommandService(database_url))
     tree = catalog.initialize(account_id)
     directory = UUID(next(n['node_id'] for n in tree['nodes'] if n['name'] == '资料'))
     policy = ResourcePolicy(database_url)
@@ -620,11 +620,11 @@ async def test_related_resource_revoke_records_only_source_scope_once(db, databa
 def resource_grant(database_url, account_id, conversation):
     from uuid import UUID
 
-    from conversation_domain.commands import CommandService
+    from application.chat.service import ChatCommandService
     from workspace.catalog import WorkspaceCatalog
     from workspace.resources import ResourcePolicy
 
-    tree = WorkspaceCatalog(database_url, CommandService(database_url)).initialize(account_id)
+    tree = WorkspaceCatalog(database_url, ChatCommandService(database_url)).initialize(account_id)
     directory = UUID(next(n['node_id'] for n in tree['nodes'] if n['name'] == '资料'))
     policy = ResourcePolicy(database_url)
     grant = policy.grant(account_id, 'conversation', conversation, directory, ['read_content'], True)
@@ -635,14 +635,14 @@ def resource_grant(database_url, account_id, conversation):
 async def test_resource_revoke_blocks_delayed_retain_and_regrant_does_not_revive_it(
     db, database_url, worker_database_url, account_id, phase,
 ):
+    from application.chat.service import ChatCommandService
     from application.memory_retention import MemoryRetentionService
-    from conversation_domain.commands import CommandService
     from web_domain.errors import OutboxLeaseLost
     from web_domain.outbox import OutboxService
 
     _, conversation, run = _conversation_and_run(database_url, account_id)
     policy, grant, directory = resource_grant(database_url, account_id, conversation)
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     assert worker.start_run(account_id, run)
     assert worker.complete_run(account_id, run, 'answer')
 

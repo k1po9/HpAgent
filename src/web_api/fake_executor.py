@@ -5,7 +5,7 @@ import contextlib
 from datetime import UTC, datetime
 from uuid import UUID
 
-from application.chat.service import CommandService
+from application.chat.service import ChatCommandService
 from common.types import ModelResponse
 from persistence.uow import UnitOfWork
 from web_domain.outbox import OutboxService
@@ -33,7 +33,7 @@ class FakeRunExecutor:
         if settings.environment == "production":
             raise ValueError("fake executor cannot run in production")
         self.outbox = OutboxService(database)
-        self.lifecycle = CommandService(database)
+        self.lifecycle = ChatCommandService(database)
         self.settings = settings
         self.worker_id = "phase-b-fake-executor"
         self._sinks = RedisWebRunEventSinkFactory(redis_client)

@@ -7,16 +7,16 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
-from conversation_domain.commands import CommandService
-from persistence.repositories import MessageRepository
+from application.chat.service import ChatCommandService
+from persistence.messages import MessageRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import ConversationBusy
 
 pytestmark = pytest.mark.postgres
 
 
-def _conversation_and_run(database_url: str, account_id: UUID) -> tuple[CommandService, UUID, UUID]:
-    service = CommandService(database_url)
+def _conversation_and_run(database_url: str, account_id: UUID) -> tuple[ChatCommandService, UUID, UUID]:
+    service = ChatCommandService(database_url)
     conversation_id = UUID(
         service.create_conversation(account_id, str(uuid4()))["conversation_id"]
     )
@@ -50,7 +50,7 @@ def test_db_002_run_cannot_reference_other_conversation_message(db, account_id):
 
 
 def test_db_004_two_conversations_send_independently(db, account_id, database_url):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     conversations = [
         UUID(service.create_conversation(account_id, str(uuid4()))["conversation_id"])
         for _ in range(2)
@@ -73,7 +73,7 @@ def test_db_004_two_conversations_send_independently(db, account_id, database_ur
 def test_db_003_two_connections_compete_for_same_conversation(
     db, account_id, database_url
 ):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     conversation_id = UUID(
         service.create_conversation(account_id, str(uuid4()))["conversation_id"]
     )
@@ -92,7 +92,7 @@ def test_db_003_two_connections_compete_for_same_conversation(
 
 
 def test_db_005_concurrent_same_key_replays_same_result(db, account_id, database_url):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     conversation_id = UUID(
         service.create_conversation(account_id, str(uuid4()))["conversation_id"]
     )
@@ -119,7 +119,7 @@ def test_db_009_and_015_context_filters_status_and_account(
             "UPDATE hpagent.runs SET status='running',started_at=now() WHERE run_id=%s",
             (run_id,),
         )
-    CommandService(worker_database_url).complete_run(account_id, run_id, "done")
+    ChatCommandService(worker_database_url).complete_run(account_id, run_id, "done")
     with UnitOfWork(database_url) as uow:
         visible = MessageRepository().context_messages(uow, account_id, conversation_id, 2)
         hidden = MessageRepository().context_messages(uow, uuid4(), conversation_id, 2)
@@ -164,7 +164,7 @@ def test_db_016_retry_cannot_change_context_watermark(
     db, account_id, database_url, worker_database_url, migration_database_url
 ):
     _, conversation_id, source_id = _conversation_and_run(database_url, account_id)
-    CommandService(worker_database_url).fail_run(account_id, source_id, "source_failed")
+    ChatCommandService(worker_database_url).fail_run(account_id, source_id, "source_failed")
     source = db.execute(
         "SELECT session_id,trigger_message_id,context_message_seq FROM runs WHERE run_id=%s",
         (source_id,),
@@ -230,7 +230,7 @@ def test_db_024_metadata_version_allows_one_writer(db, account_id):
 def test_serialization_failure_retries_the_entire_transaction(
     db, account_id, database_url
 ):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     conversation_id = UUID(
         service.create_conversation(account_id, str(uuid4()))["conversation_id"]
     )

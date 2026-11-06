@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 
 pytestmark = pytest.mark.postgres
 
@@ -11,7 +11,7 @@ pytestmark = pytest.mark.postgres
 def test_run_diagnostics_authentication_owner_and_no_input_leak(db, seed_identity, client_factory, database_url, worker_database_url):
     account = seed_identity('diagnostic-owner')
     seed_identity('diagnostic-other')
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation = UUID(commands.create_conversation(account, str(uuid4()))['conversation_id'])
     run = commands.send_message(account, conversation, str(uuid4()), 'PRIVATE-MODEL-INPUT')['run_id']
     from resources.model_client import ModelClient

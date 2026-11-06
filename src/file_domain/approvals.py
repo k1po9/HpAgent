@@ -12,8 +12,8 @@ from uuid6 import uuid7
 
 from agent_workflows.ids import tool_execution_workflow_id
 from persistence.command_result import CommandResult
+from persistence.idempotency import IdempotencyRepository
 from persistence.outbox import OutboxRepository
-from persistence.repositories import IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import ConversationBusy, DomainError, IdempotencyConflict, ResourceNotFound
 

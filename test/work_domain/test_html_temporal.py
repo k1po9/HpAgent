@@ -84,6 +84,7 @@ async def test_artifact_api_runs_production_parent_and_releases_root_while_gener
     from test_capability_facts import chat
     from test_html_capability import setup
 
+    from application.artifacts.service import ArtifactService
     from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
     from orchestration.artifact_activities import ArtifactActivities
     from orchestration.run_dispatcher import RunStrategyActivities
@@ -91,7 +92,6 @@ async def test_artifact_api_runs_production_parent_and_releases_root_while_gener
     from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
     from run_domain.lifecycle import RunLifecycleService
     from web_artifacts.build import ArtifactBuildService
-    from web_artifacts.services import ArtifactService
     from web_domain.lifecycle import WebRunLifecycleService
 
     source = chat(urls, account_id)

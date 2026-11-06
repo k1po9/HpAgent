@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from file_runtime import OutputPublisher
 from storage.tenant_file_store import TenantFileStore
 from workspace.file_scope import RunFileScope
@@ -72,7 +72,7 @@ def test_workspace_version_api_and_conflict_output(
     listed = client.get(f"/api/v1/runs/{run_id}/published-files")
     assert listed.status_code == 200
     assert listed.json()["files"][0]["file_id"] == str(published.file_id)
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     assert commands.start_run(account_id, UUID(run_id))
     assert commands.complete_run(account_id, UUID(run_id), "edited")
     body = {"run_id": run_id, "file_id": str(published.file_id),

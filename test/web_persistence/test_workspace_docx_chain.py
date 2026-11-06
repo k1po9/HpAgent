@@ -8,14 +8,14 @@ import pytest
 from docx import Document
 from support.work_fixtures import accept_research, advance_work
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
+from application.work.service import WorkCommandService
 from file_runtime import FileResourceResolver, OutputPublisher
 from sandbox.git_repo import GitRepoManager
 from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
 from web_domain.file_cleanup import FileCleanupService
 from web_domain.file_services import FileService
-from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog, WorkspaceVersionConflict
 from workspace.file_scope import RunFileWorkspace
 from workspace.resources import ResourcePolicy
@@ -34,7 +34,7 @@ async def test_real_docx_upload_edit_revision_and_conflict_save(
     store = TenantFileStore(tmp_path / "store", max_bytes=1024 * 1024)
     files = FileService(database_url, store, max_bytes=1024 * 1024)
     catalog = WorkspaceCatalog(database_url)
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
     parent = UUID(next(n["node_id"] for n in tree["nodes"] if n["name"] == "资料"))

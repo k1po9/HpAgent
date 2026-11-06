@@ -11,7 +11,6 @@ from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
 from persistence.works import WorkRepository
-from persistence.works import WorkRepository as WorkRows
 from run_domain.models import TERMINAL
 from web_domain.errors import ConversationBusy, ResourceNotFound
 from work_domain.models import bounded, continuation
@@ -252,7 +251,7 @@ class RunLifecycleService:
             target_status = {'pausing':'paused','stopping':'stopped'}[target_status]
         prior_block = work['continuation'] if work['continuation']['kind'] in {'blocked', 'awaiting_input'} else None
         checkpoint = result.get('checkpoint', work['checkpoint']) if status=='succeeded' else work['checkpoint']
-        work = dict(WorkRows.finish_coordinator(uow, target_status, json.dumps(next_step), json.dumps(checkpoint), target_status, target_status, work['work_id'], run['run_id']))
+        work = dict(WorkRepository.finish_coordinator(uow, target_status, json.dumps(next_step), json.dumps(checkpoint), target_status, target_status, work['work_id'], run['run_id']))
         record_work_event(uow, work, f'run_{status}', run_id=run['run_id'], status=target_status)
         if target_status in {'paused', 'stopped'}:
             record_work_event(uow, work, target_status, run_id=run['run_id'], status=target_status)
@@ -297,5 +296,5 @@ class RunLifecycleService:
                                            (work['account_id'], work['work_id'], ref)).fetchone():
                     continue
                 status = 'paused' if work['status'] == 'pausing' else 'stopped'
-                work = dict(WorkRows.set_control_state(uow, status, json.dumps(continuation('none', 'control_converged')), status, work['work_id']))
+                work = dict(WorkRepository.set_control_state(uow, status, json.dumps(continuation('none', 'control_converged')), status, work['work_id']))
                 record_work_event(uow, work, status, status=status)

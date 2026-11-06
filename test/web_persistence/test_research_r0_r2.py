@@ -7,6 +7,8 @@ from support.research_driver import ResearchDriver as ResearchActivities
 from support.work_fixtures import accept_research, advance_work
 from uuid6 import uuid7
 
+from application.artifacts.service import ArtifactService
+from application.work.service import WorkCommandService
 from orchestration.research_workflow import ResearchIterationInput, ResearchWorkflowInput
 from persistence.uow import UnitOfWork
 from research_domain.models import (
@@ -19,9 +21,7 @@ from research_domain.models import (
 from research_domain.persistence import ResearchRepository
 from research_domain.services import ResearchQueryService
 from resources.run_budget import RunBudgetExhausted, RunBudgetService
-from web_artifacts.services import ArtifactService
 from web_domain.errors import ResourceNotFound
-from work_domain.commands import WorkCommandService
 from work_domain.models import Requirement
 
 pytestmark = pytest.mark.postgres

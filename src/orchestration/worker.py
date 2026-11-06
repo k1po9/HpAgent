@@ -100,13 +100,13 @@ async def start_worker(config: AppConfig) -> None:
             active_channels.append(channel)
             logger.info("Channel registered: %s", ch_name)
 
-        from application.chat.service import CommandService
+        from application.chat.service import ChatCommandService
         from application.surfaces.conversation import SurfaceConversationCommands
         from common.agent_policy import AgentPolicy
 
         conversation_service = ConversationService(
             SurfaceConversationCommands(
-                CommandService(
+                ChatCommandService(
                     os.environ["WORKER_DATABASE_URL"],
                     budget_mode=run_budget_mode(default="observe"),
                     budget_policy_version=os.getenv("RUN_BUDGET_POLICY_VERSION", "file-p0-v1"),

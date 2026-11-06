@@ -5,7 +5,7 @@ import pytest
 
 from agent_activities.store import AgentDataStore
 from agent_workflows.lifecycle_contracts import SegmentInput
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from run_domain.execution import StaleFencingToken
 from run_domain.execution_context import fence_scope
 from run_domain.lifecycle import RunLifecycleService
@@ -14,7 +14,7 @@ from web_api.sse import load_run_snapshot
 from web_domain.errors import ConversationBusy
 from web_domain.outbox import OutboxService
 from web_domain.workflow_execution import PostgresWorkflowExecutionStore
-from work_domain.commands import WorkConflict
+from work_domain.errors import WorkConflict
 from work_domain.models import Requirement
 from workspace.catalog import WorkspaceCatalog
 
@@ -43,7 +43,7 @@ def segment(store, account_id, run_id):
 def test_same_account_chat_and_work_have_independent_execution_contexts(
     owner, urls, commands, account_id
 ):
-    chat = CommandService(urls[1])
+    chat = ChatCommandService(urls[1])
     cid = UUID(chat.create_conversation(account_id, str(uuid4())).body["conversation_id"])
     first = chat.send_message(account_id, cid, str(uuid4()), "accept investigation")
     work_id, _, work_run = mandate(commands, account_id)

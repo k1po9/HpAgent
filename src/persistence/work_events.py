@@ -9,7 +9,7 @@ from uuid import UUID
 from uuid6 import uuid7
 
 from persistence.uow import UnitOfWork
-from work_domain.serialization import dto
+from work_domain.serialization import to_json_value
 
 
 class WorkEventRepository:
@@ -37,7 +37,7 @@ class WorkEventRepository:
                 work["current_requirement_revision"],
                 command_id,
                 run_id,
-                json.dumps({"schema_version": 1, **dto(payload)}),
+                json.dumps({"schema_version": 1, **to_json_value(payload)}),
                 work["account_id"],
                 work["work_id"],
             ),

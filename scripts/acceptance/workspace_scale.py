@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
 import psycopg
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from file_runtime import FileResourceResolver
 from storage.tenant_file_store import TenantFileStore
 from workspace.catalog import WorkspaceCatalog
@@ -32,7 +32,7 @@ def main() -> None:
     api_url = os.environ["APP_DATABASE_URL"]
     worker_url = os.environ["WORKER_DATABASE_URL"]
     store = TenantFileStore(Path(os.environ["FILE_STORE_ROOT"]), max_bytes=1024)
-    commands = CommandService(api_url)
+    commands = ChatCommandService(api_url)
     catalog = WorkspaceCatalog(api_url)
     policy = ResourcePolicy(api_url)
     discovery = WorkspaceDiscovery(api_url)

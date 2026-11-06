@@ -35,7 +35,7 @@ from agent_workflows.contracts import (
     RunSource,
     ToolExecutionInput,
 )
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from persistence.migrate import migrate
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -200,7 +200,7 @@ def prepare_a3(
     worker_url: str,
     account_id: UUID,
 ) -> tuple[ToolExecutionInput, str]:
-    commands = CommandService(app_url)
+    commands = ChatCommandService(app_url)
     conversation = commands.create_conversation(
         account_id, str(uuid4()), "activity ack-gap benchmark"
     )

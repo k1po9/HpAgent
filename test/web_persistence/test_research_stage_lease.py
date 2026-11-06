@@ -10,11 +10,11 @@ from support.work_fixtures import accept_research, advance_work
 
 from agent_activities.store import AgentDataStore
 from agent_workflows.lifecycle_contracts import SegmentInput
+from application.work.service import WorkCommandService
 from orchestration.research_workflow import ResearchWorkflowInput
 from persistence.uow import UnitOfWork
 from research_domain.context import research_request
 from run_domain.execution import LeaseConflict
-from work_domain.commands import WorkCommandService
 
 pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
 

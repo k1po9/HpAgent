@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from file_runtime import OutputPublisher
 from sandbox.tools.local.file_write import create_file_write_tools
 from storage.tenant_file_store import TenantFileStore
@@ -18,13 +18,13 @@ pytestmark = pytest.mark.postgres
 def test_output_publish_is_idempotent_and_binds_on_completion(
     tmp_path, db, account_id, database_url, worker_database_url
 ):
-    api = CommandService(database_url)
+    api = ChatCommandService(database_url)
     conversation_id = UUID(
         api.create_conversation(account_id, str(uuid4()))["conversation_id"]
     )
     command = api.send_message(account_id, conversation_id, str(uuid4()), "create output")
     run_id = UUID(command["run_id"])
-    CommandService(worker_database_url).start_run(account_id, run_id)
+    ChatCommandService(worker_database_url).start_run(account_id, run_id)
 
     outputs = tmp_path / "run" / "outputs"
     outputs.mkdir(parents=True)
@@ -47,7 +47,7 @@ def test_output_publish_is_idempotent_and_binds_on_completion(
         assert stream.read() == b"immutable-output"
     assert metadata["file_id"] == str(first.file_id)
 
-    CommandService(worker_database_url).complete_run(account_id, run_id, "done")
+    ChatCommandService(worker_database_url).complete_run(account_id, run_id, "done")
     bound = db.execute(
         "SELECT mf.file_id,mf.role FROM message_files mf JOIN messages m "
         "ON m.message_id=mf.message_id WHERE m.produced_by_run_id=%s", (run_id,)
@@ -62,7 +62,7 @@ def test_output_publish_is_idempotent_and_binds_on_completion(
 def test_output_publish_rejects_operation_name_mismatch(
     tmp_path, db, account_id, database_url, worker_database_url
 ):
-    api = CommandService(database_url)
+    api = ChatCommandService(database_url)
     conversation_id = UUID(api.create_conversation(account_id, str(uuid4()))["conversation_id"])
     run_id = UUID(api.send_message(account_id, conversation_id, str(uuid4()), "output")["run_id"])
     outputs = tmp_path / "run" / "outputs"
@@ -80,12 +80,12 @@ def test_output_publish_rejects_operation_name_mismatch(
 async def test_write_retry_after_publish_before_ack_returns_same_output(
     tmp_path, db, account_id, database_url, worker_database_url
 ):
-    api = CommandService(database_url)
+    api = ChatCommandService(database_url)
     conversation_id = UUID(api.create_conversation(account_id, str(uuid4()))["conversation_id"])
     run_id = UUID(api.send_message(
         account_id, conversation_id, str(uuid4()), "crash after publish"
     )["run_id"])
-    CommandService(worker_database_url).start_run(account_id, run_id)
+    ChatCommandService(worker_database_url).start_run(account_id, run_id)
     outputs = tmp_path / "run" / "outputs"
     outputs.mkdir(parents=True)
     scope = RunFileScope(run_id, tmp_path / "inputs", tmp_path / "scratch", outputs, ())

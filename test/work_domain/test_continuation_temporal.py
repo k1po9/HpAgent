@@ -17,17 +17,17 @@ from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
 from agent_workflows.agent_run import AgentRunWorkflow
 from agent_workflows.react import ReactAgentWorkflow
+from application.chat.service import ChatCommandService
 from application.chat_execution import PostgresWebRequestLoader
 from application.context_assembly import ContextAssemblyService
 from application.context_builder import HarnessContextBuilder
+from application.work.scheduler import WorkScheduleService
 from application.work_context import RunExecutionBindings, RunRequestLoader
 from brain.contracts import BrainDecision
-from conversation_domain.commands import CommandService
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_dispatcher import RunStrategyActivities
 from orchestration.run_lifecycle_activities import RunLifecycleActivities
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
-from orchestration.work_schedule import WorkScheduleService
 from resources.run_budget import RunBudgetService
 from run_domain.input import RunInputLoader
 from web_domain.lifecycle import WebRunLifecycleService
@@ -118,7 +118,7 @@ async def test_generic_two_runs_restore_checkpoint_and_allow_concurrent_chat(
         first = asyncio.create_task(execute(run['run_id']))
         try:
             await asyncio.wait_for(entered.wait(), 20)
-            chat = CommandService(urls[1])
+            chat = ChatCommandService(urls[1])
             cid = UUID(chat.create_conversation(account_id, str(uuid4()))['conversation_id'])
             chat_run = chat.send_message(account_id, cid, str(uuid4()), 'Chat while investigating')['run_id']
             await execute(str(chat_run))

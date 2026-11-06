@@ -8,6 +8,7 @@ import pytest
 from support.research_driver import ResearchDriver as ResearchActivities
 from support.work_fixtures import accept_research, advance_work, revise_output
 
+from application.work.service import WorkCommandService
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.research_workflow import ResearchIterationInput, ResearchWorkflowInput
 from persistence.uow import UnitOfWork
@@ -21,7 +22,6 @@ from research_domain.models import (
 )
 from run_domain.lifecycle import RunLifecycleService
 from storage.tenant_file_store import TenantFileStore
-from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog, WorkspaceConflict
 from workspace.resources import ResourceDenied, ResourcePolicy
 

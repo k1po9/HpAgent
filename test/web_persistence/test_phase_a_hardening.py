@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from persistence.migrate import migrate
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import OutboxLeaseLost
@@ -42,7 +42,7 @@ class _FakeConnection:
 
 
 def _conversation_and_run(database_url: str, account_id: UUID):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     conversation_id = UUID(
         service.create_conversation(account_id, str(uuid4()))["conversation_id"]
     )
@@ -54,7 +54,7 @@ def _conversation_and_run(database_url: str, account_id: UUID):
 
 def _failed_source_and_retry(database_url: str, worker_database_url: str, account_id: UUID):
     service, conversation_id, source_id = _conversation_and_run(database_url, account_id)
-    CommandService(worker_database_url).fail_run(account_id, source_id, "failed")
+    ChatCommandService(worker_database_url).fail_run(account_id, source_id, "failed")
     child_id = UUID(service.retry_run(account_id, source_id, str(uuid4()))["run_id"])
     return conversation_id, source_id, child_id
 
@@ -254,7 +254,7 @@ def test_terminal_run_and_message_cannot_revert(
     terminal_run, terminal_message
 ):
     _, _, run_id = _conversation_and_run(database_url, account_id)
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     if terminal_run == "completed":
         with psycopg.connect(worker_database_url) as connection:
             connection.execute(
@@ -284,7 +284,7 @@ def test_failed_run_cannot_convert_to_completed(
     db, account_id, database_url, worker_database_url, migration_database_url
 ):
     _, _, run_id = _conversation_and_run(database_url, account_id)
-    CommandService(worker_database_url).fail_run(account_id, run_id, "failed")
+    ChatCommandService(worker_database_url).fail_run(account_id, run_id, "failed")
     with pytest.raises(psycopg.errors.RaiseException), psycopg.connect(
         migration_database_url
     ) as connection:
@@ -392,7 +392,7 @@ def test_retryable_outbox_failure_honors_owner_and_schedule(
 def test_idempotency_freezes_http_status_and_full_send_result(
     db, account_id, database_url
 ):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     create_key = str(uuid4())
     create_first = service.create_conversation(account_id, create_key)
     create_replay = service.create_conversation(account_id, create_key)
@@ -422,7 +422,7 @@ def test_retry_freezes_complete_result(
     db, account_id, database_url, worker_database_url
 ):
     service, _, source_id = _conversation_and_run(database_url, account_id)
-    CommandService(worker_database_url).fail_run(account_id, source_id, "failed")
+    ChatCommandService(worker_database_url).fail_run(account_id, source_id, "failed")
     key = str(uuid4())
     first = service.retry_run(account_id, source_id, key)
     replay = service.retry_run(account_id, source_id, key)

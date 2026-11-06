@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from resources.model_client import ModelClient
 from resources.model_input_snapshot import SnapshotRepository
 
@@ -25,7 +25,7 @@ def login(client, username="alice"):
 
 
 def _conversation_and_run(database_url, account_id):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     conversation_id = UUID(
         service.create_conversation(account_id, str(uuid4()))["conversation_id"]
     )

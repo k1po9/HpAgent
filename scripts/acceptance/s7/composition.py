@@ -15,7 +15,7 @@ def configure_governance(manifest):
         'model_calls': manifest['effective_governance']['work_model_calls'],
     }
 
-    from persistence.repositories import RunBudgetRepository
+    from persistence.run_budgets import RunBudgetRepository
     original = RunBudgetRepository.create_snapshot
     governance = manifest['effective_governance']
 

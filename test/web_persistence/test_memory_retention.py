@@ -8,8 +8,8 @@ from uuid import uuid4
 import psycopg
 import pytest
 
+from application.chat.service import ChatCommandService
 from application.memory_retention import MemoryRetentionService, admission
-from conversation_domain.commands import CommandService
 from memory.hindsight_client import (
     HindsightRejected,
     HindsightUnavailable,
@@ -29,7 +29,7 @@ pytestmark = pytest.mark.postgres
 
 def _completed_run(database_url, worker_database_url, account_id):
     _, conversation_id, run_id = _conversation_and_run(database_url, account_id)
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     assert worker.start_run(account_id, run_id)
     assert worker.complete_run(account_id, run_id, 'answer')
     return conversation_id, run_id
@@ -275,7 +275,7 @@ async def test_source_and_observation_read_gate(db, database_url, worker_databas
 async def test_special_content_stays_local(db, database_url, worker_database_url, account_id, content, decision):
     _, _, run_id = _conversation_and_run(database_url, account_id)
     db.execute("UPDATE messages SET content=%s WHERE role='user'", (content,))
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     worker.start_run(account_id, run_id)
     worker.complete_run(account_id, run_id, 'answer')
     remote = Remote()
@@ -460,9 +460,9 @@ async def test_real_hindsight_pipeline_recovers_after_outage(db, database_url, w
 async def test_non_successful_runs_never_register_or_upload(db, database_url, worker_database_url, account_id, state):
     _, conversation_id, run_id = _conversation_and_run(database_url, account_id)
     if state == 'failed':
-        assert CommandService(worker_database_url).fail_run(account_id, run_id, 'fixture_failure')
+        assert ChatCommandService(worker_database_url).fail_run(account_id, run_id, 'fixture_failure')
     elif state == 'cancelled':
-        CommandService(database_url).cancel_run(account_id, run_id, str(uuid4()))
+        ChatCommandService(database_url).cancel_run(account_id, run_id, str(uuid4()))
     remote = Remote()
     service = MemoryRetentionService(worker_database_url, remote)
     assert service.load_completed_run(run_id) is None

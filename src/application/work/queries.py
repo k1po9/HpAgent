@@ -7,7 +7,7 @@ from uuid import UUID
 from persistence.uow import UnitOfWork
 from persistence.work_requirements import WorkRequirementRepository
 from persistence.works import WorkRepository
-from work_domain.serialization import dto
+from work_domain.serialization import to_json_value
 
 
 class WorkQueries:
@@ -60,7 +60,7 @@ class WorkQueries:
                 (account_id, work_id),
             ).fetchall()
         ]
-        return dto(work)
+        return to_json_value(work)
 
     def get(self, account_id: UUID, work_id: UUID) -> dict:
         with UnitOfWork(self.database) as uow:
@@ -97,4 +97,4 @@ class WorkQueries:
                 ).fetchall()
             else:
                 raise ValueError("unsupported records")
-            return {"items": dto(rows)}
+            return {"items": to_json_value(rows)}

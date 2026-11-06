@@ -12,7 +12,7 @@ from application.chat.commands import SendMessageCommand
 from application.chat.dependencies import ChatCommandDependencies
 from application.chat.send_message import SendMessage
 from persistence.command_result import CommandResult
-from persistence.repositories import IdempotencyRepository
+from persistence.idempotency import IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_artifacts.queries import ArtifactQueries
 from web_domain.errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
@@ -23,8 +23,8 @@ def _digest(value: object) -> bytes:
     return hashlib.sha256(encoded).digest()
 
 
-def legacy_artifact_sender(database: object) -> SendMessage:
-    """Freeze the current Artifact defaults; configured Web budgets are F1, a separate change."""
+def create_artifact_chat_sender(database: object) -> SendMessage:
+    """Build the Artifact Chat sender with the existing observe-mode budget defaults."""
     return SendMessage(
         ChatCommandDependencies(
             database,

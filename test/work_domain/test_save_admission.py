@@ -12,8 +12,8 @@ from agent_activities.store import AgentDataStore
 from agent_activities.text_result import TextActivities, text_definition
 from agent_workflows.capability_contracts import CapabilityExecutionInput
 from application.main_agent import create_main_work_tools
+from application.work.scheduler import WorkScheduleService
 from file_runtime.output import OutputPublisher
-from orchestration.work_schedule import WorkScheduleService
 from persistence.uow import UnitOfWork
 from resources.run_budget import RunBudgetService
 from run_domain.acceptance import ResultAdoptionService
@@ -21,7 +21,7 @@ from run_domain.capability_contracts import AcceptancePredicate
 from run_domain.execution import StaleFencingToken, assert_execution_fence
 from run_domain.lifecycle import RunLifecycleService
 from storage.tenant_file_store import TenantFileStore
-from work_domain.commands import WorkConflict
+from work_domain.errors import WorkConflict
 from work_domain.models import Requirement
 from work_domain.save_policy import InvalidWorkspaceSave
 from workspace.catalog import WorkspaceCatalog
@@ -232,9 +232,9 @@ def test_exact_existing_entry_requires_a_versioned_target_and_update_grant(comma
 
 @pytest.mark.asyncio
 async def test_main_rejects_unrequested_save_atomically_but_accepts_explicit_pending_save(commands, account_id, owner):
-    from conversation_domain.commands import CommandService
+    from application.chat.service import ChatCommandService
 
-    chat = CommandService(commands.database)
+    chat = ChatCommandService(commands.database)
     cid = UUID(chat.create_conversation(account_id, 'chat').body['conversation_id'])
     sent = chat.send_message(account_id, cid, 'message', 'Generate downloadable Markdown')
     mid = owner.execute('SELECT trigger_message_id FROM runs WHERE run_id=%s', (sent['run_id'],)).fetchone()['trigger_message_id']

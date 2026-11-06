@@ -12,13 +12,12 @@ from uuid6 import uuid7
 
 from common.agent_policy import AgentPolicy
 from persistence.outbox import OutboxRepository
-from persistence.repositories import RunBudgetRepository
+from persistence.run_budgets import RunBudgetRepository
 from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
 from persistence.works import WorkRepository
-from persistence.works import WorkRepository as WorkRows
 from run_domain.creation import WorkRunInsert, build_work_budget_limits, build_work_input_snapshot
 from work_domain.admission import (
     WorkAdmissionFacts,
@@ -109,7 +108,7 @@ class AdmitWorkRun:
         facts = replace(facts, capacity_available=CapacityService.admission(uow, work))
         decision = decide_work_admission(facts)
         if decision.outcome == "defer":
-            WorkRows.set_continuation(
+            WorkRepository.set_continuation(
                 uow, json.dumps(continuation("ready", "waiting_capacity")), work_id
             )
             return WorkAdmissionResult(None, decision.reason)
@@ -125,7 +124,7 @@ class AdmitWorkRun:
         run_id = uuid7()
         epoch = work["control_epoch"] + 1
         from run_domain.strategy import WorkExecutionPlanner
-        from work_domain.serialization import dto
+        from work_domain.serialization import to_json_value
 
         strategy_decision = WorkExecutionPlanner().plan(requirement)
         strategy, executor = strategy_decision.strategy_kind, strategy_decision.executor_key
@@ -152,7 +151,7 @@ class AdmitWorkRun:
         ).fetchall()
         # Exact result metadata makes an explicitly selected old version discoverable.
         # It neither adopts it nor replaces current file/resource authorization.
-        snapshot["artifact_refs"] = dto(
+        snapshot["artifact_refs"] = to_json_value(
             [
                 {key: value for key, value in row.items() if value is not None}
                 for row in selected_artifacts
@@ -191,10 +190,10 @@ class AdmitWorkRun:
                 retry_of_run_id=retry["run_id"] if retry else None,
                 executor_version=strategy_decision.executor_version,
                 strategy_policy_version=strategy_decision.strategy_policy_version,
-                input_snapshot=dto(snapshot),
+                input_snapshot=to_json_value(snapshot),
             ),
         )
-        WorkRows.assign_coordinator(
+        WorkRepository.assign_coordinator(
             uow, run_id, epoch, json.dumps(continuation("ready", "coordinator_admitted")), work_id
         )
         WakeupRepository.consume(uow, run_id, wakeup_id)

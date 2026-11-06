@@ -9,17 +9,18 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from persistence.uow import UnitOfWork
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository
 from research_domain.models import ResearchPlan, ResearchQuestion, SourceStrategy
 from research_domain.persistence import ResearchRepository
 from research_domain.services import ResearchQueryService
 from run_domain.lifecycle import RunLifecycleService
 from web_domain.errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
-from work_domain.commands import WorkConflict
 from work_domain.completion import WorkCompletionPolicy
+from work_domain.errors import WorkConflict
 from work_domain.models import Requirement
-from work_domain.persistence import WorkRepository
 from workspace.resources import ResourcePolicy
 
 pytestmark = pytest.mark.postgres
@@ -261,7 +262,7 @@ def test_failed_run_retains_responsibility_and_cancel_is_attempt_only(commands, 
     latest = commands.get(account_id, UUID(work['work_id']))['work']
     assert latest['status']=='active' and latest['continuation']['kind']=='blocked'
     latest, next_run = advance(commands, account_id, latest)
-    CommandService(urls[1]).cancel_run(account_id, UUID(next_run['run_id']), str(uuid4()))
+    ChatCommandService(urls[1]).cancel_run(account_id, UUID(next_run['run_id']), str(uuid4()))
     latest = commands.get(account_id, UUID(work['work_id']))['work']
     assert latest['status']=='active' and latest['continuation']['reason']=='attempt_cancelled'
 
@@ -328,7 +329,7 @@ def test_stale_admission_context_cannot_consume_current_wakeup(
     work_id = UUID(accepted['work_id'])
     with UnitOfWork(urls[1]) as uow:
         stale_work = WorkRepository.get(uow, account_id, work_id, lock=True)
-        stale_requirement = WorkRepository.requirement(uow, account_id, work_id, 1)
+        stale_requirement = WorkRequirementRepository.get(uow, account_id, work_id, 1)
     revised = commands.revise(
         account_id, work_id, str(uuid4()), accepted['row_version'], requirement(),
     ).body['work']

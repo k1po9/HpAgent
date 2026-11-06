@@ -148,7 +148,7 @@ flowchart TD
   Works --> Accept[AcceptWork]
   Works --> Advance[AdvanceWork]
   Works --> Control[原 revise / control / integration]
-  Scheduler --> Eval[EvaluateSchedule]
+  Scheduler --> Eval[ProcessWorkSchedules]
   Eval --> Due[DispatchDueWork]
   Advance --> Admit[AdmitWorkRun / WorkAdmissionContext]
   Due --> Admit
@@ -210,7 +210,7 @@ classDiagram
     execution_id
     attempt_lease_and_fence
   }
-  class CommandService {
+  class ChatCommandService {
     send_message()
     retry_run()
     cancel_run()
@@ -246,9 +246,9 @@ classDiagram
   Work "1" --> "0..*" Run : 有限尝试
   Work "0..*" --> "0..*" Conversation : 显式关联
   Run "1" --> "1..*" Execution : root 与子执行
-  CommandService --> SendMessage
-  CommandService --> RetryChatRun
-  CommandService --> CancelRun
+  ChatCommandService --> SendMessage
+  ChatCommandService --> RetryChatRun
+  ChatCommandService --> CancelRun
   WorkCommandService --> AcceptWork
   WorkCommandService --> AdvanceWork
   AdvanceWork --> AdmitWorkRun
@@ -308,7 +308,7 @@ QQ 在本图只表示 send/cancel；其 work_* 状态、关联与控制经 WorkC
 sequenceDiagram
   participant E as Web / Main 委托工具
   participant A as AcceptWork / Work service
-  participant S as EvaluateSchedule
+  participant S as ProcessWorkSchedules
   participant D as DispatchDueWork / AdvanceWork
   participant Admit as AdmitWorkRun
   participant PG as UoW / PostgreSQL
@@ -354,7 +354,7 @@ sequenceDiagram
 | Artifact 创建/新版本 | ArtifactCommands | Artifact/Version 与 SendMessage.execute_in_uow 同外层提交；legacy 预算有效值不变 |
 | Work 接受/推进 | AcceptWork / AdvanceWork | dependencies、AdmitWorkRun、资源预算、record_work_event 借用；不增加独立 commit |
 | Work 修订/控制/关联 | application/work/service.py 中的原方法及 integration_command | 原锁、事务与命令重试保持；窄仓储不取得提交权 |
-| Work 调度 | EvaluateSchedule；随后 DispatchDueWork | 两个连续但独立的事务；dispatch 批次内逐 Work savepoint；不把评估与准入合并 |
+| Work 调度 | ProcessWorkSchedules；随后 DispatchDueWork | 两个连续但独立的事务；dispatch 批次内逐 Work savepoint；不把评估与准入合并 |
 | 资源撤权 | ResourcePolicy 的原命令事务 | CancelRun.execute_in_uow 只借用；其异常仍回滚撤权事务 |
 | Run 终态 | 原 Run lifecycle / WebRunLifecycleService | completion/progress、预算恢复、Execution 收敛、事件和通知借用原同一 UoW |
 | Outbox / Workflow 技术事实 | OutboxService / PostgresWorkflowExecutionStore | Repo 只执行 SQL；每个原短事务退出后才进行 Temporal RPC；远端状态不直接当业务终态 |
@@ -368,7 +368,7 @@ UnitOfWork 实现未改变：DSN 或 pool 入口拥有连接与提交；UnitOfWo
 
 | 范围 | 当前事实与验证限制 |
 | --- | --- |
-| 独立 Artifact 预算 | `legacy_artifact_sender` 显式保留 observe、file-p0-v1 和原预算默认值，与 Web 配置注入可能不同。不能把结构迁移理解为已统一 enforce 策略。 |
+| 独立 Artifact 预算 | `create_artifact_chat_sender` 显式保留 observe、file-p0-v1 和原预算默认值，与 Web 配置注入可能不同。不能把结构迁移理解为已统一 enforce 策略。 |
 | Outbox 租约 | ack/retry/dead 按 event/status/locked_by 判断，没有 claim generation。同 worker_id 被复用时旧消费者可能影响新租约，这是待复现的 ABA 风险，尚不能据此认定已丢数据。 |
 | Dispatcher 日志 | mark_processed 返回 false 后仍可能记录 processed；日志不证明该次 CAS 已接受，应查询 PG 权威事实。 |
 | dead-letter 适用范围 | OutboxService.dead_letter 先锁关联 Run，不能直接泛化到 run_id 为空的 Work aggregate；Work 发布失败继续使用原 retry 路径。 |

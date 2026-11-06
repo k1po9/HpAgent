@@ -25,7 +25,7 @@ class CancelRun:
 
     @retryable_transaction
     def execute(self, command: CancelRunCommand) -> CommandResult:
-        with UnitOfWork(self.dependencies.database_url) as uow:
+        with UnitOfWork(self.dependencies.database) as uow:
             return self.execute_in_uow(uow, command)
 
     def execute_in_uow(self, uow: UnitOfWork, command: CancelRunCommand) -> CommandResult:
@@ -53,7 +53,7 @@ class CancelRun:
             response_status = 200
         elif run["status"] == "queued" and not self.dependencies.workflows.has_current(uow, run_id):
             terminal_run = self.dependencies.runs.get_for_account(uow, account_id, run_id)
-            RunLifecycleService(self.dependencies.database_url).finish_in_uow(
+            RunLifecycleService(self.dependencies.database).finish_in_uow(
                 uow, terminal_run, "cancelled"
             )
             result = ChatProjection.snapshot_for_run(uow, run_id)

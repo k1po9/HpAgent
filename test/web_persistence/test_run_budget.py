@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from persistence.uow import UnitOfWork
 from resources.model_budget_context import current_model_budget, model_budget_scope
 from resources.run_budget import RunBudgetExhausted, RunBudgetService
@@ -67,7 +67,7 @@ def test_reserve_settle_and_temporal_replay_are_idempotent(
 def test_enforce_preserves_final_response_reserve(
     db, account_id, database_url, worker_database_url,
 ) -> None:
-    service = CommandService(
+    service = ChatCommandService(
         database_url,
         budget_mode="enforce",
         budget_limits={

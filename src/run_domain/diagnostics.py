@@ -10,7 +10,7 @@ from typing import Any
 
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound
-from work_domain.serialization import dto
+from work_domain.serialization import to_json_value
 
 _LIMIT = 100
 
@@ -25,7 +25,7 @@ def operation_diagnostic(row: dict[str, Any]) -> dict[str, Any]:
     latest = row['attempt_no'] is not None and row['attempt_no'] == row['latest_attempt_no']
     code = row['error_code'] if latest or row['attempt_no'] is None else None
     return {
-        **{key: dto(row[key]) for key in (
+        **{key: to_json_value(row[key]) for key in (
             'run_id', 'execution_id', 'operation_id', 'operation_type', 'operation_status',
             'attempt_no', 'fencing_token', 'receipt_disposition', 'requirement_revision',
         )},
@@ -86,7 +86,7 @@ def run_diagnostics(database, account_id, run_id):
         return {
             'schema_version': 1,
             'run': {
-                **{key: dto(run[key]) for key in (
+                **{key: to_json_value(run[key]) for key in (
                     'run_id', 'work_id', 'requirement_revision', 'status', 'strategy_kind',
                     'executor_key', 'executor_version',
                 )},
@@ -98,10 +98,10 @@ def run_diagnostics(database, account_id, run_id):
                     'agent_tools': None, 'models': None,
                 },
             },
-            'executions': {'items': dto(executions[:_LIMIT]), 'truncated': len(executions) > _LIMIT},
+            'executions': {'items': to_json_value(executions[:_LIMIT]), 'truncated': len(executions) > _LIMIT},
             'operations': {
                 'items': [operation_diagnostic(dict(row)) for row in operations[:_LIMIT]],
                 'truncated': len(operations) > _LIMIT,
             },
-            'model_attempts': {'items': dto(models[:_LIMIT]), 'truncated': len(models) > _LIMIT},
+            'model_attempts': {'items': to_json_value(models[:_LIMIT]), 'truncated': len(models) > _LIMIT},
         }

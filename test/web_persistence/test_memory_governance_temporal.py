@@ -14,7 +14,7 @@ from temporalio.exceptions import ActivityError, ApplicationError
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 
 from agent_activities.store import AgentDataStore
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from persistence.memory_context import MemoryContextRevoked, bind_context
 from persistence.uow import UnitOfWork
 from resources.model_budget_coordinator import ModelBudgetCoordinator
@@ -57,7 +57,7 @@ async def memory_final_fallback() -> str:
     assert STATE is not None
     s = STATE
     try:
-        await asyncio.to_thread(CommandService(s.database).complete_run, s.account, s.run, 'old fallback')
+        await asyncio.to_thread(ChatCommandService(s.database).complete_run, s.account, s.run, 'old fallback')
     except MemoryContextRevoked as exc:
         raise ApplicationError(exc.safe_message, type=exc.code, non_retryable=True) from exc
     return 'final allowed'
@@ -79,7 +79,7 @@ async def test_temporal_late_model_cannot_tool_or_fallback(db, database_url, wor
     _, _, run = _conversation_and_run(database_url, account_id)
     db.execute("INSERT INTO account_entitlements(account_id,model_access_tier,prompt_visibility) "
                "VALUES (%s,'standard','none') ON CONFLICT DO NOTHING", (account_id,))
-    CommandService(worker_database_url).start_run(account_id, run)
+    ChatCommandService(worker_database_url).start_run(account_id, run)
     execution = db.execute('SELECT execution_id FROM run_executions WHERE run_id=%s', (run,)).fetchone()[0]
     with UnitOfWork(worker_database_url) as uow:
         bind_context(uow, account_id, execution, [['scope:private']], {'source'}, 0)

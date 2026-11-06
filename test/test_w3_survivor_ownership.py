@@ -12,8 +12,8 @@ from temporalio import activity, workflow
 from memory.activities import ScheduledMemoryActivities
 from memory.maintenance import HindsightMaintenance
 from memory.workflows import MetricsReportWorkflow, ReflectWorkflow
-from orchestration.execution_strategy import WorkExecutionPlanner
 from orchestration.run_dispatcher import ReminderActivities
+from run_domain.strategy import WorkExecutionPlanner
 
 
 def test_canonical_imports_do_not_load_retired_runtime_owners():

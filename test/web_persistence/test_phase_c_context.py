@@ -4,18 +4,18 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from application.chat.service import ChatCommandService
 from application.context_assembly import ContextAssemblyService, ContextIsolationError
 from application.context_builder import HarnessContextBuilder
-from conversation_domain.commands import CommandService
 
 pytestmark = pytest.mark.postgres
 
 
-def _conversation(service: CommandService, account_id: UUID) -> UUID:
+def _conversation(service: ChatCommandService, account_id: UUID) -> UUID:
     return UUID(service.create_conversation(account_id, str(uuid4()))["conversation_id"])
 
 
-def _complete(service: CommandService, account_id: UUID, run_id: UUID) -> None:
+def _complete(service: ChatCommandService, account_id: UUID, run_id: UUID) -> None:
     assert service.start_run(account_id, run_id)
     assert service.complete_run(account_id, run_id, "completed reply")
 
@@ -23,10 +23,10 @@ def _complete(service: CommandService, account_id: UUID, run_id: UUID) -> None:
 def test_context_uses_only_frozen_visible_messages_of_its_conversation(
     db, account_id, database_url, worker_database_url
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     first, other = _conversation(commands, account_id), _conversation(commands, account_id)
     first_run = UUID(commands.send_message(account_id, first, str(uuid4()), "first user")["run_id"])
-    _complete(CommandService(worker_database_url), account_id, first_run)
+    _complete(ChatCommandService(worker_database_url), account_id, first_run)
     run_id = UUID(commands.send_message(account_id, first, str(uuid4()), "second user")["run_id"])
     commands.send_message(account_id, other, str(uuid4()), "other conversation")
     db.execute(
@@ -45,10 +45,10 @@ def test_context_uses_only_frozen_visible_messages_of_its_conversation(
 def test_retry_context_reuses_the_original_watermark_without_duplicate_trigger(
     account_id, database_url, worker_database_url
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation = _conversation(commands, account_id)
     source = UUID(commands.send_message(account_id, conversation, str(uuid4()), "retry me")["run_id"])
-    CommandService(worker_database_url).fail_run(account_id, source, "failed")
+    ChatCommandService(worker_database_url).fail_run(account_id, source, "failed")
     retry = UUID(commands.retry_run(account_id, source, str(uuid4()))["run_id"])
 
     base = ContextAssemblyService(database_url, HarnessContextBuilder()).load_base(account_id, retry)
@@ -58,7 +58,7 @@ def test_retry_context_reuses_the_original_watermark_without_duplicate_trigger(
 
 
 def test_context_refuses_cross_account_run_lookup(account_id, database_url):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation = _conversation(commands, account_id)
     run_id = UUID(commands.send_message(account_id, conversation, str(uuid4()), "private")["run_id"])
 

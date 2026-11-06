@@ -5,21 +5,21 @@ from uuid import UUID, uuid4
 import pytest
 from temporalio.exceptions import ApplicationError
 
-from conversation_domain.commands import CommandService
+from application.artifacts.service import ArtifactService
+from application.chat.service import ChatCommandService
+from application.work.service import WorkCommandService
 from persistence.uow import UnitOfWork
 from run_domain.execution import StaleFencingToken
 from run_domain.lifecycle import RunLifecycleService
 from web_artifacts.build import ArtifactBuildService
-from web_artifacts.services import ArtifactService
 from web_domain.errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
 from web_domain.lifecycle import WebRunLifecycleService
-from work_domain.commands import WorkCommandService
 
 pytestmark = pytest.mark.postgres
 
 
 def test_artifact_admission_replays_without_duplicate_mandates(db,database_url,account_id):
-    chat=CommandService(database_url)
+    chat=ChatCommandService(database_url)
     cid=UUID(chat.create_conversation(account_id,str(uuid4())).body['conversation']['conversation_id'])
     run=UUID(chat.send_message(account_id,cid,str(uuid4()),'Source').body['run_id'])
     chat.start_run(account_id,run)
@@ -56,8 +56,8 @@ def test_html_retry_preserves_source_executor_and_frozen_snapshot(
 ):
     from common.agent_policy import AgentPolicy
 
-    chat = CommandService(database_url)
-    worker = CommandService(worker_database_url)
+    chat = ChatCommandService(database_url)
+    worker = ChatCommandService(worker_database_url)
     cid = UUID(chat.create_conversation(account_id, str(uuid4()))["conversation_id"])
     source = UUID(chat.send_message(account_id, cid, str(uuid4()), "source")["run_id"])
     worker.start_run(account_id, source)
@@ -73,7 +73,7 @@ def test_html_retry_preserves_source_executor_and_frozen_snapshot(
         "schema_version": 1, "artifact_version_id": artifact["version"]["artifact_version_id"],
     })
     worker.fail_run(account_id, html_run, "test_failure")
-    changed_policy = CommandService(database_url, agent_policy=AgentPolicy(max_tool_turns=17))
+    changed_policy = ChatCommandService(database_url, agent_policy=AgentPolicy(max_tool_turns=17))
     retried = changed_policy.retry_run(account_id, html_run, str(uuid4()))
     assert retried.response_status == 202
     assert db.execute(
@@ -87,7 +87,7 @@ def test_html_retry_preserves_source_executor_and_frozen_snapshot(
 async def test_artifact_run_cancel_preserves_provenance_and_rejects_late_publish(
     db, account_id, database_url, worker_database_url, phase, file_store_root
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     cid = UUID(commands.create_conversation(account_id, str(uuid4())).body["conversation"]["conversation_id"])
     source = UUID(commands.send_message(account_id, cid, str(uuid4()), "source").body["run_id"])
     commands.start_run(account_id, source)

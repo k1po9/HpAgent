@@ -4,9 +4,9 @@ from uuid import UUID, uuid4
 import pytest
 from support.qq_messages import qq_message
 
+from application.chat.service import ChatCommandService
 from application.context_assembly import ContextAssemblyService
 from application.context_builder import HarnessContextBuilder
-from conversation_domain.commands import CommandService
 from web_domain.errors import ConversationBusy
 from web_persistence.test_qq_canonical_ingress import bind, service
 
@@ -17,8 +17,8 @@ async def test_same_account_web_private_group_context_rotation_cancel_retry(
     db, account_id, database_url, worker_database_url,
 ):
     bind(db, account_id)
-    web = CommandService(database_url)
-    worker = CommandService(worker_database_url)
+    web = ChatCommandService(database_url)
+    worker = ChatCommandService(worker_database_url)
     qq = service(worker_database_url)
     cid = UUID(web.create_conversation(account_id, str(uuid4()))['conversation_id'])
     w = web.send_message(account_id, cid, str(uuid4()), 'web-only-secret')

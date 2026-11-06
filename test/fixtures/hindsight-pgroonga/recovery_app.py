@@ -21,9 +21,9 @@ async def main(args):
     from web_persistence.test_memory_retention import tick
     from web_persistence.test_phase_a_invariants import _conversation_and_run
 
+    from application.chat.service import ChatCommandService
     from application.memory_governance import MemoryGovernanceService
     from application.memory_retention import MemoryRetentionService
-    from conversation_domain.commands import CommandService
     from memory.hindsight_client import HindsightClient, HindsightRejected
     from persistence.memory import MemoryStore
     from web_domain.outbox import OutboxService
@@ -51,7 +51,7 @@ async def main(args):
     async def new_source(account, text):
         _, _, run = _conversation_and_run(app, account)
         conn.execute("UPDATE messages SET content=%s WHERE message_id=(SELECT trigger_message_id FROM runs WHERE run_id=%s)", (text, run))
-        commands = CommandService(worker)
+        commands = ChatCommandService(worker)
         commands.start_run(account, run)
         commands.complete_run(account, run, 'synthetic preferences recorded')
         await tick(conn, outbox, retention, 'p4-recovery')
@@ -145,7 +145,7 @@ async def main(args):
             finally:
                 await sdk.aclose()
             _, _, run = _conversation_and_run(app, account)
-            commands = CommandService(worker)
+            commands = ChatCommandService(worker)
             commands.start_run(account, run)
             execution = conn.execute("SELECT execution_id FROM run_executions WHERE run_id=%s AND role='root'", (run,)).fetchone()[0]
             lease = AgentDataStore(worker).acquire_lease(str(account), str(run), str(execution))

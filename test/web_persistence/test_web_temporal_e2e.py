@@ -18,11 +18,11 @@ from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
 from agent_workflows.contracts import AgentRunInput
+from application.chat.service import ChatCommandService
 from application.chat_execution import PostgresWebRequestLoader
 from application.context_assembly import ContextAssemblyService
 from application.context_builder import HarnessContextBuilder
 from brain.contracts import BrainDecision
-from conversation_domain.commands import CommandService
 from conversation_domain.execution_bindings import ChatExecutionBindings
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_activities import RunLifecycleActivities
@@ -115,20 +115,20 @@ async def test_web_canonical_lifecycle(
 ):
     if not os.getenv("TEMPORAL_HOST"):
         pytest.skip("TEMPORAL_HOST required")
-    command = CommandService(database_url)
+    command = ChatCommandService(database_url)
     if surface == "onebot11":
         from support.qq_messages import qq_message
 
         from application.conversation import ConversationService
         from application.ingress import MessageIngressService
-        from conversation_domain.surface_commands import SurfaceConversationCommands
+        from application.surfaces.conversation import SurfaceConversationCommands
         db.execute(
             "INSERT INTO identity_bindings(identity_binding_id,account_id,provider,external_subject_id,"
             "normalized_subject_id,verified_at) VALUES (%s,%s,'qq','123','onebot11:123',now())",
             (uuid4(), account_id),
         )
         ingress = MessageIngressService(conversation_service=ConversationService(
-            SurfaceConversationCommands(CommandService(worker_database_url))
+            SurfaceConversationCommands(ChatCommandService(worker_database_url))
         ))
         accepted = await ingress.handle(qq_message())
         conversation, run_id = UUID(accepted["conversation_id"]), UUID(accepted["run_id"])
@@ -335,6 +335,7 @@ async def test_blocked_work_does_not_block_same_account_chat(
     """Real Research Activity holds its fence while original/new chats call Brain."""
     if not os.getenv("TEMPORAL_HOST"):
         pytest.skip("TEMPORAL_HOST required")
+    from application.work.service import WorkCommandService
     from file_runtime import OutputPublisher, ResearchMarkdownPublisher
     from orchestration.web_reconcile_adapters import LifecycleReconcileStore
     from orchestration.web_reconciler import TemporalInspectorAdapter, WebRunReconciler
@@ -342,10 +343,9 @@ async def test_blocked_work_does_not_block_same_account_chat(
     from research_activities.runtime import ResearchActivities
     from storage.tenant_file_store import TenantFileStore
     from web_domain.errors import ConversationBusy
-    from work_domain.commands import WorkCommandService
     from work_domain.models import Requirement
 
-    chat = CommandService(database_url)
+    chat = ChatCommandService(database_url)
     cid = UUID(chat.create_conversation(account_id, str(uuid4()))["conversation_id"])
     works = WorkCommandService(database_url)
     accepted = works.accept(

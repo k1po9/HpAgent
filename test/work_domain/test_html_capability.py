@@ -10,6 +10,7 @@ from test_capability_facts import chat, execution
 from agent_activities.capabilities import CapabilityActivities, CapabilityBinding
 from agent_activities.store import AgentDataStore
 from agent_workflows.capability_contracts import CapabilityClose, CapabilityExecutionInput
+from application.artifacts.service import ArtifactService
 from file_runtime.output import OutputPublisher
 from persistence.uow import UnitOfWork
 from run_domain.acceptance import ResultAdoptionService
@@ -20,7 +21,6 @@ from web_artifacts.build import ArtifactBuildService
 from web_artifacts.capability import html_definition, html_scope
 from web_artifacts.generator import WebArtifactGenerator
 from web_artifacts.local import HtmlActivities
-from web_artifacts.services import ArtifactService
 from workspace.resources import ResourceDenied
 
 pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
@@ -302,11 +302,11 @@ async def test_report_to_html_cross_run_adoption_revocation_and_gc(
 async def test_work_html_typed_checks_and_parent_save(urls, owner, account_id, tmp_path, review):
     import json
 
+    from application.work.service import WorkCommandService
+    from persistence.works import WorkRepository
     from run_domain.lifecycle import RunLifecycleService
-    from work_domain.commands import WorkCommandService
     from work_domain.execution_result import generic_result
     from work_domain.models import Requirement
-    from work_domain.persistence import WorkRepository
     from workspace.catalog import WorkspaceCatalog
     from workspace.resources import ResourcePolicy
 
@@ -447,7 +447,7 @@ async def test_work_html_typed_checks_and_parent_save(urls, owner, account_id, t
 async def test_failed_run_result_adoption_updates_only_frozen_workspace_revision(
     urls, owner, account_id, tmp_path
 ):
-    from conversation_domain.commands import CommandService
+    from application.chat.service import ChatCommandService
     from run_domain.lifecycle import RunLifecycleService
     from workspace.catalog import WorkspaceCatalog, WorkspaceVersionConflict
     from workspace.resources import ResourcePolicy
@@ -480,7 +480,7 @@ async def test_failed_run_result_adoption_updates_only_frozen_workspace_revision
     RunLifecycleService(urls[2]).finish(
         account_id, source, "failed", failure_code="later_parent_failed"
     )
-    commands = CommandService(urls[1])
+    commands = ChatCommandService(urls[1])
     cid = UUID(commands.create_conversation(account_id, str(uuid4())).body["conversation_id"])
     policy = ResourcePolicy(urls[1])
     policy.grant(
@@ -525,7 +525,7 @@ async def test_failed_run_result_adoption_updates_only_frozen_workspace_revision
 async def test_selected_old_artifact_freezes_discoverable_ref_without_implicit_adoption(
     urls, owner, account_id, tmp_path
 ):
-    from work_domain.commands import WorkCommandService
+    from application.work.service import WorkCommandService
     from work_domain.models import Requirement
 
     run = chat(urls, account_id)

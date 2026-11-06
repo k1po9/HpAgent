@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Mapping
-from typing import Any, cast
+from typing import cast
 from uuid import UUID
 
 from uuid6 import uuid7
 
 from application.chat.commands import RetryChatRunCommand, SendMessageCommand
-from application.chat.commands import message_request_id as message_request_id
 from application.chat.dependencies import ChatCommandDependencies
 from application.chat.projection import ChatProjection
 from application.chat.retry_run import RetryChatRun
@@ -25,18 +23,11 @@ from web_domain.errors import (
     ResourceNotFound,
 )
 
-logger = logging.getLogger("HpAgent.ConversationCommands")
 
-
-def _id() -> UUID:
-    """Generate application-owned UUIDv7 values; PostgreSQL needs no UUID extension."""
-    return uuid7()
-
-
-class CommandService:
+class ChatCommandService:
     def __init__(
         self,
-        database_url: object,
+        database: object,
         *,
         budget_mode: str = "observe",
         budget_policy_version: str = "file-p0-v1",
@@ -46,7 +37,7 @@ class CommandService:
         agent_policy: AgentPolicy | None = None,
     ):
         self.dependencies = ChatCommandDependencies(
-            database_url,
+            database,
             budget_mode=budget_mode,
             budget_policy_version=budget_policy_version,
             budget_limits=budget_limits,
@@ -59,12 +50,8 @@ class CommandService:
         self.cancel = CancelRun(self.dependencies)
 
     @property
-    def database_url(self):
-        return self.dependencies.database_url
-
-    @property
-    def accounts(self):
-        return self.dependencies.accounts
+    def database(self):
+        return self.dependencies.database
 
     @property
     def conversations(self):
@@ -79,48 +66,8 @@ class CommandService:
         return self.dependencies.runs
 
     @property
-    def files(self):
-        return self.dependencies.files
-
-    @property
-    def resource_policy(self):
-        return self.dependencies.resource_policy
-
-    @property
-    def budgets(self):
-        return self.dependencies.budgets
-
-    @property
-    def admission_policy(self):
-        return self.dependencies.admission_policy
-
-    @property
-    def workflows(self):
-        return self.dependencies.workflows
-
-    @property
-    def idempotency(self):
-        return self.dependencies.idempotency
-
-    @property
     def outbox(self):
         return self.dependencies.outbox
-
-    @property
-    def budget_mode(self):
-        return self.dependencies.budget_mode
-
-    @property
-    def budget_policy_version(self):
-        return self.dependencies.budget_policy_version
-
-    @property
-    def budget_limits(self):
-        return self.dependencies.budget_limits
-
-    @property
-    def final_response_reserve_tokens(self):
-        return self.dependencies.final_response_reserve_tokens
 
     @property
     def agent_policy(self):
@@ -133,20 +80,20 @@ class CommandService:
     @retryable_transaction
     def create_conversation(self, account_id: UUID, key: str, title: str = "") -> CommandResult:
         payload = {"title": title}
-        with UnitOfWork(self.database_url) as uow:
-            existing = self._claim(uow, account_id, "create_conversation", key, payload)
+        with UnitOfWork(self.database) as uow:
+            existing = self.dependencies.claim(uow, account_id, "create_conversation", key, payload)
             if existing:
                 return existing
-            if not self.accounts.require_active(uow, account_id):
+            if not self.dependencies.accounts.require_active(uow, account_id):
                 raise ResourceNotFound()
-            conversation_id = _id()
+            conversation_id = uuid7()
             self.conversations.create(uow, conversation_id, account_id, title)
             row = self.conversations.get_for_account(uow, account_id, conversation_id)
             result = {
                 "conversation_id": str(conversation_id),
                 "conversation": ChatProjection.conversation_dto(row),
             }
-            self._complete(uow, account_id, "create_conversation", key, 201, result)
+            self.dependencies.complete(uow, account_id, "create_conversation", key, 201, result)
             return CommandResult(201, result)
 
     def send_message(
@@ -169,42 +116,17 @@ class CommandService:
             )
         )
 
-    def _send_message_in_uow(
-        self,
-        uow: UnitOfWork,
-        account_id: UUID,
-        conversation_id: UUID,
-        key: str,
-        content: str,
-        agent_strategy: str = "react",
-        file_ids: tuple[UUID, ...] = (),
-        *,
-        fixed_html: dict[str, Any] | None = None,
-    ) -> CommandResult:
-        return self.send.execute_in_uow(
-            uow,
-            SendMessageCommand(
-                account_id,
-                conversation_id,
-                key,
-                content,
-                agent_strategy,
-                file_ids,
-                fixed_html,
-            ),
-        )
-
     def start_run(self, account_id: UUID, run_id: UUID) -> bool:
         from run_domain.lifecycle import RunLifecycleService
 
-        return cast(bool, RunLifecycleService(self.database_url).start(account_id, run_id))
+        return cast(bool, RunLifecycleService(self.database).start(account_id, run_id))
 
     def complete_run(self, account_id: UUID, run_id: UUID, content: str) -> bool:
         from run_domain.lifecycle import RunLifecycleService
 
         return cast(
             bool,
-            RunLifecycleService(self.database_url).finish(
+            RunLifecycleService(self.database).finish(
                 account_id, run_id, "succeeded", content=content
             ),
         )
@@ -216,7 +138,7 @@ class CommandService:
 
         return cast(
             bool,
-            RunLifecycleService(self.database_url).finish(
+            RunLifecycleService(self.database).finish(
                 account_id,
                 run_id,
                 "failed",
@@ -229,37 +151,11 @@ class CommandService:
         from run_domain.lifecycle import RunLifecycleService
 
         return cast(
-            bool, RunLifecycleService(self.database_url).finish(account_id, run_id, "cancelled")
+            bool, RunLifecycleService(self.database).finish(account_id, run_id, "cancelled")
         )
-
-    def _claim(
-        self, uow: UnitOfWork, account_id: UUID, operation: str, key: str, payload: object
-    ) -> CommandResult | None:
-        return self.dependencies.claim(uow, account_id, operation, key, payload)
-
-    def _complete(
-        self,
-        uow: UnitOfWork,
-        account_id: UUID,
-        operation: str,
-        key: str,
-        response_status: int,
-        result: dict[str, Any],
-    ) -> None:
-        self.dependencies.complete(uow, account_id, operation, key, response_status, result)
 
     def retry_run(self, account_id: UUID, source_run_id: UUID, key: str) -> CommandResult:
         return self.retry.execute(RetryChatRunCommand(account_id, source_run_id, key))
 
     def cancel_run(self, account_id: UUID, run_id: UUID, key: str) -> CommandResult:
         return self.cancel.execute(CancelRunCommand(account_id, run_id, key))
-
-    def _cancel_run_in_uow(
-        self,
-        uow: UnitOfWork,
-        account_id: UUID,
-        run_id: UUID,
-        key: str,
-    ) -> CommandResult:
-        # Compatibility for existing Workspace transaction callers until their import migration.
-        return self.cancel.execute_in_uow(uow, CancelRunCommand(account_id, run_id, key))

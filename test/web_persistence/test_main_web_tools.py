@@ -16,11 +16,11 @@ from agent_activities.runtime import DurableAgentActivities
 from agent_activities.segments import SegmentActivities
 from agent_activities.store import AgentDataStore
 from agent_activities.web_tools import WebTools
+from application.chat.service import ChatCommandService
 from application.chat_execution import PostgresWebRequestLoader
 from application.context_assembly import ContextAssemblyService
 from application.context_builder import HarnessContextBuilder
 from brain.contracts import BrainDecision
-from conversation_domain.commands import CommandService
 from conversation_domain.execution_bindings import ChatExecutionBindings
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_activities import RunLifecycleActivities
@@ -94,7 +94,7 @@ async def test_main_lightweight_web_keeps_one_chat_run_without_research(
 
     local = SafeLocalFetcher(resolver=resolver, transport=httpx.MockTransport(local_response),
                             extractor=lambda html, _: html)
-    command = CommandService(database_url, budget_mode='observe')
+    command = ChatCommandService(database_url, budget_mode='observe')
     conversation = UUID(command.create_conversation(account_id, str(uuid4()))['conversation_id'])
     run_id = UUID(command.send_message(account_id, conversation, str(uuid4()), 'Find TaskGroup docs')['run_id'])
     client = await Client.connect(os.environ['TEMPORAL_HOST'], namespace=os.environ['TEMPORAL_NAMESPACE'])

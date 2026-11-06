@@ -1,11 +1,9 @@
-"""Compatibility schedule service and process loop around the PG application use cases."""
+"""Process loop around the PostgreSQL Work scheduler."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
-
-from application.work.scheduler import WorkScheduleService as WorkScheduleService
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ from persistence.accounts import AccountRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
-from persistence.works import WorkRepository as WorkRows
+from persistence.works import WorkRepository
 from web_domain.errors import ResourceNotFound
 from work_domain.errors import WorkConflict
 from work_domain.models import continuation
@@ -95,7 +95,7 @@ class AdvanceWork:
                     .run
                 )
             except WorkBudgetExhausted:
-                WorkRows.set_continuation(
+                WorkRepository.set_continuation(
                     uow, json.dumps(continuation("blocked", "budget_exhausted")), work_id
                 )
                 record_work_event(

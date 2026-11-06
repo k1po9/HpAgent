@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from agent_workflows.ids import root_execution_id
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from web_domain.errors import ResourceNotFound
 
 pytestmark = pytest.mark.postgres
@@ -14,7 +14,7 @@ pytestmark = pytest.mark.postgres
 def test_foreign_account_cannot_mutate_conversation_or_run(
     db, account_id, database_url, operation
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation = UUID(commands.create_conversation(account_id, str(uuid4()))["conversation_id"])
     run = UUID(commands.send_message(account_id, conversation, str(uuid4()), "private")["run_id"])
     foreign = uuid4()
@@ -33,7 +33,7 @@ def test_foreign_account_cannot_mutate_conversation_or_run(
 
 
 def test_sessionless_conversations_have_distinct_owned_root_executions(db, account_id, database_url):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     runs = []
     for _ in range(2):
         conversation = UUID(commands.create_conversation(account_id, str(uuid4()))["conversation_id"])

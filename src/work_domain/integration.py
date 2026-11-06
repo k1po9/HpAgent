@@ -13,11 +13,10 @@ from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
 from persistence.works import WorkRepository
-from persistence.works import WorkRepository as WorkRows
 from resources.run_budget import _amounts
 from web_domain.errors import ResourceNotFound
 from work_domain.models import continuation
-from work_domain.serialization import dto
+from work_domain.serialization import to_json_value
 
 
 def completed_outputs(uow, work):
@@ -254,7 +253,7 @@ def integration_command(service, account, work_id, key, version, action, payload
     # Namespace the stable key; the existing whitelist remains a finite command contract.
     scoped_key = f"{action}:{hashlib.sha256(key.encode()).hexdigest()}"
     with UnitOfWork(service.database) as uow:
-        replay, command = service._claim(
+        replay, command = service.dependencies.claim(
             uow,
             account,
             operation,
@@ -263,12 +262,12 @@ def integration_command(service, account, work_id, key, version, action, payload
                 "action": action,
                 "work_id": str(work_id),
                 "row_version": version,
-                "payload": dto(payload),
+                "payload": to_json_value(payload),
             },
         )
         if replay:
             return replay
-        work = service._locked(uow, account, work_id, version)
+        work = service.dependencies.locked(uow, account, work_id, version)
         extra = {}
         if action in {"grant_resource", "input", "target", "budget"} and work["status"] in {
             "stopped",
@@ -300,7 +299,7 @@ def integration_command(service, account, work_id, key, version, action, payload
                 protection = blocked_reason(uow, work)
                 next_step = (continuation('blocked', protection) if protection else
                              continuation('ready', 'budget_increased'))
-                WorkRows.set_pending_continuation(uow, json.dumps(next_step), work_id)
+                WorkRepository.set_pending_continuation(uow, json.dumps(next_step), work_id)
                 if not protection:
                     WakeupRepository.enqueue(uow, work, f"budget:{command}", "advance", "budget_increased")
         elif action == "grant_resource":
@@ -476,7 +475,7 @@ def integration_command(service, account, work_id, key, version, action, payload
                 and not work["active_coordinator_run_id"]
                 and not RunLifecycleService.unresolved_effect(uow, work)
             ):
-                WorkRows.resolve_control(uow, 'paused' if work['status'] == 'pausing' else 'stopped', json.dumps(continuation('blocked', 'delivery_resolved')), 'paused' if work['status'] == 'pausing' else 'stopped', work_id)
+                WorkRepository.resolve_control(uow, 'paused' if work['status'] == 'pausing' else 'stopped', json.dumps(continuation('blocked', 'delivery_resolved')), 'paused' if work['status'] == 'pausing' else 'stopped', work_id)
                 record_work_event(
                     uow,
                     WorkRepository.get(uow, account, work_id),
@@ -537,13 +536,13 @@ def integration_command(service, account, work_id, key, version, action, payload
             if criteria_satisfied(requirement["acceptance_criteria"], evidence):
                 WorkCompletionPolicy.accept(uow, work, dict(run), user_evidence=evidence)
             else:
-                WorkRows.touch(uow, work_id)
+                WorkRepository.touch(uow, work_id)
         else:
             raise ValueError("unsupported integration command")
         if action != "accept_result" and WorkRepository.get(uow, account, work_id)[
             "status"
         ] not in {"stopped", "completed"}:
-            WorkRows.touch(uow, work_id)
+            WorkRepository.touch(uow, work_id)
         current = WorkRepository.get(uow, account, work_id)
         # Only our prerequisite wait can be released by a new explicit grant.
         # Other input, budget, progress and uncertain-effect gates stay intact.
@@ -560,15 +559,15 @@ def integration_command(service, account, work_id, key, version, action, payload
                 protection = blocked_reason(uow, current)
                 next_step = (continuation('blocked', protection) if protection else
                              initial_continuation(requirement['timing']))
-                current = dict(WorkRows.set_continuation_returning(uow, json.dumps(next_step), work_id))
+                current = dict(WorkRepository.set_continuation_returning(uow, json.dumps(next_step), work_id))
                 if not protection and requirement['timing']['kind'] in {'immediate', 'once'}:
                     WakeupRepository.enqueue(uow, current, f'save-ready:{command}', 'advance', 'workspace_save_ready',
                                           next_step.get('due_at'))
             from application.work.schedules import sync_schedule
             current = WorkRepository.get(uow, account, work_id)
             sync_schedule(uow, current, requirement)
-        record_work_event(uow, current, action, command_id=command, **dto(payload))
-        return service._complete(
+        record_work_event(uow, current, action, command_id=command, **to_json_value(payload))
+        return service.dependencies.complete(
             uow,
             account,
             operation,

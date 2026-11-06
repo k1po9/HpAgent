@@ -11,9 +11,9 @@ from psycopg.types.json import Jsonb
 from memory.hindsight_client import HindsightContractError, HindsightRejected
 from memory.scope_policy import MemoryScope, chat_scope
 from persistence.command_result import CommandResult
+from persistence.idempotency import IdempotencyRepository
 from persistence.memory import MemoryStore, request_hash
 from persistence.memory_context import account_epoch
-from persistence.repositories import IdempotencyRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from web_domain.errors import (
     ConversationBusy,

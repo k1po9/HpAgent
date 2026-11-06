@@ -1,8 +1,8 @@
-"""Compatibility facade for account-scoped Artifact commands and reads."""
+"""Account-scoped Artifact command and query facade."""
 
 from uuid import UUID
 
-from application.artifacts.commands import ArtifactCommands, legacy_artifact_sender
+from application.artifacts.commands import ArtifactCommands, create_artifact_chat_sender
 from application.chat.send_message import SendMessage
 from persistence.command_result import CommandResult
 from web_artifacts.queries import ArtifactQueries
@@ -12,7 +12,7 @@ class ArtifactService(ArtifactQueries):
     def __init__(self, database: object, *, sender: SendMessage | None = None):
         super().__init__(database)
         self.commands = ArtifactCommands(
-            database, sender if sender is not None else legacy_artifact_sender(database)
+            database, sender if sender is not None else create_artifact_chat_sender(database)
         )
 
     def create_artifact(

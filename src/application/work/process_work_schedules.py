@@ -1,4 +1,4 @@
-"""PG schedule projection and bounded due recovery; no live Work workflow."""
+"""Synchronize and evaluate Work schedules, then dispatch due work in a separate transaction."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
 from persistence.work_schedules import WorkScheduleRepository
 from persistence.works import WorkRepository
-from persistence.works import WorkRepository as WorkRows
 from work_domain.models import continuation
 from work_domain.timing import latest_daily, next_daily
 
@@ -22,7 +21,7 @@ from .dispatch_due_work import DispatchDueWork
 logger = logging.getLogger("orchestration.work_schedule")
 
 
-class EvaluateSchedule:
+class ProcessWorkSchedules:
     def __init__(self, database, *, budget_mode="enforce", agent_policy: AgentPolicy | None = None):
         self.database = database
         self.dispatcher = DispatchDueWork(
@@ -94,7 +93,7 @@ class EvaluateSchedule:
             WorkScheduleRepository.update_due(uow, due, now, schedule["schedule_id"])
             # Awaiting receipts/input are never cleared by a timer.
             if work["continuation"]["kind"] in {"ready", "at_time"}:
-                WorkRows.set_schedule_ready(
+                WorkRepository.set_schedule_ready(
                     uow, json.dumps(continuation("ready", "scheduled_occurrence")), work["work_id"]
                 )
         return dict(row)

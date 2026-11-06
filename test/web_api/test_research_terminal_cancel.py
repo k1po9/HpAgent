@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 from support.work_fixtures import research_requirement
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from web_api import terminal_publisher
 
 pytestmark = pytest.mark.postgres
@@ -89,7 +89,7 @@ def test_independent_running_cancel_callback_and_normal_failure(
     assert "assistant_message" not in first.json()
     assert db.execute("SELECT count(*) FROM outbox_events WHERE run_id=%s "
                       "AND event_type='cancel_run'", (run_id,)).fetchone()[0] == 1
-    commands = CommandService(worker_database_url)
+    commands = ChatCommandService(worker_database_url)
     assert commands.cancelled_run(account_id, run_id)
     assert commands.cancelled_run(account_id, run_id)
     assert client.get(f"/api/v1/runs/{run_id}").json()["run"]["status"] == "cancelled"

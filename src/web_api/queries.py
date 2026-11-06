@@ -289,7 +289,7 @@ class QueryService:
         with UnitOfWork(self.database) as uow:
             work_run = uow.execute("SELECT * FROM runs WHERE account_id=%s AND run_id=%s AND source_kind=\'work\'", (account_id, run_id)).fetchone()
             if work_run:
-                from work_domain.serialization import dto
+                from work_domain.serialization import to_json_value
 
                 published = uow.execute(
                     "SELECT sf.* FROM run_files rf JOIN stored_files sf "
@@ -297,7 +297,7 @@ class QueryService:
                     "WHERE rf.account_id=%s AND rf.run_id=%s AND rf.direction='output' "
                     "ORDER BY rf.created_at LIMIT 1", (account_id, run_id),
                 ).fetchone()
-                run = dto(work_run)
+                run = to_json_value(work_run)
                 run["run_ordinal"] = self._run_ordinal(uow, work_run)
                 run["budget"] = load_run_budget_projection(uow, run_id)
                 run["published_file"] = file_dto(published) if published else None

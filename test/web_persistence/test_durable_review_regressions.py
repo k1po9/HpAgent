@@ -11,16 +11,17 @@ import pytest
 from support.qq_messages import qq_message
 
 from agent_activities.store import AgentDataStore
+from application.chat.service import ChatCommandService
 from application.main_agent import create_main_work_tools
-from conversation_domain.commands import CommandService
-from orchestration.work_schedule import WorkScheduleService, run_work_schedule_loop
+from application.work.scheduler import WorkScheduleService
+from application.work.service import WorkCommandService
+from orchestration.work_schedule import run_work_schedule_loop
 from persistence.uow import UnitOfWork
 from resources.model_budget_coordinator import ModelBudgetCoordinator
 from resources.run_budget import RunBudgetConflict, RunBudgetExhausted, RunBudgetService
 from run_domain.execution_context import fence_scope
 from run_domain.lifecycle import RunLifecycleService
 from sandbox.sandbox_manager import SandboxManager
-from work_domain.commands import WorkCommandService
 from work_domain.models import Requirement, continuation
 from workspace.execution import ExecutionResourceService
 
@@ -54,7 +55,7 @@ async def test_ingress_execution_main_tools_preserve_audience(
 ):
     commands, private = accept(database_url, account_id)
     if scope == 'web':
-        chat = CommandService(database_url)
+        chat = ChatCommandService(database_url)
         cid = UUID(chat.create_conversation(account_id, str(uuid4()))['conversation_id'])
         ingress = chat.send_message(account_id, cid, str(uuid4()), 'Inspect Work')
     else:
@@ -62,7 +63,7 @@ async def test_ingress_execution_main_tools_preserve_audience(
         ingress = await qq_service(worker_database_url).accept(qq_message(scope=scope), 'onebot11')
         cid = UUID(ingress['conversation_id'])
     run_id = UUID(ingress['run_id'])
-    chat = CommandService(worker_database_url)
+    chat = ChatCommandService(worker_database_url)
     chat.start_run(account_id, run_id)
     store = AgentDataStore(worker_database_url)
     lease = store.acquire_lease(str(account_id), str(run_id))

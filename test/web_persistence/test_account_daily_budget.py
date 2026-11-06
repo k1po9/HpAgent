@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from resources.account_daily_budget import (
     AccountDailyBudgetConflict,
     AccountDailyBudgetExhausted,
@@ -28,7 +28,7 @@ def _entitle(db, account_id, limit=100):
 
 
 def _run(database_url, account_id):
-    service = CommandService(database_url)
+    service = ChatCommandService(database_url)
     conversation_id = service.create_conversation(account_id, str(uuid4()))["conversation_id"]
     return service.send_message(account_id, conversation_id, str(uuid4()), "hello")["run_id"]
 

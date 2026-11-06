@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from workspace.catalog import WorkspaceCatalog
 from workspace.discovery import WorkspaceDiscovery
 from workspace.resources import ResourcePolicy
@@ -14,7 +14,7 @@ pytestmark = pytest.mark.postgres
 def test_search_retention_and_run_authority(db, account_id, database_url):
     catalog = WorkspaceCatalog(database_url)
     root = UUID(catalog.initialize(account_id)["root_id"])
-    conversation = UUID(CommandService(database_url).create_conversation(
+    conversation = UUID(ChatCommandService(database_url).create_conversation(
         account_id, str(uuid4()))["conversation_id"])
     file_id = uuid4()
     db.execute("INSERT INTO stored_files(file_id,account_id,conversation_id,purpose,status,"
@@ -31,18 +31,18 @@ def test_search_retention_and_run_authority(db, account_id, database_url):
     assert discovery.space(account_id)["bytes_with_active_entry"] == 7
     assert discovery.trace(account_id, entry)["saves"][0]["operation_id"] == "p5-save"
     assert discovery.trace(account_id, entry)["artifact"] is None
-    run_id = UUID(CommandService(database_url).send_message(
+    run_id = UUID(ChatCommandService(database_url).send_message(
         account_id, conversation, str(uuid4()), "read")['run_id'])
     assert discovery.search(account_id, run_id=run_id)["items"] == []
     ResourcePolicy(database_url).grant(account_id, "conversation", conversation,
                                        entry, ["list_metadata"], False)
     # A grant after Run creation cannot extend its fixed candidate set.
     assert discovery.search(account_id, run_id=run_id)["items"] == []
-    next_conversation = UUID(CommandService(database_url).create_conversation(
+    next_conversation = UUID(ChatCommandService(database_url).create_conversation(
         account_id, str(uuid4()))["conversation_id"])
     ResourcePolicy(database_url).grant(account_id, "conversation", next_conversation,
                                        entry, ["list_metadata"], False)
-    next_run = UUID(CommandService(database_url).send_message(
+    next_run = UUID(ChatCommandService(database_url).send_message(
         account_id, next_conversation, str(uuid4()), "read again")['run_id'])
     assert len(discovery.search(account_id, run_id=next_run)["items"]) == 1
     db.execute("INSERT INTO workspace_file_summaries(account_id,file_id,sha256,summary,source_run_id) "

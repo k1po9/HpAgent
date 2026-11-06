@@ -1,4 +1,4 @@
-"""Compatibility exports and the remaining File, Budget and Idempotency repositories."""
+"""FileRepository SQL operations in the caller-owned transaction."""
 
 from __future__ import annotations
 
@@ -7,13 +7,7 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from .accounts import AccountRepository as AccountRepository
-from .conversations import ConversationRepository as ConversationRepository
-from .messages import MessageRepository as MessageRepository
-from .outbox import OutboxRepository as OutboxRepository
-from .runs import RunRepository as RunRepository
 from .uow import UnitOfWork
-from .workflow_executions import WorkflowExecutionRepository as WorkflowExecutionRepository
 
 
 class FileRepository:
@@ -205,76 +199,3 @@ class FileRepository:
             counter += 1
         used.add(candidate.casefold())
         return candidate
-
-
-class RunBudgetRepository:
-    def create_snapshot(
-        self,
-        uow: UnitOfWork,
-        run_id: UUID,
-        account_id: UUID,
-        conversation_id: UUID | None,
-        policy_version: str,
-        mode: str,
-        limits: str,
-        final_response_reserve_tokens: int,
-    ) -> None:
-        uow.execute(
-            "INSERT INTO run_budgets(run_id,account_id,conversation_id,policy_version,mode,"
-            "limits,final_response_reserve_tokens) VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s)",
-            (
-                run_id,
-                account_id,
-                conversation_id,
-                policy_version,
-                mode,
-                limits,
-                final_response_reserve_tokens,
-            ),
-        )
-
-
-class IdempotencyRepository:
-    def claim(
-        self,
-        uow: UnitOfWork,
-        command_id: UUID,
-        account_id: UUID,
-        operation: str,
-        key: str,
-        request_hash: bytes,
-        expires_at: Any,
-    ) -> dict[str, Any] | None:
-        inserted = uow.execute(
-            "INSERT INTO idempotency_commands(idempotency_command_id,account_id,operation,"
-            "idempotency_key,request_hash,expires_at) VALUES (%s,%s,%s,%s,%s,%s) "
-            "ON CONFLICT (account_id,operation,idempotency_key) DO NOTHING "
-            "RETURNING idempotency_command_id",
-            (command_id, account_id, operation, key, request_hash, expires_at),
-        ).fetchone()
-        if inserted:
-            return None
-        return cast(
-            dict[str, Any] | None,
-            uow.execute(
-                "SELECT * FROM idempotency_commands WHERE account_id=%s AND operation=%s "
-                "AND idempotency_key=%s FOR UPDATE",
-                (account_id, operation, key),
-            ).fetchone(),
-        )
-
-    def complete(
-        self,
-        uow: UnitOfWork,
-        account_id: UUID,
-        operation: str,
-        key: str,
-        response_status: int,
-        body: str,
-    ) -> None:
-        uow.execute(
-            "UPDATE idempotency_commands SET status='completed',response_status=%s,"
-            "response_body=%s::jsonb,completed_at=now() WHERE account_id=%s "
-            "AND operation=%s AND idempotency_key=%s",
-            (response_status, body, account_id, operation, key),
-        )

@@ -5,8 +5,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from application.chat.service import ChatCommandService
 from conversation_domain.admission import SingleActiveRunAdmission
-from conversation_domain.commands import CommandService
 from web_domain.errors import ConversationBusy, IdempotencyConflict, ResourceNotFound
 
 pytestmark = pytest.mark.postgres
@@ -17,7 +17,7 @@ def conversation(commands, account_id):
 
 
 def test_surface_keys_replay_from_pg_across_command_instances(db, account_id, database_url):
-    first, second = CommandService(database_url), CommandService(database_url)
+    first, second = ChatCommandService(database_url), ChatCommandService(database_url)
     cid = conversation(first, account_id)
     key = "qq:onebot11:bot-1:group:42:thread:7:message:123"
     accepted = first.send_message(account_id, cid, key, "hello")
@@ -43,7 +43,7 @@ def test_surface_keys_replay_from_pg_across_command_instances(db, account_id, da
 def test_independent_surface_callers_race_at_one_pg_admission_slot(
     db, account_id, database_url,
 ):
-    web, qq = CommandService(database_url), CommandService(database_url)
+    web, qq = ChatCommandService(database_url), ChatCommandService(database_url)
     cid = conversation(web, account_id)
     barrier = Barrier(2)
 
@@ -66,7 +66,7 @@ def test_independent_surface_callers_race_at_one_pg_admission_slot(
 def test_retained_replay_compares_file_identity_independent_of_storage_order(
     db, account_id, database_url,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     cid = conversation(commands, account_id)
     files = (uuid4(), uuid4())
     for file_id in files:
@@ -88,7 +88,7 @@ def test_retained_replay_compares_file_identity_independent_of_storage_order(
 def test_same_account_keeps_distinct_conversations_and_enforces_ownership(
     db, account_id, database_url,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     private, group = conversation(commands, account_id), conversation(commands, account_id)
     one = commands.send_message(account_id, private, "qq:bot:dm:42:msg:1", "private")
     two = commands.send_message(account_id, group, "qq:bot:group:42:msg:1", "group")
@@ -112,12 +112,12 @@ def test_admission_policy_runs_in_command_transaction_for_send_and_retry(
             super().admit_in_locked_conversation(uow, conversation_id)
 
     policy = RecordingPolicy()
-    commands = CommandService(database_url, admission_policy=policy)
+    commands = ChatCommandService(database_url, admission_policy=policy)
     cid = conversation(commands, account_id)
     first = commands.send_message(account_id, cid, "qq:bot:msg:1", "hello")
     with pytest.raises(ConversationBusy):
         commands.send_message(account_id, cid, str(uuid4()), "busy")
-    CommandService(worker_database_url).fail_run(account_id, UUID(first["run_id"]), "test_failure")
+    ChatCommandService(worker_database_url).fail_run(account_id, UUID(first["run_id"]), "test_failure")
     retried = commands.retry_run(account_id, UUID(first["run_id"]), "qq:bot:retry:1")
     assert retried["run"]["session_id"] is None
     assert len(policy.transactions) == 3
@@ -128,7 +128,7 @@ def test_admission_policy_runs_in_command_transaction_for_send_and_retry(
 def test_outbox_failure_rolls_back_admission_message_session_and_run(
     db, account_id, database_url, monkeypatch,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     cid = conversation(commands, account_id)
 
     def fail(*args, **kwargs):

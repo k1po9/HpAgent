@@ -6,8 +6,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from application.chat.service import ChatCommandService
 from application.main_agent import create_main_work_tools
-from conversation_domain.commands import CommandService
 from web_domain.errors import ResourceNotFound
 from work_domain.models import Requirement
 
@@ -16,7 +16,7 @@ pytestmark = pytest.mark.postgres
 
 @pytest.mark.asyncio
 async def test_main_source_replay_chat_independence_and_revision(commands, account_id, urls, owner):
-    chat = CommandService(urls[1])
+    chat = ChatCommandService(urls[1])
     cid = UUID(chat.create_conversation(account_id, str(uuid4())).body['conversation_id'])
     sent = chat.send_message(account_id, cid, str(uuid4()), 'Continue in background')
     source = owner.execute('SELECT trigger_message_id FROM runs WHERE run_id=%s',
@@ -54,7 +54,7 @@ async def test_main_source_replay_chat_independence_and_revision(commands, accou
 
 
 def test_source_without_conversation_infers_exact_link_and_rejects_other_account(commands, account_id, urls, owner):
-    chat = CommandService(urls[1])
+    chat = ChatCommandService(urls[1])
     cid = UUID(chat.create_conversation(account_id, str(uuid4())).body['conversation_id'])
     sent = chat.send_message(account_id, cid, str(uuid4()), 'Background')
     source = owner.execute('SELECT trigger_message_id FROM runs WHERE run_id=%s', (sent['run_id'],)).fetchone()['trigger_message_id']
@@ -73,7 +73,7 @@ def test_acceptance_profile_freezes_effective_work_and_run_limits(commands, acco
     monkeypatch.syspath_prepend(str(Path(__file__).resolve().parents[2] / 'scripts' / 'acceptance'))
     from s7.composition import configure_governance
 
-    from persistence.repositories import RunBudgetRepository
+    from persistence.run_budgets import RunBudgetRepository
     from resources import work_budget
 
     monkeypatch.setattr(RunBudgetRepository, 'create_snapshot', RunBudgetRepository.create_snapshot)
@@ -98,7 +98,7 @@ def test_selected_authorized_directory_reaches_main_without_copying_work_grants(
     from workspace.catalog import WorkspaceCatalog
     from workspace.resources import ResourcePolicy
 
-    chat = CommandService(urls[1])
+    chat = ChatCommandService(urls[1])
     cid = UUID(chat.create_conversation(account_id, str(uuid4())).body['conversation_id'])
     catalog = WorkspaceCatalog(urls[1])
     root = UUID(catalog.initialize(account_id)['root_id'])
@@ -120,7 +120,7 @@ async def test_main_rejected_handoff_feedback_uses_committed_receipt(urls, accou
 
     from web_domain.lifecycle import WebRunLifecycleService
 
-    chat = CommandService(urls[1])
+    chat = ChatCommandService(urls[1])
     cid = UUID(chat.create_conversation(account_id, str(uuid4())).body['conversation_id'])
     sent = chat.send_message(account_id, cid, str(uuid4()), 'Continue in background')
     run_id = UUID(sent['run_id'])

@@ -12,7 +12,6 @@ from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
 from persistence.works import WorkRepository
-from persistence.works import WorkRepository as WorkRows
 from resources.run_budget import RunBudgetExhausted
 from run_domain.lifecycle import RunLifecycleService
 from web_domain.errors import DomainError
@@ -34,7 +33,7 @@ class DispatchDueWork:
         now = now or datetime.now(UTC)
         count = 0
         with UnitOfWork(self.database) as uow:
-            rows = WorkRows.lock_dispatch_candidates(uow, now, limit)
+            rows = WorkRepository.lock_dispatch_candidates(uow, now, limit)
             for work in rows:
                 kind = work["continuation"]["kind"]
                 due = work["continuation"].get("due_at")
@@ -86,7 +85,7 @@ class DispatchDueWork:
                     count += 1
                 except (ValueError, DomainError, RunBudgetExhausted) as exc:
                     logger.warning("Work admission blocked: %s", type(exc).__name__)
-                    WorkRows.set_pending_continuation(
+                    WorkRepository.set_pending_continuation(
                         uow,
                         json.dumps(
                             continuation(

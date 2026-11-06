@@ -33,7 +33,7 @@ class SendMessage:
 
     @retryable_transaction
     def execute(self, command: SendMessageCommand) -> CommandResult:
-        with UnitOfWork(self.dependencies.database_url) as uow:
+        with UnitOfWork(self.dependencies.database) as uow:
             return self.execute_in_uow(uow, command)
 
     def execute_in_uow(

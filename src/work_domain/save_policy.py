@@ -5,7 +5,7 @@ import json
 from uuid import UUID
 
 from application.work.events import record_work_event
-from persistence.works import WorkRepository as WorkRows
+from persistence.works import WorkRepository
 from work_domain.models import continuation
 from workspace.resources import ResourcePolicy
 
@@ -102,6 +102,6 @@ def defer_workspace_save(uow, work, requirement):
         return False
     next_step = continuation('awaiting_input', reason)
     if work['continuation'] != next_step:
-        current = dict(WorkRows.set_save_wait(uow, json.dumps(next_step), work['account_id'], work['work_id']))
+        current = dict(WorkRepository.set_save_wait(uow, json.dumps(next_step), work['account_id'], work['work_id']))
         record_work_event(uow, current, 'blocked', reason=reason)
     return True

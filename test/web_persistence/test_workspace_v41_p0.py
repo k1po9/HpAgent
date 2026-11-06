@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from file_runtime import OutputPublisher
 from storage.tenant_file_store import TenantFileStore
 from web_domain.errors import ResourceNotFound
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.postgres
 async def test_prior_pdf_selected_once_and_frozen_on_retry(
     tmp_path, db, account_id, database_url, worker_database_url,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation_id = UUID(commands.create_conversation(account_id, str(uuid4()))["conversation_id"])
     store = TenantFileStore(tmp_path / "store", max_bytes=1024)
     files = FileService(database_url, store, max_bytes=1024)
@@ -36,7 +36,7 @@ async def test_prior_pdf_selected_once_and_frozen_on_retry(
     first = UUID(commands.send_message(
         account_id, conversation_id, str(uuid4()), "first", file_ids=(file_id,)
     )["run_id"])
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     worker.start_run(account_id, first)
     worker.complete_run(account_id, first, "done")
     candidates = files.list_candidates(account_id, conversation_id)["items"]
@@ -64,7 +64,7 @@ async def test_prior_pdf_selected_once_and_frozen_on_retry(
 def test_published_docx_is_later_input_without_rewriting_origin(
     tmp_path, db, account_id, database_url, worker_database_url,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation_id = UUID(commands.create_conversation(account_id, str(uuid4()))["conversation_id"])
     first = UUID(commands.send_message(account_id, conversation_id, str(uuid4()), "make")['run_id'])
     store = TenantFileStore(tmp_path / "store", max_bytes=1024)
@@ -76,7 +76,7 @@ def test_published_docx_is_later_input_without_rewriting_origin(
         RunFileScope(first, tmp_path / "inputs", tmp_path / "scratch", outputs, ()),
         "docx:1", "result.docx",
     )
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     worker.start_run(account_id, first)
     worker.complete_run(account_id, first, "done")
     second = UUID(commands.send_message(
@@ -97,7 +97,7 @@ def test_published_docx_is_later_input_without_rewriting_origin(
 def test_unpublished_and_cross_account_output_are_inaccessible(
     tmp_path, db, account_id, database_url, worker_database_url,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation_id = UUID(commands.create_conversation(account_id, str(uuid4()))["conversation_id"])
     run_id = UUID(commands.send_message(account_id, conversation_id, str(uuid4()), "make")['run_id'])
     store = TenantFileStore(tmp_path / "store", max_bytes=1024)
@@ -129,7 +129,7 @@ def test_unpublished_and_cross_account_output_are_inaccessible(
 def test_publish_recovers_after_object_write_before_database_registration(
     tmp_path, db, account_id, database_url, worker_database_url,
 ):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation_id = UUID(commands.create_conversation(account_id, str(uuid4()))["conversation_id"])
     run_id = UUID(commands.send_message(account_id, conversation_id, str(uuid4()), "make")['run_id'])
     outputs = tmp_path / "outputs"

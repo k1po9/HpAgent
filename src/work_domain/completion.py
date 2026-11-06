@@ -7,7 +7,7 @@ import json
 from application.work.events import record_work_event
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
-from persistence.works import WorkRepository as WorkRows
+from persistence.works import WorkRepository
 
 
 class WorkCompletionPolicy:
@@ -62,7 +62,7 @@ class WorkCompletionPolicy:
         receipt = {'schema_version': 1, 'run_id': str(run['run_id']),
                    'requirement_revision': run['requirement_revision'], 'evidence': evidence,
                    'evaluator': 'authorized_user_acceptance_v1' if user_evidence is not None else 'delivery_receipt_policy_v1' if delivery_evidence is not None else 'work_completion_policy_v1'}
-        updated = WorkRows.complete(uow, run['requirement_revision'], json.dumps(receipt), work['account_id'], work['work_id'])
+        updated = WorkRepository.complete(uow, run['requirement_revision'], json.dumps(receipt), work['account_id'], work['work_id'])
         WakeupRepository.supersede_pending(uow, work['work_id'])
         event = record_work_event(uow, dict(updated), 'completed', run_id=run['run_id'], evidence=evidence)
         from work_domain.integration import adopt_artifacts

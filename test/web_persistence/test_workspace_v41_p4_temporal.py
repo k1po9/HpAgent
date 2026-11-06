@@ -12,6 +12,7 @@ from temporalio.worker import Worker
 
 from agent_activities.store import AgentDataStore
 from agent_workflows.contracts import AGENT_TASK_QUEUE
+from application.work.service import WorkCommandService
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.research_workflow import ResearchCapabilityWorkflow
@@ -24,7 +25,6 @@ from run_domain.input import RunInputLoader
 from storage.tenant_file_store import TenantFileStore
 from web_domain.lifecycle import WebRunLifecycleService
 from web_domain.workflow_execution import PostgresWorkflowExecutionStore
-from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
 
 from .test_workspace_v41_p4 import Canonicalizer, Content, Discovery, Synthesis

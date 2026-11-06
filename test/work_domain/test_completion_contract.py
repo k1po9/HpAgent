@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from resources.run_budget import RunBudgetService
-from work_domain.commands import WorkConflict
+from work_domain.errors import WorkConflict
 from work_domain.models import LegacyGenericCriteria, Requirement
 
 pytestmark = pytest.mark.postgres

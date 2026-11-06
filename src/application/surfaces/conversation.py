@@ -19,7 +19,7 @@ from web_domain.errors import (
 )
 
 if TYPE_CHECKING:
-    from application.chat.service import CommandService
+    from application.chat.service import ChatCommandService
 
 
 class IdentityNotBound(Exception):
@@ -33,7 +33,7 @@ def stable_key(value: object) -> str:
 
 
 class SurfaceConversationCommands:
-    def __init__(self, commands: CommandService):
+    def __init__(self, commands: ChatCommandService):
         self.commands = commands
 
     @retryable_transaction
@@ -69,7 +69,7 @@ class SurfaceConversationCommands:
                 }
             )
         )
-        with UnitOfWork(self.commands.database_url) as uow:
+        with UnitOfWork(self.commands.database) as uow:
             identity = uow.execute(
                 "SELECT b.account_id FROM identity_bindings b JOIN accounts a "
                 "ON a.account_id=b.account_id WHERE b.provider=%s AND b.normalized_subject_id=%s "

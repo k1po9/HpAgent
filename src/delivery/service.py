@@ -13,7 +13,6 @@ from common.runtime_config import CapacityConfig
 from persistence.uow import UnitOfWork
 from persistence.work_requirements import WorkRequirementRepository
 from persistence.works import WorkRepository
-from persistence.works import WorkRepository as WorkRows
 from work_domain.models import continuation
 
 
@@ -133,9 +132,9 @@ def enqueue_event(uow, work, event_id, event_type, run_id=None):
                           'delivery_blocked', 'delivery_accepted'}:
         return
     from work_domain.integration import completed_outputs
-    from work_domain.serialization import dto
+    from work_domain.serialization import to_json_value
 
-    results = dto(completed_outputs(uow, work)) if event_type == "completed" else []
+    results = to_json_value(completed_outputs(uow, work)) if event_type == "completed" else []
     enqueue(
         uow,
         work["account_id"],
@@ -248,7 +247,7 @@ class DeliveryReceiptHandler:
                 "user_acceptance_required",
                 receipt_ref=str(notification["notification_id"]),
             )
-            WorkRows.set_continuation(uow, json.dumps(next_step), work['work_id'])
+            WorkRepository.set_continuation(uow, json.dumps(next_step), work['work_id'])
             record_work_event(
                 uow,
                 WorkRepository.get(uow, work["account_id"], work["work_id"]),
@@ -274,7 +273,7 @@ class DeliveryReceiptHandler:
                 if timing["kind"] == "daily"
                 else continuation("ready", "delivery_accepted")
             )
-            WorkRows.set_continuation(uow, json.dumps(next_step), work['work_id'])
+            WorkRepository.set_continuation(uow, json.dumps(next_step), work['work_id'])
 
 
 class DeliveryService:
@@ -342,7 +341,7 @@ class DeliveryService:
                     and work["status"] == "active"
                     and work["continuation"].get("receipt_ref") == str(row["notification_id"])
                 ):
-                    WorkRows.set_continuation(uow, json.dumps(continuation('blocked', 'notification_target_unavailable', receipt_ref=str(row['notification_id']))), work['work_id'])
+                    WorkRepository.set_continuation(uow, json.dumps(continuation('blocked', 'notification_target_unavailable', receipt_ref=str(row['notification_id']))), work['work_id'])
                     record_work_event(
                         uow,
                         WorkRepository.get(uow, work["account_id"], work["work_id"]),

@@ -7,8 +7,8 @@ import psycopg
 import pytest
 from psycopg.rows import dict_row
 
+from application.work.service import WorkCommandService
 from persistence.migrate import migrate, verify_schema
-from work_domain.commands import WorkCommandService
 
 
 @pytest.fixture(scope='session')

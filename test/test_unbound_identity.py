@@ -22,7 +22,7 @@ from common.types import ChannelType, UnifiedMessage
 
 class Commands:
     def execute(self, **kwargs):
-        from conversation_domain.surface_commands import IdentityNotBound
+        from application.surfaces.conversation import IdentityNotBound
         raise IdentityNotBound()
 
 

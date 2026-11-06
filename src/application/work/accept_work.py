@@ -14,7 +14,7 @@ from persistence.command_result import CommandResult
 from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
-from persistence.works import WorkRepository as WorkRows
+from persistence.works import WorkRepository
 from web_domain.errors import ResourceNotFound
 from work_domain.errors import WorkConflict
 from work_domain.models import validate_new_completion_criteria
@@ -22,7 +22,7 @@ from work_domain.save_policy import (
     defer_workspace_save,
     validate_new_save_policy,
 )
-from work_domain.serialization import dto
+from work_domain.serialization import to_json_value
 from work_domain.time_policy import validate_new_timing
 
 from .commands import AcceptWorkCommand
@@ -42,8 +42,8 @@ class AcceptWork:
         payload = {
             "title": title,
             "requirement": value,
-            "conversation_id": dto(command.conversation_id),
-            "source_message_id": dto(command.source_message_id),
+            "conversation_id": to_json_value(command.conversation_id),
+            "source_message_id": to_json_value(command.source_message_id),
         }
         return value, title, payload
 
@@ -85,15 +85,15 @@ class AcceptWork:
             raise ResourceNotFound()
         if source and conversation_id is None:
             conversation_id = source["conversation_id"]
-        WorkRows.lock_accept_limit(uow, str(account_id))
-        count = WorkRows.count_accepted(uow, account_id)["n"]
+        WorkRepository.lock_accept_limit(uow, str(account_id))
+        count = WorkRepository.count_accepted(uow, account_id)["n"]
         if count >= CapacityConfig.from_environment().work_account_accept_limit:
             raise WorkConflict({}, "work_accept_limit")
         work_id = uuid7()
         from work_domain.timing import initial_continuation
 
         next_step = initial_continuation(value["timing"])
-        WorkRows.insert(uow, work_id, account_id, title, json.dumps(next_step))
+        WorkRepository.insert(uow, work_id, account_id, title, json.dumps(next_step))
         from resources.work_budget import WorkBudgetService
 
         WorkBudgetService.create(uow, account_id, work_id)

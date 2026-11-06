@@ -22,7 +22,7 @@ from agent_workflows.contracts import (
     ToolExecutionInput,
 )
 from agent_workflows.ids import root_execution_id
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.temporal, pytest.mark.postgres]
 
@@ -85,7 +85,7 @@ async def test_activity_worker_sigkill_redelivers_intent_without_repeating_side_
     namespace = os.getenv("TEMPORAL_NAMESPACE", "default")
     client = await Client.connect(host, namespace=namespace)
 
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation = commands.create_conversation(account_id, str(uuid4()), "crash test")
     sent = commands.send_message(
         account_id,

@@ -124,7 +124,7 @@ Operation、tool_result 与 CapabilityObservation。父保存和 Work 验收仍�
 
 1. 先证明整个 Run 确有不同控制方式；若只增加专业处理步骤，优先在 Generic Work 下组合能力。
 2. 在 `work_domain/models.py` 的 Requirement 键、spec 与验收验证中定义真实业务契约；同步需要的命令/API/前端及文档，不只添加注册表字符串。
-3. 在 `orchestration/execution_strategy.py` 登记版本化 StrategySnapshot，由原 planner 冻结到 Run；未知键和未知版本必须拒绝。明确历史快照的恢复支持范围。
+3. 在 `run_domain/strategy.py` 登记版本化 StrategySnapshot，由原 planner 冻结到 Run；未知键和未知版本必须拒绝。明确历史快照的恢复支持范围。
 4. 在原 AgentLifecycleWorkflow 显式接入 executor/父适配器，并在 Worker composition 注入依赖、注册所需 Workflow/Activity；顶层父侧承担原 Run 终态、保存/验收事实。这里有意需要修改顶层分发，不能从专业目录自动猜出父业务语义，也不能依赖当前固定研究分支的默认路径。
 5. 补 Requirement、策略选择/版本拒绝、Worker 注册/sandbox、真实隔离执行与父完成测试。不得把 Workflow 返回、候选发布或渠道 accepted 当成 Work 完成。
 

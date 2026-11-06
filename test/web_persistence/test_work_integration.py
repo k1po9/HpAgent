@@ -7,6 +7,8 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
+from application.artifacts.service import ArtifactService
+from application.work.service import WorkCommandService
 from delivery.service import DeliveryService
 from orchestration.run_dispatcher import ReminderActivities
 from persistence.uow import UnitOfWork
@@ -14,9 +16,7 @@ from resources.run_budget import RunBudgetConflict, RunBudgetService
 from resources.work_budget import WorkBudgetExhausted
 from run_domain.lifecycle import RunLifecycleService
 from web_artifacts.generator import ArtifactGenerationError
-from web_artifacts.services import ArtifactService
 from web_domain.errors import ResourceNotFound
-from work_domain.commands import WorkCommandService
 from work_domain.models import Requirement
 
 pytestmark = pytest.mark.postgres
@@ -183,10 +183,10 @@ def test_revision_receipt_cannot_complete_new_requirements(
 async def test_artifact_build_has_new_work_run_provenance(
     db, database_url, worker_database_url, account_id, mode, file_store_root
 ):
-    from conversation_domain.commands import CommandService
+    from application.chat.service import ChatCommandService
     from web_artifacts.build import ArtifactBuildService
 
-    chat = CommandService(database_url)
+    chat = ChatCommandService(database_url)
     cid = UUID(
         chat.create_conversation(account_id, str(uuid4())).body["conversation"]["conversation_id"]
     )

@@ -10,15 +10,16 @@ import pytest
 from test_capability_contracts import definition
 from test_capability_facts import begin, execution, output_file
 
-from orchestration.work_schedule import WorkScheduleService
+from application.work.admit_work_run import AdmitWorkRun, WorkAdmissionContext
+from application.work.scheduler import WorkScheduleService
 from persistence.uow import UnitOfWork
-from run_domain.admission import admit_work_run
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository
 from run_domain.capabilities import CapabilityFacts
 from run_domain.capability_contracts import CapabilityRegistry, CapabilityResult, ResultRef
 from run_domain.lifecycle import RunLifecycleService
-from work_domain.commands import WorkConflict
+from work_domain.errors import WorkConflict
 from work_domain.models import Requirement, continuation
-from work_domain.persistence import WorkRepository
 
 pytestmark = pytest.mark.postgres
 
@@ -133,8 +134,10 @@ def test_protection_survives_runs_replay_and_scheduler(
         commands.advance(account_id, work_id, str(uuid4()), work["row_version"])
     with UnitOfWork(urls[2]) as uow:
         current = WorkRepository.get(uow, account_id, work_id, lock=True)
-        requirement = WorkRepository.requirement(uow, account_id, work_id, 1)
-        assert admit_work_run(uow, current, requirement, None, urls[2], "enforce") is None
+        requirement = WorkRequirementRepository.get(uow, account_id, work_id, 1)
+        assert AdmitWorkRun(urls[2], "enforce").execute_in_uow(
+            uow, WorkAdmissionContext(current, requirement, None)
+        ).run is None
     assert commands.get(account_id, work_id)["work"]["active_coordinator_run_id"] is None
     assert (
         owner.execute(
@@ -154,8 +157,10 @@ def test_protection_survives_runs_replay_and_scheduler(
     ]
     with UnitOfWork(urls[2]) as uow:
         current = WorkRepository.get(uow, account_id, work_id, lock=True)
-        requirement = WorkRepository.requirement(uow, account_id, work_id, 1)
-        assert admit_work_run(uow, current, requirement, None, urls[2], "enforce") is None
+        requirement = WorkRequirementRepository.get(uow, account_id, work_id, 1)
+        assert AdmitWorkRun(urls[2], "enforce").execute_in_uow(
+            uow, WorkAdmissionContext(current, requirement, None)
+        ).run is None
     assert commands.get(account_id, work_id)["work"]["active_coordinator_run_id"] is None
     resumed = commands.control(
         account_id, work_id, str(uuid4()), paused["row_version"], "resume"

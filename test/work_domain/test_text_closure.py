@@ -19,6 +19,7 @@ from agent_activities.text_result import TextActivities
 from application.chat_execution import PostgresWebRequestLoader
 from application.context_assembly import ContextAssemblyService
 from application.context_builder import HarnessContextBuilder
+from application.work.scheduler import WorkScheduleService
 from application.work_context import RunExecutionBindings, RunRequestLoader
 from brain.contracts import BrainDecision
 from delivery.service import DeliveryService
@@ -31,7 +32,6 @@ from orchestration.web_dispatcher import (
     WebOutboxDispatcher,
 )
 from orchestration.web_workers import build_web_temporal_workers
-from orchestration.work_schedule import WorkScheduleService
 from resources.run_budget import RunBudgetService
 from run_domain.input import RunInputLoader
 from storage.tenant_file_store import TenantFileStore

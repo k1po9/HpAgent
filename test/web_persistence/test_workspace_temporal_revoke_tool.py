@@ -15,7 +15,7 @@ from temporalio.client import Client
 from temporalio.worker import UnsandboxedWorkflowRunner, Worker
 from temporalio.workflow import ActivityCancellationType
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from file_domain.models import SourceLocator, TextView
 from file_runtime import FileAdapterRegistry
 from persistence.uow import UnitOfWork
@@ -79,7 +79,7 @@ async def test_temporal_blocked_file_tool_stops_after_adapter_exit(
     if not host:
         pytest.skip("TEMPORAL_HOST is required")
     namespace = os.getenv("TEMPORAL_TEST_NAMESPACE", "hpagent-workspace-revoke")
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     catalog = WorkspaceCatalog(database_url, commands)
     policy = ResourcePolicy(database_url)
     tree = catalog.initialize(account_id)
@@ -91,7 +91,7 @@ async def test_temporal_blocked_file_tool_stops_after_adapter_exit(
     grants = policy.grant(account_id, "conversation", reader, parent,
                           ["list_metadata", "read_content"], True)
     run_id = _run(commands, account_id, reader)
-    assert CommandService(worker_database_url).start_run(account_id, run_id)
+    assert ChatCommandService(worker_database_url).start_run(account_id, run_id)
     entered = threading.Event()
     release = threading.Event()
     exited = threading.Event()

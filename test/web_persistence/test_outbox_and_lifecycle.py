@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from web_domain.outbox import OutboxService
 
 from .test_phase_a_invariants import _conversation_and_run
@@ -52,8 +52,8 @@ def test_db_008_concurrent_retry_returns_one_child(
     db, account_id, database_url, worker_database_url, migration_database_url
 ):
     _, _, source_id = _conversation_and_run(database_url, account_id)
-    CommandService(worker_database_url).fail_run(account_id, source_id, "test_failure")
-    service = CommandService(database_url)
+    ChatCommandService(worker_database_url).fail_run(account_id, source_id, "test_failure")
+    service = ChatCommandService(database_url)
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(
             executor.map(
@@ -131,7 +131,7 @@ def test_db_013_late_completion_cannot_overwrite_failed(
     db, account_id, database_url, worker_database_url
 ):
     _, _, run_id = _conversation_and_run(database_url, account_id)
-    worker = CommandService(worker_database_url)
+    worker = ChatCommandService(worker_database_url)
     assert worker.fail_run(account_id, run_id, "failed_first")
     assert not worker.complete_run(account_id, run_id, "late")
     assert db.execute(
@@ -188,7 +188,7 @@ def test_db_020_start_and_cancel_converge_without_duplicate_execution(
                 "WHERE run_id=%s AND is_current",
                 (run_id,),
             )
-        assert CommandService(worker_database_url).cancelled_run(account_id, run_id)
+        assert ChatCommandService(worker_database_url).cancelled_run(account_id, run_id)
     assert db.execute("SELECT status FROM runs WHERE run_id=%s", (run_id,)).fetchone()[0] == "cancelled"
     assert db.execute(
         "SELECT count(*) FROM workflow_executions WHERE run_id=%s", (run_id,)
@@ -222,7 +222,7 @@ def test_db_022_terminal_dead_letter_does_not_revert_completed(
 ):
     _, _, run_id = _conversation_and_run(database_url, account_id)
     _running(worker_database_url, run_id)
-    CommandService(worker_database_url).complete_run(account_id, run_id, "done")
+    ChatCommandService(worker_database_url).complete_run(account_id, run_id, "done")
     outbox = OutboxService(worker_database_url)
     event_id = outbox.claim("terminal-publisher", {"publish_terminal_event"}, 1)[0][
         "outbox_event_id"
@@ -238,7 +238,7 @@ def test_terminal_outbox_carries_stable_event_id(
 ):
     _, _, run_id = _conversation_and_run(database_url, account_id)
     _running(worker_database_url, run_id)
-    CommandService(worker_database_url).complete_run(account_id, run_id, "done")
+    ChatCommandService(worker_database_url).complete_run(account_id, run_id, "done")
     row = db.execute(
         "SELECT outbox_event_id,payload->>'terminal_event_id' FROM outbox_events "
         "WHERE business_key=%s",
@@ -367,7 +367,7 @@ def test_db_028_recovery_never_steals_other_consumers_leases(
 
     _, _, run_id = _conversation_and_run(database_url, account_id)
     _running(worker_database_url, run_id)
-    CommandService(worker_database_url).complete_run(account_id, run_id, "done")
+    ChatCommandService(worker_database_url).complete_run(account_id, run_id, "done")
 
     outbox = OutboxService(worker_database_url)
     terminal = outbox.claim(
@@ -468,7 +468,7 @@ def test_db_027_lifecycle_txn_failure_rolls_back_atomically(
 
     _, _, run_id = _conversation_and_run(database_url, account_id)
     _running(worker_database_url, run_id)
-    service = CommandService(worker_database_url)
+    service = ChatCommandService(worker_database_url)
 
     # A fault inside the authoritative lifecycle transaction (here, the terminal
     # message update) must roll the whole command back atomically.

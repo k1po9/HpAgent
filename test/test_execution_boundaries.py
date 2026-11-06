@@ -27,7 +27,7 @@ for name in (
     'run_domain.results', 'run_domain.capabilities', 'run_domain.capability_contracts',
     'run_domain.diagnostics',
     'run_domain.lifecycle', 'work_domain.completion',
-    'work_domain.commands', 'workspace.catalog', 'workspace.resources',
+    'application.work.service', 'workspace.catalog', 'workspace.resources',
     'workspace.execution', 'file_runtime.output', 'research_domain.persistence',
 ):
     importlib.import_module(name)

@@ -4,14 +4,14 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from tracing.repository import PostgresTraceRepository
 
 pytestmark = pytest.mark.postgres
 
 
 def test_trace_repository_builds_owned_tree(database_url, worker_database_url, account_id):
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation_id = UUID(
         commands.create_conversation(account_id, str(uuid4()))["conversation_id"]
     )

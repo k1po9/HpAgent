@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from agent_workflows.ids import tool_execution_workflow_id
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from file_domain.approvals import (
     ApprovalNotGranted,
     ApprovalNotPending,
@@ -19,12 +19,12 @@ pytestmark = pytest.mark.postgres
 
 
 def _run(account_id, database_url, worker_database_url):
-    api = CommandService(database_url)
+    api = ChatCommandService(database_url)
     conversation_id = UUID(api.create_conversation(account_id, str(uuid4()))["conversation_id"])
     run_id = UUID(api.send_message(
         account_id, conversation_id, str(uuid4()), "high risk action"
     )["run_id"])
-    CommandService(worker_database_url).start_run(account_id, run_id)
+    ChatCommandService(worker_database_url).start_run(account_id, run_id)
     return conversation_id, run_id
 
 
@@ -140,7 +140,7 @@ def test_run_cancel_atomically_cancels_pending_approval_and_enqueues_wake(
         account_id, conversation_id, run_id, "run-cancel-op", "overwrite", "cancel",
         "f" * 64,
     )
-    result = CommandService(database_url).cancel_run(account_id, run_id, str(uuid4()))
+    result = ChatCommandService(database_url).cancel_run(account_id, run_id, str(uuid4()))
     assert result.body["status"] == "cancelling"
     assert db.execute(
         "SELECT status FROM hpagent.file_action_approvals WHERE approval_id=%s",

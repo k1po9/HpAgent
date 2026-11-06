@@ -7,10 +7,10 @@ from support.qq_messages import qq_message
 from test_onebot11_transport import bot, eventually
 from test_onebot11_transport import channel as channel
 
+from application.chat.service import ChatCommandService
 from application.qq_delivery import QQDeliveryAdapter
 from channels.router import ChannelRouter
 from common.types import ChannelType
-from conversation_domain.commands import CommandService
 from delivery.service import DeliveryService
 from web_persistence.test_qq_canonical_ingress import bind, service
 
@@ -20,7 +20,7 @@ pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
 async def prepared(db, account_id, database, channel):
     bind(db, account_id)
     accepted = await service(database).accept(qq_message(bot='999'), 'onebot11')
-    commands = CommandService(database)
+    commands = ChatCommandService(database)
     run_id = UUID(accepted['run_id'])
     commands.start_run(account_id, run_id)
     commands.complete_run(account_id, run_id, '中文😀[CQ:at,qq=all]' + 'x' * 1600)

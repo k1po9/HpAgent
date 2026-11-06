@@ -177,13 +177,13 @@ class TerminalEventPublisher:
 
     async def _publish_work(self, event):
         from persistence.uow import UnitOfWork
-        from work_domain.serialization import dto
+        from work_domain.serialization import to_json_value
         def load():
             with UnitOfWork(self.database) as uow:
                 row = uow.execute('SELECT * FROM work_events WHERE account_id=%s AND work_id=%s AND event_id=%s', (event['account_id'],event['work_id'],event['payload']['event_id'])).fetchone()
                 if row is None:
                     raise ValueError('Work event unavailable')
-                return dto(row)
+                return to_json_value(row)
         try:
             row = await asyncio.to_thread(load)
             await self.redis.publish(f"hpagent:web:work:{event['work_id']}",json.dumps(row,ensure_ascii=False))

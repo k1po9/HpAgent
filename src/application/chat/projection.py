@@ -46,9 +46,9 @@ class ChatProjection:
     def snapshot_for_run(cls, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
         run = RunRepository().get_in_uow(uow, run_id)
         if run["source_kind"] == "work":
-            from work_domain.serialization import dto
+            from work_domain.serialization import to_json_value
 
-            value = dto(run)
+            value = to_json_value(run)
             value["budget"] = load_run_budget_projection(uow, run_id)
             value["execution_id"] = str(RunRepository().root_execution_id(uow, run_id))
             return {"source_kind": "work", "run": value}

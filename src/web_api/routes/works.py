@@ -229,12 +229,12 @@ def reference_work_artifact(
 @router.get("/api/v1/works/{work_id}/notification-targets")
 def work_targets(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
     from persistence.works import WorkRepository
-    from work_domain.serialization import dto
+    from work_domain.serialization import to_json_value
 
     with UnitOfWork(request.app.state.api_pool) as uow:
         WorkRepository.get(uow, context.account_id, work_id)
         return {
-            "items": dto(
+            "items": to_json_value(
                 uow.execute(
                     "SELECT target_id,channel,audience,content_scope,target_version,enabled FROM delivery_targets WHERE account_id=%s AND work_id=%s ORDER BY created_at",
                     (context.account_id, work_id),
@@ -306,12 +306,12 @@ def increase_work_budget(
 @router.get("/api/v1/works/{work_id}/inputs")
 def work_inputs(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
     from persistence.works import WorkRepository
-    from work_domain.serialization import dto
+    from work_domain.serialization import to_json_value
 
     with UnitOfWork(request.app.state.api_pool) as uow:
         WorkRepository.get(uow, context.account_id, work_id)
         return {
-            "items": dto(
+            "items": to_json_value(
                 uow.execute(
                     "SELECT * FROM work_input_refs WHERE account_id=%s AND work_id=%s ORDER BY ref_id",
                     (context.account_id, work_id),
@@ -384,14 +384,14 @@ def accept_work_result(
 def notification_inbox(
     request: Request, before: UUID | None = None, context: AuthContext = Depends(auth_context)
 ):
-    from work_domain.serialization import dto
+    from work_domain.serialization import to_json_value
 
     with UnitOfWork(request.app.state.api_pool) as uow:
         rows = uow.execute(
             "SELECT n.*,d.provider_receipt FROM notifications n JOIN deliveries d USING(account_id,notification_id) JOIN delivery_targets t USING(account_id,target_id) WHERE n.account_id=%s AND t.channel='web' AND d.state='accepted' AND (%s::uuid IS NULL OR n.notification_id<%s) ORDER BY n.notification_id DESC LIMIT 100",
             (context.account_id, before, before),
         ).fetchall()
-        return {"items": dto(rows)}
+        return {"items": to_json_value(rows)}
 
 
 @router.post("/api/v1/works/{work_id}/deliveries/{delivery_id}/resolve")

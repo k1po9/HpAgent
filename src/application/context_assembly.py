@@ -18,9 +18,9 @@ from common.logging import log_event
 from common.types import Event, EventType
 from memory.hindsight_client import MemoryItem
 from memory.scope_policy import chat_scope
+from persistence.files import FileRepository
 from persistence.memory import MemoryStore
 from persistence.messages import MessageRepository
-from persistence.repositories import FileRepository
 from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork
 

@@ -7,6 +7,7 @@ import pytest
 from support.qq_messages import qq_message
 
 from agent_activities.store import AgentDataStore
+from application.chat.service import ChatCommandService
 from application.context_assembly import ContextAssemblyService
 from application.context_builder import HarnessContextBuilder
 from application.conversation import ConversationService, UnboundIdentity
@@ -17,8 +18,7 @@ from application.ingress import (
     MessageIngressService,
 )
 from application.memory_retention import MemoryRetentionService
-from conversation_domain.commands import CommandService
-from conversation_domain.surface_commands import SurfaceConversationCommands
+from application.surfaces.conversation import SurfaceConversationCommands
 from memory.hindsight_client import RetainReceipt
 from run_domain.input import RunInputLoader
 from web_domain.errors import ConversationBusy, IdempotencyConflict
@@ -35,7 +35,7 @@ def bind(db, account_id, sender="123", channel="onebot11"):
 
 
 def service(url):
-    return ConversationService(SurfaceConversationCommands(CommandService(url)))
+    return ConversationService(SurfaceConversationCommands(ChatCommandService(url)))
 
 
 async def test_redelivery_uses_stable_provider_id_and_one_atomic_run(db, account_id, worker_database_url):
@@ -90,7 +90,7 @@ async def test_account_room_bot_thread_mapping_and_shared_session_rule(db, accou
     assert len({r["conversation_id"] for r in results}) == 5
     assert all(r["session_id"] is None for r in results)
     cid = UUID(results[0]["conversation_id"])
-    commands = CommandService(worker_database_url)
+    commands = ChatCommandService(worker_database_url)
     with pytest.raises(ConversationBusy):
         commands.send_message(account_id, cid, str(uuid4()), "Web shares this explicit Conversation")
     await adapter.accept(qq_message("cancel", "/cancel"), "onebot11")
@@ -139,7 +139,7 @@ async def test_unbound_and_revoked_identity_cannot_create_or_replay(db, account_
 
 async def test_pg_failure_rolls_back_binding_origin_message_run_outbox(db, account_id, worker_database_url, monkeypatch):
     bind(db, account_id)
-    commands = CommandService(worker_database_url)
+    commands = ChatCommandService(worker_database_url)
     adapter = ConversationService(SurfaceConversationCommands(commands))
     def fail(*args, **kwargs):
         raise RuntimeError("write failed")
@@ -198,7 +198,7 @@ async def test_group_snapshot_context_and_memory_come_from_committed_pg(db, acco
     memory = Memory()
     await ContextAssemblyService(worker_database_url, HarnessContextBuilder(), memory).recall_long_term(base, "query")
     assert memory.recall_args["group_id"] == base.origin["context_key"]
-    commands = CommandService(worker_database_url)
+    commands = ChatCommandService(worker_database_url)
     commands.start_run(account_id, run_id)
     commands.complete_run(account_id, run_id, "persisted reply")
     from web_domain.outbox import OutboxService

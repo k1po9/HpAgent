@@ -27,9 +27,11 @@ from agent_workflows.contracts import (
 )
 from agent_workflows.html import HtmlCapabilityWorkflow
 from agent_workflows.tool_execution import ToolExecutionWorkflow
+from application.work.service import WorkCommandService
 from orchestration.research_workflow import ResearchCapabilityWorkflow
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE
 from persistence.uow import UnitOfWork
+from persistence.works import WorkRepository
 from research_activities.composition import compose_research
 from run_domain.acceptance import ResultAdoptionService
 from run_domain.capability_contracts import AcceptancePredicate
@@ -37,10 +39,8 @@ from run_domain.lifecycle import RunLifecycleService
 from run_domain.results import complete_operation
 from web_artifacts.generator import WebArtifactGenerator
 from web_artifacts.local import HtmlActivities
-from work_domain.commands import WorkCommandService
 from work_domain.execution_result import generic_result
 from work_domain.models import Requirement
-from work_domain.persistence import WorkRepository
 from workspace.catalog import WorkspaceCatalog
 from workspace.resources import ResourcePolicy
 
@@ -296,8 +296,8 @@ async def test_scripted_research_html_feedback_save_and_lost_reply(
     projected = commands.get(account_id, wid)["work"]["workspace_saves"]
     assert any(s["operation_id"] == "save-final" and s["entry_id"] == saved["node_id"]
                and s["state"] == "succeeded" for s in projected)
+    from application.artifacts.service import ArtifactService
     from web_artifacts.build import ArtifactBuildService
-    from web_artifacts.services import ArtifactService
     from workspace.discovery import WorkspaceDiscovery
 
     discovery = WorkspaceDiscovery(urls[1])

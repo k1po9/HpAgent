@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import psycopg
 import pytest
 
-from conversation_domain.commands import CommandService
+from application.chat.service import ChatCommandService
 from file_runtime import OutputPublisher
 from storage.tenant_file_store import TenantFileStore
 from web_domain.file_cleanup import FileCleanupService
@@ -63,7 +63,7 @@ def test_save_move_remove_are_zero_copy_and_idempotent(
     tree = catalog.initialize(account_id)
     root, info = UUID(tree["root_id"]), _node(tree, "资料")
     results = _node(tree, "成果")
-    commands = CommandService(database_url)
+    commands = ChatCommandService(database_url)
     conversation = UUID(commands.create_conversation(account_id, str(uuid4()))["conversation_id"])
     run_id = UUID(commands.send_message(account_id, conversation, str(uuid4()), "make")['run_id'])
     store = TenantFileStore(tmp_path / "store", max_bytes=1024)
@@ -97,7 +97,7 @@ def test_save_move_remove_are_zero_copy_and_idempotent(
 def test_gc_keeps_revisions_and_active_entries(db, account_id, database_url, worker_database_url, tmp_path):
     catalog = WorkspaceCatalog(database_url)
     root = UUID(catalog.initialize(account_id)["root_id"])
-    conversation = UUID(CommandService(database_url).create_conversation(account_id, str(uuid4()))["conversation_id"])
+    conversation = UUID(ChatCommandService(database_url).create_conversation(account_id, str(uuid4()))["conversation_id"])
     store = TenantFileStore(tmp_path / "store", max_bytes=1024)
     file_id = uuid4()
     staged = store.stage(file_id, [b"saved"], declared_size=5)
@@ -157,7 +157,7 @@ def test_gc_competes_with_save_and_delete_failure_retries(
 ):
     catalog = WorkspaceCatalog(database_url)
     root = UUID(catalog.initialize(account_id)["root_id"])
-    conversation = UUID(CommandService(database_url).create_conversation(
+    conversation = UUID(ChatCommandService(database_url).create_conversation(
         account_id, str(uuid4())
     )["conversation_id"])
 
@@ -233,7 +233,7 @@ def test_physical_delete_failure_retries_without_live_reference(
     file_id = uuid4()
     staged = store.stage(file_id, [b"orphan"], declared_size=6)
     published = store.publish(account_id, file_id, staged)
-    conversation = UUID(CommandService(database_url).create_conversation(
+    conversation = UUID(ChatCommandService(database_url).create_conversation(
         account_id, str(uuid4())
     )["conversation_id"])
     db.execute(

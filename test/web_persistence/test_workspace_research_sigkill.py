@@ -13,13 +13,13 @@ from support.research_driver import ResearchDriver as ResearchActivities
 from support.work_fixtures import accept_research, advance_work
 from temporalio.client import Client
 
+from application.work.service import WorkCommandService
 from file_runtime import OutputPublisher, ResearchMarkdownPublisher
 from orchestration.agent_lifecycle_workflow import AgentLifecycleWorkflow
 from orchestration.run_lifecycle_contracts import WEB_LIFECYCLE_TASK_QUEUE, RunLifecycleInput
 from persistence.uow import UnitOfWork
 from storage.tenant_file_store import TenantFileStore
 from web_domain.workflow_execution import PostgresWorkflowExecutionStore
-from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
 
 from .test_workspace_v41_p4 import Canonicalizer, Content, Discovery, Synthesis, execute
