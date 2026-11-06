@@ -834,3 +834,20 @@ subprocess.run(['.venv/bin/python', '/tmp/hpagent-phase4/run-pg.py', 'final', '-
 | P4.2 | 本节后的当前架构文档提交，完整hash于最终登记追加 | 完成；目录/映射、调用图/类图/时序、Repo/事务/表writer、学习指南及证据均已核验 |
 
 最终脚本复核79项通过（12.16s），docs-check仍36份/0错误；文档纠正后的4个Mermaid语法通过，未做视觉渲染。运行实现未变，不重复扩大业务测试。
+
+### Phase 4 最终 Commit 登记与停止点
+
+| Task | 最终对应 Commit | 状态 |
+| --- | --- | --- |
+| P4.1 | `540c467e` | 完成，唯一应用实现及兼容入口收敛 |
+| P4.2 | `497d339b37861fa42021173f24dd6ad84e0bc8e6` | 完成，当前架构事实及第15.4节全部索引已提交 |
+
+独立审查附加测试的实际命令：
+
+```bash
+.venv/bin/python -m pytest -q test/test_architecture_checks.py test/test_execution_boundaries.py test/test_generic_completion_contract.py test/test_workspace_save_policy.py
+```
+
+审查方终端结果33 passed / 3.78s / exit0，未保存独立JUnit或输出文件；这里只登记其实际执行证据，不混入执行方160项PG/API计数。审查未要求额外运行测试。
+
+本登记只追加任务Commit与审查命令，不改变运行代码。最终分支保留 `codex/phase4-application-entrypoints`，未合并、推送或部署；工作区原有未跟踪文件继续原样保留。本轮到此停止，等待用户最终审阅。
