@@ -2,9 +2,9 @@
 
 本文描述当前Work与执行契约；模块入口见[代码地图](../reference/repository-layout.md)，验证方式见[测试指南](../development/testing.md)。
 
-当前应用入口位于 `application/work`：AcceptWork 接受委托，WorkQueries 组装读模型，AdvanceWork 处理显式推进，AdmitWorkRun 在调用方事务内创建一次执行。WorkAdmissionContext 在同一 UoW 中锁定并核验当前 Work、requirement 和 pending wakeup；进度、保存、容量、预算仍按原顺序读取，纯决定在 `work_domain/admission.py`，策略和基础冻结输入构造在 `run_domain/strategy.py`、`creation.py`。旧 WorkCommandService 继续转发，并暂留 revise/control/link/integration。
+当前应用入口位于 `application/work`：AcceptWork 接受委托，WorkQueries 组装读模型，AdvanceWork 处理显式推进，AdmitWorkRun 在调用方事务内创建一次执行。WorkAdmissionContext 在同一 UoW 中锁定并核验当前 Work、requirement 和 pending wakeup；进度、保存、容量、预算仍按原顺序读取，纯决定在 `work_domain/admission.py`，策略和基础冻结输入构造在 `run_domain/strategy.py`、`creation.py`。application/work/service.py 的 WorkCommandService 组合用例并保留 revise/control/link/integration；旧 work_domain/commands.py 只同名导出。
 
-EvaluateSchedule 持有 schedule/occurrence 评估事务，提交后调用 DispatchDueWork 的独立批次事务；逐 Work savepoint、SKIP LOCKED、排序、原外层及 dispatch 有限重试均保留。`orchestration/work_schedule.py` 只保留兼容服务和进程循环。Work 行、需求、wakeup、schedule/occurrence 和 event SQL 分别由 `persistence/works.py`、`work_requirements.py`、`wakeups.py`、`work_schedules.py`、`work_events.py` 持有；schedule 状态计划在纯 `work_domain/scheduling.py`，应用只在原 daily 需要的分支读取时钟。
+EvaluateSchedule 持有 schedule/occurrence 评估事务，提交后调用 DispatchDueWork 的独立批次事务；逐 Work savepoint、SKIP LOCKED、排序、原外层及 dispatch 有限重试均保留。调度 facade 位于 `application/work/scheduler.py`；`orchestration/work_schedule.py` 只保留服务同名导出和进程循环。Work 行、需求、wakeup、schedule/occurrence 和 event SQL 分别由 `persistence/works.py`、`work_requirements.py`、`wakeups.py`、`work_schedules.py`、`work_events.py` 持有；schedule 状态计划在纯 `work_domain/scheduling.py`，应用只在原 daily 需要的分支读取时钟。
 
 `application/work/events.py` 显式执行 event append → `delivery.enqueue_event` → Work Outbox，三步使用调用方同一 UoW；仓储不自行提交或发布。通知选择保持原规则，accepted/advanced 不因此新增通知。旧 `work_domain/persistence.py` 只保留兼容导出/转发，SQL 不双写；查询投影及外围控制仍有跨领域依赖。
 

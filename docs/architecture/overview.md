@@ -51,8 +51,8 @@ Conversation 保留同对话单 active chat Run；Work Run 不占聊天槽、不
 
 当前目录存在跨领域调用，并未形成严格依赖隔离；新增改动要沿实际事务和调用链检查，不能根据目录名假定边界已经闭合。
 
-Chat 发送与重试主干位于 `application/chat`，共享 Chat/Work Run 取消位于 `application/run`；QQ 身份、路由及 receipt 外层事务位于 `application/surfaces`，显式 HTML 写入位于 `application/artifacts`。旧 Conversation/Artifact Service 保留兼容入口。独立用例拥有 UoW 和有限事务重试，`execute_in_uow` 只借用调用方事务；QQ savepoint、Artifact/Version 与 HTML Run 的原子提交保持原边界。Artifact 仍显式使用原 legacy 预算默认值，配置差异尚未修复。
+Chat 发送与重试主干位于 `application/chat`，共享 Chat/Work Run 取消位于 `application/run`；QQ 身份、路由及 receipt 外层事务位于 `application/surfaces`，显式 HTML 写入位于 `application/artifacts`。CommandService 与 ArtifactService 的组合实现位于 application/chat/service.py、application/artifacts/service.py；旧路径保留同名兼容导出。独立用例拥有 UoW 和有限事务重试，`execute_in_uow` 只借用调用方事务；QQ savepoint、Artifact/Version 与 HTML Run 的原子提交保持原边界。Artifact 仍显式使用原 legacy 预算默认值，配置差异尚未修复。
 
-Work 接受、查询、显式推进、共享准入和 PG 调度主干位于 `application/work`。旧 WorkCommandService 和 WorkScheduleService 保留兼容入口；Accept 不创建 Run，EvaluateSchedule 提交评估后由 DispatchDueWork 在另一事务推进 pending wakeup，异常仍按逐 Work savepoint 隔离。Run、Work、Requirement、Wakeup、Schedule、Event 的写 SQL 已有指定仓储；应用显式按事件、通知、Outbox 顺序借用同一 UoW。外围修订/控制编排仍保留，兼容导出与部分旧 import 尚未收敛，不宣称全仓库严格分层。
+Work 接受、查询、显式推进、共享准入和 PG 调度主干位于 `application/work`。WorkCommandService 与 WorkScheduleService 的组合实现位于 application/work/service.py、scheduler.py，旧路径保留同名兼容导出；Accept 不创建 Run，EvaluateSchedule 提交评估后由 DispatchDueWork 在另一事务推进 pending wakeup，异常仍按逐 Work savepoint 隔离。Run、Work、Requirement、Wakeup、Schedule、Event 的写 SQL 已有指定仓储；应用显式按事件、通知、Outbox 顺序借用同一 UoW。外围修订/控制编排随 facade 原样保留在应用层；组合根直接使用应用入口。Work dependencies.repo 为保持外部方法集合仍使用兼容仓储，其他 File/Budget/Idempotency 原定义及跨领域依赖保留，不宣称全仓库严格分层。
 
 按任务找入口见[代码地图](../reference/repository-layout.md)。继续阅读：[执行、状态与恢复](execution.md)、[Work](work.md)、[Workspace](workspace.md)、[能力边界](capabilities.md)、[Web 契约](web-ui.md)。操作见[功能指南](../operations/web-workbench.md)。

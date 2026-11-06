@@ -124,3 +124,240 @@ model_request_invalid、model_response_invalid、model_access_denied、model_req
 执行 fence 和 Run 成功提交检查同一规则，迟到模型结果、工具、子执行及 final/fallback
 不能复用被撤回上下文；历史助手消息在组装时复验依赖。缺失旧 manifest 或所需失效历史时
 保守拒绝相应记忆上下文。原 Snapshot 保留审计，不能改写并重用旧请求。
+
+## 业务主干调用图
+
+组合根直接引用 [Chat service](../../src/application/chat/service.py)、[Work service](../../src/application/work/service.py)、[Artifact service](../../src/application/artifacts/service.py) 与 [Scheduler](../../src/application/work/scheduler.py)。旧模块只导出相同类，未复制实现。下面画出本次审计范围从入口到 PG 和提交后执行的路径；节点中的调用是职责关系，事务划分以下方时序和所有权表为准。
+
+```mermaid
+flowchart TD
+  Web[Web routes] --> Chat[application.chat.service]
+  Web --> Works[application.work.service]
+  Web --> Art[application.artifacts.service]
+  QQ[QQ ingress / ConversationApplication] --> Surface[SurfaceConversationCommands]
+  Root[Worker composition root] --> Scheduler[application.work.scheduler]
+  Main[Main 委托工具] --> Works
+  Surface --> Send[SendMessage]
+  Surface -->|Work 状态及控制| Works
+  Surface --> Cancel[CancelRun]
+  Chat --> Send
+  Chat --> Retry[RetryChatRun]
+  Chat --> Cancel
+  Art --> AC[ArtifactCommands]
+  AC --> Send
+  Works --> Accept[AcceptWork]
+  Works --> Advance[AdvanceWork]
+  Works --> Control[原 revise / control / integration]
+  Scheduler --> Eval[EvaluateSchedule]
+  Eval --> Due[DispatchDueWork]
+  Advance --> Admit[AdmitWorkRun / WorkAdmissionContext]
+  Due --> Admit
+  Retry --> Frozen
+  Send --> Frozen[Run creation / strategy 纯值]
+  Admit --> Frozen
+  Send --> Repos[指定 Repository + 原资源预算服务]
+  Cancel --> Repos
+  Retry --> Repos
+  Accept --> Repos
+  Control --> Repos
+  Eval --> Repos
+  Admit --> Repos
+  AC --> PG[(PostgreSQL)]
+  Repos --> PG
+  PG --> OB[已提交 Outbox]
+  OB --> Dispatch[RunDispatcher / WorkflowExecutionStore]
+  Dispatch -->|准备事实提交后 RPC| Temporal[AgentLifecycleWorkflow / Child Workflow]
+  Temporal --> Activity[Activity / Adapter]
+  Activity --> Life[Run lifecycle / Work completion / 发布与投递事实]
+  Life --> Repos
+  PG --> Query[WorkQueries / ChatProjection / 原查询服务]
+  Query --> View[HTTP snapshot / SSE / QQ 状态]
+  OB --> Publish[终态与 Work publisher / delivery consumer]
+  Publish --> Notify[Redis 通知 / Web inbox / QQ accepted 或 uncertain]
+```
+
+## Chat、Work、Run 核心关系
+
+下图是现有持久化概念与应用协作者关系；Conversation、Work、Run 节点表示业务记录，不表示新增 ORM 类。一个关联 Conversation 不授予 Work 聊天全文或文件权限。
+
+```mermaid
+classDiagram
+  class Conversation {
+    conversation_id
+    next_message_seq
+    single_active_chat_run
+  }
+  class Message {
+    message_id
+    role
+    run_id
+  }
+  class Work {
+    work_id
+    current_requirement_revision
+    control_epoch
+    active_coordinator_run_id
+    continuation
+  }
+  class Run {
+    run_id
+    run_kind
+    input_snapshot
+    strategy_snapshot
+    status
+  }
+  class Execution {
+    execution_id
+    attempt_lease_and_fence
+  }
+  class CommandService {
+    send_message()
+    retry_run()
+    cancel_run()
+  }
+  class WorkCommandService {
+    accept()
+    advance()
+    revise()
+    control()
+  }
+  class SendMessage {
+    execute()
+    execute_in_uow()
+  }
+  class RetryChatRun {
+    execute()
+  }
+  class CancelRun {
+    execute()
+    execute_in_uow()
+  }
+  class AcceptWork {
+    execute()
+  }
+  class AdvanceWork {
+    execute()
+  }
+  class AdmitWorkRun {
+    execute_in_uow()
+  }
+  Conversation "1" --> "0..*" Message
+  Conversation "1" --> "0..*" Run : chat 历史
+  Work "1" --> "0..*" Run : 有限尝试
+  Work "0..*" --> "0..*" Conversation : 显式关联
+  Run "1" --> "1..*" Execution : root 与子执行
+  CommandService --> SendMessage
+  CommandService --> RetryChatRun
+  CommandService --> CancelRun
+  WorkCommandService --> AcceptWork
+  WorkCommandService --> AdvanceWork
+  AdvanceWork --> AdmitWorkRun
+  SendMessage --> Run : 创建 chat
+  AdmitWorkRun --> Run : 创建 work
+  CancelRun --> Run : 请求或完成取消
+```
+
+## Chat 时序与事务
+
+```mermaid
+sequenceDiagram
+  participant Entry as Web / QQ / Artifact
+  participant Outer as Surface 或 ArtifactCommands
+  participant UC as SendMessage / RetryChatRun / CancelRun
+  participant PG as UoW / PostgreSQL
+  participant D as Dispatcher
+  participant T as Temporal / Activity
+  alt Web 独立命令
+    Entry->>UC: 冻结命令输入
+    UC->>PG: 开独立 UoW，原有限事务重试
+  else QQ 或 Artifact 外层命令
+    Entry->>Outer: 身份路由或 Artifact/Version 输入
+    Outer->>PG: 开外层 UoW
+    Note over Outer,PG: QQ 身份锁、binding 与 receipt；业务段保留 savepoint
+    Outer->>UC: execute_in_uow，借用同一 UoW
+  end
+  UC->>PG: 校验账号、原幂等键和 payload，锁 Conversation / Run
+  alt 已有相同请求或 retry child
+    PG-->>UC: 原结果；retry 复用直接 child 返回 200
+  else 新发送或新 retry child
+    UC->>PG: 原准入、当前资源与预算检查，冻结策略/输入
+    UC->>PG: chat Run、文件/预算、start_run Outbox、幂等响应
+    Note over UC,PG: send 创建用户及助手 Message；retry 只新建助手 Message，复用原 trigger
+    Note over UC,PG: retry 新 child 返回 202；root Execution 由 trigger 创建
+  else 取消
+    UC->>PG: queued 原子终态或 running cancel_requested；原预算/控制/Outbox
+  end
+  alt 外层所有者
+    UC-->>Outer: 事务内结果
+    Outer->>PG: 完成 receipt 或 Artifact/Version 关联，提交
+  else 独立所有者
+    UC->>PG: 提交；异常整组回滚
+  end
+  Note over Outer,PG: QQ 预期拒绝只回滚业务 savepoint，保留拒绝 receipt；其他错误回滚外层
+  D->>PG: claim Outbox，短事务准备 Workflow fact 并提交
+  D->>T: 使用原稳定 Workflow ID 启动或取消
+  T->>PG: Activity 同事务提交 Run/Message 终态、成果事实与 Outbox
+  PG-->>Entry: 查询权威快照；提交后的通知另行投递
+```
+
+QQ 在本图只表示 send/cancel；其 work_* 状态、关联与控制经 WorkCommandService(uow) 执行并保留外层 receipt，见下方所有权表。Retry 只有独立命令入口。Artifact 创建时先准备自己的 Artifact/Version，再在同一 UoW 借用发送用例；图中的借用调用表示此业务段。Retry 使用原锁顺序和当前准入，HTML retry 保留原 executor 与冻结输入。单活跃槽仍由 Chat 路径及 PG 约束共同保证。时序表示完整主要分支，具体失败码及 SQL 顺序以用例源码为准。
+
+## Work 时序与事务
+
+```mermaid
+sequenceDiagram
+  participant E as Web / Main 委托工具
+  participant A as AcceptWork / Work service
+  participant S as EvaluateSchedule
+  participant D as DispatchDueWork / AdvanceWork
+  participant Admit as AdmitWorkRun
+  participant PG as UoW / PostgreSQL
+  participant R as Dispatcher / Activity / Run lifecycle
+  E->>A: 接受需求，或显式修订/控制
+  A->>PG: 幂等、Work/requirement、continuation、预算、wakeup、事件与 Outbox
+  Note over A,PG: Accept 不创建 Run；事件、通知选择和 Outbox 借用同 UoW
+  A->>PG: 提交命令事务
+  alt PG 到期调度
+    S->>PG: 评估事务：锁 Work，sync schedule，记录 occurrence/wakeup
+    S->>PG: 提交评估事务
+    S->>D: dispatch_due，外层有限重试范围保持原样
+    D->>PG: 独立批次事务，SKIP LOCKED；逐 Work savepoint
+  else 用户显式推进
+    E->>D: AdvanceWorkCommand
+    D->>PG: 独立命令事务与幂等校验
+  end
+  D->>Admit: execute_in_uow
+  Admit->>PG: 锁并复验 Work/revision/epoch/row_version/wakeup
+  Admit->>PG: 原进度、保存、预算、资源和容量门禁；冻结输入和策略
+  alt 允许准入
+    Admit->>PG: Work Run、预算/候选、协调权、消费 wakeup、事件/Outbox
+    Note over Admit,PG: 无聊天 Message，不占 Conversation 槽；root Execution 由 trigger 创建
+  else 等待或拒绝
+    Admit->>PG: 保持原 continuation 或回滚当前 Work savepoint
+  end
+  D->>PG: 提交；单 Work 失败按原规则隔离
+  R->>PG: 提交后 claim Outbox，准备 Workflow fact 并提交
+  R->>R: Temporal RPC，有限 Workflow / Activity 执行
+  R->>PG: 终态事务：当前 fence/revision/协调权、Run 状态、预算收敛
+  R->>PG: Work completion policy 核验当前证据，推进 continuation/协调权
+  Note over R,PG: Run succeeded 不自动等于 Work completed；发布、保存、采用、用户验收独立
+  R->>PG: 同事务 Work event、后续 wakeup、通知与 Outbox，提交
+  PG-->>E: 查询 Work 快照；Delivery 独立记录 accepted / uncertain
+```
+
+## UnitOfWork 所有权
+
+| 边界 | UoW 所有者 | 事务内借用者与提交点 |
+| --- | --- | --- |
+| Web send/retry/cancel | SendMessage / RetryChatRun / CancelRun 的 execute | 依赖、projection、资源预算和 Repo 借用；整个命令成功退出后提交，原有限重试包围命令 |
+| QQ ingress | SurfaceConversationCommands | send/cancel 调用公开 execute_in_uow，原 savepoint 隔离拒绝；work_* 通过 WorkCommandService(uow) 查询/关联/控制，复用连接及嵌套 savepoint；receipt 由外层提交 |
+| Artifact 创建/新版本 | ArtifactCommands | Artifact/Version 与 SendMessage.execute_in_uow 同外层提交；legacy 预算有效值不变 |
+| Work 接受/推进 | AcceptWork / AdvanceWork | dependencies、AdmitWorkRun、资源预算、record_work_event 借用；不增加独立 commit |
+| Work 修订/控制/关联 | application/work/service.py 中的原方法及 integration_command | 原锁、事务与命令重试保持；窄仓储不取得提交权 |
+| Work 调度 | EvaluateSchedule；随后 DispatchDueWork | 两个连续但独立的事务；dispatch 批次内逐 Work savepoint；不把评估与准入合并 |
+| 资源撤权 | ResourcePolicy 的原命令事务 | CancelRun.execute_in_uow 只借用；其异常仍回滚撤权事务 |
+| Run 终态 | 原 Run lifecycle / WebRunLifecycleService | completion/progress、预算恢复、Execution 收敛、事件和通知借用原同一 UoW |
+| Outbox / Workflow 技术事实 | OutboxService / PostgresWorkflowExecutionStore | Repo 只执行 SQL；每个原短事务退出后才进行 Temporal RPC；远端状态不直接当业务终态 |
+| 查询 | WorkQueries、原查询服务 | 自己开读 UoW；snapshot_in_uow 借用已有事务，避免在命令中另开连接 |
+
+UnitOfWork 实现未改变：DSN 或 pool 入口拥有连接与提交；UnitOfWork(outer_uow) 复用连接并建 savepoint，内层退出不提交外层。异常回滚与释放、deadlock/serialization 的有限重试策略保持。锁顺序、当前授权、revision/fence、数据库时钟和幂等键仍属于具体业务流程的显式约束，不能通过统一 Repo 方法或嵌套对象省略。
