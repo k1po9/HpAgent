@@ -100,9 +100,9 @@ async def start_worker(config: AppConfig) -> None:
             active_channels.append(channel)
             logger.info("Channel registered: %s", ch_name)
 
+        from application.chat.service import CommandService
+        from application.surfaces.conversation import SurfaceConversationCommands
         from common.agent_policy import AgentPolicy
-        from conversation_domain.commands import CommandService
-        from conversation_domain.surface_commands import SurfaceConversationCommands
 
         conversation_service = ConversationService(
             SurfaceConversationCommands(

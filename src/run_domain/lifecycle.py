@@ -5,14 +5,16 @@ from __future__ import annotations
 import json
 
 from application.work.events import record_work_event
-from persistence.repositories import AccountRepository
+from persistence.accounts import AccountRepository
 from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork, retryable_transaction
+from persistence.wakeups import WakeupRepository
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository
 from persistence.works import WorkRepository as WorkRows
 from run_domain.models import TERMINAL
 from web_domain.errors import ConversationBusy, ResourceNotFound
 from work_domain.models import bounded, continuation
-from work_domain.persistence import WorkRepository
 
 
 class RunLifecycleService:
@@ -144,7 +146,7 @@ class RunLifecycleService:
         if (work is not None and status == 'succeeded' and not daily_unchanged
                 and result['kind'] == 'deliverable_ready' and not blocked_reason(uow, work)
                 and not self.unresolved_effect(uow, work)):
-            requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'], run['requirement_revision'])
+            requirement = WorkRequirementRepository.get(uow, work['account_id'], work['work_id'], run['requirement_revision'])
             if any(c['required'] and 'delivery_receipt' in c['evidence_types'] for c in requirement['acceptance_criteria']):
                 from uuid import UUID
 
@@ -216,7 +218,7 @@ class RunLifecycleService:
             next_step = continuation(raw['kind'], raw['reason'], **{k:v for k,v in raw.items()
                                                                  if k not in {'kind','reason','schema_version'}})
         if status == 'succeeded' and 'continuation' not in result:
-            requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'], run['requirement_revision'])
+            requirement = WorkRequirementRepository.get(uow, work['account_id'], work['work_id'], run['requirement_revision'])
             if requirement['timing']['kind'] == 'daily':
                 from datetime import UTC, datetime
 
@@ -261,9 +263,9 @@ class RunLifecycleService:
             from work_domain.completion import WorkCompletionPolicy
 
             WorkCompletionPolicy.accept(uow, work, run)
-        from work_domain.persistence import sync_schedule
+        from application.work.schedules import sync_schedule
         current = WorkRepository.get(uow, work['account_id'], work['work_id'])
-        requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'], current['current_requirement_revision'])
+        requirement = WorkRequirementRepository.get(uow, work['account_id'], work['work_id'], current['current_requirement_revision'])
         sync_schedule(uow, current, requirement)
         if (status == 'succeeded' and current['status'] == 'active'
                 and current['current_requirement_revision'] == run['requirement_revision']
@@ -274,7 +276,7 @@ class RunLifecycleService:
         if (status == 'succeeded' and current['status'] == 'active'
                 and current['current_requirement_revision'] == run['requirement_revision']
                 and next_step['kind'] in {'ready', 'at_time', 'retry_after'}):
-            WorkRepository.wakeup(uow, current, f"continuation:{run['run_id']}",
+            WakeupRepository.enqueue(uow, current, f"continuation:{run['run_id']}",
                                   {'ready': 'advance', 'retry_after': 'retry', 'at_time': 'due'}[next_step['kind']],
                                   'execution_continuation', next_step.get('due_at'))
         return True

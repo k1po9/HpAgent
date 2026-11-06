@@ -7,7 +7,7 @@ never introduce an in-memory or surface-owned admission authority.
 from typing import Protocol
 from uuid import UUID
 
-from persistence.repositories import RunRepository
+from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork
 from web_domain.errors import ConversationBusy
 

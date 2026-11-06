@@ -647,3 +647,181 @@ test/web_persistence/test_work_integration.py::test_resume_revalidates_accepted_
 | P3.3 | `dee13baf404a8269d7bddb8b7d9106da903292d3` | 完成 |
 
 上述为独立实现Commit，本表本身的文档提交不改变实现。分支`codex/phase3-persistence-boundaries`，未合并、未推送、未部署。用户已通过前阶段并确认进入本阶段；Phase3报告待审阅，Phase4未执行。
+
+## 2026-11-06 Phase 4：应用入口与依赖收敛
+
+用户在审阅前阶段后明确“进行下一阶段”，本轮执行最后一个 Phase 4；不重新请求方案B批准。阶段起点 `6ae2f33a`，分支 `codex/phase4-application-entrypoints`。起始原有未跟踪蓝图、code-analysis/、docs/learning/ 保留。P4.1/P4.2 的实现结果在本节追加；Phase 0–3 历史不覆盖。当前事实维护于原架构和代码地图页面，不另建重复报告。
+
+### 任务状态、取舍与文件迁移
+
+| Task | 当前状态 | Commit |
+| --- | --- | --- |
+| P4.1 收敛引用 | 完成；最终相关回归与独立审查已结束 | 待本轮实现提交后登记 |
+| P4.2 当前文档、删除核对及最终可见性 | 完成；当前文档及最终证据已核验 | 待文档提交后登记 |
+
+Ruling：把已有 facade 定义移动到应用包，组合根直接引用它们；不新增另一层 Service 或重复实现。类名、构造参数、属性、返回值及原辅助命令保持。若外部只依赖旧 import，继续得到同一个类；类定义的模块归属更新，不承诺未使用的跨版本 pickle 兼容。
+
+Ruling：保留全部旧兼容导出和私有兼容 shim。源码内主干已用公开入口，但历史测试、未知扩展、动态加载的完整消费者集合无法证明为空；不能仅凭当前 rg 没有调用就删除。WorkCommandDependencies.repo 维持旧 WorkRepository 方法集合，主干 requirement/wakeup 直接调用指定窄仓储。代价是这个有说明的兼容依赖仍存在，而不是追求零旧包 import。
+
+Ruling：这是已批准的无行为结构整理，继续复用已有业务断言做 green→green 验证；只调整2个现有测试的 patch 模块定位，不新增镜像、目录、私有函数调用或静态 registry 测试。Workflow 命令图、注册与输入不改，使用现有 architecture-check，不机械重跑真实 Temporal 全场景。
+
+| 文件 | 原职责 → 当前职责 / 删除依据 |
+| --- | --- |
+| src/conversation_domain/commands.py → src/application/chat/service.py | 原 Chat facade 实现整体移到应用包，继续组合 Send/Retry/Cancel 并保留其余原公开/兼容方法；旧文件只同名导出 CommandService/message_request_id |
+| src/work_domain/commands.py → src/application/work/service.py | 原 Work facade 实现整体移到应用包，Accept/Advance 仍委派原用例，revise/control/link/integration 事务原样保留；旧文件只同名导出 Service/WorkConflict |
+| src/web_artifacts/services.py → src/application/artifacts/service.py | 原 Artifact 命令/查询组合整体迁移，sender 与 legacy 默认不变；旧文件只同名导出 |
+| src/orchestration/work_schedule.py、src/application/work/scheduler.py | 原 WorkScheduleService 类整体移到应用包，Evaluate/Dispatch/occurrence 行为不变；原进程循环及服务同名导出保留 |
+| src/application/work/dependencies.py | 原公开 repo 属性保持兼容方法集合；dto 改用纯 serialization；没有双 SQL |
+| src/application/work/queries.py、src/work_domain/integration.py、src/application/work/service.py | 原 requirement/insert_requirement/wakeup 别名调用改为 WorkRequirementRepository.get/insert、WakeupRepository.enqueue；相同参数、同 UoW；其他 DTO、Work 行读写 import 用实际实现 |
+| src/workspace/resources.py | 三处私有 commands._cancel_run_in_uow 调用改为公开 commands.cancel.execute_in_uow + CancelRunCommand；原账号/Run/key、求值顺序及调用方事务不变 |
+| test/test_generic_completion_contract.py、test/test_workspace_save_policy.py | 现有 revise 重放测试 patch 从旧 facade 模块定位到实际 application.work.service；业务断言及 accept patch 不变 |
+| docs/architecture/overview.md、work.md | 更新实际 facade 路径与兼容例外，原契约保留 |
+| docs/architecture/execution.md | 补完整入口图、核心关系图、Chat/Work 时序、UoW 所有权；原恢复与预算合同保留 |
+| docs/reference/repository-layout.md | 更新当前入口，补最终目录/旧新映射、14个核心 Repo 职责、关联表 writer 和学习顺序 |
+| 本日志 | 追加逐任务实际结果及最终第15.4节索引；旧记录保持 |
+
+下列各文件调整实际 import 路径、必要 import 排序，以及旧 Work requirement/wakeup 别名到同一窄仓储的调用定位，原职责不变：组合根直接引用应用 facade；SQL、纯策略及 DTO 直接引用唯一实现；没有删除方法、修改 SQL 文本/参数或引入 writer：
+
+- `src/application/chat/dependencies.py`
+- `src/application/chat/projection.py`
+- `src/application/chat/retry_run.py`
+- `src/application/context_assembly.py`
+- `src/application/conversation.py`
+- `src/application/surfaces/conversation.py`
+- `src/application/work/accept_work.py`
+- `src/application/work/admit_work_run.py`
+- `src/application/work/advance_work.py`
+- `src/application/work/dispatch_due_work.py`
+- `src/application/work/evaluate_schedule.py`
+- `src/application/work_context.py`
+- `src/bootstrap/worker_dependencies.py`
+- `src/conversation_domain/admission.py`
+- `src/conversation_domain/run_projection.py`
+- `src/delivery/service.py`
+- `src/file_domain/approvals.py`
+- `src/orchestration/run_dispatcher.py`
+- `src/orchestration/worker.py`
+- `src/orchestration/worker_tasks.py`
+- `src/persistence/memory.py`
+- `src/research_domain/services.py`
+- `src/run_domain/delegation.py`
+- `src/run_domain/diagnostics.py`
+- `src/run_domain/execution.py`
+- `src/run_domain/lifecycle.py`
+- `src/run_domain/queries.py`
+- `src/web_api/error_handlers.py`
+- `src/web_api/fake_executor.py`
+- `src/web_api/lifespan.py`
+- `src/web_api/queries.py`
+- `src/web_api/routes/works.py`
+- `src/web_api/terminal_publisher.py`
+- `src/web_domain/file_services.py`
+- `src/web_domain/lifecycle.py`
+- `src/web_domain/outbox.py`
+- `src/work_domain/completion.py`
+- `src/work_domain/errors.py`
+- `src/work_domain/progress.py`
+
+删除的是旧文件中已迁移的重复定义位置，不删除业务步骤/兼容入口；新文件只有一份原实现。File/RunBudget/Idempotency 仍定义在 persistence/repositories.py，其原位置 import 合理；WorkSchedule 进程循环也保留 orchestration import。没有为目录整齐扩散其他领域迁移。
+
+### 新旧调用链、事务与并发
+
+前：Web/Worker 组合根 → conversation_domain.commands / work_domain.commands / web_artifacts.services / orchestration.work_schedule → 已迁移用例 → 指定 SQL writer → PG。
+
+后：相同组合根 → application.chat.service / application.work.service / application.artifacts.service / application.work.scheduler → 原同一用例 → 指定 SQL writer → PG。QQ 与 Workspace 使用公开事务内端口。旧路径 import 得到同一个新类，原测试仍可验证兼容入口。
+
+Chat 独立命令与 Work Accept/Advance 原事务所有权不变；QQ binding/receipt/savepoint、Artifact+Version+HTML Run 同事务不变；Work 调度评估提交后才进入独立 dispatch 批次，逐Work savepoint不变。Workspace 撤权依旧借用外层同一 UoW 取消 Run。事件、通知、Outbox 同事务，准备 Workflow fact 提交后才进行 RPC。锁顺序、预算/授权/revision/fence、时钟与 JSON/UUID 求值时点未调整。
+
+仓库外 AST 审计在忽略 import、仅归一化本次明确的等价仓储/公开取消接缝后，46个原源码文件的定义与起点一致；调度 facade 类 AST 完全相同。迁移与 UoW 字节不变。该检查是差异审计，不是新静态测试门禁或并发证明。最初审计脚本生成的 AST 节点缺 ctx 导致比较拒绝，补齐脚本节点元数据后通过；未以此修改业务代码。memory.py 本轮仅 Outbox import 改用指定仓储，没有改记忆逻辑或配置。
+
+### 实际测试命令、已有断言及结果
+
+执行目录 `/home/hp/workspace/HpAgent`，现有 .venv。数据库 runner 位于 `/tmp/hpagent-phase4/run-pg.py`，本轮3次均创建新的专用空 PG 容器、独立网络、回环随机端口、tmpfs；显式同库三角色 DSN/原迁移目录/PYTHONPATH，不读取或输出私有环境凭据。只回放仓库原001–080链；测试后 verify_schema/checksum，随后删除临时容器与网络。镜像与原fixture同前阶段；无现有服务重启或部署。runner 的提示字符串仍写“selected 5 cases”，实际选择以命令参数、JUnit及下表数量为准。
+
+首轮前后使用完全相同的已有32项：
+
+```bash
+.venv/bin/python /tmp/hpagent-phase4/run-pg.py p41-before test/web_persistence/test_conversation_commands.py test/web_api/test_work_foundation.py test/web_api/test_phase_b_api.py::test_api_003_004_005_send_idempotency_and_busy test/web_persistence/test_qq_canonical_ingress.py test/web_persistence/test_web_artifacts.py test/web_persistence/test_workspace_v41_p2.py::test_explicit_attachment_revocation_blocks_read_and_failed_retry test/web_persistence/test_workspace_v41_p2.py::test_independent_task_last_input_revoke_persists_cancellation
+.venv/bin/python /tmp/hpagent-phase4/run-pg.py p41-after test/web_persistence/test_conversation_commands.py test/web_api/test_work_foundation.py test/web_api/test_phase_b_api.py::test_api_003_004_005_send_idempotency_and_busy test/web_persistence/test_qq_canonical_ingress.py test/web_persistence/test_web_artifacts.py test/web_persistence/test_workspace_v41_p2.py::test_explicit_attachment_revocation_blocks_read_and_failed_retry test/web_persistence/test_workspace_v41_p2.py::test_independent_task_last_input_revoke_persists_cancellation
+make lint typecheck PYTHON=$PWD/.venv/bin/python
+.venv/bin/python -m mypy --follow-imports=normal src/application/chat/service.py src/application/work/service.py src/application/artifacts/service.py src/application/work/scheduler.py
+make architecture-check PYTHON=$PWD/.venv/bin/python
+make test-unit PYTHON=$PWD/.venv/bin/python
+make docs-check scripts-test PYTHON=$PWD/.venv/bin/python
+node /tmp/hpagent-phase4/mermaid-check.cjs
+.venv/bin/python /tmp/hpagent-phase4/preservation.py
+git diff --check
+```
+
+| 检查 | 实际结果 | 证据范围 |
+| --- | --- | --- |
+| 首批迁移前 PG/API | 32 passed，15.48s，exit0，fail/skip0 | 现有Chat重放/并发单槽/尾部回滚、HTTP Work修订控制、QQ receipt/撤权、HTML retry/cancel、Workspace撤权取消 |
+| 同批迁移后 PG/API | 32 passed，17.10s，exit0，fail/skip0 | 原同一断言通过新组合根和旧兼容 import；不外推为真实 QQ 或Provider |
+| lint / 默认 mypy | exit0；112 source files 无问题 | 使用项目默认范围；另一次最终同命令通过 |
+| 新应用 facade 显式 mypy | exit0；4 source files 无问题 | follow-imports=normal，补足默认范围外实际入口检查 |
+| 既有 architecture-check | 注册检查无违禁定义/import；177 passed，5.46s | 原架构、import/sandbox及契约，不新增 registry；无真实 Temporal 服务 |
+| 全量既有 test-unit | exit2（make），1442 passed、1 failed、8 skipped、713 deselected，52.87s | 唯一失败为下述既有 memory 配置；单元及原离线子进程契约 |
+| docs-check / scripts-test | exit0；36 Markdown/0错误，79 tests/0失败，14.06s | 链接不核验远程/锚点；脚本离线/回环夹具 |
+| Mermaid | 4 diagrams，0语法错误 | 现有临时解析器+DOM stub，仅语法，不是浏览器渲染验收 |
+| 工作区/AST审计 | 46个原源码归一化后等值，调度类等值；84个原用户文件hash不变；迁移/UoW不变 | 不新增持久测试；不把静态等值当运行通过 |
+
+现有关键断言：跨实例幂等只留1 Run/2 Message/1 start_run；竞争只取得一个Chat槽；Outbox故障整组回滚；QQ重投、busy receipt、撤销身份不能命中新Run；HTML保留executor/冻结snapshot且撤权阻止读和retry；独立Work最后输入撤权产生原取消结果。Work HTTP原断言继续覆盖接受不建Run、当前revision及控制/跨账号可见性。
+
+最终相关集合复用上节Phase3列明的33个文件/完整node参数，并加以下2个本轮公开取消接缝用例；没有扩大到全量DB/API或其他能力可靠性场景：
+
+```text
+test/web_persistence/test_workspace_v41_p2.py::test_explicit_attachment_revocation_blocks_read_and_failed_retry
+test/web_persistence/test_workspace_v41_p2.py::test_independent_task_last_input_revoke_persists_cancellation
+```
+
+实际由如下命令将上述既有选择逐个传入 runner，runner以同一绝对.venv解释器运行 `-m pytest --require-test-services -vv -m 'not temporal' <nodes> --junitxml=/tmp/hpagent-phase4/final/chat-results.xml`；完整参数保存在 `/tmp/hpagent-phase4/final-cases.txt` 和 `final/run-summary.json`：
+
+```python
+cases = Path('/tmp/hpagent-phase3/final-cases.txt').read_text().splitlines() + [
+    'test/web_persistence/test_workspace_v41_p2.py::test_explicit_attachment_revocation_blocks_read_and_failed_retry',
+    'test/web_persistence/test_workspace_v41_p2.py::test_independent_task_last_input_revoke_persists_cancellation',
+]
+subprocess.run(['.venv/bin/python', '/tmp/hpagent-phase4/run-pg.py', 'final', '-m', 'not temporal', *cases])
+```
+
+最终相关回归与审查结果见下文追加。
+
+最终实际结果：**160 passed、1 deselected，106.05s，exit0；fail0、skip0、所选正文未执行0**。排除的是原 progress 文件的1项 Temporal 场景，不计通过。原 UoW 两个连接清理/序列化用例是 Fake 连接；API 是 TestClient+PG，循环和外部 RPC 使用各自原夹具，不把160项统称真实外部端到端。最终容器 `hpagent-phase4-1753971`、网络同名-net、回环端口32800；原80项迁移/checksum一致，pytest和容器/网络清理均exit0。前后32项的两轮各自也完成原链校验与清理，未遗留本轮服务。
+
+### 已有失败、保留项与未验证范围
+
+- 唯一单元失败仍是 `test/test_memory_quality_config.py::test_snapshot_tracks_model_selection_but_not_main_recall_instruction`。当前配置覆盖使 MINIMAX_STANDARD_MODEL 变化不改变 snapshot config_hash；Phase1已在原始基线用非敏感覆盖复现，本轮不改记忆逻辑/环境来掩盖失败。不能宣称全量单元全绿。
+- 8项skip分别是5项需要独立 Hindsight/opt-in、3项缺 nsjail；713项为单元选择规则排除。最终PG集合另有1项Temporal deselected，均不算通过。此前额外严格类型探查发现的 save_policy UUID|None 问题未纳入独立修复，本阶段明确范围的类型检查通过。
+- F1：Artifact legacy 预算默认差异仍保留；F2：同worker ID租约ABA仍待独立复现/claim token设计；F3：mark_processed=False 后日志语义仍原样；F4：dead_letter 仍只适用原Run上下文；F5：Terminal publisher整轮异常监督仍需独立核验。F2/F5是审计风险，不声明已经发生生产数据损失。均未夹带修复。
+- File/RunBudget/Idempotency 仍在原聚合定义；Work dependencies.repo 保留兼容类；历史 facade/策略/准入/仓储导出仍在。外围查询、能力/资源/文件/预算/记忆/投递运行时并未统一进万能仓储；SQL例外已列明，不声称全仓库严格分层。
+- 未执行全量 test-db/test-api、真实 Temporal 服务/replay/SIGKILL恢复、前端 ci-web/浏览器、真实 Provider/QQ、压力/性能/长时间运行、非空历史库升级或PG断电恢复。未更改这些边界，所选证据不替代独立验收。
+- 没有改Schema、迁移SQL或checksum；测试只在专用空库回放原链。无生产部署、已有服务重启、合并、推送。原用户文件保持，运行日志/审计脚本/JUnit位于 `/tmp/hpagent-phase4/`，未纳入Git，临时路径不保证跨机器保留。
+
+### 第15.4节最终可见性索引与学习说明
+
+| 要求 | 当前事实位置 |
+| --- | --- |
+| 1. 最终目录、新旧文件映射 | [代码地图：当前业务主干目录与旧路径映射](../reference/repository-layout.md#当前业务主干目录与旧路径映射) |
+| 2. 多端入口到PG完整调用图 | [执行：业务主干调用图](execution.md#业务主干调用图) |
+| 3. Chat/Work/Run核心关系图 | [执行：Chat、Work、Run核心关系](execution.md#chatworkrun-核心关系)；图中记录概念与实际应用类已区分 |
+| 4. Chat/Work完整主要分支时序 | [Chat时序](execution.md#chat-时序与事务)、[Work时序](execution.md#work-时序与事务) |
+| 5. 核心Repository职责 | [代码地图：核心仓储职责与表写入责任](../reference/repository-layout.md#核心仓储职责与表写入责任)，14个Repo及职责边界 |
+| 6. UoW/提交权 | [执行：UnitOfWork所有权](execution.md#unitofwork-所有权) |
+| 7. 核心表writer映射 | 同代码地图仓储表和关联表表格；明确表、列内事实、外部服务及例外 |
+| 8. 实际相关测试与结果 | 本节命令/结果及Phase1–3逐任务原记录；未新增测试，2个原测试只改patch模块位置 |
+| 9. 尚未解决问题 | 本节既有memory失败、F1–F5、保留层与未验证范围，不自动转为本次修复 |
+| 10. 从简单到复杂学习指南 | [代码地图：从简单到复杂阅读业务代码](../reference/repository-layout.md#从简单到复杂阅读业务代码) |
+
+本阶段核心概念是“应用入口有唯一实现，旧路径只保留兼容导出；仓储只借用事务，业务调用方保留提交权”。最值得读3个文件：`src/application/chat/service.py`（组合与公开命令）、`src/application/work/admit_work_run.py`（当前锁内准入）、`src/persistence/uow.py`（提交与savepoint）。可独立追踪的真实链：Web route → application.chat.service.CommandService.send_message → SendMessage.execute → execute_in_uow → RunRepository.insert_chat / Message /预算 / Outbox /幂等结果 → 原UoW提交 → Dispatcher准备事实提交 → Temporal RPC。Work从Accept开始则先建立委托，另经Advance/Scheduler才进入AdmitWorkRun，不占Chat槽。
+
+回滚：依赖/组合根切换和facade移动可按本阶段实现Commit revert，文档按对应提交恢复；不手工改业务数据、幂等键、wakeup、预算或迁移链。整个方案B范围至Phase4结束，后续没有自动实施阶段；最终报告等待用户审阅。若另行修复既有问题，应单独明确行为合同、隔离环境与相应测试范围。
+
+### Phase 4 独立审查与最终保留核验
+
+按 executing-plans 的整阶段审查要求，第一位独立审查因模型额度限制未能执行，没有产生审查结论；随后改用可用模型完成只读审查，不把失败启动计为审查通过。最终审查无 Critical/Important。独立新进程核验4组新旧facade类身份及反向导入顺序、兼容仓储别名身份均一致；额外33项既有架构/命令重放/保存策略测试通过。审查未重跑PG/API、全量单元或真实外部链路，不能拿其结论替代本轮测试输出。
+
+审查指出1组Minor文档事实偏差：调用图把QQ send与Retry合并且漏Work控制，Chat时序未区分retry只新增助手Message，UoW表没有区分QQ work_* 的嵌套facade路径。已按实际源码逐处修正，运行代码不变，并重新通过4图语法和docs-check；无待处理Minor。没有为这些文字修正重跑业务套件。
+
+最后保留核验：起始1458个文件中54个原文件为本阶段明确改动、1404个原文件hash不变、丢失0；新增4个唯一实现的应用facade/scheduler文件。原用户84个文件全部保持原字节，原蓝图AS-IS及日志历史前缀不变。迁移与UoW不变；没有扩大格式化范围或清理工作区。
+
+用户审阅：当前Phase4最终报告待审阅，已停止后续实施。方案B批准范围的Phase0–4均已实施；完成的是结构重构范围，不表示全量单元全绿、F1–F5已修复、部署或真实链路已验收。

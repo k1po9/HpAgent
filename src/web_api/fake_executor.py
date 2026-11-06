@@ -5,8 +5,8 @@ import contextlib
 from datetime import UTC, datetime
 from uuid import UUID
 
+from application.chat.service import CommandService
 from common.types import ModelResponse
-from conversation_domain.commands import CommandService
 from persistence.uow import UnitOfWork
 from web_domain.outbox import OutboxService
 from web_domain.run_events import RedisWebRunEventSinkFactory
@@ -185,7 +185,7 @@ class FakeArtifactExecutor:
                 await self._task
 
     async def _run(self):
-        from orchestration.work_schedule import WorkScheduleService
+        from application.work.scheduler import WorkScheduleService
         from run_domain.lifecycle import RunLifecycleService
         while True:
             await asyncio.to_thread(WorkScheduleService(self.database).run_once)

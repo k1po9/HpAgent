@@ -9,7 +9,7 @@ from typing import Any
 from uuid import uuid4
 
 from persistence.memory_context import account_epoch
-from persistence.repositories import OutboxRepository
+from persistence.outbox import OutboxRepository
 from persistence.uow import UnitOfWork
 from web_domain.errors import OutboxLeaseLost
 

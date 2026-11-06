@@ -6,8 +6,8 @@ import json
 
 from application.work.events import record_work_event
 from persistence.wakeups import WakeupRepository
+from persistence.work_requirements import WorkRequirementRepository
 from persistence.works import WorkRepository as WorkRows
-from work_domain.persistence import WorkRepository
 
 
 class WorkCompletionPolicy:
@@ -23,7 +23,7 @@ class WorkCompletionPolicy:
         from run_domain.delegation import required_branch_gaps
         if required_branch_gaps(uow, run['account_id'], run['run_id']):
             raise ValueError('required investigation branch is missing')
-        requirement = WorkRepository.requirement(uow, work['account_id'], work['work_id'],
+        requirement = WorkRequirementRepository.get(uow, work['account_id'], work['work_id'],
                                                  work['current_requirement_revision'])
         result = run['result_json'] or {}
         evidence = (user_evidence if user_evidence is not None else delivery_evidence if delivery_evidence is not None else result.get('evidence', []))

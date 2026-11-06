@@ -7,11 +7,11 @@ from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
 from agent_activities.store import AgentDataStore
-from orchestration.execution_strategy import StrategyRegistry
 from orchestration.run_lifecycle_contracts import RunLifecycleInput
 from persistence.uow import UnitOfWork
 from run_domain.execution import RunNotExecutable, StaleFencingToken, assert_execution_fence
 from run_domain.results import complete_operation
+from run_domain.strategy import StrategyRegistry
 from web_domain.errors import DomainError
 
 

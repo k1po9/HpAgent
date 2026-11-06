@@ -6,7 +6,8 @@ import json
 
 from uuid6 import uuid7
 
-from persistence.repositories import MessageRepository, OutboxRepository
+from persistence.messages import MessageRepository
+from persistence.outbox import OutboxRepository
 
 
 def project_terminal(uow, run, status, content=None, *, qq_timeout_reply=""):

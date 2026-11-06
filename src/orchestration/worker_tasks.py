@@ -52,8 +52,9 @@ def start_durable_background_tasks(
     ``composition.workers`` 上 —— 那里只有 lifecycle/agent（C-07）。
     """
     # Canonical Web/QQ workers are composed here without module-level Temporal side effects.
+    from application.work.scheduler import WorkScheduleService
     from orchestration.web_dispatcher import run_web_outbox_recovery_loop
-    from orchestration.work_schedule import WorkScheduleService, run_work_schedule_loop
+    from orchestration.work_schedule import run_work_schedule_loop
 
     tasks.create(
         run_work_schedule_loop(

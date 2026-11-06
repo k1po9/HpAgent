@@ -43,7 +43,7 @@ class RetryChatRun:
             if conversation_id is None:
                 source = self.dependencies.runs.get_for_account(uow, account_id, source_run_id)
                 if source and source["source_kind"] == "work":
-                    from work_domain.commands import WorkConflict
+                    from work_domain.errors import WorkConflict
 
                     raise WorkConflict({"work_id": source["work_id"]}, "use_work_advance")
                 raise ResourceNotFound()

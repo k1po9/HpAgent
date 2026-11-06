@@ -12,9 +12,11 @@ from account.credentials import PostgresPasswordCredentialAdapter
 from account.identity_binding_service import IdentityBindingService
 from account.registration_service import RegistrationService
 from application.artifacts.commands import legacy_artifact_sender
+from application.artifacts.service import ArtifactService
+from application.chat.service import CommandService
+from application.work.service import WorkCommandService
 from common.agent_policy import load_agent_policy
 from common.runtime_config import CapacityConfig
-from conversation_domain.commands import CommandService
 from file_domain.approvals import FileActionApprovalService
 from persistence.migrate import verify_schema
 from storage.tenant_file_store import TenantFileStore
@@ -27,9 +29,7 @@ from web_api.queries import QueryService
 from web_api.security import CursorCodec
 from web_api.sse import SSEGateway
 from web_api.terminal_publisher import TerminalEventPublisher
-from web_artifacts.services import ArtifactService
 from web_domain.file_services import FileService
-from work_domain.commands import WorkCommandService
 from workspace.catalog import WorkspaceCatalog
 from workspace.resources import ResourcePolicy
 

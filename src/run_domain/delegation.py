@@ -27,7 +27,7 @@ def require_root_write(uow):
 
 def branch_projection(uow, account_id, run_id):
     """Usage is a projection of original reservations, never another charge."""
-    from work_domain.persistence import dto
+    from work_domain.serialization import dto
 
     rows = uow.execute(
         "SELECT execution_id,parent_execution_id,branch_key,branch_attempt,status,result_ref,error_code,"

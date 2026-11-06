@@ -6,6 +6,7 @@ from uuid import UUID
 
 from uuid6 import uuid7
 
+from application.run.commands import CancelRunCommand
 from persistence.uow import UnitOfWork, retryable_transaction
 from run_domain.execution import assert_execution_fence
 from web_domain.errors import DomainError, ResourceNotFound
@@ -179,8 +180,10 @@ class ResourcePolicy:
                     affected.add(row["run_id"])
             if commands is not None:
                 for run_id in sorted(affected):
-                    commands._cancel_run_in_uow(
-                        uow, account_id, run_id, f"resource-revoke:{grant_id}:{run_id}"
+                    commands.cancel.execute_in_uow(
+                        uow, CancelRunCommand(
+                            account_id, run_id, f"resource-revoke:{grant_id}:{run_id}"
+                        )
                     )
             return sorted(affected)
 
@@ -573,9 +576,11 @@ class ResourcePolicy:
                 uow, account_id, row["run_id"], file_id
             )]
             for run_id in affected:
-                commands._cancel_run_in_uow(
-                    uow, account_id, run_id,
-                    f"attachment-revoke:{conversation_id}:{file_id}:{run_id}"[:128],
+                commands.cancel.execute_in_uow(
+                    uow, CancelRunCommand(
+                        account_id, run_id,
+                        f"attachment-revoke:{conversation_id}:{file_id}:{run_id}"[:128],
+                    )
                 )
             return affected
 
@@ -639,7 +644,9 @@ class ResourcePolicy:
             uow, account_id, row["run_id"], row["file_id"]
         )}
         for run_id in sorted(affected):
-            commands._cancel_run_in_uow(
-                uow, account_id, run_id, f"resource-topology:{reason}:{run_id}"
+            commands.cancel.execute_in_uow(
+                uow, CancelRunCommand(
+                    account_id, run_id, f"resource-topology:{reason}:{run_id}"
+                )
             )
         return sorted(affected)

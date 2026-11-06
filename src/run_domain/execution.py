@@ -46,7 +46,7 @@ def lock_execution(uow, account_id, run_id, execution_id=None):
 
 
 def require_active_run(uow, account_id, run_id):
-    from persistence.repositories import AccountRepository
+    from persistence.accounts import AccountRepository
     from run_domain.lifecycle import RunLifecycleService
     from web_domain.errors import DomainError
 

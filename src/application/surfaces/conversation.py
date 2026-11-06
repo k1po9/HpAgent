@@ -19,7 +19,7 @@ from web_domain.errors import (
 )
 
 if TYPE_CHECKING:
-    from conversation_domain.commands import CommandService
+    from application.chat.service import CommandService
 
 
 class IdentityNotBound(Exception):
@@ -120,7 +120,8 @@ class SurfaceConversationCommands:
                     (account_id, binding_key),
                 ).fetchone()["conversation_id"]
             if operation.startswith("work_"):
-                from work_domain.commands import WorkCommandService, WorkConflict
+                from application.work.service import WorkCommandService
+                from work_domain.errors import WorkConflict
 
                 service = WorkCommandService(uow)
                 try:

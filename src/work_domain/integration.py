@@ -10,11 +10,14 @@ from uuid6 import uuid7
 
 from application.work.events import record_work_event
 from persistence.uow import UnitOfWork, retryable_transaction
+from persistence.wakeups import WakeupRepository
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository
 from persistence.works import WorkRepository as WorkRows
 from resources.run_budget import _amounts
 from web_domain.errors import ResourceNotFound
 from work_domain.models import continuation
-from work_domain.persistence import WorkRepository, dto
+from work_domain.serialization import dto
 
 
 def completed_outputs(uow, work):
@@ -279,7 +282,7 @@ def integration_command(service, account, work_id, key, version, action, payload
                 (account, work_id),
             ).fetchone()
             if payload["budget_version"] != budget["version"]:
-                from work_domain.commands import WorkConflict
+                from work_domain.errors import WorkConflict
 
                 raise WorkConflict(work, "budget_version_conflict")
             if any(k not in budget["limits"] or v < budget["limits"][k] for k, v in limits.items()):
@@ -299,7 +302,7 @@ def integration_command(service, account, work_id, key, version, action, payload
                              continuation('ready', 'budget_increased'))
                 WorkRows.set_pending_continuation(uow, json.dumps(next_step), work_id)
                 if not protection:
-                    WorkRepository.wakeup(uow, work, f"budget:{command}", "advance", "budget_increased")
+                    WakeupRepository.enqueue(uow, work, f"budget:{command}", "advance", "budget_increased")
         elif action == "grant_resource":
             from workspace.resources import ResourcePolicy
 
@@ -487,7 +490,7 @@ def integration_command(service, account, work_id, key, version, action, payload
                 or work["active_coordinator_run_id"]
             ):
                 raise ValueError("acceptance revision or control mismatch")
-            requirement = WorkRepository.requirement(
+            requirement = WorkRequirementRepository.get(
                 uow, account, work_id, work["current_requirement_revision"]
             )
             run = uow.execute(
@@ -550,7 +553,7 @@ def integration_command(service, account, work_id, key, version, action, payload
                 and not current['continuation'].get('operation_ref')
                 and current['continuation']['kind'] == 'awaiting_input'
                 and current['continuation']['reason'] in SAVE_WAIT_REASONS):
-            requirement = WorkRepository.requirement(uow, account, work_id, current['current_requirement_revision'])
+            requirement = WorkRequirementRepository.get(uow, account, work_id, current['current_requirement_revision'])
             if not defer_workspace_save(uow, current, requirement):
                 from work_domain.progress import blocked_reason
                 from work_domain.timing import initial_continuation
@@ -559,9 +562,9 @@ def integration_command(service, account, work_id, key, version, action, payload
                              initial_continuation(requirement['timing']))
                 current = dict(WorkRows.set_continuation_returning(uow, json.dumps(next_step), work_id))
                 if not protection and requirement['timing']['kind'] in {'immediate', 'once'}:
-                    WorkRepository.wakeup(uow, current, f'save-ready:{command}', 'advance', 'workspace_save_ready',
+                    WakeupRepository.enqueue(uow, current, f'save-ready:{command}', 'advance', 'workspace_save_ready',
                                           next_step.get('due_at'))
-            from work_domain.persistence import sync_schedule
+            from application.work.schedules import sync_schedule
             current = WorkRepository.get(uow, account, work_id)
             sync_schedule(uow, current, requirement)
         record_work_event(uow, current, action, command_id=command, **dto(payload))

@@ -1,7 +1,7 @@
 """Work command conflicts with the existing current-state projection."""
 
 from web_domain.errors import DomainError
-from work_domain.persistence import dto
+from work_domain.serialization import dto
 
 
 class WorkConflict(DomainError):

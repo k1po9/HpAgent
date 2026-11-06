@@ -177,7 +177,7 @@ class TerminalEventPublisher:
 
     async def _publish_work(self, event):
         from persistence.uow import UnitOfWork
-        from work_domain.persistence import dto
+        from work_domain.serialization import dto
         def load():
             with UnitOfWork(self.database) as uow:
                 row = uow.execute('SELECT * FROM work_events WHERE account_id=%s AND work_id=%s AND event_id=%s', (event['account_id'],event['work_id'],event['payload']['event_id'])).fetchone()

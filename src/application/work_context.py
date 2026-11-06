@@ -56,7 +56,7 @@ class WorkContextProvider:
                           "content_type": f.get("content_type"), "size_bytes": f["size_bytes"]}
                          for f in files[:20]]
             # Candidate metadata is advisory; selecting/using bytes rechecks current grants.
-            from work_domain.persistence import dto
+            from work_domain.serialization import dto
 
             brief = {
                 "schema_version": 1,

@@ -15,7 +15,8 @@ from run_domain.execution import assert_execution_fence
 from web_domain.errors import IdempotencyConflict, ResourceNotFound
 from work_domain.errors import WorkConflict
 from work_domain.models import digest
-from work_domain.persistence import WorkRepository, dto
+from work_domain.persistence import WorkRepository as CompatibilityWorkRepository
+from work_domain.serialization import dto
 
 from .queries import WorkQueries
 
@@ -31,7 +32,8 @@ class WorkCommandDependencies:
         self.database = database
         self.budget_mode = budget_mode
         self.agent_policy = agent_policy or AgentPolicy()
-        self.repo = WorkRepository()
+        # Preserve the existing public collaborator for unknown external extensions.
+        self.repo = CompatibilityWorkRepository()
         self.idempotency = IdempotencyRepository()
 
         self.queries = WorkQueries(database, self.repo)

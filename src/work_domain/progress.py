@@ -6,8 +6,8 @@ import hashlib
 import os
 
 from application.work.events import record_work_event
+from persistence.works import WorkRepository
 from work_domain.models import digest
-from work_domain.persistence import WorkRepository
 
 
 class ProgressBlocked(RuntimeError):

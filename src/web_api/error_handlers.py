@@ -29,7 +29,7 @@ from web_domain.errors import (
     UnsupportedFileType,
     VersionConflict,
 )
-from work_domain.commands import WorkConflict
+from work_domain.errors import WorkConflict
 from work_domain.models import GENERIC_RESULT_EVIDENCE_TYPES, LegacyGenericCriteria
 from work_domain.save_policy import InvalidWorkspaceSave
 from work_domain.time_policy import WorkTimeInPast

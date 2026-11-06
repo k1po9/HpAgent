@@ -79,7 +79,7 @@ class WebRunLifecycleService:
             if run["status"] in {'queued','running'}:
                 if run['source_kind'] == 'work':
                     RunLifecycleService.check_work(uow, run)
-                from persistence.repositories import AccountRepository
+                from persistence.accounts import AccountRepository
                 if not AccountRepository().require_active(uow, run['account_id']):
                     raise ResourceNotFound()
             if run["status"] == "queued":

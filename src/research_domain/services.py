@@ -2,7 +2,7 @@
 
 from persistence.uow import UnitOfWork
 from web_domain.errors import ResourceNotFound
-from work_domain.persistence import dto
+from work_domain.serialization import dto
 
 
 class ResearchQueryService:

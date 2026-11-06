@@ -9,8 +9,8 @@ from uuid6 import uuid7
 
 from application.work.events import record_work_event
 from common.runtime_config import CapacityConfig
+from persistence.accounts import AccountRepository
 from persistence.command_result import CommandResult
-from persistence.repositories import AccountRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
@@ -18,11 +18,11 @@ from persistence.works import WorkRepository as WorkRows
 from web_domain.errors import ResourceNotFound
 from work_domain.errors import WorkConflict
 from work_domain.models import validate_new_completion_criteria
-from work_domain.persistence import dto
 from work_domain.save_policy import (
     defer_workspace_save,
     validate_new_save_policy,
 )
+from work_domain.serialization import dto
 from work_domain.time_policy import validate_new_timing
 
 from .commands import AcceptWorkCommand

@@ -11,9 +11,10 @@ from application.work.events import record_work_event
 from common.channel_result import ChannelSendResult
 from common.runtime_config import CapacityConfig
 from persistence.uow import UnitOfWork
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository
 from persistence.works import WorkRepository as WorkRows
 from work_domain.models import continuation
-from work_domain.persistence import WorkRepository
 
 
 class DeliveryTargetUnavailable(ValueError):
@@ -132,7 +133,7 @@ def enqueue_event(uow, work, event_id, event_type, run_id=None):
                           'delivery_blocked', 'delivery_accepted'}:
         return
     from work_domain.integration import completed_outputs
-    from work_domain.persistence import dto
+    from work_domain.serialization import dto
 
     results = dto(completed_outputs(uow, work)) if event_type == "completed" else []
     enqueue(
@@ -235,7 +236,7 @@ class DeliveryReceiptHandler:
                 (notification["account_id"], notification["run_id"]),
             ).fetchone()
         )
-        requirement = WorkRepository.requirement(
+        requirement = WorkRequirementRepository.get(
             uow, work["account_id"], work["work_id"], work["current_requirement_revision"]
         )
         from work_domain.integration import criteria_satisfied, supplemental_evidence

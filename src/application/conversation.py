@@ -7,12 +7,12 @@ from uuid import UUID
 
 from account.identity import normalize_channel_subject
 from application.interaction_profiles import QQ_GROUP, QQ_PRIVATE
-from common.types import UnifiedMessage
-from conversation_domain.surface_commands import (
+from application.surfaces.conversation import (
     IdentityNotBound,
     SurfaceConversationCommands,
     stable_key,
 )
+from common.types import UnifiedMessage
 
 
 class UnboundIdentity(Exception):

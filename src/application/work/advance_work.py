@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime
 
 from application.work.events import record_work_event
-from persistence.repositories import AccountRepository
+from persistence.accounts import AccountRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository

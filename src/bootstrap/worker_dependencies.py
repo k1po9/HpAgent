@@ -380,7 +380,7 @@ async def _init_dependencies(
             )
 
     # Account-bound Main Work tools share the API command service.
-    from work_domain.commands import WorkCommandService
+    from application.work.service import WorkCommandService
 
     sandbox_manager = SandboxManager(
         nsjail_config=nsjail_config,

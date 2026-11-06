@@ -46,7 +46,7 @@ class ChatProjection:
     def snapshot_for_run(cls, uow: UnitOfWork, run_id: UUID) -> dict[str, Any]:
         run = RunRepository().get_in_uow(uow, run_id)
         if run["source_kind"] == "work":
-            from work_domain.persistence import dto
+            from work_domain.serialization import dto
 
             value = dto(run)
             value["budget"] = load_run_budget_projection(uow, run_id)

@@ -228,7 +228,8 @@ def reference_work_artifact(
 
 @router.get("/api/v1/works/{work_id}/notification-targets")
 def work_targets(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
-    from work_domain.persistence import WorkRepository, dto
+    from persistence.works import WorkRepository
+    from work_domain.serialization import dto
 
     with UnitOfWork(request.app.state.api_pool) as uow:
         WorkRepository.get(uow, context.account_id, work_id)
@@ -304,7 +305,8 @@ def increase_work_budget(
 
 @router.get("/api/v1/works/{work_id}/inputs")
 def work_inputs(work_id: UUID, request: Request, context: AuthContext = Depends(auth_context)):
-    from work_domain.persistence import WorkRepository, dto
+    from persistence.works import WorkRepository
+    from work_domain.serialization import dto
 
     with UnitOfWork(request.app.state.api_pool) as uow:
         WorkRepository.get(uow, context.account_id, work_id)
@@ -382,7 +384,7 @@ def accept_work_result(
 def notification_inbox(
     request: Request, before: UUID | None = None, context: AuthContext = Depends(auth_context)
 ):
-    from work_domain.persistence import dto
+    from work_domain.serialization import dto
 
     with UnitOfWork(request.app.state.api_pool) as uow:
         rows = uow.execute(

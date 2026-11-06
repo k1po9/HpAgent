@@ -68,7 +68,7 @@ def test_original_legacy_command_replay_is_returned_before_new_write_validation(
                                     'acceptance_criteria': CONTRACT['legacy_criteria']})
     commands = WorkCommandService('unused')
     receipt = Mock()
-    module = 'application.work.accept_work' if operation == 'accept' else 'work_domain.commands'
+    module = 'application.work.accept_work' if operation == 'accept' else 'application.work.service'
     target = commands.dependencies if operation == 'accept' else commands
     claim = 'claim' if operation == 'accept' else '_claim'
     with patch(f'{module}.UnitOfWork'), patch.object(

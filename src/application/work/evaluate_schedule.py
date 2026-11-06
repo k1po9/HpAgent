@@ -12,9 +12,9 @@ from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
 from persistence.work_schedules import WorkScheduleRepository
+from persistence.works import WorkRepository
 from persistence.works import WorkRepository as WorkRows
 from work_domain.models import continuation
-from work_domain.persistence import WorkRepository
 from work_domain.timing import latest_daily, next_daily
 
 from .dispatch_due_work import DispatchDueWork

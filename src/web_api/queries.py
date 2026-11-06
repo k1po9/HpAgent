@@ -289,7 +289,7 @@ class QueryService:
         with UnitOfWork(self.database) as uow:
             work_run = uow.execute("SELECT * FROM runs WHERE account_id=%s AND run_id=%s AND source_kind=\'work\'", (account_id, run_id)).fetchone()
             if work_run:
-                from work_domain.persistence import dto
+                from work_domain.serialization import dto
 
                 published = uow.execute(
                     "SELECT sf.* FROM run_files rf JOIN stored_files sf "

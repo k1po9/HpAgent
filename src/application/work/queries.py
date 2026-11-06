@@ -5,7 +5,9 @@ from __future__ import annotations
 from uuid import UUID
 
 from persistence.uow import UnitOfWork
-from work_domain.persistence import WorkRepository, dto
+from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository
+from work_domain.serialization import dto
 
 
 class WorkQueries:
@@ -15,7 +17,7 @@ class WorkQueries:
 
     def snapshot_in_uow(self, uow, account_id, work_id):
         work = self.repo.get(uow, account_id, work_id)
-        work["requirement"] = self.repo.requirement(
+        work["requirement"] = WorkRequirementRepository.get(
             uow, account_id, work_id, work["current_requirement_revision"]
         )
         schedule = uow.execute(

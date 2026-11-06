@@ -4,12 +4,10 @@ from collections.abc import Collection
 from datetime import datetime
 from uuid import UUID
 
+from persistence.conversations import ConversationRepository
+from persistence.messages import MessageRepository
 from persistence.outbox import OutboxRepository
-from persistence.repositories import (
-    ConversationRepository,
-    MessageRepository,
-    RunRepository,
-)
+from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork, retryable_transaction
 
 from .errors import OutboxLeaseLost, ResourceNotFound

@@ -11,12 +11,12 @@ from common.agent_policy import AgentPolicy
 from persistence.uow import UnitOfWork, retryable_transaction
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository
 from persistence.works import WorkRepository as WorkRows
 from resources.run_budget import RunBudgetExhausted
 from run_domain.lifecycle import RunLifecycleService
 from web_domain.errors import DomainError
 from work_domain.models import continuation
-from work_domain.persistence import WorkRepository
 
 from .admit_work_run import AdmitWorkRun, WorkAdmissionContext
 

@@ -11,11 +11,13 @@ from uuid import UUID
 from uuid6 import uuid7
 
 from common.agent_policy import AgentPolicy
-from persistence.repositories import OutboxRepository, RunBudgetRepository
+from persistence.outbox import OutboxRepository
+from persistence.repositories import RunBudgetRepository
 from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork
 from persistence.wakeups import WakeupRepository
 from persistence.work_requirements import WorkRequirementRepository
+from persistence.works import WorkRepository
 from persistence.works import WorkRepository as WorkRows
 from run_domain.creation import WorkRunInsert, build_work_budget_limits, build_work_input_snapshot
 from work_domain.admission import (
@@ -25,7 +27,6 @@ from work_domain.admission import (
 )
 from work_domain.errors import WorkConflict
 from work_domain.models import continuation
-from work_domain.persistence import WorkRepository
 from workspace.resources import ResourceDenied, ResourcePolicy
 
 
@@ -124,7 +125,7 @@ class AdmitWorkRun:
         run_id = uuid7()
         epoch = work["control_epoch"] + 1
         from run_domain.strategy import WorkExecutionPlanner
-        from work_domain.persistence import dto
+        from work_domain.serialization import dto
 
         strategy_decision = WorkExecutionPlanner().plan(requirement)
         strategy, executor = strategy_decision.strategy_kind, strategy_decision.executor_key

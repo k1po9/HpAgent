@@ -19,7 +19,9 @@ from common.types import Event, EventType
 from memory.hindsight_client import MemoryItem
 from memory.scope_policy import chat_scope
 from persistence.memory import MemoryStore
-from persistence.repositories import FileRepository, MessageRepository, RunRepository
+from persistence.messages import MessageRepository
+from persistence.repositories import FileRepository
+from persistence.runs import RunRepository
 from persistence.uow import UnitOfWork
 
 logger = logging.getLogger("HpAgent.ContextAssembly")
