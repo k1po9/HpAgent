@@ -127,7 +127,7 @@ model_request_invalid、model_response_invalid、model_access_denied、model_req
 
 ## 业务主干调用图
 
-组合根直接引用 [Chat service](../../src/application/chat/service.py)、[Work service](../../src/application/work/service.py)、[Artifact service](../../src/application/artifacts/service.py) 与 [Scheduler](../../src/application/work/scheduler.py)。旧模块只导出相同类，未复制实现。下面画出本次审计范围从入口到 PG 和提交后执行的路径；节点中的调用是职责关系，事务划分以下方时序和所有权表为准。
+组合根直接引用 [Chat service](../../src/application/chat/service.py)、[Work service](../../src/application/work/service.py)、[Artifact service](../../src/application/artifacts/service.py) 与 [Scheduler](../../src/application/work/scheduler.py)。旧模块只导出相同类，未复制实现。下面画出业务主干从入口到 PG 和提交后执行的路径；节点中的调用是职责关系，事务划分以下方时序和所有权表为准。
 
 ```mermaid
 flowchart TD
@@ -361,3 +361,17 @@ sequenceDiagram
 | 查询 | WorkQueries、原查询服务 | 自己开读 UoW；snapshot_in_uow 借用已有事务，避免在命令中另开连接 |
 
 UnitOfWork 实现未改变：DSN 或 pool 入口拥有连接与提交；UnitOfWork(outer_uow) 复用连接并建 savepoint，内层退出不提交外层。异常回滚与释放、deadlock/serialization 的有限重试策略保持。锁顺序、当前授权、revision/fence、数据库时钟和幂等键仍属于具体业务流程的显式约束，不能通过统一 Repo 方法或嵌套对象省略。
+
+## 当前限制与待核验风险
+
+以下是需要在后续行为变更或可靠性验收中单独处理的边界，结构整理没有消除这些限制。
+
+| 范围 | 当前事实与验证限制 |
+| --- | --- |
+| 独立 Artifact 预算 | `legacy_artifact_sender` 显式保留 observe、file-p0-v1 和原预算默认值，与 Web 配置注入可能不同。不能把结构迁移理解为已统一 enforce 策略。 |
+| Outbox 租约 | ack/retry/dead 按 event/status/locked_by 判断，没有 claim generation。同 worker_id 被复用时旧消费者可能影响新租约，这是待复现的 ABA 风险，尚不能据此认定已丢数据。 |
+| Dispatcher 日志 | mark_processed 返回 false 后仍可能记录 processed；日志不证明该次 CAS 已接受，应查询 PG 权威事实。 |
+| dead-letter 适用范围 | OutboxService.dead_letter 先锁关联 Run，不能直接泛化到 run_id 为空的 Work aggregate；Work 发布失败继续使用原 retry 路径。 |
+| Terminal publisher 监督 | recover/claim 的整轮异常未在循环外自行捕获，可能结束后台任务；是否由更高层恢复需要单独核验，不承诺全部消费者无限自愈。 |
+
+这些风险的复现、claim token/Schema 设计、预算策略统一及任务监督变更应分别定义合同与测试。现有单元、隔离PG或sandbox通过不代表真实Temporal恢复、Provider/QQ外发、非空历史库升级、压力或PG断电恢复已验收。具体选测与环境依赖见[测试指南](../development/testing.md#业务命令与持久化选测)。

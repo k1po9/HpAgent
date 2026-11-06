@@ -60,7 +60,7 @@ QQ 服务使用 [SnowLuma 启动校验](../../config/snowluma/verify.cjs)、
 
 ## 当前业务主干目录与旧路径映射
 
-以下是本次重构涉及的最终结构；能力、Workspace、查询及生命周期仍存在原有跨领域依赖。
+业务接收与持久化主干如下；能力、Workspace、查询及生命周期仍存在跨领域依赖。
 
 ```text
 src/application/
@@ -97,7 +97,7 @@ Web lifespan、Worker 与 worker_dependencies/worker_tasks 直接引用 applicat
 
 ## 核心仓储职责与表写入责任
 
-核心仓储均接收现有 UoW，不拥有连接池、commit、RPC 或通知选择。以下覆盖本次审计主干及直接联动表；全库能力/记忆/Workspace 的其他表按各自文档追踪，不假称全部迁移到这些仓储。
+核心仓储均接收现有 UoW，不拥有连接池、commit、RPC 或通知选择。以下覆盖业务接收主干及直接联动表；能力、记忆和 Workspace 的其他表按各自文档追踪。
 
 | Repository / 文件 | 写入表及职责 | 业务协调者与例外 |
 | --- | --- | --- |
@@ -142,4 +142,4 @@ Web lifespan、Worker 与 worker_dependencies/worker_tasks 直接引用 applicat
 4. 读 [EvaluateSchedule](../../src/application/work/evaluate_schedule.py) → DispatchDueWork，确认两个事务和逐 Work 失败隔离；再读 Work completion/progress 理解 Run 终态怎样提出下一 continuation。
 5. 最后读 [OutboxService](../../src/web_domain/outbox.py) → RunDispatcher → WorkflowExecutionStore → Activity/Run lifecycle，并对照[完整调用图、时序及事务所有权](../architecture/execution.md#业务主干调用图)，理解业务提交、远端执行、版本发布、Work 完成和投递是独立事实。
 
-本轮实际验证与尚未解决问题见[实施日志](../architecture/business-flow-persistence-implementation-log.md)；当前蓝图保留原 AS-IS 审计证据，不用它推断当前目录。
+验证入口见[测试指南](../development/testing.md#业务命令与持久化选测)，运行约束及待核验风险见[执行与恢复](../architecture/execution.md#当前限制与待核验风险)。当前事实以本页和各领域文档为准。

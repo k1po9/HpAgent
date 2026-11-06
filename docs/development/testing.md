@@ -44,6 +44,33 @@ Temporal验收还需显式设置`TEMPORAL_HOST`指向独立测试服务，设置
 
 静态检查范围：Ruff覆盖Conversation、Web、Work、Run、Application、Bootstrap、Agent Workflow/Activity、Orchestration、Research及全部test；mypy覆盖Conversation、Web、Persistence、Web API、Work、Run与Agent Workflow。OneBot11、共享发送回执及 Delivery 已纳入 Ruff；其他通用能力/渠道适配包尚未全部纳入，不以这两个命令证明全仓库静态检查通过。
 
+## 业务命令与持久化选测
+
+先沿[当前应用入口](../reference/repository-layout.md)确定实际改动，再从已有测试选择受影响路径。下面是选测索引，不是每次修改必须全部执行的清单。
+
+| 实际改动 | 优先复用的现有测试与行为断言 |
+| --- | --- |
+| Chat 发送、重试、共享取消 | `test/web_persistence/test_conversation_commands.py`、`test_command_service.py`、`test_outbox_and_lifecycle.py`：跨实例幂等、同 Conversation 单槽、唯一直接 retry child、Outbox 失败整组回滚 |
+| HTTP 组合根与响应 | `test/web_api/test_phase_b_api.py`、`test_work_foundation.py`：原响应、重放、busy、Work revision/control 和跨账号可见性 |
+| QQ 身份、绑定与 receipt | `test/web_persistence/test_qq_canonical_ingress.py`：稳定消息键、重投、busy receipt、撤销身份、外层失败回滚 |
+| Artifact 与资源撤权 | `test/web_persistence/test_web_artifacts.py`、`test_workspace_v41_p2.py`：Version/Run 原子创建、HTML retry 冻结输入、撤权后的读/retry 拒绝与取消 |
+| Work 接受、推进、调度与终态 | `test/work_domain/test_foundation.py`、`test_time_policy.py`、`test_execution_strategy.py`、`test_progress.py`、`test/web_persistence/test_durable_review_regressions.py`：接受不建 Run、当前协调权/revision、wakeup 去重、逐 Work 失败隔离及后续恢复 |
+| 预算、保存门禁与完成证据 | `test/work_domain/test_save_admission.py`、`test_completion_contract.py`、`test/web_api/test_work_save_admission.py`：门禁拒绝不提前准入，当前证据与保存事实分别核验 |
+| import、注册与 Workflow sandbox | `make architecture-check`；涉及真实 Workflow 行为再按改动选 `make test-temporal` 中的 replay/恢复用例 |
+
+例如，仅修改 Chat 接收接缝时，在准备好上述显式专用数据库后执行：
+
+```bash
+PYTHONPATH="$PWD:$PWD/src:$PWD/test" python3 -m pytest --require-test-services \
+  -m 'postgres and not temporal' test/web_persistence/test_conversation_commands.py
+```
+
+复用原有业务结果断言；只有改动引入的风险无法从已有结果观察时才最小补测。API TestClient、Mock 连接清理、隔离 PG、Temporal 契约和真实外部链路的证据应分别报告；skip、deselected、服务缺失均不算通过。一次性选测 runner、日志及 JUnit 留在仓库外或忽略目录，不升级为正式工具或提交阶段报告。
+
+`test/test_memory_quality_config.py::test_snapshot_tracks_model_selection_but_not_main_recall_instruction` 有已知环境依赖：继承进程中的 `HINDSIGHT_API_LLM_MODEL` 可覆盖测试改变的 `MINIMAX_STANDARD_MODEL`，导致预期变化的配置 hash 不变。配置回归前检查覆盖变量的来源，不打印凭据；遇到此失败应如实单列，不能通过修改业务配置、跳过测试或把其他套件通过当作它通过。
+
+## 记忆与内容链选测
+
 记忆核心回归可定向执行 `test/web_persistence/test_memory_retention.py`、
 `test/web_persistence/test_memory_governance.py`、`test/web_persistence/test_memory_readiness.py`、
 `test/web_api/test_memory_governance.py`、`test/work_domain/test_memory_context.py`；仍使用上述三角色

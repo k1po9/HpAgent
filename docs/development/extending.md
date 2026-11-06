@@ -12,6 +12,12 @@
 
 领域规则放入 Domain Package，协调逻辑放入 Application Service，Provider/Storage 细节放入 Adapter。需要事务性接收的持久化工作通过 PostgreSQL + Outbox 进入系统。Web 与 QQ 继续作为统一命令边界之上的表现层。
 
+Chat 从 `application/chat/service.py` 组合 SendMessage、RetryChatRun 与共享 CancelRun；Work 从 `application/work/service.py` 组合 AcceptWork、AdvanceWork，调度从 `application/work/scheduler.py` 进入。QQ 身份/receipt 在 `application/surfaces/conversation.py`，显式 Artifact 写事务在 `application/artifacts/commands.py`。组合根引用这些实际实现，旧模块只承担必要兼容，新增调用不绕回旧路径。
+
+独立命令的 execute 拥有 UoW 和有限事务重试；execute_in_uow 借用调用方事务，不提交、不另开连接。Repository 接收 UoW 执行指定表的 SQL，应用协调状态、事件、通知和 Outbox 同事务提交；提交后才调用外部服务。QQ Work 控制沿 WorkCommandService(uow) 保留原嵌套 savepoint，Work 调度的评估与 dispatch 仍是两个事务。具体边界以[事务所有权表](../architecture/execution.md#unitofwork-所有权)为准。
+
+测试先选[已有业务行为断言](testing.md#业务命令与持久化选测)，只有实际接缝缺少可观察证据时才补测试。不要用目录存在、重复实现或私有函数调用断言代替幂等、权限、并发与原子性结果；迁移链及历史回放 fixture 是正式执行输入，不能作为临时文件清理。
+
 ## 添加 Temporal Workflow 或 Activity
 
 - Workflow 必须保持确定性，I/O 放入 Activity。

@@ -61,3 +61,5 @@ make ci-web                 # lint、typecheck、Vitest、生产构建
 `src/` 应用/领域/Worker/API；`web/` React/Vite与正式测试；`config/` 运行配置；`persistence/` 迁移与初始化；`test/` 后端测试及fixture；`scripts/` 开发/运维/检查/实验；`docs/` 当前架构、开发、运维和参考文档。详细职责见[目录参考](docs/reference/repository-layout.md)。
 
 修改前先读 [AGENTS.md](AGENTS.md)，按[代码地图](docs/reference/repository-layout.md)定位职责。当前约束见[总览](docs/architecture/overview.md)、[执行与状态](docs/architecture/execution.md)、[Work](docs/architecture/work.md)、[Workspace](docs/architecture/workspace.md)和[Web 契约](docs/architecture/web-ui.md)。
+
+追踪业务流程时，从 `src/application/chat`、`work`、`run`、`surfaces` 和 `artifacts` 的应用入口开始；用例协调事务，Repository 借用调用方的 UnitOfWork 执行 SQL。完整[调用图与事务时序](docs/architecture/execution.md#业务主干调用图)、[仓储和表写入责任](docs/reference/repository-layout.md#核心仓储职责与表写入责任)及[代码阅读顺序](docs/reference/repository-layout.md#从简单到复杂阅读业务代码)维护在对应当前文档中。
