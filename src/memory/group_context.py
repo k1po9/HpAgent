@@ -128,7 +128,7 @@ class GroupContextStore:
             message['content'] = ''
             overhead = len(json.dumps(message, ensure_ascii=False).replace('/', '\\/').encode())
             message['content'] = excerpt(content, self._message_tokens,
-                                         max_bytes=self._bytes - 256 - overhead)
+                                         max_bytes=self._bytes - 256 - overhead, already_truncated=False)
             message['truncated'] = message['content'] != content
             if not message['content']:
                 return AppendResult('degraded', reason='message_limits_too_small')

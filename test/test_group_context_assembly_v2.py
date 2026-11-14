@@ -145,3 +145,20 @@ def test_old_frozen_strategy_keeps_original_render_and_budget():
     frozen = base([user('CURRENT')], {'group_context': snapshot})
     assert ContextAssemblyService._group_background(frozen) == expected
     assert snapshot['selected'] == items
+
+
+def test_web_builder_keeps_long_text_without_calling_qq_excerpt(monkeypatch):
+    import application.group_context_selection as selection
+    from memory import group_context_text
+
+    def forbidden(*args, **kwargs):
+        pytest.fail('Web builder called QQ-specific excerpt')
+    monkeypatch.setattr(group_context_text, 'excerpt', forbidden)
+    monkeypatch.setattr(selection, 'excerpt', forbidden)
+    text = 'Web长篇需求🙂代码\n' * 1000 + ' natural ending ...'
+    assert estimate_tokens(text) > 512
+    messages = HarnessContextBuilder(system_prompt='rules').build(
+        [Event(session_id='web', event_type=EventType.USER_MESSAGE, content={'content': text})],
+        interaction_profile='web_chat', token_budget=32000, generation_headroom=4000)
+    assert messages[-1] == {'role': 'user', 'content': text}
+    assert estimate_messages_tokens(messages) <= 28000

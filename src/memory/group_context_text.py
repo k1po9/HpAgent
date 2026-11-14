@@ -14,8 +14,13 @@ def encoded_content_bytes(text: str) -> int:
     return len(json.dumps(text, ensure_ascii=False).replace('/', '\\/').encode('utf-8')) - 2
 
 
-def excerpt(text: str, budget: int, *, max_bytes: int | None = None) -> str:
-    """Keep a Unicode prefix; both limits include the single visible suffix."""
+def excerpt(text: str, budget: int, *, max_bytes: int | None = None,
+            already_truncated: bool = False) -> str:
+    """Keep a Unicode prefix; only explicit provenance identifies our suffix.
+
+    Raw text can naturally end in MARKER. A known system-truncated value may
+    shed that suffix when re-clipped; legacy values with another suffix stay intact.
+    """
     def fits(value: str) -> bool:
         return (estimate_tokens(value) <= budget
                 and (max_bytes is None or encoded_content_bytes(value) <= max_bytes))
@@ -24,7 +29,7 @@ def excerpt(text: str, budget: int, *, max_bytes: int | None = None) -> str:
         return text
     if not fits(MARKER):
         return ''
-    source = text[:-len(MARKER)] if text.endswith(MARKER) else text
+    source = text[:-len(MARKER)] if already_truncated and text.endswith(MARKER) else text
     lo, hi = 0, len(source)
     while lo < hi:
         mid = (lo + hi + 1) // 2

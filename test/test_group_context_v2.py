@@ -257,3 +257,107 @@ async def test_redis_empty_mention_list_renders_as_array(group_store):
     item = (await store.get_candidates(key)).messages[0]
     rendered = json.loads(render_background([item]).split('\n')[1])
     assert rendered['mention_ids'] == []
+
+
+@pytest.mark.parametrize('budget,max_bytes', [(512, None), (5, None), (512, 12), (1, 1)])
+def test_excerpt_raw_natural_suffix_uses_explicit_state_and_longest_prefix(budget, max_bytes):
+    from memory.group_context_text import MARKER, encoded_content_bytes, excerpt
+
+    text = '原始中文🙂 ...'
+    def fits(value):
+        return estimate_tokens(value) <= budget and (max_bytes is None or encoded_content_bytes(value) <= max_bytes)
+    if fits(text):
+        expected = text
+    elif not fits(MARKER):
+        expected = ''
+    else:
+        expected = max((text[:n] + MARKER for n in range(len(text) + 1) if fits(text[:n] + MARKER)), key=len)
+    result = excerpt(text, budget, max_bytes=max_bytes, already_truncated=False)
+    assert result == expected
+    assert result.encode('utf-8').decode('utf-8') == result
+
+
+def test_excerpt_explicit_truncation_state_preserves_or_reclips_system_suffix():
+    from memory.group_context_text import excerpt
+
+    result = excerpt('中文🙂' * 1000, 512, already_truncated=False)
+    assert result.endswith(' ...')
+    assert excerpt(result, 512, already_truncated=True) == result
+    smaller = excerpt(result, 100, max_bytes=150, already_truncated=True)
+    assert smaller.endswith(' ...') and not smaller.endswith(' ... ...')
+    assert estimate_tokens(smaller) <= 100
+    from memory.group_context_text import encoded_content_bytes
+    assert encoded_content_bytes(smaller) <= 150
+
+
+async def test_duplicate_reenters_after_seen_retention_horizon_without_sleep(group_store):
+    store, client, key = group_store
+    original = await store.append(key, event_id='old', sender_id='u', content='same')
+    keys = store.keys(key)
+    assert await client.hget(keys[2], 'old') is not None
+    # Age just this member past the real Lua TIME-based retention cutoff.
+    # This exercises expiry cleanup while the list/sequence remain alive.
+    server_time = await client.time()
+    now = server_time[0] + server_time[1] / 1_000_000
+    await client.zadd(keys[1], {'old': now - store._ttl - 1})
+    fresh = await store.append(key, event_id='old', sender_id='u', content='same')
+    assert fresh.status == 'appended' and fresh.sequence == original.sequence + 1
+    assert (await client.hget(keys[2], 'old')).decode().endswith('|2')
+    assert await client.zcard(keys[1]) == await client.hlen(keys[2]) == 1
+    assert [m['sequence'] for m in (await store.get_candidates(key)).messages] == [1, 2]
+
+
+async def test_duplicate_reenters_after_seen_keys_expire_without_sleep(group_store):
+    store, client, key = group_store
+    first = await store.append(key, event_id='e', sender_id='u', content='same')
+    keys = store.keys(key)
+    # Redis expires the seen keys synchronously for a deadline in the past.
+    for k in keys[1:3]:
+        await client.pexpireat(k, 1)
+        assert not await client.exists(k)
+    fresh = await store.append(key, event_id='e', sender_id='u', content='same')
+    assert fresh.status == 'appended' and fresh.sequence == first.sequence + 1
+    assert len((await store.get_candidates(key)).messages) == 2
+
+
+async def test_duplicate_reenters_after_seen_cardinality_eviction(group_store):
+    _, client, key = group_store
+    store = GroupContextStore(client, window_size=2, seen_limit=3)
+    first = await store.append(key, event_id='first', sender_id='u', content='same')
+    for i in range(3):
+        await store.append(key, event_id=str(i), sender_id='u', content='new')
+    keys = store.keys(key)
+    assert await client.zscore(keys[1], 'first') is None
+    assert await client.hget(keys[2], 'first') is None
+    assert await client.zcard(keys[1]) == await client.hlen(keys[2]) == 3
+    fresh = await store.append(key, event_id='first', sender_id='u', content='same')
+    assert fresh.status == 'appended' and fresh.sequence == first.sequence + 4
+    messages = (await store.get_candidates(key)).messages
+    assert [m['sequence'] for m in messages] == [4, 5]
+    assert [m['event_id'] for m in messages].count('first') == 1
+    assert await client.zcard(keys[1]) == await client.hlen(keys[2]) == 3
+
+
+async def test_store_and_selector_forward_explicit_truncation_provenance(group_store, monkeypatch):
+    import application.group_context_selection as selection
+    import memory.group_context as storage
+    from memory.group_context_text import excerpt
+
+    store, _, key = group_store
+    states = []
+    def track(text, budget, **kwargs):
+        states.append(kwargs['already_truncated'])
+        return excerpt(text, budget, **kwargs)
+    monkeypatch.setattr(storage, 'excerpt', track)
+    monkeypatch.setattr(selection, 'excerpt', track)
+    original = '中文🙂' * 1000 + ' ...'
+    await store.append(key, event_id='long', sender_id='u', content=original)
+    messages = (await store.get_candidates(key)).messages
+    assert messages[0]['truncated'] and messages[0]['content'].endswith(' ...')
+    snapshot = select_context(messages, trigger_event_id='trigger', sender_id='u',
+                              now=datetime.now(UTC), policy=SelectionPolicy(message_tokens=100))
+    assert states == [False, True]
+    assert snapshot['selected'][0]['truncated']
+    clipped = snapshot['selected'][0]['content']
+    assert original.startswith(clipped[:-4]) and clipped.endswith(' ...')
+    assert estimate_tokens(clipped) <= 100

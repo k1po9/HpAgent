@@ -94,7 +94,8 @@ def select_context(candidates: Sequence[dict[str, Any]], *, trigger_event_id: st
         for original in items:
             if original['event_id'] in selected_ids or len(selected) >= policy.max_messages:
                 continue
-            m = {**original, 'content': excerpt(original['content'], policy.message_tokens)}
+            m = {**original, 'content': excerpt(original['content'], policy.message_tokens,
+                                                already_truncated=bool(original.get('truncated', False)))}
             m['truncated'] = bool(original.get('truncated')) or m['content'] != original['content']
             if not m['content']:
                 continue
