@@ -114,8 +114,17 @@ async def start_worker(config: AppConfig) -> None:
                 )
             )
         )
+        from application.group_context_selection import SelectionPolicy
+
         ingress_service = MessageIngressService(
             group_context=deps.infrastructure.group_context,
+            context_timeout_seconds=config.redis.group_context_timeout_seconds,
+            context_policy=SelectionPolicy(
+                max_age_minutes=config.redis.group_context_max_age_minutes,
+                max_messages=config.redis.group_context_max_messages,
+                token_budget=config.redis.group_context_token_budget,
+                message_tokens=config.redis.group_context_message_tokens,
+            ),
             conversation_service=conversation_service,
             reply_service=deps.qq.reply_service,
             identity_command_service=IdentityCommandService(
@@ -185,7 +194,8 @@ async def start_worker(config: AppConfig) -> None:
             background_tasks.create(
                 QQDeliveryService(
                     os.environ["WORKER_DATABASE_URL"],
-                    QQDeliveryAdapter(deps.qq.channel_router),
+                    QQDeliveryAdapter(deps.qq.channel_router, deps.infrastructure.group_context,
+                                      context_timeout_seconds=config.redis.group_context_timeout_seconds),
                 ).run()
             )
             channel_names = [ch.channel_type.value for ch in active_channels]

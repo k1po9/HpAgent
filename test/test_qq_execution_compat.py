@@ -22,49 +22,21 @@ def _group_message():
 
 
 @pytest.mark.asyncio
-async def test_ae_012_013_qq_final_and_progress_preserve_router_behavior():
+async def test_control_reply_preserves_router_without_context_or_smart_mention():
     sent = []
-    appended = []
 
     class Router:
         async def send(self, message):
             sent.append(message)
             return True
 
-    class GroupContext:
-        density_threshold = 2.0
-
-        async def get_density(self, group_id):
-            return 0.1
-
-        async def subscriber_count(self, group_id):
-            return 2
-
-        async def append(self, **kwargs):
-            appended.append(kwargs)
-
-    class Prompts:
-        bot_name = "agent"
-
-    reply = ReplyService(Router(), GroupContext(), Prompts())
-    reply._tool_hints = {"search": "正在搜索"}
+    reply = ReplyService(Router())
     message = _group_message()
-
-    from types import SimpleNamespace
-
-    await reply.send_progress([SimpleNamespace(name="search")], message)
-    await reply.send_final("answer", message)
-
-    assert [item.content for item in sent] == [
-        "正在搜索",
-        "answer",
-    ]
-    assert all(item.metadata["mention_sender"] for item in sent)
-    assert "mention_sender" not in message["metadata"]
-    assert [item["content"] for item in appended] == [
-        "正在搜索",
-        "answer",
-    ]
+    assert await reply.send_final("answer", message)
+    assert [item.content for item in sent] == ["answer"]
+    assert "mention_sender" not in sent[0].metadata
+    assert sent[0].metadata == message['metadata']
+    assert not hasattr(reply, 'send_progress')
 
 
 @pytest.mark.asyncio

@@ -1,12 +1,18 @@
 """QQ formatting adapter for independent durable deliveries."""
 
+import asyncio
+import logging
+
+from application.conversation import context_key_for_route, group_event_id
 from common.types import ChannelType, UnifiedMessage
 from delivery.service import DeliveryService
 
 
 class QQDeliveryAdapter:
-    def __init__(self, router):
+    def __init__(self, router, group_context=None, *, context_timeout_seconds=.25):
         self.router = router
+        self.group_context = group_context
+        self.context_timeout_seconds = context_timeout_seconds
 
     def parts(self, row):
         payload, origin = row["payload"], row["route"]
@@ -32,7 +38,7 @@ class QQDeliveryAdapter:
 
     async def send(self, row, part):
         origin = row["route"]
-        return await self.router.send_with_receipt(
+        result = await self.router.send_with_receipt(
             UnifiedMessage(
                 account_id=str(row["account_id"]),
                 session_id=str(row.get("run_id") or row["notification_id"]),
@@ -48,6 +54,31 @@ class QQDeliveryAdapter:
                 },
             )
         )
+        if result.accepted and self.group_context and origin['scope'] in {'group', 'guild'}:
+            try:
+                async with asyncio.timeout(self.context_timeout_seconds):
+                    parts = self.parts(row)
+                    content = (''.join(s['data']['text'] for s in parts[part] if s['type'] == 'text')
+                               if origin['channel_type'] == 'onebot11' else parts[part])
+                    event_id = (group_event_id(origin, str(result.provider_message_id))
+                                if result.provider_message_id is not None
+                                else f"delivery:{row['delivery_id']}:{part}")
+                    message_type = ('work_notification' if row.get('work_id') else
+                                    'assistant_final' if row.get('source_message_id') else 'system_error')
+                    await self.group_context.append(
+                        origin.get('context_key') or context_key_for_route(origin), event_id=event_id,
+                        sender_id=origin['bot_id'], sender_name='bot', content=content,
+                        message_type=message_type, thread_id=origin['thread_id'],
+                        source_message_id=str(row['source_message_id']) if row.get('source_message_id') else None,
+                        delivery_id=str(row['delivery_id']), part_index=part,
+                    )
+            except asyncio.CancelledError:
+                # DeliveryService's overall deadline may cancel us AFTER the
+                # provider ack. Returning that known receipt prevents uncertain.
+                return result
+            except Exception as exc:
+                logging.getLogger(__name__).warning('qq_bot_context_degraded reason=%s', type(exc).__name__)
+        return result
 
 
 QQDeliveryService = DeliveryService

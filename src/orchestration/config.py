@@ -105,7 +105,7 @@ def _mapping(value: Any, path: str, *, optional: bool = True) -> dict:
 
 def _validate_section(config_type: type, values: dict, path: str) -> None:
     typed_fields(config_type, values, path)
-    nonnegative = {"port", "send_interval_seconds", "group_context_density_threshold"}
+    nonnegative = {"port", "send_interval_seconds"}
     for name in {f.name for f in dataclasses.fields(config_type)} & values.keys():
         value = values[name]
         if type(value) in (int, float) and (
@@ -133,6 +133,7 @@ class ModelEntry:
     provider: str = ""       # 引用 providers 中的 key
     model: str = ""
     max_tokens: int = 2048
+    input_token_limit: int = 240_000
     timeout: float = 30.0
     extra_body: dict = field(default_factory=dict)  # 模型级请求参数，覆盖 provider 默认值
     access_tier: str = "standard"
@@ -258,6 +259,7 @@ class ModelsConfig:
             extra={
                 "api_format": provider.api_format,
                 "max_tokens": entry.max_tokens,
+                "input_token_limit": entry.input_token_limit,
                 "timeout": entry.timeout,
                 "extra_body": _deep_merge(provider.extra_body, entry.extra_body),
             },
@@ -314,7 +316,7 @@ class ModelsConfig:
             for index, item in enumerate(entries or []):
                 path = f"models.{category}.{index}"
                 item = _mapping(item, path, optional=False)
-                allowed_fields = {"provider", "model", "max_tokens", "timeout", "extra_body", "access_tier"}
+                allowed_fields = {"provider", "model", "max_tokens", "input_token_limit", "timeout", "extra_body", "access_tier"}
                 unknown_fields = sorted(set(item) - allowed_fields)
                 if unknown_fields:
                     raise ValueError(
@@ -392,7 +394,13 @@ class RedisConfig:
     # 群聊短期上下文
     group_context_window: int = 80        # 滑动窗口保留消息数
     group_context_ttl: int = 86400        # 群上下文 TTL（秒，默认 24h）
-    group_context_density_threshold: float = 2.0  # 密度阈值（msg/min），低于此值允许进度提示
+    group_context_max_age_minutes: int = 60
+    group_context_max_messages: int = 20
+    group_context_token_budget: int = 4000
+    group_context_message_tokens: int = 512
+    group_context_max_message_bytes: int = 8192
+    group_context_timeout_seconds: float = 0.25
+    group_context_seen_limit: int = 4096
 
 
 @dataclass

@@ -114,6 +114,9 @@ class ModelClient:
         self.provider = config.get("provider") or "unknown"
         self.api_format = config.get("api_format", "anthropic")
         self._max_tokens = config.get("max_tokens", 2048)
+        self._input_token_limit = config.get("input_token_limit", 240_000)
+        if type(self._input_token_limit) is not int or self._input_token_limit <= 0:
+            raise ValueError('input_token_limit must be a positive integer')
         self._timeout = config.get("timeout", 30.0)
         self._extra_body = config.get("extra_body") or {}
         if not isinstance(self._extra_body, dict):
@@ -149,6 +152,16 @@ class ModelClient:
         max_tokens: Optional[int] = None,
     ) -> PreparedModelRequest:
         payload = self._build_payload(messages, tools, stream, max_tokens=max_tokens)
+        from common.token_counter import estimate_messages_tokens, estimate_tokens
+        from resources.model_failures import ModelRequestInvalid
+
+        tokens = estimate_messages_tokens(payload.get('messages', []))
+        if payload.get('system'):
+            tokens += estimate_tokens(str(payload['system'])) + 4
+        if payload.get('tools'):
+            tokens += estimate_tokens(json.dumps(payload['tools'], ensure_ascii=False, sort_keys=True))
+        if tokens > self._input_token_limit:
+            raise ModelRequestInvalid('context_budget_exceeded')
         frozen = _freeze(payload)
         return PreparedModelRequest(
             endpoint_id=self.endpoint_id,

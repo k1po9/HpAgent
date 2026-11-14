@@ -176,9 +176,16 @@ async def test_group_snapshot_context_and_memory_come_from_committed_pg(db, acco
     bind(db, account_id)
     class GroupCache:
         def __init__(self): self.items = []
-        async def append(self, **kwargs):
-            self.items.append({"msg_id": kwargs["msg_id"], "sender_id": kwargs["sender_id"], "content": kwargs["content"]})
-        async def get_window_json(self, key): return list(self.items)
+        async def append(self, key, **kwargs):
+            from datetime import UTC, datetime
+
+            from memory.group_context import AppendResult
+            self.items.append({**kwargs, "sequence": len(self.items) + 1,
+                               "event_time": datetime.now(UTC).isoformat()})
+            return AppendResult('appended', len(self.items))
+        async def get_candidates(self, key):
+            from memory.group_context import CandidateResult
+            return CandidateResult('ok', tuple(self.items))
     cache = GroupCache()
     ingress = MessageIngressService(group_context=cache, conversation_service=service(worker_database_url))
     await ingress.handle(qq_message("ambient", "group fact", scope="group", trigger=False))
@@ -189,7 +196,9 @@ async def test_group_snapshot_context_and_memory_come_from_committed_pg(db, acco
     context = ContextAssemblyService(worker_database_url, HarnessContextBuilder())
     base = context.load_base(account_id, run_id)
     assert base.interaction_profile == "qq_group"
-    assert "group fact" in base.origin["group_context"] and "qq:" in base.origin["group_context"]
+    assert base.origin["group_context"]['selected_count'] == 1
+    assert base.origin["group_context"]['selected'][0]['content'] == 'group fact'
+    assert base.origin["group_context"]['selected'][0]['event_id'].startswith('qq:')
     assert "group fact" in str(context.compose(base, ()))
     assert RunInputLoader(AgentDataStore(worker_database_url)).load(str(run_id)).context.surface == "onebot11"
     class Memory:

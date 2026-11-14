@@ -66,7 +66,7 @@ async def test_trigger_group_survives_redis_failure():
     )
     await ingress.handle(qq_message(scope="group"))
     commands.accept.assert_awaited_once()
-    assert commands.accept.call_args.kwargs["group_context"] == ""
+    assert commands.accept.call_args.kwargs["group_context"]["status"] == "degraded"
 
 
 def test_production_composition_has_no_qq_execution_queue():

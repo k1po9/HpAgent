@@ -25,6 +25,15 @@ class InvalidQQMessage(ValueError):
     pass
 
 
+def context_key_for_route(route: dict) -> str:
+    return "qq:" + stable_key({key: route[key] for key in (
+        "channel_type", "bot_id", "scope", "room_id", "thread_id")})
+
+
+def group_event_id(route: dict, external_id: str) -> str:
+    return "qq:event:" + stable_key([context_key_for_route(route), str(external_id)])
+
+
 @dataclass(frozen=True)
 class QQEnvelope:
     route: dict
@@ -36,7 +45,11 @@ class QQEnvelope:
 
     @property
     def context_key(self) -> str:
-        return "qq:" + stable_key(self.route)
+        return context_key_for_route(self.route)
+
+    @property
+    def event_id(self) -> str:
+        return group_event_id(self.route, self.origin["external_message_id"])
 
 
 def normalize_qq_message(message: UnifiedMessage, channel: str) -> QQEnvelope:
@@ -88,7 +101,7 @@ class ConversationService:
         self._commands = commands
 
     async def accept(self, message: UnifiedMessage, channel_type: str, *, envelope: QQEnvelope | None = None,
-                     group_context: str = ""):
+                     group_context: dict | None = None):
         source = envelope or normalize_qq_message(message, channel_type)
         if not source.triggered:
             return None
@@ -110,7 +123,8 @@ class ConversationService:
             except ValueError as exc:
                 raise InvalidQQMessage('invalid Work ID') from exc
             operation = f'work_{parts[2]}'
-        origin = {**source.origin, "context_key": source.context_key, "group_context": group_context}
+        origin = {**source.origin, "context_key": source.context_key, "event_id": source.event_id,
+                  "group_context": group_context or {}}
         try:
             return await asyncio.to_thread(
                 self._commands.execute, provider=source.provider, subject=source.subject,

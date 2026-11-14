@@ -166,3 +166,22 @@ async def test_same_remote_model_keeps_independent_endpoint_configs():
     assert reasoning_client._max_tokens == 4096
     assert reasoning_client._timeout == 60.0
     assert reasoning_client._extra_body["thinking"]["type"] == "adaptive"
+
+
+async def test_model_input_limit_reaches_real_client_from_yaml(tmp_path):
+    from resources.model_failures import ModelRequestInvalid
+
+    path = tmp_path / 'models.yaml'
+    path.write_text('''providers:
+  fixture: {base_url: 'https://example.test', api_key: test-key, api_format: openai}
+chat:
+  - {provider: fixture, model: small, input_token_limit: 100}
+''')
+    config = ModelsConfig.from_yaml(path)
+    credentials = CredentialManager()
+    credentials.register_model_chain([config.resolve_endpoint(config.chat[0], endpoint_id='fixture')])
+    pool = ResourcePool(credentials)
+    await pool.initialize_models()
+    client = pool._model_clients['fixture']['client']
+    with pytest.raises(ModelRequestInvalid, match='context_budget_exceeded'):
+        client.prepare_request([{'role': 'user', 'content': '汉' * 101}])

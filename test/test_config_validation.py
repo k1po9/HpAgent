@@ -35,7 +35,7 @@ def write_config(tmp_path, text, filename="config.yaml"):
     ('hindsight: {recall_timeout: .nan}', "hindsight.recall_timeout"),
     ('hindsight: {recall_timeout: ' + str(10 ** 400) + '}', "hindsight.recall_timeout"),
     ('hindsight: {retain_timeout: -1}', "hindsight.retain_timeout"),
-    ('redis: {group_context_density_threshold: .inf}', "redis.group_context_density_threshold"),
+    ('redis: {group_context_timeout_seconds: .inf}', "redis.group_context_timeout_seconds"),
     ('channels: {enabled: "secret-invalid"}', "channels.enabled"),
     ('channels: {onebot11: {port: "secret-invalid"}}', "channels.onebot11.port"),
     ('channels: {onebot11: {ack_timeout_seconds: -1}}', "channels.onebot11.ack_timeout_seconds"),

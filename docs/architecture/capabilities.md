@@ -134,6 +134,20 @@ Operation、tool_result 与 CapabilityObservation。父保存和 Work 验收仍�
 服务可用性如何判断、最小资源范围、模型角色、实现兼容性、预算估计、外部副作用是否可重试、
 专业检查能证明什么及顶层完成条件仍必须人工审查，不能仅靠注册推导。
 
+## QQ 群聊短期上下文
+
+QQ Surface 以规范化 route（渠道、bot、scope、room、thread）生成唯一 `context_key`，同路由不同 Account 共享近期公开群消息；Account 的 Conversation 历史仍只按 PG 账号边界读取。独立 Thread 默认隔离。平台消息使用 route + 原始平台 ID 生成群级 `event_id`；PG ingress receipt 的原幂等键保持不变。
+
+`GroupContextStore` 使用独立 V2 命名空间和同 hash slot 的 messages/List、seen/ZSET、event_hashes/Hash、sequence/String。Lua 原子检查原正文 hash、分配序号、追加、裁剪和续期。相同 ID/正文返回 duplicate，相同 ID/不同正文返回 conflict；自身 Bot 入站回流直接忽略，由 accepted 回调作为写入入口；Lua 对已存在记录仅补充投递来源，不重复追加。去重期限最多 24h，并受默认 4096 个 ID 的容量上限约束；它不是永久幂等。旧 `group:conv:*` 缓存自然过期，不迁移。订阅者 Set、密度、工具进度和订阅驱动 @ 已移除。
+
+Ingress 在默认 250ms 总时间预算内追加并读取候选；Redis 连接和 socket 也设置超时。异常、超时、ID 冲突只生成后端可见 degraded 状态，不阻止 PG 接收命令。原始缓存默认 80 条/24h，每条 JSON 保留在 8KiB 内，并标记截断。选择器纯 Python、无模型调用：最近 60min，排除未来、当前触发和其他 Thread，优先回复/提及和较高信息量消息；当前话题/其他消息使用 70%/30% 可回收软配额。最终最多 20 条、单正文 512 估算 Token、完整渲染群背景 4000 Token（含标记和消息开销）。这些值是初始工程参数，不代表质量实验已证明最优。
+
+仅所选结构化记录和策略、watermark、计数、估算 Token、降级原因冻结到已有 User Message 的 `origin.group_context`，不复制整个候选窗口，不新增表。ContextAssembly 只读取 PG，排除与当前请求及账户 Conversation 用户消息/Assistant 来源 ID 重叠的群记录。HarnessContextBuilder 使用元数据白名单，把群背景作为明确标记“不可信外部信息”的独立 User 上下文放在当前请求前，不添加正式 Message，也不加入 Retain 的输入事件。历史 origin 不整体展开；旧无版本纯文本群快照不重新注入。已冻结 Execution transcript 和模型请求快照仍按原 Durable 链复用。
+
+普通最终回答的每个 accepted QQ 分片由 QQDeliveryAdapter 直接 best-effort 追加，保留 PG source_message_id、delivery_id、part_index。优先平台 message_id，没有时使用 delivery_id + part_index；不使用 lease_token。failed/uncertain 不写，Redis 故障不改变发送回执；Work 通知与系统错误标记独立类型，默认不参加背景选择。接受 QQ accepted 后进程崩溃导致短期缓存缺失，不新增 Projector、Outbox 或 Pub/Sub 修复。
+
+构建器按实际渲染历史计费，预算压力先裁旧历史，群背景可省略，当前请求自身超限明确失败。模型请求规范化后再次校验完整输入（包含工具 schema/调用参数），默认最多 240,000 估算 Token，之后才冻结 ModelInputSnapshot 和预留业务额度。该上限沿用 ContextAssembly 的 256,000 总预算减 16,000 输出预留，不代表每个 Provider 实际容量；字符估算不能替代 tokenizer 与真实用量。Episode、语义检索和 LLM 摘要尚未实现。
+
 ## Memory
 
 Chat bootstrap 在查询改写后由 Context Assembly 从 Hindsight 召回长期记忆，不是每轮模型调用都重新召回。成功 Chat Run 会异步保留，并附带 Account、Conversation、Run 和 Source 元数据。Hindsight 1.1.0 与官方 Python SDK 1.1.0 固定使用；Compose 镜像锁定 digest。私聊使用 `scope:private`，群聊使用 `scope:group` + 当前路由 `group:<context_key>`，Recall 固定非空 `all_strict`，Retain 同时设置对应 `observation_scopes`。未知范围拒绝。来源时间取触发消息的固定 `created_at`，metadata 去除 null 并统一字符串值。Observation 只在完整来源事实均属于当前范围时注入。定时全 Bank Reflect 已停用，归纳由原生 Consolidation 完成；Metrics Workflow 保留。旧 Reflect Workflow/Activity 的无 I/O 处理仅用于已有 Temporal history 收尾，不重新启用全 Bank 推理。组合入口由默认关闭的 `hindsight.recall_enabled` 控制，空目标与切换检查后显式开放；未登记来源及含此类来源的 Observation 不注入，不以新 tags 自动授权旧数据。本轮采用空目标启用，不提供旧数据迁移/自动清空；完整应用 SQL 迁移链继续保留。治理命令通过现有 Memory Worker 推进，接口和范围见[API](../reference/api.md#长期记忆治理)。

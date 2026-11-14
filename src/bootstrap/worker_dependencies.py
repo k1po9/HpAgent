@@ -309,17 +309,25 @@ async def _init_dependencies(
     if redis_client:
         from memory.group_context import GroupContextStore
 
+        # Keep short ambient-context timeouts separate from shared cache/SSE I/O.
+        group_redis = aioredis.from_url(
+            redis_url, decode_responses=False,
+            socket_connect_timeout=config.redis.group_context_timeout_seconds,
+            socket_timeout=config.redis.group_context_timeout_seconds,
+        )
+        resource_stack.push_async_callback(group_redis.aclose)
         group_context = GroupContextStore(
-            redis_client,
+            group_redis,
             window_size=config.redis.group_context_window,
             ttl_seconds=config.redis.group_context_ttl,
-            density_threshold=config.redis.group_context_density_threshold,
+            max_message_bytes=config.redis.group_context_max_message_bytes,
+            timeout_seconds=config.redis.group_context_timeout_seconds,
+            seen_limit=config.redis.group_context_seen_limit,
         )
         logger.info(
-            "GroupContextStore initialized: window=%d ttl=%ds density_threshold=%.1f",
+            "GroupContextStore initialized: window=%d ttl=%ds",
             config.redis.group_context_window,
             config.redis.group_context_ttl,
-            config.redis.group_context_density_threshold,
         )
     else:
         logger.info("GroupContextStore: skipped (no Redis, group context disabled)")
@@ -444,11 +452,7 @@ async def _init_dependencies(
         hindsight_client=hindsight_client,
         prompt_loader=prompt_loader,
     )
-    qq = build_qq_surface_services(
-        channel_router=channel_router,
-        group_context=group_context,
-        prompt_loader=prompt_loader,
-    )
+    qq = build_qq_surface_services(channel_router=channel_router)
     logger.info("Shared Agent capabilities and QQ protocol services assembled")
     return WorkerDependencies(
         infrastructure=SharedInfrastructure(

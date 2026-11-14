@@ -86,6 +86,8 @@ class ResourcePool(IResources):
                     client_cfg["api_format"] = ep.extra["api_format"]
                 if "max_tokens" in ep.extra:
                     client_cfg["max_tokens"] = ep.extra["max_tokens"]
+                if "input_token_limit" in ep.extra:
+                    client_cfg["input_token_limit"] = ep.extra["input_token_limit"]
                 if "timeout" in ep.extra:
                     client_cfg["timeout"] = ep.extra["timeout"]
                 if "extra_body" in ep.extra and ep.extra["extra_body"]:

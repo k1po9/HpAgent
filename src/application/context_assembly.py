@@ -10,11 +10,13 @@ from typing import Any, Protocol, Sequence
 from uuid import UUID
 
 from application.context_builder import HarnessContextBuilder
+from application.group_context_selection import render_background
 from application.interaction_profiles import (
     interaction_source,
     select_interaction_profile,
 )
 from common.logging import log_event
+from common.token_counter import estimate_tokens
 from common.types import Event, EventType
 from memory.hindsight_client import MemoryItem
 from memory.scope_policy import chat_scope
@@ -341,23 +343,55 @@ class ContextAssemblyService:
     ) -> list[dict[str, Any]]:
         """Compose model input with existing Harness token-budget behavior."""
         from application.main_agent import MAIN_ROLE_CONTEXT
+        extra_context = (self._format_run_file_context(base.run_files) + "\n\n"
+                         + self._format_workspace_context(base) + "\n\n" + MAIN_ROLE_CONTEXT)
+        if base.work_command_receipts:
+            extra_context += ('\nCommitted mandates for this original user message (reuse these slots/IDs):\n'
+                              + json.dumps(base.work_command_receipts, ensure_ascii=False))
         messages: list[dict[str, Any]] = self._builder.build(
             list(base.short_term_events),
             recalled_memories=self._format_memories(memories),
             interaction_profile=base.interaction_profile,
             token_budget=self._token_budget,
             generation_headroom=self._generation_headroom,
-            extra_context=self._format_run_file_context(base.run_files) + "\n\n" + self._format_workspace_context(base),
-            group_context_text=base.origin.get("group_context", ""),
+            extra_context=extra_context,
+            group_context_text=self._group_background(base),
         )
-        if messages and messages[0].get('role') == 'system':
-            messages[0]['content'] += '\n\n' + MAIN_ROLE_CONTEXT
-        else:
-            messages.insert(0, {'role': 'system', 'content': MAIN_ROLE_CONTEXT})
-        if base.work_command_receipts:
-            import json
-            messages[0]['content'] += '\nCommitted mandates for this original user message (reuse these slots/IDs):\n' + json.dumps(base.work_command_receipts, ensure_ascii=False)
         return messages
+
+    @staticmethod
+    def _group_background(base: WebContextBase) -> str:
+        snapshot = base.origin.get('group_context')
+        # Legacy strings cannot prove provenance or bounds; do not re-inject them.
+        if not isinstance(snapshot, dict) or snapshot.get('schema_version') != 1 or snapshot.get('status') != 'ok':
+            return ''
+        items = snapshot.get('selected')
+        policy = snapshot.get('policy')
+        if (not isinstance(items, list) or not isinstance(policy, dict)
+                or not isinstance(snapshot.get('trigger_event_id'), str)
+                or type(policy.get('token_budget')) is not int or policy['token_budget'] <= 0
+                or any(not isinstance(item, dict) or not isinstance(item.get('event_id'), str)
+                       or not isinstance(item.get('content'), str)
+                       or (item.get('source_message_id') is not None
+                           and not isinstance(item['source_message_id'], str)) for item in items)):
+            logger.warning('qq_group_context_snapshot_invalid')
+            return ''
+        history_ids = {e.metadata.get('source_event_id') for e in base.short_term_events}
+        assistant_ids = {e.metadata.get('source_message_id') for e in base.short_term_events
+                         if e.event_type == EventType.MODEL_MESSAGE}
+        seen = {snapshot.get('trigger_event_id')}
+        selected = []
+        for item in items:
+            if (not isinstance(item, dict) or not isinstance(item.get('content'), str)
+                    or not item.get('event_id') or item['event_id'] in seen
+                    or item['event_id'] in history_ids
+                    or (item.get('source_message_id') and item['source_message_id'] in assistant_ids)):
+                continue
+            seen.add(item['event_id'])
+            selected.append(item)
+        text = render_background(selected)
+        budget = policy['token_budget']
+        return text if text and estimate_tokens(text) + 4 <= budget else ''
 
     @staticmethod
     def _format_run_file_context(files: Sequence[RunFileContext]) -> str:
@@ -414,7 +448,8 @@ class ContextAssemblyService:
                 event_type=EventType.USER_MESSAGE,
                 content={"content": row["content"]},
                 metadata={
-                    **origin,
+                    **{key: origin[key] for key in ('sender_id', 'sender_name') if key in origin},
+                    "source_event_id": origin.get('event_id') if isinstance(origin.get('event_id'), str) else None,
                     "interaction_profile": select_interaction_profile(origin),
                     "interaction_source": interaction_source(origin),
                 },
@@ -423,6 +458,7 @@ class ContextAssemblyService:
             session_id="conversation-context",
             event_type=EventType.MODEL_MESSAGE,
             content={"text": row["content"]},
+            metadata={"source_message_id": str(row['message_id']) if row.get('message_id') else None},
         )
 
     def _format_memories(self, memories: Sequence[MemoryItem]) -> str:

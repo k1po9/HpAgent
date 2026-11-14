@@ -419,3 +419,23 @@ Web/计算 Worker 可保持空。当前仅支持一个拥有 QQ 连接和投递�
 图片段仅保留可下载的 HTTP(S) 来源到消息 origin 的 `metadata.image_urls`，
 本地文件名或宿主路径不会成为下载地址。图片消息入站、来源可读取和视觉模型理解是三个独立检查；
 固定回复不能证明已识别图片内容。签名图片 URL 可能过期，不应写入诊断日志或验收记录。
+
+## QQ GroupContext V2 参数
+
+`config/config.yaml` 的 `redis` 节可覆盖下列字段；均须为正数，字节上限至少 1024。`REDIS_URL` 仍只覆盖连接地址。
+
+| 字段 | 默认值 | 含义 |
+| --- | --- | --- |
+| `group_context_window` | 80 | Redis 原始候选条数 |
+| `group_context_ttl` | 86400 | 闲置 TTL 与 seen 保留时间上界（秒） |
+| `group_context_seen_limit` | 4096 | 去重 ID 数量上限，至少为候选条数 |
+| `group_context_max_message_bytes` | 8192 | 单条缓存 JSON 字节上限 |
+| `group_context_timeout_seconds` | 0.25 | 入站 append+read 总预算，以及缓存操作/连接/socket 超时 |
+| `group_context_max_age_minutes` | 60 | 模型背景候选最大年龄 |
+| `group_context_max_messages` | 20 | 最多注入条数 |
+| `group_context_token_budget` | 4000 | 完整群背景的估算 Token 上限 |
+| `group_context_message_tokens` | 512 | 单条正文摘录的估算 Token 上限 |
+
+旧 `group_context_density_threshold` 已移除；配置中残留该字段会按未知字段拒绝，升级时删除。仅初次 Ingress 冻结使用当前参数，Durable Retry 不按新参数重选 Redis。群背景 status、候选/选中条数、Token 和降级原因保留在 origin 快照及后端选择日志，不作为 LLM 输入。语义和已知限制见[群聊上下文契约](../architecture/capabilities.md#qq-群聊短期上下文)。
+
+`config/models.yaml` 每个模型条目的 `input_token_limit` 可设置规范化请求的估算输入上限，默认 240000。该限制包含工具 schema 与 OpenAI/Anthropic 工具调用参数；超限在请求快照和预算预留前拒绝，不能通过 fallback 绕过。每个 Provider 的真实容量及输出预留应由运维配置匹配，此处不自动探测模型窗口。

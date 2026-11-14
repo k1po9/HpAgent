@@ -10,6 +10,7 @@ budget 计算额外预留 20% 安全边际应对估算误差。
 """
 from __future__ import annotations
 
+import json
 import re
 
 _CJK_RE = re.compile(
@@ -62,6 +63,12 @@ def estimate_messages_tokens(messages: list[dict]) -> int:
             for block in content:
                 if isinstance(block, dict) and block.get("type") == "text":
                     total += estimate_tokens(block.get("text", ""))
+                else:
+                    total += estimate_tokens(json.dumps(block, ensure_ascii=False, sort_keys=True))
+        extra = {key: value for key, value in msg.items() if key not in {'role', 'content'}}
+        if extra:
+            # OpenAI puts normalized tool_calls/arguments next to content.
+            total += estimate_tokens(json.dumps(extra, ensure_ascii=False, sort_keys=True))
         total += 4  # role + formatting overhead
     return total
 

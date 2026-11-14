@@ -17,9 +17,10 @@ prompt 拼接顺序（_build_system_prompt）：
 import logging
 from typing import Any, Dict, List, Optional
 
+from application.group_context_selection import HEADER
 from application.interaction_profiles import identity_key_for_profile
 from application.prompts import PromptLoader
-from common.token_counter import estimate_tokens
+from common.token_counter import estimate_messages_tokens
 from common.types import Event, EventType
 
 logger = logging.getLogger(__name__)
@@ -115,7 +116,6 @@ class HarnessContextBuilder:
             extra_context=extra_context,
             remaining_turns=remaining_turns,
             max_tool_turns=max_tool_turns,
-            group_context_text=group_context_text,
         )
         messages: List[Dict[str, Any]] = []
         if system_content:
@@ -126,50 +126,35 @@ class HarnessContextBuilder:
             EventType.USER_MESSAGE, EventType.MODEL_MESSAGE, EventType.TOOL_RESULT,
         )]
 
-        # 截断路径选择
-        if token_budget > 0:
-            # —— Token 感知截断 ——
-            available = token_budget - generation_headroom
-            if available <= 0:
-                available = token_budget // 2
-
-            sys_est = estimate_tokens(system_content)
-            remaining = available - sys_est
-
-            usable: list[Event] = []
-            running_cost = 0
-            for event in reversed(filtered_events):
-                if event.event_type == EventType.TOOL_RESULT:
-                    text = event.content.get("result", "") if isinstance(event.content, dict) else str(event.content)
-                elif event.event_type == EventType.USER_MESSAGE:
-                    text = event.content.get("content", "") if isinstance(event.content, dict) else str(event.content)
-                elif event.event_type == EventType.MODEL_MESSAGE:
-                    text = event.content.get("text", "") if isinstance(event.content, dict) else str(event.content)
-                else:
-                    text = ""
-
-                cost = estimate_tokens(text) + 4
-                if running_cost + cost > remaining and usable:
-                    break
-                usable.append(event)
-                running_cost += cost
-
-            filtered_events = list(reversed(usable))
-            logger.debug(
-                "Token-aware truncation: budget=%d available=%d sys_est=%d used=%d events=%d",
-                token_budget, available, sys_est, running_cost, len(filtered_events),
-            )
-        elif len(filtered_events) > max_turns * 2:
-            # —— 旧路径：按轮次截断 ——
-            filtered_events = filtered_events[-max_turns * 2:]
-
+        rendered: list[dict[str, Any]] = []
         for event in filtered_events:
             if event.event_type == EventType.USER_MESSAGE:
-                messages.append({"role": "user", "content": self._extract_user_content(event)})
+                rendered.append({"role": "user", "content": self._extract_user_content(event)})
             elif event.event_type == EventType.MODEL_MESSAGE:
-                messages.append({"role": "assistant", "content": self._extract_model_content(event)})
+                rendered.append({"role": "assistant", "content": self._extract_model_content(event)})
             elif event.event_type == EventType.TOOL_RESULT:
-                messages.append({"role": "user", "content": self._extract_tool_result(event)})
+                rendered.append({"role": "user", "content": self._extract_tool_result(event)})
+        if token_budget > 0:
+            available = token_budget - generation_headroom
+            # Preserve the latest request/event; never silently cut its content.
+            if available <= 0 or estimate_messages_tokens(messages + rendered[-1:]) > available:
+                raise ValueError('context_budget_exceeded')
+            while len(rendered) > 1 and estimate_messages_tokens(messages + rendered) > available:
+                rendered.pop(0)
+        else:
+            rendered = rendered[-max_turns * 2:]
+        background = None
+        if group_context_text:
+            background = {'role': 'user', 'content': (
+                group_context_text if group_context_text.startswith(HEADER)
+                else HEADER + group_context_text)}
+        # Ambient context is expendable, the current request is not. The frozen
+        # selector bounds it separately; global pressure may omit it completely.
+        if background and (token_budget <= 0 or
+                           estimate_messages_tokens(messages + rendered + [background]) <= available):
+            position = max((i for i, msg in enumerate(rendered) if msg['role'] == 'user'), default=0)
+            rendered.insert(position, background)
+        messages.extend(rendered)
 
         return messages
 
@@ -185,13 +170,12 @@ class HarnessContextBuilder:
         extra_context: str = "",
         remaining_turns: int = 0,
         max_tool_turns: int = 0,
-        group_context_text: str = "",
     ) -> str:
         """按渠道 + 固定顺序拼接最终的系统提示词。
 
         顺序: 渠道身份（含风格） → 跨渠道检测 → 工具纪律 → 环境感知
              → 记忆注入 → 会话内摘要 → 跨会话上下文 → 轮次限制
-             → 群聊近期对话（末尾，紧邻下方 user 消息，方便模型关联）
+        群聊背景由 build() 另行渲染为不可信 User 上下文。
         """
         parts: List[str] = []
 
@@ -239,15 +223,6 @@ class HarnessContextBuilder:
                 f"## 轮次限制\n\n"
                 f"当前对话最多允许 {max_tool_turns} 轮工具调用，剩余可用轮次：{remaining_turns}。\n"
                 f"请在剩余轮次内完成当前任务。如果剩余轮次较少，优先给出结论而不是继续探索。"
-            )
-
-        # 群聊近期对话放在 system prompt 末尾，紧邻后续的 user 消息
-        # 这样模型能更自然地将群聊内容与当前提问关联
-        if group_context_text:
-            parts.append(
-                "## 群聊近期对话\n\n"
-                "以下是本群最近的消息记录，用于理解当前对话背景：\n"
-                + group_context_text
             )
 
         return "\n\n".join(parts)
@@ -306,7 +281,13 @@ class HarnessContextBuilder:
         """
         content = event.content
         if isinstance(content, dict):
-            return ", ".join(f"{k}: {v}" for k, v in event.metadata.items()) + content.get("content", "")
+            # Only short display fields are model-visible. Source IDs and
+            # snapshots remain internal provenance, never implicit user text.
+            display = {key: str(event.metadata[key])[:128]
+                       for key in ('sender_name', 'sender_id', 'interaction_source')
+                       if event.metadata.get(key)}
+            prefix = ", ".join(f"{key}: {value}" for key, value in display.items())
+            return (prefix + "\n" if prefix else "") + content.get("content", "")
         return str(content)
 
     def _extract_model_content(self, event: Event) -> object:

@@ -152,12 +152,15 @@ class OneBot11Channel(BaseChannel):
             elif kind == 'at':
                 has_at = True
                 metadata['is_at_bot'] |= str(value.get('qq')) == bot
+                metadata.setdefault('mention_ids', []).append(str(value.get('qq')))
             elif kind == 'image':
                 url = value.get('url') or value.get('file') or ''
                 if isinstance(url, str) and url.startswith(('https://', 'http://')):
                     images.append(url)
                 texts.append('[图片]')
-            elif kind not in {'reply', 'face'}:
+            elif kind == 'reply':
+                metadata['reply_to_message_id'] = str(value.get('id') or '')
+            elif kind != 'face':
                 unsupported.append(str(kind))
                 texts.append('[暂不支持的消息段]')
         if not has_at and self.bot_name != 'bot':
