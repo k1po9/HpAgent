@@ -69,6 +69,8 @@ class MessageIngressService:
                     )
                     if appended.status in {'conflict', 'degraded'}:
                         window['degraded_reason'] = appended.reason or appended.status
+                    elif appended.sequence <= 0:
+                        window['degraded_reason'] = 'sequence_unavailable'
                     elif source.triggered:
                         read = await self._group_context.get_candidates(source.context_key)
                         if read.status == 'degraded':
@@ -79,7 +81,7 @@ class MessageIngressService:
                                 thread_id=source.route['thread_id'], now=datetime.now(UTC),
                                 reply_to_event_id=(group_event_id(source.route, message.metadata['reply_to_message_id'])
                                                    if message.metadata.get('reply_to_message_id') else None),
-                                high_watermark=appended.sequence or None, policy=self._context_policy,
+                                high_watermark=appended.sequence, policy=self._context_policy,
                             )
             except Exception as exc:
                 window = empty_snapshot(source.event_id, status="degraded", reason=type(exc).__name__,

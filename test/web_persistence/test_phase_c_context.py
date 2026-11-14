@@ -64,3 +64,35 @@ def test_context_refuses_cross_account_run_lookup(account_id, database_url):
 
     with pytest.raises(ContextIsolationError):
         ContextAssemblyService(database_url, HarnessContextBuilder()).load_base(uuid4(), run_id)
+
+
+def test_web_long_text_and_history_remain_raw_with_global_budget(
+    db, account_id, database_url, worker_database_url,
+):
+    from common.token_counter import estimate_messages_tokens
+
+    commands = ChatCommandService(database_url)
+    conversation = _conversation(commands, account_id)
+    history = 'Web文章🙂代码\n' * 2000
+    first = UUID(commands.send_message(account_id, conversation, str(uuid4()), history)['run_id'])
+    _complete(ChatCommandService(worker_database_url), account_id, first)
+    text = '长篇需求中文Unicode🙂\nprint("raw")\n' * 2000
+    run_id = UUID(commands.send_message(account_id, conversation, str(uuid4()), text)['run_id'])
+    assert [r[0] for r in db.execute("SELECT content FROM messages WHERE role='user' ORDER BY sequence")] == [history, text]
+    context = ContextAssemblyService(worker_database_url, HarnessContextBuilder())
+    base = context.load_base(account_id, run_id)
+    messages = context.compose(base, ())
+    user_content = [m['content'] for m in messages if m['role'] == 'user']
+    assert any(m.endswith(history) for m in user_content)
+    assert user_content[-1].endswith(text)
+    assert all(' ...' not in m for m in user_content)
+    assert not any(m.startswith('[群聊背景') for m in user_content)
+    assert estimate_messages_tokens(messages) <= 240000
+    # The shared builder still applies the overall budget, never QQ clipping.
+    builder = HarnessContextBuilder(system_prompt='rules')
+    events = list(base.short_term_events)
+    latest_only = builder.build(events[-1:], token_budget=240000, generation_headroom=16000)
+    reduced = builder.build(events, token_budget=estimate_messages_tokens(latest_only) + 100,
+                            generation_headroom=50)
+    assert reduced[-1]['content'] == latest_only[-1]['content']
+    assert not any(m['content'].endswith(history) for m in reduced)

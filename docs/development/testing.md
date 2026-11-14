@@ -71,9 +71,9 @@ PYTHONPATH="$PWD:$PWD/src:$PWD/test" python3 -m pytest --require-test-services \
 
 ## QQ 群聊上下文选测
 
-GroupContext V2 的真实 Redis 用例必须显式设置 `GROUP_CONTEXT_TEST_REDIS_URL` 指向专用可丢弃 Redis，不能借用业务库。未设置时相关用例跳过；纯选择、组装和 Adapter 用例仍可离线运行。`test/test_group_context_v2.py` 验证 Lua 并发 100 次、内容冲突、去重过期与容量、实际 JSON 字节数、故障和未知提交结果后的重试；`test/test_group_context_flow_v2.py` 验证 Ingress/Delivery Key、accepted-only、回声抑制和取消时回执保留；`test/test_group_context_assembly_v2.py` 验证重复去除、不可信 User 背景、畸形快照降级与模型预算。
+GroupContext V2 的真实 Redis 用例必须显式设置 `GROUP_CONTEXT_TEST_REDIS_URL` 指向专用可丢弃 Redis，不能借用业务库。未设置时相关用例跳过；纯选择、组装和 Adapter 用例仍可离线运行。`test/test_group_context_v2.py` 验证 Lua 并发 100 次、内容冲突、List 裁剪后原 sequence、旧去重记录兼容、去重过期与容量、前缀/Unicode/可见截断、实际 JSON 字节数、内部通知排除、故障和未知提交结果后的重试；`test/test_group_context_flow_v2.py` 验证 Ingress/Delivery Key、accepted-only、回声抑制和取消时回执保留；`test/test_group_context_assembly_v2.py` 验证重复去除、不可信 User 背景、畸形快照降级与模型预算。
 
-`test/web_persistence/test_group_context_v2.py` 还需要前述三角色专用 PG，验证跨账户共享公开背景但不导入私人历史、Thread/bot 隔离、清除 Redis 后仍从 PG 冻结快照重试。PG fixture 会清表，同一个专用库的套件必须串行运行。此类测试证明合成群消息与本地回执契约，不证明真实 QQ 或 Provider 质量。字符 Token 估算及窗口参数还需独立质量实验。
+`test/web_persistence/test_group_context_v2.py` 还需要前述三角色专用 PG，验证跨账户共享公开背景但不导入私人历史、Thread/bot 隔离、清除 Redis 后仍从 PG 冻结快照重试。`test/web_persistence/test_phase_c_context.py` 的 Web 长文本回归同时验证 PG 原文、历史原文及整体 Token Budget 不受 QQ 截断影响；QQ 专项验证 PG 原文与 Redis 前缀各自独立。PG fixture 会清表，同一个专用库的套件必须串行运行。此类测试证明合成群消息与本地回执契约，不证明真实 QQ 或 Provider 质量。字符 Token 估算及窗口参数还需独立质量实验。
 
 ## 记忆与内容链选测
 

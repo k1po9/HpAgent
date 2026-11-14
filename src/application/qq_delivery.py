@@ -54,7 +54,8 @@ class QQDeliveryAdapter:
                 },
             )
         )
-        if result.accepted and self.group_context and origin['scope'] in {'group', 'guild'}:
+        if (result.accepted and self.group_context and origin['scope'] in {'group', 'guild'}
+                and row.get('source_message_id') and not row.get('work_id')):
             try:
                 async with asyncio.timeout(self.context_timeout_seconds):
                     parts = self.parts(row)
@@ -63,12 +64,10 @@ class QQDeliveryAdapter:
                     event_id = (group_event_id(origin, str(result.provider_message_id))
                                 if result.provider_message_id is not None
                                 else f"delivery:{row['delivery_id']}:{part}")
-                    message_type = ('work_notification' if row.get('work_id') else
-                                    'assistant_final' if row.get('source_message_id') else 'system_error')
                     await self.group_context.append(
                         origin.get('context_key') or context_key_for_route(origin), event_id=event_id,
                         sender_id=origin['bot_id'], sender_name='bot', content=content,
-                        message_type=message_type, thread_id=origin['thread_id'],
+                        message_type='assistant_final', thread_id=origin['thread_id'],
                         source_message_id=str(row['source_message_id']) if row.get('source_message_id') else None,
                         delivery_id=str(row['delivery_id']), part_index=part,
                     )

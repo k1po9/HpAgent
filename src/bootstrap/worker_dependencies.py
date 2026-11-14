@@ -321,6 +321,7 @@ async def _init_dependencies(
             window_size=config.redis.group_context_window,
             ttl_seconds=config.redis.group_context_ttl,
             max_message_bytes=config.redis.group_context_max_message_bytes,
+            message_tokens=config.redis.group_context_message_tokens,
             timeout_seconds=config.redis.group_context_timeout_seconds,
             seen_limit=config.redis.group_context_seen_limit,
         )

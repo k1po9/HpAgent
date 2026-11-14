@@ -389,7 +389,7 @@ class ContextAssemblyService:
                 continue
             seen.add(item['event_id'])
             selected.append(item)
-        text = render_background(selected)
+        text = render_background(selected, strategy_version=snapshot.get('strategy_version', 'group-context-v1'))
         budget = policy['token_budget']
         return text if text and estimate_tokens(text) + 4 <= budget else ''
 

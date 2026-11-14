@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from memory.group_context_text import DEFAULT_MESSAGE_TOKENS, excerpt
+
 logger = logging.getLogger('HpAgent.GroupContext')
 
 # All keys share a Redis Cluster hash tag. Seen IDs outlive list trimming, but
@@ -21,7 +23,9 @@ for _, id in ipairs(expired) do redis.call('HDEL', KEYS[3], id) end
 redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', now - tonumber(ARGV[5]))
 local old = redis.call('HGET', KEYS[3], ARGV[1])
 if old then
-    if old ~= ARGV[2] then return {'conflict', '0'} end
+    local digest, original_seq = string.match(old, '^([0-9a-f]+)|(%d+)$')
+    digest = digest or old -- V2 digest-only records remain readable.
+    if digest ~= ARGV[2] then return {'conflict', '0'} end
     local incoming = cjson.decode(ARGV[3])
     local messages = redis.call('LRANGE', KEYS[1], 0, tonumber(ARGV[4]) - 1)
     for i, raw in ipairs(messages) do
@@ -36,10 +40,11 @@ if old then
                 message.message_type = incoming.message_type
                 redis.call('LSET', KEYS[1], i - 1, cjson.encode(message))
             end
+            redis.call('HSET', KEYS[3], ARGV[1], ARGV[2] .. '|' .. tostring(message.sequence))
             return {'duplicate', tostring(message.sequence)}
         end
     end
-    return {'duplicate', '0'}
+    return {'duplicate', original_seq or '0'}
 end
 local seq = redis.call('INCR', KEYS[4])
 local message = cjson.decode(ARGV[3])
@@ -47,7 +52,7 @@ message.sequence = seq
 redis.call('LPUSH', KEYS[1], cjson.encode(message))
 redis.call('LTRIM', KEYS[1], 0, tonumber(ARGV[4]) - 1)
 redis.call('ZADD', KEYS[2], now, ARGV[1])
-redis.call('HSET', KEYS[3], ARGV[1], ARGV[2])
+redis.call('HSET', KEYS[3], ARGV[1], ARGV[2] .. '|' .. tostring(seq))
 local excess = redis.call('ZCARD', KEYS[2]) - tonumber(ARGV[6])
 if excess > 0 then
     local removed = redis.call('ZRANGE', KEYS[2], 0, excess - 1)
@@ -78,9 +83,10 @@ class CandidateResult:
 class GroupContextStore:
     def __init__(self, redis: Any, *, window_size: int = 80, ttl_seconds: int = 86400,
                  max_message_bytes: int = 8192, timeout_seconds: float = .25,
-                 seen_limit: int = 4096):
-        if min(window_size, ttl_seconds, seen_limit) <= 0 or max_message_bytes < 1024 or timeout_seconds <= 0:
+                 seen_limit: int = 4096, message_tokens: int = DEFAULT_MESSAGE_TOKENS):
+        if min(window_size, ttl_seconds, seen_limit, message_tokens) <= 0 or max_message_bytes < 1024 or timeout_seconds <= 0:
             raise ValueError('invalid group context limits')
+        self._message_tokens = message_tokens
         self._r = redis
         self._window = window_size
         self._ttl = ttl_seconds
@@ -101,6 +107,8 @@ class GroupContextStore:
                      thread_id: str = '', source_message_id: str | None = None,
                      delivery_id: str | None = None, part_index: int | None = None,
                      mention_ids: list[str] | None = None) -> AppendResult:
+        if message_type not in {'user_message', 'assistant_final'} or not content.strip():
+            return AppendResult('ignored')
         now = datetime.now(UTC).isoformat()
         message = dict(event_id=event_id, sequence=0, sender_id=sender_id,
                        sender_name=sender_name[:128], message_type=message_type,
@@ -115,12 +123,15 @@ class GroupContextStore:
         try:
             if not context_key or not event_id:
                 return AppendResult('degraded', reason='missing_identity')
-            # Reserve room for Lua sequence encoding and escaped Unicode bytes.
-            while len(json.dumps(message, ensure_ascii=False).replace("/", "\\/").encode()) > self._bytes - 256:
-                if not message['content']:
-                    return AppendResult('degraded', reason='metadata_too_large')
-                message['content'] = message['content'][:max(0, len(message['content']) * 3 // 4)]
-                message['truncated'] = True
+            # One QQ-only prefix function serves both storage and selection.
+            # Byte headroom covers sequence growth / later provenance enrichment.
+            message['content'] = ''
+            overhead = len(json.dumps(message, ensure_ascii=False).replace('/', '\\/').encode())
+            message['content'] = excerpt(content, self._message_tokens,
+                                         max_bytes=self._bytes - 256 - overhead)
+            message['truncated'] = message['content'] != content
+            if not message['content']:
+                return AppendResult('degraded', reason='message_limits_too_small')
             async with asyncio.timeout(self._timeout):
                 result = await self._r.eval(_APPEND, 4, *self.keys(context_key), event_id,
                                             digest, json.dumps(message, ensure_ascii=False),

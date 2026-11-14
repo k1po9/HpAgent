@@ -142,3 +142,26 @@ async def test_official_ingress_and_accepted_delivery_share_context_key(event, s
     assert cache.append.call_args.args[0] == ingress_key == source.context_key
     assert context_key_for_route({**source.route, 'thread_id': 'other'}) != ingress_key
     assert source.route['scope'] == scope
+
+
+async def test_unknown_duplicate_sequence_degrades_instead_of_using_current_window():
+    cache = Mock(append=AsyncMock(return_value=AppendResult('duplicate', 0)), get_candidates=AsyncMock())
+    commands = Mock(accept=AsyncMock(return_value=None))
+    await MessageIngressService(cache, commands).handle(qq_message(scope='group'))
+    assert commands.accept.call_args.kwargs['group_context']['status'] == 'degraded'
+    assert commands.accept.call_args.kwargs['group_context']['degraded_reason'] == 'sequence_unavailable'
+    cache.get_candidates.assert_not_awaited()
+
+
+@pytest.mark.parametrize('kind', ['work', 'error'])
+async def test_notifications_still_send_but_never_call_context_append(kind):
+    cache = Mock(append=AsyncMock())
+    row = delivery_row()
+    row['work_id'] = 'work' if kind == 'work' else None
+    if kind == 'error':
+        row['source_message_id'] = None
+    receipt = ChannelSendResult('accepted', provider_message_id='notice')
+    router = Mock(send_with_receipt=AsyncMock(return_value=receipt))
+    assert await QQDeliveryAdapter(router, cache).send(row, 0) is receipt
+    router.send_with_receipt.assert_awaited_once()
+    cache.append.assert_not_awaited()

@@ -85,3 +85,26 @@ async def test_thread_and_bot_isolation_with_real_candidates(db, account_id, wor
     result = await ingress.handle(qq_message('trigger', 'CURRENT', scope='group', room=room))
     base = ContextAssemblyService(worker_database_url, HarnessContextBuilder()).load_base(account_id, UUID(result['run_id']))
     assert base.origin['group_context']['selected_count'] == 0
+
+
+async def test_qq_redis_excerpt_leaves_pg_formal_message_intact(
+    db, account_id, worker_database_url, cache,
+):
+    bind(db, account_id)
+    room = str(uuid4())
+    text = '中文🙂代码长消息' * 2000
+    ingress = MessageIngressService(cache, service(worker_database_url))
+    await ingress.handle(qq_message('ambient', text, sender='other', scope='group', room=room, trigger=False))
+    result = await ingress.handle(qq_message('current', text, scope='group', room=room))
+    formal = db.execute("SELECT content,origin FROM messages WHERE role='user'").fetchone()
+    assert formal[0] == text
+    snapshot = formal[1]['group_context']
+    assert snapshot['selected_count'] == 1
+    selected = snapshot['selected'][0]
+    assert selected['truncated'] is True
+    assert selected['content'].endswith(' ...') and text.startswith(selected['content'][:-4])
+    context = ContextAssemblyService(worker_database_url, HarnessContextBuilder())
+    messages = context.compose(context.load_base(account_id, UUID(result['run_id'])), ())
+    background = next(m for m in messages if m['role'] == 'user' and m['content'].startswith('[群聊背景'))
+    assert '"truncated": true' in background['content'] and '不可信' in background['content']
+    assert messages[-1]['content'].endswith(text)

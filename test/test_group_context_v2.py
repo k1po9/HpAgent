@@ -143,3 +143,117 @@ async def test_redis_encoded_json_not_just_python_json_obeys_byte_cap(group_stor
     await store.append(key, event_id='slashes', sender_id='u', content='/' * 20000)
     raw = (await client.lrange(store.keys(key)[0], 0, 0))[0]
     assert len(raw) <= 8192
+
+
+@pytest.mark.parametrize('content', ['普通中文🙂消息', 'text without clipping'])
+def test_qq_excerpt_normal_messages_are_unchanged(content):
+    from application.group_context_selection import excerpt
+    assert excerpt(content, 512) == content
+
+
+def test_qq_excerpt_prefix_suffix_unicode_and_idempotence():
+    from application.group_context_selection import excerpt
+    text = '中文🙂🚀代码' * 1000
+    result = excerpt(text, 512)
+    assert result.endswith(' ...')
+    assert text.startswith(result[:-4])
+    assert estimate_tokens(result) <= 512
+    assert result.encode('utf-8').decode('utf-8') == result
+    assert excerpt(result, 512) == result
+    smaller = excerpt(result, 100)
+    assert smaller.endswith(' ...') and not smaller.endswith(' ... ...')
+
+
+async def test_qq_store_protects_prefix_before_selection(group_store):
+    store, _, key = group_store
+    text = '中文🙂代码' * 5000
+    await store.append(key, event_id='long', sender_id='u', content=text)
+    message = (await store.get_candidates(key)).messages[0]
+    assert message['truncated'] is True
+    assert message['content'].endswith(' ...')
+    assert text.startswith(message['content'][:-4])
+    assert estimate_tokens(message['content']) <= 512
+    assert message['content'] != text
+    await store.append(key, event_id='normal', sender_id='u', content='normal message')
+    normal = (await store.get_candidates(key)).messages[-1]
+    assert normal['content'] == 'normal message' and normal['truncated'] is False
+
+
+async def test_duplicate_after_trim_retains_sequence_and_watermark(group_store):
+    store, client, key = group_store
+    first = await store.append(key, event_id='trigger', sender_id='u', content='trigger')
+    for i in range(4):
+        await store.append(key, event_id=str(i), sender_id='u', content='later')
+    before = await client.lrange(store.keys(key)[0], 0, -1)
+    duplicate = await store.append(key, event_id='trigger', sender_id='u', content='trigger')
+    assert duplicate.status == 'duplicate'
+    assert duplicate.sequence == first.sequence == 1
+    assert await client.lrange(store.keys(key)[0], 0, -1) == before
+    assert int(await client.get(store.keys(key)[3])) == 5
+    snapshot = select_context((await store.get_candidates(key)).messages,
+                              trigger_event_id='trigger', sender_id='u', now=datetime.now(UTC),
+                              high_watermark=duplicate.sequence)
+    assert snapshot['high_watermark'] == 1 and snapshot['selected'] == []
+
+
+@pytest.mark.parametrize('message_type', ['work_notification', 'system_error', 'progress', 'control_reply'])
+async def test_internal_notifications_do_not_consume_window(group_store, message_type):
+    store, client, key = group_store
+    await store.append(key, event_id='user', sender_id='u', content='question')
+    for i in range(5):
+        result = await store.append(key, event_id=str(i), sender_id='bot', content='internal',
+                                    message_type=message_type)
+        assert result.status == 'ignored'
+    await store.append(key, event_id='bot', sender_id='bot', content='answer', message_type='assistant_final')
+    assert [m['event_id'] for m in (await store.get_candidates(key)).messages] == ['user', 'bot']
+    assert int(await client.get(store.keys(key)[3])) == 2
+    assert await client.zcard(store.keys(key)[1]) == 2
+
+
+def test_render_preserves_truncation_time_and_explicit_reply_identity():
+    import json
+    item = dict(candidate(1, 'prefix ...'), truncated=True,
+                reply_to_event_id='parent', mention_ids=['other'])
+    rendered = render_background([item])
+    value = json.loads(rendered.split('\n')[1])
+    assert value['truncated'] is True
+    assert value['event_id'] == '1' and value['reply_to_event_id'] == 'parent'
+    assert value['event_time'] == item['event_time']
+    assert value['sender_id'] == 'u' and value['mention_ids'] == ['other']
+
+
+async def test_legacy_digest_only_record_keeps_order_or_reports_unknown(group_store):
+    store, client, key = group_store
+    await store.append(key, event_id='legacy', sender_id='u', content='old')
+    hashes = store.keys(key)[2]
+    digest = (await client.hget(hashes, 'legacy')).decode().split('|')[0]
+    await client.hset(hashes, 'legacy', digest)
+    assert (await store.append(key, event_id='legacy', sender_id='u', content='old')).sequence == 1
+    # An old hash whose original list entry is gone must not invent a new seq.
+    await client.hset(hashes, 'legacy', digest)
+    for i in range(3):
+        await store.append(key, event_id=str(i), sender_id='u', content='new')
+    duplicate = await store.append(key, event_id='legacy', sender_id='u', content='old')
+    assert duplicate.status == 'duplicate' and duplicate.sequence == 0
+    assert int(await client.get(store.keys(key)[3])) == 4
+
+
+async def test_json_safety_limit_and_token_limit_use_same_prefix_function(group_store):
+    _, client, key = group_store
+    store = GroupContextStore(client, max_message_bytes=1024)
+    original = '/' * 10000
+    await store.append(key, event_id='bounded', sender_id='u', content=original)
+    message = (await store.get_candidates(key)).messages[0]
+    assert message['truncated'] and message['content'].endswith(' ...')
+    assert original.startswith(message['content'][:-4])
+    assert len((await client.lrange(store.keys(key)[0], 0, 0))[0]) <= 1024
+    assert estimate_tokens(message['content']) <= 512
+
+
+async def test_redis_empty_mention_list_renders_as_array(group_store):
+    import json
+    store, _, key = group_store
+    await store.append(key, event_id='e', sender_id='u', content='normal')
+    item = (await store.get_candidates(key)).messages[0]
+    rendered = json.loads(render_background([item]).split('\n')[1])
+    assert rendered['mention_ids'] == []
