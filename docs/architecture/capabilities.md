@@ -87,6 +87,13 @@ Actions 通过统一调用契约暴露本地工具和已配置的 MCP Server。T
 Main / Worker 分配；不配置则不对模型开放。服务集合只表示组合方声明的依赖可用性，
 不能代替调用时的账号、fence、当前授权、revision、预算与容量检查。
 
+当前 Skill 模型工具只支持 Instruction：Worker 加载 YAML 中显式 `type: instruction`
+及未声明 `pipeline` 扩展的 `*/SKILL.md`（声明为空或 null 也排除），Sandbox 注册时再次过滤；现行 `build_skill_tool_from_definition` 对 Pipeline、
+缺省类型和未知类型明确拒绝。Instruction 仍返回只读指导正文，原角色与渠道门禁保留。
+历史 Pipeline 引擎实现保留，但不通过现行加载/注册/构建入口向模型开放或执行。
+文件能力全局开关采用 `FILE_CAPABILITY_ENABLED`、`FILE_TRANSFORM_ENABLED`、`FILE_SHELL_ENABLED`；
+旧入口兼容与优先级见[配置参考](../reference/configuration.md)，不改变当前 Web/QQ 注册范围或文件授权。
+
 ### 新增普通工具
 
 1. 在对应工具工厂/Adapter 实现有界操作及输入 Pydantic schema。工厂直接声明可信 `side_effect_class`（read_only / idempotent_write / non_idempotent_write）；未知副作用仍由持久执行入口拒绝。只有真实支持稳定操作键和对账的写工具才能声明可恢复写语义。本地六个代码工具已移除 SandboxManager 的名称补写表。

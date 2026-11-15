@@ -57,7 +57,7 @@ services:
     mem_limit: ${BETA_HPAGENT_MEMORY:?请填写hpagent内存预算}
     environment:
       HPAGENT_ENV: production
-      WEB_FILE_SHELL_ENABLED: "false"
+      FILE_SHELL_ENABLED: "false"
       HTTP_PROXY: ""
       HTTPS_PROXY: ""
       http_proxy: ""
@@ -71,7 +71,7 @@ services:
       HPAGENT_ENV: production
       WEB_PUBLIC_ORIGIN: https://hpagent.cloud
       WEB_COOKIE_SECURE: "true"
-      WEB_FILE_SHELL_ENABLED: "false"
+      FILE_SHELL_ENABLED: "false"
   hpagent-document-worker:
     cpus: ${BETA_HPAGENT_DOCUMENT_WORKER_CPUS:?请填写hpagent-document-worker CPU预算}
     mem_limit: ${BETA_HPAGENT_DOCUMENT_WORKER_MEMORY:?请填写hpagent-document-worker内存预算}

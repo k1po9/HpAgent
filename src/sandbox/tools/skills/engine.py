@@ -160,27 +160,15 @@ def _build_instruction_tool(name: str, description: str, body: str) -> BaseTool:
 
 
 def build_skill_tool_from_definition(skill_def: dict, registry) -> BaseTool:
-    """统一的 skill 工具构建入口 —— 根据 definition type 分发。
+    """Current model-tool entry point: only read-only Instruction skills are supported.
 
-    支持两种 skill 类型:
-      - "pipeline":    流水线型（HpAgent 原生格式），多步骤工具编排
-      - "instruction": 指令型（SKILL.md 格式），调用时返回指导内容
+    The historical Pipeline engine remains available for legacy code, but cannot
+    be built as a model tool through this entry point.
     """
-    skill_type = skill_def.get("type", "pipeline")
-
-    if skill_type == "instruction":
-        return _build_instruction_tool(
-            name=skill_def["name"],
-            description=skill_def.get("description", ""),
-            body=skill_def.get("body", ""),
-        )
-
-    # pipeline 类型（默认）
-    pipeline = SkillPipeline(
+    if skill_def.get("type") != "instruction":
+        raise ValueError("only instruction skills can be built as model tools")
+    return _build_instruction_tool(
         name=skill_def["name"],
         description=skill_def.get("description", ""),
-        steps=skill_def.get("pipeline", {}).get("steps", []),
-        on_error=skill_def.get("on_error", "stop"),
-        timeout_seconds=skill_def.get("timeout_seconds", 60.0),
+        body=skill_def.get("body", ""),
     )
-    return build_skill_tool(pipeline, registry, skill_def.get("parameters"))

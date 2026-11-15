@@ -34,7 +34,8 @@ def test_file_capabilities_default_closed(monkeypatch):
     monkeypatch.setenv("APP_DATABASE_URL", "postgresql://unused")
     for name in (
         "WEB_FILE_UPLOAD_ENABLED", "WEB_FILE_TRANSFORM_ENABLED",
-        "WEB_FILE_SHELL_ENABLED",
+        "WEB_FILE_SHELL_ENABLED", "FILE_CAPABILITY_ENABLED",
+        "FILE_TRANSFORM_ENABLED", "FILE_SHELL_ENABLED",
     ):
         monkeypatch.delenv(name, raising=False)
     settings = WebApiSettings.from_env()
@@ -181,8 +182,7 @@ def test_unknown_environment_is_rejected_without_echoing_it(monkeypatch):
 
 @pytest.mark.parametrize("value", ["secret-invalid-boolean", " true "])
 @pytest.mark.parametrize("name", [
-    "WEB_COOKIE_SECURE", "WEB_FAKE_EXECUTOR_ENABLED", "WEB_FILE_UPLOAD_ENABLED",
-    "WEB_FILE_TRANSFORM_ENABLED", "WEB_FILE_SHELL_ENABLED",
+    "WEB_COOKIE_SECURE", "WEB_FAKE_EXECUTOR_ENABLED",
 ])
 def test_api_boolean_values_are_strict_and_value_safe(monkeypatch, name, value):
     with pytest.raises(ValueError, match=name) as error:
@@ -255,3 +255,73 @@ assert not any(name == item or name.startswith(item + '.')
         else str(source_root)
     )
     subprocess.run([sys.executable, "-c", code], check=True, env=env)
+
+
+@pytest.mark.parametrize(('field', 'alias'), [
+    ('file_capability_enabled', 'web_file_upload_enabled'),
+    ('file_transform_enabled', 'web_file_transform_enabled'),
+    ('file_shell_enabled', 'web_file_shell_enabled'),
+])
+@pytest.mark.parametrize(('new', 'old', 'expected'), [
+    ({}, {}, False), ({}, {'value': False}, False), ({}, {'value': True}, True),
+    ({'value': False}, {'value': True}, False), ({'value': True}, {'value': False}, True),
+])
+def test_settings_constructor_aliases_normalize(field, alias, new, old, expected, caplog):
+    from dataclasses import asdict, replace
+
+    kwargs = {'file_capability_enabled': True} if field != 'file_capability_enabled' else {}
+    kwargs.update({field: new['value']} if new else {})
+    kwargs.update({alias: old['value']} if old else {})
+    settings = _settings(**kwargs)
+    assert getattr(settings, field) is expected
+    assert getattr(settings, alias) is expected
+    assert alias not in asdict(settings)
+    assert getattr(replace(settings, **{field: False}), alias) is False
+    assert alias in caplog.text and 'deprecated' in caplog.text
+
+
+@pytest.mark.parametrize(('canonical', 'legacy'), [
+    ('FILE_CAPABILITY_ENABLED', 'WEB_FILE_UPLOAD_ENABLED'),
+    ('FILE_TRANSFORM_ENABLED', 'WEB_FILE_TRANSFORM_ENABLED'),
+    ('FILE_SHELL_ENABLED', 'WEB_FILE_SHELL_ENABLED'),
+])
+@pytest.mark.parametrize(('new', 'old', 'expected'), [
+    (None, None, False), (None, 'false', False), (None, ' TrUe ', True),
+    ('false', 'true', False), ('true', 'false', True), (' false ', 'secret-invalid', False),
+    ('', 'true', 'error'), ('  ', 'false', 'error'), ('secret-invalid', 'true', 'error'),
+    (None, '', 'error'), (None, ' ', 'error'), (None, 'secret-invalid', 'error'),
+])
+def test_settings_environment_flag_matrix(monkeypatch, canonical, legacy, new, old, expected, caplog):
+    # Clear every flag, including inherited canonical names, before each case.
+    for name in ('FILE_CAPABILITY_ENABLED', 'FILE_TRANSFORM_ENABLED', 'FILE_SHELL_ENABLED',
+                 'WEB_FILE_UPLOAD_ENABLED', 'WEB_FILE_TRANSFORM_ENABLED', 'WEB_FILE_SHELL_ENABLED'):
+        monkeypatch.delenv(name, raising=False)
+    env = {'FILE_CAPABILITY_ENABLED': 'true'} if canonical != 'FILE_CAPABILITY_ENABLED' else {}
+    env.update({'HPAGENT_ENV': 'test', canonical: new, legacy: old})
+    if expected == 'error':
+        with pytest.raises(ValueError, match=canonical if new is not None else legacy) as error:
+            _env_settings(monkeypatch, **env)
+        assert 'secret-invalid' not in str(error.value)
+    else:
+        settings = _env_settings(monkeypatch, **env)
+        assert getattr(settings, canonical.lower()) is expected
+    if old is not None:
+        assert legacy in caplog.text and 'deprecated' in caplog.text
+    assert 'secret-invalid' not in caplog.text
+
+
+def test_capabilities_json_keeps_public_names_with_canonical_settings():
+    from types import SimpleNamespace
+
+    from web_api.routes.auth import me
+
+    settings = _settings(file_capability_enabled=True, file_transform_enabled=True)
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(
+        settings=settings, identity_bindings=SimpleNamespace(get_identity_summary=lambda _: {}),
+    )))
+    context = SimpleNamespace(account_id="account", account_created_at=None, expires_at=None,
+                              idle_expires_at=None, csrf_token="csrf")
+    result = me(request, context)["capabilities"]
+    assert result['file_upload'] is True
+    assert result['file_transform'] is True
+    assert 'file_capability_enabled' not in result

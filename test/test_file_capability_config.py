@@ -103,3 +103,59 @@ def test_feature_flags_reject_ambiguous_values(
 ) -> None:
     with pytest.raises(RunFileScopeUnavailable, match="exactly true or false"):
         FileCapabilityConfig.from_environment(tmp_path, None, {name: value})
+
+
+@pytest.mark.parametrize(('field', 'alias'), [
+    ('file_capability_enabled', 'upload_enabled'),
+    ('file_transform_enabled', 'transform_enabled'),
+    ('file_shell_enabled', 'shell_enabled'),
+])
+@pytest.mark.parametrize(('new', 'old', 'expected'), [
+    ({}, {}, False), ({}, {'value': False}, False), ({}, {'value': True}, True),
+    ({'value': False}, {'value': True}, False),
+    ({'value': True}, {'value': False}, True),
+])
+def test_constructor_aliases_share_only_canonical_state(field, alias, new, old, expected, caplog):
+    from dataclasses import asdict, replace
+
+    kwargs = {field: new['value']} if new else {}
+    if old:
+        kwargs[alias] = old['value']
+    config = FileCapabilityConfig(store_root=None, run_root=None, max_bytes=1024, **kwargs)
+    assert getattr(config, field) is expected
+    assert getattr(config, alias) is expected
+    assert alias not in asdict(config)
+    assert getattr(replace(config, **{field: False}), alias) is False
+    assert alias in caplog.text and 'deprecated' in caplog.text
+
+
+@pytest.mark.parametrize(('canonical', 'legacy'), [
+    ('FILE_CAPABILITY_ENABLED', 'WEB_FILE_UPLOAD_ENABLED'),
+    ('FILE_TRANSFORM_ENABLED', 'WEB_FILE_TRANSFORM_ENABLED'),
+    ('FILE_SHELL_ENABLED', 'WEB_FILE_SHELL_ENABLED'),
+])
+@pytest.mark.parametrize(('new', 'old', 'expected'), [
+    (None, None, False), (None, 'false', False), (None, ' TrUe ', True),
+    ('false', 'true', False), ('true', 'false', True), (' false ', 'secret-invalid', False),
+    ('', 'true', 'error'), ('  ', 'false', 'error'), ('secret-invalid', 'true', 'error'),
+    (None, '', 'error'), (None, ' ', 'error'), (None, 'secret-invalid', 'error'),
+])
+def test_environment_flag_matrix(tmp_path, canonical, legacy, new, old, expected, caplog):
+    # Other capabilities are enabled only when needed to satisfy dependency checks.
+    env = {'FILE_CAPABILITY_ENABLED': 'true', 'FILE_STORE_ROOT': str(tmp_path / 'objects'),
+           'FILE_RUN_ROOT': str(tmp_path / 'runs')}
+    env.pop(canonical, None)
+    if new is not None:
+        env[canonical] = new
+    if old is not None:
+        env[legacy] = old
+    if expected == 'error':
+        with pytest.raises(RunFileScopeUnavailable, match=canonical if new is not None else legacy) as error:
+            FileCapabilityConfig.from_environment(tmp_path / 'git', 'postgresql://unused', env)
+        assert 'secret-invalid' not in str(error.value)
+    else:
+        config = FileCapabilityConfig.from_environment(tmp_path / 'git', 'postgresql://unused', env)
+        assert getattr(config, canonical.lower()) is expected
+    if old is not None:
+        assert legacy in caplog.text and 'deprecated' in caplog.text
+    assert 'secret-invalid' not in caplog.text

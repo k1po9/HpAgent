@@ -180,9 +180,9 @@ Python 配置类型是常规缺省来源；`config/config.yaml` 保存显式部�
 | `WORKSPACE_ROOT` | 否 | `.data/workspace` | Worker | Git 代码工作区根；不是长期文件目录。 |
 | `WORKSPACE_ISOLATION_MODE` | 否 | `single_process_account_lock` | Worker | 可选 Git 工作区并发模式；通用 Execution scratch 不依赖 Account Git 锁。 |
 | `AGENT_EXECUTION_LEASE_TTL_SECONDS` | 否 | `900` | Worker | 主执行路径的 Execution attempt Lease 配置；Research stage 默认租约另见恢复限制。 |
-| `WEB_FILE_UPLOAD_ENABLED` | 否 | Python `false`；Compose `true` | API/Worker | Upload 与不可变成果 publisher 开关；Research/HTML/普通 Markdown 交付都需要 publisher。 |
-| `WEB_FILE_TRANSFORM_ENABLED` | 否 | Python `false`；Compose `true` | API/Worker | 文件格式转换开关；普通 Markdown 发布不要求开启转换。 |
-| `WEB_FILE_SHELL_ENABLED` | 否 | `false` | API/Worker | File Shell 能力开关。 |
+| `FILE_CAPABILITY_ENABLED` | 否 | Python `false`；Compose `true` | API/Worker | Upload 与不可变成果 publisher 开关；Research/HTML/普通 Markdown 交付都需要 publisher。 |
+| `FILE_TRANSFORM_ENABLED` | 否 | Python `false`；Compose `true` | API/Worker | 文件格式转换开关；普通 Markdown 发布不要求开启转换。 |
+| `FILE_SHELL_ENABLED` | 否 | `false` | API/Worker | File Shell 能力开关。 |
 | `FILE_STORE_ROOT` / `FILE_RUN_ROOT` / `DOCUMENT_RUN_ROOT` | Compose 管理 | Volume 路径 | File/Document | 长期文件字节与隔离执行目录；目录/授权/修订在 PostgreSQL。 |
 | `FILE_MAX_BYTES` | 否 | Python `134217728`；Compose `33554432` | File | 单文件大小上限。 |
 | `FILE_DIRECT_READ_MAX_BYTES` | 否 | `1048576` | File | Direct Read 阈值。 |
@@ -198,6 +198,19 @@ Python 配置类型是常规缺省来源；`config/config.yaml` 保存显式部�
 | `LOG_DIR` | 否 | `.data/logs` | Python Service | Structured Log 目录。 |
 | `WEB_GATEWAY_PORT` | 否 | `80` | Gateway | 对外 Host Port。 |
 | `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` | 否 | 空/本地服务列表 | Build/Runtime | Proxy 路由。 |
+
+文件能力是 API/Worker 共用的全局开关：规范内部字段为 `file_capability_enabled`、
+`file_transform_enabled`、`file_shell_enabled`。旧环境变量 `WEB_FILE_UPLOAD_ENABLED`、
+`WEB_FILE_TRANSFORM_ENABLED`、`WEB_FILE_SHELL_ENABLED` 仅作兼容并输出弃用提示。
+按键是否提供选择来源：规范变量已提供时始终优先（包括显式 `false`）；仅未提供时回退旧变量。
+选中值严格接受 `true`/`false`（忽略大小写与首尾空白）；空串、纯空白或非法值报错，不回退。
+两者均未提供时保持表中 Python/Compose 默认，Beta 强制 `FILE_SHELL_ENABLED=false`。
+Compose 保留显式空值并传递已提供的旧入口，冲突时提示规范值优先，不记录环境值。
+
+`FileCapabilityConfig` 的 `upload_enabled`/`transform_enabled`/`shell_enabled` 和
+`WebApiSettings` 的 `web_file_upload_enabled`/`web_file_transform_enabled`/`web_file_shell_enabled`
+保留构造关键字和读取兼容，输出弃用提示；内部仅保存一份规范真值。构造时未提供与 `False`
+区分，新旧参数并存时规范参数优先。API `capabilities.file_upload`/`file_transform` JSON 键保持兼容。
 
 `.env.example` 是部署模板。Source Settings 还提供 SSE Buffer、Outbox Recovery、Cleanup Interval 和 Budget Policy 等调优变量；没有运维证据时应保留代码默认值。
 

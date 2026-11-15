@@ -127,3 +127,42 @@ def binding_challenge_seconds(
     default: int = DEFAULT_QQ_BINDING_CHALLENGE_SECONDS,
 ) -> int:
     return _integer(_values(environment), "QQ_BINDING_CHALLENGE_SECONDS", default, minimum=1)
+
+
+def file_capability_flag(
+    environment: Mapping[str, str], name: str, legacy_name: str, *, default: bool = False,
+) -> bool:
+    """Select by presence, then strictly parse; never fall back from an invalid value."""
+    if legacy_name in environment:
+        deprecated_file_flag(legacy_name, name)
+    selected = name if name in environment else legacy_name
+    if selected not in environment:
+        return default
+    raw = environment[selected]
+    if not isinstance(raw, str) or raw.strip().casefold() not in {"true", "false"}:
+        raise ValueError(f"{selected} must be exactly true or false")
+    return raw.strip().casefold() == "true"
+
+
+def deprecated_file_flag(legacy_name: str, name: str) -> None:
+    # Names only: configuration values and the process environment may contain secrets.
+    import logging
+
+    logging.getLogger(__name__).warning(
+        "%s is deprecated; use %s; the canonical value takes precedence when provided",
+        legacy_name, name,
+    )
+
+
+def normalize_file_flag(
+    value: bool | None, legacy_value: bool | None, name: str, legacy_name: str,
+) -> bool:
+    """None means omitted; explicit False is authoritative. Store only the result."""
+    if legacy_value is not None:
+        deprecated_file_flag(legacy_name, name)
+    selected = value if value is not None else legacy_value
+    if selected is None:
+        return False
+    if type(selected) is not bool:
+        raise ValueError(f"{name}: expected a boolean")
+    return selected

@@ -21,7 +21,7 @@ python3 -m venv .venv
 
 通用 Agent 的 Research/HTML 交付复用主 Worker：`compose_durable_runtime` 注入共享 Web Retriever，默认 legacy 搜索由 `research.searxng_url` 指定 SearXNG 地址，SearXNG 需允许 JSON 查询；可显式切换 DeepSeek Search。共享 Local Fetch 不提供代理或 Playwright 回退。GitHub/RSS 按 source_strategy 启用；preferred_domains 只是偏好，不是网络白名单。父决策、Research synthesis 与 HTML generator 经同一 ResourcePool，后两者默认使用 chat 路由；确认模型用途时需核对实际 models 配置与回退链，不能只看 selector 名称。
 
-Worker 的文件能力需显式启用 `WEB_FILE_UPLOAD_ENABLED` 并配置 `FILE_STORE_ROOT`、`FILE_RUN_ROOT` 和 `WORKER_DATABASE_URL`，才能注入输出 publisher 并发现 Research/HTML/文字发布能力；API 也需开启 `WEB_FILE_UPLOAD_ENABLED`。API 与 Worker 必须使用相同文件存储及完整迁移链，Worker 注册 ResearchCapabilityWorkflow、HtmlCapabilityWorkflow、TextCapabilityWorkflow 和相应 Activity。普通 Markdown 发布只需文件 publisher，不要求转换服务、HTML 或 Workspace 目录授权。配置说明和离线/夹具接线测试均不证明生产搜索、模型可用或自主决策通过。
+Worker 的文件能力需显式启用 `FILE_CAPABILITY_ENABLED` 并配置 `FILE_STORE_ROOT`、`FILE_RUN_ROOT` 和 `WORKER_DATABASE_URL`，才能注入输出 publisher 并发现 Research/HTML/文字发布能力；API 也需开启 `FILE_CAPABILITY_ENABLED`。转换与 shell 分别使用 `FILE_TRANSFORM_ENABLED`、`FILE_SHELL_ENABLED`；旧 `WEB_FILE_*` 输入仅作带弃用提示的兼容回退，规范变量优先且显式空值报错。API 与 Worker 必须使用相同文件存储及完整迁移链，Worker 注册 ResearchCapabilityWorkflow、HtmlCapabilityWorkflow、TextCapabilityWorkflow 和相应 Activity。普通 Markdown 发布只需文件 publisher，不要求转换服务、HTML 或 Workspace 目录授权。配置说明和离线/夹具接线测试均不证明生产搜索、模型可用或自主决策通过。
 
 ## 首次启动
 

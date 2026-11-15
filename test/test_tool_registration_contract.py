@@ -85,3 +85,71 @@ def test_all_native_contracts_have_real_factories_and_valid_schemas(tmp_path, mo
         schema = tool.args_schema if isinstance(tool.args_schema, dict) else tool.args_schema.model_json_schema()
         Draft202012Validator.check_schema(schema)
         registry.register(tool, routing=routing_for(tool, 'native'))
+
+
+@pytest.mark.parametrize('skill_type', ['pipeline', None, 'unknown'])
+def test_current_skill_builder_rejects_non_instruction_without_executing(skill_type):
+    from sandbox.tools.skills.engine import build_skill_tool_from_definition
+
+    definition = {'name': 'unsafe', 'pipeline': {'steps': [{'id': 'write', 'tool': 'Bash'}]}}
+    if skill_type is not None:
+        definition['type'] = skill_type
+    with pytest.raises(ValueError, match='instruction'):
+        build_skill_tool_from_definition(definition, ToolRegistry())
+
+
+@pytest.mark.parametrize('pipeline', [
+    {'steps': [{'id': 'write', 'tool': 'Bash'}]}, {'steps': []}, None,
+])
+async def test_worker_loads_only_instruction_skills(tmp_path, pipeline, caplog):
+    from bootstrap.worker_dependencies import setup_tools
+    from orchestration.config import AppConfig
+    from sandbox.tools.skills.engine import build_skill_tool_from_definition
+
+    (tmp_path / 'pipeline.yaml').write_text('name: unsafe\npipeline:\n  steps: []\n')
+    (tmp_path / 'instruction.yaml').write_text(
+        'name: yaml_advice\ntype: instruction\ndescription: advice\nbody: YAML guidance\n')
+    folder = tmp_path / 'markdown-advice'
+    folder.mkdir()
+    (folder / 'SKILL.md').write_text('---\nname: markdown-advice\ndescription: advice\n---\nMD guidance\n')
+    import yaml
+
+    unsafe = tmp_path / 'markdown-pipeline'
+    unsafe.mkdir()
+    (unsafe / 'SKILL.md').write_text('---\n' + yaml.safe_dump({
+        'name': 'markdown-pipeline', 'description': 'unsafe', 'pipeline': pipeline,
+    }) + '---\nunsafe guidance\n')
+    config = AppConfig()
+    config.models.tool_rag.enabled = False
+    config.models.mcp.auto_connect = False
+    config.models.skills.enabled = True
+    config.models.skills.config_path = str(tmp_path)
+    _, definitions, _ = await setup_tools(config)
+    assert {d['name'] for d in definitions} == {'yaml_advice', 'markdown-advice'}
+    assert 'Skills loading failed' not in caplog.text
+    for definition in definitions:
+        result = await build_skill_tool_from_definition(definition, ToolRegistry()).ainvoke({})
+        assert result.success
+        assert 'guidance' in result.output
+
+
+async def test_manager_registers_instruction_and_never_dispatches_pipeline(tmp_path):
+    from sandbox.sandbox_manager import SandboxManager
+
+    manager = SandboxManager(nsjail_enabled=False, native_tools_enabled=False, skill_definitions=[
+        {'name': 'unsafe', 'type': 'pipeline', 'pipeline': {'steps': []}},
+        {'name': 'legacy_pipeline', 'pipeline': {'steps': []}},
+        {'name': 'advice', 'type': 'instruction', 'description': 'advice', 'body': 'safe guidance'},
+    ])
+    try:
+        sandbox_id = manager.create_execution_sandbox('skills', str(tmp_path))
+        sandbox = manager.get_sandbox(sandbox_id)
+        registry = sandbox._registry
+        assert registry.get('unsafe') is None
+        assert registry.get('legacy_pipeline') is None
+        denied = await registry.execute('unsafe', {})
+        assert not denied.success
+        result = await registry.execute('advice', {})
+        assert result.success and result.output == 'safe guidance'
+    finally:
+        manager.close()

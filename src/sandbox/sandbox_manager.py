@@ -205,6 +205,9 @@ class SandboxManager:
         if self._skill_definitions and not self._file_tools_enabled:
             from sandbox.tools.skills.engine import build_skill_tool_from_definition
             for skill_def in self._skill_definitions:
+                if skill_def.get("type") != "instruction":
+                    logger.warning("Skipping non-instruction skill registration")
+                    continue
                 skill_tool = build_skill_tool_from_definition(skill_def, registry)
                 register(skill_tool, "skill")
             logger.debug("Session sandbox: %d skills registered", len(self._skill_definitions))

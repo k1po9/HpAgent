@@ -216,3 +216,52 @@ async def test_artifact_values_reach_formal_generator_composition(monkeypatch):
     assert created
     assert created[0].max_bytes == 12345
     assert created[0].read_timeout_seconds == 71.5
+
+
+@pytest.mark.parametrize(('provided', 'expected'), [
+    ({}, ('true', 'true', 'false')),
+    ({'WEB_FILE_UPLOAD_ENABLED': 'false'}, ('false', 'true', 'false')),
+    ({'FILE_CAPABILITY_ENABLED': 'false', 'WEB_FILE_UPLOAD_ENABLED': 'true'},
+     ('false', 'true', 'false')),
+    ({'FILE_CAPABILITY_ENABLED': '', 'WEB_FILE_UPLOAD_ENABLED': 'true'}, ('', 'true', 'false')),
+    ({'WEB_FILE_TRANSFORM_ENABLED': ''}, ('true', '', 'false')),
+    ({'FILE_SHELL_ENABLED': 'true'}, ('true', 'true', 'true')),
+])
+@pytest.mark.parametrize('beta', [False, True])
+def test_compose_file_flags_preserve_presence_defaults_and_beta_override(provided, expected, beta):
+    import json
+    import re
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    if shutil.which('docker') is None:
+        pytest.skip('Docker Compose is unavailable')
+    root = Path(__file__).resolve().parents[1]
+    paths = [root / 'docker-compose.yaml']
+    if beta:
+        paths.append(root / 'docker-compose.beta.yaml')
+    # No .env or inherited service settings; render only synthetic inputs, never print the model.
+    env = {'PATH': os.defpath, 'HOME': '/tmp', 'SNOWLUMA_IMAGE': 'test.invalid/snow@sha256:' + 'a' * 64}
+    for path in paths:
+        for name in re.findall(r'\$\{([A-Z0-9_]+):\?', path.read_text()):
+            env[name] = '1' if name.endswith('_CPUS') else '512m' if name.endswith('_MEMORY') else 'synthetic'
+    env['SNOWLUMA_IMAGE'] = 'test.invalid/snow@sha256:' + 'a' * 64
+    env.update(provided)
+    command = ['docker', 'compose', '--env-file', '/dev/null', '--profile', '*']
+    for path in paths:
+        command += ['-f', str(path)]
+    result = subprocess.run(command + ['config', '--format', 'json'], env=env, cwd=root,
+                            capture_output=True, text=True)
+    assert result.returncode == 0, 'synthetic Compose rendering failed'
+    model = json.loads(result.stdout)
+    wanted = expected[:2] + ('false',) if beta else expected
+    for service in ('hpagent', 'hpagent-api'):
+        actual = model['services'][service]['environment']
+        assert tuple(actual.get(name) for name in (
+            'FILE_CAPABILITY_ENABLED', 'FILE_TRANSFORM_ENABLED', 'FILE_SHELL_ENABLED')) == wanted
+        for name in ('WEB_FILE_UPLOAD_ENABLED', 'WEB_FILE_TRANSFORM_ENABLED', 'WEB_FILE_SHELL_ENABLED'):
+            if name in provided:
+                assert actual.get(name) == provided[name]
+            else:
+                assert actual.get(name) is None  # Compose null means omitted in the container.

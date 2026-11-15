@@ -160,14 +160,25 @@ async def setup_tools(config: AppConfig):
             for skill_file in skills_path.glob("*.yaml"):
                 skill_def = yaml.safe_load(skill_file.read_text())
                 skill_def.setdefault("type", "pipeline")
-                skill_definitions.append(skill_def)
+                if skill_def["type"] == "instruction":
+                    skill_definitions.append(skill_def)
+                else:
+                    logger.warning("Skipping non-instruction skill: %s", skill_file)
 
             # 2. 加载 SKILL.md 业界标准格式 (tools/skills/*/SKILL.md)
             for skillmd_file in skills_path.glob("*/SKILL.md"):
                 try:
                     fm, body = parse_skillmd(skillmd_file)
+                    # Legacy classification treats empty steps as Instruction; reject the
+                    # declared Pipeline extension before that conversion (including null).
+                    if "pipeline" in fm:
+                        logger.warning("Skipping non-instruction skill: %s", skillmd_file)
+                        continue
                     skill_def = skillmd_to_definition(fm, body)
-                    skill_definitions.append(skill_def)
+                    if skill_def["type"] == "instruction":
+                        skill_definitions.append(skill_def)
+                    else:
+                        logger.warning("Skipping non-instruction skill: %s", skillmd_file)
                 except ValueError as e:
                     logger.warning("SKILL.md parse failed: %s - %s", skillmd_file, e)
 
@@ -362,7 +373,7 @@ async def _init_dependencies(
     file_capability = FileCapabilityConfig.from_environment(
         workspace_root, os.getenv("WORKER_DATABASE_URL")
     )
-    if file_capability.upload_enabled:
+    if file_capability.file_capability_enabled:
         worker_database_url = os.getenv("WORKER_DATABASE_URL")
         assert worker_database_url is not None
         assert file_capability.store_root is not None
@@ -378,7 +389,7 @@ async def _init_dependencies(
 
         file_output_publisher = OutputPublisher(worker_database_url, tenant_store)
         logger.info("Run file workspace enabled with isolated object/execution roots")
-        if file_capability.transform_enabled:
+        if file_capability.file_transform_enabled:
             from file_adapters import GotenbergConversionProvider
 
             gotenberg_url = os.getenv("GOTENBERG_URL", "").strip()
@@ -401,7 +412,7 @@ async def _init_dependencies(
         retriever=retriever,
         native_tools_enabled=config.sandbox.native_tools_enabled,
         nsjail_enabled=config.sandbox.nsjail_enabled,
-        file_tools_enabled=(file_capability.upload_enabled),
+        file_tools_enabled=(file_capability.file_capability_enabled),
         file_output_publisher=file_output_publisher,
         file_conversion_provider=file_conversion_provider,
         work_commands=WorkCommandService(
@@ -466,7 +477,7 @@ async def _init_dependencies(
             redis_client=redis_client,
             workspace_isolation=workspace_isolation,
             run_file_workspace=run_file_workspace,
-            tenant_file_store=(tenant_store if file_capability.upload_enabled else None),
+            tenant_file_store=(tenant_store if file_capability.file_capability_enabled else None),
             file_output_publisher=file_output_publisher,
         ),
         shared=shared,

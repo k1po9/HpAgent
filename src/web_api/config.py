@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, fields
+from dataclasses import InitVar, dataclass, field, fields
 
 from common.config_validation import boolean, environment_name, integer, number, typed_fields
 from common.runtime_config import (
@@ -11,6 +11,9 @@ from common.runtime_config import (
     CapacityConfig,
     FileRuntimeConfig,
     binding_challenge_seconds,
+    deprecated_file_flag,
+    file_capability_flag,
+    normalize_file_flag,
     run_budget_mode,
 )
 
@@ -45,9 +48,12 @@ class WebApiSettings:
     fake_executor_mode: str = "success"
     fake_executor_content: str = "这是由测试执行器生成的回复。"
     fake_executor_failure_code: str = "fake_executor_failure"
-    web_file_upload_enabled: bool = False
-    web_file_transform_enabled: bool = False
-    web_file_shell_enabled: bool = False
+    web_file_upload_enabled: InitVar[bool | None] = None
+    file_capability_enabled: bool | None = field(default=None, kw_only=True)
+    web_file_transform_enabled: InitVar[bool | None] = None
+    file_transform_enabled: bool | None = field(default=None, kw_only=True)
+    web_file_shell_enabled: InitVar[bool | None] = None
+    file_shell_enabled: bool | None = field(default=None, kw_only=True)
     file_store_root: str = ".data/file-store"
     file_max_bytes: int = FileRuntimeConfig.file_max_bytes
     file_max_count_per_message: int = FileRuntimeConfig.file_max_count_per_message
@@ -61,7 +67,25 @@ class WebApiSettings:
     sse_max_connections: int = 256
     terminal_publisher_poll_seconds: float = 0.5
 
-    def __post_init__(self) -> None:
+    def __getattribute__(self, name: str):
+        aliases = {"web_file_upload_enabled": "file_capability_enabled",
+                   "web_file_transform_enabled": "file_transform_enabled",
+                   "web_file_shell_enabled": "file_shell_enabled"}
+        if name in aliases:
+            deprecated_file_flag(name, aliases[name])
+            name = aliases[name]
+        return object.__getattribute__(self, name)
+
+    def __post_init__(self, web_file_upload_enabled, web_file_transform_enabled,
+                      web_file_shell_enabled) -> None:
+        for name, alias, legacy_value in (
+            ("file_capability_enabled", "web_file_upload_enabled", web_file_upload_enabled),
+            ("file_transform_enabled", "web_file_transform_enabled", web_file_transform_enabled),
+            ("file_shell_enabled", "web_file_shell_enabled", web_file_shell_enabled),
+        ):
+            object.__setattr__(self, name, normalize_file_flag(
+                getattr(self, name), legacy_value, name, alias,
+            ))
         object.__setattr__(self, "environment", environment_name(self.environment))
         typed_fields(type(self), {f.name: getattr(self, f.name) for f in fields(self)})
         for attribute, path in (
@@ -94,17 +118,17 @@ class WebApiSettings:
         )
         if self.run_budget_mode not in {"off", "observe", "enforce"}:
             raise ValueError("RUN_BUDGET_MODE must be off, observe, or enforce")
-        if self.web_file_transform_enabled and not self.web_file_upload_enabled:
+        if self.file_transform_enabled and not self.file_capability_enabled:
             raise ValueError("file transforms require file uploads")
-        if self.web_file_shell_enabled and not self.web_file_upload_enabled:
+        if self.file_shell_enabled and not self.file_capability_enabled:
             raise ValueError("Web file shell requires file uploads")
         if (
             self.environment == "production"
-            and self.web_file_upload_enabled
+            and self.file_capability_enabled
             and self.run_budget_mode != "enforce"
         ):
             raise ValueError("production file capability requires RUN_BUDGET_MODE=enforce")
-        if self.environment == "production" and self.web_file_shell_enabled:
+        if self.environment == "production" and self.file_shell_enabled:
             raise ValueError("host Bash cannot be enabled for production Web file runs")
         if self.environment == "production":
             if self.public_origin == "https://localhost":
@@ -195,14 +219,14 @@ class WebApiSettings:
             fake_executor_failure_code=os.getenv(
                 "WEB_FAKE_EXECUTOR_FAILURE_CODE", cls.fake_executor_failure_code
             ),
-            web_file_upload_enabled=boolean(
-                os.getenv("WEB_FILE_UPLOAD_ENABLED", str(cls.web_file_upload_enabled).lower()), "WEB_FILE_UPLOAD_ENABLED"
+            file_capability_enabled=file_capability_flag(
+                os.environ, "FILE_CAPABILITY_ENABLED", "WEB_FILE_UPLOAD_ENABLED"
             ),
-            web_file_transform_enabled=boolean(
-                os.getenv("WEB_FILE_TRANSFORM_ENABLED", str(cls.web_file_transform_enabled).lower()), "WEB_FILE_TRANSFORM_ENABLED"
+            file_transform_enabled=file_capability_flag(
+                os.environ, "FILE_TRANSFORM_ENABLED", "WEB_FILE_TRANSFORM_ENABLED"
             ),
-            web_file_shell_enabled=boolean(
-                os.getenv("WEB_FILE_SHELL_ENABLED", str(cls.web_file_shell_enabled).lower()), "WEB_FILE_SHELL_ENABLED"
+            file_shell_enabled=file_capability_flag(
+                os.environ, "FILE_SHELL_ENABLED", "WEB_FILE_SHELL_ENABLED"
             ),
             file_store_root=os.getenv("FILE_STORE_ROOT", cls.file_store_root),
             file_max_bytes=integer(
