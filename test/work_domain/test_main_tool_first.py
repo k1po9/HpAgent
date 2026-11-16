@@ -327,3 +327,30 @@ async def test_terminal_recovery_after_commit_does_not_repeat_model_or_command(u
         assert result.decision_type == 'final'
         assert obj.brain.generate_chat_decision.await_count == 1
     assert owner.execute("SELECT count(*) n FROM agent_transcript_events WHERE transcript_id=%s AND payload->'message'->>'name'='respond_directly'", (tid,)).fetchone()['n'] == 1
+
+
+async def test_large_processed_result_keeps_authoritative_main_command_receipt(urls, account_id, owner, commands):
+    from actions.contracts import ActionResult
+    from actions.runtime import ActionRuntime
+
+    run = chat(urls, account_id)
+    output, cid = await accept_receipt(owner, commands, account_id, run)
+    value = {**json.loads(output), 'padding': 'x' * 1048576}
+    result = ActionRuntime.prepare_result(ActionResult.from_runtime_result(
+        ActionRequest('accept', 'accept_work', {}), {'success': True, 'output': json.dumps(value)}))
+    assert result.metadata['result_processing']['raw_available'] is False
+    with execution(urls, account_id, run) as (store, segment, token):
+        tid = context(store, run, account_id, segment)
+        op = f'tool:{run}'
+        store.begin_operation(op, str(run), 'tool')
+        version = store.complete_operation_with_event(transcript_id=tid, expected_version=1,
+            event_type='tool_result', operation_id=op,
+            event_payload={'message': {'role': 'tool', 'name': 'accept_work',
+                'tool_call_id': 'accept', 'content': result.to_observation()}, 'raw_result': result.raw},
+            result_ref=op, result_payload={'tool_success': True})
+        obj = runtime(store, [respond('任务已创建。', [cid])])
+        terminal = await obj.model_decision(model_input(run, account_id, segment, token, tid, version=version))
+    payload = owner.execute('SELECT result_payload FROM execution_operations WHERE operation_id=%s',
+        (terminal.operation_id,)).fetchone()['result_payload']
+    assert payload['response_receipt']['business_commands'][0]['command_id'] == cid
+    assert '已核验命令 accept_work' in payload['content']

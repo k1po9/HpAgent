@@ -275,9 +275,11 @@ async def test_read_only_tool_failure_is_a_completed_failure_observation():
     assert result.display_summary == "Tool write_tool failed: mock read error"
     assert store.completion is not None
     event = store.completion["event_payload"]
-    assert event["message"]["content"] == (
-        '{"success": false, "error": "mock read error"}'
-    )
+    import json
+    observation = json.loads(event["message"]["content"])
+    assert observation["success"] is False
+    assert observation["error"] == "mock read error"
+    assert observation["result_processing"]["raw_available"] is True
     assert event["raw_result"]["error"] == "mock read error"
     assert store.completion["result_payload"]["tool_success"] is False
 
@@ -964,3 +966,126 @@ async def test_manifest_preserves_main_delegation_boundaries_and_audit(tmp_path,
             assert audit.reasons == []
     finally:
         manager.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mode', ['success', 'publish_failure', 'budget_denied', 'invalid_id', 'no_publisher', 'no_budget'])
+async def test_large_result_publication_keeps_known_outcome_and_replays(tmp_path, mode):
+    import json
+
+    from resources.run_budget import RunBudgetExhausted
+    from storage.tenant_file_store import TenantFileStore
+
+    item = request()
+    raw = {'success': True, 'output': {'body': '中' * 200000,
+           'command_receipt': {'command_id': 'committed-command'}, 'file_id': str(uuid4())}}
+    stored_files = TenantFileStore(tmp_path, max_bytes=4 * 1024 * 1024)
+    calls, budget_calls = [], []
+    file_id = uuid4()
+
+    class Publisher:
+        store = stored_files
+        def publish(self, scope, operation, name, content_type, **kwargs):
+            calls.append(operation)
+            if mode == 'publish_failure':
+                raise OSError('unavailable')
+            data = (scope.outputs_root / name).read_bytes()
+            staged = stored_files.stage(file_id, [data], declared_size=len(data))
+            published = stored_files.publish(uuid4(), file_id, staged)
+            with stored_files.open(published.storage_key) as stream:
+                assert json.load(stream) == raw
+            return SimpleNamespace(file_id='invalid' if mode == 'invalid_id' else file_id)
+
+    class Budget:
+        def reserve(self, run, operation, amounts, **kwargs):
+            budget_calls.append(('reserve', operation, amounts))
+            if mode == 'budget_denied' and 'output_file_bytes' in amounts:
+                raise RunBudgetExhausted('rejected')
+        def settle(self, run, operation, amounts, source):
+            budget_calls.append(('settle', operation, amounts))
+        def release(self, run, operation):
+            budget_calls.append(('release', operation))
+
+    class LargeActions(Actions):
+        async def execute_request(self, action, **kwargs):
+            self.calls += 1
+            return ActionResult.from_runtime_result(action, raw)
+
+    store = Store(ToolOperationState('started', None))
+    actions = LargeActions('non_idempotent_write')
+    activity = activities(store, actions,
+        output_publisher=None if mode == 'no_publisher' else Publisher(),
+        run_budget=None if mode == 'no_budget' else Budget())
+    first = await activity.tool_execution(item)
+    event = store.completion['event_payload']
+    observation = json.loads(event['message']['content'])
+    processing = observation['result_processing']
+    assert first.tool_success is True
+    assert processing['raw_available'] is (mode == 'success')
+    assert ('raw_file_id' in processing) is (mode == 'success')
+    assert len(json.dumps(event['raw_result']).encode()) <= 1048576
+    assert observation['references']['command_receipt']['command_id'] == 'committed-command'
+    assert observation['references']['file_id'] == raw['output']['file_id']
+    assert not store.uncertain and not store.failed
+    assert len(calls) == (0 if mode in {'budget_denied', 'no_publisher', 'no_budget'} else 1)
+    if mode == 'success':
+        amounts = {'bytes_written': len(json.dumps(raw).encode()),
+                   'output_file_bytes': len(json.dumps(raw).encode())}
+        assert ('reserve', calls[0], amounts) in budget_calls
+        assert ('settle', calls[0], amounts) in budget_calls
+    store.state = ToolOperationState('completed', store.completion['result_payload'])
+    second = await activity.tool_execution(item)
+    assert second == first and actions.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_invalid_result_after_known_write_completes_failure_observation_without_retry():
+    import json
+
+    class CyclicActions(Actions):
+        async def execute_request(self, action, **kwargs):
+            self.calls += 1
+            output = []
+            output.append(output)
+            return ActionResult.from_runtime_result(action, {'success': True, 'output': output})
+
+    store = Store(ToolOperationState('started', None))
+    action = CyclicActions('non_idempotent_write')
+    result = await activities(store, action).tool_execution(request())
+    assert result.tool_success is True and action.calls == 1
+    assert not store.uncertain
+    observation = json.loads(store.completion['event_payload']['message']['content'])
+    assert observation['result_processing']['raw_available'] is False
+    assert observation['result_processing']['processing_error']
+
+
+@pytest.mark.asyncio
+async def test_large_branch_result_cannot_acquire_output_publication(monkeypatch):
+    import json
+
+    install_execution_uow(monkeypatch, role='subagent', tool_names=('write_tool',))
+    class BranchActions(Actions):
+        async def execute_request(self, action, **kwargs):
+            return ActionResult.from_runtime_result(action, {'success': True, 'output': 'x' * 1048576})
+    publish_calls = []
+    class Publisher:
+        store = SimpleNamespace(max_bytes=4 * 1048576)
+        def publish(self, *_args, **_kwargs):
+            publish_calls.append(True)
+            return SimpleNamespace(file_id=uuid4())
+    class Budget:
+        def reserve(self, *_args, **_kwargs):
+            pass
+        def settle(self, *_args, **_kwargs):
+            pass
+    store = Store(ToolOperationState('started', None))
+    await activities(store, BranchActions('read_only'), output_publisher=Publisher(), run_budget=Budget()).tool_execution(request())
+    processing = json.loads(store.completion['event_payload']['message']['content'])['result_processing']
+    assert processing['raw_available'] is False and 'raw_file_id' not in processing
+    assert not publish_calls
+
+
+@pytest.mark.asyncio
+async def test_success_display_summary_keeps_tool_preview_without_processing_metadata():
+    result = await activities(Store(ToolOperationState('started', None)), Actions('read_only')).tool_execution(request())
+    assert result.display_summary == 'ok'

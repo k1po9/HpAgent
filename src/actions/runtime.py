@@ -7,9 +7,19 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import replace
 from typing import Any, Dict, List, cast
+from uuid import UUID
 
-from actions.contracts import ActionRequest, ActionResult
+from actions.contracts import (
+    RAW_RESULT_MAX_BYTES,
+    ActionRequest,
+    ActionResult,
+    bounded_result_fields,
+    iter_result_json,
+    result_preview,
+    result_references,
+)
 from common.agent_policy import AgentPolicy
 from common.logging import log_event
 from common.token_counter import estimate_messages_tokens
@@ -121,12 +131,6 @@ class ActionRuntime:
             result_dict.setdefault("error", None)
             result_dict.setdefault("metadata", {})
 
-            if (agent_policy.tool_result_summary_enabled if agent_policy else self._tool_result_summary_enabled):
-                result_dict = await self._summarize_if_needed(
-                    result_dict, tool_name, user_query, resource_key, agent_policy=agent_policy,
-                )
-
-            return result_dict
         except Exception as e:
             return {
                 "success": False,
@@ -134,6 +138,12 @@ class ActionRuntime:
                 "error": str(e),
                 "metadata": {},
             }
+        # Execution is already known. Summary errors must never replace it.
+        if (agent_policy.tool_result_summary_enabled if agent_policy else self._tool_result_summary_enabled):
+            result_dict = await self._summarize_if_needed(
+                result_dict, tool_name, user_query, resource_key, agent_policy=agent_policy,
+            )
+        return result_dict
 
 
     async def execute_request(
@@ -257,12 +267,17 @@ class ActionRuntime:
         threshold = agent_policy.tool_result_summary_threshold if agent_policy else self._tool_result_summary_threshold
         max_chars = agent_policy.tool_result_summary_max_chars if agent_policy else self._tool_result_summary_max_chars
         output = result_dict.get("output")
-        if not output or not isinstance(output, str):
+        max_chars = max(1, min(max_chars, 44_000))
+        preview = result_preview(output, max(threshold + 1, max_chars))
+        if len(preview) <= threshold:
             return result_dict
-        if len(output) <= threshold:
-            return result_dict
+        metadata = dict(result_dict.get('metadata') or {})
+        processing: dict[str, Any] = {}
+        metadata['result_processing'] = processing
+        result_dict['metadata'] = metadata
+        result_dict['summary'] = preview[:max_chars]
+        processing['summary_status'] = 'preview_no_model'
         if self._model is None or self._prompts is None:
-            result_dict["output"] = output[:max_chars]
             return result_dict
 
         try:
@@ -275,10 +290,10 @@ class ActionRuntime:
             user_prompt = (
                 f"用户问题：{user_query}\n"
                 f"关注点：{hint}\n\n"
-                f"工具输出（{len(output)}字符）：\n{output[:threshold * 2]}"
+                f"工具输出预览：\n{result_preview(output, min(threshold * 2, 44_000))}"
             ) if user_query else (
                 f"关注点：{hint}\n\n"
-                f"工具输出（{len(output)}字符）：\n{output[:threshold * 2]}"
+                f"工具输出预览：\n{result_preview(output, min(threshold * 2, 44_000))}"
             )
 
             messages = [
@@ -291,25 +306,79 @@ class ActionRuntime:
                 messages=messages,
                 stream=False,
             )
-            summary = (response.content or "").strip()
+            summary = (response.content or "").strip()[:max_chars]
             if summary:
-                logger.debug(
-                    "Tool result summarized: %s %d->%d chars",
-                    tool_name, len(output), len(summary),
-                )
                 result_dict["summary"] = summary
-                result_dict["metadata"] = result_dict.get("metadata") or {}
-                result_dict["metadata"]["summarized"] = True
+                processing['summary_status'] = 'summarized'
             else:
-                result_dict["output"] = output[:max_chars]
+                processing['summary_status'] = 'preview_empty_summary'
         except Exception as e:
-            logger.warning(
-                "Tool summary failed for %s: %s, falling back to truncation",
-                tool_name, e,
-            )
-            result_dict["output"] = output[:max_chars]
+            processing['summary_status'] = 'preview_summary_failed'
+            processing['summary_error'] = type(e).__name__
 
         return result_dict
+
+    @staticmethod
+    def prepare_result(result: ActionResult, publish_raw=None) -> ActionResult:
+        """Bound Transcript raw independently of file quotas; retain known outcome.
+
+        Publication is supplied only by the Activity with its current fence,
+        role and budget. This function owns no storage or execution retry.
+        """
+        raw = result.raw if result.raw is not None else {
+            'success': result.success, 'output': result.output,
+            'error': result.error, 'metadata': result.metadata,
+        }
+        metadata = dict(result.metadata or {})
+        summary_processing = metadata.get('result_processing')
+        if not isinstance(summary_processing, dict):
+            summary_processing = {}
+        summary_status = summary_processing.get('summary_status')
+        if summary_status not in ('summarized', 'preview_no_model', 'preview_empty_summary',
+                                  'preview_summary_failed'):
+            summary_status = 'not_requested'
+        processing = {
+            'raw_available': False, 'raw_json_bytes': None,
+            'original_output_chars': len(result.output) if isinstance(result.output, str) else None,
+            'summary_status': summary_status,
+        }
+        if 'summary_error' in summary_processing:
+            processing['summary_error'] = result_preview(summary_processing['summary_error'], 120)
+        metadata['result_processing'] = processing
+        size = 0
+        try:
+            for chunk in iter_result_json(raw):
+                size += len(chunk.encode('utf-8'))
+            processing['raw_json_bytes'] = size
+            if size <= RAW_RESULT_MAX_BYTES:
+                processing.update(raw_available=True, raw_location='inline')
+            elif publish_raw is None:
+                processing['processing_error'] = 'raw_publication_unavailable'
+            else:
+                published = publish_raw(raw, size)
+                file_id = str(UUID(str(published.file_id)))
+                if UUID(file_id).int == 0:
+                    raise ValueError('publisher returned an invalid file_id')
+                processing.update(raw_available=True, raw_location='file', raw_file_id=file_id)
+                if isinstance(getattr(published, 'logical_name', None), str):
+                    processing['raw_file_name'] = published.logical_name
+        except Exception as exc:
+            processing['processing_error'] = getattr(exc, 'code', None) or type(exc).__name__
+        preview = result_preview(result.display_result, 44_001)
+        processing['truncated'] = (
+            result.summary is not None or not processing['raw_available']
+            or len(preview) > 44_000
+        )
+        processing['summarized'] = processing['summary_status'] == 'summarized'
+        if processing.get('raw_location') != 'inline':
+            retained_metadata = bounded_result_fields(metadata, ('invocation_key', 'idempotency_key',
+                                                                 'budget_usage', 'trace_metadata'))
+            retained_metadata['result_processing'] = dict(processing)
+            raw = {'success': result.success,
+                   'error': result_preview(result.error, 2000) if result.error is not None else None,
+                   'output': result_references(result.output),
+                   'metadata': retained_metadata}
+        return replace(result, metadata=metadata, raw=raw)
 
     def _snapshot_context(
         self,

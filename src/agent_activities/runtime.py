@@ -9,13 +9,16 @@ import re
 import time
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any, NoReturn, cast
 from uuid import UUID
 
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
-from actions.contracts import ActionCapability, ActionRequest
+from actions.contracts import ActionCapability, ActionRequest, iter_result_json, result_preview
+from actions.runtime import ActionRuntime
 from agent_workflows.contracts import (
     AGENT_SCHEMA_VERSION,
     ApprovalStatusInput,
@@ -86,6 +89,7 @@ class DurableAgentActivities:
         resource_prep: Any,
         lifecycle: Any,
         run_budget: Any = None,
+        output_publisher: Any = None,
         capabilities: Any = None,
         web_tools: Any = None,
         reconciler: ToolSideEffectReconciler | None = None,
@@ -107,11 +111,44 @@ class DurableAgentActivities:
         self.resource_prep = resource_prep
         self.lifecycle = lifecycle
         self.run_budget = run_budget
+        self.output_publisher = output_publisher
         self.capabilities = capabilities
         self.web_tools = web_tools
         self.reconciler = reconciler or UnsupportedToolSideEffectReconciler()
         self.fault_injector = fault_injector or NoopFaultInjector()
         self.approval_service = approval_service
+
+    def _publish_tool_raw(self, request, raw, size):
+        """Reuse immutable Run outputs, under the Activity's existing fence."""
+        from storage.tenant_file_store import FileTooLarge
+        from workspace.file_scope import RunFileScope
+
+        self.store.validate_and_renew_lease(request.account_id, request.run_id, request.lease_token)
+        if size > self.output_publisher.store.max_bytes:
+            raise FileTooLarge()
+        identity = hashlib.sha256(request.operation_id.encode()).hexdigest()
+        operation = f'tool-raw:{identity}'
+        name = f'tool-result-{identity}.json'
+        amounts = {'bytes_written': size, 'output_file_bytes': size}
+        self.run_budget.reserve(UUID(request.run_id), operation, amounts, enforce_limits=True)
+        try:
+            with TemporaryDirectory(prefix='hpagent-tool-result-') as root:
+                base = Path(root)
+                for directory in ('inputs', 'scratch', 'outputs'):
+                    (base / directory).mkdir()
+                scope = RunFileScope(UUID(request.run_id), base / 'inputs', base / 'scratch',
+                                     base / 'outputs', ())
+                with (scope.outputs_root / name).open('w', encoding='utf-8') as stream:
+                    stream.writelines(iter_result_json(raw))
+                published = self.output_publisher.publish(
+                    scope, operation, name, 'application/json', encoding='utf-8')
+        except Exception:
+            # Bytes may have reached the immutable store even if its ACK failed.
+            # Keep conservative accounting and never repeat the executed tool.
+            self.run_budget.settle(UUID(request.run_id), operation, amounts, 'estimated')
+            raise
+        self.run_budget.settle(UUID(request.run_id), operation, amounts, 'measured')
+        return published
 
     @activity.defn(name="file_action_approval_status_activity")
     async def file_action_approval_status(
@@ -1077,31 +1114,23 @@ class DurableAgentActivities:
                             original_error_code="action_result_error",
                         )
                     self.fault_injector.hit("tool_side_effect_succeeded_before_ack")
+            # Preparation has no tool retries. Root output publication requires
+            # the already-configured publisher and budget; branches stay read-only.
+            publish_raw = (
+                lambda raw, size: self._publish_tool_raw(request, raw, size)
+            ) if execution['role'] == 'root' and self.output_publisher is not None and self.run_budget is not None else None
+            result_value = await asyncio.to_thread(
+                ActionRuntime.prepare_result, result_value, publish_raw)
+            result_ref = f"agent-tool-result:{request.operation_id}"
+            observation_content = result_value.to_observation(
+                receipt_ref=result_ref if request.source.source_kind == 'work' and not result_value.failed else '')
             if result_value.failed:
-                observation_content = json.dumps(
-                    {
-                        "success": False,
-                        "error": str(
-                            result_value.error or "tool execution failed"
-                        ),
-                    },
-                    ensure_ascii=False,
-                )
                 display_text = (
                     f"Tool {request.tool_call.name} failed: "
-                    f"{result_value.error or 'tool execution failed'}"
+                    f"{result_preview(result_value.error or 'tool execution failed', 240)}"
                 )
             else:
-                display = result_value.display_result
-                observation_content = (
-                    display
-                    if isinstance(display, str)
-                    else json.dumps(display, ensure_ascii=False, default=str)
-                )
-                display_text = observation_content
-            result_ref = f"agent-tool-result:{request.operation_id}"
-            if request.source.source_kind == 'work' and not result_value.failed:
-                observation_content += f"\nVerified execution receipt reference: {result_ref}"
+                display_text = result_preview(result_value.display_result, 240)
             payload = {
                 "schema_version": AGENT_SCHEMA_VERSION,
                 "operation_id": request.operation_id,

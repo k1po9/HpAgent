@@ -151,7 +151,7 @@ class ToolRegistry:
             result = await tool.ainvoke(arguments)
             if isinstance(result, ToolResult):
                 return result
-            output = result.content if hasattr(result, "content") else str(result)
+            output = result.content if hasattr(result, "content") else result
             metadata: dict[str, Any] = {}
             usage_fields = (getattr(tool, "metadata", None) or {}).get(
                 "usage_json_fields"

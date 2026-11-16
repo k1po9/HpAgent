@@ -20,6 +20,10 @@ Agent 能力由 Context Assembly、Brain/Model 决策循环和持久化策略 Wo
 
 回复中的显式业务成功声明按有限的对象、动作和状态规则识别，并要求真实回执支持该类操作；接受 Work 不证明文件已保存、消息已发送或任务已完成。普通记忆来源描述、否定、条件及转述不直接判作成功声明。未获支持的声明返回“无法核实”提示，先查询任务或文件状态再决定是否重发；这层文本检查不是完整语义证明，也不改变数据库业务状态。
 
+工具结果沿 `ToolResult → ActionResult → Activity` 保留结构化输出及原始 success/error，Sandbox 不截断原值。摘要或带标记的预览使用已有 summary/metadata；摘要失败、预算拒绝或结果编码失败不会改写工具执行成败。模型观察包含原始 JSON 字节数、返回字符/UTF-8 字节数、摘要/截断状态与处理错误，总量同时不超过 50000 字符和 200000 UTF-8 字节；Main command_receipt、文件引用和 Work execution receipt 在预览之外保留。
+
+Transcript `raw_result` 内联独立限制为 1,048,576 字节，按该对象完整 `json.dumps` 表示的 UTF-8 大小计量（默认 ASCII 转义与分隔符，包含键及元数据），事件写入显式固定同一编码。结果遍历限制深度 64、节点 100000，巨型字符串分片编码。该限制不使用文件上传额度。超限时仅 root Execution 可复用已配置的 OutputPublisher，沿当前 fence 和独立稳定操作键预留/结算 Run/Work 文件预算，并遵守原文件大小上限；实际发布并获得有效 file_id 后才返回 raw_file_id/文件名。无合法发布能力、预算拒绝、结构/编码错误或发布失败均明确 raw_available=false，不增加 Workspace grant。观察、raw/引用与 Operation receipt 仍经原 transcript CAS 同事务提交；已完成 Operation 重放不重新执行工具或发布。外部结果未知及最终权威提交失败继续走原 uncertain/失败机制。
+
 ## Work 与执行策略
 
 Work 接受持续委托，固定不可变 requirement revision、checkpoint 与 continuation。提醒、研究、通用工作和成果构建通过服务端 StrategyRegistry 选择注册 executor；不支持的能力直接拒绝。Main 使用 Work 管理工具，Work Agent 不获得这些工具；工作上下文不加载关联聊天全文。Generic Work root 可一次委派最多三个只读分支，共用 Run / Work 预算。完成由持久证据与 WorkCompletionPolicy 判断。详见 [Work](work.md)。

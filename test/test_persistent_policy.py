@@ -76,7 +76,9 @@ async def test_concurrent_tool_summaries_use_each_run_policy_without_mutating_ru
     short, untouched = await asyncio.gather(
         call(AgentPolicy(tool_result_summary_threshold=3, tool_result_summary_max_chars=4)),
         call(AgentPolicy(tool_result_summary_enabled=False)))
-    assert short.output == 'abcd'
+    assert short.output == 'abcdefghij'
+    assert short.summary == 'abcd'
+    assert short.metadata['result_processing']['summary_status'] == 'preview_no_model'
     assert untouched.output == 'abcdefghij'
     assert (await call(None)).output == 'abcdefghij'
 

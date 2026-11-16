@@ -170,6 +170,7 @@ def compose_durable_runtime(
         resource_prep=resource_prep,
         lifecycle=lifecycle,
         run_budget=RunBudgetService(worker_database_url),
+        output_publisher=infrastructure.file_output_publisher,
         approval_service=FileActionApprovalService(worker_database_url),
     )
     from agent_activities.composition import capability_worker_activities

@@ -6,6 +6,7 @@ workspace call is made while a database transaction is open.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -430,7 +431,10 @@ class AgentDataStore:
             uow.execute(
                 "INSERT INTO agent_transcript_events(transcript_id,sequence,event_type,"
                 "operation_id,payload) VALUES (%s,%s,%s,%s,%s)",
-                (transcript_id, version, event_type, operation_id, Jsonb(event_payload)),
+                # Pin the encoder used by the raw_result byte budget. psycopg
+                # defaults to json.dumps too; process-global adapters cannot
+                # silently change this event's escaping/separators.
+                (transcript_id, version, event_type, operation_id, Jsonb(event_payload, dumps=json.dumps)),
             )
             uow.execute(
                 "UPDATE agent_transcripts SET version=%s,updated_at=now() WHERE transcript_id=%s",

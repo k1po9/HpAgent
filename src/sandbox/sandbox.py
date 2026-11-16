@@ -4,7 +4,7 @@ Sandbox —— 模型"手"层：工具选择 + 安全执行 + 输出后处理 + 
 设计原则:
   - 工具选择委托给 capability-first ToolRouter
   - 执行按类别路由：native 进程内 / Bash nsjail / MCP 远端 / Skill 展开
-  - 输出截断在 Sandbox 统一执行（Agent loop 无需关心工具输出长度）
+  - 保留原始结果，由 ActionRuntime 构造有界模型观察
   - 跨轮 hints 状态归属于 Sandbox（生命周期与 session 一致）
   - 审计信息以纯数据 dict 返回（不依赖 Harness 层的 Event 体系）
 """
@@ -26,7 +26,7 @@ class Sandbox:
 
     职责:
       1. select_tools() — 收集 hints/runtime facts 并委托 ToolRouter
-      2. execute()      — 安全路由执行 + 输出截断
+      2. execute()      — 安全路由执行，保留完整结果
       3. 持有 hints 队列 — 跨轮次工具检索偏好
       4. 返回审计信息 — 供 execution audit sink 写入事件日志
     """
@@ -88,7 +88,7 @@ class Sandbox:
     async def execute(
         self, tool_name: str, arguments: Dict[str, Any]
     ) -> Tuple[ToolResult, dict]:
-        """执行管线：hint 提取 → 安全路由 → 执行 → 截断。
+        """执行管线：hint 提取 → 安全路由 → 执行。
 
         Returns:
             (tool_result, audit_info)
@@ -114,21 +114,13 @@ class Sandbox:
         if hint:
             self._hints.append(hint)
 
-        # 4. 截断过长的输出
-        truncated = False
-        if isinstance(result.output, str) and len(result.output) > self._truncation_threshold:
-            result.output = result.output[:self._truncation_threshold]
-            result.metadata["truncated"] = True
-            result.metadata["original_length"] = len(result.output)
-            truncated = True
-
         elapsed_ms = (time.monotonic() - t0) * 1000
 
         audit = {
             "tool_name": tool_name,
             "latency_ms": round(elapsed_ms, 1),
             "success": result.success,
-            "truncated": truncated,
+            "truncated": False,
         }
 
         if result.error:
