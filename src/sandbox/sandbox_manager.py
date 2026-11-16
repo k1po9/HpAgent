@@ -214,18 +214,6 @@ class SandboxManager:
 
         registry.freeze()
 
-        # 首次创建沙箱时同步工具向量库（增量，后续 Execution 跳过已有工具）
-        if self._retriever is not None:
-            try:
-                self._retriever._store.sync(
-                    registry.list_all(),
-                    embedding_client=self._retriever._embedding,
-                )
-            except Exception as e:
-                import traceback
-                logger.warning("Tool vector sync failed: %s", e)
-                logger.warning("Tool vector sync traceback:\n%s", traceback.format_exc())
-
         sandbox_id = str(uuid.uuid4())
 
         nsjail_executor = None

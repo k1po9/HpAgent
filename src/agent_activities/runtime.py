@@ -46,6 +46,7 @@ from resources.model_budget_context import model_budget_scope
 from resources.model_governance_errors import classify_model_governance_failure
 from resources.run_budget import RunBudgetExhausted
 from run_domain.execution import StaleFencingToken, TranscriptVersionConflict
+from sandbox.tools.routing.models import ToolRetrievalError, ToolRoutingConfigurationError
 from tracing import (
     model_observation_metadata,
     trace_end,
@@ -683,6 +684,12 @@ class DurableAgentActivities:
             trace_metadata = {"error_code": exc.code}
             await asyncio.to_thread(self.store.fail_operation, request.operation_id, exc.code)
             raise ApplicationError("Agent transcript 版本冲突。", type=exc.code, non_retryable=True) from exc
+        except (ToolRetrievalError, ToolRoutingConfigurationError) as exc:
+            code = exc.code if isinstance(exc, ToolRetrievalError) else "tool_retrieval_configuration_invalid"
+            trace_metadata = {"error_code": code}
+            await asyncio.to_thread(self.store.fail_operation, request.operation_id, code)
+            raise ApplicationError("工具选择失败，模型请求未发送。", type=code,
+                                   non_retryable=True) from exc
         except Exception as exc:
             governance = classify_model_governance_failure(exc)
             if governance is not None:

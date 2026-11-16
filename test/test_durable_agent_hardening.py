@@ -823,3 +823,48 @@ async def test_disabled_root_tool_is_denied_before_external_action(monkeypatch, 
         await runtime.tool_execution(item)
     assert error.value.type == 'tool_policy_denied'
     assert native.calls == 0 and store.completion is None
+
+
+@pytest.mark.parametrize('failure_kind', ['dependency', 'program'])
+async def test_tool_selection_failure_blocks_model_dispatch(tmp_path, failure_kind):
+    from agent_workflows.contracts import ModelDecisionInput
+    from sandbox.sandbox_manager import SandboxManager
+    from sandbox.tools.routing.models import ToolRetrievalError
+
+    class BrokenRetriever:
+        async def retrieve(self, *args, **kwargs):
+            if failure_kind == 'dependency':
+                raise ToolRetrievalError('embedding', 'embedding_unavailable')
+            raise ValueError('invalid retrieval response')
+
+    class ModelStore(Store):
+        def begin_operation(self, *args):
+            return None
+
+    class Brain:
+        calls = 0
+        async def generate_chat_decision(self, **kwargs):
+            self.calls += 1
+            raise AssertionError('model dispatched after failed tool retrieval')
+
+    original = request()
+    item = ModelDecisionInput(**{key: value for key, value in vars(original).items()
+                                if key != 'tool_call'})
+    manager = SandboxManager(nsjail_enabled=False, retriever=BrokenRetriever())
+    native = ActionRuntime(sandbox_manager=manager)
+    bindings = ChatExecutionBindings()
+    manager.create_execution_sandbox(bindings.resource_key(item), str(tmp_path))
+    store = ModelStore(ToolOperationState('started', None))
+    brain = Brain()
+    durable = DurableAgentActivities(context_bindings=bindings, store=store, loader=None,
+        brain=brain, actions=native, event_factory=EventFactory(),
+        resource_prep=ResourcePrep(), lifecycle=None)
+    try:
+        with pytest.raises(ApplicationError) as caught:
+            await durable.model_decision(item)
+        assert caught.value.type.startswith('tool_retrieval_'), repr(caught.value.__cause__)
+        assert brain.calls == 0
+        assert store.failed == [caught.value.type]
+        assert store.completion is None
+    finally:
+        manager.close()

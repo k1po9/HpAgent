@@ -1,6 +1,9 @@
-"""Canonical tool catalog and executor."""
+"""Worker declaration catalog and Execution-bound tool registry/executor."""
+import hashlib
 import json
 import logging
+from copy import deepcopy
+from dataclasses import asdict
 from threading import RLock
 from typing import Any, Dict, List, Optional
 
@@ -12,8 +15,58 @@ from sandbox.tools.types import ToolResult
 logger = logging.getLogger("HpAgent.ToolRegistry")
 
 
+def _tool_definition_payload(tool: BaseTool, routing: ToolRoutingSpec | None = None) -> dict:
+    """Mechanical declaration projection; never retain the executable wrapper."""
+    payload = {
+        "version": 2,
+        "name": tool.name,
+        "description": tool.description or "",
+        "parameters": (tool.args_schema if isinstance(tool.args_schema, dict)
+                       else tool.args_schema.model_json_schema() if tool.args_schema else {}),
+        "metadata": dict(tool.metadata or {}),
+    }
+    if routing is not None:
+        payload["routing"] = {
+            key: sorted(value) if isinstance(value, frozenset) else value
+            for key, value in asdict(routing).items()
+        }
+    # Only JSON declarations may cross this boundary (no closures or identities).
+    return json.loads(json.dumps(payload, ensure_ascii=False))
+
+
+def _tool_definition_hash(definition: dict | BaseTool) -> str:
+    payload = definition if isinstance(definition, dict) else _tool_definition_payload(definition)
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+class ToolDefinitionCatalog:
+    """Worker-owned declarations, independent of Execution binding/authorization."""
+
+    def __init__(self):
+        self._definitions: dict[str, dict] = {}
+        self._incomplete_sources: set[str] = set()
+
+    def add(self, tool: BaseTool, *, category: str, routing: ToolRoutingSpec) -> None:
+        if tool.name in self._definitions:
+            raise ValueError(f"duplicate tool name: {tool.name}")
+        payload = _tool_definition_payload(tool, routing)
+        payload["category"] = ToolKind(category).value
+        self._definitions[tool.name] = payload
+
+    def mark_incomplete(self, source: str) -> None:
+        self._incomplete_sources.add(source)
+
+    @property
+    def complete(self) -> bool:
+        return not self._incomplete_sources
+
+    def snapshot(self) -> list[dict]:
+        return deepcopy([self._definitions[name] for name in sorted(self._definitions)])
+
+
 class ToolRegistry:
-    """Globally unique tool catalog with execution and freeze semantics."""
+    """Execution-local tools with unique names, execution and freeze semantics."""
 
     def __init__(self):
         self._tools: Dict[str, RegisteredTool] = {}

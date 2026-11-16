@@ -8,6 +8,15 @@ from typing import Any
 from langchain_core.tools import BaseTool
 
 
+class ToolRetrievalError(RuntimeError):
+    """Safe dependency/selection failure, rejected before model dispatch."""
+
+    def __init__(self, stage: str, code: str):
+        self.stage = stage
+        self.code = "tool_retrieval_" + code
+        super().__init__(self.code)
+
+
 class ToolKind(str, Enum):
     NATIVE = "native"
     MCP = "mcp"

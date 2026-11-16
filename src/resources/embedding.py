@@ -19,7 +19,9 @@ Usage:
 """
 import asyncio
 import logging
+import math
 from typing import List
+from urllib.parse import urlsplit
 
 logger = logging.getLogger("HpAgent.Embedding")
 
@@ -36,11 +38,13 @@ class EmbeddingClient:
         api_key: str = "",
         model: str = "BAAI/bge-m3",
         timeout: float = 5.0,
+        provider: str = "",
     ):
         self._base_url = base_url.rstrip("/")
         self._api_key = api_key
         self._model = model
         self._timeout = timeout
+        self._provider = provider
 
     @property
     def model(self) -> str:
@@ -51,33 +55,28 @@ class EmbeddingClient:
 
     async def embed(self, texts: List[str]) -> List[List[float]]:
         """向量化文本列表（async —— 在异步上下文中使用）。"""
-        try:
-            return await self._embed_async(texts)
-        except Exception as e:
-            logger.warning("Embedding failed: %s, using zero vectors", e)
-            return [[0.0] * 1024 for _ in texts]
+        vectors = await self._embed_async(texts)
+        validate_embeddings(vectors, len(texts))
+        return vectors
+
+    @property
+    def profile(self) -> dict:
+        """Configured identity without credentials, query strings or fragments."""
+        endpoint = urlsplit(self._base_url)
+        return {"provider": self._provider, "model": self.model,
+                "endpoint": f"{endpoint.scheme}://{endpoint.hostname or ''}:{endpoint.port or ''}{endpoint.path}"}
 
     def embed_sync(self, texts: List[str]) -> List[List[float]]:
-        """向量化文本列表（sync —— 仅在无事件循环的同步上下文中使用）。
-
-        如果检测到当前有 asyncio 事件循环在运行，会在独立线程中执行，
-        避免 concurrent.futures.Future.result() 阻塞事件循环。
-        """
+        """Compatibility for synchronous consumers; tool indexing awaits embed()."""
         import concurrent.futures
 
         try:
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                return asyncio.run(self._embed_async(texts))
-
-            # 事件循环已在运行（Temporal activity 等场景）→ 独立线程
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(asyncio.run, self._embed_async(texts))
-                return future.result(timeout=self._timeout)
-        except Exception as e:
-            logger.warning("Embedding failed: %s, using zero vectors", e)
-            return [[0.0] * 1024 for _ in texts]
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.embed(texts))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(asyncio.run, self.embed(texts))
+            return future.result(timeout=self._timeout)
 
     # ── 内部实现 ──────────────────────────────────────────────────
 
@@ -101,12 +100,13 @@ class EmbeddingClient:
                 resp.raise_for_status()
                 data = resp.json()
                 items = sorted(data.get("data", []), key=lambda x: x.get("index", 0))
+                if [item.get("index") for item in items] != list(range(len(texts))):
+                    raise ValueError("embedding response indices/count mismatch")
                 return [item["embedding"] for item in items]
         except httpx.HTTPStatusError as e:
             logger.warning(
-                "Embedding API error %s: %s",
+                "Embedding API error status=%s",
                 e.response.status_code,
-                e.response.text[:200],
             )
             raise
 
@@ -118,8 +118,7 @@ def create_embedding_client(models_config) -> EmbeddingClient:
 
     embedding_chain = models_config.embedding
     if not embedding_chain:
-        logger.warning("No embedding model configured, using zero vectors fallback")
-        return EmbeddingClient()
+        raise ValueError("tool retrieval requires an embedding model")
 
     entry = embedding_chain[0]
     provider_name = entry.provider
@@ -134,12 +133,28 @@ def create_embedding_client(models_config) -> EmbeddingClient:
     api_key = re.sub(r'\$\{(\w+)\}', lambda m: os.environ.get(m.group(1), ""), api_key)
 
     logger.info(
-        "EmbeddingClient created: provider=%s model=%s base_url=%s",
-        provider_name, model, base_url,
+        "EmbeddingClient created: provider=%s model=%s",
+        provider_name, model,
     )
     return EmbeddingClient(
         base_url=base_url,
         api_key=api_key,
         model=model,
         timeout=timeout,
+        provider=provider_name,
     )
+
+
+def validate_embeddings(vectors, count: int, dimension: int | None = None) -> int:
+    """Reject missing, malformed, non-finite and placeholder zero vectors."""
+    if len(vectors) != count:
+        raise ValueError("embedding count mismatch")
+    for vector in vectors:
+        if dimension is None:
+            dimension = len(vector)
+        if not dimension or len(vector) != dimension:
+            raise ValueError("embedding dimension mismatch")
+        if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v)
+               for v in vector) or not any(vector):
+            raise ValueError("invalid embedding values")
+    return dimension or 0

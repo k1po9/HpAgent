@@ -12,7 +12,7 @@ from typing import Any, Dict, List, cast
 from actions.contracts import ActionRequest, ActionResult
 from common.agent_policy import AgentPolicy
 from common.token_counter import estimate_messages_tokens
-from sandbox.tools.routing.models import ToolRoutingConfigurationError
+from sandbox.tools.routing.models import ToolRetrievalError, ToolRoutingConfigurationError
 
 logger = logging.getLogger("HpAgent.ActionRuntime")
 
@@ -103,13 +103,12 @@ class ActionRuntime:
             )
 
             return tools
-        except ToolRoutingConfigurationError:
+        except (ToolRetrievalError, ToolRoutingConfigurationError):
             # Required Work/file entrypoints cannot disappear from the model manifest.
             # A configuration error must fail before dispatch, rather than becoming [].
             raise
         except Exception as e:
-            logger.warning("Tool retrieval failed for resource=%s: %s", resource_key, e)
-            return []
+            raise ToolRetrievalError("selection", "selection_failed") from e
 
     async def _execute(
         self,

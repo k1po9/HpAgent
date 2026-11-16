@@ -89,15 +89,16 @@ class WorkerDependencies:
         await self.resource_stack.aclose()
 
 
-async def setup_tools(config: AppConfig):
+async def setup_tools(config: AppConfig, *, incomplete_sources: set[str] | None = None):
     """启动时加载共享工具基础设施（MCP + Skills + RAG）。
 
-    本地工具（fs_read 等）在 per-Execution 沙箱创建时才实例化，
-    因为它们需要绑定 workspace 路径。
+    此处加载共享来源；完整声明目录在文件配置和 WorkCommandService 就绪后同步。
+    实际执行包装仍在 per-Execution 沙箱中绑定。
 
     Returns:
         (mcp_manager, skill_definitions, retriever)
     """
+    incomplete_sources = incomplete_sources if incomplete_sources is not None else set()
     # RAG 检索器
     retriever = None
     if config.models.tool_rag.enabled:
@@ -117,7 +118,9 @@ async def setup_tools(config: AppConfig):
                 "enabled" if reranker_client else "disabled",
             )
         except Exception as e:
-            logger.warning("Tool RAG init failed, falling back to full injection: %s", e)
+            from sandbox.tools.routing.models import ToolRetrievalError
+
+            raise ToolRetrievalError("initialize", "initialization_failed") from e
 
     # MCP 工具（可选，默认不连接）
     mcp_mgr = None
@@ -126,14 +129,25 @@ async def setup_tools(config: AppConfig):
             from sandbox.tools.adapters.mcp import MCPToolManager
 
             mcp_mgr = MCPToolManager(config_path=config.models.mcp.config_path)
-            await mcp_mgr.load_config()
+            if not Path(config.models.mcp.config_path).is_file():
+                incomplete_sources.add("mcp")
+            mcp_config = await mcp_mgr.load_config()
             await mcp_mgr.connect()
+            # connect() collects individual server failures rather than raising.
+            servers = mcp_config.get("servers", {})
+            expected = sum(cfg is not None and not cfg.get("disabled", False)
+                           for cfg in servers.values())
+            if mcp_mgr.server_count != expected:
+                incomplete_sources.add("mcp")
+                logger.warning("MCP source incomplete: connected=%d configured=%d",
+                               mcp_mgr.server_count, expected)
             logger.info(
                 "MCP tools registered: %d servers, %d tools",
                 mcp_mgr.server_count,
                 len(mcp_mgr.get_cached_tools()),
             )
         except Exception as e:
+            incomplete_sources.add("mcp")
             logger.warning("MCP tools loading failed: %s", e)
             if mcp_mgr is not None:
                 try:
@@ -148,13 +162,13 @@ async def setup_tools(config: AppConfig):
     skill_definitions = []
     if config.models.skills.enabled:
         try:
-            from pathlib import Path
-
             import yaml
 
             from sandbox.tools.skills.skillmd import parse_skillmd, skillmd_to_definition
 
             skills_path = Path(config.models.skills.config_path)
+            if not skills_path.is_dir():
+                raise FileNotFoundError("enabled Skills directory is unavailable")
 
             # 1. 加载 HpAgent 原生 YAML 格式 (tools/skills/*.yaml)
             for skill_file in skills_path.glob("*.yaml"):
@@ -180,13 +194,58 @@ async def setup_tools(config: AppConfig):
                     else:
                         logger.warning("Skipping non-instruction skill: %s", skillmd_file)
                 except ValueError as e:
+                    incomplete_sources.add("skills")
                     logger.warning("SKILL.md parse failed: %s - %s", skillmd_file, e)
 
             logger.info("Skills loaded: %d from %s", len(skill_definitions), skills_path)
         except Exception as e:
+            incomplete_sources.add("skills")
             logger.warning("Skills loading failed: %s", e)
 
     return mcp_mgr, skill_definitions, retriever
+
+
+def build_tool_catalog(*, work_commands, mcp_manager=None, skill_definitions=(), incomplete_sources=()):
+    """Project the union of built-in declarations and configured dynamic sources.
+
+    Neutral binding values exist only while constructing wrappers. Registry and
+    policy still decide which definitions any actual Execution may use.
+    """
+    from application.main_agent import create_main_work_tools
+    from sandbox.tools.local import LOCAL_TOOL_FACTORIES
+    from sandbox.tools.local.file_analysis import create_file_analysis_tools
+    from sandbox.tools.local.file_read import create_file_read_tools
+    from sandbox.tools.local.file_write import create_file_write_tools
+    from sandbox.tools.local.run_candidates import create_run_candidate_tools
+    from sandbox.tools.registry import ToolDefinitionCatalog
+    from sandbox.tools.routing.contracts import routing_for
+    from sandbox.tools.skills.engine import build_skill_tool_from_definition
+
+    catalog = ToolDefinitionCatalog()
+    for source in incomplete_sources:
+        catalog.mark_incomplete(source)
+
+    def add(tools, category):
+        for tool in tools:
+            catalog.add(tool, category=category, routing=routing_for(tool, category))
+
+    # Definitions do not grant file access or host-shell authorization. Keeping
+    # their union prevents a single role/surface/file flag from pruning others.
+    add((factory("/__hpagent_declaration_only__") for factory in LOCAL_TOOL_FACTORIES.values()), "native")
+    neutral = "00000000-0000-0000-0000-000000000000"
+    if work_commands is not None:
+        add(create_main_work_tools(dict.fromkeys(
+            ("account_id", "conversation_id", "trigger_message_id"), neutral), work_commands), "native")
+    add(create_run_candidate_tools(lambda: None), "native")
+    add(create_file_analysis_tools(lambda: None), "native")
+    add(create_file_read_tools(lambda: None), "native")
+    add(create_file_write_tools(lambda: None, object(), object()), "native")
+    if mcp_manager is not None:
+        add(mcp_manager.get_cached_tools(), "mcp")
+    for definition in skill_definitions:
+        if definition.get("type") == "instruction":
+            add([build_skill_tool_from_definition(definition, None)], "skill")
+    return catalog
 
 
 def _build_nsjail_config(sandbox: SandboxConfig) -> NsjailConfig:
@@ -360,7 +419,8 @@ async def _init_dependencies(
 
     # ── 4. 共享工具基础设施（MCP + Skills + RAG）────
     # 必须在 SandboxManager 之前调用，因为 SandboxManager 需要这些产物
-    mcp_mgr, skill_definitions, retriever = await setup_tools(config)
+    incomplete_sources: set[str] = set()
+    mcp_mgr, skill_definitions, retriever = await setup_tools(config, incomplete_sources=incomplete_sources)
     if mcp_mgr is not None:
         resource_stack.push_async_callback(mcp_mgr.disconnect)
 
@@ -402,6 +462,15 @@ async def _init_dependencies(
     # Account-bound Main Work tools share the API command service.
     from application.work.service import WorkCommandService
 
+    work_commands = WorkCommandService(
+        worker_database_url, budget_mode=run_budget_mode(default="enforce"),
+        agent_policy=AgentPolicy.from_config(config.agent),
+    )
+    if retriever is not None:
+        catalog = build_tool_catalog(work_commands=work_commands, mcp_manager=mcp_mgr,
+            skill_definitions=skill_definitions, incomplete_sources=incomplete_sources)
+        await retriever._store.sync(catalog, retriever._embedding)
+
     sandbox_manager = SandboxManager(
         nsjail_config=nsjail_config,
         redis_cache=redis_cache,
@@ -415,10 +484,7 @@ async def _init_dependencies(
         file_tools_enabled=(file_capability.file_capability_enabled),
         file_output_publisher=file_output_publisher,
         file_conversion_provider=file_conversion_provider,
-        work_commands=WorkCommandService(
-            worker_database_url, budget_mode=run_budget_mode(default="enforce"),
-            agent_policy=AgentPolicy.from_config(config.agent)
-        ),
+        work_commands=work_commands,
     )
     resource_stack.callback(sandbox_manager.close)
 

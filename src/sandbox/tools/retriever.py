@@ -1,188 +1,282 @@
-"""
-ToolVectorStore + ToolRetriever —— 基于 ChromaDB 的 RAG 动态工具检索。
+"""Worker-owned Chroma index with validated staging and atomic publication.
 
-工具向量化: name + description + parameter descriptions
-持久化路径: tools/vectors/ (ChromaDB)
+Chroma I/O is still synchronous here. P2 moves it to the bounded private pool.
 """
 import hashlib
 import json
 import logging
-from typing import List, Optional
+import os
+from pathlib import Path
+from threading import RLock
+from uuid import uuid4
 
 import chromadb
 from chromadb.config import Settings
-from langchain_core.tools import BaseTool
 
-from sandbox.tools.routing.models import ScoredCandidate, SemanticRetrievalResult
+from resources.embedding import validate_embeddings
+from sandbox.tools.registry import ToolDefinitionCatalog, _tool_definition_hash
+from sandbox.tools.routing.models import (
+    ScoredCandidate,
+    SemanticRetrievalResult,
+    ToolRetrievalError,
+)
 
 logger = logging.getLogger("HpAgent.ToolRAG")
-
-_TOOL_DEFINITION_HASH_VERSION = 1
-
-
-def _tool_definition_payload(tool: BaseTool) -> dict:
-    """Return the stable, declarative parts of a tool definition."""
-    return {
-        "version": _TOOL_DEFINITION_HASH_VERSION,
-        "name": tool.name,
-        "description": tool.description or "",
-        "parameters": tool.args_schema if isinstance(tool.args_schema, dict) else tool.args_schema.model_json_schema() if tool.args_schema else {},
-        "metadata": dict(getattr(tool, "metadata", None) or {}),
-    }
+_INDEX_FORMAT = 2
+_COLLECTION_PREFIX = "tool_staging_"
 
 
-def _tool_definition_hash(tool: BaseTool) -> str:
-    raw = json.dumps(
-        _tool_definition_payload(tool),
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
+def _identity(embedding) -> dict:
+    return {**getattr(embedding, "profile", {"model": embedding.model}), "format": _INDEX_FORMAT}
+
+
+def _manifest(hashes: dict) -> str:
+    return hashlib.sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
+
+
+def _document(definition: dict) -> str:
+    fields = definition["parameters"].get("properties", {})
+    return f"{definition['name']}: {definition['description']}" + "".join(
+        f" {name}: {field.get('description', '')}" for name, field in sorted(fields.items())
     )
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 class ToolVectorStore:
-    """工具向量存储 —— ChromaDB 本地持久化。
-
-    Usage:
-        store = ToolVectorStore(persist_path="tools/vectors")
-        store.index_tools(tools, embedding_client)
-        store.sync(tools)
-    """
+    """One writer per directory; Execution registries never synchronize this store."""
 
     def __init__(self, persist_path: str = "tools/vectors"):
+        self._path = Path(persist_path)
+        self._lock = RLock()
+        self._syncing = False
+        self._active_queries = 0
+        self._borrowed = False
+        self._pointer = {"current": None, "previous": None}
+        self._collection = None
         self._client = chromadb.PersistentClient(
-            path=persist_path,
-            settings=Settings(anonymized_telemetry=False),
+            path=persist_path, settings=Settings(anonymized_telemetry=False),
         )
-        self._collection = self._client.get_or_create_collection(
-            name="tool_definitions",
-            metadata={"hnsw:space": "cosine"},
-        )
+        pointer = self._path / "active.json"
+        if pointer.exists():
+            try:
+                self._pointer = json.loads(pointer.read_text())
+                for slot in ("current", "previous"):
+                    name = self._pointer.get(slot)
+                    if not name:
+                        continue
+                    try:
+                        collection = self._client.get_collection(name)
+                        self._validate(collection)
+                        recorded_profile = self._pointer.get("profile" if slot == "current" else "previous_profile")
+                        if recorded_profile is not None and self._profile(collection) != recorded_profile:
+                            raise ValueError("published profile mismatch")
+                    except Exception:
+                        logger.warning("catalog_sync: invalid published collection", exc_info=True)
+                        continue
+                    self._collection = collection
+                    break
+                if self._collection is None:
+                    raise ValueError("no validated published collection")
+            except Exception as exc:
+                raise ToolRetrievalError("initialize", "index_invalid") from exc
 
-    def index_tools(self, tools: List[BaseTool], embedding_client) -> None:
-        docs = []
-        ids = []
-        metadatas = []
-        for tool in tools:
-            doc = f"{tool.name}: {tool.description}"
-            if tool.args_schema:
-                fields = (tool.args_schema.get('properties', {}) if isinstance(tool.args_schema, dict)
-                          else tool.args_schema.model_fields)
-                for field_name, field_info in fields.items():
-                    desc = (field_info.get('description', '') if isinstance(field_info, dict)
-                            else (field_info.description or '') if hasattr(field_info, 'description') else '')
-                    doc += f" {field_name}: {desc}"
+    @staticmethod
+    def _profile(collection) -> dict:
+        return json.loads((collection.metadata or {})["profile"])
 
-            docs.append(doc)
-            ids.append(tool.name)
-            metadatas.append({
-                "tool_name": tool.name,
-                "category": (tool.metadata or {}).get("category", "native") if hasattr(tool, "metadata") else "native",
-                "definition_hash": _tool_definition_hash(tool),
-            })
+    def _validate(self, collection, expected: dict | None = None) -> None:
+        profile = self._profile(collection)
+        result = collection.get(include=["metadatas", "embeddings", "documents"])
+        ids = result["ids"]
+        metadata = result["metadatas"]
+        vectors = result["embeddings"]
+        if len(ids) != len(set(ids)) or len(metadata) != len(ids) or len(vectors) != len(ids):
+            raise ValueError("index count mismatch")
+        hashes = {}
+        for name, meta, document, vector in zip(ids, metadata, result["documents"], vectors):
+            definition = json.loads(meta["definition"])
+            digest = _tool_definition_hash(definition)
+            if (name != definition["name"] or meta["tool_name"] != name
+                    or digest != meta["definition_hash"] or _document(definition) != document):
+                raise ValueError("index declaration mismatch")
+            validate_embeddings([list(vector)], 1, profile["dimension"])
+            hashes[name] = digest
+        if hashes != expected and expected is not None:
+            raise ValueError("index names/hash/count mismatch")
+        if _manifest(hashes) != collection.metadata["manifest"]:
+            raise ValueError("index manifest mismatch")
+        if not isinstance(profile["format"], int) or profile["dimension"] < 0:
+            raise ValueError("invalid index profile")
 
-        if docs:
-            embeddings = embedding_client.embed_sync(docs)
-            self._collection.upsert(
-                ids=ids,
-                documents=docs,
-                embeddings=embeddings,
-                metadatas=metadatas,
-            )
-            # 记录当前使用的 embedding 模型，供后续换模型时自动失效
-            self._set_stored_model(embedding_client.model)
-
-    def sync(self, tools: List[BaseTool], embedding_client=None) -> None:
-        """增量同步：删除已移除的工具，新增或更新定义变化的工具。
-
-        若检测到 embedding 模型变更，自动清空全部缓存并全量重建。
-        """
-        import traceback
-
+    async def sync(self, catalog: ToolDefinitionCatalog, embedding_client) -> None:
+        if not isinstance(catalog, ToolDefinitionCatalog):
+            raise TypeError("sync requires a ToolDefinitionCatalog with source completeness")
+        with self._lock:
+            if self._syncing:
+                raise ToolRetrievalError("sync", "sync_in_progress")
+            self._syncing = True
+        staging = None
         try:
-            logger.info("sync: start — %d tools, has_embedding=%s", len(tools), embedding_client is not None)
-            logger.info("sync: collection=%s id=%s", self._collection, id(self._collection))
-
-            if embedding_client:
-                current_model = embedding_client.model
-                logger.info("sync: current_model=%s", current_model)
-                stored_model = self._get_stored_model()
-                logger.info("sync: stored_model=%s", stored_model)
-                if stored_model is not None and stored_model != current_model:
-                    logger.warning(
-                        "Embedding model changed: %s → %s, purging cache and re-indexing all %d tools",
-                        stored_model, current_model, len(tools),
-                    )
-                    self._client.delete_collection("tool_definitions")
-                    self._collection = self._client.create_collection(
-                        name="tool_definitions",
-                        metadata={"hnsw:space": "cosine"},
-                    )
-                    self.index_tools(tools, embedding_client)
-                    logger.info("sync: done (full reindex)")
-                    return
-
-            logger.info("sync: calling collection.get()")
-            result = self._collection.get(include=["metadatas"])
-            logger.info("sync: collection.get() returned type=%s keys=%s", type(result).__name__, list(result.keys()) if result else "None")
-            existing_ids = set(result["ids"]) if result and result.get("ids") else set()
-            existing_metadatas = result.get("metadatas") or [] if result else []
-            existing_hash_by_id = {
-                tool_id: (metadata or {}).get("definition_hash")
-                for tool_id, metadata in zip(result.get("ids") or [], existing_metadatas)
-            } if result else {}
-            logger.info("sync: existing_ids count=%d", len(existing_ids))
-            current_ids = {t.name for t in tools}
-            logger.info("sync: current_ids count=%d", len(current_ids))
-
-            to_delete = existing_ids - current_ids
-            if to_delete:
-                logger.info("sync: deleting %d old tools", len(to_delete))
-                self._collection.delete(ids=list(to_delete))
-
-            new_tools = [t for t in tools if t.name not in existing_ids]
-            changed_tools = [
-                t for t in tools
-                if t.name in existing_ids
-                and existing_hash_by_id.get(t.name) != _tool_definition_hash(t)
-            ]
-            unchanged_count = len(tools) - len(new_tools) - len(changed_tools)
-            logger.info(
-                "sync: unchanged count=%d changed count=%d new count=%d deleting count=%d",
-                unchanged_count, len(changed_tools), len(new_tools), len(to_delete),
+            definitions = {d["name"]: d for d in catalog.snapshot()}
+            previous = self._collection
+            old_profile = self._profile(previous) if previous is not None else None
+            old = previous.get(include=["documents", "metadatas", "embeddings"]) if previous is not None else None
+            old_rows = {
+                name: (doc, meta, list(vector))
+                for name, doc, meta, vector in zip(old["ids"], old["documents"], old["metadatas"], old["embeddings"])
+            } if old else {}
+            identity = _identity(embedding_client)
+            compatible = old_profile is not None and all(old_profile.get(k) == v for k, v in identity.items())
+            if not catalog.complete:
+                if previous is None:
+                    raise ToolRetrievalError("sync", "catalog_incomplete")
+                # Preserve declarations from failed sources, including on a model rebuild.
+                for name, (_, meta, _) in old_rows.items():
+                    definitions.setdefault(name, json.loads(meta["definition"]))
+                logger.warning("catalog_sync: incomplete sources; deletion disabled")
+            hashes = {name: _tool_definition_hash(d) for name, d in definitions.items()}
+            changed = [name for name in sorted(definitions)
+                       if not compatible or name not in old_rows
+                       or old_rows[name][1]["definition_hash"] != hashes[name]]
+            if compatible and not changed and set(old_rows) == set(definitions):
+                self._cleanup()
+                return
+            documents = [_document(definitions[name]) for name in changed]
+            dimension = (old_profile["dimension"] or None) if compatible else None
+            try:
+                vectors = await embedding_client.embed(documents) if documents else []
+                dimension = validate_embeddings(vectors, len(documents), dimension)
+            except Exception as exc:
+                raise ToolRetrievalError("embedding", "embedding_invalid") from exc
+            profile = {**identity, "dimension": dimension}
+            rows = {}
+            new_vectors = dict(zip(changed, vectors))
+            for name, definition in definitions.items():
+                vector = new_vectors[name] if name in new_vectors else old_rows[name][2]
+                rows[name] = (_document(definition), {
+                    "tool_name": name, "category": definition["category"],
+                    "definition_hash": hashes[name],
+                    "definition": json.dumps(definition, ensure_ascii=False, sort_keys=True),
+                }, vector)
+            staging = self._client.create_collection(
+                name=_COLLECTION_PREFIX + uuid4().hex,
+                metadata={"hnsw:space": "cosine", "profile": json.dumps(profile, sort_keys=True),
+                          "embedding_model": embedding_client.model, "manifest": _manifest(hashes)},
             )
-            to_upsert = new_tools + changed_tools
-            if to_upsert and embedding_client:
-                self.index_tools(to_upsert, embedding_client)
-                logger.info("sync: indexed %d new or changed tools", len(to_upsert))
-
-            logger.info("sync: done (incremental)")
-        except Exception:
-            logger.error("sync: FAILED — %s", traceback.format_exc())
+            names = sorted(rows)
+            batch_size = min(5000, self._client.get_max_batch_size())
+            for start in range(0, len(names), batch_size):
+                batch = names[start:start + batch_size]
+                staging.upsert(ids=batch, documents=[rows[n][0] for n in batch],
+                               metadatas=[rows[n][1] for n in batch],
+                               embeddings=[rows[n][2] for n in batch])
+            self._validate(staging, hashes)
+            pointer = {"current": staging.name, "profile": profile,
+                       "previous": previous.name if previous is not None else None,
+                       "previous_profile": old_profile}
+            self._publish(pointer)
+            with self._lock:
+                self._collection = staging
+                self._pointer = pointer
+            logger.info("catalog_sync: published tools=%d embedded=%d complete=%s",
+                        len(rows), len(changed), catalog.complete)
+            staging = None
+            self._cleanup()
+        except ToolRetrievalError:
             raise
+        except Exception as exc:
+            raise ToolRetrievalError("sync", "index_update_failed") from exc
+        finally:
+            with self._lock:
+                if staging is not None:
+                    # Failed staging is never exposed to queries before publication.
+                    try:
+                        published = json.loads((self._path / "active.json").read_text())
+                    except (OSError, ValueError):
+                        published = {}
+                    if staging.name not in (published.get("current"), published.get("previous")):
+                        try:
+                            self._client.delete_collection(staging.name)
+                        except Exception:
+                            logger.warning("catalog_sync: staging cleanup deferred", exc_info=True)
+                self._syncing = False
 
-    def _get_stored_model(self) -> Optional[str]:
-        """读取 ChromaDB collection 中记录的 embedding 模型名。"""
-        meta = self._collection.metadata
-        if meta is None:
-            return None
-        return meta.get("embedding_model")
+    def _publish(self, pointer: dict) -> None:
+        target = self._path / "active.json"
+        temporary = self._path / ("active-" + uuid4().hex + ".tmp")
+        backup = self._path / ("active-" + uuid4().hex + ".bak")
+        replaced = False
+        directory = os.open(self._path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            if target.exists():
+                os.link(target, backup)
+            with temporary.open("w", encoding="utf-8") as stream:
+                json.dump(pointer, stream, sort_keys=True)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.fsync(directory)
+            os.replace(temporary, target)
+            replaced = True
+            os.fsync(directory)
+        except BaseException:
+            if replaced:
+                if backup.exists():
+                    os.replace(backup, target)
+                else:
+                    target.unlink()
+                os.fsync(directory)
+            raise
+        finally:
+            os.close(directory)
+            temporary.unlink(missing_ok=True)
+            backup.unlink(missing_ok=True)
 
-    def _set_stored_model(self, model: str):
-        """将当前 embedding 模型名写入 ChromaDB collection metadata。
+    def _cleanup(self) -> None:
+        with self._lock:
+            if self._active_queries or self._borrowed:
+                logger.warning("catalog_sync: cleanup deferred; active query or unconfirmed borrowed handle")
+                return
+            keep = {self._pointer.get("current"), self._pointer.get("previous")}
+            try:
+                collections = self._client.list_collections()
+            except Exception:
+                logger.warning("catalog_sync: collection enumeration cleanup deferred", exc_info=True)
+                return
+            for collection in collections:
+                name = collection.name
+                if (name.startswith(_COLLECTION_PREFIX) or name == "tool_definitions") and name not in keep:
+                    try:
+                        self._client.delete_collection(name)
+                    except Exception:
+                        logger.warning("catalog_sync: old collection cleanup deferred", exc_info=True)
 
-        注意：ChromaDB 禁止在 modify() 中携带 hnsw:space（即使值未变），
-        需先剥离再合并。
-        """
-        existing = self._collection.metadata or {}
-        clean = {k: v for k, v in existing.items() if k != "hnsw:space"}
-        clean["embedding_model"] = model
-        self._collection.modify(metadata=clean)
+    def query(self, embedding_client, vectors, **kwargs):
+        with self._lock:
+            collection = self._collection
+            if collection is None:
+                raise ToolRetrievalError("query", "index_missing")
+            profile = self._profile(collection)
+            if any(profile.get(k) != v for k, v in _identity(embedding_client).items()):
+                raise ToolRetrievalError("query", "profile_mismatch")
+            try:
+                validate_embeddings(vectors, 1, profile["dimension"])
+            except Exception as exc:
+                raise ToolRetrievalError("query", "embedding_invalid") from exc
+            self._active_queries += 1
+        try:
+            return collection.query(query_embeddings=vectors, **kwargs)
+        except Exception as exc:
+            raise ToolRetrievalError("query", "index_unavailable") from exc
+        finally:
+            with self._lock:
+                self._active_queries -= 1
 
     @property
     def collection(self):
-        return self._collection
+        # Compatibility: a caller can retain this raw handle indefinitely. Never
+        # infer its release from Task cancellation, refcounts, or a later sync.
+        with self._lock:
+            self._borrowed = True
+            return self._collection
 
 
 class ToolRetriever:
@@ -215,11 +309,16 @@ class ToolRetriever:
             query[:80], limit, fetch_k, self._reranker is not None, "eligible_subset",
         )
 
-        query_embedding = (await self._embedding.embed([query]))[0]
+        try:
+            vectors = await self._embedding.embed([query])
+            validate_embeddings(vectors, 1)
+        except Exception as exc:
+            raise ToolRetrievalError("embedding", "embedding_invalid") from exc
+        query_embedding = vectors[0]
         logger.info("retrieve: embedding dim=%d", len(query_embedding) if query_embedding else 0)
 
-        results = self._store.collection.query(
-            query_embeddings=[query_embedding],
+        results = self._store.query(
+            self._embedding, [query_embedding],
             n_results=fetch_k,
             where={"tool_name": {"$in": sorted(allowed_tool_names)}},
         )

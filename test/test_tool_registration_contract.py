@@ -80,9 +80,21 @@ def test_all_native_contracts_have_real_factories_and_valid_schemas(tmp_path, mo
     tools += create_file_write_tools(lambda: None, object(), object())
     assert len({tool.name for tool in tools}) == len(tools)
     assert {tool.name for tool in tools} == set(NATIVE_ROUTING_SPECS)
+    from dataclasses import asdict
+
+    from bootstrap.worker_dependencies import build_tool_catalog
+
+    definitions = {item['name']: item for item in build_tool_catalog(work_commands=object()).snapshot()}
     registry = ToolRegistry()
     for tool in tools:
+        definition = definitions[tool.name]
+        assert definition['description'] == tool.description
+        assert definition['metadata'] == tool.metadata
+        expected_routing = {key: sorted(value) if isinstance(value, frozenset) else value
+                            for key, value in asdict(routing_for(tool, 'native')).items()}
+        assert definition['routing'] == expected_routing
         schema = tool.args_schema if isinstance(tool.args_schema, dict) else tool.args_schema.model_json_schema()
+        assert definition['parameters'] == schema
         Draft202012Validator.check_schema(schema)
         registry.register(tool, routing=routing_for(tool, 'native'))
 
@@ -153,3 +165,197 @@ async def test_manager_registers_instruction_and_never_dispatches_pipeline(tmp_p
         assert result.success and result.output == 'safe guidance'
     finally:
         manager.close()
+
+
+def test_catalog_projects_real_factories_without_io_or_runtime_bindings(tmp_path, monkeypatch):
+    import json
+    from pathlib import Path
+
+    from bootstrap.worker_dependencies import build_tool_catalog
+    from sandbox.tools.routing.contracts import NATIVE_ROUTING_SPECS
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError('declaration construction performed I/O')
+
+    # Factories must only construct wrappers; supplied identities never reach declarations.
+    with monkeypatch.context() as guard:
+        guard.setattr(Path, 'read_text', forbidden)
+        guard.setattr(Path, 'write_text', forbidden)
+        guard.setattr('subprocess.run', forbidden)
+        guard.setattr('socket.socket.connect', forbidden)
+        catalog = build_tool_catalog(work_commands=object())
+    definitions = catalog.snapshot()
+    assert catalog.complete
+    assert {d['name'] for d in definitions} == set(NATIVE_ROUTING_SPECS)
+    serialized = json.dumps(definitions)
+    assert '00000000-0000-0000-0000-000000000000' not in serialized
+    assert 'coroutine' not in serialized and 'workspace_path' not in serialized
+    read = next(d for d in definitions if d['name'] == 'fs_read')
+    real = LOCAL_TOOL_FACTORIES['fs_read'](str(tmp_path))
+    assert read['description'] == real.description
+    assert read['parameters'] == real.args_schema.model_json_schema()
+    assert read['metadata'] == real.metadata
+    assert read['routing']['capability'] == 'workspace.read'
+    read['parameters'].clear()
+    assert next(d for d in catalog.snapshot() if d['name'] == 'fs_read')['parameters']
+
+
+def test_catalog_rejects_duplicates_and_preserves_incomplete_sources():
+    from sandbox.tools.registry import ToolDefinitionCatalog
+
+    tool = LOCAL_TOOL_FACTORIES['fs_read']('/unused')
+    catalog = ToolDefinitionCatalog()
+    catalog.add(tool, category='native', routing=ToolRoutingSpec('workspace.read'))
+    with pytest.raises(ValueError, match='duplicate'):
+        catalog.add(tool, category='native', routing=ToolRoutingSpec('workspace.read'))
+    catalog.mark_incomplete('mcp')
+    assert not catalog.complete
+    assert len(catalog.snapshot()) == 1
+
+
+async def test_execution_lifecycle_never_reconciles_global_index(tmp_path):
+    from sandbox.sandbox_manager import SandboxManager
+
+    class Store:
+        def sync(self, *args, **kwargs):
+            raise AssertionError('Execution must not synchronize the global index')
+
+    from types import SimpleNamespace
+    retriever = SimpleNamespace(_store=Store(), _embedding=object())
+    manager = SandboxManager(nsjail_enabled=False, retriever=retriever)
+    try:
+        # Old Manager swallowed sync errors; count actual calls as well.
+        calls = []
+        retriever._store.sync = lambda *args, **kwargs: calls.append(args)
+        for key, context in [('root', {}), ('child', {'execution_role': 'subagent'})]:
+            sid = manager.create_execution_sandbox(key, str(tmp_path), session_context=context)
+            manager.destroy_sandbox(sid)
+        assert calls == []
+    finally:
+        manager.close()
+
+
+async def test_source_load_failure_marks_catalog_incomplete(tmp_path):
+    from bootstrap.worker_dependencies import build_tool_catalog, setup_tools
+    from orchestration.config import AppConfig
+
+    (tmp_path / 'bad.yaml').write_text('[')
+    config = AppConfig()
+    config.models.tool_rag.enabled = False
+    config.models.mcp.auto_connect = False
+    config.models.skills.enabled = True
+    config.models.skills.config_path = str(tmp_path)
+    failures = set()
+    manager, definitions, _ = await setup_tools(config, incomplete_sources=failures)
+    catalog = build_tool_catalog(work_commands=object(), mcp_manager=manager,
+                                 skill_definitions=definitions, incomplete_sources=failures)
+    assert not catalog.complete
+    assert any(d['name'] == 'fs_read' for d in catalog.snapshot())
+
+
+async def test_enabled_rag_initialization_failure_is_not_silent_disable(monkeypatch):
+    from bootstrap.worker_dependencies import setup_tools
+    from orchestration.config import AppConfig
+    from sandbox.tools.routing.models import ToolRetrievalError
+
+    config = AppConfig()
+    config.models.tool_rag.enabled = True
+    def fail(*args, **kwargs):
+        raise OSError('index unavailable')
+    monkeypatch.setattr('sandbox.tools.retriever.ToolVectorStore', fail)
+    with pytest.raises(ToolRetrievalError):
+        await setup_tools(config)
+
+
+def test_catalog_uses_connected_mcp_cache_and_instruction_declarations():
+    from bootstrap.worker_dependencies import build_tool_catalog
+    from sandbox.tools.skills.engine import build_skill_tool_from_definition
+
+    mcp_tool = StructuredTool.from_function(lambda: 'not invoked', name='cached_lookup',
+        description='Connected lookup', metadata={'server': 'existing', 'side_effect_class': 'read_only'})
+    class Connected:
+        def get_cached_tools(self):
+            return [mcp_tool]
+        def connect(self):
+            raise AssertionError('catalog must not connect')
+    instruction = {'type': 'instruction', 'name': 'guidance', 'description': 'Advice', 'body': 'Read first'}
+    definitions = {item['name']: item for item in build_tool_catalog(work_commands=object(),
+        mcp_manager=Connected(), skill_definitions=[instruction, {'type': 'pipeline'}]).snapshot()}
+    assert definitions['cached_lookup']['parameters'] == mcp_tool.args_schema.model_json_schema()
+    assert definitions['cached_lookup']['metadata'] == mcp_tool.metadata
+    assert definitions['cached_lookup']['routing']['capability'] == 'mcp.existing.cached_lookup'
+    actual = build_skill_tool_from_definition(instruction, None)
+    assert definitions['guidance']['description'] == actual.description
+    assert definitions['guidance']['parameters'] == actual.args_schema.model_json_schema()
+
+
+@pytest.mark.parametrize('partial', [False, True])
+async def test_swallowed_mcp_server_failure_cannot_make_catalog_complete(tmp_path, monkeypatch, partial):
+    from bootstrap.worker_dependencies import setup_tools
+    from orchestration.config import AppConfig
+    from sandbox.tools.adapters.mcp import MCPToolManager
+
+    path = tmp_path / 'servers.yaml'
+    path.write_text('servers:\n  unavailable: {}\n  connected: {}\n  disabled:\n    disabled: true\n  omitted: null\n')
+    config = AppConfig()
+    config.models.tool_rag.enabled = False
+    config.models.skills.enabled = False
+    config.models.mcp.auto_connect = True
+    config.models.mcp.config_path = str(path)
+    class Session:
+        async def list_tools(self):
+            return []
+        async def disconnect(self):
+            pass
+    async def connect(self, name, cfg):
+        if partial and name == 'connected':
+            return Session()
+        raise OSError('unavailable')
+    monkeypatch.setattr(MCPToolManager, '_connect_one', connect)
+    failures = set()
+    manager, _, _ = await setup_tools(config, incomplete_sources=failures)
+    try:
+        assert 'mcp' in failures
+    finally:
+        if manager is not None:
+            await manager.disconnect()
+
+
+@pytest.mark.parametrize('source', ['mcp', 'skills'])
+async def test_missing_enabled_source_is_incomplete_not_an_empty_directory(tmp_path, source):
+    from bootstrap.worker_dependencies import setup_tools
+    from orchestration.config import AppConfig
+
+    config = AppConfig()
+    config.models.tool_rag.enabled = False
+    config.models.skills.enabled = source == 'skills'
+    config.models.skills.config_path = str(tmp_path / 'missing-skills')
+    config.models.mcp.auto_connect = source == 'mcp'
+    config.models.mcp.config_path = str(tmp_path / 'missing-mcp.yaml')
+    failures = set()
+    manager, _, _ = await setup_tools(config, incomplete_sources=failures)
+    try:
+        assert source in failures
+    finally:
+        if manager is not None:
+            await manager.disconnect()
+
+
+async def test_explicitly_disabled_mcp_servers_are_a_complete_source(tmp_path):
+    from bootstrap.worker_dependencies import setup_tools
+    from orchestration.config import AppConfig
+
+    path = tmp_path / 'servers.yaml'
+    path.write_text('servers:\n  disabled:\n    disabled: true\n  omitted: null\n')
+    config = AppConfig()
+    config.models.tool_rag.enabled = False
+    config.models.skills.enabled = False
+    config.models.mcp.auto_connect = True
+    config.models.mcp.config_path = str(path)
+    failures = set()
+    manager, _, _ = await setup_tools(config, incomplete_sources=failures)
+    try:
+        assert not failures
+    finally:
+        if manager is not None:
+            await manager.disconnect()
