@@ -89,7 +89,10 @@ class WorkerDependencies:
         await self.resource_stack.aclose()
 
 
-async def setup_tools(config: AppConfig, *, incomplete_sources: set[str] | None = None):
+async def setup_tools(
+    config: AppConfig, *, resource_stack: AsyncExitStack,
+    incomplete_sources: set[str] | None = None,
+):
     """启动时加载共享工具基础设施（MCP + Skills + RAG）。
 
     此处加载共享来源；完整声明目录在文件配置和 WorkCommandService 就绪后同步。
@@ -109,7 +112,9 @@ async def setup_tools(config: AppConfig, *, incomplete_sources: set[str] | None 
 
             emb_client = create_embedding_client(config.models)
             reranker_client = create_reranker_client(config.models)
-            vector_store = ToolVectorStore(persist_path=config.models.tool_rag.persist_path)
+            vector_store = await resource_stack.enter_async_context(
+                ToolVectorStore(persist_path=config.models.tool_rag.persist_path)
+            )
             retriever = ToolRetriever(vector_store, emb_client, reranker_client=reranker_client)
             logger.info(
                 "Tool RAG enabled: persist=%s top_k=%d reranker=%s",
@@ -420,7 +425,9 @@ async def _init_dependencies(
     # ── 4. 共享工具基础设施（MCP + Skills + RAG）────
     # 必须在 SandboxManager 之前调用，因为 SandboxManager 需要这些产物
     incomplete_sources: set[str] = set()
-    mcp_mgr, skill_definitions, retriever = await setup_tools(config, incomplete_sources=incomplete_sources)
+    mcp_mgr, skill_definitions, retriever = await setup_tools(
+        config, resource_stack=resource_stack, incomplete_sources=incomplete_sources
+    )
     if mcp_mgr is not None:
         resource_stack.push_async_callback(mcp_mgr.disconnect)
 

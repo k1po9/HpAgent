@@ -64,7 +64,7 @@ Worker 在接活前从现有工厂、已连接 MCP 缓存与 Instruction Skill �
 
 工具索引按包含 routing 的定义 hash 复用不变向量；Embedding 故障、数量/维度错误、非有限值和全零向量均拒绝。更新写入临时 Chroma Collection，核验名称、声明 hash、数量、文档和维度后，以临时文件、fsync 和原子替换发布索引目录下的 `active.json`。指针及 Collection 记录非秘密的模型身份、维度和格式；新模型向量不能查询旧模型索引。失败保留旧活动索引，重启验证当前/上一个集合；检索失败通过 `ToolRetrievalError` 在模型分发前终止，不归类为模型 Provider 故障或静默变为空工具列表。启用 RAG 后初始化失败也不静默关闭 RAG。
 
-每个索引目录只允许一个 Worker 写入。正常保留当前和上一个可用 Collection；更早集合只在同步安全点确认没有活动查询、且没有外借 Collection 句柄时清理，否则记录延迟清理并暂留。外借句柄无法证明释放时，本进程持续保留，到下一次启动再核对。当前 Embedding 使用 await，Chroma 与指针 I/O 仍同步执行；专用有界线程池、排队/取消的物理任务容量及异步关闭尚未实现。
+每个索引目录只允许一个 Worker 写入。正常保留当前和上一个可用 Collection；更早集合只在同步安全点确认没有活动查询、且没有外借 Collection 句柄时清理，否则记录延迟清理并暂留。外借句柄无法证明释放时，本进程持续保留，到下一次启动再核对。ToolVectorStore 由 Worker 原有 AsyncExitStack 管理异步初始化、正常关闭和启动失败清理。PersistentClient 初始化、Collection 读写/元数据与指针文件 I/O 均经 Store 内专用 ThreadPoolExecutor（单线程），最多容纳 8 个运行或排队的底层任务；满额通过 ToolRetrievalError（tool_retrieval_pool_saturated）沿选择失败路径传播。Embedding/Reranker 网络调用继续 await 原客户端。容量只在底层 future 完成时释放；取消 awaiter 不提前释放物理查询引用或同步写保护，已开始的写入继续完成验证、发布或失败清理。关闭拒绝新提交、取消未开始的任务，并异步等待运行任务结束；已经关闭后完成的 Embedding 不再提交写入。
 
 ## 能力接入步骤与登记责任
 

@@ -1,11 +1,19 @@
 """Ordinary tool registration owns metadata independently of sandbox wiring."""
 
+from contextlib import AsyncExitStack
+
 import pytest
 from langchain_core.tools import StructuredTool
 
 from sandbox.tools.local import LOCAL_TOOL_FACTORIES
 from sandbox.tools.registry import ToolRegistry
 from sandbox.tools.routing.models import ToolRoutingSpec
+
+
+@pytest.fixture
+async def resource_stack():
+    async with AsyncExitStack() as stack:
+        yield stack
 
 
 async def test_fs_read_uses_registration_discovery_schema_and_action_result(tmp_path):
@@ -113,7 +121,7 @@ def test_current_skill_builder_rejects_non_instruction_without_executing(skill_t
 @pytest.mark.parametrize('pipeline', [
     {'steps': [{'id': 'write', 'tool': 'Bash'}]}, {'steps': []}, None,
 ])
-async def test_worker_loads_only_instruction_skills(tmp_path, pipeline, caplog):
+async def test_worker_loads_only_instruction_skills(resource_stack, tmp_path, pipeline, caplog):
     from bootstrap.worker_dependencies import setup_tools
     from orchestration.config import AppConfig
     from sandbox.tools.skills.engine import build_skill_tool_from_definition
@@ -136,7 +144,7 @@ async def test_worker_loads_only_instruction_skills(tmp_path, pipeline, caplog):
     config.models.mcp.auto_connect = False
     config.models.skills.enabled = True
     config.models.skills.config_path = str(tmp_path)
-    _, definitions, _ = await setup_tools(config)
+    _, definitions, _ = await setup_tools(config, resource_stack=resource_stack)
     assert {d['name'] for d in definitions} == {'yaml_advice', 'markdown-advice'}
     assert 'Skills loading failed' not in caplog.text
     for definition in definitions:
@@ -235,7 +243,7 @@ async def test_execution_lifecycle_never_reconciles_global_index(tmp_path):
         manager.close()
 
 
-async def test_source_load_failure_marks_catalog_incomplete(tmp_path):
+async def test_source_load_failure_marks_catalog_incomplete(resource_stack, tmp_path):
     from bootstrap.worker_dependencies import build_tool_catalog, setup_tools
     from orchestration.config import AppConfig
 
@@ -246,14 +254,14 @@ async def test_source_load_failure_marks_catalog_incomplete(tmp_path):
     config.models.skills.enabled = True
     config.models.skills.config_path = str(tmp_path)
     failures = set()
-    manager, definitions, _ = await setup_tools(config, incomplete_sources=failures)
+    manager, definitions, _ = await setup_tools(config, resource_stack=resource_stack, incomplete_sources=failures)
     catalog = build_tool_catalog(work_commands=object(), mcp_manager=manager,
                                  skill_definitions=definitions, incomplete_sources=failures)
     assert not catalog.complete
     assert any(d['name'] == 'fs_read' for d in catalog.snapshot())
 
 
-async def test_enabled_rag_initialization_failure_is_not_silent_disable(monkeypatch):
+async def test_enabled_rag_initialization_failure_is_not_silent_disable(resource_stack, monkeypatch):
     from bootstrap.worker_dependencies import setup_tools
     from orchestration.config import AppConfig
     from sandbox.tools.routing.models import ToolRetrievalError
@@ -264,7 +272,7 @@ async def test_enabled_rag_initialization_failure_is_not_silent_disable(monkeypa
         raise OSError('index unavailable')
     monkeypatch.setattr('sandbox.tools.retriever.ToolVectorStore', fail)
     with pytest.raises(ToolRetrievalError):
-        await setup_tools(config)
+        await setup_tools(config, resource_stack=resource_stack)
 
 
 def test_catalog_uses_connected_mcp_cache_and_instruction_declarations():
@@ -290,7 +298,7 @@ def test_catalog_uses_connected_mcp_cache_and_instruction_declarations():
 
 
 @pytest.mark.parametrize('partial', [False, True])
-async def test_swallowed_mcp_server_failure_cannot_make_catalog_complete(tmp_path, monkeypatch, partial):
+async def test_swallowed_mcp_server_failure_cannot_make_catalog_complete(resource_stack, tmp_path, monkeypatch, partial):
     from bootstrap.worker_dependencies import setup_tools
     from orchestration.config import AppConfig
     from sandbox.tools.adapters.mcp import MCPToolManager
@@ -313,7 +321,7 @@ async def test_swallowed_mcp_server_failure_cannot_make_catalog_complete(tmp_pat
         raise OSError('unavailable')
     monkeypatch.setattr(MCPToolManager, '_connect_one', connect)
     failures = set()
-    manager, _, _ = await setup_tools(config, incomplete_sources=failures)
+    manager, _, _ = await setup_tools(config, resource_stack=resource_stack, incomplete_sources=failures)
     try:
         assert 'mcp' in failures
     finally:
@@ -322,7 +330,7 @@ async def test_swallowed_mcp_server_failure_cannot_make_catalog_complete(tmp_pat
 
 
 @pytest.mark.parametrize('source', ['mcp', 'skills'])
-async def test_missing_enabled_source_is_incomplete_not_an_empty_directory(tmp_path, source):
+async def test_missing_enabled_source_is_incomplete_not_an_empty_directory(resource_stack, tmp_path, source):
     from bootstrap.worker_dependencies import setup_tools
     from orchestration.config import AppConfig
 
@@ -333,7 +341,7 @@ async def test_missing_enabled_source_is_incomplete_not_an_empty_directory(tmp_p
     config.models.mcp.auto_connect = source == 'mcp'
     config.models.mcp.config_path = str(tmp_path / 'missing-mcp.yaml')
     failures = set()
-    manager, _, _ = await setup_tools(config, incomplete_sources=failures)
+    manager, _, _ = await setup_tools(config, resource_stack=resource_stack, incomplete_sources=failures)
     try:
         assert source in failures
     finally:
@@ -341,7 +349,7 @@ async def test_missing_enabled_source_is_incomplete_not_an_empty_directory(tmp_p
             await manager.disconnect()
 
 
-async def test_explicitly_disabled_mcp_servers_are_a_complete_source(tmp_path):
+async def test_explicitly_disabled_mcp_servers_are_a_complete_source(resource_stack, tmp_path):
     from bootstrap.worker_dependencies import setup_tools
     from orchestration.config import AppConfig
 
@@ -353,7 +361,7 @@ async def test_explicitly_disabled_mcp_servers_are_a_complete_source(tmp_path):
     config.models.mcp.auto_connect = True
     config.models.mcp.config_path = str(path)
     failures = set()
-    manager, _, _ = await setup_tools(config, incomplete_sources=failures)
+    manager, _, _ = await setup_tools(config, resource_stack=resource_stack, incomplete_sources=failures)
     try:
         assert not failures
     finally:

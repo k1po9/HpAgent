@@ -1,11 +1,11 @@
-"""Worker-owned Chroma index with validated staging and atomic publication.
-
-Chroma I/O is still synchronous here. P2 moves it to the bounded private pool.
-"""
+"""Worker-owned Chroma index with bounded I/O and atomic publication."""
+import asyncio
 import hashlib
 import json
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
+from copy import deepcopy
 from pathlib import Path
 from threading import RLock
 from uuid import uuid4
@@ -52,8 +52,65 @@ class ToolVectorStore:
         self._borrowed = False
         self._pointer = {"current": None, "previous": None}
         self._collection = None
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="tool-vector-store")
+        self._pending = set()
+        self._closed = False
+        self._close_task = None
+        self._client = None
+
+    async def __aenter__(self):
+        try:
+            await self._wait(self._submit(self._initialize))
+            return self
+        except BaseException as exc:
+            await self.aclose()
+            if isinstance(exc, Exception) and not isinstance(exc, ToolRetrievalError):
+                raise ToolRetrievalError("initialize", "initialization_failed") from exc
+            raise
+
+    async def __aexit__(self, *exc):
+        await self.aclose()
+
+    def _submit(self, function, *args):
+        with self._lock:
+            if self._closed:
+                raise ToolRetrievalError("store", "store_closed")
+            if len(self._pending) >= 8:
+                raise ToolRetrievalError("store", "pool_saturated")
+            future = self._executor.submit(function, *args)
+            self._pending.add(future)
+            future.add_done_callback(self._finished)
+            return future
+
+    def _finished(self, future):
+        with self._lock:
+            self._pending.discard(future)
+
+    @staticmethod
+    async def _wait(future):
+        wrapped = asyncio.wrap_future(future)
+        # A cancelled awaiter neither cancels the physical task nor leaves its
+        # later exception unobserved. Capacity belongs to the concurrent Future.
+        wrapped.add_done_callback(lambda done: None if done.cancelled() else done.exception())
+        return await asyncio.shield(wrapped)
+
+    async def aclose(self):
+        if self._close_task is None:
+            with self._lock:
+                self._closed = True
+                pending = tuple(self._pending)
+            self._executor.shutdown(wait=False, cancel_futures=True)
+            self._close_task = asyncio.create_task(self._drain(pending))
+        await asyncio.shield(self._close_task)
+
+    @staticmethod
+    async def _drain(pending):
+        await asyncio.gather(*(asyncio.wrap_future(future) for future in pending),
+                             return_exceptions=True)
+
+    def _initialize(self):
         self._client = chromadb.PersistentClient(
-            path=persist_path, settings=Settings(anonymized_telemetry=False),
+            path=str(self._path), settings=Settings(anonymized_telemetry=False),
         )
         pointer = self._path / "active.json"
         if pointer.exists():
@@ -111,19 +168,16 @@ class ToolVectorStore:
         if not isinstance(catalog, ToolDefinitionCatalog):
             raise TypeError("sync requires a ToolDefinitionCatalog with source completeness")
         with self._lock:
+            if self._closed:
+                raise ToolRetrievalError("store", "store_closed")
             if self._syncing:
                 raise ToolRetrievalError("sync", "sync_in_progress")
             self._syncing = True
-        staging = None
+        future = None
         try:
             definitions = {d["name"]: d for d in catalog.snapshot()}
-            previous = self._collection
-            old_profile = self._profile(previous) if previous is not None else None
-            old = previous.get(include=["documents", "metadatas", "embeddings"]) if previous is not None else None
-            old_rows = {
-                name: (doc, meta, list(vector))
-                for name, doc, meta, vector in zip(old["ids"], old["documents"], old["metadatas"], old["embeddings"])
-            } if old else {}
+            future = self._submit(self._read_index)
+            previous, old_profile, old_rows = await self._wait(future)
             identity = _identity(embedding_client)
             compatible = old_profile is not None and all(old_profile.get(k) == v for k, v in identity.items())
             if not catalog.complete:
@@ -138,7 +192,8 @@ class ToolVectorStore:
                        if not compatible or name not in old_rows
                        or old_rows[name][1]["definition_hash"] != hashes[name]]
             if compatible and not changed and set(old_rows) == set(definitions):
-                self._cleanup()
+                future = self._submit(self._cleanup)
+                await self._wait(future)
                 return
             documents = [_document(definitions[name]) for name in changed]
             dimension = (old_profile["dimension"] or None) if compatible else None
@@ -157,10 +212,44 @@ class ToolVectorStore:
                     "definition_hash": hashes[name],
                     "definition": json.dumps(definition, ensure_ascii=False, sort_keys=True),
                 }, vector)
+            future = self._submit(self._write_index, rows, hashes, profile,
+                                  embedding_client.model, previous, old_profile)
+            await self._wait(future)
+            logger.info("catalog_sync: published tools=%d embedded=%d complete=%s",
+                        len(rows), len(changed), catalog.complete)
+        except ToolRetrievalError:
+            raise
+        except Exception as exc:
+            raise ToolRetrievalError("sync", "index_update_failed") from exc
+        finally:
+            # Cancellation only releases the writer once its last physical I/O
+            # has finished, including staging rollback/publication cleanup.
+            if future is not None and not future.done():
+                future.add_done_callback(self._finish_sync)
+            else:
+                self._finish_sync(future)
+
+    def _finish_sync(self, _future):
+        with self._lock:
+            self._syncing = False
+
+    def _read_index(self):
+        previous = self._collection
+        profile = self._profile(previous) if previous is not None else None
+        old = previous.get(include=["documents", "metadatas", "embeddings"]) if previous is not None else None
+        rows = {
+            name: (doc, meta, list(vector))
+            for name, doc, meta, vector in zip(old["ids"], old["documents"], old["metadatas"], old["embeddings"])
+        } if old else {}
+        return previous, profile, rows
+
+    def _write_index(self, rows, hashes, profile, model, previous, old_profile):
+        staging = None
+        try:
             staging = self._client.create_collection(
                 name=_COLLECTION_PREFIX + uuid4().hex,
                 metadata={"hnsw:space": "cosine", "profile": json.dumps(profile, sort_keys=True),
-                          "embedding_model": embedding_client.model, "manifest": _manifest(hashes)},
+                          "embedding_model": model, "manifest": _manifest(hashes)},
             )
             names = sorted(rows)
             batch_size = min(5000, self._client.get_max_batch_size())
@@ -177,28 +266,22 @@ class ToolVectorStore:
             with self._lock:
                 self._collection = staging
                 self._pointer = pointer
-            logger.info("catalog_sync: published tools=%d embedded=%d complete=%s",
-                        len(rows), len(changed), catalog.complete)
             staging = None
             self._cleanup()
-        except ToolRetrievalError:
-            raise
         except Exception as exc:
             raise ToolRetrievalError("sync", "index_update_failed") from exc
         finally:
-            with self._lock:
-                if staging is not None:
-                    # Failed staging is never exposed to queries before publication.
+            if staging is not None:
+                # Failed staging is never exposed to queries before publication.
+                try:
+                    published = json.loads((self._path / "active.json").read_text())
+                except (OSError, ValueError):
+                    published = {}
+                if staging.name not in (published.get("current"), published.get("previous")):
                     try:
-                        published = json.loads((self._path / "active.json").read_text())
-                    except (OSError, ValueError):
-                        published = {}
-                    if staging.name not in (published.get("current"), published.get("previous")):
-                        try:
-                            self._client.delete_collection(staging.name)
-                        except Exception:
-                            logger.warning("catalog_sync: staging cleanup deferred", exc_info=True)
-                self._syncing = False
+                        self._client.delete_collection(staging.name)
+                    except Exception:
+                        logger.warning("catalog_sync: staging cleanup deferred", exc_info=True)
 
     def _publish(self, pointer: dict) -> None:
         target = self._path / "active.json"
@@ -236,34 +319,41 @@ class ToolVectorStore:
                 logger.warning("catalog_sync: cleanup deferred; active query or unconfirmed borrowed handle")
                 return
             keep = {self._pointer.get("current"), self._pointer.get("previous")}
-            try:
-                collections = self._client.list_collections()
-            except Exception:
-                logger.warning("catalog_sync: collection enumeration cleanup deferred", exc_info=True)
-                return
-            for collection in collections:
-                name = collection.name
-                if (name.startswith(_COLLECTION_PREFIX) or name == "tool_definitions") and name not in keep:
-                    try:
-                        self._client.delete_collection(name)
-                    except Exception:
-                        logger.warning("catalog_sync: old collection cleanup deferred", exc_info=True)
+        try:
+            collections = self._client.list_collections()
+        except Exception:
+            logger.warning("catalog_sync: collection enumeration cleanup deferred", exc_info=True)
+            return
+        for collection in collections:
+            name = collection.name
+            if (name.startswith(_COLLECTION_PREFIX) or name == "tool_definitions") and name not in keep:
+                try:
+                    self._client.delete_collection(name)
+                except Exception:
+                    logger.warning("catalog_sync: old collection cleanup deferred", exc_info=True)
 
-    def query(self, embedding_client, vectors, **kwargs):
+    async def query(self, embedding_client, vectors, **kwargs):
+        identity = deepcopy(_identity(embedding_client))
+        future = self._submit(self._query, identity, deepcopy(vectors), deepcopy(kwargs))
+        return await self._wait(future)
+
+    def _query(self, identity, vectors, kwargs):
         with self._lock:
             collection = self._collection
             if collection is None:
                 raise ToolRetrievalError("query", "index_missing")
+            self._active_queries += 1
+        try:
             profile = self._profile(collection)
-            if any(profile.get(k) != v for k, v in _identity(embedding_client).items()):
+            if any(profile.get(k) != v for k, v in identity.items()):
                 raise ToolRetrievalError("query", "profile_mismatch")
             try:
                 validate_embeddings(vectors, 1, profile["dimension"])
             except Exception as exc:
                 raise ToolRetrievalError("query", "embedding_invalid") from exc
-            self._active_queries += 1
-        try:
             return collection.query(query_embeddings=vectors, **kwargs)
+        except ToolRetrievalError:
+            raise
         except Exception as exc:
             raise ToolRetrievalError("query", "index_unavailable") from exc
         finally:
@@ -317,7 +407,7 @@ class ToolRetriever:
         query_embedding = vectors[0]
         logger.info("retrieve: embedding dim=%d", len(query_embedding) if query_embedding else 0)
 
-        results = self._store.query(
+        results = await self._store.query(
             self._embedding, [query_embedding],
             n_results=fetch_k,
             where={"tool_name": {"$in": sorted(allowed_tool_names)}},
