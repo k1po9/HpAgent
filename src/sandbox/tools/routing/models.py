@@ -3,18 +3,45 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.tools import BaseTool
 
 
 class ToolRetrievalError(RuntimeError):
-    """Safe dependency/selection failure, rejected before model dispatch."""
+    """Classified retrieval failure with a safe stage/code and recovery flag."""
 
-    def __init__(self, stage: str, code: str):
+    def __init__(self, stage: str, code: str, *, recoverable: bool = False):
+        self.recoverable = recoverable
         self.stage = stage
         self.code = "tool_retrieval_" + code
         super().__init__(self.code)
+
+
+def retrieval_failure(stage: str, exc: Exception) -> ToolRetrievalError:
+    """Classify only known transient dependency errors as recoverable."""
+    import errno
+
+    import httpx
+
+    if isinstance(exc, ToolRetrievalError):
+        return exc
+    recoverable = isinstance(exc, (TimeoutError, ConnectionError, httpx.TimeoutException,
+                                  httpx.NetworkError, httpx.RemoteProtocolError))
+    if isinstance(exc, httpx.HTTPStatusError):
+        recoverable = exc.response.status_code in {408, 429} or exc.response.status_code >= 500
+        code = "permission_denied" if exc.response.status_code in {401, 403} else "dependency_http_error"
+    elif isinstance(exc, PermissionError):
+        code = "permission_denied"
+    elif isinstance(exc, ToolRoutingConfigurationError):
+        code = "configuration_invalid"
+    else:
+        code = "dependency_unavailable" if recoverable else "invalid_result_or_configuration"
+    if isinstance(exc, OSError) and exc.errno in {errno.EIO, errno.EBUSY, errno.EAGAIN, errno.ENOSPC}:
+        recoverable, code = True, "dependency_unavailable"
+    error = ToolRetrievalError(stage, code, recoverable=recoverable)
+    error.__cause__ = exc
+    return error
 
 
 class ToolKind(str, Enum):
@@ -111,12 +138,19 @@ class ScoredCandidate:
     fused_score: float = 0.0
 
 
+RetrievalStatus = Literal["success", "degraded", "no_eligible_tools", "failed"]
+
+
 @dataclass(frozen=True)
 class SemanticRetrievalResult:
     candidates: tuple[ScoredCandidate, ...] = ()
+    status: RetrievalStatus = "success"
+    error: ToolRetrievalError | None = None
 
 
 @dataclass(frozen=True)
 class ToolSelectionResult:
     tool_schemas: tuple[dict[str, Any], ...]
     audit: dict[str, Any]
+    status: RetrievalStatus = "success"
+    error: ToolRetrievalError | None = None

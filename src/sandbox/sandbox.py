@@ -14,6 +14,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from sandbox.tools.registry import ToolRegistry
+from sandbox.tools.routing.models import ToolSelectionResult
 from sandbox.tools.routing.router import ToolRouter
 from sandbox.tools.types import ToolResult
 
@@ -60,7 +61,7 @@ class Sandbox:
 
     async def select_tools(
         self, query: str, top_k: int = 8
-    ) -> Tuple[List[dict], dict]:
+    ) -> ToolSelectionResult:
         """Delegate tool selection using current runtime facts and optional hints.
 
         Args:
@@ -68,9 +69,7 @@ class Sandbox:
             top_k: 最终候选工具数量上限
 
         Returns:
-            (llm_tool_dicts, audit_info)
-            llm_tool_dicts: 注入 next_tool_hint 后的 OpenAI function calling 格式
-            audit_info: {mode, queries, tool_count, tools} 供审计用
+            Current selection status, schemas and request-local audit.
         """
         hints = self._drain_hints()
         if self._selection_context_provider is None:
@@ -79,7 +78,7 @@ class Sandbox:
             query=query, hints=hints,
             runtime=self._selection_context_provider.snapshot(), final_limit=top_k,
         )
-        return list(selected.tool_schemas), selected.audit
+        return selected
 
     # ── 工具执行 ──────────────────────────────────────────────────────────
 

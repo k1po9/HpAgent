@@ -18,6 +18,7 @@ from brain.contracts import BrainDecision
 from conversation_domain.execution_bindings import ChatExecutionBindings
 from resources.run_budget import RunBudgetService
 from run_domain.execution_context import fence_scope
+from sandbox.tools.routing.models import ToolSelectionResult
 from web_domain.lifecycle import WebRunLifecycleService
 
 
@@ -42,7 +43,7 @@ async def respond_directly_receipt(database, run_id, account_id, answer):
                 context_bindings=ChatExecutionBindings(), store=store, loader=None,
                 brain=SimpleNamespace(generate_chat_decision=AsyncMock(return_value=decision)),
                 actions=SimpleNamespace(reset_execution=Mock(), clear_execution=Mock(),
-                                        select_tools=AsyncMock(return_value=[]), side_effect_class=Mock(return_value='read_only')),
+                                        select_tools=AsyncMock(return_value=ToolSelectionResult((), {}, "no_eligible_tools")), side_effect_class=Mock(return_value='read_only')),
                 event_factory=SimpleNamespace(for_run=lambda _: events), resource_prep=None,
                 lifecycle=WebRunLifecycleService(database), run_budget=RunBudgetService(database))
 

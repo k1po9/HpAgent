@@ -28,7 +28,7 @@ async def test_fs_read_uses_registration_discovery_schema_and_action_result(tmp_
     try:
         tools = await runtime.select_tools(resource_key='tool-test', execution_id='root',
                                            user_content='Read source.txt')
-        schema = next(t['function']['parameters'] for t in tools if t['function']['name'] == 'fs_read')
+        schema = next(t['function']['parameters'] for t in tools.tool_schemas if t['function']['name'] == 'fs_read')
         assert schema['properties']['path']['type'] == 'string'
         assert runtime.side_effect_class('tool-test', 'fs_read') == 'read_only'
         assert runtime.budget_reservation('tool-test', 'fs_read') == {'tool_calls': 1}

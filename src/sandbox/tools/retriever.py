@@ -3,6 +3,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import math
 import os
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -19,6 +20,7 @@ from sandbox.tools.routing.models import (
     ScoredCandidate,
     SemanticRetrievalResult,
     ToolRetrievalError,
+    retrieval_failure,
 )
 
 logger = logging.getLogger("HpAgent.ToolRAG")
@@ -76,7 +78,7 @@ class ToolVectorStore:
             if self._closed:
                 raise ToolRetrievalError("store", "store_closed")
             if len(self._pending) >= 8:
-                raise ToolRetrievalError("store", "pool_saturated")
+                raise ToolRetrievalError("store", "pool_saturated", recoverable=True)
             future = self._executor.submit(function, *args)
             self._pending.add(future)
             future.add_done_callback(self._finished)
@@ -341,7 +343,7 @@ class ToolVectorStore:
         with self._lock:
             collection = self._collection
             if collection is None:
-                raise ToolRetrievalError("query", "index_missing")
+                raise ToolRetrievalError("query", "index_missing", recoverable=True)
             self._active_queries += 1
         try:
             profile = self._profile(collection)
@@ -354,8 +356,12 @@ class ToolVectorStore:
             return collection.query(query_embeddings=vectors, **kwargs)
         except ToolRetrievalError:
             raise
+        except (chromadb.errors.AuthorizationError, chromadb.errors.ChromaAuthError) as exc:
+            raise ToolRetrievalError("query", "permission_denied") from exc
+        except (chromadb.errors.InternalError, chromadb.errors.RateLimitError) as exc:
+            raise ToolRetrievalError("query", "index_unavailable", recoverable=True) from exc
         except Exception as exc:
-            raise ToolRetrievalError("query", "index_unavailable") from exc
+            raise retrieval_failure("query", exc) from exc
         finally:
             with self._lock:
                 self._active_queries -= 1
@@ -391,87 +397,56 @@ class ToolRetriever:
         allowed_tool_names: frozenset[str],
         limit: int,
     ) -> SemanticRetrievalResult:
-        if not allowed_tool_names or limit <= 0:
-            return SemanticRetrievalResult()
-        fetch_k = min(len(allowed_tool_names), limit * 2 if self._reranker else limit)
-        logger.info(
-            "retrieve: query=%s top_k=%d fetch_k=%d reranker=%s filter=%s",
-            query[:80], limit, fetch_k, self._reranker is not None, "eligible_subset",
-        )
-
+        if not allowed_tool_names:
+            return SemanticRetrievalResult(status="no_eligible_tools")
+        stage = "configuration"
         try:
+            if limit <= 0:
+                raise ValueError("semantic fetch limit must be positive")
+            fetch_k = min(len(allowed_tool_names), limit * 2 if self._reranker else limit)
+            stage = "embedding"
             vectors = await self._embedding.embed([query])
             validate_embeddings(vectors, 1)
+            stage = "query"
+            results = await self._store.query(
+                self._embedding, vectors, n_results=fetch_k,
+                where={"tool_name": {"$in": sorted(allowed_tool_names)}},
+            )
+            tool_names = results["ids"][0] if results["ids"] else []
+            documents = results.get("documents", [[]])[0] if results.get("documents") else []
+            distances = results.get("distances", [[]])[0] if results.get("distances") else []
+            if any(name not in allowed_tool_names for name in tool_names):
+                raise PermissionError("retrieval returned a disallowed candidate")
+            if len(set(tool_names)) != len(tool_names) or len(distances) != len(tool_names):
+                raise ValueError("invalid Chroma candidate response")
+            if any(not math.isfinite(distance) for distance in distances):
+                raise ValueError("invalid Chroma candidate distances")
+            scores = {name: round(1.0 - distance, 4) for name, distance in zip(tool_names, distances)}
+            chroma = tuple(ScoredCandidate(name, scores[name], rank, query)
+                           for rank, name in enumerate(tool_names[:limit], 1))
+            if self._reranker and len(tool_names) > limit:
+                stage = "reranker"
+                if len(documents) != len(tool_names):
+                    raise ValueError("missing candidate documents")
+                try:
+                    reranked = await self._reranker.rerank(query, documents, top_n=limit)
+                except Exception as exc:
+                    error = retrieval_failure(stage, exc)
+                    if error.recoverable:
+                        return SemanticRetrievalResult(chroma, "degraded", error)
+                    raise
+                indices = [item.index for item in reranked]
+                if any(isinstance(index, bool) or not isinstance(index, int) or
+                       not 0 <= index < len(tool_names) for index in indices) or len(set(indices)) != len(indices):
+                    raise ValueError("invalid reranker candidate indices")
+                if any(not math.isfinite(item.score) for item in reranked):
+                    raise ValueError("invalid reranker scores")
+                # Preserve the existing low-confidence policy independently of dependency failure.
+                if max((item.score for item in reranked), default=0.0) >= 0.05:
+                    return SemanticRetrievalResult(tuple(
+                        ScoredCandidate(tool_names[item.index], round(item.score, 4), rank, query)
+                        for rank, item in enumerate(reranked[:limit], 1)))
+            return SemanticRetrievalResult(chroma)
         except Exception as exc:
-            raise ToolRetrievalError("embedding", "embedding_invalid") from exc
-        query_embedding = vectors[0]
-        logger.info("retrieve: embedding dim=%d", len(query_embedding) if query_embedding else 0)
-
-        results = await self._store.query(
-            self._embedding, [query_embedding],
-            n_results=fetch_k,
-            where={"tool_name": {"$in": sorted(allowed_tool_names)}},
-        )
-
-        tool_names = results["ids"][0] if results["ids"] else []
-        documents = results.get("documents", [[]])[0] if results.get("documents") else []
-        distances = results.get("distances", [[]])[0] if results.get("distances") else []
-
-        logger.info(
-            "retrieve: chroma returned %d candidates (fetch_k=%d)",
-            len(tool_names), fetch_k,
-        )
-        # 打印前 5 个候选的名称和 cosine 距离
-        for i, (name, dist) in enumerate(zip(tool_names[:5], distances[:5])):
-            chroma_sim = round(1.0 - dist, 4) if dist else 0.0
-            logger.info("retrieve: chroma[%d] %s dist=%.4f sim=%.4f", i, name, dist, chroma_sim)
-
-        # 构建 ChromaDB 距离 → 相似度映射（cosine distance → 1 - distance）
-        chroma_scores: dict[str, float] = {}
-        for name, dist in zip(tool_names, distances):
-            chroma_scores[name] = round(1.0 - dist, 4) if dist else 0.0
-
-        # Reranker 精排（失败时回退到 ChromaDB 原始分数，不会被 0.0 覆盖）
-        if self._reranker and len(tool_names) > limit:
-            logger.info("retrieve: running reranker on %d candidates → top_n=%d", len(tool_names), limit)
-            try:
-                rerank_results = await self._reranker.rerank(query, documents, top_n=limit)
-            except Exception:
-                logger.warning("Reranker failed, falling back to ChromaDB scores")
-                rerank_results = None
-
-            if rerank_results is not None:
-                reranked_names = []
-                rerank_scores: dict[str, float] = {}
-                for rr in rerank_results:
-                    if rr.index < len(tool_names):
-                        name = tool_names[rr.index]
-                        reranked_names.append(name)
-                        rerank_scores[name] = round(rr.score, 4)
-
-                # 如果 reranker 最高分 < 0.05，说明模型对这批文档完全无法区分，
-                # 退回到 ChromaDB 排序（避免把 reranker 噪声当成有效信号）
-                max_rerank = max(rerank_scores.values()) if rerank_scores else 0.0
-                if max_rerank < 0.05:
-                    logger.info(
-                        "retrieve: reranker scores too low (max=%.4f < 0.05), falling back to ChromaDB",
-                        max_rerank,
-                    )
-                    scores = chroma_scores
-                else:
-                    tool_names = reranked_names
-                    scores = {**chroma_scores, **rerank_scores}
-                    for i, name in enumerate(tool_names[:5]):
-                        logger.info("retrieve: rerank[%d] %s score=%.4f", i, name, scores.get(name, 0.0))
-            else:
-                scores = chroma_scores
-        else:
-            scores = chroma_scores
-
-        candidates = tuple(
-            ScoredCandidate(name, scores.get(name, 0.0), rank, query)
-            for rank, name in enumerate(tool_names[:limit], 1)
-            if name in allowed_tool_names
-        )
-        logger.info("retrieve: final %d tools: %s", len(candidates), {c.tool_name: c.score for c in candidates})
-        return SemanticRetrievalResult(candidates)
+            error = retrieval_failure(stage, exc)
+            return SemanticRetrievalResult(status="degraded" if error.recoverable else "failed", error=error)

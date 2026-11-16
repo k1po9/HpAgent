@@ -9,6 +9,7 @@ from support.runtime_fakes import install_execution_uow
 
 from agent_workflows.ids import root_execution_id
 from application.context_assembly import ContextAssemblyService, WebContextBase
+from sandbox.tools.routing.models import ToolSelectionResult
 
 
 @pytest.mark.asyncio
@@ -75,7 +76,7 @@ async def test_durable_model_lifecycle_preserves_correlation_and_cleanup(monkeyp
         complete_operation_with_event=Mock(return_value=2),
         fail_operation=Mock(),
     )
-    actions = SimpleNamespace(reset_execution=Mock(), select_tools=AsyncMock(return_value=[]),
+    actions = SimpleNamespace(reset_execution=Mock(), select_tools=AsyncMock(return_value=ToolSelectionResult((), {}, "no_eligible_tools")),
                               clear_execution=Mock())
     events = SimpleNamespace(progress=AsyncMock(), trace_start=AsyncMock(),
                              trace_end=AsyncMock(), close=AsyncMock())

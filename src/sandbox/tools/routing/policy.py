@@ -1,5 +1,7 @@
 from .models import (
-    RegisteredTool, ScoredCandidate, ToolExposure,
+    RegisteredTool,
+    ScoredCandidate,
+    ToolExposure,
     ToolRoutingConfigurationError,
 )
 
@@ -7,7 +9,7 @@ from .models import (
 class CandidatePolicy:
     @staticmethod
     def select_always(tools):
-        return [t.name for t in tools if t.routing.exposure is ToolExposure.ALWAYS]
+        return sorted(t.name for t in tools if t.routing.exposure is ToolExposure.ALWAYS)
 
     @staticmethod
     def select_front_doors(tools):

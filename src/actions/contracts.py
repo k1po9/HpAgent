@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Protocol
+from typing import TYPE_CHECKING, Any, Dict, Optional, Protocol
 
 from common.agent_policy import AgentPolicy
+
+if TYPE_CHECKING:
+    from sandbox.tools.routing.models import ToolSelectionResult
 
 
 @dataclass(frozen=True)
@@ -84,7 +87,7 @@ class ActionCapability(Protocol):
         execution_id: str,
         user_content: str,
         group_context_text: str = "",
-    ) -> list[dict[str, Any]]: ...
+    ) -> ToolSelectionResult: ...
 
     def side_effect_class(self, resource_key: str, tool_name: str) -> str: ...
 

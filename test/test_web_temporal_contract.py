@@ -379,10 +379,13 @@ async def test_td_016_new_event_sink_never_reuses_a_previous_stream_id():
 
 
 @pytest.mark.asyncio
-async def test_action_runtime_cache_is_partitioned_and_cleared_by_execution():
+async def test_action_runtime_concurrent_selections_are_request_local():
     class Sandbox:
         async def select_tools(self, query, top_k):
-            return ([{"name": query}], {"queries": [query]})
+            from sandbox.tools.routing.models import ToolSelectionResult
+
+            await asyncio.sleep(0)
+            return ToolSelectionResult(({"name": query},), {"queries": [query]})
 
     class Sandboxes:
         def get_sandbox_for_execution(self, session_id):
@@ -397,14 +400,12 @@ async def test_action_runtime_cache_is_partitioned_and_cleared_by_execution():
             user_content="second", resource_key="session", execution_id="run-2"
         ),
     )
-    assert first == [{"name": "first"}]
-    assert second == [{"name": "second"}]
-    assert set(runtime._tools_cache) == {("session", "run-1"), ("session", "run-2")}
-
+    assert first.tool_schemas == ({"name": "first"},)
+    assert second.tool_schemas == ({"name": "second"},)
+    assert first.audit["queries"] == ["first"]
+    assert second.audit["queries"] == ["second"]
     runtime.clear_execution("session", "run-1")
-    assert set(runtime._tools_cache) == {("session", "run-2")}
     runtime.clear_execution("session", "run-2")
-    assert runtime._tools_cache == {}
 
 
 @pytest.mark.asyncio

@@ -269,13 +269,12 @@ async def test_pointer_publication_failure_does_not_switch_index(store_factory, 
 async def test_query_rejects_vectors_from_a_different_model(store_factory, tmp_path):
 
     from sandbox.tools.retriever import ToolRetriever
-    from sandbox.tools.routing.models import ToolRetrievalError
 
     store = await store_factory(tmp_path)
     await store.sync(_catalog([_tool()]), FakeEmbeddingClient())
     retriever = ToolRetriever(store, FakeEmbeddingClient('model-b'))
-    with pytest.raises(ToolRetrievalError):
-        await retriever.retrieve('query', allowed_tool_names=frozenset({'search'}), limit=1)
+    result = await retriever.retrieve('query', allowed_tool_names=frozenset({'search'}), limit=1)
+    assert result.status == 'failed' and result.error is not None
 
 
 async def test_embedding_client_propagates_transport_failures(monkeypatch):
@@ -359,7 +358,6 @@ async def test_restart_falls_back_to_valid_previous_and_rejects_wrong_profile(st
     import json
 
     from sandbox.tools.retriever import ToolRetriever
-    from sandbox.tools.routing.models import ToolRetrievalError
 
     store = await store_factory(tmp_path)
     await store.sync(_catalog([_tool()]), FakeEmbeddingClient('model-a'))
@@ -368,9 +366,10 @@ async def test_restart_falls_back_to_valid_previous_and_rejects_wrong_profile(st
     store._collection.delete(ids=['search'])
     restarted = await store_factory(tmp_path)
     assert restarted._collection.name == previous
-    with pytest.raises(ToolRetrievalError):
-        await ToolRetriever(restarted, FakeEmbeddingClient('model-b')).retrieve(
-            'query', allowed_tool_names=frozenset({'search'}), limit=1)
+    result = await ToolRetriever(restarted, FakeEmbeddingClient('model-b')).retrieve(
+        'query', allowed_tool_names=frozenset({'search'}), limit=1)
+    assert result.status == 'failed'
+    assert result.error.code == 'tool_retrieval_profile_mismatch'
     assert json.loads((tmp_path / 'active.json').read_text())['previous'] == previous
 
 
@@ -402,7 +401,6 @@ async def test_failure_after_pointer_replace_restores_old_publication(store_fact
 @pytest.mark.parametrize('vectors', [[], [[1.]], [[0., 0.]], [[1., 2.], [1., 2.]]])
 async def test_invalid_query_embedding_is_a_retrieval_error(store_factory, tmp_path, vectors):
     from sandbox.tools.retriever import ToolRetriever
-    from sandbox.tools.routing.models import ToolRetrievalError
 
     store = await store_factory(tmp_path)
     embedding = FakeEmbeddingClient()
@@ -410,8 +408,8 @@ async def test_invalid_query_embedding_is_a_retrieval_error(store_factory, tmp_p
     async def malformed(documents):
         return vectors
     embedding.embed = malformed
-    with pytest.raises(ToolRetrievalError):
-        await ToolRetriever(store, embedding).retrieve('query', allowed_tool_names=frozenset({'search'}), limit=1)
+    result = await ToolRetriever(store, embedding).retrieve('query', allowed_tool_names=frozenset({'search'}), limit=1)
+    assert result.status == 'failed' and result.error is not None
 
 
 async def test_empty_catalog_can_later_gain_tools(store_factory, tmp_path):
@@ -683,8 +681,7 @@ async def test_pool_capacity_tracks_running_and_queued_physical_tasks(store_fact
         with pytest.raises(ToolRetrievalError) as still_full:
             await query()
         assert still_full.value.code == 'tool_retrieval_pool_saturated'
-        # Exercise the real selection consumer: saturation remains an explicit
-        # retrieval failure rather than a successful empty tool set.
+        # Saturation degrades to the current allowed candidates at selection.
         from sandbox.tools.registry import ToolRegistry
         from sandbox.tools.routing.models import RuntimeCapabilitySnapshot, ToolRoutingSpec
         from sandbox.tools.routing.router import ToolRouter
@@ -692,12 +689,13 @@ async def test_pool_capacity_tracks_running_and_queued_physical_tasks(store_fact
         registry = ToolRegistry()
         registry.register(_tool(), routing=ToolRoutingSpec('test.search'))
         registry.freeze()
-        with pytest.raises(ToolRetrievalError) as selection:
-            await ToolRouter(registry, ToolRetriever(store, embedding)).select(
-                query='search', hints=(), runtime=RuntimeCapabilitySnapshot('web', False, False, ()),
-                final_limit=1,
-            )
-        assert selection.value.code == 'tool_retrieval_pool_saturated'
+        selection = await ToolRouter(registry, ToolRetriever(store, embedding)).select(
+            query='search', hints=(), runtime=RuntimeCapabilitySnapshot('web', False, False, ()),
+            final_limit=1,
+        )
+        assert selection.status == 'degraded'
+        assert selection.error.code == 'tool_retrieval_pool_saturated'
+        assert selection.audit['final_tools'] == ['search']
     finally:
         fake_chroma.release.set()
         await asyncio.gather(running, *queued, return_exceptions=True)
@@ -1038,3 +1036,155 @@ async def test_cancelled_initialization_waits_for_physical_cleanup_without_block
         await opening
     assert not store._pending
     await stack.aclose()
+
+
+@pytest.mark.parametrize('stage', ['embedding', 'query', 'reranker'])
+@pytest.mark.parametrize('fault,expected', [
+    (TimeoutError(), 'degraded'), (ConnectionError(), 'degraded'),
+    (PermissionError(), 'failed'), (ValueError('invalid configuration'), 'failed'),
+    (TypeError('program error'), 'failed'), (RuntimeError('program error'), 'failed'),
+    (asyncio.CancelledError(), 'cancelled'),
+])
+async def test_retriever_fault_classification_and_chroma_order(stage, fault, expected):
+    class Embedding(FakeEmbeddingClient):
+        async def embed(self, texts):
+            if stage == 'embedding':
+                raise fault
+            return await super().embed(texts)
+
+    class Store:
+        async def query(self, *args, **kwargs):
+            if stage == 'query':
+                raise fault
+            return {'ids': [['zeta', 'alpha']], 'documents': [['z', 'a']], 'distances': [[0.0, .2]]}
+
+    class Reranker:
+        async def rerank(self, *args, **kwargs):
+            if stage == 'reranker':
+                raise fault
+            from resources.reranker import RerankResult
+            return [RerankResult(1, .9)]
+
+    call = ToolRetriever(Store(), Embedding(), Reranker()).retrieve(
+        'q', allowed_tool_names=frozenset({'zeta', 'alpha'}), limit=1)
+    if expected == 'cancelled':
+        with pytest.raises(asyncio.CancelledError):
+            await call
+        return
+    result = await call
+    assert result.status == expected
+    assert result.error.stage == stage
+    if stage == 'reranker' and expected == 'degraded':
+        assert [(c.tool_name, c.score) for c in result.candidates] == [('zeta', 1.0)]
+    else:
+        assert result.candidates == ()
+
+
+@pytest.mark.parametrize('status,expected', [(401, 'failed'), (403, 'failed'), (400, 'failed'), (429, 'degraded'), (503, 'degraded')])
+async def test_embedding_http_failures_are_classified(status, expected):
+    import httpx
+
+    class Embedding(FakeEmbeddingClient):
+        async def embed(self, texts):
+            response = httpx.Response(status, request=httpx.Request('POST', 'https://test.invalid'))
+            response.raise_for_status()
+
+    result = await ToolRetriever(None, Embedding()).retrieve('q', allowed_tool_names=frozenset({'alpha'}), limit=1)
+    assert result.status == expected
+
+
+async def test_empty_retrieval_does_not_claim_no_eligible_tools():
+    class Store:
+        async def query(self, *args, **kwargs):
+            return {'ids': [[]], 'documents': [[]], 'distances': [[]]}
+
+    retriever = ToolRetriever(Store(), FakeEmbeddingClient())
+    assert (await retriever.retrieve('q', allowed_tool_names=frozenset(), limit=1)).status == 'no_eligible_tools'
+    assert (await retriever.retrieve('q', allowed_tool_names=frozenset({'alpha'}), limit=1)).status == 'success'
+
+
+async def test_rag_initialization_failure_is_distinct_from_disabled(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from bootstrap.worker_dependencies import setup_tools
+    from orchestration.config import AppConfig
+
+    config = AppConfig()
+    config.models.mcp.auto_connect = False
+    config.models.skills.enabled = False
+    config.models.tool_rag.enabled = False
+    async with AsyncExitStack() as stack:
+        _, _, retriever = await setup_tools(config, resource_stack=stack)
+    assert retriever is None
+    config.models.tool_rag.enabled = True
+    config.models.tool_rag.persist_path = str(tmp_path)
+    monkeypatch.setattr('resources.embedding.create_embedding_client', lambda _: SimpleNamespace())
+    def invalid(_):
+        raise ValueError('invalid reranker provider')
+    monkeypatch.setattr('resources.reranker.create_reranker_client', invalid)
+    async with AsyncExitStack() as stack:
+        with pytest.raises(ToolRetrievalError) as error:
+            await setup_tools(config, resource_stack=stack)
+    assert error.value.stage == 'initialize' and not error.value.recoverable
+
+
+async def test_unknown_reranker_provider_is_configuration_failure():
+    from types import SimpleNamespace
+
+    from resources.reranker import create_reranker_client
+
+    config = SimpleNamespace(rerank=SimpleNamespace(provider='missing', model='rerank', timeout=1), providers={})
+    with pytest.raises(ValueError):
+        create_reranker_client(config)
+
+
+@pytest.mark.parametrize('fault,expected', [
+    (TimeoutError(), 'degraded'), (PermissionError(), 'failed'), (TypeError('bug'), 'failed'),
+])
+async def test_chroma_worker_preserves_failure_classification(store_factory, tmp_path, monkeypatch, fault, expected):
+    store = await store_factory(tmp_path)
+    embedding = FakeEmbeddingClient()
+    await store.sync(_catalog([_tool()]), embedding)
+    def fail(*args, **kwargs):
+        raise fault
+    monkeypatch.setattr(type(store._collection), 'query', fail)
+    result = await ToolRetriever(store, embedding).retrieve('q', allowed_tool_names=frozenset({'search'}), limit=1)
+    assert result.status == expected
+    assert result.error.stage == 'query'
+
+
+@pytest.mark.parametrize('kind,expected', [('InternalError', 'degraded'), ('RateLimitError', 'degraded'), ('AuthorizationError', 'failed'), ('InvalidArgumentError', 'failed')])
+async def test_chroma_typed_errors_are_not_all_recoverable(store_factory, tmp_path, monkeypatch, kind, expected):
+    import chromadb.errors
+
+    store = await store_factory(tmp_path)
+    embedding = FakeEmbeddingClient()
+    await store.sync(_catalog([_tool()]), embedding)
+    def fail(*args, **kwargs):
+        raise getattr(chromadb.errors, kind)('injected Chroma error')
+    monkeypatch.setattr(type(store._collection), 'query', fail)
+    result = await ToolRetriever(store, embedding).retrieve('q', allowed_tool_names=frozenset({'search'}), limit=1)
+    assert result.status == expected
+    assert result.error.stage == 'query'
+    if kind == 'AuthorizationError':
+        assert result.error.code == 'tool_retrieval_permission_denied'
+
+
+async def test_retriever_rejects_unauthorized_candidate_before_truncation():
+    class Store:
+        async def query(self, *args, **kwargs):
+            return {'ids': [['search', 'forbidden']], 'documents': [['s', 'f']], 'distances': [[0., .2]]}
+
+    result = await ToolRetriever(Store(), FakeEmbeddingClient()).retrieve('q', allowed_tool_names=frozenset({'search'}), limit=1)
+    assert result.status == 'failed' and result.candidates == ()
+    assert result.error.code == 'tool_retrieval_permission_denied'
+
+
+@pytest.mark.parametrize('distance', [float('nan'), float('inf'), None, 'invalid'])
+async def test_invalid_chroma_scores_fail_instead_of_becoming_success(distance):
+    class Store:
+        async def query(self, *args, **kwargs):
+            return {'ids': [['search']], 'documents': [['s']], 'distances': [[distance]]}
+
+    result = await ToolRetriever(Store(), FakeEmbeddingClient()).retrieve('q', allowed_tool_names=frozenset({'search'}), limit=1)
+    assert result.status == 'failed' and result.candidates == ()

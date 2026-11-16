@@ -5,14 +5,15 @@ operation; the runtime has no surface-specific or session-only fallback.
 """
 from __future__ import annotations
 
-import hashlib
 import logging
+import time
 from typing import Any, Dict, List, cast
 
 from actions.contracts import ActionRequest, ActionResult
 from common.agent_policy import AgentPolicy
+from common.logging import log_event
 from common.token_counter import estimate_messages_tokens
-from sandbox.tools.routing.models import ToolRetrievalError, ToolRoutingConfigurationError
+from sandbox.tools.routing.models import ToolRetrievalError, ToolSelectionResult, retrieval_failure
 
 logger = logging.getLogger("HpAgent.ActionRuntime")
 
@@ -20,7 +21,7 @@ logger = logging.getLogger("HpAgent.ActionRuntime")
 class ActionRuntime:
     """行动运行时 facade。
 
-    这一层保留 Sandbox 的核心能力，同时把工具 RAG 查询拼接、缓存、
+    这一层保留 Sandbox 的核心能力，同时把工具 RAG 查询拼接、
     审计事件写入和长结果摘要从执行 Host 中移出。
     """
 
@@ -42,17 +43,15 @@ class ActionRuntime:
         self._tool_result_summary_enabled = tool_result_summary_enabled
         self._tool_result_summary_threshold = tool_result_summary_threshold
         self._tool_result_summary_max_chars = tool_result_summary_max_chars
-        self._tools_cache: Dict[tuple[str, str], tuple[str, List[Dict[str, Any]]]] = {}
 
     @staticmethod
-    def _execution_cache_key(resource_key: str, execution_id: str) -> tuple[str, str]:
+    def _validate_execution_identity(resource_key: str, execution_id: str) -> None:
         if not resource_key or not execution_id:
             raise ValueError("resource_key and execution_id are required")
-        return resource_key, execution_id
 
     def reset_execution(self, resource_key: str, execution_id: str) -> None:
         """Clear only the mutable state owned by this execution."""
-        self._tools_cache.pop(self._execution_cache_key(resource_key, execution_id), None)
+        self._validate_execution_identity(resource_key, execution_id)
         if self._sandbox is None:
             return
         try:
@@ -68,47 +67,30 @@ class ActionRuntime:
         resource_key: str,
         execution_id: str,
         group_context_text: str = "",
-    ) -> List[Dict[str, Any]]:
-        """完成工具选择管线，并写入工具检索审计事件。"""
-        cache_key = self._execution_cache_key(resource_key, execution_id)
-        rag_query = self._build_rag_query(user_content, group_context_text)
-        if self._sandbox is None:
-            return []
-
+    ) -> ToolSelectionResult:
+        """Select against fresh hints, context and permissions on every call."""
+        self._validate_execution_identity(resource_key, execution_id)
+        started = time.monotonic()
         try:
-            query_hash = hashlib.md5(user_content.encode()).hexdigest()
-            if cache_key in self._tools_cache:
-                last_hash, cached = self._tools_cache[cache_key]
-                if query_hash == last_hash:
-                    logger.info(
-                        "select_tools: cache hit resource=%s execution=%s",
-                        resource_key,
-                        execution_id,
-                    )
-                    return cached
-
+            if self._sandbox is None:
+                raise ToolRetrievalError("selection", "sandbox_unavailable")
             sandbox = self._sandbox.get_sandbox_for_execution(resource_key)
-            raw_tools, audit = await sandbox.select_tools(
-                rag_query, self._tool_rag_top_k
+            result = await sandbox.select_tools(
+                self._build_rag_query(user_content, group_context_text), self._tool_rag_top_k
             )
-            tools = cast(List[Dict[str, Any]], raw_tools)
-
-            self._tools_cache[cache_key] = (query_hash, tools)
-
-            logger.info(
-                "select_tools: query=%s top_k=%d -> %d tools",
-                audit.get("queries", [rag_query])[0][:80],
-                self._tool_rag_top_k,
-                len(tools),
-            )
-
-            return tools
-        except (ToolRetrievalError, ToolRoutingConfigurationError):
-            # Required Work/file entrypoints cannot disappear from the model manifest.
-            # A configuration error must fail before dispatch, rather than becoming [].
-            raise
-        except Exception as e:
-            raise ToolRetrievalError("selection", "selection_failed") from e
+        except Exception as exc:
+            error = retrieval_failure("selection", exc)
+            result = ToolSelectionResult((), {"reasons": [{"stage": error.stage, "code": error.code}]}, "failed", error)
+        # Audit fields are selected explicitly: query text and resource names do
+        # not belong in process logs. The complete audit stays on the result.
+        log_event(logger, logging.ERROR if result.status == "failed" else logging.INFO,
+                  "tool_selection", "tools", resource_key=resource_key, execution_id=execution_id,
+                  status=result.status, rag_enabled=result.audit.get("rag_enabled"),
+                  ordinary_candidate_count=len(result.tool_schemas),
+                  tools=[tool.get("function", tool).get("name") for tool in result.tool_schemas],
+                  reasons=result.audit.get("reasons", []),
+                  elapsed_ms=round((time.monotonic() - started) * 1000))
+        return result
 
     async def _execute(
         self,
@@ -121,7 +103,7 @@ class ActionRuntime:
         agent_policy: AgentPolicy | None = None,
     ) -> Dict[str, Any]:
         """执行工具，并按配置对长输出做语义摘要。"""
-        self._execution_cache_key(resource_key, execution_id)
+        self._validate_execution_identity(resource_key, execution_id)
         if self._sandbox is None:
             return {
                 "success": False,
@@ -164,7 +146,7 @@ class ActionRuntime:
         idempotency_key: str = "",
         agent_policy: AgentPolicy | None = None,
     ) -> ActionResult:
-        self._execution_cache_key(resource_key, execution_id)
+        self._validate_execution_identity(resource_key, execution_id)
         executed_request = request
         if idempotency_key and self._sandbox is not None:
             try:
@@ -206,8 +188,8 @@ class ActionRuntime:
         return ActionResult.from_runtime_result(request, result)
 
     def clear_execution(self, resource_key: str, execution_id: str) -> None:
-        """Fence late completion from retaining per-execution cache state."""
-        self._tools_cache.pop(self._execution_cache_key(resource_key, execution_id), None)
+        """Validate the execution identity; selection has no retained cache state."""
+        self._validate_execution_identity(resource_key, execution_id)
 
     def side_effect_class(self, resource_key: str, tool_name: str) -> str:
         """Read trusted registry metadata; unknown tools fail closed upstream."""

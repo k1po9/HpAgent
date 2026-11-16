@@ -68,7 +68,7 @@ class RerankerClient:
 
         try:
             try:
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()
             except RuntimeError:
                 return asyncio.run(self._rerank_async(query, documents, top_n))
 
@@ -133,8 +133,7 @@ def create_reranker_client(models_config) -> RerankerClient | None:
     providers = models_config.providers
     provider_cfg = providers.get(provider_name)
     if provider_cfg is None:
-        logger.warning("Rerank provider '%s' not found in providers", provider_name)
-        return None
+        raise ValueError("configured reranker provider is missing")
 
     base_url = provider_cfg.base_url if hasattr(provider_cfg, "base_url") else ""
     api_key = getattr(provider_cfg, "api_key", "") or ""

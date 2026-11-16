@@ -555,11 +555,14 @@ class DurableAgentActivities:
                     if request.final_only and not tool_first:
                         decision = await self.brain.generate_final_decision(messages=model_messages)
                     else:
-                        tools = await self.actions.select_tools(
+                        selection = await self.actions.select_tools(
                             user_content=request.objective or self._last_user_content(model_messages),
                             resource_key=self.context_bindings.resource_key(request),
                             execution_id=request.execution_id,
                         )
+                        if selection.status == "failed":
+                            raise selection.error or ToolRetrievalError("selection", "selection_failed")
+                        tools = list(selection.tool_schemas)
                         def tool_name(tool):
                             return tool.get("function", tool).get("name", "")
                         category_for = getattr(self.actions, "tool_category", lambda *_: None)
@@ -591,6 +594,12 @@ class DurableAgentActivities:
                                 'Main 每轮必须调用且仅调用一个真实工具动作。普通回答和最终收尾用 respond_directly；'
                                 '其他动作执行后继续根据真实回执决策。操作成功必须引用本轮真实返回的 command_receipt.command_id。'
                                 '不得用普通文本或伪工具文本结束。respond_directly 的回执只证明回答结束，不证明任何业务操作成功。'})
+                        log_event(model_logger, logging.INFO, "tool_manifest_selected", "tools",
+                                  **fields, status=selection.status,
+                                  ordinary_candidate_count=len(selection.tool_schemas),
+                                  manifest_tool_count=len(tools),
+                                  tools=[tool_name(tool) for tool in tools],
+                                  reasons=selection.audit.get("reasons", []))
                         model_messages.insert(1 if model_messages and model_messages[0].get("role") == "system" else 0, {
                             "role": "system",
                             "content": agent_prompt("tool_availability") + "\n" + json.dumps({

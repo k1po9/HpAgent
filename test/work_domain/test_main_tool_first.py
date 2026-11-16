@@ -23,6 +23,7 @@ from application.main_agent import create_main_work_tools
 from brain.contracts import BrainDecision
 from conversation_domain.execution_bindings import ChatExecutionBindings
 from resources.run_budget import RunBudgetService
+from sandbox.tools.routing.models import ToolSelectionResult
 from web_domain.lifecycle import WebRunLifecycleService
 
 pytestmark = [pytest.mark.postgres, pytest.mark.asyncio]
@@ -52,7 +53,7 @@ def model_input(run, account_id, segment, token, tid, turn=1, version=1, final=F
 def runtime(store, responses):
     brain = SimpleNamespace(generate_chat_decision=AsyncMock(side_effect=responses), generate_final_decision=AsyncMock())
     actions = SimpleNamespace(reset_execution=Mock(), clear_execution=Mock(),
-        select_tools=AsyncMock(return_value=[]), side_effect_class=Mock(return_value='read_only'))
+        select_tools=AsyncMock(return_value=ToolSelectionResult((), {}, "no_eligible_tools")), side_effect_class=Mock(return_value='read_only'))
     events = SimpleNamespace(progress=AsyncMock(), trace_start=AsyncMock(), trace_end=AsyncMock(), close=AsyncMock())
     obj = DurableAgentActivities(context_bindings=ChatExecutionBindings(), store=store, loader=None, brain=brain,
         actions=actions, event_factory=SimpleNamespace(for_run=lambda _: events), resource_prep=None,

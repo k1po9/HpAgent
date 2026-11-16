@@ -825,17 +825,23 @@ async def test_disabled_root_tool_is_denied_before_external_action(monkeypatch, 
     assert native.calls == 0 and store.completion is None
 
 
-@pytest.mark.parametrize('failure_kind', ['dependency', 'program'])
+@pytest.mark.parametrize('failure_kind', ['configuration', 'permission', 'program', 'failed_result', 'cancelled'])
 async def test_tool_selection_failure_blocks_model_dispatch(tmp_path, failure_kind):
     from agent_workflows.contracts import ModelDecisionInput
     from sandbox.sandbox_manager import SandboxManager
-    from sandbox.tools.routing.models import ToolRetrievalError
+    from sandbox.tools.routing.models import SemanticRetrievalResult, ToolRetrievalError
 
     class BrokenRetriever:
         async def retrieve(self, *args, **kwargs):
-            if failure_kind == 'dependency':
-                raise ToolRetrievalError('embedding', 'embedding_unavailable')
-            raise ValueError('invalid retrieval response')
+            if failure_kind == 'cancelled':
+                raise asyncio.CancelledError
+            if failure_kind == 'failed_result':
+                return SemanticRetrievalResult(status='failed', error=ToolRetrievalError('query', 'profile_mismatch'))
+            if failure_kind == 'configuration':
+                raise ValueError('invalid configuration')
+            if failure_kind == 'permission':
+                raise PermissionError('denied')
+            raise TypeError('invalid retrieval response')
 
     class ModelStore(Store):
         def begin_operation(self, *args):
@@ -850,6 +856,7 @@ async def test_tool_selection_failure_blocks_model_dispatch(tmp_path, failure_ki
     original = request()
     item = ModelDecisionInput(**{key: value for key, value in vars(original).items()
                                 if key != 'tool_call'})
+    item = replace(item, objective='select tools for this request')
     manager = SandboxManager(nsjail_enabled=False, retriever=BrokenRetriever())
     native = ActionRuntime(sandbox_manager=manager)
     bindings = ChatExecutionBindings()
@@ -860,11 +867,100 @@ async def test_tool_selection_failure_blocks_model_dispatch(tmp_path, failure_ki
         brain=brain, actions=native, event_factory=EventFactory(),
         resource_prep=ResourcePrep(), lifecycle=None)
     try:
+        if failure_kind == 'cancelled':
+            with pytest.raises(asyncio.CancelledError):
+                await durable.model_decision(item)
+            assert brain.calls == 0 and store.failed == []
+            return
         with pytest.raises(ApplicationError) as caught:
             await durable.model_decision(item)
         assert caught.value.type.startswith('tool_retrieval_'), repr(caught.value.__cause__)
         assert brain.calls == 0
         assert store.failed == [caught.value.type]
         assert store.completion is None
+    finally:
+        manager.close()
+
+
+@pytest.mark.parametrize('source,execution_role', [('chat', 'root'), ('work', 'root'), ('work', 'subagent')])
+@pytest.mark.parametrize('selection_status', ['degraded', 'no_eligible_tools'])
+async def test_manifest_preserves_main_delegation_boundaries_and_audit(tmp_path, monkeypatch, caplog, source, execution_role, selection_status):
+    import json
+    import logging
+
+    from agent_activities.composition import compose_capabilities
+    from agent_workflows.contracts import ModelDecisionInput
+    from brain.contracts import BrainDecision
+    from sandbox.sandbox_manager import SandboxManager
+
+    install_execution_uow(monkeypatch, role=execution_role, tool_names=('fs_read', 'fs_write'))
+    if source == 'chat':
+        from persistence.uow import UnitOfWork
+
+        class MainUow(UnitOfWork):
+            def execute(self, sql, params):
+                result = super().execute(sql, params)
+                if 'SELECT input_snapshot FROM runs' in sql:
+                    return SimpleNamespace(fetchone=lambda: {'input_snapshot': {'main_protocol': 'tool_first_v1'}})
+                return result
+        monkeypatch.setattr('persistence.uow.UnitOfWork', MainUow)
+
+    class Down:
+        async def retrieve(self, *args, **kwargs):
+            raise TimeoutError('dependency unavailable')
+
+    class ModelStore(Store):
+        def begin_operation(self, *args):
+            return None
+
+    class Brain:
+        manifest = None
+        availability = None
+        async def generate_chat_decision(self, *, messages, tools):
+            self.manifest = [tool.get('function', tool)['name'] for tool in tools or []]
+            availability = next(m['content'] for m in messages if '"delegatable_tools"' in m['content'])
+            self.availability = json.loads(availability[availability.index('{'):])
+            return BrainDecision('', [], 'stop', {})
+
+    original = request()
+    item = ModelDecisionInput(**{key: value for key, value in vars(original).items() if key != 'tool_call'})
+    item = replace(item, source=RunSource(source, str(uuid4())), objective='read the workspace')
+    bindings = ChatExecutionBindings()
+    manager = SandboxManager(nsjail_enabled=False, retriever=Down(),
+                             native_tools_enabled=selection_status != 'no_eligible_tools')
+    manager.create_execution_sandbox(bindings.resource_key(item), str(tmp_path), session_context={
+        'source_kind': source, 'execution_role': execution_role,
+        'parent_tool_names': ['fs_read', 'fs_write'],
+    })
+    actions = ActionRuntime(sandbox_manager=manager, tool_rag_top_k=2)
+    brain = Brain()
+    durable = DurableAgentActivities(context_bindings=bindings, store=ModelStore(ToolOperationState('started', None)),
+        loader=None, brain=brain, actions=actions, event_factory=EventFactory(), resource_prep=ResourcePrep(), lifecycle=None,
+        capabilities=compose_capabilities(None, services=frozenset({'research', 'html', 'text'})), web_tools=object())
+    caplog.set_level(logging.INFO)
+    try:
+        await durable.model_decision(item)
+        audit = next(r for r in caplog.records if getattr(r, 'event', '') == 'tool_manifest_selected')
+        assert audit.status == selection_status
+        assert audit.ordinary_candidate_count <= 2
+        assert audit.manifest_tool_count == len(brain.manifest)
+        if execution_role == 'subagent':
+            assert brain.manifest == (['fs_read'] if selection_status == 'degraded' else [])
+            assert brain.availability['delegatable_tools'] == []
+        else:
+            assert audit.manifest_tool_count > audit.ordinary_candidate_count
+            assert 'web_search' in brain.manifest
+            assert 'result__save' in brain.manifest
+            if source == 'chat':
+                assert 'respond_directly' in brain.manifest
+                assert 'delegate_work' not in brain.manifest
+            else:
+                assert 'delegate_work' in brain.manifest
+                assert 'respond_directly' not in brain.manifest
+                assert 'fs_write' not in brain.availability['delegatable_tools']
+        if selection_status == 'degraded':
+            assert audit.reasons[0]['code'] == 'tool_retrieval_dependency_unavailable'
+        else:
+            assert audit.reasons == []
     finally:
         manager.close()

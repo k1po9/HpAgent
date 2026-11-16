@@ -262,13 +262,157 @@ async def test_action_selection_preserves_main_and_file_reserved_tools_with_defa
         runtime = ActionRuntime(sandbox_manager=manager, tool_rag_top_k=ToolRagConfig().top_k)
         tools = await runtime.select_tools(resource_key='resource', execution_id='execution',
                                            user_content='Continue research and make a page in background')
-        names = {t['function']['name'] for t in tools}
+        names = {t['function']['name'] for t in tools.tool_schemas}
         assert {'accept_work', 'get_work', 'control_work', 'list_run_candidates'} <= names
         assert 'Bash' not in names
         too_small = ActionRuntime(sandbox_manager=manager, tool_rag_top_k=1)
-        with pytest.raises(ToolRoutingConfigurationError, match='reserved tools'):
-            await too_small.select_tools(resource_key='resource', execution_id='execution')
+        failed = await too_small.select_tools(resource_key='resource', execution_id='execution')
+        assert failed.status == 'failed'
+        assert failed.error.code == 'tool_retrieval_configuration_invalid'
     finally:
         manager.destroy_sandbox(sandbox_id)
         manager.unbind_run_file_scope('resource')
         manager.close()
+
+
+@pytest.mark.parametrize('failure', [TimeoutError(), ConnectionError()])
+async def test_dependency_fallback_is_eligible_stable_bounded_and_preserves_reserved(failure):
+    registry = ToolRegistry()
+    for name, spec in (
+        ('zeta', ToolRoutingSpec('test.zeta')),
+        ('mandatory', ToolRoutingSpec('test.mandatory', ToolExposure.ALWAYS)),
+        ('alpha', ToolRoutingSpec('test.alpha')),
+        ('entry', ToolRoutingSpec('test.entry', ToolExposure.FRONT_DOOR)),
+        ('denied', ToolRoutingSpec('test.denied', requires_workspace=True)),
+        ('internal', ToolRoutingSpec('test.internal', ToolExposure.INTERNAL)),
+    ):
+        registry.register(_tool(name), routing=spec)
+    registry.freeze()
+
+    class Broken:
+        async def retrieve(self, *args, **kwargs):
+            raise failure
+
+    result = await ToolRouter(registry, Broken()).select(
+        query='query', hints=('hint',), runtime=_snapshot(None, workspace=False), final_limit=3)
+    assert result.status == 'degraded'
+    assert result.audit['final_tools'] == ['mandatory', 'entry', 'alpha']
+    assert result.audit['ordinary_candidate_count'] == 3
+    assert result.audit['reasons'][0]['stage'] == 'semantic'
+    overflow = await ToolRouter(registry, Broken()).select(
+        query='query', hints=(), runtime=_snapshot(None), final_limit=1)
+    assert overflow.status == 'failed' and not overflow.tool_schemas
+    assert overflow.error.code == 'tool_retrieval_configuration_invalid'
+
+
+@pytest.mark.parametrize('failure', [ValueError('bad configuration'), PermissionError(), TypeError('bug'), RuntimeError('bug')])
+async def test_non_dependency_failures_do_not_fall_back(failure):
+    registry = ToolRegistry()
+    registry.register(_tool('alpha'), routing=ToolRoutingSpec('test.alpha'))
+
+    class Broken:
+        async def retrieve(self, *args, **kwargs):
+            raise failure
+
+    result = await ToolRouter(registry, Broken()).select(
+        query='q', hints=(), runtime=_snapshot(None), final_limit=2)
+    assert result.status == 'failed' and not result.tool_schemas
+    assert result.error is not None and not result.error.recoverable
+
+
+async def test_router_rejects_unauthorized_semantic_candidates():
+    registry = ToolRegistry()
+    registry.register(_tool('alpha'), routing=ToolRoutingSpec('test.alpha'))
+
+    class Untrusted:
+        async def retrieve(self, *args, **kwargs):
+            return SemanticRetrievalResult((ScoredCandidate('outside_registry', .9, 1, 'q'),))
+
+    result = await ToolRouter(registry, Untrusted()).select(
+        query='q', hints=(), runtime=_snapshot(None), final_limit=2)
+    assert result.status == 'failed' and not result.tool_schemas
+    assert result.error.code == 'tool_retrieval_permission_denied'
+
+
+async def test_empty_eligible_set_skips_dependencies_and_disabled_rag_is_explicit():
+    class Forbidden:
+        async def retrieve(self, *args, **kwargs):
+            pytest.fail('empty allowed set must not query a dependency')
+
+    registry = ToolRegistry()
+    result = await ToolRouter(registry, Forbidden()).select(
+        query='q', hints=(), runtime=_snapshot(None), final_limit=2)
+    assert result.status == 'no_eligible_tools' and not result.tool_schemas
+    registry.register(_tool('alpha'), routing=ToolRoutingSpec('test.alpha'))
+    result = await ToolRouter(registry).select(
+        query='q', hints=(), runtime=_snapshot(None), final_limit=2)
+    assert result.status == 'success'
+    assert result.audit['rag_enabled'] is False
+    assert result.audit['final_tools'] == ['alpha']
+
+
+async def test_router_cancellation_propagates():
+    class Cancelled:
+        async def retrieve(self, *args, **kwargs):
+            raise asyncio.CancelledError
+
+    registry = ToolRegistry()
+    registry.register(_tool('alpha'), routing=ToolRoutingSpec('test.alpha'))
+    with pytest.raises(asyncio.CancelledError):
+        await ToolRouter(registry, Cancelled()).select(
+            query='q', hints=(), runtime=_snapshot(None), final_limit=2)
+
+
+async def test_concurrent_degraded_and_healthy_audits_are_independent():
+    registry = ToolRegistry()
+    for name in ('alpha', 'beta'):
+        registry.register(_tool(name), routing=ToolRoutingSpec(f'test.{name}'))
+
+    class Semantic:
+        async def retrieve(self, query, **kwargs):
+            await asyncio.sleep(0)
+            if query == 'down':
+                raise TimeoutError()
+            return SemanticRetrievalResult((ScoredCandidate('beta', .9, 1, query),))
+
+    router = ToolRouter(registry, Semantic())
+    down, healthy = await asyncio.gather(*[
+        router.select(query=q, hints=(), runtime=_snapshot(None), final_limit=1)
+        for q in ('down', 'healthy')])
+    assert down.status == 'degraded' and healthy.status == 'success'
+    assert down.audit['final_tools'] == ['alpha']
+    assert healthy.audit['final_tools'] == ['beta']
+    assert down.audit['reasons'] and healthy.audit['reasons'] == []
+
+
+@pytest.mark.parametrize('stage,last_tool', [('embedding', 'alpha'), ('query', 'alpha'), ('reranker', 'zeta')])
+async def test_real_retriever_degradation_flows_through_candidate_policy(stage, last_tool):
+    from sandbox.tools.retriever import ToolRetriever
+
+    registry = ToolRegistry()
+    for name, exposure in [('mandatory', ToolExposure.ALWAYS), ('entry', ToolExposure.FRONT_DOOR),
+                           ('alpha', ToolExposure.SEMANTIC), ('zeta', ToolExposure.SEMANTIC)]:
+        registry.register(_tool(name), routing=ToolRoutingSpec(f'test.{name}', exposure))
+
+    class Embedding:
+        async def embed(self, texts):
+            if stage == 'embedding':
+                raise TimeoutError()
+            return [[1., 1.]]
+
+    class Store:
+        async def query(self, *args, **kwargs):
+            if stage == 'query':
+                raise ConnectionError()
+            assert kwargs['where']['tool_name']['$in'] == ['alpha', 'entry', 'zeta']
+            return {'ids': [['zeta', 'alpha']], 'documents': [['z', 'a']], 'distances': [[0., .2]]}
+
+    class Reranker:
+        async def rerank(self, *args, **kwargs):
+            raise TimeoutError()
+
+    result = await ToolRouter(registry, ToolRetriever(Store(), Embedding(), Reranker()), semantic_fetch_limit=1).select(
+        query='q', hints=(), runtime=_snapshot(None), final_limit=3)
+    assert result.status == 'degraded'
+    assert result.audit['final_tools'] == ['mandatory', 'entry', last_tool]
+    assert result.error.stage == stage

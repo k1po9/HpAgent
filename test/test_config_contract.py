@@ -154,7 +154,9 @@ async def test_existing_yaml_tool_limit_reaches_selection_without_rerank_overrid
 
     class ToolSandbox:
         async def select_tools(self, query, limit):
-            return [{'name': f'tool-{index}'} for index in range(limit)], {}
+            from sandbox.tools.routing.models import ToolSelectionResult
+
+            return ToolSelectionResult(tuple({'name': f'tool-{index}'} for index in range(limit)), {})
 
     manager = SimpleNamespace(get_sandbox_for_execution=lambda _: ToolSandbox())
     shared = build_shared_agent_services(
@@ -165,7 +167,7 @@ async def test_existing_yaml_tool_limit_reaches_selection_without_rerank_overrid
     selected = await shared.action_runtime.select_tools(
         user_content='query', resource_key='scratch', execution_id='execution',
     )
-    assert len(selected) == expected
+    assert len(selected.tool_schemas) == expected
 
 
 def test_nested_model_form_keeps_its_existing_precedence(tmp_path, caplog):

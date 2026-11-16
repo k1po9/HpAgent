@@ -91,7 +91,8 @@ async def test_removing_group_prevents_selection_and_execution(configuration, tm
     sandbox_id = manager.create_execution_sandbox("resource", str(tmp_path), session_context={"source_kind": "chat"})
     try:
         sandbox = manager.get_sandbox_for_execution("resource")
-        manifests, audit = await sandbox.select_tools("write a file", top_k=12)
+        selection = await sandbox.select_tools("write a file", top_k=12)
+        manifests, audit = selection.tool_schemas, selection.audit
         assert "fs_write" not in audit["tools"]
         assert all(tool["function"]["name"] != "fs_write" for tool in manifests)
         result, _ = await sandbox.execute("fs_write", {"path": "should-not-exist", "content": "data"})
@@ -120,7 +121,7 @@ async def test_child_registration_intersects_parent_manifest_and_read_only_metad
     })
     try:
         sandbox = manager.get_sandbox_for_execution("child")
-        _, audit = await sandbox.select_tools("read", top_k=12)
+        audit = (await sandbox.select_tools("read", top_k=12)).audit
         assert set(audit["tools"]) == {"fs_read", "remote_read"}
         for name in ("Glob", "remote_write", "Bash"):
             assert sandbox.get_tool_category(name) is None
@@ -139,7 +140,7 @@ async def test_configured_exposure_changes_actual_selection(configuration, tmp_p
     sandbox_id = manager.create_execution_sandbox("root", str(tmp_path))
     try:
         sandbox = manager.get_sandbox_for_execution("root")
-        _, audit = await sandbox.select_tools("", top_k=12)
+        audit = (await sandbox.select_tools("", top_k=12)).audit
         assert set(audit["always_candidates"]) == {"Glob", "Grep", "fs_read"}
     finally:
         manager.destroy_sandbox(sandbox_id)

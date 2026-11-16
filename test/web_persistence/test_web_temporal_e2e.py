@@ -82,7 +82,9 @@ class Actions:
         pass
 
     async def select_tools(self, **kwargs):
-        return []
+        from sandbox.tools.routing.models import ToolSelectionResult
+
+        return ToolSelectionResult((), {}, "no_eligible_tools")
 
 
 class Sandbox:
